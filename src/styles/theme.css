@@ -27,10 +27,10 @@
   --warning: #fbbf24;
   --warning-soft: rgba(251, 191, 36, 0.12);
   --resume-accent: #2dd4bf;
-  --match-accent: #38bdf8;
+  --match-accent: #4ade80;
   --letter-accent: #34d399;
   --interview-accent: #a855f7;
-  --career-accent: #22d3ee;
+  --career-accent: #f59e0b;
   --portfolio-accent: #f472b6;
   --font-sans: 'Geist', ui-sans-serif, system-ui, -apple-system, sans-serif;
   --type-display-xl: clamp(2.6rem, 4vw, 4rem);
@@ -124,10 +124,10 @@ html:not(.dark) {
   --sidebar-accent-foreground: #123120;
   --sidebar-border: rgba(25, 181, 109, 0.12);
   --resume-accent: #0d9e8e;
-  --match-accent: #0284c7;
+  --match-accent: #16a34a;
   --letter-accent: #0f9e6e;
   --interview-accent: #7c3aed;
-  --career-accent: #0891b2;
+  --career-accent: #d97706;
   --portfolio-accent: #db2777;
 }
 

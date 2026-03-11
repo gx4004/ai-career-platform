@@ -39,13 +39,13 @@ export function DashboardHero() {
   return (
     <section className="dash-hero">
       <FadeUp className="dash-hero-panel dash-hero-copy">
-        <div className="grid gap-5">
+        <div className="dash-hero-copy-inner">
           <Badge variant="outline" className="dash-hero-badge w-fit">
             <Sparkles size={12} />
             AI-powered workflow
           </Badge>
-          <div className="grid gap-3">
-            <h1 className="display-lg text-gradient-hero text-balance">
+          <div className="dash-hero-headline-group">
+            <h1 className="dash-hero-title text-gradient-hero">
               Build the search one strong decision at a time.
             </h1>
             <p className="dash-hero-body">
