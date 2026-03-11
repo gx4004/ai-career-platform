@@ -112,7 +112,7 @@ function CoverLetterResultPage() {
                   <button type="button" className="cl-toolbar-btn" onClick={() => exec('formatBlock', 'H3')} title="Heading"><Heading size={16} /></button>
                 </div>
               </div>
-              <div id={editorId} className="cl-editor-content" contentEditable suppressContentEditableWarning dangerouslySetInnerHTML={{ __html: letterText.replace(/\n/g, '<br>') }} />
+              <div id={editorId} className="cl-editor-content" contentEditable suppressContentEditableWarning role="textbox" aria-label="Cover letter editor" aria-multiline="true" dangerouslySetInnerHTML={{ __html: letterText.replace(/\n/g, '<br>') }} />
             </div>
           </SectionReveal>
           <SectionReveal index={2}>

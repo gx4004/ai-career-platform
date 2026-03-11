@@ -58,7 +58,7 @@ function CareerPathCard({ path }: { path: ReturnType<typeof normalizeCareerPaths
 
   return (
     <div className="wizard-result-card">
-      <button type="button" className="wizard-result-card-header" onClick={() => setExpanded((e) => !e)}>
+      <button type="button" className="wizard-result-card-header" aria-expanded={expanded} aria-label={`${path.role || 'Career path'} details`} onClick={() => setExpanded((e) => !e)}>
         <div className="wizard-result-card-left">
           <h3 className="section-title">{path.role || 'Career path'}</h3>
           <div className="flex flex-wrap items-center gap-2 mt-1">
@@ -208,7 +208,7 @@ export function CareerToolPage() {
               </SectionReveal>
               <SectionReveal index={1}>
                 <div className="wizard-result-list">
-                  {careerPaths.map((path, i) => <CareerPathCard key={i} path={path} />)}
+                  {careerPaths.map((path, i) => <CareerPathCard key={path.role || i} path={path} />)}
                 </div>
               </SectionReveal>
               <SectionReveal index={2}>

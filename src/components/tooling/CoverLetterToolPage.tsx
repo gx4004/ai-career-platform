@@ -75,8 +75,8 @@ function CoverLetterEditor({ initialText }: { initialText: string }) {
           <button type="button" className="cl-toolbar-btn" onClick={() => exec('formatBlock', 'H3')} title="Heading"><Heading size={16} /></button>
         </div>
         <div className="cl-editor-toolbar-group">
-          <button type="button" className="cl-toolbar-btn" onClick={handleCopy}><Copy size={14} /> {copied ? 'Copied!' : 'Copy'}</button>
-          <button type="button" className="cl-toolbar-btn" onClick={handleDownload}><Download size={14} /> Download</button>
+          <button type="button" className="cl-toolbar-btn" onClick={handleCopy} aria-label="Copy to clipboard"><Copy size={14} /> {copied ? 'Copied!' : 'Copy'}</button>
+          <button type="button" className="cl-toolbar-btn" onClick={handleDownload} aria-label="Download as text file"><Download size={14} /> Download</button>
         </div>
       </div>
       <div
@@ -84,6 +84,9 @@ function CoverLetterEditor({ initialText }: { initialText: string }) {
         className="cl-editor-content"
         contentEditable
         suppressContentEditableWarning
+        role="textbox"
+        aria-label="Cover letter editor"
+        aria-multiline="true"
         dangerouslySetInnerHTML={{ __html: initialText.replace(/\n/g, '<br>') }}
       />
     </div>

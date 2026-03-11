@@ -865,6 +865,12 @@ html:not(.dark) .dropzone-compact-strip {
   min-height: 16rem;
   perspective: 1000px;
   cursor: pointer;
+  outline: none;
+  border-radius: 1rem;
+}
+
+.flashcard:focus-visible {
+  box-shadow: 0 0 0 2px var(--tool-accent, var(--interview-accent));
 }
 
 .flashcard-front,

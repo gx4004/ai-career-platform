@@ -133,11 +133,18 @@ function FlashcardStack({
       </div>
       <p className="flashcard-counter">{currentIndex + 1} / {total}</p>
 
-      <div className={`flashcard ${flipped ? 'flashcard--flipped' : ''}`} onClick={() => setFlipped((f) => !f)}>
+      <div
+        className={`flashcard ${flipped ? 'flashcard--flipped' : ''}`}
+        role="button"
+        tabIndex={0}
+        aria-label={flipped ? 'Flip card to question' : 'Flip card to reveal answer'}
+        onClick={() => setFlipped((f) => !f)}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setFlipped((f) => !f) } }}
+      >
         <div className="flashcard-front">
           <Badge variant="outline" className="mb-3">Question</Badge>
           <p className="flashcard-question">{current.question}</p>
-          <p className="flashcard-hint">Tap to reveal answer</p>
+          <p className="flashcard-hint">Press Enter or tap to reveal answer</p>
         </div>
         <div className="flashcard-back">
           <Badge variant="outline" className="mb-3">Answer</Badge>
