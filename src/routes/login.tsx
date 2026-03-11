@@ -1,9 +1,11 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
+import { motion } from 'framer-motion'
 import { AppBrandLockup } from '#/components/app/AppBrandLockup'
 import { Badge } from '#/components/ui/badge'
 import { Button } from '#/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '#/components/ui/tabs'
 import { AppStatePanel } from '#/components/app/AppStatePanel'
+import { FadeUp } from '#/components/ui/motion'
 import { LoginForm } from '#/components/auth/LoginForm'
 import { ProofCard } from '#/components/illustrations/ProofCard'
 import { SceneEvidence } from '#/components/illustrations/SceneEvidence'
@@ -11,7 +13,12 @@ import { RegisterForm } from '#/components/auth/RegisterForm'
 import { useSession } from '#/hooks/useSession'
 import { toolList, tools } from '#/lib/tools/registry'
 
+const ease = [0.16, 1, 0.3, 1] as const
+
 export const Route = createFileRoute('/login')({
+  head: () => ({
+    meta: [{ title: 'Sign In | Career Workbench' }],
+  }),
   component: LoginPage,
 })
 
@@ -33,16 +40,21 @@ export function LoginPage() {
   return (
     <div className="auth-page">
       <div className="auth-panel">
-        <div className="auth-form-shell">
+        <motion.div
+          className="auth-form-shell"
+          initial={{ opacity: 0, y: 24 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, ease }}
+        >
           <div className="grid gap-6">
             <div className="grid gap-3">
-              <Link to="/dashboard" className="small-copy muted-copy">
-                Back to dashboard
+              <Link to="/dashboard" className="small-copy muted-copy auth-back-link">
+                ← Back to dashboard
               </Link>
               <AppBrandLockup className="auth-brand-lockup" />
               <div className="grid gap-2">
                 <h1 className="page-title">Your AI career suite.</h1>
-                <p className="muted-copy">
+                <p className="auth-intro-copy">
                   Sign in to save progress and sync across devices.
                 </p>
               </div>
@@ -75,19 +87,19 @@ export function LoginPage() {
               </div>
             ) : null}
           </div>
-        </div>
+        </motion.div>
       </div>
       <div className="auth-visual">
-        <div className="auth-visual-shell h-full p-8">
-          <div className="grid h-full gap-8">
+        <FadeUp delay={0.15} className="auth-visual-shell h-full">
+          <div className="auth-visual-inner">
             <div className="grid gap-3">
-              <Badge variant="outline" className="w-fit">
+              <Badge variant="outline" className="auth-visual-badge w-fit">
                 Six AI tools. One workflow.
               </Badge>
               <h2 className="display-lg text-gradient-brand">
                 Everything for a focused job search — in one place.
               </h2>
-              <p className="muted-copy">
+              <p className="auth-visual-body">
                 Resume review, role matching, application support, and longer-term planning all stay connected.
               </p>
             </div>
@@ -109,18 +121,22 @@ export function LoginPage() {
               {toolList.map((tool) => (
                 <div key={tool.id} className="auth-tool-mini">
                   <div className="flex items-center gap-3">
-                    <tool.icon size={16} style={{ color: tool.accent }} />
+                    <div className="auth-tool-mini-icon" style={{ color: tool.accent }}>
+                      <tool.icon size={16} />
+                    </div>
                     <div>
-                      <p>{tool.shortLabel}</p>
+                      <p className="auth-tool-mini-name">{tool.shortLabel}</p>
                       <p className="small-copy muted-copy">{tool.summary}</p>
                     </div>
                   </div>
                 </div>
               ))}
             </div>
-            <p className="small-copy muted-copy">6 tools · Free · 1 workflow</p>
+            <p className="small-copy muted-copy" style={{ textAlign: 'center' }}>
+              6 tools · Free · 1 workflow
+            </p>
           </div>
-        </div>
+        </FadeUp>
       </div>
     </div>
   )

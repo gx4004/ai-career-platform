@@ -10,6 +10,9 @@ type HistorySearch = {
 }
 
 export const Route = createFileRoute('/history')({
+  head: () => ({
+    meta: [{ title: 'History | Career Workbench' }],
+  }),
   validateSearch: (search): HistorySearch => ({
     tool: typeof search.tool === 'string' ? search.tool : undefined,
     favorite:

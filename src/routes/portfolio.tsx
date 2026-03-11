@@ -1,10 +1,13 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { ToolRouteScreen } from '#/components/tooling/ToolRouteScreen'
+import { PortfolioToolPage } from '#/components/tooling/PortfolioToolPage'
 
 export const Route = createFileRoute('/portfolio')({
+  head: () => ({
+    meta: [{ title: 'Portfolio Planner | Career Workbench' }],
+  }),
   component: PortfolioPage,
 })
 
 function PortfolioPage() {
-  return <ToolRouteScreen toolId="portfolio" />
+  return <PortfolioToolPage />
 }

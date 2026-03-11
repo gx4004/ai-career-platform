@@ -8,6 +8,9 @@ import { useOnboarding } from '#/hooks/useOnboarding'
 import { useTheme } from '#/hooks/useTheme'
 
 export const Route = createFileRoute('/settings')({
+  head: () => ({
+    meta: [{ title: 'Settings | Career Workbench' }],
+  }),
   component: SettingsPage,
 })
 

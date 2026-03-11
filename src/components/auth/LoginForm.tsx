@@ -16,7 +16,7 @@ export function LoginForm({
 
   return (
     <form
-      className="grid gap-4"
+      className="grid gap-5"
       onSubmit={async (event) => {
         event.preventDefault()
         setLoading(true)
@@ -28,7 +28,7 @@ export function LoginForm({
         }
       }}
     >
-      <div className="grid gap-2">
+      <div className="grid gap-1.5">
         <Label htmlFor="login-email">Email</Label>
         <Input
           id="login-email"
@@ -36,10 +36,11 @@ export function LoginForm({
           value={email}
           onChange={(event) => setEmail(event.target.value)}
           placeholder="you@example.com"
+          className="auth-input"
           required
         />
       </div>
-      <div className="grid gap-2">
+      <div className="grid gap-1.5">
         <Label htmlFor="login-password">Password</Label>
         <Input
           id="login-password"
@@ -47,11 +48,12 @@ export function LoginForm({
           value={password}
           onChange={(event) => setPassword(event.target.value)}
           placeholder="••••••••"
+          className="auth-input"
           required
         />
       </div>
       {authError ? <p className="small-copy" style={{ color: 'var(--destructive)' }}>{authError}</p> : null}
-      <Button type="submit" disabled={loading}>
+      <Button type="submit" size="lg" className="auth-submit w-full" disabled={loading}>
         {loading ? 'Signing in…' : 'Sign in'}
       </Button>
     </form>

@@ -24,15 +24,48 @@
 }
 
 .dash-hero-copy {
-  padding: 2.2rem;
+  padding: 2.5rem;
 }
 
 .dash-hero-side {
-  padding: 1.25rem;
+  padding: 1.5rem;
+}
+
+.dash-hero-badge {
+  gap: 0.4rem;
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+.dash-hero-body {
+  font-size: 1rem;
+  line-height: 1.65;
+  color: var(--text-soft);
 }
 
 .dash-hero-media {
   overflow: hidden;
+}
+
+/* ── Flow header (Resume → Match → Apply) ── */
+
+.dash-carousel-flow-header {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.2rem 0;
+}
+
+.dash-flow-label {
+  font-size: var(--type-section);
+  font-weight: 700;
+  letter-spacing: var(--tracking-section);
+}
+
+.dash-flow-arrow {
+  font-size: 1rem;
+  color: var(--text-muted);
+  opacity: 0.5;
 }
 
 /* ── Dashboard carousel ── */
@@ -78,33 +111,6 @@
   object-fit: cover;
   pointer-events: none;
   user-select: none;
-}
-
-.workflow-proof-strip {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.7rem;
-}
-
-.workflow-step--proof {
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--surface-raised) 88%, transparent),
-    color-mix(in srgb, var(--surface-focus) 86%, transparent)
-  );
-}
-
-.dash-hero-metrics {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.75rem;
-}
-
-.dash-hero-metric {
-  padding: 0.9rem 1rem;
-  border-radius: var(--radius-xl);
-  border: 1px solid var(--border-soft);
-  background: color-mix(in srgb, var(--surface-focus) 76%, transparent);
 }
 
 /* ── Quick start grid ── */
@@ -198,12 +204,12 @@
   transform: translateX(4px);
 }
 
-/* ── Main grid ── */
+/* ── Runs grid (two-box) ── */
 
-.dashboard-main-grid {
+.dashboard-runs-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 2rem;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--grid-gap, 1.5rem);
 }
 
 /* ── Run lists ── */
@@ -230,50 +236,9 @@
 }
 
 .run-row:hover {
-  transform: translateY(-2px);
+  transform: translateX(3px);
   border-color: var(--border-strong);
   box-shadow: 0 8px 24px color-mix(in srgb, var(--tool-accent, var(--accent)) 12%, transparent);
-}
-
-/* ── Workflow pipeline ── */
-
-.workflow-pipeline {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.8rem;
-}
-
-.workflow-step {
-  display: flex;
-  align-items: center;
-  gap: 0.65rem;
-  padding: 0.95rem 1.15rem;
-  border-radius: var(--radius-pill);
-  border: 1px solid var(--border-soft);
-  border-left: 2px solid transparent;
-  background: color-mix(in srgb, var(--surface-focus) 76%, transparent);
-}
-
-.workflow-step:hover {
-  border-left-color: var(--tool-accent);
-}
-
-.workflow-step--active {
-  border-left-color: var(--tool-accent);
-  background: color-mix(in srgb, var(--tool-accent) 8%, var(--surface-focus) 76%);
-  box-shadow: 0 0 16px color-mix(in srgb, var(--tool-accent) 10%, transparent);
-}
-
-.workflow-connector {
-  display: flex;
-  align-items: center;
-  color: var(--text-muted);
-  opacity: 0.5;
-}
-
-.workflow-arrow {
-  color: var(--text-muted);
 }
 
 /* ── Dashboard polish ── */
@@ -298,21 +263,126 @@
   box-shadow: var(--shadow-elevated);
 }
 
-.workflow-step {
-  transition:
-    transform var(--transition-fast),
-    background var(--transition-fast);
-}
-
-.workflow-step:hover {
-  transform: translateY(-2px);
-  background: color-mix(in srgb, var(--accent-soft) 40%, var(--surface-focus));
-}
-
 .empty-state-mini {
   display: grid;
   gap: 0.75rem;
   justify-items: center;
   text-align: center;
   padding: 1.5rem 1rem;
+}
+
+/* ── Onboarding tour ── */
+
+.tour-ring {
+  position: fixed;
+  z-index: 9998;
+  pointer-events: none;
+  border: 2px solid var(--accent);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 20%, transparent);
+  animation: tour-pulse 2s ease-in-out infinite;
+}
+
+@keyframes tour-pulse {
+  0%, 100% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 20%, transparent); }
+  50% { box-shadow: 0 0 0 8px color-mix(in srgb, var(--accent) 10%, transparent); }
+}
+
+.tour-tooltip {
+  position: fixed;
+  z-index: 9999;
+  width: 20rem;
+  padding: 1.15rem;
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--border-soft);
+  display: grid;
+  gap: 0.6rem;
+}
+
+.tour-tooltip-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.tour-close {
+  display: grid;
+  place-items: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  transition: color var(--transition-fast);
+}
+
+.tour-close:hover {
+  color: var(--text-strong);
+}
+
+.tour-tooltip-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--border-soft);
+}
+
+.tour-dots {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.tour-dot {
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 9999px;
+  background: var(--border-soft);
+  transition: all var(--transition-fast);
+}
+
+.tour-dot.is-active {
+  width: 1rem;
+  background: var(--accent);
+}
+
+.tour-dot.is-done {
+  background: color-mix(in srgb, var(--accent) 50%, transparent);
+}
+
+/* ── Light mode fixes ── */
+
+html:not(.dark) .dash-hero-panel,
+html:not(.dark) .dash-card {
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.88),
+    rgba(243, 251, 246, 0.92)
+  );
+  box-shadow: 0 4px 24px rgba(22, 84, 54, 0.06);
+  backdrop-filter: blur(12px) saturate(110%);
+}
+
+html:not(.dark) .quick-tool-card {
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.92),
+    rgba(243, 251, 246, 0.88)
+  );
+}
+
+html:not(.dark) .quick-tool-card::after {
+  opacity: 0.5;
+}
+
+html:not(.dark) .run-row {
+  background: rgba(255, 255, 255, 0.72);
+}
+
+html:not(.dark) .workflow-step--proof {
+  background: rgba(255, 255, 255, 0.72);
+}
+
+html:not(.dark) .tour-tooltip {
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(16px) saturate(120%);
+  box-shadow: 0 12px 40px rgba(22, 84, 54, 0.1);
 }

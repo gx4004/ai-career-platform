@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { useCarousel } from '#/hooks/useCarousel'
 import { toolList } from '#/lib/tools/registry'
 import carouselResume from '#/assets/carousel/carousel-resume.png'
 import carouselJobMatch from '#/assets/carousel/carousel-job-match.png'
@@ -27,42 +27,8 @@ const slideVariants = {
 }
 
 export function HeroMockup() {
-  const [activeIndex, setActiveIndex] = useState(0)
-  const [direction, setDirection] = useState(1)
-  const pausedRef = useRef(false)
-  const lastManualRef = useRef(0)
-
-  const goTo = useCallback(
-    (index: number) => {
-      setDirection(index > activeIndex ? 1 : -1)
-      setActiveIndex(index)
-      lastManualRef.current = Date.now()
-    },
-    [activeIndex],
-  )
-
-  const goNext = useCallback(() => {
-    setDirection(1)
-    setActiveIndex((i) => (i + 1) % toolList.length)
-    lastManualRef.current = Date.now()
-  }, [])
-
-  const goPrev = useCallback(() => {
-    setDirection(-1)
-    setActiveIndex((i) => (i - 1 + toolList.length) % toolList.length)
-    lastManualRef.current = Date.now()
-  }, [])
-
-  // Auto-advance
-  useEffect(() => {
-    const id = setInterval(() => {
-      if (pausedRef.current) return
-      if (Date.now() - lastManualRef.current < 6000) return
-      setDirection(1)
-      setActiveIndex((i) => (i + 1) % toolList.length)
-    }, 4000)
-    return () => clearInterval(id)
-  }, [])
+  const { activeIndex, direction, goTo, goNext, goPrev, hoverHandlers } =
+    useCarousel(toolList.length)
 
   const tool = toolList[activeIndex]
   const frameImage = FRAME_IMAGES[activeIndex]
@@ -75,8 +41,7 @@ export function HeroMockup() {
         initial={{ opacity: 0, y: 30, rotateY: -4, rotateX: 2 }}
         animate={{ opacity: 1, y: 0, rotateY: -4, rotateX: 2 }}
         transition={{ duration: 0.7, delay: 0.3, ease }}
-        onMouseEnter={() => (pausedRef.current = true)}
-        onMouseLeave={() => (pausedRef.current = false)}
+        {...hoverHandlers}
       >
         {/* Header */}
         <div className="hero-mockup-header">

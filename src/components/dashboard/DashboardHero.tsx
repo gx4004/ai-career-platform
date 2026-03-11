@@ -1,12 +1,12 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
 import { Link } from '@tanstack/react-router'
-import { ArrowRight, ChevronLeft, ChevronRight, FolderOpenDot } from 'lucide-react'
+import { ArrowRight, ChevronLeft, ChevronRight, FolderOpenDot, Sparkles } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Badge } from '#/components/ui/badge'
 import { Button } from '#/components/ui/button'
 import { FadeUp } from '#/components/ui/motion'
+import { useCarousel } from '#/hooks/useCarousel'
 import { useSession } from '#/hooks/useSession'
-import { toolGroups, tools } from '#/lib/tools/registry'
+import { tools } from '#/lib/tools/registry'
 import carouselResume from '#/assets/carousel/carousel-resume.png'
 import carouselJobMatch from '#/assets/carousel/carousel-job-match.png'
 import carouselCoverLetter from '#/assets/carousel/carousel-cover-letter.png'
@@ -29,41 +29,8 @@ const CAROUSEL_FRAMES = [
 
 export function DashboardHero() {
   const { status, openAuthDialog } = useSession()
-  const [activeIndex, setActiveIndex] = useState(0)
-  const [direction, setDirection] = useState(1)
-  const pausedRef = useRef(false)
-  const lastManualRef = useRef(0)
-
-  const goTo = useCallback(
-    (index: number) => {
-      setDirection(index > activeIndex ? 1 : -1)
-      setActiveIndex(index)
-      lastManualRef.current = Date.now()
-    },
-    [activeIndex],
-  )
-
-  const goNext = useCallback(() => {
-    setDirection(1)
-    setActiveIndex((i) => (i + 1) % CAROUSEL_TOOLS.length)
-    lastManualRef.current = Date.now()
-  }, [])
-
-  const goPrev = useCallback(() => {
-    setDirection(-1)
-    setActiveIndex((i) => (i - 1 + CAROUSEL_TOOLS.length) % CAROUSEL_TOOLS.length)
-    lastManualRef.current = Date.now()
-  }, [])
-
-  useEffect(() => {
-    const id = setInterval(() => {
-      if (pausedRef.current) return
-      if (Date.now() - lastManualRef.current < 6000) return
-      setDirection(1)
-      setActiveIndex((i) => (i + 1) % CAROUSEL_TOOLS.length)
-    }, 4000)
-    return () => clearInterval(id)
-  }, [])
+  const { activeIndex, direction, goTo, goNext, goPrev, hoverHandlers } =
+    useCarousel(CAROUSEL_TOOLS.length)
 
   const tool = CAROUSEL_TOOLS[activeIndex]
   const frame = CAROUSEL_FRAMES[activeIndex]
@@ -73,17 +40,20 @@ export function DashboardHero() {
     <section className="dash-hero">
       <FadeUp className="dash-hero-panel dash-hero-copy">
         <div className="grid gap-5">
-          <Badge variant="outline" className="w-fit">
-            Command center
+          <Badge variant="outline" className="dash-hero-badge w-fit">
+            <Sparkles size={12} />
+            AI-powered workflow
           </Badge>
           <div className="grid gap-3">
-            <h1 className="display-lg text-balance">Build the search one strong decision at a time.</h1>
-            <p className="muted-copy">
-              Review the resume, compare a real role, then keep the same context moving through the application workflow.
+            <h1 className="display-lg text-gradient-hero text-balance">
+              Build the search one strong decision at a time.
+            </h1>
+            <p className="dash-hero-body">
+              Upload your resume, match it against a live role, and apply with context that carries across every tool.
             </p>
           </div>
           <div className="button-cluster button-cluster--hero">
-            <Button asChild className="button-hero-primary" size="lg">
+            <Button asChild className="button-hero-primary" size="lg" data-tour="hero-cta">
               <Link to="/resume">
                 Start with resume
                 <ArrowRight size={16} />
@@ -118,14 +88,16 @@ export function DashboardHero() {
       </FadeUp>
       <FadeUp delay={0.15} className="dash-hero-panel dash-hero-side dash-hero-media">
         <div className="grid gap-4">
-          <div>
-            <p className="eyebrow mb-2">Recommended flow</p>
-            <h2 className="section-title">Resume → Match → Apply</h2>
+          <div className="dash-carousel-flow-header">
+            <span className="dash-flow-label" style={{ color: tools.resume.accent }}>Resume</span>
+            <span className="dash-flow-arrow">→</span>
+            <span className="dash-flow-label" style={{ color: tools['job-match'].accent }}>Match</span>
+            <span className="dash-flow-arrow">→</span>
+            <span className="dash-flow-label" style={{ color: tools['cover-letter'].accent }}>Apply</span>
           </div>
           <div
             className="dash-carousel glass-elevated"
-            onMouseEnter={() => (pausedRef.current = true)}
-            onMouseLeave={() => (pausedRef.current = false)}
+            {...hoverHandlers}
           >
             <div className="dash-carousel-header">
               <div className="hero-mockup-dots">
@@ -176,29 +148,6 @@ export function DashboardHero() {
                 <ChevronRight size={14} />
               </button>
             </div>
-          </div>
-          <div className="workflow-proof-strip">
-            {[...toolGroups.primary, ...toolGroups.application].map((tool, index) => (
-              <div key={tool.id} className="workflow-step workflow-step--proof">
-                <tool.icon size={16} style={{ color: tool.accent }} />
-                <span>{tool.shortLabel}</span>
-                {index < toolGroups.primary.length + toolGroups.application.length - 1 ? (
-                  <span className="workflow-arrow">→</span>
-                ) : null}
-              </div>
-            ))}
-          </div>
-          <div className="dash-hero-metrics">
-            {[
-              ['Core flow', 'Resume + Match'],
-              ['Apply faster', 'Letter + Interview'],
-              ['Plan ahead', 'Career + Portfolio'],
-            ].map(([label, value]) => (
-              <div key={label} className="dash-hero-metric">
-                <p className="small-copy muted-copy">{label}</p>
-                <p>{value}</p>
-              </div>
-            ))}
           </div>
         </div>
       </FadeUp>
