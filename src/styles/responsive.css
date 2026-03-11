@@ -1,8 +1,4 @@
 @media (max-width: 1180px) {
-  .dash-hero-metrics {
-    grid-template-columns: 1fr;
-  }
-
   .landing-hero-grid {
     gap: 2.25rem;
   }
@@ -20,8 +16,7 @@
     grid-template-columns: 1fr;
   }
 
-  .quick-start-grid,
-  .dashboard-main-grid {
+  .quick-start-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -85,9 +80,8 @@
 
   .history-stats,
   .quick-start-grid,
-  .dashboard-main-grid,
-  .landing-preview-proof,
-  .dash-hero-metrics {
+  .dashboard-runs-grid,
+  .landing-preview-proof {
     grid-template-columns: 1fr;
   }
 
@@ -160,11 +154,6 @@
   /* Dashboard carousel */
   .dash-carousel-stage {
     min-height: auto;
-  }
-
-  /* Pipeline tighten */
-  .workflow-pipeline {
-    gap: 0.5rem;
   }
 }
 

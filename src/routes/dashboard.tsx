@@ -1,22 +1,21 @@
 import { createFileRoute } from '@tanstack/react-router'
+import { useEffect } from 'react'
 import { DashboardHero } from '#/components/dashboard/DashboardHero'
-import { FavoriteRuns } from '#/components/dashboard/FavoriteRuns'
-import { GuestPrompt } from '#/components/dashboard/GuestPrompt'
 import { QuickStartGrid } from '#/components/dashboard/QuickStartGrid'
 import { RecentRuns } from '#/components/dashboard/RecentRuns'
-import { WorkflowPipeline } from '#/components/dashboard/WorkflowPipeline'
-import { OnboardingDialog } from '#/components/onboarding/OnboardingDialog'
+import { FavoriteRuns } from '#/components/dashboard/FavoriteRuns'
+import { OnboardingTour } from '#/components/onboarding/OnboardingTour'
 import { PageFrame } from '#/components/app/PageFrame'
 import { useOnboarding } from '#/hooks/useOnboarding'
-import { useSession } from '#/hooks/useSession'
-import { useEffect } from 'react'
 
 export const Route = createFileRoute('/dashboard')({
+  head: () => ({
+    meta: [{ title: 'Dashboard | Career Workbench' }],
+  }),
   component: DashboardPage,
 })
 
 function DashboardPage() {
-  const { status } = useSession()
   const onboarding = useOnboarding()
 
   useEffect(() => {
@@ -29,19 +28,16 @@ function DashboardPage() {
     <PageFrame>
       <div className="content-max dashboard-layout dashboard-stack">
         <DashboardHero />
-        {status !== 'authenticated' ? <GuestPrompt /> : null}
         <QuickStartGrid />
-        <div className="dashboard-main-grid">
+        <div className="dashboard-runs-grid" data-tour="activity">
           <RecentRuns />
           <FavoriteRuns />
         </div>
-        <WorkflowPipeline />
       </div>
-      <OnboardingDialog
+      <OnboardingTour
         open={onboarding.open}
         onComplete={onboarding.complete}
         onSkip={onboarding.skip}
-        onOpenChange={onboarding.setOpen}
       />
     </PageFrame>
   )

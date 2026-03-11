@@ -6,6 +6,9 @@ import { AppStatePanel } from '#/components/app/AppStatePanel'
 import { useSession } from '#/hooks/useSession'
 
 export const Route = createFileRoute('/account')({
+  head: () => ({
+    meta: [{ title: 'Account | Career Workbench' }],
+  }),
   component: AccountPage,
 })
 

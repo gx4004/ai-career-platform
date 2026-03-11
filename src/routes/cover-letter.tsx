@@ -1,10 +1,13 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { ToolRouteScreen } from '#/components/tooling/ToolRouteScreen'
+import { CoverLetterToolPage } from '#/components/tooling/CoverLetterToolPage'
 
 export const Route = createFileRoute('/cover-letter')({
+  head: () => ({
+    meta: [{ title: 'Cover Letter | Career Workbench' }],
+  }),
   component: CoverLetterPage,
 })
 
 function CoverLetterPage() {
-  return <ToolRouteScreen toolId="cover-letter" />
+  return <CoverLetterToolPage />
 }

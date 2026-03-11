@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { useRouterState } from '@tanstack/react-router'
 import { CommandPalette } from '#/components/app/CommandPalette'
+import { ErrorBoundary } from '#/components/app/ErrorBoundary'
 import { AppSidebar } from '#/components/app/AppSidebar'
 import { MobileNav } from '#/components/app/MobileNav'
 import { Topbar } from '#/components/app/Topbar'
@@ -18,10 +19,10 @@ export function AppShell({ children }: { children: ReactNode }) {
   if (isShellless) {
     return (
       <TooltipProvider delayDuration={120}>
-        <>
+        <ErrorBoundary>
           {children}
           <AuthDialog />
-        </>
+        </ErrorBoundary>
       </TooltipProvider>
     )
   }
@@ -33,7 +34,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <SidebarInset>
           <div className="app-main">
             <Topbar />
-            {children}
+            <ErrorBoundary>{children}</ErrorBoundary>
           </div>
         </SidebarInset>
         <MobileNav />

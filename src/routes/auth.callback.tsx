@@ -2,6 +2,9 @@ import { createFileRoute } from '@tanstack/react-router'
 import { AppStatePanel } from '#/components/app/AppStatePanel'
 
 export const Route = createFileRoute('/auth/callback')({
+  head: () => ({
+    meta: [{ title: 'Authenticating… | Career Workbench' }],
+  }),
   component: AuthCallbackPage,
 })
 

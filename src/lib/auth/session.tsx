@@ -101,8 +101,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     }
 
     if (pendingIntent?.to && typeof window !== 'undefined') {
-      if (window.location.pathname !== pendingIntent.to) {
-        window.location.assign(pendingIntent.to)
+      const to = pendingIntent.to
+      // Only allow relative paths to prevent open redirect
+      if (to.startsWith('/') && !to.startsWith('//')) {
+        if (window.location.pathname !== to) {
+          window.location.assign(to)
+        }
       }
     }
   }, [])

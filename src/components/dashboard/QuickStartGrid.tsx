@@ -21,7 +21,7 @@ const TOOL_THUMBNAILS: Record<ToolId, string> = {
 
 export function QuickStartGrid() {
   return (
-    <section className="grid gap-4">
+    <section className="grid gap-4" data-tour="quick-start">
       <div className="grid gap-1">
         <p className="eyebrow">Quick start</p>
         <h2 className="section-title">Six tools, one connected workflow</h2>
