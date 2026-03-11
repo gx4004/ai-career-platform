@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <linearGradient id="markGradient" x1="10" y1="8" x2="54" y2="56" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#7BF0B2" />
+      <stop offset="1" stop-color="#2CCF9A" />
+    </linearGradient>
+  </defs>
+  <rect x="4" y="4" width="56" height="56" rx="18" fill="#071611" />
+  <rect x="4.5" y="4.5" width="55" height="55" rx="17.5" stroke="rgba(123, 240, 178, 0.22)" />
+  <path
+    d="M18 20.5C18 18.0147 20.0147 16 22.5 16H31.5C34.2614 16 36.5 18.2386 36.5 21V23C36.5 25.7614 34.2614 28 31.5 28H24.5C23.1193 28 22 29.1193 22 30.5C22 31.8807 23.1193 33 24.5 33H34.5C37.5376 33 40 35.4624 40 38.5C40 41.5376 37.5376 44 34.5 44H22.5C20.0147 44 18 41.9853 18 39.5"
+    stroke="url(#markGradient)"
+    stroke-width="5"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+  <path
+    d="M39 18L46 25L39 32"
+    stroke="#EFFEF4"
+    stroke-width="4"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+</svg>

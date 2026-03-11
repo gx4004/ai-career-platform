@@ -1,0 +1,163 @@
+.tool-screen {
+  display: grid;
+  gap: 1.5rem;
+}
+
+.tool-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(20rem, 0.92fr);
+  gap: 1.5rem;
+  align-items: start;
+}
+
+.tool-panel,
+.tool-info-card,
+.tool-sticky-bar,
+.import-card {
+  border-radius: var(--radius-2xl);
+  border: 1px solid var(--border-soft);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--surface-raised) 92%, transparent),
+    color-mix(in srgb, var(--surface-focus) 88%, transparent)
+  );
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(18px) saturate(132%);
+}
+
+.tool-panel {
+  padding: 1.45rem;
+}
+
+.tool-info-card {
+  position: sticky;
+  top: 6rem;
+  padding: 1.35rem;
+  overflow: hidden;
+}
+
+.tool-info-card .section-card {
+  overflow: hidden;
+}
+
+.tool-form-grid {
+  display: grid;
+  gap: 1.1rem;
+}
+
+.tool-field-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.45rem;
+  color: var(--text-strong);
+  font-size: var(--type-small);
+  font-weight: 600;
+  gap: 1rem;
+}
+
+.tool-helper {
+  color: var(--text-muted);
+  font-size: var(--type-small);
+}
+
+.tool-seed-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.9rem 1rem;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-soft);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent-soft) 78%, transparent),
+    color-mix(in srgb, var(--surface-focus) 84%, transparent)
+  );
+  color: var(--text-strong);
+}
+
+.tool-sticky-wrap {
+  position: sticky;
+  bottom: 1rem;
+  z-index: 10;
+}
+
+.tool-sticky-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.1rem;
+}
+
+.tool-upload-dropzone {
+  display: grid;
+  place-items: center;
+  gap: 0.65rem;
+  min-height: 9rem;
+  padding: 1rem;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-xl);
+  background: color-mix(in srgb, var(--surface-focus) 74%, transparent);
+  text-align: center;
+}
+
+.tool-loading-box {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 0.9rem 1rem;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-soft);
+  background: color-mix(in srgb, var(--surface-focus) 78%, transparent);
+  white-space: nowrap;
+}
+
+.tool-spinner {
+  width: 1rem;
+  height: 1rem;
+  border-radius: 9999px;
+  border: 2px solid color-mix(in srgb, var(--tool-accent) 28%, transparent);
+  border-top-color: var(--tool-accent);
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ── Tooling polish ── */
+
+.tool-panel {
+  transition: box-shadow var(--transition-smooth);
+}
+
+.tool-info-card {
+  transition: box-shadow var(--transition-smooth);
+}
+
+.tool-info-card:hover {
+  box-shadow: var(--shadow-elevated);
+}
+
+.tool-upload-dropzone {
+  transition:
+    border-color var(--transition-fast),
+    background var(--transition-fast);
+}
+
+.tool-upload-dropzone:hover {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent-soft) 30%, var(--surface-focus));
+}
+
+.tool-form-grid > * {
+  animation: fade-up 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.tool-form-grid > *:nth-child(1) { animation-delay: 0s; }
+.tool-form-grid > *:nth-child(2) { animation-delay: 0.04s; }
+.tool-form-grid > *:nth-child(3) { animation-delay: 0.08s; }
+.tool-form-grid > *:nth-child(4) { animation-delay: 0.12s; }
