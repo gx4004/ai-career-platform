@@ -5,7 +5,7 @@
 
 .dash-hero {
   display: grid;
-  grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr);
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
   gap: 1.5rem;
   align-items: stretch;
 }
@@ -24,7 +24,30 @@
 }
 
 .dash-hero-copy {
-  padding: 2.5rem;
+  padding: 3rem 2.75rem;
+  display: flex;
+  align-items: center;
+}
+
+.dash-hero-copy-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 1.75rem;
+  width: 100%;
+}
+
+.dash-hero-headline-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.dash-hero-title {
+  font-size: var(--type-display-lg);
+  font-weight: 800;
+  line-height: 1.15;
+  letter-spacing: -0.025em;
+  text-wrap: balance;
 }
 
 .dash-hero-side {
@@ -35,12 +58,15 @@
   gap: 0.4rem;
   color: var(--accent);
   border-color: color-mix(in srgb, var(--accent) 30%, transparent);
+  font-size: 0.8rem;
+  letter-spacing: 0.02em;
 }
 
 .dash-hero-body {
-  font-size: 1rem;
-  line-height: 1.65;
+  font-size: 1.05rem;
+  line-height: 1.7;
   color: var(--text-soft);
+  max-width: 38ch;
 }
 
 .dash-hero-media {
@@ -251,9 +277,7 @@
   will-change: transform;
 }
 
-.dash-hero-copy .display-lg {
-  line-height: 1.05;
-}
+/* (display-lg override removed — .dash-hero-title handles this now) */
 
 .dash-card {
   transition: box-shadow var(--transition-smooth);
