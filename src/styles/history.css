@@ -1,0 +1,120 @@
+.history-layout {
+  display: grid;
+  gap: 1.5rem;
+}
+
+.history-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.history-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.history-pill-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.history-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.55rem 0.85rem;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border-soft);
+  background: color-mix(in srgb, var(--surface-focus) 74%, transparent);
+  color: var(--text-muted);
+  white-space: nowrap;
+  transition:
+    transform var(--transition-fast),
+    border-color var(--transition-fast),
+    background var(--transition-fast);
+}
+
+.history-pill:hover {
+  transform: translateY(-1px);
+  border-color: var(--border-strong);
+}
+
+.history-pill.is-active {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent-soft) 78%, transparent),
+    color-mix(in srgb, var(--surface-focus) 82%, transparent)
+  );
+  color: var(--text-strong);
+}
+
+.history-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(18.75rem, 1fr));
+  gap: 1rem;
+}
+
+.history-card {
+  position: relative;
+  display: grid;
+  gap: 1rem;
+  padding: 1.2rem;
+  border-radius: var(--radius-2xl);
+  border: 1px solid var(--border-soft);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--surface-raised) 92%, transparent),
+    color-mix(in srgb, var(--surface-focus) 88%, transparent)
+  );
+  box-shadow: var(--shadow-soft);
+  transition:
+    transform var(--transition-fast),
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast);
+}
+
+.history-card::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  border-radius: var(--radius-2xl) 0 0 var(--radius-2xl);
+  background: var(--tool-accent);
+}
+
+.history-card:hover {
+  transform: translateY(-3px);
+  border-color: color-mix(in srgb, var(--tool-accent) 26%, var(--border-soft));
+  box-shadow: var(--shadow-elevated);
+}
+
+.history-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+/* ── History polish ── */
+
+.history-filter-row {
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--border-soft);
+  background: color-mix(in srgb, var(--surface-focus) 60%, transparent);
+}
+
+.history-card {
+  will-change: transform;
+}
+
+.history-pagination {
+  padding: 1rem;
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--border-soft);
+  background: color-mix(in srgb, var(--surface-focus) 60%, transparent);
+}

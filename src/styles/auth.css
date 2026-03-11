@@ -1,0 +1,77 @@
+.auth-page {
+  min-height: 100svh;
+  display: grid;
+  grid-template-columns: minmax(0, 0.84fr) minmax(0, 1.16fr);
+}
+
+.auth-panel {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: clamp(1.5rem, 5vw, 4rem);
+}
+
+.auth-form-shell,
+.auth-visual-shell {
+  border-radius: var(--radius-2xl);
+  border: 1px solid var(--border-soft);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--surface-raised) 94%, transparent),
+    color-mix(in srgb, var(--surface-focus) 88%, transparent)
+  );
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(20px) saturate(136%);
+}
+
+.auth-form-shell {
+  padding: 1.5rem;
+}
+
+.auth-visual {
+  padding: clamp(1.5rem, 5vw, 4rem);
+  background:
+    radial-gradient(38rem 18rem at 10% 10%, rgba(71, 226, 161, 0.18), transparent 60%),
+    radial-gradient(34rem 18rem at 100% 0%, rgba(35, 203, 162, 0.16), transparent 60%),
+    var(--background);
+}
+
+.auth-evidence-stage {
+  min-height: 22rem;
+}
+
+.auth-evidence-stage .scene-evidence-overlay {
+  align-items: end;
+}
+
+.auth-proof-card {
+  justify-self: end;
+  width: min(100%, 18rem);
+}
+
+.auth-tool-mini-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.9rem;
+}
+
+.auth-tool-mini {
+  padding: 0.95rem 1rem;
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--border-soft);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--surface-raised) 88%, transparent),
+    color-mix(in srgb, var(--surface-focus) 84%, transparent)
+  );
+  transition:
+    transform var(--transition-fast),
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast);
+}
+
+.auth-tool-mini:hover {
+  transform: translateY(-2px);
+  border-color: var(--border-strong);
+  box-shadow: 0 14px 30px rgba(7, 56, 31, 0.12);
+}
