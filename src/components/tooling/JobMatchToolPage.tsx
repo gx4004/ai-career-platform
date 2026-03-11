@@ -132,16 +132,16 @@ export function JobMatchToolPage() {
 
                 <div className="jobmatch-panel">
                   <h3 className="section-title">Job Description</h3>
-                  <div className="grid gap-2">
-                    <Textarea
-                      rows={10}
-                      value={jobDescription}
-                      onChange={(e) => setJobDescription(e.target.value)}
-                      placeholder="Paste the full job posting here…"
-                    />
+                  <Textarea
+                    rows={10}
+                    value={jobDescription}
+                    onChange={(e) => setJobDescription(e.target.value)}
+                    placeholder="Paste the full job posting here…"
+                  />
+                  {errors.jobDescription && <p className="small-copy" style={{ color: 'var(--destructive)' }}>{errors.jobDescription}</p>}
+                  <div style={{ marginTop: 'auto' }}>
                     <JobImportCard onImported={(desc) => setJobDescription(desc)} />
                   </div>
-                  {errors.jobDescription && <p className="small-copy mt-2" style={{ color: 'var(--destructive)' }}>{errors.jobDescription}</p>}
                 </div>
               </div>
 
