@@ -94,8 +94,8 @@ function FlashcardPractice({ questions, accent }: { questions: ReturnType<typeof
     <div className="flashcard-stack" style={{ '--tool-accent': accent } as React.CSSProperties}>
       <div className="flashcard-progress"><div className="flashcard-progress-bar" style={{ width: `${((ci + 1) / total) * 100}%` }} /></div>
       <p className="flashcard-counter">{ci + 1} / {total}</p>
-      <div className={`flashcard ${flipped ? 'flashcard--flipped' : ''}`} onClick={() => setFlipped((f) => !f)}>
-        <div className="flashcard-front"><Badge variant="outline" className="mb-3">Question</Badge><p className="flashcard-question">{current.question}</p><p className="flashcard-hint">Tap to reveal answer</p></div>
+      <div className={`flashcard ${flipped ? 'flashcard--flipped' : ''}`} role="button" tabIndex={0} aria-label={flipped ? 'Flip card to question' : 'Flip card to reveal answer'} onClick={() => setFlipped((f) => !f)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setFlipped((f) => !f) } }}>
+        <div className="flashcard-front"><Badge variant="outline" className="mb-3">Question</Badge><p className="flashcard-question">{current.question}</p><p className="flashcard-hint">Press Enter or tap to reveal answer</p></div>
         <div className="flashcard-back"><Badge variant="outline" className="mb-3">Answer</Badge><p className="flashcard-answer">{current.answer || 'No suggested answer.'}</p>{current.keyPoints.length > 0 && <div className="flashcard-keypoints">{current.keyPoints.map((p) => <Badge key={p} variant="outline">{p}</Badge>)}</div>}</div>
       </div>
       {flipped && !ratings[ci] && (

@@ -193,7 +193,7 @@ export function PortfolioToolPage() {
               </SectionReveal>
               <SectionReveal index={1}>
                 <div className="portfolio-project-grid">
-                  {projects.map((p, i) => <ProjectCard key={i} project={p} />)}
+                  {projects.map((p, i) => <ProjectCard key={p.name || i} project={p} />)}
                 </div>
               </SectionReveal>
               <SectionReveal index={2}>
