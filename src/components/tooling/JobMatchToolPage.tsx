@@ -101,7 +101,7 @@ export function JobMatchToolPage() {
 
               <div className="jobmatch-split">
                 <div className="jobmatch-panel">
-                  <h3 className="section-title mb-3">Your Resume</h3>
+                  <h3 className="section-title">Your Resume</h3>
                   {resumeReady ? (
                     <DropzoneHero onParsed={handleResumeParsed} accent={tool.accent} compact />
                   ) : (
@@ -113,7 +113,7 @@ export function JobMatchToolPage() {
                     />
                   )}
                   {!resumeReady && (
-                    <div className="mt-3 grid gap-2">
+                    <div className="grid gap-2">
                       <Label htmlFor="jm-resume">Or paste resume text</Label>
                       <Textarea
                         id="jm-resume"
@@ -127,11 +127,11 @@ export function JobMatchToolPage() {
                       />
                     </div>
                   )}
-                  {errors.resumeText && <p className="small-copy mt-2" style={{ color: 'var(--destructive)' }}>{errors.resumeText}</p>}
+                  {errors.resumeText && <p className="small-copy" style={{ color: 'var(--destructive)' }}>{errors.resumeText}</p>}
                 </div>
 
                 <div className="jobmatch-panel">
-                  <h3 className="section-title mb-3">Job Description</h3>
+                  <h3 className="section-title">Job Description</h3>
                   <div className="grid gap-2">
                     <Textarea
                       rows={10}
