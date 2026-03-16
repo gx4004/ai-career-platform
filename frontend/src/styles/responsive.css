@@ -1,0 +1,202 @@
+@media (max-width: 1180px) {
+  .landing-hero-grid {
+    gap: 2.25rem;
+  }
+
+  .landing-preview-proof {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 1100px) {
+  .dash-hero,
+  .landing-hero-grid,
+  .tool-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .landing-evidence-stage .scene-evidence-overlay {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto;
+    align-items: end;
+  }
+
+  .landing-hero {
+    min-height: auto;
+  }
+
+  .landing-hero-copy {
+    max-width: none;
+  }
+
+  /* Tool showcase: collapse sticky layout */
+  .landing-tool-showcase {
+    grid-template-columns: 1fr;
+  }
+
+  .landing-preview-panel {
+    position: static;
+    top: calc(72px + 2rem);
+    min-height: 24rem;
+  }
+
+  .landing-tool-cards {
+    display: flex;
+    overflow-x: auto;
+    gap: 0.75rem;
+    padding-bottom: 0.5rem;
+    scroll-snap-type: x mandatory;
+  }
+
+  .landing-tool-card {
+    min-width: 16rem;
+    flex-shrink: 0;
+    scroll-snap-align: start;
+  }
+}
+
+@media (max-width: 768px) {
+  .topbar-inner {
+    padding-inline: 1rem;
+  }
+
+  .page-shell {
+    padding: 1rem 1rem 7rem;
+  }
+
+  .landing-section {
+    padding-inline: 1rem;
+  }
+
+  .history-stats,
+  .dashboard-runs-grid,
+  .landing-preview-proof {
+    grid-template-columns: 1fr;
+  }
+
+  /* Demo: single column */
+  .landing-demo-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .topbar-page-description {
+    display: none;
+  }
+
+  .mobile-nav-pill {
+    display: flex;
+  }
+
+  .app-main {
+    padding-bottom: 6rem;
+  }
+
+  .tool-sticky-wrap {
+    bottom: 5.5rem;
+  }
+
+  .tool-sticky-bar,
+  .history-pagination {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .auth-page-actions {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .landing-hero {
+    min-height: auto;
+  }
+
+  .landing-hero-grid {
+    gap: 1.75rem;
+  }
+
+  .landing-hero-copy {
+    gap: 1.2rem;
+  }
+
+  .landing-preview-panel {
+    padding: 1.15rem;
+  }
+
+  /* Navbar: smaller buttons */
+  .landing-navbar-actions .button-hero-primary {
+    padding-inline: 0.75rem;
+    font-size: var(--type-small);
+  }
+
+  .landing-navbar-actions [data-slot='button'] {
+    min-width: 0;
+  }
+
+  .landing-cta {
+    padding: 1.5rem;
+  }
+
+  /* Hero mockup: scale down */
+  .hero-mockup-inner {
+    transform: none;
+  }
+
+  .hero-mockup-frame {
+    grid-template-columns: 1fr;
+  }
+
+  /* Dashboard carousel */
+  .dash-carousel-stage {
+    min-height: auto;
+  }
+}
+
+@media (max-width: 640px) {
+  .landing-tool-card {
+    min-width: 14rem;
+  }
+}
+
+/* ── Responsive polish ── */
+
+@media (max-width: 768px) {
+  .onboarding-dialog {
+    max-width: calc(100vw - 2rem) !important;
+    margin: 1rem !important;
+  }
+
+  .onboarding-goals {
+    gap: 0.5rem;
+  }
+
+  .onboarding-tools-preview {
+    gap: 0.4rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .landing-hero-copy .display-xl {
+    font-size: clamp(1.8rem, 6vw, 2.6rem);
+  }
+
+  .hero-mockup-nav-btn {
+    display: none;
+  }
+
+  .auth-page-shell {
+    width: 100%;
+    padding: 0.9rem;
+  }
+
+  .auth-dialog-content {
+    max-width: calc(100vw - 1rem);
+  }
+
+  .auth-surface {
+    padding: 1rem;
+  }
+
+  .onboarding-dialog-inner {
+    padding: 1.25rem;
+  }
+}

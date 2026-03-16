@@ -1,0 +1,130 @@
+.history-layout {
+  display: grid;
+  gap: 1.5rem;
+}
+
+.history-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.history-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.history-pill-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.history-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.55rem 0.85rem;
+  border-radius: var(--radius-pill);
+  border: 1px solid color-mix(in srgb, var(--border-soft) 86%, white 14%);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), var(--surface-focus));
+  color: var(--text-muted);
+  white-space: nowrap;
+  transition:
+    transform var(--transition-fast),
+    border-color var(--transition-fast),
+    background var(--transition-fast);
+}
+
+.history-pill:hover {
+  transform: translateY(-1px);
+  border-color: var(--border-strong);
+}
+
+.history-pill.is-active {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 8%, white), rgba(255, 255, 255, 0.96));
+  color: var(--text-strong);
+}
+
+.history-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(18.75rem, 1fr));
+  gap: 1rem;
+}
+
+.history-card {
+  position: relative;
+  display: grid;
+  gap: 1rem;
+  padding: 1.2rem;
+  overflow: hidden;
+  border-radius: calc(var(--radius-2xl) + 0.05rem);
+  border: 1px solid color-mix(in srgb, var(--border-soft) 86%, white 14%);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), var(--surface-subtle));
+  box-shadow: var(--shadow-soft);
+  transition:
+    transform var(--transition-fast),
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast);
+}
+
+.history-card::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  border-radius: var(--radius-2xl) 0 0 var(--radius-2xl);
+  background: var(--tool-accent);
+}
+
+.history-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at top right, color-mix(in srgb, var(--tool-accent, var(--accent)) 10%, transparent), transparent 34%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.55), transparent 30%);
+}
+
+.history-card > * {
+  position: relative;
+  z-index: 1;
+}
+
+.history-card:hover {
+  transform: translateY(-3px);
+  border-color: var(--border-strong);
+  box-shadow: 0 20px 42px rgba(16, 42, 67, 0.08), 0 6px 16px rgba(16, 42, 67, 0.05);
+}
+
+.history-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+/* ── History polish ── */
+
+.history-filter-row {
+  padding: 0.75rem 1rem;
+  border-radius: calc(var(--radius-xl) + 0.1rem);
+  border: 1px solid color-mix(in srgb, var(--border-soft) 86%, white 14%);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), var(--surface-focus));
+  box-shadow: var(--shadow-soft);
+}
+
+.history-card {
+  will-change: transform;
+}
+
+.history-pagination {
+  padding: 1rem;
+  border-radius: calc(var(--radius-xl) + 0.1rem);
+  border: 1px solid color-mix(in srgb, var(--border-soft) 86%, white 14%);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), var(--surface-focus));
+  box-shadow: var(--shadow-soft);
+}

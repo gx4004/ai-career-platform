@@ -1,0 +1,197 @@
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes glow-pulse {
+  0%,
+  100% {
+    box-shadow: var(--shadow-soft);
+  }
+
+  50% {
+    box-shadow: var(--shadow-elevated);
+  }
+}
+
+@keyframes count-up {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes scan-sweep {
+  from {
+    top: 0;
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  to {
+    top: 100%;
+    opacity: 0;
+  }
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 200% center;
+  }
+
+  to {
+    background-position: -200% center;
+  }
+}
+
+.page-frame {
+  animation: fade-up 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.tool-hero {
+  animation: fade-up 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: 0.04s;
+}
+
+.ra-form-wrap {
+  animation: fade-up 0.36s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: 0.08s;
+}
+
+.result-hero {
+  animation: fade-in 0.28s ease both;
+}
+
+.result-body {
+  animation: fade-up 0.38s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: 0.1s;
+}
+
+.dash-hero {
+  animation: fade-up 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.h-stat-card {
+  animation: scale-in 0.32s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+[role='tabpanel'] {
+  animation: fade-up 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.dashboard-stack > * {
+  animation: fade-up 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.dashboard-stack > *:nth-child(1) {
+  animation-delay: 0s;
+}
+
+.dashboard-stack > *:nth-child(2) {
+  animation-delay: 0.05s;
+}
+
+.dashboard-stack > *:nth-child(3) {
+  animation-delay: 0.1s;
+}
+
+.dashboard-stack > *:nth-child(4) {
+  animation-delay: 0.15s;
+}
+
+.dashboard-stack > *:nth-child(5) {
+  animation-delay: 0.2s;
+}
+
+/* ── Animation polish ── */
+
+@keyframes slide-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slide-in-left {
+  from {
+    opacity: 0;
+    transform: translateX(-16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.animate-slide-in-right {
+  animation: slide-in-right 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-slide-in-left {
+  animation: slide-in-left 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+/* Improved skeleton shimmer */
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--surface-focus),
+    var(--border-soft),
+    var(--surface-focus)
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.8s ease-in-out infinite;
+  border-radius: var(--radius-md);
+}

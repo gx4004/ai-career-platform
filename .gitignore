@@ -1,9 +1,8 @@
+# Frontend
 node_modules
-.DS_Store
 dist
 dist-ssr
 *.local
-.env
 .nitro
 .tanstack
 .wrangler
@@ -11,3 +10,19 @@ dist-ssr
 .vinxi
 __unconfig*
 todos.json
+
+# Backend
+.venv
+__pycache__
+*.pyc
+*.db
+*.sqlite3
+file::memory:
+.pytest_cache
+.mypy_cache
+.ruff_cache
+
+# General
+.DS_Store
+.env
+.codex-*.png
