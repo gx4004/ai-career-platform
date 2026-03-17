@@ -38,7 +38,7 @@
 }
 
 .landing-section-heading .display-lg {
-  line-height: 1.08;
+  line-height: 1.05;
 }
 
 /* ── Navbar ── */
@@ -116,7 +116,7 @@
 }
 
 .landing-hero-copy .display-xl {
-  line-height: 1.02;
+  line-height: 1.0;
 }
 
 .landing-hero-copy > :first-child {
