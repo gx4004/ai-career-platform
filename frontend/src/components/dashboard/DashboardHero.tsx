@@ -32,7 +32,11 @@ export function DashboardHero() {
         <DropzoneHero
           accent={tools.resume.accent}
           onParsed={(text) => {
-            writeWorkflowContext({ resumeText: text, updatedAt: Date.now() })
+            writeWorkflowContext({
+              resumeText: text,
+              resumePendingReview: true,
+              updatedAt: Date.now(),
+            })
             navigate({ to: '/resume' })
           }}
         />

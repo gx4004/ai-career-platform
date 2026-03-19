@@ -1,56 +1,62 @@
-import type { AnchorHTMLAttributes, ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { fireEvent, render, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { DashboardHero } from '#/components/dashboard/DashboardHero'
 
+const navigateMock = vi.hoisted(() => vi.fn())
+const writeWorkflowContextMock = vi.hoisted(() => vi.fn())
+
 vi.mock('@tanstack/react-router', () => ({
-  Link: ({
-    children,
-    to,
-    ...props
-  }: {
-    children: ReactNode
-    to: string
-  } & AnchorHTMLAttributes<HTMLAnchorElement>) => (
-    <a href={to} {...props}>
-      {children}
-    </a>
+  useNavigate: () => navigateMock,
+}))
+
+vi.mock('#/components/ui/motion', () => ({
+  FadeUp: ({ children, className }: { children: ReactNode; className?: string }) => (
+    <div className={className}>{children}</div>
   ),
 }))
 
-vi.mock('#/hooks/useSession', () => ({
-  useSession: () => ({
-    status: 'guest',
-    openAuthDialog: vi.fn(),
-  }),
+vi.mock('#/components/tooling/DropzoneHero', () => ({
+  DropzoneHero: ({ onParsed }: { onParsed: (text: string) => void }) => {
+    return (
+      <button type="button" onClick={() => onParsed('Parsed dashboard resume text')}>
+        Simulate dashboard parse
+      </button>
+    )
+  },
+}))
+
+vi.mock('#/lib/tools/drafts', () => ({
+  writeWorkflowContext: (payload: unknown) => writeWorkflowContextMock(payload),
 }))
 
 describe('DashboardHero', () => {
-  it('renders the real carousel image for the active tool', () => {
-    render(<DashboardHero />)
-
-    expect(screen.getByText('Build the search one strong decision at a time.')).toBeTruthy()
-    expect(screen.getByRole('link', { name: /start with resume/i }).getAttribute('href')).toBe('/resume')
-    expect(screen.getByRole('img', { name: 'Resume Analyzer preview' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Previous tool' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Next tool' })).toBeTruthy()
+  beforeEach(() => {
+    navigateMock.mockReset()
+    writeWorkflowContextMock.mockReset()
   })
 
-  it('cycles through tools when navigation buttons are clicked', async () => {
+  it('renders the dashboard resume handoff copy', () => {
     render(<DashboardHero />)
 
-    const next = screen.getByRole('button', { name: 'Next tool' })
-    const prev = screen.getByRole('button', { name: 'Previous tool' })
+    expect(screen.getByText("Let's start with your resume.")).toBeTruthy()
+    expect(
+      screen.getByText(/Upload once\. Every tool pulls from the same context/i),
+    ).toBeTruthy()
+    expect(screen.getByRole('button', { name: /Simulate dashboard parse/i })).toBeTruthy()
+  })
 
-    expect(screen.getByRole('img', { name: 'Resume Analyzer preview' })).toBeTruthy()
+  it('stores a pending-review handoff before navigating to the resume tool', () => {
+    render(<DashboardHero />)
 
-    fireEvent.click(next)
-    expect(await screen.findByRole('img', { name: 'Job Match preview' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: /Simulate dashboard parse/i }))
 
-    fireEvent.click(next)
-    expect(await screen.findByRole('img', { name: 'Cover Letter preview' })).toBeTruthy()
-
-    fireEvent.click(prev)
-    expect(await screen.findByRole('img', { name: 'Job Match preview' })).toBeTruthy()
+    expect(writeWorkflowContextMock).toHaveBeenCalledTimes(1)
+    expect(writeWorkflowContextMock.mock.calls[0]?.[0]).toMatchObject({
+      resumeText: 'Parsed dashboard resume text',
+      resumePendingReview: true,
+    })
+    expect(typeof writeWorkflowContextMock.mock.calls[0]?.[0]?.updatedAt).toBe('number')
+    expect(navigateMock).toHaveBeenCalledWith({ to: '/resume' })
   })
 })

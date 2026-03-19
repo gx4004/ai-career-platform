@@ -57,6 +57,7 @@ export function useWorkflowBridge(
 
   const context = useMemo(() => readWorkflowContext(), [])
   const seededResume = Boolean(context?.resumeText)
+  const resumePendingReview = Boolean(context?.resumePendingReview && context?.resumeText)
   const seededJob = Boolean(context?.jobDescription)
   const seededTargetRole = Boolean(getWorkflowTargetRole(context))
   const seededProject = Boolean(context?.recommendedProjectTitle)
@@ -65,6 +66,7 @@ export function useWorkflowBridge(
 
   return {
     seededResume,
+    resumePendingReview,
     seededJob,
     seededTargetRole,
     seededProject,

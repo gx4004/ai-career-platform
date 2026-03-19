@@ -21,6 +21,7 @@ const draftState = {
 let sessionStatus: 'guest' | 'authenticated' = 'guest'
 let bridgeBanner = 'Resume and job description carried from your recent workflow.'
 let seededResume = true
+let resumePendingReview = false
 let seededJob = true
 let seededTargetRole = false
 
@@ -102,6 +103,7 @@ vi.mock('#/hooks/useToolMutation', () => ({
 vi.mock('#/hooks/useWorkflowBridge', () => ({
   useWorkflowBridge: () => ({
     seededResume,
+    resumePendingReview,
     seededJob,
     seededTargetRole,
     seededProject: false,
@@ -116,6 +118,7 @@ describe('ToolRouteScreen', () => {
     sessionStatus = 'guest'
     bridgeBanner = 'Resume and job description carried from your recent workflow.'
     seededResume = true
+    resumePendingReview = false
     seededJob = true
     seededTargetRole = false
     draftState.resumeText =
@@ -136,6 +139,7 @@ describe('ToolRouteScreen', () => {
     draftState.resumeText = ''
     draftState.jobDescription = ''
     seededResume = false
+    resumePendingReview = false
     seededJob = false
     bridgeBanner = ''
 
@@ -161,6 +165,7 @@ describe('ToolRouteScreen', () => {
     draftState.resumeText = ''
     draftState.jobDescription = ''
     seededResume = false
+    resumePendingReview = false
     seededJob = false
     bridgeBanner = ''
 
@@ -170,6 +175,23 @@ describe('ToolRouteScreen', () => {
 
     expect(screen.getByText(/Resume parsed successfully/i)).toBeTruthy()
     expect(screen.queryByLabelText(/Resume textRequired/i)).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: /Review extracted text/i }))
+
+    expect(screen.getByLabelText(/Resume textRequired/i)).toBeTruthy()
+  })
+
+  it('keeps a dashboard-seeded resume collapsed until the user chooses to review it', () => {
+    seededResume = true
+    resumePendingReview = true
+    seededJob = false
+    bridgeBanner = 'Resume text carried from your last Resume run. Edit anytime.'
+
+    render(<ToolRouteScreen toolId="resume" />)
+
+    expect(screen.getByText(/Resume parsed successfully/i)).toBeTruthy()
+    expect(screen.queryByLabelText(/Resume textRequired/i)).toBeNull()
+    expect(screen.getByTestId('resume-sticky-submit')).toBeTruthy()
 
     fireEvent.click(screen.getByRole('button', { name: /Review extracted text/i }))
 

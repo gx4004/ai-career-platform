@@ -47,13 +47,15 @@ export function useCarousel(itemCount: number, opts?: CarouselOptions) {
     return () => clearInterval(id)
   }, [itemCount, interval, cooldown])
 
+  const [paused, setPaused] = useState(false)
+
   const hoverHandlers = useMemo(
     () => ({
-      onMouseEnter: () => { pausedRef.current = true },
-      onMouseLeave: () => { pausedRef.current = false },
+      onMouseEnter: () => { pausedRef.current = true; setPaused(true) },
+      onMouseLeave: () => { pausedRef.current = false; setPaused(false) },
     }),
     [],
   )
 
-  return { activeIndex, direction, goTo, goNext, goPrev, hoverHandlers }
+  return { activeIndex, direction, paused, goTo, goNext, goPrev, hoverHandlers }
 }

@@ -18,6 +18,7 @@ export function deriveWorkflowUpdateFromResult(
 
   if (toolId === 'resume') {
     return {
+      resumePendingReview: false,
       resumeAnalysis: result as ResumeResult,
       topActionTitles,
       strongestMissingSkills: readStringArray(asObject(result.evidence).missing_keywords),
@@ -27,6 +28,7 @@ export function deriveWorkflowUpdateFromResult(
 
   if (toolId === 'job-match') {
     return {
+      resumePendingReview: false,
       jobMatch: result as JobMatchResult,
       topActionTitles,
       strongestMissingSkills: readStringArray(result.missing_keywords),
@@ -36,6 +38,7 @@ export function deriveWorkflowUpdateFromResult(
   if (toolId === 'career') {
     const direction = asObject(result.recommended_direction)
     return {
+      resumePendingReview: false,
       careerResult: result as CareerResult,
       targetRole: toString(direction.role_title) || undefined,
       selectedTargetRole: toString(direction.role_title) || undefined,
@@ -49,6 +52,7 @@ export function deriveWorkflowUpdateFromResult(
 
   if (toolId === 'portfolio') {
     return {
+      resumePendingReview: false,
       portfolioResult: result as PortfolioResult,
       targetRole: toString(result.target_role) || undefined,
       selectedTargetRole: toString(result.target_role) || undefined,
@@ -58,6 +62,7 @@ export function deriveWorkflowUpdateFromResult(
   }
 
   return {
+    resumePendingReview: false,
     topActionTitles,
   }
 }

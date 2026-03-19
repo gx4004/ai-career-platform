@@ -97,6 +97,7 @@ describe('drafts', () => {
     it('writes and reads workflow context', () => {
       writeWorkflowContext({
         resumeText: 'resume data',
+        resumePendingReview: true,
         jobDescription: 'job data',
         lastToolId: 'resume',
         updatedAt: Date.now(),
@@ -104,6 +105,7 @@ describe('drafts', () => {
 
       const ctx = readWorkflowContext()
       expect(ctx?.resumeText).toBe('resume data')
+      expect(ctx?.resumePendingReview).toBe(true)
       expect(ctx?.lastToolId).toBe('resume')
     })
 
@@ -139,6 +141,7 @@ describe('drafts', () => {
 
       writeWorkflowContext({
         resumeText: 'latest resume',
+        resumePendingReview: false,
         lastToolId: 'cover-letter',
         updatedAt: 2,
       })
@@ -146,6 +149,7 @@ describe('drafts', () => {
       const ctx = readWorkflowContext()
       expect(ctx?.resumeText).toBe('latest resume')
       expect(ctx?.jobMatch?.missing_keywords).toEqual(['Kubernetes'])
+      expect(ctx?.resumePendingReview).toBe(false)
       expect(ctx?.lastToolId).toBe('cover-letter')
     })
   })

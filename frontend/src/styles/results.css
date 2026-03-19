@@ -1,6 +1,26 @@
 .result-screen {
   display: grid;
   gap: 1.5rem;
+  position: relative;
+  isolation: isolate;
+}
+
+.result-screen::before {
+  content: '';
+  position: absolute;
+  inset: -8% -6% -10%;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(circle at 30% 12%, rgba(74, 147, 239, 0.18) 0%, rgba(155, 211, 255, 0.1) 18%, transparent 42%),
+    radial-gradient(ellipse 54% 34% at 58% 54%, rgba(96, 167, 241, 0.07) 0%, transparent 78%),
+    radial-gradient(circle at 84% 18%, rgba(171, 219, 255, 0.08) 0%, transparent 24%);
+  filter: blur(16px);
+}
+
+.result-screen > * {
+  position: relative;
+  z-index: 1;
 }
 
 .result-hero-card,
@@ -61,8 +81,8 @@
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(circle at top right, color-mix(in srgb, var(--tool-accent, var(--accent)) 8%, transparent), transparent 32%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.55), transparent 32%);
+    radial-gradient(circle at top right, rgba(188, 226, 255, 0.18), transparent 32%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.6), transparent 32%);
 }
 
 .result-hero-card > *,
@@ -88,6 +108,26 @@
 .result-grid {
   display: grid;
   gap: 1rem;
+  position: relative;
+  isolation: isolate;
+}
+
+.result-grid::before {
+  content: '';
+  position: absolute;
+  inset: -8% -4% -10%;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(circle at 28% 18%, rgba(74, 147, 239, 0.16) 0%, rgba(155, 211, 255, 0.08) 18%, transparent 42%),
+    radial-gradient(ellipse 52% 30% at 58% 56%, rgba(96, 167, 241, 0.06) 0%, transparent 78%),
+    radial-gradient(circle at 80% 20%, rgba(171, 219, 255, 0.07) 0%, transparent 24%);
+  filter: blur(15px);
+}
+
+.result-grid > * {
+  position: relative;
+  z-index: 1;
 }
 
 .score-gauge {
@@ -143,6 +183,30 @@
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
   gap: 1rem;
+  position: relative;
+  isolation: isolate;
+}
+
+.cta-card-grid::before,
+.quality-hero-grid::before,
+.quality-evidence-grid::before {
+  content: '';
+  position: absolute;
+  inset: -8% -4% -10%;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(circle at 30% 16%, rgba(74, 147, 239, 0.16) 0%, rgba(155, 211, 255, 0.08) 18%, transparent 42%),
+    radial-gradient(ellipse 52% 30% at 58% 60%, rgba(96, 167, 241, 0.06) 0%, transparent 78%),
+    radial-gradient(circle at 82% 22%, rgba(171, 219, 255, 0.07) 0%, transparent 24%);
+  filter: blur(15px);
+}
+
+.cta-card-grid > *,
+.quality-hero-grid > *,
+.quality-evidence-grid > * {
+  position: relative;
+  z-index: 1;
 }
 
 .letter-block {
@@ -226,6 +290,8 @@
 .quality-evidence-grid {
   display: grid;
   gap: 1rem;
+  position: relative;
+  isolation: isolate;
 }
 
 .quality-score-panel,
@@ -243,9 +309,7 @@
   display: grid;
   gap: 0.85rem;
   align-content: start;
-  background:
-    radial-gradient(circle at top right, color-mix(in srgb, var(--tool-accent, var(--accent)) 10%, transparent), transparent 50%),
-    var(--surface-raised);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(246, 250, 255, 0.95));
 }
 
 .quality-role-fit-score {
@@ -360,9 +424,7 @@
 }
 
 .planning-spotlight-card {
-  background:
-    radial-gradient(circle at top right, color-mix(in srgb, var(--tool-accent, var(--accent)) 12%, transparent), transparent 52%),
-    var(--surface-raised);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(246, 250, 255, 0.95));
 }
 
 .planning-hero-meta,
@@ -429,5 +491,19 @@
 
   .planning-roadmap-grid {
     grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  .result-screen::before,
+  .result-grid::before,
+  .quality-hero-grid::before,
+  .quality-evidence-grid::before,
+  .cta-card-grid::before {
+    inset: -6% -2% -10%;
+    background:
+      radial-gradient(circle at 50% 12%, rgba(74, 147, 239, 0.18) 0%, rgba(155, 211, 255, 0.1) 20%, transparent 46%),
+      radial-gradient(ellipse 68% 38% at 50% 60%, rgba(96, 167, 241, 0.07) 0%, transparent 80%),
+      radial-gradient(circle at 78% 20%, rgba(171, 219, 255, 0.07) 0%, transparent 24%);
   }
 }
