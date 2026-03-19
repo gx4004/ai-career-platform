@@ -5,20 +5,20 @@ import { ScrollReveal } from '#/components/ui/motion'
 
 export function LandingCTA() {
   return (
-    <section className="landing-section">
+    <section className="landing-section landing-section-cta" id="landing-cta">
       <ScrollReveal>
         <div className="content-max landing-cta glass-elevated section-card">
           <div className="landing-cta-copy">
-            <p className="eyebrow">One workspace, zero friction</p>
-            <h2 className="display-lg">From resume to offer — all in one place.</h2>
+            <p className="eyebrow">One session</p>
+            <h2 className="display-lg">From raw resume to interview-ready in one sitting.</h2>
             <p className="muted-copy">
-              Every analysis flows into the next step automatically. No tab-switching, no copy-pasting, no lost context.
+              Every step feeds the next. No copy-pasting between tabs. No lost context.
             </p>
           </div>
           <div className="landing-cta-glow">
             <Button asChild className="button-hero-primary" size="lg">
               <Link to="/dashboard">
-                Open the workbench
+                Get started
                 <ArrowRight size={16} />
               </Link>
             </Button>

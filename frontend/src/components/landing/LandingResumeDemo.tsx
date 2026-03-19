@@ -18,10 +18,10 @@ const RESUME_LINES = [
 ]
 
 const INSIGHTS = [
-  { title: 'Strong technical depth', body: 'TypeScript and React experience well-documented with measurable impact.', positive: true },
-  { title: 'Add quantified outcomes', body: 'Include revenue or user metrics to strengthen business impact claims.', positive: false },
-  { title: 'Missing soft skills section', body: 'Leadership and collaboration keywords are absent from the summary.', positive: false },
-  { title: 'ATS-ready formatting', body: 'Clean structure with proper headings passes most applicant tracking systems.', positive: true },
+  { title: 'Strong technical depth', body: 'TypeScript and React skills are well-documented with measurable impact.', positive: true },
+  { title: 'Add quantified outcomes', body: 'Include revenue or user-growth metrics to strengthen business impact.', positive: false },
+  { title: 'Missing soft skills', body: 'Leadership and collaboration keywords are absent — add them to your summary.', positive: false },
+  { title: 'ATS-ready formatting', body: 'Clean structure with proper headings passes most tracking systems.', positive: true },
 ]
 
 function useCountUp(target: number, active: boolean, duration = 1000) {
@@ -58,12 +58,12 @@ export function LandingResumeDemo() {
   }, [triggered, phase, runSequence])
 
   return (
-    <section className="landing-section" ref={ref}>
+    <section className="landing-section landing-section-demo" id="landing-demo" ref={ref}>
       <div className="content-max landing-demo">
         <ScrollReveal>
           <div className="landing-section-heading">
-            <p className="eyebrow">Live demo</p>
-            <h2 className="display-lg">See what the analyzer returns in seconds.</h2>
+            <p className="eyebrow">Watch it work</p>
+            <h2 className="display-lg">Upload. Score. Know exactly what to fix.</h2>
           </div>
         </ScrollReveal>
         <div className="landing-demo-grid">

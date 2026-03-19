@@ -2,7 +2,7 @@
 @import '@fontsource/geist/500.css';
 @import '@fontsource/geist/600.css';
 @import '@fontsource/geist/700.css';
-@import '@fontsource/instrument-serif/400.css';
+@import '@fontsource/geist/800.css';
 
 h1,
 h2,
@@ -24,25 +24,25 @@ p {
 .display-xl {
   font-family: var(--font-display);
   font-size: var(--type-display-xl);
-  font-weight: 400;
+  font-weight: 800;
   line-height: 0.96;
-  letter-spacing: var(--tracking-display);
+  letter-spacing: -0.035em;
 }
 
 .display-lg {
   font-family: var(--font-display);
   font-size: var(--type-display-lg);
-  font-weight: 400;
+  font-weight: 800;
   line-height: 0.98;
-  letter-spacing: var(--tracking-display);
+  letter-spacing: -0.03em;
 }
 
 .page-title {
   font-family: var(--font-display);
   font-size: var(--type-page-title);
-  font-weight: 400;
-  line-height: 1.02;
-  letter-spacing: -0.045em;
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
 }
 
 .tool-title {
@@ -51,18 +51,18 @@ p {
 }
 
 .section-title {
-  font-size: var(--type-section);
-  line-height: 1.22;
-  letter-spacing: var(--tracking-section);
+  font-size: 1.2rem;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.03em;
 }
 
 .eyebrow {
-  font-size: var(--type-xs);
+  font-size: 0.7rem;
   font-weight: 700;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--text-muted);
-  opacity: 0.88;
 }
 
 .small-copy {

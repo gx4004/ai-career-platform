@@ -29,7 +29,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <TooltipProvider delayDuration={120}>
-      <SidebarProvider defaultOpen={false}>
+      <SidebarProvider defaultOpen={pathname === '/dashboard'}>
         <AppSidebar />
         <SidebarInset>
           <div className="app-main">

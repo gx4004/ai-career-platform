@@ -56,6 +56,11 @@ Backend `.env` values:
 - `OPENAI_API_KEY`
 - `ANTHROPIC_API_KEY`
 - `GROQ_API_KEY`
+- `VERTEX_PROJECT_ID`
+- `VERTEX_LOCATION`
+- `VERTEX_GEMINI_MODEL`
+- `VERTEX_IMAGEN_MODEL`
+- `VERTEX_IMAGE_VARIANTS`
 - `ENVIRONMENT`
 
 Notes:
@@ -76,3 +81,13 @@ cd backend && ./.venv/bin/pytest
 cd frontend && pnpm test
 cd frontend && pnpm build
 ```
+
+## AI Image Pipeline (Vertex AI)
+
+Generate improved website images with Gemini + Imagen:
+
+```bash
+python backend/ai/image_pipeline.py
+```
+
+Outputs are written to `frontend/public/ai-generated/` with `_v2`, `_v3`, `_v4` suffixes.

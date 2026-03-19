@@ -210,11 +210,12 @@ def _normalize_questions(
     normalized: list[dict[str, Any]] = []
     for index, item in enumerate(raw_questions[:count]):
         question = _to_str(item.get("question")) or f"Question {index + 1}"
-        focus_area = _to_str(item.get("focus_area")) or (
-            application_context["interview_focus"][index % len(application_context["interview_focus"])]
-            if application_context["interview_focus"]
-            else application_context["priority_requirements"][index % len(application_context["priority_requirements"])]
+        focus_pool = (
+            application_context["interview_focus"]
+            or application_context["priority_requirements"]
+            or [application_context["role_label"]]
         )
+        focus_area = _to_str(item.get("focus_area")) or focus_pool[index % len(focus_pool)]
         normalized.append(
             {
                 "question": question,

@@ -3,23 +3,17 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useCarousel } from '#/hooks/useCarousel'
 import { toolList } from '#/lib/tools/registry'
-import carouselResume from '#/assets/carousel/carousel-resume.png'
-import carouselJobMatch from '#/assets/carousel/carousel-job-match.png'
-import carouselCoverLetter from '#/assets/carousel/carousel-cover-letter.png'
-import thumbInterview from '#/assets/carousel/thumb-interview.png'
-import thumbCareer from '#/assets/carousel/thumb-career.png'
-import thumbPortfolio from '#/assets/carousel/thumb-portfolio.png'
 
 const FRAME_IMAGES = [
-  carouselResume,
-  thumbPortfolio,
-  carouselJobMatch,
-  carouselCoverLetter,
-  thumbInterview,
-  thumbCareer,
+  '/ai-generated/carousel/final-resume.png',
+  '/ai-generated/carousel/final-career.png',
+  '/ai-generated/carousel/final-interview.png',
+  '/ai-generated/carousel/final-job-match.png',
+  '/ai-generated/carousel/final-portfolio.png',
+  '/ai-generated/carousel/final-cover-letter.png',
 ]
 
-const FRAME_IMAGE_SCALE = [1.1, 1.2, 1.1, 1.06, 1.12, 1.16] as const
+const FRAME_IMAGE_SCALE = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0] as const
 
 const ease = [0.16, 1, 0.3, 1] as const
 

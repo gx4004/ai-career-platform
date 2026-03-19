@@ -138,6 +138,20 @@
   animation-delay: 0.2s;
 }
 
+.dashboard-stack > *:nth-child(6) {
+  animation-delay: 0.25s;
+}
+
+@keyframes spine-glow {
+  0%,
+  100% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
 /* ── Animation polish ── */
 
 @keyframes slide-in-right {
@@ -165,6 +179,15 @@
 @keyframes pulse-glow {
   0%, 100% {
     opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes landing-glow-breathe {
+  0%, 100% {
+    opacity: 0.82;
   }
   50% {
     opacity: 1;

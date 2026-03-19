@@ -1,6 +1,9 @@
+import logging
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.config import settings
 from app.routers import (
     auth,
     career,
@@ -18,15 +21,29 @@ from app.routers import (
 from app.services.observability import configure_logging
 
 configure_logging()
+
+logger = logging.getLogger(__name__)
+
 app = FastAPI(title="Career Workbench API", version="1.0.0")
 
+# --- CORS ---
+_origins = [o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# --- Startup checks ---
+_DEFAULT_SECRET = "change-me-to-a-random-secret-key"
+if settings.SECRET_KEY == _DEFAULT_SECRET and settings.ENVIRONMENT != "development":
+    logger.critical(
+        "SECRET_KEY is still the default placeholder! "
+        "Set a strong random value before running in %s.",
+        settings.ENVIRONMENT,
+    )
 
 prefix = "/api/v1"
 

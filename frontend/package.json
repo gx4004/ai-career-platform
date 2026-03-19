@@ -14,7 +14,6 @@
   },
   "dependencies": {
     "@fontsource/geist": "^5.2.8",
-    "@fontsource/instrument-serif": "^5.2.8",
     "@tailwindcss/vite": "^4.1.18",
     "@tanstack/react-devtools": "latest",
     "@tanstack/react-query": "^5.90.21",

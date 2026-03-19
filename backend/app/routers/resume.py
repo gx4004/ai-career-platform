@@ -13,7 +13,7 @@ from app.services.observability import (
     log_tool_run_started,
 )
 from app.services.resume_analyzer import analyze_resume
-from app.services.tool_runs import build_tool_response, persist_tool_run
+from app.services.tool_runs import build_tool_response, extract_linked_context_ids, persist_tool_run
 
 router = APIRouter()
 
@@ -55,7 +55,7 @@ async def analyze(
         tool_name="resume",
         label=f"Resume Analysis ({result['overall_score']}/100)",
         result=result,
-        linked_context_ids=linked_context_ids,
+        linked_context_ids=extract_linked_context_ids(*linked_context_ids),
         workspace_id=workspace_id,
     )
     response = build_tool_response(

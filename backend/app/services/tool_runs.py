@@ -63,7 +63,6 @@ def persist_tool_run(
         linked_history_ids=linked_ids,
     )
     touch_workspace(workspace)
-    enriched = attach_premium_outputs(tool_name, result)
     run = ToolRun(
         user_id=current_user.id,
         workspace_id=workspace.id,
@@ -71,7 +70,7 @@ def persist_tool_run(
         label=label,
         result_payload=attach_workspace_meta(
             tool_name,
-            enriched,
+            result,
             linked_context_ids=linked_ids,
         ),
     )
