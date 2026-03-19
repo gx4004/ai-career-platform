@@ -21,7 +21,7 @@
   --shadow-soft: 0 10px 28px rgba(19, 44, 72, 0.05), 0 2px 8px rgba(19, 44, 72, 0.04);
   --shadow-elevated: 0 18px 42px rgba(19, 44, 72, 0.08), 0 4px 14px rgba(19, 44, 72, 0.05);
   --shadow-panel: 0 24px 60px rgba(15, 34, 58, 0.1), 0 8px 24px rgba(15, 34, 58, 0.06);
-  --shadow-glow-blue: none;
+  --shadow-glow-blue: 0 0 24px rgba(74, 147, 239, 0.08);
   --destructive: #dc2626;
   --destructive-soft: rgba(220, 38, 38, 0.08);
   --success: #0a8a50;

@@ -24,6 +24,7 @@ export type ToolDraftState = {
 
 export type WorkflowContextState = {
   resumeText?: string
+  resumePendingReview?: boolean
   jobDescription?: string
   targetRole?: string
   selectedTargetRole?: string

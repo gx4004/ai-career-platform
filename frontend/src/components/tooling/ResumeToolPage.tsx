@@ -12,6 +12,7 @@ import {
   ToolPageShell,
   useToolPageState,
 } from '#/components/tooling/toolPageShared'
+import { writeWorkflowContext } from '#/lib/tools/drafts'
 
 export function ResumeToolPage() {
   const {
@@ -33,10 +34,29 @@ export function ResumeToolPage() {
   const [phase, setPhase] = useState<'upload' | 'form'>(
     draft.resumeText.trim() || bridge.seededResume ? 'form' : 'upload',
   )
-  const [resumeEditorCollapsed, setResumeEditorCollapsed] = useState(false)
+  const [resumeEditorCollapsed, setResumeEditorCollapsed] = useState(bridge.resumePendingReview)
   const [showOptionalJob, setShowOptionalJob] = useState(
     Boolean(bridge.seededJob || draft.jobDescription.trim()),
   )
+  const hasResumeContent = Boolean(draft.resumeText.trim() || bridge.seededResume)
+
+  const clearPendingResumeReview = () => {
+    writeWorkflowContext({
+      resumePendingReview: false,
+      updatedAt: Date.now(),
+    })
+  }
+
+  const openResumeEditor = () => {
+    clearPendingResumeReview()
+    setResumeEditorCollapsed(false)
+  }
+
+  const collapseResumeEditorAfterParse = (text: string) => {
+    clearPendingResumeReview()
+    setField('resumeText', text)
+    setResumeEditorCollapsed(true)
+  }
 
   return (
     <ToolPageShell toolId="resume" bodyClassName="resume-bespoke-page">
@@ -58,12 +78,11 @@ export function ResumeToolPage() {
             <DropzoneHero
               accent={tool.accent}
               onParsed={(text) => {
-                setField('resumeText', text)
-                setResumeEditorCollapsed(true)
+                collapseResumeEditorAfterParse(text)
                 setPhase('form')
               }}
               onPasteText={() => {
-                setResumeEditorCollapsed(false)
+                openResumeEditor()
                 setPhase('form')
               }}
             />
@@ -101,20 +120,19 @@ export function ResumeToolPage() {
                 compact
                 collapseOnSuccess
                 onParsed={(text) => {
-                  setField('resumeText', text)
-                  setResumeEditorCollapsed(true)
+                  collapseResumeEditorAfterParse(text)
                 }}
                 onPasteText={() => {
-                  setResumeEditorCollapsed(false)
+                  openResumeEditor()
                   document.getElementById(resumeFieldId)?.focus()
                 }}
               />
             </section>
 
-            {resumeEditorCollapsed && draft.resumeText.trim() ? (
+            {resumeEditorCollapsed && hasResumeContent ? (
               <ParsedResumeNotice
                 body="Resume parsed successfully. Open the extracted text only if you want to review or edit it."
-                onAction={() => setResumeEditorCollapsed(false)}
+                onAction={openResumeEditor}
               />
             ) : (
               <section className="resume-editor-shell">
@@ -197,19 +215,6 @@ export function ResumeToolPage() {
               </section>
             ) : null}
 
-            <div className="resume-submit-area">
-              <Button
-                type="submit"
-                size="lg"
-                className="resume-submit-btn"
-                style={{ background: tool.accent, color: '#ffffff' }}
-                disabled={mutation.isPending}
-              >
-                {tool.entryPointLabel}
-                <ArrowRight size={16} />
-              </Button>
-            </div>
-
             {status !== 'authenticated' ? (
               <div className="resume-guest-inline">
                 <p className="small-copy muted-copy">
@@ -237,6 +242,21 @@ export function ResumeToolPage() {
                 {mutation.error instanceof Error ? mutation.error.message : 'This run failed.'}
               </p>
             ) : null}
+
+            <div className="resume-submit-area" data-testid="resume-sticky-submit">
+              <div className="resume-submit-bar">
+                <Button
+                  type="submit"
+                  size="lg"
+                  className="resume-submit-btn"
+                  style={{ background: tool.accent, color: '#ffffff' }}
+                  disabled={mutation.isPending}
+                >
+                  {tool.entryPointLabel}
+                  <ArrowRight size={16} />
+                </Button>
+              </div>
+            </div>
           </form>
         </>
       )}

@@ -1,41 +1,37 @@
-import type { CSSProperties } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useCarousel } from '#/hooks/useCarousel'
-import { toolList } from '#/lib/tools/registry'
+import { tools, type ToolId } from '#/lib/tools/registry'
 
-const FRAME_IMAGES = [
-  '/ai-generated/carousel/final-resume.png',
-  '/ai-generated/carousel/final-career.png',
-  '/ai-generated/carousel/final-interview.png',
-  '/ai-generated/carousel/final-job-match.png',
-  '/ai-generated/carousel/final-portfolio.png',
-  '/ai-generated/carousel/final-cover-letter.png',
+const CAROUSEL_ORDER: { id: ToolId; image: string }[] = [
+  { id: 'resume', image: '/ai-generated/carousel/final-resume.png' },
+  { id: 'cover-letter', image: '/ai-generated/carousel/final-cover-letter.png' },
+  { id: 'job-match', image: '/ai-generated/carousel/final-job-match.png' },
+  { id: 'career', image: '/ai-generated/carousel/final-career.png' },
+  { id: 'interview', image: '/ai-generated/carousel/final-interview.png' },
+  { id: 'portfolio', image: '/ai-generated/carousel/final-portfolio.png' },
 ]
-
-const FRAME_IMAGE_SCALE = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0] as const
 
 const ease = [0.16, 1, 0.3, 1] as const
 
-const slideVariants = {
-  hidden: (dir: number) => ({ x: dir * 40, opacity: 0 }),
-  visible: { x: 0, opacity: 1 },
-  exit: (dir: number) => ({ x: dir * -40, opacity: 0 }),
+const fadeScaleVariants = {
+  hidden: { opacity: 0, scale: 0.97 },
+  visible: { opacity: 1, scale: 1 },
+  exit: { opacity: 0, scale: 1.01 },
 }
 
 export function HeroMockup() {
-  const { activeIndex, direction, goTo, goNext, goPrev, hoverHandlers } =
-    useCarousel(toolList.length)
+  const { activeIndex, paused, goTo, goNext, goPrev, hoverHandlers } =
+    useCarousel(CAROUSEL_ORDER.length)
 
-  const tool = toolList[activeIndex]
-  const frameImage = FRAME_IMAGES[activeIndex]
-  const frameImageScale = FRAME_IMAGE_SCALE[activeIndex]
+  const slide = CAROUSEL_ORDER[activeIndex]
+  const tool = tools[slide.id]
   const Icon = tool.icon
 
   return (
     <div className="hero-mockup">
       <motion.div
-        className="hero-mockup-inner glass-elevated"
+        className="hero-mockup-inner"
         initial={{ opacity: 0, y: 30, rotateY: -4, rotateX: 2 }}
         animate={{ opacity: 1, y: 0, rotateY: -4, rotateX: 2 }}
         transition={{ duration: 0.7, delay: 0.3, ease }}
@@ -47,31 +43,27 @@ export function HeroMockup() {
             <span />
             <span />
           </div>
-          <Icon size={14} style={{ color: tool.accent }} />
-          <span style={{ fontSize: 'var(--type-xs)', color: tool.accent }}>
-            {tool.label}
-          </span>
+          <div className="hero-mockup-address-bar">
+            <Icon size={14} style={{ color: tool.accent }} />
+            <span style={{ fontSize: 'var(--type-xs)', color: tool.accent }}>
+              {tool.label}
+            </span>
+          </div>
         </div>
 
         <div className="hero-mockup-stage">
-          <AnimatePresence custom={direction} mode="wait">
+          <AnimatePresence mode="wait">
             <motion.div
-              key={tool.id}
+              key={slide.id}
               className="hero-mockup-frame"
-              style={
-                {
-                  '--landing-carousel-image-scale': frameImageScale,
-                } as CSSProperties
-              }
-              custom={direction}
-              variants={slideVariants}
+              variants={fadeScaleVariants}
               initial="hidden"
               animate="visible"
               exit="exit"
-              transition={{ duration: 0.3, ease }}
+              transition={{ duration: 0.35, ease }}
             >
               <img
-                src={frameImage}
+                src={slide.image}
                 alt={tool.label}
                 className="dash-carousel-image"
                 draggable={false}
@@ -80,25 +72,39 @@ export function HeroMockup() {
           </AnimatePresence>
         </div>
 
+        <div className="hero-mockup-progress-track">
+          <motion.div
+            key={activeIndex}
+            className="hero-mockup-auto-progress"
+            style={{ background: tool.accent }}
+            initial={{ scaleX: 0 }}
+            animate={{ scaleX: paused ? undefined : 1 }}
+            transition={{ duration: 4, ease: 'linear' }}
+          />
+        </div>
+
         <div className="hero-mockup-nav">
           <button
-            className="hero-mockup-nav-btn glass"
+            className="hero-mockup-nav-btn"
             onClick={goPrev}
             aria-label="Previous tool"
           >
             <ChevronLeft size={14} />
           </button>
-          {toolList.map((t, i) => (
-            <button
-              key={t.id}
-              className={`hero-mockup-dot${i === activeIndex ? ' is-active' : ''}`}
-              style={i === activeIndex ? { background: tool.accent } : undefined}
-              onClick={() => goTo(i)}
-              aria-label={t.label}
-            />
-          ))}
+          {CAROUSEL_ORDER.map((s, i) => {
+            const t = tools[s.id]
+            return (
+              <button
+                key={s.id}
+                className={`hero-mockup-dot${i === activeIndex ? ' is-active' : ''}`}
+                style={i === activeIndex ? { background: t.accent, boxShadow: `0 0 8px ${t.accent}44` } : undefined}
+                onClick={() => goTo(i)}
+                aria-label={t.label}
+              />
+            )
+          })}
           <button
-            className="hero-mockup-nav-btn glass"
+            className="hero-mockup-nav-btn"
             onClick={goNext}
             aria-label="Next tool"
           >
