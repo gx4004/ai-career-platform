@@ -430,6 +430,83 @@ def test_guest_demo_run_does_not_create_history(client, db, mock_ai_result):
     assert db.query(ToolRun).count() == 0
 
 
+# ---------- edge cases ----------
+
+
+def test_resume_analyze_empty_text(client, auth_headers, mock_ai_result):
+    mock_ai_result(
+        {
+            "summary": {
+                "headline": "Not enough content to evaluate.",
+                "verdict": "Insufficient content",
+                "confidence_note": "Directional heuristic only.",
+            },
+            "strengths": [],
+            "issues": [],
+        }
+    )
+    resp = client.post(
+        f"{PREFIX}/resume/analyze",
+        json={"resume_text": ""},
+        headers=auth_headers,
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["schema_version"] == "quality_v2"
+    assert data["overall_score"] >= 0
+
+
+def test_job_match_missing_job_description(client, auth_headers, mock_ai_result):
+    mock_ai_result(
+        {
+            "requirements": [],
+            "tailoring_actions": [],
+            "interview_focus": [],
+            "recruiter_summary": "No job description provided.",
+        }
+    )
+    resp = client.post(
+        f"{PREFIX}/job-match/match",
+        json={
+            "resume_text": "Some resume content with Python and SQL.",
+            "job_description": "",
+        },
+        headers=auth_headers,
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["schema_version"] == "quality_v2"
+    assert isinstance(data["matched_keywords"], list)
+    assert isinstance(data["missing_keywords"], list)
+
+
+def test_resume_analyze_malformed_llm_json(client, auth_headers, mock_ai_result):
+    """LLM returns a response missing expected keys — normalization fills defaults."""
+    mock_ai_result(
+        {
+            "summary": {
+                "headline": "Partially formed response.",
+                "verdict": "Partial",
+                "confidence_note": "Directional only.",
+            },
+            # missing 'strengths' and 'issues' — service should handle gracefully
+        }
+    )
+    resp = client.post(
+        f"{PREFIX}/resume/analyze",
+        json={
+            "resume_text": "Professional Summary\nPython engineer.\nExperience\n- Built APIs.\nSkills\nPython",
+        },
+        headers=auth_headers,
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["schema_version"] == "quality_v2"
+    # strengths/issues should be normalised to lists even if missing from LLM
+    assert isinstance(data["strengths"], list)
+    assert isinstance(data["issues"], list)
+
+
 def test_workspace_context_links_related_runs(client, auth_headers, db, mock_ai_result):
     mock_ai_result(
         {

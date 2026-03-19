@@ -38,9 +38,9 @@ const proofData: Record<string, ShowcaseProof> = {
   },
   'cover-letter': {
     previewLines: [
-      'Opening tailored to the selected company.',
-      'Evidence points anchored in resume bullets.',
-      'Closing shifts naturally into interview prep.',
+      'Opening tailored to the target company.',
+      'Evidence anchored in your resume bullets.',
+      'Closing transitions naturally into interview prep.',
     ],
   },
   interview: {
@@ -104,12 +104,12 @@ export function LandingToolGrid() {
   }, [])
 
   return (
-    <section className="landing-section">
+    <section className="landing-section landing-section-tools" id="landing-tools">
       <div className="content-max grid gap-5">
         <ScrollReveal>
           <div className="landing-section-heading">
-            <p className="eyebrow">Tool showcase</p>
-            <h2 className="display-lg">A connected suite instead of isolated utilities.</h2>
+            <p className="eyebrow">The toolkit</p>
+            <h2 className="display-lg">Six tools. One shared context.</h2>
           </div>
         </ScrollReveal>
         <div className="landing-tool-showcase">

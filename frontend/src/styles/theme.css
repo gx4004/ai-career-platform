@@ -35,7 +35,7 @@
   --career-accent: var(--accent);
   --portfolio-accent: var(--accent);
   --font-sans: 'Geist', ui-sans-serif, system-ui, -apple-system, sans-serif;
-  --font-display: 'Instrument Serif', Georgia, 'Times New Roman', serif;
+  --font-display: 'Geist', ui-sans-serif, system-ui, -apple-system, sans-serif;
   --type-display-xl: clamp(2.6rem, 4vw, 4rem);
   --type-display-lg: clamp(2.15rem, 3vw, 3.15rem);
   --type-page-title: clamp(1.8rem, 1.45rem + 1.15vw, 2.65rem);

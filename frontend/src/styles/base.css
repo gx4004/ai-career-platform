@@ -30,6 +30,23 @@ body {
   overflow-x: hidden;
 }
 
+body.page-tone-landing {
+  background:
+    radial-gradient(circle at -10% 0%, rgba(74, 147, 239, 0.28) 0%, rgba(155, 211, 255, 0.1) 18%, transparent 32%),
+    radial-gradient(circle at 110% 6%, rgba(171, 219, 255, 0.06) 0%, transparent 14%),
+    radial-gradient(ellipse 22% 22% at -8% 88%, rgba(101, 171, 241, 0.018) 0%, transparent 72%),
+    radial-gradient(ellipse 20% 20% at 108% 92%, rgba(111, 180, 244, 0.015) 0%, transparent 74%),
+    linear-gradient(180deg, #ffffff 0%, #fcfdff 44%, #f8fbff 84%, #f5f9ff 100%);
+}
+
+body.page-tone-dashboard {
+  background:
+    radial-gradient(circle at -8% 0%, rgba(88, 156, 234, 0.14) 0%, transparent 22%),
+    radial-gradient(circle at 106% 8%, rgba(164, 214, 255, 0.08) 0%, transparent 16%),
+    radial-gradient(ellipse 18% 18% at 108% 92%, rgba(111, 180, 244, 0.018) 0%, transparent 76%),
+    linear-gradient(180deg, #ffffff 0%, #fcfeff 40%, #f8fbff 100%);
+}
+
 body::before {
   content: '';
   position: fixed;
@@ -42,6 +59,37 @@ body::before {
     linear-gradient(rgba(130, 162, 197, 0.08) 1px, transparent 1px);
   background-size: 100% 100%, 72px 72px, 72px 72px;
   mask: linear-gradient(180deg, rgba(255, 255, 255, 0.7), transparent 82%);
+}
+
+body.page-tone-landing::before {
+  background:
+    linear-gradient(rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.04)),
+    linear-gradient(90deg, rgba(130, 162, 197, 0.04) 1px, transparent 1px),
+    linear-gradient(rgba(130, 162, 197, 0.03) 1px, transparent 1px);
+}
+
+body.page-tone-dashboard::before {
+  background:
+    linear-gradient(rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05)),
+    linear-gradient(90deg, rgba(130, 162, 197, 0.04) 1px, transparent 1px),
+    linear-gradient(rgba(130, 162, 197, 0.03) 1px, transparent 1px);
+}
+
+body.page-tone-landing::after,
+body.page-tone-dashboard::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+}
+
+body.page-tone-landing::after {
+  background: none;
+}
+
+body.page-tone-dashboard::after {
+  background: none;
 }
 
 button,
@@ -90,6 +138,56 @@ svg {
 .content-narrow {
   width: min(72rem, calc(100% - calc(var(--space-page-x) * 2)));
   margin-inline: auto;
+}
+
+.premium-corner-canvas {
+  --premium-canvas-bg: linear-gradient(180deg, #ffffff 0%, #ffffff 64%, #fbfdff 100%);
+  --premium-canvas-before: none;
+  --premium-canvas-after:
+    radial-gradient(circle at 50% 10%, rgba(255, 255, 255, 0.92) 0%, rgba(255, 255, 255, 0.66) 24%, transparent 48%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.42), rgba(255, 255, 255, 0.08));
+  --premium-canvas-before-blur: 0px;
+  --premium-canvas-before-opacity: 1;
+  --premium-canvas-after-opacity: 1;
+  --edge-surface-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.99) 0%, rgba(249, 252, 255, 0.97) 44%, rgba(244, 249, 255, 0.95) 100%);
+  --edge-surface-border: color-mix(in srgb, var(--border-soft) 82%, rgba(142, 201, 255, 0.28) 18%);
+  --edge-surface-shadow:
+    0 18px 42px rgba(19, 44, 72, 0.07),
+    0 4px 14px rgba(19, 44, 72, 0.04),
+    inset 0 0 0 1px rgba(233, 242, 250, 0.94);
+  --edge-surface-highlight:
+    radial-gradient(circle at 14% 0%, rgba(188, 226, 255, 0.2), transparent 28%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.68), transparent 28%);
+  position: relative;
+  isolation: isolate;
+  overflow: clip;
+  background: var(--premium-canvas-bg);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.84);
+}
+
+.premium-corner-canvas::before,
+.premium-corner-canvas::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.premium-corner-canvas::before {
+  background: var(--premium-canvas-before);
+  filter: blur(var(--premium-canvas-before-blur));
+  opacity: var(--premium-canvas-before-opacity);
+}
+
+.premium-corner-canvas::after {
+  background: var(--premium-canvas-after);
+  opacity: var(--premium-canvas-after-opacity);
+}
+
+.premium-corner-canvas > * {
+  position: relative;
+  z-index: 1;
 }
 
 .section-kicker {

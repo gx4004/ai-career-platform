@@ -4,8 +4,8 @@ import { RunList } from '#/components/dashboard/RunList'
 export function FavoriteRuns() {
   return (
     <RunList
-      eyebrow="Favorites"
-      title="Starred runs worth revisiting"
+      eyebrow="Starred"
+      title="Your best results, pinned"
       emptyIcon={Star}
       emptyText="Star a result to keep it within reach."
       unauthText="Favorites become available after sign-in."

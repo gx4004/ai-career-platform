@@ -21,7 +21,7 @@ const PREVIEW_PRESETS: Record<ToolId, PreviewPreset> = {
   resume: {
     windowLabel: 'Resume analysis',
     title: 'Shortlist readiness',
-    subtitle: 'Three focused edits before you send this version.',
+    subtitle: 'Three targeted edits before you send this version.',
     status: 'Resume synced',
     stats: [
       { label: 'Score', value: '84' },
@@ -43,7 +43,7 @@ const PREVIEW_PRESETS: Record<ToolId, PreviewPreset> = {
   'job-match': {
     windowLabel: 'Role match',
     title: 'Requirement coverage',
-    subtitle: 'Strong alignment with a few fixable gaps before applying.',
+    subtitle: 'Strong alignment — a few fixable gaps remain before applying.',
     status: 'Role imported',
     stats: [
       { label: 'Fit', value: '78%' },
@@ -87,7 +87,7 @@ const PREVIEW_PRESETS: Record<ToolId, PreviewPreset> = {
   interview: {
     windowLabel: 'Interview deck',
     title: 'Practice focus areas',
-    subtitle: 'Questions are mapped to the gaps most likely to surface live.',
+    subtitle: 'Questions mapped to the gaps most likely to come up live.',
     status: 'Deck generated',
     stats: [
       { label: 'Questions', value: '9' },
@@ -131,7 +131,7 @@ const PREVIEW_PRESETS: Record<ToolId, PreviewPreset> = {
   portfolio: {
     windowLabel: 'Portfolio plan',
     title: 'Proof-building roadmap',
-    subtitle: 'Projects are sequenced to close visible role gaps efficiently.',
+    subtitle: 'Projects sequenced to close the most visible role gaps first.',
     status: 'Roadmap ready',
     stats: [
       { label: 'Projects', value: '4' },

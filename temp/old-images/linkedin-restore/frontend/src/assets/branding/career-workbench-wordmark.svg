@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 440 88" fill="none">
+  <g transform="translate(18 20) scale(0.61)">
+    <path
+      d="M68 18C57 8 43 2 29 2C13 2 1 14 1 30C1 46 13 58 29 58C43 58 57 53 68 43"
+      stroke="#1D6CB5"
+      stroke-width="13"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+    <path
+      d="M76 7L95 41L113 7"
+      stroke="#94A3B8"
+      stroke-width="10"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+    <path
+      d="M93 7L119 78L139 28"
+      stroke="#1D6CB5"
+      stroke-width="12"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+    <path
+      d="M139 28L160 78L184 7"
+      stroke="#163A6B"
+      stroke-width="12"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+  </g>
+  <text
+    x="238"
+    y="44"
+    dy="1.5"
+    text-anchor="end"
+    dominant-baseline="middle"
+    fill="#334155"
+    font-family="Geist, Arial, sans-serif"
+    font-size="36"
+    letter-spacing="-0.045em"
+    font-weight="700"
+  >
+    Career
+  </text>
+  <text
+    x="251"
+    y="44"
+    dy="1.5"
+    text-anchor="start"
+    dominant-baseline="middle"
+    fill="#475569"
+    font-family="Geist, Arial, sans-serif"
+    font-size="36"
+    letter-spacing="-0.04em"
+    font-weight="500"
+  >
+    Workbench
+  </text>
+</svg>

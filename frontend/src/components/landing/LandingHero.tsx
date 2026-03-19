@@ -11,19 +11,19 @@ export function LandingHero() {
         <StaggerChildren className="landing-hero-copy" stagger={0.08}>
           <StaggerItem>
             <h1 className="display-xl text-gradient-aurora text-balance">
-              Build the search one strong decision at a time.
+              Your resume has blind spots. We find them before recruiters do.
             </h1>
           </StaggerItem>
           <StaggerItem>
             <p className="text-lg text-[var(--text-body)]">
-              Career Workbench connects resume analysis, job matching, cover letters,
-              interview prep, career planning, and portfolio ideas into one focused workflow.
+              Upload your resume and get an instant score, targeted fixes, role matching,
+              a cover letter draft, interview prep, and career planning — one session, fully connected.
             </p>
           </StaggerItem>
           <StaggerItem>
             <Button asChild className="button-hero-primary" size="lg">
               <Link to="/dashboard">
-                Try it free, no sign-in needed
+                Start free — no account needed
                 <ArrowRight size={16} />
               </Link>
             </Button>

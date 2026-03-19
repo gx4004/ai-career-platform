@@ -54,9 +54,13 @@ export function RunList({
               className="run-row"
               style={toolAccentStyle(tool?.accent)}
             >
-              <div className="grid gap-1">
+              {tool && (
+                <div className="run-row-icon-col" aria-hidden>
+                  <tool.icon size={18} />
+                </div>
+              )}
+              <div className="grid gap-1" style={{ minWidth: 0 }}>
                 <div className="flex items-center gap-2">
-                  {tool && <tool.icon size={14} style={{ color: tool.accent }} />}
                   {showFavoriteStar && (
                     <Star size={14} style={{ color: 'var(--warning)' }} />
                   )}

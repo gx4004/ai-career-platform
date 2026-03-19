@@ -6,7 +6,7 @@ export function LandingFooter() {
       <div className="content-max landing-footer-inner">
         <div className="landing-footer-brand">
           <AppBrandLockup className="landing-footer-lockup" />
-          <p className="landing-footer-tagline">AI-powered career toolkit.</p>
+          <p className="landing-footer-tagline">Your career, sharper.</p>
         </div>
       </div>
     </footer>
