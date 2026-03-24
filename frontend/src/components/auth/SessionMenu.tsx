@@ -26,7 +26,17 @@ export function SessionMenu() {
 
   if (status !== 'authenticated' || !user) {
     return (
-      <Button variant="outline" className="button-toolbar-utility" onClick={() => openAuthDialog()}>
+      <Button
+        size="default"
+        className="button-session-signin-cta"
+        onClick={() =>
+          openAuthDialog({
+            to: '/dashboard',
+            reason: 'topbar-signin',
+            label: 'Sign in',
+          })
+        }
+      >
         Sign in
       </Button>
     )
@@ -37,8 +47,8 @@ export function SessionMenu() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" className="button-toolbar-utility gap-2">
-          <Avatar className="size-7">
+        <Button variant="ghost" className="button-session-avatar gap-2">
+          <Avatar className="size-7 avatar-ring">
             <AvatarFallback>{getInitials(displayName)}</AvatarFallback>
           </Avatar>
           <span className="hidden sm:inline">{displayName}</span>

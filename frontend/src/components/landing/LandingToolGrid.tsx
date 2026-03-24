@@ -1,26 +1,17 @@
-import { useMemo, type CSSProperties } from 'react'
-import { Link } from '@tanstack/react-router'
-import { Button } from '#/components/ui/button'
+import { useMemo, useState, type CSSProperties } from 'react'
 import { ScrollReveal } from '#/components/ui/motion'
-import { motion, AnimatePresence } from 'framer-motion'
-import { toolList } from '#/lib/tools/registry'
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
+import { tools, type ToolId } from '#/lib/tools/registry'
 import { cn } from '#/lib/utils'
 import { toolAccentStyle } from '#/lib/tools/styleUtils'
-import { useCarousel } from '#/hooks/useCarousel'
+import {
+  landingToolCopy,
+  landingToolsCopy,
+  landingWorkflowPhases,
+  landingWorkflowToolIds,
+} from '#/components/landing/landingContent'
 
-const groupLabels: Record<string, string> = {
-  primary: 'Core workflow',
-  application: 'Application assets',
-  planning: 'Career planning',
-}
-
-const groupSupportCopy: Record<string, string> = {
-  primary: 'Start here to create the shared signal the rest of the toolkit can reuse.',
-  application: 'Carries the same resume evidence and role context straight into output you can use.',
-  planning: 'Keeps your current baseline in view while turning gaps into concrete next steps.',
-}
-
-const previewImages: Record<string, string> = {
+const previewImages: Record<ToolId, string> = {
   resume: '/ai-generated/carousel/final-resume.png',
   'cover-letter': '/ai-generated/carousel/final-cover-letter.png',
   'job-match': '/ai-generated/carousel/final-job-match.png',
@@ -29,44 +20,26 @@ const previewImages: Record<string, string> = {
   portfolio: '/ai-generated/carousel/final-portfolio.png',
 }
 
-const previewImageStyles: Record<
-  string,
-  { scale?: number; x?: string; y?: string }
-> = {
-  resume: { scale: 1.12, x: '0%', y: '1%' },
-  'cover-letter': { scale: 1.08, x: '1%', y: '1%' },
-  'job-match': { scale: 1.1, x: '0%', y: '0%' },
-  career: { scale: 1.18, x: '0%', y: '1%' },
-  interview: { scale: 1.08, x: '0%', y: '0%' },
-  portfolio: { scale: 1.12, x: '0%', y: '0%' },
-}
-
-function getContextPills(group: string, supportsJobImport: boolean) {
-  if (group === 'application') {
-    return ['Resume evidence', 'Role details', 'Ready-to-use output']
-  }
-
-  if (group === 'planning') {
-    return ['Resume baseline', 'Gap signals', 'Next-step roadmap']
-  }
-
-  return supportsJobImport
-    ? ['Resume context', 'Target role', 'Gap analysis']
-    : ['Resume context', 'Shared signal', 'Priority fixes']
+const previewImageStyles: Record<ToolId, { scale?: number; x?: string; y?: string }> = {
+  resume: { scale: 1.02 },
+  'cover-letter': { scale: 1.02, x: '1%' },
+  'job-match': { scale: 1.04 },
+  career: { scale: 1.05, y: '-1%' },
+  interview: { scale: 1.02 },
+  portfolio: { scale: 1.02, y: '-1%' },
 }
 
 export function LandingToolGrid() {
-  const { activeIndex: carouselIndex, goTo, hoverHandlers } = useCarousel(toolList.length, {
-    interval: 4200,
-    cooldown: 7000,
-  })
-  const activeTool = toolList[carouselIndex] || toolList[0]
-  const activeIndex = carouselIndex + 1
-  const contextPills = getContextPills(activeTool.group, activeTool.supportsJobImport)
-  const previewImage = previewImages[activeTool.id]
+  const [activeToolId, setActiveToolId] = useState<ToolId>(landingWorkflowToolIds[0])
+  const prefersReducedMotion = useReducedMotion() ?? false
+  const orderedTools = useMemo(() => landingWorkflowToolIds.map((toolId) => tools[toolId]), [])
+  const activeTool = tools[activeToolId]
+  const activeToolMeta = landingToolCopy[activeToolId]
+  const activeIndex = orderedTools.findIndex((tool) => tool.id === activeToolId) + 1
+  const previewImage = previewImages[activeToolId]
   const previewImageStyle = useMemo(
-    () => previewImageStyles[activeTool.id] || {},
-    [activeTool.id],
+    () => previewImageStyles[activeToolId] || {},
+    [activeToolId],
   )
 
   return (
@@ -74,15 +47,12 @@ export function LandingToolGrid() {
       <div className="content-max grid gap-5">
         <ScrollReveal>
           <div className="landing-section-heading landing-section-heading--tools">
-            <p className="eyebrow">The toolkit</p>
-            <h2 className="display-lg">Six tools. One shared context.</h2>
-            <p className="muted-copy landing-tool-intro">
-              Start with your resume, branch into live application work, then keep planning from the
-              same signal instead of repeating yourself in every step.
-            </p>
+            <p className="eyebrow">{landingToolsCopy.eyebrow}</p>
+            <h2 className="display-lg">{landingToolsCopy.title}</h2>
+            <p className="muted-copy landing-tool-intro">{landingToolsCopy.body}</p>
           </div>
         </ScrollReveal>
-        <div className="landing-tool-showcase" {...hoverHandlers}>
+        <div className="landing-tool-showcase">
           <div
             className="landing-preview-panel glass-elevated"
             style={toolAccentStyle(activeTool.accent)}
@@ -90,23 +60,24 @@ export function LandingToolGrid() {
             <AnimatePresence mode="wait">
               <motion.div
                 key={activeTool.id}
-                initial={{ opacity: 0, y: 10 }}
+                initial={prefersReducedMotion ? false : { opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                transition={{ duration: 0.25 }}
+                exit={prefersReducedMotion ? undefined : { opacity: 0, y: -8 }}
+                transition={{ duration: prefersReducedMotion ? 0 : 0.2 }}
                 className="landing-preview-shell"
               >
                 <div className="landing-preview-header">
                   <div className="landing-preview-header-top">
-                    <p className="eyebrow">{groupLabels[activeTool.group] || 'Toolkit'}</p>
+                    <p className="eyebrow">{activeToolMeta.phase}</p>
                     <div className="landing-preview-pills">
                       <span className="landing-preview-pill">0{activeIndex} / 06</span>
+                      <span className="landing-preview-pill is-accent">{activeTool.shortLabel}</span>
                     </div>
                   </div>
                   <h3 className="display-lg">{activeTool.label}</h3>
-                  <p className="muted-copy landing-preview-summary">{activeTool.summary}</p>
+                  <p className="muted-copy landing-preview-summary">{activeToolMeta.summary}</p>
                   <div className="landing-preview-context-pills landing-preview-context-pills--inline">
-                    {contextPills.map((pill) => (
+                    {activeToolMeta.contextPills.map((pill) => (
                       <span key={pill} className="landing-preview-context-pill">
                         {pill}
                       </span>
@@ -144,7 +115,7 @@ export function LandingToolGrid() {
                         {activeTool.shortLabel}
                       </span>
                       <span className="landing-preview-demo-chip">
-                        {contextPills[contextPills.length - 1]}
+                        {activeToolMeta.contextPills[activeToolMeta.contextPills.length - 1]}
                       </span>
                     </div>
                   </div>
@@ -152,43 +123,55 @@ export function LandingToolGrid() {
 
                 <div className="landing-preview-footer">
                   <div className="landing-preview-footer-copy">
-                    <p className="landing-preview-footnote">
-                      {groupSupportCopy[activeTool.group] || groupSupportCopy.primary}
-                    </p>
+                    <p className="landing-preview-footnote">{activeToolMeta.footnote}</p>
                   </div>
-                  <Button asChild className="button-hero-primary landing-preview-cta" size="lg">
-                    <Link to={activeTool.route}>Open {activeTool.shortLabel}</Link>
-                  </Button>
                 </div>
               </motion.div>
             </AnimatePresence>
           </div>
 
           <div className="landing-tool-cards">
-            {toolList.map((tool, index) => (
-              <button
-                key={tool.id}
-                type="button"
-                className={cn(
-                  'landing-tool-card glass',
-                  tool.id === activeTool.id && 'is-active',
-                )}
-                onClick={() => goTo(index)}
-                style={toolAccentStyle(tool.accent)}
-              >
-                <div
-                  className="landing-tool-card-icon"
-                  style={{
-                    background: `color-mix(in srgb, ${tool.accent} 14%, transparent)`,
-                  }}
-                >
-                  <tool.icon size={18} style={{ color: tool.accent }} />
+            {landingWorkflowPhases.map((phase) => (
+              <section key={phase.id} className="landing-tool-phase">
+                <div className="landing-tool-phase-head">
+                  <p className="landing-tool-phase-eyebrow">{phase.eyebrow}</p>
+                  <h3 className="landing-tool-phase-title">{phase.label}</h3>
+                  <p className="landing-tool-phase-copy">{phase.description}</p>
                 </div>
-                <div className="landing-tool-card-copy">
-                  <h3 className="section-title">{tool.label}</h3>
-                  <p className="small-copy muted-copy">{tool.summary}</p>
+                <div className="landing-tool-phase-cards">
+                  {phase.toolIds.map((toolId) => {
+                    const tool = tools[toolId]
+                    const toolMeta = landingToolCopy[toolId]
+
+                    return (
+                      <button
+                        key={tool.id}
+                        type="button"
+                        className={cn(
+                          'landing-tool-card glass',
+                          tool.id === activeTool.id && 'is-active',
+                        )}
+                        onClick={() => setActiveToolId(tool.id)}
+                        style={toolAccentStyle(tool.accent)}
+                      >
+                        <div
+                          className="landing-tool-card-icon"
+                          style={{
+                            background: `color-mix(in srgb, ${tool.accent} 14%, transparent)`,
+                          }}
+                        >
+                          <tool.icon size={18} style={{ color: tool.accent }} />
+                        </div>
+                        <div className="landing-tool-card-copy">
+                          <p className="landing-tool-card-phase">{phase.label}</p>
+                          <h3 className="section-title">{tool.label}</h3>
+                          <p className="small-copy muted-copy">{toolMeta.summary}</p>
+                        </div>
+                      </button>
+                    )
+                  })}
                 </div>
-              </button>
+              </section>
             ))}
           </div>
         </div>

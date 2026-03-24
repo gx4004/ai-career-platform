@@ -56,15 +56,18 @@
 }
 
 @keyframes scan-sweep {
-  from {
-    top: 0;
+  0% {
+    transform: translateY(-3rem);
+    opacity: 0;
+  }
+  5% {
     opacity: 1;
   }
-  90% {
-    opacity: 1;
+  92% {
+    opacity: 0.85;
   }
-  to {
-    top: 100%;
+  100% {
+    transform: translateY(32rem);
     opacity: 0;
   }
 }
@@ -176,6 +179,37 @@
   }
 }
 
+/* Fast accordion animations for FAQ */
+@keyframes accordion-down {
+  from {
+    height: 0;
+    opacity: 0;
+  }
+  to {
+    height: var(--radix-accordion-content-height);
+    opacity: 1;
+  }
+}
+
+@keyframes accordion-up {
+  from {
+    height: var(--radix-accordion-content-height);
+    opacity: 1;
+  }
+  to {
+    height: 0;
+    opacity: 0;
+  }
+}
+
+.animate-accordion-down {
+  animation: accordion-down 150ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.animate-accordion-up {
+  animation: accordion-up 120ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
 @keyframes pulse-glow {
   0%, 100% {
     opacity: 0.6;
@@ -217,4 +251,29 @@
   background-size: 200% 100%;
   animation: shimmer 1.8s ease-in-out infinite;
   border-radius: var(--radius-md);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Make all entrance animations instant */
+  .page-frame,
+  .tool-hero,
+  .ra-form-wrap,
+  .result-hero,
+  .result-body,
+  .dash-hero,
+  .h-stat-card,
+  [role='tabpanel'],
+  .dashboard-stack > *,
+  .animate-slide-in-right,
+  .animate-slide-in-left {
+    animation-duration: 1ms !important;
+    animation-delay: 0ms !important;
+  }
+
+  /* Stop looping animations */
+  .animate-pulse-glow,
+  .skeleton-shimmer,
+  .skeleton {
+    animation: none !important;
+  }
 }

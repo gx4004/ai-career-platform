@@ -1,7 +1,7 @@
-import { Link } from '@tanstack/react-router'
 import { ArrowRight } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { ScrollReveal } from '#/components/ui/motion'
+import { landingCtaCopy, landingPrimaryCta } from '#/components/landing/landingContent'
 
 export function LandingCTA() {
   return (
@@ -9,18 +9,16 @@ export function LandingCTA() {
       <ScrollReveal>
         <div className="content-max landing-cta glass-elevated section-card">
           <div className="landing-cta-copy">
-            <p className="eyebrow">One session</p>
-            <h2 className="display-lg">From raw resume to interview-ready in one sitting.</h2>
-            <p className="muted-copy">
-              Every step feeds the next. No copy-pasting between tabs. No lost context.
-            </p>
+            <p className="eyebrow">{landingCtaCopy.eyebrow}</p>
+            <h2 className="display-lg">{landingCtaCopy.title}</h2>
+            <p className="muted-copy">{landingCtaCopy.body}</p>
           </div>
           <div className="landing-cta-glow">
             <Button asChild className="button-hero-primary" size="lg">
-              <Link to="/dashboard">
-                Get started
+              <a href={landingPrimaryCta.to}>
+                {landingPrimaryCta.label}
                 <ArrowRight size={16} />
-              </Link>
+              </a>
             </Button>
           </div>
         </div>

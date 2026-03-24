@@ -13,6 +13,9 @@ import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ResumeRouteImport } from './routes/resume'
 import { Route as PortfolioRouteImport } from './routes/portfolio'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as LandingToolsRouteImport } from './routes/landing-tools'
+import { Route as LandingExperimentRouteImport } from './routes/landing-experiment'
+import { Route as LandingClassicRouteImport } from './routes/landing-classic'
 import { Route as JobMatchRouteImport } from './routes/job-match'
 import { Route as InterviewRouteImport } from './routes/interview'
 import { Route as HistoryRouteImport } from './routes/history'
@@ -21,6 +24,12 @@ import { Route as CoverLetterRouteImport } from './routes/cover-letter'
 import { Route as CareerRouteImport } from './routes/career'
 import { Route as AccountRouteImport } from './routes/account'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ResumePreviewRouteImport } from './routes/resume.preview'
+import { Route as PortfolioPreviewRouteImport } from './routes/portfolio.preview'
+import { Route as JobMatchPreviewRouteImport } from './routes/job-match.preview'
+import { Route as InterviewPreviewRouteImport } from './routes/interview.preview'
+import { Route as CoverLetterPreviewRouteImport } from './routes/cover-letter.preview'
+import { Route as CareerPreviewRouteImport } from './routes/career.preview'
 import { Route as AuthCallbackRouteImport } from './routes/auth.callback'
 import { Route as ResumeResultHistoryIdRouteImport } from './routes/resume.result.$historyId'
 import { Route as PortfolioResultHistoryIdRouteImport } from './routes/portfolio.result.$historyId'
@@ -47,6 +56,21 @@ const PortfolioRoute = PortfolioRouteImport.update({
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LandingToolsRoute = LandingToolsRouteImport.update({
+  id: '/landing-tools',
+  path: '/landing-tools',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LandingExperimentRoute = LandingExperimentRouteImport.update({
+  id: '/landing-experiment',
+  path: '/landing-experiment',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LandingClassicRoute = LandingClassicRouteImport.update({
+  id: '/landing-classic',
+  path: '/landing-classic',
   getParentRoute: () => rootRouteImport,
 } as any)
 const JobMatchRoute = JobMatchRouteImport.update({
@@ -88,6 +112,36 @@ const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
+} as any)
+const ResumePreviewRoute = ResumePreviewRouteImport.update({
+  id: '/preview',
+  path: '/preview',
+  getParentRoute: () => ResumeRoute,
+} as any)
+const PortfolioPreviewRoute = PortfolioPreviewRouteImport.update({
+  id: '/preview',
+  path: '/preview',
+  getParentRoute: () => PortfolioRoute,
+} as any)
+const JobMatchPreviewRoute = JobMatchPreviewRouteImport.update({
+  id: '/preview',
+  path: '/preview',
+  getParentRoute: () => JobMatchRoute,
+} as any)
+const InterviewPreviewRoute = InterviewPreviewRouteImport.update({
+  id: '/preview',
+  path: '/preview',
+  getParentRoute: () => InterviewRoute,
+} as any)
+const CoverLetterPreviewRoute = CoverLetterPreviewRouteImport.update({
+  id: '/preview',
+  path: '/preview',
+  getParentRoute: () => CoverLetterRoute,
+} as any)
+const CareerPreviewRoute = CareerPreviewRouteImport.update({
+  id: '/preview',
+  path: '/preview',
+  getParentRoute: () => CareerRoute,
 } as any)
 const AuthCallbackRoute = AuthCallbackRouteImport.update({
   id: '/auth/callback',
@@ -137,11 +191,20 @@ export interface FileRoutesByFullPath {
   '/history': typeof HistoryRoute
   '/interview': typeof InterviewRouteWithChildren
   '/job-match': typeof JobMatchRouteWithChildren
+  '/landing-classic': typeof LandingClassicRoute
+  '/landing-experiment': typeof LandingExperimentRoute
+  '/landing-tools': typeof LandingToolsRoute
   '/login': typeof LoginRoute
   '/portfolio': typeof PortfolioRouteWithChildren
   '/resume': typeof ResumeRouteWithChildren
   '/settings': typeof SettingsRoute
   '/auth/callback': typeof AuthCallbackRoute
+  '/career/preview': typeof CareerPreviewRoute
+  '/cover-letter/preview': typeof CoverLetterPreviewRoute
+  '/interview/preview': typeof InterviewPreviewRoute
+  '/job-match/preview': typeof JobMatchPreviewRoute
+  '/portfolio/preview': typeof PortfolioPreviewRoute
+  '/resume/preview': typeof ResumePreviewRoute
   '/career/result/$historyId': typeof CareerResultHistoryIdRoute
   '/cover-letter/result/$historyId': typeof CoverLetterResultHistoryIdRoute
   '/interview/result/$historyId': typeof InterviewResultHistoryIdRoute
@@ -158,11 +221,20 @@ export interface FileRoutesByTo {
   '/history': typeof HistoryRoute
   '/interview': typeof InterviewRouteWithChildren
   '/job-match': typeof JobMatchRouteWithChildren
+  '/landing-classic': typeof LandingClassicRoute
+  '/landing-experiment': typeof LandingExperimentRoute
+  '/landing-tools': typeof LandingToolsRoute
   '/login': typeof LoginRoute
   '/portfolio': typeof PortfolioRouteWithChildren
   '/resume': typeof ResumeRouteWithChildren
   '/settings': typeof SettingsRoute
   '/auth/callback': typeof AuthCallbackRoute
+  '/career/preview': typeof CareerPreviewRoute
+  '/cover-letter/preview': typeof CoverLetterPreviewRoute
+  '/interview/preview': typeof InterviewPreviewRoute
+  '/job-match/preview': typeof JobMatchPreviewRoute
+  '/portfolio/preview': typeof PortfolioPreviewRoute
+  '/resume/preview': typeof ResumePreviewRoute
   '/career/result/$historyId': typeof CareerResultHistoryIdRoute
   '/cover-letter/result/$historyId': typeof CoverLetterResultHistoryIdRoute
   '/interview/result/$historyId': typeof InterviewResultHistoryIdRoute
@@ -180,11 +252,20 @@ export interface FileRoutesById {
   '/history': typeof HistoryRoute
   '/interview': typeof InterviewRouteWithChildren
   '/job-match': typeof JobMatchRouteWithChildren
+  '/landing-classic': typeof LandingClassicRoute
+  '/landing-experiment': typeof LandingExperimentRoute
+  '/landing-tools': typeof LandingToolsRoute
   '/login': typeof LoginRoute
   '/portfolio': typeof PortfolioRouteWithChildren
   '/resume': typeof ResumeRouteWithChildren
   '/settings': typeof SettingsRoute
   '/auth/callback': typeof AuthCallbackRoute
+  '/career/preview': typeof CareerPreviewRoute
+  '/cover-letter/preview': typeof CoverLetterPreviewRoute
+  '/interview/preview': typeof InterviewPreviewRoute
+  '/job-match/preview': typeof JobMatchPreviewRoute
+  '/portfolio/preview': typeof PortfolioPreviewRoute
+  '/resume/preview': typeof ResumePreviewRoute
   '/career/result/$historyId': typeof CareerResultHistoryIdRoute
   '/cover-letter/result/$historyId': typeof CoverLetterResultHistoryIdRoute
   '/interview/result/$historyId': typeof InterviewResultHistoryIdRoute
@@ -203,11 +284,20 @@ export interface FileRouteTypes {
     | '/history'
     | '/interview'
     | '/job-match'
+    | '/landing-classic'
+    | '/landing-experiment'
+    | '/landing-tools'
     | '/login'
     | '/portfolio'
     | '/resume'
     | '/settings'
     | '/auth/callback'
+    | '/career/preview'
+    | '/cover-letter/preview'
+    | '/interview/preview'
+    | '/job-match/preview'
+    | '/portfolio/preview'
+    | '/resume/preview'
     | '/career/result/$historyId'
     | '/cover-letter/result/$historyId'
     | '/interview/result/$historyId'
@@ -224,11 +314,20 @@ export interface FileRouteTypes {
     | '/history'
     | '/interview'
     | '/job-match'
+    | '/landing-classic'
+    | '/landing-experiment'
+    | '/landing-tools'
     | '/login'
     | '/portfolio'
     | '/resume'
     | '/settings'
     | '/auth/callback'
+    | '/career/preview'
+    | '/cover-letter/preview'
+    | '/interview/preview'
+    | '/job-match/preview'
+    | '/portfolio/preview'
+    | '/resume/preview'
     | '/career/result/$historyId'
     | '/cover-letter/result/$historyId'
     | '/interview/result/$historyId'
@@ -245,11 +344,20 @@ export interface FileRouteTypes {
     | '/history'
     | '/interview'
     | '/job-match'
+    | '/landing-classic'
+    | '/landing-experiment'
+    | '/landing-tools'
     | '/login'
     | '/portfolio'
     | '/resume'
     | '/settings'
     | '/auth/callback'
+    | '/career/preview'
+    | '/cover-letter/preview'
+    | '/interview/preview'
+    | '/job-match/preview'
+    | '/portfolio/preview'
+    | '/resume/preview'
     | '/career/result/$historyId'
     | '/cover-letter/result/$historyId'
     | '/interview/result/$historyId'
@@ -267,6 +375,9 @@ export interface RootRouteChildren {
   HistoryRoute: typeof HistoryRoute
   InterviewRoute: typeof InterviewRouteWithChildren
   JobMatchRoute: typeof JobMatchRouteWithChildren
+  LandingClassicRoute: typeof LandingClassicRoute
+  LandingExperimentRoute: typeof LandingExperimentRoute
+  LandingToolsRoute: typeof LandingToolsRoute
   LoginRoute: typeof LoginRoute
   PortfolioRoute: typeof PortfolioRouteWithChildren
   ResumeRoute: typeof ResumeRouteWithChildren
@@ -302,6 +413,27 @@ declare module '@tanstack/react-router' {
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/landing-tools': {
+      id: '/landing-tools'
+      path: '/landing-tools'
+      fullPath: '/landing-tools'
+      preLoaderRoute: typeof LandingToolsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/landing-experiment': {
+      id: '/landing-experiment'
+      path: '/landing-experiment'
+      fullPath: '/landing-experiment'
+      preLoaderRoute: typeof LandingExperimentRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/landing-classic': {
+      id: '/landing-classic'
+      path: '/landing-classic'
+      fullPath: '/landing-classic'
+      preLoaderRoute: typeof LandingClassicRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/job-match': {
@@ -360,6 +492,48 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/resume/preview': {
+      id: '/resume/preview'
+      path: '/preview'
+      fullPath: '/resume/preview'
+      preLoaderRoute: typeof ResumePreviewRouteImport
+      parentRoute: typeof ResumeRoute
+    }
+    '/portfolio/preview': {
+      id: '/portfolio/preview'
+      path: '/preview'
+      fullPath: '/portfolio/preview'
+      preLoaderRoute: typeof PortfolioPreviewRouteImport
+      parentRoute: typeof PortfolioRoute
+    }
+    '/job-match/preview': {
+      id: '/job-match/preview'
+      path: '/preview'
+      fullPath: '/job-match/preview'
+      preLoaderRoute: typeof JobMatchPreviewRouteImport
+      parentRoute: typeof JobMatchRoute
+    }
+    '/interview/preview': {
+      id: '/interview/preview'
+      path: '/preview'
+      fullPath: '/interview/preview'
+      preLoaderRoute: typeof InterviewPreviewRouteImport
+      parentRoute: typeof InterviewRoute
+    }
+    '/cover-letter/preview': {
+      id: '/cover-letter/preview'
+      path: '/preview'
+      fullPath: '/cover-letter/preview'
+      preLoaderRoute: typeof CoverLetterPreviewRouteImport
+      parentRoute: typeof CoverLetterRoute
+    }
+    '/career/preview': {
+      id: '/career/preview'
+      path: '/preview'
+      fullPath: '/career/preview'
+      preLoaderRoute: typeof CareerPreviewRouteImport
+      parentRoute: typeof CareerRoute
+    }
     '/auth/callback': {
       id: '/auth/callback'
       path: '/auth/callback'
@@ -413,10 +587,12 @@ declare module '@tanstack/react-router' {
 }
 
 interface CareerRouteChildren {
+  CareerPreviewRoute: typeof CareerPreviewRoute
   CareerResultHistoryIdRoute: typeof CareerResultHistoryIdRoute
 }
 
 const CareerRouteChildren: CareerRouteChildren = {
+  CareerPreviewRoute: CareerPreviewRoute,
   CareerResultHistoryIdRoute: CareerResultHistoryIdRoute,
 }
 
@@ -424,10 +600,12 @@ const CareerRouteWithChildren =
   CareerRoute._addFileChildren(CareerRouteChildren)
 
 interface CoverLetterRouteChildren {
+  CoverLetterPreviewRoute: typeof CoverLetterPreviewRoute
   CoverLetterResultHistoryIdRoute: typeof CoverLetterResultHistoryIdRoute
 }
 
 const CoverLetterRouteChildren: CoverLetterRouteChildren = {
+  CoverLetterPreviewRoute: CoverLetterPreviewRoute,
   CoverLetterResultHistoryIdRoute: CoverLetterResultHistoryIdRoute,
 }
 
@@ -436,10 +614,12 @@ const CoverLetterRouteWithChildren = CoverLetterRoute._addFileChildren(
 )
 
 interface InterviewRouteChildren {
+  InterviewPreviewRoute: typeof InterviewPreviewRoute
   InterviewResultHistoryIdRoute: typeof InterviewResultHistoryIdRoute
 }
 
 const InterviewRouteChildren: InterviewRouteChildren = {
+  InterviewPreviewRoute: InterviewPreviewRoute,
   InterviewResultHistoryIdRoute: InterviewResultHistoryIdRoute,
 }
 
@@ -448,10 +628,12 @@ const InterviewRouteWithChildren = InterviewRoute._addFileChildren(
 )
 
 interface JobMatchRouteChildren {
+  JobMatchPreviewRoute: typeof JobMatchPreviewRoute
   JobMatchResultHistoryIdRoute: typeof JobMatchResultHistoryIdRoute
 }
 
 const JobMatchRouteChildren: JobMatchRouteChildren = {
+  JobMatchPreviewRoute: JobMatchPreviewRoute,
   JobMatchResultHistoryIdRoute: JobMatchResultHistoryIdRoute,
 }
 
@@ -460,10 +642,12 @@ const JobMatchRouteWithChildren = JobMatchRoute._addFileChildren(
 )
 
 interface PortfolioRouteChildren {
+  PortfolioPreviewRoute: typeof PortfolioPreviewRoute
   PortfolioResultHistoryIdRoute: typeof PortfolioResultHistoryIdRoute
 }
 
 const PortfolioRouteChildren: PortfolioRouteChildren = {
+  PortfolioPreviewRoute: PortfolioPreviewRoute,
   PortfolioResultHistoryIdRoute: PortfolioResultHistoryIdRoute,
 }
 
@@ -472,10 +656,12 @@ const PortfolioRouteWithChildren = PortfolioRoute._addFileChildren(
 )
 
 interface ResumeRouteChildren {
+  ResumePreviewRoute: typeof ResumePreviewRoute
   ResumeResultHistoryIdRoute: typeof ResumeResultHistoryIdRoute
 }
 
 const ResumeRouteChildren: ResumeRouteChildren = {
+  ResumePreviewRoute: ResumePreviewRoute,
   ResumeResultHistoryIdRoute: ResumeResultHistoryIdRoute,
 }
 
@@ -491,6 +677,9 @@ const rootRouteChildren: RootRouteChildren = {
   HistoryRoute: HistoryRoute,
   InterviewRoute: InterviewRouteWithChildren,
   JobMatchRoute: JobMatchRouteWithChildren,
+  LandingClassicRoute: LandingClassicRoute,
+  LandingExperimentRoute: LandingExperimentRoute,
+  LandingToolsRoute: LandingToolsRoute,
   LoginRoute: LoginRoute,
   PortfolioRoute: PortfolioRouteWithChildren,
   ResumeRoute: ResumeRouteWithChildren,

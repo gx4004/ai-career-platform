@@ -972,7 +972,11 @@ body.tool-fullscreen-open .mobile-nav-pill {
   text-align: center;
 }
 
-.resume-loading-shell {
+.resume-loading-shell,
+.career-loading-shell,
+.interview-loading-shell,
+.portfolio-loading-shell,
+.cover-letter-loading-shell {
   display: flex;
   align-items: center;
   justify-content: center;

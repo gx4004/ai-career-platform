@@ -1,22 +1,10 @@
-import { type CSSProperties, useCallback, useEffect, useRef, useState } from 'react'
-import { Link } from '@tanstack/react-router'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useReducedMotion } from 'framer-motion'
-import {
-  AlertTriangle,
-  ArrowRight,
-  Check,
-  ScanText,
-} from 'lucide-react'
-import { Button } from '#/components/ui/button'
-import {
-  ScrollReveal,
-  StaggerChildren,
-  StaggerItem,
-  motion,
-  useViewportTrigger,
-} from '#/components/ui/motion'
+import { AlertTriangle, Check } from 'lucide-react'
+import { ScrollReveal, motion, useViewportTrigger } from '#/components/ui/motion'
+import { landingResumeDemoCopy } from '#/components/landing/landingContent'
 
-type DemoPhase = 'idle' | 'parsing' | 'highlighting' | 'scoring' | 'fixes'
+type DemoPhase = 'idle' | 'scanning' | 'summary' | 'proof' | 'building' | 'complete'
 type HighlightTone = 'positive' | 'warning' | 'neutral'
 type ScanPass = 'none' | 'initial' | 'confirm'
 type ResumeLineKind = 'summary' | 'detail' | 'role' | 'bullet'
@@ -41,74 +29,41 @@ type ResumeIdentity = {
   location: string
   email: string
   site: string
+  linkedin: string
 }
 
-type ResumeCallout = {
-  id: string
-  text: string
-  tone: HighlightTone
-  lineId: string
-  top: string
-  left: string
-}
-
-type ProofChip = {
+type DemoInsight = {
   id: string
   label: string
-  description: string
-  tone: HighlightTone
+  text: string
+  tone: Exclude<HighlightTone, 'neutral'>
 }
 
-type DemoResumeAnalysis = {
-  summary: {
-    headline: string
-    verdict: string
-  }
-  overallScore: number
-  strengths: string[]
-  topActions: Array<{
-    title: string
-    action: string
-  }>
-  evidence: {
-    quantifiedBullets: number
-  }
+type DemoScore = {
+  value: number
+  verdict: string
+  summary: string
 }
 
 const RESUME_IDENTITY: ResumeIdentity = {
-  name: 'JOHN CARTER',
+  name: 'Adrian Nowak',
   role: 'Senior Frontend Engineer',
-  location: 'Warsaw, PL',
-  email: 'john.carter@sample.dev',
-  site: 'portfolio.dev/johncarter',
+  location: 'Warsaw, Poland',
+  email: 'adrian@nowak.dev',
+  site: 'adriannowak.dev',
+  linkedin: 'linkedin.com/in/adriannowak',
 }
 
 const RESUME_SECTIONS: ResumeSection[] = [
   {
-    id: 'summary',
-    label: 'Summary',
+    id: 'profile',
+    label: 'Profile',
     lines: [
       {
         id: 'profile-summary',
-        text: 'Frontend engineer building polished product UI, resilient React systems, and high-trust product experiences.',
+        text: 'Senior frontend engineer building revenue-critical React products, design systems, and performance improvements across scaling SaaS teams.',
         kind: 'summary',
         tone: 'warning',
-      },
-    ],
-  },
-  {
-    id: 'skills',
-    label: 'Core Skills',
-    lines: [
-      {
-        id: 'skills-core',
-        text: 'TypeScript, React, Next.js, Node.js, TailwindCSS, PostgreSQL, design systems',
-        kind: 'detail',
-      },
-      {
-        id: 'skills-proof',
-        text: 'Component APIs, accessibility, testing, architecture docs, and frontend platform work.',
-        kind: 'detail',
       },
     ],
   },
@@ -117,119 +72,101 @@ const RESUME_SECTIONS: ResumeSection[] = [
     label: 'Experience',
     lines: [
       {
-        id: 'experience-role',
-        text: 'Senior Frontend Engineer · Acme Corp',
-        meta: '2022–Present',
+        id: 'northstar-role',
+        text: 'Senior Frontend Engineer - Northstar Commerce',
+        meta: '2022-Present',
         kind: 'role',
       },
       {
-        id: 'experience-scope',
-        text: 'Owned customer-facing product UI, shared systems, and frontend platform improvements across the core app.',
+        id: 'northstar-scope',
+        text: 'Own checkout and shared frontend foundations for a multi-product commerce platform.',
         kind: 'detail',
       },
       {
-        id: 'experience-migration',
-        text: 'Migrated 40 modules from JavaScript to TypeScript across the core app.',
+        id: 'northstar-system',
+        text: 'Led the design-system migration across 6 product squads, reducing UI delivery time by 34%.',
         kind: 'bullet',
         tone: 'positive',
       },
       {
-        id: 'experience-velocity',
-        text: 'Built a component library that reduced UI dev time by 35%.',
+        id: 'northstar-performance',
+        text: 'Cut mobile checkout JavaScript by 41%, improving conversion 8.6% across the highest-volume funnel.',
         kind: 'bullet',
         tone: 'positive',
       },
       {
-        id: 'experience-architecture',
-        text: 'Defined documentation and architecture guidance for reusable frontend patterns.',
+        id: 'northstar-collaboration',
+        text: 'Partner with design, analytics, and product teams on launches and release quality.',
         kind: 'bullet',
+      },
+    ],
+  },
+  {
+    id: 'selected-work',
+    label: 'Selected Work',
+    lines: [
+      {
+        id: 'selected-checkout',
+        text: 'Checkout rebuild - React, GraphQL, experimentation, performance budgets.',
+        kind: 'detail',
+      },
+      {
+        id: 'selected-design-system',
+        text: 'Design system foundation - component APIs, accessibility reviews, and docs.',
+        kind: 'detail',
+      },
+    ],
+  },
+  {
+    id: 'core-stack',
+    label: 'Core Stack',
+    lines: [
+      {
+        id: 'stack-core',
+        text: 'TypeScript, React, Next.js, GraphQL, Storybook, Playwright.',
+        kind: 'detail',
       },
     ],
   },
 ]
 
-const DEMO_ANALYSIS: DemoResumeAnalysis = {
-  summary: {
-    headline: 'Strong frontend depth, but the summary still undersells leadership and business impact.',
-    verdict: 'Shortlist range',
-  },
-  overallScore: 84,
-  strengths: ['TypeScript and React depth come through clearly.'],
-  topActions: [
-    {
-      title: 'Add leadership signal to the summary',
-      action: 'Mention ownership, mentoring, or cross-functional leadership in the opening section.',
-    },
-  ],
-  evidence: {
-    quantifiedBullets: 2,
-  },
+const DEMO_SCORE: DemoScore = {
+  value: 86,
+  verdict: 'Strong shortlist signal',
+  summary: 'Clear senior frontend proof with measurable delivery and platform ownership.',
 }
 
-const RESUME_CALLOUTS: ResumeCallout[] = [
+const DEMO_INSIGHTS: DemoInsight[] = [
   {
-    id: 'callout-migration',
-    text: '40 modules migrated to TypeScript',
+    id: 'strongest-signal',
+    label: 'Strongest signal',
+    text: 'Quantified platform and performance wins make the profile credible fast.',
     tone: 'positive',
-    lineId: 'experience-migration',
-    top: '15.8rem',
-    left: '60%',
   },
   {
-    id: 'callout-velocity',
-    text: 'UI dev time reduced 35%',
-    tone: 'positive',
-    lineId: 'experience-velocity',
-    top: '18.9rem',
-    left: '56%',
-  },
-  {
-    id: 'callout-leadership',
-    text: 'Summary lacks leadership signal',
+    id: 'first-fix',
+    label: 'First fix',
+    text: 'The summary needs clearer leadership scope and stronger target-role language.',
     tone: 'warning',
-    lineId: 'profile-summary',
-    top: '6rem',
-    left: '57%',
   },
 ]
 
-const PHASE_ORDER: DemoPhase[] = ['idle', 'parsing', 'highlighting', 'scoring', 'fixes']
+const SUMMARY_HIGHLIGHT_IDS = new Set(['profile-summary'])
+const PROOF_HIGHLIGHT_IDS = new Set(['northstar-system', 'northstar-performance'])
+
+const PHASE_ORDER: DemoPhase[] = ['idle', 'scanning', 'summary', 'proof', 'building', 'complete']
 
 const PHASE_COPY: Record<DemoPhase, string> = {
   idle: 'Ready to analyze',
-  parsing: 'Scanning resume',
-  highlighting: 'Marking the strongest signals',
-  scoring: 'Calculating shortlist score',
-  fixes: 'Top signals ready',
+  scanning: 'Scanning uploaded resume',
+  summary: 'Flagging the weak summary first',
+  proof: 'Confirming the strongest proof',
+  building: 'Building summary',
+  complete: 'Analysis ready',
 }
-
-const HIGHLIGHTED_LINE_IDS = new Set(RESUME_CALLOUTS.map((callout) => callout.lineId))
 
 function hasReachedPhase(phase: DemoPhase, target: DemoPhase) {
   return PHASE_ORDER.indexOf(phase) >= PHASE_ORDER.indexOf(target)
-}
-
-function buildSummaryRows(result: DemoResumeAnalysis): ProofChip[] {
-  return [
-    {
-      id: 'strong',
-      label: 'Strong',
-      description: result.strengths[0] ?? 'Technical depth reads clearly.',
-      tone: 'positive',
-    },
-    {
-      id: 'fix',
-      label: 'Fix first',
-      description: result.topActions[0]?.title ?? 'Add sharper business impact proof.',
-      tone: 'warning',
-    },
-    {
-      id: 'evidence',
-      label: 'Evidence',
-      description: `${result.evidence.quantifiedBullets} quantified bullets detected.`,
-      tone: 'neutral',
-    },
-  ]
 }
 
 function useCountUp(target: number, active: boolean, immediate: boolean, duration = 900) {
@@ -267,16 +204,16 @@ export function LandingResumeDemo() {
   const timeoutIds = useRef<number[]>([])
   const triggered = useViewportTrigger(ref, { threshold: 0.35, once: true })
   const prefersReducedMotion = useReducedMotion() ?? false
-  const [phase, setPhase] = useState<DemoPhase>(prefersReducedMotion ? 'fixes' : 'idle')
+  const [phase, setPhase] = useState<DemoPhase>(prefersReducedMotion ? 'complete' : 'idle')
   const [scanPass, setScanPass] = useState<ScanPass>('none')
-  const highlightReady = hasReachedPhase(phase, 'highlighting')
-  const scoreReady = hasReachedPhase(phase, 'scoring')
-  const fixesReady = hasReachedPhase(phase, 'fixes')
+  const summaryReady = hasReachedPhase(phase, 'summary')
+  const proofReady = hasReachedPhase(phase, 'proof')
+  const completeReady = hasReachedPhase(phase, 'complete')
+  const scoreReady = completeReady
   const scanVisible = scanPass !== 'none'
-  const score = useCountUp(DEMO_ANALYSIS.overallScore, scoreReady, prefersReducedMotion)
-  const resolvedScore = fixesReady ? DEMO_ANALYSIS.overallScore : score
+  const score = useCountUp(DEMO_SCORE.value, scoreReady, prefersReducedMotion, 540)
+  const resolvedScore = completeReady ? DEMO_SCORE.value : score
   const progress = scoreReady ? resolvedScore : 0
-  const summaryRows = buildSummaryRows(DEMO_ANALYSIS)
 
   const clearSequence = useCallback(() => {
     timeoutIds.current.forEach((timeoutId) => window.clearTimeout(timeoutId))
@@ -286,15 +223,19 @@ export function LandingResumeDemo() {
   const runSequence = useCallback(() => {
     clearSequence()
     setScanPass('initial')
-    setPhase('parsing')
+    setPhase('scanning')
 
     timeoutIds.current = [
-      window.setTimeout(() => setPhase('highlighting'), 1200),
-      window.setTimeout(() => setScanPass('none'), 1320),
-      window.setTimeout(() => setPhase('scoring'), 2200),
-      window.setTimeout(() => setPhase('fixes'), 3100),
-      window.setTimeout(() => setScanPass('confirm'), 3220),
-      window.setTimeout(() => setScanPass('none'), 4140),
+      window.setTimeout(() => setPhase('summary'), 1400),
+      window.setTimeout(() => setPhase('proof'), 2000),
+      window.setTimeout(() => {
+        setPhase('building')
+        setScanPass('confirm')
+      }, 2800),
+      window.setTimeout(() => {
+        setPhase('complete')
+        setScanPass('none')
+      }, 4600),
     ]
   }, [clearSequence])
 
@@ -306,7 +247,7 @@ export function LandingResumeDemo() {
     if (prefersReducedMotion) {
       clearSequence()
       setScanPass('none')
-      setPhase('fixes')
+      setPhase('complete')
       return
     }
 
@@ -319,19 +260,119 @@ export function LandingResumeDemo() {
 
   return (
     <section className="landing-section landing-section-demo" id="landing-demo" ref={ref}>
-      <div className="content-max landing-demo">
+      <div className="content-max landing-demo landing-experiment-surface landing-experiment-surface--resume">
         <ScrollReveal>
           <div className="landing-demo-intro">
-            <p className="eyebrow">Resume Analyzer</p>
-            <h2 className="display-lg">Watch your resume turn into a clear hiring signal.</h2>
-            <p className="landing-demo-subcopy">
-              We pull out proof, score what matters, and flag the fixes most likely to move
-              you into shortlist range.
-            </p>
+            <p className="eyebrow">{landingResumeDemoCopy.eyebrow}</p>
+            <h2 className="display-lg">{landingResumeDemoCopy.title}</h2>
+            <p className="landing-demo-subcopy">{landingResumeDemoCopy.body}</p>
           </div>
         </ScrollReveal>
 
         <div className="landing-demo-stage" data-phase={phase}>
+          <aside className="landing-demo-summary" aria-label="Demo analysis summary">
+            <div className="landing-demo-summary-header">
+              <div className="landing-demo-summary-heading">
+                <p className="landing-demo-summary-eyebrow">Review summary</p>
+                <p className="landing-demo-summary-title">What to fix first</p>
+              </div>
+              <p className="landing-demo-summary-status">{phaseCopy}</p>
+            </div>
+
+            <motion.div
+              className="landing-demo-card landing-demo-card--score"
+              initial={prefersReducedMotion ? false : { opacity: 0, y: 18 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: prefersReducedMotion ? 0 : 0.42 }}
+            >
+              <p className="landing-demo-card-label">Resume score</p>
+              {completeReady ? (
+                <>
+                  <div
+                    className="landing-demo-score-shell"
+                    data-ready={scoreReady ? 'true' : 'false'}
+                  >
+                    <div className="landing-demo-score-orb">
+                      <span>{resolvedScore}</span>
+                      <small>/100</small>
+                    </div>
+                    <div className="landing-demo-score-copy">
+                      <span className="landing-demo-score-pill">{DEMO_SCORE.verdict}</span>
+                      <p className="landing-demo-score-note">{DEMO_SCORE.summary}</p>
+                    </div>
+                  </div>
+                  <div className="landing-demo-score-progress">
+                    <motion.div
+                      className="landing-demo-score-progress-fill"
+                      initial={prefersReducedMotion ? false : { width: '0%' }}
+                      animate={{ width: `${progress}%` }}
+                      transition={{
+                        duration: prefersReducedMotion ? 0 : 0.72,
+                        ease: [0.16, 1, 0.3, 1],
+                      }}
+                    />
+                  </div>
+                  <div className="landing-demo-score-scale" aria-hidden="true">
+                    <span>Needs work</span>
+                    <span>Competitive</span>
+                    <span className="is-active">Shortlist</span>
+                  </div>
+                </>
+              ) : (
+                <div className="landing-demo-score-loading" aria-hidden="true">
+                  <span className="landing-demo-score-loading-orb" />
+                  <div className="landing-demo-score-loading-copy">
+                    <span className="landing-demo-card-skeleton-bar" data-size="title-short" />
+                    <span className="landing-demo-card-skeleton-bar" data-size="title" />
+                    <span className="landing-demo-card-skeleton-bar" data-size="title" />
+                  </div>
+                  <div className="landing-demo-score-progress is-loading">
+                    <span className="landing-demo-score-progress-fill is-loading" />
+                  </div>
+                </div>
+              )}
+            </motion.div>
+
+            <div className="landing-demo-insights">
+              {DEMO_INSIGHTS.map((insight, index) => (
+                <motion.div
+                  key={insight.id}
+                  className="landing-demo-card landing-demo-card--insight"
+                  data-tone={insight.tone}
+                  data-ready={completeReady ? 'true' : 'false'}
+                  initial={prefersReducedMotion ? false : { opacity: 0, y: 16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{
+                    duration: prefersReducedMotion ? 0 : 0.34,
+                    delay: prefersReducedMotion || !completeReady ? 0 : 0.08 + index * 0.08,
+                  }}
+                >
+                  <span className="landing-demo-card-icon" aria-hidden="true">
+                    {insight.tone === 'positive' ? (
+                      <Check size={14} />
+                    ) : (
+                      <AlertTriangle size={14} />
+                    )}
+                  </span>
+                  <div className="landing-demo-card-copy">
+                    {completeReady ? (
+                      <>
+                        <p className="landing-demo-card-label">{insight.label}</p>
+                        <p className="landing-demo-card-text">{insight.text}</p>
+                      </>
+                    ) : (
+                      <div className="landing-demo-card-skeleton" aria-hidden="true">
+                        <span className="landing-demo-card-skeleton-bar" data-size="label" />
+                        <span className="landing-demo-card-skeleton-bar" data-size="title" />
+                        <span className="landing-demo-card-skeleton-bar" data-size="title-short" />
+                      </div>
+                    )}
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          </aside>
+
           <div className="landing-demo-paper">
             <div className="landing-demo-paper-frame">
               <div className="landing-demo-paper-header">
@@ -341,8 +382,11 @@ export function LandingResumeDemo() {
                   <span />
                 </div>
                 <div className="landing-demo-paper-file">
-                  <ScanText size={14} />
-                  <span>resume.pdf</span>
+                  <span className="landing-demo-paper-file-chip">PDF</span>
+                  <div className="landing-demo-paper-file-copy">
+                    <span className="landing-demo-paper-file-name">adrian-nowak-resume.pdf</span>
+                    <span className="landing-demo-paper-file-hint">Uploaded document</span>
+                  </div>
                 </div>
               </div>
 
@@ -354,7 +398,7 @@ export function LandingResumeDemo() {
                     data-testid="landing-demo-scan-overlay"
                     aria-hidden="true"
                   >
-                    <div className="landing-demo-scan-bar" />
+                    <div key={scanPass} className="landing-demo-scan-bar" />
                   </div>
                 )}
 
@@ -372,6 +416,8 @@ export function LandingResumeDemo() {
                       {RESUME_IDENTITY.email}
                       <span aria-hidden="true">•</span>
                       {RESUME_IDENTITY.site}
+                      <span aria-hidden="true">•</span>
+                      {RESUME_IDENTITY.linkedin}
                     </p>
                   </header>
 
@@ -381,7 +427,8 @@ export function LandingResumeDemo() {
                       <div className="landing-demo-doc-lines">
                         {section.lines.map((line) => {
                           const isHighlighted =
-                            highlightReady && HIGHLIGHTED_LINE_IDS.has(line.id)
+                            (summaryReady && SUMMARY_HIGHLIGHT_IDS.has(line.id)) ||
+                            (proofReady && PROOF_HIGHLIGHT_IDS.has(line.id))
 
                           return (
                             <div
@@ -403,129 +450,9 @@ export function LandingResumeDemo() {
                     </section>
                   ))}
                 </div>
-
-                {highlightReady && (
-                  <div className="landing-demo-callouts" aria-live="polite">
-                    {RESUME_CALLOUTS.map((callout, index) => (
-                      <motion.div
-                        key={callout.id}
-                        className="landing-demo-callout"
-                        data-tone={callout.tone}
-                        style={
-                          {
-                            '--callout-top': callout.top,
-                            '--callout-left': callout.left,
-                          } as CSSProperties
-                        }
-                        initial={prefersReducedMotion ? false : { opacity: 0, y: 12, scale: 0.96 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        transition={{
-                          duration: prefersReducedMotion ? 0 : 0.32,
-                          delay: prefersReducedMotion ? 0 : index * 0.1,
-                        }}
-                      >
-                        <span className="landing-demo-callout-icon" aria-hidden="true">
-                          {callout.tone === 'positive' ? <Check size={12} /> : <AlertTriangle size={12} />}
-                        </span>
-                        <span>{callout.text}</span>
-                      </motion.div>
-                    ))}
-                  </div>
-                )}
               </div>
             </div>
           </div>
-
-          <aside className="landing-demo-rail" aria-label="Resume analysis summary">
-            <div className="landing-demo-rail-header">
-              <p className="landing-demo-rail-eyebrow">Live analysis</p>
-              <p className="landing-demo-rail-status">{phaseCopy}</p>
-            </div>
-
-            <motion.div
-              className="landing-demo-score-card"
-              initial={prefersReducedMotion ? false : { opacity: 0, y: 18 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: prefersReducedMotion ? 0 : 0.45 }}
-            >
-              <div className="landing-demo-score-meta">
-                <div>
-                  <p className="landing-demo-score-label">Resume score</p>
-                  <h3 className="landing-demo-score-title">{DEMO_ANALYSIS.summary.verdict}</h3>
-                </div>
-              </div>
-
-              <div className="landing-demo-score-hero">
-                <div className="landing-demo-score-ring" data-active={scoreReady ? 'true' : 'false'}>
-                  <span>{resolvedScore}</span>
-                </div>
-                <div className="landing-demo-score-copy">
-                  <p className="landing-demo-score-summary">
-                    {DEMO_ANALYSIS.summary.headline}
-                  </p>
-                  <div className="landing-demo-score-progress">
-                    <motion.div
-                      className="landing-demo-score-progress-fill"
-                      initial={prefersReducedMotion ? false : { width: '0%' }}
-                      animate={{ width: `${progress}%` }}
-                      transition={{
-                        duration: prefersReducedMotion ? 0 : 0.85,
-                        ease: [0.16, 1, 0.3, 1],
-                      }}
-                    />
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-
-            <div className="landing-demo-proof-panel">
-              <div className="landing-demo-panel-heading">
-                <p className="landing-demo-panel-eyebrow">At a glance</p>
-                <p className="landing-demo-panel-title">What the real tool flags first</p>
-              </div>
-              {fixesReady ? (
-                <StaggerChildren className="landing-demo-proof-list" stagger={0.08} delay={0.05}>
-                  {summaryRows.map((chip) => (
-                    <StaggerItem key={chip.id}>
-                      <div
-                        className="landing-demo-proof-row"
-                        data-tone={chip.tone}
-                        data-active={highlightReady ? 'true' : 'false'}
-                      >
-                        <span className="landing-demo-proof-row-icon" aria-hidden="true">
-                          {chip.tone === 'positive' ? (
-                            <Check size={14} />
-                          ) : chip.tone === 'warning' ? (
-                            <AlertTriangle size={14} />
-                          ) : (
-                            <ScanText size={14} />
-                          )}
-                        </span>
-                        <div className="landing-demo-proof-row-copy">
-                          <p className="landing-demo-proof-row-label">{chip.label}</p>
-                          <p className="landing-demo-proof-row-title">{chip.description}</p>
-                        </div>
-                      </div>
-                    </StaggerItem>
-                  ))}
-                </StaggerChildren>
-              ) : (
-                <div className="landing-demo-fix-placeholder">
-                  Pulling the strongest signals into a quick recruiter readout.
-                </div>
-              )}
-            </div>
-
-            <div className="landing-demo-cta">
-              <p className="landing-demo-cta-copy">Free demo, no sign-in</p>
-              <Button asChild className="button-hero-primary landing-demo-cta-button" size="lg">
-                <Link to="/resume">
-                  Analyze my resume
-                  <ArrowRight size={16} />
-                </Link>
-              </Button>
-            </div>
-          </aside>
         </div>
       </div>
     </section>

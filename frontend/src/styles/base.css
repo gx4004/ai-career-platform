@@ -412,6 +412,59 @@ svg {
   box-shadow: var(--shadow-soft);
 }
 
+.button-session-signin-cta {
+  border-radius: var(--radius-pill) !important;
+  border-color: rgba(74, 158, 237, 0.3) !important;
+  background: linear-gradient(135deg, #0a66c2 0%, #1d7ee0 100%) !important;
+  color: #ffffff !important;
+  box-shadow: 0 0 20px rgba(74, 158, 237, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  position: relative;
+  overflow: hidden;
+  transition: transform var(--transition-fast),
+              box-shadow var(--transition-smooth),
+              background var(--transition-fast);
+}
+
+.button-session-signin-cta::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.15) 50%, transparent 100%);
+  background-size: 200% 100%;
+  animation: shimmer 3s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.button-session-signin-cta:hover,
+.button-session-signin-cta:focus-visible {
+  transform: translateY(-1px);
+  box-shadow: 0 0 28px rgba(74, 158, 237, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.16);
+}
+
+.button-session-avatar {
+  border-radius: var(--radius-pill) !important;
+  border-color: transparent !important;
+  background: rgba(255, 255, 255, 0.06) !important;
+  transition: background var(--transition-fast),
+              box-shadow var(--transition-smooth);
+}
+
+.button-session-avatar:hover,
+.button-session-avatar:focus-visible {
+  background: rgba(255, 255, 255, 0.1) !important;
+  box-shadow: 0 0 16px rgba(74, 158, 237, 0.08);
+}
+
+.avatar-ring {
+  box-shadow: 0 0 0 2px rgba(74, 158, 237, 0.35);
+  transition: box-shadow var(--transition-smooth);
+}
+
+.button-session-avatar:hover .avatar-ring,
+.button-session-avatar:focus-visible .avatar-ring {
+  box-shadow: 0 0 0 2px rgba(74, 158, 237, 0.55), 0 0 12px rgba(74, 158, 237, 0.12);
+}
+
 .scene-visual {
   position: relative;
   isolation: isolate;
@@ -662,7 +715,7 @@ textarea:focus-visible {
   height: 0.5rem;
   border-radius: 9999px;
   background: var(--border-soft);
-  transition: all 220ms ease;
+  transition: width 220ms ease, background-color 220ms ease;
 }
 
 .onboarding-progress-dot.is-active {

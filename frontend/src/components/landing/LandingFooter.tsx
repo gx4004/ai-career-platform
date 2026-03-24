@@ -6,8 +6,11 @@ export function LandingFooter() {
       <div className="content-max landing-footer-inner">
         <div className="landing-footer-brand">
           <AppBrandLockup className="landing-footer-lockup" />
-          <p className="landing-footer-tagline">Your career, sharper.</p>
+          <p className="landing-footer-tagline">Signal first. Better applications. Clearer next steps.</p>
         </div>
+        <p className="landing-footer-copyright">
+          &copy; {new Date().getFullYear()} Career Workbench
+        </p>
       </div>
     </footer>
   )

@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 type CarouselOptions = {
   interval?: number
   cooldown?: number
+  enabled?: boolean
 }
 
 const DEFAULTS = { interval: 4000, cooldown: 6000 } as const
@@ -36,8 +37,13 @@ export function useCarousel(itemCount: number, opts?: CarouselOptions) {
 
   const interval = opts?.interval ?? DEFAULTS.interval
   const cooldown = opts?.cooldown ?? DEFAULTS.cooldown
+  const enabled = opts?.enabled ?? true
 
   useEffect(() => {
+    if (!enabled || itemCount <= 1) {
+      return undefined
+    }
+
     const id = setInterval(() => {
       if (pausedRef.current) return
       if (Date.now() - lastManualRef.current < cooldown) return
@@ -45,7 +51,7 @@ export function useCarousel(itemCount: number, opts?: CarouselOptions) {
       setActiveIndex((i) => (i + 1) % itemCount)
     }, interval)
     return () => clearInterval(id)
-  }, [itemCount, interval, cooldown])
+  }, [cooldown, enabled, interval, itemCount])
 
   const [paused, setPaused] = useState(false)
 
