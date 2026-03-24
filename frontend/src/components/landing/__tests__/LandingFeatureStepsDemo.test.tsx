@@ -47,13 +47,13 @@ describe('LandingFeatureStepsDemo', () => {
 
     expect(
       screen.getByRole('heading', {
-        name: /Review it\. Aim it\. Build from it\./i,
+        name: /Review\. Aim\. Build\./i,
       }),
     ).toBeTruthy()
     expect(screen.getByText(/How it works/i)).toBeTruthy()
     expect(
       screen.getByText(
-        /Start with the resume you have, lock in one target role, then move through applications and planning from the same workspace\./i,
+        /Start with the resume you have, pick one target role, then move through applications and planning from the same place\./i,
       ),
     ).toBeTruthy()
     expect(screen.getByRole('button', { name: /Review the resume you already have/i })).toBeTruthy()

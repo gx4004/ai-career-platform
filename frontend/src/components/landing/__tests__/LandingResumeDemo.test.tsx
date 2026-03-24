@@ -76,7 +76,7 @@ describe('LandingResumeDemo', () => {
     expect(screen.getByText('See what is working before you rewrite.')).toBeTruthy()
     expect(
       screen.getByText(
-        'We score the draft, call out the strongest proof, and show the first fix worth making.',
+        'Get a score, spot the strongest proof, and find the first fix worth making.',
       ),
     ).toBeTruthy()
     expect(screen.getByText('What to fix first')).toBeTruthy()
@@ -103,7 +103,7 @@ describe('LandingResumeDemo', () => {
     ).toBeNull()
 
     act(() => {
-      vi.advanceTimersByTime(900)
+      vi.advanceTimersByTime(1500)
     })
 
     const summaryLine = screen
@@ -115,7 +115,7 @@ describe('LandingResumeDemo', () => {
     expect(summaryLine?.getAttribute('data-highlighted')).toBe('true')
 
     act(() => {
-      vi.advanceTimersByTime(900)
+      vi.advanceTimersByTime(600)
     })
 
     const proofLine = screen
@@ -127,7 +127,7 @@ describe('LandingResumeDemo', () => {
     expect(proofLine?.getAttribute('data-highlighted')).toBe('true')
 
     act(() => {
-      vi.advanceTimersByTime(700)
+      vi.advanceTimersByTime(900)
     })
 
     const confirmScan = screen.getByTestId('landing-demo-scan-overlay')
@@ -136,7 +136,7 @@ describe('LandingResumeDemo', () => {
     expect(screen.queryByText('Strongest signal')).toBeNull()
 
     act(() => {
-      vi.advanceTimersByTime(600)
+      vi.advanceTimersByTime(1900)
     })
 
     expect(screen.queryByTestId('landing-demo-scan-overlay')).toBeNull()

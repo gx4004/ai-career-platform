@@ -217,7 +217,7 @@ describe('ToolRouteScreen', () => {
     expect(screen.getByTestId('tool-illustration').textContent).toContain('job-match')
     expect(screen.queryByText(/Guest demo runs are not saved/i)).toBeNull()
 
-    fireEvent.click(screen.getByRole('button', { name: /Match role/i }))
+    fireEvent.click(screen.getByRole('button', { name: /Compare to role/i }))
 
     expect(mutateMock).toHaveBeenCalledWith({
       payload: {
@@ -254,7 +254,7 @@ describe('ToolRouteScreen', () => {
 
     expect(setFieldMock).toHaveBeenCalledWith('numQuestions', 8)
 
-    fireEvent.click(screen.getByRole('button', { name: /Generate interview deck/i }))
+    fireEvent.click(screen.getByRole('button', { name: /Build interview prep/i }))
 
     expect(mutateMock).toHaveBeenCalledWith({
       payload: {
