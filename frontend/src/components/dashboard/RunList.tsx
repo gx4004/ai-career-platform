@@ -30,18 +30,28 @@ export function RunList({
 }) {
   const { status } = useSession()
   const query = useHistory(queryParams, status === 'authenticated')
+  const isAuthenticated = status === 'authenticated'
+  const hasItems = query.data?.items.length
+
+  // When not authenticated, show a compact inline message instead of a full card
+  if (!isAuthenticated && !bare) {
+    return (
+      <div className="dash-card-minimal">
+        <EmptyIcon size={16} style={{ color: 'var(--text-soft)', opacity: 0.6 }} />
+        <p className="small-copy muted-copy">{unauthText}</p>
+      </div>
+    )
+  }
 
   const content = (
     <div className="run-list">
-      {status !== 'authenticated' ? (
-        <p className="muted-copy">{unauthText}</p>
-      ) : query.isPending ? (
+      {query.isPending ? (
         <div className="grid gap-2">
-          {[1, 2, 3].map((i) => (
-            <Skeleton key={i} className="h-12 w-full rounded-md" />
+          {[1, 2].map((i) => (
+            <Skeleton key={i} className="h-10 w-full rounded-md" />
           ))}
         </div>
-      ) : query.data?.items.length ? (
+      ) : hasItems ? (
         query.data.items.map((item) => {
           const tool = getToolByHistoryName(item.tool_name)
           const route = tool
@@ -56,13 +66,13 @@ export function RunList({
             >
               {tool && (
                 <div className="run-row-icon-col" aria-hidden>
-                  <tool.icon size={18} />
+                  <tool.icon size={16} />
                 </div>
               )}
-              <div className="grid gap-1" style={{ minWidth: 0 }}>
+              <div className="grid gap-0.5" style={{ minWidth: 0 }}>
                 <div className="flex items-center gap-2">
                   {showFavoriteStar && (
-                    <Star size={14} style={{ color: 'var(--warning)' }} />
+                    <Star size={12} style={{ color: 'var(--warning)' }} />
                   )}
                   <Badge variant="outline">{tool?.shortLabel || item.tool_name}</Badge>
                   {!showFavoriteStar && (
@@ -71,11 +81,11 @@ export function RunList({
                     </span>
                   )}
                 </div>
-                <span>{item.label || (showFavoriteStar ? 'Untitled favorite' : 'Untitled run')}</span>
+                <span className="run-row-label">{item.label || (showFavoriteStar ? 'Untitled favorite' : 'Untitled run')}</span>
               </div>
               <Link
                 to={route}
-                className="small-copy"
+                className="small-copy run-row-view"
                 style={{ color: tool?.accent || 'var(--accent)' }}
               >
                 View
@@ -85,8 +95,8 @@ export function RunList({
         })
       ) : (
         <div className="empty-state-mini">
-          <EmptyIcon size={24} style={{ color: 'var(--text-muted)', opacity: 0.5 }} />
-          <p className="muted-copy">{emptyText}</p>
+          <EmptyIcon size={20} style={{ color: 'var(--text-soft)', opacity: 0.5 }} />
+          <p className="small-copy muted-copy">{emptyText}</p>
         </div>
       )}
     </div>
@@ -95,9 +105,9 @@ export function RunList({
   if (bare) return content
 
   return (
-    <section className="dash-card p-6">
-      <div className="grid gap-4">
-        <div className="grid gap-1">
+    <section className="dash-card dash-card--runs">
+      <div className="grid gap-3">
+        <div className="grid gap-0.5">
           <p className="eyebrow">{eyebrow}</p>
           <h2 className="section-title">{title}</h2>
         </div>

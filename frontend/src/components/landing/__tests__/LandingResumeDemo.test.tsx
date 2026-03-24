@@ -70,52 +70,93 @@ describe('LandingResumeDemo', () => {
     vi.useRealTimers()
   })
 
-  it('renders the new headline, score band, and CTA', () => {
+  it('renders the new headline and proof summary state', () => {
     render(<LandingResumeDemo />)
 
-    expect(screen.getByText('Watch your resume turn into a clear hiring signal.')).toBeTruthy()
-    expect(screen.getByText('Shortlist range')).toBeTruthy()
-
-    const cta = screen.getByRole('link', { name: /analyze my resume/i })
-    expect(cta).toBeTruthy()
-    expect(cta.getAttribute('href')).toBe('/resume')
-    expect(screen.getByText('Free demo, no sign-in')).toBeTruthy()
+    expect(screen.getByText('See what is working before you rewrite.')).toBeTruthy()
+    expect(
+      screen.getByText(
+        'We score the draft, call out the strongest proof, and show the first fix worth making.',
+      ),
+    ).toBeTruthy()
+    expect(screen.getByText('What to fix first')).toBeTruthy()
+    expect(screen.getByText('Adrian Nowak')).toBeTruthy()
+    expect(screen.getByText(/adrian@nowak\.dev/i)).toBeTruthy()
+    expect(screen.getByText('Selected Work')).toBeTruthy()
+    expect(screen.getByText('Core Stack')).toBeTruthy()
   })
 
-  it('advances through highlight, score, and fixes after the section triggers', () => {
+  it('advances through the simplified scan, proof, and analysis sequence', () => {
     vi.useFakeTimers()
 
     render(<LandingResumeDemo />)
 
     const initialScan = screen.getByTestId('landing-demo-scan-overlay')
     expect(initialScan.getAttribute('data-pass')).toBe('initial')
-    expect(screen.queryByText('Add business metrics')).toBeNull()
+    expect(screen.queryByText('Strong shortlist signal')).toBeNull()
+    expect(screen.queryByText('Strongest signal')).toBeNull()
+    expect(screen.queryByText('First fix')).toBeNull()
+    expect(
+      screen.queryByText(
+        'Quantified platform and performance wins make the profile credible fast.',
+      ),
+    ).toBeNull()
 
     act(() => {
-      vi.advanceTimersByTime(1400)
+      vi.advanceTimersByTime(900)
+    })
+
+    const summaryLine = screen
+      .getByText(
+        'Senior frontend engineer building revenue-critical React products, design systems, and performance improvements across scaling SaaS teams.',
+      )
+      .closest('.landing-demo-doc-line')
+    expect(summaryLine).toBeTruthy()
+    expect(summaryLine?.getAttribute('data-highlighted')).toBe('true')
+
+    act(() => {
+      vi.advanceTimersByTime(900)
+    })
+
+    const proofLine = screen
+      .getByText(
+        'Led the design-system migration across 6 product squads, reducing UI delivery time by 34%.',
+      )
+      .closest('.landing-demo-doc-line')
+    expect(proofLine).toBeTruthy()
+    expect(proofLine?.getAttribute('data-highlighted')).toBe('true')
+
+    act(() => {
+      vi.advanceTimersByTime(700)
+    })
+
+    const confirmScan = screen.getByTestId('landing-demo-scan-overlay')
+    expect(confirmScan.getAttribute('data-pass')).toBe('confirm')
+    expect(screen.queryByText('Strong shortlist signal')).toBeNull()
+    expect(screen.queryByText('Strongest signal')).toBeNull()
+
+    act(() => {
+      vi.advanceTimersByTime(600)
     })
 
     expect(screen.queryByTestId('landing-demo-scan-overlay')).toBeNull()
-    expect(screen.getByText('40 modules migrated to TypeScript')).toBeTruthy()
-    expect(screen.getByText('UI dev time reduced 35%')).toBeTruthy()
-    expect(screen.getByText('Summary lacks leadership signal')).toBeTruthy()
-
-    act(() => {
-      vi.advanceTimersByTime(1850)
-    })
-
-    const finalScan = screen.getByTestId('landing-demo-scan-overlay')
-    expect(finalScan.getAttribute('data-pass')).toBe('confirm')
-    expect(screen.getByText('84')).toBeTruthy()
-    expect(screen.getByText('ATS format')).toBeTruthy()
-    expect(screen.getByText('React depth')).toBeTruthy()
-    expect(screen.getByText('Add business metrics')).toBeTruthy()
-
-    act(() => {
-      vi.advanceTimersByTime(1100)
-    })
-
-    expect(screen.queryByTestId('landing-demo-scan-overlay')).toBeNull()
+    expect(screen.getByText('86')).toBeTruthy()
+    expect(screen.getByText('Strong shortlist signal')).toBeTruthy()
+    expect(screen.getByText('Resume score')).toBeTruthy()
+    expect(screen.getByText('Strongest signal')).toBeTruthy()
+    expect(screen.getByText('First fix')).toBeTruthy()
+    expect(
+      screen.getByText(
+        'Quantified platform and performance wins make the profile credible fast.',
+      ),
+    ).toBeTruthy()
+    expect(
+      screen.getByText(
+        'The summary needs clearer leadership scope and stronger target-role language.',
+      ),
+    ).toBeTruthy()
+    expect(screen.getByText('Selected Work')).toBeTruthy()
+    expect(screen.getByText('Core Stack')).toBeTruthy()
   })
 
   it('renders the final proof state immediately for reduced motion', () => {
@@ -125,8 +166,19 @@ describe('LandingResumeDemo', () => {
     render(<LandingResumeDemo />)
 
     expect(screen.queryByTestId('landing-demo-scan-overlay')).toBeNull()
-    expect(screen.getByText('84')).toBeTruthy()
-    expect(screen.getByText('40 modules migrated to TypeScript')).toBeTruthy()
-    expect(screen.getByText('Add business metrics')).toBeTruthy()
+    expect(screen.getByText('86')).toBeTruthy()
+    expect(screen.getByText('Strong shortlist signal')).toBeTruthy()
+    expect(
+      screen.getByText(
+        'Quantified platform and performance wins make the profile credible fast.',
+      ),
+    ).toBeTruthy()
+    expect(
+      screen.getByText(
+        'The summary needs clearer leadership scope and stronger target-role language.',
+      ),
+    ).toBeTruthy()
+    expect(screen.getByText('Selected Work')).toBeTruthy()
+    expect(screen.getByText('Core Stack')).toBeTruthy()
   })
 })

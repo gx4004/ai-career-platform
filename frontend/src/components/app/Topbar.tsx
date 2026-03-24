@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef } from 'react'
 import { Link, useRouterState } from '@tanstack/react-router'
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '#/components/ui/breadcrumb'
+import { LayoutDashboard } from 'lucide-react'
 import { Badge } from '#/components/ui/badge'
 import { SessionMenu } from '#/components/auth/SessionMenu'
 import { SidebarTrigger } from '#/components/ui/sidebar'
@@ -53,9 +54,12 @@ export function Topbar() {
         <div className={cn('topbar-breadcrumb', isCompact && 'topbar-breadcrumb--compact')}>
           {isCompact ? (
             isDashboard ? (
-              <span aria-current="page" className="topbar-compact-current-crumb">
-                Dashboard
-              </span>
+              <div className="topbar-tool-entry-chip" aria-current="page">
+                <span className="topbar-tool-pill">
+                  <LayoutDashboard size={16} />
+                  <span className="topbar-tool-pill-text">Dashboard</span>
+                </span>
+              </div>
             ) : entryTool ? (
               <div className="topbar-tool-entry-chip" aria-current="page">
                 <span className="topbar-tool-pill">

@@ -1,5 +1,6 @@
 @import 'tailwindcss';
 @import './styles/theme.css';
+@import './styles/design-system.css';
 @import './styles/base.css';
 @import './styles/typography.css';
 @import './styles/animations.css';
@@ -12,3 +13,4 @@
 @import './styles/history.css';
 @import './styles/auth.css';
 @import './styles/responsive.css';
+@import './styles/settings.css';

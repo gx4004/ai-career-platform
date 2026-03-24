@@ -1,5 +1,5 @@
-import compactMark from '#/assets/branding/career-workbench-mark.svg'
-import fullWordmark from '#/assets/branding/career-workbench-wordmark.svg'
+import compactMark from '#/assets/branding/career-workbench-mark.png'
+import fullWordmark from '#/assets/branding/career-workbench-wordmark.png'
 import { cn } from '#/lib/utils'
 
 type AppBrandLockupProps = {

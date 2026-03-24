@@ -1,10 +1,10 @@
 import { useEffect } from 'react'
-import { LandingCTA } from '#/components/landing/LandingCTA'
-import { LandingFooter } from '#/components/landing/LandingFooter'
+import { LandingCTABase } from '#/components/landing/LandingCTABase'
+import { LandingFooterBase } from '#/components/landing/LandingFooterBase'
 import { LandingHero } from '#/components/landing/LandingHero'
 import { LandingNavbar } from '#/components/landing/LandingNavbar'
-import { LandingResumeDemo } from '#/components/landing/LandingResumeDemo'
-import { LandingToolGrid } from '#/components/landing/LandingToolGrid'
+import { LandingResumeDemoBase } from '#/components/landing/LandingResumeDemoBase'
+import { LandingToolGridBase } from '#/components/landing/LandingToolGridBase'
 
 export function LandingPage() {
   useEffect(() => {
@@ -19,10 +19,14 @@ export function LandingPage() {
     <div className="landing-page premium-corner-canvas">
       <LandingNavbar />
       <LandingHero />
-      <LandingResumeDemo />
-      <LandingToolGrid />
-      <LandingCTA />
-      <LandingFooter />
+      <LandingResumeDemoBase />
+      <LandingToolGridBase />
+      <LandingCTABase />
+      <LandingFooterBase />
     </div>
   )
+}
+
+export function LandingRoutePage() {
+  return <LandingPage />
 }

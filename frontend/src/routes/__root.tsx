@@ -1,10 +1,11 @@
 import type { ReactNode } from 'react'
 import { HeadContent, Outlet, Scripts, createRootRoute } from '@tanstack/react-router'
+import { useRouterState } from '@tanstack/react-router'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { AppNotFound } from '#/components/app/AppNotFound'
 import { AppRouteError } from '#/components/app/AppRouteError'
 import { AppShell } from '#/components/app/AppShell'
-import { FadeIn } from '#/components/ui/motion'
+import { AnimatePresence, motion, MotionConfig } from '#/components/ui/motion'
 import { SessionProvider } from '#/lib/auth/session'
 import { queryClient } from '#/lib/query/queryClient'
 import appCss from '#/styles.css?url'
@@ -30,7 +31,7 @@ export const Route = createRootRoute({
     ],
     links: [
       { rel: 'stylesheet', href: appCss },
-      { rel: 'icon', href: '/src/assets/branding/career-workbench-mark.svg', type: 'image/svg+xml' },
+      { rel: 'icon', href: '/favicon.ico', type: 'image/x-icon' },
     ],
   }),
   shellComponent: RootDocument,
@@ -39,6 +40,23 @@ export const Route = createRootRoute({
     <AppRouteError error={error} reset={reset} />
   ),
 })
+
+function PageTransition({ children }: { children: ReactNode }) {
+  const pathname = useRouterState({ select: (s) => s.location.pathname })
+  return (
+    <AnimatePresence mode="wait" initial={false}>
+      <motion.div
+        key={pathname}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.15, ease: 'easeOut' }}
+      >
+        {children}
+      </motion.div>
+    </AnimatePresence>
+  )
+}
 
 function RootDocument({ children }: { children: ReactNode }) {
   return (
@@ -49,7 +67,11 @@ function RootDocument({ children }: { children: ReactNode }) {
       <body>
         <QueryClientProvider client={queryClient}>
           <SessionProvider>
-            <AppShell><FadeIn>{children || <Outlet />}</FadeIn></AppShell>
+            <MotionConfig reducedMotion="user">
+              <AppShell>
+                <PageTransition>{children || <Outlet />}</PageTransition>
+              </AppShell>
+            </MotionConfig>
           </SessionProvider>
         </QueryClientProvider>
         <Scripts />

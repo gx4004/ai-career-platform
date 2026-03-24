@@ -24,13 +24,15 @@ export function DashboardShowcaseCard({
       style={{ '--tool-accent': accent } as CSSProperties}
     >
       <div className="dash-showcase-thumb">
-        <img src={thumbSrc} alt={`${label} preview`} loading="lazy" />
+        <img src={thumbSrc} alt="" loading="lazy" />
       </div>
       <div className="dash-showcase-body">
-        <div className="dash-showcase-icon">
-          <Icon size={18} />
+        <div className="dash-showcase-header">
+          <div className="dash-showcase-icon">
+            <Icon size={18} />
+          </div>
+          <span className="dash-showcase-name">{label}</span>
         </div>
-        <span className="dash-showcase-name">{label}</span>
         <span className="dash-showcase-summary">{summary}</span>
       </div>
     </Link>

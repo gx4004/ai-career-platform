@@ -1,7 +1,7 @@
 'use client'
 
 import { type ReactNode, type CSSProperties, type RefObject, useState, useEffect } from 'react'
-import { motion, AnimatePresence, useScroll, useTransform, type Variants } from 'framer-motion'
+import { motion, AnimatePresence, MotionConfig, useScroll, useTransform, type Variants } from 'framer-motion'
 
 const spring = { type: 'spring', stiffness: 260, damping: 20 }
 const ease = [0.16, 1, 0.3, 1] as const
@@ -20,19 +20,21 @@ export function FadeIn({
   children,
   delay = 0,
   duration = 0.4,
+  startHidden = true,
   className,
   style,
 }: {
   children: ReactNode
   delay?: number
   duration?: number
+  startHidden?: boolean
   className?: string
   style?: CSSProperties
 }) {
   return (
     <motion.div
       variants={fadeIn}
-      initial="hidden"
+      initial={startHidden ? 'hidden' : false}
       animate="visible"
       transition={{ duration, delay, ease }}
       className={className}
@@ -74,18 +76,20 @@ export function StaggerChildren({
   children,
   stagger = 0.06,
   delay = 0,
+  startHidden = true,
   className,
   style,
 }: {
   children: ReactNode
   stagger?: number
   delay?: number
+  startHidden?: boolean
   className?: string
   style?: CSSProperties
 }) {
   return (
     <motion.div
-      initial="hidden"
+      initial={startHidden ? 'hidden' : false}
       animate="visible"
       variants={{
         hidden: {},
@@ -177,4 +181,4 @@ export function useScrollProgress(ref: RefObject<HTMLElement | null>) {
   return { scrollYProgress, useTransform }
 }
 
-export { motion, AnimatePresence, useScroll, useTransform, spring, ease }
+export { motion, AnimatePresence, MotionConfig, useScroll, useTransform, spring, ease }

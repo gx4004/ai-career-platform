@@ -59,7 +59,7 @@ describe('landing auth actions', () => {
     render(<LandingFooter />)
 
     expect(screen.getByRole('img', { name: /career workbench/i })).toBeTruthy()
-    expect(screen.getByText(/ai-powered career toolkit/i)).toBeTruthy()
+    expect(screen.getByText(/signal first\. better applications\. clearer next steps\./i)).toBeTruthy()
     expect(screen.queryByRole('button', { name: /sign in/i })).toBeNull()
   })
 })

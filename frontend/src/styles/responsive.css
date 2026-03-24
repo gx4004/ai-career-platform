@@ -25,6 +25,25 @@
     max-width: none;
   }
 
+  .landing-storyboard {
+    grid-template-columns: 1fr;
+  }
+
+  .landing-storyboard-stage-sticky {
+    position: static;
+  }
+
+  .landing-storyboard-copy {
+    gap: 3rem;
+    padding-block: 0;
+  }
+
+  .landing-story-step {
+    max-width: none;
+    opacity: 1;
+    transform: none;
+  }
+
   /* Tool showcase: collapse sticky layout */
   .landing-tool-showcase {
     grid-template-columns: 1fr;
@@ -33,27 +52,36 @@
   .landing-preview-panel {
     position: static;
     top: calc(72px + 2rem);
-    min-height: 24rem;
+  }
+
+  .landing-preview-demo-frame {
+    height: clamp(14rem, 42vw, 18rem);
   }
 
   .landing-tool-cards {
-    display: flex;
-    overflow-x: auto;
-    gap: 0.75rem;
-    padding-bottom: 0.5rem;
-    scroll-snap-type: x mandatory;
+    display: grid;
+    overflow: visible;
+    gap: 0.85rem;
+    padding-bottom: 0;
   }
 
   .landing-tool-card {
-    min-width: 16rem;
-    flex-shrink: 0;
-    scroll-snap-align: start;
+    min-width: 0;
+    flex-shrink: 1;
+  }
+
+  .landing-navbar-links {
+    display: none;
   }
 }
 
 @media (max-width: 768px) {
   .topbar-inner {
     padding-inline: 1rem;
+  }
+
+  .landing-page-experiment {
+    padding-top: 0;
   }
 
   .page-shell {
@@ -113,6 +141,39 @@
     gap: 1.2rem;
   }
 
+  .landing-hero--lamp {
+    min-height: auto;
+  }
+
+  .landing-dashboard-hero {
+    gap: 2rem;
+  }
+
+  .landing-dashboard-stage-frame {
+    min-height: 18rem;
+    padding: 0.7rem;
+  }
+
+  .landing-dashboard-stage-bar,
+  .landing-storyboard-stage-bar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .landing-dashboard-stage-overlay-card,
+  .landing-storyboard-stage-floating-card {
+    position: static;
+    max-width: none;
+    margin-top: 0.75rem;
+  }
+
+  .landing-dashboard-stage-pills,
+  .landing-storyboard-stage-pills {
+    position: static;
+    margin-top: 0.75rem;
+    padding-top: 0.25rem;
+  }
+
   .landing-preview-panel {
     padding: 1.15rem;
   }
@@ -133,7 +194,7 @@
   }
 
   /* Navbar: smaller buttons */
-  .landing-navbar-actions .button-hero-primary {
+  .landing-navbar-actions .button-nav-cta {
     padding-inline: 0.75rem;
     font-size: var(--type-small);
   }
@@ -142,8 +203,33 @@
     min-width: 0;
   }
 
+  .landing-navbar {
+    height: auto;
+    min-height: 72px;
+  }
+
+  .landing-navbar-inner {
+    flex-wrap: wrap;
+  }
+
   .landing-cta {
     padding: 1.5rem;
+  }
+
+  .landing-feature-shell,
+  .landing-faq-shell {
+    border-radius: calc(var(--radius-xl) + 0.15rem);
+  }
+
+  .landing-section-heading--feature-steps,
+  .landing-section-heading--faq {
+    margin-bottom: 1.25rem;
+  }
+
+  .landing-animated-cta .ui-anim-btn {
+    min-height: 3rem;
+    width: 100%;
+    justify-content: center;
   }
 
   /* Hero mockup: scale down */
@@ -155,8 +241,27 @@
     transform: translateY(-3px);
   }
 
+  .hero-mockup-stage {
+    display: grid;
+    gap: 0.75rem;
+    min-height: auto;
+  }
+
   .hero-mockup-frame {
-    grid-template-columns: 1fr;
+    min-height: 13rem;
+  }
+
+  .hero-mockup-callout {
+    position: static;
+    width: auto;
+  }
+
+  .hero-mockup-footer {
+    gap: 0.65rem;
+  }
+
+  .landing-storyboard-stage-frame {
+    min-height: auto;
   }
 
   /* Dashboard carousel */
@@ -166,8 +271,17 @@
 }
 
 @media (max-width: 640px) {
-  .landing-tool-card {
-    min-width: 14rem;
+  .landing-tool-phase {
+    padding: 0.85rem;
+  }
+
+  .landing-context-static {
+    padding: 0.95rem;
+  }
+
+  .landing-dashboard-stage-window,
+  .landing-storyboard-stage {
+    border-radius: calc(var(--radius-xl) + 0.1rem);
   }
 }
 
@@ -193,8 +307,8 @@
     font-size: clamp(1.8rem, 6vw, 2.6rem);
   }
 
-  .hero-mockup-nav-btn {
-    display: none;
+  .landing-animated-cta {
+    width: 100%;
   }
 
   .auth-page-shell {

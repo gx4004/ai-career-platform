@@ -1,4 +1,4 @@
-import { motion, AnimatePresence } from 'framer-motion'
+import { AnimatePresence, motion } from 'framer-motion'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useCarousel } from '#/hooks/useCarousel'
 import { tools, type ToolId } from '#/lib/tools/registry'
@@ -21,8 +21,9 @@ const fadeScaleVariants = {
 }
 
 export function HeroMockup() {
-  const { activeIndex, paused, goTo, goNext, goPrev, hoverHandlers } =
-    useCarousel(CAROUSEL_ORDER.length)
+  const { activeIndex, paused, goTo, goNext, goPrev, hoverHandlers } = useCarousel(
+    CAROUSEL_ORDER.length,
+  )
 
   const slide = CAROUSEL_ORDER[activeIndex]
   const tool = tools[slide.id]
@@ -62,12 +63,7 @@ export function HeroMockup() {
               exit="exit"
               transition={{ duration: 0.35, ease }}
             >
-              <img
-                src={slide.image}
-                alt={tool.label}
-                className="dash-carousel-image"
-                draggable={false}
-              />
+              <img src={slide.image} alt={tool.label} className="dash-carousel-image" draggable={false} />
             </motion.div>
           </AnimatePresence>
         </div>
@@ -84,30 +80,29 @@ export function HeroMockup() {
         </div>
 
         <div className="hero-mockup-nav">
-          <button
-            className="hero-mockup-nav-btn"
-            onClick={goPrev}
-            aria-label="Previous tool"
-          >
+          <button className="hero-mockup-nav-btn" onClick={goPrev} aria-label="Previous tool">
             <ChevronLeft size={14} />
           </button>
-          {CAROUSEL_ORDER.map((s, i) => {
-            const t = tools[s.id]
+          {CAROUSEL_ORDER.map((entry, index) => {
+            const entryTool = tools[entry.id]
             return (
               <button
-                key={s.id}
-                className={`hero-mockup-dot${i === activeIndex ? ' is-active' : ''}`}
-                style={i === activeIndex ? { background: t.accent, boxShadow: `0 0 8px ${t.accent}44` } : undefined}
-                onClick={() => goTo(i)}
-                aria-label={t.label}
+                key={entry.id}
+                className={`hero-mockup-dot${index === activeIndex ? ' is-active' : ''}`}
+                style={
+                  index === activeIndex
+                    ? {
+                        background: entryTool.accent,
+                        boxShadow: `0 0 8px ${entryTool.accent}44`,
+                      }
+                    : undefined
+                }
+                onClick={() => goTo(index)}
+                aria-label={entryTool.label}
               />
             )
           })}
-          <button
-            className="hero-mockup-nav-btn"
-            onClick={goNext}
-            aria-label="Next tool"
-          >
+          <button className="hero-mockup-nav-btn" onClick={goNext} aria-label="Next tool">
             <ChevronRight size={14} />
           </button>
         </div>

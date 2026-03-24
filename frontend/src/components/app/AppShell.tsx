@@ -8,13 +8,13 @@ import { Topbar } from '#/components/app/Topbar'
 import { AuthDialog } from '#/components/auth/AuthDialog'
 import { SidebarInset, SidebarProvider } from '#/components/ui/sidebar'
 import { TooltipProvider } from '#/components/ui/tooltip'
+import { isPublicRoute } from '#/lib/navigation/publicRoutes'
 
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = useRouterState({
     select: (state) => state.location.pathname,
   })
-  const isShellless =
-    pathname === '/' || pathname === '/login' || pathname.startsWith('/auth/')
+  const isShellless = isPublicRoute(pathname)
 
   if (isShellless) {
     return (
