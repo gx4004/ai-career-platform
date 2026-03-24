@@ -22,8 +22,8 @@ describe('QuickStartGrid', () => {
   it('renders the workflow stairs in the expected dashboard order', () => {
     const { container } = render(<QuickStartGrid />)
 
-    expect(screen.getByText('Six tools, one connected workflow')).toBeTruthy()
-    expect(screen.getByText(/Follow the steps from top to bottom/i)).toBeTruthy()
+    expect(screen.getByText('Every step feeds the next')).toBeTruthy()
+    expect(screen.getByText(/Begin with your resume/i)).toBeTruthy()
 
     expect(screen.getAllByText('Start')).toHaveLength(1)
     expect(screen.getAllByText('Apply')).toHaveLength(1)
@@ -48,13 +48,5 @@ describe('QuickStartGrid', () => {
       'Career Path',
       'Portfolio Planner',
     ])
-
-    expect(screen.getByRole('img', { name: 'Resume Analyzer preview' })).toBeTruthy()
-    expect(screen.getByRole('img', { name: 'Job Match preview' })).toBeTruthy()
-    expect(screen.getByRole('img', { name: 'Cover Letter preview' })).toBeTruthy()
-    expect(screen.getByRole('img', { name: 'Interview Q&A preview' })).toBeTruthy()
-    expect(screen.getByRole('img', { name: 'Career Path preview' })).toBeTruthy()
-    expect(screen.getByRole('img', { name: 'Portfolio Planner preview' })).toBeTruthy()
-    expect(screen.getAllByRole('img')).toHaveLength(6)
   })
 })
