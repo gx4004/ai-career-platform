@@ -37,7 +37,7 @@ DashboardPage
 
 ### Headline
 - Eyebrow: "Your workspace" — `9px`, uppercase, `letter-spacing: 0.18em`, `rgba(112,181,249,0.7)`
-- Title: "Land your next role" — `clamp(1.8rem, 3vw, 1.6rem)` (scale with current `--type-display-lg`), `700`, white, `letter-spacing: -0.035em`
+- Title: "Land your next role" — `clamp(1.8rem, 3vw, 2.6rem)` (scale with current `--type-display-lg`), `700`, white, `letter-spacing: -0.035em`
 - Subtitle: "Upload your resume to unlock six AI-powered career tools" — `11px`, `rgba(200,215,230,0.55)`
 - All centered
 
@@ -118,7 +118,7 @@ Resume, Job Match, Career, Cover Letter, Interview, Portfolio (matches current `
 | `src/components/dashboard/DashboardShowcaseGrid.tsx` | Minor | Adjust wrapper class |
 | `src/styles/dashboard.css` | Major | Remove ~400 lines (timeline), add ~125 lines (dark hero, glow, floating) |
 | `src/components/dashboard/QuickStartGrid.tsx` | Delete | No longer used |
-| `src/components/dashboard/RecentRuns.tsx` | Modify | Replace with stats cards (or keep if we want run list later) |
+| `src/components/dashboard/RecentRuns.tsx` | Modify | Replace with compact stats cards |
 | `src/components/dashboard/FavoriteRuns.tsx` | Modify | Replace with stats cards |
 
 ## Files NOT Modified
