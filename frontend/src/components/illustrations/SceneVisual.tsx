@@ -1,8 +1,8 @@
 import type { ImgHTMLAttributes } from 'react'
-import landingControlRoom from '#/assets/scenes/landing-control-room.svg'
-import dashboardWorkspace from '#/assets/scenes/dashboard-workspace.svg'
-import loginWorkflow from '#/assets/scenes/login-workflow.svg'
-import emptyPlanningDesk from '#/assets/scenes/empty-planning-desk.svg'
+import landingControlRoom from '#/assets/scenes/landing-control-room.png'
+import dashboardWorkspace from '#/assets/scenes/dashboard-workspace.png'
+import loginWorkflow from '#/assets/scenes/login-workflow.png'
+import emptyPlanningDesk from '#/assets/scenes/empty-planning-desk.png'
 import { cn } from '#/lib/utils'
 
 export type IllustrationScene =

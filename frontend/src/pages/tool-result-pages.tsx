@@ -2,12 +2,12 @@ import { getRouteApi } from '@tanstack/react-router'
 import { ToolResultScreen } from '#/components/tooling/ToolResultScreen'
 import { ToolResultPreview } from '#/components/tooling/ToolResultPreview'
 
-const resumeResultRoute = getRouteApi('/resume/result/$historyId')
-const jobMatchResultRoute = getRouteApi('/job-match/result/$historyId')
-const coverLetterResultRoute = getRouteApi('/cover-letter/result/$historyId')
-const interviewResultRoute = getRouteApi('/interview/result/$historyId')
-const careerResultRoute = getRouteApi('/career/result/$historyId')
-const portfolioResultRoute = getRouteApi('/portfolio/result/$historyId')
+const resumeResultRoute = getRouteApi('/resume_/result/$historyId')
+const jobMatchResultRoute = getRouteApi('/job-match_/result/$historyId')
+const coverLetterResultRoute = getRouteApi('/cover-letter_/result/$historyId')
+const interviewResultRoute = getRouteApi('/interview_/result/$historyId')
+const careerResultRoute = getRouteApi('/career_/result/$historyId')
+const portfolioResultRoute = getRouteApi('/portfolio_/result/$historyId')
 
 export function ResumeResultPage() {
   const { historyId } = resumeResultRoute.useParams()
