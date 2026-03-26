@@ -9,6 +9,7 @@ import type { ToolId } from '#/lib/tools/registry'
 
 export type LandingSectionId =
   | 'hero'
+  | 'social-proof'
   | 'resume-demo'
   | 'context-scroll'
   | 'workflow'
@@ -74,8 +75,9 @@ export const landingPageSectionOrder: LandingSectionId[] = [
 export const landingExperimentSectionOrder: LandingSectionId[] = [
   'hero',
   'workflow',
-  'tools',
+  'social-proof',
   'resume-demo',
+  'tools',
   'faq',
   'cta',
   'footer',
@@ -118,8 +120,8 @@ export const landingHeroStageCopy = {
 
 export const landingResumeDemoCopy = {
   eyebrow: 'Resume review',
-  title: 'See what is working before you rewrite.',
-  body: 'Get a score, spot the strongest proof, and find the first fix worth making.',
+  title: 'Watch your resume get read the way a recruiter reads it.',
+  body: 'Upload once. We scan for proof, flag what\u2019s weak, and score what matters \u2014 in seconds.',
 } as const
 
 export const landingWorkflowCopy = {
@@ -149,10 +151,10 @@ export const landingExperimentHeroCopy = {
     headlineAccent: 'blind spots',
     headlineMid: '.',
     headlinePost: 'We find them before recruiters do.',
-    body: 'Upload once. Get a score, targeted fixes, and role matching — then build cover letters, prep for interviews, and plan your next move. All from one connected workspace.',
-    ctaLabel: 'Start free',
+    body: 'Upload your resume and see exactly what\u2019s working, what\u2019s not, and what to fix first \u2014 in under a minute.',
+    ctaLabel: 'Upload your resume \u2014 free',
     secondaryCtaLabel: 'See how it works',
-    trustItems: ['Free to start', 'No credit card', 'AI-powered in seconds'],
+    trustItems: ['No sign-up required', 'Results in under 60 seconds', 'Your data stays private'],
   },
   soft: {
     eyebrow: 'Career Workbench',
@@ -160,11 +162,16 @@ export const landingExperimentHeroCopy = {
     headlineAccent: 'hiring signal',
     headlineMid: '.',
     headlinePost: 'From review to applications in one place.',
-    body: 'Analyze your resume, match to real roles, generate cover letters, prep for interviews, and plan next steps — all from one connected workspace.',
-    ctaLabel: 'Start free',
+    body: 'Upload your resume and see exactly what\u2019s working, what\u2019s not, and what to fix first \u2014 in under a minute.',
+    ctaLabel: 'Upload your resume \u2014 free',
     secondaryCtaLabel: 'See how it works',
-    trustItems: ['Free to start', 'No credit card', 'AI-powered in seconds'],
+    trustItems: ['No sign-up required', 'Results in under 60 seconds', 'Your data stays private'],
   },
+} as const
+
+export const landingSocialProofStat = {
+  value: '2,400+',
+  label: 'resumes analyzed so far',
 } as const
 
 export const landingWorkflowFeatures = [
@@ -316,7 +323,14 @@ export const landingFaqCopy = {
 } as const
 
 export const landingCtaCopy = {
-  eyebrow: 'Ready?',
-  title: 'Your next career move starts with one upload.',
-  body: 'Open Career Workbench and move from review to applications to planning — all in one place.',
+  eyebrow: 'Ready to see what you\u2019re missing?',
+  title: 'Your resume is one upload away from being sharper.',
+  body: 'Open Career Workbench and move from review to applications to planning \u2014 all in one place.',
+  valueBullets: [
+    'Instant resume score & fixes',
+    'Cover letter + interview prep',
+    'No account needed',
+  ],
+  ctaLabel: 'Upload your resume \u2014 free',
+  trustLine: `Join ${landingSocialProofStat.value} job seekers who started here`,
 } as const
