@@ -6537,9 +6537,18 @@ button.landing-cascade-cta--ghost {
 }
 
 .landing-page-experiment .landing-experiment-navbar-cta--secondary {
-  background: rgba(255, 255, 255, 0.06);
-  color: rgba(220, 235, 255, 0.9);
-  border-color: transparent;
+  background: transparent !important;
+  color: rgba(220, 235, 255, 0.88) !important;
+  border-color: transparent !important;
+  border-width: 0 !important;
+  box-shadow: none !important;
+}
+
+.landing-page-experiment .landing-experiment-navbar-cta--secondary:hover {
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: #fff !important;
+  border-radius: 999px;
+  box-shadow: none !important;
 }
 
 /* CTA: dark scrolled state */
@@ -6550,9 +6559,11 @@ button.landing-cascade-cta--ghost {
 }
 
 .landing-page-experiment [data-state='dark'] .landing-experiment-navbar-cta--secondary {
-  background: rgba(255, 255, 255, 0.06);
-  color: rgba(236, 245, 255, 0.92);
-  border-color: transparent;
+  background: transparent !important;
+  color: rgba(220, 235, 255, 0.88) !important;
+  border-color: transparent !important;
+  border-width: 0 !important;
+  box-shadow: none !important;
 }
 
 .landing-page-experiment [data-state='dark'] .landing-experiment-navbar-cta:hover {
