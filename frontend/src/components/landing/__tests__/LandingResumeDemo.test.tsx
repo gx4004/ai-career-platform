@@ -25,6 +25,7 @@ vi.mock('@tanstack/react-router', () => ({
 
 vi.mock('framer-motion', () => ({
   useReducedMotion: () => demoState.reducedMotion,
+  AnimatePresence: ({ children }: { children: ReactNode }) => <>{children}</>,
 }))
 
 vi.mock('#/components/ui/motion', () => {
@@ -59,6 +60,14 @@ vi.mock('#/components/ui/motion', () => {
   }
 })
 
+vi.mock('#/components/ui/border-beam', () => ({
+  BorderBeam: () => null,
+}))
+
+vi.mock('#/components/ui/number-ticker', () => ({
+  NumberTicker: ({ value }: { value: number }) => <span>{value}</span>,
+}))
+
 describe('LandingResumeDemo', () => {
   beforeEach(() => {
     demoState.reducedMotion = false
@@ -70,115 +79,62 @@ describe('LandingResumeDemo', () => {
     vi.useRealTimers()
   })
 
-  it('renders the new headline and proof summary state', () => {
+  it('renders the headline and resume identity', () => {
     render(<LandingResumeDemo />)
 
-    expect(screen.getByText('See what is working before you rewrite.')).toBeTruthy()
     expect(
-      screen.getByText(
-        'Get a score, spot the strongest proof, and find the first fix worth making.',
-      ),
+      screen.getByText('Watch your resume get read the way a recruiter reads it.'),
     ).toBeTruthy()
-    expect(screen.getByText('What to fix first')).toBeTruthy()
     expect(screen.getByText('Adrian Nowak')).toBeTruthy()
     expect(screen.getByText(/adrian@nowak\.dev/i)).toBeTruthy()
-    expect(screen.getByText('Selected Work')).toBeTruthy()
     expect(screen.getByText('Core Stack')).toBeTruthy()
+    expect(screen.getByText('Profile')).toBeTruthy()
+    expect(screen.getByText('Experience')).toBeTruthy()
   })
 
-  it('advances through the simplified scan, proof, and analysis sequence', () => {
+  it('advances through the annotation sequence to the score phase', () => {
     vi.useFakeTimers()
 
     render(<LandingResumeDemo />)
 
-    const initialScan = screen.getByTestId('landing-demo-scan-overlay')
-    expect(initialScan.getAttribute('data-pass')).toBe('initial')
-    expect(screen.queryByText('Strong shortlist signal')).toBeNull()
-    expect(screen.queryByText('Strongest signal')).toBeNull()
-    expect(screen.queryByText('First fix')).toBeNull()
-    expect(
-      screen.queryByText(
-        'Quantified platform and performance wins make the profile credible fast.',
-      ),
-    ).toBeNull()
+    // Initially no annotations visible
+    expect(screen.queryByText('Add leadership scope to summary')).toBeNull()
+    expect(screen.queryByText('Measurable delivery proof found')).toBeNull()
+
+    // Advance past scanning into annotate phases
+    act(() => {
+      vi.advanceTimersByTime(700)
+    })
+    expect(screen.getByText('Add leadership scope to summary')).toBeTruthy()
 
     act(() => {
-      vi.advanceTimersByTime(1500)
+      vi.advanceTimersByTime(500)
     })
-
-    const summaryLine = screen
-      .getByText(
-        'Senior frontend engineer building revenue-critical React products, design systems, and performance improvements across scaling SaaS teams.',
-      )
-      .closest('.landing-demo-doc-line')
-    expect(summaryLine).toBeTruthy()
-    expect(summaryLine?.getAttribute('data-highlighted')).toBe('true')
+    expect(screen.getByText('Measurable delivery proof found')).toBeTruthy()
 
     act(() => {
-      vi.advanceTimersByTime(600)
+      vi.advanceTimersByTime(500)
     })
+    expect(screen.getByText('Clear business impact detected')).toBeTruthy()
 
-    const proofLine = screen
-      .getByText(
-        'Led the design-system migration across 6 product squads, reducing UI delivery time by 34%.',
-      )
-      .closest('.landing-demo-doc-line')
-    expect(proofLine).toBeTruthy()
-    expect(proofLine?.getAttribute('data-highlighted')).toBe('true')
-
+    // Advance to score phase
     act(() => {
-      vi.advanceTimersByTime(900)
+      vi.advanceTimersByTime(700)
     })
-
-    const confirmScan = screen.getByTestId('landing-demo-scan-overlay')
-    expect(confirmScan.getAttribute('data-pass')).toBe('confirm')
-    expect(screen.queryByText('Strong shortlist signal')).toBeNull()
-    expect(screen.queryByText('Strongest signal')).toBeNull()
-
-    act(() => {
-      vi.advanceTimersByTime(1900)
-    })
-
-    expect(screen.queryByTestId('landing-demo-scan-overlay')).toBeNull()
-    expect(screen.getByText('86')).toBeTruthy()
-    expect(screen.getByText('Strong shortlist signal')).toBeTruthy()
-    expect(screen.getByText('Resume score')).toBeTruthy()
-    expect(screen.getByText('Strongest signal')).toBeTruthy()
-    expect(screen.getByText('First fix')).toBeTruthy()
-    expect(
-      screen.getByText(
-        'Quantified platform and performance wins make the profile credible fast.',
-      ),
-    ).toBeTruthy()
-    expect(
-      screen.getByText(
-        'The summary needs clearer leadership scope and stronger target-role language.',
-      ),
-    ).toBeTruthy()
-    expect(screen.getByText('Selected Work')).toBeTruthy()
-    expect(screen.getByText('Core Stack')).toBeTruthy()
+    expect(screen.getByText('Ready for shortlists')).toBeTruthy()
   })
 
-  it('renders the final proof state immediately for reduced motion', () => {
+  it('renders the final state immediately for reduced motion', () => {
     demoState.reducedMotion = true
     demoState.triggered = false
 
     render(<LandingResumeDemo />)
 
-    expect(screen.queryByTestId('landing-demo-scan-overlay')).toBeNull()
-    expect(screen.getByText('86')).toBeTruthy()
-    expect(screen.getByText('Strong shortlist signal')).toBeTruthy()
-    expect(
-      screen.getByText(
-        'Quantified platform and performance wins make the profile credible fast.',
-      ),
-    ).toBeTruthy()
-    expect(
-      screen.getByText(
-        'The summary needs clearer leadership scope and stronger target-role language.',
-      ),
-    ).toBeTruthy()
-    expect(screen.getByText('Selected Work')).toBeTruthy()
+    expect(screen.getAllByText('86').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getByText('Ready for shortlists')).toBeTruthy()
+    expect(screen.getByText('Add leadership scope to summary')).toBeTruthy()
+    expect(screen.getByText('Measurable delivery proof found')).toBeTruthy()
+    expect(screen.getByText('Clear business impact detected')).toBeTruthy()
     expect(screen.getByText('Core Stack')).toBeTruthy()
   })
 })

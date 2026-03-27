@@ -1,6 +1,8 @@
 from time import perf_counter
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from sqlalchemy.orm import Session
 
 from app.auth.security import get_optional_current_user
@@ -16,10 +18,13 @@ from app.services.portfolio_planner import recommend_portfolio
 from app.services.tool_runs import build_tool_response, extract_linked_context_ids, persist_tool_run
 
 router = APIRouter()
+limiter = Limiter(key_func=get_remote_address)
 
 
 @router.post("/recommend", response_model=PortfolioResponse)
+@limiter.limit("10/minute")
 async def recommend(
+    request: Request,
     body: PortfolioRequest,
     current_user: User | None = Depends(get_optional_current_user),
     db: Session = Depends(get_db),

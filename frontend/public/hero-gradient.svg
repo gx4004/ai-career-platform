@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 1 100" preserveAspectRatio="none">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="0" y2="1" gradientUnits="objectBoundingBox">
+      <stop offset="0%"   stop-color="#060d1a"/>
+      <stop offset="8%"   stop-color="#081019"/>
+      <stop offset="16%"  stop-color="#0a1322"/>
+      <stop offset="24%"  stop-color="#0c1628"/>
+      <stop offset="30%"  stop-color="#0e1a2e"/>
+      <stop offset="35%"  stop-color="#101e34"/>
+      <stop offset="40%"  stop-color="#152a47"/>
+      <stop offset="45%"  stop-color="#1a3356"/>
+      <stop offset="50%"  stop-color="#213f6b"/>
+      <stop offset="55%"  stop-color="#2d5488"/>
+      <stop offset="60%"  stop-color="#3e689d"/>
+      <stop offset="65%"  stop-color="#5580b0"/>
+      <stop offset="70%"  stop-color="#6d97bf"/>
+      <stop offset="75%"  stop-color="#82abcb"/>
+      <stop offset="80%"  stop-color="#96bdd6"/>
+      <stop offset="85%"  stop-color="#a8cee2"/>
+      <stop offset="90%"  stop-color="#b8d8ea"/>
+      <stop offset="95%"  stop-color="#c5e0ef"/>
+      <stop offset="100%" stop-color="#d0e6f2"/>
+    </linearGradient>
+  </defs>
+  <rect width="1" height="100" fill="url(#g)"/>
+</svg>

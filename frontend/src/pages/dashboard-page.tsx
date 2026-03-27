@@ -32,21 +32,20 @@ export function DashboardPage() {
     <PageFrame className="dashboard-page-frame premium-corner-canvas">
       <div className="content-max dashboard-layout dashboard-stack">
         <DashboardHero />
-        <section className="dash-showcase-section">
-          <div className="dash-showcase-section-header">
-            <p className="eyebrow">Your toolkit</p>
-            <h2 className="dash-showcase-heading">All tools</h2>
-          </div>
+        <div className="dash-showcase-floating">
           <DashboardShowcaseGrid />
-        </section>
-        {isAuthenticated ? (
-          <div className="dashboard-runs-grid" data-tour="activity">
-            <RecentRuns />
-            <FavoriteRuns />
-          </div>
-        ) : (
-          <DashboardActivityFooter />
-        )}
+        </div>
+        <div className="dashboard-light-surface">
+          {isAuthenticated ? (
+            <div className="dashboard-runs-grid" data-tour="activity">
+              <RecentRuns />
+              <FavoriteRuns />
+            </div>
+          ) : (
+            <DashboardActivityFooter />
+          )}
+          <div className="dashboard-footer-strip" />
+        </div>
       </div>
       <OnboardingTour
         open={onboarding.open}

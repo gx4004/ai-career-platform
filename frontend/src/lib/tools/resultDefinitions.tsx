@@ -1,23 +1,13 @@
 import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import {
-  AlertTriangle,
-  CheckCircle2,
-  CircleDot,
   Copy,
   Download,
-  FileText,
-  ListChecks,
-  MessagesSquare,
-  Sparkles,
-  Target,
 } from 'lucide-react'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '#/components/ui/accordion'
-import { Badge } from '#/components/ui/badge'
 import { Button } from '#/components/ui/button'
 import { Textarea } from '#/components/ui/textarea'
 import type { ToolRunDetail } from '#/lib/api/schemas'
-import { readEditableBlocks } from '#/lib/tools/exports'
 import type { ToolDefinition, ToolId } from '#/lib/tools/registry'
 
 type AnyObject = Record<string, unknown>
@@ -518,529 +508,215 @@ function normalizeInterviewPayload(payload: AnyObject): InterviewResultPayload {
   }
 }
 
-function EditableBlocksPanel({
-  title,
-  blocks,
-}: {
-  title: string
-  blocks: ReturnType<typeof readEditableBlocks>
-}) {
-  const [values, setValues] = useState(blocks.map((block) => block.content))
+/* ── Shared helpers ── */
 
-  if (blocks.length === 0) return null
 
+function ScoreCircleSvg({ score, size = 88 }: { score: number; size?: number }) {
+  const r = (size / 2) - 6
+  const circumference = 2 * Math.PI * r
+  const offset = circumference - (score / 100) * circumference
   return (
-    <div className="result-section">
-      <h3 className="section-title mb-4">{title}</h3>
-      <div className="application-editor-grid">
-        {blocks.map((block, index) => (
-          <div key={block.id} className="application-section-card result-section">
-            <p className="eyebrow mb-3">{block.label}</p>
-            <Textarea
-              rows={7}
-              value={values[index] || ''}
-              placeholder={block.placeholder || undefined}
-              onChange={(event) =>
-                setValues((current) =>
-                  current.map((item, currentIndex) =>
-                    currentIndex === index ? event.target.value : item,
-                  ),
-                )
-              }
-            />
-          </div>
-        ))}
+    <div className="result-hero__score" style={{ width: size, height: size }}>
+      <svg viewBox={`0 0 ${size} ${size}`} style={{ transform: 'rotate(-90deg)', position: 'absolute', inset: 0 }}>
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth="5.5" />
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="white" strokeWidth="5.5"
+          strokeDasharray={circumference} strokeDashoffset={offset} strokeLinecap="round"
+          style={{ transition: 'stroke-dashoffset 0.8s cubic-bezier(0.16, 1, 0.3, 1)' }}
+        />
+      </svg>
+      <div style={{ position: 'relative', textAlign: 'center' }}>
+        <div className="result-hero__score-num">{score}</div>
       </div>
-    </div>
-  )
-}
-
-function TopActionsGrid({
-  actions,
-}: {
-  actions: Array<{ title: string; action: string; priority: 'high' | 'medium' | 'low' }>
-}) {
-  return (
-    <div className="quality-actions-grid">
-      {actions.length > 0 ? (
-        actions.map((action, index) => (
-          <div key={`${action.title}-${index}`} className="metric-card quality-action-card p-5">
-            <div className="flex items-center justify-between gap-3">
-              <p className="eyebrow">Fix first #{index + 1}</p>
-              <Badge
-                variant="outline"
-                style={{ borderColor: priorityTone(action.priority), color: priorityTone(action.priority) }}
-              >
-                {action.priority}
-              </Badge>
-            </div>
-            <h3 className="section-title mt-3 mb-2">{action.title}</h3>
-            <p className="muted-copy">{action.action}</p>
-          </div>
-        ))
-      ) : (
-        <div className="metric-card p-5">
-          <h3 className="section-title mb-2">No top actions returned</h3>
-          <p className="muted-copy">Run the tool again if you want a more detailed action plan.</p>
-        </div>
-      )}
     </div>
   )
 }
 
 function ResumeResultView({ payload }: { payload: AnyObject }) {
   const result = normalizeResumePayload(payload)
-  const editableBlocks = readEditableBlocks(payload)
 
   return (
-    <div className="quality-result-stack">
-      <div className="quality-hero-grid">
-        <div className="result-section quality-score-panel">
-          <div className="quality-score-wrap">
-            <div
-              className="score-gauge"
-              style={{
-                ['--score-color' as string]: scoreColor(result.overallScore),
-                ['--score-value' as string]: result.overallScore,
-              }}
-            >
-              {result.overallScore}
-            </div>
-            <div className="grid gap-3">
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge variant="outline">
-                  <Sparkles size={13} />
-                  Resume quality
-                </Badge>
-                <Badge
-                  variant="outline"
-                  style={{ borderColor: scoreColor(result.overallScore), color: scoreColor(result.overallScore) }}
-                >
-                  {result.summary.verdict}
-                </Badge>
+    <>
+      {/* Score breakdown + Strengths/Gaps side by side */}
+      <div className="rs rs--2col">
+        <div>
+          <h3 className="rs__heading">Score breakdown</h3>
+          <div className="bar-stack">
+            {result.scoreBreakdown.map((item) => (
+              <div key={item.key} className="bar-metric">
+                <span className="bar-metric__label">{item.label}</span>
+                <div className="bar-metric__track">
+                  <div className="bar-metric__fill" style={{ width: `${item.score}%`, background: scoreColor(item.score) }} />
+                </div>
+                <span className="bar-metric__value" style={{ color: scoreColor(item.score) }}>{item.score}</span>
               </div>
-              <div className="grid gap-2">
-                <h3 className="section-title">{result.summary.headline}</h3>
-                <p className="muted-copy">{result.summary.confidence_note}</p>
-              </div>
-            </div>
+            ))}
           </div>
         </div>
-
-        {result.roleFit ? (
-          <div className="result-section quality-role-fit">
-            <div className="flex items-center gap-2">
-              <Target size={16} style={{ color: 'var(--tool-accent, var(--accent))' }} />
-              <p className="eyebrow">Target role fit</p>
-            </div>
-            <div className="quality-role-fit-score">
-              <strong>{result.roleFit.fitScore}%</strong>
-              <span>{result.roleFit.targetRoleLabel}</span>
-            </div>
-            <p className="muted-copy">{result.roleFit.rationale}</p>
+        <div>
+          <h3 className="rs__heading" style={{ color: 'var(--success)' }}>Strengths</h3>
+          <div style={{ display: 'grid', gap: '0.25rem', marginBottom: '0.75rem' }}>
+            {result.strengths.slice(0, 4).map((s) => (
+              <div key={s} className="rs__body" style={{ display: 'flex', gap: '0.375rem' }}>
+                <span style={{ color: 'var(--success)' }}>&#10003;</span> {s}
+              </div>
+            ))}
           </div>
-        ) : null}
-      </div>
-
-      <div className="result-section">
-        <div className="flex items-center gap-2 mb-4">
-          <ListChecks size={16} style={{ color: 'var(--tool-accent, var(--accent))' }} />
-          <h3 className="section-title">Top 3 fixes</h3>
-        </div>
-        <TopActionsGrid actions={result.topActions.slice(0, 3)} />
-      </div>
-
-      <div className="result-section">
-        <h3 className="section-title mb-4">Score breakdown</h3>
-        <div className="quality-breakdown-grid">
-          {result.scoreBreakdown.map((item) => (
-            <div key={item.key} className="metric-card quality-breakdown-card p-5">
-              <p className="eyebrow mb-2">{item.label}</p>
-              <div className="flex items-end justify-between gap-4">
-                <strong style={{ color: scoreColor(item.score), fontSize: '2rem', lineHeight: 1 }}>
-                  {item.score}
-                </strong>
-                <div className="quality-breakdown-bar" aria-hidden="true">
-                  <span style={{ width: `${item.score}%`, background: scoreColor(item.score) }} />
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div className="quality-evidence-grid">
-        <div className="result-section">
-          <h3 className="section-title mb-4">What already reads well</h3>
-          <div className="result-list">
-            {result.strengths.length > 0 ? (
-              result.strengths.map((item) => (
-                <div key={item} className="result-list-item">
-                  <CheckCircle2 size={16} style={{ color: 'var(--success)', marginTop: 2 }} />
-                  <span>{item}</span>
-                </div>
-              ))
-            ) : (
-              <p className="muted-copy">No strengths were returned.</p>
-            )}
-          </div>
-        </div>
-
-        <div className="result-section">
-          <h3 className="section-title mb-4">Evidence detected</h3>
-          <div className="grid gap-4">
-            <div>
-              <p className="eyebrow mb-2">Sections</p>
-              <div className="chip-grid">
-                {(result.evidence.detectedSections.length > 0
-                  ? result.evidence.detectedSections
-                  : ['No clear sections detected']).map((item) => (
-                  <Badge key={item} variant="outline">{item}</Badge>
-                ))}
-              </div>
-            </div>
-            <div>
-              <p className="eyebrow mb-2">Skills</p>
-              <div className="chip-grid">
-                {(result.evidence.detectedSkills.length > 0
-                  ? result.evidence.detectedSkills
-                  : ['No skills detected']).map((item) => (
-                  <Badge key={item} variant="outline">{item}</Badge>
-                ))}
-              </div>
-            </div>
-            <div className="quality-chip-columns">
-              <div>
-                <p className="eyebrow mb-2">Matched keywords</p>
-                <div className="chip-grid">
-                  {(result.evidence.matchedKeywords.length > 0
-                    ? result.evidence.matchedKeywords
-                    : ['No matched keywords']).map((item) => (
-                    <Badge
-                      key={item}
-                      variant="outline"
-                      style={{ borderColor: 'rgba(34, 197, 94, 0.35)' }}
-                    >
-                      {item}
-                    </Badge>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <p className="eyebrow mb-2">Missing keywords</p>
-                <div className="chip-grid">
-                  {(result.evidence.missingKeywords.length > 0
-                    ? result.evidence.missingKeywords
-                    : ['No missing keywords']).map((item) => (
-                    <Badge
-                      key={item}
-                      variant="outline"
-                      style={{ borderColor: 'rgba(245, 158, 11, 0.35)' }}
-                    >
-                      {item}
-                    </Badge>
-                  ))}
-                </div>
-              </div>
-            </div>
-            <div className="quality-stat-card">
-              <p className="eyebrow">Quantified bullets</p>
-              <strong>{result.evidence.quantifiedBullets}</strong>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="result-section">
-        <h3 className="section-title mb-4">Issues to fix next</h3>
-        <div className="quality-issues-grid">
           {result.issues.length > 0 ? (
-            result.issues.map((issue) => (
-              <div key={issue.id} className="metric-card quality-issue-card p-5">
-                <div className="flex flex-wrap items-center gap-2 mb-3">
-                  <Badge
-                    variant="outline"
-                    style={{ borderColor: priorityTone(issue.severity), color: priorityTone(issue.severity) }}
-                  >
-                    {issue.severity}
-                  </Badge>
-                  <Badge variant="outline">{issue.category}</Badge>
-                </div>
-                <h3 className="section-title mb-2">{issue.title}</h3>
-                <p className="muted-copy mb-3">{issue.whyItMatters}</p>
-                <div className="grid gap-3">
-                  <div className="quality-note-block">
-                    <p className="eyebrow mb-1">Evidence</p>
-                    <p>{issue.evidence}</p>
+            <>
+              <h3 className="rs__heading" style={{ color: 'var(--warning)', marginTop: '0.5rem' }}>Gaps</h3>
+              <div style={{ display: 'grid', gap: '0.25rem' }}>
+                {result.issues.slice(0, 3).map((i) => (
+                  <div key={i.id} className="rs__body" style={{ display: 'flex', gap: '0.375rem' }}>
+                    <span style={{ color: priorityTone(i.severity) }}>&#9679;</span> {i.title}
                   </div>
-                  <div className="quality-note-block">
-                    <p className="eyebrow mb-1">Suggested rewrite direction</p>
-                    <p>{issue.fix}</p>
-                  </div>
-                </div>
+                ))}
               </div>
-            ))
-          ) : (
-            <p className="muted-copy">No issues were returned.</p>
-          )}
+            </>
+          ) : null}
         </div>
       </div>
 
-      <EditableBlocksPanel
-        title="Section rewrite mode"
-        blocks={editableBlocks}
-      />
-    </div>
+      {/* Fix first */}
+      <div className="rs">
+        <h3 className="rs__heading">Fix first</h3>
+        {result.topActions.slice(0, 3).map((a, i) => (
+          <div key={`${a.title}-${i}`} style={{ display: 'flex', gap: '0.5rem', padding: '0.375rem 0' }}>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: priorityTone(a.priority), flexShrink: 0, marginTop: 6 }} />
+            <div>
+              <div style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-strong)' }}>{a.title}</div>
+              <div className="rs__meta">{a.action}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Keywords + Evidence inline */}
+      <div className="rs rs--2col">
+        <div>
+          <h3 className="rs__sub">Keywords</h3>
+          <div className="chip-flow">
+            {result.evidence.matchedKeywords.map((k) => <span key={k} className="chip-sm chip-sm--positive">{k}</span>)}
+            {result.evidence.missingKeywords.map((k) => <span key={k} className="chip-sm chip-sm--warning">{k}</span>)}
+          </div>
+        </div>
+        <div>
+          <h3 className="rs__sub">Evidence</h3>
+          <div style={{ display: 'grid', gap: '0.125rem' }}>
+            <div className="rs__meta" style={{ display: 'flex', justifyContent: 'space-between' }}><span>Sections</span><strong>{result.evidence.detectedSections.length}</strong></div>
+            <div className="rs__meta" style={{ display: 'flex', justifyContent: 'space-between' }}><span>Skills</span><strong>{result.evidence.detectedSkills.length}</strong></div>
+            <div className="rs__meta" style={{ display: 'flex', justifyContent: 'space-between' }}><span>Quantified</span><strong>{result.evidence.quantifiedBullets}</strong></div>
+          </div>
+        </div>
+      </div>
+
+      {/* Issues (expandable) */}
+      {result.issues.length > 0 ? (
+        <div className="rs">
+          <h3 className="rs__heading">Issues ({result.issues.length})</h3>
+          <Accordion type="single" collapsible>
+            {result.issues.map((issue) => (
+              <AccordionItem key={issue.id} value={issue.id}>
+                <AccordionTrigger>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', textAlign: 'left' }}>
+                    <span style={{ width: 5, height: 5, borderRadius: '50%', background: priorityTone(issue.severity), flexShrink: 0 }} />
+                    <span style={{ fontSize: '0.8125rem' }}>{issue.title}</span>
+                  </span>
+                </AccordionTrigger>
+                <AccordionContent>
+                  <div className="rs__body" style={{ paddingTop: '0.25rem' }}>
+                    <p>{issue.whyItMatters}</p>
+                    <p className="rs__meta" style={{ marginTop: '0.25rem' }}><strong>Fix:</strong> {issue.fix}</p>
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+            ))}
+          </Accordion>
+        </div>
+      ) : null}
+
+      {/* Role fit */}
+      {result.roleFit ? (
+        <div className="rs">
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.375rem' }}>
+            <span style={{ fontSize: '1.125rem', fontWeight: 700, color: scoreColor(result.roleFit.fitScore) }}>{result.roleFit.fitScore}%</span>
+            <span className="rs__meta">fit for {result.roleFit.targetRoleLabel}</span>
+          </div>
+          <p className="rs__meta" style={{ marginTop: '0.125rem' }}>{result.roleFit.rationale}</p>
+        </div>
+      ) : null}
+    </>
   )
 }
 
 function JobMatchView({ payload }: { payload: AnyObject }) {
   const result = normalizeJobMatchPayload(payload)
-  const checklist = result.requirements.filter((item) => item.status !== 'matched').slice(0, 4)
 
   return (
-    <div className="quality-result-stack">
-      <div className="quality-hero-grid">
-        <div className="result-section quality-score-panel">
-          <div className="quality-score-wrap">
-            <div
-              className="score-gauge"
-              style={{
-                ['--score-color' as string]: scoreColor(result.matchScore),
-                ['--score-value' as string]: result.matchScore,
-              }}
-            >
-              {result.matchScore}%
+    <>
+      {/* Requirements */}
+      <div className="rs">
+        <h3 className="rs__heading">Requirements</h3>
+        <div className="req-list">
+          {result.requirements.map((item, index) => (
+            <div key={`${item.requirement}-${index}`} className="req-row">
+              <span className="req-row__dot" style={{ background: statusTone(item.status) }} />
+              <span className="req-row__name">{item.requirement}</span>
+              <span className="req-row__badge" style={{
+                background: item.importance === 'must' ? 'color-mix(in srgb, var(--accent) 10%, transparent)' : 'transparent',
+                color: item.importance === 'must' ? 'var(--accent)' : 'var(--text-muted)',
+              }}>{item.importance}</span>
             </div>
-            <div className="grid gap-3">
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge variant="outline">
-                  <Target size={13} />
-                  Job match
-                </Badge>
-                <Badge
-                  variant="outline"
-                  style={{ borderColor: scoreColor(result.matchScore), color: scoreColor(result.matchScore) }}
-                >
-                  {result.verdict}
-                </Badge>
-              </div>
-              <div className="grid gap-2">
-                <h3 className="section-title">{result.summary.headline}</h3>
-                <p className="muted-copy">{result.summary.confidence_note}</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="result-section quality-role-fit">
-          <p className="eyebrow mb-2">Recruiter summary</p>
-          <p>{result.recruiterSummary}</p>
+          ))}
         </div>
       </div>
 
-      <div className="result-section">
-        <div className="flex items-center gap-2 mb-4">
-          <ListChecks size={16} style={{ color: 'var(--tool-accent, var(--accent))' }} />
-          <h3 className="section-title">Top actions before you apply</h3>
-        </div>
-        <TopActionsGrid actions={result.topActions.slice(0, 3)} />
-      </div>
-
-      <div className="result-section">
-        <h3 className="section-title mb-4">Requirement matrix</h3>
-        <div className="quality-issues-grid">
-          {result.requirements.length > 0 ? (
-            result.requirements.map((item, index) => (
-              <div key={`${item.requirement}-${index}`} className="metric-card quality-requirement-card p-5">
-                <div className="flex flex-wrap items-center gap-2 mb-3">
-                  <Badge variant="outline">{item.importance}</Badge>
-                  <Badge
-                    variant="outline"
-                    style={{ borderColor: statusTone(item.status), color: statusTone(item.status) }}
-                  >
-                    {item.status}
-                  </Badge>
-                </div>
-                <h3 className="section-title mb-2">{item.requirement}</h3>
-                <div className="grid gap-3">
-                  <div className="quality-note-block">
-                    <p className="eyebrow mb-1">Resume evidence</p>
-                    <p>{item.resumeEvidence}</p>
-                  </div>
-                  <div className="quality-note-block">
-                    <p className="eyebrow mb-1">Suggested fix</p>
-                    <p>{item.suggestedFix}</p>
-                  </div>
-                </div>
-              </div>
-            ))
-          ) : (
-            <p className="muted-copy">No requirements were returned.</p>
-          )}
-        </div>
-      </div>
-
-      <div className="quality-evidence-grid">
-        <div className="result-section">
-          <h3 className="section-title mb-4">Keyword coverage</h3>
-          <div className="grid gap-4">
-            <div>
-              <p className="eyebrow mb-2">Matched keywords</p>
-              <div className="chip-grid">
-                {(result.matchedKeywords.length > 0 ? result.matchedKeywords : ['No matched keywords']).map((item) => (
-                  <Badge
-                    key={item}
-                    variant="outline"
-                    style={{ borderColor: 'rgba(34, 197, 94, 0.35)' }}
-                  >
-                    {item}
-                  </Badge>
-                ))}
-              </div>
-            </div>
-            <div>
-              <p className="eyebrow mb-2">Missing keywords</p>
-              <div className="chip-grid">
-                {(result.missingKeywords.length > 0 ? result.missingKeywords : ['No missing keywords']).map((item) => (
-                  <Badge
-                    key={item}
-                    variant="outline"
-                    style={{ borderColor: 'rgba(245, 158, 11, 0.35)' }}
-                  >
-                    {item}
-                  </Badge>
-                ))}
-              </div>
-            </div>
+      {/* Keywords + Tailoring */}
+      <div className="rs rs--2col">
+        <div>
+          <h3 className="rs__sub">Keyword coverage</h3>
+          <div className="chip-flow">
+            {result.matchedKeywords.map((k) => <span key={k} className="chip-sm chip-sm--positive">{k}</span>)}
+            {result.missingKeywords.map((k) => <span key={k} className="chip-sm chip-sm--warning">{k}</span>)}
           </div>
         </div>
-
-        <div className="result-section">
-          <h3 className="section-title mb-4">Before-you-apply checklist</h3>
-          <div className="result-list">
-            {checklist.length > 0 ? (
-              checklist.map((item) => (
-                <div key={item.requirement} className="result-list-item">
-                  <AlertTriangle size={16} style={{ color: statusTone(item.status), marginTop: 2 }} />
-                  <span>
-                    <strong>{item.requirement}:</strong> {item.suggestedFix}
-                  </span>
-                </div>
-              ))
-            ) : (
-              <div className="result-list-item">
-                <CheckCircle2 size={16} style={{ color: 'var(--success)', marginTop: 2 }} />
-                <span>The current requirement set reads as fully matched.</span>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      <div className="quality-evidence-grid">
-        <div className="result-section">
-          <h3 className="section-title mb-4">Tailoring actions</h3>
-          <div className="result-list">
-            {result.tailoringActions.length > 0 ? (
-              result.tailoringActions.map((item, index) => (
-                <div key={`${item.keyword}-${index}`} className="result-list-item">
-                  <CircleDot size={16} style={{ color: 'var(--tool-accent, var(--accent))', marginTop: 2 }} />
-                  <span>
-                    <strong>{item.section}:</strong> {item.action}
-                  </span>
-                </div>
-              ))
-            ) : (
-              <p className="muted-copy">No tailoring actions were returned.</p>
-            )}
-          </div>
-        </div>
-
-        <div className="result-section">
-          <h3 className="section-title mb-4">Interview handoff</h3>
-          <div className="result-list">
-            {result.interviewFocus.length > 0 ? (
-              result.interviewFocus.map((item) => (
-                <div key={item} className="result-list-item">
-                  <CheckCircle2 size={16} style={{ color: 'var(--success)', marginTop: 2 }} />
-                  <span>{item}</span>
-                </div>
-              ))
-            ) : (
-              <p className="muted-copy">No interview focus topics were returned.</p>
-            )}
-          </div>
-        </div>
-      </div>
-
-      <div className="application-handoff-grid">
-        <div className="result-section application-handoff-card">
-          <div className="flex items-center gap-2 mb-4">
-            <FileText size={16} style={{ color: 'var(--tool-accent, var(--accent))' }} />
-            <h3 className="section-title">Cover letter handoff</h3>
-          </div>
-          <div className="grid gap-3">
-            <div>
-              <p className="eyebrow mb-2">Missing keywords to seed</p>
-              <div className="chip-grid">
-                {(result.missingKeywords.length > 0 ? result.missingKeywords : ['No missing keywords']).map((item) => (
-                  <Badge key={item} variant="outline">
-                    {item}
-                  </Badge>
-                ))}
-              </div>
-            </div>
-            <div className="result-list">
-              {(result.tailoringActions.length > 0
-                ? result.tailoringActions
-                : [{ section: 'experience', keyword: 'fit', action: 'No tailoring actions were returned.' }]).map((item, index) => (
-                <div key={`${item.keyword}-${index}`} className="result-list-item">
-                  <CircleDot size={16} style={{ color: 'var(--tool-accent, var(--accent))', marginTop: 2 }} />
-                  <span>
-                    <strong>{item.section}:</strong> {item.action}
-                  </span>
+        <div>
+          {result.tailoringActions.length > 0 ? (
+            <>
+              <h3 className="rs__sub">Tailoring actions</h3>
+              {result.tailoringActions.slice(0, 3).map((a, i) => (
+                <div key={`${a.keyword}-${i}`} className="rs__body" style={{ marginBottom: '0.25rem' }}>
+                  <strong>{a.section}:</strong> {a.action}
                 </div>
               ))}
-            </div>
-          </div>
-        </div>
-
-        <div className="result-section application-handoff-card">
-          <div className="flex items-center gap-2 mb-4">
-            <MessagesSquare size={16} style={{ color: 'var(--tool-accent, var(--accent))' }} />
-            <h3 className="section-title">Interview handoff</h3>
-          </div>
-          <div className="grid gap-3">
-            <div>
-              <p className="eyebrow mb-2">Requirement gaps</p>
-              <div className="result-list">
-                {(checklist.length > 0
-                  ? checklist
-                  : [{ requirement: 'No major gaps detected', suggestedFix: 'Shift into story repetition and polish.' }]).map((item) => (
-                  <div key={item.requirement} className="result-list-item">
-                    <AlertTriangle size={16} style={{ color: 'var(--warning)', marginTop: 2 }} />
-                    <span>
-                      <strong>{item.requirement}:</strong> {item.suggestedFix}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div>
-              <p className="eyebrow mb-2">Interview focus to seed</p>
-              <div className="chip-grid">
-                {(result.interviewFocus.length > 0 ? result.interviewFocus : ['No interview focus topics']).map((item) => (
-                  <Badge key={item} variant="outline">
-                    {item}
-                  </Badge>
-                ))}
-              </div>
-            </div>
-          </div>
+            </>
+          ) : null}
         </div>
       </div>
-    </div>
+
+      {/* Recruiter summary (collapsed) */}
+      <div className="rs">
+        <Accordion type="single" collapsible>
+          <AccordionItem value="recruiter">
+            <AccordionTrigger>
+              <span style={{ fontSize: '0.8125rem', fontWeight: 600 }}>Recruiter summary</span>
+            </AccordionTrigger>
+            <AccordionContent>
+              <p className="rs__body" style={{ paddingTop: '0.25rem' }}>{result.recruiterSummary}</p>
+            </AccordionContent>
+          </AccordionItem>
+        </Accordion>
+      </div>
+
+      {/* Interview focus */}
+      {result.interviewFocus.length > 0 ? (
+        <div className="rs">
+          <h3 className="rs__sub">Interview focus</h3>
+          <div className="chip-flow">
+            {result.interviewFocus.map((f) => <span key={f} className="chip-sm chip-sm--neutral">{f}</span>)}
+          </div>
+        </div>
+      ) : null}
+    </>
   )
 }
 
@@ -1049,269 +725,66 @@ function CoverLetterView({ payload }: { payload: AnyObject }) {
   const [openingText, setOpeningText] = useState(result.opening.text)
   const [bodyTexts, setBodyTexts] = useState(result.bodyPoints.map((item) => item.text))
   const [closingText, setClosingText] = useState(result.closing.text)
-  const [revisionFocus, setRevisionFocus] = useState<'tone' | 'evidence' | null>(null)
 
   const compiledText = useMemo(
-    () =>
-      composeCoverLetterText({
-        opening: openingText,
-        bodyPoints: bodyTexts,
-        closing: closingText,
-      }),
+    () => composeCoverLetterText({ opening: openingText, bodyPoints: bodyTexts, closing: closingText }),
     [bodyTexts, closingText, openingText],
   )
 
-  const visibleNotes = result.customizationNotes.filter((item) =>
-    revisionFocus === null
-      ? true
-      : revisionFocus === 'tone'
-        ? item.category === 'tone'
-        : item.category === 'evidence' || item.category === 'keyword' || item.category === 'gap',
-  )
-
-  async function handleCopy() {
-    await navigator.clipboard.writeText(compiledText)
-  }
-
+  async function handleCopy() { await navigator.clipboard.writeText(compiledText) }
   function handleDownload() {
     const blob = new Blob([compiledText], { type: 'text/plain;charset=utf-8' })
     const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = 'cover-letter.txt'
-    link.click()
+    const a = document.createElement('a')
+    a.href = url; a.download = 'cover-letter.txt'; a.click()
     URL.revokeObjectURL(url)
   }
 
   return (
-    <div className="quality-result-stack">
-      <div className="quality-hero-grid">
-        <div className="result-section quality-role-fit">
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="outline">
-              <FileText size={13} />
-              Cover letter
-            </Badge>
-            <Badge variant="outline">{result.toneUsed}</Badge>
-          </div>
-          <div className="grid gap-2">
-            <h3 className="section-title">{result.summary.headline}</h3>
-            <p className="muted-copy">{result.summary.confidence_note}</p>
+    <div className="rs rs--cover">
+      {/* Left: Letter preview */}
+      <div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+          <h3 className="rs__heading" style={{ margin: 0 }}>Letter preview</h3>
+          <div style={{ display: 'flex', gap: '0.25rem' }}>
+            <Button variant="outline" size="sm" onClick={handleCopy}><Copy size={13} /> Copy</Button>
+            <Button variant="outline" size="sm" onClick={handleDownload}><Download size={13} /></Button>
           </div>
         </div>
-
-        <div className="result-section">
-          <div className="flex items-center gap-2 mb-4">
-            <ListChecks size={16} style={{ color: 'var(--tool-accent, var(--accent))' }} />
-            <h3 className="section-title">Top actions</h3>
-          </div>
-          <TopActionsGrid actions={result.topActions.slice(0, 3)} />
-        </div>
+        <div className="document-preview">{compiledText || result.fullText}</div>
       </div>
 
-      <div className="result-section">
-        <div className="application-toolbar">
-          <div className="flex flex-wrap gap-2">
-            <Button
-              variant={revisionFocus === 'tone' ? 'default' : 'outline'}
-              onClick={() => setRevisionFocus((current) => (current === 'tone' ? null : 'tone'))}
-            >
-              Revise tone
-            </Button>
-            <Button
-              variant={revisionFocus === 'evidence' ? 'default' : 'outline'}
-              onClick={() => setRevisionFocus((current) => (current === 'evidence' ? null : 'evidence'))}
-            >
-              Revise stronger evidence
-            </Button>
+      {/* Right: Editor + Notes */}
+      <div>
+        <h3 className="rs__heading">Edit</h3>
+        <div style={{ display: 'grid', gap: '0.625rem' }}>
+          <div>
+            <span className="rs__sub">Opening</span>
+            <Textarea rows={4} value={openingText} onChange={(e) => setOpeningText(e.target.value)} />
           </div>
-          <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={handleCopy}>
-              <Copy size={14} /> Copy
-            </Button>
-            <Button variant="outline" onClick={handleDownload}>
-              <Download size={14} /> Download
-            </Button>
-          </div>
-        </div>
-      </div>
-
-      <div className="application-editor-grid">
-        <div className="result-section application-section-card">
-          <p className="eyebrow mb-3">Opening</p>
-          <Textarea
-            rows={6}
-            value={openingText}
-            onChange={(event) => setOpeningText(event.target.value)}
-          />
-          <div className="application-note-stack">
-            <div className="quality-note-block">
-              <p className="eyebrow mb-1">Why this paragraph exists</p>
-              <p>{result.opening.whyThisParagraph}</p>
+          {result.bodyPoints.map((item, index) => (
+            <div key={`body-${index}`}>
+              <span className="rs__sub">Body {index + 1}</span>
+              <Textarea rows={5} value={bodyTexts[index] || ''} onChange={(e) => setBodyTexts((c) => c.map((t, i) => i === index ? e.target.value : t))} />
             </div>
-            <div className="application-chip-columns">
-              <div>
-                <p className="eyebrow mb-2">Requirements used</p>
-                <div className="chip-grid">
-                  {(result.opening.requirementsUsed.length > 0
-                    ? result.opening.requirementsUsed
-                    : ['No requirements returned']).map((item) => (
-                    <Badge key={item} variant="outline">
-                      {item}
-                    </Badge>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <p className="eyebrow mb-2">Evidence used</p>
-                <div className="chip-grid">
-                  {(result.opening.evidenceUsed.length > 0
-                    ? result.opening.evidenceUsed
-                    : ['No evidence returned']).map((item) => (
-                    <Badge key={item} variant="outline">
-                      {item}
-                    </Badge>
-                  ))}
-                </div>
-              </div>
-            </div>
+          ))}
+          <div>
+            <span className="rs__sub">Closing</span>
+            <Textarea rows={3} value={closingText} onChange={(e) => setClosingText(e.target.value)} />
           </div>
         </div>
 
-        {result.bodyPoints.map((item, index) => (
-          <div key={`body-point-${index}`} className="result-section application-section-card">
-            <p className="eyebrow mb-3">Body block {index + 1}</p>
-            <Textarea
-              rows={7}
-              value={bodyTexts[index] || ''}
-              onChange={(event) =>
-                setBodyTexts((current) =>
-                  current.map((text, currentIndex) =>
-                    currentIndex === index ? event.target.value : text,
-                  ),
-                )
-              }
-            />
-            <div className="application-note-stack">
-              <div className="quality-note-block">
-                <p className="eyebrow mb-1">Why this paragraph exists</p>
-                <p>{item.whyThisParagraph}</p>
-              </div>
-              <div className="application-chip-columns">
-                <div>
-                  <p className="eyebrow mb-2">Requirements used</p>
-                  <div className="chip-grid">
-                    {(item.requirementsUsed.length > 0
-                      ? item.requirementsUsed
-                      : ['No requirements returned']).map((value) => (
-                      <Badge key={value} variant="outline">
-                        {value}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <p className="eyebrow mb-2">Evidence used</p>
-                  <div className="chip-grid">
-                    {(item.evidenceUsed.length > 0
-                      ? item.evidenceUsed
-                      : ['No evidence returned']).map((value) => (
-                      <Badge key={value} variant="outline">
-                        {value}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        ))}
-
-        <div className="result-section application-section-card">
-          <p className="eyebrow mb-3">Closing</p>
-          <Textarea
-            rows={5}
-            value={closingText}
-            onChange={(event) => setClosingText(event.target.value)}
-          />
-          <div className="application-note-stack">
-            <div className="quality-note-block">
-              <p className="eyebrow mb-1">Why this paragraph exists</p>
-              <p>{result.closing.whyThisParagraph}</p>
-            </div>
-            <div className="application-chip-columns">
-              <div>
-                <p className="eyebrow mb-2">Requirements used</p>
-                <div className="chip-grid">
-                  {(result.closing.requirementsUsed.length > 0
-                    ? result.closing.requirementsUsed
-                    : ['No requirements returned']).map((item) => (
-                    <Badge key={item} variant="outline">
-                      {item}
-                    </Badge>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <p className="eyebrow mb-2">Evidence used</p>
-                <div className="chip-grid">
-                  {(result.closing.evidenceUsed.length > 0
-                    ? result.closing.evidenceUsed
-                    : ['No evidence returned']).map((item) => (
-                    <Badge key={item} variant="outline">
-                      {item}
-                    </Badge>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="result-section application-section-card">
-          <p className="eyebrow mb-3">Full text preview</p>
-          <div className="letter-block">{compiledText || result.fullText}</div>
-        </div>
-      </div>
-
-      <div className="application-handoff-grid">
-        <div className="result-section application-handoff-card">
-          <div className="flex items-center gap-2 mb-4">
-            <Sparkles size={16} style={{ color: 'var(--tool-accent, var(--accent))' }} />
-            <h3 className="section-title">Customization notes</h3>
-          </div>
-          <div className="application-note-stack">
-            {(visibleNotes.length > 0 ? visibleNotes : result.customizationNotes).map((item, index) => (
-              <div key={`${item.note}-${index}`} className="quality-note-block">
-                <div className="flex flex-wrap items-center gap-2 mb-2">
-                  <Badge variant="outline">{item.category}</Badge>
-                  <Badge variant="outline">{item.source}</Badge>
-                </div>
-                <p>{item.note}</p>
-              </div>
+        {result.customizationNotes.length > 0 ? (
+          <div style={{ marginTop: '0.75rem' }}>
+            <h3 className="rs__sub">Customization notes</h3>
+            {result.customizationNotes.map((n, i) => (
+              <p key={`${n.note}-${i}`} className="rs__meta" style={{ marginBottom: '0.25rem' }}>
+                <span className="chip-sm chip-sm--neutral" style={{ marginRight: '0.25rem' }}>{n.category}</span>
+                {n.note}
+              </p>
             ))}
           </div>
-        </div>
-
-        <div className="result-section application-handoff-card">
-          <div className="flex items-center gap-2 mb-4">
-            <Target size={16} style={{ color: 'var(--tool-accent, var(--accent))' }} />
-            <h3 className="section-title">Requirements carried into the draft</h3>
-          </div>
-          <div className="chip-grid">
-            {[
-              ...result.opening.requirementsUsed,
-              ...result.bodyPoints.flatMap((item) => item.requirementsUsed),
-              ...result.closing.requirementsUsed,
-            ]
-              .filter((item, index, items) => item && items.indexOf(item) === index)
-              .map((item) => (
-                <Badge key={item} variant="outline">
-                  {item}
-                </Badge>
-              ))}
-          </div>
-        </div>
+        ) : null}
       </div>
     </div>
   )
@@ -1319,209 +792,100 @@ function CoverLetterView({ payload }: { payload: AnyObject }) {
 
 function InterviewView({ payload }: { payload: AnyObject }) {
   const result = normalizeInterviewPayload(payload)
-  const editableBlocks = readEditableBlocks(payload)
   const [practiceGapsFirst, setPracticeGapsFirst] = useState(false)
 
   const visibleQuestions = useMemo(() => {
     if (!practiceGapsFirst) return result.questions
-    const gapQuestions = result.questions.filter((item) => item.practiceFirst)
-    const remaining = result.questions.filter((item) => !item.practiceFirst)
-    return [...gapQuestions, ...remaining]
+    return [...result.questions.filter((q) => q.practiceFirst), ...result.questions.filter((q) => !q.practiceFirst)]
   }, [practiceGapsFirst, result.questions])
 
   return (
-    <div className="quality-result-stack">
-      <div className="quality-hero-grid">
-        <div className="result-section quality-role-fit">
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="outline">
-              <MessagesSquare size={13} />
-              Interview prep
-            </Badge>
-            <Badge variant="outline">{result.summary.verdict}</Badge>
-          </div>
-          <div className="grid gap-2">
-            <h3 className="section-title">{result.summary.headline}</h3>
-            <p className="muted-copy">{result.summary.confidence_note}</p>
+    <>
+      {/* Focus areas + Weak signals */}
+      <div className="rs rs--2col">
+        <div>
+          <h3 className="rs__heading">Focus areas</h3>
+          <div style={{ display: 'grid', gap: '0.375rem' }}>
+            {result.focusAreas.map((a) => (
+              <div key={a.title}>
+                <div style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-strong)' }}>{a.title}</div>
+                <div className="rs__meta">{a.reason}</div>
+              </div>
+            ))}
           </div>
         </div>
-
-        <div className="result-section">
-          <div className="flex items-center gap-2 mb-4">
-            <ListChecks size={16} style={{ color: 'var(--tool-accent, var(--accent))' }} />
-            <h3 className="section-title">Top actions</h3>
+        <div>
+          <h3 className="rs__heading" style={{ color: 'var(--warning)' }}>Weak signals</h3>
+          <div style={{ display: 'grid', gap: '0.375rem' }}>
+            {result.weakSignals.map((w) => (
+              <div key={w.title}>
+                <div style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-strong)' }}>
+                  <span style={{ color: priorityTone(w.severity) }}>&#9679; </span>{w.title}
+                </div>
+                <div className="rs__meta">{w.prepAction}</div>
+              </div>
+            ))}
           </div>
-          <TopActionsGrid actions={result.topActions.slice(0, 3)} />
         </div>
       </div>
 
-      <div className="result-section flex items-center justify-between gap-4">
-        <div>
-          <h3 className="section-title">Practice order</h3>
-          <p className="muted-copy">
-            Move through every question, or switch into a gap-first sequence that
-            brings weaker signals to the front.
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button
-            variant="outline"
-            onClick={() => setPracticeGapsFirst((current) => !current)}
-          >
-            {practiceGapsFirst ? 'Show full mix' : 'Practice your gaps first'}
+      {/* Questions */}
+      <div className="rs">
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+          <h3 className="rs__heading" style={{ margin: 0 }}>Questions ({visibleQuestions.length})</h3>
+          <Button variant="outline" size="sm" onClick={() => setPracticeGapsFirst((c) => !c)}>
+            {practiceGapsFirst ? 'All' : 'Gaps first'}
           </Button>
         </div>
-      </div>
-
-      <div className="application-handoff-grid">
-        <div className="result-section application-handoff-card">
-          <h3 className="section-title mb-4">Focus areas</h3>
-          <div className="application-note-stack">
-            {result.focusAreas.length > 0 ? (
-              result.focusAreas.map((item) => (
-                <div key={item.title} className="quality-note-block">
-                  <div className="flex flex-wrap items-center gap-2 mb-2">
-                    {item.practiceFirst ? <Badge variant="outline">Practice first</Badge> : null}
-                    {item.requirementsUsed.map((value) => (
-                      <Badge key={value} variant="outline">
-                        {value}
-                      </Badge>
-                    ))}
-                  </div>
-                  <p className="section-title mb-1">{item.title}</p>
-                  <p>{item.reason}</p>
-                </div>
-              ))
-            ) : (
-              <p className="muted-copy">No focus areas were returned.</p>
-            )}
-          </div>
-        </div>
-
-        <div className="result-section application-handoff-card">
-          <div className="flex items-center gap-2 mb-4">
-            <AlertTriangle size={16} style={{ color: 'var(--warning)' }} />
-            <h3 className="section-title">Likely weak areas</h3>
-          </div>
-          <div className="application-note-stack">
-            {result.weakSignals.length > 0 ? (
-              result.weakSignals.map((item) => (
-                <div key={item.title} className="quality-note-block">
-                  <div className="flex flex-wrap items-center gap-2 mb-2">
-                    <Badge
-                      variant="outline"
-                      style={{ borderColor: priorityTone(item.severity), color: priorityTone(item.severity) }}
-                    >
-                      {item.severity}
-                    </Badge>
-                    {item.relatedRequirements.map((value) => (
-                      <Badge key={value} variant="outline">
-                        {value}
-                      </Badge>
-                    ))}
-                  </div>
-                  <p className="section-title mb-1">{item.title}</p>
-                  <p className="muted-copy mb-2">{item.whyItMatters}</p>
-                  <p>{item.prepAction}</p>
-                </div>
-              ))
-            ) : (
-              <p className="muted-copy">No weak signals were returned.</p>
-            )}
-          </div>
-        </div>
-      </div>
-
-      <Accordion type="single" collapsible className="result-section">
-        {visibleQuestions.length === 0 ? (
-          <p>No interview questions were returned in the current payload.</p>
-        ) : (
-          visibleQuestions.map((item, index) => (
+        <Accordion type="single" collapsible>
+          {visibleQuestions.map((item, index) => (
             <AccordionItem key={`${index}-${item.question}`} value={`qa-${index}`}>
               <AccordionTrigger>
-                <div className="flex flex-wrap items-center gap-2 pr-4">
-                  <span>{item.question}</span>
-                  <Badge variant="outline">{item.focusArea}</Badge>
-                  {item.practiceFirst ? <Badge variant="outline">Gap first</Badge> : null}
-                </div>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', textAlign: 'left', fontSize: '0.8125rem' }}>
+                  <span style={{
+                    width: '1.5rem', height: '1.5rem', borderRadius: '50%',
+                    background: item.practiceFirst ? 'color-mix(in srgb, var(--warning) 12%, transparent)' : 'color-mix(in srgb, var(--foreground) 5%, transparent)',
+                    color: item.practiceFirst ? 'var(--warning)' : 'var(--text-muted)',
+                    display: 'grid', placeItems: 'center',
+                    fontSize: '0.6875rem', fontWeight: 700, flexShrink: 0,
+                  }}>{index + 1}</span>
+                  <span style={{ fontWeight: 600, flex: 1 }}>{item.question}</span>
+                  <span className="chip-sm chip-sm--neutral">{item.focusArea}</span>
+                  {item.practiceFirst ? <span className="chip-sm chip-sm--warning">Gap</span> : null}
+                </span>
               </AccordionTrigger>
               <AccordionContent>
-                <div className="grid gap-4">
-                  <div className="quality-note-block">
-                    <p className="eyebrow mb-1">Why this is being asked</p>
-                    <p>{item.whyAsked}</p>
-                  </div>
-                  <div className="quality-note-block">
-                    <p className="eyebrow mb-1">Sample answer</p>
-                    <p>{item.answer}</p>
-                  </div>
-                  <div className="application-chip-columns">
-                    <div>
-                      <p className="eyebrow mb-2">Answer structure</p>
-                      <div className="chip-grid">
-                        {(item.answerStructure.length > 0
-                          ? item.answerStructure
-                          : ['No answer structure returned']).map((point) => (
-                          <Badge key={point} variant="outline">
-                            {point}
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
-                    <div>
-                      <p className="eyebrow mb-2">Key points</p>
-                      <div className="chip-grid">
-                        {(item.keyPoints.length > 0
-                          ? item.keyPoints
-                          : ['No key points returned']).map((point) => (
-                          <Badge key={point} variant="outline">
-                            {point}
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="quality-note-block">
-                    <p className="eyebrow mb-1">Follow-up questions</p>
-                    <div className="result-list">
-                      {(item.followUpQuestions.length > 0
-                        ? item.followUpQuestions
-                        : ['No follow-up questions returned']).map((question) => (
-                        <div key={question} className="result-list-item">
-                          <CircleDot size={16} style={{ color: 'var(--tool-accent, var(--accent))', marginTop: 2 }} />
-                          <span>{question}</span>
+                <div style={{ paddingTop: '0.25rem' }}>
+                  <p className="rs__meta" style={{ marginBottom: '0.375rem' }}><strong>Why:</strong> {item.whyAsked}</p>
+                  <p className="rs__body">{item.answer}</p>
+                  {item.keyPoints.length > 0 ? (
+                    <div style={{ marginTop: '0.375rem' }}>
+                      {item.keyPoints.map((p) => (
+                        <div key={p} className="rs__meta" style={{ display: 'flex', gap: '0.25rem' }}>
+                          <span style={{ color: 'var(--success)' }}>&#10003;</span> {p}
                         </div>
                       ))}
                     </div>
-                  </div>
+                  ) : null}
                 </div>
               </AccordionContent>
             </AccordionItem>
-          ))
-        )}
-      </Accordion>
-
-      <div className="result-section">
-        <h3 className="section-title mb-4">Interviewer notes</h3>
-        <div className="result-list">
-          {result.interviewerNotes.length > 0 ? (
-            result.interviewerNotes.map((item) => (
-              <div key={item} className="result-list-item">
-                <CheckCircle2 size={16} style={{ color: 'var(--success)', marginTop: 2 }} />
-                <span>{item}</span>
-              </div>
-            ))
-          ) : (
-            <p className="muted-copy">No interviewer notes were returned.</p>
-          )}
-        </div>
+          ))}
+        </Accordion>
       </div>
 
-      <EditableBlocksPanel
-        title="Answer refinement"
-        blocks={editableBlocks}
-      />
-    </div>
+      {/* Interviewer notes */}
+      {result.interviewerNotes.length > 0 ? (
+        <div className="rs">
+          <h3 className="rs__sub">Interviewer notes</h3>
+          {result.interviewerNotes.map((n) => (
+            <div key={n} className="rs__meta" style={{ display: 'flex', gap: '0.25rem', marginBottom: '0.125rem' }}>
+              <span style={{ color: 'var(--success)' }}>&#10003;</span> {n}
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </>
   )
 }
 
@@ -1636,443 +1000,221 @@ function normalizePortfolioPayload(payload: AnyObject): PortfolioResultPayload {
 
 function CareerView({ payload }: { payload: AnyObject }) {
   const result = normalizeCareerPayload(payload)
-  const groupedSkillGaps: Array<{
-    label: string
-    key: 'high' | 'medium' | 'low'
-    items: CareerResultPayload['skillGaps']
-  }> = [
-    { label: 'High urgency', key: 'high', items: result.skillGaps.filter((item) => item.urgency === 'high') },
-    { label: 'Medium urgency', key: 'medium', items: result.skillGaps.filter((item) => item.urgency === 'medium') },
-    { label: 'Lower urgency', key: 'low', items: result.skillGaps.filter((item) => item.urgency === 'low') },
-  ]
-  const bestNextAction = result.topActions[0] || null
-  const bestNextStep = result.nextSteps[0] || null
 
   return (
-    <div className="quality-result-stack">
-      <div className="quality-hero-grid">
-        <div className="result-section quality-role-fit planning-spotlight-card">
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="outline">
-              <Target size={13} />
-              Recommended direction
-            </Badge>
-            <Badge
-              variant="outline"
-              style={{
-                borderColor: scoreColor(result.recommendedDirection.fitScore),
-                color: scoreColor(result.recommendedDirection.fitScore),
-              }}
-            >
-              {result.recommendedDirection.fitScore}% fit
-            </Badge>
-            <Badge
-              variant="outline"
-              style={{
-                borderColor: priorityTone(result.recommendedDirection.confidence),
-                color: priorityTone(result.recommendedDirection.confidence),
-              }}
-            >
-              {result.recommendedDirection.confidence} confidence
-            </Badge>
-          </div>
-          <div className="grid gap-2">
-            <h3 className="section-title">{result.recommendedDirection.roleTitle}</h3>
-            <p className="muted-copy">{result.summary.headline}</p>
-          </div>
-          <div className="planning-hero-meta">
-            <div className="quality-note-block">
-              <p className="eyebrow mb-1">Transition window</p>
-              <p>{result.recommendedDirection.transitionTimeline}</p>
-            </div>
-            <div className="quality-note-block">
-              <p className="eyebrow mb-1">Why now</p>
-              <p>{result.recommendedDirection.whyNow}</p>
-            </div>
-          </div>
-          <p className="small-copy muted-copy">{result.summary.confidence_note}</p>
+    <>
+      {/* Recommendation */}
+      <div className="rs rs--elevated">
+        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: '0.375rem' }}>
+          <h3 className="rs__heading" style={{ margin: 0 }}>{result.recommendedDirection.roleTitle}</h3>
+          <span style={{ fontSize: '1.5rem', fontWeight: 800, letterSpacing: '-0.02em', color: scoreColor(result.recommendedDirection.fitScore) }}>{result.recommendedDirection.fitScore}%</span>
         </div>
-
-        <div className="result-section planning-cta-card">
-          <div className="flex items-center gap-2 mb-4">
-            <Sparkles size={16} style={{ color: 'var(--tool-accent, var(--accent))' }} />
-            <h3 className="section-title">Best next move</h3>
-          </div>
-          {bestNextAction || bestNextStep ? (
-            <div className="grid gap-3">
-              <div className="quality-note-block">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="eyebrow">{bestNextAction ? bestNextAction.title : bestNextStep?.timeframe}</p>
-                  {bestNextAction ? (
-                    <Badge
-                      variant="outline"
-                      style={{
-                        borderColor: priorityTone(bestNextAction.priority),
-                        color: priorityTone(bestNextAction.priority),
-                      }}
-                    >
-                      {bestNextAction.priority}
-                    </Badge>
-                  ) : null}
-                </div>
-                <p className="mt-2">{bestNextAction ? bestNextAction.action : bestNextStep?.action}</p>
-              </div>
-              <p className="small-copy muted-copy">
-                Use this as the decision anchor before you compare other paths or start building proof.
-              </p>
-            </div>
-          ) : (
-            <p className="muted-copy">No next move was returned.</p>
-          )}
+        <p className="rs__body" style={{ marginBottom: '0.5rem' }}>{result.recommendedDirection.whyNow}</p>
+        <div className="chip-flow">
+          <span className="chip-sm chip-sm--neutral">{result.recommendedDirection.transitionTimeline}</span>
+          <span className="chip-sm chip-sm--neutral">{result.recommendedDirection.confidence} confidence</span>
         </div>
       </div>
 
-      <div className="result-section">
-        <div className="flex items-center gap-2 mb-4">
-          <ListChecks size={16} style={{ color: 'var(--tool-accent, var(--accent))' }} />
-          <h3 className="section-title">Top actions</h3>
-        </div>
-        <TopActionsGrid actions={result.topActions.slice(0, 3)} />
-      </div>
-
-      <div className="result-section">
-        <h3 className="section-title mb-4">Alternative path comparison</h3>
-        <div className="career-card-grid">
-          {(result.paths.length > 0 ? result.paths : [{
-            roleTitle: 'No alternative paths returned.',
-            fitScore: 0,
-            transitionTimeline: 'Not specified',
-            rationale: 'Run the planner again to compare paths.',
-            strengthsToLeverage: [],
-            gapsToClose: [],
-            riskLevel: 'medium' as const,
-          }]).map((path) => (
-            <div key={path.roleTitle} className="metric-card p-5">
-              <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
-                <h3 className="section-title">{path.roleTitle}</h3>
-                <Badge
-                  variant="outline"
-                  style={{ borderColor: riskTone(path.riskLevel), color: riskTone(path.riskLevel) }}
-                >
-                  {path.riskLevel} risk
-                </Badge>
-              </div>
-              <div className="flex flex-wrap gap-2 mb-3">
-                <Badge
-                  variant="outline"
-                  style={{
-                    borderColor: scoreColor(path.fitScore),
-                    color: scoreColor(path.fitScore),
-                  }}
-                >
-                  {path.fitScore}% fit
-                </Badge>
-                <Badge variant="outline">{path.transitionTimeline}</Badge>
-              </div>
-              <p className="muted-copy mb-4">{path.rationale}</p>
-              <div className="planning-chip-columns">
-                <div>
-                  <p className="eyebrow mb-2">Strengths to leverage</p>
-                  <div className="chip-grid">
-                    {(path.strengthsToLeverage.length > 0 ? path.strengthsToLeverage : ['No strengths returned']).map((item) => (
-                      <Badge key={item} variant="outline">
-                        {item}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <p className="eyebrow mb-2">Gaps to close</p>
-                  <div className="chip-grid">
-                    {(path.gapsToClose.length > 0 ? path.gapsToClose : ['No gaps returned']).map((item) => (
-                      <Badge key={item} variant="outline">
-                        {item}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div className="quality-evidence-grid">
-        <div className="result-section">
-          <h3 className="section-title mb-4">Skill baseline</h3>
-          <div className="planning-chip-columns">
-            <div className="practice-card">
-              <p className="eyebrow mb-3">Current skills</p>
-              <div className="chip-grid">
-                {(result.currentSkills.length > 0 ? result.currentSkills : ['No current skills surfaced']).map((skill) => (
-                  <Badge key={skill} variant="outline">
-                    {skill}
-                  </Badge>
-                ))}
-              </div>
-            </div>
-            <div className="practice-card">
-              <p className="eyebrow mb-3">Target skills</p>
-              <div className="chip-grid">
-                {(result.targetSkills.length > 0 ? result.targetSkills : ['No target skills surfaced']).map((skill) => (
-                  <Badge key={skill} variant="outline">
-                    {skill}
-                  </Badge>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="result-section">
-          <h3 className="section-title mb-4">Skill gaps by urgency</h3>
-          <div className="grid gap-4">
-            {groupedSkillGaps.map((group) => (
-              <div key={group.key} className="quality-note-block">
-                <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
-                  <p className="eyebrow">{group.label}</p>
-                  <Badge
-                    variant="outline"
-                    style={{ borderColor: priorityTone(group.key), color: priorityTone(group.key) }}
-                  >
-                    {group.items.length}
-                  </Badge>
-                </div>
-                <div className="grid gap-3">
-                  {(group.items.length > 0 ? group.items : [{
-                    skill: `No ${group.label.toLowerCase()} gaps`,
-                    urgency: group.key,
-                    whyItMatters: 'The planner did not return items for this urgency tier.',
-                    howToBuild: '',
-                  }]).map((gap) => (
-                    <div key={`${group.key}-${gap.skill}`} className="planning-gap-card">
-                      <div className="flex items-center gap-2 mb-2">
-                        <Badge
-                          variant="outline"
-                          style={{ borderColor: priorityTone(gap.urgency), color: priorityTone(gap.urgency) }}
-                        >
-                          {gap.urgency}
-                        </Badge>
-                        <strong>{gap.skill}</strong>
-                      </div>
-                      <p className="muted-copy mb-2">{gap.whyItMatters}</p>
-                      {gap.howToBuild ? (
-                        <p className="small-copy"><strong>How to build:</strong> {gap.howToBuild}</p>
-                      ) : null}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      <div className="result-section">
-        <h3 className="section-title mb-4">Next-steps timeline</h3>
-        <div className="planning-timeline-list">
-          {(result.nextSteps.length > 0 ? result.nextSteps : [{
-            timeframe: 'Next step',
-            action: 'Run the planner again if you want a fuller timeline.',
-          }]).map((step, index) => (
-            <div key={`${step.timeframe}-${index}`} className="quality-note-block planning-timeline-step">
-              <p className="eyebrow mb-2">{step.timeframe}</p>
-              <p>{step.action}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function PortfolioView({ payload }: { payload: AnyObject }) {
-  const result = normalizePortfolioPayload(payload)
-  const projectsByTitle = Object.fromEntries(
-    result.projects.map((project) => [project.projectTitle.toLowerCase(), project]),
-  ) as Record<string, PortfolioResultPayload['projects'][number]>
-  const recommendedProject =
-    projectsByTitle[result.recommendedStartProject.toLowerCase()] || result.projects[0] || null
-
-  return (
-    <div className="quality-result-stack">
-      <div className="quality-hero-grid">
-        <div className="result-section quality-role-fit planning-spotlight-card">
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="outline">
-              <Target size={13} />
-              {result.targetRole}
-            </Badge>
-            <Badge variant="outline">{result.summary.verdict}</Badge>
-          </div>
-          <div className="grid gap-2">
-            <h3 className="section-title">{result.strategy.headline}</h3>
-            <p className="muted-copy">{result.strategy.focus}</p>
-          </div>
-          <div className="quality-note-block">
-            <p className="eyebrow mb-1">Proof goal</p>
-            <p>{result.strategy.proofGoal}</p>
-          </div>
-          <p className="small-copy muted-copy">{result.summary.confidence_note}</p>
-        </div>
-
-        <div className="result-section planning-cta-card">
-          <div className="flex items-center gap-2 mb-4">
-            <Sparkles size={16} style={{ color: 'var(--tool-accent, var(--accent))' }} />
-            <h3 className="section-title">Recommended first project</h3>
-          </div>
-          {recommendedProject ? (
-            <div className="grid gap-3">
-              <div>
-                <h4 className="section-title">{recommendedProject.projectTitle}</h4>
-                <p className="muted-copy mt-2">{recommendedProject.description}</p>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Badge
-                  variant="outline"
-                  style={{
-                    borderColor: complexityTone(recommendedProject.complexity),
-                    color: complexityTone(recommendedProject.complexity),
-                  }}
-                >
-                  {recommendedProject.complexity}
-                </Badge>
-                <Badge variant="outline">{recommendedProject.estimatedTimeline}</Badge>
-              </div>
-              <div className="quality-note-block">
-                <p className="eyebrow mb-1">Why start here</p>
-                <p>{recommendedProject.whyThisProject}</p>
-              </div>
-            </div>
-          ) : (
-            <p className="muted-copy">No starting project was returned.</p>
-          )}
-        </div>
-      </div>
-
-      <div className="result-section">
-        <div className="flex items-center gap-2 mb-4">
-          <ListChecks size={16} style={{ color: 'var(--tool-accent, var(--accent))' }} />
-          <h3 className="section-title">Top actions</h3>
-        </div>
-        <TopActionsGrid actions={result.topActions.slice(0, 3)} />
-      </div>
-
-      <div className="result-section">
-        <h3 className="section-title mb-4">Sequenced project roadmap</h3>
-        <div className="planning-roadmap-grid">
-          {(result.sequencePlan.length > 0 ? result.sequencePlan : [{
-            order: 1,
-            projectTitle: 'No project sequence returned',
-            reason: 'Run the planner again to generate a roadmap.',
-          }]).map((step) => {
-            const project = projectsByTitle[step.projectTitle.toLowerCase()]
+      {/* Path comparison cards */}
+      <div className="rs">
+        <h3 className="rs__heading">Path comparison</h3>
+        <div className="path-grid">
+          {result.paths.map((p) => {
+            const isBest = p.fitScore === Math.max(...result.paths.map(pp => pp.fitScore))
             return (
-              <div key={`${step.order}-${step.projectTitle}`} className="metric-card p-5">
-                <div className="flex items-center justify-between gap-3 mb-3">
-                  <Badge variant="outline">Step {step.order}</Badge>
-                  {project ? (
-                    <Badge
-                      variant="outline"
-                      style={{
-                        borderColor: complexityTone(project.complexity),
-                        color: complexityTone(project.complexity),
-                      }}
-                    >
-                      {project.complexity}
-                    </Badge>
-                  ) : null}
+              <div key={p.roleTitle} className={`path-card${isBest ? ' path-card--best' : ''}`}>
+                {isBest ? <div className="path-card__badge">Recommended</div> : null}
+                <div className="path-card__header">
+                  <span className="path-card__title">{p.roleTitle}</span>
+                  <span className="path-card__score" style={{ color: scoreColor(p.fitScore) }}>{p.fitScore}%</span>
                 </div>
-                <h3 className="section-title mb-2">{step.projectTitle}</h3>
-                <p className="muted-copy">{step.reason}</p>
-                {project ? <p className="small-copy mt-3">{project.estimatedTimeline}</p> : null}
+                <div className="path-card__meta">
+                  <span className="chip-sm chip-sm--neutral">{p.transitionTimeline}</span>
+                  <span className="chip-sm" style={{
+                    background: `color-mix(in srgb, ${riskTone(p.riskLevel)} 10%, transparent)`,
+                    color: riskTone(p.riskLevel),
+                  }}>{p.riskLevel} risk</span>
+                </div>
+                {p.strengthsToLeverage.length > 0 ? (
+                  <div style={{ marginBottom: '0.375rem' }}>
+                    <div className="path-card__detail-label" style={{ color: 'var(--success)' }}>Strengths</div>
+                    <div className="path-card__list">
+                      {p.strengthsToLeverage.slice(0, 3).map(s => (
+                        <div key={s} className="path-card__list-item">
+                          <span style={{ color: 'var(--success)' }}>&#10003;</span> {s}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+                {p.gapsToClose.length > 0 ? (
+                  <div>
+                    <div className="path-card__detail-label" style={{ color: 'var(--warning)' }}>Gaps</div>
+                    <div className="path-card__list">
+                      {p.gapsToClose.slice(0, 3).map(g => (
+                        <div key={g} className="path-card__list-item">
+                          <span style={{ color: 'var(--warning)' }}>&#9679;</span> {g}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
               </div>
             )
           })}
         </div>
       </div>
 
-      <div className="portfolio-card-grid">
-        {(result.projects.length > 0 ? result.projects : [{
-          projectTitle: 'No project recommendations returned.',
-          description: 'Try running the planner again with a clearer target role.',
-          skills: [],
-          complexity: 'foundational' as const,
-          whyThisProject: 'No project rationale was returned.',
-          deliverables: [],
-          hiringSignals: [],
-          estimatedTimeline: 'Unavailable',
-        }]).map((project) => (
-          <div key={project.projectTitle} className="metric-card p-5">
-            <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
-              <h3 className="section-title">{project.projectTitle}</h3>
-              <div className="flex flex-wrap gap-2">
-                <Badge
-                  variant="outline"
-                  style={{
-                    borderColor: complexityTone(project.complexity),
-                    color: complexityTone(project.complexity),
-                  }}
-                >
-                  {project.complexity}
-                </Badge>
-                <Badge variant="outline">{project.estimatedTimeline}</Badge>
-              </div>
-            </div>
-            <p className="muted-copy mb-4">{project.description}</p>
-            <div className="quality-note-block mb-4">
-              <p className="eyebrow mb-1">Why this project</p>
-              <p>{project.whyThisProject}</p>
-            </div>
-            <div className="planning-chip-columns">
-              <div>
-                <p className="eyebrow mb-2">Skills</p>
-                <div className="chip-grid">
-                  {(project.skills.length > 0 ? project.skills : ['No skills returned']).map((skill) => (
-                    <Badge key={skill} variant="outline">
-                      {skill}
-                    </Badge>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <p className="eyebrow mb-2">Hiring signals</p>
-                <div className="chip-grid">
-                  {(project.hiringSignals.length > 0 ? project.hiringSignals : ['No hiring signals returned']).map((signal) => (
-                    <Badge key={signal} variant="outline">
-                      {signal}
-                    </Badge>
-                  ))}
-                </div>
-              </div>
-            </div>
-            <div className="quality-note-block mt-4">
-              <p className="eyebrow mb-1">Deliverables</p>
-              <div className="result-list">
-                {(project.deliverables.length > 0 ? project.deliverables : ['No deliverables returned']).map((item) => (
-                  <div key={item} className="result-list-item">
-                    <CheckCircle2 size={16} style={{ color: 'var(--success)', marginTop: 2 }} />
-                    <span>{item}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
+      {/* Skills */}
+      <div className="rs rs--2col">
+        <div>
+          <h3 className="rs__sub" style={{ color: 'var(--success)' }}>Current skills</h3>
+          <div className="chip-flow">
+            {result.currentSkills.map((s) => <span key={s} className="chip-sm chip-sm--positive">{s}</span>)}
           </div>
-        ))}
+        </div>
+        <div>
+          <h3 className="rs__sub" style={{ color: 'var(--warning)' }}>Target skills</h3>
+          <div className="chip-flow">
+            {result.targetSkills.map((s) => <span key={s} className="chip-sm chip-sm--warning">{s}</span>)}
+          </div>
+        </div>
       </div>
 
-      <div className="result-section">
-        <h3 className="section-title mb-4">Presentation tips</h3>
-        <div className="result-list">
-          {(result.presentationTips.length > 0 ? result.presentationTips : ['No presentation tips were returned.']).map((tip) => (
-            <div key={tip} className="result-list-item">
-              <CircleDot size={16} style={{ color: 'var(--tool-accent, var(--accent))', marginTop: 2 }} />
-              <span>{tip}</span>
+      {/* Skill gaps */}
+      {result.skillGaps.length > 0 ? (
+        <div className="rs">
+          <h3 className="rs__heading">Skill gaps ({result.skillGaps.length})</h3>
+          <Accordion type="single" collapsible>
+            {result.skillGaps.map((g) => (
+              <AccordionItem key={g.skill} value={g.skill}>
+                <AccordionTrigger>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', textAlign: 'left', fontSize: '0.8125rem' }}>
+                    <span style={{ width: 5, height: 5, borderRadius: '50%', background: priorityTone(g.urgency), flexShrink: 0 }} />
+                    <span style={{ fontWeight: 600 }}>{g.skill}</span>
+                  </span>
+                </AccordionTrigger>
+                <AccordionContent>
+                  <p className="rs__body" style={{ paddingTop: '0.125rem' }}>{g.whyItMatters}</p>
+                  {g.howToBuild ? <p className="rs__meta" style={{ marginTop: '0.125rem' }}><strong>How:</strong> {g.howToBuild}</p> : null}
+                </AccordionContent>
+              </AccordionItem>
+            ))}
+          </Accordion>
+        </div>
+      ) : null}
+
+      {/* Roadmap (vertical timeline) */}
+      {result.nextSteps.length > 0 ? (
+        <div className="rs">
+          <h3 className="rs__heading">Roadmap</h3>
+          <div className="roadmap-v">
+            {result.nextSteps.map((step, i) => (
+              <div key={`${step.timeframe}-${i}`} className="roadmap-v__step">
+                <div className="roadmap-v__dot">
+                  <span className="roadmap-v__dot-num">{i + 1}</span>
+                </div>
+                <div className="roadmap-v__timeframe">{step.timeframe}</div>
+                <div className="roadmap-v__action">{step.action}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+    </>
+  )
+}
+
+function PortfolioView({ payload }: { payload: AnyObject }) {
+  const result = normalizePortfolioPayload(payload)
+  const projectsByTitle = Object.fromEntries(
+    result.projects.map((p) => [p.projectTitle.toLowerCase(), p]),
+  ) as Record<string, PortfolioResultPayload['projects'][number]>
+
+  return (
+    <>
+      {/* Strategy + Roadmap */}
+      <div className="rs">
+        <h3 className="rs__heading">Strategy</h3>
+        <p className="rs__body" style={{ marginBottom: '0.25rem' }}><strong>{result.strategy.headline}</strong></p>
+        <p className="rs__meta">{result.strategy.focus}</p>
+        {result.sequencePlan.length > 0 ? (
+          <div style={{ marginTop: '0.75rem' }}>
+            <h3 className="rs__sub">Project roadmap</h3>
+            <div className="roadmap-v">
+              {result.sequencePlan.map((step) => {
+                const project = projectsByTitle[step.projectTitle.toLowerCase()]
+                return (
+                  <div key={`${step.order}-${step.projectTitle}`} className="roadmap-v__step">
+                    <div className="roadmap-v__dot">
+                      <span className="roadmap-v__dot-num">{step.order}</span>
+                    </div>
+                    <div className="roadmap-v__timeframe">{step.projectTitle}</div>
+                    <div className="roadmap-v__action">{step.reason}</div>
+                    {project ? (
+                      <div className="roadmap-v__detail">{project.complexity} &middot; {project.estimatedTimeline}</div>
+                    ) : null}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        ) : null}
+      </div>
+
+      {/* Projects */}
+      <div className="rs">
+        <h3 className="rs__heading">Projects ({result.projects.length})</h3>
+        <Accordion type="single" collapsible>
+          {result.projects.map((project) => (
+            <AccordionItem key={project.projectTitle} value={project.projectTitle}>
+              <AccordionTrigger>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', textAlign: 'left', fontSize: '0.8125rem' }}>
+                  <span style={{ fontWeight: 600 }}>{project.projectTitle}</span>
+                  <span className="chip-sm" style={{
+                    background: `color-mix(in srgb, ${complexityTone(project.complexity)} 10%, transparent)`,
+                    color: complexityTone(project.complexity),
+                  }}>{project.complexity}</span>
+                  <span className="chip-sm chip-sm--neutral">{project.estimatedTimeline}</span>
+                </span>
+              </AccordionTrigger>
+              <AccordionContent>
+                <div style={{ paddingTop: '0.25rem' }}>
+                  <p className="rs__body">{project.description}</p>
+                  <p className="rs__meta" style={{ marginTop: '0.25rem' }}><strong>Why:</strong> {project.whyThisProject}</p>
+                  <div className="chip-flow" style={{ marginTop: '0.375rem' }}>
+                    {project.skills.slice(0, 4).map((s) => <span key={s} className="chip-sm chip-sm--positive">{s}</span>)}
+                    {project.skills.length > 4 ? <span className="chip-sm chip-sm--neutral">+{project.skills.length - 4}</span> : null}
+                  </div>
+                  {project.deliverables.length > 0 ? (
+                    <div style={{ marginTop: '0.375rem' }}>
+                      {project.deliverables.map((d) => (
+                        <div key={d} className="rs__meta" style={{ display: 'flex', gap: '0.25rem' }}>
+                          <span style={{ color: 'var(--success)' }}>&#10003;</span> {d}
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+          ))}
+        </Accordion>
+      </div>
+
+      {/* Presentation tips */}
+      {result.presentationTips.length > 0 ? (
+        <div className="rs">
+          <h3 className="rs__sub">Presentation tips</h3>
+          {result.presentationTips.map((tip, i) => (
+            <div key={tip} className="rs__meta" style={{ marginBottom: '0.125rem' }}>
+              <strong>{i + 1}.</strong> {tip}
             </div>
           ))}
         </div>
-      </div>
-    </div>
+      ) : null}
+    </>
   )
 }
 
@@ -2181,15 +1323,43 @@ export type ResultDefinition = {
     content: string
   } | null
   render: (payload: AnyObject, item: ToolRunDetail, tool: ToolDefinition) => ReactNode
+  heroMetric?: (payload: AnyObject) => ReactNode
+  insightStrip?: (payload: AnyObject) => { label: string; value: string; color?: string }[]
 }
 
 export const resultDefinitions: Record<ToolId, ResultDefinition> = {
   resume: {
     copyText: (payload) => resumeCopyText(payload),
+    heroMetric: (payload) => {
+      const r = normalizeResumePayload(payload)
+      return <ScoreCircleSvg score={r.overallScore} />
+    },
+    insightStrip: (payload) => {
+      const r = normalizeResumePayload(payload)
+      return r.scoreBreakdown.slice(0, 4).map((item) => ({
+        label: item.label,
+        value: String(item.score),
+        color: scoreColor(item.score),
+      }))
+    },
     render: (payload) => <ResumeResultView payload={payload} />,
   },
   'job-match': {
     copyText: (payload) => jobMatchCopyText(payload),
+    heroMetric: (payload) => {
+      const r = normalizeJobMatchPayload(payload)
+      return <ScoreCircleSvg score={r.matchScore} />
+    },
+    insightStrip: (payload) => {
+      const r = normalizeJobMatchPayload(payload)
+      const met = r.requirements.filter((req) => req.status === 'matched').length
+      return [
+        { label: 'Match', value: `${r.matchScore}%`, color: scoreColor(r.matchScore) },
+        { label: 'Requirements met', value: `${met}/${r.requirements.length}` },
+        { label: 'Keywords', value: `${r.matchedKeywords.length}/${r.matchedKeywords.length + r.missingKeywords.length}` },
+        { label: 'Verdict', value: r.verdict },
+      ]
+    },
     render: (payload) => <JobMatchView payload={payload} />,
   },
   'cover-letter': {
@@ -2198,18 +1368,60 @@ export const resultDefinitions: Record<ToolId, ResultDefinition> = {
       filename: `${item.label || 'cover-letter'}.txt`,
       content: coverLetterCopyText(payload),
     }),
+    insightStrip: (payload) => {
+      const r = normalizeCoverLetterPayload(payload)
+      const wordCount = r.fullText.split(/\s+/).filter(Boolean).length
+      return [
+        { label: 'Words', value: String(wordCount) },
+        { label: 'Paragraphs', value: String(1 + r.bodyPoints.length + 1) },
+        { label: 'Tone', value: r.toneUsed },
+        { label: 'Custom points', value: String(r.customizationNotes.length) },
+      ]
+    },
     render: (payload) => <CoverLetterView payload={payload} />,
   },
   interview: {
     copyText: (payload) => interviewCopyText(payload),
+    insightStrip: (payload) => {
+      const r = normalizeInterviewPayload(payload)
+      const practiceFirst = r.questions.filter((q) => q.practiceFirst).length
+      return [
+        { label: 'Questions', value: String(r.questions.length) },
+        { label: 'Focus areas', value: String(r.focusAreas.length) },
+        { label: 'Weak signals', value: String(r.weakSignals.length), color: r.weakSignals.length > 0 ? 'var(--warning)' : undefined },
+        { label: 'Practice first', value: String(practiceFirst) },
+      ]
+    },
     render: (payload) => <InterviewView payload={payload} />,
   },
   career: {
     copyText: (payload) => careerCopyText(payload),
+    heroMetric: (payload) => {
+      const r = normalizeCareerPayload(payload)
+      return <ScoreCircleSvg score={r.recommendedDirection.fitScore} />
+    },
+    insightStrip: (payload) => {
+      const r = normalizeCareerPayload(payload)
+      return [
+        { label: 'Fit', value: `${r.recommendedDirection.fitScore}%`, color: scoreColor(r.recommendedDirection.fitScore) },
+        { label: 'Timeline', value: r.recommendedDirection.transitionTimeline },
+        { label: 'Skill gaps', value: String(r.skillGaps.length) },
+        { label: 'Confidence', value: r.recommendedDirection.confidence },
+      ]
+    },
     render: (payload) => <CareerView payload={payload} />,
   },
   portfolio: {
     copyText: (payload) => portfolioCopyText(payload),
+    insightStrip: (payload) => {
+      const r = normalizePortfolioPayload(payload)
+      return [
+        { label: 'Projects', value: String(r.projects.length) },
+        { label: 'Start with', value: r.recommendedStartProject.split(' ').slice(0, 3).join(' ') },
+        { label: 'Target', value: r.targetRole.split(' ').slice(0, 3).join(' ') },
+        { label: 'Steps', value: String(r.sequencePlan.length) },
+      ]
+    },
     render: (payload) => <PortfolioView payload={payload} />,
   },
 }

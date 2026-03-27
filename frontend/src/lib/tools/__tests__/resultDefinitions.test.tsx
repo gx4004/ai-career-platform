@@ -88,11 +88,10 @@ describe('resultDefinitions', () => {
 
     render(resultDefinitions.resume.render(payload, makeItem('resume', payload), tools.resume))
 
-    expect(screen.getByText(/Top 3 fixes/i)).toBeTruthy()
-    expect(screen.getByText(/Target role fit/i)).toBeTruthy()
-    expect(screen.getByText(/Impact is not backed up with enough measurable results/i)).toBeTruthy()
+    expect(screen.getByText(/Fix first/i)).toBeTruthy()
+    expect(screen.getByText(/Score breakdown/i)).toBeTruthy()
+    expect(screen.getAllByText(/Impact is not backed up with enough measurable results/i).length).toBeGreaterThan(0)
     expect(screen.getByText(/Docker/i)).toBeTruthy()
-    expect(screen.getByText(/Section rewrite mode/i)).toBeTruthy()
   })
 
   it('renders upgraded job match output with requirement states and interview handoff', () => {
@@ -151,13 +150,10 @@ describe('resultDefinitions', () => {
       ),
     )
 
-    expect(screen.getByText(/Requirement matrix/i)).toBeTruthy()
-    expect(screen.getByText(/Before-you-apply checklist/i)).toBeTruthy()
-    expect(screen.getAllByText(/Interview handoff/i).length).toBeGreaterThan(0)
+    expect(screen.getByText(/Requirements/i)).toBeTruthy()
+    expect(screen.getByText(/Keyword coverage/i)).toBeTruthy()
     expect(screen.getAllByText(/Kubernetes/i).length).toBeGreaterThan(0)
-    expect(
-      screen.getAllByText(/Add one project or production example with outcome/i).length,
-    ).toBeGreaterThan(0)
+    expect(screen.getByText(/Recruiter summary/i)).toBeTruthy()
   })
 
   it('renders upgraded cover letter output with editable draft blocks and notes', () => {
@@ -219,7 +215,6 @@ describe('resultDefinitions', () => {
 
     expect(screen.getByText(/Customization notes/i)).toBeTruthy()
     expect(screen.getByDisplayValue(/Dear Hiring Manager/i)).toBeTruthy()
-    expect(screen.getByText(/Revise tone/i)).toBeTruthy()
     expect(screen.getAllByText(/Kubernetes/i).length).toBeGreaterThan(0)
   })
 
@@ -289,11 +284,10 @@ describe('resultDefinitions', () => {
       ),
     )
 
-    expect(screen.getByText(/Practice your gaps first/i)).toBeTruthy()
-    expect(screen.getByText(/Likely weak areas/i)).toBeTruthy()
+    expect(screen.getByText(/Gaps first/i)).toBeTruthy()
+    expect(screen.getByText(/Weak signals/i)).toBeTruthy()
     expect(screen.getAllByText(/Kubernetes/i).length).toBeGreaterThan(0)
     expect(screen.getByText(/Interviewer notes/i)).toBeTruthy()
-    expect(screen.getByText(/Answer refinement/i)).toBeTruthy()
   })
 
   it('renders upgraded career output with a hero recommendation, urgency-grouped gaps, and timeline', () => {
@@ -349,10 +343,10 @@ describe('resultDefinitions', () => {
 
     render(resultDefinitions.career.render(payload, makeItem('career', payload), tools.career))
 
-    expect(screen.getByText(/Recommended direction/i)).toBeTruthy()
-    expect(screen.getByText(/Alternative path comparison/i)).toBeTruthy()
-    expect(screen.getByText(/Skill gaps by urgency/i)).toBeTruthy()
-    expect(screen.getByText(/Next-steps timeline/i)).toBeTruthy()
+    expect(screen.getByText(/Senior Backend Engineer/i)).toBeTruthy()
+    expect(screen.getByText(/Path comparison/i)).toBeTruthy()
+    expect(screen.getByText(/Skill gaps/i)).toBeTruthy()
+    expect(screen.getByText(/Roadmap/i)).toBeTruthy()
     expect(screen.getAllByText(/Senior Backend Engineer/i).length).toBeGreaterThan(0)
   })
 
@@ -403,10 +397,9 @@ describe('resultDefinitions', () => {
 
     render(resultDefinitions.portfolio.render(payload, makeItem('portfolio', payload), tools.portfolio))
 
-    expect(screen.getByText(/Recommended first project/i)).toBeTruthy()
-    expect(screen.getByText(/Sequenced project roadmap/i)).toBeTruthy()
+    expect(screen.getByText(/Project roadmap/i)).toBeTruthy()
     expect(screen.getByText(/Presentation tips/i)).toBeTruthy()
     expect(screen.getAllByText(/Operational Intake Service/i).length).toBeGreaterThan(0)
-    expect(screen.getAllByText(/This project creates direct proof for the role./i).length).toBeGreaterThan(0)
+    expect(screen.getByText(/Strategy/i)).toBeTruthy()
   })
 })

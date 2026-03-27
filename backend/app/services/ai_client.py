@@ -23,6 +23,11 @@ def _ensure_vertex_init() -> None:
         location=settings.VERTEX_LOCATION,
     )
     _vertex_initialised = True
+    logger.info(
+        "Vertex AI initialised  project=%s  location=%s",
+        settings.VERTEX_PROJECT_ID,
+        settings.VERTEX_LOCATION,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -116,6 +121,7 @@ async def _call_groq(system_prompt: str, user_prompt: str) -> dict:
 
 
 async def _call_vertex(system_prompt: str, user_prompt: str) -> dict:
+    from google.api_core import exceptions as gcp_exceptions
     from vertexai.generative_models import GenerationConfig, GenerativeModel
 
     _ensure_vertex_init()
@@ -130,14 +136,33 @@ async def _call_vertex(system_prompt: str, user_prompt: str) -> dict:
         response_mime_type="application/json",
     )
 
-    response = await asyncio.wait_for(
-        asyncio.to_thread(
-            model.generate_content,
-            user_prompt,
-            generation_config=generation_config,
-        ),
-        timeout=_LLM_TIMEOUT_SECONDS,
-    )
+    try:
+        response = await asyncio.wait_for(
+            asyncio.to_thread(
+                model.generate_content,
+                user_prompt,
+                generation_config=generation_config,
+            ),
+            timeout=_LLM_TIMEOUT_SECONDS,
+        )
+    except asyncio.TimeoutError:
+        logger.error("Vertex AI request timed out after %ds", _LLM_TIMEOUT_SECONDS)
+        raise TimeoutError(
+            f"AI request timed out after {_LLM_TIMEOUT_SECONDS}s. Please try again."
+        )
+    except gcp_exceptions.ResourceExhausted:
+        logger.error("Vertex AI quota exceeded")
+        raise RuntimeError(
+            "AI service quota exceeded. Please try again in a few minutes."
+        )
+    except gcp_exceptions.PermissionDenied:
+        logger.error(
+            "Vertex AI permission denied for project=%s", settings.VERTEX_PROJECT_ID
+        )
+        raise RuntimeError("AI service configuration error. Please contact support.")
+    except gcp_exceptions.GoogleAPICallError as exc:
+        logger.error("Vertex AI call failed: %s", exc)
+        raise RuntimeError("AI service temporarily unavailable. Please try again.")
 
     content = response.text
     return _safe_parse_json(content, "vertex")

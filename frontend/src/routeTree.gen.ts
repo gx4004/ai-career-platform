@@ -13,9 +13,6 @@ import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ResumeRouteImport } from './routes/resume'
 import { Route as PortfolioRouteImport } from './routes/portfolio'
 import { Route as LoginRouteImport } from './routes/login'
-import { Route as LandingToolsRouteImport } from './routes/landing-tools'
-import { Route as LandingExperimentRouteImport } from './routes/landing-experiment'
-import { Route as LandingClassicRouteImport } from './routes/landing-classic'
 import { Route as JobMatchRouteImport } from './routes/job-match'
 import { Route as InterviewRouteImport } from './routes/interview'
 import { Route as HistoryRouteImport } from './routes/history'
@@ -56,21 +53,6 @@ const PortfolioRoute = PortfolioRouteImport.update({
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LandingToolsRoute = LandingToolsRouteImport.update({
-  id: '/landing-tools',
-  path: '/landing-tools',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LandingExperimentRoute = LandingExperimentRouteImport.update({
-  id: '/landing-experiment',
-  path: '/landing-experiment',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LandingClassicRoute = LandingClassicRouteImport.update({
-  id: '/landing-classic',
-  path: '/landing-classic',
   getParentRoute: () => rootRouteImport,
 } as any)
 const JobMatchRoute = JobMatchRouteImport.update({
@@ -191,9 +173,6 @@ export interface FileRoutesByFullPath {
   '/history': typeof HistoryRoute
   '/interview': typeof InterviewRoute
   '/job-match': typeof JobMatchRoute
-  '/landing-classic': typeof LandingClassicRoute
-  '/landing-experiment': typeof LandingExperimentRoute
-  '/landing-tools': typeof LandingToolsRoute
   '/login': typeof LoginRoute
   '/portfolio': typeof PortfolioRoute
   '/resume': typeof ResumeRoute
@@ -221,9 +200,6 @@ export interface FileRoutesByTo {
   '/history': typeof HistoryRoute
   '/interview': typeof InterviewRoute
   '/job-match': typeof JobMatchRoute
-  '/landing-classic': typeof LandingClassicRoute
-  '/landing-experiment': typeof LandingExperimentRoute
-  '/landing-tools': typeof LandingToolsRoute
   '/login': typeof LoginRoute
   '/portfolio': typeof PortfolioRoute
   '/resume': typeof ResumeRoute
@@ -252,9 +228,6 @@ export interface FileRoutesById {
   '/history': typeof HistoryRoute
   '/interview': typeof InterviewRoute
   '/job-match': typeof JobMatchRoute
-  '/landing-classic': typeof LandingClassicRoute
-  '/landing-experiment': typeof LandingExperimentRoute
-  '/landing-tools': typeof LandingToolsRoute
   '/login': typeof LoginRoute
   '/portfolio': typeof PortfolioRoute
   '/resume': typeof ResumeRoute
@@ -284,9 +257,6 @@ export interface FileRouteTypes {
     | '/history'
     | '/interview'
     | '/job-match'
-    | '/landing-classic'
-    | '/landing-experiment'
-    | '/landing-tools'
     | '/login'
     | '/portfolio'
     | '/resume'
@@ -314,9 +284,6 @@ export interface FileRouteTypes {
     | '/history'
     | '/interview'
     | '/job-match'
-    | '/landing-classic'
-    | '/landing-experiment'
-    | '/landing-tools'
     | '/login'
     | '/portfolio'
     | '/resume'
@@ -344,9 +311,6 @@ export interface FileRouteTypes {
     | '/history'
     | '/interview'
     | '/job-match'
-    | '/landing-classic'
-    | '/landing-experiment'
-    | '/landing-tools'
     | '/login'
     | '/portfolio'
     | '/resume'
@@ -375,9 +339,6 @@ export interface RootRouteChildren {
   HistoryRoute: typeof HistoryRoute
   InterviewRoute: typeof InterviewRoute
   JobMatchRoute: typeof JobMatchRoute
-  LandingClassicRoute: typeof LandingClassicRoute
-  LandingExperimentRoute: typeof LandingExperimentRoute
-  LandingToolsRoute: typeof LandingToolsRoute
   LoginRoute: typeof LoginRoute
   PortfolioRoute: typeof PortfolioRoute
   ResumeRoute: typeof ResumeRoute
@@ -425,27 +386,6 @@ declare module '@tanstack/react-router' {
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/landing-tools': {
-      id: '/landing-tools'
-      path: '/landing-tools'
-      fullPath: '/landing-tools'
-      preLoaderRoute: typeof LandingToolsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/landing-experiment': {
-      id: '/landing-experiment'
-      path: '/landing-experiment'
-      fullPath: '/landing-experiment'
-      preLoaderRoute: typeof LandingExperimentRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/landing-classic': {
-      id: '/landing-classic'
-      path: '/landing-classic'
-      fullPath: '/landing-classic'
-      preLoaderRoute: typeof LandingClassicRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/job-match': {
@@ -607,9 +547,6 @@ const rootRouteChildren: RootRouteChildren = {
   HistoryRoute: HistoryRoute,
   InterviewRoute: InterviewRoute,
   JobMatchRoute: JobMatchRoute,
-  LandingClassicRoute: LandingClassicRoute,
-  LandingExperimentRoute: LandingExperimentRoute,
-  LandingToolsRoute: LandingToolsRoute,
   LoginRoute: LoginRoute,
   PortfolioRoute: PortfolioRoute,
   ResumeRoute: ResumeRoute,

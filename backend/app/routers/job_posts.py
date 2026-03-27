@@ -1,15 +1,29 @@
-from fastapi import APIRouter, HTTPException
+import logging
+
+from fastapi import APIRouter, HTTPException, Request
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 from app.schemas.tools import ImportedJobResponse, ImportJobUrlRequest
 from app.services.job_scraper import scrape_job_posting
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter()
+limiter = Limiter(key_func=get_remote_address)
 
 
 @router.post("/import-url", response_model=ImportedJobResponse)
-async def import_job_url(body: ImportJobUrlRequest):
+@limiter.limit("10/minute")
+async def import_job_url(request: Request, body: ImportJobUrlRequest):
     try:
-        result = await scrape_job_posting(body.url)
-    except Exception as e:
+        result = await scrape_job_posting(str(body.url))
+    except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except Exception:
+        logger.exception("Job import failed for URL: %s", body.url)
+        raise HTTPException(
+            status_code=502,
+            detail="Could not fetch or parse the job posting. Please check the URL and try again.",
+        )
     return result

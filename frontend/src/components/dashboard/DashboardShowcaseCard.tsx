@@ -29,7 +29,7 @@ export function DashboardShowcaseCard({
       <div className="dash-showcase-body">
         <div className="dash-showcase-header">
           <div className="dash-showcase-icon">
-            <Icon size={18} />
+            <Icon size={12} />
           </div>
           <span className="dash-showcase-name">{label}</span>
         </div>

@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from sqlalchemy.orm import Session
 
 from app.auth.security import (
@@ -18,10 +20,12 @@ from app.schemas.auth import (
 )
 
 router = APIRouter()
+limiter = Limiter(key_func=get_remote_address)
 
 
 @router.post("/login", response_model=TokenResponse)
-def login(body: LoginRequest, db: Session = Depends(get_db)):
+@limiter.limit("10/minute")
+def login(request: Request, body: LoginRequest, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == body.email).first()
     if not user or not verify_password(body.password, user.hashed_password):
         raise HTTPException(
@@ -33,7 +37,8 @@ def login(body: LoginRequest, db: Session = Depends(get_db)):
 
 
 @router.post("/register", response_model=UserResponse, status_code=201)
-def register(body: RegisterRequest, db: Session = Depends(get_db)):
+@limiter.limit("5/minute")
+def register(request: Request, body: RegisterRequest, db: Session = Depends(get_db)):
     existing = db.query(User).filter(User.email == body.email).first()
     if existing:
         raise HTTPException(

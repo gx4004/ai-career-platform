@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { Copy, Download, Star } from 'lucide-react'
-import { Badge } from '#/components/ui/badge'
 import { Button } from '#/components/ui/button'
 import { AppStatePanel } from '#/components/app/AppStatePanel'
 import { PageFrame } from '#/components/app/PageFrame'
@@ -133,149 +132,114 @@ export function ToolResultScreen({
   const guestResult = !savedResult
   const canContinueWorkflow = status === 'authenticated' || savedResult
 
+  const heroMetric = definition.heroMetric?.(payload)
+  const insightStrip = definition.insightStrip?.(payload)
+  const primaryNextAction = resolvedTool.nextActions[0]
+  const secondaryNextAction = resolvedTool.nextActions[1]
+
+  async function handleCopy() {
+    await navigator.clipboard.writeText(definition.copyText(payload, item))
+    setCopied(true)
+    window.setTimeout(() => setCopied(false), 1200)
+  }
+
+  function handleExport(format: 'txt' | 'md') {
+    trackTelemetry({
+      event_name: 'export_action_used',
+      tool_id: resolvedTool.id,
+      history_id: item.id,
+      access_mode: savedResult ? 'authenticated' : 'guest_demo',
+      saved: savedResult,
+      metadata: { format },
+    })
+    if (format === 'md') {
+      downloadTextFile(
+        sanitizeDownloadTitle(downloadTitle, 'md'),
+        formatExportContent(exportableSections, 'md'),
+        'text/markdown;charset=utf-8',
+      )
+    } else {
+      downloadTextFile(
+        sanitizeDownloadTitle(downloadTitle, 'txt'),
+        formatExportContent(exportableSections, 'txt'),
+      )
+    }
+  }
+
   return (
     <PageFrame>
-      <section className="result-screen content-max">
-        <div className="result-hero result-hero-card" style={toolAccentStyle(resolvedTool.accent)}>
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div className="grid gap-3">
-              <div className="flex flex-wrap items-center gap-3">
-                <Badge variant="outline">{resolvedTool.label}</Badge>
-                <Badge
-                  variant="outline"
-                  style={{ borderColor: resolvedTool.accent, color: resolvedTool.accent }}
-                >
-                  {savedResult ? 'Saved result' : 'Guest demo'}
-                </Badge>
+      <section className="result-shell" style={toolAccentStyle(resolvedTool.accent)}>
+        {/* ── Hero ── */}
+        <div className="result-hero">
+          <div className="result-hero__top">
+            {heroMetric || (
+              <div className="result-hero__icon">
+                <resolvedTool.icon size={22} />
               </div>
-              <div className="grid gap-1">
-                <h1 className="page-title">{resolvedTool.resultTitle}</h1>
-                <p className="muted-copy">
-                  {item.label || 'Untitled run'} • {new Date(item.created_at).toLocaleString()}
-                </p>
-                {item.workspace?.label ? (
-                  <p className="small-copy muted-copy">Workspace: {item.workspace.label}</p>
+            )}
+            <div className="result-hero__text">
+              <div className="result-hero__label">
+                {resolvedTool.label}{savedResult ? '' : ' · Guest demo'}
+              </div>
+              <h1 className="result-hero__headline">
+                {typeof summary.headline === 'string' ? summary.headline : resolvedTool.resultTitle}
+              </h1>
+              <p className="result-hero__sub">
+                {item.label || 'Untitled run'} · {new Date(item.created_at).toLocaleString()}
+              </p>
+              <div className="result-hero__actions">
+                <a href={resolvedTool.route} className="result-hero__btn-text">Run again</a>
+                <button className="result-hero__btn" onClick={handleCopy} title={copied ? 'Copied' : 'Copy'}>
+                  <Copy size={13} />
+                </button>
+                {exportableSections.length > 0 ? (
+                  <button className="result-hero__btn" onClick={() => handleExport('txt')} title="Export TXT">
+                    <Download size={13} />
+                  </button>
+                ) : definition.download ? (
+                  <button className="result-hero__btn" onClick={() => {
+                    const dl = definition.download?.(payload, item)
+                    if (dl) downloadTextFile(dl.filename, dl.content)
+                  }} title="Download">
+                    <Download size={13} />
+                  </button>
                 ) : null}
-              </div>
-            </div>
-            <div className="result-header-actions button-cluster button-cluster--toolbar">
-              <Button variant="outline" asChild className="button-toolbar-utility">
-                <Link to={resolvedTool.route}>View another →</Link>
-              </Button>
-              <Button
-                variant="outline"
-                className="button-toolbar-utility"
-                onClick={async () => {
-                  await navigator.clipboard.writeText(definition.copyText(payload, item))
-                  setCopied(true)
-                  window.setTimeout(() => setCopied(false), 1200)
-                }}
-              >
-                <Copy size={16} />
-                {copied ? 'Copied' : 'Copy'}
-              </Button>
-              {exportableSections.length > 0 ? (
-                <>
-                  <Button
-                    variant="outline"
-                    className="button-toolbar-utility"
-                    onClick={() => {
-                      trackTelemetry({
-                        event_name: 'export_action_used',
-                        tool_id: resolvedTool.id,
-                        history_id: item.id,
-                        access_mode: savedResult ? 'authenticated' : 'guest_demo',
-                        saved: savedResult,
-                        metadata: { format: 'txt' },
-                      })
-                      downloadTextFile(
-                        sanitizeDownloadTitle(downloadTitle, 'txt'),
-                        formatExportContent(exportableSections, 'txt'),
-                      )
-                    }}
-                  >
-                    <Download size={16} />
-                    TXT
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="button-toolbar-utility"
-                    onClick={() => {
-                      trackTelemetry({
-                        event_name: 'export_action_used',
-                        tool_id: resolvedTool.id,
-                        history_id: item.id,
-                        access_mode: savedResult ? 'authenticated' : 'guest_demo',
-                        saved: savedResult,
-                        metadata: { format: 'md' },
-                      })
-                      downloadTextFile(
-                        sanitizeDownloadTitle(downloadTitle, 'md'),
-                        formatExportContent(exportableSections, 'md'),
-                        'text/markdown;charset=utf-8',
-                      )
-                    }}
-                  >
-                    <Download size={16} />
-                    Markdown
-                  </Button>
-                </>
-              ) : definition.download ? (
-                <Button
-                  variant="outline"
-                  className="button-toolbar-utility"
+                <button
+                  className="result-hero__btn"
+                  disabled={status !== 'authenticated' || favoriteToggle.isPending}
                   onClick={() => {
-                    trackTelemetry({
-                      event_name: 'export_action_used',
-                      tool_id: resolvedTool.id,
-                      history_id: item.id,
-                      access_mode: savedResult ? 'authenticated' : 'guest_demo',
-                      saved: savedResult,
-                      metadata: { format: 'custom-download' },
-                    })
-                    const download = definition.download?.(payload, item)
-                    if (!download) return
-                    downloadTextFile(download.filename, download.content)
+                    if (!savedResult) {
+                      openAuthDialog({ to: resolvedTool.route, reason: 'save-demo-result', label: 'Sign in to save' })
+                      return
+                    }
+                    favoriteToggle.mutate({ historyId: item.id, isFavorite: !item.is_favorite })
                   }}
+                  title={savedResult ? (item.is_favorite ? 'Favorited' : 'Favorite') : 'Sign in to save'}
                 >
-                  <Download size={16} />
-                  Download
-                </Button>
-              ) : null}
-              <Button
-                variant="outline"
-                className="button-toolbar-utility"
-                disabled={status !== 'authenticated' || favoriteToggle.isPending}
-                onClick={() => {
-                  if (!savedResult) {
-                    openAuthDialog({
-                      to: resolvedTool.route,
-                      reason: 'save-demo-result',
-                      label: 'Sign in to save and continue',
-                    })
-                    return
-                  }
-                  favoriteToggle.mutate({
-                    historyId: item.id,
-                    isFavorite: !item.is_favorite,
-                  })
-                }}
-              >
-                <Star
-                  size={16}
-                  fill={item.is_favorite ? 'currentColor' : 'none'}
-                />
-                {savedResult ? (item.is_favorite ? 'Favorited' : 'Favorite') : 'Sign in to save'}
-              </Button>
+                  <Star size={13} fill={item.is_favorite ? 'currentColor' : 'none'} />
+                </button>
+              </div>
             </div>
           </div>
+          {insightStrip && insightStrip.length > 0 ? (
+            <div className="result-hero__strip" style={{ ['--cols' as string]: insightStrip.length }}>
+              {insightStrip.map((stat) => (
+                <div key={stat.label} className="result-hero__strip-item">
+                  <div className="result-hero__strip-val">{stat.value}</div>
+                  <div className="result-hero__strip-lbl">{stat.label}</div>
+                </div>
+              ))}
+            </div>
+          ) : null}
         </div>
+
+        {/* ── Guest banner ── */}
         {guestResult ? (
-          <div className="tool-seed-banner">
+          <div className="result-guest-banner">
             <span>
               {status === 'authenticated'
-                ? 'This result was generated in guest demo mode. Rerun it while signed in to save it to history.'
-                : 'Guest demo mode is active. Sign in to save this run, continue the guided workflow, and access history.'}
+                ? 'Guest demo. Rerun while signed in to save.'
+                : 'Guest demo. Sign in to save and continue.'}
             </span>
             {status !== 'authenticated' ? (
               <Button
@@ -283,14 +247,10 @@ export function ToolResultScreen({
                 variant="outline"
                 size="sm"
                 onClick={() =>
-                  openAuthDialog({
-                    to: resolvedTool.route,
-                    reason: 'guest-demo-result',
-                    label: 'Sign in to save and continue',
-                  })
+                  openAuthDialog({ to: resolvedTool.route, reason: 'guest-demo-result', label: 'Sign in' })
                 }
               >
-                Sign in to save and continue
+                Sign in
               </Button>
             ) : (
               <Button
@@ -299,57 +259,54 @@ export function ToolResultScreen({
                 size="sm"
                 onClick={() => navigate({ to: resolvedTool.route })}
               >
-                Rerun in workspace
+                Rerun
               </Button>
             )}
           </div>
         ) : null}
-        <div className="section-card grid gap-2 p-5">
-          <p className="eyebrow">Why this result was generated</p>
-          <p>{typeof summary.headline === 'string' ? summary.headline : resolvedTool.summary}</p>
-          <p className="small-copy muted-copy">
-            {typeof summary.confidence_note === 'string'
-              ? summary.confidence_note
-              : 'This output is heuristic and advisory, not a hiring prediction.'}
-          </p>
-        </div>
-        <div className="result-body">
+
+        {/* ── Content ── */}
+        <div className="result-content">
           {definition.render(payload, item, resolvedTool)}
         </div>
-        <div className="cta-card-grid">
-          {resolvedTool.nextActions.map((action) => {
-            const nextTool = tools[action.to]
-            return (
-              <div key={action.label} className="cta-card p-5">
-                <div className="grid gap-3">
-                  <div className="flex items-center gap-3">
-                    <nextTool.icon size={18} style={{ color: nextTool.accent }} />
-                    <h3 className="section-title">{action.label}</h3>
-                  </div>
-                  <p className="small-copy muted-copy">{nextTool.summary}</p>
-                  <Button
-                    className="button-hero-primary"
-                    onClick={() => {
-                      if (!canContinueWorkflow) {
-                        openAuthDialog({
-                          to: nextTool.route,
-                          reason: 'continue-workflow',
-                          label: 'Sign in to save and continue',
-                        })
-                        return
-                      }
-                      void navigate({ to: nextTool.route })
-                    }}
-                  >
-                    {canContinueWorkflow
-                      ? `Open ${nextTool.shortLabel}`
-                      : `Sign in to open ${nextTool.shortLabel}`}
-                  </Button>
-                </div>
-              </div>
-            )
-          })}
-        </div>
+
+        {/* ── Sticky CTA ── */}
+        {primaryNextAction ? (
+          <div className="result-action">
+            <div className="result-action__text">
+              <strong>{primaryNextAction.label}</strong> — {tools[primaryNextAction.to].summary}
+            </div>
+            <div className="result-action__btns">
+              <Button
+                size="sm"
+                onClick={() => {
+                  if (!canContinueWorkflow) {
+                    openAuthDialog({ to: tools[primaryNextAction.to].route, reason: 'continue-workflow', label: 'Sign in' })
+                    return
+                  }
+                  void navigate({ to: tools[primaryNextAction.to].route })
+                }}
+              >
+                {canContinueWorkflow ? `${tools[primaryNextAction.to].shortLabel} →` : 'Sign in'}
+              </Button>
+              {secondaryNextAction ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    if (!canContinueWorkflow) {
+                      openAuthDialog({ to: tools[secondaryNextAction.to].route, reason: 'continue-workflow', label: 'Sign in' })
+                      return
+                    }
+                    void navigate({ to: tools[secondaryNextAction.to].route })
+                  }}
+                >
+                  {tools[secondaryNextAction.to].shortLabel}
+                </Button>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
       </section>
     </PageFrame>
   )

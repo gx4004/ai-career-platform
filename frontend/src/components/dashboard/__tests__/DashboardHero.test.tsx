@@ -39,9 +39,9 @@ describe('DashboardHero', () => {
   it('renders the dashboard resume handoff copy', () => {
     render(<DashboardHero />)
 
-    expect(screen.getByText('Review your resume')).toBeTruthy()
+    expect(screen.getByText('Start with your resume.')).toBeTruthy()
     expect(
-      screen.getByText(/Upload once to get a score, compare yourself to roles, and improve your application\./i),
+      screen.getByText(/Drop it once\. Get a score, targeted fixes, cover letters, interview prep, and your next move\./i),
     ).toBeTruthy()
     expect(screen.getByRole('button', { name: /Simulate dashboard parse/i })).toBeTruthy()
   })
