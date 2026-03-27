@@ -12,6 +12,7 @@ import {
 import { LandingExperimentHero } from '#/components/landing/LandingExperimentHero'
 import { LandingTubelightNavbar, type NavbarItem } from '#/components/landing/LandingTubelightNavbar'
 import { LandingFaqsSection } from '#/components/landing/LandingFaqsSection'
+import { LandingSocialProof } from '#/components/landing/LandingSocialProof'
 import { LandingFeatureStepsDemo } from '#/components/landing/LandingFeatureStepsDemo'
 import { LandingFooter } from '#/components/landing/LandingFooter'
 import { LandingResumeDemo } from '#/components/landing/LandingResumeDemo'
@@ -33,6 +34,7 @@ export function LandingExperimentPage() {
 
   const sections: Record<LandingSectionId, ReactNode> = {
     hero: <LandingExperimentHero />,
+    'social-proof': <LandingSocialProof />,
     'resume-demo': <LandingResumeDemo />,
     'context-scroll': null,
     workflow: <LandingFeatureStepsDemo />,

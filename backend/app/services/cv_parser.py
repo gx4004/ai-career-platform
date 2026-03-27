@@ -26,10 +26,10 @@ def _extract_pdf(content: bytes) -> str:
     import fitz  # PyMuPDF
 
     doc = fitz.open(stream=content, filetype="pdf")
-    pages = []
-    for page in doc:
-        pages.append(page.get_text())
-    doc.close()
+    try:
+        pages = [page.get_text() for page in doc]
+    finally:
+        doc.close()
     return "\n".join(pages)
 
 

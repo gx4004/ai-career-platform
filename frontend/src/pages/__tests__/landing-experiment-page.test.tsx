@@ -5,6 +5,14 @@ import { LandingExperimentPage } from '#/pages/landing-experiment-page'
 
 const scrollToMock = vi.hoisted(() => vi.fn())
 
+class IntersectionObserverMock {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+
+vi.stubGlobal('IntersectionObserver', IntersectionObserverMock)
+
 vi.mock('@tanstack/react-router', () => ({
   Link: ({
     children,
@@ -57,6 +65,10 @@ vi.mock('#/components/landing/LandingTubelightNavbar', () => ({
 
 vi.mock('#/components/landing/LandingExperimentHero', () => ({
   LandingExperimentHero: () => <div data-testid="landing-hero" />,
+}))
+
+vi.mock('#/components/landing/LandingSocialProof', () => ({
+  LandingSocialProof: () => <div data-testid="landing-social-proof" />,
 }))
 
 vi.mock('#/components/landing/LandingResumeDemo', () => ({
@@ -121,13 +133,14 @@ describe('LandingExperimentPage', () => {
     expect(screen.getByTestId('landing-footer')).toBeTruthy()
     expect(scrollToMock).toHaveBeenCalledWith({ top: 0, left: 0, behavior: 'auto' })
 
-    // Verify new section order (without context-scroll)
+    // Verify section order matches landingExperimentSectionOrder
     const orderedTestIds = [
       'experiment-navbar',
       'landing-hero',
       'landing-feature-steps',
-      'landing-tool-grid',
+      'landing-social-proof',
       'landing-resume-demo',
+      'landing-tool-grid',
       'landing-faqs',
       'landing-cta',
       'landing-footer',

@@ -13,6 +13,31 @@ export function LoginForm({
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
+  const [showReset, setShowReset] = useState(false)
+
+  if (showReset) {
+    return (
+      <div className="grid gap-4">
+        <div className="grid gap-1">
+          <p className="auth-surface-title" style={{ fontSize: 'clamp(1.2rem, 2.5vw, 1.5rem)' }}>
+            Reset your password
+          </p>
+          <p className="small-copy" style={{ color: 'var(--text-soft)', lineHeight: 1.6 }}>
+            Password reset is not yet available. Please contact support to recover your account.
+          </p>
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          size="lg"
+          className="auth-submit w-full"
+          onClick={() => setShowReset(false)}
+        >
+          Back to sign in
+        </Button>
+      </div>
+    )
+  }
 
   return (
     <form
@@ -41,7 +66,16 @@ export function LoginForm({
         />
       </div>
       <div className="grid gap-1.5">
-        <Label htmlFor="login-password">Password</Label>
+        <div className="flex items-center justify-between">
+          <Label htmlFor="login-password">Password</Label>
+          <button
+            type="button"
+            className="auth-forgot-link"
+            onClick={() => setShowReset(true)}
+          >
+            Forgot password?
+          </button>
+        </div>
         <Input
           id="login-password"
           type="password"
@@ -54,7 +88,7 @@ export function LoginForm({
       </div>
       {authError ? <p className="small-copy" style={{ color: 'var(--destructive)' }}>{authError}</p> : null}
       <Button type="submit" size="lg" className="auth-submit w-full" disabled={loading}>
-        {loading ? 'Signing you in…' : 'Sign in'}
+        {loading ? 'Signing you in...' : 'Sign in'}
       </Button>
     </form>
   )

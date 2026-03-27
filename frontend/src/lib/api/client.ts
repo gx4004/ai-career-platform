@@ -33,15 +33,9 @@ function resolveApiUrl(): string {
     return trimTrailingSlash(configuredUrl)
   }
 
-  if (import.meta.env.DEV) {
-    return '/api/v1'
-  }
-
-  if (typeof window !== 'undefined') {
-    return `${window.location.protocol}//${window.location.hostname}:8000/api/v1`
-  }
-
-  return 'http://localhost:8000/api/v1'
+  // Dev: Vite proxy forwards /api/v1 to backend.
+  // Prod: reverse proxy (nginx/caddy) must route /api/v1 to the backend.
+  return '/api/v1'
 }
 
 export const API_URL = resolveApiUrl()

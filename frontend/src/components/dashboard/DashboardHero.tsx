@@ -8,17 +8,18 @@ export function DashboardHero() {
   const navigate = useNavigate()
 
   return (
-    <section className="dash-hero">
-      <FadeUp className="dash-hero-panel dash-hero-split">
-        <div className="dash-hero-intro">
-          <h1 className="dash-hero-title">
-            Review your resume
-          </h1>
-          <p className="dash-hero-body">
-            Upload once to get a score, compare yourself to roles, and improve your application.
+    <section className="dash-hero-dark">
+      <FadeUp className="dash-hero-dark-inner">
+        <div className="dash-hero-dark-headline">
+          <p className="dash-hero-dark-eyebrow">Your workspace</p>
+          <h1 className="dash-hero-dark-title">Start with your resume.</h1>
+          <p className="dash-hero-dark-subtitle">
+            Drop it once. Get a score, targeted fixes, cover letters, interview prep, and your next move.
           </p>
         </div>
-        <div className="dash-hero-action">
+
+        <div className="dash-hero-dark-drop-wrap">
+          <div className="dash-hero-dark-drop-glow" aria-hidden />
           <DropzoneHero
             accent={tools.resume.accent}
             onParsed={(text) => {

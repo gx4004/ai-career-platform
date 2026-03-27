@@ -30,7 +30,7 @@ describe('LandingCTA', () => {
   it('renders one stable CTA to the dashboard', () => {
     const { container } = render(<LandingCTA />)
 
-    expect(screen.getByRole('link', { name: /Start free/i }).getAttribute('href')).toBe(
+    expect(screen.getByRole('link', { name: /Upload your resume/i }).getAttribute('href')).toBe(
       '/dashboard',
     )
     expect(container.querySelector('#landing-cta')).toBeTruthy()

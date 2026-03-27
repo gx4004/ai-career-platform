@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, HttpUrl
 
 
 # --- Requests ---
@@ -31,7 +31,7 @@ class CoverLetterRequest(BaseModel):
 class InterviewRequest(BaseModel):
     resume_text: str
     job_description: str
-    num_questions: int | None = None
+    num_questions: int | None = Field(None, ge=1, le=20)
     resume_analysis: ResumeAnalysisHandoff | None = None
     job_match: JobMatchHandoff | None = None
     workspace_context: "WorkspaceContextInput | None" = None
@@ -50,7 +50,7 @@ class PortfolioRequest(BaseModel):
 
 
 class ImportJobUrlRequest(BaseModel):
-    url: str
+    url: HttpUrl
 
 
 class WorkspaceContextInput(BaseModel):

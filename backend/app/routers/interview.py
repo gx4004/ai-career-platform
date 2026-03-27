@@ -1,6 +1,8 @@
 from time import perf_counter
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from sqlalchemy.orm import Session
 
 from app.auth.security import get_optional_current_user
@@ -20,10 +22,13 @@ from app.services.tool_runs import (
 )
 
 router = APIRouter()
+limiter = Limiter(key_func=get_remote_address)
 
 
 @router.post("/questions", response_model=InterviewResponse)
+@limiter.limit("10/minute")
 async def questions(
+    request: Request,
     body: InterviewRequest,
     current_user: User | None = Depends(get_optional_current_user),
     db: Session = Depends(get_db),
