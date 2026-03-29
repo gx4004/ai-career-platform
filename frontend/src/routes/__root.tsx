@@ -1,5 +1,5 @@
 import '#/lib/i18n'
-import type { ReactNode } from 'react'
+import { type ReactNode, useEffect } from 'react'
 import { HeadContent, Outlet, Scripts, createRootRoute } from '@tanstack/react-router'
 import { useRouterState } from '@tanstack/react-router'
 import { QueryClientProvider } from '@tanstack/react-query'
@@ -29,10 +29,15 @@ export const Route = createRootRoute({
       { property: 'og:type', content: 'website' },
       { property: 'og:url', content: 'https://careerworkbench.app' },
       { name: 'twitter:card', content: 'summary_large_image' },
+      { name: 'theme-color', content: '#0f1a2e' },
+      { name: 'apple-mobile-web-app-capable', content: 'yes' },
+      { name: 'apple-mobile-web-app-status-bar-style', content: 'black-translucent' },
     ],
     links: [
       { rel: 'stylesheet', href: appCss },
       { rel: 'icon', href: '/favicon.ico', type: 'image/x-icon' },
+      { rel: 'manifest', href: '/manifest.json' },
+      { rel: 'apple-touch-icon', href: '/logo192.png' },
     ],
   }),
   shellComponent: RootDocument,
@@ -60,6 +65,15 @@ function PageTransition({ children }: { children: ReactNode }) {
 }
 
 function RootDocument({ children }: { children: ReactNode }) {
+  // Register service worker for PWA support
+  useEffect(() => {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(() => {
+        // SW registration failed — silent, non-critical
+      })
+    }
+  }, [])
+
   return (
     <html lang="en">
       <head>

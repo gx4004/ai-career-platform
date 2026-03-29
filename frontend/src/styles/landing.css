@@ -2927,6 +2927,7 @@ button.landing-cascade-cta--ghost {
   display: block;
   width: 100%;
   height: auto;
+  filter: brightness(0.9);
 }
 
 /* ── Cascade fade: spacing only, no background ── */

@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { ArrowLeft, ArrowRight, Send, RotateCcw } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 
+const MAX_ATTEMPTS = 3
+
 interface Question {
   question?: string
   text?: string
@@ -20,6 +22,18 @@ interface PracticeFeedback {
   is_empty_answer: boolean
 }
 
+function getIdealAnswer(q: Question): string {
+  const structure = q.answerStructure || q.answer_structure
+  const parts: string[] = []
+  if (structure) {
+    parts.push(Array.isArray(structure) ? structure.join('\n') : structure)
+  }
+  if (q.key_talking_points?.length) {
+    parts.push('Key points: ' + q.key_talking_points.join(', '))
+  }
+  return parts.join('\n\n') || 'Review the answer framework above for guidance.'
+}
+
 export function InterviewPracticeMode({
   questions,
   onExit,
@@ -31,14 +45,21 @@ export function InterviewPracticeMode({
   const [answer, setAnswer] = useState('')
   const [feedback, setFeedback] = useState<PracticeFeedback | null>(null)
   const [loading, setLoading] = useState(false)
+  const [attempts, setAttempts] = useState<Record<number, number>>({})
 
   const current = questions[currentIndex]
   if (!current) return null
   const questionText = current.question || current.text || `Question ${currentIndex + 1}`
+  const attemptCount = attempts[currentIndex] ?? 0
+  const maxedOut = attemptCount >= MAX_ATTEMPTS
 
   const handleSubmit = async () => {
     setLoading(true)
     setFeedback(null)
+
+    const newCount = attemptCount + 1
+    setAttempts((prev) => ({ ...prev, [currentIndex]: newCount }))
+
     try {
       const structure = current.answerStructure || current.answer_structure
       const modelAnswer = Array.isArray(structure)
@@ -98,33 +119,51 @@ export function InterviewPracticeMode({
           {current.focusArea || current.difficulty || 'Question'}
         </div>
         <h3>{questionText}</h3>
+        <span className="practice-mode-attempt-label">
+          Attempt {Math.min(attemptCount + 1, MAX_ATTEMPTS)} / {MAX_ATTEMPTS}
+        </span>
       </div>
 
-      <textarea
-        className="practice-mode-answer"
-        placeholder="Type your answer here..."
-        value={answer}
-        onChange={(e) => setAnswer(e.target.value)}
-        rows={6}
-        disabled={loading}
-      />
-
-      <div className="practice-mode-actions">
-        <Button
-          onClick={handleSubmit}
-          disabled={loading}
-          size="sm"
-        >
-          {loading ? 'Evaluating...' : <><Send size={14} /> Submit answer</>}
-        </Button>
-        {feedback && (
-          <Button variant="outline" size="sm" onClick={() => { setAnswer(''); setFeedback(null) }}>
-            <RotateCcw size={14} /> Try again
+      {maxedOut ? (
+        <div className="practice-mode-maxed">
+          <h4>Maximum attempts reached</h4>
+          <p>Here's the ideal answer framework for this question:</p>
+          <div className="practice-mode-ideal-answer">
+            {getIdealAnswer(current)}
+          </div>
+          <Button onClick={goNext} disabled={currentIndex >= questions.length - 1}>
+            Move to next question <ArrowRight size={14} />
           </Button>
-        )}
-      </div>
+        </div>
+      ) : (
+        <>
+          <textarea
+            className="practice-mode-answer"
+            placeholder="Type your answer here..."
+            value={answer}
+            onChange={(e) => setAnswer(e.target.value)}
+            rows={6}
+            disabled={loading}
+          />
 
-      {feedback && (
+          <div className="practice-mode-actions">
+            <Button
+              onClick={handleSubmit}
+              disabled={loading}
+              size="sm"
+            >
+              {loading ? 'Evaluating...' : <><Send size={14} /> Submit answer</>}
+            </Button>
+            {feedback && attemptCount < MAX_ATTEMPTS && (
+              <Button variant="outline" size="sm" onClick={() => { setAnswer(''); setFeedback(null) }}>
+                <RotateCcw size={14} /> Try again
+              </Button>
+            )}
+          </div>
+        </>
+      )}
+
+      {feedback && !maxedOut && (
         <div className="practice-mode-feedback">
           <p className="practice-mode-overall">{feedback.overall_feedback}</p>
 

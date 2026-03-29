@@ -106,16 +106,12 @@
     display: none;
   }
 
-  .mobile-nav-pill {
-    display: flex;
-  }
-
-  .app-main {
-    padding-bottom: 6rem;
+  .app-main--mobile {
+    padding-bottom: calc(var(--mobile-tab-height, 56px) + env(safe-area-inset-bottom, 0px));
   }
 
   .tool-sticky-wrap {
-    bottom: 5.5rem;
+    bottom: calc(var(--mobile-tab-height, 56px) + env(safe-area-inset-bottom, 0px) + 0.5rem);
   }
 
   .tool-sticky-bar,

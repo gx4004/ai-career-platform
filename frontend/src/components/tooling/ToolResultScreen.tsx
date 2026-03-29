@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
-import { Copy, Download, FileText, RefreshCw, Star } from 'lucide-react'
+import { Copy, Download, FileText, RefreshCw, Star, Undo2 } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { ScoreTooltip } from '#/components/tooling/ScoreTooltip'
 import { AppStatePanel } from '#/components/app/AppStatePanel'
@@ -50,6 +50,8 @@ export function ToolResultScreen({
   const [regenOpen, setRegenOpen] = useState(false)
   const [regenFeedback, setRegenFeedback] = useState('')
   const [scoreDelta, setScoreDelta] = useState<number | null>(null)
+  const [parentRunId, setParentRunId] = useState<string | null>(null)
+  const [showUndo, setShowUndo] = useState(true)
   const demoItem = useMemo(() => getTransientResult(historyId), [historyId])
   const isDemoResult = Boolean(demoItem)
   const query = useQuery({
@@ -85,6 +87,12 @@ export function ToolResultScreen({
     const parentId = (item.result_payload as Record<string, unknown>)?.parent_run_id
     if (!parentId || typeof parentId !== 'string') return
 
+    setParentRunId(parentId)
+    setShowUndo(true)
+
+    // Hide undo button after 30 seconds
+    const timer = setTimeout(() => setShowUndo(false), 30_000)
+
     getHistoryItem(parentId).then((parent) => {
       if (!parent) return
       const parentPayload = parent.result_payload ?? parent
@@ -96,6 +104,8 @@ export function ToolResultScreen({
         setScoreDelta(currentScore - parentScore)
       }
     })
+
+    return () => clearTimeout(timer)
   }, [item])
 
   if (!item && query.isPending) {
@@ -230,6 +240,15 @@ export function ToolResultScreen({
               <p className="result-hero__sub">
                 {item.label || 'Untitled run'} · {new Date(item.created_at).toLocaleString()}
               </p>
+              {parentRunId && showUndo && (
+                <button
+                  className="result-undo-btn"
+                  onClick={() => navigate({ to: resolvedTool.resultRoute.replace('$historyId', parentRunId) })}
+                >
+                  <Undo2 size={13} />
+                  Undo — restore previous result
+                </button>
+              )}
               <div className="result-hero__actions">
                 <a href={resolvedTool.route} className="result-hero__btn-text">Run again</a>
                 <button
