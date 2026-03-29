@@ -807,11 +807,9 @@
   object-position: center center;
   will-change: transform;
   transition: transform 0.3s ease;
-  filter: brightness(0.88);
 }
 
 .dashboard-tool-card-thumbnail {
-  filter: brightness(0.88);
 }
 
 .dash-showcase-grid > *:first-child .dash-showcase-thumb img,
