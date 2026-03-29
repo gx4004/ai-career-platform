@@ -1,6 +1,5 @@
 import {
   Home,
-  FileText,
   Workflow,
   Wrench,
   HelpCircle,
@@ -74,9 +73,8 @@ export const landingPageSectionOrder: LandingSectionId[] = [
 
 export const landingExperimentSectionOrder: LandingSectionId[] = [
   'hero',
-  'workflow',
   'social-proof',
-  'resume-demo',
+  'workflow',
   'tools',
   'faq',
   'cta',
@@ -95,7 +93,6 @@ export const landingExperimentNavbarItems = [
   { label: 'Overview', href: '#landing-hero', icon: Home },
   { label: 'Workflow', href: '#landing-journey', icon: Workflow },
   { label: 'Tools', href: '#landing-tools', icon: Wrench },
-  { label: 'Resume', href: '#landing-demo', icon: FileText },
   { label: 'FAQ', href: '#landing-faq', icon: HelpCircle },
 ] as const
 
@@ -127,7 +124,7 @@ export const landingResumeDemoCopy = {
 export const landingWorkflowCopy = {
   eyebrow: 'How it works',
   title: 'Review. Aim. Build.',
-  body: 'Start with the resume you have, pick one target role, then move through applications and planning from the same place.',
+  body: '',
 } as const
 
 export const landingToolsCopy = {
@@ -139,7 +136,7 @@ export const landingToolsCopy = {
 export const landingExperimentToolsCopy = {
   eyebrow: 'The toolkit',
   title: 'Six focused tools. Zero context switching.',
-  body: 'Pick the move you need next. Your resume, target role, and edits stay in view.',
+  body: '',
 } as const
 
 export type ExperimentHeroVariant = 'strong' | 'soft'
@@ -154,7 +151,7 @@ export const landingExperimentHeroCopy = {
     body: 'Upload your resume and see exactly what\u2019s working, what\u2019s not, and what to fix first \u2014 in under a minute.',
     ctaLabel: 'Upload your resume \u2014 free',
     secondaryCtaLabel: 'See how it works',
-    trustItems: ['No sign-up required', 'Results in under 60 seconds', 'Your data stays private'],
+    trustItems: ['No sign-up required', 'Results in under 60 seconds'],
   },
   soft: {
     eyebrow: 'Career Workbench',
@@ -165,7 +162,7 @@ export const landingExperimentHeroCopy = {
     body: 'Upload your resume and see exactly what\u2019s working, what\u2019s not, and what to fix first \u2014 in under a minute.',
     ctaLabel: 'Upload your resume \u2014 free',
     secondaryCtaLabel: 'See how it works',
-    trustItems: ['No sign-up required', 'Results in under 60 seconds', 'Your data stays private'],
+    trustItems: ['No sign-up required', 'Results in under 60 seconds'],
   },
 } as const
 

@@ -1,4 +1,5 @@
 import { ArrowRight, Check } from 'lucide-react'
+import { Link } from '@tanstack/react-router'
 import { motion, useReducedMotion } from 'framer-motion'
 import { Button } from '#/components/ui/button'
 import { StaggerChildren, StaggerItem } from '#/components/ui/motion'
@@ -24,9 +25,9 @@ export function LandingExperimentHero({
 
   return (
     <section className="landing-cascade-hero landing-section" id="landing-hero">
-      {/* Background: layered blue gradient (dashboard lamp style) */}
-      <div className="landing-cascade-bg" aria-hidden="true">
-        <div className="landing-cascade-beam" />
+      {/* Background: multi-color gradient (blue + violet + green) */}
+      <div className="landing-cascade-bg landing-cascade-bg--multicolor" aria-hidden="true">
+        <div className="landing-cascade-beam landing-cascade-beam--multicolor" />
         <div className="landing-cascade-beam-wash" />
       </div>
 
@@ -38,15 +39,17 @@ export function LandingExperimentHero({
           startHidden={!prefersReducedMotion}
         >
           <StaggerItem>
-            <span className="landing-cascade-eyebrow">{copy.eyebrow}</span>
+            <span className="landing-cascade-badge">
+              <span className="landing-cascade-badge-dot" />
+              Now in public beta
+            </span>
           </StaggerItem>
           <StaggerItem>
             <h1 className="landing-cascade-headline">
-              {copy.headlinePre}
-              <span className="landing-cascade-accent">{copy.headlineAccent}</span>
-              {copy.headlineMid}
+              Your <span className="landing-cascade-accent landing-cascade-accent--multi">resume</span> has{' '}
+              <span className="landing-cascade-accent landing-cascade-accent--multi">blind spots</span>.
               <br />
-              {copy.headlinePost}
+              We find them before recruiters do.
             </h1>
           </StaggerItem>
           <StaggerItem>
@@ -54,7 +57,7 @@ export function LandingExperimentHero({
           </StaggerItem>
           <StaggerItem>
             <div className="landing-cascade-actions">
-              <Button asChild className="landing-cascade-cta" size="lg">
+              <Button asChild className="landing-cascade-cta landing-cascade-cta--shimmer" size="lg">
                 <a href={landingPrimaryCta.to}>
                   {copy.ctaLabel}
                   <ArrowRight size={16} />
@@ -94,7 +97,7 @@ export function LandingExperimentHero({
           animate={{ opacity: 1, y: 0, scale: 1 }}
           transition={{ duration: prefersReducedMotion ? 0 : 0.6, delay: 0.15, ease: [0.16, 1, 0.3, 1] }}
         >
-          <div className="landing-cascade-mockup-glow" aria-hidden="true" />
+          <div className="landing-cascade-mockup-glow landing-cascade-mockup-glow--multi" aria-hidden="true" />
           <div className="landing-cascade-window">
             <div className="landing-cascade-window-bar">
               <div className="landing-cascade-window-dots" aria-hidden="true">
@@ -104,17 +107,19 @@ export function LandingExperimentHero({
               </div>
               <div className="landing-cascade-window-url">careerworkbench.io</div>
             </div>
-            <img
-              src="/ai-generated/carousel/final-resume.png"
-              alt="Career Workbench resume analyzer preview"
-              className="landing-cascade-window-image"
-              draggable={false}
-            />
+            <Link to="/dashboard" className="block">
+              <img
+                src="/ai-generated/carousel/final-resume.png"
+                alt="Career Workbench resume analyzer preview"
+                className="landing-cascade-window-image cursor-pointer"
+                draggable={false}
+              />
+            </Link>
           </div>
         </motion.div>
       </div>
 
-      {/* Cascade fade: dark gradient → frosted blue page */}
+      {/* Cascade fade: dark gradient → light page */}
       <div className="landing-cascade-fade" aria-hidden="true" />
     </section>
   )

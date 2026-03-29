@@ -17,6 +17,37 @@
   border: 1px solid var(--border-soft);
 }
 
+/* ── Premium image treatment ── */
+
+.img-premium {
+  position: relative;
+  overflow: hidden;
+  border: 1.5px solid color-mix(in srgb, var(--accent) 18%, var(--border-soft));
+  border-radius: calc(var(--radius-xl) + 0.1rem);
+  box-shadow:
+    0 1px 2px rgba(19, 44, 72, 0.04),
+    0 4px 12px rgba(19, 44, 72, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+
+.img-premium > img,
+.img-premium > a > img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: brightness(0.88);
+}
+
+.img-premium::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35);
+}
+
 /* ── Landing page ── */
 
 .landing-page {
@@ -29,6 +60,7 @@
 
 .landing-page-experiment {
   padding-top: 0;
+  padding-bottom: 0;
 }
 
 .landing-page.premium-corner-canvas {
@@ -1093,10 +1125,12 @@
   width: 100%;
   border-radius: 14px;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.6);
+  border: 1.5px solid color-mix(in srgb, var(--accent) 18%, var(--border-soft));
   box-shadow:
     0 18px 44px rgba(19, 44, 72, 0.08),
-    inset 0 1px 0 rgba(255, 255, 255, 0.8);
+    0 4px 12px rgba(19, 44, 72, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.35);
   background: #fff;
 }
 
@@ -1441,7 +1475,7 @@
   min-height: clamp(13.75rem, 18.8vw, 15.75rem);
   display: grid;
   place-items: center;
-  padding: 0.5rem 0.65rem 0.95rem;
+  padding: 0;
   overflow: hidden;
   background:
     radial-gradient(circle at 18% 12%, rgba(31, 111, 235, 0.045), transparent 30%),
@@ -1452,13 +1486,9 @@
   display: block;
   width: 100%;
   height: 100%;
-  object-fit: contain;
+  object-fit: cover;
   object-position: center;
-  transform:
-    translate(var(--preview-offset-x, 0%), var(--preview-offset-y, 0%))
-    scale(var(--preview-scale, 1));
-  transform-origin: center;
-  filter: saturate(0.98) contrast(1.02);
+  filter: brightness(0.88);
 }
 
 .landing-preview-demo-image-tint {
@@ -1757,6 +1787,21 @@
   justify-content: center;
 }
 
+.landing-tool-card-icon--img {
+  width: 42px;
+  height: 42px;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: var(--surface-focus);
+}
+
+.landing-tool-card-icon-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+}
+
 .landing-tool-card-copy {
   display: grid;
   min-width: 0;
@@ -1939,6 +1984,7 @@
   line-height: 1.5;
   letter-spacing: 0.01em;
 }
+
 
 /* ── Section borders ── */
 
@@ -2458,12 +2504,13 @@
   isolation: isolate;
   /* Dark blue shell - Career Workbench premium */
   background: linear-gradient(180deg, #0e1e34 0%, #132840 100%);
-  border: 1px solid rgba(90, 150, 210, 0.12);
+  border: 1.5px solid rgba(90, 150, 210, 0.22);
   box-shadow:
     0 48px 110px rgba(8, 24, 48, 0.28),
     0 18px 44px rgba(8, 24, 48, 0.14),
-    0 0 0 1px rgba(255, 255, 255, 0.04),
-    inset 0 1px 0 rgba(130, 180, 230, 0.08);
+    0 0 0 1px rgba(255, 255, 255, 0.06),
+    inset 0 1px 0 rgba(130, 180, 230, 0.12),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.04);
   transition: transform 0.35s ease, box-shadow 0.35s ease;
 }
 
@@ -2687,7 +2734,7 @@
 
 .landing-cascade-headline {
   margin: 0;
-  font-size: clamp(2.4rem, 4.2vw, 3.4rem);
+  font-size: clamp(2.2rem, 3.6vw, 2.9rem);
   font-weight: 800;
   line-height: 1.05;
   letter-spacing: -0.035em;
@@ -2719,7 +2766,8 @@
   border-color: rgba(74, 158, 237, 0.28) !important;
   color: #fff !important;
   box-shadow:
-    0 0 30px rgba(74, 147, 239, 0.25),
+    0 0 40px rgba(74, 147, 239, 0.35),
+    0 0 80px rgba(74, 147, 239, 0.15),
     inset 0 1px 0 rgba(255, 255, 255, 0.15);
   transition: transform 0.18s ease, box-shadow 0.22s ease;
 }
@@ -2727,7 +2775,8 @@
 .landing-cascade-cta:hover {
   transform: translateY(-1px);
   box-shadow:
-    0 0 40px rgba(74, 147, 239, 0.35),
+    0 0 50px rgba(74, 147, 239, 0.45),
+    0 0 100px rgba(74, 147, 239, 0.2),
     inset 0 1px 0 rgba(255, 255, 255, 0.2);
 }
 
@@ -2773,7 +2822,7 @@ button.landing-cascade-cta--ghost {
   gap: 0.4rem;
   font-size: 0.8rem;
   font-weight: 500;
-  color: rgba(200, 218, 240, 0.72);
+  color: rgba(200, 218, 240, 0.9);
   letter-spacing: 0.01em;
 }
 
@@ -2805,12 +2854,13 @@ button.landing-cascade-cta--ghost {
   transform: rotateY(-4deg) rotateX(2deg);
   transform-style: preserve-3d;
   background: linear-gradient(180deg, #0e1e34 0%, #132840 100%);
-  border: 1px solid rgba(90, 150, 210, 0.12);
+  border: 1.5px solid rgba(90, 150, 210, 0.22);
   box-shadow:
     0 48px 110px rgba(8, 24, 48, 0.28),
     0 18px 44px rgba(8, 24, 48, 0.14),
-    0 0 0 1px rgba(255, 255, 255, 0.04),
-    inset 0 1px 0 rgba(130, 180, 230, 0.08);
+    0 0 0 1px rgba(255, 255, 255, 0.06),
+    inset 0 1px 0 rgba(130, 180, 230, 0.12),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.04);
   transition: transform 0.35s ease, box-shadow 0.35s ease;
 }
 
@@ -2867,6 +2917,7 @@ button.landing-cascade-cta--ghost {
   display: block;
   width: 100%;
   height: auto;
+  filter: brightness(0.88);
 }
 
 /* ── Cascade fade: spacing only, no background ── */
@@ -2916,6 +2967,293 @@ button.landing-cascade-cta--ghost {
 
   .landing-cascade-window:hover {
     transform: translateY(-4px);
+  }
+}
+
+/* ── Multi-color gradient variants ── */
+
+.landing-cascade-bg--multicolor {
+  background:
+    linear-gradient(180deg,
+      #020611 0%,
+      #040b16 8%,
+      #06101e 18%,
+      #081524 30%,
+      rgba(10, 20, 36, 0.92) 45%,
+      rgba(12, 24, 42, 0.72) 58%,
+      rgba(14, 28, 48, 0.45) 70%,
+      rgba(14, 30, 50, 0.22) 82%,
+      rgba(14, 30, 52, 0.08) 92%,
+      transparent 100%);
+}
+
+.landing-cascade-beam--multicolor {
+  background:
+    radial-gradient(ellipse 80% 55% at 50% 18%, rgba(56, 130, 230, 0.30) 0%, rgba(56, 130, 230, 0.08) 35%, transparent 60%),
+    radial-gradient(ellipse 50% 40% at 15% 55%, rgba(124, 58, 237, 0.12) 0%, transparent 45%),
+    radial-gradient(ellipse 50% 40% at 85% 65%, rgba(8, 145, 178, 0.09) 0%, transparent 45%),
+    radial-gradient(ellipse 40% 30% at 50% 30%, rgba(70, 150, 245, 0.18) 0%, transparent 50%),
+    radial-gradient(ellipse 100% 70% at 50% 22%, rgba(40, 100, 190, 0.12) 0%, transparent 50%);
+}
+
+.landing-cascade-accent--multi {
+  background: linear-gradient(
+    135deg,
+    #4a93ef 0%,
+    #818cf8 20%,
+    #c084fc 40%,
+    #34d399 65%,
+    #4a93ef 100%
+  );
+  background-size: 300% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: shimmer-multi 6s ease-in-out infinite;
+}
+
+@keyframes shimmer-multi {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+/* Badge */
+.landing-cascade-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.35rem 0.8rem;
+  border-radius: 999px;
+  border: 1px solid rgba(112, 181, 249, 0.18);
+  background: rgba(112, 181, 249, 0.06);
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #70b5f9;
+}
+
+.landing-cascade-badge-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #34d399;
+  animation: badge-pulse 2s ease infinite;
+}
+
+@keyframes badge-pulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; box-shadow: 0 0 8px #34d399; }
+}
+
+/* Shimmer CTA button */
+.landing-cascade-cta--shimmer {
+  position: relative;
+  overflow: hidden;
+}
+
+.landing-cascade-cta--shimmer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.15) 50%, transparent 100%);
+  background-size: 200% 100%;
+  animation: shimmer 3s ease-in-out infinite;
+  pointer-events: none;
+}
+
+/* Multi-color mockup glow */
+.landing-cascade-mockup-glow--multi {
+  background:
+    radial-gradient(ellipse 50% 40% at 40% 40%, rgba(74, 147, 239, 0.14) 0%, transparent 60%),
+    radial-gradient(ellipse 40% 35% at 70% 60%, rgba(124, 58, 237, 0.08) 0%, transparent 55%),
+    radial-gradient(ellipse 35% 30% at 30% 70%, rgba(52, 211, 153, 0.06) 0%, transparent 50%);
+  filter: blur(45px);
+}
+
+/* ── Reversed Dark CTA (white → dark, mirrors hero) ── */
+
+/* ── CTA Dark Section — exact mirror of hero ── */
+
+.landing-cta-dark {
+  position: relative;
+  isolation: isolate;
+  overflow: visible;
+}
+
+/* Dark background — extends ABOVE section for smooth fade, mirrors hero's .landing-cascade-bg */
+.landing-cta-bg {
+  position: absolute;
+  inset: -8rem 0 0 0;
+  z-index: 0;
+  background:
+    linear-gradient(0deg,
+      #020611 0%,
+      #040b16 5%,
+      #06101e 12%,
+      #081524 22%,
+      rgba(10, 20, 36, 0.94) 32%,
+      rgba(12, 24, 42, 0.78) 42%,
+      rgba(14, 28, 48, 0.50) 55%,
+      rgba(14, 30, 50, 0.25) 68%,
+      rgba(14, 30, 52, 0.10) 80%,
+      rgba(14, 30, 52, 0.03) 90%,
+      transparent 100%);
+}
+
+/* No separate fade div needed — bg extends above */
+.landing-cta-fade {
+  display: none;
+}
+
+/* Beam glow — exact copy of hero's .landing-cascade-beam--multicolor */
+.landing-cta-beam {
+  position: absolute;
+  inset: -8% -24% -40%;
+  background:
+    radial-gradient(ellipse 80% 55% at 50% 65%, rgba(56, 130, 230, 0.30) 0%, rgba(56, 130, 230, 0.08) 35%, transparent 60%),
+    radial-gradient(ellipse 50% 40% at 15% 45%, rgba(124, 58, 237, 0.12) 0%, transparent 45%),
+    radial-gradient(ellipse 50% 40% at 85% 40%, rgba(8, 145, 178, 0.09) 0%, transparent 45%),
+    radial-gradient(ellipse 40% 30% at 50% 55%, rgba(70, 150, 245, 0.18) 0%, transparent 50%),
+    radial-gradient(ellipse 100% 70% at 50% 60%, rgba(40, 100, 190, 0.12) 0%, transparent 50%);
+  filter: blur(32px);
+  pointer-events: none;
+}
+
+.landing-cta-beam-wash {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(0deg, rgba(255, 255, 255, 0.04), transparent 30%),
+    radial-gradient(ellipse 70% 40% at 50% 70%, rgba(140, 200, 255, 0.12) 0%, transparent 40%);
+  pointer-events: none;
+}
+
+.landing-cta-dark-content {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  gap: 1rem;
+  justify-items: center;
+  text-align: center;
+  padding: clamp(4rem, 8vw, 6rem) var(--space-page-x) clamp(2rem, 4vw, 3rem);
+}
+
+.landing-cta-dark-eyebrow {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(112, 181, 249, 0.6);
+}
+
+.landing-cta-dark-title {
+  margin: 0;
+  font-size: clamp(1.8rem, 3.5vw, 2.6rem);
+  font-weight: 800;
+  line-height: 1.08;
+  letter-spacing: -0.03em;
+  color: #fff;
+  max-width: 32rem;
+}
+
+.landing-cta-dark-bullets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.5rem;
+  justify-content: center;
+  list-style: none;
+  padding: 0;
+  margin: 0.25rem 0 0;
+}
+
+.landing-cta-dark-bullet {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.82rem;
+  color: rgba(200, 218, 240, 0.55);
+}
+
+.landing-cta-dark-check {
+  color: #34d399;
+  flex-shrink: 0;
+}
+
+.landing-cta-dark-btn {
+  background: linear-gradient(135deg, #4a93ef 0%, #1266c2 100%) !important;
+  border-color: rgba(74, 158, 237, 0.28) !important;
+  color: #fff !important;
+  box-shadow: 0 0 30px rgba(74, 147, 239, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  border-radius: var(--radius-pill) !important;
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.18s ease, box-shadow 0.22s ease;
+}
+
+.landing-cta-dark-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 0 40px rgba(74, 147, 239, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.landing-cta-dark-btn::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.15), transparent);
+  background-size: 200% 100%;
+  animation: shimmer 3s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.landing-cta-dark-trust {
+  font-size: 0.72rem;
+  color: rgba(200, 218, 240, 0.35);
+  margin: 0;
+}
+
+/* Footer merged inside the dark CTA */
+.landing-cta-footer {
+  position: relative;
+  z-index: 2;
+  margin-top: clamp(1rem, 2vw, 1.5rem);
+  padding: 1.25rem var(--space-page-x) clamp(1.5rem, 2.5vw, 2rem);
+}
+
+.landing-cta-footer .landing-footer-inner {
+  display: grid;
+  justify-items: center;
+  gap: 0.9rem;
+  text-align: center;
+}
+
+.landing-cta-footer-tagline {
+  margin: 0;
+  max-width: 18rem;
+  color: rgba(200, 218, 240, 0.35);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.landing-cta-footer-copyright {
+  color: rgba(200, 218, 240, 0.25);
+  font-size: var(--type-xs);
+  margin: 0;
+}
+
+
+@media (max-width: 768px) {
+  .landing-cascade-badge {
+    font-size: 0.62rem;
+    padding: 0.3rem 0.65rem;
+  }
+
+  .landing-cta-dark-title {
+    font-size: clamp(1.5rem, 6vw, 2rem);
+  }
+
+  .landing-cta-dark-bullets {
+    flex-direction: column;
+    align-items: center;
+    gap: 0.35rem;
   }
 }
 
@@ -3194,7 +3532,8 @@ button.landing-cascade-cta--ghost {
 }
 
 .landing-page-experiment .landing-section-heading--tools .display-lg {
-  max-width: 32rem;
+  max-width: none;
+  white-space: nowrap;
 }
 
 /* Dark navy shell for tools preview panel - matches hero mockup chrome */
@@ -3759,14 +4098,14 @@ button.landing-cascade-cta--ghost {
 .landing-page-experiment .landing-section-heading--feature-steps,
 .landing-page-experiment .landing-section-heading--faq {
   width: min(100%, 66rem);
-  margin-inline: 0;
-  justify-items: start;
-  text-align: left;
+  margin-inline: auto;
+  justify-items: center;
+  text-align: center;
 }
 
 /* Toolkit intro - centered but compact */
 .landing-page-experiment .landing-section-heading--tools {
-  width: min(100%, 36rem);
+  width: min(100%, 56rem);
   margin-inline: auto;
   justify-items: center;
   text-align: center;
@@ -3774,8 +4113,10 @@ button.landing-cascade-cta--ghost {
 }
 
 .landing-page-experiment .landing-section-heading--tools .display-lg {
-  font-size: clamp(1.65rem, 2.4vw, 2.1rem);
+  font-size: clamp(1.65rem, 2.8vw, 2.3rem);
   line-height: 1.12;
+  max-width: none;
+  white-space: nowrap;
 }
 
 .landing-page-experiment .landing-section-heading--tools .landing-tool-intro {
@@ -3785,8 +4126,9 @@ button.landing-cascade-cta--ghost {
 }
 
 .landing-page-experiment .landing-feature-intro {
-  grid-template-columns: minmax(0, 1.1fr) minmax(18rem, 0.72fr);
-  align-items: end;
+  grid-template-columns: 1fr;
+  justify-items: center;
+  text-align: center;
   gap: clamp(1rem, 2vw, 2rem);
 }
 
@@ -3865,13 +4207,15 @@ button.landing-cascade-cta--ghost {
 }
 
 .landing-page-experiment .landing-preview-demo-window {
-  border-color: rgba(149, 181, 211, 0.34);
+  border: 1.5px solid color-mix(in srgb, var(--accent) 18%, var(--border-soft));
   background:
     linear-gradient(180deg, rgba(250, 252, 255, 0.995), rgba(241, 247, 252, 0.995)),
     var(--surface-0);
   box-shadow:
     0 12px 24px rgba(41, 83, 124, 0.06),
-    inset 0 1px 0 rgba(255, 255, 255, 0.92);
+    0 4px 12px rgba(19, 44, 72, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.92),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.35);
 }
 
 .landing-page-experiment .landing-preview-demo-bar {
@@ -4031,8 +4375,9 @@ button.landing-cascade-cta--ghost {
 }
 
 .landing-page-experiment .landing-preview-demo-frame {
-  height: clamp(14rem, 18vw, 16.5rem);
-  padding: 0.4rem 0.55rem 0.7rem;
+  height: clamp(15rem, 20vw, 18rem);
+  padding: 0;
+  overflow: hidden;
 }
 
 /* Simplify tool card hover - remove heavy transforms */
@@ -4416,3 +4761,7 @@ button.landing-cascade-cta--ghost {
 .landing-page-experiment .landing-footer {
   border-top: none !important;
 }
+
+/* ── Dark CTA + Footer final overrides ── */
+/* Must be last to win specificity over all experiment overrides above */
+

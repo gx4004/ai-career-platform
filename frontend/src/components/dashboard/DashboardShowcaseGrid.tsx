@@ -2,12 +2,12 @@ import { StaggerChildren, StaggerItem } from '#/components/ui/motion'
 import { tools, type ToolId } from '#/lib/tools/registry'
 import { DashboardShowcaseCard } from './DashboardShowcaseCard'
 
-import thumbResume from '#/assets/carousel/thumb-resume.png'
-import thumbJobMatch from '#/assets/carousel/thumb-job-match.png'
-import thumbCoverLetter from '#/assets/carousel/thumb-cover-letter.png'
-import thumbInterview from '#/assets/carousel/thumb-interview.png'
-import thumbCareer from '#/assets/carousel/thumb-career.png'
-import thumbPortfolio from '#/assets/carousel/thumb-portfolio.png'
+import thumbResume from '#/assets/carousel/resume.png'
+import thumbJobMatch from '#/assets/carousel/jobmatch.png'
+import thumbCoverLetter from '#/assets/carousel/coverletter.png'
+import thumbInterview from '#/assets/carousel/interview.png'
+import thumbCareer from '#/assets/carousel/career.png'
+import thumbPortfolio from '#/assets/carousel/portfolio.png'
 
 const showcaseTools: Array<{ id: ToolId; thumb: string }> = [
   { id: 'resume', thumb: thumbResume },

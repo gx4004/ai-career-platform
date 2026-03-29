@@ -1,7 +1,6 @@
 import { useMemo, type CSSProperties } from 'react'
 import { Link } from '@tanstack/react-router'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
-import { Button } from '#/components/ui/button'
 import { ScrollReveal } from '#/components/ui/motion'
 import { useCarousel } from '#/hooks/useCarousel'
 import { toolList, type ToolId } from '#/lib/tools/registry'
@@ -114,7 +113,7 @@ export function LandingToolGridBase({
           <div className="landing-section-heading landing-section-heading--tools">
             <p className="eyebrow">{copy.eyebrow}</p>
             <h2 className="display-lg">{copy.title}</h2>
-            <p className="muted-copy landing-tool-intro">{copy.body}</p>
+            {copy.body ? <p className="muted-copy landing-tool-intro">{copy.body}</p> : null}
           </div>
         </ScrollReveal>
         <div className="landing-tool-showcase" {...hoverHandlers}>
@@ -133,13 +132,9 @@ export function LandingToolGridBase({
               >
                 <div className="landing-preview-header">
                   <div className="landing-preview-header-top">
-                    <p className="eyebrow">{groupLabels[activeTool.group] || 'Toolkit'}</p>
-                    <span className="landing-preview-pill">0{activeIndex} / 06</span>
+                    <h3 className="display-lg" style={{ margin: 0 }}>{activeTool.label}</h3>
+                    <span className="landing-preview-pill">{activeIndex} of 6</span>
                   </div>
-                  <h3 className="display-lg">{activeTool.label}</h3>
-                  <p className="muted-copy landing-preview-summary">
-                    {baseToolCopy[activeTool.id].summary}
-                  </p>
                 </div>
 
                 <div className="landing-preview-demo-window glass">
@@ -154,28 +149,16 @@ export function LandingToolGridBase({
                     </span>
                   </div>
 
-                  <div className="landing-preview-demo-frame">
+                  <Link to="/dashboard" className="landing-preview-demo-frame block cursor-pointer">
                     <img
                       src={previewImage}
                       alt={`${activeTool.label} workspace preview`}
                       className="landing-preview-demo-image"
                       draggable={false}
-                      style={
-                        {
-                          '--preview-scale': previewImageStyle.scale ?? 1,
-                          '--preview-offset-x': previewImageStyle.x ?? '0%',
-                          '--preview-offset-y': previewImageStyle.y ?? '0%',
-                        } as CSSProperties
-                      }
                     />
-                  </div>
+                  </Link>
                 </div>
 
-                <div className="landing-preview-footer">
-                  <Button asChild className="button-hero-primary landing-preview-cta" size="lg">
-                    <Link to={activeTool.route}>Open {activeTool.shortLabel}</Link>
-                  </Button>
-                </div>
               </motion.div>
             </AnimatePresence>
           </div>
