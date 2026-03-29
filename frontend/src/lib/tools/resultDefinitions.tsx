@@ -266,9 +266,9 @@ function toObjectArray(value: unknown): AnyObject[] {
 }
 
 function scoreColor(score: number) {
-  if (score >= 80) return 'var(--success)'
-  if (score >= 60) return 'var(--warning)'
-  return 'var(--destructive)'
+  if (score >= 70) return '#22c55e'
+  if (score >= 41) return '#f59e0b'
+  return '#ef4444'
 }
 
 function priorityTone(priority: 'high' | 'medium' | 'low') {
@@ -541,11 +541,12 @@ function ScoreCircleSvg({ score, size = 88 }: { score: number; size?: number }) 
   const r = (size / 2) - 6
   const circumference = 2 * Math.PI * r
   const offset = circumference - (score / 100) * circumference
+  const color = scoreColor(score)
   return (
     <div className="result-hero__score" style={{ width: size, height: size }}>
       <svg viewBox={`0 0 ${size} ${size}`} style={{ transform: 'rotate(-90deg)', position: 'absolute', inset: 0 }}>
         <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth="5.5" />
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="white" strokeWidth="5.5"
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth="5.5"
           strokeDasharray={circumference} strokeDashoffset={offset} strokeLinecap="round"
           style={{ transition: 'stroke-dashoffset 0.8s cubic-bezier(0.16, 1, 0.3, 1)' }}
         />

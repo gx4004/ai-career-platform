@@ -1,6 +1,7 @@
 {
   "short_name": "Career WB",
   "name": "Career Workbench",
+  "description": "AI-powered job search workspace — resume analysis, job matching, cover letters, interview prep, and career planning.",
   "icons": [
     {
       "src": "favicon.ico",
@@ -10,16 +11,20 @@
     {
       "src": "logo192.png",
       "type": "image/png",
-      "sizes": "192x192"
+      "sizes": "192x192",
+      "purpose": "any maskable"
     },
     {
       "src": "logo512.png",
       "type": "image/png",
-      "sizes": "512x512"
+      "sizes": "512x512",
+      "purpose": "any maskable"
     }
   ],
-  "start_url": ".",
+  "start_url": "/dashboard",
+  "scope": "/",
   "display": "standalone",
-  "theme_color": "#1D6CB5",
-  "background_color": "#ffffff"
+  "theme_color": "#0f1a2e",
+  "background_color": "#edf3fa",
+  "orientation": "portrait-primary"
 }

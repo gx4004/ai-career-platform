@@ -2,23 +2,35 @@
   <defs>
     <linearGradient id="g" x1="0" y1="0" x2="0" y2="1" gradientUnits="objectBoundingBox">
       <stop offset="0%"   stop-color="#060d1a"/>
-      <stop offset="8%"   stop-color="#081019"/>
-      <stop offset="16%"  stop-color="#0a1322"/>
-      <stop offset="24%"  stop-color="#0c1628"/>
-      <stop offset="30%"  stop-color="#0e1a2e"/>
-      <stop offset="35%"  stop-color="#101e34"/>
-      <stop offset="40%"  stop-color="#152a47"/>
-      <stop offset="45%"  stop-color="#1a3356"/>
-      <stop offset="50%"  stop-color="#213f6b"/>
-      <stop offset="55%"  stop-color="#2d5488"/>
-      <stop offset="60%"  stop-color="#3e689d"/>
-      <stop offset="65%"  stop-color="#5580b0"/>
-      <stop offset="70%"  stop-color="#6d97bf"/>
-      <stop offset="75%"  stop-color="#82abcb"/>
-      <stop offset="80%"  stop-color="#96bdd6"/>
-      <stop offset="85%"  stop-color="#a8cee2"/>
-      <stop offset="90%"  stop-color="#b8d8ea"/>
-      <stop offset="95%"  stop-color="#c5e0ef"/>
+      <stop offset="5%"   stop-color="#060e19"/>
+      <stop offset="10%"  stop-color="#070f18"/>
+      <stop offset="15%"  stop-color="#071018"/>
+      <stop offset="20%"  stop-color="#08111c"/>
+      <stop offset="25%"  stop-color="#09121e"/>
+      <stop offset="30%"  stop-color="#091220"/>
+      <stop offset="35%"  stop-color="#0a1323"/>
+      <stop offset="40%"  stop-color="#0a1425"/>
+      <stop offset="45%"  stop-color="#0b1526"/>
+      <stop offset="48%"  stop-color="#0c1629"/>
+      <stop offset="52%"  stop-color="#0c172b"/>
+      <stop offset="55%"  stop-color="#0d182c"/>
+      <stop offset="58%"  stop-color="#0e192e"/>
+      <stop offset="61%"  stop-color="#0e1a30"/>
+      <stop offset="65%"  stop-color="#0f1c32"/>
+      <stop offset="68%"  stop-color="#112039"/>
+      <stop offset="72%"  stop-color="#142640"/>
+      <stop offset="75%"  stop-color="#182d4c"/>
+      <stop offset="78%"  stop-color="#1d3658"/>
+      <stop offset="80%"  stop-color="#234064"/>
+      <stop offset="82%"  stop-color="#294a6e"/>
+      <stop offset="84%"  stop-color="#2e5078"/>
+      <stop offset="86%"  stop-color="#3c6188"/>
+      <stop offset="88%"  stop-color="#4a7298"/>
+      <stop offset="90%"  stop-color="#5b83a8"/>
+      <stop offset="92%"  stop-color="#6d94b5"/>
+      <stop offset="94%"  stop-color="#85a9c4"/>
+      <stop offset="96%"  stop-color="#9dbdd2"/>
+      <stop offset="98%"  stop-color="#b7d2e2"/>
       <stop offset="100%" stop-color="#d0e6f2"/>
     </linearGradient>
   </defs>

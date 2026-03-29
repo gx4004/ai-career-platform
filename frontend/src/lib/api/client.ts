@@ -82,6 +82,8 @@ async function request<T>(
   if (!response.ok) {
     if (response.status === 401) {
       clearAuthToken()
+      // Dispatch custom event so SessionProvider can open auth dialog in-place
+      window.dispatchEvent(new CustomEvent('cw:session-expired'))
     }
 
     const detail =

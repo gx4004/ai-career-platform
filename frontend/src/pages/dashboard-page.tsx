@@ -8,11 +8,14 @@ import { PageFrame } from '#/components/app/PageFrame'
 import { OnboardingTour } from '#/components/onboarding/OnboardingTour'
 import { useOnboarding } from '#/hooks/useOnboarding'
 import { useSession } from '#/hooks/useSession'
+import { useBreakpoint } from '#/hooks/use-breakpoint'
 
 export function DashboardPage() {
   const onboarding = useOnboarding()
   const { status } = useSession()
   const isAuthenticated = status === 'authenticated'
+  const bp = useBreakpoint()
+  const isMobile = bp === 'mobile'
 
   useEffect(() => {
     document.body.classList.add('page-tone-dashboard')
@@ -22,19 +25,17 @@ export function DashboardPage() {
     }
   }, [])
 
+  // No onboarding tour on mobile — UI should be self-explanatory
   useEffect(() => {
-    if (onboarding.shouldShow) {
+    if (!isMobile && onboarding.shouldShow) {
       onboarding.startTour()
     }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isMobile]) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <PageFrame className="dashboard-page-frame premium-corner-canvas">
       <div className="content-max dashboard-layout dashboard-stack">
         <DashboardHero />
-        <div className="dash-showcase-floating">
-          <DashboardShowcaseGrid />
-        </div>
         <div className="dashboard-light-surface">
           {isAuthenticated ? (
             <div className="dashboard-runs-grid" data-tour="activity">
@@ -47,11 +48,13 @@ export function DashboardPage() {
           <div className="dashboard-footer-strip" />
         </div>
       </div>
-      <OnboardingTour
-        open={onboarding.open}
-        onComplete={onboarding.complete}
-        onSkip={onboarding.skip}
-      />
+      {!isMobile && (
+        <OnboardingTour
+          open={onboarding.open}
+          onComplete={onboarding.complete}
+          onSkip={onboarding.skip}
+        />
+      )}
     </PageFrame>
   )
 }

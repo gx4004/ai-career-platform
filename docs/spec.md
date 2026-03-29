@@ -327,16 +327,17 @@ This creates an active learning loop rather than passive reading. Each practice 
 
 ### Design System
 
-Dark mode only — no light/dark toggle. Single cohesive dark theme.
+**Hybrid theme** — dark sidebar/topbar with light content area. No light/dark toggle. Single cohesive hybrid theme. See §18.1 for corrected details.
 
-| Token | Value |
-|-------|-------|
-| Nav background | `#0f1a2e` |
-| Hero gradient | `#152a47` |
-| Primary interactive | `#70b5f9` |
-| Hover | `#4a93ef` |
+| Token | Value | Scope |
+|-------|-------|-------|
+| Nav/sidebar background | `#0f1a2e` | Sidebar, topbar |
+| Content background | `#edf3fa` | Main content area |
+| Surface raised | `#ffffff` | Cards, panels |
+| Primary interactive | `#0a66c2` | Buttons, links, accents |
+| Primary hover | `#0a4f98` | Hover states |
 
-Each tool has its own accent color via CSS custom properties: `--resume-accent`, `--match-accent`, `--letter-accent`, `--interview-accent`, `--career-accent`, `--portfolio-accent`.
+All tool accent CSS variables (`--resume-accent`, `--match-accent`, etc.) resolve to `var(--accent)` — no per-tool color differentiation.
 
 ### Internationalization (i18n)
 
@@ -947,7 +948,7 @@ Admin users are identified by `is_admin` boolean on the User model. Initially se
 | **Ad-gated partial lock (all users)** | Covers LLM costs without subscription friction, maximizes ad revenue | UX friction at the critical value-reveal moment; ad-blocker risk |
 | **No guest run persistence** | Drives signup conversion | Users who don't sign up lose their results entirely |
 | **Silent heuristic fallback** | No degraded-mode UI, seamless experience | User may receive lower quality results without knowing |
-| **Dark mode only** | Consistent branding, simpler CSS, premium feel | Users who prefer light mode have no option |
+| **Hybrid theme (dark nav + light content)** | Consistent branding, premium sidebar, readable content area | No dark mode for content area, no theme toggle |
 | **Separate admin panel** | Security isolation, independent deployment | Extra codebase to maintain |
 | **In-memory cache** | Simple, no external dependencies | Lost on restart, doesn't scale horizontally |
 
@@ -987,7 +988,7 @@ Admin users are identified by `is_admin` boolean on the User model. Initially se
 | No A/B testing framework | Not planned |
 | Portfolio project tracking | Out of scope (users use external tools) |
 | 7th tool | Not planned currently |
-| Light mode | Not planned |
+| Full dark mode | Not planned — hybrid theme is the design |
 | CV library / version management | Not planned — each run is independent |
 | Cross-workspace data sharing | Not planned — workspaces are isolated |
 
@@ -1168,3 +1169,760 @@ Result payloads include version tags to support backward-compatible evolution:
 | Planning output | `planning_v1` | Portfolio Planner, Career Path |
 
 New schema versions are handled via **read-time transform** — old data is never migrated. Frontend checks the version tag and transforms to current format on read. Missing fields use sensible defaults.
+
+---
+
+## 17. Mobile Frontend Specification
+
+> Design philosophy: Apple/Stripe-inspired simplicity. Premium feel, zero clutter. Every screen should feel intentional — if an element doesn't earn its place on a small screen, it doesn't belong.
+
+### 17.1 Breakpoints
+
+Three-tier responsive system:
+
+| Tier | Range | Layout Behavior |
+|------|-------|----------------|
+| **Mobile** | `<640px` | Bottom tab bar, single-column, full-screen sheets, swipe gestures |
+| **Tablet** | `640–1024px` | Sidebar visible but compact, 2-column tool grid, result sections side-by-side where possible |
+| **Desktop** | `>1024px` | Full sidebar, multi-column layouts, hover interactions |
+
+Tablet is treated as its own tier — not pure mobile, not pure desktop. Sidebar appears but in a condensed form.
+
+### 17.2 Navigation
+
+**Bottom Tab Bar** (mobile only, replaces sidebar):
+
+```
+┌──────────────────────────────────┐
+│                                  │
+│         Page Content             │
+│                                  │
+├──────┬───────┬────────┬──────────┤
+│ Home │ Tools │ History│ Profile  │
+│  🏠  │  🔧   │  📋   │   👤    │
+└──────┴───────┴────────┴──────────┘
+```
+
+- **Home**: Dashboard (upload + tool grid + recent runs)
+- **Tools**: Tap opens a bottom sheet with 6 tool cards in a 2×3 grid. Each card: icon + tool name. Tap a card → navigates to that tool's input page
+- **History**: Run history with search + filters
+- **Profile**: User info + settings (language, onboarding replay, delete account, logout)
+
+The tab bar hides during full-screen experiences (CinematicLoader, edit sheets, auth pages).
+
+### 17.3 Dashboard (Mobile)
+
+```
+┌──────────────────────────────────┐
+│                                  │
+│   ┌──────────────────────────┐   │
+│   │                          │   │
+│   │    Upload Your Resume    │   │
+│   │        [Upload]          │   │
+│   │                          │   │
+│   └──────────────────────────┘   │
+│                                  │
+│   ↓ scroll ↓                     │
+│                                  │
+│   ┌────────┐  ┌────────┐        │
+│   │Resume  │  │Job     │  ← pop │
+│   │Analyzer│  │Match   │    in  │
+│   └────────┘  └────────┘        │
+│   ┌────────┐  ┌────────┐        │
+│   │Cover   │  │Inter-  │  ← pop │
+│   │Letter  │  │view    │    in  │
+│   └────────┘  └────────┘        │
+│   ┌────────┐  ┌────────┐        │
+│   │Career  │  │Port-   │  ← pop │
+│   │Path    │  │folio   │    in  │
+│   └────────┘  └────────┘        │
+│                                  │
+│   Recent Runs ──────────► scroll │
+│   [card] [card] [card]           │
+│                                  │
+│   Favorites  ───────────► scroll │
+│   [card] [card]                  │
+│                                  │
+└──────────────────────────────────┘
+```
+
+- **Upload Resume box**: Large, prominent, open by default — primary CTA on the page
+- **Tool grid**: 2 columns × 3 rows. Cards appear with **scroll-triggered entrance animation** (fade-up / pop-in via Framer Motion `whileInView`). Each card: icon + tool name, compact
+- **Recent runs**: Horizontal scroll carousel (authenticated only)
+- **Favorites**: Horizontal scroll carousel below recent runs (authenticated only)
+
+### 17.4 Tool Input Pages
+
+#### Resume Auto-Carry
+
+Once a resume is uploaded in any tool, it **persists in `sessionStorage`** and auto-fills on subsequent tool pages. The resume upload area on subsequent tools shows a collapsed state:
+
+```
+┌──────────────────────────────────┐
+│  ✓ resume.pdf              [✕]  │
+└──────────────────────────────────┘
+```
+
+- Green checkmark + filename chip
+- Tap chip → bottom sheet with extracted text (review + edit)
+- Tap ✕ → clears resume, upload area re-expands
+- If no resume in session → full upload area shown
+
+This significantly shortens tool input forms on mobile.
+
+#### Resume Upload (Mobile)
+
+- **Tap-to-upload only** — large "Upload Resume" button opens the native file picker (PDF/DOCX)
+- **No drag-and-drop** on mobile (impractical on touch)
+- **No paste textarea** on mobile (creates confusion, clutters the form)
+- On success: upload area collapses to `✓ filename.pdf` chip (see above)
+- On parse failure: show message "Could not read this file. Please try a different format." with a retry button
+
+#### Job Description Input (Mobile)
+
+URL import is prioritized over manual text entry on mobile — users typically copy job URLs from LinkedIn/Indeed mobile apps:
+
+```
+┌──────────────────────────────────┐
+│  Paste job URL                   │
+│  ┌──────────────────────────┐   │
+│  │ https://...              │   │
+│  └──────────────────────────┘   │
+│                                  │
+│  or type the description ▼       │
+│  ┌──────────────────────────┐   │
+│  │                          │   │
+│  │   (textarea, collapsed)  │   │
+│  │                          │   │
+│  └──────────────────────────┘   │
+└──────────────────────────────────┘
+```
+
+- URL input field shown first
+- "or type the description" expands a textarea below
+- Scrape failure → textarea auto-expands with whatever was scraped pre-filled
+
+#### Sticky Bottom Run Bar
+
+```
+┌──────────────────────────────────┐
+│         Form Content             │
+│         (scrollable)             │
+│                                  │
+├──────────────────────────────────┤
+│          [ Run Analysis ]        │  ← sticky, always visible
+└──────────────────────────────────┘
+```
+
+- Full-width CTA button fixed to bottom of viewport
+- **Smart keyboard behavior**: When keyboard is open, the Run bar **hides** (keyboard provides its own "Done" button). Textarea auto-scrolls to stay visible above keyboard. Run bar reappears when keyboard closes
+- Disabled state with subtle opacity when required fields are empty
+
+#### Workspace Selector
+
+Hidden by default on mobile. A small "Add to application" chip appears below the form fields:
+
+```
+  + Add to application
+```
+
+Tapping opens a bottom sheet with workspace list + "Create new" option. Most mobile users won't use workspaces — this keeps the form clean.
+
+### 17.5 CinematicLoader (Mobile)
+
+**Full-screen immersive, dismissable**:
+
+```
+┌──────────────────────────────────┐
+│                                  │
+│                                  │
+│         [Animation]              │
+│                                  │
+│    "Scanning the resume..."      │
+│                                  │
+│         ● ● ○ ○                  │
+│                                  │
+│      ↓ swipe down to minimize    │
+│                                  │
+└──────────────────────────────────┘
+```
+
+- Full-screen premium animation with phase-based status messages (same phases as desktop)
+- **Swipe down to minimize**: Loader shrinks to a small floating indicator at the top. User can navigate freely (dashboard, other tabs). When result is ready, the indicator pulses/expands with a subtle notification
+- Tap the minimized indicator → returns to full-screen loader or directly to result if ready
+- Minimum display time: 3 seconds with at least 2 phase transitions (same as desktop)
+- `beforeunload` protection remains active
+
+### 17.6 Result Pages (Mobile)
+
+**Hybrid layout** — most important information immediately visible, details on demand:
+
+```
+┌──────────────────────────────────┐
+│  Score: 78/100        (i)        │  ← always visible
+│  ████████████░░░░                │
+│  "Strong match with minor gaps"  │
+│                                  │
+│  ── Top Actions ──               │  ← always visible
+│  • Quantify your achievements    │
+│  • Add Docker experience         │
+│                                  │
+│  ▸ Issues (5)                    │  ← accordion, collapsed
+│  ▸ Evidence & Keywords           │  ← accordion, collapsed
+│  ▸ Editable Sections             │  ← accordion, collapsed
+│                                  │
+│  [Share]  [Re-generate]          │
+│                                  │
+│  Try Next ──────────────► scroll │
+│  [Job Match] [Cover Letter]      │
+│                                  │
+└──────────────────────────────────┘
+```
+
+- **Score + verdict + top actions**: Always expanded, above the fold
+- **Remaining sections** (issues, evidence, editable blocks): Accordion, collapsed by default. Tap header to expand
+- **Score tooltip**: Small `(i)` icon next to score. Tap → inline expansion below the score explaining the scale. Tap again to collapse
+- **Export**: Single "Share" button → native OS share sheet. PDF generated as default format. No separate TXT/Markdown buttons on mobile
+- **Re-generate**: Button opens a bottom sheet with optional feedback textarea + "Re-generate" CTA
+- **Next-action cards**: Horizontal scroll carousel at the bottom
+
+### 17.7 Ad Gate (Mobile)
+
+Clean, simple, no visual clutter:
+
+```
+┌──────────────────────────────────┐
+│  Score: 78/100                   │
+│  "Strong match"                  │
+│                                  │  ← only this is free
+│──────────────────────────────────│
+│                                  │
+│     🔒 Full results locked       │
+│                                  │
+│     [ Unlock Full Results ]      │  ← clean CTA
+│                                  │
+└──────────────────────────────────┘
+```
+
+- Only the score + brief summary (1-2 lines) is shown free
+- Below: a clean locked state with a single "Unlock Full Results" button
+- Tap → **full-screen interstitial ad** (highest mobile CPM: $5-15)
+- After ad completion → full result page revealed
+- No blur overlay, no stacked elements, no visual noise — just a clean separation between free and locked content
+
+### 17.8 Interview Q&A — Swipe Deck (Mobile)
+
+**Tinder-style card deck**:
+
+```
+┌──────────────────────────────────┐
+│                                  │
+│   ┌──────────────────────────┐   │
+│   │                          │   │
+│   │   Q: Tell me about a     │   │
+│   │   time you optimized     │   │
+│   │   a database query...    │   │
+│   │                          │   │
+│   │   Difficulty: Medium     │   │
+│   │                          │   │
+│   │   ← swipe    swipe →    │   │
+│   └──────────────────────────┘   │
+│                                  │
+│    ◀ 3/8 ▶                       │
+│                                  │
+│   [Flip Answer]  [Practice]      │
+│                                  │
+└──────────────────────────────────┘
+```
+
+- Cards stacked, one visible at a time
+- **Tap card** → flip animation, shows answer framework (key points, evidence, talking points)
+- **Swipe right** → next question, **swipe left** → previous question
+- Progress indicator: `3/8` with prev/next arrows as fallback for non-swipers
+- **Two-mode buttons** below the card:
+  - **Flip Answer**: Passive — flips card to show the ideal answer (same as tap)
+  - **Practice**: Opens full-screen edit sheet → user types their answer → submit → AI evaluation feedback (strengths, weaknesses, suggestions) → "Done" returns to card deck
+- Swipe gestures are **disabled** while in practice mode (full-screen sheet) — no gesture conflict
+
+### 17.9 Editable Blocks (Mobile)
+
+**Full-screen edit sheet** (iOS Notes / Mail compose style):
+
+```
+┌──────────────────────────────────┐
+│  [Cancel]    Edit Opening   [Done]│
+│──────────────────────────────────│
+│                                  │
+│  ┌──────────────────────────┐   │
+│  │                          │   │
+│  │  Dear Hiring Manager,   │   │
+│  │                          │   │
+│  │  I am writing to express │   │
+│  │  my interest in the...  │   │
+│  │                          │   │
+│  └──────────────────────────┘   │
+│                                  │
+│         [keyboard]               │
+└──────────────────────────────────┘
+```
+
+- Tap edit icon on any section → that section opens as a full-screen sheet
+- Large textarea with comfortable writing area
+- "Done" saves and returns to result page, "Cancel" discards changes
+- **Cover letter**: Per-section edit — each paragraph (opening, body, closing) has its own edit icon. User edits only the part they want to change
+- Keyboard gets full viewport space — no competing UI elements
+
+### 17.10 Auth Flow (Mobile)
+
+**Full-screen pages** (not dialogs or bottom sheets):
+
+```
+┌──────────────────────────────────┐
+│  ← Back                         │
+│                                  │
+│         [Logo]                   │
+│                                  │
+│   ┌──────────────────────────┐  │
+│   │  Email                   │  │
+│   └──────────────────────────┘  │
+│   ┌──────────────────────────┐  │
+│   │  Password                │  │
+│   └──────────────────────────┘  │
+│                                  │
+│   [ Sign In ]                    │
+│                                  │
+│   Don't have an account?         │
+│   Sign Up →                      │
+│                                  │
+└──────────────────────────────────┘
+```
+
+- Minimal, Apple Sign In inspired — logo, inputs, CTA, secondary link
+- Large input fields, keyboard-friendly spacing
+- Back button returns to previous page
+- Bottom tab bar hidden on auth pages
+
+### 17.11 History Page (Mobile)
+
+```
+┌──────────────────────────────────┐
+│  🔍 Search runs...               │
+│                                  │
+│  [All] [Resume] [Job Match]      │
+│  [Cover Letter] [Interview] →    │  ← horizontal scroll chips
+│                                  │
+│  ┌──────────────────────────┐   │
+│  │ Resume Analysis    ★  🗑  │   │
+│  │ "Score: 82 — Strong"     │   │
+│  │ Google - Backend Dev      │   │
+│  │ 2h ago                    │   │
+│  └──────────────────────────┘   │
+│  ┌──────────────────────────┐   │
+│  │ Job Match              ★  │   │
+│  │ "Fit: 71 — Moderate"     │   │
+│  │ Stripe - SRE              │   │
+│  │ Yesterday                 │   │
+│  └──────────────────────────┘   │
+│                                  │
+└──────────────────────────────────┘
+```
+
+- **Search bar** at top (searches workspace label + tool name + result summary)
+- **Filter chips**: Horizontal scroll — All, Resume, Job Match, Cover Letter, Interview, Career, Portfolio, Favorites. Active chip is highlighted
+- **Run cards**: Full-width, showing tool name, score/verdict summary, workspace label, timestamp
+- **Favorite toggle**: Star icon on each card
+- **Swipe-to-delete**: Swipe left on a card reveals delete action (the only swipe-to-action gesture in the app)
+- **Pull-to-refresh**: Standard pull gesture to refresh the list
+- **Pagination**: Infinite scroll (load more on reaching bottom) — no page numbers on mobile
+
+### 17.12 Settings (Inside Profile Tab)
+
+```
+┌──────────────────────────────────┐
+│  Profile                         │
+│                                  │
+│  user@email.com                  │
+│  John Doe                        │
+│                                  │
+│  ── Settings ──                  │
+│                                  │
+│  Language              English ▸ │
+│  Replay Onboarding           ▸  │
+│  Delete Account              ▸  │
+│                                  │
+│  [Log Out]                       │
+│                                  │
+└──────────────────────────────────┘
+```
+
+- iOS Settings app style: grouped list sections
+- Language: Tap opens bottom sheet with language options
+- Delete Account: Tap shows confirmation dialog (destructive action)
+- No separate settings page — everything lives in Profile tab
+
+### 17.13 Onboarding (Mobile)
+
+**No automatic onboarding tour on mobile.** The UI should be self-explanatory:
+- Dashboard has a prominent Upload Resume box — obvious entry point
+- Bottom tab bar labels are clear
+- Tool cards have descriptive names and icons
+
+**Replay**: Available from Profile tab → "Replay Onboarding" — if triggered, shows desktop-style walkthrough adapted for mobile (but this is a low-priority edge case).
+
+### 17.14 Connectivity & Error Handling
+
+**Connection loss during tool run**:
+1. Loader pauses, subtle toast appears at top: "Connection lost — retrying..."
+2. Auto-retry once when connection returns (via `navigator.onLine` + `online` event)
+3. If still failing → toast updates to: "Connection failed" with a "Try Again" button
+4. Input form state is preserved in `sessionStorage` — user never loses their input
+
+**General errors**: Same React Error Boundary as desktop, but with mobile-friendly layout (full-width buttons, larger touch targets).
+
+### 17.15 Performance Budget
+
+| Metric | Target |
+|--------|--------|
+| Initial JS bundle (gzip) | <150KB |
+| Lighthouse Performance (mobile) | >90 |
+| First Contentful Paint | <1.5s (4G) |
+| Time to Interactive | <3.0s (4G) |
+| Largest Contentful Paint | <2.5s (4G) |
+
+**Implementation**:
+- **Route-based code splitting**: Each tool page is a separate chunk, lazy-loaded on navigation
+- **Framer Motion tree-shaking**: Import only used components per page (not the full library)
+- **Critical CSS inlined**: Above-the-fold styles embedded in HTML
+- **Image optimization**: Tool icons as SVG, no raster images for UI elements
+- **Font subsetting**: Load only used character ranges
+
+### 17.16 PWA Support
+
+**Basic PWA** — app-like experience without full offline capability:
+
+```json
+{
+  "name": "Career Workbench",
+  "short_name": "CareerWB",
+  "display": "standalone",
+  "theme_color": "#0f1a2e",
+  "background_color": "#0f1a2e",
+  "start_url": "/",
+  "icons": [...]
+}
+```
+
+- **manifest.json**: Enables "Add to Home Screen" on iOS/Android
+- **Service worker**: Caches the app shell (HTML, CSS, JS) + static assets. Does **not** cache API responses (LLM results require backend)
+- **Standalone mode**: No browser chrome — feels like a native app
+- **Splash screen**: App icon + name on launch (automatic from manifest)
+- **Offline shell**: If offline, shows cached app shell with a "You're offline" message. Tool functionality requires network
+
+### 17.17 Touch Targets & Spacing
+
+| Token | Mobile | Desktop |
+|-------|--------|---------|
+| Min touch target | 44×44px | N/A |
+| Section spacing | 24px | 32–40px |
+| Inner padding | 16px | 24px |
+| Card border-radius | 12px | 12px |
+| Button height | 48px | 40px |
+| Input height | 48px | 40px |
+
+Following Apple Human Interface Guidelines (44pt minimum). All interactive elements (buttons, chips, icons, list items) meet this minimum regardless of visual size — use padding to expand the tap area when the visual element is smaller.
+
+### 17.18 Gesture Map
+
+| Gesture | Where | Action |
+|---------|-------|--------|
+| Swipe left/right | Interview card deck | Navigate questions |
+| Tap | Interview card | Flip question ↔ answer |
+| Pull down | History list | Refresh |
+| Swipe left | History item | Reveal delete action |
+| Swipe down | CinematicLoader | Minimize loader |
+| Tap | Score `(i)` icon | Expand/collapse explanation |
+
+**Everything else uses explicit buttons.** No hidden gestures for core functionality — gestures are enhancements, not requirements.
+
+### 17.19 Tool Colors (Mobile)
+
+**Single unified theme** across all tools on mobile:
+
+- Primary interactive: `#70b5f9`
+- Background: `#0f1a2e` (dark)
+- No per-tool accent colors on mobile — tool identity is conveyed via icon + name only
+- This keeps the mobile experience visually clean and consistent
+- The `--tool-accent` CSS custom properties from the design system are overridden to the primary color on mobile breakpoints
+
+### 17.20 Animations
+
+| Element | Animation | Trigger |
+|---------|-----------|---------|
+| Dashboard tool cards | Fade-up / pop-in | Scroll into view (`whileInView`) |
+| CinematicLoader | Premium full-screen sequence | Tool run started |
+| Page transitions | Subtle fade (200ms) | Route change |
+| Bottom sheet | Slide up from bottom (300ms ease-out) | Sheet open |
+| Card flip | 3D Y-axis rotation (400ms) | Tap interview card |
+| Accordion expand | Height animation (200ms ease) | Tap section header |
+| Toast notifications | Slide in from top (200ms) | Connection events |
+
+All animations respect `prefers-reduced-motion` — reduced to instant transitions when the user's OS accessibility setting is enabled.
+
+### 17.21 Mobile-Specific Component Inventory
+
+New components needed for mobile (not in desktop):
+
+| Component | Purpose |
+|-----------|---------|
+| `BottomTabBar` | 4-tab navigation (Home, Tools, History, Profile) |
+| `ToolGridSheet` | Bottom sheet with 2×3 tool grid |
+| `StickyRunBar` | Fixed bottom CTA with smart keyboard hide |
+| `SwipeDeck` | Tinder-style card stack for interview Q&A |
+| `FullScreenEditSheet` | iOS Notes-style edit overlay |
+| `FeedbackSheet` | Bottom sheet for re-generate feedback |
+| `MiniLoader` | Minimized floating loader indicator |
+| `FilterChips` | Horizontal scroll filter chips for history |
+| `ResumeChip` | Collapsed resume indicator (`✓ filename.pdf`) |
+| `ShareButton` | Native share sheet trigger (replaces export buttons) |
+
+These components are mobile-only — they do not render on tablet/desktop breakpoints. Desktop retains its existing component set.
+
+---
+
+## 18. Frontend Implementation Details
+
+> Clarifications and decisions from detailed design review. These override or extend earlier sections where noted.
+
+### 18.1 Theme — Corrected
+
+The spec originally stated "dark mode only." This is **incorrect**. The actual theme is a **hybrid**:
+
+- **Sidebar + topbar**: Dark (`#0f1a2e` background, light text)
+- **Main content area**: Light (`#edf3fa` background, dark text)
+- **No light/dark toggle** — this hybrid is the only theme
+
+Any dead dark-mode toggle code should be removed. The `--resume-accent`, `--match-accent`, etc. CSS variables all resolve to `var(--accent)` — there are no per-tool accent colors in practice. This is intentional.
+
+**Implementation cleanup**: Remove `ThemeToggle.tsx` component, any unused dark theme CSS variables, and dark mode toggle logic. The app has one theme — the hybrid described above.
+
+### 18.2 Guest Workflow — Lightweight Handoff
+
+Guest runs exist only in an in-memory Map and are lost on navigation. However, to support workflow continuity for guests:
+
+- **WorkflowContext** (sessionStorage) carries: resume text, job description, target role
+- **Lightweight summary** (~2KB) from the most recent run is also stored in sessionStorage: score, top keywords, matched requirements, verdict. This feeds into `ApplicationHandoff` for downstream tools (cover letter, interview)
+- Full `result_payload` is NOT stored — only the summary fields needed for handoff
+- This means guest cover letters and interview prep get some personalization from prior runs without violating the "no guest persistence" principle
+
+### 18.3 Score Visualization
+
+**Circular progress ring** (SVG) with the numeric score centered inside.
+
+Color semantics based on score range:
+
+| Range | Color | Meaning |
+|-------|-------|---------|
+| 0–40 | Red-ish (`#ef4444`) | Weak / needs significant work |
+| 41–69 | Amber/orange (`#f59e0b`) | Moderate / room for improvement |
+| 70–100 | Green-ish (`#22c55e`) | Strong / on track |
+
+The ring animates from 0 to the final score on first render (500ms ease-out). Score text uses tabular-nums for stable layout.
+
+**Implementation note**: Replace only the score display widget on result pages. Do not restructure the surrounding result page layout — premium feel comes from the ring itself, not layout changes.
+
+**Sub-score breakdown**: Horizontal bar chart (5 bars for keywords, impact, structure, clarity, completeness). Each bar uses the same color gradient. Labels on the left, score value on the right.
+
+### 18.4 Editable Blocks — Scope
+
+| Tool | Editable? | What's editable |
+|------|-----------|----------------|
+| **Resume Analyzer** | Read-only | Nothing — view results, export, done |
+| **Job Match** | Read-only | Nothing |
+| **Cover Letter** | ✓ Editable | Opening, body paragraphs, closing — per-section edit |
+| **Interview Q&A** | Read-only | Nothing — use Practice Mode for active engagement |
+| **Career Path** | Read-only | Nothing |
+| **Portfolio** | Read-only | Nothing |
+
+Edits are **client-side only** (React state). Lost on page refresh. Export captures the current edited state. No server persistence of edits.
+
+### 18.5 Ad-Gate Unlock State
+
+Unlock state stored in `sessionStorage` keyed by run ID: `ad-unlocked:{runId}`.
+
+- Tab open → unlocked persists
+- Tab close → reset (sessionStorage behavior)
+- History revisit in new tab → ad required again
+- Maximizes ad revenue while keeping UX simple
+
+### 18.6 Workspace Creation — Lazy
+
+Workspaces are created **after** a tool run, not before:
+
+1. Tool completes → result screen shows
+2. If authenticated: "Save to workspace?" prompt appears
+3. User picks existing workspace or creates new one (inline label input)
+4. If skipped → run saved as "Unassigned"
+5. Unassigned runs can be assigned later from History
+
+**Workspace picker** (on tool input pages) is secondary — dropdown only, defaults to empty. Pinned workspaces appear first in the picker.
+
+**Workspace relabeling**: Inline editable text — click the label, type new name, press Enter. No dialog.
+
+### 18.7 Re-generate — Single Undo
+
+After re-generate produces a new result:
+
+1. "Undo — restore previous result" button appears (30 second timeout)
+2. If clicked → previous result restores, new result is discarded
+3. After 30 seconds → undo button disappears, new result is final
+4. Only one level of undo — no version history in UI
+5. Authenticated users can always find previous runs in History (parent_run_id chain)
+
+### 18.8 Token Expiry — In-Place Auth
+
+When silent token refresh fails (user inactive too long):
+
+1. **No page redirect** — current page stays mounted
+2. Auth dialog/sheet opens: "Session expired — sign in to continue"
+3. User logs in within the dialog
+4. Dialog closes, user continues from where they were
+5. Form state, edits, and draft data are preserved (they live in React state/sessionStorage, not affected by token refresh)
+6. Uses the existing `PendingIntent` pattern in `lib/auth/pendingIntent.ts`
+
+### 18.9 Next-Action Cards — Static
+
+Next-action cards at the bottom of result pages are **always static** per tool:
+
+- Resume → Job Match, Portfolio
+- Job Match → Cover Letter, Interview
+- Cover Letter → Interview, Job Match
+- Interview → Cover Letter, Career
+- Career → Portfolio, Resume
+- Portfolio → Career, Resume
+
+No contextual awareness — even if the user already ran Job Match, the "Try Job Match" card still appears on Resume results. Users may want to re-run with different inputs.
+
+### 18.10 Landing Page — Single Variant
+
+Multiple landing variants exist in code (`landing-experiment`, `landing-tools`, `landing-classic`). For production:
+
+- **One variant will be chosen** and the others removed
+- No A/B testing framework
+- Authenticated users still see the landing page at `/` — no auto-redirect to dashboard. Landing serves as marketing/overview regardless of auth status
+- Dashboard is accessed via sidebar/nav, not auto-redirect
+
+### 18.11 Interview Practice Mode — 3 Attempts
+
+Per question, user gets **3 attempts** to practice:
+
+1. User sees question → writes answer → submits
+2. AI evaluates: strengths, weak points, suggestions, comparison with ideal
+3. User can re-attempt (up to 3 total)
+4. After 3rd attempt → ideal answer framework shown + "Move to next question"
+5. Empty/blank submissions count as an attempt but return guidance instead of evaluation
+6. Attempt count shown: "Attempt 1/3"
+7. No attempt history displayed — only the current attempt's feedback is visible
+
+### 18.12 Error Recovery
+
+Error boundary crash behavior:
+
+1. First crash → "Something went wrong" with "Try Again" + "Go to Dashboard"
+2. "Try Again" re-mounts the component tree
+3. If same crash recurs (2nd consecutive crash) → auto-redirect to dashboard
+4. `frontend_error` telemetry event sent on each crash
+5. React Query cache is NOT auto-invalidated on crash — manual "Try Again" is just a re-render
+
+### 18.13 Input Validation — Comprehensive
+
+**Frontend validation** (soft warnings + hard limits):
+
+| Check | Type | Trigger |
+|-------|------|---------|
+| Resume < 50 words | Soft warning | onBlur |
+| Resume > 50,000 chars | Hard block (submit disabled) | onChange |
+| JD > 20,000 chars | Hard block (submit disabled) | onChange |
+| JD looks like URL (starts with http) | Soft warning: "Looks like a URL — paste the full description" | onBlur |
+| Required field empty | Submit disabled | onChange |
+| JD empty on Job Match | Hard block (JD required) | onChange |
+| Target role empty on Portfolio | Hard block (target role required) | onChange |
+
+**Backend validation** mirrors these with HTTP 422 responses + specific error messages.
+
+### 18.14 History Search — Backend
+
+Search queries are sent to the backend: `GET /history?q=searchterm&...`
+
+- Backend performs SQL `LIKE` search on: workspace label, tool name, result summary/verdict
+- Full-text search (FTS) is not needed for V1 — LIKE is sufficient for the expected data volume
+- Frontend sends debounced search queries (300ms)
+- Pagination is preserved during search
+
+### 18.15 Job Scraper — Playwright Headless Browser
+
+V1 uses **Playwright headless browser** for job URL scraping:
+
+- **Primary**: Playwright renders the page with full JavaScript execution, then extracts job description content
+- **Coverage**: Works with LinkedIn, Indeed, Glassdoor, and most JS-rendered job boards
+- **Legal scope**: User is scraping their own publicly accessible job posting data — not bulk harvesting
+- **Fallback**: When Playwright scraping fails or returns insufficient data → "Could not extract the job description. Please copy and paste it." + text area immediately shown
+- **BeautifulSoup**: Retained as lightweight fallback for simple static pages (faster, no headless browser overhead). Playwright is tried first for JS-heavy sites, BS4 for static HTML
+- **Backend dependency**: Playwright requires `playwright` Python package + browser binaries (~150MB). Install via `playwright install chromium`
+- **Timeout**: 15 second page load timeout. If exceeded → fallback to paste
+
+### 18.16 PDF Export — Backend Generated
+
+PDF generation happens on the backend:
+
+- Endpoint: `GET /history/{id}/export/pdf` (authenticated only)
+- Generator: WeasyPrint or ReportLab (TBD)
+- Cover Letter PDF: Professional business letter format (heading, date, salutation, body, closing, signature area)
+- Interview Q&A PDF: Question-answer card format per section
+- Frontend triggers download via the API endpoint — no client-side PDF generation
+- Guest users cannot export PDF (no history ID). They must sign up first.
+
+### 18.17 Cover Letter Re-evaluate
+
+"Re-evaluate with AI" button reuses the existing `/cover-letter/generate` endpoint:
+
+- Sends: edited letter text as `resume_text` content + feedback: `"Review this edited letter for coherence and suggest improvements. Do not rewrite — only provide suggestions."`
+- Response: Suggestions and improvement notes (not a full rewrite)
+- No new endpoint needed
+
+### 18.18 Export Format — Structured Plain Text
+
+TXT and Markdown exports use **tool-specific templates**:
+
+- **Resume Analyzer**: Score + breakdown bars as text + issues list + evidence
+- **Job Match**: Fit score + verdict + matched/missing keywords + requirements table
+- **Cover Letter**: Full letter text (as edited) — no metadata
+- **Interview Q&A**: Questions + answer frameworks + key points as numbered sections
+- **Career Path**: Each path as a section: name, fit score, timeline, skills to develop, rationale
+- **Portfolio**: Each project as a section: title, description, skills, complexity, deliverables, timeline
+
+All exports include a header: `Career Workbench — {Tool Name} | Generated {date}`. No AI disclaimer in exports (covered by ToS).
+
+### 18.19 Favorites — Dashboard Behavior
+
+Dashboard shows the **most recent 6 favorited runs** in a horizontal carousel.
+
+- "View all favorites →" link filters History page to favorites-only
+- Favorite toggle uses **optimistic update**: star fills immediately, reverts if API call fails
+- If no favorites → section hidden (not an empty state card)
+
+### 18.20 Command Palette — Removed
+
+The `CommandPalette.tsx` component and `⌘K` shortcut should be removed from V1. It's an undocumented power-user feature that adds code complexity without clear V1 value. Can be reconsidered post-launch.
+
+### 18.21 CAPTCHA — Not in V1
+
+CAPTCHA is deferred to V1.1. V1 relies on rate limiting alone (slowapi, per-IP). If abuse is detected post-launch, Cloudflare Turnstile (invisible/managed) will be added inline to login/register forms.
+
+### 18.22 i18n — Language Mismatch Accepted
+
+UI language and LLM output language are independent:
+
+- UI language: set in Settings (English, Turkish, etc.) — controls buttons, labels, placeholders
+- LLM output language: auto-detected from input — Turkish CV → Turkish results, English CV → English results
+- Mixed-language pages are expected and accepted (e.g., Turkish UI + English results when CV is English)
+- No "output language" selector — the input language is the authority

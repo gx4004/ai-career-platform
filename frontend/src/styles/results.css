@@ -871,3 +871,169 @@
   background: rgba(239, 68, 68, 0.15);
   color: #ef4444;
 }
+
+/* ── Mobile result page styles ── */
+@media (max-width: 639px) {
+  .result-shell {
+    --rs-pad-x: 1rem;
+    --rs-pad-y: 0.875rem;
+    --zone-gap: 0.5rem;
+  }
+
+  .result-hero {
+    border-radius: var(--radius-lg);
+    padding: 1.25rem 1.25rem 0;
+  }
+
+  .result-hero__top {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+
+  .result-hero__score {
+    width: 4rem;
+    height: 4rem;
+  }
+
+  /* Result sections: accordion-like collapsed state on mobile */
+  .result-zone {
+    border-radius: var(--radius-lg);
+  }
+
+  .result-zone__header {
+    padding: var(--rs-pad-y) var(--rs-pad-x);
+  }
+
+  .result-zone__body {
+    padding: 0 var(--rs-pad-x) var(--rs-pad-y);
+  }
+
+  /* Action buttons: stack vertically */
+  .result-hero__actions,
+  .result-action-strip {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .result-hero__actions > *,
+  .result-action-strip > * {
+    width: 100%;
+    min-height: var(--touch-target, 44px);
+  }
+
+  /* Next-action cards: horizontal scroll */
+  .result-next-actions {
+    display: flex;
+    gap: 0.75rem;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 0.5rem;
+    scrollbar-width: none;
+  }
+
+  .result-next-actions::-webkit-scrollbar {
+    display: none;
+  }
+
+  .result-next-actions > * {
+    flex: none;
+    width: 75%;
+    max-width: 260px;
+    scroll-snap-align: start;
+  }
+}
+
+/* ── Feedback sheet ── */
+.feedback-sheet {
+  border-radius: var(--radius-2xl) var(--radius-2xl) 0 0 !important;
+  max-height: 50vh;
+}
+
+.feedback-sheet-title {
+  font-size: var(--type-section);
+  font-weight: 700;
+  letter-spacing: var(--tracking-section);
+}
+
+.feedback-sheet-body {
+  display: grid;
+  gap: 1rem;
+  padding-top: 0.5rem;
+}
+
+.feedback-sheet-label {
+  font-size: var(--type-small);
+  color: var(--text-muted);
+}
+
+.feedback-sheet-textarea {
+  min-height: 5rem;
+}
+
+.feedback-sheet-submit {
+  min-height: var(--touch-target, 44px);
+}
+
+/* ── Mobile share button ── */
+.mobile-share-btn {
+  min-height: var(--touch-target, 44px);
+  gap: 0.5rem;
+}
+
+/* ── Undo button (re-generate revert) ── */
+.result-undo-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: var(--radius-pill);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.85);
+  font-size: var(--type-small);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.result-undo-btn:hover {
+  background: rgba(255, 255, 255, 0.18);
+  border-color: rgba(255, 255, 255, 0.35);
+}
+
+/* ── Practice mode extras ── */
+.practice-mode-attempt-label {
+  font-size: var(--type-xs);
+  color: var(--text-muted);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.practice-mode-maxed {
+  display: grid;
+  gap: 1rem;
+  padding: 1.5rem;
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--border-soft);
+  background: var(--surface-raised);
+  text-align: center;
+}
+
+.practice-mode-maxed h4 {
+  font-weight: 600;
+  color: var(--text-strong);
+}
+
+.practice-mode-ideal-answer {
+  padding: 1rem;
+  border-radius: var(--radius-lg);
+  background: var(--accent-soft);
+  font-size: var(--type-body);
+  line-height: 1.7;
+  text-align: left;
+  white-space: pre-wrap;
+  color: var(--text-body);
+}

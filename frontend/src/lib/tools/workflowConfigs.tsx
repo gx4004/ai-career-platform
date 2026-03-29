@@ -295,6 +295,10 @@ export const workflowConfigs: Record<ToolId, WorkflowConfig> = {
   },
 }
 
+const RESUME_MAX_CHARS = 50_000
+const JD_MAX_CHARS = 20_000
+const RESUME_MIN_WORDS = 50
+
 export function validateWorkflowDraft(
   config: WorkflowConfig,
   draft: ToolDraftState,
@@ -302,12 +306,26 @@ export function validateWorkflowDraft(
   const errors: Partial<Record<keyof ToolDraftState, string>> = {}
 
   for (const field of config.fields) {
-    if (!field.required) continue
-
     const value = draft[field.name]
-    if (typeof value === 'string' && !value.trim()) {
+    const text = typeof value === 'string' ? value.trim() : ''
+
+    // Required field check
+    if (field.required && !text) {
       errors[field.name] = `${field.label} is required.`
-    } else if (field.kind === 'textarea' && typeof value === 'string' && value.trim().length < 50) {
+      continue
+    }
+
+    if (!text) continue
+
+    // Hard character limits
+    if (field.name === 'resumeText' && text.length > RESUME_MAX_CHARS) {
+      errors[field.name] = `Resume text exceeds ${RESUME_MAX_CHARS.toLocaleString()} character limit.`
+    } else if (field.name === 'jobDescription' && text.length > JD_MAX_CHARS) {
+      errors[field.name] = `Job description exceeds ${JD_MAX_CHARS.toLocaleString()} character limit.`
+    }
+
+    // Minimum length for required textareas
+    if (field.required && field.kind === 'textarea' && text.length < 50) {
       errors[field.name] = `${field.label} must be at least 50 characters.`
     }
   }
@@ -319,4 +337,28 @@ export function validateWorkflowDraft(
   }
 
   return errors
+}
+
+/** Soft warnings shown onBlur — do not block submission */
+export function getFieldWarning(
+  fieldName: string,
+  value: string,
+): string | null {
+  const text = value.trim()
+  if (!text) return null
+
+  if (fieldName === 'resumeText') {
+    const wordCount = text.split(/\s+/).length
+    if (wordCount < RESUME_MIN_WORDS) {
+      return 'This resume seems too short — results may be limited.'
+    }
+  }
+
+  if (fieldName === 'jobDescription') {
+    if (/^https?:\/\/\S+$/.test(text)) {
+      return 'Looks like a URL — paste the full job description text instead.'
+    }
+  }
+
+  return null
 }
