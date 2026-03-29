@@ -14,8 +14,6 @@ import { LandingTubelightNavbar, type NavbarItem } from '#/components/landing/La
 import { LandingFaqsSection } from '#/components/landing/LandingFaqsSection'
 import { LandingSocialProof } from '#/components/landing/LandingSocialProof'
 import { LandingFeatureStepsDemo } from '#/components/landing/LandingFeatureStepsDemo'
-import { LandingFooter } from '#/components/landing/LandingFooter'
-import { LandingResumeDemo } from '#/components/landing/LandingResumeDemo'
 import { LandingToolGridBase } from '#/components/landing/LandingToolGridBase'
 import { useLandingPageSetup } from '#/components/landing/useLandingPageSetup'
 
@@ -25,7 +23,6 @@ const SECTION_IDS = [
   'landing-hero',
   'landing-journey',
   'landing-tools',
-  'landing-demo',
   'landing-faq',
 ]
 
@@ -35,13 +32,13 @@ export function LandingExperimentPage() {
   const sections: Record<LandingSectionId, ReactNode> = {
     hero: <LandingExperimentHero />,
     'social-proof': <LandingSocialProof />,
-    'resume-demo': <LandingResumeDemo />,
+    'resume-demo': null,
     'context-scroll': null,
     workflow: <LandingFeatureStepsDemo />,
     tools: <LandingToolGridBase copy={landingExperimentToolsCopy} autoRotate={false} />,
     faq: <LandingFaqsSection />,
     cta: <LandingCTA />,
-    footer: <LandingFooter />,
+    footer: null,
   }
 
   return (

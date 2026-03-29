@@ -17,7 +17,7 @@ export function LandingFeatureStepsDemo({ autoPlay = false }: { autoPlay?: boole
               <p className="eyebrow">{landingWorkflowCopy.eyebrow}</p>
               <h2 className="display-lg">{landingWorkflowCopy.title}</h2>
             </div>
-            <p className="muted-copy landing-feature-intro-support">{landingWorkflowCopy.body}</p>
+            {landingWorkflowCopy.body ? <p className="muted-copy landing-feature-intro-support">{landingWorkflowCopy.body}</p> : null}
           </div>
         </ScrollReveal>
         <ScrollReveal>
@@ -27,7 +27,8 @@ export function LandingFeatureStepsDemo({ autoPlay = false }: { autoPlay?: boole
               title=""
               autoPlay={autoPlay}
               autoPlayInterval={4800}
-              imageHeight="min-h-[18rem] md:min-h-[24rem] lg:min-h-[28rem]"
+              imageHeight=""
+              imageLink="/dashboard"
               className="bg-transparent"
             />
           </div>
