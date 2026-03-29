@@ -1,0 +1,36 @@
+{
+  "version": 2,
+  "buildCommand": "npm run build",
+  "builds": [
+    {
+      "src": "dist/server/server.js",
+      "use": "@vercel/node"
+    },
+    {
+      "src": "dist/client/**",
+      "use": "@vercel/static"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/assets/(.*)",
+      "dest": "/dist/client/assets/$1"
+    },
+    {
+      "src": "/ai-generated/(.*)",
+      "dest": "/dist/client/ai-generated/$1"
+    },
+    {
+      "src": "/generated/(.*)",
+      "dest": "/dist/client/generated/$1"
+    },
+    {
+      "src": "/(favicon.ico|robots.txt|manifest.json|logo.*|hero-gradient.*)",
+      "dest": "/dist/client/$1"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/dist/server/server.js"
+    }
+  ]
+}
