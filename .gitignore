@@ -26,3 +26,7 @@ file::memory:
 .DS_Store
 .env
 .codex-*.png
+
+# AI tool configs
+.claude/
+.superpowers/
