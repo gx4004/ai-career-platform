@@ -8,6 +8,27 @@ from app.services.ai_client import complete_structured
 from app.services.application_context import build_application_handoff
 
 SCHEMA_VERSION = "quality_v2"
+
+TONE_STRATEGIES = {
+    "Professional": {
+        "opening": "qualifications_first",
+        "body_order": ["credentials", "requirements_mapping", "achievements"],
+        "evidence_bias": "formal_metrics",
+        "closing": "forward_looking",
+    },
+    "Confident": {
+        "opening": "achievements_first",
+        "body_order": ["top_achievements", "quantified_results", "value_proposition"],
+        "evidence_bias": "strongest_accomplishments",
+        "closing": "bold_commitment",
+    },
+    "Warm": {
+        "opening": "personal_connection",
+        "body_order": ["company_alignment", "collaborative_wins", "cultural_fit"],
+        "evidence_bias": "anecdotes",
+        "closing": "enthusiasm",
+    },
+}
 CONFIDENCE_NOTE = (
     "Advisory draft based on your resume and surfaced role signals, not an employer "
     "preference prediction."
@@ -63,54 +84,137 @@ def _fallback_opening(
     application_context: dict[str, Any],
     tone: str,
 ) -> dict[str, Any]:
+    strategy = TONE_STRATEGIES.get(tone, TONE_STRATEGIES["Professional"])
     requirements = application_context["priority_requirements"][:2]
     evidence = _resume_evidence_snippets(application_context)[:2]
     role_label = application_context["role_label"]
     matched = ", ".join(application_context["matched_keywords"][:2]) or "relevant experience"
-    return {
-        "text": (
+
+    if strategy["opening"] == "achievements_first":
+        opening_text = (
             "Dear Hiring Manager,\n\n"
-            f"I am excited to apply for {role_label}. In a {tone.lower()} voice, this opening "
-            f"connects my background in {matched} to the role's highest-priority needs."
-        ),
-        "why_this_paragraph": "Open with direct alignment so the reader can trust the fit quickly.",
+            f"My strongest results speak directly to what {role_label} demands. "
+            f"With proven impact in {matched}, I bring exactly the track record this role needs."
+        )
+        why = "Lead with the strongest achievement to establish credibility immediately."
+    elif strategy["opening"] == "personal_connection":
+        opening_text = (
+            "Dear Hiring Manager,\n\n"
+            f"What drew me to {role_label} is a genuine alignment between your team's mission "
+            f"and the work I find most meaningful — especially around {matched}."
+        )
+        why = "Open with a personal connection to the company's mission to build rapport."
+    else:
+        opening_text = (
+            "Dear Hiring Manager,\n\n"
+            f"I am writing to apply for {role_label}. My background in {matched} "
+            f"maps directly to the role's highest-priority requirements."
+        )
+        why = "Open with direct alignment so the reader can trust the fit quickly."
+
+    return {
+        "text": opening_text,
+        "why_this_paragraph": why,
         "requirements_used": requirements or application_context["matched_keywords"][:2],
         "evidence_used": evidence,
     }
 
 
-def _fallback_body_points(application_context: dict[str, Any]) -> list[dict[str, Any]]:
+def _fallback_body_points(
+    application_context: dict[str, Any],
+    tone: str = "Professional",
+) -> list[dict[str, Any]]:
+    strategy = TONE_STRATEGIES.get(tone, TONE_STRATEGIES["Professional"])
     requirements = application_context["priority_requirements"]
     evidence = _resume_evidence_snippets(application_context)
+    matched = application_context["matched_keywords"]
+    missing = application_context["missing_keywords"]
     points: list[dict[str, Any]] = []
 
-    if application_context["matched_keywords"] or evidence:
-        points.append(
-            {
-                "text": (
-                    f"My background already shows evidence for "
-                    f"{', '.join(application_context['matched_keywords'][:3]) or 'the core scope of the role'}, "
-                    "and I would anchor this paragraph in the strongest measurable example from the resume."
-                ),
-                "why_this_paragraph": "Translate the strongest existing evidence into a role-specific proof paragraph.",
-                "requirements_used": requirements[:2] or application_context["matched_keywords"][:2],
-                "evidence_used": evidence[:2],
-            }
-        )
-
-    if application_context["missing_keywords"] or application_context["resume_gaps"]:
-        points.append(
-            {
-                "text": (
-                    f"I would also close the trust gap around "
-                    f"{', '.join(application_context['missing_keywords'][:3]) or 'the weakest signals'} "
-                    "by connecting adjacent experience to the job requirements without overstating fit."
-                ),
-                "why_this_paragraph": "Address the biggest application gap before it becomes an objection.",
-                "requirements_used": application_context["missing_keywords"][:3] or requirements[:2],
-                "evidence_used": evidence[2:4] or evidence[:2],
-            }
-        )
+    if strategy["evidence_bias"] == "strongest_accomplishments":
+        # Confident: lead with quantified results and bold claims
+        if matched or evidence:
+            points.append(
+                {
+                    "text": (
+                        f"The results speak for themselves: my work in "
+                        f"{', '.join(matched[:3]) or 'the core scope of the role'} "
+                        "delivered measurable outcomes that map directly to what this role demands."
+                    ),
+                    "why_this_paragraph": "Lead with the strongest quantified accomplishments to establish authority.",
+                    "requirements_used": requirements[:2] or matched[:2],
+                    "evidence_used": evidence[:2],
+                }
+            )
+        if missing or application_context["resume_gaps"]:
+            points.append(
+                {
+                    "text": (
+                        f"I am already building momentum in "
+                        f"{', '.join(missing[:3]) or 'adjacent areas'} "
+                        "and will bring that same results-driven approach to closing any remaining gaps."
+                    ),
+                    "why_this_paragraph": "Address gaps with confidence and a forward-looking commitment.",
+                    "requirements_used": missing[:3] or requirements[:2],
+                    "evidence_used": evidence[2:4] or evidence[:2],
+                }
+            )
+    elif strategy["evidence_bias"] == "anecdotes":
+        # Warm: collaborative stories and cultural fit
+        if matched or evidence:
+            points.append(
+                {
+                    "text": (
+                        f"Some of my most rewarding work has been in "
+                        f"{', '.join(matched[:3]) or 'areas that overlap with this role'}, "
+                        "where I partnered closely with teammates to deliver shared wins."
+                    ),
+                    "why_this_paragraph": "Weave collaborative stories that show cultural alignment.",
+                    "requirements_used": requirements[:2] or matched[:2],
+                    "evidence_used": evidence[:2],
+                }
+            )
+        if missing or application_context["resume_gaps"]:
+            points.append(
+                {
+                    "text": (
+                        f"I am genuinely excited to grow in "
+                        f"{', '.join(missing[:3]) or 'the areas that matter most to your team'} "
+                        "and see this role as the right environment to do that together."
+                    ),
+                    "why_this_paragraph": "Show enthusiasm for growth in a way that reinforces team fit.",
+                    "requirements_used": missing[:3] or requirements[:2],
+                    "evidence_used": evidence[2:4] or evidence[:2],
+                }
+            )
+    else:
+        # Professional: formal credentials and systematic mapping
+        if matched or evidence:
+            points.append(
+                {
+                    "text": (
+                        f"My background already shows evidence for "
+                        f"{', '.join(matched[:3]) or 'the core scope of the role'}, "
+                        "and I would anchor this paragraph in the strongest measurable example from the resume."
+                    ),
+                    "why_this_paragraph": "Translate the strongest existing evidence into a role-specific proof paragraph.",
+                    "requirements_used": requirements[:2] or matched[:2],
+                    "evidence_used": evidence[:2],
+                }
+            )
+        if missing or application_context["resume_gaps"]:
+            points.append(
+                {
+                    "text": (
+                        f"I would also close the trust gap around "
+                        f"{', '.join(missing[:3]) or 'the weakest signals'} "
+                        "by connecting adjacent experience to the job requirements without overstating fit."
+                    ),
+                    "why_this_paragraph": "Address the biggest application gap before it becomes an objection.",
+                    "requirements_used": missing[:3] or requirements[:2],
+                    "evidence_used": evidence[2:4] or evidence[:2],
+                }
+            )
 
     if not points:
         points.append(
@@ -125,15 +229,37 @@ def _fallback_body_points(application_context: dict[str, Any]) -> list[dict[str,
     return points[:3]
 
 
-def _fallback_closing(application_context: dict[str, Any]) -> dict[str, Any]:
+def _fallback_closing(
+    application_context: dict[str, Any],
+    tone: str = "Professional",
+) -> dict[str, Any]:
+    strategy = TONE_STRATEGIES.get(tone, TONE_STRATEGIES["Professional"])
     requirements = application_context["priority_requirements"][:2]
     evidence = _resume_evidence_snippets(application_context)[:1]
-    return {
-        "text": (
+    role_label = application_context["role_label"]
+
+    if strategy["closing"] == "bold_commitment":
+        closing_text = (
+            f"I am ready to deliver the same caliber of results for {role_label}. "
+            "I would welcome the opportunity to discuss how my track record translates into immediate impact for your team."
+        )
+        why = "Close with a bold, forward-looking commitment that reinforces confidence."
+    elif strategy["closing"] == "enthusiasm":
+        closing_text = (
+            f"I am genuinely excited about the possibility of joining your team and contributing to {role_label}. "
+            "Thank you for considering my application — I would love to continue this conversation."
+        )
+        why = "Close with warmth and authentic enthusiasm to leave a personal impression."
+    else:
+        closing_text = (
             "Thank you for your time and consideration. I would welcome the chance to discuss "
-            f"how I can contribute to {application_context['role_label']} priorities with clear, evidence-backed execution."
-        ),
-        "why_this_paragraph": "Close with confidence and reinforce readiness for the next conversation.",
+            f"how I can contribute to {role_label} priorities with clear, evidence-backed execution."
+        )
+        why = "Close with confidence and reinforce readiness for the next conversation."
+
+    return {
+        "text": closing_text,
+        "why_this_paragraph": why,
         "requirements_used": requirements,
         "evidence_used": evidence,
     }
@@ -285,8 +411,8 @@ async def generate_cover_letter(
         "top_actions": [],
         "generated_at": generated_at,
         "opening": _fallback_opening(application_context, requested_tone),
-        "body_points": _fallback_body_points(application_context),
-        "closing": _fallback_closing(application_context),
+        "body_points": _fallback_body_points(application_context, requested_tone),
+        "closing": _fallback_closing(application_context, requested_tone),
         "full_text": "",
         "tone_used": requested_tone,
         "customization_notes": [],

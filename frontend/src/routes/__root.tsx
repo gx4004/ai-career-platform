@@ -1,3 +1,4 @@
+import '#/lib/i18n'
 import type { ReactNode } from 'react'
 import { HeadContent, Outlet, Scripts, createRootRoute } from '@tanstack/react-router'
 import { useRouterState } from '@tanstack/react-router'

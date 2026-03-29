@@ -23,9 +23,14 @@ class ToolRun(Base):
     label: Mapped[str | None] = mapped_column(String, nullable=True)
     is_favorite: Mapped[bool] = mapped_column(Boolean, default=False)
     result_payload: Mapped[dict] = mapped_column(JSON, default=dict)
+    parent_run_id: Mapped[str | None] = mapped_column(
+        String, ForeignKey("tool_runs.id"), nullable=True, index=True
+    )
+    feedback_text: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 
     user = relationship("User", back_populates="tool_runs")
     workspace = relationship("Workspace", back_populates="tool_runs")
+    parent_run = relationship("ToolRun", remote_side="ToolRun.id")

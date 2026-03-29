@@ -1,0 +1,66 @@
+{
+  "nav": {
+    "dashboard": "Ana Sayfa",
+    "history": "Ge\u00e7mi\u015f",
+    "settings": "Ayarlar",
+    "login": "Giri\u015f Yap",
+    "register": "Kay\u0131t Ol",
+    "logout": "\u00c7\u0131k\u0131\u015f Yap"
+  },
+  "auth": {
+    "loginTitle": "Tekrar ho\u015f geldiniz",
+    "registerTitle": "Hesap olu\u015fturun",
+    "email": "E-posta",
+    "password": "\u015eifre",
+    "fullName": "Ad soyad",
+    "loginButton": "Giri\u015f yap",
+    "registerButton": "Kay\u0131t ol",
+    "noAccount": "Hesab\u0131n\u0131z yok mu?",
+    "hasAccount": "Zaten hesab\u0131n\u0131z var m\u0131?"
+  },
+  "dashboard": {
+    "heroTitle": "AI Kariyer \u00c7al\u0131\u015fma Alan\u0131n\u0131z",
+    "heroSubtitle": "CV'nizi y\u00fckleyin ve AI i\u015f araman\u0131za rehberlik etsin",
+    "recentRuns": "Son \u00c7al\u0131\u015ft\u0131rmalar",
+    "favorites": "Favoriler",
+    "toolShowcase": "Ara\u00e7lar"
+  },
+  "settings": {
+    "title": "Ayarlar",
+    "subtitle": "Yerel \u00e7al\u0131\u015fma alan\u0131n\u0131z\u0131, rehber tercihlerinizi ve sistem tan\u0131lamalar\u0131n\u0131 y\u00f6netin.",
+    "onboarding": "Rehber Tur",
+    "replayTour": "Turu tekrarla",
+    "replayDescription": "Platform tan\u0131t\u0131m\u0131n\u0131 ve ara\u00e7 genel bak\u0131\u015f\u0131n\u0131 tekrar g\u00f6rmek i\u00e7in kar\u015f\u0131lama turunu yeniden ba\u015flat\u0131n.",
+    "localData": "Yerel \u00e7al\u0131\u015fma alan\u0131 verileri",
+    "clearDrafts": "Yerel taslaklar\u0131 temizle",
+    "clearDescription": "Rehber ak\u0131\u015f\u0131 yeniden ba\u015flatmak i\u00e7in yerel \u00f6nbellek taslaklar\u0131, misafir demolar\u0131 ve i\u015f ak\u0131\u015f\u0131 ba\u011flam\u0131n\u0131 temizleyin.",
+    "clearedNote": "Yerel taslaklar ve demo durumu temizlendi.",
+    "savedHistory": "Kay\u0131tl\u0131 \u00e7al\u0131\u015fma alan\u0131 ge\u00e7mi\u015fi",
+    "openTimeline": "Zaman \u00e7izelgesini a\u00e7",
+    "savedDescription": "Kimli\u011fi do\u011frulanm\u0131\u015f sonu\u00e7lar \u00e7al\u0131\u015fma alan\u0131 zaman \u00e7izelgesinde ya\u015far. Kay\u0131tl\u0131 \u00e7al\u0131\u015ft\u0131rmalar\u0131 inceleyin, favorilere ekleyin, sabitleyin ve silin.",
+    "diagnostics": "Sistem Tan\u0131lamalar\u0131",
+    "diagnosticsDescription": "Frontend istemcisinden API eri\u015filebilirli\u011fi i\u00e7in h\u0131zl\u0131 kontrol.",
+    "apiStatus": "API Durumu",
+    "online": "\u00c7evrimi\u00e7i ve Sa\u011fl\u0131kl\u0131",
+    "offline": "Bilinmiyor / \u00c7evrimd\u0131\u015f\u0131",
+    "service": "Hizmet",
+    "environment": "Ortam",
+    "lastChecked": "Son Kontrol",
+    "unavailable": "Kullan\u0131lam\u0131yor",
+    "language": "Dil",
+    "languageDescription": "Tercih etti\u011finiz g\u00f6r\u00fcnt\u00fcleme dilini se\u00e7in.",
+    "deleteAccount": "Hesab\u0131 Sil",
+    "deleteDescription": "Hesab\u0131n\u0131z\u0131 ve t\u00fcm ili\u015fkili verileri kal\u0131c\u0131 olarak silin. Bu i\u015flem geri al\u0131namaz.",
+    "deleteButton": "Hesab\u0131m\u0131 sil"
+  },
+  "common": {
+    "loading": "Y\u00fckleniyor...",
+    "error": "Bir \u015feyler ters gitti",
+    "tryAgain": "Tekrar Dene",
+    "goHome": "Ana Sayfaya D\u00f6n",
+    "cancel": "\u0130ptal",
+    "save": "Kaydet",
+    "export": "D\u0131\u015fa Aktar",
+    "runAgain": "Tekrar \u00e7al\u0131\u015ft\u0131r"
+  }
+}

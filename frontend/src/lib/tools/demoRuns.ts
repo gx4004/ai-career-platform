@@ -1,13 +1,19 @@
 import type { ToolRunDetail } from '#/lib/api/schemas'
-import { readSessionJson, removeSessionValue, writeSessionJson } from '#/lib/auth/storage'
 import { deriveRunMetadata } from '#/lib/tools/runMetadata'
 import type { ToolId } from '#/lib/tools/registry'
 import { tools } from '#/lib/tools/registry'
 
-const DEMO_RUN_PREFIX = 'career-workbench:demo-run:'
-const DEMO_RUN_TTL_MS = 2 * 60 * 60 * 1000
+/**
+ * In-memory transient result store for guest demo runs.
+ *
+ * Results are NEVER persisted to sessionStorage or any other storage.
+ * They exist only in memory for the current page lifecycle. If the user
+ * navigates away or closes the tab, results are gone — this is intentional
+ * to drive signup conversion.
+ */
+const transientResults = new Map<string, ToolRunDetail>()
 
-export function storeDemoRun(
+export function setTransientResult(
   toolId: ToolId,
   result: Record<string, unknown>,
 ): ToolRunDetail {
@@ -28,42 +34,14 @@ export function storeDemoRun(
     result_payload: result,
   }
 
-  writeSessionJson(getDemoRunKey(demoId), {
-    expiresAt: Date.now() + DEMO_RUN_TTL_MS,
-    item,
-  })
-
+  transientResults.set(demoId, item)
   return item
 }
 
-export function readDemoRun(demoId: string): ToolRunDetail | null {
-  const payload = readSessionJson<{ expiresAt: number; item: ToolRunDetail }>(
-    getDemoRunKey(demoId),
-  )
-  if (!payload) return null
-  if (Date.now() > payload.expiresAt) {
-    removeSessionValue(getDemoRunKey(demoId))
-    return null
-  }
-  return payload.item
+export function getTransientResult(demoId: string): ToolRunDetail | null {
+  return transientResults.get(demoId) ?? null
 }
 
-export function clearDemoRuns(): void {
-  if (typeof window === 'undefined') return
-
-  const keys: string[] = []
-  for (let index = 0; index < window.sessionStorage.length; index += 1) {
-    const key = window.sessionStorage.key(index)
-    if (key?.startsWith(DEMO_RUN_PREFIX)) {
-      keys.push(key)
-    }
-  }
-
-  for (const key of keys) {
-    removeSessionValue(key)
-  }
-}
-
-function getDemoRunKey(demoId: string): string {
-  return `${DEMO_RUN_PREFIX}${demoId}`
+export function clearTransientResults(): void {
+  transientResults.clear()
 }

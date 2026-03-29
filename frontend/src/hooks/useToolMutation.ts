@@ -1,10 +1,11 @@
+import { useCallback, useRef } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { getHistory } from '#/lib/api/client'
 import { useSession } from '#/hooks/useSession'
 import { readWorkflowContext, writeWorkflowContext } from '#/lib/tools/drafts'
 import type { ToolDraftState } from '#/lib/tools/drafts'
-import { storeDemoRun } from '#/lib/tools/demoRuns'
+import { setTransientResult } from '#/lib/tools/demoRuns'
 import { trackTelemetry } from '#/lib/telemetry/client'
 import { getApplicationHandoffPayload } from '#/lib/tools/applicationHandoff'
 import type { ToolDefinition } from '#/lib/tools/registry'
@@ -22,14 +23,24 @@ export function useToolMutation(tool: ToolDefinition) {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { status, openAuthDialog } = useSession()
+  const abortRef = useRef<AbortController | null>(null)
+
+  // Abort in-flight request on tab close / visibility change
+  const handleUnload = useCallback(() => {
+    abortRef.current?.abort()
+  }, [])
 
   return useMutation({
     mutationFn: async ({
       payload,
       draft,
+      parentRunId,
+      feedback,
     }: {
       payload: Record<string, unknown>
       draft: ToolDraftState
+      parentRunId?: string
+      feedback?: string
     }) => {
       const accessMode = status === 'authenticated' ? 'authenticated' : 'guest_demo'
 
@@ -41,6 +52,13 @@ export function useToolMutation(tool: ToolDefinition) {
         })
         throw new Error('Sign in to run this tool.')
       }
+
+      // Set up AbortController for orphan request handling
+      abortRef.current?.abort()
+      const controller = new AbortController()
+      abortRef.current = controller
+      window.addEventListener('beforeunload', handleUnload)
+      document.addEventListener('visibilitychange', handleUnload)
 
       trackTelemetry({
         event_name: 'tool_run_started',
@@ -60,6 +78,8 @@ export function useToolMutation(tool: ToolDefinition) {
           ...payload,
           ...handoffPayload,
           ...buildWorkspaceRequestContext(workflowContext),
+          ...(parentRunId ? { parent_run_id: parentRunId } : {}),
+          ...(feedback ? { feedback } : {}),
         })
       } catch (error) {
         trackTelemetry({
@@ -70,6 +90,10 @@ export function useToolMutation(tool: ToolDefinition) {
           error_message: error instanceof Error ? error.message : 'Unknown tool run failure.',
         })
         throw error
+      } finally {
+        window.removeEventListener('beforeunload', handleUnload)
+        document.removeEventListener('visibilitychange', handleUnload)
+        abortRef.current = null
       }
 
       let historyId = extractHistoryId(result)
@@ -85,7 +109,7 @@ export function useToolMutation(tool: ToolDefinition) {
       }
 
       if (!historyId) {
-        const demoItem = storeDemoRun(tool.id, result)
+        const demoItem = setTransientResult(tool.id, result)
         historyId = demoItem.id
         saved = false
       }
@@ -101,6 +125,15 @@ export function useToolMutation(tool: ToolDefinition) {
         ...deriveWorkflowUpdateFromResult(tool.id, result),
         updatedAt: Date.now(),
       })
+
+      if (feedback) {
+        trackTelemetry({
+          event_name: 'tool_regenerate',
+          tool_id: tool.id,
+          access_mode: saved ? 'authenticated' : 'guest_demo',
+          metadata: { has_feedback: Boolean(feedback) },
+        })
+      }
 
       trackTelemetry({
         event_name: 'tool_run_succeeded',

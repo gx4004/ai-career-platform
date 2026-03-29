@@ -125,6 +125,46 @@ def get_history_item(
     )
 
 
+@router.get("/{run_id}/export/pdf")
+def export_pdf(
+    run_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    from fastapi.responses import StreamingResponse
+
+    from app.services.pdf_export import generate_cover_letter_pdf, generate_interview_pdf
+
+    import io
+
+    run = db.query(ToolRun).filter(
+        ToolRun.id == run_id,
+        ToolRun.user_id == current_user.id,
+    ).first()
+    if not run:
+        raise HTTPException(status_code=404, detail="Run not found")
+
+    result = run.result_payload or {}
+
+    if run.tool_name == "cover-letter":
+        pdf_bytes = generate_cover_letter_pdf(result)
+        filename = "cover-letter.pdf"
+    elif run.tool_name == "interview":
+        pdf_bytes = generate_interview_pdf(result)
+        filename = "interview-qa.pdf"
+    else:
+        raise HTTPException(
+            status_code=400,
+            detail="PDF export is only available for cover letter and interview results",
+        )
+
+    return StreamingResponse(
+        io.BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
 @router.delete("/{history_id}", response_model=DeletedResponse)
 def delete_history_item(
     history_id: str,

@@ -1,17 +1,19 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
-import { Copy, Download, Star } from 'lucide-react'
+import { Copy, Download, FileText, RefreshCw, Star } from 'lucide-react'
 import { Button } from '#/components/ui/button'
+import { ScoreTooltip } from '#/components/tooling/ScoreTooltip'
 import { AppStatePanel } from '#/components/app/AppStatePanel'
 import { PageFrame } from '#/components/app/PageFrame'
 import { ApiError } from '#/lib/api/errors'
 import { getHistoryItem } from '#/lib/api/client'
 import { useFavoriteToggle } from '#/hooks/useFavoriteToggle'
 import { useSession } from '#/hooks/useSession'
-import { readDemoRun } from '#/lib/tools/demoRuns'
+import { getTransientResult } from '#/lib/tools/demoRuns'
 import { writeWorkflowContext } from '#/lib/tools/drafts'
 import {
+  exportPdf,
   formatExportContent,
   readExportableSections,
   sanitizeDownloadTitle,
@@ -22,6 +24,7 @@ import { getToolByHistoryName, tools } from '#/lib/tools/registry'
 import type { ToolId } from '#/lib/tools/registry'
 import { toolAccentStyle } from '#/lib/tools/styleUtils'
 import { trackTelemetry } from '#/lib/telemetry/client'
+import { AdGatedLock } from '#/components/tooling/AdGatedLock'
 
 function downloadTextFile(filename: string, content: string, mimeType = 'text/plain;charset=utf-8') {
   const blob = new Blob([content], { type: mimeType })
@@ -44,7 +47,10 @@ export function ToolResultScreen({
   const { status, openAuthDialog } = useSession()
   const favoriteToggle = useFavoriteToggle()
   const [copied, setCopied] = useState(false)
-  const demoItem = useMemo(() => readDemoRun(historyId), [historyId])
+  const [regenOpen, setRegenOpen] = useState(false)
+  const [regenFeedback, setRegenFeedback] = useState('')
+  const [scoreDelta, setScoreDelta] = useState<number | null>(null)
+  const demoItem = useMemo(() => getTransientResult(historyId), [historyId])
   const isDemoResult = Boolean(demoItem)
   const query = useQuery({
     queryKey: ['tool-run', historyId],
@@ -73,6 +79,24 @@ export function ToolResultScreen({
       workspace_id: item.workspace?.id,
     })
   }, [item, toolId])
+
+  useEffect(() => {
+    if (!item) return
+    const parentId = (item.result_payload as Record<string, unknown>)?.parent_run_id
+    if (!parentId || typeof parentId !== 'string') return
+
+    getHistoryItem(parentId).then((parent) => {
+      if (!parent) return
+      const parentPayload = parent.result_payload ?? parent
+      const pp = parentPayload as Record<string, unknown>
+      const rp = item.result_payload as Record<string, unknown>
+      const parentScore = (pp.overall_score ?? pp.match_score ?? null) as number | null
+      const currentScore = (rp.overall_score ?? rp.match_score ?? null) as number | null
+      if (parentScore != null && currentScore != null) {
+        setScoreDelta(currentScore - parentScore)
+      }
+    })
+  }, [item])
 
   if (!item && query.isPending) {
     return (
@@ -132,6 +156,15 @@ export function ToolResultScreen({
   const guestResult = !savedResult
   const canContinueWorkflow = status === 'authenticated' || savedResult
 
+  function handleRegenSubmit() {
+    const params = new URLSearchParams()
+    params.set('parent_run_id', historyId)
+    if (regenFeedback.trim()) {
+      params.set('feedback', regenFeedback.trim())
+    }
+    void navigate({ to: `${resolvedTool.route}?${params.toString()}` })
+  }
+
   const heroMetric = definition.heroMetric?.(payload)
   const insightStrip = definition.insightStrip?.(payload)
   const primaryNextAction = resolvedTool.nextActions[0]
@@ -172,7 +205,12 @@ export function ToolResultScreen({
         {/* ── Hero ── */}
         <div className="result-hero">
           <div className="result-hero__top">
-            {heroMetric || (
+            {heroMetric ? (
+              <div style={{ position: 'relative' }}>
+                {heroMetric}
+                <ScoreTooltip toolId={resolvedTool.id} />
+              </div>
+            ) : (
               <div className="result-hero__icon">
                 <resolvedTool.icon size={22} />
               </div>
@@ -183,12 +221,25 @@ export function ToolResultScreen({
               </div>
               <h1 className="result-hero__headline">
                 {typeof summary.headline === 'string' ? summary.headline : resolvedTool.resultTitle}
+                {scoreDelta !== null && (
+                  <span className={`score-delta ${scoreDelta >= 0 ? 'score-delta-positive' : 'score-delta-negative'}`}>
+                    {scoreDelta >= 0 ? '+' : ''}{scoreDelta} pts
+                  </span>
+                )}
               </h1>
               <p className="result-hero__sub">
                 {item.label || 'Untitled run'} · {new Date(item.created_at).toLocaleString()}
               </p>
               <div className="result-hero__actions">
                 <a href={resolvedTool.route} className="result-hero__btn-text">Run again</a>
+                <button
+                  className="result-hero__btn-text"
+                  onClick={() => setRegenOpen((v) => !v)}
+                  title="Re-generate with feedback"
+                >
+                  <RefreshCw size={12} style={{ marginRight: 4 }} />
+                  Re-generate
+                </button>
                 <button className="result-hero__btn" onClick={handleCopy} title={copied ? 'Copied' : 'Copy'}>
                   <Copy size={13} />
                 </button>
@@ -204,6 +255,12 @@ export function ToolResultScreen({
                     <Download size={13} />
                   </button>
                 ) : null}
+                {(resolvedTool.id === 'cover-letter' || resolvedTool.id === 'interview') && status === 'authenticated' && historyId && (
+                  <button className="result-hero__btn-text" onClick={() => exportPdf(historyId)} title="Export PDF">
+                    <FileText size={12} style={{ marginRight: 4 }} />
+                    PDF
+                  </button>
+                )}
                 <button
                   className="result-hero__btn"
                   disabled={status !== 'authenticated' || favoriteToggle.isPending}
@@ -219,6 +276,31 @@ export function ToolResultScreen({
                   <Star size={13} fill={item.is_favorite ? 'currentColor' : 'none'} />
                 </button>
               </div>
+              {regenOpen && (
+                <div className="regen-feedback-panel">
+                  <textarea
+                    className="regen-feedback-textarea"
+                    placeholder="Optional: describe what you'd like changed..."
+                    value={regenFeedback}
+                    onChange={(e) => setRegenFeedback(e.target.value)}
+                    rows={3}
+                  />
+                  <div className="regen-feedback-actions">
+                    <button
+                      className="result-hero__btn-text"
+                      onClick={() => { setRegenOpen(false); setRegenFeedback('') }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      className="result-hero__btn-text regen-submit-btn"
+                      onClick={handleRegenSubmit}
+                    >
+                      Submit
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
           {insightStrip && insightStrip.length > 0 ? (
@@ -266,9 +348,11 @@ export function ToolResultScreen({
         ) : null}
 
         {/* ── Content ── */}
-        <div className="result-content">
-          {definition.render(payload, item, resolvedTool)}
-        </div>
+        <AdGatedLock toolId={resolvedTool.id}>
+          <div className="result-content">
+            {definition.render(payload, item, resolvedTool)}
+          </div>
+        </AdGatedLock>
 
         {/* ── Sticky CTA ── */}
         {primaryNextAction ? (

@@ -1,0 +1,66 @@
+{
+  "nav": {
+    "dashboard": "Dashboard",
+    "history": "History",
+    "settings": "Settings",
+    "login": "Log in",
+    "register": "Sign up",
+    "logout": "Log out"
+  },
+  "auth": {
+    "loginTitle": "Welcome back",
+    "registerTitle": "Create an account",
+    "email": "Email",
+    "password": "Password",
+    "fullName": "Full name",
+    "loginButton": "Log in",
+    "registerButton": "Sign up",
+    "noAccount": "Don't have an account?",
+    "hasAccount": "Already have an account?"
+  },
+  "dashboard": {
+    "heroTitle": "Your AI Career Workspace",
+    "heroSubtitle": "Upload your resume and let AI guide your job search",
+    "recentRuns": "Recent Runs",
+    "favorites": "Favorites",
+    "toolShowcase": "Tools"
+  },
+  "settings": {
+    "title": "Settings",
+    "subtitle": "Manage your local workspace, onboarding preferences, and system diagnostics.",
+    "onboarding": "Onboarding",
+    "replayTour": "Replay tour",
+    "replayDescription": "Replay the welcome tour to revisit the platform introduction and tool overview.",
+    "localData": "Local workspace data",
+    "clearDrafts": "Clear local drafts",
+    "clearDescription": "Clear locally cached drafts, guest demos, and workflow context to restart the guided flow.",
+    "clearedNote": "Local drafts and demo state were cleared.",
+    "savedHistory": "Saved workspace history",
+    "openTimeline": "Open timeline",
+    "savedDescription": "Authenticated results live in the workspace timeline. Review, favorite, pin, and delete saved runs there.",
+    "diagnostics": "System Diagnostics",
+    "diagnosticsDescription": "Quick check for API reachability from the frontend client.",
+    "apiStatus": "API Status",
+    "online": "Online & Healthy",
+    "offline": "Unknown / Offline",
+    "service": "Service",
+    "environment": "Environment",
+    "lastChecked": "Last Checked",
+    "unavailable": "Unavailable",
+    "language": "Language",
+    "languageDescription": "Choose your preferred display language.",
+    "deleteAccount": "Delete Account",
+    "deleteDescription": "Permanently delete your account and all associated data. This action cannot be undone.",
+    "deleteButton": "Delete my account"
+  },
+  "common": {
+    "loading": "Loading...",
+    "error": "Something went wrong",
+    "tryAgain": "Try Again",
+    "goHome": "Go to Home",
+    "cancel": "Cancel",
+    "save": "Save",
+    "export": "Export",
+    "runAgain": "Run again"
+  }
+}

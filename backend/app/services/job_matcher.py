@@ -222,6 +222,42 @@ async def match_job(resume_text: str, job_description: str) -> dict:
     if not interview_focus:
         interview_focus = prepass.missing_keywords[:3] or prepass.matched_keywords[:3]
 
+    # Normalize missing keywords with contextual guidance
+    raw_missing = result.get("missing_keywords") if isinstance(result.get("missing_keywords"), list) else []
+    enriched_missing_keywords: list[dict[str, str]] = []
+    for item in raw_missing:
+        if isinstance(item, dict):
+            keyword = str(item.get("keyword") or "").strip()
+            if not keyword:
+                continue
+            enriched_missing_keywords.append(
+                {
+                    "keyword": keyword,
+                    "contextual_guidance": str(item.get("contextual_guidance") or "").strip()
+                    or "Consider adding relevant experience with this skill",
+                    "anti_stuffing_note": str(item.get("anti_stuffing_note") or "").strip()
+                    or "Only mention if you have genuine experience",
+                }
+            )
+        elif isinstance(item, str) and item.strip():
+            enriched_missing_keywords.append(
+                {
+                    "keyword": item.strip(),
+                    "contextual_guidance": "Consider adding relevant experience with this skill",
+                    "anti_stuffing_note": "Only mention if you have genuine experience",
+                }
+            )
+    # Fallback: if LLM didn't return enriched missing keywords, build from prepass
+    if not enriched_missing_keywords:
+        for kw in prepass.missing_keywords:
+            enriched_missing_keywords.append(
+                {
+                    "keyword": kw,
+                    "contextual_guidance": "Consider adding relevant experience with this skill",
+                    "anti_stuffing_note": "Only mention if you have genuine experience",
+                }
+            )
+
     recruiter_summary = str(
         result.get("recruiter_summary")
         or (
@@ -244,7 +280,7 @@ async def match_job(resume_text: str, job_description: str) -> dict:
         "verdict": verdict,
         "requirements": requirements,
         "matched_keywords": prepass.matched_keywords,
-        "missing_keywords": prepass.missing_keywords,
+        "missing_keywords": enriched_missing_keywords,
         "tailoring_actions": tailoring_actions,
         "interview_focus": interview_focus[:4],
         "recruiter_summary": recruiter_summary,

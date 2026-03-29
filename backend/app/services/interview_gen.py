@@ -3,9 +3,13 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
-from app.prompts.interview import build_interview_prompt
+import logging
+
+from app.prompts.interview import build_interview_prompt, build_practice_feedback_prompt
 from app.services.ai_client import complete_structured
 from app.services.application_context import build_application_handoff
+
+logger = logging.getLogger(__name__)
 
 SCHEMA_VERSION = "quality_v2"
 CONFIDENCE_NOTE = (
@@ -346,4 +350,57 @@ async def generate_interview_questions(
         "focus_areas": focus_areas,
         "weak_signals_to_prepare": weak_signals,
         "interviewer_notes": interviewer_notes,
+    }
+
+
+async def evaluate_practice_answer(
+    question: str,
+    user_answer: str,
+    model_answer: str | None = None,
+) -> dict[str, Any]:
+    system_prompt, user_prompt = build_practice_feedback_prompt(
+        question, user_answer, model_answer
+    )
+
+    is_empty = not user_answer or not user_answer.strip()
+
+    try:
+        result = await complete_structured(system_prompt, user_prompt)
+    except Exception:
+        logger.warning("LLM call failed for practice feedback, returning heuristic fallback", exc_info=True)
+        if is_empty:
+            return {
+                "strengths": [],
+                "weaknesses": [],
+                "suggestions": [
+                    "Start by restating the question in your own words.",
+                    "Use a structured format like STAR (Situation, Task, Action, Result).",
+                    "Include a specific example from your experience.",
+                ],
+                "overall_feedback": (
+                    "Try answering in your own words first. A strong answer usually includes "
+                    "a concrete example with measurable outcomes."
+                ),
+                "is_empty_answer": True,
+            }
+        return {
+            "strengths": ["You provided an answer to the question."],
+            "weaknesses": ["Consider adding more specific examples and measurable outcomes."],
+            "suggestions": [
+                "Use concrete numbers or metrics where possible.",
+                "Structure your answer with a clear beginning, middle, and end.",
+            ],
+            "overall_feedback": (
+                "Review your answer for specificity and structure. "
+                "Strong answers tie directly to the question with evidence from your experience."
+            ),
+            "is_empty_answer": False,
+        }
+
+    return {
+        "strengths": _to_str_list(result.get("strengths")),
+        "weaknesses": _to_str_list(result.get("weaknesses")),
+        "suggestions": _to_str_list(result.get("suggestions")),
+        "overall_feedback": _to_str(result.get("overall_feedback")) or "Review your answer and refine with specific examples.",
+        "is_empty_answer": bool(result.get("is_empty_answer", is_empty)),
     }

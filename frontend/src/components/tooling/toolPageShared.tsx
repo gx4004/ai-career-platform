@@ -103,15 +103,26 @@ export function ToolPageShell({
 export function ToolPageLoading({
   toolId,
   className,
+  mutationDone,
+  onReady,
 }: {
   toolId: ToolId
   className?: string
+  /** Whether the data mutation has resolved */
+  mutationDone?: boolean
+  /** Called when minimum display time has elapsed */
+  onReady?: () => void
 }) {
   const tool = tools[toolId]
 
   return (
     <div className={cn('tool-loading-stage', className)}>
-      <CinematicLoader accent={tool.accent} stages={loadingStagesByTool[toolId]} />
+      <CinematicLoader
+        accent={tool.accent}
+        toolId={toolId}
+        mutationDone={mutationDone}
+        onReady={onReady}
+      />
     </div>
   )
 }

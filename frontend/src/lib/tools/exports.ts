@@ -1,3 +1,6 @@
+import { API_URL } from '#/lib/api/client'
+import { getAuthToken } from '#/lib/auth/storage'
+
 type AnyObject = Record<string, unknown>
 
 export type ExportableSection = {
@@ -14,7 +17,7 @@ export type EditableBlock = {
   placeholder?: string | null
 }
 
-export type ExportFormat = 'txt' | 'md'
+export type ExportFormat = 'txt' | 'md' | 'pdf'
 
 export function readExportableSections(payload: AnyObject): ExportableSection[] {
   if (!Array.isArray(payload.exportable_sections)) return []
@@ -85,6 +88,27 @@ export function sanitizeDownloadTitle(title: string, format: ExportFormat): stri
 
   if (!cleaned) return fallback
   return `${cleaned}.${format}`
+}
+
+export async function exportPdf(historyId: string): Promise<void> {
+  const token = getAuthToken()
+  if (!token) return
+
+  const res = await fetch(
+    `${API_URL}/history/${historyId}/export/pdf`,
+    {
+      headers: { Authorization: `Bearer ${token}` },
+    }
+  )
+  if (!res.ok) throw new Error('PDF export failed')
+
+  const blob = await res.blob()
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `result-${historyId}.pdf`
+  a.click()
+  URL.revokeObjectURL(url)
 }
 
 function toString(value: unknown): string {

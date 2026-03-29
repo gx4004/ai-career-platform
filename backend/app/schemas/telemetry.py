@@ -14,6 +14,11 @@ class TelemetryEventRequest(BaseModel):
         "export_action_used",
         "workspace_resumed",
         "frontend_error",
+        "tool_regenerate",
+        "ad_shown",
+        "ad_completed",
+        "auth_signup_source",
+        "workflow_continued",
     ]
     level: Literal["info", "error"] = "info"
     tool_id: str | None = None

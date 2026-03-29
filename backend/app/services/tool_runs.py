@@ -13,6 +13,14 @@ from app.services.workspaces import resolve_workspace, touch_workspace
 
 GUEST_LOCKED_ACTIONS = ["save", "favorite", "continue", "history"]
 
+
+def delete_all_user_data(db: Session, user_id: str) -> None:
+    """Delete all tool runs, workspaces, and the user record. KVKK compliance."""
+    db.query(ToolRun).filter(ToolRun.user_id == user_id).delete()
+    db.query(Workspace).filter(Workspace.user_id == user_id).delete()
+    db.query(User).filter(User.id == user_id).delete()
+    db.commit()
+
 DEFAULT_NEXT_STEP_TOOL = {
     "resume": "job-match",
     "job-match": "cover-letter",
@@ -49,6 +57,8 @@ def persist_tool_run(
     result: dict[str, Any],
     linked_context_ids: list[str] | None = None,
     workspace_id: str | None = None,
+    parent_run_id: str | None = None,
+    feedback_text: str | None = None,
 ) -> ToolRun | None:
     if current_user is None:
         return None
@@ -68,6 +78,8 @@ def persist_tool_run(
         workspace_id=workspace.id,
         tool_name=tool_name,
         label=label,
+        parent_run_id=parent_run_id,
+        feedback_text=feedback_text,
         result_payload=attach_workspace_meta(
             tool_name,
             result,

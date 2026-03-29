@@ -1,18 +1,21 @@
 import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { RotateCcw } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { Button } from '#/components/ui/button'
 import { PageFrame } from '#/components/app/PageFrame'
 import { OnboardingDialog } from '#/components/onboarding/OnboardingDialog'
 import { useOnboarding } from '#/hooks/useOnboarding'
 import { useSession } from '#/hooks/useSession'
-import { clearDemoRuns } from '#/lib/tools/demoRuns'
+import { changeLanguage } from '#/lib/i18n'
+import { clearTransientResults } from '#/lib/tools/demoRuns'
 import { clearAllToolDrafts, clearWorkflowContext } from '#/lib/tools/drafts'
 
 export function SettingsPage() {
   const onboarding = useOnboarding()
   const { health } = useSession()
   const [cleared, setCleared] = useState(false)
+  const { t, i18n } = useTranslation()
 
   return (
     <PageFrame>
@@ -63,7 +66,7 @@ export function SettingsPage() {
                   onClick={() => {
                     clearAllToolDrafts()
                     clearWorkflowContext()
-                    clearDemoRuns()
+                    clearTransientResults()
                     setCleared(true)
                   }}
                 >
@@ -83,6 +86,25 @@ export function SettingsPage() {
                 <Button asChild variant="outline" className="settings-btn">
                   <Link to="/history">Open timeline</Link>
                 </Button>
+              </div>
+            </div>
+
+            <div className="settings-row">
+              <div className="settings-info">
+                <h2 className="settings-title">{t('settings.language')}</h2>
+                <p className="settings-description">
+                  {t('settings.languageDescription')}
+                </p>
+              </div>
+              <div className="settings-action">
+                <select
+                  className="settings-language-select"
+                  value={i18n.language}
+                  onChange={(e) => changeLanguage(e.target.value)}
+                >
+                  <option value="en">English</option>
+                  <option value="tr">Türkçe</option>
+                </select>
               </div>
             </div>
           </div>

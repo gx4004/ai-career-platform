@@ -1,15 +1,22 @@
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
 
+from app.config import settings
 from app.prompts.resume import build_resume_prompt
 from app.services.ai_client import complete_structured
 from app.services.quality_signals import (
     ResumePrepass,
     build_resume_prepass,
+    compute_blended_score,
     compute_overall_score,
     compute_resume_breakdown,
+    confidence_gap_note,
+    detect_sector,
 )
+
+logger = logging.getLogger(__name__)
 
 SCHEMA_VERSION = "quality_v2"
 CONFIDENCE_NOTE = (
@@ -237,25 +244,60 @@ def _normalize_role_fit(
     }
 
 
-async def analyze_resume(
-    resume_text: str, job_description: str | None
+def _build_heuristic_fallback(
+    prepass: ResumePrepass,
+    score_breakdown: list[dict[str, int | str]],
+    overall_score: int,
+    generated_at: str,
 ) -> dict:
-    prepass = build_resume_prepass(resume_text, job_description)
-    score_breakdown = compute_resume_breakdown(prepass)
-    overall_score = compute_overall_score(score_breakdown)
-    generated_at = datetime.now(timezone.utc).isoformat()
-
-    locked_payload = {
+    """Build a complete response from heuristic data only (no LLM)."""
+    issues = _heuristic_issues(prepass, score_breakdown)
+    strengths = _fallback_strengths(prepass)
+    top_actions = [
+        {"title": issue["title"], "action": issue["fix"], "priority": issue["severity"]}
+        for issue in issues[:3]
+    ]
+    return {
         "schema_version": SCHEMA_VERSION,
         "summary": {
             "headline": _default_headline(overall_score, prepass.missing_keywords),
             "verdict": _resume_verdict(overall_score),
             "confidence_note": CONFIDENCE_NOTE,
         },
-        "top_actions": [],
+        "top_actions": top_actions,
         "generated_at": generated_at,
         "overall_score": overall_score,
         "score_breakdown": score_breakdown,
+        "strengths": strengths,
+        "issues": issues,
+        "evidence": prepass.evidence(),
+        "role_fit": None,
+    }
+
+
+async def analyze_resume(
+    resume_text: str,
+    job_description: str | None,
+    *,
+    feedback: str | None = None,
+) -> dict:
+    prepass = build_resume_prepass(resume_text, job_description)
+    heuristic_breakdown = compute_resume_breakdown(prepass)
+    heuristic_overall = compute_overall_score(heuristic_breakdown)
+    generated_at = datetime.now(timezone.utc).isoformat()
+    detected_sector = detect_sector(job_description) if job_description else None
+
+    locked_payload = {
+        "schema_version": SCHEMA_VERSION,
+        "summary": {
+            "headline": _default_headline(heuristic_overall, prepass.missing_keywords),
+            "verdict": _resume_verdict(heuristic_overall),
+            "confidence_note": CONFIDENCE_NOTE,
+        },
+        "top_actions": [],
+        "generated_at": generated_at,
+        "overall_score": heuristic_overall,
+        "score_breakdown": heuristic_breakdown,
         "strengths": [],
         "issues": [],
         "evidence": prepass.evidence(),
@@ -267,10 +309,39 @@ async def analyze_resume(
         job_description,
         locked_payload,
         prepass.evidence(),
+        feedback=feedback,
+        detected_sector=detected_sector,
     )
-    result = await complete_structured(system_prompt, user_prompt)
+
+    try:
+        result = await complete_structured(system_prompt, user_prompt)
+    except Exception:
+        logger.warning("LLM call failed for resume analysis, returning heuristic fallback", exc_info=True)
+        return _build_heuristic_fallback(prepass, heuristic_breakdown, heuristic_overall, generated_at)
+
+    # Blended scoring: heuristic 40% + LLM 60%
+    if settings.BLENDED_SCORING_ENABLED:
+        llm_breakdown = result.get("llm_score_breakdown")
+        score_breakdown = compute_blended_score(heuristic_breakdown, llm_breakdown)
+
+        llm_overall = None
+        if isinstance(llm_breakdown, list) and llm_breakdown:
+            llm_scores = [int(item.get("score", 0)) for item in llm_breakdown if isinstance(item.get("score"), (int, float))]
+            if llm_scores:
+                llm_overall = round(sum(llm_scores) / len(llm_scores))
+    else:
+        score_breakdown = heuristic_breakdown
+        llm_overall = None
+
+    overall_score = compute_overall_score(score_breakdown)
 
     summary = _normalize_summary(result, overall_score, prepass)
+
+    # Append confidence gap note if scores diverge significantly
+    gap_note = confidence_gap_note(heuristic_overall, llm_overall)
+    if gap_note:
+        summary["confidence_note"] = gap_note
+
     issues = _normalize_issues(result, prepass, score_breakdown)
     top_actions = _normalize_top_actions(issues, result)
     strengths = result.get("strengths") if isinstance(result.get("strengths"), list) else []
