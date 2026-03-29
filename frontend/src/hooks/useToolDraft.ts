@@ -24,9 +24,19 @@ export function useToolDraft(
     return () => clearTimeout(timerRef.current)
   }, [draft, toolId])
 
+  // Input quality soft validation warnings
+  const warnings: string[] = []
+  if (draft.resumeText) {
+    const wordCount = draft.resumeText.trim().split(/\s+/).filter(Boolean).length
+    if (wordCount > 0 && wordCount < 50) {
+      warnings.push('Bu CV çok kısa görünüyor — sonuçlar sınırlı olabilir.')
+    }
+  }
+
   return {
     draft,
     setDraft,
+    warnings,
     setField: <K extends keyof ToolDraftState>(field: K, value: ToolDraftState[K]) =>
       setDraft((current) => ({ ...current, [field]: value })),
     resetDraft: () => {

@@ -10,6 +10,11 @@ export type TelemetryEventName =
   | 'export_action_used'
   | 'workspace_resumed'
   | 'frontend_error'
+  | 'tool_regenerate'
+  | 'ad_shown'
+  | 'ad_completed'
+  | 'auth_signup_source'
+  | 'workflow_continued'
 
 type TelemetryPayload = {
   event_name: TelemetryEventName

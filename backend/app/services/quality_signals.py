@@ -522,3 +522,105 @@ def job_match_verdict(match_score: int) -> str:
     if match_score >= 55:
         return "borderline"
     return "stretch"
+
+
+# --- Blended Scoring (heuristic 40% + LLM 60%) ---
+
+HEURISTIC_WEIGHT = 0.4
+LLM_WEIGHT = 0.6
+CONFIDENCE_GAP_THRESHOLD = 20
+
+BREAKDOWN_KEYS = ("keywords", "impact", "structure", "clarity", "completeness")
+
+
+def compute_blended_score(
+    heuristic_breakdown: list[dict[str, int | str]],
+    llm_breakdown: list[dict] | None,
+) -> list[dict[str, int | str]]:
+    """Blend heuristic and LLM score breakdowns (40/60 weighted average).
+
+    If llm_breakdown is None or empty, returns heuristic scores unchanged.
+    """
+    if not llm_breakdown:
+        return heuristic_breakdown
+
+    llm_by_key = {}
+    for item in llm_breakdown:
+        key = item.get("key")
+        score = item.get("score")
+        if key and isinstance(score, (int, float)):
+            llm_by_key[str(key)] = int(score)
+
+    if not llm_by_key:
+        return heuristic_breakdown
+
+    blended = []
+    for item in heuristic_breakdown:
+        key = str(item["key"])
+        h_score = int(item["score"])
+        l_score = llm_by_key.get(key)
+
+        if l_score is not None:
+            final = clamp(round(h_score * HEURISTIC_WEIGHT + l_score * LLM_WEIGHT))
+        else:
+            final = h_score
+
+        blended.append({**item, "score": final})
+    return blended
+
+
+def confidence_gap_note(
+    heuristic_overall: int,
+    llm_overall: int | None,
+) -> str | None:
+    """Return a confidence note if heuristic and LLM scores diverge significantly."""
+    if llm_overall is None:
+        return None
+    gap = abs(heuristic_overall - llm_overall)
+    if gap > CONFIDENCE_GAP_THRESHOLD:
+        return (
+            f"Heuristic and AI assessments differ by {gap} points — "
+            "interpret this score as approximate."
+        )
+    return None
+
+
+# --- Sector Detection ---
+
+SECTOR_KEYWORDS: dict[str, tuple[str, ...]] = {
+    "fintech": ("fintech", "financial", "banking", "payments", "trading", "insurance"),
+    "healthtech": ("health", "medical", "clinical", "patient", "healthcare", "pharma"),
+    "e-commerce": ("e-commerce", "ecommerce", "marketplace", "retail", "shopping", "commerce"),
+    "saas": ("saas", "b2b", "subscription", "platform"),
+    "edtech": ("edtech", "education", "learning", "students", "curriculum"),
+    "gaming": ("gaming", "game", "esports", "interactive entertainment"),
+    "cybersecurity": ("security", "cybersecurity", "infosec", "threat", "vulnerability"),
+    "ai-ml": ("artificial intelligence", "machine learning", "deep learning", "nlp", "llm"),
+}
+
+
+def detect_sector(job_description: str) -> str | None:
+    """Auto-detect industry sector from job description keywords."""
+    if not job_description:
+        return None
+    lowered = job_description.lower()
+    scores: dict[str, int] = {}
+    for sector, keywords in SECTOR_KEYWORDS.items():
+        scores[sector] = sum(1 for kw in keywords if kw in lowered)
+    top = max(scores.items(), key=lambda x: x[1])
+    return top[0] if top[1] >= 2 else None
+
+
+# --- Career Profile Inference ---
+
+def infer_career_profile(resume_text: str) -> dict:
+    """Bundle seniority, discipline, and years into a career profile dict."""
+    detected_skills = extract_detected_skills(resume_text)
+    return {
+        "seniority": infer_resume_seniority(resume_text),
+        "seniority_label": seniority_label(infer_resume_seniority(resume_text)),
+        "discipline": infer_resume_discipline(resume_text, detected_skills),
+        "discipline_label": discipline_label(infer_resume_discipline(resume_text, detected_skills)),
+        "years_experience": infer_resume_years_experience(resume_text),
+        "detected_skills": detected_skills,
+    }

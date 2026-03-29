@@ -8,6 +8,7 @@ from slowapi.util import get_remote_address
 
 from app.config import settings
 from app.routers import (
+    admin,
     auth,
     career,
     cover_letter,
@@ -96,3 +97,4 @@ app.include_router(
 )
 app.include_router(history.router, prefix=f"{prefix}/history", tags=["history"])
 app.include_router(telemetry.router, prefix=f"{prefix}/telemetry", tags=["telemetry"])
+app.include_router(admin.router, prefix=f"{prefix}/admin", tags=["admin"])

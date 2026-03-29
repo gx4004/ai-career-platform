@@ -7,6 +7,7 @@ import {
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '#/components/ui/accordion'
 import { Button } from '#/components/ui/button'
 import { Textarea } from '#/components/ui/textarea'
+import { InterviewPracticeMode } from '#/components/tooling/InterviewPracticeMode'
 import type { ToolRunDetail } from '#/lib/api/schemas'
 import type { ToolDefinition, ToolId } from '#/lib/tools/registry'
 
@@ -74,7 +75,11 @@ type JobMatchResultPayload = {
     suggestedFix: string
   }>
   matchedKeywords: string[]
-  missingKeywords: string[]
+  missingKeywords: Array<{
+    keyword: string
+    contextual_guidance: string
+    anti_stuffing_note: string
+  }>
   tailoringActions: Array<{
     section: 'summary' | 'experience' | 'skills' | 'projects'
     keyword: string
@@ -374,7 +379,28 @@ function normalizeJobMatchPayload(payload: AnyObject): JobMatchResultPayload {
         toString(item.suggested_fix) || 'Add a clearer example tied to this requirement.',
     })),
     matchedKeywords: toStringArray(payload.matched_keywords),
-    missingKeywords: toStringArray(payload.missing_keywords),
+    missingKeywords: (() => {
+      const raw = payload.missing_keywords
+      if (!Array.isArray(raw)) return []
+      return raw.map((item) => {
+        if (typeof item === 'string') {
+          return {
+            keyword: item,
+            contextual_guidance: '',
+            anti_stuffing_note: '',
+          }
+        }
+        if (item && typeof item === 'object') {
+          const obj = item as AnyObject
+          return {
+            keyword: toString(obj.keyword) || toString(obj as unknown) || '',
+            contextual_guidance: toString(obj.contextual_guidance) || '',
+            anti_stuffing_note: toString(obj.anti_stuffing_note) || '',
+          }
+        }
+        return { keyword: '', contextual_guidance: '', anti_stuffing_note: '' }
+      }).filter((k) => k.keyword)
+    })(),
     tailoringActions: toObjectArray(payload.tailoring_actions).map((item) => ({
       section: (toString(item.section) || 'experience') as 'summary' | 'experience' | 'skills' | 'projects',
       keyword: toString(item.keyword) || 'keyword',
@@ -676,8 +702,25 @@ function JobMatchView({ payload }: { payload: AnyObject }) {
           <h3 className="rs__sub">Keyword coverage</h3>
           <div className="chip-flow">
             {result.matchedKeywords.map((k) => <span key={k} className="chip-sm chip-sm--positive">{k}</span>)}
-            {result.missingKeywords.map((k) => <span key={k} className="chip-sm chip-sm--warning">{k}</span>)}
           </div>
+          {result.missingKeywords.length > 0 && (
+            <div style={{ marginTop: '0.75rem' }}>
+              <h3 className="rs__sub" style={{ color: 'var(--warning)' }}>Missing keywords</h3>
+              <div style={{ display: 'grid', gap: '0.5rem' }}>
+                {result.missingKeywords.map((k) => (
+                  <div key={k.keyword} className="keyword-card">
+                    <div className="keyword-card-name">{k.keyword}</div>
+                    {k.contextual_guidance && (
+                      <p className="keyword-guidance">{k.contextual_guidance}</p>
+                    )}
+                    {k.anti_stuffing_note && (
+                      <p className="keyword-warning">{k.anti_stuffing_note}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
         <div>
           {result.tailoringActions.length > 0 ? (
@@ -793,14 +836,35 @@ function CoverLetterView({ payload }: { payload: AnyObject }) {
 function InterviewView({ payload }: { payload: AnyObject }) {
   const result = normalizeInterviewPayload(payload)
   const [practiceGapsFirst, setPracticeGapsFirst] = useState(false)
+  const [practiceMode, setPracticeMode] = useState(false)
 
   const visibleQuestions = useMemo(() => {
     if (!practiceGapsFirst) return result.questions
     return [...result.questions.filter((q) => q.practiceFirst), ...result.questions.filter((q) => !q.practiceFirst)]
   }, [practiceGapsFirst, result.questions])
 
+  if (practiceMode) {
+    return (
+      <InterviewPracticeMode
+        questions={result.questions.map((q) => ({
+          question: q.question,
+          answerStructure: q.answerStructure,
+          focusArea: q.focusArea,
+        }))}
+        onExit={() => setPracticeMode(false)}
+      />
+    )
+  }
+
   return (
     <>
+      {/* Practice mode toggle */}
+      <div className="rs" style={{ display: 'flex', justifyContent: 'flex-end' }}>
+        <Button variant="outline" size="sm" onClick={() => setPracticeMode(true)}>
+          Start Practice Mode
+        </Button>
+      </div>
+
       {/* Focus areas + Weak signals */}
       <div className="rs rs--2col">
         <div>
@@ -1244,7 +1308,7 @@ function jobMatchCopyText(payload: AnyObject) {
     'Top actions:',
     ...result.topActions.slice(0, 3).map((action) => `- ${action.title}: ${action.action}`),
     '',
-    `Missing keywords: ${result.missingKeywords.join(', ') || 'None'}`,
+    `Missing keywords: ${result.missingKeywords.map((k) => k.keyword).join(', ') || 'None'}`,
     '',
     result.recruiterSummary,
   ]

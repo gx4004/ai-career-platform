@@ -7,6 +7,7 @@ from app.services.ai_client import complete_structured
 from app.services.quality_signals import (
     build_resume_prepass,
     discipline_label,
+    infer_career_profile,
     infer_resume_discipline,
     infer_resume_seniority,
     infer_resume_years_experience,
@@ -909,11 +910,14 @@ async def recommend_career(
         "target_role": target_role,
     }
 
+    career_profile = infer_career_profile(resume_text)
+
     system_prompt, user_prompt = build_career_prompt(
         resume_text,
         target_role,
         locked_payload,
         helper_signals,
+        career_profile=career_profile,
     )
     result = await complete_structured(system_prompt, user_prompt)
 

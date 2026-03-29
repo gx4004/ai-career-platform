@@ -11,12 +11,16 @@ class ResumeAnalyzeRequest(BaseModel):
     resume_text: str
     job_description: str | None = None
     workspace_context: "WorkspaceContextInput | None" = None
+    parent_run_id: str | None = None
+    feedback: str | None = None
 
 
 class JobMatchRequest(BaseModel):
     resume_text: str
     job_description: str
     workspace_context: "WorkspaceContextInput | None" = None
+    parent_run_id: str | None = None
+    feedback: str | None = None
 
 
 class CoverLetterRequest(BaseModel):
@@ -26,6 +30,8 @@ class CoverLetterRequest(BaseModel):
     resume_analysis: ResumeAnalysisHandoff | None = None
     job_match: JobMatchHandoff | None = None
     workspace_context: "WorkspaceContextInput | None" = None
+    parent_run_id: str | None = None
+    feedback: str | None = None
 
 
 class InterviewRequest(BaseModel):
@@ -35,18 +41,24 @@ class InterviewRequest(BaseModel):
     resume_analysis: ResumeAnalysisHandoff | None = None
     job_match: JobMatchHandoff | None = None
     workspace_context: "WorkspaceContextInput | None" = None
+    parent_run_id: str | None = None
+    feedback: str | None = None
 
 
 class CareerRequest(BaseModel):
     resume_text: str
     target_role: str | None = None
     workspace_context: "WorkspaceContextInput | None" = None
+    parent_run_id: str | None = None
+    feedback: str | None = None
 
 
 class PortfolioRequest(BaseModel):
     resume_text: str
     target_role: str
     workspace_context: "WorkspaceContextInput | None" = None
+    parent_run_id: str | None = None
+    feedback: str | None = None
 
 
 class ImportJobUrlRequest(BaseModel):
@@ -314,6 +326,20 @@ class PortfolioResponse(SharedResultEnvelope):
     recommended_start_project: str
     sequence_plan: list[PortfolioSequenceStep]
     presentation_tips: list[str]
+
+
+class InterviewPracticeFeedbackRequest(BaseModel):
+    question: str
+    user_answer: str
+    model_answer: str | None = None
+
+
+class InterviewPracticeFeedbackResponse(BaseModel):
+    strengths: list[str] = []
+    weaknesses: list[str] = []
+    suggestions: list[str] = []
+    overall_feedback: str = ""
+    is_empty_answer: bool = False
 
 
 class ParsedCvResponse(BaseModel):
