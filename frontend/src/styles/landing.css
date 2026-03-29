@@ -2667,14 +2667,25 @@
   background:
     linear-gradient(180deg,
       #020611 0%,
+      #030914 4%,
       #040b16 8%,
+      #050d1a 13%,
       #06101e 18%,
+      #071220 24%,
       #081524 30%,
+      #091828 37%,
+      rgba(10, 20, 36, 0.96) 41%,
       rgba(10, 20, 36, 0.92) 45%,
+      rgba(11, 22, 39, 0.84) 50%,
+      rgba(12, 24, 42, 0.76) 54%,
       rgba(12, 24, 42, 0.72) 58%,
+      rgba(13, 26, 45, 0.60) 63%,
       rgba(14, 28, 48, 0.45) 70%,
+      rgba(14, 29, 49, 0.34) 76%,
       rgba(14, 30, 50, 0.22) 82%,
+      rgba(14, 30, 51, 0.15) 87%,
       rgba(14, 30, 52, 0.08) 92%,
+      rgba(14, 30, 52, 0.03) 96%,
       transparent 100%);
 }
 
@@ -2683,10 +2694,10 @@
   position: absolute;
   inset: -8% -24% -40%;
   background:
-    radial-gradient(ellipse 80% 55% at 50% 18%, rgba(56, 130, 230, 0.32) 0%, rgba(56, 130, 230, 0.10) 35%, transparent 60%),
-    radial-gradient(ellipse 60% 40% at 50% 28%, rgba(70, 150, 245, 0.20) 0%, transparent 55%),
-    radial-gradient(ellipse 100% 70% at 50% 22%, rgba(40, 100, 190, 0.14) 0%, transparent 50%);
-  filter: blur(32px);
+    radial-gradient(ellipse 80% 55% at 50% 18%, rgba(56, 130, 230, 0.32) 0%, rgba(56, 130, 230, 0.22) 18%, rgba(56, 130, 230, 0.10) 35%, rgba(56, 130, 230, 0.04) 48%, transparent 60%),
+    radial-gradient(ellipse 60% 40% at 50% 28%, rgba(70, 150, 245, 0.20) 0%, rgba(70, 150, 245, 0.10) 28%, transparent 55%),
+    radial-gradient(ellipse 100% 70% at 50% 22%, rgba(40, 100, 190, 0.14) 0%, rgba(40, 100, 190, 0.06) 30%, transparent 50%);
+  filter: blur(48px);
   pointer-events: none;
 }
 
@@ -2694,8 +2705,9 @@
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent 30%),
-    radial-gradient(ellipse 70% 40% at 50% 15%, rgba(140, 200, 255, 0.12) 0%, transparent 40%);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0.02) 15%, transparent 30%),
+    radial-gradient(ellipse 70% 40% at 50% 15%, rgba(140, 200, 255, 0.12) 0%, rgba(140, 200, 255, 0.05) 22%, transparent 40%);
+  filter: blur(8px);
   pointer-events: none;
 }
 
@@ -2973,24 +2985,36 @@ button.landing-cascade-cta--ghost {
   background:
     linear-gradient(180deg,
       #020611 0%,
+      #030914 4%,
       #040b16 8%,
+      #050d1a 13%,
       #06101e 18%,
+      #071220 24%,
       #081524 30%,
+      #091828 37%,
+      rgba(10, 20, 36, 0.96) 41%,
       rgba(10, 20, 36, 0.92) 45%,
+      rgba(11, 22, 39, 0.84) 50%,
+      rgba(12, 24, 42, 0.76) 54%,
       rgba(12, 24, 42, 0.72) 58%,
+      rgba(13, 26, 45, 0.60) 63%,
       rgba(14, 28, 48, 0.45) 70%,
+      rgba(14, 29, 49, 0.34) 76%,
       rgba(14, 30, 50, 0.22) 82%,
+      rgba(14, 30, 51, 0.15) 87%,
       rgba(14, 30, 52, 0.08) 92%,
+      rgba(14, 30, 52, 0.03) 96%,
       transparent 100%);
 }
 
 .landing-cascade-beam--multicolor {
   background:
-    radial-gradient(ellipse 80% 55% at 50% 18%, rgba(56, 130, 230, 0.30) 0%, rgba(56, 130, 230, 0.08) 35%, transparent 60%),
-    radial-gradient(ellipse 50% 40% at 15% 55%, rgba(124, 58, 237, 0.12) 0%, transparent 45%),
-    radial-gradient(ellipse 50% 40% at 85% 65%, rgba(8, 145, 178, 0.09) 0%, transparent 45%),
-    radial-gradient(ellipse 40% 30% at 50% 30%, rgba(70, 150, 245, 0.18) 0%, transparent 50%),
-    radial-gradient(ellipse 100% 70% at 50% 22%, rgba(40, 100, 190, 0.12) 0%, transparent 50%);
+    radial-gradient(ellipse 80% 55% at 50% 18%, rgba(56, 130, 230, 0.30) 0%, rgba(56, 130, 230, 0.20) 18%, rgba(56, 130, 230, 0.08) 35%, rgba(56, 130, 230, 0.03) 48%, transparent 60%),
+    radial-gradient(ellipse 55% 45% at 15% 55%, rgba(124, 58, 237, 0.12) 0%, rgba(124, 58, 237, 0.06) 22%, transparent 45%),
+    radial-gradient(ellipse 55% 45% at 85% 65%, rgba(8, 145, 178, 0.09) 0%, rgba(8, 145, 178, 0.04) 22%, transparent 45%),
+    radial-gradient(ellipse 45% 35% at 50% 30%, rgba(70, 150, 245, 0.18) 0%, rgba(70, 150, 245, 0.08) 26%, transparent 50%),
+    radial-gradient(ellipse 100% 70% at 50% 22%, rgba(40, 100, 190, 0.12) 0%, rgba(40, 100, 190, 0.05) 28%, transparent 50%);
+  filter: blur(48px);
 }
 
 .landing-cascade-accent--multi {
