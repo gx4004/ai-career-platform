@@ -1,41 +1,56 @@
-import { StaggerChildren, StaggerItem } from '#/components/ui/motion'
+import { StaggerChildren, StaggerItem, ScrollReveal } from '#/components/ui/motion'
 import { tools, type ToolId } from '#/lib/tools/registry'
+import { useBreakpoint } from '#/hooks/use-breakpoint'
 import { DashboardShowcaseCard } from './DashboardShowcaseCard'
 
-import thumbResume from '#/assets/carousel/resume.png'
-import thumbJobMatch from '#/assets/carousel/jobmatch.png'
-import thumbCoverLetter from '#/assets/carousel/coverletter.png'
-import thumbInterview from '#/assets/carousel/interview.png'
-import thumbCareer from '#/assets/carousel/career.png'
-import thumbPortfolio from '#/assets/carousel/portfolio.png'
+import iconResume from '#/assets/tools/resume.png'
+import iconJobMatch from '#/assets/tools/job-match.png'
+import iconCareer from '#/assets/tools/career.png'
+import iconCoverLetter from '#/assets/tools/cover-letter.png'
+import iconInterview from '#/assets/tools/interview.png'
+import iconPortfolio from '#/assets/tools/portfolio.png'
 
-const showcaseTools: Array<{ id: ToolId; thumb: string }> = [
-  { id: 'resume', thumb: thumbResume },
-    { id: 'job-match', thumb: thumbJobMatch },
-  { id: 'career', thumb: thumbCareer },
-  { id: 'cover-letter', thumb: thumbCoverLetter },
-  { id: 'interview', thumb: thumbInterview },
-  { id: 'portfolio', thumb: thumbPortfolio },
+const showcaseTools: Array<{ id: ToolId; icon: string }> = [
+  { id: 'resume', icon: iconResume },
+  { id: 'job-match', icon: iconJobMatch },
+  { id: 'career', icon: iconCareer },
+  { id: 'cover-letter', icon: iconCoverLetter },
+  { id: 'interview', icon: iconInterview },
+  { id: 'portfolio', icon: iconPortfolio },
 ]
 
 export function DashboardShowcaseGrid() {
+  const bp = useBreakpoint()
+  const isMobile = bp === 'mobile'
+
   return (
-    <StaggerChildren className="dash-showcase-grid" stagger={0.06} delay={0.04}>
-      {showcaseTools.map(({ id, thumb }) => {
+    <div className="dash-showcase-grid">
+      {showcaseTools.map(({ id, icon }, i) => {
         const tool = tools[id]
+        const card = (
+          <DashboardShowcaseCard
+            label={tool.label}
+            summary={tool.summary}
+            route={tool.route}
+            accent={tool.accent}
+            iconSrc={icon}
+          />
+        )
+
+        if (isMobile) {
+          return (
+            <ScrollReveal key={id} delay={i % 2 === 0 ? 0 : 0.08}>
+              {card}
+            </ScrollReveal>
+          )
+        }
+
         return (
-          <StaggerItem key={id}>
-            <DashboardShowcaseCard
-              label={tool.label}
-              summary={tool.summary}
-              route={tool.route}
-              icon={tool.icon}
-              accent={tool.accent}
-              thumbSrc={thumb}
-            />
-          </StaggerItem>
+          <StaggerChildren key={id} stagger={0.06} delay={0.04 + i * 0.06}>
+            <StaggerItem>{card}</StaggerItem>
+          </StaggerChildren>
         )
       })}
-    </StaggerChildren>
+    </div>
   )
 }

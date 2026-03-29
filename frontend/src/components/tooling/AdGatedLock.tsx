@@ -3,14 +3,25 @@ import { Lock, Unlock, AlertTriangle } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { trackTelemetry } from '#/lib/telemetry/client'
 
+function isUnlockedInSession(runId: string | undefined): boolean {
+  if (!runId) return false
+  return sessionStorage.getItem(`ad-unlocked:${runId}`) === '1'
+}
+
+function persistUnlock(runId: string | undefined) {
+  if (runId) sessionStorage.setItem(`ad-unlocked:${runId}`, '1')
+}
+
 export function AdGatedLock({
   toolId,
+  runId,
   children,
 }: {
   toolId: string
+  runId?: string
   children: ReactNode
 }) {
-  const [unlocked, setUnlocked] = useState(false)
+  const [unlocked, setUnlocked] = useState(() => isUnlockedInSession(runId))
   const [adBlocked, setAdBlocked] = useState(false)
   const [watching, setWatching] = useState(false)
 
@@ -26,6 +37,7 @@ export function AdGatedLock({
     // In production: load ad from provider, wait for completion callback
     setTimeout(() => {
       trackTelemetry({ event_name: 'ad_completed', tool_id: toolId })
+      persistUnlock(runId)
       setUnlocked(true)
       setWatching(false)
     }, 3000)

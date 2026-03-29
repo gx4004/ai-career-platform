@@ -57,7 +57,7 @@ export function Topbar() {
               <div className="topbar-tool-entry-chip" aria-current="page">
                 <span className="topbar-tool-pill">
                   <LayoutDashboard size={16} />
-                  <span className="topbar-tool-pill-text">Dashboard</span>
+                  <span className="topbar-tool-pill-text">Your Workspace</span>
                 </span>
               </div>
             ) : entryTool ? (

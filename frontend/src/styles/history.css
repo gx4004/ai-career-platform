@@ -128,3 +128,87 @@
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), var(--surface-focus));
   box-shadow: var(--shadow-soft);
 }
+
+/* ── Filter chips (mobile horizontal scroll) ── */
+.filter-chips-scroll {
+  display: flex;
+  gap: 0.5rem;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
+  padding: 0.25rem 0;
+  scrollbar-width: none;
+}
+
+.filter-chips-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  min-height: 36px;
+  padding: 0.4rem 0.85rem;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border-soft);
+  background: var(--surface-raised);
+  color: var(--text-muted);
+  font-size: var(--type-small);
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  scroll-snap-align: start;
+  transition:
+    background var(--transition-fast),
+    border-color var(--transition-fast),
+    color var(--transition-fast);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.filter-chip:active {
+  transform: scale(0.96);
+}
+
+.filter-chip.is-active {
+  background: var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--border-soft));
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* ── Mobile history styles ── */
+@media (max-width: 639px) {
+  .history-grid {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+
+  .history-card {
+    padding: 1rem;
+    border-radius: var(--radius-xl);
+  }
+
+  .history-filter-row {
+    padding: 0.5rem;
+    gap: 0.5rem;
+    background: transparent;
+    border: none;
+    box-shadow: none;
+  }
+
+  .history-pill-row {
+    display: none;
+  }
+
+  .history-pagination {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .history-stats {
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+  }
+}

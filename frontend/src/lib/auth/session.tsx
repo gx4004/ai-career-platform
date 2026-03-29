@@ -85,6 +85,17 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     }
   }, [token, userQuery.isError, userQuery.error])
 
+  // Listen for session-expired events from API client — open auth dialog in-place
+  useEffect(() => {
+    const handleExpired = () => {
+      setToken(null)
+      setAuthView('login')
+      setAuthDialogOpen(true)
+    }
+    window.addEventListener('cw:session-expired', handleExpired)
+    return () => window.removeEventListener('cw:session-expired', handleExpired)
+  }, [])
+
   const closeAuthDialog = useCallback(() => {
     setAuthDialogOpen(false)
     setAuthError('')
