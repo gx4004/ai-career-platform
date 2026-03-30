@@ -12,10 +12,14 @@ const SHELL_ASSETS = [
   '/logo192.png',
 ]
 
-// Install: pre-cache shell assets
+// Install: pre-cache shell assets (individual puts to avoid all-or-nothing failure)
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(SHELL_ASSETS))
+    caches.open(CACHE_NAME).then((cache) =>
+      Promise.all(
+        SHELL_ASSETS.map((url) => cache.add(url).catch(() => { /* missing asset — skip */ }))
+      )
+    )
   )
   self.skipWaiting()
 })
@@ -42,11 +46,8 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
-  // Static assets: cache-first
-  if (
-    url.pathname.match(/\.(js|css|png|jpg|svg|ico|woff2?)$/) ||
-    url.pathname.startsWith('/assets/')
-  ) {
+  // Static assets: cache-first (only Vite hashed output in /assets/)
+  if (url.pathname.startsWith('/assets/')) {
     event.respondWith(
       caches.match(request).then((cached) =>
         cached || fetch(request).then((response) => {
@@ -62,7 +63,7 @@ self.addEventListener('fetch', (event) => {
   // Navigations: network-first, fallback to cache
   if (request.mode === 'navigate') {
     event.respondWith(
-      fetch(request).catch(() => caches.match('/dashboard') || caches.match('/'))
+      fetch(request).catch(() => caches.match('/dashboard').then((r) => r || caches.match('/')))
     )
   }
 })
