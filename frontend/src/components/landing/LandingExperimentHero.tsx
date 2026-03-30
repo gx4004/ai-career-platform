@@ -112,6 +112,7 @@ export function LandingExperimentHero({
                 className="landing-cascade-window-image cursor-pointer"
                 loading="eager"
                 decoding="async"
+                fetchPriority="high"
                 draggable={false}
               />
             </Link>

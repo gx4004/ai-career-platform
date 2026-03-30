@@ -38,3 +38,6 @@ frontend/test-results/
 # AI tool configs
 .claude/
 .superpowers/
+
+# Legacy project copy
+frontend-legacy/

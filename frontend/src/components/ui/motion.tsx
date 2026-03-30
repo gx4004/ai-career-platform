@@ -1,7 +1,7 @@
 'use client'
 
 import { type ReactNode, type CSSProperties, type RefObject, useState, useEffect } from 'react'
-import { motion, AnimatePresence, MotionConfig, useScroll, useTransform, type Variants } from 'framer-motion'
+import { motion, AnimatePresence, MotionConfig, useScroll, useTransform, useReducedMotion, type Variants } from 'framer-motion'
 
 const spring = { type: 'spring', stiffness: 260, damping: 20 }
 const ease = [0.16, 1, 0.3, 1] as const
@@ -163,6 +163,12 @@ export function ScrollStagger({
   className?: string
   style?: CSSProperties
 }) {
+  const prefersReducedMotion = useReducedMotion() ?? false
+
+  if (prefersReducedMotion) {
+    return <div className={className} style={style}>{children}</div>
+  }
+
   return (
     <motion.div
       initial="hidden"
@@ -189,6 +195,12 @@ export function ScrollStaggerItem({
   className?: string
   style?: CSSProperties
 }) {
+  const prefersReducedMotion = useReducedMotion() ?? false
+
+  if (prefersReducedMotion) {
+    return <div className={className} style={style}>{children}</div>
+  }
+
   return (
     <motion.div
       variants={fadeUp}
