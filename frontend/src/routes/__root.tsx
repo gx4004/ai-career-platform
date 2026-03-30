@@ -1,5 +1,14 @@
 import '#/lib/i18n'
+import * as Sentry from '@sentry/react'
 import { type ReactNode, useEffect } from 'react'
+
+if (import.meta.env.VITE_SENTRY_DSN) {
+  Sentry.init({
+    dsn: import.meta.env.VITE_SENTRY_DSN,
+    environment: import.meta.env.MODE,
+    tracesSampleRate: 0.1,
+  })
+}
 import { HeadContent, Outlet, Scripts, createRootRoute } from '@tanstack/react-router'
 import { useRouterState } from '@tanstack/react-router'
 import { QueryClientProvider } from '@tanstack/react-query'
