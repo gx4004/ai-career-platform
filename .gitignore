@@ -27,6 +27,14 @@ file::memory:
 .env
 .codex-*.png
 
+# Archive / unused assets (kept locally)
+pics/archive/
+frontend/src/assets/carousel/
+frontend/layout-mockups.html
+frontend/public/design-exploration.html
+test-results/
+frontend/test-results/
+
 # AI tool configs
 .claude/
 .superpowers/
