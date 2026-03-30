@@ -28,7 +28,7 @@ file::memory:
 .codex-*.png
 
 # Archive / unused assets (kept locally)
-pics/archive/
+pics/
 frontend/src/assets/carousel/
 frontend/layout-mockups.html
 frontend/public/design-exploration.html
