@@ -1,6 +1,6 @@
 import { ArrowRight, Check } from 'lucide-react'
 import { Button } from '#/components/ui/button'
-import { ScrollReveal } from '#/components/ui/motion'
+import { ScrollStagger, ScrollStaggerItem } from '#/components/ui/motion'
 import { AppBrandLockup } from '#/components/app/AppBrandLockup'
 import { landingCtaCopy, landingPrimaryCta } from '#/components/landing/landingContent'
 
@@ -16,10 +16,12 @@ export function LandingCTA() {
         <div className="landing-cta-beam-wash" />
       </div>
 
-      <ScrollReveal>
-        <div className="content-max landing-cta-dark-content">
+      <ScrollStagger stagger={0.1} className="content-max landing-cta-dark-content">
+        <ScrollStaggerItem>
           <h2 className="landing-cta-dark-title">{landingCtaCopy.title}</h2>
+        </ScrollStaggerItem>
 
+        <ScrollStaggerItem>
           <ul className="landing-cta-dark-bullets">
             {landingCtaCopy.valueBullets.map((bullet) => (
               <li key={bullet} className="landing-cta-dark-bullet">
@@ -28,7 +30,9 @@ export function LandingCTA() {
               </li>
             ))}
           </ul>
+        </ScrollStaggerItem>
 
+        <ScrollStaggerItem>
           <Button asChild className="landing-cta-dark-btn" size="lg">
             <a href={landingPrimaryCta.to}>
               {landingCtaCopy.ctaLabel}
@@ -36,8 +40,8 @@ export function LandingCTA() {
             </a>
           </Button>
           <p className="landing-cta-dark-trust">{landingCtaCopy.trustLine}</p>
-        </div>
-      </ScrollReveal>
+        </ScrollStaggerItem>
+      </ScrollStagger>
 
       {/* Footer merged into the dark section */}
       <footer className="landing-cta-footer">

@@ -151,7 +151,7 @@ export const landingExperimentHeroCopy = {
     body: 'Upload your resume and see exactly what\u2019s working, what\u2019s not, and what to fix first \u2014 in under a minute.',
     ctaLabel: 'Upload your resume \u2014 free',
     secondaryCtaLabel: 'See how it works',
-    trustItems: ['No sign-up required', 'Results in under 60 seconds'],
+    trustItems: ['No sign-up required'],
   },
   soft: {
     eyebrow: 'Career Workbench',
@@ -162,7 +162,7 @@ export const landingExperimentHeroCopy = {
     body: 'Upload your resume and see exactly what\u2019s working, what\u2019s not, and what to fix first \u2014 in under a minute.',
     ctaLabel: 'Upload your resume \u2014 free',
     secondaryCtaLabel: 'See how it works',
-    trustItems: ['No sign-up required', 'Results in under 60 seconds'],
+    trustItems: ['No sign-up required'],
   },
 } as const
 
@@ -177,21 +177,21 @@ export const landingWorkflowFeatures = [
     title: 'Review the resume you already have',
     content:
       'Get a score, see the strongest proof, and find the first edits worth making before you start rewriting.',
-    image: '/ai-generated/carousel/final-job-match.png',
+    image: '/ai-generated/carousel/final-job-match.webp',
   },
   {
     step: 'Aim',
     title: 'Check fit against a real role',
     content:
       'Bring in one job posting, compare it to the resume, and turn the gaps into focused application work.',
-    image: '/ai-generated/carousel/final-resume.png',
+    image: '/ai-generated/carousel/final-resume.webp',
   },
   {
     step: 'Build',
     title: 'Finish the rest of the search faster',
     content:
       'Create a cover letter, prep for interviews, and plan projects or career moves from the same starting point.',
-    image: '/ai-generated/carousel/final-career.png',
+    image: '/ai-generated/carousel/final-career.webp',
   },
 ] as const
 
@@ -255,7 +255,7 @@ export const landingContextStoryboardSteps = [
     eyebrow: 'Resume signal',
     title: 'See the baseline before you rewrite anything.',
     body: 'Score the draft, isolate the strongest proof, and make the next edits visible before you branch into other tools.',
-    image: '/ai-generated/carousel/final-resume.png',
+    image: '/ai-generated/carousel/final-resume.webp',
     chips: ['Score', 'Proof', 'Next edits'],
   },
   {
@@ -264,7 +264,7 @@ export const landingContextStoryboardSteps = [
     eyebrow: 'Role context',
     title: 'Lock one target role into the same workspace.',
     body: 'Bring in a posting, compare it against the same resume baseline, and keep the missing proof attached to the session.',
-    image: '/ai-generated/carousel/final-job-match.png',
+    image: '/ai-generated/carousel/final-job-match.webp',
     chips: ['Role fit', 'Gap map', 'Priority fixes'],
   },
   {
@@ -273,7 +273,7 @@ export const landingContextStoryboardSteps = [
     eyebrow: 'Application flow',
     title: 'Carry that context into the outputs that matter.',
     body: 'Letters, interview prep, and next-step planning all inherit the same evidence so the story stays sharp as you move.',
-    image: '/ai-generated/carousel/final-interview.png',
+    image: '/ai-generated/carousel/final-interview.webp',
     chips: ['Cover letter', 'Interview prep', 'Career plan'],
   },
 ] as const
