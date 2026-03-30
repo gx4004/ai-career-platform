@@ -1,5 +1,6 @@
 import logging
 
+import sentry_sdk
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -13,6 +14,7 @@ from app.routers import (
     career,
     cover_letter,
     files,
+    google_auth,
     health,
     history,
     interview,
@@ -23,11 +25,19 @@ from app.routers import (
     telemetry,
 )
 from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.middleware.sessions import SessionMiddleware
 from starlette.responses import Response
 
 from app.services.observability import configure_logging
 
 configure_logging()
+
+if settings.SENTRY_DSN:
+    sentry_sdk.init(
+        dsn=settings.SENTRY_DSN,
+        environment=settings.ENVIRONMENT,
+        traces_sample_rate=0.1,
+    )
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +61,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
 
 app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(SessionMiddleware, secret_key=settings.SECRET_KEY)
 
 # --- CORS ---
 _origins = [o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()]
@@ -81,6 +92,7 @@ prefix = "/api/v1"
 
 app.include_router(health.router, prefix=prefix)
 app.include_router(auth.router, prefix=f"{prefix}/auth", tags=["auth"])
+app.include_router(google_auth.router, prefix=f"{prefix}/auth/google", tags=["auth"])
 app.include_router(files.router, prefix=f"{prefix}/files", tags=["files"])
 app.include_router(job_posts.router, prefix=f"{prefix}/job-posts", tags=["job-posts"])
 app.include_router(resume.router, prefix=f"{prefix}/resume", tags=["resume"])

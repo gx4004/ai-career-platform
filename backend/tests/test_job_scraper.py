@@ -26,15 +26,7 @@ HTML_PAGE = """
 
 @pytest.mark.asyncio
 async def test_scrape_extracts_fields():
-    fake_response = httpx.Response(200, text=HTML_PAGE, request=httpx.Request("GET", "https://example.com/job"))
-
-    with patch("app.services.job_scraper.httpx.AsyncClient") as mock_client_cls:
-        mock_client = AsyncMock()
-        mock_client.get = AsyncMock(return_value=fake_response)
-        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-        mock_client.__aexit__ = AsyncMock(return_value=False)
-        mock_client_cls.return_value = mock_client
-
+    with patch("app.services.job_scraper._fetch_with_httpx", new_callable=AsyncMock, return_value=HTML_PAGE):
         result = await scrape_job_posting("https://example.com/job")
 
     assert result.job_title == "Backend Engineer"
@@ -47,15 +39,8 @@ async def test_scrape_extracts_fields():
 async def test_scrape_minimal_html():
     """Page with no structured selectors falls back to body text."""
     minimal = "<html><body><p>Some job posting with enough text to pass the length check. " + "x " * 60 + "</p></body></html>"
-    fake_response = httpx.Response(200, text=minimal, request=httpx.Request("GET", "https://example.com/plain"))
 
-    with patch("app.services.job_scraper.httpx.AsyncClient") as mock_client_cls:
-        mock_client = AsyncMock()
-        mock_client.get = AsyncMock(return_value=fake_response)
-        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-        mock_client.__aexit__ = AsyncMock(return_value=False)
-        mock_client_cls.return_value = mock_client
-
+    with patch("app.services.job_scraper._fetch_with_httpx", new_callable=AsyncMock, return_value=minimal):
         result = await scrape_job_posting("https://example.com/plain")
 
     assert result.job_title is None
@@ -64,28 +49,23 @@ async def test_scrape_minimal_html():
 
 
 @pytest.mark.asyncio
-async def test_scrape_http_error():
+async def test_scrape_http_error_falls_back_gracefully():
     fake_response = httpx.Response(404, request=httpx.Request("GET", "https://example.com/404"))
 
-    with patch("app.services.job_scraper.httpx.AsyncClient") as mock_client_cls:
-        mock_client = AsyncMock()
-        mock_client.get = AsyncMock(return_value=fake_response)
-        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-        mock_client.__aexit__ = AsyncMock(return_value=False)
-        mock_client_cls.return_value = mock_client
+    with patch("app.services.job_scraper._fetch_with_httpx", side_effect=httpx.HTTPStatusError("404", request=httpx.Request("GET", "https://example.com/404"), response=fake_response)):
+        with patch("app.services.job_scraper._fetch_with_playwright", side_effect=Exception("Playwright failed")):
+            result = await scrape_job_posting("https://example.com/404")
 
-        with pytest.raises(httpx.HTTPStatusError):
-            await scrape_job_posting("https://example.com/404")
+    assert result.job_title is None
+    assert "paste" in result.job_description.lower()
+    assert result.source_url == "https://example.com/404"
 
 
 @pytest.mark.asyncio
-async def test_scrape_connection_error():
-    with patch("app.services.job_scraper.httpx.AsyncClient") as mock_client_cls:
-        mock_client = AsyncMock()
-        mock_client.get = AsyncMock(side_effect=httpx.ConnectError("Connection refused"))
-        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-        mock_client.__aexit__ = AsyncMock(return_value=False)
-        mock_client_cls.return_value = mock_client
+async def test_scrape_connection_error_falls_back_gracefully():
+    with patch("app.services.job_scraper._fetch_with_httpx", side_effect=httpx.ConnectError("Connection refused")):
+        with patch("app.services.job_scraper._fetch_with_playwright", side_effect=Exception("Playwright failed")):
+            result = await scrape_job_posting("https://unreachable.example.com")
 
-        with pytest.raises(httpx.ConnectError):
-            await scrape_job_posting("https://unreachable.example.com")
+    assert result.job_title is None
+    assert "paste" in result.job_description.lower()

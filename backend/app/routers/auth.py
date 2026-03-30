@@ -1,14 +1,18 @@
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from sqlalchemy.orm import Session
 
 from app.auth.security import (
+    clear_auth_cookies,
     create_access_token,
+    create_password_reset_token,
     create_refresh_token,
     get_current_user,
     hash_password,
+    set_auth_cookies,
     verify_password,
+    verify_password_reset_token,
     verify_refresh_token,
 )
 from app.database import get_db
@@ -16,6 +20,8 @@ from app.models.user import User
 from app.schemas.auth import (
     AuthProvidersResponse,
     LoginRequest,
+    PasswordResetConfirm,
+    PasswordResetRequest,
     RefreshTokenRequest,
     RegisterRequest,
     TokenResponse,
@@ -23,6 +29,8 @@ from app.schemas.auth import (
 )
 from app.config import settings
 from app.services.captcha import verify_captcha
+from app.services.email_blocklist import is_disposable_email
+from app.services.email_service import send_password_reset_email
 from app.services.tool_runs import delete_all_user_data
 
 router = APIRouter()
@@ -31,7 +39,7 @@ limiter = Limiter(key_func=get_remote_address)
 
 @router.post("/login", response_model=TokenResponse)
 @limiter.limit("10/minute")
-def login(request: Request, body: LoginRequest, db: Session = Depends(get_db)):
+def login(request: Request, response: Response, body: LoginRequest, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == body.email).first()
     if not user or not verify_password(body.password, user.hashed_password):
         raise HTTPException(
@@ -40,12 +48,19 @@ def login(request: Request, body: LoginRequest, db: Session = Depends(get_db)):
         )
     access = create_access_token(user.id)
     refresh = create_refresh_token(user.id)
+    set_auth_cookies(response, access, refresh)
     return TokenResponse(access_token=access, refresh_token=refresh)
 
 
 @router.post("/register", response_model=UserResponse, status_code=201)
 @limiter.limit("5/minute")
-async def register(request: Request, body: RegisterRequest, db: Session = Depends(get_db)):
+async def register(request: Request, response: Response, body: RegisterRequest, db: Session = Depends(get_db)):
+    if settings.DISPOSABLE_EMAIL_BLOCK_ENABLED and is_disposable_email(body.email):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Disposable email addresses are not allowed",
+        )
+
     existing = db.query(User).filter(User.email == body.email).first()
     if existing:
         raise HTTPException(
@@ -53,7 +68,6 @@ async def register(request: Request, body: RegisterRequest, db: Session = Depend
             detail="Email already registered",
         )
 
-    # CAPTCHA verification (when enabled)
     if settings.CAPTCHA_ENABLED and body.captcha_token:
         is_valid = await verify_captcha(body.captcha_token)
         if not is_valid:
@@ -70,6 +84,11 @@ async def register(request: Request, body: RegisterRequest, db: Session = Depend
     db.add(user)
     db.commit()
     db.refresh(user)
+
+    access = create_access_token(user.id)
+    refresh = create_refresh_token(user.id)
+    set_auth_cookies(response, access, refresh)
+
     return _user_response(user)
 
 
@@ -79,8 +98,21 @@ def get_me(current_user: User = Depends(get_current_user)):
 
 
 @router.post("/refresh", response_model=TokenResponse)
-def refresh_token(body: RefreshTokenRequest, db: Session = Depends(get_db)):
-    user_id = verify_refresh_token(body.refresh_token)
+def refresh_token(
+    request: Request,
+    response: Response,
+    body: RefreshTokenRequest | None = None,
+    db: Session = Depends(get_db),
+):
+    token = request.cookies.get("cw_refresh")
+    if not token and body:
+        token = body.refresh_token
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="No refresh token provided",
+        )
+    user_id = verify_refresh_token(token)
     if user_id is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -94,21 +126,51 @@ def refresh_token(body: RefreshTokenRequest, db: Session = Depends(get_db)):
         )
     access = create_access_token(user.id)
     refresh = create_refresh_token(user.id)
+    set_auth_cookies(response, access, refresh)
     return TokenResponse(access_token=access, refresh_token=refresh)
 
 
 @router.delete("/me", status_code=204)
 def delete_account(
+    response: Response,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    clear_auth_cookies(response)
     delete_all_user_data(db, current_user.id)
     return None
 
 
 @router.get("/providers", response_model=AuthProvidersResponse)
 def get_providers():
-    return AuthProvidersResponse(providers=[])
+    providers = []
+    if settings.GOOGLE_CLIENT_ID:
+        providers.append("google")
+    return AuthProvidersResponse(providers=providers)
+
+
+@router.post("/password-reset/request", status_code=200)
+@limiter.limit("3/minute")
+async def request_password_reset(request: Request, body: PasswordResetRequest, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.email == body.email).first()
+    if user:
+        token = create_password_reset_token(user.email)
+        reset_url = f"{request.headers.get('origin', 'http://localhost:5173')}/reset-password?token={token}"
+        await send_password_reset_email(user.email, reset_url)
+    return {"message": "If an account with this email exists, a reset link has been sent."}
+
+
+@router.post("/password-reset/confirm", status_code=200)
+async def confirm_password_reset(body: PasswordResetConfirm, db: Session = Depends(get_db)):
+    email = verify_password_reset_token(body.token)
+    if not email:
+        raise HTTPException(status_code=400, detail="Invalid or expired reset token")
+    user = db.query(User).filter(User.email == email).first()
+    if not user:
+        raise HTTPException(status_code=400, detail="Invalid or expired reset token")
+    user.hashed_password = hash_password(body.new_password)
+    db.commit()
+    return {"message": "Password has been reset successfully."}
 
 
 def _user_response(user: User) -> UserResponse:
