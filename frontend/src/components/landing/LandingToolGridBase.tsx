@@ -1,7 +1,7 @@
 import { useMemo, type CSSProperties } from 'react'
 import { Link } from '@tanstack/react-router'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
-import { ScrollReveal } from '#/components/ui/motion'
+import { ScrollStagger, ScrollStaggerItem } from '#/components/ui/motion'
 import { useCarousel } from '#/hooks/useCarousel'
 import { toolList, type ToolId } from '#/lib/tools/registry'
 import { toolAccentStyle } from '#/lib/tools/styleUtils'
@@ -26,12 +26,12 @@ const groupLabels: Record<string, string> = {
 }
 
 const previewImages: Record<ToolId, string> = {
-  resume: '/ai-generated/carousel/final-resume.png',
-  'cover-letter': '/ai-generated/carousel/final-cover-letter.png',
-  'job-match': '/ai-generated/carousel/final-job-match.png',
-  career: '/ai-generated/carousel/final-career.png',
-  interview: '/ai-generated/carousel/final-interview.png',
-  portfolio: '/ai-generated/carousel/final-portfolio.png',
+  resume: '/ai-generated/carousel/final-resume.webp',
+  'cover-letter': '/ai-generated/carousel/final-cover-letter.webp',
+  'job-match': '/ai-generated/carousel/final-job-match.webp',
+  career: '/ai-generated/carousel/final-career.webp',
+  interview: '/ai-generated/carousel/final-interview.webp',
+  portfolio: '/ai-generated/carousel/final-portfolio.webp',
 }
 
 const previewImageStyles: Record<ToolId, { scale?: number; x?: string; y?: string }> = {
@@ -109,13 +109,15 @@ export function LandingToolGridBase({
   return (
     <section className="landing-section landing-section-tools" id="landing-tools">
       <div className="content-max grid gap-5 landing-experiment-surface landing-experiment-surface--tools">
-        <ScrollReveal>
-          <div className="landing-section-heading landing-section-heading--tools">
+        <ScrollStagger className="landing-section-heading landing-section-heading--tools" stagger={0.1}>
+          <ScrollStaggerItem>
             <p className="eyebrow">{copy.eyebrow}</p>
+          </ScrollStaggerItem>
+          <ScrollStaggerItem>
             <h2 className="display-lg">{copy.title}</h2>
-            {copy.body ? <p className="muted-copy landing-tool-intro">{copy.body}</p> : null}
-          </div>
-        </ScrollReveal>
+          </ScrollStaggerItem>
+          {copy.body ? <ScrollStaggerItem><p className="muted-copy landing-tool-intro">{copy.body}</p></ScrollStaggerItem> : null}
+        </ScrollStagger>
         <div className="landing-tool-showcase" {...hoverHandlers}>
           <div
             className="landing-preview-panel glass-elevated"
@@ -154,6 +156,8 @@ export function LandingToolGridBase({
                       src={previewImage}
                       alt={`${activeTool.label} workspace preview`}
                       className="landing-preview-demo-image"
+                      loading="lazy"
+                      decoding="async"
                       draggable={false}
                     />
                   </Link>
@@ -163,30 +167,31 @@ export function LandingToolGridBase({
             </AnimatePresence>
           </div>
 
-          <div className="landing-tool-cards">
+          <ScrollStagger className="landing-tool-cards" stagger={0.08}>
             {toolList.map((tool, index) => (
-              <button
-                key={tool.id}
-                type="button"
-                className={cn('landing-tool-card glass', tool.id === activeTool.id && 'is-active')}
-                onClick={() => goTo(index)}
-                style={toolAccentStyle(tool.accent)}
-              >
-                <div
-                  className="landing-tool-card-icon"
-                  style={{
-                    background: `color-mix(in srgb, ${tool.accent} 14%, transparent)`,
-                  }}
+              <ScrollStaggerItem key={tool.id}>
+                <button
+                  type="button"
+                  className={cn('landing-tool-card glass', tool.id === activeTool.id && 'is-active')}
+                  onClick={() => goTo(index)}
+                  style={toolAccentStyle(tool.accent)}
                 >
-                  <tool.icon size={18} style={{ color: tool.accent }} />
-                </div>
-                <div className="landing-tool-card-copy">
-                  <h3 className="section-title">{tool.label}</h3>
-                  <p className="small-copy muted-copy">{baseToolCopy[tool.id].summary}</p>
-                </div>
-              </button>
+                  <div
+                    className="landing-tool-card-icon"
+                    style={{
+                      background: `color-mix(in srgb, ${tool.accent} 14%, transparent)`,
+                    }}
+                  >
+                    <tool.icon size={18} style={{ color: tool.accent }} />
+                  </div>
+                  <div className="landing-tool-card-copy">
+                    <h3 className="section-title">{tool.label}</h3>
+                    <p className="small-copy muted-copy">{baseToolCopy[tool.id].summary}</p>
+                  </div>
+                </button>
+              </ScrollStaggerItem>
             ))}
-          </div>
+          </ScrollStagger>
         </div>
       </div>
     </section>

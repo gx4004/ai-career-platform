@@ -150,6 +150,57 @@ export function ScrollReveal({
   )
 }
 
+export function ScrollStagger({
+  children,
+  stagger = 0.08,
+  delay = 0,
+  className,
+  style,
+}: {
+  children: ReactNode
+  stagger?: number
+  delay?: number
+  className?: string
+  style?: CSSProperties
+}) {
+  return (
+    <motion.div
+      initial="hidden"
+      whileInView="visible"
+      viewport={{ once: true, amount: 0.15 }}
+      variants={{
+        hidden: {},
+        visible: { transition: { staggerChildren: stagger, delayChildren: delay } },
+      }}
+      className={className}
+      style={style}
+    >
+      {children}
+    </motion.div>
+  )
+}
+
+export function ScrollStaggerItem({
+  children,
+  className,
+  style,
+}: {
+  children: ReactNode
+  className?: string
+  style?: CSSProperties
+}) {
+  return (
+    <motion.div
+      variants={fadeUp}
+      transition={{ duration: 0.45, ease }}
+      className={className}
+      style={style}
+    >
+      {children}
+    </motion.div>
+  )
+}
+
 export function useViewportTrigger(
   ref: RefObject<HTMLElement | null>,
   { threshold = 0.4, once = true } = {},
