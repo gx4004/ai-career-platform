@@ -1,6 +1,6 @@
 # Career Workbench — Technical Specification
 
-> Last updated: 2026-03-29
+> Last updated: 2026-03-30
 > Project intent: Production product with real users and ad-based revenue
 
 ---
@@ -96,9 +96,12 @@ ai-career-platform/
 │   │   │   ├── dashboard/ # Hero, cards, showcase grid
 │   │   │   ├── tooling/   # Tool input pages + result screens
 │   │   │   ├── landing/   # Marketing landing pages
+│   │   │   ├── mobile/    # Mobile-specific: SwipeDeck, StickyRunBar, FilterChips, etc.
 │   │   │   ├── onboarding/# Guided tour
+│   │   │   ├── illustrations/ # Scene visuals
 │   │   │   └── ui/        # Radix + shadcn base components
-│   │   ├── hooks/         # useSession, useToolMutation, useHistory, etc.
+│   │   ├── assets/        # Tool icons, carousel images, branding PNGs
+│   │   ├── hooks/         # useSession, useBreakpoint, useResumeCarry, etc.
 │   │   ├── lib/
 │   │   │   ├── api/       # API client, Zod schemas, error handling
 │   │   │   ├── auth/      # SessionProvider, token storage, pending intent
@@ -106,9 +109,8 @@ ai-career-platform/
 │   │   │   ├── query/     # React Query client setup
 │   │   │   ├── navigation/# Public routes, route meta, redirect helpers
 │   │   │   ├── i18n/      # i18n setup, locale files (en, tr, de, fr, es, etc.)
-│   │   │   ├── theme/     # Theme provider (dark only — no light mode toggle)
 │   │   │   └── telemetry/ # Event tracking wrapper
-│   │   └── styles/        # CSS modules (theme, design system, animations)
+│   │   └── styles/        # CSS files (theme, design system, animations, responsive)
 │   └── vite.config.ts
 │
 ├── backend/           # FastAPI + SQLAlchemy
@@ -143,7 +145,9 @@ ai-career-platform/
 | Auth token (JWT) | `sessionStorage` | Tab lifecycle |
 | Guest demo runs | In-memory `Map` (never persisted) | Page lifecycle |
 | Persisted runs & workspaces | SQLite/Postgres via API | Permanent |
-| Theme preference | N/A (dark mode only) | — |
+| Resume carry (cross-tool) | `sessionStorage` (`useResumeCarry`) | Tab lifecycle |
+| Interview practice attempts | `sessionStorage` | Tab lifecycle |
+| Theme preference | N/A (hybrid theme, no toggle) | — |
 | Language preference | `localStorage` | Permanent |
 
 > **Note**: Guest demo runs are NOT stored in sessionStorage. They exist only in an in-memory Map during the session. If the user navigates away, the results are gone — this is intentional to drive signup.
@@ -459,24 +463,34 @@ Export always uses the user's **last edited version**. No AI disclaimer or attri
 
 ```
 styles/
-├── theme.css          # CSS custom properties (colors, spacing, radii)
-├── design-system.css  # Utility classes
-├── base.css           # Reset + global styles
-├── typography.css     # Font definitions, size scale
-├── animations.css     # Keyframe animations (fade, slide, spin, pulse)
-├── shell.css          # Layout (sidebar, topbar, main content area)
-├── landing.css        # Marketing hero, CTA, gradients
-├── dashboard.css      # Dashboard-specific styles
-├── tooling.css        # Tool input/result layouts
-├── results.css        # Result card templates
-└── responsive.css     # Mobile-first breakpoints
+├── theme.css              # CSS custom properties (colors, spacing, radii, per-tool accents)
+├── design-system.css      # Utility classes
+├── base.css               # Reset + global styles
+├── typography.css         # Font definitions, size scale
+├── animations.css         # Keyframe animations (fade, slide, spin, pulse)
+├── shell.css              # Layout (sidebar, topbar, main content area)
+├── landing.css            # Marketing hero, CTA, gradients
+├── dashboard.css          # Dashboard-specific styles
+├── tooling.css            # Tool input/result layouts
+├── tooling-fullscreen.css # Mobile full-screen edit sheets, swipe deck
+├── results.css            # Result card templates
+├── settings.css           # Settings page
+├── history.css            # History page
+├── auth.css               # Auth dialogs
+└── responsive.css         # Mobile-first breakpoints
 ```
 
 ### Responsive Strategy
 
-Mobile-first with standard breakpoints. Responsive stack approach — forms stack vertically on mobile, textarea inputs become full-width, touch targets are enlarged. No step wizard or desktop-only restrictions. The full experience is available on mobile.
+Mobile-first with three breakpoints via `useBreakpoint` hook:
 
-Sidebar collapses to hamburger menu on small screens. Result sections become single-column. Export and action buttons become full-width.
+| Breakpoint | Max Width | Behavior |
+|-----------|-----------|----------|
+| `mobile` | 639px | Bottom tab bar, stacked layouts, SwipeDeck for results, StickyRunBar |
+| `tablet` | 1024px | Hybrid layout, collapsible sidebar |
+| `desktop` | >1024px | Full sidebar, split layouts, showcase grid |
+
+Sidebar collapses to bottom tab bar (`MobileNav`) on mobile. Tool results use `SwipeDeck` for swipe-based card navigation. `StickyRunBar` provides a keyboard-aware fixed CTA at the bottom. `FullScreenEditSheet` replaces inline editing on mobile. `FilterChips` provides horizontal scrollable filters with ARIA `role="tablist"`.
 
 ### Accessibility
 
@@ -1693,17 +1707,17 @@ These components are mobile-only — they do not render on tablet/desktop breakp
 
 > Clarifications and decisions from detailed design review. These override or extend earlier sections where noted.
 
-### 18.1 Theme — Corrected
+### 18.1 Theme
 
-The spec originally stated "dark mode only." This is **incorrect**. The actual theme is a **hybrid**:
+The app uses a **hybrid theme** (dark navigation + light content). No light/dark toggle.
 
 - **Sidebar + topbar**: Dark (`#0f1a2e` background, light text)
 - **Main content area**: Light (`#edf3fa` background, dark text)
-- **No light/dark toggle** — this hybrid is the only theme
+- **Landing page hero**: Full dark background with gradient transitions
 
-Any dead dark-mode toggle code should be removed. Each tool retains its own accent color (`--resume-accent`, `--match-accent`, etc.) for visual differentiation in dashboard cards and tool-specific UI.
+Theme variables are defined in `frontend/src/styles/theme.css`. Each tool has its own accent color (`--resume-accent`, `--match-accent`, etc.) for visual differentiation in dashboard cards and tool-specific UI.
 
-**Implementation cleanup**: Remove `ThemeToggle.tsx` component, any unused dark theme CSS variables, and dark mode toggle logic. The app has one theme — the hybrid described above.
+**Status**: `ThemeToggle.tsx`, `CommandPalette.tsx`, and the `lib/theme/` directory have been removed. No dark mode toggle exists.
 
 ### 18.2 Guest Workflow — Lightweight Handoff
 
@@ -1910,9 +1924,9 @@ Dashboard shows the **most recent 6 favorited runs** in a horizontal carousel.
 - Favorite toggle uses **optimistic update**: star fills immediately, reverts if API call fails
 - If no favorites → section hidden (not an empty state card)
 
-### 18.20 Command Palette — Removed
+### 18.20 Command Palette — Removed ✓
 
-The `CommandPalette.tsx` component and `⌘K` shortcut should be removed from V1. It's an undocumented power-user feature that adds code complexity without clear V1 value. Can be reconsidered post-launch.
+`CommandPalette.tsx`, `ThemeToggle.tsx`, and associated test mocks have been removed from the codebase. Can be reconsidered post-launch.
 
 ### 18.21 CAPTCHA — Not in V1
 
@@ -1926,3 +1940,25 @@ UI language and LLM output language are independent:
 - LLM output language: auto-detected from input — Turkish CV → Turkish results, English CV → English results
 - Mixed-language pages are expected and accepted (e.g., Turkish UI + English results when CV is English)
 - No "output language" selector — the input language is the authority
+
+### 18.23 PWA Support
+
+Basic PWA support via `frontend/public/sw.js` and `manifest.json`:
+
+- **Service worker**: Caches shell assets (`/`, `/dashboard`, `/manifest.json`, `/favicon.ico`)
+- **Static assets**: Cache-first strategy for `/assets/` paths only (Vite hashed output)
+- **Navigation**: Network-first with fallback to cached `/dashboard` → `/`
+- **Install**: Individual `cache.add()` per asset (resilient — one missing asset doesn't break install)
+- **Manifest**: `start_url: "/dashboard"`, standalone display mode, Career Workbench branding
+
+**Limitations**: Cache versioning is manual (`CACHE_NAME = 'cw-shell-v1'`). Bump the version string on major asset changes. No workbox — simple custom SW.
+
+### 18.24 Landing Page
+
+The landing page (`/`) uses a split hero layout:
+
+- **Left**: Headline, body copy, CTA buttons, trust badges
+- **Right**: Browser window mockup with 3D tilt animation showing resume analyzer preview image (`hero-resume-analyzer.jpg`)
+- **Background**: Multi-stop gradient SVG (`hero-gradient.svg`) with dark-to-transparent cascade
+- **Toolkit section**: Carousel of all 6 tools, defaulting to Career Path (priority 1)
+- **Image filter**: `brightness(0.9)` on hero mockup image for dark background blending
