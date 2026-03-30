@@ -721,36 +721,114 @@
   position: relative;
 }
 
+/* ── Legacy pill nav (hidden, replaced by tab bar) ── */
 .mobile-nav-pill {
   display: none;
-  position: fixed;
-  bottom: 1rem;
-  left: 50%;
-  z-index: 100;
-  transform: translateX(-50%);
-  gap: 0.15rem;
-  border: 1px solid var(--nav-border);
-  border-radius: 9999px;
-  background: var(--nav-bg);
-  padding: 0.4rem 0.5rem;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
 
-.mobile-nav-item {
+/* ── Mobile bottom tab bar ── */
+.mobile-tab-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  display: flex;
+  align-items: stretch;
+  justify-content: space-around;
+  height: var(--mobile-tab-height, 56px);
+  border-top: 1px solid var(--nav-border);
+  background: var(--nav-bg);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.15);
+}
+
+.mobile-tab-item {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.2rem;
-  min-width: 4.5rem;
-  padding: 0.45rem 0.65rem;
-  border-radius: 9999px;
+  justify-content: center;
+  gap: 2px;
+  flex: 1;
+  min-height: var(--touch-target, 44px);
+  padding: 6px 0;
+  border: none;
+  background: none;
   color: var(--nav-text);
-  font-size: 0.7rem;
+  font-size: 0.65rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  transition: color var(--transition-fast);
+  -webkit-tap-highlight-color: transparent;
 }
 
-.mobile-nav-item.is-active {
-  background: var(--nav-active-bg);
-  color: var(--nav-text-strong);
+.mobile-tab-item.is-active {
+  color: var(--nav-accent);
+}
+
+.mobile-tab-item:active {
+  opacity: 0.7;
+}
+
+/* ── Tool grid sheet ── */
+.mobile-tool-grid-sheet {
+  border-radius: var(--radius-2xl) var(--radius-2xl) 0 0 !important;
+  max-height: 60vh;
+  padding-bottom: calc(var(--mobile-tab-height) + env(safe-area-inset-bottom, 0px) + 1rem);
+}
+
+.mobile-tool-grid-title {
+  font-size: var(--type-section);
+  font-weight: 700;
+  letter-spacing: var(--tracking-section);
+  color: var(--text-strong);
+}
+
+.mobile-tool-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--mobile-section-gap, 16px);
+  padding: var(--mobile-pad) 0;
+}
+
+.mobile-tool-grid-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 20px 12px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-soft);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-soft);
+  min-height: var(--touch-target, 44px);
+  transition:
+    background var(--transition-fast),
+    box-shadow var(--transition-fast);
+}
+
+.mobile-tool-grid-item:active {
+  background: var(--surface-focus);
+  box-shadow: none;
+}
+
+.mobile-tool-grid-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-md);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.mobile-tool-grid-label {
+  font-size: var(--type-small);
+  font-weight: 600;
+  color: var(--text-strong);
+  text-align: center;
 }
 
 .page-frame {

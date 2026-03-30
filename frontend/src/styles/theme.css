@@ -63,6 +63,12 @@
   --transition-slow: 380ms cubic-bezier(0.16, 1, 0.3, 1);
   --spring: cubic-bezier(0.34, 1.56, 0.64, 1);
 
+  /* Mobile tokens */
+  --touch-target: 44px;
+  --mobile-section-gap: 24px;
+  --mobile-pad: 16px;
+  --mobile-tab-height: 56px;
+
   --glass-bg: rgba(255, 255, 255, 0.96);
   --glass-bg-elevated: #ffffff;
   --glass-bg-subtle: rgba(255, 255, 255, 0.92);

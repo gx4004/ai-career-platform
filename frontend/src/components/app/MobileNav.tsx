@@ -1,34 +1,65 @@
+import { useState } from 'react'
 import { Link, useRouterState } from '@tanstack/react-router'
-import { History, LayoutDashboard, Settings, UserRound } from 'lucide-react'
-
-const SHOW_ON = ['/dashboard', '/history', '/account', '/settings']
+import { Grid2x2, History, LayoutDashboard, UserRound } from 'lucide-react'
+import { useBreakpoint } from '#/hooks/use-breakpoint'
+import { ToolGridSheet } from '#/components/mobile/ToolGridSheet'
+import { isPublicRoute } from '#/lib/navigation/publicRoutes'
 
 export function MobileNav() {
+  const [toolsOpen, setToolsOpen] = useState(false)
+  const bp = useBreakpoint()
   const pathname = useRouterState({
     select: (state) => state.location.pathname,
   })
 
-  if (!SHOW_ON.some((route) => pathname.startsWith(route))) {
-    return null
-  }
+  // Only show on mobile, hide on public routes (landing, login standalone)
+  if (bp !== 'mobile' || isPublicRoute(pathname)) return null
+
+  const isActive = (path: string) => pathname.startsWith(path)
+  const isToolsActive =
+    toolsOpen ||
+    ['/resume', '/job-match', '/cover-letter', '/interview', '/career', '/portfolio'].some((r) =>
+      pathname.startsWith(r),
+    )
 
   return (
-    <nav className="mobile-nav-pill">
-      {[
-        { label: 'Dashboard', icon: LayoutDashboard, to: '/dashboard' },
-        { label: 'History', icon: History, to: '/history' },
-        { label: 'Settings', icon: Settings, to: '/settings' },
-        { label: 'Account', icon: UserRound, to: '/account' },
-      ].map((item) => (
+    <>
+      <nav className="mobile-tab-bar" aria-label="Main navigation">
         <Link
-          key={item.to}
-          to={item.to}
-          className={`mobile-nav-item${pathname.startsWith(item.to) ? ' is-active' : ''}`}
+          to="/dashboard"
+          className={`mobile-tab-item${isActive('/dashboard') ? ' is-active' : ''}`}
         >
-          <item.icon size={18} />
-          <span>{item.label}</span>
+          <LayoutDashboard size={20} strokeWidth={isActive('/dashboard') ? 2.2 : 1.8} />
+          <span>Home</span>
         </Link>
-      ))}
-    </nav>
+
+        <button
+          type="button"
+          className={`mobile-tab-item${isToolsActive ? ' is-active' : ''}`}
+          onClick={() => setToolsOpen(true)}
+        >
+          <Grid2x2 size={20} strokeWidth={isToolsActive ? 2.2 : 1.8} />
+          <span>Tools</span>
+        </button>
+
+        <Link
+          to="/history"
+          className={`mobile-tab-item${isActive('/history') ? ' is-active' : ''}`}
+        >
+          <History size={20} strokeWidth={isActive('/history') ? 2.2 : 1.8} />
+          <span>History</span>
+        </Link>
+
+        <Link
+          to="/account"
+          className={`mobile-tab-item${isActive('/account') || isActive('/settings') ? ' is-active' : ''}`}
+        >
+          <UserRound size={20} strokeWidth={isActive('/account') || isActive('/settings') ? 2.2 : 1.8} />
+          <span>Profile</span>
+        </Link>
+      </nav>
+
+      <ToolGridSheet open={toolsOpen} onOpenChange={setToolsOpen} />
+    </>
   )
 }
