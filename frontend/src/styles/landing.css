@@ -1723,6 +1723,11 @@
 
 .landing-tool-cards > * {
   flex: 1;
+  display: flex;
+}
+
+.landing-tool-cards > * > .landing-tool-card {
+  flex: 1;
 }
 
 .landing-tool-phase {
@@ -2342,11 +2347,11 @@
 .landing-experiment-hero {
   position: relative;
   isolation: isolate;
-  min-height: clamp(36rem, 85svh, 48rem);
+  min-height: clamp(30rem, 70svh, 40rem);
   display: flex;
   align-items: center;
-  padding-top: clamp(6rem, 11vh, 8rem);
-  padding-bottom: clamp(4rem, 7vh, 5.5rem);
+  padding-top: clamp(5rem, 9vh, 7rem);
+  padding-bottom: clamp(3rem, 5vh, 4rem);
   overflow: hidden;
   background: linear-gradient(180deg, #ffffff 0%, #fcfdff 32%, #f8fbff 68%, #f4f9ff 100%);
 }
