@@ -6,6 +6,7 @@ const MOBILE_MAX = 639
 const TABLET_MAX = 1024
 
 function getBreakpoint(): Breakpoint {
+  if (typeof window === 'undefined') return 'desktop'
   const w = window.innerWidth
   if (w <= MOBILE_MAX) return 'mobile'
   if (w <= TABLET_MAX) return 'tablet'
@@ -13,7 +14,7 @@ function getBreakpoint(): Breakpoint {
 }
 
 export function useBreakpoint(): Breakpoint {
-  const [bp, setBp] = useState<Breakpoint>('desktop')
+  const [bp, setBp] = useState<Breakpoint>(getBreakpoint)
 
   useEffect(() => {
     setBp(getBreakpoint())

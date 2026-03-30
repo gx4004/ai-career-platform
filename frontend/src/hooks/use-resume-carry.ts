@@ -17,10 +17,12 @@ function subscribe(fn: () => void) {
 }
 
 function getSnapshot(): string {
+  if (typeof sessionStorage === 'undefined') return ''
   return sessionStorage.getItem(STORAGE_KEY) ?? ''
 }
 
 function getFilenameSnapshot(): string {
+  if (typeof sessionStorage === 'undefined') return ''
   return sessionStorage.getItem(FILENAME_KEY) ?? ''
 }
 

@@ -27,9 +27,11 @@ export function FilterChips({ chips, activeId, onSelect }: FilterChipsProps) {
   }, [activeId])
 
   return (
-    <div className="filter-chips-scroll" ref={scrollRef}>
+    <div className="filter-chips-scroll" ref={scrollRef} role="tablist" aria-label="Filter options">
       <button
         type="button"
+        role="tab"
+        aria-selected={activeId === null}
         className={`filter-chip${activeId === null ? ' is-active' : ''}`}
         onClick={() => onSelect(null)}
         ref={activeId === null ? activeRef : undefined}
@@ -40,6 +42,8 @@ export function FilterChips({ chips, activeId, onSelect }: FilterChipsProps) {
         <button
           key={chip.id}
           type="button"
+          role="tab"
+          aria-selected={activeId === chip.id}
           className={`filter-chip${activeId === chip.id ? ' is-active' : ''}`}
           onClick={() => onSelect(chip.id)}
           ref={activeId === chip.id ? activeRef : undefined}
