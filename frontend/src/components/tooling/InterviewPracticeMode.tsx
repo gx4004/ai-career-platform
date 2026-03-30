@@ -45,7 +45,12 @@ export function InterviewPracticeMode({
   const [answer, setAnswer] = useState('')
   const [feedback, setFeedback] = useState<PracticeFeedback | null>(null)
   const [loading, setLoading] = useState(false)
-  const [attempts, setAttempts] = useState<Record<number, number>>({})
+  const [attempts, setAttempts] = useState<Record<number, number>>(() => {
+    try {
+      const stored = sessionStorage.getItem('cw:practice-attempts')
+      return stored ? JSON.parse(stored) : {}
+    } catch { return {} }
+  })
 
   const current = questions[currentIndex]
   if (!current) return null
@@ -58,7 +63,11 @@ export function InterviewPracticeMode({
     setFeedback(null)
 
     const newCount = attemptCount + 1
-    setAttempts((prev) => ({ ...prev, [currentIndex]: newCount }))
+    setAttempts((prev) => {
+      const next = { ...prev, [currentIndex]: newCount }
+      try { sessionStorage.setItem('cw:practice-attempts', JSON.stringify(next)) } catch {}
+      return next
+    })
 
     try {
       const structure = current.answerStructure || current.answer_structure
@@ -128,7 +137,7 @@ export function InterviewPracticeMode({
         <div className="practice-mode-maxed">
           <h4>Maximum attempts reached</h4>
           <p>Here's the ideal answer framework for this question:</p>
-          <div className="practice-mode-ideal-answer">
+          <div className="practice-mode-ideal-answer" style={{ whiteSpace: 'pre-line' }}>
             {getIdealAnswer(current)}
           </div>
           <Button onClick={goNext} disabled={currentIndex >= questions.length - 1}>
