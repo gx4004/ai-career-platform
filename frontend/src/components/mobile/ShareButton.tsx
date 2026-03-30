@@ -25,8 +25,11 @@ export function ShareButton({ title, text, url }: ShareButtonProps) {
         // User cancelled or share failed — silent
       }
     } else {
-      // Fallback: copy URL to clipboard
-      await navigator.clipboard.writeText(shareUrl)
+      try {
+        await navigator.clipboard.writeText(shareUrl)
+      } catch {
+        // Clipboard access denied — silent fallback
+      }
     }
   }
 

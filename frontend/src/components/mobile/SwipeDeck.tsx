@@ -42,9 +42,9 @@ export function SwipeDeck<T>({
   }
 
   const handleDragEnd = (_: unknown, info: { offset: { x: number }; velocity: { x: number } }) => {
-    if (info.offset.x > 80 || info.velocity.x > 500) {
+    if (info.offset.x < -80 || info.velocity.x < -500) {
       goNext()
-    } else if (info.offset.x < -80 || info.velocity.x < -500) {
+    } else if (info.offset.x > 80 || info.velocity.x > 500) {
       goPrev()
     }
   }

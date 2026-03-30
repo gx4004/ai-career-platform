@@ -34,7 +34,7 @@ export function FullScreenEditSheet({
     <Sheet
       open={open}
       onOpenChange={(isOpen) => {
-        if (!isOpen) setText(value) // Reset on dismiss
+        if (isOpen) setText(value) // Sync with latest value on open
         onOpenChange(isOpen)
       }}
     >
