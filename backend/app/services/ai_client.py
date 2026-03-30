@@ -71,11 +71,11 @@ async def complete_structured(
 
     async def _dispatch():
         if provider == "openai":
-            return await _call_openai(system_prompt, user_prompt, schema)
+            return await _call_openai(system_prompt, user_prompt, schema, model)
         elif provider == "groq":
-            return await _call_groq(system_prompt, user_prompt)
+            return await _call_groq(system_prompt, user_prompt, model)
         elif provider == "anthropic":
-            return await _call_anthropic(system_prompt, user_prompt)
+            return await _call_anthropic(system_prompt, user_prompt, model)
         elif provider == "vertex":
             return await _call_vertex(system_prompt, user_prompt, model)
         else:
@@ -93,14 +93,14 @@ async def complete_structured(
 
 
 async def _call_openai(
-    system_prompt: str, user_prompt: str, schema: dict | None
+    system_prompt: str, user_prompt: str, schema: dict | None, model_name: str | None = None
 ) -> dict:
     from openai import AsyncOpenAI
 
     client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
 
     kwargs: dict = {
-        "model": settings.LLM_MODEL,
+        "model": model_name or settings.LLM_MODEL,
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
@@ -122,7 +122,7 @@ async def _call_openai(
     return _safe_parse_json(content, "openai")
 
 
-async def _call_groq(system_prompt: str, user_prompt: str) -> dict:
+async def _call_groq(system_prompt: str, user_prompt: str, model_name: str | None = None) -> dict:
     from openai import AsyncOpenAI
 
     client = AsyncOpenAI(
@@ -131,7 +131,7 @@ async def _call_groq(system_prompt: str, user_prompt: str) -> dict:
     )
 
     response = await client.chat.completions.create(
-        model=settings.LLM_MODEL,
+        model=model_name or settings.LLM_MODEL,
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
@@ -191,13 +191,13 @@ async def _call_vertex(system_prompt: str, user_prompt: str, model_name: str | N
     return _safe_parse_json(content, "vertex")
 
 
-async def _call_anthropic(system_prompt: str, user_prompt: str) -> dict:
+async def _call_anthropic(system_prompt: str, user_prompt: str, model_name: str | None = None) -> dict:
     from anthropic import AsyncAnthropic
 
     client = AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
 
     response = await client.messages.create(
-        model=settings.LLM_MODEL,
+        model=model_name or settings.LLM_MODEL,
         max_tokens=4096,
         system=system_prompt,
         messages=[{"role": "user", "content": user_prompt}],
