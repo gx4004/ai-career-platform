@@ -40,6 +40,8 @@ class Settings(BaseSettings):
 
     DISPOSABLE_EMAIL_BLOCK_ENABLED: bool = True
 
+    SENTRY_DSN: str = ""
+
     model_config = {"env_file": ".env", "extra": "ignore"}
 
 
