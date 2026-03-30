@@ -1,7 +1,7 @@
 'use client'
 
 import { type ReactNode, type CSSProperties, type RefObject, useState, useEffect } from 'react'
-import { motion, AnimatePresence, MotionConfig, useScroll, useTransform, type Variants } from 'framer-motion'
+import { motion, AnimatePresence, MotionConfig, useScroll, useTransform, useReducedMotion, type Variants } from 'framer-motion'
 
 const spring = { type: 'spring', stiffness: 260, damping: 20 }
 const ease = [0.16, 1, 0.3, 1] as const
@@ -142,6 +142,69 @@ export function ScrollReveal({
       whileInView="visible"
       viewport={{ once: true, amount: 0.2 }}
       transition={{ duration: 0.5, delay, ease }}
+      className={className}
+      style={style}
+    >
+      {children}
+    </motion.div>
+  )
+}
+
+export function ScrollStagger({
+  children,
+  stagger = 0.08,
+  delay = 0,
+  className,
+  style,
+}: {
+  children: ReactNode
+  stagger?: number
+  delay?: number
+  className?: string
+  style?: CSSProperties
+}) {
+  const prefersReducedMotion = useReducedMotion() ?? false
+
+  if (prefersReducedMotion) {
+    return <div className={className} style={style}>{children}</div>
+  }
+
+  return (
+    <motion.div
+      initial="hidden"
+      whileInView="visible"
+      viewport={{ once: true, amount: 0.15 }}
+      variants={{
+        hidden: {},
+        visible: { transition: { staggerChildren: stagger, delayChildren: delay } },
+      }}
+      className={className}
+      style={style}
+    >
+      {children}
+    </motion.div>
+  )
+}
+
+export function ScrollStaggerItem({
+  children,
+  className,
+  style,
+}: {
+  children: ReactNode
+  className?: string
+  style?: CSSProperties
+}) {
+  const prefersReducedMotion = useReducedMotion() ?? false
+
+  if (prefersReducedMotion) {
+    return <div className={className} style={style}>{children}</div>
+  }
+
+  return (
+    <motion.div
+      variants={fadeUp}
+      transition={{ duration: 0.45, ease }}
       className={className}
       style={style}
     >
