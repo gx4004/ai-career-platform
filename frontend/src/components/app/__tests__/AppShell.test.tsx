@@ -21,10 +21,6 @@ vi.mock('@tanstack/react-router', () => ({
   },
 }))
 
-vi.mock('#/components/app/CommandPalette', () => ({
-  CommandPalette: () => <div data-testid="command-palette" />,
-}))
-
 vi.mock('#/components/app/ErrorBoundary', () => ({
   ErrorBoundary: ({ children }: { children: ReactNode }) => <>{children}</>,
 }))

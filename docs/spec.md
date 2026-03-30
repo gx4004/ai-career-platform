@@ -337,7 +337,7 @@ This creates an active learning loop rather than passive reading. Each practice 
 | Primary interactive | `#0a66c2` | Buttons, links, accents |
 | Primary hover | `#0a4f98` | Hover states |
 
-All tool accent CSS variables (`--resume-accent`, `--match-accent`, etc.) resolve to `var(--accent)` — no per-tool color differentiation.
+Each tool has its own accent color via CSS custom properties (`--resume-accent`, `--match-accent`, `--letter-accent`, `--interview-accent`, `--career-accent`, `--portfolio-accent`) for visual differentiation in dashboard cards and tool pages.
 
 ### Internationalization (i18n)
 
@@ -1701,7 +1701,7 @@ The spec originally stated "dark mode only." This is **incorrect**. The actual t
 - **Main content area**: Light (`#edf3fa` background, dark text)
 - **No light/dark toggle** — this hybrid is the only theme
 
-Any dead dark-mode toggle code should be removed. The `--resume-accent`, `--match-accent`, etc. CSS variables all resolve to `var(--accent)` — there are no per-tool accent colors in practice. This is intentional.
+Any dead dark-mode toggle code should be removed. Each tool retains its own accent color (`--resume-accent`, `--match-accent`, etc.) for visual differentiation in dashboard cards and tool-specific UI.
 
 **Implementation cleanup**: Remove `ThemeToggle.tsx` component, any unused dark theme CSS variables, and dark mode toggle logic. The app has one theme — the hybrid described above.
 
