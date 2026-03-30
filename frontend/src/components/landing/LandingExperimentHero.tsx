@@ -109,7 +109,7 @@ export function LandingExperimentHero({
             </div>
             <Link to="/dashboard" className="block">
               <img
-                src="/ai-generated/carousel/final-resume.png"
+                src="/ai-generated/carousel/hero-resume-analyzer.png"
                 alt="Career Workbench resume analyzer preview"
                 className="landing-cascade-window-image cursor-pointer"
                 draggable={false}
