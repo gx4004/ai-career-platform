@@ -5,6 +5,7 @@ from typing import Any
 
 import logging
 
+from app.config import settings
 from app.prompts.interview import build_interview_prompt, build_practice_feedback_prompt
 from app.services.ai_client import complete_structured
 from app.services.application_context import build_application_handoff
@@ -365,7 +366,11 @@ async def evaluate_practice_answer(
     is_empty = not user_answer or not user_answer.strip()
 
     try:
-        result = await complete_structured(system_prompt, user_prompt)
+        result = await complete_structured(
+            system_prompt,
+            user_prompt,
+            model_override=settings.LLM_PRACTICE_MODEL or None,
+        )
     except Exception:
         logger.warning("LLM call failed for practice feedback, returning heuristic fallback", exc_info=True)
         if is_empty:
