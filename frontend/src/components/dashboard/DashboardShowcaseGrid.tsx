@@ -3,12 +3,12 @@ import { tools, type ToolId } from '#/lib/tools/registry'
 import { useBreakpoint } from '#/hooks/use-breakpoint'
 import { DashboardShowcaseCard } from './DashboardShowcaseCard'
 
-import iconResume from '#/assets/tools/resume.png'
-import iconJobMatch from '#/assets/tools/job-match.png'
-import iconCareer from '#/assets/tools/career.png'
-import iconCoverLetter from '#/assets/tools/cover-letter.png'
-import iconInterview from '#/assets/tools/interview.png'
-import iconPortfolio from '#/assets/tools/portfolio.png'
+import iconResume from '#/assets/tools/resume.webp'
+import iconJobMatch from '#/assets/tools/job-match.webp'
+import iconCareer from '#/assets/tools/career.webp'
+import iconCoverLetter from '#/assets/tools/cover-letter.webp'
+import iconInterview from '#/assets/tools/interview.webp'
+import iconPortfolio from '#/assets/tools/portfolio.webp'
 
 const showcaseTools: Array<{ id: ToolId; icon: string }> = [
   { id: 'resume', icon: iconResume },

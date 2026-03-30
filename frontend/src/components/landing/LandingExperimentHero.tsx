@@ -39,12 +39,6 @@ export function LandingExperimentHero({
           startHidden={!prefersReducedMotion}
         >
           <StaggerItem>
-            <span className="landing-cascade-badge">
-              <span className="landing-cascade-badge-dot" />
-              Now in public beta
-            </span>
-          </StaggerItem>
-          <StaggerItem>
             <h1 className="landing-cascade-headline">
               Your <span className="landing-cascade-accent landing-cascade-accent--multi">resume</span> has{' '}
               <span className="landing-cascade-accent landing-cascade-accent--multi">blind spots</span>.
@@ -80,9 +74,13 @@ export function LandingExperimentHero({
           </StaggerItem>
           <StaggerItem>
             <div className="landing-cascade-trust">
+              <span className="landing-cascade-badge">
+                <span className="landing-cascade-badge-dot" />
+                Now in public beta
+              </span>
               {copy.trustItems.map((item) => (
                 <span key={item} className="landing-cascade-trust-item">
-                  <Check size={14} className="landing-cascade-trust-check" />
+                  <Check size={13} className="landing-cascade-trust-check" />
                   {item}
                 </span>
               ))}
@@ -109,9 +107,12 @@ export function LandingExperimentHero({
             </div>
             <Link to="/dashboard" className="block">
               <img
-                src="/ai-generated/carousel/hero-resume-analyzer.jpg"
+                src="/ai-generated/carousel/hero-resume-analyzer.webp"
                 alt="Career Workbench resume analyzer preview"
                 className="landing-cascade-window-image cursor-pointer"
+                loading="eager"
+                decoding="async"
+                fetchPriority="high"
                 draggable={false}
               />
             </Link>
