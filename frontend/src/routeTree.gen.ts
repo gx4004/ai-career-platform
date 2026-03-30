@@ -21,12 +21,6 @@ import { Route as CoverLetterRouteImport } from './routes/cover-letter'
 import { Route as CareerRouteImport } from './routes/career'
 import { Route as AccountRouteImport } from './routes/account'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as ResumePreviewRouteImport } from './routes/resume_.preview'
-import { Route as PortfolioPreviewRouteImport } from './routes/portfolio_.preview'
-import { Route as JobMatchPreviewRouteImport } from './routes/job-match_.preview'
-import { Route as InterviewPreviewRouteImport } from './routes/interview_.preview'
-import { Route as CoverLetterPreviewRouteImport } from './routes/cover-letter_.preview'
-import { Route as CareerPreviewRouteImport } from './routes/career_.preview'
 import { Route as AuthCallbackRouteImport } from './routes/auth.callback'
 import { Route as ResumeResultHistoryIdRouteImport } from './routes/resume_.result.$historyId'
 import { Route as PortfolioResultHistoryIdRouteImport } from './routes/portfolio_.result.$historyId'
@@ -95,36 +89,6 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ResumePreviewRoute = ResumePreviewRouteImport.update({
-  id: '/resume_/preview',
-  path: '/resume/preview',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PortfolioPreviewRoute = PortfolioPreviewRouteImport.update({
-  id: '/portfolio_/preview',
-  path: '/portfolio/preview',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const JobMatchPreviewRoute = JobMatchPreviewRouteImport.update({
-  id: '/job-match_/preview',
-  path: '/job-match/preview',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const InterviewPreviewRoute = InterviewPreviewRouteImport.update({
-  id: '/interview_/preview',
-  path: '/interview/preview',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const CoverLetterPreviewRoute = CoverLetterPreviewRouteImport.update({
-  id: '/cover-letter_/preview',
-  path: '/cover-letter/preview',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const CareerPreviewRoute = CareerPreviewRouteImport.update({
-  id: '/career_/preview',
-  path: '/career/preview',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const AuthCallbackRoute = AuthCallbackRouteImport.update({
   id: '/auth/callback',
   path: '/auth/callback',
@@ -178,12 +142,6 @@ export interface FileRoutesByFullPath {
   '/resume': typeof ResumeRoute
   '/settings': typeof SettingsRoute
   '/auth/callback': typeof AuthCallbackRoute
-  '/career/preview': typeof CareerPreviewRoute
-  '/cover-letter/preview': typeof CoverLetterPreviewRoute
-  '/interview/preview': typeof InterviewPreviewRoute
-  '/job-match/preview': typeof JobMatchPreviewRoute
-  '/portfolio/preview': typeof PortfolioPreviewRoute
-  '/resume/preview': typeof ResumePreviewRoute
   '/career/result/$historyId': typeof CareerResultHistoryIdRoute
   '/cover-letter/result/$historyId': typeof CoverLetterResultHistoryIdRoute
   '/interview/result/$historyId': typeof InterviewResultHistoryIdRoute
@@ -205,12 +163,6 @@ export interface FileRoutesByTo {
   '/resume': typeof ResumeRoute
   '/settings': typeof SettingsRoute
   '/auth/callback': typeof AuthCallbackRoute
-  '/career/preview': typeof CareerPreviewRoute
-  '/cover-letter/preview': typeof CoverLetterPreviewRoute
-  '/interview/preview': typeof InterviewPreviewRoute
-  '/job-match/preview': typeof JobMatchPreviewRoute
-  '/portfolio/preview': typeof PortfolioPreviewRoute
-  '/resume/preview': typeof ResumePreviewRoute
   '/career/result/$historyId': typeof CareerResultHistoryIdRoute
   '/cover-letter/result/$historyId': typeof CoverLetterResultHistoryIdRoute
   '/interview/result/$historyId': typeof InterviewResultHistoryIdRoute
@@ -233,12 +185,6 @@ export interface FileRoutesById {
   '/resume': typeof ResumeRoute
   '/settings': typeof SettingsRoute
   '/auth/callback': typeof AuthCallbackRoute
-  '/career_/preview': typeof CareerPreviewRoute
-  '/cover-letter_/preview': typeof CoverLetterPreviewRoute
-  '/interview_/preview': typeof InterviewPreviewRoute
-  '/job-match_/preview': typeof JobMatchPreviewRoute
-  '/portfolio_/preview': typeof PortfolioPreviewRoute
-  '/resume_/preview': typeof ResumePreviewRoute
   '/career_/result/$historyId': typeof CareerResultHistoryIdRoute
   '/cover-letter_/result/$historyId': typeof CoverLetterResultHistoryIdRoute
   '/interview_/result/$historyId': typeof InterviewResultHistoryIdRoute
@@ -262,12 +208,6 @@ export interface FileRouteTypes {
     | '/resume'
     | '/settings'
     | '/auth/callback'
-    | '/career/preview'
-    | '/cover-letter/preview'
-    | '/interview/preview'
-    | '/job-match/preview'
-    | '/portfolio/preview'
-    | '/resume/preview'
     | '/career/result/$historyId'
     | '/cover-letter/result/$historyId'
     | '/interview/result/$historyId'
@@ -289,12 +229,6 @@ export interface FileRouteTypes {
     | '/resume'
     | '/settings'
     | '/auth/callback'
-    | '/career/preview'
-    | '/cover-letter/preview'
-    | '/interview/preview'
-    | '/job-match/preview'
-    | '/portfolio/preview'
-    | '/resume/preview'
     | '/career/result/$historyId'
     | '/cover-letter/result/$historyId'
     | '/interview/result/$historyId'
@@ -316,12 +250,6 @@ export interface FileRouteTypes {
     | '/resume'
     | '/settings'
     | '/auth/callback'
-    | '/career_/preview'
-    | '/cover-letter_/preview'
-    | '/interview_/preview'
-    | '/job-match_/preview'
-    | '/portfolio_/preview'
-    | '/resume_/preview'
     | '/career_/result/$historyId'
     | '/cover-letter_/result/$historyId'
     | '/interview_/result/$historyId'
@@ -344,12 +272,6 @@ export interface RootRouteChildren {
   ResumeRoute: typeof ResumeRoute
   SettingsRoute: typeof SettingsRoute
   AuthCallbackRoute: typeof AuthCallbackRoute
-  CareerPreviewRoute: typeof CareerPreviewRoute
-  CoverLetterPreviewRoute: typeof CoverLetterPreviewRoute
-  InterviewPreviewRoute: typeof InterviewPreviewRoute
-  JobMatchPreviewRoute: typeof JobMatchPreviewRoute
-  PortfolioPreviewRoute: typeof PortfolioPreviewRoute
-  ResumePreviewRoute: typeof ResumePreviewRoute
   CareerResultHistoryIdRoute: typeof CareerResultHistoryIdRoute
   CoverLetterResultHistoryIdRoute: typeof CoverLetterResultHistoryIdRoute
   InterviewResultHistoryIdRoute: typeof InterviewResultHistoryIdRoute
@@ -444,48 +366,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/resume_/preview': {
-      id: '/resume_/preview'
-      path: '/resume/preview'
-      fullPath: '/resume/preview'
-      preLoaderRoute: typeof ResumePreviewRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/portfolio_/preview': {
-      id: '/portfolio_/preview'
-      path: '/portfolio/preview'
-      fullPath: '/portfolio/preview'
-      preLoaderRoute: typeof PortfolioPreviewRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/job-match_/preview': {
-      id: '/job-match_/preview'
-      path: '/job-match/preview'
-      fullPath: '/job-match/preview'
-      preLoaderRoute: typeof JobMatchPreviewRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/interview_/preview': {
-      id: '/interview_/preview'
-      path: '/interview/preview'
-      fullPath: '/interview/preview'
-      preLoaderRoute: typeof InterviewPreviewRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/cover-letter_/preview': {
-      id: '/cover-letter_/preview'
-      path: '/cover-letter/preview'
-      fullPath: '/cover-letter/preview'
-      preLoaderRoute: typeof CoverLetterPreviewRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/career_/preview': {
-      id: '/career_/preview'
-      path: '/career/preview'
-      fullPath: '/career/preview'
-      preLoaderRoute: typeof CareerPreviewRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/auth/callback': {
       id: '/auth/callback'
       path: '/auth/callback'
@@ -552,12 +432,6 @@ const rootRouteChildren: RootRouteChildren = {
   ResumeRoute: ResumeRoute,
   SettingsRoute: SettingsRoute,
   AuthCallbackRoute: AuthCallbackRoute,
-  CareerPreviewRoute: CareerPreviewRoute,
-  CoverLetterPreviewRoute: CoverLetterPreviewRoute,
-  InterviewPreviewRoute: InterviewPreviewRoute,
-  JobMatchPreviewRoute: JobMatchPreviewRoute,
-  PortfolioPreviewRoute: PortfolioPreviewRoute,
-  ResumePreviewRoute: ResumePreviewRoute,
   CareerResultHistoryIdRoute: CareerResultHistoryIdRoute,
   CoverLetterResultHistoryIdRoute: CoverLetterResultHistoryIdRoute,
   InterviewResultHistoryIdRoute: InterviewResultHistoryIdRoute,

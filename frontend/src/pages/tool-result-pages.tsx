@@ -1,6 +1,5 @@
 import { getRouteApi } from '@tanstack/react-router'
 import { ToolResultScreen } from '#/components/tooling/ToolResultScreen'
-import { ToolResultPreview } from '#/components/tooling/ToolResultPreview'
 
 const resumeResultRoute = getRouteApi('/resume_/result/$historyId')
 const jobMatchResultRoute = getRouteApi('/job-match_/result/$historyId')
@@ -37,30 +36,4 @@ export function CareerResultPage() {
 export function PortfolioResultPage() {
   const { historyId } = portfolioResultRoute.useParams()
   return <ToolResultScreen toolId="portfolio" historyId={historyId} />
-}
-
-// ── Preview pages (static mock data, no backend required) ─────────────────────
-
-export function ResumePreviewPage() {
-  return <ToolResultPreview toolId="resume" />
-}
-
-export function JobMatchPreviewPage() {
-  return <ToolResultPreview toolId="job-match" />
-}
-
-export function CareerPreviewPage() {
-  return <ToolResultPreview toolId="career" />
-}
-
-export function InterviewPreviewPage() {
-  return <ToolResultPreview toolId="interview" />
-}
-
-export function PortfolioPreviewPage() {
-  return <ToolResultPreview toolId="portfolio" />
-}
-
-export function CoverLetterPreviewPage() {
-  return <ToolResultPreview toolId="cover-letter" />
 }
