@@ -72,6 +72,7 @@ async function request<T>(
     ...options,
     body,
     headers,
+    credentials: 'include',
   })
 
   const parsed = await response
@@ -299,5 +300,27 @@ export function updateHistoryWorkspace(
     method: 'PATCH',
     body: payload,
     schema: workspaceSummarySchema,
+  })
+}
+
+export function requestPasswordReset(payload: { email: string }) {
+  return request<{ message: string }>('/auth/password-reset/request', {
+    method: 'POST',
+    body: payload,
+  })
+}
+
+export function confirmPasswordReset(payload: { token: string; new_password: string }) {
+  return request<{ message: string }>('/auth/password-reset/confirm', {
+    method: 'POST',
+    body: payload,
+  })
+}
+
+export function refreshToken() {
+  return request('/auth/refresh', {
+    method: 'POST',
+    body: {},
+    schema: tokenSchema,
   })
 }
