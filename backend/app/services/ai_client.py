@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import random
 
 from app.config import settings
 
@@ -35,29 +36,52 @@ def _ensure_vertex_init() -> None:
 # ---------------------------------------------------------------------------
 
 _LLM_TIMEOUT_SECONDS = 120
+_MAX_RETRIES = 3
+_RETRY_BASE_DELAY = 1.0
+
+
+async def _with_retry(coro_factory, max_retries: int = _MAX_RETRIES, base_delay: float = _RETRY_BASE_DELAY):
+    """Retry with exponential backoff: 1s -> 2s -> 4s + jitter."""
+    last_exc: Exception | None = None
+    for attempt in range(max_retries + 1):
+        try:
+            return await coro_factory()
+        except (TimeoutError, RuntimeError) as exc:
+            last_exc = exc
+            if attempt < max_retries:
+                delay = base_delay * (2 ** attempt) + random.uniform(0, 0.5)
+                logger.warning(
+                    "LLM retry %d/%d after %.1fs: %s", attempt + 1, max_retries, delay, exc
+                )
+                await asyncio.sleep(delay)
+    raise last_exc  # type: ignore[misc]
 
 
 async def complete_structured(
     system_prompt: str,
     user_prompt: str,
     schema: dict | None = None,
+    model_override: str | None = None,
 ) -> dict:
     """Call the configured LLM provider and return parsed JSON."""
     provider = settings.LLM_PROVIDER.lower()
-    model = settings.LLM_MODEL
+    model = model_override or settings.LLM_MODEL
 
     logger.info("LLM request  provider=%s  model=%s", provider, model)
 
-    if provider == "openai":
-        result = await _call_openai(system_prompt, user_prompt, schema)
-    elif provider == "groq":
-        result = await _call_groq(system_prompt, user_prompt)
-    elif provider == "anthropic":
-        result = await _call_anthropic(system_prompt, user_prompt)
-    elif provider == "vertex":
-        result = await _call_vertex(system_prompt, user_prompt)
-    else:
-        raise ValueError(f"Unsupported LLM provider: {provider}")
+    async def _dispatch():
+        if provider == "openai":
+            return await _call_openai(system_prompt, user_prompt, schema)
+        elif provider == "groq":
+            return await _call_groq(system_prompt, user_prompt)
+        elif provider == "anthropic":
+            return await _call_anthropic(system_prompt, user_prompt)
+        elif provider == "vertex":
+            return await _call_vertex(system_prompt, user_prompt, model)
+        else:
+            raise ValueError(f"Unsupported LLM provider: {provider}")
+
+    result = await _with_retry(_dispatch)
 
     logger.info("LLM response provider=%s  model=%s  keys=%s", provider, model, list(result.keys()))
     return result
@@ -120,14 +144,14 @@ async def _call_groq(system_prompt: str, user_prompt: str) -> dict:
     return _safe_parse_json(content, "groq")
 
 
-async def _call_vertex(system_prompt: str, user_prompt: str) -> dict:
+async def _call_vertex(system_prompt: str, user_prompt: str, model_name: str | None = None) -> dict:
     from google.api_core import exceptions as gcp_exceptions
     from vertexai.generative_models import GenerationConfig, GenerativeModel
 
     _ensure_vertex_init()
 
     model = GenerativeModel(
-        settings.LLM_MODEL,
+        model_name or settings.LLM_MODEL,
         system_instruction=[system_prompt],
     )
 
@@ -138,8 +162,7 @@ async def _call_vertex(system_prompt: str, user_prompt: str) -> dict:
 
     try:
         response = await asyncio.wait_for(
-            asyncio.to_thread(
-                model.generate_content,
+            model.generate_content_async(
                 user_prompt,
                 generation_config=generation_config,
             ),

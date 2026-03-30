@@ -10,6 +10,7 @@ class Settings(BaseSettings):
 
     LLM_PROVIDER: str = "vertex"
     LLM_MODEL: str = "gemini-2.5-flash"
+    LLM_PRACTICE_MODEL: str = ""
     OPENAI_API_KEY: str = ""
     ANTHROPIC_API_KEY: str = ""
     GROQ_API_KEY: str = ""

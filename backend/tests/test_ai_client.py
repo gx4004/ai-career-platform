@@ -56,10 +56,11 @@ async def test_anthropic_provider_called(monkeypatch):
 @pytest.mark.asyncio
 async def test_vertex_provider_called(monkeypatch):
     monkeypatch.setattr("app.services.ai_client.settings.LLM_PROVIDER", "vertex")
+    monkeypatch.setattr("app.services.ai_client.settings.LLM_MODEL", "gemini-2.5-flash")
     mock = AsyncMock(return_value={"ok": True})
     monkeypatch.setattr("app.services.ai_client._call_vertex", mock)
     result = await complete_structured(SYSTEM, USER)
-    mock.assert_awaited_once_with(SYSTEM, USER)
+    mock.assert_awaited_once_with(SYSTEM, USER, "gemini-2.5-flash")
     assert result == {"ok": True}
 
 
@@ -100,7 +101,7 @@ async def test_vertex_json_parse_error(monkeypatch):
             # We need to patch at the import location inside the function
             import app.services.ai_client as mod
 
-            async def _bad_vertex(sp, up):
+            async def _bad_vertex(sp, up, model_name=None):
                 return json.loads("not valid json {{")
 
             monkeypatch.setattr(mod, "_call_vertex", _bad_vertex)
