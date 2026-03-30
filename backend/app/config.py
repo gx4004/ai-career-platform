@@ -4,7 +4,7 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     DATABASE_URL: str = "sqlite:///./career_platform.db"
     SECRET_KEY: str = "change-me-to-a-random-secret-key"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
     ALGORITHM: str = "HS256"
 
@@ -28,6 +28,16 @@ class Settings(BaseSettings):
     CAPTCHA_ENABLED: bool = False
     CAPTCHA_SECRET_KEY: str = ""
     CAPTCHA_VERIFY_URL: str = "https://www.google.com/recaptcha/api/siteverify"
+
+    GOOGLE_CLIENT_ID: str = ""
+    GOOGLE_CLIENT_SECRET: str = ""
+    GOOGLE_REDIRECT_URI: str = "http://localhost:5173/api/v1/auth/google/callback"
+
+    RESEND_API_KEY: str = ""
+    PASSWORD_RESET_FROM_EMAIL: str = "noreply@careerworkbench.com"
+    PASSWORD_RESET_TOKEN_EXPIRE_MINUTES: int = 60
+
+    DISPOSABLE_EMAIL_BLOCK_ENABLED: bool = True
 
     model_config = {"env_file": ".env", "extra": "ignore"}
 
