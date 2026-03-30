@@ -1,16 +1,10 @@
 import { useState, type ReactNode } from 'react'
-import { Lock, Unlock, AlertTriangle } from 'lucide-react'
+import { Lock, Unlock } from 'lucide-react'
 import { Button } from '#/components/ui/button'
+import { AdCountdownTimer } from '#/components/tooling/AdCountdownTimer'
 import { trackTelemetry } from '#/lib/telemetry/client'
-
-function isUnlockedInSession(runId: string | undefined): boolean {
-  if (!runId) return false
-  return sessionStorage.getItem(`ad-unlocked:${runId}`) === '1'
-}
-
-function persistUnlock(runId: string | undefined) {
-  if (runId) sessionStorage.setItem(`ad-unlocked:${runId}`, '1')
-}
+import { useAd } from '#/hooks/useAd'
+import { useAdUnlock } from '#/hooks/useAdUnlock'
 
 export function AdGatedLock({
   toolId,
@@ -21,26 +15,31 @@ export function AdGatedLock({
   runId?: string
   children: ReactNode
 }) {
-  const [unlocked, setUnlocked] = useState(() => isUnlockedInSession(runId))
-  const [adBlocked, setAdBlocked] = useState(false)
+  const { unlocked, unlock } = useAdUnlock(runId)
+  const { adBlocked, showAd } = useAd()
   const [watching, setWatching] = useState(false)
 
   if (unlocked) {
     return <>{children}</>
   }
 
-  const handleWatchAd = () => {
+  const handleWatchAd = async () => {
     setWatching(true)
     trackTelemetry({ event_name: 'ad_shown', tool_id: toolId })
 
-    // Simulate ad interaction (replace with real ad SDK later)
-    // In production: load ad from provider, wait for completion callback
-    setTimeout(() => {
-      trackTelemetry({ event_name: 'ad_completed', tool_id: toolId })
-      persistUnlock(runId)
-      setUnlocked(true)
+    const completed = await showAd()
+    if (completed) {
+      trackTelemetry({ event_name: 'ad_completed', tool_id: toolId, unlock_method: 'ad' })
+      unlock()
+    } else {
+      trackTelemetry({ event_name: 'ad_blocked', tool_id: toolId })
       setWatching(false)
-    }, 3000)
+    }
+  }
+
+  const handleCountdownComplete = () => {
+    trackTelemetry({ event_name: 'countdown_completed', tool_id: toolId, unlock_method: 'countdown' })
+    unlock()
   }
 
   return (
@@ -51,11 +50,10 @@ export function AdGatedLock({
       <div className="ad-gate-overlay">
         <div className="ad-gate-prompt">
           {adBlocked ? (
-            <>
-              <AlertTriangle size={24} />
-              <h3>Ad blocker detected</h3>
-              <p>Please disable your ad blocker to view detailed results.</p>
-            </>
+            <AdCountdownTimer
+              durationSeconds={30}
+              onComplete={handleCountdownComplete}
+            />
           ) : watching ? (
             <>
               <Unlock size={24} className="ad-gate-spinner" />

@@ -1,10 +1,11 @@
 from datetime import datetime, timedelta, timezone
 
 import bcrypt
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 from sqlalchemy.orm import Session
+from starlette.responses import Response
 
 from app.config import settings
 from app.database import get_db
@@ -53,6 +54,50 @@ def verify_refresh_token(token: str) -> str | None:
         return None
 
 
+def create_password_reset_token(email: str) -> str:
+    now = datetime.now(timezone.utc)
+    expire = now + timedelta(minutes=settings.PASSWORD_RESET_TOKEN_EXPIRE_MINUTES)
+    payload = {"sub": email, "exp": expire, "iat": now, "type": "password_reset"}
+    return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+
+
+def verify_password_reset_token(token: str) -> str | None:
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        if payload.get("type") != "password_reset":
+            return None
+        return payload.get("sub")
+    except JWTError:
+        return None
+
+
+def set_auth_cookies(response: Response, access_token: str, refresh_token: str) -> None:
+    is_prod = settings.ENVIRONMENT != "development"
+    response.set_cookie(
+        key="cw_access",
+        value=access_token,
+        httponly=True,
+        secure=is_prod,
+        samesite="lax",
+        max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        path="/api",
+    )
+    response.set_cookie(
+        key="cw_refresh",
+        value=refresh_token,
+        httponly=True,
+        secure=is_prod,
+        samesite="lax",
+        max_age=settings.REFRESH_TOKEN_EXPIRE_DAYS * 86400,
+        path="/api/v1/auth/refresh",
+    )
+
+
+def clear_auth_cookies(response: Response) -> None:
+    response.delete_cookie(key="cw_access", path="/api")
+    response.delete_cookie(key="cw_refresh", path="/api/v1/auth/refresh")
+
+
 def decode_token(token: str) -> str | None:
     try:
         payload = jwt.decode(
@@ -64,14 +109,21 @@ def decode_token(token: str) -> str | None:
 
 
 def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
+    request: Request,
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
     db: Session = Depends(get_db),
 ) -> User:
-    if credentials is None:
+    token = None
+    if credentials is not None:
+        token = credentials.credentials
+    else:
+        token = request.cookies.get("cw_access")
+
+    if token is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated"
         )
-    user_id = decode_token(credentials.credentials)
+    user_id = decode_token(token)
     if user_id is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token"
@@ -96,13 +148,20 @@ def get_current_admin(
 
 
 def get_optional_current_user(
+    request: Request,
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
     db: Session = Depends(get_db),
 ) -> User | None:
-    if credentials is None:
+    token = None
+    if credentials is not None:
+        token = credentials.credentials
+    else:
+        token = request.cookies.get("cw_access")
+
+    if token is None:
         return None
 
-    user_id = decode_token(credentials.credentials)
+    user_id = decode_token(token)
     if user_id is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token"

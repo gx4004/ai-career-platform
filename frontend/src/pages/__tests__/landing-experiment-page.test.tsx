@@ -71,10 +71,6 @@ vi.mock('#/components/landing/LandingSocialProof', () => ({
   LandingSocialProof: () => <div data-testid="landing-social-proof" />,
 }))
 
-vi.mock('#/components/landing/LandingResumeDemo', () => ({
-  LandingResumeDemo: () => <div data-testid="landing-resume-demo" />,
-}))
-
 vi.mock('#/components/landing/LandingFeatureStepsDemo', () => ({
   LandingFeatureStepsDemo: () => <div data-testid="landing-feature-steps" />,
 }))
@@ -91,10 +87,6 @@ vi.mock('#/components/landing/LandingCTA', () => ({
   LandingCTA: ({ variant = 'default' }: { variant?: string }) => (
     <div data-testid="landing-cta">{variant}</div>
   ),
-}))
-
-vi.mock('#/components/landing/LandingFooter', () => ({
-  LandingFooter: () => <div data-testid="landing-footer" />,
 }))
 
 beforeEach(() => {
@@ -120,30 +112,25 @@ describe('LandingExperimentPage', () => {
     expect(screen.getByRole('link', { name: 'Overview' }).getAttribute('href')).toBe('#landing-hero')
     expect(screen.getByRole('link', { name: 'Workflow' }).getAttribute('href')).toBe('#landing-journey')
     expect(screen.getByRole('link', { name: 'Tools' }).getAttribute('href')).toBe('#landing-tools')
-    expect(screen.getByRole('link', { name: 'Resume' }).getAttribute('href')).toBe('#landing-demo')
     expect(screen.getByRole('link', { name: 'FAQ' }).getAttribute('href')).toBe('#landing-faq')
     expect(screen.getByRole('link', { name: 'Sign in' }).getAttribute('href')).toBe('/login')
     expect(screen.getByRole('link', { name: 'Get started' }).getAttribute('href')).toBe('/dashboard')
     expect(screen.getByTestId('landing-hero')).toBeTruthy()
-    expect(screen.getByTestId('landing-resume-demo')).toBeTruthy()
     expect(screen.getByTestId('landing-feature-steps')).toBeTruthy()
     expect(screen.getByTestId('landing-tool-grid')).toBeTruthy()
     expect(screen.getByTestId('landing-faqs')).toBeTruthy()
     expect(screen.getByTestId('landing-cta').textContent).toBe('default')
-    expect(screen.getByTestId('landing-footer')).toBeTruthy()
     expect(scrollToMock).toHaveBeenCalledWith({ top: 0, left: 0, behavior: 'auto' })
 
     // Verify section order matches landingExperimentSectionOrder
     const orderedTestIds = [
       'experiment-navbar',
       'landing-hero',
-      'landing-feature-steps',
       'landing-social-proof',
-      'landing-resume-demo',
+      'landing-feature-steps',
       'landing-tool-grid',
       'landing-faqs',
       'landing-cta',
-      'landing-footer',
     ].map((testId) => container.querySelector(`[data-testid="${testId}"]`))
 
     orderedTestIds.forEach((element) => expect(element).toBeTruthy())

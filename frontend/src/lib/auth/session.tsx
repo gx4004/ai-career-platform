@@ -9,7 +9,7 @@ import {
 } from 'react'
 import type { ReactNode } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { getAuthProviders, getCurrentUser, getHealth, login as loginRequest, register as registerRequest } from '#/lib/api/client'
+import { API_URL, getAuthProviders, getCurrentUser, getHealth, login as loginRequest, register as registerRequest } from '#/lib/api/client'
 import { ApiError } from '#/lib/api/errors'
 import type { HealthCheck, OAuthProvider, User } from '#/lib/api/schemas'
 import {
@@ -44,6 +44,7 @@ export type SessionState = {
     full_name?: string
   }) => Promise<void>
   logout: () => void
+  googleLogin: () => void
 }
 
 const SessionContext = createContext<SessionState | null>(null)
@@ -57,9 +58,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const pendingActionRef = useRef<null | (() => void | Promise<void>)>(null)
 
   const userQuery = useQuery({
-    queryKey: ['current-user', token],
+    queryKey: ['current-user'],
     queryFn: getCurrentUser,
-    enabled: Boolean(token),
     retry: false,
   })
 
@@ -141,9 +141,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   )
 
   const completeAuthentication = useCallback(
-    async (accessToken: string) => {
-      setAuthToken(accessToken)
-      setToken(accessToken)
+    async (accessToken?: string) => {
+      if (accessToken) {
+        setAuthToken(accessToken)
+        setToken(accessToken)
+      }
       await queryClient.invalidateQueries({ queryKey: ['current-user'] })
       closeAuthDialog()
       await consumePendingIntent()
@@ -173,6 +175,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     [completeAuthentication],
   )
 
+  const googleLogin = useCallback(() => {
+    window.location.href = `${API_URL}/auth/google/login`
+  }, [])
+
   const logout = useCallback(() => {
     clearAuthToken()
     clearPendingIntent()
@@ -183,13 +189,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     void queryClient.invalidateQueries({ queryKey: ['current-user'] })
   }, [queryClient])
 
-  const status: SessionState['status'] = token
-    ? userQuery.isPending
-      ? 'loading'
-      : userQuery.data
-        ? 'authenticated'
-        : 'guest'
-    : 'guest'
+  const status: SessionState['status'] = userQuery.isPending
+    ? 'loading'
+    : userQuery.data
+      ? 'authenticated'
+      : 'guest'
 
   const value = useMemo<SessionState>(
     () => ({
@@ -219,12 +223,14 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         }
       },
       logout,
+      googleLogin,
     }),
     [
       authDialogOpen,
       authError,
       authView,
       closeAuthDialog,
+      googleLogin,
       healthQuery.data,
       login,
       logout,

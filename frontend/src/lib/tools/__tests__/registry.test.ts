@@ -55,7 +55,7 @@ describe('Tool registry', () => {
   describe('toolGroups', () => {
     it('groups tools correctly', () => {
       expect(toolGroups.primary.map((t) => t.id)).toEqual(['resume', 'job-match'])
-      expect(toolGroups.application.map((t) => t.id)).toEqual(['interview', 'cover-letter'])
+      expect(toolGroups.application.map((t) => t.id)).toEqual(['cover-letter', 'interview'])
       expect(toolGroups.planning.map((t) => t.id)).toEqual(['career', 'portfolio'])
     })
 
