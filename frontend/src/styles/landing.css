@@ -1354,6 +1354,7 @@
     grid-template-columns: 1fr;
   }
 
+  /* !important needed to override Framer Motion AnimatePresence inline styles */
   .landing-preview-panel,
   .landing-page-experiment .landing-preview-panel {
     display: none !important;
@@ -3844,10 +3845,13 @@ button.landing-cascade-cta--ghost {
   color: var(--text-body);
 }
 
-/* Reduced motion: instant open/close */
+/* Reduced motion: instant open/close, no glow */
 @media (prefers-reduced-motion: reduce) {
   .faq-animated-collapse {
     transition: none;
+  }
+  .landing-cascade-cta--shimmer {
+    animation: none;
   }
 }
 
