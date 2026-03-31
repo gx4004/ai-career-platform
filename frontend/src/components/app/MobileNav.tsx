@@ -28,6 +28,7 @@ export function MobileNav() {
         <Link
           to="/dashboard"
           className={`mobile-tab-item${isActive('/dashboard') ? ' is-active' : ''}`}
+          onClick={() => setToolsOpen(false)}
         >
           <LayoutDashboard size={20} strokeWidth={isActive('/dashboard') ? 2.2 : 1.8} />
           <span>Home</span>
@@ -36,7 +37,7 @@ export function MobileNav() {
         <button
           type="button"
           className={`mobile-tab-item${isToolsActive ? ' is-active' : ''}`}
-          onClick={() => setToolsOpen(true)}
+          onClick={() => setToolsOpen(!toolsOpen)}
         >
           <Grid2x2 size={20} strokeWidth={isToolsActive ? 2.2 : 1.8} />
           <span>Tools</span>
@@ -45,6 +46,7 @@ export function MobileNav() {
         <Link
           to="/history"
           className={`mobile-tab-item${isActive('/history') ? ' is-active' : ''}`}
+          onClick={() => setToolsOpen(false)}
         >
           <History size={20} strokeWidth={isActive('/history') ? 2.2 : 1.8} />
           <span>History</span>
@@ -53,6 +55,7 @@ export function MobileNav() {
         <Link
           to="/account"
           className={`mobile-tab-item${isActive('/account') || isActive('/settings') ? ' is-active' : ''}`}
+          onClick={() => setToolsOpen(false)}
         >
           <UserRound size={20} strokeWidth={isActive('/account') || isActive('/settings') ? 2.2 : 1.8} />
           <span>Profile</span>

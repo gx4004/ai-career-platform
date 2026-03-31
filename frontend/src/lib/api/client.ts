@@ -81,9 +81,10 @@ async function request<T>(
     .catch(async () => response.text().catch(() => ''))
 
   if (!response.ok) {
-    if (response.status === 401) {
+    if (response.status === 401 && token) {
       clearAuthToken()
       // Dispatch custom event so SessionProvider can open auth dialog in-place
+      // Only fire when a previously authenticated session expires, not for guest 401s
       window.dispatchEvent(new CustomEvent('cw:session-expired'))
     }
 

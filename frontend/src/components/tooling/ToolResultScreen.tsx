@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Link, useNavigate } from '@tanstack/react-router'
+import { useNavigate } from '@tanstack/react-router'
 import { Copy, Download, FileText, RefreshCw, Star, Undo2 } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { ScoreTooltip } from '#/components/tooling/ScoreTooltip'
@@ -181,7 +181,7 @@ export function ToolResultScreen({
   const secondaryNextAction = resolvedTool.nextActions[1]
 
   async function handleCopy() {
-    await navigator.clipboard.writeText(definition.copyText(payload, item))
+    await navigator.clipboard.writeText(definition.copyText(payload, item!))
     setCopied(true)
     window.setTimeout(() => setCopied(false), 1200)
   }
@@ -190,7 +190,7 @@ export function ToolResultScreen({
     trackTelemetry({
       event_name: 'export_action_used',
       tool_id: resolvedTool.id,
-      history_id: item.id,
+      history_id: item!.id,
       access_mode: savedResult ? 'authenticated' : 'guest_demo',
       saved: savedResult,
       metadata: { format },

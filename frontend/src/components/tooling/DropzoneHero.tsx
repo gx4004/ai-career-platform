@@ -13,16 +13,20 @@ export function DropzoneHero({
   accent,
   compact = false,
   collapseOnSuccess = false,
+  preLoaded = false,
+  preLoadedLabel,
 }: {
   onParsed: (text: string) => void
   onPasteText?: () => void
   accent?: string
   compact?: boolean
   collapseOnSuccess?: boolean
+  preLoaded?: boolean
+  preLoadedLabel?: string
 }) {
   const fileInputRef = useRef<HTMLInputElement | null>(null)
-  const [dropState, setDropState] = useState<DropzoneState>('idle')
-  const [fileName, setFileName] = useState<string | null>(null)
+  const [dropState, setDropState] = useState<DropzoneState>(preLoaded ? 'success' : 'idle')
+  const [fileName, setFileName] = useState<string | null>(preLoaded ? (preLoadedLabel || 'Resume loaded') : null)
 
   const mutation = useMutation({
     mutationFn: parseCv,

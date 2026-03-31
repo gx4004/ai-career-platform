@@ -27,7 +27,7 @@ export function FeatureSteps({
   className,
   title = 'How to get started',
   autoPlayInterval = 3000,
-  imageHeight = 'min-h-[16rem] md:min-h-[20rem] lg:min-h-[24rem]',
+  imageHeight: _imageHeight = 'min-h-[16rem] md:min-h-[20rem] lg:min-h-[24rem]',
   autoPlay = true,
   imageLink,
 }: FeatureStepsProps) {

@@ -35,6 +35,7 @@ export function CareerToolPage() {
     draft.resumeText.trim() || bridge.seededResume ? 'form' : 'upload',
   )
   const [resumeEditorCollapsed, setResumeEditorCollapsed] = useState(false)
+  const hasResumeContent = Boolean(draft.resumeText.trim() || bridge.seededResume)
 
   return (
     <ToolPageShell toolId="career" bodyClassName="career-bespoke-page">
@@ -59,7 +60,7 @@ export function CareerToolPage() {
               <span className="wizard-step-line" />
               <span className="wizard-step">2</span>
             </div>
-            <div className="wizard-step-caption-row">
+            <div className="wizard-step-caption-row wizard-step-caption-row--two-up">
               <span>Current profile</span>
               <span>Compare paths</span>
             </div>
@@ -118,6 +119,8 @@ export function CareerToolPage() {
                 accent={tool.accent}
                 compact
                 collapseOnSuccess
+                preLoaded={hasResumeContent}
+                preLoadedLabel={bridge.seededResume ? 'Resume carried from previous tool' : undefined}
                 onParsed={(text) => {
                   setField('resumeText', text)
                   setResumeEditorCollapsed(true)

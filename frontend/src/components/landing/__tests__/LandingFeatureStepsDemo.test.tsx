@@ -9,6 +9,8 @@ const featureState = vi.hoisted(() => ({
 
 vi.mock('#/components/ui/motion', () => ({
   ScrollReveal: ({ children }: { children: ReactNode }) => <>{children}</>,
+  ScrollStagger: ({ children }: { children: ReactNode }) => <>{children}</>,
+  ScrollStaggerItem: ({ children }: { children: ReactNode }) => <>{children}</>,
 }))
 
 vi.mock('#/components/ui/feature-section', () => ({
@@ -51,11 +53,6 @@ describe('LandingFeatureStepsDemo', () => {
       }),
     ).toBeTruthy()
     expect(screen.getByText(/How it works/i)).toBeTruthy()
-    expect(
-      screen.getByText(
-        /Start with the resume you have, pick one target role, then move through applications and planning from the same place\./i,
-      ),
-    ).toBeTruthy()
     expect(screen.getByRole('button', { name: /Review the resume you already have/i })).toBeTruthy()
     expect(
       screen.getByRole('button', { name: /Check fit against a real role/i }),

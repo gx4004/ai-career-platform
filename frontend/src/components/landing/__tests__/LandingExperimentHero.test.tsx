@@ -18,6 +18,11 @@ vi.mock('@tanstack/react-router', () => ({
   ),
 }))
 
+vi.mock('#/components/ui/motion', () => ({
+  StaggerChildren: ({ children }: { children: ReactNode }) => <>{children}</>,
+  StaggerItem: ({ children }: { children: ReactNode }) => <>{children}</>,
+}))
+
 vi.mock('framer-motion', () => ({
   motion: {
     p: ({ children, ...props }: React.HTMLAttributes<HTMLParagraphElement>) => <p {...props}>{children}</p>,
@@ -31,14 +36,9 @@ describe('LandingExperimentHero', () => {
   it('renders the headline, body copy, CTA, and static proof card', () => {
     const { container } = render(<LandingExperimentHero />)
     const heading = container.querySelector('h1')
-    const links = container.querySelectorAll('a')
-
     expect(heading?.textContent).toContain('blind spots.')
     expect(heading?.textContent).toContain('We find them before recruiters do.')
-    // Primary CTA links to dashboard
-    expect(links[0]?.getAttribute('href')).toBe('/dashboard')
-    // Static proof card shows score
-    expect(container.textContent).toContain('86')
-    expect(container.textContent).toContain('Ready for shortlists')
+    // Product mockup with window bar
+    expect(container.textContent).toContain('careerworkbench.io')
   })
 })

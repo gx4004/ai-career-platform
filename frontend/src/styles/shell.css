@@ -675,6 +675,52 @@
   flex-shrink: 0;
 }
 
+/* ── Mobile topbar: brand left, title center, session right ── */
+.topbar-mobile-brand {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+.topbar-mobile-brand .cw-brand-mark {
+  width: 1.75rem;
+  height: 1.75rem;
+}
+
+.topbar-mobile-brand {
+  min-width: 44px;
+  min-height: 44px;
+  justify-content: center;
+}
+
+.topbar-breadcrumb--mobile {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: 55vw;
+  justify-content: center;
+  text-align: center;
+  pointer-events: none;
+}
+
+.topbar-breadcrumb--mobile .topbar-tool-entry-chip {
+  justify-content: center;
+}
+
+.topbar-breadcrumb--mobile .topbar-compact-breadcrumb-list {
+  justify-content: center;
+}
+
+.topbar-mobile-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--nav-text-strong);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 60vw;
+}
+
 @media (max-width: 768px) {
   .topbar-inner--compact {
     gap: 0.55rem;
@@ -715,6 +761,7 @@
 
 .page-shell {
   padding: var(--space-page-y) var(--space-page-x) 3rem;
+  min-height: 100%;
 }
 
 .page-frame {
@@ -732,7 +779,7 @@
   bottom: 0;
   left: 0;
   right: 0;
-  z-index: 100;
+  z-index: 200;
   display: flex;
   align-items: stretch;
   justify-content: space-around;
@@ -774,15 +821,17 @@
 /* ── Tool grid sheet ── */
 .mobile-tool-grid-sheet {
   border-radius: var(--radius-2xl) var(--radius-2xl) 0 0 !important;
-  max-height: 60vh;
+  max-height: 80vh;
   padding-bottom: calc(var(--mobile-tab-height) + env(safe-area-inset-bottom, 0px) + 1rem);
+  background: linear-gradient(135deg, #1a3a5c 0%, #1e4d7a 40%, #2563a0 100%) !important;
+  color: #ffffff;
 }
 
 .mobile-tool-grid-title {
   font-size: var(--type-section);
   font-weight: 700;
   letter-spacing: var(--tracking-section);
-  color: var(--text-strong);
+  color: #ffffff;
 }
 
 .mobile-tool-grid {
@@ -799,9 +848,9 @@
   gap: 8px;
   padding: 20px 12px;
   border-radius: var(--radius-lg);
-  border: 1px solid var(--border-soft);
-  background: var(--surface-raised);
-  box-shadow: var(--shadow-soft);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.06));
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
   min-height: var(--touch-target, 44px);
   transition:
     background var(--transition-fast),
@@ -809,7 +858,7 @@
 }
 
 .mobile-tool-grid-item:active {
-  background: var(--surface-focus);
+  background: rgba(255, 255, 255, 0.18);
   box-shadow: none;
 }
 
@@ -820,14 +869,14 @@
   width: 44px;
   height: 44px;
   border-radius: var(--radius-md);
-  background: var(--accent-soft);
-  color: var(--accent);
+  background: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.9);
 }
 
 .mobile-tool-grid-label {
   font-size: var(--type-small);
   font-weight: 600;
-  color: var(--text-strong);
+  color: #ffffff;
   text-align: center;
 }
 

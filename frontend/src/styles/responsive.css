@@ -107,7 +107,8 @@
   }
 
   .app-main--mobile {
-    padding-bottom: calc(var(--mobile-tab-height, 56px) + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(var(--mobile-tab-height, 56px) + env(safe-area-inset-bottom, 0px) + 1.5rem);
+    min-height: 100svh;
   }
 
   .tool-sticky-wrap {
@@ -121,8 +122,9 @@
   }
 
   .auth-page-actions {
-    flex-direction: column;
-    align-items: flex-start;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
   }
 
   .landing-hero {
@@ -189,6 +191,18 @@
     width: 100%;
   }
 
+  /* Ensure eyebrow text meets 12px minimum on mobile */
+  .eyebrow {
+    font-size: max(0.75rem, 12px);
+  }
+
+  /* Topbar sign-in: minimum touch target */
+  .topbar-actions [data-slot='button'],
+  .topbar-actions button {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
   /* Navbar: smaller buttons */
   .landing-navbar-actions .button-nav-cta {
     padding-inline: 0.75rem;
@@ -226,6 +240,12 @@
     min-height: 3rem;
     width: 100%;
     justify-content: center;
+  }
+
+  /* Landing hero: ensure CTAs meet 44px touch target on mobile */
+  .landing-hero-copy [data-slot='button'],
+  .landing-hero-copy button {
+    min-height: 44px;
   }
 
   /* Hero mockup: scale down */

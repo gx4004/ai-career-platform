@@ -133,9 +133,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       }
 
       pendingActionRef.current = action || null
-      setAuthView('login')
-      setAuthError('')
-      setAuthDialogOpen(true)
+
+      // Navigate to /login instead of opening a popup dialog
+      navigateToPath('/login')
     },
     [],
   )

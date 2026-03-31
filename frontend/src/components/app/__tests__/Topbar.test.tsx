@@ -73,7 +73,7 @@ describe('Topbar', () => {
     expect(screen.queryByText('Command center')).toBeNull()
     expect(screen.queryByText('Review your current pipeline, recent runs, and the recommended next step.')).toBeNull()
     expect(screen.queryByText('Start with resume')).toBeNull()
-    expect(screen.getByText('Dashboard')).toBeTruthy()
+    expect(screen.getByText('Your Workspace')).toBeTruthy()
   })
 
   it('uses the compact breadcrumb-only variant on tool pages', () => {
@@ -107,15 +107,13 @@ describe('Topbar', () => {
     expect(screen.queryByText('Saved output for portfolio planner.')).toBeNull()
   })
 
-  it('keeps the standard meta row on non-dashboard pages', () => {
+  it('renders compact breadcrumb on secondary pages like history', () => {
     mockPathname.current = '/history'
 
     const { container } = renderTopbar()
 
     expect(container.querySelector('.topbar')).toBeTruthy()
-    expect(container.querySelector('.topbar--compact')).toBeNull()
-    expect(container.querySelector('.topbar-meta')).toBeTruthy()
-    expect(screen.getByText('Activity')).toBeTruthy()
-    expect(screen.getByText('Run History')).toBeTruthy()
+    expect(container.querySelector('.topbar--compact')).toBeTruthy()
+    expect(screen.getByText('History')).toBeTruthy()
   })
 })

@@ -1,4 +1,3 @@
-import { useMemo, type CSSProperties } from 'react'
 import { Link } from '@tanstack/react-router'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { ScrollStagger, ScrollStaggerItem } from '#/components/ui/motion'
@@ -19,12 +18,6 @@ const defaultCopy: LandingToolGridCopy = {
   body: 'Pick the move you need next without losing the resume, role, or edits already in progress.',
 }
 
-const groupLabels: Record<string, string> = {
-  primary: 'Resume review',
-  application: 'Application work',
-  planning: 'Career planning',
-}
-
 const previewImages: Record<ToolId, string> = {
   resume: '/ai-generated/carousel/final-resume.webp',
   'cover-letter': '/ai-generated/carousel/final-cover-letter.webp',
@@ -32,15 +25,6 @@ const previewImages: Record<ToolId, string> = {
   career: '/ai-generated/carousel/final-career.webp',
   interview: '/ai-generated/carousel/final-interview.webp',
   portfolio: '/ai-generated/carousel/final-portfolio.webp',
-}
-
-const previewImageStyles: Record<ToolId, { scale?: number; x?: string; y?: string }> = {
-  resume: { scale: 1.12, x: '0%', y: '1%' },
-  'cover-letter': { scale: 1.08, x: '1%', y: '1%' },
-  'job-match': { scale: 1.1, x: '0%', y: '0%' },
-  career: { scale: 1.18, x: '0%', y: '1%' },
-  interview: { scale: 1.08, x: '0%', y: '0%' },
-  portfolio: { scale: 1.12, x: '0%', y: '0%' },
 }
 
 const baseToolCopy: Record<ToolId, { summary: string; entryPointLabel: string }> = {
@@ -70,20 +54,6 @@ const baseToolCopy: Record<ToolId, { summary: string; entryPointLabel: string }>
   },
 }
 
-function getContextPills(group: string, supportsJobImport: boolean) {
-  if (group === 'application') {
-    return ['Resume', 'Role', 'Output']
-  }
-
-  if (group === 'planning') {
-    return ['Gaps', 'Options', 'Roadmap']
-  }
-
-  return supportsJobImport
-    ? ['Resume', 'Target role', 'Gap map']
-    : ['Resume', 'Top proof', 'Next edits']
-}
-
 export function LandingToolGridBase({
   copy = defaultCopy,
   autoRotate = true,
@@ -99,12 +69,7 @@ export function LandingToolGridBase({
   })
   const activeTool = toolList[carouselIndex] || toolList[0]
   const activeIndex = carouselIndex + 1
-  const contextPills = getContextPills(activeTool.group, activeTool.supportsJobImport)
   const previewImage = previewImages[activeTool.id]
-  const previewImageStyle = useMemo(
-    () => previewImageStyles[activeTool.id] || {},
-    [activeTool.id],
-  )
 
   return (
     <section className="landing-section landing-section-tools" id="landing-tools">

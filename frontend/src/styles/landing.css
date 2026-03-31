@@ -2833,11 +2833,11 @@
 .landing-cascade-cta--ghost,
 .landing-cascade-cta--ghost[data-slot="button"],
 button.landing-cascade-cta--ghost {
-  background: rgba(255, 255, 255, 0.04) !important;
-  background-color: rgba(255, 255, 255, 0.04) !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+  background-color: rgba(255, 255, 255, 0.08) !important;
   --tw-bg-opacity: 0 !important;
-  border-color: rgba(255, 255, 255, 0.12) !important;
-  color: rgba(255, 255, 255, 0.8) !important;
+  border-color: rgba(255, 255, 255, 0.22) !important;
+  color: rgba(255, 255, 255, 0.92) !important;
   box-shadow: none !important;
   backdrop-filter: blur(8px);
 }
