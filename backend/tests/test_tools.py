@@ -138,7 +138,7 @@ def test_job_match(client, auth_headers, mock_ai_result):
     assert data["requirements"][0]["importance"] in {"must", "preferred"}
     assert data["requirements"][0]["status"] in {"matched", "partial", "missing"}
     assert data["matched_keywords"]
-    assert "Kubernetes" in data["missing_keywords"]
+    assert any(item["keyword"] == "Kubernetes" for item in data["missing_keywords"])
     assert data["tailoring_actions"]
     assert data["interview_focus"]
     assert data["recruiter_summary"]

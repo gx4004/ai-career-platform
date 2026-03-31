@@ -49,7 +49,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  margin-bottom: 1rem;
+  margin-bottom: 0.5rem;
 }
 
 .auth-back-link {
@@ -63,8 +63,10 @@
 .auth-dialog-content {
   width: min(100%, 34rem);
   max-width: calc(100vw - 2rem);
+  max-height: calc(100svh - 2rem);
   padding: 0;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .auth-dialog-content [data-slot='dialog-close'] {
@@ -88,8 +90,8 @@
 
 .auth-surface {
   display: grid;
-  gap: 1.25rem;
-  padding: clamp(1.25rem, 3vw, 1.75rem);
+  gap: 1.5rem;
+  padding: clamp(1.5rem, 3.5vw, 2.25rem);
 }
 
 .auth-surface--sheet {
@@ -103,27 +105,32 @@
 
 .auth-surface-header {
   display: grid;
-  gap: 0.9rem;
+  gap: 1rem;
+  text-align: center;
+  justify-items: center;
 }
 
 .auth-surface-copy {
   display: grid;
-  gap: 0.45rem;
+  gap: 0.5rem;
+  text-align: center;
 }
 
 .auth-surface-title {
   margin: 0;
   color: var(--text-strong);
-  font-size: clamp(1.55rem, 3vw, 2rem);
-  line-height: 1.05;
+  font-size: clamp(1.35rem, 2.8vw, 1.65rem);
+  line-height: 1.15;
   letter-spacing: var(--tracking-title);
+  font-weight: 700;
 }
 
 .auth-intro-copy {
   color: var(--text-soft);
-  font-size: 0.98rem;
-  line-height: 1.72;
+  font-size: 0.9rem;
+  line-height: 1.6;
   margin: 0;
+  max-width: 26rem;
 }
 
 .auth-surface-benefits {

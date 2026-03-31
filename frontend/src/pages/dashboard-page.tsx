@@ -1,6 +1,5 @@
 import { useEffect } from 'react'
 import { DashboardHero } from '#/components/dashboard/DashboardHero'
-import { DashboardShowcaseGrid } from '#/components/dashboard/DashboardShowcaseGrid'
 import { FavoriteRuns } from '#/components/dashboard/FavoriteRuns'
 import { RecentRuns } from '#/components/dashboard/RecentRuns'
 import { DashboardActivityFooter } from '#/components/dashboard/DashboardActivityFooter'

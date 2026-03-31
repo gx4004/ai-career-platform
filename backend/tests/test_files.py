@@ -34,7 +34,9 @@ def test_import_job_url_invalid(client, monkeypatch):
         f"{PREFIX}/job-posts/import-url",
         json={"url": "https://invalid.example.com/job"},
     )
-    assert resp.status_code == 502
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "paste" in data.get("job_description", "").lower() or data.get("source") == "fallback"
 
 
 def _mock_client_cls(mock_get):

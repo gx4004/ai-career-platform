@@ -774,8 +774,9 @@
 /* ── Tool grid sheet ── */
 .mobile-tool-grid-sheet {
   border-radius: var(--radius-2xl) var(--radius-2xl) 0 0 !important;
-  max-height: 60vh;
+  max-height: 80vh;
   padding-bottom: calc(var(--mobile-tab-height) + env(safe-area-inset-bottom, 0px) + 1rem);
+  background: linear-gradient(180deg, #f0f5fc 0%, #e8f0f9 100%) !important;
 }
 
 .mobile-tool-grid-title {
@@ -799,8 +800,8 @@
   gap: 8px;
   padding: 20px 12px;
   border-radius: var(--radius-lg);
-  border: 1px solid var(--border-soft);
-  background: var(--surface-raised);
+  border: 1px solid color-mix(in srgb, var(--border-soft) 60%, white 40%);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(243, 248, 255, 0.95));
   box-shadow: var(--shadow-soft);
   min-height: var(--touch-target, 44px);
   transition:

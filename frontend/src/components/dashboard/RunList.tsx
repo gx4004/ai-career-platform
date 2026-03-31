@@ -52,7 +52,7 @@ export function RunList({
           ))}
         </div>
       ) : hasItems ? (
-        query.data.items.map((item) => {
+        query.data!.items.map((item) => {
           const tool = getToolByHistoryName(item.tool_name)
           const route = tool
             ? tool.resultRoute.replace('$historyId', item.id)
