@@ -1045,6 +1045,10 @@ body.tool-fullscreen-open .mobile-nav-pill {
   .parsed-resume-notice-copy {
     align-items: flex-start;
   }
+
+  .resume-submit-area {
+    bottom: calc(var(--mobile-tab-height, 56px) + env(safe-area-inset-bottom, 0px) + 0.5rem);
+  }
 }
 
 /* ── Job Match split layout ── */
@@ -1902,7 +1906,7 @@ body.tool-fullscreen-open .mobile-nav-pill {
   bottom: calc(var(--mobile-tab-height, 56px) + env(safe-area-inset-bottom, 0px));
   left: 0;
   right: 0;
-  z-index: 50;
+  z-index: 150;
   padding: 0.75rem var(--mobile-pad, 16px);
   background: linear-gradient(to top, var(--background) 70%, transparent);
   pointer-events: none;
