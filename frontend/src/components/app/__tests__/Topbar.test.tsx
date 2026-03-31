@@ -73,7 +73,7 @@ describe('Topbar', () => {
     expect(screen.queryByText('Command center')).toBeNull()
     expect(screen.queryByText('Review your current pipeline, recent runs, and the recommended next step.')).toBeNull()
     expect(screen.queryByText('Start with resume')).toBeNull()
-    expect(screen.getByText('Dashboard')).toBeTruthy()
+    expect(screen.getByText('Your Workspace')).toBeTruthy()
   })
 
   it('uses the compact breadcrumb-only variant on tool pages', () => {

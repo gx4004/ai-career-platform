@@ -13,6 +13,8 @@ export type TelemetryEventName =
   | 'tool_regenerate'
   | 'ad_shown'
   | 'ad_completed'
+  | 'ad_blocked'
+  | 'countdown_completed'
   | 'auth_signup_source'
   | 'workflow_continued'
 
@@ -26,6 +28,7 @@ type TelemetryPayload = {
   workspace_id?: string
   saved?: boolean
   error_message?: string
+  unlock_method?: string
   metadata?: Record<string, string | number | boolean | null | undefined>
 }
 

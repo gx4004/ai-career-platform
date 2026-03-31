@@ -128,7 +128,7 @@ async def test_job_match_for_aligned_resume_surfaces_missing_keyword_focus(monke
         "Backend Engineer\nNeed Python, SQL, FastAPI, Docker, AWS, and Kubernetes experience.",
     )
 
-    assert "Kubernetes" in result["missing_keywords"]
+    assert any(item["keyword"] == "Kubernetes" for item in result["missing_keywords"])
     assert result["top_actions"]
     assert result["recruiter_summary"]
 
