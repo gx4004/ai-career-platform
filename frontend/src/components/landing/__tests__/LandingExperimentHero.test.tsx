@@ -30,6 +30,8 @@ vi.mock('framer-motion', () => ({
     div: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
   },
   useReducedMotion: () => true,
+  useScroll: () => ({ scrollYProgress: { get: () => 0 } }),
+  useTransform: () => ({ get: () => 0 }),
 }))
 
 describe('LandingExperimentHero', () => {

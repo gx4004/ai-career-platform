@@ -158,7 +158,44 @@
 }
 
 /* ─────────────────────────────────────────────────
-   4. Route pending (lazy chunk loading)
+   5. Practice card (account page fields, provider cards)
+   ───────────────────────────────────────────────── */
+
+.practice-card {
+  padding: 1rem 1.15rem;
+  border-radius: var(--radius-xl);
+  border: 1px solid color-mix(in srgb, var(--border-soft) 86%, white 14%);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), var(--surface-subtle));
+  box-shadow: var(--shadow-soft);
+  position: relative;
+  overflow: hidden;
+  transition:
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast);
+}
+
+.practice-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at top left, rgba(127, 177, 228, 0.14), transparent 24%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.62), transparent 26%);
+}
+
+.practice-card > * {
+  position: relative;
+  z-index: 1;
+}
+
+.practice-card:hover {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-elevated);
+}
+
+/* ─────────────────────────────────────────────────
+   6. Route pending (lazy chunk loading)
    ───────────────────────────────────────────────── */
 
 .route-pending {

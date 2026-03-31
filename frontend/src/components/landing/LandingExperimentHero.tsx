@@ -1,6 +1,7 @@
 import { ArrowRight, Check } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
-import { motion, useReducedMotion } from 'framer-motion'
+import { useRef } from 'react'
+import { motion, useReducedMotion, useScroll, useTransform } from 'framer-motion'
 import { Button } from '#/components/ui/button'
 import { StaggerChildren, StaggerItem } from '#/components/ui/motion'
 import {
@@ -16,6 +17,10 @@ export function LandingExperimentHero({
 }) {
   const prefersReducedMotion = useReducedMotion() ?? false
   const copy = landingExperimentHeroCopy[variant]
+  const heroRef = useRef<HTMLElement>(null)
+  const { scrollYProgress } = useScroll({ target: heroRef, offset: ['start start', 'end start'] })
+  const mockupY = useTransform(scrollYProgress, [0, 1], [0, 120])
+  const mockupOpacity = useTransform(scrollYProgress, [0, 0.8], [1, 0.85])
 
   const handleSmoothScroll = (e: React.MouseEvent<HTMLAnchorElement>, targetId: string) => {
     e.preventDefault()
@@ -24,7 +29,15 @@ export function LandingExperimentHero({
   }
 
   return (
-    <section className="landing-cascade-hero landing-section" id="landing-hero">
+    <section className="landing-cascade-hero landing-section" id="landing-hero" ref={heroRef}>
+      {/* Aurora blobs */}
+      {!prefersReducedMotion && (
+        <>
+          <div className="landing-aurora-blob landing-aurora-blob--1" aria-hidden="true" />
+          <div className="landing-aurora-blob landing-aurora-blob--2" aria-hidden="true" />
+        </>
+      )}
+
       {/* Background: multi-color gradient (blue + violet + green) */}
       <div className="landing-cascade-bg landing-cascade-bg--multicolor" aria-hidden="true">
         <div className="landing-cascade-beam landing-cascade-beam--multicolor" />
@@ -94,6 +107,7 @@ export function LandingExperimentHero({
           initial={prefersReducedMotion ? false : { opacity: 0, y: 28, scale: 0.98 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           transition={{ duration: prefersReducedMotion ? 0 : 0.6, delay: 0.15, ease: [0.16, 1, 0.3, 1] }}
+          style={prefersReducedMotion ? undefined : { y: mockupY, opacity: mockupOpacity }}
         >
           <div className="landing-cascade-mockup-glow landing-cascade-mockup-glow--multi" aria-hidden="true" />
           <div className="landing-cascade-window">

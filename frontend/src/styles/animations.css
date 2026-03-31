@@ -253,6 +253,40 @@
   border-radius: var(--radius-md);
 }
 
+/* ── Landing ambient animations ── */
+
+@keyframes ambient-gradient-shift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@keyframes aurora-drift-1 {
+  0% { transform: translate(0, 0); }
+  33% { transform: translate(4vw, -3vh); }
+  66% { transform: translate(-2vw, 2vh); }
+  100% { transform: translate(0, 0); }
+}
+
+@keyframes aurora-drift-2 {
+  0% { transform: translate(0, 0); }
+  33% { transform: translate(-3vw, 4vh); }
+  66% { transform: translate(5vw, -2vh); }
+  100% { transform: translate(0, 0); }
+}
+
+@keyframes aurora-drift-3 {
+  0% { transform: translate(0, 0); }
+  33% { transform: translate(2vw, 3vh); }
+  66% { transform: translate(-4vw, -3vh); }
+  100% { transform: translate(0, 0); }
+}
+
+@keyframes cta-glow-pulse {
+  0%, 100% { box-shadow: 0 0 30px rgba(74, 147, 239, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.15); }
+  50% { box-shadow: 0 0 44px rgba(74, 147, 239, 0.38), inset 0 1px 0 rgba(255, 255, 255, 0.15); }
+}
+
 @media (prefers-reduced-motion: reduce) {
   /* Make all entrance animations instant */
   .page-frame,
@@ -274,6 +308,28 @@
   .animate-pulse-glow,
   .skeleton-shimmer,
   .skeleton {
+    animation: none !important;
+  }
+
+  /* Hover transitions */
+  .history-card,
+  .dash-tool-preview,
+  .keyword-card,
+  .path-card,
+  .settings-status-item,
+  .auth-surface-benefit,
+  .practice-card {
+    transition-duration: 1ms !important;
+  }
+
+  /* Landing ambient */
+  .landing-ambient-grain,
+  .landing-aurora-blob,
+  .landing-cta-dark-btn {
+    animation: none !important;
+  }
+
+  .landing-ambient-gradient-shift {
     animation: none !important;
   }
 }
