@@ -329,6 +329,15 @@
     animation: none !important;
   }
 
+  .landing-aurora-blob {
+    display: none !important;
+  }
+
+  /* Auth shell entrance */
+  .auth-page-shell {
+    animation: none !important;
+  }
+
   .landing-ambient-gradient-shift {
     animation: none !important;
   }
