@@ -19,8 +19,6 @@ export function ResumeToolPage() {
   const {
     tool,
     config,
-    status,
-    openAuthDialog,
     draft,
     setField,
     mutation,
@@ -232,28 +230,6 @@ export function ResumeToolPage() {
                   </>
                 )}
               </section>
-            ) : null}
-
-            {status !== 'authenticated' ? (
-              <div className="resume-guest-inline">
-                <p className="small-copy muted-copy">
-                  Sign in if you want this run saved to history and your workspace.
-                </p>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() =>
-                    openAuthDialog({
-                      to: tool.route,
-                      reason: `${tool.id}-workspace`,
-                      label: 'Sign in to save runs',
-                    })
-                  }
-                >
-                  Sign in to save runs
-                </Button>
-              </div>
             ) : null}
 
             {mutation.error ? (

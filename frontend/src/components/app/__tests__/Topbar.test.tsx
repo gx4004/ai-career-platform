@@ -94,16 +94,16 @@ describe('Topbar', () => {
     expect(screen.getByText('Career Path')).toBeTruthy()
   })
 
-  it('uses the compact breadcrumb-only variant on tool result pages', () => {
+  it('uses the compact pill-only variant on tool result pages', () => {
     mockPathname.current = '/portfolio/result/demo-run'
 
-    renderTopbar()
+    const { container } = renderTopbar()
 
     expect(getRouteMeta('/portfolio/result/demo-run').topbarVariant).toBe('compact')
-    expect(screen.getByRole('link', { name: 'Dashboard' }).getAttribute('href')).toBe('/dashboard')
+    expect(container.querySelector('.topbar--compact')).toBeTruthy()
+    expect(container.querySelector('.topbar-tool-entry-chip')).toBeTruthy()
+    expect(screen.queryByRole('link', { name: 'Dashboard' })).toBeNull()
     expect(screen.queryByRole('link', { name: 'Portfolio Planner' })).toBeNull()
-    expect(screen.getByText('Portfolio Planner')).toBeTruthy()
-    expect(screen.getByText('Result')).toBeTruthy()
     expect(screen.queryByText('Saved output for portfolio planner.')).toBeNull()
   })
 

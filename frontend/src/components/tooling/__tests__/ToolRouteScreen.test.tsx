@@ -77,6 +77,10 @@ vi.mock('#/components/tooling/CinematicLoader', () => ({
   CinematicLoader: () => <div data-testid="cinematic-loader">Scanning resume...</div>,
 }))
 
+vi.mock('#/components/tooling/GuestSaveBanner', () => ({
+  GuestSaveBanner: () => null,
+}))
+
 vi.mock('#/hooks/useSession', () => ({
   useSession: () => ({
     status: sessionStatus,
@@ -155,7 +159,6 @@ describe('ToolRouteScreen', () => {
 
     expect(screen.getByTestId('dropzone-hero').textContent).toContain('collapse-on-success')
     expect(screen.getByRole('button', { name: /Add target job description/i })).toBeTruthy()
-    expect(screen.getByText(/Sign in if you want this run saved to history/i)).toBeTruthy()
     expect(screen.queryByText(/Guidance/i)).toBeNull()
     expect(screen.queryByText(/Trust note/i)).toBeNull()
     expect(screen.queryByText(/Workspace mode/i)).toBeNull()
@@ -266,21 +269,14 @@ describe('ToolRouteScreen', () => {
     })
   })
 
-  it('renders the bespoke career wizard with the quieter save prompt', () => {
+  it('renders the bespoke career wizard without inline sign-in CTA', () => {
     render(<ToolRouteScreen toolId="career" />)
 
     expect(screen.getByText(/Review the resume text, optionally add a target role/i)).toBeTruthy()
     expect(screen.getByLabelText(/Career steps/i)).toBeTruthy()
     expect(screen.queryByText(/Path comparison preview/i)).toBeNull()
     expect(screen.queryByText(/Backend Engineer II/i)).toBeNull()
-
-    fireEvent.click(screen.getByRole('button', { name: /Sign in to save runs/i }))
-
-    expect(openAuthDialogMock).toHaveBeenCalledWith({
-      to: '/career',
-      reason: 'career-workspace',
-      label: 'Sign in to save runs',
-    })
+    expect(screen.queryByRole('button', { name: /Sign in to save runs/i })).toBeNull()
   })
 
   it('renders the bespoke portfolio planner preview and keeps submit payloads intact', () => {
@@ -305,15 +301,10 @@ describe('ToolRouteScreen', () => {
     })
   })
 
-  it('still lets guests open auth from the quieter save-runs prompt', () => {
+  it('does not render inline sign-in CTA for guests on tool pages', () => {
     render(<ToolRouteScreen toolId="career" />)
 
-    fireEvent.click(screen.getByRole('button', { name: /Sign in to save runs/i }))
-
-    expect(openAuthDialogMock).toHaveBeenCalledWith({
-      to: '/career',
-      reason: 'career-workspace',
-      label: 'Sign in to save runs',
-    })
+    expect(screen.queryByRole('button', { name: /Sign in to save runs/i })).toBeNull()
+    expect(screen.queryByText(/Sign in to save runs/i)).toBeNull()
   })
 })
