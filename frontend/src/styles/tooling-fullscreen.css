@@ -1,3 +1,67 @@
+/* ── Guest save banner ── */
+
+.guest-save-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.5rem 1rem;
+  margin: 0 auto;
+  max-width: var(--content-max, 48rem);
+  border-radius: var(--radius-lg);
+  border: 1px solid color-mix(in srgb, var(--accent) 16%, var(--border-soft));
+  background: color-mix(in srgb, var(--accent) 6%, var(--surface-raised));
+  font-size: 0.82rem;
+}
+
+.guest-save-banner-content {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.guest-save-banner-icon {
+  flex-shrink: 0;
+  color: var(--accent-vivid);
+}
+
+.guest-save-banner-text {
+  color: var(--text-soft);
+  white-space: nowrap;
+}
+
+.guest-save-banner-link {
+  flex-shrink: 0;
+  font-weight: 600;
+  color: var(--accent-vivid);
+  text-decoration: none;
+}
+
+.guest-save-banner-link:hover {
+  text-decoration: underline;
+}
+
+.guest-save-banner-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 1.5rem;
+  height: 1.5rem;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.guest-save-banner-close:hover {
+  color: var(--text-body);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
 /* ── Full-screen tool layout ── */
 
 .tool-fullscreen {
@@ -197,10 +261,6 @@
 
 .tool-fs-footer > .tool-fs-submit-row {
   order: 0;
-}
-
-.tool-fs-footer > .tool-inline-save-prompt {
-  order: 1;
 }
 
 .tool-fs-footer > .tool-inline-error {
@@ -963,14 +1023,6 @@ body.tool-fullscreen-open .mobile-nav-pill {
   box-shadow: 0 12px 30px color-mix(in srgb, var(--tool-accent, var(--accent)) 18%, transparent);
 }
 
-.resume-guest-inline {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  margin-top: -0.2rem;
-}
-
 .resume-error-inline {
   text-align: center;
 }
@@ -1033,10 +1085,6 @@ body.tool-fullscreen-open .mobile-nav-pill {
 
   .resume-submit-bar {
     width: 100%;
-  }
-
-  .resume-guest-inline {
-    flex-direction: column;
   }
 
   .parsed-resume-notice {
@@ -1622,14 +1670,8 @@ body.tool-fullscreen-open .mobile-nav-pill {
 
 /* ── Dedicated bespoke tool pages ── */
 
-.tool-inline-save-prompt,
 .tool-inline-error {
   text-align: center;
-}
-
-.tool-inline-save-prompt {
-  display: grid;
-  gap: 0.25rem;
 }
 
 .tool-bespoke-split {

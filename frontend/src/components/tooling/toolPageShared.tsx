@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react'
 import { CheckCircle2, FilePenLine } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { CinematicLoader } from '#/components/tooling/CinematicLoader'
+import { GuestSaveBanner } from '#/components/tooling/GuestSaveBanner'
 import { ToolFullScreen } from '#/components/tooling/ToolFullScreen'
 import { useSession } from '#/hooks/useSession'
 import { useToolDraft } from '#/hooks/useToolDraft'
@@ -95,6 +96,7 @@ export function ToolPageShell({
 
   return (
     <ToolFullScreen accent={tool.accent}>
+      <GuestSaveBanner />
       <div className={cn('tool-fs-body', bodyClassName)}>{children}</div>
     </ToolFullScreen>
   )

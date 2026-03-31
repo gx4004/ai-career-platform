@@ -123,35 +123,15 @@ describe('AuthDialog', () => {
     })
   })
 
-  it('redirects landing sign-in to the dashboard after successful authentication', async () => {
-    loginMock.mockResolvedValue({
-      access_token: 'token-123',
-      token_type: 'bearer',
-    })
-
+  it('navigates to /login instead of opening a dialog when openAuthDialog is called', async () => {
     renderAuthFlow()
 
     fireEvent.click(screen.getByRole('button', { name: /launch sign in/i }))
 
-    expect(await screen.findByRole('dialog')).toBeTruthy()
-
-    fireEvent.change(screen.getByLabelText(/email/i), {
-      target: { value: 'user@example.com' },
-    })
-    fireEvent.change(screen.getByLabelText(/password/i), {
-      target: { value: 'secret123' },
-    })
-    fireEvent.click(screen.getByRole('button', { name: /^sign in$/i }))
-
     await waitFor(() => {
-      expect(loginMock).toHaveBeenCalledWith({
-        email: 'user@example.com',
-        password: 'secret123',
-      })
+      expect(navigateToPathMock).toHaveBeenCalledWith('/login')
     })
 
-    await waitFor(() => {
-      expect(navigateToPathMock).toHaveBeenCalledWith('/dashboard')
-    })
+    expect(screen.queryByRole('dialog')).toBeNull()
   })
 })

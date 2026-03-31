@@ -19,8 +19,6 @@ export function PortfolioToolPage() {
   const {
     tool,
     config,
-    status,
-    openAuthDialog,
     draft,
     setField,
     mutation,
@@ -189,27 +187,6 @@ export function PortfolioToolPage() {
             </section>
 
             <div className="tool-fs-footer">
-              {status !== 'authenticated' ? (
-                <div className="tool-inline-save-prompt">
-                  <p className="small-copy muted-copy">
-                    Sign in if you want this roadmap saved with your career planning workflow.
-                  </p>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() =>
-                      openAuthDialog({
-                        to: tool.route,
-                        reason: `${tool.id}-workspace`,
-                        label: 'Sign in to save runs',
-                      })
-                    }
-                  >
-                    Sign in to save runs
-                  </Button>
-                </div>
-              ) : null}
               {mutation.error ? (
                 <p className="tool-inline-error small-copy" style={{ color: 'var(--destructive)' }}>
                   {mutation.error instanceof Error ? mutation.error.message : 'This run failed.'}

@@ -17,6 +17,10 @@ vi.mock('@tanstack/react-router', () => ({
     </a>
   ),
   createFileRoute: () => (options: unknown) => options,
+  useRouter: () => ({
+    history: { back: vi.fn() },
+    navigate: vi.fn(),
+  }),
 }))
 
 vi.mock('#/hooks/useSession', () => ({
