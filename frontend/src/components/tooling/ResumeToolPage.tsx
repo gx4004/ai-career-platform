@@ -119,6 +119,8 @@ export function ResumeToolPage() {
                 accent={tool.accent}
                 compact
                 collapseOnSuccess
+                preLoaded={hasResumeContent}
+                preLoadedLabel={bridge.seededResume ? 'Resume carried from previous tool' : undefined}
                 onParsed={(text) => {
                   collapseResumeEditorAfterParse(text)
                 }}
