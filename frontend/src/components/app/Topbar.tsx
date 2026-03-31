@@ -5,8 +5,10 @@ import { LayoutDashboard } from 'lucide-react'
 import { Badge } from '#/components/ui/badge'
 import { SessionMenu } from '#/components/auth/SessionMenu'
 import { SidebarTrigger } from '#/components/ui/sidebar'
+import { AppBrandLockup } from '#/components/app/AppBrandLockup'
 import { getRouteMeta } from '#/lib/navigation/routeMeta'
 import { toolList } from '#/lib/tools/registry'
+import { useBreakpoint } from '#/hooks/use-breakpoint'
 import { cn } from '#/lib/utils'
 
 export function Topbar() {
@@ -14,6 +16,8 @@ export function Topbar() {
     select: (state) => state.location.pathname,
   })
   const meta = getRouteMeta(pathname)
+  const bp = useBreakpoint()
+  const isMobile = bp === 'mobile'
   const isCompact = meta.topbarVariant === 'compact'
   const isDashboard = pathname === '/dashboard'
   const entryTool = toolList.find((tool) => pathname === tool.route)
@@ -34,25 +38,38 @@ export function Topbar() {
     }
   }, [pathname])
 
+  // Mobile: simple brand + page name + session menu
+  const mobilePageName = isDashboard
+    ? 'Your Workspace'
+    : entryTool
+      ? entryTool.label
+      : meta.breadcrumbs[meta.breadcrumbs.length - 1] || meta.title
+
   return (
     <header
       ref={headerRef}
       className={cn(
         'topbar',
-        isCompact && 'topbar--compact',
+        (isCompact || isMobile) && 'topbar--compact',
       )}
     >
       <div
         className={cn(
           'topbar-inner',
-          isCompact && 'topbar-inner--compact',
+          (isCompact || isMobile) && 'topbar-inner--compact',
         )}
       >
-        <SidebarTrigger
-          className="mr-2 button-toolbar-utility md:hidden"
-        />
-        <div className={cn('topbar-breadcrumb', isCompact && 'topbar-breadcrumb--compact')}>
-          {isCompact ? (
+        {isMobile ? (
+          <Link to="/dashboard" className="topbar-mobile-brand">
+            <AppBrandLockup mode="compact" />
+          </Link>
+        ) : (
+          <SidebarTrigger className="mr-2 button-toolbar-utility md:hidden" />
+        )}
+        <div className={cn('topbar-breadcrumb', isCompact && 'topbar-breadcrumb--compact', isMobile && 'topbar-breadcrumb--mobile')}>
+          {isMobile ? (
+            <span className="topbar-mobile-title">{mobilePageName}</span>
+          ) : isCompact ? (
             isDashboard ? (
               <div className="topbar-tool-entry-chip" aria-current="page">
                 <span className="topbar-tool-pill">
@@ -127,8 +144,8 @@ export function Topbar() {
               </Breadcrumb>
             </div>
           )}
-          {isCompact ? null : <h1 className="topbar-page-title">{meta.title}</h1>}
-          {isCompact ? null : <p className="topbar-page-description">{meta.description}</p>}
+          {isCompact || isMobile ? null : <h1 className="topbar-page-title">{meta.title}</h1>}
+          {isCompact || isMobile ? null : <p className="topbar-page-description">{meta.description}</p>}
         </div>
         <div className="topbar-actions">
           <SessionMenu />

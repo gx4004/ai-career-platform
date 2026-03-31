@@ -35,6 +35,7 @@ export function CoverLetterToolPage() {
     draft.resumeText.trim() || bridge.seededResume ? 'form' : 'upload',
   )
   const [resumeEditorCollapsed, setResumeEditorCollapsed] = useState(false)
+  const hasResumeContent = Boolean(draft.resumeText.trim() || bridge.seededResume)
 
   return (
     <ToolPageShell toolId="cover-letter" bodyClassName="cover-letter-bespoke-page">
@@ -92,6 +93,8 @@ export function CoverLetterToolPage() {
                 accent={tool.accent}
                 compact
                 collapseOnSuccess
+                preLoaded={hasResumeContent}
+                preLoadedLabel={bridge.seededResume ? 'Resume carried from previous tool' : undefined}
                 onParsed={(text) => {
                   setField('resumeText', text)
                   setResumeEditorCollapsed(true)

@@ -114,6 +114,7 @@ describe('API client', () => {
     })
 
     it('clears auth token on 401', async () => {
+      vi.mocked(getAuthToken).mockReturnValue('existing-token')
       mockFetch.mockResolvedValueOnce(
         mockJsonResponse({ detail: 'Unauthorized' }, 401),
       )
