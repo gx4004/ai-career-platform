@@ -1845,17 +1845,17 @@
   color: var(--text-body);
 }
 
-.landing-tool-phase-cards {
+.landing-tool-cards {
   display: grid;
   gap: 0.75rem;
 }
 
-.landing-tool-phase-cards > *:nth-child(1) .landing-tool-card { animation: fade-up 0.4s cubic-bezier(0.16, 1, 0.3, 1) both; animation-delay: 0ms; }
-.landing-tool-phase-cards > *:nth-child(2) .landing-tool-card { animation: fade-up 0.4s cubic-bezier(0.16, 1, 0.3, 1) both; animation-delay: 80ms; }
-.landing-tool-phase-cards > *:nth-child(3) .landing-tool-card { animation: fade-up 0.4s cubic-bezier(0.16, 1, 0.3, 1) both; animation-delay: 160ms; }
-.landing-tool-phase-cards > *:nth-child(4) .landing-tool-card { animation: fade-up 0.4s cubic-bezier(0.16, 1, 0.3, 1) both; animation-delay: 240ms; }
-.landing-tool-phase-cards > *:nth-child(5) .landing-tool-card { animation: fade-up 0.4s cubic-bezier(0.16, 1, 0.3, 1) both; animation-delay: 320ms; }
-.landing-tool-phase-cards > *:nth-child(n+6) .landing-tool-card { animation: fade-up 0.4s cubic-bezier(0.16, 1, 0.3, 1) both; animation-delay: 400ms; }
+.landing-tool-cards > *:nth-child(1) .landing-tool-card { animation: fade-up 0.4s cubic-bezier(0.16, 1, 0.3, 1) both; animation-delay: 0ms; }
+.landing-tool-cards > *:nth-child(2) .landing-tool-card { animation: fade-up 0.4s cubic-bezier(0.16, 1, 0.3, 1) both; animation-delay: 80ms; }
+.landing-tool-cards > *:nth-child(3) .landing-tool-card { animation: fade-up 0.4s cubic-bezier(0.16, 1, 0.3, 1) both; animation-delay: 160ms; }
+.landing-tool-cards > *:nth-child(4) .landing-tool-card { animation: fade-up 0.4s cubic-bezier(0.16, 1, 0.3, 1) both; animation-delay: 240ms; }
+.landing-tool-cards > *:nth-child(5) .landing-tool-card { animation: fade-up 0.4s cubic-bezier(0.16, 1, 0.3, 1) both; animation-delay: 320ms; }
+.landing-tool-cards > *:nth-child(n+6) .landing-tool-card { animation: fade-up 0.4s cubic-bezier(0.16, 1, 0.3, 1) both; animation-delay: 400ms; }
 
 .landing-tool-card {
   position: relative;
@@ -3389,6 +3389,12 @@ button.landing-cascade-cta--ghost {
 .landing-cta-dark-btn:hover {
   transform: translateY(-1px);
   box-shadow: 0 0 40px rgba(74, 147, 239, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.landing-cta-dark-btn:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 3px;
+  animation: none;
 }
 
 .landing-cta-dark-btn::after {
