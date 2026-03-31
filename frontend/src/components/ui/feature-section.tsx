@@ -27,7 +27,7 @@ export function FeatureSteps({
   className,
   title = 'How to get started',
   autoPlayInterval = 3000,
-  imageHeight: _imageHeight = 'min-h-[16rem] md:min-h-[20rem] lg:min-h-[24rem]',
+  imageHeight = 'min-h-[16rem] md:min-h-[20rem] lg:min-h-[24rem]',
   autoPlay = true,
   imageLink,
 }: FeatureStepsProps) {
@@ -152,7 +152,7 @@ export function FeatureSteps({
           </div>
 
           <div
-            className="img-premium order-1 relative self-center aspect-[3/2] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(241,247,253,0.98))] md:order-2"
+            className={cn("img-premium order-1 relative self-center aspect-[3/2] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(241,247,253,0.98))] md:order-2", imageHeight)}
           >
             <AnimatePresence mode="wait">
               {features.map(
