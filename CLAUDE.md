@@ -67,6 +67,37 @@ cd backend && alembic upgrade head  # Run migrations
 - Guest runs: in-memory Map only, never persisted, drives signup conversion
 - Workflow context: sessionStorage, tab-scoped, no cross-tab sync
 
+## Codex Integration (GPT-5.4)
+
+### When to Use Codex
+- **After every feature/fix**: Run `/codex:review --background` before creating PR
+- **Complex bugs**: `/codex:rescue --background investigate <problem>` — second opinion from GPT-5.4
+- **Critical changes (auth, security, data)**: `/codex:adversarial-review --background <focus>`
+- **Design decisions**: `/codex:adversarial-review challenge whether <decision> was the right call`
+- **Stuck on a bug**: `/codex:rescue --background fix <description>` — let Codex try while Claude continues
+
+### Review Gate (ENABLED)
+Review gate is ON — Codex automatically reviews Claude's output before completing. If issues found, Claude must address them first. This catches bugs early.
+- Enable: `/codex:setup --enable-review-gate`
+- Disable temporarily: `/codex:setup --disable-review-gate`
+- Warning: drains usage faster — disable during rapid iteration, re-enable before PR
+
+### Collaboration Patterns
+- **Claude implements → Codex reviews**: Default workflow. Claude writes code, Codex validates.
+- **Parallel investigation**: Claude works on Task A, Codex investigates Task B in background.
+- **Codex → Claude handoff**: Codex finds issue via rescue, Claude implements the fix.
+- **Dual review**: Both Claude (`/review`) and Codex (`/codex:review`) review before merge.
+
+### Proactive Reminders
+- Remind user "Want a Codex review on this?" after completing significant work
+- Suggest `/codex:rescue` when debugging takes >2 attempts
+- Suggest `/codex:adversarial-review` before any PR that touches auth, payments, or data models
+
+### Config
+- Model: GPT-5.4 (default, best quality). Use `--model gpt-5.4-mini` only for quick checks.
+- Results: `/codex:status` for progress, `/codex:result` for output
+- Resume in Codex: `codex resume <session-id>` to continue work directly in Codex CLI
+
 ## What NOT to Do
 - Don't add i18n translations (EN only V1, infrastructure stays)
 - Don't implement premium/subscription tier (V1.1)
