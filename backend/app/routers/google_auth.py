@@ -72,10 +72,10 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
     access = create_access_token(user.id)
     refresh = create_refresh_token(user.id)
 
-    allowed_origins = {o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()}
-    origin = request.headers.get("origin", "")
-    if origin not in allowed_origins:
-        origin = next(iter(allowed_origins), "http://localhost:5173")
-    response = RedirectResponse(url=f"{origin}/dashboard")
+    # OAuth callback is a GET redirect from Google — no Origin header is present.
+    # Use the first configured CORS origin as the frontend URL.
+    allowed_origins = [o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()]
+    frontend_url = allowed_origins[0] if allowed_origins else "http://localhost:5173"
+    response = RedirectResponse(url=f"{frontend_url}/dashboard")
     set_auth_cookies(response, access, refresh)
     return response
