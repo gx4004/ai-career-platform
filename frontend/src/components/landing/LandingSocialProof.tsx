@@ -7,10 +7,11 @@ function AnimatedCounter({ target, suffix = '+' }: { target: number; suffix?: st
   const ref = useRef<HTMLSpanElement>(null)
   const triggered = useViewportTrigger(ref, { threshold: 0.5 })
   const prefersReducedMotion = useReducedMotion() ?? false
-  const [display, setDisplay] = useState(prefersReducedMotion ? target : 0)
+  const [display, setDisplay] = useState(target)
 
   const animate = useCallback(() => {
     if (prefersReducedMotion) return
+    setDisplay(0) // reset before animating
     const duration = 1500
     const start = performance.now()
     const step = (now: number) => {

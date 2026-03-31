@@ -30,13 +30,9 @@ export function LandingExperimentHero({
 
   return (
     <section className="landing-cascade-hero landing-section" id="landing-hero" ref={heroRef}>
-      {/* Aurora blobs */}
-      {!prefersReducedMotion && (
-        <>
-          <div className="landing-aurora-blob landing-aurora-blob--1" aria-hidden="true" />
-          <div className="landing-aurora-blob landing-aurora-blob--2" aria-hidden="true" />
-        </>
-      )}
+      {/* Aurora blobs — always rendered, hidden via CSS when prefers-reduced-motion */}
+      <div className="landing-aurora-blob landing-aurora-blob--1" aria-hidden="true" />
+      <div className="landing-aurora-blob landing-aurora-blob--2" aria-hidden="true" />
 
       {/* Background: multi-color gradient (blue + violet + green) */}
       <div className="landing-cascade-bg landing-cascade-bg--multicolor" aria-hidden="true">
