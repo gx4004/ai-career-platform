@@ -47,11 +47,26 @@
   position: relative;
   display: flex;
   flex-direction: column;
-  background: var(--bg-surface);
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--border-soft);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.99), var(--surface-subtle));
+  border-radius: var(--radius-xl);
+  border: 1px solid color-mix(in srgb, var(--border-soft) 86%, white 14%);
+  box-shadow: var(--shadow-soft);
   overflow: hidden;
+}
+
+.settings-panel::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at top left, rgba(127, 177, 228, 0.14), transparent 24%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.62), transparent 26%);
+}
+
+.settings-panel > * {
+  position: relative;
+  z-index: 1;
 }
 
 /* Row (used for distinct settings inside a panel) */
@@ -61,6 +76,11 @@
   gap: 1.5rem;
   align-items: center;
   padding: 1.25rem 1.5rem;
+  transition: background var(--transition-fast);
+}
+
+.settings-row:hover {
+  background: var(--surface-focus);
 }
 
 .settings-row + .settings-row {
@@ -106,12 +126,22 @@
   font-size: 0.875rem;
   height: 2rem;
   padding: 0 0.75rem;
+  transition:
+    transform var(--transition-fast),
+    box-shadow var(--transition-smooth),
+    border-color var(--transition-fast),
+    background var(--transition-fast);
 }
 
 .settings-btn[data-slot='button']:hover {
   background: var(--surface-subtle);
   border-color: var(--border-strong);
   color: var(--text-strong);
+}
+
+.settings-btn[data-slot='button']:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 1px var(--accent), 0 0 0 4px color-mix(in srgb, var(--accent) 15%, transparent);
 }
 
 /* Destructive button restrained until hover */
@@ -137,10 +167,11 @@
   font-weight: 500;
   color: var(--text-strong);
   cursor: pointer;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.06);
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 0.625rem center;
-  transition: border-color 0.15s ease;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
 }
 
 .settings-language-select:hover {
@@ -148,8 +179,11 @@
 }
 
 .settings-language-select:focus-visible {
-  outline: 2px solid var(--ring, var(--accent));
-  outline-offset: 2px;
+  outline: none;
+  border-color: var(--accent);
+  box-shadow:
+    inset 0 1px 2px rgba(0, 0, 0, 0.06),
+    0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent);
 }
 
 /* System Status Block */
@@ -175,9 +209,17 @@
   flex-direction: column;
   gap: 0.25rem;
   padding: 0.875rem 1rem;
-  border-radius: var(--radius-md);
-  background: transparent;
+  border-radius: var(--radius-lg);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), var(--surface-focus));
   border: 1px solid var(--border-soft);
+  transition:
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast);
+}
+
+.settings-status-item:hover {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-soft);
 }
 
 .settings-status-label {
@@ -210,6 +252,10 @@
   .settings-action {
     width: 100%;
     justify-content: flex-start;
+  }
+
+  .settings-btn[data-slot='button'] {
+    min-height: 44px;
   }
   
   .settings-status-grid {

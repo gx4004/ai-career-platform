@@ -47,3 +47,4 @@ frontend/test-results/
 # Legacy / archived
 frontend-legacy/
 admin/
+.agents/

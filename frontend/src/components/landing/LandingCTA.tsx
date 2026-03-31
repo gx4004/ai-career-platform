@@ -1,12 +1,25 @@
 import { ArrowRight, Check } from 'lucide-react'
+import { motion, useReducedMotion } from 'framer-motion'
 import { Button } from '#/components/ui/button'
 import { ScrollStagger, ScrollStaggerItem } from '#/components/ui/motion'
 import { AppBrandLockup } from '#/components/app/AppBrandLockup'
 import { landingCtaCopy, landingPrimaryCta } from '#/components/landing/landingContent'
 
 export function LandingCTA() {
+  const prefersReducedMotion = useReducedMotion() ?? false
+
   return (
-    <section className="landing-cta-dark" id="landing-cta">
+    <motion.section
+      className="landing-cta-dark"
+      id="landing-cta"
+      initial={prefersReducedMotion ? false : { opacity: 0, filter: 'blur(8px)' }}
+      whileInView={{ opacity: 1, filter: 'blur(0px)' }}
+      viewport={{ once: true, amount: 0.2 }}
+      transition={{ duration: prefersReducedMotion ? 0 : 0.6, ease: [0.16, 1, 0.3, 1] }}
+    >
+      {/* Aurora blob */}
+      <div className="landing-aurora-blob landing-aurora-blob--3" aria-hidden="true" />
+
       {/* Fade-in: light → dark (reverse of hero's dark → light) */}
       <div className="landing-cta-fade" aria-hidden="true" />
 
@@ -55,6 +68,6 @@ export function LandingCTA() {
           </p>
         </div>
       </footer>
-    </section>
+    </motion.section>
   )
 }

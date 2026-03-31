@@ -111,11 +111,13 @@ export function FeatureSteps({
                     className={cn(
                       'mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full border text-xs font-semibold shadow-[inset_0_1px_0_rgba(255,255,255,0.72)] md:h-9 md:w-9 md:text-sm',
                       isActive
-                        ? 'scale-105 border-primary/20 bg-primary text-primary-foreground'
+                        ? 'border-primary/20 bg-primary text-primary-foreground'
                         : isComplete
                           ? 'border-primary/20 bg-primary/10 text-primary'
                           : 'border-[var(--border-soft)] bg-[var(--surface-focus)] text-[var(--text-muted)]',
                     )}
+                    animate={isActive ? { scale: [1, 1.15, 1.05] } : { scale: 1 }}
+                    transition={prefersReducedMotion ? { duration: 0 } : { type: 'spring', stiffness: 300, damping: 15 }}
                   >
                     {isComplete ? (
                       <span className="text-base font-bold md:text-lg">✓</span>
@@ -162,7 +164,7 @@ export function FeatureSteps({
                       initial={prefersReducedMotion ? false : { opacity: 0 }}
                       animate={{ opacity: 1 }}
                       exit={prefersReducedMotion ? undefined : { opacity: 0 }}
-                      transition={{ duration: prefersReducedMotion ? 0 : 0.18, ease: 'easeOut' }}
+                      transition={{ duration: prefersReducedMotion ? 0 : 0.2, ease: [0.16, 1, 0.3, 1] }}
                     >
                       {imageLink ? (
                         <Link to={imageLink} className="block h-full w-full">
