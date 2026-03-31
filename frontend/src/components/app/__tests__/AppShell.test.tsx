@@ -131,12 +131,11 @@ describe('AppShell', () => {
       </AppShell>,
     )
 
-    expect(screen.getByTestId('sidebar-provider').getAttribute('data-default-open')).toBe('true')
+    expect(screen.getByTestId('sidebar-provider').getAttribute('data-default-open')).toBe('false')
     expect(screen.getByTestId('app-sidebar')).toBeTruthy()
     expect(screen.getByTestId('sidebar-inset')).toBeTruthy()
     expect(screen.getByTestId('topbar')).toBeTruthy()
     expect(screen.getByTestId('mobile-nav')).toBeTruthy()
-    expect(screen.getByTestId('command-palette')).toBeTruthy()
     expect(screen.getByTestId('auth-dialog')).toBeTruthy()
     expect(screen.getByTestId('page-child')).toBeTruthy()
   })

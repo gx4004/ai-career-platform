@@ -18,7 +18,7 @@
 
 /* ── Hero (merged with strip) ── */
 .result-hero {
-  background: linear-gradient(145deg, #2b86d4 0%, var(--accent) 45%, var(--accent-vivid) 100%);
+  background: linear-gradient(145deg, #1a6fbd 0%, #0a5da0 45%, #084a88 100%);
   color: #ffffff;
   border-radius: var(--radius-xl);
   padding: 2rem 2rem 0;
@@ -776,6 +776,7 @@
     flex-direction: column;
     gap: 0.5rem;
     text-align: center;
+    bottom: calc(var(--mobile-tab-height, 56px) + env(safe-area-inset-bottom, 0px) + 0.5rem);
   }
 
   .result-action__btns {
@@ -887,13 +888,18 @@
 
   .result-hero__top {
     flex-direction: column;
-    align-items: flex-start;
+    align-items: center;
+    text-align: center;
     gap: 0.75rem;
   }
 
   .result-hero__score {
-    width: 4rem;
-    height: 4rem;
+    width: 5rem;
+    height: 5rem;
+  }
+
+  .result-hero__score-num {
+    font-size: 1.75rem;
   }
 
   /* Result sections: accordion-like collapsed state on mobile */
@@ -909,17 +915,11 @@
     padding: 0 var(--rs-pad-x) var(--rs-pad-y);
   }
 
-  /* Action buttons: stack vertically */
-  .result-hero__actions,
-  .result-action-strip {
-    flex-direction: column;
-    gap: 0.5rem;
-  }
-
-  .result-hero__actions > *,
-  .result-action-strip > * {
-    width: 100%;
-    min-height: var(--touch-target, 44px);
+  /* Action buttons: horizontal compact row on mobile */
+  .result-hero__actions {
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.25rem;
   }
 
   /* Next-action cards: horizontal scroll */

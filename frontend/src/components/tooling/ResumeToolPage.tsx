@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { ArrowRight } from 'lucide-react'
+import { useBreakpoint } from '#/hooks/use-breakpoint'
 import { Button } from '#/components/ui/button'
 import { Label } from '#/components/ui/label'
 import { Textarea } from '#/components/ui/textarea'
@@ -34,6 +35,8 @@ export function ResumeToolPage() {
   const [phase, setPhase] = useState<'upload' | 'form'>(
     draft.resumeText.trim() || bridge.seededResume ? 'form' : 'upload',
   )
+  const bp = useBreakpoint()
+  const isMobile = bp === 'mobile'
   const [resumeEditorCollapsed, setResumeEditorCollapsed] = useState(bridge.resumePendingReview)
   const [showOptionalJob, setShowOptionalJob] = useState(
     Boolean(bridge.seededJob || draft.jobDescription.trim()),
@@ -119,6 +122,8 @@ export function ResumeToolPage() {
                 accent={tool.accent}
                 compact
                 collapseOnSuccess
+                preLoaded={hasResumeContent}
+                preLoadedLabel={bridge.seededResume ? 'Resume carried from previous tool' : undefined}
                 onParsed={(text) => {
                   collapseResumeEditorAfterParse(text)
                 }}
@@ -130,9 +135,23 @@ export function ResumeToolPage() {
             </section>
 
             {resumeEditorCollapsed && hasResumeContent ? (
+              isMobile ? (
+                <ParsedResumeNotice
+                  body="Resume loaded and ready to analyze."
+                  actionLabel=""
+                  onAction={() => {}}
+                />
+              ) : (
+                <ParsedResumeNotice
+                  body="Resume parsed successfully. Open the extracted text only if you want to review or edit it."
+                  onAction={openResumeEditor}
+                />
+              )
+            ) : isMobile && hasResumeContent ? (
               <ParsedResumeNotice
-                body="Resume parsed successfully. Open the extracted text only if you want to review or edit it."
-                onAction={openResumeEditor}
+                body="Resume loaded and ready to analyze."
+                actionLabel=""
+                onAction={() => {}}
               />
             ) : (
               <section className="resume-editor-shell">

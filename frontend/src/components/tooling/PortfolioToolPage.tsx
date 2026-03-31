@@ -35,6 +35,7 @@ export function PortfolioToolPage() {
     draft.resumeText.trim() || bridge.seededResume ? 'form' : 'upload',
   )
   const [resumeEditorCollapsed, setResumeEditorCollapsed] = useState(false)
+  const hasResumeContent = Boolean(draft.resumeText.trim() || bridge.seededResume)
 
   return (
     <ToolPageShell toolId="portfolio" bodyClassName="portfolio-bespoke-page">
@@ -143,6 +144,8 @@ export function PortfolioToolPage() {
                 accent={tool.accent}
                 compact
                 collapseOnSuccess
+                preLoaded={hasResumeContent}
+                preLoadedLabel={bridge.seededResume ? 'Resume carried from previous tool' : undefined}
                 onParsed={(text) => {
                   setField('resumeText', text)
                   setResumeEditorCollapsed(true)

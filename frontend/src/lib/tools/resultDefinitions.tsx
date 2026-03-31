@@ -806,7 +806,7 @@ function CoverLetterView({ payload }: { payload: AnyObject }) {
             <span className="rs__sub">Opening</span>
             <Textarea rows={4} value={openingText} onChange={(e) => setOpeningText(e.target.value)} />
           </div>
-          {result.bodyPoints.map((item, index) => (
+          {result.bodyPoints.map((_item, index) => (
             <div key={`body-${index}`}>
               <span className="rs__sub">Body {index + 1}</span>
               <Textarea rows={5} value={bodyTexts[index] || ''} onChange={(e) => setBodyTexts((c) => c.map((t, i) => i === index ? e.target.value : t))} />

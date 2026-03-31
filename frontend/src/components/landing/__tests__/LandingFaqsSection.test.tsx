@@ -13,6 +13,8 @@ globalThis.IntersectionObserver = IntersectionObserverMock as unknown as typeof 
 
 vi.mock('#/components/ui/motion', () => ({
   ScrollReveal: ({ children }: { children: ReactNode }) => <>{children}</>,
+  ScrollStagger: ({ children }: { children: ReactNode }) => <>{children}</>,
+  ScrollStaggerItem: ({ children }: { children: ReactNode }) => <>{children}</>,
 }))
 
 vi.mock('framer-motion', () => ({

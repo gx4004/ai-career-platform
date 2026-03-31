@@ -161,6 +161,12 @@ class JobRequirement(BaseModel):
     suggested_fix: str
 
 
+class MissingKeyword(BaseModel):
+    keyword: str
+    contextual_guidance: str = "Consider adding relevant experience with this skill"
+    anti_stuffing_note: str = "Only mention if you have genuine experience"
+
+
 class TailoringAction(BaseModel):
     section: Literal["summary", "experience", "skills", "projects"]
     keyword: str
@@ -185,7 +191,7 @@ class JobMatchHandoff(BaseModel):
     verdict: Literal["strong", "borderline", "stretch"] | None = None
     requirements: list[JobRequirement] = []
     matched_keywords: list[str] = []
-    missing_keywords: list[str] = []
+    missing_keywords: list[MissingKeyword] = []
     tailoring_actions: list[TailoringAction] = []
     interview_focus: list[str] = []
     recruiter_summary: str | None = None
@@ -196,7 +202,7 @@ class JobMatchResponse(SharedResultEnvelope):
     verdict: Literal["strong", "borderline", "stretch"]
     requirements: list[JobRequirement]
     matched_keywords: list[str]
-    missing_keywords: list[str]
+    missing_keywords: list[MissingKeyword]
     tailoring_actions: list[TailoringAction]
     interview_focus: list[str]
     recruiter_summary: str

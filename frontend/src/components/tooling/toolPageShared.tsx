@@ -165,10 +165,12 @@ export function ParsedResumeNotice({
         <CheckCircle2 size={18} />
         <p className="small-copy">{body}</p>
       </div>
-      <Button type="button" variant="outline" size="sm" onClick={onAction}>
-        <FilePenLine size={14} />
-        {actionLabel ?? 'Review extracted text'}
-      </Button>
+      {actionLabel !== '' ? (
+        <Button type="button" variant="outline" size="sm" onClick={onAction}>
+          <FilePenLine size={14} />
+          {actionLabel ?? 'Review extracted text'}
+        </Button>
+      ) : null}
     </div>
   )
 }

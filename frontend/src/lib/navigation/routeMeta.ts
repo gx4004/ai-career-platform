@@ -25,7 +25,7 @@ export function getRouteMeta(pathname: string): RouteMeta {
       description: 'Browse previous analyses, favorites, and saved outputs.',
       sectionLabel: 'Activity',
       breadcrumbs: ['Dashboard', 'History'],
-      topbarVariant: 'standard',
+      topbarVariant: 'compact',
     }
   }
 
@@ -35,7 +35,7 @@ export function getRouteMeta(pathname: string): RouteMeta {
       description: 'Manage your profile and see the current account status.',
       sectionLabel: 'Settings',
       breadcrumbs: ['Dashboard', 'Account'],
-      topbarVariant: 'standard',
+      topbarVariant: 'compact',
     }
   }
 
@@ -45,7 +45,7 @@ export function getRouteMeta(pathname: string): RouteMeta {
       description: 'Onboarding, local workspace data, and system status.',
       sectionLabel: 'Settings',
       breadcrumbs: ['Dashboard', 'Settings'],
-      topbarVariant: 'standard',
+      topbarVariant: 'compact',
     }
   }
 

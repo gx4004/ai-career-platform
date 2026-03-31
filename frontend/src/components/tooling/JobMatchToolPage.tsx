@@ -33,6 +33,7 @@ export function JobMatchToolPage() {
     draft.resumeText.trim() || bridge.seededResume ? 'form' : 'upload',
   )
   const [resumeEditorCollapsed, setResumeEditorCollapsed] = useState(false)
+  const hasResumeContent = Boolean(draft.resumeText.trim() || bridge.seededResume)
 
   return (
     <ToolPageShell toolId="job-match" bodyClassName="tool-fs-body--wide jobmatch-page">
@@ -93,6 +94,8 @@ export function JobMatchToolPage() {
                     accent={tool.accent}
                     compact
                     collapseOnSuccess
+                    preLoaded={hasResumeContent}
+                    preLoadedLabel={bridge.seededResume ? 'Resume carried from previous tool' : undefined}
                     onParsed={(text) => {
                       setField('resumeText', text)
                       setResumeEditorCollapsed(true)

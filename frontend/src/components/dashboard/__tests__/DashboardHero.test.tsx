@@ -8,12 +8,18 @@ const writeWorkflowContextMock = vi.hoisted(() => vi.fn())
 
 vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => navigateMock,
+  Link: ({ children, to, ...props }: { children: ReactNode; to: string } & Record<string, unknown>) => (
+    <a href={to} {...props}>{children}</a>
+  ),
 }))
 
 vi.mock('#/components/ui/motion', () => ({
   FadeUp: ({ children, className }: { children: ReactNode; className?: string }) => (
     <div className={className}>{children}</div>
   ),
+  StaggerChildren: ({ children }: { children: ReactNode }) => <>{children}</>,
+  StaggerItem: ({ children }: { children: ReactNode }) => <>{children}</>,
+  ScrollReveal: ({ children }: { children: ReactNode }) => <>{children}</>,
 }))
 
 vi.mock('#/components/tooling/DropzoneHero', () => ({
@@ -39,7 +45,9 @@ describe('DashboardHero', () => {
   it('renders the dashboard resume handoff copy', () => {
     render(<DashboardHero />)
 
-    expect(screen.getByText('Start with your resume.')).toBeTruthy()
+    expect(screen.getByText((_content, element) =>
+      element?.tagName === 'H1' && element.textContent === 'Start with your resume.'
+    )).toBeTruthy()
     expect(
       screen.getByText(/Drop it once\. Get a score, targeted fixes, cover letters, interview prep, and your next move\./i),
     ).toBeTruthy()

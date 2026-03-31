@@ -33,12 +33,14 @@ export function AppShell({ children }: { children: ReactNode }) {
   if (isMobile) {
     return (
       <TooltipProvider delayDuration={120}>
-        <div className="app-main app-main--mobile">
-          <Topbar />
-          <ErrorBoundary>{children}</ErrorBoundary>
-        </div>
-        <MobileNav />
-        <AuthDialog />
+        <SidebarProvider defaultOpen={false} style={{ '--sidebar-width': '0px', '--sidebar-width-icon': '0px' } as React.CSSProperties}>
+          <div className="app-main app-main--mobile">
+            <Topbar />
+            <ErrorBoundary>{children}</ErrorBoundary>
+          </div>
+          <MobileNav />
+          <AuthDialog />
+        </SidebarProvider>
       </TooltipProvider>
     )
   }
