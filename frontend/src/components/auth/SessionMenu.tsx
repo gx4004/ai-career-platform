@@ -22,22 +22,16 @@ function getInitials(name: string) {
 }
 
 export function SessionMenu() {
-  const { status, user, logout, openAuthDialog } = useSession()
+  const { status, user, logout } = useSession()
 
   if (status !== 'authenticated' || !user) {
     return (
       <Button
         size="default"
         className="button-session-signin-cta"
-        onClick={() =>
-          openAuthDialog({
-            to: '/dashboard',
-            reason: 'topbar-signin',
-            label: 'Sign in',
-          })
-        }
+        asChild
       >
-        Sign in
+        <Link to="/login">Sign in</Link>
       </Button>
     )
   }

@@ -175,6 +175,9 @@ export const StaggerTestimonials: React.FC = () => {
     return () => window.removeEventListener("resize", updateSize);
   }, []);
 
+  // Only render cards near the center to avoid clipping at viewport edges
+  const visibleRange = 3; // show 3 cards on each side of center
+
   return (
     <div
       className="relative w-full overflow-hidden"
@@ -184,6 +187,7 @@ export const StaggerTestimonials: React.FC = () => {
         const position = testimonialsList.length % 2
           ? index - (testimonialsList.length + 1) / 2
           : index - testimonialsList.length / 2;
+        if (Math.abs(position) > visibleRange) return null;
         return (
           <TestimonialCard
             key={testimonial.tempId}
