@@ -5,14 +5,16 @@
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
-  padding: 0.65rem 1.15rem;
+  padding: 0.75rem 1.25rem;
   margin: 1rem auto 0;
   max-width: var(--content-max, 48rem);
-  border-radius: var(--radius-lg);
-  border: 1px solid color-mix(in srgb, var(--accent) 16%, var(--border-soft));
-  background: color-mix(in srgb, var(--accent) 6%, var(--surface-raised));
-  box-shadow: var(--shadow-soft);
-  font-size: 0.82rem;
+  border-radius: var(--radius-xl);
+  border: 1px solid color-mix(in srgb, var(--accent) 12%, var(--border-soft));
+  background: #ffffff;
+  box-shadow:
+    0 1px 3px rgba(19, 44, 72, 0.04),
+    0 6px 16px rgba(19, 44, 72, 0.06);
+  font-size: 0.8125rem;
   transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
 }
 
@@ -1064,6 +1066,16 @@ body.tool-fullscreen-open .mobile-nav-pill {
   min-width: 14rem;
   font-weight: 600;
   box-shadow: 0 12px 30px color-mix(in srgb, var(--tool-accent, var(--accent)) 18%, transparent);
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.resume-submit-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 16px 36px color-mix(in srgb, var(--tool-accent, var(--accent)) 24%, transparent);
+}
+
+.resume-submit-btn:active {
+  transform: scale(0.98);
 }
 
 .resume-error-inline {
