@@ -30,19 +30,23 @@ export function Topbar() {
   const pagePill = pageIcons[pathname]
 
   useLayoutEffect(() => {
-    const updateTopbarHeight = () => {
-      const nextHeight = headerRef.current?.offsetHeight ?? 0
-      document.documentElement.style.setProperty('--app-topbar-height', `${nextHeight}px`)
+    const el = headerRef.current
+    if (!el) return
+
+    const update = () => {
+      document.documentElement.style.setProperty('--app-topbar-height', `${el.offsetHeight}px`)
     }
 
-    updateTopbarHeight()
-    window.addEventListener('resize', updateTopbarHeight)
+    update()
+    const ro = new ResizeObserver(update)
+    ro.observe(el)
+    window.addEventListener('resize', update)
 
     return () => {
-      window.removeEventListener('resize', updateTopbarHeight)
-      document.documentElement.style.removeProperty('--app-topbar-height')
+      ro.disconnect()
+      window.removeEventListener('resize', update)
     }
-  }, [pathname])
+  }, [])
 
   // Mobile: simple brand + page name + session menu
   const mobilePageName = isDashboard
