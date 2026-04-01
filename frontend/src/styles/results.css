@@ -962,6 +962,12 @@
     --zone-gap: 0.5rem;
   }
 
+  .result-guest-banner {
+    position: static;
+    margin: 0.5rem auto;
+    width: fit-content;
+  }
+
   .result-hero {
     border-radius: var(--radius-xl);
     padding: 1.375rem 1.25rem 0;
