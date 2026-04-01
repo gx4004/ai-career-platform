@@ -2,7 +2,7 @@
 dockerfilePath = "backend/Dockerfile"
 
 [deploy]
-startCommand = "cd /app && alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT"
+startCommand = "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT"
 healthcheckPath = "/api/v1/health"
 healthcheckTimeout = 30
 restartPolicyType = "on_failure"
