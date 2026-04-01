@@ -78,6 +78,8 @@ async def complete_structured(
             return await _call_anthropic(system_prompt, user_prompt, model)
         elif provider == "vertex":
             return await _call_vertex(system_prompt, user_prompt, model)
+        elif provider == "google":
+            return await _call_google_genai(system_prompt, user_prompt, model)
         else:
             raise ValueError(f"Unsupported LLM provider: {provider}")
 
@@ -189,6 +191,38 @@ async def _call_vertex(system_prompt: str, user_prompt: str, model_name: str | N
 
     content = response.text
     return _safe_parse_json(content, "vertex")
+
+
+async def _call_google_genai(system_prompt: str, user_prompt: str, model_name: str | None = None) -> dict:
+    from google import genai
+
+    client = genai.Client(api_key=settings.GOOGLE_API_KEY)
+
+    try:
+        response = await asyncio.wait_for(
+            asyncio.to_thread(
+                client.models.generate_content,
+                model=model_name or settings.LLM_MODEL,
+                contents=user_prompt,
+                config={
+                    "system_instruction": system_prompt,
+                    "temperature": 0.3,
+                    "response_mime_type": "application/json",
+                },
+            ),
+            timeout=_LLM_TIMEOUT_SECONDS,
+        )
+    except asyncio.TimeoutError:
+        logger.error("Google AI request timed out after %ds", _LLM_TIMEOUT_SECONDS)
+        raise TimeoutError(
+            f"AI request timed out after {_LLM_TIMEOUT_SECONDS}s. Please try again."
+        )
+    except Exception as exc:
+        logger.error("Google AI call failed: %s", exc)
+        raise RuntimeError("AI service temporarily unavailable. Please try again.")
+
+    content = response.text
+    return _safe_parse_json(content, "google")
 
 
 async def _call_anthropic(system_prompt: str, user_prompt: str, model_name: str | None = None) -> dict:
