@@ -619,13 +619,15 @@ function ResumeResultView({ payload }: { payload: AnyObject }) {
 
       {/* Keywords + Evidence inline */}
       <div className="rs rs--2col">
-        <div>
-          <h3 className="rs__sub">Keywords</h3>
-          <div className="chip-flow">
-            {result.evidence.matchedKeywords.map((k) => <span key={k} className="chip-sm chip-sm--positive">{k}</span>)}
-            {result.evidence.missingKeywords.map((k) => <span key={k} className="chip-sm chip-sm--warning">{k}</span>)}
+        {(result.evidence.matchedKeywords.length > 0 || result.evidence.missingKeywords.length > 0) ? (
+          <div>
+            <h3 className="rs__sub">Keywords</h3>
+            <div className="chip-flow">
+              {result.evidence.matchedKeywords.map((k) => <span key={k} className="chip-sm chip-sm--positive">{k}</span>)}
+              {result.evidence.missingKeywords.map((k) => <span key={k} className="chip-sm chip-sm--warning">{k}</span>)}
+            </div>
           </div>
-        </div>
+        ) : null}
         <div>
           <h3 className="rs__sub">Evidence</h3>
           <div style={{ display: 'grid', gap: '0.125rem' }}>
