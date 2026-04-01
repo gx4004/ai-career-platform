@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { Copy, Download, FileText, RefreshCw, Star, Undo2, X } from 'lucide-react'
 import { Button } from '#/components/ui/button'
+import { FadeIn, FadeUp } from '#/components/ui/motion'
 import { ScoreTooltip } from '#/components/tooling/ScoreTooltip'
 import { AppStatePanel } from '#/components/app/AppStatePanel'
 import { PageFrame } from '#/components/app/PageFrame'
@@ -24,6 +25,28 @@ import { getToolByHistoryName, tools } from '#/lib/tools/registry'
 import type { ToolId } from '#/lib/tools/registry'
 import { toolAccentStyle } from '#/lib/tools/styleUtils'
 import { trackTelemetry } from '#/lib/telemetry/client'
+
+function getStripGradient(value: number) {
+  if (value >= 70) {
+    return {
+      start: '#15803d',
+      end: '#4ade80',
+      glow: '#22c55e',
+    }
+  }
+  if (value >= 41) {
+    return {
+      start: '#c2410c',
+      end: '#fbbf24',
+      glow: '#f59e0b',
+    }
+  }
+  return {
+    start: '#b91c1c',
+    end: '#fb7185',
+    glow: '#ef4444',
+  }
+}
 
 function downloadTextFile(filename: string, content: string, mimeType = 'text/plain;charset=utf-8') {
   const blob = new Blob([content], { type: mimeType })
@@ -213,6 +236,7 @@ export function ToolResultScreen({
     <PageFrame>
       <section className="result-shell" style={toolAccentStyle(resolvedTool.accent)}>
         {/* ── Hero ── */}
+        <FadeIn delay={0.05}>
         <div className="result-hero">
           <div className="result-hero__top">
             {heroMetric ? (
@@ -229,7 +253,7 @@ export function ToolResultScreen({
               <div className="result-hero__label">
                 {resolvedTool.label}{savedResult ? '' : ' · Guest demo'}
               </div>
-              <h1 className="result-hero__headline">
+              <h1 className="result-hero__headline result-hero__headline--premium">
                 {typeof summary.headline === 'string' ? summary.headline : resolvedTool.resultTitle}
                 {scoreDelta !== null && (
                   <span className={`score-delta ${scoreDelta >= 0 ? 'score-delta-positive' : 'score-delta-negative'}`}>
@@ -325,6 +349,7 @@ export function ToolResultScreen({
               {insightStrip.map((stat) => {
                 const numericValue = parseFloat(stat.value)
                 const isBar = !Number.isNaN(numericValue) && numericValue <= 100 && !/[a-zA-Z]/.test(stat.value.replace('%', ''))
+                const stripGradient = isBar ? getStripGradient(numericValue) : null
                 return (
                   <div key={stat.label} className="result-hero__strip-item">
                     <span className="result-hero__strip-lbl">{stat.label}</span>
@@ -332,7 +357,12 @@ export function ToolResultScreen({
                       <div className="result-hero__strip-track">
                         <div
                           className="result-hero__strip-fill"
-                          style={{ width: `${numericValue}%`, background: stat.color || 'var(--accent)' }}
+                          style={{
+                            width: `${numericValue}%`,
+                            '--strip-start': stripGradient?.start,
+                            '--strip-end': stripGradient?.end,
+                            '--strip-color': stripGradient?.glow,
+                          } as React.CSSProperties}
                         />
                       </div>
                     ) : null}
@@ -343,6 +373,7 @@ export function ToolResultScreen({
             </div>
           ) : null}
         </div>
+        </FadeIn>
 
         {/* ── Guest banner (floating pill) ── */}
         {guestResult && !bannerDismissed ? (
@@ -376,9 +407,11 @@ export function ToolResultScreen({
         ) : null}
 
         {/* ── Content ── */}
+        <FadeUp delay={0.12}>
         <div className="result-content">
           {definition.render(payload, item, resolvedTool)}
         </div>
+        </FadeUp>
 
         {/* ── Sticky CTA ── */}
         {primaryNextAction ? (

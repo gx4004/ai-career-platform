@@ -3,10 +3,14 @@ import type { ReactNode } from 'react'
 import {
   Copy,
   Download,
+  FileText,
+  Hash,
+  Wrench,
 } from 'lucide-react'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '#/components/ui/accordion'
 import { Button } from '#/components/ui/button'
 import { Textarea } from '#/components/ui/textarea'
+import { FadeUp, ScrollReveal, AnimatedNumber } from '#/components/ui/motion'
 import { InterviewPracticeMode } from '#/components/tooling/InterviewPracticeMode'
 import type { ToolRunDetail } from '#/lib/api/schemas'
 import type { ToolDefinition, ToolId } from '#/lib/tools/registry'
@@ -537,22 +541,60 @@ function normalizeInterviewPayload(payload: AnyObject): InterviewResultPayload {
 /* ── Shared helpers ── */
 
 
-function ScoreCircleSvg({ score, size = 88 }: { score: number; size?: number }) {
+function scoreGradient(score: number) {
+  if (score >= 70) return { start: '#16a34a', end: '#4ade80' }
+  if (score >= 41) return { start: '#d97706', end: '#fbbf24' }
+  return { start: '#dc2626', end: '#f87171' }
+}
+
+function ScoreCircleSvg({
+  score,
+  size = 88,
+  variant = 'hero',
+}: {
+  score: number
+  size?: number
+  variant?: 'hero' | 'breakdown'
+}) {
   const r = (size / 2) - 6
   const circumference = 2 * Math.PI * r
   const offset = circumference - (score / 100) * circumference
-  const color = scoreColor(score)
+  const grad = scoreGradient(score)
+  const uid = `sg-${size}-${score}`
+
   return (
-    <div className="result-hero__score" style={{ width: size, height: size }}>
+    <div
+      className={`result-hero__score${variant === 'breakdown' ? ' result-hero__score--breakdown' : ''}`}
+      style={{ width: size, height: size }}
+    >
       <svg viewBox={`0 0 ${size} ${size}`} style={{ transform: 'rotate(-90deg)', position: 'absolute', inset: 0 }}>
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="currentColor" opacity={0.08} strokeWidth="5" />
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth="5"
-          strokeDasharray={circumference} strokeDashoffset={offset} strokeLinecap="round"
+        <defs>
+          <linearGradient id={uid} x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor={grad.start} />
+            <stop offset="100%" stopColor={grad.end} />
+          </linearGradient>
+          <filter id={`${uid}-glow`}>
+            <feGaussianBlur stdDeviation="3" result="blur" />
+            <feMerge>
+              <feMergeNode in="blur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+        </defs>
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="currentColor" opacity={0.06} strokeWidth="5" />
+        <circle
+          cx={size / 2} cy={size / 2} r={r} fill="none"
+          stroke={`url(#${uid})`}
+          strokeWidth="5.5"
+          strokeDasharray={circumference}
+          strokeDashoffset={offset}
+          strokeLinecap="round"
+          filter={`url(#${uid}-glow)`}
           style={{ transition: 'stroke-dashoffset 1.2s cubic-bezier(0.16, 1, 0.3, 1)' }}
         />
       </svg>
-      <div style={{ position: 'relative', textAlign: 'center' }}>
-        <div className="result-hero__score-num">{score}</div>
+      <div className={`result-hero__score-content${variant === 'breakdown' ? ' result-hero__score-content--breakdown' : ''}`}>
+        <AnimatedNumber value={score} className="result-hero__score-num" />
       </div>
     </div>
   )
@@ -560,118 +602,183 @@ function ScoreCircleSvg({ score, size = 88 }: { score: number; size?: number }) 
 
 function ResumeResultView({ payload }: { payload: AnyObject }) {
   const result = normalizeResumePayload(payload)
+  const evidenceTiles = [
+    {
+      key: 'sections',
+      label: 'Sections',
+      value: result.evidence.detectedSections.length,
+      icon: FileText,
+      tone: 'sections',
+      delay: 0.5,
+    },
+    {
+      key: 'skills',
+      label: 'Skills',
+      value: result.evidence.detectedSkills.length,
+      icon: Wrench,
+      tone: 'skills',
+      delay: 0.6,
+    },
+    {
+      key: 'quantified',
+      label: 'Quantified',
+      value: result.evidence.quantifiedBullets,
+      icon: Hash,
+      tone: 'quantified',
+      delay: 0.7,
+    },
+  ] as const
 
   return (
     <>
-      {/* Score breakdown + Strengths/Gaps side by side */}
-      <div className="rs rs--2col">
-        <div>
-          <h3 className="rs__heading">Score breakdown</h3>
-          <div className="bar-stack">
-            {result.scoreBreakdown.map((item) => (
-              <div key={item.key} className="bar-metric">
-                <span className="bar-metric__label">{item.label}</span>
-                <div className="bar-metric__track">
-                  <div className="bar-metric__fill" style={{ width: `${item.score}%`, background: scoreColor(item.score) }} />
-                </div>
-                <span className="bar-metric__value" style={{ color: scoreColor(item.score) }}>{item.score}</span>
-              </div>
-            ))}
-          </div>
+      {/* Score breakdown — radial gauges */}
+      <FadeUp delay={0.05}>
+      <div className="rs">
+        <h3 className="result-heading">Score Breakdown</h3>
+        <div className="section-card-grid--responsive-5 stagger-entrance">
+          {result.scoreBreakdown.map((item) => (
+            <div key={item.key} className="score-gauge">
+              <ScoreCircleSvg score={item.score} size={104} variant="breakdown" />
+              <span className="score-gauge__label">{item.label}</span>
+            </div>
+          ))}
         </div>
-        <div>
-          <h3 className="rs__heading" style={{ color: 'var(--success)' }}>Strengths</h3>
-          <div style={{ display: 'grid', gap: '0.25rem', marginBottom: '0.75rem' }}>
-            {result.strengths.slice(0, 4).map((s) => (
-              <div key={s} className="rs__body" style={{ display: 'flex', gap: '0.375rem' }}>
-                <span style={{ color: 'var(--success)' }}>&#10003;</span> {s}
-              </div>
-            ))}
+      </div>
+      </FadeUp>
+
+      {/* Strengths / Gaps — card-based */}
+      <FadeUp delay={0.15}>
+      <div className="rs">
+        <div className="section-card-grid section-card-grid--2">
+          <div className="section-card section-card--success-left">
+            <h3 className="result-label" style={{ color: 'var(--success)' }}>Strengths</h3>
+            <div className="section-card-grid" style={{ gap: '0.375rem' }}>
+              {result.strengths.slice(0, 4).map((s) => (
+                <div key={s} className="strength-item">
+                  <span className="strength-item__icon">&#10003;</span>
+                  <span>{s}</span>
+                </div>
+              ))}
+            </div>
           </div>
           {result.issues.length > 0 ? (
-            <>
-              <h3 className="rs__heading" style={{ color: 'var(--warning)', marginTop: '0.5rem' }}>Gaps</h3>
-              <div style={{ display: 'grid', gap: '0.25rem' }}>
+            <div className="section-card section-card--warning-left">
+              <h3 className="result-label" style={{ color: 'var(--warning)' }}>Gaps</h3>
+              <div className="section-card-grid" style={{ gap: '0.375rem' }}>
                 {result.issues.slice(0, 3).map((i) => (
-                  <div key={i.id} className="rs__body" style={{ display: 'flex', gap: '0.375rem' }}>
-                    <span style={{ color: priorityTone(i.severity) }}>&#9679;</span> {i.title}
+                  <div key={i.id} className="gap-item">
+                    <span className="gap-item__icon" style={{ color: priorityTone(i.severity) }}>&#9888;</span>
+                    <span>{i.title}</span>
                   </div>
                 ))}
               </div>
-            </>
+            </div>
           ) : null}
         </div>
       </div>
+      </FadeUp>
 
-      {/* Fix first */}
+      {/* Fix first — numbered step cards */}
+      <ScrollReveal>
       <div className="rs">
-        <h3 className="rs__heading">Fix first</h3>
-        {result.topActions.slice(0, 3).map((a, i) => (
-          <div key={`${a.title}-${i}`} style={{ display: 'flex', gap: '0.5rem', padding: '0.375rem 0' }}>
-            <span style={{ width: 6, height: 6, borderRadius: '50%', background: priorityTone(a.priority), flexShrink: 0, marginTop: 6 }} />
-            <div>
-              <div style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-strong)' }}>{a.title}</div>
-              <div className="rs__meta">{a.action}</div>
+        <h3 className="result-heading">Fix First</h3>
+        <div className="section-card-grid stagger-entrance">
+          {result.topActions.slice(0, 3).map((a, i) => (
+            <div
+              key={`${a.title}-${i}`}
+              className="step-card"
+              style={{ '--step-color': priorityTone(a.priority) } as React.CSSProperties}
+            >
+              <div className="step-card__num">{i + 1}</div>
+              <div className="step-card__body">
+                <div className="step-card__title">{a.title}</div>
+                <div className="step-card__desc">{a.action}</div>
+              </div>
             </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
+      </ScrollReveal>
 
-      {/* Keywords + Evidence inline */}
+      {/* Keywords + Evidence */}
+      <ScrollReveal>
       <div className="rs rs--2col">
         {(result.evidence.matchedKeywords.length > 0 || result.evidence.missingKeywords.length > 0) ? (
           <div>
-            <h3 className="rs__sub">Keywords</h3>
-            <div className="chip-flow">
-              {result.evidence.matchedKeywords.map((k) => <span key={k} className="chip-sm chip-sm--positive">{k}</span>)}
-              {result.evidence.missingKeywords.map((k) => <span key={k} className="chip-sm chip-sm--warning">{k}</span>)}
+            <h3 className="result-label">Keywords</h3>
+            <div className="chip-wrap">
+              {result.evidence.matchedKeywords.map((k) => (
+                <span key={k} className="chip chip--positive"><span className="chip__dot" /> {k}</span>
+              ))}
+              {result.evidence.missingKeywords.map((k) => (
+                <span key={k} className="chip chip--outline-warning"><span className="chip__dot" /> {k}</span>
+              ))}
             </div>
           </div>
         ) : null}
         <div>
-          <h3 className="rs__sub">Evidence</h3>
-          <div style={{ display: 'grid', gap: '0.125rem' }}>
-            <div className="rs__meta" style={{ display: 'flex', justifyContent: 'space-between' }}><span>Sections</span><strong>{result.evidence.detectedSections.length}</strong></div>
-            <div className="rs__meta" style={{ display: 'flex', justifyContent: 'space-between' }}><span>Skills</span><strong>{result.evidence.detectedSkills.length}</strong></div>
-            <div className="rs__meta" style={{ display: 'flex', justifyContent: 'space-between' }}><span>Quantified</span><strong>{result.evidence.quantifiedBullets}</strong></div>
+          <h3 className="result-label">Evidence</h3>
+          <div className="section-card-grid section-card-grid--3">
+            {evidenceTiles.map((tile) => {
+              const Icon = tile.icon
+              return (
+                <div key={tile.key} className={`stat-tile stat-tile--${tile.tone}`}>
+                  <span className="stat-tile__icon" aria-hidden="true">
+                    <Icon size={18} strokeWidth={2} />
+                  </span>
+                  <AnimatedNumber value={tile.value} className="stat-tile__value" delay={tile.delay} />
+                  <span className="stat-tile__label">{tile.label}</span>
+                </div>
+              )
+            })}
           </div>
         </div>
       </div>
+      </ScrollReveal>
 
-      {/* Issues (expandable) */}
+      {/* Issues — styled cards */}
       {result.issues.length > 0 ? (
+        <ScrollReveal>
         <div className="rs">
-          <h3 className="rs__heading">Issues ({result.issues.length})</h3>
-          <Accordion type="single" collapsible>
+          <h3 className="result-heading">Issues ({result.issues.length})</h3>
+          <Accordion type="single" collapsible className="issue-card-list">
             {result.issues.map((issue) => (
-              <AccordionItem key={issue.id} value={issue.id}>
-                <AccordionTrigger>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', textAlign: 'left' }}>
-                    <span style={{ width: 5, height: 5, borderRadius: '50%', background: priorityTone(issue.severity), flexShrink: 0 }} />
-                    <span style={{ fontSize: '0.8125rem' }}>{issue.title}</span>
+              <AccordionItem key={issue.id} value={issue.id} className="issue-card">
+                <AccordionTrigger className="issue-card__trigger">
+                  <span className="issue-card__header">
+                    <span className="issue-card__severity" style={{ background: priorityTone(issue.severity) }} />
+                    <span className="issue-card__title">{issue.title}</span>
+                    <span className="chip chip--neutral" style={{ fontSize: '0.6875rem' }}>{issue.category}</span>
                   </span>
                 </AccordionTrigger>
                 <AccordionContent>
-                  <div className="rs__body" style={{ paddingTop: '0.25rem' }}>
-                    <p>{issue.whyItMatters}</p>
-                    <p className="rs__meta" style={{ marginTop: '0.25rem' }}><strong>Fix:</strong> {issue.fix}</p>
+                  <div className="issue-card__body">
+                    <p className="rs__body">{issue.whyItMatters}</p>
+                    <div className="issue-card__fix">
+                      <strong>Fix:</strong> {issue.fix}
+                    </div>
                   </div>
                 </AccordionContent>
               </AccordionItem>
             ))}
           </Accordion>
         </div>
+        </ScrollReveal>
       ) : null}
 
       {/* Role fit */}
       {result.roleFit ? (
+        <ScrollReveal>
         <div className="rs">
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.375rem' }}>
-            <span style={{ fontSize: '1.125rem', fontWeight: 700, color: scoreColor(result.roleFit.fitScore) }}>{result.roleFit.fitScore}%</span>
-            <span className="rs__meta">fit for {result.roleFit.targetRoleLabel}</span>
+          <div className="section-card section-card--accent-left" style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
+            <ScoreCircleSvg score={result.roleFit.fitScore} size={64} />
+            <div>
+              <h3 className="result-heading" style={{ margin: 0 }}>Role Fit: {result.roleFit.targetRoleLabel}</h3>
+              <p className="rs__meta" style={{ marginTop: '0.25rem' }}>{result.roleFit.rationale}</p>
+            </div>
           </div>
-          <p className="rs__meta" style={{ marginTop: '0.125rem' }}>{result.roleFit.rationale}</p>
         </div>
+        </ScrollReveal>
       ) : null}
     </>
   )
@@ -682,18 +789,27 @@ function JobMatchView({ payload }: { payload: AnyObject }) {
 
   return (
     <>
-      {/* Requirements */}
+      {/* Requirements — card grid */}
       <div className="rs">
-        <h3 className="rs__heading">Requirements</h3>
-        <div className="req-list">
+        <h3 className="result-heading">Requirements</h3>
+        <div className="section-card-grid stagger-entrance">
           {result.requirements.map((item, index) => (
-            <div key={`${item.requirement}-${index}`} className="req-row">
-              <span className="req-row__dot" style={{ background: statusTone(item.status) }} />
-              <span className="req-row__name">{item.requirement}</span>
-              <span className="req-row__badge" style={{
-                background: item.importance === 'must' ? 'color-mix(in srgb, var(--accent) 10%, transparent)' : 'transparent',
-                color: item.importance === 'must' ? 'var(--accent)' : 'var(--text-muted)',
-              }}>{item.importance}</span>
+            <div key={`${item.requirement}-${index}`} className="req-card">
+              <div className="req-card__status">
+                <span className="req-card__dot" style={{ background: statusTone(item.status) }} />
+                <span className="req-card__status-label" style={{ color: statusTone(item.status) }}>
+                  {item.status}
+                </span>
+              </div>
+              <div className="req-card__name">{item.requirement}</div>
+              <div className="req-card__footer">
+                <span className="chip chip--neutral" style={{ fontSize: '0.6875rem' }}>
+                  {item.importance}
+                </span>
+              </div>
+              {item.resumeEvidence ? (
+                <p className="req-card__evidence">{item.resumeEvidence}</p>
+              ) : null}
             </div>
           ))}
         </div>
@@ -702,63 +818,71 @@ function JobMatchView({ payload }: { payload: AnyObject }) {
       {/* Keywords + Tailoring */}
       <div className="rs rs--2col">
         <div>
-          <h3 className="rs__sub">Keyword coverage</h3>
-          <div className="chip-flow">
-            {result.matchedKeywords.map((k) => <span key={k} className="chip-sm chip-sm--positive">{k}</span>)}
+          <h3 className="result-label">Keyword coverage</h3>
+          <div className="chip-wrap">
+            {result.matchedKeywords.map((k) => (
+              <span key={k} className="chip chip--positive"><span className="chip__dot" /> {k}</span>
+            ))}
           </div>
-          {result.missingKeywords.length > 0 && (
+          {result.missingKeywords.length > 0 ? (
             <div style={{ marginTop: '0.75rem' }}>
-              <h3 className="rs__sub" style={{ color: 'var(--warning)' }}>Missing keywords</h3>
-              <div style={{ display: 'grid', gap: '0.5rem' }}>
+              <h3 className="result-label" style={{ color: 'var(--warning)' }}>Missing keywords</h3>
+              <div className="section-card-grid">
                 {result.missingKeywords.map((k) => (
-                  <div key={k.keyword} className="keyword-card">
-                    <div className="keyword-card-name">{k.keyword}</div>
-                    {k.contextual_guidance && (
-                      <p className="keyword-guidance">{k.contextual_guidance}</p>
-                    )}
-                    {k.anti_stuffing_note && (
-                      <p className="keyword-warning">{k.anti_stuffing_note}</p>
-                    )}
+                  <div key={k.keyword} className="section-card section-card--warning-left">
+                    <div className="step-card__title">{k.keyword}</div>
+                    {k.contextual_guidance ? (
+                      <p className="step-card__desc" style={{ marginTop: '0.25rem' }}>{k.contextual_guidance}</p>
+                    ) : null}
+                    {k.anti_stuffing_note ? (
+                      <p className="rs__meta" style={{ marginTop: '0.25rem', fontStyle: 'italic' }}>{k.anti_stuffing_note}</p>
+                    ) : null}
                   </div>
                 ))}
               </div>
             </div>
-          )}
+          ) : null}
         </div>
         <div>
           {result.tailoringActions.length > 0 ? (
             <>
-              <h3 className="rs__sub">Tailoring actions</h3>
-              {result.tailoringActions.slice(0, 3).map((a, i) => (
-                <div key={`${a.keyword}-${i}`} className="rs__body" style={{ marginBottom: '0.25rem' }}>
-                  <strong>{a.section}:</strong> {a.action}
-                </div>
-              ))}
+              <h3 className="result-label">Tailoring actions</h3>
+              <div className="section-card-grid">
+                {result.tailoringActions.slice(0, 3).map((a, i) => (
+                  <div
+                    key={`${a.keyword}-${i}`}
+                    className="step-card"
+                    style={{ '--step-color': 'var(--accent)' } as React.CSSProperties}
+                  >
+                    <div className="step-card__num step-card__num--badge">{a.section}</div>
+                    <div className="step-card__body">
+                      <div className="step-card__title">{a.keyword}</div>
+                      <div className="step-card__desc">{a.action}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </>
           ) : null}
         </div>
       </div>
 
-      {/* Recruiter summary (collapsed) */}
+      {/* Recruiter summary — premium card (always visible) */}
       <div className="rs">
-        <Accordion type="single" collapsible>
-          <AccordionItem value="recruiter">
-            <AccordionTrigger>
-              <span style={{ fontSize: '0.8125rem', fontWeight: 600 }}>Recruiter summary</span>
-            </AccordionTrigger>
-            <AccordionContent>
-              <p className="rs__body" style={{ paddingTop: '0.25rem' }}>{result.recruiterSummary}</p>
-            </AccordionContent>
-          </AccordionItem>
-        </Accordion>
+        <div className="section-card section-card--accent-left">
+          <h3 className="result-heading" style={{ margin: '0 0 0.5rem' }}>Recruiter Summary</h3>
+          <p className="rs__body">{result.recruiterSummary}</p>
+        </div>
       </div>
 
       {/* Interview focus */}
       {result.interviewFocus.length > 0 ? (
         <div className="rs">
-          <h3 className="rs__sub">Interview focus</h3>
-          <div className="chip-flow">
-            {result.interviewFocus.map((f) => <span key={f} className="chip-sm chip-sm--neutral">{f}</span>)}
+          <h3 className="result-label">Interview focus</h3>
+          <div className="chip-wrap">
+            {result.interviewFocus.map((f) => (
+              <span key={f} className="chip chip--neutral"><span className="chip__dot" /> {f}</span>
+            ))}
           </div>
         </div>
       ) : null}
@@ -791,41 +915,41 @@ function CoverLetterView({ payload }: { payload: AnyObject }) {
       {/* Left: Letter preview */}
       <div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-          <h3 className="rs__heading" style={{ margin: 0 }}>Letter preview</h3>
+          <h3 className="result-heading" style={{ margin: 0 }}>Letter preview</h3>
           <div style={{ display: 'flex', gap: '0.25rem' }}>
             <Button variant="outline" size="sm" onClick={handleCopy}><Copy size={13} /> Copy</Button>
             <Button variant="outline" size="sm" onClick={handleDownload}><Download size={13} /></Button>
           </div>
         </div>
-        <div className="document-preview">{compiledText || result.fullText}</div>
+        <div className="document-preview document-preview--premium">{compiledText || result.fullText}</div>
       </div>
 
       {/* Right: Editor + Notes */}
       <div>
-        <h3 className="rs__heading">Edit</h3>
-        <div style={{ display: 'grid', gap: '0.625rem' }}>
-          <div>
-            <span className="rs__sub">Opening</span>
+        <h3 className="result-heading">Edit</h3>
+        <div className="section-card-grid">
+          <div className="section-card">
+            <span className="result-label">Opening</span>
             <Textarea rows={4} value={openingText} onChange={(e) => setOpeningText(e.target.value)} />
           </div>
           {result.bodyPoints.map((_item, index) => (
-            <div key={`body-${index}`}>
-              <span className="rs__sub">Body {index + 1}</span>
+            <div key={`body-${index}`} className="section-card">
+              <span className="result-label">Body {index + 1}</span>
               <Textarea rows={5} value={bodyTexts[index] || ''} onChange={(e) => setBodyTexts((c) => c.map((t, i) => i === index ? e.target.value : t))} />
             </div>
           ))}
-          <div>
-            <span className="rs__sub">Closing</span>
+          <div className="section-card">
+            <span className="result-label">Closing</span>
             <Textarea rows={3} value={closingText} onChange={(e) => setClosingText(e.target.value)} />
           </div>
         </div>
 
         {result.customizationNotes.length > 0 ? (
           <div style={{ marginTop: '0.75rem' }}>
-            <h3 className="rs__sub">Customization notes</h3>
+            <h3 className="result-label">Customization notes</h3>
             {result.customizationNotes.map((n, i) => (
               <p key={`${n.note}-${i}`} className="rs__meta" style={{ marginBottom: '0.25rem' }}>
-                <span className="chip-sm chip-sm--neutral" style={{ marginRight: '0.25rem' }}>{n.category}</span>
+                <span className="chip chip--neutral" style={{ marginRight: '0.25rem', fontSize: '0.6875rem' }}>{n.category}</span>
                 {n.note}
               </p>
             ))}
@@ -861,7 +985,7 @@ function InterviewView({ payload }: { payload: AnyObject }) {
 
   return (
     <>
-      {/* Practice mode toggle */}
+      {/* Practice mode CTA */}
       <div className="rs" style={{ display: 'flex', justifyContent: 'flex-end' }}>
         <Button variant="outline" size="sm" onClick={() => setPracticeMode(true)}>
           Start Practice Mode
@@ -871,25 +995,32 @@ function InterviewView({ payload }: { payload: AnyObject }) {
       {/* Focus areas + Weak signals */}
       <div className="rs rs--2col">
         <div>
-          <h3 className="rs__heading">Focus areas</h3>
-          <div style={{ display: 'grid', gap: '0.375rem' }}>
+          <h3 className="result-heading">Focus areas</h3>
+          <div className="section-card-grid stagger-entrance">
             {result.focusAreas.map((a) => (
-              <div key={a.title}>
-                <div style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-strong)' }}>{a.title}</div>
-                <div className="rs__meta">{a.reason}</div>
+              <div key={a.title} className="section-card">
+                <div className="step-card__title">{a.title}</div>
+                <div className="step-card__desc">{a.reason}</div>
               </div>
             ))}
           </div>
         </div>
         <div>
-          <h3 className="rs__heading" style={{ color: 'var(--warning)' }}>Weak signals</h3>
-          <div style={{ display: 'grid', gap: '0.375rem' }}>
+          <h3 className="result-heading" style={{ color: 'var(--warning)' }}>Weak signals</h3>
+          <div className="section-card-grid stagger-entrance">
             {result.weakSignals.map((w) => (
-              <div key={w.title}>
-                <div style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-strong)' }}>
-                  <span style={{ color: priorityTone(w.severity) }}>&#9679; </span>{w.title}
+              <div
+                key={w.title}
+                className="step-card"
+                style={{ '--step-color': priorityTone(w.severity) } as React.CSSProperties}
+              >
+                <div className="step-card__num">
+                  <span className="issue-card__severity" style={{ background: priorityTone(w.severity), width: 6, height: 6 }} />
                 </div>
-                <div className="rs__meta">{w.prepAction}</div>
+                <div className="step-card__body">
+                  <div className="step-card__title">{w.title}</div>
+                  <div className="step-card__desc">{w.prepAction}</div>
+                </div>
               </div>
             ))}
           </div>
@@ -899,37 +1030,35 @@ function InterviewView({ payload }: { payload: AnyObject }) {
       {/* Questions */}
       <div className="rs">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-          <h3 className="rs__heading" style={{ margin: 0 }}>Questions ({visibleQuestions.length})</h3>
+          <h3 className="result-heading" style={{ margin: 0 }}>Questions ({visibleQuestions.length})</h3>
           <Button variant="outline" size="sm" onClick={() => setPracticeGapsFirst((c) => !c)}>
             {practiceGapsFirst ? 'All' : 'Gaps first'}
           </Button>
         </div>
-        <Accordion type="single" collapsible>
+        <Accordion type="single" collapsible className="issue-card-list">
           {visibleQuestions.map((item, index) => (
-            <AccordionItem key={`${index}-${item.question}`} value={`qa-${index}`}>
-              <AccordionTrigger>
-                <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', textAlign: 'left', fontSize: '0.8125rem' }}>
-                  <span style={{
-                    width: '1.5rem', height: '1.5rem', borderRadius: '50%',
-                    background: item.practiceFirst ? 'color-mix(in srgb, var(--warning) 12%, transparent)' : 'color-mix(in srgb, var(--foreground) 5%, transparent)',
+            <AccordionItem key={`${index}-${item.question}`} value={`qa-${index}`} className="issue-card">
+              <AccordionTrigger className="issue-card__trigger">
+                <span className="issue-card__header">
+                  <span className="step-card__num" style={{
+                    width: '1.5rem', height: '1.5rem',
+                    background: item.practiceFirst ? 'color-mix(in srgb, var(--warning) 12%, transparent)' : 'color-mix(in srgb, var(--text-body) 5%, transparent)',
                     color: item.practiceFirst ? 'var(--warning)' : 'var(--text-muted)',
-                    display: 'grid', placeItems: 'center',
-                    fontSize: '0.6875rem', fontWeight: 700, flexShrink: 0,
                   }}>{index + 1}</span>
-                  <span style={{ fontWeight: 600, flex: 1 }}>{item.question}</span>
-                  <span className="chip-sm chip-sm--neutral">{item.focusArea}</span>
-                  {item.practiceFirst ? <span className="chip-sm chip-sm--warning">Gap</span> : null}
+                  <span className="issue-card__title">{item.question}</span>
+                  <span className="chip chip--neutral" style={{ fontSize: '0.6875rem' }}>{item.focusArea}</span>
+                  {item.practiceFirst ? <span className="chip chip--warning" style={{ fontSize: '0.6875rem' }}>Gap</span> : null}
                 </span>
               </AccordionTrigger>
               <AccordionContent>
-                <div style={{ paddingTop: '0.25rem' }}>
+                <div className="issue-card__body">
                   <p className="rs__meta" style={{ marginBottom: '0.375rem' }}><strong>Why:</strong> {item.whyAsked}</p>
                   <p className="rs__body">{item.answer}</p>
                   {item.keyPoints.length > 0 ? (
-                    <div style={{ marginTop: '0.375rem' }}>
+                    <div className="issue-card__fix" style={{ marginTop: '0.375rem' }}>
                       {item.keyPoints.map((p) => (
-                        <div key={p} className="rs__meta" style={{ display: 'flex', gap: '0.25rem' }}>
-                          <span style={{ color: 'var(--success)' }}>&#10003;</span> {p}
+                        <div key={p} className="strength-item" style={{ fontSize: '0.8125rem' }}>
+                          <span className="strength-item__icon">&#10003;</span> {p}
                         </div>
                       ))}
                     </div>
@@ -944,12 +1073,14 @@ function InterviewView({ payload }: { payload: AnyObject }) {
       {/* Interviewer notes */}
       {result.interviewerNotes.length > 0 ? (
         <div className="rs">
-          <h3 className="rs__sub">Interviewer notes</h3>
-          {result.interviewerNotes.map((n) => (
-            <div key={n} className="rs__meta" style={{ display: 'flex', gap: '0.25rem', marginBottom: '0.125rem' }}>
-              <span style={{ color: 'var(--success)' }}>&#10003;</span> {n}
-            </div>
-          ))}
+          <div className="section-card section-card--accent-left">
+            <h3 className="result-label">Interviewer notes</h3>
+            {result.interviewerNotes.map((n) => (
+              <div key={n} className="strength-item" style={{ fontSize: '0.8125rem', marginBottom: '0.125rem' }}>
+                <span className="strength-item__icon">&#10003;</span> {n}
+              </div>
+            ))}
+          </div>
         </div>
       ) : null}
     </>
@@ -1073,19 +1204,19 @@ function CareerView({ payload }: { payload: AnyObject }) {
       {/* Recommendation */}
       <div className="rs rs--elevated">
         <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: '0.375rem' }}>
-          <h3 className="rs__heading" style={{ margin: 0 }}>{result.recommendedDirection.roleTitle}</h3>
-          <span style={{ fontSize: '1.5rem', fontWeight: 800, letterSpacing: '-0.02em', color: scoreColor(result.recommendedDirection.fitScore) }}>{result.recommendedDirection.fitScore}%</span>
+          <h3 className="result-heading" style={{ margin: 0 }}>{result.recommendedDirection.roleTitle}</h3>
+          <span className="result-display" style={{ fontSize: '1.5rem', color: scoreColor(result.recommendedDirection.fitScore) }}>{result.recommendedDirection.fitScore}%</span>
         </div>
         <p className="rs__body" style={{ marginBottom: '0.5rem' }}>{result.recommendedDirection.whyNow}</p>
-        <div className="chip-flow">
-          <span className="chip-sm chip-sm--neutral">{result.recommendedDirection.transitionTimeline}</span>
-          <span className="chip-sm chip-sm--neutral">{result.recommendedDirection.confidence} confidence</span>
+        <div className="chip-wrap">
+          <span className="chip chip--neutral">{result.recommendedDirection.transitionTimeline}</span>
+          <span className="chip chip--neutral">{result.recommendedDirection.confidence} confidence</span>
         </div>
       </div>
 
       {/* Path comparison cards */}
       <div className="rs">
-        <h3 className="rs__heading">Path comparison</h3>
+        <h3 className="result-heading">Path comparison</h3>
         <div className="path-grid">
           {result.paths.map((p) => {
             const isBest = p.fitScore === Math.max(...result.paths.map(pp => pp.fitScore))
@@ -1097,8 +1228,9 @@ function CareerView({ payload }: { payload: AnyObject }) {
                   <span className="path-card__score" style={{ color: scoreColor(p.fitScore) }}>{p.fitScore}%</span>
                 </div>
                 <div className="path-card__meta">
-                  <span className="chip-sm chip-sm--neutral">{p.transitionTimeline}</span>
-                  <span className="chip-sm" style={{
+                  <span className="chip chip--neutral" style={{ fontSize: '0.6875rem' }}>{p.transitionTimeline}</span>
+                  <span className="chip" style={{
+                    fontSize: '0.6875rem',
                     background: `color-mix(in srgb, ${riskTone(p.riskLevel)} 10%, transparent)`,
                     color: riskTone(p.riskLevel),
                   }}>{p.riskLevel} risk</span>
@@ -1136,15 +1268,15 @@ function CareerView({ payload }: { payload: AnyObject }) {
       {/* Skills */}
       <div className="rs rs--2col">
         <div>
-          <h3 className="rs__sub" style={{ color: 'var(--success)' }}>Current skills</h3>
-          <div className="chip-flow">
-            {result.currentSkills.map((s) => <span key={s} className="chip-sm chip-sm--positive">{s}</span>)}
+          <h3 className="result-label" style={{ color: 'var(--success)' }}>Current skills</h3>
+          <div className="chip-wrap">
+            {result.currentSkills.map((s) => <span key={s} className="chip chip--positive"><span className="chip__dot" /> {s}</span>)}
           </div>
         </div>
         <div>
-          <h3 className="rs__sub" style={{ color: 'var(--warning)' }}>Target skills</h3>
-          <div className="chip-flow">
-            {result.targetSkills.map((s) => <span key={s} className="chip-sm chip-sm--warning">{s}</span>)}
+          <h3 className="result-label" style={{ color: 'var(--warning)' }}>Target skills</h3>
+          <div className="chip-wrap">
+            {result.targetSkills.map((s) => <span key={s} className="chip chip--outline-warning"><span className="chip__dot" /> {s}</span>)}
           </div>
         </div>
       </div>
@@ -1152,19 +1284,25 @@ function CareerView({ payload }: { payload: AnyObject }) {
       {/* Skill gaps */}
       {result.skillGaps.length > 0 ? (
         <div className="rs">
-          <h3 className="rs__heading">Skill gaps ({result.skillGaps.length})</h3>
-          <Accordion type="single" collapsible>
+          <h3 className="result-heading">Skill gaps ({result.skillGaps.length})</h3>
+          <Accordion type="single" collapsible className="issue-card-list">
             {result.skillGaps.map((g) => (
-              <AccordionItem key={g.skill} value={g.skill}>
-                <AccordionTrigger>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', textAlign: 'left', fontSize: '0.8125rem' }}>
-                    <span style={{ width: 5, height: 5, borderRadius: '50%', background: priorityTone(g.urgency), flexShrink: 0 }} />
-                    <span style={{ fontWeight: 600 }}>{g.skill}</span>
+              <AccordionItem key={g.skill} value={g.skill} className="issue-card">
+                <AccordionTrigger className="issue-card__trigger">
+                  <span className="issue-card__header">
+                    <span className="issue-card__severity" style={{ background: priorityTone(g.urgency) }} />
+                    <span className="issue-card__title">{g.skill}</span>
                   </span>
                 </AccordionTrigger>
                 <AccordionContent>
-                  <p className="rs__body" style={{ paddingTop: '0.125rem' }}>{g.whyItMatters}</p>
-                  {g.howToBuild ? <p className="rs__meta" style={{ marginTop: '0.125rem' }}><strong>How:</strong> {g.howToBuild}</p> : null}
+                  <div className="issue-card__body">
+                    <p className="rs__body">{g.whyItMatters}</p>
+                    {g.howToBuild ? (
+                      <div className="issue-card__fix">
+                        <strong>How:</strong> {g.howToBuild}
+                      </div>
+                    ) : null}
+                  </div>
                 </AccordionContent>
               </AccordionItem>
             ))}
@@ -1175,7 +1313,7 @@ function CareerView({ payload }: { payload: AnyObject }) {
       {/* Roadmap (vertical timeline) */}
       {result.nextSteps.length > 0 ? (
         <div className="rs">
-          <h3 className="rs__heading">Roadmap</h3>
+          <h3 className="result-heading">Roadmap</h3>
           <div className="roadmap-v">
             {result.nextSteps.map((step, i) => (
               <div key={`${step.timeframe}-${i}`} className="roadmap-v__step">
@@ -1203,12 +1341,14 @@ function PortfolioView({ payload }: { payload: AnyObject }) {
     <>
       {/* Strategy + Roadmap */}
       <div className="rs">
-        <h3 className="rs__heading">Strategy</h3>
-        <p className="rs__body" style={{ marginBottom: '0.25rem' }}><strong>{result.strategy.headline}</strong></p>
-        <p className="rs__meta">{result.strategy.focus}</p>
+        <div className="section-card section-card--accent-left">
+          <h3 className="result-heading" style={{ margin: '0 0 0.25rem' }}>Strategy</h3>
+          <p className="rs__body" style={{ marginBottom: '0.25rem' }}><strong>{result.strategy.headline}</strong></p>
+          <p className="rs__meta">{result.strategy.focus}</p>
+        </div>
         {result.sequencePlan.length > 0 ? (
           <div style={{ marginTop: '0.75rem' }}>
-            <h3 className="rs__sub">Project roadmap</h3>
+            <h3 className="result-label">Project roadmap</h3>
             <div className="roadmap-v">
               {result.sequencePlan.map((step) => {
                 const project = projectsByTitle[step.projectTitle.toLowerCase()]
@@ -1232,33 +1372,34 @@ function PortfolioView({ payload }: { payload: AnyObject }) {
 
       {/* Projects */}
       <div className="rs">
-        <h3 className="rs__heading">Projects ({result.projects.length})</h3>
-        <Accordion type="single" collapsible>
+        <h3 className="result-heading">Projects ({result.projects.length})</h3>
+        <Accordion type="single" collapsible className="issue-card-list">
           {result.projects.map((project) => (
-            <AccordionItem key={project.projectTitle} value={project.projectTitle}>
-              <AccordionTrigger>
-                <span style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', textAlign: 'left', fontSize: '0.8125rem' }}>
-                  <span style={{ fontWeight: 600 }}>{project.projectTitle}</span>
-                  <span className="chip-sm" style={{
+            <AccordionItem key={project.projectTitle} value={project.projectTitle} className="issue-card">
+              <AccordionTrigger className="issue-card__trigger">
+                <span className="issue-card__header">
+                  <span className="issue-card__title">{project.projectTitle}</span>
+                  <span className="chip" style={{
+                    fontSize: '0.6875rem',
                     background: `color-mix(in srgb, ${complexityTone(project.complexity)} 10%, transparent)`,
                     color: complexityTone(project.complexity),
                   }}>{project.complexity}</span>
-                  <span className="chip-sm chip-sm--neutral">{project.estimatedTimeline}</span>
+                  <span className="chip chip--neutral" style={{ fontSize: '0.6875rem' }}>{project.estimatedTimeline}</span>
                 </span>
               </AccordionTrigger>
               <AccordionContent>
-                <div style={{ paddingTop: '0.25rem' }}>
+                <div className="issue-card__body">
                   <p className="rs__body">{project.description}</p>
                   <p className="rs__meta" style={{ marginTop: '0.25rem' }}><strong>Why:</strong> {project.whyThisProject}</p>
-                  <div className="chip-flow" style={{ marginTop: '0.375rem' }}>
-                    {project.skills.slice(0, 4).map((s) => <span key={s} className="chip-sm chip-sm--positive">{s}</span>)}
-                    {project.skills.length > 4 ? <span className="chip-sm chip-sm--neutral">+{project.skills.length - 4}</span> : null}
+                  <div className="chip-wrap" style={{ marginTop: '0.375rem' }}>
+                    {project.skills.slice(0, 4).map((s) => <span key={s} className="chip chip--positive" style={{ fontSize: '0.6875rem' }}>{s}</span>)}
+                    {project.skills.length > 4 ? <span className="chip chip--neutral" style={{ fontSize: '0.6875rem' }}>+{project.skills.length - 4}</span> : null}
                   </div>
                   {project.deliverables.length > 0 ? (
-                    <div style={{ marginTop: '0.375rem' }}>
+                    <div className="issue-card__fix" style={{ marginTop: '0.375rem' }}>
                       {project.deliverables.map((d) => (
-                        <div key={d} className="rs__meta" style={{ display: 'flex', gap: '0.25rem' }}>
-                          <span style={{ color: 'var(--success)' }}>&#10003;</span> {d}
+                        <div key={d} className="strength-item" style={{ fontSize: '0.8125rem' }}>
+                          <span className="strength-item__icon">&#10003;</span> {d}
                         </div>
                       ))}
                     </div>
@@ -1273,12 +1414,21 @@ function PortfolioView({ payload }: { payload: AnyObject }) {
       {/* Presentation tips */}
       {result.presentationTips.length > 0 ? (
         <div className="rs">
-          <h3 className="rs__sub">Presentation tips</h3>
-          {result.presentationTips.map((tip, i) => (
-            <div key={tip} className="rs__meta" style={{ marginBottom: '0.125rem' }}>
-              <strong>{i + 1}.</strong> {tip}
-            </div>
-          ))}
+          <h3 className="result-label">Presentation tips</h3>
+          <div className="section-card-grid stagger-entrance">
+            {result.presentationTips.map((tip, i) => (
+              <div
+                key={tip}
+                className="step-card"
+                style={{ '--step-color': 'var(--accent)' } as React.CSSProperties}
+              >
+                <div className="step-card__num">{i + 1}</div>
+                <div className="step-card__body">
+                  <div className="step-card__desc">{tip}</div>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       ) : null}
     </>
