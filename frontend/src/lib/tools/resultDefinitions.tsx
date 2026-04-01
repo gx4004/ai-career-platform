@@ -3,9 +3,6 @@ import type { ReactNode } from 'react'
 import {
   Copy,
   Download,
-  FileText,
-  Hash,
-  Wrench,
 } from 'lucide-react'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '#/components/ui/accordion'
 import { Button } from '#/components/ui/button'
@@ -602,32 +599,6 @@ function ScoreCircleSvg({
 
 function ResumeResultView({ payload }: { payload: AnyObject }) {
   const result = normalizeResumePayload(payload)
-  const evidenceTiles = [
-    {
-      key: 'sections',
-      label: 'Sections',
-      value: result.evidence.detectedSections.length,
-      icon: FileText,
-      tone: 'sections',
-      delay: 0.5,
-    },
-    {
-      key: 'skills',
-      label: 'Skills',
-      value: result.evidence.detectedSkills.length,
-      icon: Wrench,
-      tone: 'skills',
-      delay: 0.6,
-    },
-    {
-      key: 'quantified',
-      label: 'Quantified',
-      value: result.evidence.quantifiedBullets,
-      icon: Hash,
-      tone: 'quantified',
-      delay: 0.7,
-    },
-  ] as const
 
   return (
     <>
@@ -700,38 +671,53 @@ function ResumeResultView({ payload }: { payload: AnyObject }) {
       </div>
       </ScrollReveal>
 
-      {/* Keywords + Evidence */}
+      {/* Keywords (only when job comparison data exists) */}
+      {(result.evidence.matchedKeywords.length > 0 || result.evidence.missingKeywords.length > 0) ? (
+        <ScrollReveal>
+        <div className="rs">
+          <h3 className="result-heading">Keywords</h3>
+          <div className="chip-wrap">
+            {result.evidence.matchedKeywords.map((k) => (
+              <span key={k} className="chip chip--positive"><span className="chip__dot" /> {k}</span>
+            ))}
+            {result.evidence.missingKeywords.map((k) => (
+              <span key={k} className="chip chip--outline-warning"><span className="chip__dot" /> {k}</span>
+            ))}
+          </div>
+        </div>
+        </ScrollReveal>
+      ) : null}
+
+      {/* What we found in your resume */}
       <ScrollReveal>
-      <div className="rs rs--2col">
-        {(result.evidence.matchedKeywords.length > 0 || result.evidence.missingKeywords.length > 0) ? (
-          <div>
-            <h3 className="result-label">Keywords</h3>
-            <div className="chip-wrap">
-              {result.evidence.matchedKeywords.map((k) => (
-                <span key={k} className="chip chip--positive"><span className="chip__dot" /> {k}</span>
-              ))}
-              {result.evidence.missingKeywords.map((k) => (
-                <span key={k} className="chip chip--outline-warning"><span className="chip__dot" /> {k}</span>
-              ))}
+      <div className="rs">
+        <h3 className="result-heading">What we found in your resume</h3>
+        <div className="section-card-grid section-card-grid--2">
+          {result.evidence.detectedSections.length > 0 ? (
+            <div className="section-card">
+              <h4 className="result-label">Detected sections</h4>
+              <div className="chip-wrap">
+                {result.evidence.detectedSections.map((s) => (
+                  <span key={s} className="chip chip--neutral">{s}</span>
+                ))}
+              </div>
             </div>
-          </div>
-        ) : null}
-        <div>
-          <h3 className="result-label">Evidence</h3>
-          <div className="section-card-grid section-card-grid--3">
-            {evidenceTiles.map((tile) => {
-              const Icon = tile.icon
-              return (
-                <div key={tile.key} className={`stat-tile stat-tile--${tile.tone}`}>
-                  <span className="stat-tile__icon" aria-hidden="true">
-                    <Icon size={18} strokeWidth={2} />
-                  </span>
-                  <AnimatedNumber value={tile.value} className="stat-tile__value" delay={tile.delay} />
-                  <span className="stat-tile__label">{tile.label}</span>
-                </div>
-              )
-            })}
-          </div>
+          ) : null}
+          {result.evidence.detectedSkills.length > 0 ? (
+            <div className="section-card">
+              <h4 className="result-label">Skills identified</h4>
+              <div className="chip-wrap">
+                {result.evidence.detectedSkills.map((s) => (
+                  <span key={s} className="chip chip--positive">{s}</span>
+                ))}
+              </div>
+              {result.evidence.quantifiedBullets > 0 ? (
+                <p className="rs__meta" style={{ marginTop: '0.625rem' }}>
+                  {result.evidence.quantifiedBullets} quantified achievement{result.evidence.quantifiedBullets !== 1 ? 's' : ''} found
+                </p>
+              ) : null}
+            </div>
+          ) : null}
         </div>
       </div>
       </ScrollReveal>
