@@ -8,6 +8,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
+# bust cache v2 — added psycopg2-binary
 RUN pip install --no-cache-dir -r requirements.txt \
     && playwright install --with-deps chromium
 
