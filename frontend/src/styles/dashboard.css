@@ -1767,3 +1767,102 @@ body.page-tone-dashboard .app-main {
     scroll-snap-align: start;
   }
 }
+
+/* ── Dashboard tool cards (tool grid) ── */
+.dashboard-tool-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 1rem 1.25rem;
+  background: #ffffff;
+  border: 1px solid color-mix(in srgb, var(--border-soft) 70%, white 30%);
+  border-radius: var(--radius-xl);
+  box-shadow:
+    0 1px 3px rgba(19, 44, 72, 0.04),
+    0 6px 16px rgba(19, 44, 72, 0.06);
+  text-decoration: none;
+  color: inherit;
+  transition:
+    transform var(--transition-fast),
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast);
+}
+
+.dashboard-tool-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--border-strong);
+  box-shadow:
+    0 1px 3px rgba(19, 44, 72, 0.04),
+    0 12px 28px rgba(19, 44, 72, 0.1);
+}
+
+.dashboard-tool-card:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--accent), 0 0 0 4px color-mix(in srgb, var(--accent) 15%, transparent);
+}
+
+.dashboard-tool-card-left {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.dashboard-tool-card-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--tool-accent, var(--accent)) 10%, transparent);
+  color: var(--tool-accent, var(--accent));
+  flex-shrink: 0;
+}
+
+.dashboard-tool-card-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  min-width: 0;
+}
+
+.dashboard-tool-card-name {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--text-strong);
+  letter-spacing: -0.01em;
+}
+
+.dashboard-tool-card-summary {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dashboard-tool-card-right {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.dashboard-tool-card-thumbnail {
+  width: 3rem;
+  height: 3rem;
+  border-radius: var(--radius-md);
+  object-fit: cover;
+}
+
+.dashboard-tool-card-arrow {
+  color: var(--text-muted);
+  transition: transform var(--transition-fast);
+}
+
+.dashboard-tool-card:hover .dashboard-tool-card-arrow {
+  transform: translateX(2px);
+  color: var(--text-body);
+}
