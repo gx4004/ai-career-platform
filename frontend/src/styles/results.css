@@ -730,6 +730,36 @@
   line-height: 1.35;
 }
 
+/* ── Cover Letter layout ── */
+.cover-letter-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.cover-letter-header .result-heading {
+  margin: 0;
+}
+
+.cover-letter-actions {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.cover-letter-notes {
+  margin-top: 0.75rem;
+}
+
+.cover-letter-note {
+  margin-bottom: 0.25rem;
+}
+
+.cover-letter-note__tag {
+  margin-right: 0.25rem;
+  font-size: 0.6875rem;
+}
+
 /* ── Document preview (Cover Letter) ── */
 .document-preview {
   background: #ffffff;
