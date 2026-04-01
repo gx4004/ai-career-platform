@@ -36,12 +36,12 @@ def _ensure_vertex_init() -> None:
 # ---------------------------------------------------------------------------
 
 _LLM_TIMEOUT_SECONDS = 120
-_MAX_RETRIES = 3
-_RETRY_BASE_DELAY = 1.0
+_MAX_RETRIES = 4
+_RETRY_BASE_DELAY = 5.0
 
 
 async def _with_retry(coro_factory, max_retries: int = _MAX_RETRIES, base_delay: float = _RETRY_BASE_DELAY):
-    """Retry with exponential backoff: 1s -> 2s -> 4s + jitter."""
+    """Retry with exponential backoff: 5s -> 10s -> 20s -> 40s + jitter."""
     last_exc: Exception | None = None
     for attempt in range(max_retries + 1):
         try:
@@ -49,7 +49,7 @@ async def _with_retry(coro_factory, max_retries: int = _MAX_RETRIES, base_delay:
         except (TimeoutError, RuntimeError) as exc:
             last_exc = exc
             if attempt < max_retries:
-                delay = base_delay * (2 ** attempt) + random.uniform(0, 0.5)
+                delay = base_delay * (2 ** attempt) + random.uniform(0, 2.0)
                 logger.warning(
                     "LLM retry %d/%d after %.1fs: %s", attempt + 1, max_retries, delay, exc
                 )
