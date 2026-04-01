@@ -900,9 +900,9 @@ function CoverLetterView({ payload }: { payload: AnyObject }) {
     <div className="rs rs--cover">
       {/* Left: Letter preview */}
       <div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-          <h3 className="result-heading" style={{ margin: 0 }}>Letter preview</h3>
-          <div style={{ display: 'flex', gap: '0.25rem' }}>
+        <div className="cover-letter-header">
+          <h3 className="result-heading">Letter preview</h3>
+          <div className="cover-letter-actions">
             <Button variant="outline" size="sm" onClick={handleCopy}><Copy size={13} /> Copy</Button>
             <Button variant="outline" size="sm" onClick={handleDownload}><Download size={13} /></Button>
           </div>
@@ -931,11 +931,11 @@ function CoverLetterView({ payload }: { payload: AnyObject }) {
         </div>
 
         {result.customizationNotes.length > 0 ? (
-          <div style={{ marginTop: '0.75rem' }}>
+          <div className="cover-letter-notes">
             <h3 className="result-label">Customization notes</h3>
             {result.customizationNotes.map((n, i) => (
-              <p key={`${n.note}-${i}`} className="rs__meta" style={{ marginBottom: '0.25rem' }}>
-                <span className="chip chip--neutral" style={{ marginRight: '0.25rem', fontSize: '0.6875rem' }}>{n.category}</span>
+              <p key={`${n.note}-${i}`} className="rs__meta cover-letter-note">
+                <span className="chip chip--neutral cover-letter-note__tag">{n.category}</span>
                 {n.note}
               </p>
             ))}
