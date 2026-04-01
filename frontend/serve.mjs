@@ -1,5 +1,5 @@
 import { createServer } from 'node:http'
-import { readFileSync, existsSync } from 'node:fs'
+import { readFileSync, existsSync, readdirSync } from 'node:fs'
 import { join, extname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -45,6 +45,20 @@ const httpServer = createServer(async (req, res) => {
       })
       res.end(data)
       return
+    } catch {}
+  }
+
+  // Fallback for mismatched CSS hashes (SSR vs client build)
+  if (url.pathname.match(/\/assets\/styles-[^.]+\.css$/) && !existsSync(filePath)) {
+    try {
+      const assetsDir = join(clientDir, 'assets')
+      const cssFile = readdirSync(assetsDir).find(f => f.startsWith('styles-') && f.endsWith('.css'))
+      if (cssFile) {
+        const data = readFileSync(join(assetsDir, cssFile))
+        res.writeHead(200, { 'Content-Type': 'text/css', 'Cache-Control': 'public, max-age=3600' })
+        res.end(data)
+        return
+      }
     } catch {}
   }
 
