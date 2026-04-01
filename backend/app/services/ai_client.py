@@ -218,8 +218,8 @@ async def _call_google_genai(system_prompt: str, user_prompt: str, model_name: s
             f"AI request timed out after {_LLM_TIMEOUT_SECONDS}s. Please try again."
         )
     except Exception as exc:
-        logger.error("Google AI call failed: %s", exc)
-        raise RuntimeError("AI service temporarily unavailable. Please try again.")
+        logger.error("Google AI call failed: %s: %s", type(exc).__name__, exc)
+        raise RuntimeError(f"AI service error: {type(exc).__name__}: {exc}")
 
     content = response.text
     return _safe_parse_json(content, "google")
