@@ -24,7 +24,6 @@ import { getToolByHistoryName, tools } from '#/lib/tools/registry'
 import type { ToolId } from '#/lib/tools/registry'
 import { toolAccentStyle } from '#/lib/tools/styleUtils'
 import { trackTelemetry } from '#/lib/telemetry/client'
-import { AdGatedLock } from '#/components/tooling/AdGatedLock'
 
 function downloadTextFile(filename: string, content: string, mimeType = 'text/plain;charset=utf-8') {
   const blob = new Blob([content], { type: mimeType })
@@ -377,11 +376,9 @@ export function ToolResultScreen({
         ) : null}
 
         {/* ── Content ── */}
-        <AdGatedLock toolId={resolvedTool.id}>
-          <div className="result-content">
-            {definition.render(payload, item, resolvedTool)}
-          </div>
-        </AdGatedLock>
+        <div className="result-content">
+          {definition.render(payload, item, resolvedTool)}
+        </div>
 
         {/* ── Sticky CTA ── */}
         {primaryNextAction ? (

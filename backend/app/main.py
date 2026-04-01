@@ -65,6 +65,8 @@ app.add_middleware(SessionMiddleware, secret_key=settings.SECRET_KEY)
 
 # --- CORS ---
 _origins = [o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()]
+if settings.FRONTEND_URL and settings.FRONTEND_URL not in _origins:
+    _origins.append(settings.FRONTEND_URL)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_origins,

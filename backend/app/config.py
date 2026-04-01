@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     VERTEX_LOCATION: str = "us-central1"
 
     CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000"
+    FRONTEND_URL: str = "http://localhost:3000"
 
     ENVIRONMENT: str = "development"
 
@@ -32,7 +33,7 @@ class Settings(BaseSettings):
 
     GOOGLE_CLIENT_ID: str = ""
     GOOGLE_CLIENT_SECRET: str = ""
-    GOOGLE_REDIRECT_URI: str = "http://localhost:5173/api/v1/auth/google/callback"
+    GOOGLE_REDIRECT_URI: str = ""
 
     RESEND_API_KEY: str = ""
     PASSWORD_RESET_FROM_EMAIL: str = "noreply@careerworkbench.com"

@@ -155,7 +155,7 @@ async def request_password_reset(request: Request, body: PasswordResetRequest, d
     user = db.query(User).filter(User.email == body.email).first()
     if user:
         token = create_password_reset_token(user.email)
-        reset_url = f"{request.headers.get('origin', 'http://localhost:5173')}/reset-password?token={token}"
+        reset_url = f"{request.headers.get('origin', settings.FRONTEND_URL or 'http://localhost:3000')}/reset-password?token={token}"
         await send_password_reset_email(user.email, reset_url)
     return {"message": "If an account with this email exists, a reset link has been sent."}
 
