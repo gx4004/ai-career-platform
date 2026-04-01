@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { Link } from '@tanstack/react-router'
-import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
+import { motion, useReducedMotion } from 'framer-motion'
 import { cn } from '#/lib/utils'
 
 export interface Feature {
@@ -152,41 +152,41 @@ export function FeatureSteps({
           </div>
 
           <div
-            className={cn("img-premium order-1 relative self-center aspect-[3/2] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(241,247,253,0.98))] md:order-2", imageHeight)}
+            className={cn("img-premium order-1 relative self-center overflow-hidden aspect-[3/2] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(241,247,253,0.98))] md:order-2", imageHeight)}
           >
-            <AnimatePresence mode="wait">
-              {features.map(
-                (feature, index) =>
-                  index === currentFeature && (
-                    <motion.div
-                      key={feature.step}
-                      className="absolute inset-0 flex items-center justify-center"
-                      initial={prefersReducedMotion ? false : { opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={prefersReducedMotion ? undefined : { opacity: 0 }}
-                      transition={{ duration: prefersReducedMotion ? 0 : 0.2, ease: [0.16, 1, 0.3, 1] }}
-                    >
-                      {imageLink ? (
-                        <Link to={imageLink} className="block h-full w-full">
-                          <img
-                            src={feature.image}
-                            alt={`${feature.title || feature.step} preview`}
-                            className="h-full w-full cursor-pointer object-cover transition-transform"
-                            loading="lazy"
-                          />
-                        </Link>
-                      ) : (
-                        <img
-                          src={feature.image}
-                          alt={`${feature.title || feature.step} preview`}
-                          className="h-full w-full object-cover transition-transform"
-                          loading="lazy"
-                        />
-                      )}
-                    </motion.div>
-                  ),
-              )}
-            </AnimatePresence>
+            {features.map((feature, index) => {
+              const isActive = index === currentFeature
+              return (
+                <div
+                  key={feature.step}
+                  className="absolute inset-0 flex items-center justify-center"
+                  style={{
+                    opacity: isActive ? 1 : 0,
+                    transition: prefersReducedMotion ? 'none' : 'opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+                    pointerEvents: isActive ? 'auto' : 'none',
+                  }}
+                  aria-hidden={!isActive}
+                >
+                  {imageLink ? (
+                    <Link to={imageLink} className="block h-full w-full" tabIndex={isActive ? 0 : -1}>
+                      <img
+                        src={feature.image}
+                        alt={`${feature.title || feature.step} preview`}
+                        className="h-full w-full cursor-pointer object-cover"
+                        loading="eager"
+                      />
+                    </Link>
+                  ) : (
+                    <img
+                      src={feature.image}
+                      alt={`${feature.title || feature.step} preview`}
+                      className="h-full w-full object-cover"
+                      loading="eager"
+                    />
+                  )}
+                </div>
+              )
+            })}
           </div>
         </div>
       </div>

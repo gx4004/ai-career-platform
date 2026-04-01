@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router'
-import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
+import { useReducedMotion } from 'framer-motion'
 import { ScrollStagger, ScrollStaggerItem } from '#/components/ui/motion'
 import { useCarousel } from '#/hooks/useCarousel'
 import { toolList, type ToolId } from '#/lib/tools/registry'
@@ -69,7 +69,6 @@ export function LandingToolGridBase({
   })
   const activeTool = toolList[carouselIndex] || toolList[0]
   const activeIndex = carouselIndex + 1
-  const previewImage = previewImages[activeTool.id]
 
   return (
     <section className="landing-section landing-section-tools" id="landing-tools">
@@ -88,48 +87,54 @@ export function LandingToolGridBase({
             className="landing-preview-panel glass-elevated"
             style={toolAccentStyle(activeTool.accent)}
           >
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={activeTool.id}
-                initial={prefersReducedMotion ? false : { opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={prefersReducedMotion ? undefined : { opacity: 0, y: -6 }}
-                transition={{ duration: prefersReducedMotion ? 0 : 0.18 }}
-                className="landing-preview-shell"
-              >
-                <div className="landing-preview-header">
-                  <div className="landing-preview-header-top">
-                    <h3 className="display-lg" style={{ margin: 0 }}>{activeTool.label}</h3>
-                    <span className="landing-preview-pill">{activeIndex} of 6</span>
+            <div className="landing-preview-shell">
+              <div className="landing-preview-header">
+                <div className="landing-preview-header-top">
+                  <h3 className="display-lg" style={{ margin: 0 }}>{activeTool.label}</h3>
+                  <span className="landing-preview-pill">{activeIndex} of 6</span>
+                </div>
+              </div>
+
+              <div className="landing-preview-demo-window glass">
+                <div className="landing-preview-demo-bar">
+                  <div className="landing-preview-demo-dots" aria-hidden="true">
+                    <span />
+                    <span />
+                    <span />
                   </div>
+                  <span className="landing-preview-demo-label">
+                    {baseToolCopy[activeTool.id].entryPointLabel}
+                  </span>
                 </div>
 
-                <div className="landing-preview-demo-window glass">
-                  <div className="landing-preview-demo-bar">
-                    <div className="landing-preview-demo-dots" aria-hidden="true">
-                      <span />
-                      <span />
-                      <span />
-                    </div>
-                    <span className="landing-preview-demo-label">
-                      {baseToolCopy[activeTool.id].entryPointLabel}
-                    </span>
+                <Link to="/dashboard" className="landing-preview-demo-frame block cursor-pointer">
+                  <div className="relative w-full" style={{ minHeight: 'clamp(13.75rem, 18.8vw, 15.75rem)' }}>
+                    {toolList.map((tool) => {
+                      const isActive = tool.id === activeTool.id
+                      return (
+                        <img
+                          key={tool.id}
+                          src={previewImages[tool.id]}
+                          alt={`${tool.label} workspace preview`}
+                          className="landing-preview-demo-image"
+                          loading="eager"
+                          decoding="async"
+                          draggable={false}
+                          style={{
+                            position: tool.id === toolList[0].id ? 'relative' : 'absolute',
+                            top: 0,
+                            left: 0,
+                            opacity: isActive ? 1 : 0,
+                            transition: prefersReducedMotion ? 'none' : 'opacity 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
+                          }}
+                          aria-hidden={!isActive}
+                        />
+                      )
+                    })}
                   </div>
-
-                  <Link to="/dashboard" className="landing-preview-demo-frame block cursor-pointer">
-                    <img
-                      src={previewImage}
-                      alt={`${activeTool.label} workspace preview`}
-                      className="landing-preview-demo-image"
-                      loading="eager"
-                      decoding="async"
-                      draggable={false}
-                    />
-                  </Link>
-                </div>
-
-              </motion.div>
-            </AnimatePresence>
+                </Link>
+              </div>
+            </div>
           </div>
 
           <ScrollStagger className="landing-tool-cards" stagger={0.08}>
