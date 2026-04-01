@@ -43,34 +43,27 @@ export function AdGatedLock({
   }
 
   return (
-    <div className="ad-gate">
-      <div className="ad-gate-locked-content">
-        {children}
-      </div>
-      <div className="ad-gate-overlay">
-        <div className="ad-gate-prompt">
-          {adBlocked ? (
-            <AdCountdownTimer
-              durationSeconds={30}
-              onComplete={handleCountdownComplete}
-            />
-          ) : watching ? (
-            <>
-              <Unlock size={24} className="ad-gate-spinner" />
-              <p>Loading content...</p>
-            </>
-          ) : (
-            <>
-              <Lock size={24} />
-              <h3>Detailed results</h3>
-              <p>Watch a short ad to unlock the full analysis, evidence, and export options.</p>
-              <Button onClick={handleWatchAd} className="ad-gate-btn">
-                Unlock full results
-              </Button>
-            </>
-          )}
-        </div>
-      </div>
+    <div className="ad-gate-card">
+      {adBlocked ? (
+        <AdCountdownTimer
+          durationSeconds={30}
+          onComplete={handleCountdownComplete}
+        />
+      ) : watching ? (
+        <>
+          <Unlock size={20} className="ad-gate-spinner" />
+          <p>Loading content...</p>
+        </>
+      ) : (
+        <>
+          <Lock size={20} className="ad-gate-card__icon" />
+          <h3>Full analysis ready</h3>
+          <p>Watch a short ad to unlock detailed scores, evidence, and export options.</p>
+          <Button onClick={handleWatchAd} className="ad-gate-btn">
+            Unlock full results
+          </Button>
+        </>
+      )}
     </div>
   )
 }

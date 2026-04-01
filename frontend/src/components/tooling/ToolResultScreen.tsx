@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import { Copy, Download, FileText, RefreshCw, Star, Undo2 } from 'lucide-react'
+import { Copy, Download, FileText, RefreshCw, Star, Undo2, X } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { ScoreTooltip } from '#/components/tooling/ScoreTooltip'
 import { AppStatePanel } from '#/components/app/AppStatePanel'
@@ -52,6 +52,7 @@ export function ToolResultScreen({
   const [scoreDelta, setScoreDelta] = useState<number | null>(null)
   const [parentRunId, setParentRunId] = useState<string | null>(null)
   const [showUndo, setShowUndo] = useState(true)
+  const [bannerDismissed, setBannerDismissed] = useState(false)
   const demoItem = useMemo(() => getTransientResult(historyId), [historyId])
   const isDemoResult = Boolean(demoItem)
   const query = useQuery({
@@ -237,9 +238,7 @@ export function ToolResultScreen({
                   </span>
                 )}
               </h1>
-              <p className="result-hero__sub">
-                {item.label || 'Untitled run'} · {new Date(item.created_at).toLocaleString()}
-              </p>
+              {/* Date/label subtitle removed for cleaner hero */}
               {parentRunId && showUndo && (
                 <button
                   className="result-undo-btn"
@@ -323,46 +322,57 @@ export function ToolResultScreen({
             </div>
           </div>
           {insightStrip && insightStrip.length > 0 ? (
-            <div className="result-hero__strip" style={{ ['--cols' as string]: insightStrip.length }}>
-              {insightStrip.map((stat) => (
-                <div key={stat.label} className="result-hero__strip-item">
-                  <div className="result-hero__strip-val">{stat.value}</div>
-                  <div className="result-hero__strip-lbl">{stat.label}</div>
-                </div>
-              ))}
+            <div className="result-hero__strip">
+              {insightStrip.map((stat) => {
+                const numericValue = parseFloat(stat.value)
+                const isBar = !Number.isNaN(numericValue) && numericValue <= 100 && !/[a-zA-Z]/.test(stat.value.replace('%', ''))
+                return (
+                  <div key={stat.label} className="result-hero__strip-item">
+                    <span className="result-hero__strip-lbl">{stat.label}</span>
+                    {isBar ? (
+                      <div className="result-hero__strip-track">
+                        <div
+                          className="result-hero__strip-fill"
+                          style={{ width: `${numericValue}%`, background: stat.color || 'var(--accent)' }}
+                        />
+                      </div>
+                    ) : null}
+                    <span className="result-hero__strip-val">{stat.value}</span>
+                  </div>
+                )
+              })}
             </div>
           ) : null}
         </div>
 
-        {/* ── Guest banner ── */}
-        {guestResult ? (
+        {/* ── Guest banner (floating pill) ── */}
+        {guestResult && !bannerDismissed ? (
           <div className="result-guest-banner">
-            <span>
-              {status === 'authenticated'
-                ? 'Guest demo. Rerun while signed in to save.'
-                : 'Guest demo. Sign in to save and continue.'}
-            </span>
             {status !== 'authenticated' ? (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() =>
-                  openAuthDialog({ to: resolvedTool.route, reason: 'guest-demo-result', label: 'Sign in' })
-                }
-              >
-                Sign in
-              </Button>
+              <>
+                <span>Guest demo</span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  style={{ height: '1.5rem', fontSize: '0.6875rem', padding: '0 0.5rem', borderRadius: '9999px' }}
+                  onClick={() =>
+                    openAuthDialog({ to: resolvedTool.route, reason: 'guest-demo-result', label: 'Sign in' })
+                  }
+                >
+                  Sign in
+                </Button>
+              </>
             ) : (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => navigate({ to: resolvedTool.route })}
-              >
-                Rerun
-              </Button>
+              <span>Guest demo</span>
             )}
+            <button
+              className="result-guest-banner__dismiss"
+              onClick={() => setBannerDismissed(true)}
+              aria-label="Dismiss"
+            >
+              <X size={10} />
+            </button>
           </div>
         ) : null}
 
