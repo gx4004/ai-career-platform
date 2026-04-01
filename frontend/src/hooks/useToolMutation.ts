@@ -145,8 +145,17 @@ export function useToolMutation(tool: ToolDefinition) {
 
       return { historyId, result, saved }
     },
-    onSuccess: async ({ historyId, saved }) => {
+    onSuccess: async ({ historyId, result, saved }) => {
       if (saved) {
+        queryClient.setQueryData(['tool-run', historyId], {
+          id: historyId,
+          tool_name: tool.id,
+          label: tool.shortLabel,
+          saved: true,
+          access_mode: 'authenticated',
+          result_payload: result,
+          created_at: new Date().toISOString(),
+        })
         await queryClient.invalidateQueries({ queryKey: ['history-page'] })
         await queryClient.invalidateQueries({ queryKey: ['history-workspaces'] })
       }
