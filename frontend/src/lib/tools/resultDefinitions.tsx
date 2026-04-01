@@ -543,12 +543,19 @@ function ScoreCircleSvg({ score, size = 88 }: { score: number; size?: number }) 
   const offset = circumference - (score / 100) * circumference
   const color = scoreColor(score)
   return (
-    <div className="result-hero__score" style={{ width: size, height: size }}>
+    <div
+      className="result-hero__score"
+      style={{
+        width: size,
+        height: size,
+        '--ring-circumference': circumference,
+        '--ring-offset': offset,
+      } as React.CSSProperties}
+    >
       <svg viewBox={`0 0 ${size} ${size}`} style={{ transform: 'rotate(-90deg)', position: 'absolute', inset: 0 }}>
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth="5.5" />
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth="5.5"
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(255,255,255,0.12)" strokeWidth="5" />
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth="5"
           strokeDasharray={circumference} strokeDashoffset={offset} strokeLinecap="round"
-          style={{ transition: 'stroke-dashoffset 0.8s cubic-bezier(0.16, 1, 0.3, 1)' }}
         />
       </svg>
       <div style={{ position: 'relative', textAlign: 'center' }}>
