@@ -244,4 +244,45 @@ export function useScrollProgress(ref: RefObject<HTMLElement | null>) {
   return { scrollYProgress, useTransform }
 }
 
+export function AnimatedNumber({
+  value,
+  duration = 1.2,
+  delay = 0.3,
+  className,
+}: {
+  value: number
+  duration?: number
+  delay?: number
+  className?: string
+}) {
+  const prefersReducedMotion = useReducedMotion() ?? false
+  const [displayed, setDisplayed] = useState(prefersReducedMotion ? value : 0)
+
+  useEffect(() => {
+    if (prefersReducedMotion) {
+      setDisplayed(value)
+      return
+    }
+    const timeout = setTimeout(() => {
+      const start = performance.now()
+      let raf: number
+      const animate = (now: number) => {
+        const elapsed = (now - start) / (duration * 1000)
+        if (elapsed >= 1) {
+          setDisplayed(value)
+          return
+        }
+        const progress = 1 - Math.pow(1 - elapsed, 3)
+        setDisplayed(Math.round(progress * value))
+        raf = requestAnimationFrame(animate)
+      }
+      raf = requestAnimationFrame(animate)
+      return () => cancelAnimationFrame(raf)
+    }, delay * 1000)
+    return () => clearTimeout(timeout)
+  }, [value, duration, delay, prefersReducedMotion])
+
+  return <span className={className}>{displayed}</span>
+}
+
 export { motion, AnimatePresence, MotionConfig, useScroll, useTransform, spring, ease }

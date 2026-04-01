@@ -341,4 +341,18 @@
   .landing-ambient-gradient-shift {
     animation: none !important;
   }
+
+  /* Phase 1 premium foundation */
+  .stagger-entrance > *,
+  .section-card,
+  .chip,
+  .score-bar__fill,
+  .step-card,
+  .stat-tile,
+  .score-gauge,
+  .req-card {
+    animation-duration: 1ms !important;
+    animation-delay: 0ms !important;
+    transition-duration: 1ms !important;
+  }
 }
