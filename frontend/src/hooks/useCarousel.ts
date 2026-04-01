@@ -16,11 +16,13 @@ export function useCarousel(itemCount: number, opts?: CarouselOptions) {
 
   const goTo = useCallback(
     (index: number) => {
-      setDirection(index > activeIndex ? 1 : -1)
-      setActiveIndex(index)
+      setActiveIndex((prev) => {
+        setDirection(index > prev ? 1 : -1)
+        return index
+      })
       lastManualRef.current = Date.now()
     },
-    [activeIndex],
+    [],
   )
 
   const goNext = useCallback(() => {
