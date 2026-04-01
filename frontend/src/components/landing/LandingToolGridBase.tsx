@@ -117,7 +117,7 @@ export function LandingToolGridBase({
                           src={previewImages[tool.id]}
                           alt={`${tool.label} workspace preview`}
                           className="landing-preview-demo-image"
-                          loading="eager"
+                          loading={isActive ? 'eager' : 'lazy'}
                           decoding="async"
                           draggable={false}
                           style={{
