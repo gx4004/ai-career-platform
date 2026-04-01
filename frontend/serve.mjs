@@ -56,7 +56,13 @@ const httpServer = createServer(async (req, res) => {
     const response = await server.fetch(request)
 
     res.writeHead(response.status, Object.fromEntries(response.headers.entries()))
-    const body = await response.text()
+    let body = await response.text()
+
+    // Prevent FOUC: hide body until CSS + JS are ready
+    body = body
+      .replace('<body>', '<body style="opacity:0">')
+      .replace('</body>', '<script>requestAnimationFrame(()=>requestAnimationFrame(()=>{document.body.style.opacity="1";document.body.style.transition="opacity .2s"}))</script></body>')
+
     res.end(body)
   } catch (err) {
     console.error('SSR Error:', err)
