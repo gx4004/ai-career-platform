@@ -26,6 +26,13 @@ const { default: server } = await import('./dist/server/server.js')
 const httpServer = createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`)
 
+  // TanStack dev-only stylesheet — serve empty in production
+  if (url.pathname.startsWith('/@tanstack-start/styles.css')) {
+    res.writeHead(200, { 'Content-Type': 'text/css' })
+    res.end('')
+    return
+  }
+
   // Try to serve static files from dist/client
   const filePath = join(clientDir, url.pathname)
   if (url.pathname !== '/' && existsSync(filePath)) {
@@ -57,6 +64,9 @@ const httpServer = createServer(async (req, res) => {
 
     res.writeHead(response.status, Object.fromEntries(response.headers.entries()))
     let body = await response.text()
+
+    // Strip TanStack dev-only stylesheet links
+    body = body.replace(/<link[^>]*@tanstack-start\/styles\.css[^>]*>/g, '')
 
     // Prevent FOUC: hide body until CSS + JS are ready
     body = body
