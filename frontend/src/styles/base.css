@@ -3,13 +3,6 @@ body {
   min-height: 100%;
 }
 
-/* Prevent FOUC — hide until CSS is painted, then fade in */
-body {
-  opacity: 0;
-  animation: fouc-fade 0.4s 0.5s forwards;
-}
-@keyframes fouc-fade { to { opacity: 1; } }
-
 *,
 *::before,
 *::after {
