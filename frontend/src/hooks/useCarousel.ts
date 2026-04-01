@@ -13,13 +13,15 @@ export function useCarousel(itemCount: number, opts?: CarouselOptions) {
   const [direction, setDirection] = useState(1)
   const pausedRef = useRef(false)
   const lastManualRef = useRef(0)
+  const activeIndexRef = useRef(0)
+
+  // Keep ref in sync for direction computation outside updaters
+  useEffect(() => { activeIndexRef.current = activeIndex }, [activeIndex])
 
   const goTo = useCallback(
     (index: number) => {
-      setActiveIndex((prev) => {
-        setDirection(index > prev ? 1 : -1)
-        return index
-      })
+      setDirection(index > activeIndexRef.current ? 1 : -1)
+      setActiveIndex(index)
       lastManualRef.current = Date.now()
     },
     [],

@@ -51,10 +51,8 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  width: 2rem;
-  min-width: 44px;
-  min-height: 44px;
-  height: 1.5rem;
+  width: 2.75rem;
+  height: 2.75rem;
   padding: 0;
   border: none;
   border-radius: var(--radius-sm);

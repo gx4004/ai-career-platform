@@ -173,7 +173,7 @@ export function FeatureSteps({
                         src={feature.image}
                         alt={`${feature.title || feature.step} preview`}
                         className="h-full w-full cursor-pointer object-cover"
-                        loading="eager"
+                        loading={isActive ? 'eager' : 'lazy'}
                       />
                     </Link>
                   ) : (
@@ -181,7 +181,7 @@ export function FeatureSteps({
                       src={feature.image}
                       alt={`${feature.title || feature.step} preview`}
                       className="h-full w-full object-cover"
-                      loading="eager"
+                      loading={isActive ? 'eager' : 'lazy'}
                     />
                   )}
                 </div>
