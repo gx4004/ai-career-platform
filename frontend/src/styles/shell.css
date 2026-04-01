@@ -783,11 +783,14 @@
   display: flex;
   align-items: stretch;
   justify-content: space-around;
-  height: var(--mobile-tab-height, 56px);
+  height: calc(var(--mobile-tab-height, 56px) + env(safe-area-inset-bottom, 0px));
   border-top: 1px solid var(--nav-border);
   background: var(--nav-bg);
   padding-bottom: env(safe-area-inset-bottom, 0px);
   box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.15);
+  /* iOS Safari: prevent jump when address bar collapses */
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
 }
 
 .mobile-tab-item {
