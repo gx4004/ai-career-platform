@@ -1,3 +1,7 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
 # Career Workbench — Development Context
 
 ## What This Is
@@ -28,17 +32,22 @@ AI-powered job-search workspace. 6 tools (Resume Analyzer, Job Match, Cover Lett
 
 ## File Structure
 ```
-frontend/src/routes/       — File-based route definitions
+frontend/src/routes/        — File-based route definitions (tool_.result.$historyId.tsx pattern for result pages)
 frontend/src/pages/         — Page component implementations
 frontend/src/components/    — app/, auth/, dashboard/, tooling/, landing/, mobile/, ui/
 frontend/src/hooks/         — useSession, useBreakpoint, useResumeCarry, useCarousel, etc.
 frontend/src/lib/tools/     — Tool registry, drafts, workflow configs, exports
 frontend/src/lib/auth/      — SessionProvider, token storage, pending intent
+frontend/src/lib/api/       — client.ts (fetch wrapper), schemas.ts (Zod response schemas)
+frontend/src/lib/navigation/ — routeMeta, publicRoutes, redirect helpers
+frontend/src/lib/query/     — TanStack Query client config
 frontend/src/styles/        — CSS files (theme, shell, landing, tooling, results, responsive, etc.)
-backend/app/routers/        — Route handlers per domain
+backend/app/routers/        — Route handlers per domain (all mounted under /api/v1)
 backend/app/services/       — Business logic (LLM, parsing, scoring, scraping)
+backend/app/services/tool_pipeline.py — Shared pipeline: sanitize→cache→service→persist→respond
 backend/app/prompts/        — Prompt builders per tool
 backend/app/models/         — User, ToolRun, Workspace ORM models
+backend/app/schemas/        — Pydantic request/response schemas
 backend/app/auth/           — JWT + bcrypt + Google OAuth
 docs/spec.md                — Full spec + roadmap (reference doc)
 ```
@@ -46,20 +55,25 @@ docs/spec.md                — Full spec + roadmap (reference doc)
 ## Commands
 ```bash
 # Frontend
-cd frontend && pnpm dev          # Dev server (port 3000)
-cd frontend && pnpm test         # Vitest
-cd frontend && pnpm typecheck    # TypeScript check
-cd frontend && pnpm build        # Production build
+cd frontend && pnpm dev                   # Dev server (port 3000)
+cd frontend && pnpm test                  # Vitest (all tests)
+cd frontend && pnpm test src/lib/tools    # Vitest (single file or pattern)
+cd frontend && pnpm typecheck             # TypeScript check
+cd frontend && pnpm build                 # Production build
 
 # Backend
 cd backend && uvicorn app.main:app --reload --port 8000
-cd backend && pytest             # Tests
-cd backend && alembic upgrade head  # Run migrations
+cd backend && pytest                      # All tests
+cd backend && pytest app/path/test_foo.py # Single test file
+cd backend && alembic upgrade head        # Run migrations
 ```
 
 ## Code Conventions
 - Tool order: Resume(1) → Job Match(2) → Career Path(3) → Cover Letter(4) → Interview Q&A(5) → Portfolio(6)
+- Tool groups: `primary` (resume, job-match) | `application` (cover-letter, interview) | `planning` (career, portfolio)
 - All tool metadata lives in `frontend/src/lib/tools/registry.ts`
+- Zod schemas in `frontend/src/lib/api/schemas.ts` must mirror backend Pydantic schemas in `backend/app/schemas/`
+- Every tool router endpoint calls `run_tool_pipeline()` — don't bypass it for new tools
 - CSS architecture: no CSS modules, plain CSS files in `styles/` with BEM-ish naming
 - Hybrid theme: dark sidebar/topbar + light content area. No dark mode toggle.
 - Mobile: bottom tab bar, SwipeDeck for interview, StickyRunBar, FullScreenEditSheet

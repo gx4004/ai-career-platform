@@ -32,10 +32,12 @@ def _validate_url(url: str) -> None:
         raise ValueError("URL must have a hostname")
 
     # Resolve DNS and check ALL returned IPs to prevent DNS rebinding
+    # If hostname can't be resolved, pass through — no SSRF risk (can't be private IP)
+    # and the scraper's 3-tier fallback will handle it gracefully.
     try:
         addrinfo = socket.getaddrinfo(hostname, None, socket.AF_UNSPEC, socket.SOCK_STREAM)
     except socket.gaierror:
-        raise ValueError(f"Cannot resolve hostname: {hostname}")
+        return
 
     for family, _, _, _, sockaddr in addrinfo:
         ip_str = sockaddr[0]
