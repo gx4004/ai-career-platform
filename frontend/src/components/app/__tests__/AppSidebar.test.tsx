@@ -41,6 +41,16 @@ vi.mock('#/hooks/use-mobile', () => ({
   useIsMobile: mockUseIsMobile,
 }))
 
+vi.mock('#/hooks/useSession', () => ({
+  useSession: () => ({
+    status: 'authenticated',
+    user: { id: 'u1', email: 'test@example.com', name: 'Test User' },
+    login: vi.fn(),
+    logout: vi.fn(),
+    register: vi.fn(),
+  }),
+}))
+
 vi.mock('#/components/auth/SessionMenu', () => ({
   SessionMenu: () => <div>Session menu</div>,
 }))

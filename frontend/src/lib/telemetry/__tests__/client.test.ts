@@ -6,6 +6,12 @@ describe('telemetry client', () => {
   const sendBeaconMock = vi.fn()
 
   beforeEach(() => {
+    vi.stubGlobal('localStorage', {
+      getItem: vi.fn().mockReturnValue(null),
+      setItem: vi.fn(),
+      removeItem: vi.fn(),
+      clear: vi.fn(),
+    })
     vi.stubGlobal('fetch', fetchMock)
     Object.defineProperty(window.navigator, 'sendBeacon', {
       configurable: true,
