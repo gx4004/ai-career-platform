@@ -40,24 +40,12 @@ _MAX_RETRIES = 4
 _RETRY_BASE_DELAY = 5.0
 
 
-class _PermanentLLMError(Exception):
-    """Non-retryable LLM error (auth, config, invalid request)."""
-
-
 async def _with_retry(coro_factory, max_retries: int = _MAX_RETRIES, base_delay: float = _RETRY_BASE_DELAY):
-    """Retry with exponential backoff: 5s -> 10s -> 20s -> 40s + jitter.
-
-    Only retries TimeoutError and RuntimeError. Permanent errors
-    (_PermanentLLMError, ValueError) are raised immediately.
-    """
+    """Retry with exponential backoff: 5s -> 10s -> 20s -> 40s + jitter."""
     last_exc: Exception | None = None
     for attempt in range(max_retries + 1):
         try:
             return await coro_factory()
-        except _PermanentLLMError:
-            raise  # Auth, config, invalid request — don't retry
-        except ValueError:
-            raise  # Bad response format — don't retry
         except (TimeoutError, RuntimeError) as exc:
             last_exc = exc
             if attempt < max_retries:
@@ -96,11 +84,6 @@ async def complete_structured(
             raise ValueError(f"Unsupported LLM provider: {provider}")
 
     result = await _with_retry(_dispatch)
-
-    # Basic structural validation — catch completely malformed LLM output
-    if not isinstance(result, dict) or len(result) == 0:
-        logger.error("LLM returned non-dict or empty result  provider=%s  model=%s", provider, model)
-        raise ValueError("LLM returned invalid response structure")
 
     logger.info("LLM response provider=%s  model=%s  keys=%s", provider, model, list(result.keys()))
     return result
@@ -236,13 +219,8 @@ async def _call_google_genai(system_prompt: str, user_prompt: str, model_name: s
             f"AI request timed out after {_LLM_TIMEOUT_SECONDS}s. Please try again."
         )
     except Exception as exc:
-        exc_name = type(exc).__name__
-        logger.error("Google AI call failed: %s: %s", exc_name, exc)
-        # Permanent errors — don't retry auth/config/invalid-request
-        if any(kw in exc_name.lower() or kw in str(exc).lower()
-               for kw in ("permission", "auth", "api_key", "invalid", "not_found", "403", "401")):
-            raise _PermanentLLMError(f"AI service configuration error: {exc_name}: {exc}")
-        raise RuntimeError(f"AI service error: {exc_name}: {exc}")
+        logger.error("Google AI call failed: %s: %s", type(exc).__name__, exc)
+        raise RuntimeError(f"AI service error: {type(exc).__name__}: {exc}")
 
     content = response.text
     return _safe_parse_json(content, "google")

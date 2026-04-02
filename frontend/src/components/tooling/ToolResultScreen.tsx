@@ -25,6 +25,7 @@ import { getToolByHistoryName, tools } from '#/lib/tools/registry'
 import type { ToolId } from '#/lib/tools/registry'
 import { toolAccentStyle } from '#/lib/tools/styleUtils'
 import { trackTelemetry } from '#/lib/telemetry/client'
+import { AdGatedLock } from '#/components/tooling/AdGatedLock'
 
 function getStripGradient(value: number) {
   if (value >= 70) {
@@ -81,8 +82,6 @@ export function ToolResultScreen({
     queryKey: ['tool-run', historyId],
     queryFn: () => getHistoryItem(historyId),
     enabled: !isDemoResult,
-    staleTime: 60_000,
-    retry: false,
   })
 
   const item = demoItem || query.data
@@ -239,7 +238,7 @@ export function ToolResultScreen({
       <section className="result-shell" style={toolAccentStyle(resolvedTool.accent)}>
         {/* ── Hero ── */}
         <FadeIn delay={0.05}>
-        <div className={`result-hero${definition.heroVariant === 'dark' ? ' result-hero--dark' : ''}`}>
+        <div className="result-hero">
           <div className="result-hero__top">
             {heroMetric ? (
               <div style={{ position: 'relative' }}>
@@ -263,9 +262,7 @@ export function ToolResultScreen({
                   </span>
                 )}
               </h1>
-              {definition.heroVariant === 'dark' && typeof summary.confidence_note === 'string' && summary.confidence_note.trim() && (
-                <p className="result-hero__sub">{summary.confidence_note}</p>
-              )}
+              {/* Date/label subtitle removed for cleaner hero */}
               {parentRunId && showUndo && (
                 <button
                   className="result-undo-btn"
@@ -376,16 +373,8 @@ export function ToolResultScreen({
               })}
             </div>
           ) : null}
-          {definition.heroExtra?.(payload)}
         </div>
         </FadeIn>
-
-        {/* ── Mid-section (e.g. Fix First cards) ── */}
-        {definition.midSection ? (
-          <FadeUp delay={0.08}>
-            {definition.midSection(payload)}
-          </FadeUp>
-        ) : null}
 
         {/* ── Guest banner (floating pill) ── */}
         {guestResult && !bannerDismissed ? (
@@ -419,11 +408,13 @@ export function ToolResultScreen({
         ) : null}
 
         {/* ── Content ── */}
-        <FadeUp delay={0.12}>
-        <div className="result-content">
-          {definition.render(payload, item, resolvedTool)}
-        </div>
-        </FadeUp>
+        <AdGatedLock toolId={resolvedTool.id}>
+          <FadeUp delay={0.12}>
+          <div className="result-content">
+            {definition.render(payload, item, resolvedTool)}
+          </div>
+          </FadeUp>
+        </AdGatedLock>
 
         {/* ── Sticky CTA ── */}
         {primaryNextAction ? (

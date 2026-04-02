@@ -100,18 +100,12 @@ export function useToolMutation(tool: ToolDefinition) {
       let saved = typeof result.saved === 'boolean' ? result.saved : Boolean(historyId)
 
       if (!historyId && saved && status === 'authenticated') {
-        // Fallback: fetch latest run for this tool, but verify it was created
-        // within the last 60 seconds to avoid picking up a stale run
         const latest = await getHistory({
           tool: tool.id,
           page: 1,
           page_size: 1,
         })
-        const candidate = latest.items[0]
-        if (candidate) {
-          const age = Date.now() - new Date(candidate.created_at).getTime()
-          historyId = age < 60_000 ? candidate.id : null
-        }
+        historyId = latest.items[0]?.id || null
       }
 
       if (!historyId) {
@@ -156,24 +150,14 @@ export function useToolMutation(tool: ToolDefinition) {
         id: historyId,
         tool_name: tool.id,
         label: tool.shortLabel,
-        is_favorite: false,
         saved,
         access_mode: saved ? 'authenticated' : 'guest_demo',
-        locked_actions: [],
-        metadata: {
-          summary_headline: null,
-          primary_recommendation_title: null,
-          schema_version: null,
-          linked_context_ids: [],
-          next_step_tool: null,
-        },
-        workspace: null,
         result_payload: result,
         created_at: new Date().toISOString(),
       })
       if (saved) {
-        void queryClient.invalidateQueries({ queryKey: ['history-page'] })
-        void queryClient.invalidateQueries({ queryKey: ['history-workspaces'] })
+        await queryClient.invalidateQueries({ queryKey: ['history-page'] })
+        await queryClient.invalidateQueries({ queryKey: ['history-workspaces'] })
       }
       await navigate({
         to: tool.resultRoute.replace('$historyId', historyId),
