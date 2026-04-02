@@ -20,9 +20,13 @@ import { Route as HistoryRouteImport } from './routes/history'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as CoverLetterRouteImport } from './routes/cover-letter'
 import { Route as CareerRouteImport } from './routes/career'
+import { Route as AdminRouteImport } from './routes/admin'
 import { Route as AccountRouteImport } from './routes/account'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AdminIndexRouteImport } from './routes/admin/index'
 import { Route as AuthCallbackRouteImport } from './routes/auth.callback'
+import { Route as AdminUsersRouteImport } from './routes/admin/users'
+import { Route as AdminRunsRouteImport } from './routes/admin/runs'
 import { Route as ResumeResultHistoryIdRouteImport } from './routes/resume_.result.$historyId'
 import { Route as PortfolioResultHistoryIdRouteImport } from './routes/portfolio_.result.$historyId'
 import { Route as JobMatchResultHistoryIdRouteImport } from './routes/job-match_.result.$historyId'
@@ -85,6 +89,11 @@ const CareerRoute = CareerRouteImport.update({
   path: '/career',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminRoute = AdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AccountRoute = AccountRouteImport.update({
   id: '/account',
   path: '/account',
@@ -95,10 +104,25 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminIndexRoute = AdminIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AuthCallbackRoute = AuthCallbackRouteImport.update({
   id: '/auth/callback',
   path: '/auth/callback',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AdminUsersRoute = AdminUsersRouteImport.update({
+  id: '/users',
+  path: '/users',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminRunsRoute = AdminRunsRouteImport.update({
+  id: '/runs',
+  path: '/runs',
+  getParentRoute: () => AdminRoute,
 } as any)
 const ResumeResultHistoryIdRoute = ResumeResultHistoryIdRouteImport.update({
   id: '/resume_/result/$historyId',
@@ -137,6 +161,7 @@ const CareerResultHistoryIdRoute = CareerResultHistoryIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/account': typeof AccountRoute
+  '/admin': typeof AdminRouteWithChildren
   '/career': typeof CareerRoute
   '/cover-letter': typeof CoverLetterRoute
   '/dashboard': typeof DashboardRoute
@@ -148,7 +173,10 @@ export interface FileRoutesByFullPath {
   '/reset-password': typeof ResetPasswordRoute
   '/resume': typeof ResumeRoute
   '/settings': typeof SettingsRoute
+  '/admin/runs': typeof AdminRunsRoute
+  '/admin/users': typeof AdminUsersRoute
   '/auth/callback': typeof AuthCallbackRoute
+  '/admin/': typeof AdminIndexRoute
   '/career/result/$historyId': typeof CareerResultHistoryIdRoute
   '/cover-letter/result/$historyId': typeof CoverLetterResultHistoryIdRoute
   '/interview/result/$historyId': typeof InterviewResultHistoryIdRoute
@@ -170,7 +198,10 @@ export interface FileRoutesByTo {
   '/reset-password': typeof ResetPasswordRoute
   '/resume': typeof ResumeRoute
   '/settings': typeof SettingsRoute
+  '/admin/runs': typeof AdminRunsRoute
+  '/admin/users': typeof AdminUsersRoute
   '/auth/callback': typeof AuthCallbackRoute
+  '/admin': typeof AdminIndexRoute
   '/career/result/$historyId': typeof CareerResultHistoryIdRoute
   '/cover-letter/result/$historyId': typeof CoverLetterResultHistoryIdRoute
   '/interview/result/$historyId': typeof InterviewResultHistoryIdRoute
@@ -182,6 +213,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/account': typeof AccountRoute
+  '/admin': typeof AdminRouteWithChildren
   '/career': typeof CareerRoute
   '/cover-letter': typeof CoverLetterRoute
   '/dashboard': typeof DashboardRoute
@@ -193,7 +225,10 @@ export interface FileRoutesById {
   '/reset-password': typeof ResetPasswordRoute
   '/resume': typeof ResumeRoute
   '/settings': typeof SettingsRoute
+  '/admin/runs': typeof AdminRunsRoute
+  '/admin/users': typeof AdminUsersRoute
   '/auth/callback': typeof AuthCallbackRoute
+  '/admin/': typeof AdminIndexRoute
   '/career_/result/$historyId': typeof CareerResultHistoryIdRoute
   '/cover-letter_/result/$historyId': typeof CoverLetterResultHistoryIdRoute
   '/interview_/result/$historyId': typeof InterviewResultHistoryIdRoute
@@ -206,6 +241,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/account'
+    | '/admin'
     | '/career'
     | '/cover-letter'
     | '/dashboard'
@@ -217,7 +253,10 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/resume'
     | '/settings'
+    | '/admin/runs'
+    | '/admin/users'
     | '/auth/callback'
+    | '/admin/'
     | '/career/result/$historyId'
     | '/cover-letter/result/$historyId'
     | '/interview/result/$historyId'
@@ -239,7 +278,10 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/resume'
     | '/settings'
+    | '/admin/runs'
+    | '/admin/users'
     | '/auth/callback'
+    | '/admin'
     | '/career/result/$historyId'
     | '/cover-letter/result/$historyId'
     | '/interview/result/$historyId'
@@ -250,6 +292,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/account'
+    | '/admin'
     | '/career'
     | '/cover-letter'
     | '/dashboard'
@@ -261,7 +304,10 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/resume'
     | '/settings'
+    | '/admin/runs'
+    | '/admin/users'
     | '/auth/callback'
+    | '/admin/'
     | '/career_/result/$historyId'
     | '/cover-letter_/result/$historyId'
     | '/interview_/result/$historyId'
@@ -273,6 +319,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AccountRoute: typeof AccountRoute
+  AdminRoute: typeof AdminRouteWithChildren
   CareerRoute: typeof CareerRoute
   CoverLetterRoute: typeof CoverLetterRoute
   DashboardRoute: typeof DashboardRoute
@@ -372,6 +419,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CareerRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin': {
+      id: '/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AdminRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/account': {
       id: '/account'
       path: '/account'
@@ -386,12 +440,33 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/': {
+      id: '/admin/'
+      path: '/'
+      fullPath: '/admin/'
+      preLoaderRoute: typeof AdminIndexRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/auth/callback': {
       id: '/auth/callback'
       path: '/auth/callback'
       fullPath: '/auth/callback'
       preLoaderRoute: typeof AuthCallbackRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/admin/users': {
+      id: '/admin/users'
+      path: '/users'
+      fullPath: '/admin/users'
+      preLoaderRoute: typeof AdminUsersRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/runs': {
+      id: '/admin/runs'
+      path: '/runs'
+      fullPath: '/admin/runs'
+      preLoaderRoute: typeof AdminRunsRouteImport
+      parentRoute: typeof AdminRoute
     }
     '/resume_/result/$historyId': {
       id: '/resume_/result/$historyId'
@@ -438,9 +513,24 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface AdminRouteChildren {
+  AdminRunsRoute: typeof AdminRunsRoute
+  AdminUsersRoute: typeof AdminUsersRoute
+  AdminIndexRoute: typeof AdminIndexRoute
+}
+
+const AdminRouteChildren: AdminRouteChildren = {
+  AdminRunsRoute: AdminRunsRoute,
+  AdminUsersRoute: AdminUsersRoute,
+  AdminIndexRoute: AdminIndexRoute,
+}
+
+const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AccountRoute: AccountRoute,
+  AdminRoute: AdminRouteWithChildren,
   CareerRoute: CareerRoute,
   CoverLetterRoute: CoverLetterRoute,
   DashboardRoute: DashboardRoute,

@@ -6,9 +6,11 @@ import {
   History,
   LayoutDashboard,
   Settings,
+  ShieldCheck,
   UserRound,
 } from 'lucide-react'
 import { AppBrandLockup } from '#/components/app/AppBrandLockup'
+import { useSession } from '#/hooks/useSession'
 import {
   Sidebar,
   SidebarContent,
@@ -39,6 +41,7 @@ export function AppSidebar() {
   const pathname = useRouterState({
     select: (state) => state.location.pathname,
   })
+  const { user } = useSession()
   const { isMobile, state } = useSidebar()
   const isCollapsedDesktop = !isMobile && state === 'collapsed'
   const isDesktopToolRoute =
@@ -149,6 +152,21 @@ export function AppSidebar() {
               </SidebarMenuButton>
             </SidebarMenuItem>
           ))}
+          {user?.is_admin && (
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                asChild
+                tooltip="Admin"
+                isActive={pathname.startsWith('/admin')}
+                className="app-sidebar-menu-button app-sidebar-menu-button--footer"
+              >
+                <Link to="/admin">
+                  <ShieldCheck className="app-sidebar-item-icon" />
+                  <span>Admin</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          )}
         </SidebarMenu>
       </SidebarFooter>
       {isDesktopToolRoute ? null : <SidebarRail />}
