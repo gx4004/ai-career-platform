@@ -218,7 +218,7 @@ export const jobMatchResultSchema = sharedResultEnvelopeSchema
       }),
     ),
     matched_keywords: z.array(z.string()),
-    missing_keywords: z.array(z.string()),
+    missing_keywords: z.array(z.any()),
     tailoring_actions: z.array(
       z.object({
         section: z.enum(['summary', 'experience', 'skills', 'projects']),
