@@ -237,7 +237,7 @@ export function ToolResultScreen({
       <section className="result-shell" style={toolAccentStyle(resolvedTool.accent)}>
         {/* ── Hero ── */}
         <FadeIn delay={0.05}>
-        <div className="result-hero">
+        <div className={`result-hero${definition.heroVariant === 'dark' ? ' result-hero--dark' : ''}`}>
           <div className="result-hero__top">
             {heroMetric ? (
               <div style={{ position: 'relative' }}>
@@ -261,7 +261,9 @@ export function ToolResultScreen({
                   </span>
                 )}
               </h1>
-              {/* Date/label subtitle removed for cleaner hero */}
+              {definition.heroVariant === 'dark' && typeof summary.confidence_note === 'string' && summary.confidence_note.trim() && (
+                <p className="result-hero__sub">{summary.confidence_note}</p>
+              )}
               {parentRunId && showUndo && (
                 <button
                   className="result-undo-btn"
@@ -372,8 +374,16 @@ export function ToolResultScreen({
               })}
             </div>
           ) : null}
+          {definition.heroExtra?.(payload)}
         </div>
         </FadeIn>
+
+        {/* ── Mid-section (e.g. Fix First cards) ── */}
+        {definition.midSection ? (
+          <FadeUp delay={0.08}>
+            {definition.midSection(payload)}
+          </FadeUp>
+        ) : null}
 
         {/* ── Guest banner (floating pill) ── */}
         {guestResult && !bannerDismissed ? (

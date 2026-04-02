@@ -1,13 +1,18 @@
 import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import {
+  ArrowRight,
+  CheckCircle2,
   Copy,
   Download,
+  FileEdit,
+  Hash,
+  TrendingUp,
 } from 'lucide-react'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '#/components/ui/accordion'
 import { Button } from '#/components/ui/button'
 import { Textarea } from '#/components/ui/textarea'
-import { FadeUp, ScrollReveal, AnimatedNumber } from '#/components/ui/motion'
+import { ScrollReveal, AnimatedNumber } from '#/components/ui/motion'
 import { InterviewPracticeMode } from '#/components/tooling/InterviewPracticeMode'
 import type { ToolRunDetail } from '#/lib/api/schemas'
 import type { ToolDefinition, ToolId } from '#/lib/tools/registry'
@@ -553,7 +558,10 @@ function ScoreCircleSvg({
   size?: number
   variant?: 'hero' | 'breakdown'
 }) {
-  const r = (size / 2) - 6
+  const isLarge = size >= 140
+  const sw = isLarge ? 12 : 5
+  const swActive = isLarge ? 12 : 5.5
+  const r = (size / 2) - (isLarge ? 12 : 6)
   const circumference = 2 * Math.PI * r
   const offset = circumference - (score / 100) * circumference
   const grad = scoreGradient(score)
@@ -561,7 +569,7 @@ function ScoreCircleSvg({
 
   return (
     <div
-      className={`result-hero__score${variant === 'breakdown' ? ' result-hero__score--breakdown' : ''}`}
+      className={`result-hero__score${variant === 'breakdown' ? ' result-hero__score--breakdown' : ''}${isLarge ? ' result-hero__score--large' : ''}`}
       style={{ width: size, height: size }}
     >
       <svg viewBox={`0 0 ${size} ${size}`} style={{ transform: 'rotate(-90deg)', position: 'absolute', inset: 0 }}>
@@ -571,18 +579,18 @@ function ScoreCircleSvg({
             <stop offset="100%" stopColor={grad.end} />
           </linearGradient>
           <filter id={`${uid}-glow`}>
-            <feGaussianBlur stdDeviation="3" result="blur" />
+            <feGaussianBlur stdDeviation={isLarge ? 5 : 3} result="blur" />
             <feMerge>
               <feMergeNode in="blur" />
               <feMergeNode in="SourceGraphic" />
             </feMerge>
           </filter>
         </defs>
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="currentColor" opacity={0.06} strokeWidth="5" />
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="currentColor" opacity={isLarge ? 0.1 : 0.06} strokeWidth={sw} />
         <circle
           cx={size / 2} cy={size / 2} r={r} fill="none"
           stroke={`url(#${uid})`}
-          strokeWidth="5.5"
+          strokeWidth={swActive}
           strokeDasharray={circumference}
           strokeDashoffset={offset}
           strokeLinecap="round"
@@ -592,181 +600,221 @@ function ScoreCircleSvg({
       </svg>
       <div className={`result-hero__score-content${variant === 'breakdown' ? ' result-hero__score-content--breakdown' : ''}`}>
         <AnimatedNumber value={score} className="result-hero__score-num" />
+        {isLarge && <span className="result-hero__score-sub">/ 100</span>}
       </div>
+    </div>
+  )
+}
+
+const FIX_FIRST_ICONS = [FileEdit, Hash, TrendingUp] as const
+const FIX_FIRST_CARD_STYLES = [
+  { bg: '#fef3c7', text: '#b45309' },  // amber
+  { bg: '#fee2e2', text: '#dc2626' },  // rose
+  { bg: '#dbeafe', text: '#2563eb' },  // blue
+] as const
+const FIX_FIRST_LABELS: Record<string, string> = {
+  high: 'High priority',
+  medium: 'Urgent fix',
+  low: 'Actionable',
+}
+
+
+function ResumeFixFirstStrip({ payload }: { payload: AnyObject }) {
+  const result = normalizeResumePayload(payload)
+  const actions = result.topActions.slice(0, 3)
+  if (actions.length === 0) return null
+
+  return (
+    <div className="fix-first-strip stagger-entrance">
+      {actions.map((a, i) => {
+        const Icon = FIX_FIRST_ICONS[i] || FileEdit
+        const style = FIX_FIRST_CARD_STYLES[i] || FIX_FIRST_CARD_STYLES[0]
+        return (
+          <div key={`${a.title}-${i}`} className="fix-first-card">
+            <div
+              className="fix-first-card__icon"
+              style={{ background: style.bg }}
+            >
+              <Icon size={18} style={{ color: style.text }} />
+            </div>
+            <div className="fix-first-card__content">
+              <div className="fix-first-card__title">{a.title}</div>
+              <div className="fix-first-card__desc">{a.action}</div>
+              <div className="fix-first-card__footer">
+                <span className="fix-first-card__priority" style={{ color: style.text }}>
+                  {FIX_FIRST_LABELS[a.priority] || a.priority}
+                </span>
+                <ArrowRight size={16} style={{ color: 'var(--text-soft)' }} />
+              </div>
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function ResumeHeroExtra({ payload }: { payload: AnyObject }) {
+  const result = normalizeResumePayload(payload)
+  if (result.scoreBreakdown.length === 0) return null
+
+  return (
+    <div className="hero-breakdown-grid" style={{ position: 'relative' }}>
+      {result.scoreBreakdown.map((item) => (
+        <div key={item.key} className="hero-breakdown-item">
+          <span className="hero-breakdown-label">{item.label}</span>
+          <span className="hero-breakdown-value">{item.score}%</span>
+          <div className="hero-breakdown-bar">
+            <div
+              className="hero-breakdown-fill"
+              style={{
+                width: `${item.score}%`,
+                background: scoreColor(item.score),
+              }}
+            />
+          </div>
+        </div>
+      ))}
     </div>
   )
 }
 
 function ResumeResultView({ payload }: { payload: AnyObject }) {
   const result = normalizeResumePayload(payload)
+  const { evidence } = result
+  const hasKeywords = evidence.matchedKeywords.length > 0 || evidence.missingKeywords.length > 0
+  const hasRightColumn = Boolean(result.roleFit)
+  const matchLevel = result.roleFit
+    ? result.roleFit.fitScore >= 70 ? 'High match' : result.roleFit.fitScore >= 40 ? 'Moderate' : 'Low match'
+    : null
 
   return (
-    <>
-      {/* Score breakdown — radial gauges */}
-      <FadeUp delay={0.05}>
-      <div className="rs">
-        <h3 className="result-heading">Score Breakdown</h3>
-        <div className="section-card-grid--responsive-5 stagger-entrance">
-          {result.scoreBreakdown.map((item) => (
-            <div key={item.key} className="score-gauge">
-              <ScoreCircleSvg score={item.score} size={104} variant="breakdown" />
-              <span className="score-gauge__label">{item.label}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-      </FadeUp>
-
-      {/* Strengths / Gaps — card-based */}
-      <FadeUp delay={0.15}>
-      <div className="rs">
-        <div className="section-card-grid section-card-grid--2">
-          <div className="section-card section-card--success-left">
-            <h3 className="result-label" style={{ color: 'var(--success)' }}>Strengths</h3>
-            <div className="section-card-grid" style={{ gap: '0.375rem' }}>
-              {result.strengths.slice(0, 4).map((s) => (
-                <div key={s} className="strength-item">
-                  <span className="strength-item__icon">&#10003;</span>
-                  <span>{s}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-          {result.issues.length > 0 ? (
-            <div className="section-card section-card--warning-left">
-              <h3 className="result-label" style={{ color: 'var(--warning)' }}>Gaps</h3>
-              <div className="section-card-grid" style={{ gap: '0.375rem' }}>
-                {result.issues.slice(0, 3).map((i) => (
-                  <div key={i.id} className="gap-item">
-                    <span className="gap-item__icon" style={{ color: priorityTone(i.severity) }}>&#9888;</span>
-                    <span>{i.title}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ) : null}
-        </div>
-      </div>
-      </FadeUp>
-
-      {/* Fix first — numbered step cards */}
-      <ScrollReveal>
-      <div className="rs">
-        <h3 className="result-heading">Fix First</h3>
-        <div className="section-card-grid stagger-entrance">
-          {result.topActions.slice(0, 3).map((a, i) => (
-            <div
-              key={`${a.title}-${i}`}
-              className="step-card"
-              style={{ '--step-color': priorityTone(a.priority) } as React.CSSProperties}
-            >
-              <div className="step-card__num">{i + 1}</div>
-              <div className="step-card__body">
-                <div className="step-card__title">{a.title}</div>
-                <div className="step-card__desc">{a.action}</div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-      </ScrollReveal>
-
-      {/* Keywords (only when job comparison data exists) */}
-      {(result.evidence.matchedKeywords.length > 0 || result.evidence.missingKeywords.length > 0) ? (
+    <div className={hasRightColumn ? 'resume-body-grid' : 'resume-body-single'} style={{ padding: 'var(--rs-pad-y) var(--rs-pad-x)' }}>
+      {/* ── Left column ── */}
+      <div className="resume-body-left">
+        {/* Detailed Feedback card */}
         <ScrollReveal>
-        <div className="rs">
-          <h3 className="result-heading">Keywords</h3>
-          <div className="chip-wrap">
-            {result.evidence.matchedKeywords.map((k) => (
-              <span key={k} className="chip chip--positive"><span className="chip__dot" /> {k}</span>
-            ))}
-            {result.evidence.missingKeywords.map((k) => (
-              <span key={k} className="chip chip--outline-warning"><span className="chip__dot" /> {k}</span>
-            ))}
+        <div className="feedback-card">
+          <div className="feedback-card__header">
+            <span className="feedback-card__header-title">Detailed feedback</span>
           </div>
-        </div>
-        </ScrollReveal>
-      ) : null}
-
-      {/* What we found in your resume */}
-      <ScrollReveal>
-      <div className="rs">
-        <h3 className="result-heading">What we found in your resume</h3>
-        <div className="section-card-grid section-card-grid--2">
-          {result.evidence.detectedSections.length > 0 ? (
-            <div className="section-card">
-              <h4 className="result-label">Detected sections</h4>
-              <div className="chip-wrap">
-                {result.evidence.detectedSections.map((s) => (
-                  <span key={s} className="chip chip--neutral">{s}</span>
-                ))}
-              </div>
-            </div>
-          ) : null}
-          {result.evidence.detectedSkills.length > 0 ? (
-            <div className="section-card">
-              <h4 className="result-label">Skills identified</h4>
-              <div className="chip-wrap">
-                {result.evidence.detectedSkills.map((s) => (
-                  <span key={s} className="chip chip--positive">{s}</span>
-                ))}
-              </div>
-              {result.evidence.quantifiedBullets > 0 ? (
-                <p className="rs__meta" style={{ marginTop: '0.625rem' }}>
-                  {result.evidence.quantifiedBullets} quantified achievement{result.evidence.quantifiedBullets !== 1 ? 's' : ''} found
-                </p>
-              ) : null}
-            </div>
-          ) : null}
-        </div>
-      </div>
-      </ScrollReveal>
-
-      {/* Issues — styled cards */}
-      {result.issues.length > 0 ? (
-        <ScrollReveal>
-        <div className="rs">
-          <h3 className="result-heading">Issues ({result.issues.length})</h3>
-          <Accordion type="single" collapsible className="issue-card-list">
-            {result.issues.map((issue) => (
-              <AccordionItem key={issue.id} value={issue.id} className="issue-card">
-                <AccordionTrigger className="issue-card__trigger">
-                  <span className="issue-card__header">
-                    <span className="issue-card__severity" style={{ background: priorityTone(issue.severity) }} />
-                    <span className="issue-card__title">{issue.title}</span>
-                    <span className="chip chip--neutral" style={{ fontSize: '0.6875rem' }}>{issue.category}</span>
-                  </span>
-                </AccordionTrigger>
-                <AccordionContent>
-                  <div className="issue-card__body">
-                    <p className="rs__body">{issue.whyItMatters}</p>
-                    <div className="issue-card__fix">
-                      <strong>Fix:</strong> {issue.fix}
+          <div className="feedback-card__body">
+            {/* Strengths */}
+            {result.strengths.length > 0 && (
+              <div>
+                <div className="feedback-eyebrow feedback-eyebrow--success">Major strengths</div>
+                {result.strengths.slice(0, 4).map((s) => (
+                  <div key={s} className="feedback-strength">
+                    <CheckCircle2 size={20} fill="var(--success)" stroke="white" strokeWidth={2} className="feedback-strength__icon" />
+                    <div>
+                      <div className="feedback-strength__title">{s}</div>
                     </div>
                   </div>
-                </AccordionContent>
-              </AccordionItem>
-            ))}
-          </Accordion>
-        </div>
-        </ScrollReveal>
-      ) : null}
+                ))}
+              </div>
+            )}
 
-      {/* Role fit */}
-      {result.roleFit ? (
-        <ScrollReveal>
-        <div className="rs">
-          <div className="section-card section-card--accent-left" style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
-            <ScoreCircleSvg score={result.roleFit.fitScore} size={64} />
-            <div>
-              <h3 className="result-heading" style={{ margin: 0 }}>Role Fit: {result.roleFit.targetRoleLabel}</h3>
-              <p className="rs__meta" style={{ marginTop: '0.25rem' }}>{result.roleFit.rationale}</p>
-            </div>
+            {/* Issues */}
+            {result.issues.length > 0 && (
+              <div className="feedback-issues">
+                <div className="feedback-eyebrow feedback-eyebrow--danger">Refinement areas</div>
+                {result.issues.map((issue) => (
+                  <div
+                    key={issue.id}
+                    className={`feedback-issue${issue.severity === 'medium' ? ' feedback-issue--medium' : issue.severity === 'low' ? ' feedback-issue--low' : ''}`}
+                  >
+                    <div className="feedback-issue__title">{issue.title}</div>
+                    <div className="feedback-issue__grid">
+                      <div className="feedback-issue__box">
+                        <span className="feedback-issue__box-label">Why it matters</span>
+                        <p className="feedback-issue__box-text">{issue.whyItMatters}</p>
+                      </div>
+                      <div className="feedback-issue__box">
+                        <span className="feedback-issue__box-label">Fix</span>
+                        <p className="feedback-issue__box-text">{issue.fix}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
         </ScrollReveal>
-      ) : null}
-    </>
+
+        {/* Keyword Optimization card */}
+        {hasKeywords && (
+          <ScrollReveal>
+          <div className="keyword-card">
+            <div className="keyword-card__header">
+              <span className="keyword-card__title">Keyword optimization</span>
+              <div className="keyword-card__badges">
+                {evidence.matchedKeywords.length > 0 && (
+                  <span className="keyword-card__badge keyword-card__badge--matched">
+                    {evidence.matchedKeywords.length} matched
+                  </span>
+                )}
+                {evidence.missingKeywords.length > 0 && (
+                  <span className="keyword-card__badge keyword-card__badge--missing">
+                    {evidence.missingKeywords.length} missing
+                  </span>
+                )}
+              </div>
+            </div>
+            <div className="chip-wrap" style={{ gap: '0.5rem' }}>
+              {evidence.matchedKeywords.map((k) => (
+                <span key={k} className="keyword-chip--accent">{k}</span>
+              ))}
+            </div>
+            {evidence.missingKeywords.length > 0 && (
+              <div className="keyword-missing-box">
+                <div className="keyword-missing-label">Add these to rank higher</div>
+                <div className="chip-wrap" style={{ gap: '0.5rem' }}>
+                  {evidence.missingKeywords.map((k) => (
+                    <span key={k} className="keyword-chip--missing">+ {k}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+          </ScrollReveal>
+        )}
+      </div>
+
+      {/* ── Right column (only when content exists) ── */}
+      {hasRightColumn && (
+      <div className="resume-body-right">
+        {result.roleFit && (
+          <ScrollReveal>
+          <div className="rolefit-card">
+            <div className="rolefit-card__header">
+              <span className="rolefit-card__title">Role fit</span>
+              {matchLevel && <span className="rolefit-card__badge">{matchLevel}</span>}
+            </div>
+            <div className="rolefit-bar">
+              <div className="rolefit-bar__header">
+                <span className="rolefit-bar__label">{result.roleFit.targetRoleLabel}</span>
+                <span className="rolefit-bar__value">{result.roleFit.fitScore}%</span>
+              </div>
+              <div className="rolefit-bar__track">
+                <div
+                  className="rolefit-bar__fill"
+                  style={{
+                    width: `${result.roleFit.fitScore}%`,
+                    background: result.roleFit.fitScore >= 70 ? 'var(--accent)' : result.roleFit.fitScore >= 40 ? 'var(--warning)' : 'var(--destructive)',
+                  }}
+                />
+              </div>
+            </div>
+            {result.roleFit.rationale && (
+              <p className="rs__meta" style={{ marginTop: '1rem' }}>{result.roleFit.rationale}</p>
+            )}
+          </div>
+          </ScrollReveal>
+        )}
+      </div>
+      )}
+    </div>
   )
 }
 
@@ -1528,23 +1576,22 @@ export type ResultDefinition = {
   render: (payload: AnyObject, item: ToolRunDetail, tool: ToolDefinition) => ReactNode
   heroMetric?: (payload: AnyObject) => ReactNode
   insightStrip?: (payload: AnyObject) => { label: string; value: string; color?: string }[]
+  heroVariant?: 'dark' | 'default'
+  heroExtra?: (payload: AnyObject) => ReactNode
+  /** Content rendered between hero and main content card (e.g. Fix First strip) */
+  midSection?: (payload: AnyObject) => ReactNode
 }
 
 export const resultDefinitions: Record<ToolId, ResultDefinition> = {
   resume: {
     copyText: (payload) => resumeCopyText(payload),
+    heroVariant: 'dark',
     heroMetric: (payload) => {
       const r = normalizeResumePayload(payload)
-      return <ScoreCircleSvg score={r.overallScore} />
+      return <ScoreCircleSvg score={r.overallScore} size={192} />
     },
-    insightStrip: (payload) => {
-      const r = normalizeResumePayload(payload)
-      return r.scoreBreakdown.slice(0, 4).map((item) => ({
-        label: item.label,
-        value: String(item.score),
-        color: scoreColor(item.score),
-      }))
-    },
+    heroExtra: (payload) => <ResumeHeroExtra payload={payload} />,
+    midSection: (payload) => <ResumeFixFirstStrip payload={payload} />,
     render: (payload) => <ResumeResultView payload={payload} />,
   },
   'job-match': {

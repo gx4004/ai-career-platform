@@ -528,6 +528,7 @@ body.tool-fullscreen-open .mobile-nav-pill {
   gap: 1.5rem;
   padding: 3rem 2rem;
   min-height: 20rem;
+  width: 100%;
 }
 
 .cinematic-scanner {
