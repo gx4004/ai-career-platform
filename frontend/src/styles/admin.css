@@ -415,3 +415,63 @@
   color: var(--text-muted, #6b7280);
   margin-bottom: 0.5rem;
 }
+
+.admin-error-text {
+  color: #dc2626;
+}
+
+/* ─── Responsive ────────────────────────────────────────────── */
+
+@media (max-width: 768px) {
+  .admin-layout {
+    flex-direction: column;
+  }
+
+  .admin-sidebar {
+    width: 100%;
+    flex-direction: row;
+    align-items: center;
+    padding: 0.5rem;
+    border-right: none;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .admin-sidebar-brand {
+    padding: 0.5rem 0.75rem;
+    border-bottom: none;
+    border-right: 1px solid rgba(255, 255, 255, 0.08);
+    margin-right: 0.5rem;
+  }
+
+  .admin-sidebar-nav {
+    flex-direction: row;
+    flex: 1;
+    padding: 0;
+    gap: 4px;
+  }
+
+  .admin-sidebar-footer {
+    padding: 0;
+    border-top: none;
+    border-left: 1px solid rgba(255, 255, 255, 0.08);
+    margin-left: 0.5rem;
+  }
+
+  .admin-main {
+    padding: 1rem;
+    overflow-y: auto;
+    flex: 1;
+  }
+
+  .admin-stat-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .admin-info-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-modal-meta {
+    grid-template-columns: 1fr;
+  }
+}

@@ -19,7 +19,7 @@ export function AdminDashboardPage() {
       <h1 className="admin-page-title">Dashboard</h1>
 
       {stats.isError && (
-        <p className="admin-table-muted" style={{ color: '#dc2626', marginBottom: '1rem' }}>
+        <p className="admin-error-text" style={{ marginBottom: '1rem' }}>
           Failed to load stats.
         </p>
       )}
@@ -35,7 +35,7 @@ export function AdminDashboardPage() {
         <div className="admin-info-panel">
           <div className="admin-info-panel-title">Runs by Tool</div>
           {stats.isLoading && <p className="admin-table-muted">Loading…</p>}
-          {stats.isError && <p className="admin-table-muted" style={{ color: '#dc2626' }}>Failed to load.</p>}
+          {stats.isError && <p className="admin-table-muted admin-error-text">Failed to load.</p>}
           {stats.data?.runs_by_tool &&
             Object.entries(stats.data.runs_by_tool)
               .sort(([, a], [, b]) => b - a)
@@ -53,7 +53,7 @@ export function AdminDashboardPage() {
         <div className="admin-info-panel">
           <div className="admin-info-panel-title">System Health</div>
           {health.isLoading && <p className="admin-table-muted">Loading…</p>}
-          {health.isError && <p className="admin-table-muted" style={{ color: '#dc2626' }}>Failed to load.</p>}
+          {health.isError && <p className="admin-table-muted admin-error-text">Failed to load.</p>}
           {health.data && (
             <>
               <div className="admin-info-row">

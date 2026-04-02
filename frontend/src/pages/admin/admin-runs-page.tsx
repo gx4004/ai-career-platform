@@ -130,7 +130,7 @@ export function AdminRunsPage() {
 
             {runDetail.isLoading && <p className="admin-table-muted">Loading…</p>}
             {runDetail.isError && (
-              <p className="admin-table-muted" style={{ color: '#dc2626' }}>
+              <p className="admin-table-muted admin-error-text">
                 Failed to load run detail.
               </p>
             )}

@@ -1,5 +1,5 @@
 import { API_URL } from '#/lib/api/client'
-import { getAuthToken } from '#/lib/auth/storage'
+import { clearAuthToken, getAuthToken } from '#/lib/auth/storage'
 import { ApiError } from '#/lib/api/errors'
 
 async function adminRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
@@ -27,6 +27,11 @@ async function adminRequest<T>(path: string, options: RequestInit = {}): Promise
     .catch(async () => response.text().catch(() => ''))
 
   if (!response.ok) {
+    if (response.status === 401 && token) {
+      clearAuthToken()
+      window.dispatchEvent(new CustomEvent('cw:session-expired'))
+    }
+
     const detail =
       typeof parsed === 'string'
         ? parsed

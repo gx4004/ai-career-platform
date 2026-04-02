@@ -1,13 +1,11 @@
 import { isRedirect, redirect } from '@tanstack/react-router'
 import { getCurrentUser } from '#/lib/api/client'
-import { queryClient } from '#/lib/query/queryClient'
 
 export async function requireAdmin() {
   try {
-    const user = await queryClient.ensureQueryData({
-      queryKey: ['current-user'],
-      queryFn: getCurrentUser,
-    })
+    // Always fetch fresh — never trust the cache for authorization.
+    // A recently-demoted admin must be blocked immediately, not after staleTime expires.
+    const user = await getCurrentUser()
     if (!user?.is_admin) {
       throw redirect({ to: '/dashboard' })
     }
