@@ -10,9 +10,10 @@ export function AdminUsersPage() {
   const [search, setSearch] = useState('')
   const [searchInput, setSearchInput] = useState('')
 
-  const { data, isLoading } = useQuery<AdminUserListResponse>({
+  const { data, isLoading, isError } = useQuery<AdminUserListResponse>({
     queryKey: ['admin-users', page, search],
     queryFn: () => getAdminUsers({ page, page_size: 20, q: search || undefined }),
+    staleTime: 30_000,
   })
 
   const toggleAdmin = useMutation({
@@ -37,31 +38,12 @@ export function AdminUsersPage() {
         <form className="admin-data-table-toolbar" onSubmit={handleSearch}>
           <input
             type="search"
-            className="admin-table-search-input"
+            className="admin-toolbar-input"
             placeholder="Search by email…"
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
-            style={{
-              flex: 1,
-              padding: '0.4rem 0.75rem',
-              border: '1px solid var(--border-subtle, #e5e7eb)',
-              borderRadius: 6,
-              fontSize: '0.875rem',
-            }}
           />
-          <button
-            type="submit"
-            style={{
-              padding: '0.4rem 1rem',
-              background: 'var(--sidebar-bg, #0f1a2e)',
-              color: '#fff',
-              border: 'none',
-              borderRadius: 6,
-              fontSize: '0.875rem',
-              fontWeight: 600,
-              cursor: 'pointer',
-            }}
-          >
+          <button type="submit" className="admin-toolbar-btn">
             Search
           </button>
         </form>
@@ -80,8 +62,15 @@ export function AdminUsersPage() {
           <tbody>
             {isLoading && (
               <tr>
-                <td colSpan={6} style={{ textAlign: 'center' }} className="admin-table-muted">
+                <td colSpan={6} className="admin-table-muted" style={{ textAlign: 'center' }}>
                   Loading…
+                </td>
+              </tr>
+            )}
+            {isError && (
+              <tr>
+                <td colSpan={6} className="admin-table-muted" style={{ textAlign: 'center', color: '#dc2626' }}>
+                  Failed to load users.
                 </td>
               </tr>
             )}
@@ -123,32 +112,16 @@ export function AdminUsersPage() {
             </span>
             <div className="admin-pagination-controls">
               <button
+                className="admin-pagination-btn"
                 disabled={page <= 1}
                 onClick={() => setPage(page - 1)}
-                style={{
-                  padding: '0.3rem 0.75rem',
-                  border: '1px solid var(--border-subtle, #e5e7eb)',
-                  borderRadius: 5,
-                  background: '#fff',
-                  cursor: page <= 1 ? 'default' : 'pointer',
-                  opacity: page <= 1 ? 0.4 : 1,
-                  fontSize: '0.8rem',
-                }}
               >
                 Previous
               </button>
               <button
+                className="admin-pagination-btn"
                 disabled={page * data.page_size >= data.total}
                 onClick={() => setPage(page + 1)}
-                style={{
-                  padding: '0.3rem 0.75rem',
-                  border: '1px solid var(--border-subtle, #e5e7eb)',
-                  borderRadius: 5,
-                  background: '#fff',
-                  cursor: page * data.page_size >= data.total ? 'default' : 'pointer',
-                  opacity: page * data.page_size >= data.total ? 0.4 : 1,
-                  fontSize: '0.8rem',
-                }}
               >
                 Next
               </button>

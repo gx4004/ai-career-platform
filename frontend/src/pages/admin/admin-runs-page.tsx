@@ -3,17 +3,19 @@ import { useQuery } from '@tanstack/react-query'
 import { X } from 'lucide-react'
 import { getAdminRuns, getAdminRun } from '#/lib/api/admin'
 import type { AdminRunListResponse, AdminRunDetail } from '#/lib/api/admin'
+import { toolList } from '#/lib/tools/registry'
 
-const TOOLS = ['resume', 'job-match', 'cover-letter', 'interview', 'career', 'portfolio']
+const TOOL_IDS = toolList.map((t) => t.id)
 
 export function AdminRunsPage() {
   const [page, setPage] = useState(1)
   const [toolFilter, setToolFilter] = useState('')
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null)
 
-  const { data, isLoading } = useQuery<AdminRunListResponse>({
+  const { data, isLoading, isError } = useQuery<AdminRunListResponse>({
     queryKey: ['admin-runs', page, toolFilter],
     queryFn: () => getAdminRuns({ page, page_size: 20, tool: toolFilter || undefined }),
+    staleTime: 30_000,
   })
 
   const runDetail = useQuery<AdminRunDetail>({
@@ -31,21 +33,15 @@ export function AdminRunsPage() {
       <div className="admin-data-table-wrap">
         <div className="admin-data-table-toolbar">
           <select
+            className="admin-toolbar-select"
             value={toolFilter}
             onChange={(e) => {
               setToolFilter(e.target.value)
               setPage(1)
             }}
-            style={{
-              padding: '0.4rem 0.75rem',
-              border: '1px solid var(--border-subtle, #e5e7eb)',
-              borderRadius: 6,
-              fontSize: '0.875rem',
-              background: '#fff',
-            }}
           >
             <option value="">All tools</option>
-            {TOOLS.map((t) => (
+            {TOOL_IDS.map((t) => (
               <option key={t} value={t}>
                 {t}
               </option>
@@ -65,8 +61,15 @@ export function AdminRunsPage() {
           <tbody>
             {isLoading && (
               <tr>
-                <td colSpan={4} style={{ textAlign: 'center' }} className="admin-table-muted">
+                <td colSpan={4} className="admin-table-muted" style={{ textAlign: 'center' }}>
                   Loading…
+                </td>
+              </tr>
+            )}
+            {isError && (
+              <tr>
+                <td colSpan={4} className="admin-table-muted" style={{ textAlign: 'center', color: '#dc2626' }}>
+                  Failed to load runs.
                 </td>
               </tr>
             )}
@@ -96,32 +99,16 @@ export function AdminRunsPage() {
             </span>
             <div className="admin-pagination-controls">
               <button
+                className="admin-pagination-btn"
                 disabled={page <= 1}
                 onClick={() => setPage(page - 1)}
-                style={{
-                  padding: '0.3rem 0.75rem',
-                  border: '1px solid var(--border-subtle, #e5e7eb)',
-                  borderRadius: 5,
-                  background: '#fff',
-                  cursor: page <= 1 ? 'default' : 'pointer',
-                  opacity: page <= 1 ? 0.4 : 1,
-                  fontSize: '0.8rem',
-                }}
               >
                 Previous
               </button>
               <button
+                className="admin-pagination-btn"
                 disabled={page * data.page_size >= data.total}
                 onClick={() => setPage(page + 1)}
-                style={{
-                  padding: '0.3rem 0.75rem',
-                  border: '1px solid var(--border-subtle, #e5e7eb)',
-                  borderRadius: 5,
-                  background: '#fff',
-                  cursor: page * data.page_size >= data.total ? 'default' : 'pointer',
-                  opacity: page * data.page_size >= data.total ? 0.4 : 1,
-                  fontSize: '0.8rem',
-                }}
               >
                 Next
               </button>
@@ -132,62 +119,25 @@ export function AdminRunsPage() {
 
       {/* Run detail modal */}
       {selectedRunId && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0,0,0,0.5)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 50,
-          }}
-          onClick={() => setSelectedRunId(null)}
-        >
-          <div
-            style={{
-              background: '#fff',
-              borderRadius: 12,
-              width: '90%',
-              maxWidth: 720,
-              maxHeight: '85vh',
-              overflow: 'auto',
-              padding: '1.5rem',
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                marginBottom: '1rem',
-              }}
-            >
-              <h2 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Run Detail</h2>
-              <button
-                className="admin-icon-btn"
-                onClick={() => setSelectedRunId(null)}
-              >
+        <div className="admin-modal-backdrop" onClick={() => setSelectedRunId(null)}>
+          <div className="admin-modal-panel" onClick={(e) => e.stopPropagation()}>
+            <div className="admin-modal-header">
+              <h2 className="admin-modal-title">Run Detail</h2>
+              <button className="admin-icon-btn" onClick={() => setSelectedRunId(null)}>
                 <X size={20} />
               </button>
             </div>
 
-            {runDetail.isLoading && (
-              <p className="admin-table-muted">Loading…</p>
+            {runDetail.isLoading && <p className="admin-table-muted">Loading…</p>}
+            {runDetail.isError && (
+              <p className="admin-table-muted" style={{ color: '#dc2626' }}>
+                Failed to load run detail.
+              </p>
             )}
 
             {runDetail.data && (
               <>
-                <div
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: '1fr 1fr',
-                    gap: '0.75rem',
-                    marginBottom: '1.25rem',
-                    fontSize: '0.875rem',
-                  }}
-                >
+                <div className="admin-modal-meta">
                   <div>
                     <span className="admin-table-muted">Tool: </span>
                     {runDetail.data.tool_name}
@@ -214,18 +164,7 @@ export function AdminRunsPage() {
                   )}
                 </div>
 
-                <div
-                  style={{
-                    fontSize: '0.75rem',
-                    fontWeight: 600,
-                    color: 'var(--text-muted, #6b7280)',
-                    marginBottom: '0.5rem',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.05em',
-                  }}
-                >
-                  Result Payload
-                </div>
+                <div className="admin-modal-section-label">Result Payload</div>
                 <pre className="admin-json-viewer">
                   {JSON.stringify(runDetail.data.result_payload, null, 2)}
                 </pre>

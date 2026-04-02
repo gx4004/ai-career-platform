@@ -18,6 +18,7 @@ async function adminRequest<T>(path: string, options: RequestInit = {}): Promise
     ...options,
     headers,
     credentials: 'include',
+    signal: AbortSignal.timeout(30_000),
   })
 
   const parsed = await response

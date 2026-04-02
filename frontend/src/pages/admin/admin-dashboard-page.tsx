@@ -6,27 +6,36 @@ export function AdminDashboardPage() {
   const stats = useQuery<AdminStats>({
     queryKey: ['admin-stats'],
     queryFn: getAdminStats,
+    staleTime: 60_000,
   })
   const health = useQuery<AdminHealth>({
     queryKey: ['admin-health'],
     queryFn: getAdminHealth,
+    staleTime: 60_000,
   })
 
   return (
     <div>
       <h1 className="admin-page-title">Dashboard</h1>
 
+      {stats.isError && (
+        <p className="admin-table-muted" style={{ color: '#dc2626', marginBottom: '1rem' }}>
+          Failed to load stats.
+        </p>
+      )}
+
       <div className="admin-stat-grid">
-        <StatCard label="Total Users" value={stats.data?.total_users} loading={stats.isLoading} />
-        <StatCard label="Total Runs" value={stats.data?.total_runs} loading={stats.isLoading} />
-        <StatCard label="Runs Today" value={stats.data?.runs_today} loading={stats.isLoading} />
-        <StatCard label="Active Users (7d)" value={stats.data?.active_users_7d} loading={stats.isLoading} />
+        <StatCard label="Total Users" value={stats.data?.total_users} loading={stats.isLoading} error={stats.isError} />
+        <StatCard label="Total Runs" value={stats.data?.total_runs} loading={stats.isLoading} error={stats.isError} />
+        <StatCard label="Runs Today" value={stats.data?.runs_today} loading={stats.isLoading} error={stats.isError} />
+        <StatCard label="Active Users (7d)" value={stats.data?.active_users_7d} loading={stats.isLoading} error={stats.isError} />
       </div>
 
       <div className="admin-info-grid">
         <div className="admin-info-panel">
           <div className="admin-info-panel-title">Runs by Tool</div>
           {stats.isLoading && <p className="admin-table-muted">Loading…</p>}
+          {stats.isError && <p className="admin-table-muted" style={{ color: '#dc2626' }}>Failed to load.</p>}
           {stats.data?.runs_by_tool &&
             Object.entries(stats.data.runs_by_tool)
               .sort(([, a], [, b]) => b - a)
@@ -44,6 +53,7 @@ export function AdminDashboardPage() {
         <div className="admin-info-panel">
           <div className="admin-info-panel-title">System Health</div>
           {health.isLoading && <p className="admin-table-muted">Loading…</p>}
+          {health.isError && <p className="admin-table-muted" style={{ color: '#dc2626' }}>Failed to load.</p>}
           {health.data && (
             <>
               <div className="admin-info-row">
@@ -82,17 +92,20 @@ function StatCard({
   label,
   value,
   loading,
+  error,
 }: {
   label: string
   value: number | undefined
   loading: boolean
+  error: boolean
 }) {
+  let display: string | number = '—'
+  if (!loading && !error && value !== undefined) display = value
+
   return (
     <div className="admin-stat-card">
       <div className="admin-stat-card-label">{label}</div>
-      <div className="admin-stat-card-value">
-        {loading ? '—' : (value ?? 0)}
-      </div>
+      <div className="admin-stat-card-value">{display}</div>
     </div>
   )
 }

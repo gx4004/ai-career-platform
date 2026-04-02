@@ -318,3 +318,100 @@
 .admin-icon-btn:hover {
   color: var(--text-primary, #0f1a2e);
 }
+
+/* ─── Toolbar inputs / selects ──────────────────────────────── */
+
+.admin-toolbar-input {
+  flex: 1;
+  padding: 0.4rem 0.75rem;
+  border: 1px solid var(--border-subtle, #e5e7eb);
+  border-radius: 6px;
+  font-size: 0.875rem;
+  background: #fff;
+}
+
+.admin-toolbar-select {
+  padding: 0.4rem 0.75rem;
+  border: 1px solid var(--border-subtle, #e5e7eb);
+  border-radius: 6px;
+  font-size: 0.875rem;
+  background: #fff;
+}
+
+.admin-toolbar-btn {
+  padding: 0.4rem 1rem;
+  background: var(--sidebar-bg, #0f1a2e);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* ─── Pagination buttons ────────────────────────────────────── */
+
+.admin-pagination-btn {
+  padding: 0.3rem 0.75rem;
+  border: 1px solid var(--border-subtle, #e5e7eb);
+  border-radius: 5px;
+  background: #fff;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.admin-pagination-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* ─── Detail modal ──────────────────────────────────────────── */
+
+.admin-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+
+.admin-modal-panel {
+  background: #fff;
+  border-radius: 12px;
+  width: 90%;
+  max-width: 720px;
+  max-height: 85vh;
+  overflow: auto;
+  padding: 1.5rem;
+}
+
+.admin-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.admin-modal-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.admin-modal-meta {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+  font-size: 0.875rem;
+}
+
+.admin-modal-section-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted, #6b7280);
+  margin-bottom: 0.5rem;
+}
