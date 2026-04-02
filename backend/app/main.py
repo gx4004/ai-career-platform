@@ -65,6 +65,8 @@ app.add_middleware(SessionMiddleware, secret_key=settings.SECRET_KEY)
 
 # --- CORS ---
 _origins = [o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()]
+if settings.FRONTEND_URL and settings.FRONTEND_URL not in _origins:
+    _origins.append(settings.FRONTEND_URL)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_origins,
@@ -76,10 +78,10 @@ app.add_middleware(
 # --- Startup checks ---
 _DEFAULT_SECRET = "change-me-to-a-random-secret-key"
 if settings.SECRET_KEY == _DEFAULT_SECRET and settings.ENVIRONMENT != "development":
-    logger.critical(
-        "SECRET_KEY is still the default placeholder! "
-        "Set a strong random value before running in %s.",
-        settings.ENVIRONMENT,
+    raise RuntimeError(
+        f"SECRET_KEY is the default placeholder. "
+        f"Set a strong random value before running in {settings.ENVIRONMENT}. "
+        f"Generate one with: python -c \"import secrets; print(secrets.token_urlsafe(64))\""
     )
 
 if settings.LLM_PROVIDER.lower() == "vertex" and not settings.VERTEX_PROJECT_ID:

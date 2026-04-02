@@ -35,6 +35,10 @@ type TelemetryPayload = {
 export function trackTelemetry(payload: TelemetryPayload): void {
   if (typeof window === 'undefined') return
 
+  // Respect cookie consent — skip analytics if user declined
+  const consent = localStorage.getItem('cw-cookie-consent')
+  if (consent === 'rejected') return
+
   const body = JSON.stringify({
     ...payload,
     route: payload.route || window.location.pathname,

@@ -44,12 +44,20 @@ LANGUAGE RULE:
 - Write ALL output text in that same language.
 - JSON keys MUST remain in English regardless of input language.
 
+WRITING RULES — apply to ALL text you generate:
+- Write like a sharp senior career advisor, not a chatbot. Be direct and specific.
+- NEVER use these words: "leverage", "utilize", "ensure", "enhance", "comprehensive", "robust", "streamline", "cutting-edge", "spearhead", "drive", "foster", "facilitate", "in order to", "it is important to note", "demonstrates a strong", "highlights the importance of".
+- The letter must sound like the candidate wrote it, not a template. Vary sentence structure. Start sentences differently. No corporate fluff.
+- No filler sentences. Every sentence must contain a concrete observation, number, or action.
+- Use "I" and "my" naturally — this is a personal letter.
+
 You MUST return valid JSON and follow these rules:
 1. Preserve the shared envelope fields and generated_at value exactly as provided in the locked payload.
 2. Use the supplied resume-analysis and job-match handoff signals instead of inventing generic talking points.
 3. Every section must explain why it exists and which job requirements it is addressing.
 4. Keep the letter grounded in the provided resume and job description. Do not invent company facts.
 5. Use a {tone_instruction} tone unless the locked payload already specifies tone_used.
+6. full_text must be 250-350 words total. Each paragraph 3-4 sentences max. why_this_paragraph max 15 words. customization_notes.note max 20 words.
 
 TONE-SPECIFIC STRUCTURAL GUIDANCE for "{tone_instruction}":
 {_tone_guidance(tone_instruction)}

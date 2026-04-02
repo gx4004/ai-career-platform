@@ -56,14 +56,14 @@ Security hardening: open redirect prevention, SSRF blocklist for scraper, model 
 
 ### Cleanup (from audit)
 
-- [ ] Remove preview routes: `resume_.preview.tsx`, `career_.preview.tsx`, `cover-letter_.preview.tsx`, `interview_.preview.tsx`, `job-match_.preview.tsx`, `portfolio_.preview.tsx`
-- [ ] Remove `ToolResultPreview.tsx` + `mockPayloads.ts`
-- [ ] Remove unused UI components: `alert-dialog.tsx`, `animated-generate-button-shadcn-tailwind.tsx`, `card.tsx`, `container-scroll-animation.tsx`, `faqs-1.tsx`, `hover-card.tsx`, `lamp.tsx`, `navbar-1.tsx`, `scroll-area.tsx`
-- [ ] Remove separate `admin/` directory (replaced by integrated admin routes)
+- [x] Remove preview routes — files never existed, already clean
+- [x] Remove `ToolResultPreview.tsx` + `mockPayloads.ts` — files never existed, already clean
+- [x] Remove unused UI components: `accordion.tsx`, `border-beam.tsx`, `breadcrumb.tsx`, `number-ticker.tsx` — deleted
+- [x] Remove separate `admin/` directory — integrated admin pages built at `/admin/*`
 - [ ] Remove root `package-lock.json` (project uses pnpm)
 - [ ] Remove duplicate scripts: `gen_carousel_fix.py`, `gen_carousel_fix2.py` (keep `gen_carousel_v3.py`)
 - [ ] Remove unused landing variants
-- [ ] Archive `frontend-legacy/` (536MB) to `archive/legacy-frontend` branch, remove from main
+- [x] Delete `frontend-legacy/` (536MB, gitignored, not tracked — deleted from disk)
 
 ### .gitignore additions
 
