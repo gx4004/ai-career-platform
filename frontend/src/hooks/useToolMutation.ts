@@ -172,8 +172,8 @@ export function useToolMutation(tool: ToolDefinition) {
         created_at: new Date().toISOString(),
       })
       if (saved) {
-        await queryClient.invalidateQueries({ queryKey: ['history-page'] })
-        await queryClient.invalidateQueries({ queryKey: ['history-workspaces'] })
+        void queryClient.invalidateQueries({ queryKey: ['history-page'] })
+        void queryClient.invalidateQueries({ queryKey: ['history-workspaces'] })
       }
       await navigate({
         to: tool.resultRoute.replace('$historyId', historyId),

@@ -81,6 +81,8 @@ export function ToolResultScreen({
     queryKey: ['tool-run', historyId],
     queryFn: () => getHistoryItem(historyId),
     enabled: !isDemoResult,
+    staleTime: 60_000,
+    retry: false,
   })
 
   const item = demoItem || query.data
