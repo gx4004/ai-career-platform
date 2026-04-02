@@ -15,6 +15,7 @@ import { QueryClientProvider } from '@tanstack/react-query'
 import { AppNotFound } from '#/components/app/AppNotFound'
 import { AppRouteError } from '#/components/app/AppRouteError'
 import { AppShell } from '#/components/app/AppShell'
+import { CookieConsent } from '#/components/app/CookieConsent'
 import { AnimatePresence, motion, MotionConfig } from '#/components/ui/motion'
 import { SessionProvider } from '#/lib/auth/session'
 import { queryClient } from '#/lib/query/queryClient'
@@ -95,6 +96,7 @@ function RootDocument({ children }: { children: ReactNode }) {
               <AppShell>
                 <PageTransition>{children || <Outlet />}</PageTransition>
               </AppShell>
+              <CookieConsent />
             </MotionConfig>
           </SessionProvider>
         </QueryClientProvider>

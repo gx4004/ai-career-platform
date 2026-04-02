@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ResumeRouteImport } from './routes/resume'
+import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as PortfolioRouteImport } from './routes/portfolio'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as JobMatchRouteImport } from './routes/job-match'
@@ -37,6 +38,11 @@ const SettingsRoute = SettingsRouteImport.update({
 const ResumeRoute = ResumeRouteImport.update({
   id: '/resume',
   path: '/resume',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ResetPasswordRoute = ResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PortfolioRoute = PortfolioRouteImport.update({
@@ -139,6 +145,7 @@ export interface FileRoutesByFullPath {
   '/job-match': typeof JobMatchRoute
   '/login': typeof LoginRoute
   '/portfolio': typeof PortfolioRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/resume': typeof ResumeRoute
   '/settings': typeof SettingsRoute
   '/auth/callback': typeof AuthCallbackRoute
@@ -160,6 +167,7 @@ export interface FileRoutesByTo {
   '/job-match': typeof JobMatchRoute
   '/login': typeof LoginRoute
   '/portfolio': typeof PortfolioRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/resume': typeof ResumeRoute
   '/settings': typeof SettingsRoute
   '/auth/callback': typeof AuthCallbackRoute
@@ -182,6 +190,7 @@ export interface FileRoutesById {
   '/job-match': typeof JobMatchRoute
   '/login': typeof LoginRoute
   '/portfolio': typeof PortfolioRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/resume': typeof ResumeRoute
   '/settings': typeof SettingsRoute
   '/auth/callback': typeof AuthCallbackRoute
@@ -205,6 +214,7 @@ export interface FileRouteTypes {
     | '/job-match'
     | '/login'
     | '/portfolio'
+    | '/reset-password'
     | '/resume'
     | '/settings'
     | '/auth/callback'
@@ -226,6 +236,7 @@ export interface FileRouteTypes {
     | '/job-match'
     | '/login'
     | '/portfolio'
+    | '/reset-password'
     | '/resume'
     | '/settings'
     | '/auth/callback'
@@ -247,6 +258,7 @@ export interface FileRouteTypes {
     | '/job-match'
     | '/login'
     | '/portfolio'
+    | '/reset-password'
     | '/resume'
     | '/settings'
     | '/auth/callback'
@@ -269,6 +281,7 @@ export interface RootRouteChildren {
   JobMatchRoute: typeof JobMatchRoute
   LoginRoute: typeof LoginRoute
   PortfolioRoute: typeof PortfolioRoute
+  ResetPasswordRoute: typeof ResetPasswordRoute
   ResumeRoute: typeof ResumeRoute
   SettingsRoute: typeof SettingsRoute
   AuthCallbackRoute: typeof AuthCallbackRoute
@@ -294,6 +307,13 @@ declare module '@tanstack/react-router' {
       path: '/resume'
       fullPath: '/resume'
       preLoaderRoute: typeof ResumeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reset-password': {
+      id: '/reset-password'
+      path: '/reset-password'
+      fullPath: '/reset-password'
+      preLoaderRoute: typeof ResetPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/portfolio': {
@@ -429,6 +449,7 @@ const rootRouteChildren: RootRouteChildren = {
   JobMatchRoute: JobMatchRoute,
   LoginRoute: LoginRoute,
   PortfolioRoute: PortfolioRoute,
+  ResetPasswordRoute: ResetPasswordRoute,
   ResumeRoute: ResumeRoute,
   SettingsRoute: SettingsRoute,
   AuthCallbackRoute: AuthCallbackRoute,
