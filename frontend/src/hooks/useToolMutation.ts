@@ -100,12 +100,18 @@ export function useToolMutation(tool: ToolDefinition) {
       let saved = typeof result.saved === 'boolean' ? result.saved : Boolean(historyId)
 
       if (!historyId && saved && status === 'authenticated') {
+        // Fallback: fetch latest run for this tool, but verify it was created
+        // within the last 60 seconds to avoid picking up a stale run
         const latest = await getHistory({
           tool: tool.id,
           page: 1,
           page_size: 1,
         })
-        historyId = latest.items[0]?.id || null
+        const candidate = latest.items[0]
+        if (candidate) {
+          const age = Date.now() - new Date(candidate.created_at).getTime()
+          historyId = age < 60_000 ? candidate.id : null
+        }
       }
 
       if (!historyId) {
