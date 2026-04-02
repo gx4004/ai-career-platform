@@ -73,6 +73,7 @@ async function request<T>(
     body,
     headers,
     credentials: 'include',
+    signal: AbortSignal.timeout(180_000), // 3 minute timeout for LLM calls
   })
 
   const parsed = await response
