@@ -1,6 +1,6 @@
 import { createServer } from 'node:http'
-import { readFileSync, existsSync, readdirSync } from 'node:fs'
-import { join, extname } from 'node:path'
+import { readFileSync, existsSync, readdirSync, realpathSync } from 'node:fs'
+import { join, extname, resolve, normalize } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url))
@@ -34,8 +34,9 @@ const httpServer = createServer(async (req, res) => {
   }
 
   // Try to serve static files from dist/client
-  const filePath = join(clientDir, url.pathname)
-  if (url.pathname !== '/' && existsSync(filePath)) {
+  const filePath = normalize(resolve(clientDir, '.' + url.pathname))
+  // Prevent path traversal — filePath must stay within clientDir
+  if (url.pathname !== '/' && filePath.startsWith(clientDir) && existsSync(filePath)) {
     try {
       const data = readFileSync(filePath)
       const ext = extname(filePath)
