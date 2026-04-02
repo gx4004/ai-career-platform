@@ -208,6 +208,7 @@ async def _call_google_genai(system_prompt: str, user_prompt: str, model_name: s
                     "system_instruction": system_prompt,
                     "temperature": 0.3,
                     "response_mime_type": "application/json",
+                    "thinking_config": {"thinking_budget": 0},
                 },
             ),
             timeout=_LLM_TIMEOUT_SECONDS,
