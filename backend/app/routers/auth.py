@@ -68,7 +68,12 @@ async def register(request: Request, response: Response, body: RegisterRequest, 
             detail="Email already registered",
         )
 
-    if settings.CAPTCHA_ENABLED and body.captcha_token:
+    if settings.CAPTCHA_ENABLED:
+        if not body.captcha_token:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="CAPTCHA token is required",
+            )
         is_valid = await verify_captcha(body.captcha_token)
         if not is_valid:
             raise HTTPException(
@@ -154,19 +159,30 @@ def get_providers():
 async def request_password_reset(request: Request, body: PasswordResetRequest, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == body.email).first()
     if user:
-        token = create_password_reset_token(user.email)
-        reset_url = f"{request.headers.get('origin', settings.FRONTEND_URL or 'http://localhost:3000')}/reset-password?token={token}"
+        token = create_password_reset_token(user.email, user.hashed_password or "")
+        frontend_base = settings.FRONTEND_URL or "http://localhost:3000"
+        reset_url = f"{frontend_base}/reset-password?token={token}"
         await send_password_reset_email(user.email, reset_url)
     return {"message": "If an account with this email exists, a reset link has been sent."}
 
 
 @router.post("/password-reset/confirm", status_code=200)
 async def confirm_password_reset(body: PasswordResetConfirm, db: Session = Depends(get_db)):
-    email = verify_password_reset_token(body.token)
-    if not email:
+    # Decode token without verification first to get the email for user lookup
+    try:
+        from jose import jwt as jose_jwt
+        unverified = jose_jwt.get_unverified_claims(body.token)
+        email_claim = unverified.get("sub")
+    except Exception:
         raise HTTPException(status_code=400, detail="Invalid or expired reset token")
-    user = db.query(User).filter(User.email == email).first()
+    if not email_claim:
+        raise HTTPException(status_code=400, detail="Invalid or expired reset token")
+    user = db.query(User).filter(User.email == email_claim).first()
     if not user:
+        raise HTTPException(status_code=400, detail="Invalid or expired reset token")
+    # Verify token with password-derived secret (auto-invalidates after password change)
+    email = verify_password_reset_token(body.token, user.hashed_password or "")
+    if not email:
         raise HTTPException(status_code=400, detail="Invalid or expired reset token")
     user.hashed_password = hash_password(body.new_password)
     db.commit()

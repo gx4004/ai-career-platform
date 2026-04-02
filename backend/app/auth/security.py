@@ -1,3 +1,4 @@
+import uuid
 from datetime import datetime, timedelta, timezone
 
 import bcrypt
@@ -38,7 +39,7 @@ def create_access_token(subject: str) -> str:
 def create_refresh_token(subject: str) -> str:
     now = datetime.now(timezone.utc)
     expire = now + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
-    payload = {"sub": subject, "exp": expire, "iat": now, "type": "refresh"}
+    payload = {"sub": subject, "exp": expire, "iat": now, "type": "refresh", "jti": uuid.uuid4().hex}
     return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 
@@ -54,16 +55,21 @@ def verify_refresh_token(token: str) -> str | None:
         return None
 
 
-def create_password_reset_token(email: str) -> str:
+def _reset_token_secret(password_hash: str) -> str:
+    """Derive a reset-specific secret that invalidates when the password changes."""
+    return f"{settings.SECRET_KEY}:reset:{password_hash[:16]}"
+
+
+def create_password_reset_token(email: str, password_hash: str) -> str:
     now = datetime.now(timezone.utc)
     expire = now + timedelta(minutes=settings.PASSWORD_RESET_TOKEN_EXPIRE_MINUTES)
-    payload = {"sub": email, "exp": expire, "iat": now, "type": "password_reset"}
-    return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+    payload = {"sub": email, "exp": expire, "iat": now, "type": "password_reset", "jti": uuid.uuid4().hex}
+    return jwt.encode(payload, _reset_token_secret(password_hash), algorithm=settings.ALGORITHM)
 
 
-def verify_password_reset_token(token: str) -> str | None:
+def verify_password_reset_token(token: str, password_hash: str) -> str | None:
     try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        payload = jwt.decode(token, _reset_token_secret(password_hash), algorithms=[settings.ALGORITHM])
         if payload.get("type") != "password_reset":
             return None
         return payload.get("sub")
@@ -133,6 +139,10 @@ def get_current_user(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found"
         )
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Account is deactivated"
+        )
     return user
 
 
@@ -171,6 +181,10 @@ def get_optional_current_user(
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found"
+        )
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Account is deactivated"
         )
 
     return user
