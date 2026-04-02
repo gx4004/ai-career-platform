@@ -126,6 +126,7 @@ export function register(payload: {
   email: string
   password: string
   full_name?: string
+  captcha_token?: string
 }) {
   return request('/auth/register', {
     method: 'POST',

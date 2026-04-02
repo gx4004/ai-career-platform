@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
+
+logger = logging.getLogger(__name__)
 from typing import Any
 
 from app.prompts.cover_letter import build_cover_letter_prompt
@@ -425,7 +428,21 @@ async def generate_cover_letter(
         locked_payload,
         application_context,
     )
-    result = await complete_structured(system_prompt, user_prompt)
+    try:
+        result = await complete_structured(system_prompt, user_prompt)
+    except Exception as exc:
+        logger.warning("Cover letter LLM call failed, using fallback: %s", exc)
+        full_text = _compose_full_text(
+            locked_payload["opening"],
+            locked_payload["body_points"],
+            locked_payload["closing"],
+        )
+        locked_payload["full_text"] = full_text
+        locked_payload["summary"]["confidence_note"] = (
+            "Generated from resume and job description templates. "
+            "Re-run for a fully personalized letter."
+        )
+        return locked_payload
 
     opening = _normalize_section(
         result.get("opening"),

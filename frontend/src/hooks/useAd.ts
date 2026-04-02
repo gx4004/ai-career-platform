@@ -47,6 +47,13 @@ export function useAd() {
     if (detectionRan.current) return
     detectionRan.current = true
 
+    // Respect cookie consent — don't load ad scripts if user declined
+    const consent = localStorage.getItem('cw-cookie-consent')
+    if (consent === 'rejected') {
+      setAdBlocked(true)
+      return
+    }
+
     detectAdBlocker().then((blocked) => {
       setAdBlocked(blocked)
       if (!blocked) {

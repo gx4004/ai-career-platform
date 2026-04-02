@@ -29,6 +29,8 @@ async def google_login(request: Request):
     if not settings.GOOGLE_CLIENT_ID:
         raise HTTPException(status_code=501, detail="Google OAuth not configured")
     redirect_uri = settings.GOOGLE_REDIRECT_URI
+    if not redirect_uri:
+        raise HTTPException(status_code=501, detail="Google OAuth redirect URI not configured")
     return await oauth.google.authorize_redirect(request, redirect_uri)
 
 
@@ -75,7 +77,7 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
     # OAuth callback is a GET redirect from Google — no Origin header is present.
     # Use the first configured CORS origin as the frontend URL.
     allowed_origins = [o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()]
-    frontend_url = allowed_origins[0] if allowed_origins else "http://localhost:5173"
+    frontend_url = settings.FRONTEND_URL or (allowed_origins[0] if allowed_origins else "http://localhost:3000")
     response = RedirectResponse(url=f"{frontend_url}/dashboard")
     set_auth_cookies(response, access, refresh)
     return response

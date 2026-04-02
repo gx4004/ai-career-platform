@@ -1,4 +1,6 @@
+import ipaddress
 import logging
+import socket
 from urllib.parse import urlparse
 
 import httpx
@@ -8,14 +10,17 @@ from app.schemas.tools import ImportedJobResponse
 
 logger = logging.getLogger(__name__)
 
-_BLOCKED_HOSTS = {"localhost", "127.0.0.1", "0.0.0.0", "::1"}
-_BLOCKED_PREFIXES = ("10.", "192.168.", "169.254.",
-                     "172.16.", "172.17.", "172.18.", "172.19.",
-                     "172.20.", "172.21.", "172.22.", "172.23.", "172.24.", "172.25.",
-                     "172.26.", "172.27.", "172.28.", "172.29.", "172.30.", "172.31.")
-
 _BS4_TIMEOUT = 5.0
 _PLAYWRIGHT_TIMEOUT_MS = 10_000
+
+
+def _is_private_ip(ip_str: str) -> bool:
+    """Check if an IP address is private, loopback, or link-local."""
+    try:
+        addr = ipaddress.ip_address(ip_str)
+        return addr.is_private or addr.is_loopback or addr.is_link_local or addr.is_reserved
+    except ValueError:
+        return True  # If we can't parse it, block it
 
 
 def _validate_url(url: str) -> None:
@@ -23,8 +28,19 @@ def _validate_url(url: str) -> None:
     if parsed.scheme not in ("http", "https"):
         raise ValueError("Only HTTP(S) URLs are supported")
     hostname = parsed.hostname or ""
-    if hostname in _BLOCKED_HOSTS or hostname.startswith(_BLOCKED_PREFIXES):
-        raise ValueError("Internal or private URLs are not allowed")
+    if not hostname:
+        raise ValueError("URL must have a hostname")
+
+    # Resolve DNS and check ALL returned IPs to prevent DNS rebinding
+    try:
+        addrinfo = socket.getaddrinfo(hostname, None, socket.AF_UNSPEC, socket.SOCK_STREAM)
+    except socket.gaierror:
+        raise ValueError(f"Cannot resolve hostname: {hostname}")
+
+    for family, _, _, _, sockaddr in addrinfo:
+        ip_str = sockaddr[0]
+        if _is_private_ip(ip_str):
+            raise ValueError("URLs resolving to private/internal IPs are not allowed")
 
 
 async def _fetch_with_httpx(url: str) -> str:

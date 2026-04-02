@@ -1,0 +1,14 @@
+[build]
+dockerfilePath = "frontend/Dockerfile"
+watchPatterns = ["frontend/**"]
+
+[build.args]
+VITE_API_URL = "${{BACKEND_URL}}/api/v1"
+
+[deploy]
+startCommand = "node serve.mjs"
+healthcheckPath = "/"
+healthcheckTimeout = 60
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3
+numReplicas = 1

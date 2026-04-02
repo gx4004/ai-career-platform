@@ -78,7 +78,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (token && userQuery.isError) {
       const err = userQuery.error
-      if (err instanceof ApiError && err.status === 401) {
+      // 401 = expired token, 403 = deactivated account — both clear session
+      if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
         clearAuthToken()
         setToken(null)
       }
