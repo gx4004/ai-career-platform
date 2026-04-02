@@ -29,6 +29,8 @@ async def google_login(request: Request):
     if not settings.GOOGLE_CLIENT_ID:
         raise HTTPException(status_code=501, detail="Google OAuth not configured")
     redirect_uri = settings.GOOGLE_REDIRECT_URI
+    if not redirect_uri:
+        raise HTTPException(status_code=501, detail="Google OAuth redirect URI not configured")
     return await oauth.google.authorize_redirect(request, redirect_uri)
 
 

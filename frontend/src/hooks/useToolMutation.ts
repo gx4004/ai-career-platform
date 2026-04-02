@@ -150,8 +150,18 @@ export function useToolMutation(tool: ToolDefinition) {
         id: historyId,
         tool_name: tool.id,
         label: tool.shortLabel,
+        is_favorite: false,
         saved,
         access_mode: saved ? 'authenticated' : 'guest_demo',
+        locked_actions: [],
+        metadata: {
+          summary_headline: null,
+          primary_recommendation_title: null,
+          schema_version: null,
+          linked_context_ids: [],
+          next_step_tool: null,
+        },
+        workspace: null,
         result_payload: result,
         created_at: new Date().toISOString(),
       })
