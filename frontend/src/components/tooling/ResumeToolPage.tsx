@@ -35,7 +35,9 @@ export function ResumeToolPage() {
   )
   const bp = useBreakpoint()
   const isMobile = bp === 'mobile'
-  const [resumeEditorCollapsed, setResumeEditorCollapsed] = useState(bridge.resumePendingReview)
+  const [resumeEditorCollapsed, setResumeEditorCollapsed] = useState(
+    Boolean(draft.resumeText.trim() || bridge.seededResume),
+  )
   const [showOptionalJob, setShowOptionalJob] = useState(
     Boolean(bridge.seededJob || draft.jobDescription.trim()),
   )

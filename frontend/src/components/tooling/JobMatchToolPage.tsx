@@ -30,7 +30,9 @@ export function JobMatchToolPage() {
   const [phase, setPhase] = useState<'upload' | 'form'>(
     draft.resumeText.trim() || bridge.seededResume ? 'form' : 'upload',
   )
-  const [resumeEditorCollapsed, setResumeEditorCollapsed] = useState(false)
+  const [resumeEditorCollapsed, setResumeEditorCollapsed] = useState(
+    Boolean(draft.resumeText.trim() || bridge.seededResume),
+  )
   const hasResumeContent = Boolean(draft.resumeText.trim() || bridge.seededResume)
 
   return (
