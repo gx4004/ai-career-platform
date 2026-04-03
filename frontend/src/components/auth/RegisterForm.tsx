@@ -63,6 +63,8 @@ export function RegisterForm({
               full_name: fullName || undefined,
             })
             onSuccess?.()
+          } catch {
+            // Error displayed via session authError state
           } finally {
             setLoading(false)
           }

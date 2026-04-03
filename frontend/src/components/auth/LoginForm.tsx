@@ -129,6 +129,8 @@ export function LoginForm({
           try {
             await login({ email, password })
             onSuccess?.()
+          } catch {
+            // Error displayed via session authError state
           } finally {
             setLoading(false)
           }
