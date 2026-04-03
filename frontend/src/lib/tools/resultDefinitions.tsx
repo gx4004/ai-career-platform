@@ -306,7 +306,7 @@ function normalizeResumePayload(payload: AnyObject): ResumeResultPayload {
 
   return {
     summary: {
-      headline: toString(summary.headline) || 'Resume analysis ready.',
+      headline: toString(summary.headline) || 'Resume Analysis ready.',
       verdict: toString(summary.verdict) || 'Advisory review',
       confidence_note: toString(summary.confidence_note) || 'Directional heuristic only.',
     },

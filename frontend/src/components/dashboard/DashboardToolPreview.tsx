@@ -19,7 +19,7 @@ type PreviewPreset = {
 
 const PREVIEW_PRESETS: Record<ToolId, PreviewPreset> = {
   resume: {
-    windowLabel: 'Resume analysis',
+    windowLabel: 'Resume Analysis',
     title: 'Shortlist readiness',
     subtitle: 'Three targeted edits before you send this version.',
     status: 'Resume synced',
@@ -41,7 +41,7 @@ const PREVIEW_PRESETS: Record<ToolId, PreviewPreset> = {
     outcomes: ['Ready for Job Match', '2 strongest wins reused'],
   },
   'job-match': {
-    windowLabel: 'Role match',
+    windowLabel: 'Role Match',
     title: 'Requirement coverage',
     subtitle: 'Strong alignment — a few fixable gaps remain before applying.',
     status: 'Role imported',
@@ -63,7 +63,7 @@ const PREVIEW_PRESETS: Record<ToolId, PreviewPreset> = {
     outcomes: ['Cover letter context ready', 'Interview focus generated'],
   },
   'cover-letter': {
-    windowLabel: 'Cover letter',
+    windowLabel: 'Cover Letter',
     title: 'Context-aware draft',
     subtitle: 'Role themes, proof points, and voice are already aligned.',
     status: 'Draft v2',
@@ -85,7 +85,7 @@ const PREVIEW_PRESETS: Record<ToolId, PreviewPreset> = {
     outcomes: ['Submission copy aligned', 'Resume + role context merged'],
   },
   interview: {
-    windowLabel: 'Interview deck',
+    windowLabel: 'Interview Deck',
     title: 'Practice focus areas',
     subtitle: 'Questions mapped to the gaps most likely to come up live.',
     status: 'Deck generated',
@@ -107,7 +107,7 @@ const PREVIEW_PRESETS: Record<ToolId, PreviewPreset> = {
     outcomes: ['Interview narrative aligned', 'Gap answers prepped'],
   },
   career: {
-    windowLabel: 'Career path',
+    windowLabel: 'Career Path',
     title: 'Direction comparison',
     subtitle: 'Compare the next move with realistic timing and tradeoffs.',
     status: 'Paths ranked',
@@ -129,7 +129,7 @@ const PREVIEW_PRESETS: Record<ToolId, PreviewPreset> = {
     outcomes: ['Direction narrowed', 'Portfolio work prioritized'],
   },
   portfolio: {
-    windowLabel: 'Portfolio plan',
+    windowLabel: 'Portfolio Plan',
     title: 'Proof-building roadmap',
     subtitle: 'Projects sequenced to close the most visible role gaps first.',
     status: 'Roadmap ready',
