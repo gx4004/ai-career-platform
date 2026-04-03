@@ -1,13 +1,20 @@
 import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import {
+  ArrowRight,
+  CheckCircle2,
+  ChevronRight,
   Copy,
   Download,
+  FileEdit,
+  Hash,
+  Info,
+  Lightbulb,
+  Settings,
+  TrendingUp,
+  Zap,
 } from 'lucide-react'
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '#/components/ui/accordion'
-import { Button } from '#/components/ui/button'
-import { Textarea } from '#/components/ui/textarea'
-import { FadeUp, ScrollReveal, AnimatedNumber } from '#/components/ui/motion'
+import { ScrollReveal, AnimatedNumber } from '#/components/ui/motion'
 import { InterviewPracticeMode } from '#/components/tooling/InterviewPracticeMode'
 import type { ToolRunDetail } from '#/lib/api/schemas'
 import type { ToolDefinition, ToolId } from '#/lib/tools/registry'
@@ -284,18 +291,6 @@ function statusTone(status: 'matched' | 'partial' | 'missing') {
   return 'var(--destructive)'
 }
 
-function riskTone(level: 'low' | 'medium' | 'high') {
-  if (level === 'high') return 'var(--destructive)'
-  if (level === 'medium') return 'var(--warning)'
-  return 'var(--success)'
-}
-
-function complexityTone(level: 'foundational' | 'intermediate' | 'advanced') {
-  if (level === 'advanced') return 'var(--destructive)'
-  if (level === 'intermediate') return 'var(--warning)'
-  return 'var(--success)'
-}
-
 function normalizeResumePayload(payload: AnyObject): ResumeResultPayload {
   const summary = payload.summary && typeof payload.summary === 'object'
     ? payload.summary as AnyObject
@@ -306,7 +301,7 @@ function normalizeResumePayload(payload: AnyObject): ResumeResultPayload {
 
   return {
     summary: {
-      headline: toString(summary.headline) || 'Resume Analysis ready.',
+      headline: toString(summary.headline) || 'Resume analysis ready.',
       verdict: toString(summary.verdict) || 'Advisory review',
       confidence_note: toString(summary.confidence_note) || 'Directional heuristic only.',
     },
@@ -553,7 +548,10 @@ function ScoreCircleSvg({
   size?: number
   variant?: 'hero' | 'breakdown'
 }) {
-  const r = (size / 2) - 6
+  const isLarge = size >= 140
+  const sw = isLarge ? 12 : 5
+  const swActive = isLarge ? 12 : 5.5
+  const r = (size / 2) - (isLarge ? 12 : 6)
   const circumference = 2 * Math.PI * r
   const offset = circumference - (score / 100) * circumference
   const grad = scoreGradient(score)
@@ -561,7 +559,7 @@ function ScoreCircleSvg({
 
   return (
     <div
-      className={`result-hero__score${variant === 'breakdown' ? ' result-hero__score--breakdown' : ''}`}
+      className={`result-hero__score${variant === 'breakdown' ? ' result-hero__score--breakdown' : ''}${isLarge ? ' result-hero__score--large' : ''}`}
       style={{ width: size, height: size }}
     >
       <svg viewBox={`0 0 ${size} ${size}`} style={{ transform: 'rotate(-90deg)', position: 'absolute', inset: 0 }}>
@@ -571,18 +569,18 @@ function ScoreCircleSvg({
             <stop offset="100%" stopColor={grad.end} />
           </linearGradient>
           <filter id={`${uid}-glow`}>
-            <feGaussianBlur stdDeviation="3" result="blur" />
+            <feGaussianBlur stdDeviation={isLarge ? 5 : 3} result="blur" />
             <feMerge>
               <feMergeNode in="blur" />
               <feMergeNode in="SourceGraphic" />
             </feMerge>
           </filter>
         </defs>
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="currentColor" opacity={0.06} strokeWidth="5" />
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="currentColor" opacity={isLarge ? 0.1 : 0.06} strokeWidth={sw} />
         <circle
           cx={size / 2} cy={size / 2} r={r} fill="none"
           stroke={`url(#${uid})`}
-          strokeWidth="5.5"
+          strokeWidth={swActive}
           strokeDasharray={circumference}
           strokeDashoffset={offset}
           strokeLinecap="round"
@@ -592,287 +590,450 @@ function ScoreCircleSvg({
       </svg>
       <div className={`result-hero__score-content${variant === 'breakdown' ? ' result-hero__score-content--breakdown' : ''}`}>
         <AnimatedNumber value={score} className="result-hero__score-num" />
+        {isLarge && <span className="result-hero__score-sub">/ 100</span>}
       </div>
+    </div>
+  )
+}
+
+const FIX_FIRST_ICONS = [FileEdit, Hash, TrendingUp] as const
+const FIX_FIRST_CARD_STYLES = [
+  { bg: '#fef3c7', text: '#b45309' },  // amber
+  { bg: '#fee2e2', text: '#dc2626' },  // rose
+  { bg: '#dbeafe', text: '#2563eb' },  // blue
+] as const
+const FIX_FIRST_LABELS: Record<string, string> = {
+  high: 'High priority',
+  medium: 'Urgent fix',
+  low: 'Actionable',
+}
+
+
+function ResumeFixFirstStrip({ payload }: { payload: AnyObject }) {
+  const result = normalizeResumePayload(payload)
+  const actions = result.topActions.slice(0, 3)
+  if (actions.length === 0) return null
+
+  return (
+    <div className="fix-first-strip stagger-entrance">
+      {actions.map((a, i) => {
+        const Icon = FIX_FIRST_ICONS[i] || FileEdit
+        const style = FIX_FIRST_CARD_STYLES[i] || FIX_FIRST_CARD_STYLES[0]
+        return (
+          <div key={`${a.title}-${i}`} className="fix-first-card">
+            <div
+              className="fix-first-card__icon"
+              style={{ background: style.bg }}
+            >
+              <Icon size={18} style={{ color: style.text }} />
+            </div>
+            <div className="fix-first-card__content">
+              <div className="fix-first-card__title">{a.title}</div>
+              <div className="fix-first-card__desc">{a.action}</div>
+              <div className="fix-first-card__footer">
+                <span className="fix-first-card__priority" style={{ color: style.text }}>
+                  {FIX_FIRST_LABELS[a.priority] || a.priority}
+                </span>
+                <ArrowRight size={16} style={{ color: 'var(--text-soft)' }} />
+              </div>
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function ResumeHeroExtra({ payload }: { payload: AnyObject }) {
+  const result = normalizeResumePayload(payload)
+  if (result.scoreBreakdown.length === 0) return null
+
+  return (
+    <div className="hero-breakdown-grid" style={{ position: 'relative' }}>
+      {result.scoreBreakdown.map((item) => (
+        <div key={item.key} className="hero-breakdown-item">
+          <span className="hero-breakdown-label">{item.label}</span>
+          <span className="hero-breakdown-value">{item.score}%</span>
+          <div className="hero-breakdown-bar">
+            <div
+              className="hero-breakdown-fill"
+              style={{
+                width: `${item.score}%`,
+                background: scoreColor(item.score),
+              }}
+            />
+          </div>
+        </div>
+      ))}
     </div>
   )
 }
 
 function ResumeResultView({ payload }: { payload: AnyObject }) {
   const result = normalizeResumePayload(payload)
+  const { evidence } = result
+  const hasKeywords = evidence.matchedKeywords.length > 0 || evidence.missingKeywords.length > 0
+  const hasRightColumn = Boolean(result.roleFit)
+  const matchLevel = result.roleFit
+    ? result.roleFit.fitScore >= 70 ? 'High match' : result.roleFit.fitScore >= 40 ? 'Moderate' : 'Low match'
+    : null
 
   return (
-    <>
-      {/* Score breakdown — radial gauges */}
-      <FadeUp delay={0.05}>
-      <div className="rs">
-        <h3 className="result-heading">Score Breakdown</h3>
-        <div className="section-card-grid--responsive-5 stagger-entrance">
-          {result.scoreBreakdown.map((item) => (
-            <div key={item.key} className="score-gauge">
-              <ScoreCircleSvg score={item.score} size={104} variant="breakdown" />
-              <span className="score-gauge__label">{item.label}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-      </FadeUp>
-
-      {/* Strengths / Gaps — card-based */}
-      <FadeUp delay={0.15}>
-      <div className="rs">
-        <div className="section-card-grid section-card-grid--2">
-          <div className="section-card section-card--success-left">
-            <h3 className="result-label" style={{ color: 'var(--success)' }}>Strengths</h3>
-            <div className="section-card-grid" style={{ gap: '0.375rem' }}>
-              {result.strengths.slice(0, 4).map((s) => (
-                <div key={s} className="strength-item">
-                  <span className="strength-item__icon">&#10003;</span>
-                  <span>{s}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-          {result.issues.length > 0 ? (
-            <div className="section-card section-card--warning-left">
-              <h3 className="result-label" style={{ color: 'var(--warning)' }}>Gaps</h3>
-              <div className="section-card-grid" style={{ gap: '0.375rem' }}>
-                {result.issues.slice(0, 3).map((i) => (
-                  <div key={i.id} className="gap-item">
-                    <span className="gap-item__icon" style={{ color: priorityTone(i.severity) }}>&#9888;</span>
-                    <span>{i.title}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ) : null}
-        </div>
-      </div>
-      </FadeUp>
-
-      {/* Fix first — numbered step cards */}
-      <ScrollReveal>
-      <div className="rs">
-        <h3 className="result-heading">Fix First</h3>
-        <div className="section-card-grid stagger-entrance">
-          {result.topActions.slice(0, 3).map((a, i) => (
-            <div
-              key={`${a.title}-${i}`}
-              className="step-card"
-              style={{ '--step-color': priorityTone(a.priority) } as React.CSSProperties}
-            >
-              <div className="step-card__num">{i + 1}</div>
-              <div className="step-card__body">
-                <div className="step-card__title">{a.title}</div>
-                <div className="step-card__desc">{a.action}</div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-      </ScrollReveal>
-
-      {/* Keywords (only when job comparison data exists) */}
-      {(result.evidence.matchedKeywords.length > 0 || result.evidence.missingKeywords.length > 0) ? (
+    <div className={hasRightColumn ? 'resume-body-grid' : 'resume-body-single'} style={{ padding: 'var(--rs-pad-y) var(--rs-pad-x)' }}>
+      {/* ── Left column ── */}
+      <div className="resume-body-left">
+        {/* Detailed Feedback card */}
         <ScrollReveal>
-        <div className="rs">
-          <h3 className="result-heading">Keywords</h3>
-          <div className="chip-wrap">
-            {result.evidence.matchedKeywords.map((k) => (
-              <span key={k} className="chip chip--positive"><span className="chip__dot" /> {k}</span>
-            ))}
-            {result.evidence.missingKeywords.map((k) => (
-              <span key={k} className="chip chip--outline-warning"><span className="chip__dot" /> {k}</span>
-            ))}
+        <div className="feedback-card">
+          <div className="feedback-card__header">
+            <span className="feedback-card__header-title">Detailed feedback</span>
           </div>
-        </div>
-        </ScrollReveal>
-      ) : null}
-
-      {/* What we found in your resume */}
-      <ScrollReveal>
-      <div className="rs">
-        <h3 className="result-heading">What we found in your resume</h3>
-        <div className="section-card-grid section-card-grid--2">
-          {result.evidence.detectedSections.length > 0 ? (
-            <div className="section-card">
-              <h4 className="result-label">Detected sections</h4>
-              <div className="chip-wrap">
-                {result.evidence.detectedSections.map((s) => (
-                  <span key={s} className="chip chip--neutral">{s}</span>
-                ))}
-              </div>
-            </div>
-          ) : null}
-          {result.evidence.detectedSkills.length > 0 ? (
-            <div className="section-card">
-              <h4 className="result-label">Skills identified</h4>
-              <div className="chip-wrap">
-                {result.evidence.detectedSkills.map((s) => (
-                  <span key={s} className="chip chip--positive">{s}</span>
-                ))}
-              </div>
-              {result.evidence.quantifiedBullets > 0 ? (
-                <p className="rs__meta" style={{ marginTop: '0.625rem' }}>
-                  {result.evidence.quantifiedBullets} quantified achievement{result.evidence.quantifiedBullets !== 1 ? 's' : ''} found
-                </p>
-              ) : null}
-            </div>
-          ) : null}
-        </div>
-      </div>
-      </ScrollReveal>
-
-      {/* Issues — styled cards */}
-      {result.issues.length > 0 ? (
-        <ScrollReveal>
-        <div className="rs">
-          <h3 className="result-heading">Issues ({result.issues.length})</h3>
-          <Accordion type="single" collapsible className="issue-card-list">
-            {result.issues.map((issue) => (
-              <AccordionItem key={issue.id} value={issue.id} className="issue-card">
-                <AccordionTrigger className="issue-card__trigger">
-                  <span className="issue-card__header">
-                    <span className="issue-card__severity" style={{ background: priorityTone(issue.severity) }} />
-                    <span className="issue-card__title">{issue.title}</span>
-                    <span className="chip chip--neutral" style={{ fontSize: '0.6875rem' }}>{issue.category}</span>
-                  </span>
-                </AccordionTrigger>
-                <AccordionContent>
-                  <div className="issue-card__body">
-                    <p className="rs__body">{issue.whyItMatters}</p>
-                    <div className="issue-card__fix">
-                      <strong>Fix:</strong> {issue.fix}
+          <div className="feedback-card__body">
+            {/* Strengths */}
+            {result.strengths.length > 0 && (
+              <div>
+                <div className="feedback-eyebrow feedback-eyebrow--success">Major strengths</div>
+                {result.strengths.slice(0, 4).map((s) => (
+                  <div key={s} className="feedback-strength">
+                    <CheckCircle2 size={20} fill="var(--success)" stroke="white" strokeWidth={2} className="feedback-strength__icon" />
+                    <div>
+                      <div className="feedback-strength__title">{s}</div>
                     </div>
                   </div>
-                </AccordionContent>
-              </AccordionItem>
-            ))}
-          </Accordion>
-        </div>
-        </ScrollReveal>
-      ) : null}
+                ))}
+              </div>
+            )}
 
-      {/* Role fit */}
-      {result.roleFit ? (
-        <ScrollReveal>
-        <div className="rs">
-          <div className="section-card section-card--accent-left" style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
-            <ScoreCircleSvg score={result.roleFit.fitScore} size={64} />
-            <div>
-              <h3 className="result-heading" style={{ margin: 0 }}>Role Fit: {result.roleFit.targetRoleLabel}</h3>
-              <p className="rs__meta" style={{ marginTop: '0.25rem' }}>{result.roleFit.rationale}</p>
-            </div>
+            {/* Issues */}
+            {result.issues.length > 0 && (
+              <div className="feedback-issues">
+                <div className="feedback-eyebrow feedback-eyebrow--danger">Refinement areas</div>
+                {result.issues.map((issue) => (
+                  <div
+                    key={issue.id}
+                    className={`feedback-issue${issue.severity === 'medium' ? ' feedback-issue--medium' : issue.severity === 'low' ? ' feedback-issue--low' : ''}`}
+                  >
+                    <div className="feedback-issue__title">{issue.title}</div>
+                    <div className="feedback-issue__grid">
+                      <div className="feedback-issue__box">
+                        <span className="feedback-issue__box-label">Why it matters</span>
+                        <p className="feedback-issue__box-text">{issue.whyItMatters}</p>
+                      </div>
+                      <div className="feedback-issue__box">
+                        <span className="feedback-issue__box-label">Fix</span>
+                        <p className="feedback-issue__box-text">{issue.fix}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
         </ScrollReveal>
-      ) : null}
-    </>
+
+        {/* Keyword Optimization card */}
+        {hasKeywords && (
+          <ScrollReveal>
+          <div className="keyword-card">
+            <div className="keyword-card__header">
+              <span className="keyword-card__title">Keyword optimization</span>
+              <div className="keyword-card__badges">
+                {evidence.matchedKeywords.length > 0 && (
+                  <span className="keyword-card__badge keyword-card__badge--matched">
+                    {evidence.matchedKeywords.length} matched
+                  </span>
+                )}
+                {evidence.missingKeywords.length > 0 && (
+                  <span className="keyword-card__badge keyword-card__badge--missing">
+                    {evidence.missingKeywords.length} missing
+                  </span>
+                )}
+              </div>
+            </div>
+            <div className="chip-wrap" style={{ gap: '0.5rem' }}>
+              {evidence.matchedKeywords.map((k) => (
+                <span key={k} className="keyword-chip--accent">{k}</span>
+              ))}
+            </div>
+            {evidence.missingKeywords.length > 0 && (
+              <div className="keyword-missing-box">
+                <div className="keyword-missing-label">Add these to rank higher</div>
+                <div className="chip-wrap" style={{ gap: '0.5rem' }}>
+                  {evidence.missingKeywords.map((k) => (
+                    <span key={k} className="keyword-chip--missing">+ {k}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+          </ScrollReveal>
+        )}
+      </div>
+
+      {/* ── Right column (only when content exists) ── */}
+      {hasRightColumn && (
+      <div className="resume-body-right">
+        {result.roleFit && (
+          <ScrollReveal>
+          <div className="rolefit-card">
+            <div className="rolefit-card__header">
+              <span className="rolefit-card__title">Role fit</span>
+              {matchLevel && <span className="rolefit-card__badge">{matchLevel}</span>}
+            </div>
+            <div className="rolefit-bar">
+              <div className="rolefit-bar__header">
+                <span className="rolefit-bar__label">{result.roleFit.targetRoleLabel}</span>
+                <span className="rolefit-bar__value">{result.roleFit.fitScore}%</span>
+              </div>
+              <div className="rolefit-bar__track">
+                <div
+                  className="rolefit-bar__fill"
+                  style={{
+                    width: `${result.roleFit.fitScore}%`,
+                    background: result.roleFit.fitScore >= 70 ? 'var(--accent)' : result.roleFit.fitScore >= 40 ? 'var(--warning)' : 'var(--destructive)',
+                  }}
+                />
+              </div>
+            </div>
+            {result.roleFit.rationale && (
+              <p className="rs__meta" style={{ marginTop: '1rem' }}>{result.roleFit.rationale}</p>
+            )}
+          </div>
+          </ScrollReveal>
+        )}
+      </div>
+      )}
+    </div>
+  )
+}
+
+function JobMatchFixFirstStrip({ payload }: { payload: AnyObject }) {
+  const result = normalizeJobMatchPayload(payload)
+  const actions = result.topActions.slice(0, 3)
+  if (actions.length === 0) return null
+
+  return (
+    <div className="fix-first-strip stagger-entrance">
+      {actions.map((a, i) => {
+        const Icon = FIX_FIRST_ICONS[i] || FileEdit
+        const style = FIX_FIRST_CARD_STYLES[i] || FIX_FIRST_CARD_STYLES[0]
+        return (
+          <div key={`${a.title}-${i}`} className="fix-first-card">
+            <div className="fix-first-card__icon" style={{ background: style.bg }}>
+              <Icon size={18} style={{ color: style.text }} />
+            </div>
+            <div className="fix-first-card__content">
+              <div className="fix-first-card__title">{a.title}</div>
+              <div className="fix-first-card__desc">{a.action}</div>
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function JobMatchHeroExtra({ payload }: { payload: AnyObject }) {
+  const result = normalizeJobMatchPayload(payload)
+  const met = result.requirements.filter((r) => r.status === 'matched').length
+
+  return (
+    <div className="hero-stat-strip">
+      <div className="hero-stat-strip__item">
+        <CheckCircle2 size={16} style={{ color: '#22c55e' }} />
+        <span>{met}/{result.requirements.length} requirements met</span>
+      </div>
+      <div className="hero-stat-strip__divider" />
+      <div className="hero-stat-strip__item">
+        <Hash size={16} style={{ color: '#22c55e' }} />
+        <span>{result.matchedKeywords.length} keywords matched</span>
+      </div>
+      <div className="hero-stat-strip__divider" />
+      <div className="hero-stat-strip__item">
+        <TrendingUp size={16} style={{ color: '#ef4444' }} />
+        <span>{result.missingKeywords.length} missing</span>
+      </div>
+    </div>
   )
 }
 
 function JobMatchView({ payload }: { payload: AnyObject }) {
   const result = normalizeJobMatchPayload(payload)
+  const hasRightContent = result.recruiterSummary || result.interviewFocus.length > 0
 
   return (
-    <>
-      {/* Requirements — card grid */}
-      <div className="rs">
-        <h3 className="result-heading">Requirements</h3>
-        <div className="section-card-grid stagger-entrance">
-          {result.requirements.map((item, index) => (
-            <div key={`${item.requirement}-${index}`} className="req-card">
-              <div className="req-card__status">
-                <span className="req-card__dot" style={{ background: statusTone(item.status) }} />
-                <span className="req-card__status-label" style={{ color: statusTone(item.status) }}>
-                  {item.status}
-                </span>
-              </div>
-              <div className="req-card__name">{item.requirement}</div>
-              <div className="req-card__footer">
-                <span className="chip chip--neutral" style={{ fontSize: '0.6875rem' }}>
-                  {item.importance}
-                </span>
-              </div>
-              {item.resumeEvidence ? (
-                <p className="req-card__evidence">{item.resumeEvidence}</p>
-              ) : null}
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Keywords + Tailoring */}
-      <div className="rs rs--2col">
-        <div>
-          <h3 className="result-label">Keyword coverage</h3>
-          <div className="chip-wrap">
-            {result.matchedKeywords.map((k) => (
-              <span key={k} className="chip chip--positive"><span className="chip__dot" /> {k}</span>
-            ))}
+    <div className={hasRightContent ? 'resume-body-grid' : 'resume-body-single'} style={{ padding: 'var(--rs-pad-y) var(--rs-pad-x)' }}>
+      {/* ── Left column ── */}
+      <div className="resume-body-left">
+        {/* Requirements card */}
+        <ScrollReveal>
+        <div className="feedback-card">
+          <div className="feedback-card__header">
+            <span className="feedback-card__header-title">Detailed requirements</span>
+            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+              {result.requirements.filter((r) => r.status === 'matched').length} of {result.requirements.length} met
+            </span>
           </div>
-          {result.missingKeywords.length > 0 ? (
-            <div style={{ marginTop: '0.75rem' }}>
-              <h3 className="result-label" style={{ color: 'var(--warning)' }}>Missing keywords</h3>
-              <div className="section-card-grid">
-                {result.missingKeywords.map((k) => (
-                  <div key={k.keyword} className="section-card section-card--warning-left">
-                    <div className="step-card__title">{k.keyword}</div>
-                    {k.contextual_guidance ? (
-                      <p className="step-card__desc" style={{ marginTop: '0.25rem' }}>{k.contextual_guidance}</p>
-                    ) : null}
-                    {k.anti_stuffing_note ? (
-                      <p className="rs__meta" style={{ marginTop: '0.25rem', fontStyle: 'italic' }}>{k.anti_stuffing_note}</p>
-                    ) : null}
+          <div className="feedback-card__body" style={{ padding: 0 }}>
+            {result.requirements.map((item, index) => (
+              <div
+                key={`${item.requirement}-${index}`}
+                style={{
+                  padding: '1.25rem 1.5rem',
+                  borderBottom: index < result.requirements.length - 1 ? '1px solid var(--divider)' : 'none',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                  <span style={{
+                    width: '0.625rem', height: '0.625rem', borderRadius: '50%', flexShrink: 0,
+                    background: statusTone(item.status),
+                  }} />
+                  <span style={{ flex: 1, fontWeight: 600, color: 'var(--text-strong)', fontSize: '0.9375rem' }}>
+                    {item.requirement}
+                  </span>
+                  <span className="chip chip--neutral" style={{ fontSize: '0.625rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                    {item.importance}
+                  </span>
+                </div>
+                {item.resumeEvidence && item.status === 'matched' && (
+                  <div style={{
+                    marginTop: '0.75rem', marginLeft: '1.375rem',
+                    background: 'var(--surface-subtle)', borderRadius: 'var(--radius-md)',
+                    padding: '0.75rem', border: '1px solid var(--divider)',
+                  }}>
+                    <span style={{ fontSize: '0.625rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', display: 'block', marginBottom: '0.25rem' }}>
+                      Resume evidence
+                    </span>
+                    <p style={{ fontSize: '0.8125rem', color: 'var(--text-body)', lineHeight: 1.5 }}>{item.resumeEvidence}</p>
                   </div>
-                ))}
-              </div>
-            </div>
-          ) : null}
-        </div>
-        <div>
-          {result.tailoringActions.length > 0 ? (
-            <>
-              <h3 className="result-label">Tailoring actions</h3>
-              <div className="section-card-grid">
-                {result.tailoringActions.slice(0, 3).map((a, i) => (
-                  <div
-                    key={`${a.keyword}-${i}`}
-                    className="step-card"
-                    style={{ '--step-color': 'var(--accent)' } as React.CSSProperties}
-                  >
-                    <div className="step-card__num step-card__num--badge">{a.section}</div>
-                    <div className="step-card__body">
-                      <div className="step-card__title">{a.keyword}</div>
-                      <div className="step-card__desc">{a.action}</div>
-                    </div>
+                )}
+                {item.suggestedFix && item.status !== 'matched' && (
+                  <div style={{
+                    marginTop: '0.75rem', marginLeft: '1.375rem',
+                    borderLeft: `2px solid ${statusTone(item.status)}`, paddingLeft: '1rem',
+                  }}>
+                    <span style={{ fontSize: '0.625rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', color: statusTone(item.status), display: 'block', marginBottom: '0.25rem' }}>
+                      Suggested fix
+                    </span>
+                    <p style={{ fontSize: '0.8125rem', color: 'var(--text-body)', lineHeight: 1.5 }}>{item.suggestedFix}</p>
                   </div>
-                ))}
+                )}
               </div>
-            </>
-          ) : null}
-        </div>
-      </div>
-
-      {/* Recruiter summary — premium card (always visible) */}
-      <div className="rs">
-        <div className="section-card section-card--accent-left">
-          <h3 className="result-heading" style={{ margin: '0 0 0.5rem' }}>Recruiter Summary</h3>
-          <p className="rs__body">{result.recruiterSummary}</p>
-        </div>
-      </div>
-
-      {/* Interview focus */}
-      {result.interviewFocus.length > 0 ? (
-        <div className="rs">
-          <h3 className="result-label">Interview focus</h3>
-          <div className="chip-wrap">
-            {result.interviewFocus.map((f) => (
-              <span key={f} className="chip chip--neutral"><span className="chip__dot" /> {f}</span>
             ))}
           </div>
         </div>
-      ) : null}
-    </>
+        </ScrollReveal>
+
+        {/* Tailoring Actions */}
+        {result.tailoringActions.length > 0 && (
+          <ScrollReveal>
+          <div className="feedback-card">
+            <div className="feedback-card__header">
+              <span className="feedback-card__header-title">Tailoring actions</span>
+            </div>
+            <div className="feedback-card__body">
+              {result.tailoringActions.map((a, i) => (
+                <div
+                  key={`${a.keyword}-${i}`}
+                  className="step-card"
+                  style={{ '--step-color': 'var(--accent)' } as React.CSSProperties}
+                >
+                  <div className="step-card__num">{i + 1}</div>
+                  <div className="step-card__body">
+                    <div className="step-card__title">{a.keyword} <span className="chip chip--neutral" style={{ fontSize: '0.625rem', marginLeft: '0.375rem' }}>{a.section}</span></div>
+                    <div className="step-card__desc">{a.action}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+          </ScrollReveal>
+        )}
+
+        {/* Keywords */}
+        {(result.matchedKeywords.length > 0 || result.missingKeywords.length > 0) && (
+          <ScrollReveal>
+          <div className="keyword-card">
+            <div className="keyword-card__header">
+              <span className="keyword-card__title">Keyword breakdown</span>
+              <div className="keyword-card__badges">
+                {result.matchedKeywords.length > 0 && (
+                  <span className="keyword-card__badge keyword-card__badge--matched">
+                    {result.matchedKeywords.length} matched
+                  </span>
+                )}
+                {result.missingKeywords.length > 0 && (
+                  <span className="keyword-card__badge keyword-card__badge--missing">
+                    {result.missingKeywords.length} missing
+                  </span>
+                )}
+              </div>
+            </div>
+            <div className="chip-wrap" style={{ gap: '0.5rem' }}>
+              {result.matchedKeywords.map((k) => (
+                <span key={k} className="keyword-chip--accent">{k}</span>
+              ))}
+            </div>
+            {result.missingKeywords.length > 0 && (
+              <div className="keyword-missing-box">
+                <div className="keyword-missing-label">Add these to rank higher</div>
+                <div className="chip-wrap" style={{ gap: '0.5rem' }}>
+                  {result.missingKeywords.map((k) => (
+                    <span key={k.keyword} className="keyword-chip--missing">+ {k.keyword}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+          </ScrollReveal>
+        )}
+      </div>
+
+      {/* ── Right column ── */}
+      {hasRightContent && (
+      <div className="resume-body-right">
+        {result.recruiterSummary && (
+          <ScrollReveal>
+          <div className="rolefit-card">
+            <div className="rolefit-card__header">
+              <span className="rolefit-card__title">Recruiter summary</span>
+            </div>
+            <p style={{ fontSize: '0.875rem', color: 'var(--text-body)', lineHeight: 1.6 }}>{result.recruiterSummary}</p>
+          </div>
+          </ScrollReveal>
+        )}
+        {result.interviewFocus.length > 0 && (
+          <ScrollReveal>
+          <div className="rolefit-card">
+            <div className="rolefit-card__header">
+              <span className="rolefit-card__title">Interview prep</span>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              {result.interviewFocus.map((f) => (
+                <div key={f} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', fontSize: '0.8125rem', color: 'var(--text-body)' }}>
+                  <span style={{ color: 'var(--accent)', fontWeight: 700, flexShrink: 0 }}>-</span>
+                  <span>{f}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          </ScrollReveal>
+        )}
+      </div>
+      )}
+    </div>
+  )
+}
+
+function CoverLetterHeroExtra({ payload }: { payload: AnyObject }) {
+  const result = normalizeCoverLetterPayload(payload)
+  const wordCount = result.fullText.split(/\s+/).filter(Boolean).length
+  return (
+    <div className="cl-hero-badges">
+      <span className="cl-hero-badge cl-hero-badge--tone">{result.toneUsed} tone</span>
+      <span className="cl-hero-badge cl-hero-badge--stat">{wordCount} words</span>
+    </div>
   )
 }
 
@@ -887,6 +1048,8 @@ function CoverLetterView({ payload }: { payload: AnyObject }) {
     [bodyTexts, closingText, openingText],
   )
 
+  const annotationLabels = ['Hook strategy', 'Evidence loop', 'Culture fit', 'Value close', 'Closing']
+
   async function handleCopy() { await navigator.clipboard.writeText(compiledText) }
   function handleDownload() {
     const blob = new Blob([compiledText], { type: 'text/plain;charset=utf-8' })
@@ -897,64 +1060,143 @@ function CoverLetterView({ payload }: { payload: AnyObject }) {
   }
 
   return (
-    <div className="rs rs--cover">
-      {/* Left: Letter preview */}
-      <div>
-        <div className="cover-letter-header">
-          <h3 className="result-heading">Letter preview</h3>
-          <div className="cover-letter-actions">
-            <Button variant="outline" size="sm" onClick={handleCopy}><Copy size={13} /> Copy</Button>
-            <Button variant="outline" size="sm" onClick={handleDownload}><Download size={13} /></Button>
-          </div>
-        </div>
-        <div className="document-preview document-preview--premium">{compiledText || result.fullText}</div>
-      </div>
-
-      {/* Right: Editor + Notes */}
-      <div>
-        <h3 className="result-heading">Edit</h3>
-        <div className="section-card-grid">
-          <div className="section-card">
-            <span className="result-label">Opening</span>
-            <Textarea rows={4} value={openingText} onChange={(e) => setOpeningText(e.target.value)} />
-          </div>
-          {result.bodyPoints.map((_item, index) => (
-            <div key={`body-${index}`} className="section-card">
-              <span className="result-label">Body {index + 1}</span>
-              <Textarea rows={5} value={bodyTexts[index] || ''} onChange={(e) => setBodyTexts((c) => c.map((t, i) => i === index ? e.target.value : t))} />
-            </div>
+    <div className="cl-body-grid">
+      {/* Left: Document card */}
+      <div className="cl-document">
+        <div className="cl-document__annotations">
+          {[result.opening, ...result.bodyPoints, result.closing].map((section, i) => (
+            <span key={i} className="cl-document__annotation-label">
+              {section.whyThisParagraph
+                ? section.whyThisParagraph.split(' ').slice(0, 2).join(' ')
+                : annotationLabels[i] || `Para ${i + 1}`}
+            </span>
           ))}
-          <div className="section-card">
-            <span className="result-label">Closing</span>
-            <Textarea rows={3} value={closingText} onChange={(e) => setClosingText(e.target.value)} />
-          </div>
         </div>
-
-        {result.customizationNotes.length > 0 ? (
-          <div className="cover-letter-notes">
-            <h3 className="result-label">Customization notes</h3>
-            {result.customizationNotes.map((n, i) => (
-              <p key={`${n.note}-${i}`} className="rs__meta cover-letter-note">
-                <span className="chip chip--neutral cover-letter-note__tag">{n.category}</span>
-                {n.note}
-              </p>
+        <div className="cl-document__inner">
+          <div className="cl-document__header">
+            <div className="cl-document__date">{result.generatedAt || new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</div>
+            <div className="cl-document__addressee">Hiring Manager</div>
+          </div>
+          <div className="cl-document__paragraphs">
+            <div className="cl-document__para-wrapper">
+              <textarea
+                className="cl-document__textarea"
+                rows={3}
+                value={openingText}
+                onChange={(e) => setOpeningText(e.target.value)}
+              />
+            </div>
+            {result.bodyPoints.map((_item, index) => (
+              <div key={`body-${index}`} className="cl-document__para-wrapper">
+                <textarea
+                  className="cl-document__textarea"
+                  rows={5}
+                  value={bodyTexts[index] || ''}
+                  onChange={(e) => setBodyTexts((c) => c.map((t, i) => i === index ? e.target.value : t))}
+                />
+              </div>
             ))}
           </div>
-        ) : null}
+          <div className="cl-document__signoff">
+            <textarea
+              className="cl-document__textarea"
+              rows={2}
+              value={closingText}
+              onChange={(e) => setClosingText(e.target.value)}
+            />
+          </div>
+        </div>
       </div>
+
+      {/* Right: Sidebar */}
+      <div className="cl-sidebar">
+        {/* Customization notes */}
+        {result.customizationNotes.length > 0 && (
+          <div className="cl-notes-card">
+            <div className="cl-notes-card__header">
+              <Settings size={16} className="cl-notes-card__icon" />
+              <span className="cl-notes-card__title">Customization notes</span>
+            </div>
+            <div className="cl-notes-card__list">
+              {result.customizationNotes.map((n, i) => (
+                <div key={`${n.note}-${i}`} className="cl-notes-card__item">
+                  <CheckCircle2 size={16} className="cl-notes-card__check" />
+                  <span>{n.note}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Action card */}
+        <div className="cl-action-card">
+          <div className="cl-action-card__title">Ready to apply?</div>
+          <div className="cl-action-card__desc">Download your finalized document or copy the text directly into your application.</div>
+          <div className="cl-action-card__buttons">
+            <button className="cl-action-card__btn cl-action-card__btn--primary" onClick={handleCopy}>
+              <Copy size={15} /> Copy full text
+            </button>
+            <button className="cl-action-card__btn cl-action-card__btn--secondary" onClick={handleDownload}>
+              <Download size={15} /> Download TXT
+            </button>
+          </div>
+        </div>
+
+        {/* Tips */}
+        {result.bodyPoints.length > 0 && (
+          <div className="cl-tips">
+            <div className="cl-tips__title">Pro tips</div>
+            <div className="cl-tips__list">
+              <div className="cl-tips__item">
+                <div className="cl-tips__item-icon"><Lightbulb size={14} /></div>
+                <p className="cl-tips__item-text">Include specific metrics and numbers to strengthen impact claims.</p>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function InterviewHeroExtra({ payload }: { payload: AnyObject }) {
+  const result = normalizeInterviewPayload(payload)
+  const practiceCount = result.questions.filter((q) => q.practiceFirst).length
+  return (
+    <div className="iv-hero-strip">
+      <div className="iv-hero-stat">
+        <span className="iv-hero-stat__label">Questions</span>
+        <span className="iv-hero-stat__value iv-hero-stat__value--accent">{result.questions.length}</span>
+      </div>
+      <div className="iv-hero-stat">
+        <span className="iv-hero-stat__label">Focus areas</span>
+        <span className="iv-hero-stat__value">{result.focusAreas.length}</span>
+      </div>
+      {practiceCount > 0 && (
+        <div className="iv-hero-stat">
+          <span className="iv-hero-stat__label">Practice first</span>
+          <span className="iv-hero-stat__value iv-hero-stat__value--warning">{practiceCount}</span>
+        </div>
+      )}
+      {result.weakSignals.length > 0 && (
+        <div className="iv-hero-stat">
+          <span className="iv-hero-stat__label">Weak signals</span>
+          <span className="iv-hero-stat__value iv-hero-stat__value--warning">{result.weakSignals.length}</span>
+        </div>
+      )}
     </div>
   )
 }
 
 function InterviewView({ payload }: { payload: AnyObject }) {
   const result = normalizeInterviewPayload(payload)
-  const [practiceGapsFirst, setPracticeGapsFirst] = useState(false)
+  const [showWeakestFirst, setShowWeakestFirst] = useState(false)
   const [practiceMode, setPracticeMode] = useState(false)
 
   const visibleQuestions = useMemo(() => {
-    if (!practiceGapsFirst) return result.questions
+    if (!showWeakestFirst) return result.questions
     return [...result.questions.filter((q) => q.practiceFirst), ...result.questions.filter((q) => !q.practiceFirst)]
-  }, [practiceGapsFirst, result.questions])
+  }, [showWeakestFirst, result.questions])
 
   if (practiceMode) {
     return (
@@ -969,107 +1211,163 @@ function InterviewView({ payload }: { payload: AnyObject }) {
     )
   }
 
+  function categoryColor(area: string) {
+    const lower = area.toLowerCase()
+    if (lower.includes('behav') || lower.includes('star')) return 'iv-qcard__category--behavioral'
+    if (lower.includes('tech') || lower.includes('system') || lower.includes('design')) return 'iv-qcard__category--technical'
+    if (lower.includes('lead') || lower.includes('growth') || lower.includes('manag')) return 'iv-qcard__category--leadership'
+    return 'iv-qcard__category--default'
+  }
+
   return (
-    <>
-      {/* Practice mode CTA */}
-      <div className="rs" style={{ display: 'flex', justifyContent: 'flex-end' }}>
-        <Button variant="outline" size="sm" onClick={() => setPracticeMode(true)}>
-          Start Practice Mode
-        </Button>
-      </div>
-
-      {/* Focus areas + Weak signals */}
-      <div className="rs rs--2col">
-        <div>
-          <h3 className="result-heading">Focus areas</h3>
-          <div className="section-card-grid stagger-entrance">
-            {result.focusAreas.map((a) => (
-              <div key={a.title} className="section-card">
-                <div className="step-card__title">{a.title}</div>
-                <div className="step-card__desc">{a.reason}</div>
-              </div>
-            ))}
+    <div className="iv-body-grid">
+      {/* Left: Question cards */}
+      <div className="iv-questions">
+        <div className="iv-questions__header">
+          <h2 className="iv-questions__title">
+            <CheckCircle2 size={18} className="iv-questions__title-icon" />
+            Question breakdown
+          </h2>
+          <div className="iv-questions__filters">
+            <button
+              className={`iv-questions__filter-btn${!showWeakestFirst ? ' iv-questions__filter-btn--active' : ''}`}
+              onClick={() => setShowWeakestFirst(false)}
+            >All</button>
+            <button
+              className={`iv-questions__filter-btn${showWeakestFirst ? ' iv-questions__filter-btn--active' : ''}`}
+              onClick={() => setShowWeakestFirst(true)}
+            >Weakest</button>
           </div>
         </div>
-        <div>
-          <h3 className="result-heading" style={{ color: 'var(--warning)' }}>Weak signals</h3>
-          <div className="section-card-grid stagger-entrance">
-            {result.weakSignals.map((w) => (
-              <div
-                key={w.title}
-                className="step-card"
-                style={{ '--step-color': priorityTone(w.severity) } as React.CSSProperties}
-              >
-                <div className="step-card__num">
-                  <span className="issue-card__severity" style={{ background: priorityTone(w.severity), width: 6, height: 6 }} />
-                </div>
-                <div className="step-card__body">
-                  <div className="step-card__title">{w.title}</div>
-                  <div className="step-card__desc">{w.prepAction}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
 
-      {/* Questions */}
-      <div className="rs">
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-          <h3 className="result-heading" style={{ margin: 0 }}>Questions ({visibleQuestions.length})</h3>
-          <Button variant="outline" size="sm" onClick={() => setPracticeGapsFirst((c) => !c)}>
-            {practiceGapsFirst ? 'All' : 'Gaps first'}
-          </Button>
-        </div>
-        <Accordion type="single" collapsible className="issue-card-list">
-          {visibleQuestions.map((item, index) => (
-            <AccordionItem key={`${index}-${item.question}`} value={`qa-${index}`} className="issue-card">
-              <AccordionTrigger className="issue-card__trigger">
-                <span className="issue-card__header">
-                  <span className="step-card__num" style={{
-                    width: '1.5rem', height: '1.5rem',
-                    background: item.practiceFirst ? 'color-mix(in srgb, var(--warning) 12%, transparent)' : 'color-mix(in srgb, var(--text-body) 5%, transparent)',
-                    color: item.practiceFirst ? 'var(--warning)' : 'var(--text-muted)',
-                  }}>{index + 1}</span>
-                  <span className="issue-card__title">{item.question}</span>
-                  <span className="chip chip--neutral" style={{ fontSize: '0.6875rem' }}>{item.focusArea}</span>
-                  {item.practiceFirst ? <span className="chip chip--warning" style={{ fontSize: '0.6875rem' }}>Gap</span> : null}
-                </span>
-              </AccordionTrigger>
-              <AccordionContent>
-                <div className="issue-card__body">
-                  <p className="rs__meta" style={{ marginBottom: '0.375rem' }}><strong>Why:</strong> {item.whyAsked}</p>
-                  <p className="rs__body">{item.answer}</p>
-                  {item.keyPoints.length > 0 ? (
-                    <div className="issue-card__fix" style={{ marginTop: '0.375rem' }}>
-                      {item.keyPoints.map((p) => (
-                        <div key={p} className="strength-item" style={{ fontSize: '0.8125rem' }}>
-                          <span className="strength-item__icon">&#10003;</span> {p}
-                        </div>
-                      ))}
+        {visibleQuestions.map((item, index) => (
+          <div key={`${index}-${item.question}`} className={`iv-qcard${item.practiceFirst ? ' iv-qcard--practice' : ''}`}>
+            <div className="iv-qcard__inner">
+              <div className="iv-qcard__top">
+                <div className="iv-qcard__meta">
+                  <span className={`iv-qcard__category ${categoryColor(item.focusArea)}`}>
+                    {item.focusArea}
+                  </span>
+                  <h3 className="iv-qcard__question">&ldquo;{item.question}&rdquo;</h3>
+                </div>
+                <div className="iv-qcard__score">
+                  {item.practiceFirst ? (
+                    <>
+                      <div className="iv-qcard__score-icon iv-qcard__score-icon--warn">
+                        <Info size={14} />
+                      </div>
+                    </>
+                  ) : (
+                    <div className="iv-qcard__score-icon iv-qcard__score-icon--good">
+                      <CheckCircle2 size={14} />
                     </div>
-                  ) : null}
+                  )}
                 </div>
-              </AccordionContent>
-            </AccordionItem>
-          ))}
-        </Accordion>
+              </div>
+
+              {/* Answer or suggestion box */}
+              {item.practiceFirst ? (
+                <div className="iv-qcard__suggestion">
+                  <Lightbulb size={16} className="iv-qcard__suggestion-icon" />
+                  <div className="iv-qcard__suggestion-text">
+                    <strong>Focus area:</strong> {item.whyAsked}
+                  </div>
+                </div>
+              ) : (
+                <div className="iv-qcard__answer">
+                  <p className="iv-qcard__answer-text">{item.answer}</p>
+                </div>
+              )}
+
+              {/* Key points as chips */}
+              {item.keyPoints.length > 0 && (
+                <div className="iv-qcard__chips">
+                  {item.keyPoints.slice(0, 3).map((p) => (
+                    <span key={p} className={`iv-qcard__chip${item.practiceFirst ? ' iv-qcard__chip--warn' : ''}`}>
+                      <CheckCircle2 size={12} /> {p}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
       </div>
 
-      {/* Interviewer notes */}
-      {result.interviewerNotes.length > 0 ? (
-        <div className="rs">
-          <div className="section-card section-card--accent-left">
-            <h3 className="result-label">Interviewer notes</h3>
+      {/* Right: Sidebar */}
+      <div className="iv-sidebar">
+        {/* Competency Map */}
+        {result.focusAreas.length > 0 && (
+          <div className="iv-competency-card">
+            <div className="iv-competency-card__dark">
+              <div className="iv-competency-card__title">Focus areas</div>
+              <div className="iv-competency-card__bars">
+                {result.focusAreas.map((area, i) => {
+                  const barClass = area.practiceFirst ? 'iv-competency-bar__fill--warn' : i === 0 ? 'iv-competency-bar__fill--good' : 'iv-competency-bar__fill--ok'
+                  return (
+                    <div key={area.title} className="iv-competency-bar">
+                      <div className="iv-competency-bar__header">
+                        <span className="iv-competency-bar__label">{area.title}</span>
+                      </div>
+                      <div className="iv-competency-bar__track">
+                        <div
+                          className={`iv-competency-bar__fill ${barClass}`}
+                          style={{ width: area.practiceFirst ? '45%' : `${85 - i * 8}%` }}
+                        />
+                      </div>
+                      <p style={{ fontSize: '0.6875rem', color: '#c7d4e1', lineHeight: 1.5, marginTop: '0.25rem' }}>
+                        {area.reason}
+                      </p>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Weak signals */}
+        {result.weakSignals.length > 0 && (
+          <div className="iv-keyword-card">
+            <div className="iv-keyword-card__title">Weak signals</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              {result.weakSignals.map((w) => (
+                <div key={w.title} style={{ paddingLeft: '0.75rem', borderLeft: `2px solid ${priorityTone(w.severity)}` }}>
+                  <div style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'var(--text-strong)', marginBottom: '0.25rem' }}>{w.title}</div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', lineHeight: 1.5 }}>{w.prepAction}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Next actions */}
+        <div className="iv-next-actions">
+          <div className="iv-next-actions__title">Next actions</div>
+          <div className="iv-next-action" onClick={() => setPracticeMode(true)}>
+            <div className="iv-next-action__icon"><Zap size={16} /></div>
+            <div className="iv-next-action__body">
+              <div className="iv-next-action__name">Practice mode</div>
+              <div className="iv-next-action__desc">Rehearse weak responses</div>
+            </div>
+            <ChevronRight size={14} className="iv-next-action__arrow" />
+          </div>
+        </div>
+
+        {/* Interviewer notes */}
+        {result.interviewerNotes.length > 0 && (
+          <div className="iv-notes-card">
+            <div className="iv-notes-card__title">Interviewer notes</div>
             {result.interviewerNotes.map((n) => (
-              <div key={n} className="strength-item" style={{ fontSize: '0.8125rem', marginBottom: '0.125rem' }}>
-                <span className="strength-item__icon">&#10003;</span> {n}
+              <div key={n} className="iv-notes-card__item">
+                <CheckCircle2 size={14} className="iv-notes-card__check" />
+                <span>{n}</span>
               </div>
             ))}
           </div>
-        </div>
-      ) : null}
-    </>
+        )}
+      </div>
+    </div>
   )
 }
 
@@ -1182,242 +1480,257 @@ function normalizePortfolioPayload(payload: AnyObject): PortfolioResultPayload {
   }
 }
 
+function CareerHeroExtra({ payload }: { payload: AnyObject }) {
+  const result = normalizeCareerPayload(payload)
+  const score = result.recommendedDirection.fitScore
+  const verdictClass = score >= 70 ? 'cp-hero-score__verdict--good' : score >= 40 ? 'cp-hero-score__verdict--ok' : 'cp-hero-score__verdict--low'
+  const verdictText = score >= 70 ? 'High match' : score >= 40 ? 'Moderate' : 'Stretch'
+  return (
+    <div className="cp-hero-score">
+      <span className="cp-hero-score__label">Fit score</span>
+      <span className="cp-hero-score__value">{score}%</span>
+      <span className={`cp-hero-score__verdict ${verdictClass}`}>
+        <CheckCircle2 size={14} /> {verdictText}
+      </span>
+    </div>
+  )
+}
+
 function CareerView({ payload }: { payload: AnyObject }) {
   const result = normalizeCareerPayload(payload)
+  const altPaths = result.paths.filter((p) => p.roleTitle !== result.recommendedDirection.roleTitle)
 
   return (
-    <>
-      {/* Recommendation */}
-      <div className="rs rs--elevated">
-        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: '0.375rem' }}>
-          <h3 className="result-heading" style={{ margin: 0 }}>{result.recommendedDirection.roleTitle}</h3>
-          <span className="result-display" style={{ fontSize: '1.5rem', color: scoreColor(result.recommendedDirection.fitScore) }}>{result.recommendedDirection.fitScore}%</span>
+    <div className="cp-body-grid">
+      {/* Left: Main content */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+        {/* Primary recommended path */}
+        <div className="cp-primary-card">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem' }}>
+            <div>
+              <div className="cp-primary-card__badge">Recommended path</div>
+              <div className="cp-primary-card__title">{result.recommendedDirection.roleTitle}</div>
+            </div>
+            <span className="cp-primary-card__timeline">{result.recommendedDirection.transitionTimeline}</span>
+          </div>
+
+          <div className="cp-primary-card__grid">
+            <div>
+              <div className="cp-primary-card__why-title">Why this is your ideal next step</div>
+              <p className="cp-primary-card__why-text">{result.recommendedDirection.whyNow}</p>
+              <div className="cp-primary-card__benefits">
+                {result.paths[0]?.strengthsToLeverage.slice(0, 3).map((s) => (
+                  <div key={s} className="cp-primary-card__benefit">
+                    <TrendingUp size={14} className="cp-primary-card__benefit-icon" />
+                    <span>{s}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <ScoreCircleSvg score={result.recommendedDirection.fitScore} size={160} />
+            </div>
+          </div>
+
+          {/* Numbered roadmap */}
+          {result.nextSteps.length > 0 && (
+            <div className="cp-roadmap">
+              <div className="cp-roadmap__title">The {result.nextSteps.length}-step roadmap</div>
+              <div className="cp-roadmap__steps">
+                {result.nextSteps.map((step, i) => (
+                  <div key={`${step.timeframe}-${i}`} className="cp-roadmap__step">
+                    <div className={`cp-roadmap__num ${i < 2 ? 'cp-roadmap__num--filled' : 'cp-roadmap__num--outline'}`}>{i + 1}</div>
+                    <div className="cp-roadmap__step-body">
+                      <div className="cp-roadmap__step-title">{step.timeframe}</div>
+                      <div className="cp-roadmap__step-desc">{step.action}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
-        <p className="rs__body" style={{ marginBottom: '0.5rem' }}>{result.recommendedDirection.whyNow}</p>
-        <div className="chip-wrap">
-          <span className="chip chip--neutral">{result.recommendedDirection.transitionTimeline}</span>
-          <span className="chip chip--neutral">{result.recommendedDirection.confidence} confidence</span>
-        </div>
+
+        {/* Skill gaps table */}
+        {result.skillGaps.length > 0 && (
+          <div className="cp-gaps-card">
+            <div className="cp-gaps-card__header">
+              <span className="cp-gaps-card__title">Critical skill gaps</span>
+              <span className="cp-gaps-card__count">{result.skillGaps.length} gaps</span>
+            </div>
+            {result.skillGaps.map((g) => (
+              <div key={g.skill} className="cp-gap-row">
+                <div className={`cp-gap-row__dot cp-gap-row__dot--${g.urgency}`} />
+                <div className="cp-gap-row__body">
+                  <div className="cp-gap-row__skill">{g.skill}</div>
+                  <div className="cp-gap-row__desc">{g.whyItMatters}</div>
+                </div>
+                <div className="cp-gap-row__action">
+                  {g.howToBuild.split(' ').slice(0, 2).join(' ')}
+                  <ArrowRight size={12} />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
-      {/* Path comparison cards */}
-      <div className="rs">
-        <h3 className="result-heading">Path comparison</h3>
-        <div className="path-grid">
-          {result.paths.map((p) => {
-            const isBest = p.fitScore === Math.max(...result.paths.map(pp => pp.fitScore))
+      {/* Right: Sidebar */}
+      <div className="cp-sidebar">
+        {/* Alternative paths */}
+        {altPaths.length > 0 && (
+          <div className="cp-alt-paths">
+            <div className="cp-alt-paths__title">Alternative paths</div>
+            {altPaths.map((p) => (
+              <div key={p.roleTitle} className="cp-alt-card">
+                <div className="cp-alt-card__top">
+                  <div className="cp-alt-card__icon"><TrendingUp size={16} /></div>
+                  <span className="cp-alt-card__score" style={{ color: scoreColor(p.fitScore) }}>{p.fitScore}% match</span>
+                </div>
+                <div className="cp-alt-card__name">{p.roleTitle}</div>
+                <div className="cp-alt-card__desc">{p.rationale}</div>
+                <div className="cp-alt-card__footer">
+                  <span className="cp-alt-card__timeline">{p.transitionTimeline}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Pro tip */}
+        <div className="cl-action-card">
+          <div className="cl-action-card__title">Pro tip</div>
+          <div className="cl-action-card__desc" style={{ marginBottom: 0 }}>
+            {result.recommendedDirection.confidence === 'high'
+              ? 'Your profile strongly matches this direction. Focus on closing the remaining skill gaps to maximize your timeline.'
+              : 'Document your cross-team wins and build visible proof points to strengthen your candidacy.'}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function PortfolioHeroExtra({ payload }: { payload: AnyObject }) {
+  const result = normalizePortfolioPayload(payload)
+  const completionPct = Math.min(100, Math.round((result.projects.length / Math.max(result.projects.length, 3)) * 100))
+  return (
+    <div className="pf-hero-readiness">
+      <span className="pf-hero-readiness__label">Portfolio readiness</span>
+      <div className="pf-hero-readiness__bar">
+        <div className="pf-hero-readiness__track">
+          <div className="pf-hero-readiness__fill" style={{ width: `${completionPct}%` }} />
+        </div>
+        <span className="pf-hero-readiness__value">{completionPct}%</span>
+      </div>
+    </div>
+  )
+}
+
+function PortfolioView({ payload }: { payload: AnyObject }) {
+  const result = normalizePortfolioPayload(payload)
+  const isStartProject = (title: string) =>
+    title.toLowerCase() === result.recommendedStartProject.toLowerCase()
+
+  // Collect all unique deliverables across projects
+  const allDeliverables = result.projects.flatMap((p) => p.deliverables).filter((d, i, arr) => arr.indexOf(d) === i).slice(0, 5)
+
+  return (
+    <div className="pf-body-grid">
+      {/* Left: Build sequence */}
+      <div className="pf-sequence">
+        <h3 className="pf-sequence__title">
+          <Hash size={18} className="pf-sequence__title-icon" />
+          The build sequence
+        </h3>
+        <div className="pf-sequence__items">
+          {result.projects.map((project, i) => {
+            const isStart = isStartProject(project.projectTitle)
             return (
-              <div key={p.roleTitle} className={`path-card${isBest ? ' path-card--best' : ''}`}>
-                {isBest ? <div className="path-card__badge">Recommended</div> : null}
-                <div className="path-card__header">
-                  <span className="path-card__title">{p.roleTitle}</span>
-                  <span className="path-card__score" style={{ color: scoreColor(p.fitScore) }}>{p.fitScore}%</span>
+              <div key={project.projectTitle} className="pf-sequence-item">
+                <div className={`pf-sequence-item__num ${isStart ? 'pf-sequence-item__num--start' : 'pf-sequence-item__num--default'}`}>
+                  {i + 1}
                 </div>
-                <div className="path-card__meta">
-                  <span className="chip chip--neutral" style={{ fontSize: '0.6875rem' }}>{p.transitionTimeline}</span>
-                  <span className="chip" style={{
-                    fontSize: '0.6875rem',
-                    background: `color-mix(in srgb, ${riskTone(p.riskLevel)} 10%, transparent)`,
-                    color: riskTone(p.riskLevel),
-                  }}>{p.riskLevel} risk</span>
-                </div>
-                {p.strengthsToLeverage.length > 0 ? (
-                  <div style={{ marginBottom: '0.375rem' }}>
-                    <div className="path-card__detail-label" style={{ color: 'var(--success)' }}>Strengths</div>
-                    <div className="path-card__list">
-                      {p.strengthsToLeverage.slice(0, 3).map(s => (
-                        <div key={s} className="path-card__list-item">
-                          <span style={{ color: 'var(--success)' }}>&#10003;</span> {s}
-                        </div>
-                      ))}
+                <div className="pf-project-card">
+                  <div className="pf-project-card__top">
+                    <div>
+                      <div className="pf-project-card__title-row">
+                        {isStart && <span className="pf-project-card__start-badge">Start here</span>}
+                        <span className="pf-project-card__title">{project.projectTitle}</span>
+                      </div>
+                      <p className="pf-project-card__desc">{project.description}</p>
+                    </div>
+                    <div className="pf-project-card__complexity">
+                      <div className="pf-project-card__complexity-label">Complexity</div>
+                      <div className="pf-project-card__complexity-value">{project.complexity}</div>
                     </div>
                   </div>
-                ) : null}
-                {p.gapsToClose.length > 0 ? (
-                  <div>
-                    <div className="path-card__detail-label" style={{ color: 'var(--warning)' }}>Gaps</div>
-                    <div className="path-card__list">
-                      {p.gapsToClose.slice(0, 3).map(g => (
-                        <div key={g} className="path-card__list-item">
-                          <span style={{ color: 'var(--warning)' }}>&#9679;</span> {g}
-                        </div>
+
+                  <div className="pf-project-card__why" style={{ borderLeftColor: isStart ? 'var(--accent)' : i === 1 ? '#16a34a' : '#d97706' }}>
+                    <div className="pf-project-card__why-title">Why this project</div>
+                    <p className="pf-project-card__why-text">{project.whyThisProject}</p>
+                  </div>
+
+                  {project.skills.length > 0 && (
+                    <div className="pf-project-card__skills">
+                      {project.skills.slice(0, 4).map((s) => (
+                        <span key={s} className="pf-skill-chip">{s}</span>
                       ))}
                     </div>
-                  </div>
-                ) : null}
+                  )}
+                </div>
               </div>
             )
           })}
         </div>
       </div>
 
-      {/* Skills */}
-      <div className="rs rs--2col">
-        <div>
-          <h3 className="result-label" style={{ color: 'var(--success)' }}>Current skills</h3>
-          <div className="chip-wrap">
-            {result.currentSkills.map((s) => <span key={s} className="chip chip--positive"><span className="chip__dot" /> {s}</span>)}
-          </div>
-        </div>
-        <div>
-          <h3 className="result-label" style={{ color: 'var(--warning)' }}>Target skills</h3>
-          <div className="chip-wrap">
-            {result.targetSkills.map((s) => <span key={s} className="chip chip--outline-warning"><span className="chip__dot" /> {s}</span>)}
-          </div>
-        </div>
-      </div>
-
-      {/* Skill gaps */}
-      {result.skillGaps.length > 0 ? (
-        <div className="rs">
-          <h3 className="result-heading">Skill gaps ({result.skillGaps.length})</h3>
-          <Accordion type="single" collapsible className="issue-card-list">
-            {result.skillGaps.map((g) => (
-              <AccordionItem key={g.skill} value={g.skill} className="issue-card">
-                <AccordionTrigger className="issue-card__trigger">
-                  <span className="issue-card__header">
-                    <span className="issue-card__severity" style={{ background: priorityTone(g.urgency) }} />
-                    <span className="issue-card__title">{g.skill}</span>
-                  </span>
-                </AccordionTrigger>
-                <AccordionContent>
-                  <div className="issue-card__body">
-                    <p className="rs__body">{g.whyItMatters}</p>
-                    {g.howToBuild ? (
-                      <div className="issue-card__fix">
-                        <strong>How:</strong> {g.howToBuild}
-                      </div>
-                    ) : null}
-                  </div>
-                </AccordionContent>
-              </AccordionItem>
-            ))}
-          </Accordion>
-        </div>
-      ) : null}
-
-      {/* Roadmap (vertical timeline) */}
-      {result.nextSteps.length > 0 ? (
-        <div className="rs">
-          <h3 className="result-heading">Roadmap</h3>
-          <div className="roadmap-v">
-            {result.nextSteps.map((step, i) => (
-              <div key={`${step.timeframe}-${i}`} className="roadmap-v__step">
-                <div className="roadmap-v__dot">
-                  <span className="roadmap-v__dot-num">{i + 1}</span>
+      {/* Right: Sidebar */}
+      <div className="pf-sidebar">
+        {/* Presentation tips */}
+        {result.presentationTips.length > 0 && (
+          <div className="pf-tips-card">
+            <div className="pf-tips-card__title">
+              <Lightbulb size={16} className="pf-tips-card__title-icon" />
+              Presentation tips
+            </div>
+            <div className="pf-tips-card__list">
+              {result.presentationTips.map((tip, i) => (
+                <div key={tip} className="pf-tips-card__item">
+                  <div className="pf-tips-card__item-label">Tip {i + 1}</div>
+                  <p className="pf-tips-card__item-text">{tip}</p>
                 </div>
-                <div className="roadmap-v__timeframe">{step.timeframe}</div>
-                <div className="roadmap-v__action">{step.action}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : null}
-    </>
-  )
-}
-
-function PortfolioView({ payload }: { payload: AnyObject }) {
-  const result = normalizePortfolioPayload(payload)
-  const projectsByTitle = Object.fromEntries(
-    result.projects.map((p) => [p.projectTitle.toLowerCase(), p]),
-  ) as Record<string, PortfolioResultPayload['projects'][number]>
-
-  return (
-    <>
-      {/* Strategy + Roadmap */}
-      <div className="rs">
-        <div className="section-card section-card--accent-left">
-          <h3 className="result-heading" style={{ margin: '0 0 0.25rem' }}>Strategy</h3>
-          <p className="rs__body" style={{ marginBottom: '0.25rem' }}><strong>{result.strategy.headline}</strong></p>
-          <p className="rs__meta">{result.strategy.focus}</p>
-        </div>
-        {result.sequencePlan.length > 0 ? (
-          <div style={{ marginTop: '0.75rem' }}>
-            <h3 className="result-label">Project roadmap</h3>
-            <div className="roadmap-v">
-              {result.sequencePlan.map((step) => {
-                const project = projectsByTitle[step.projectTitle.toLowerCase()]
-                return (
-                  <div key={`${step.order}-${step.projectTitle}`} className="roadmap-v__step">
-                    <div className="roadmap-v__dot">
-                      <span className="roadmap-v__dot-num">{step.order}</span>
-                    </div>
-                    <div className="roadmap-v__timeframe">{step.projectTitle}</div>
-                    <div className="roadmap-v__action">{step.reason}</div>
-                    {project ? (
-                      <div className="roadmap-v__detail">{project.complexity} &middot; {project.estimatedTimeline}</div>
-                    ) : null}
-                  </div>
-                )
-              })}
+              ))}
             </div>
           </div>
-        ) : null}
-      </div>
+        )}
 
-      {/* Projects */}
-      <div className="rs">
-        <h3 className="result-heading">Projects ({result.projects.length})</h3>
-        <Accordion type="single" collapsible className="issue-card-list">
-          {result.projects.map((project) => (
-            <AccordionItem key={project.projectTitle} value={project.projectTitle} className="issue-card">
-              <AccordionTrigger className="issue-card__trigger">
-                <span className="issue-card__header">
-                  <span className="issue-card__title">{project.projectTitle}</span>
-                  <span className="chip" style={{
-                    fontSize: '0.6875rem',
-                    background: `color-mix(in srgb, ${complexityTone(project.complexity)} 10%, transparent)`,
-                    color: complexityTone(project.complexity),
-                  }}>{project.complexity}</span>
-                  <span className="chip chip--neutral" style={{ fontSize: '0.6875rem' }}>{project.estimatedTimeline}</span>
-                </span>
-              </AccordionTrigger>
-              <AccordionContent>
-                <div className="issue-card__body">
-                  <p className="rs__body">{project.description}</p>
-                  <p className="rs__meta" style={{ marginTop: '0.25rem' }}><strong>Why:</strong> {project.whyThisProject}</p>
-                  <div className="chip-wrap" style={{ marginTop: '0.375rem' }}>
-                    {project.skills.slice(0, 4).map((s) => <span key={s} className="chip chip--positive" style={{ fontSize: '0.6875rem' }}>{s}</span>)}
-                    {project.skills.length > 4 ? <span className="chip chip--neutral" style={{ fontSize: '0.6875rem' }}>+{project.skills.length - 4}</span> : null}
-                  </div>
-                  {project.deliverables.length > 0 ? (
-                    <div className="issue-card__fix" style={{ marginTop: '0.375rem' }}>
-                      {project.deliverables.map((d) => (
-                        <div key={d} className="strength-item" style={{ fontSize: '0.8125rem' }}>
-                          <span className="strength-item__icon">&#10003;</span> {d}
-                        </div>
-                      ))}
-                    </div>
-                  ) : null}
+        {/* Deliverables checklist */}
+        {allDeliverables.length > 0 && (
+          <div className="pf-deliverables-card">
+            <div className="pf-deliverables-card__title">Key deliverables</div>
+            <div className="pf-deliverables-card__list">
+              {allDeliverables.map((d) => (
+                <div key={d} className="pf-deliverables-card__item">
+                  <CheckCircle2 size={14} className="pf-deliverables-card__check" />
+                  <span>{d}</span>
                 </div>
-              </AccordionContent>
-            </AccordionItem>
-          ))}
-        </Accordion>
-      </div>
-
-      {/* Presentation tips */}
-      {result.presentationTips.length > 0 ? (
-        <div className="rs">
-          <h3 className="result-label">Presentation tips</h3>
-          <div className="section-card-grid stagger-entrance">
-            {result.presentationTips.map((tip, i) => (
-              <div
-                key={tip}
-                className="step-card"
-                style={{ '--step-color': 'var(--accent)' } as React.CSSProperties}
-              >
-                <div className="step-card__num">{i + 1}</div>
-                <div className="step-card__body">
-                  <div className="step-card__desc">{tip}</div>
-                </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
+        )}
+
+        {/* Strategy card */}
+        <div className="cl-notes-card">
+          <div className="cl-notes-card__header">
+            <Settings size={16} className="cl-notes-card__icon" />
+            <span className="cl-notes-card__title">Strategy</span>
+          </div>
+          <p className="cl-notes-card__desc">{result.strategy.headline}</p>
+          <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', lineHeight: 1.6 }}>{result.strategy.focus}</p>
         </div>
-      ) : null}
-    </>
+      </div>
+    </div>
   )
 }
 
@@ -1528,41 +1841,33 @@ export type ResultDefinition = {
   render: (payload: AnyObject, item: ToolRunDetail, tool: ToolDefinition) => ReactNode
   heroMetric?: (payload: AnyObject) => ReactNode
   insightStrip?: (payload: AnyObject) => { label: string; value: string; color?: string }[]
+  heroVariant?: 'dark' | 'default'
+  heroExtra?: (payload: AnyObject) => ReactNode
+  /** Content rendered between hero and main content card (e.g. Fix First strip) */
+  midSection?: (payload: AnyObject) => ReactNode
 }
 
 export const resultDefinitions: Record<ToolId, ResultDefinition> = {
   resume: {
     copyText: (payload) => resumeCopyText(payload),
+    heroVariant: 'dark',
     heroMetric: (payload) => {
       const r = normalizeResumePayload(payload)
-      return <ScoreCircleSvg score={r.overallScore} />
+      return <ScoreCircleSvg score={r.overallScore} size={192} />
     },
-    insightStrip: (payload) => {
-      const r = normalizeResumePayload(payload)
-      return r.scoreBreakdown.slice(0, 4).map((item) => ({
-        label: item.label,
-        value: String(item.score),
-        color: scoreColor(item.score),
-      }))
-    },
+    heroExtra: (payload) => <ResumeHeroExtra payload={payload} />,
+    midSection: (payload) => <ResumeFixFirstStrip payload={payload} />,
     render: (payload) => <ResumeResultView payload={payload} />,
   },
   'job-match': {
     copyText: (payload) => jobMatchCopyText(payload),
+    heroVariant: 'dark',
     heroMetric: (payload) => {
       const r = normalizeJobMatchPayload(payload)
-      return <ScoreCircleSvg score={r.matchScore} />
+      return <ScoreCircleSvg score={r.matchScore} size={192} />
     },
-    insightStrip: (payload) => {
-      const r = normalizeJobMatchPayload(payload)
-      const met = r.requirements.filter((req) => req.status === 'matched').length
-      return [
-        { label: 'Match', value: `${r.matchScore}%`, color: scoreColor(r.matchScore) },
-        { label: 'Requirements met', value: `${met}/${r.requirements.length}` },
-        { label: 'Keywords', value: `${r.matchedKeywords.length}/${r.matchedKeywords.length + r.missingKeywords.length}` },
-        { label: 'Verdict', value: r.verdict },
-      ]
-    },
+    heroExtra: (payload) => <JobMatchHeroExtra payload={payload} />,
+    midSection: (payload) => <JobMatchFixFirstStrip payload={payload} />,
     render: (payload) => <JobMatchView payload={payload} />,
   },
   'cover-letter': {
@@ -1571,60 +1876,22 @@ export const resultDefinitions: Record<ToolId, ResultDefinition> = {
       filename: `${item.label || 'cover-letter'}.txt`,
       content: coverLetterCopyText(payload),
     }),
-    insightStrip: (payload) => {
-      const r = normalizeCoverLetterPayload(payload)
-      const wordCount = r.fullText.split(/\s+/).filter(Boolean).length
-      return [
-        { label: 'Words', value: String(wordCount) },
-        { label: 'Paragraphs', value: String(1 + r.bodyPoints.length + 1) },
-        { label: 'Tone', value: r.toneUsed },
-        { label: 'Custom points', value: String(r.customizationNotes.length) },
-      ]
-    },
+    heroExtra: (payload) => <CoverLetterHeroExtra payload={payload} />,
     render: (payload) => <CoverLetterView payload={payload} />,
   },
   interview: {
     copyText: (payload) => interviewCopyText(payload),
-    insightStrip: (payload) => {
-      const r = normalizeInterviewPayload(payload)
-      const practiceFirst = r.questions.filter((q) => q.practiceFirst).length
-      return [
-        { label: 'Questions', value: String(r.questions.length) },
-        { label: 'Focus areas', value: String(r.focusAreas.length) },
-        { label: 'Weak signals', value: String(r.weakSignals.length), color: r.weakSignals.length > 0 ? 'var(--warning)' : undefined },
-        { label: 'Practice first', value: String(practiceFirst) },
-      ]
-    },
+    heroExtra: (payload) => <InterviewHeroExtra payload={payload} />,
     render: (payload) => <InterviewView payload={payload} />,
   },
   career: {
     copyText: (payload) => careerCopyText(payload),
-    heroMetric: (payload) => {
-      const r = normalizeCareerPayload(payload)
-      return <ScoreCircleSvg score={r.recommendedDirection.fitScore} />
-    },
-    insightStrip: (payload) => {
-      const r = normalizeCareerPayload(payload)
-      return [
-        { label: 'Fit', value: `${r.recommendedDirection.fitScore}%`, color: scoreColor(r.recommendedDirection.fitScore) },
-        { label: 'Timeline', value: r.recommendedDirection.transitionTimeline },
-        { label: 'Skill gaps', value: String(r.skillGaps.length) },
-        { label: 'Confidence', value: r.recommendedDirection.confidence },
-      ]
-    },
+    heroExtra: (payload) => <CareerHeroExtra payload={payload} />,
     render: (payload) => <CareerView payload={payload} />,
   },
   portfolio: {
     copyText: (payload) => portfolioCopyText(payload),
-    insightStrip: (payload) => {
-      const r = normalizePortfolioPayload(payload)
-      return [
-        { label: 'Projects', value: String(r.projects.length) },
-        { label: 'Start with', value: r.recommendedStartProject.split(' ').slice(0, 3).join(' ') },
-        { label: 'Target', value: r.targetRole.split(' ').slice(0, 3).join(' ') },
-        { label: 'Steps', value: String(r.sequencePlan.length) },
-      ]
-    },
+    heroExtra: (payload) => <PortfolioHeroExtra payload={payload} />,
     render: (payload) => <PortfolioView payload={payload} />,
   },
 }
