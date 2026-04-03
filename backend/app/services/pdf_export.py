@@ -56,7 +56,7 @@ def generate_cover_letter_pdf(result: dict[str, Any]) -> bytes:
                     elements.append(Paragraph(title, letter_heading))
                 if content:
                     # Replace newlines with <br/> for reportlab
-                    content_html = content.replace("\n", "<br/>")
+                    content_html = str(content).replace("\n", "<br/>")
                     elements.append(Paragraph(content_html, letter_body))
     else:
         # Fallback: try full_letter field
@@ -121,14 +121,14 @@ def generate_interview_pdf(result: dict[str, Any]) -> bytes:
     for i, q in enumerate(questions, 1):
         if not isinstance(q, dict):
             continue
-        text = q.get("question", q.get("text", f"Question {i}"))
+        text = str(q.get("question", q.get("text", f"Question {i}")))
         elements.append(Paragraph(f"Q{i}: {text}", question_style))
 
         # Answer structure / key points
         answer = q.get("answer_structure", q.get("answer", ""))
         if isinstance(answer, list):
             for point in answer:
-                elements.append(Paragraph(f"&bull; {point}", answer_style))
+                elements.append(Paragraph(f"&bull; {str(point)}", answer_style))
         elif answer:
             elements.append(Paragraph(str(answer).replace("\n", "<br/>"), answer_style))
 
@@ -137,7 +137,7 @@ def generate_interview_pdf(result: dict[str, Any]) -> bytes:
         if talking_points:
             elements.append(Paragraph("Key Talking Points:", label_style))
             for tp in talking_points:
-                elements.append(Paragraph(f"&bull; {tp}", answer_style))
+                elements.append(Paragraph(f"&bull; {str(tp)}", answer_style))
 
         elements.append(Spacer(1, 0.3 * cm))
 
