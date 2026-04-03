@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { X } from 'lucide-react'
 import { getAdminRuns, getAdminRun } from '#/lib/api/admin'
@@ -11,6 +11,11 @@ export function AdminRunsPage() {
   const [page, setPage] = useState(1)
   const [toolFilter, setToolFilter] = useState('')
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null)
+
+  // Clear selection when filter changes
+  useEffect(() => {
+    setSelectedRunId(null)
+  }, [toolFilter])
 
   const { data, isLoading, isError } = useQuery<AdminRunListResponse>({
     queryKey: ['admin-runs', page, toolFilter],

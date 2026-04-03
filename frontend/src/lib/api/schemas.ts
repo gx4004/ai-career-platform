@@ -11,6 +11,7 @@ export const userSchema = z.object({
 
 export const tokenSchema = z.object({
   access_token: z.string(),
+  refresh_token: z.string().optional(),
   token_type: z.string().default('bearer'),
 })
 
@@ -85,6 +86,7 @@ export const toolRunSummarySchema = z.object({
 })
 
 export const toolRunDetailSchema = toolRunSummarySchema.extend({
+  parent_run_id: z.string().nullable().optional(),
   result_payload: z.record(z.string(), z.unknown()).default({}),
 })
 

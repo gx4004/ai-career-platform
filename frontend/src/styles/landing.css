@@ -97,7 +97,7 @@
 .landing-aurora-blob {
   position: absolute;
   border-radius: 50%;
-  filter: blur(120px);
+  filter: blur(60px);
   pointer-events: none;
   z-index: -1;
   will-change: transform;

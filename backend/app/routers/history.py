@@ -121,6 +121,7 @@ def get_history_item(
         locked_actions=[],
         metadata=derive_saved_run_metadata(run.tool_name, run.result_payload or {}),
         workspace=build_workspace_summary(run.workspace, workspace_runs.get(run.workspace_id, [])),
+        parent_run_id=run.parent_run_id,
         result_payload=run.result_payload or {},
     )
 

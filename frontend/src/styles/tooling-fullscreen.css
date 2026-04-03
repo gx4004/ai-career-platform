@@ -2708,8 +2708,8 @@ body.tool-fullscreen-open .mobile-nav-pill {
 
 /* ── Full-screen edit sheet ── */
 .edit-sheet {
-  height: 92vh !important;
-  max-height: 92vh !important;
+  height: 100dvh !important;
+  max-height: 100dvh !important;
   border-radius: var(--radius-2xl) var(--radius-2xl) 0 0 !important;
 }
 
@@ -2755,7 +2755,7 @@ body.tool-fullscreen-open .mobile-nav-pill {
 /* ── Mini loader (minimized cinematic loader) ── */
 .mini-loader {
   position: fixed;
-  top: 0.75rem;
+  top: calc(var(--app-topbar-height, 0px) + 0.75rem);
   left: 50%;
   transform: translateX(-50%);
   z-index: 200;

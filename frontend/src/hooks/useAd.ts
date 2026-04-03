@@ -42,8 +42,10 @@ export function useAd() {
   const [adBlocked, setAdBlocked] = useState(false)
   const [adLoaded, setAdLoaded] = useState(false)
   const detectionRan = useRef(false)
+  const mountedRef = useRef(true)
 
   useEffect(() => {
+    mountedRef.current = true
     if (detectionRan.current) return
     detectionRan.current = true
 
@@ -55,16 +57,19 @@ export function useAd() {
     }
 
     detectAdBlocker().then((blocked) => {
+      if (!mountedRef.current) return
       setAdBlocked(blocked)
       if (!blocked) {
         const clientId = import.meta.env.VITE_AD_CLIENT_ID
         if (clientId) {
           loadAdSenseScript(clientId)
-            .then(() => setAdLoaded(true))
-            .catch(() => setAdBlocked(true))
+            .then(() => { if (mountedRef.current) setAdLoaded(true) })
+            .catch(() => { if (mountedRef.current) setAdBlocked(true) })
         }
       }
     })
+
+    return () => { mountedRef.current = false }
   }, [])
 
   const showAd = useCallback((): Promise<boolean> => {

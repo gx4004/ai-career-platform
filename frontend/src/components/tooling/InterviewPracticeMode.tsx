@@ -88,9 +88,11 @@ export function InterviewPracticeMode({
       })
       if (res.ok) {
         setFeedback(await res.json())
+      } else {
+        setFeedback(null)
       }
     } catch {
-      // Silent fail
+      setFeedback(null)
     } finally {
       setLoading(false)
     }

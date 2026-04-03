@@ -263,10 +263,12 @@ export function AnimatedNumber({
       setDisplayed(value)
       return
     }
+    let raf: number
+    let cancelled = false
     const timeout = setTimeout(() => {
       const start = performance.now()
-      let raf: number
       const animate = (now: number) => {
+        if (cancelled) return
         const elapsed = (now - start) / (duration * 1000)
         if (elapsed >= 1) {
           setDisplayed(value)
@@ -277,9 +279,12 @@ export function AnimatedNumber({
         raf = requestAnimationFrame(animate)
       }
       raf = requestAnimationFrame(animate)
-      return () => cancelAnimationFrame(raf)
     }, delay * 1000)
-    return () => clearTimeout(timeout)
+    return () => {
+      cancelled = true
+      clearTimeout(timeout)
+      cancelAnimationFrame(raf)
+    }
   }, [value, duration, delay, prefersReducedMotion])
 
   return <span className={className}>{displayed}</span>

@@ -19,10 +19,16 @@ connect_args = {}
 if _is_sqlite:
     connect_args["check_same_thread"] = False
 
+# Production pool sizing: 20 connections + 10 overflow handles typical 4-worker deployments
+pool_size = 20 if settings.ENVIRONMENT == "production" else 5
+max_overflow = 10
+
 engine = create_engine(
     settings.DATABASE_URL,
     connect_args=connect_args,
-    pool_pre_ping=True,  # Fix 4: verify connections before use
+    pool_pre_ping=True,
+    pool_size=pool_size,
+    max_overflow=max_overflow,
 )
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 

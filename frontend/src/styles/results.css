@@ -2547,6 +2547,13 @@
   }
 }
 
+/* ── Dark hero: mid-range padding (640–768px stacked layout) ── */
+@media (min-width: 640px) and (max-width: 768px) {
+  .result-hero--dark {
+    padding: 2.5rem 1.5rem 4rem;
+  }
+}
+
 /* ── Phase 1 Mobile Responsive ── */
 @media (max-width: 639px) {
   .result-display {
@@ -2616,9 +2623,11 @@
     text-align: center;
     gap: 1.25rem;
     max-width: 100%;
+    align-items: stretch;
   }
 
   .result-hero--dark .result-hero__text {
+    width: 100%;
     max-width: 100%;
     overflow-wrap: break-word;
   }
@@ -2639,6 +2648,18 @@
   .result-hero--dark .result-hero__actions {
     justify-content: center;
     gap: 0.375rem;
+  }
+
+  /* Compact dark-hero buttons to fit all actions in one row at 390px */
+  .result-hero--dark .result-hero__btn-text {
+    padding: 0 0.625rem !important;
+    font-size: 0.6875rem !important;
+    height: 2rem !important;
+  }
+
+  .result-hero--dark .result-hero__btn {
+    width: 2rem !important;
+    height: 2rem !important;
   }
 
   .result-hero--dark .result-hero__label {

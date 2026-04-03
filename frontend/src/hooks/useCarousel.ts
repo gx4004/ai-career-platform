@@ -20,8 +20,10 @@ export function useCarousel(itemCount: number, opts?: CarouselOptions) {
 
   const goTo = useCallback(
     (index: number) => {
-      setDirection(index > activeIndexRef.current ? 1 : -1)
-      setActiveIndex(index)
+      setActiveIndex((current) => {
+        setDirection(index > current ? 1 : -1)
+        return index
+      })
       lastManualRef.current = Date.now()
     },
     [],
