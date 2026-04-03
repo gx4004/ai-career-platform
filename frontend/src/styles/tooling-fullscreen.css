@@ -146,6 +146,7 @@
   backdrop-filter: blur(12px);
   box-shadow: none;
   padding: 0.65rem 1.5rem;
+  justify-content: center;
 }
 
 .tool-fullscreen--hero-flow .guest-save-banner-text {
