@@ -1,7 +1,21 @@
 import { useEffect } from 'react'
-import { AlertTriangle } from 'lucide-react'
+import { AlertTriangle, RefreshCw } from 'lucide-react'
 import { AppStatePanel } from '#/components/app/AppStatePanel'
 import { captureAppError } from '#/lib/telemetry/client'
+
+function isChunkLoadError(error: Error) {
+  const message = error.message.toLowerCase()
+  const name = error.name.toLowerCase()
+
+  return (
+    name.includes('chunkloaderror') ||
+    name.includes('typeerror') ||
+    message.includes('failed to fetch dynamically imported module') ||
+    message.includes('importing a module script failed') ||
+    message.includes('loading chunk') ||
+    message.includes('chunkloaderror')
+  )
+}
 
 export function AppRouteError({
   error,
@@ -10,11 +24,33 @@ export function AppRouteError({
   error: Error
   reset: () => void
 }) {
+  const chunkLoadFailure = isChunkLoadError(error)
+
   useEffect(() => {
     captureAppError(error, {
       source: 'route-error',
+      failure_kind: chunkLoadFailure ? 'chunk-load' : 'generic-route',
+      route: typeof window !== 'undefined' ? window.location.pathname : undefined,
     })
-  }, [error])
+  }, [chunkLoadFailure, error])
+
+  if (chunkLoadFailure) {
+    return (
+      <div className="error-gradient-bg">
+        <AppStatePanel
+          badge="Update required"
+          icon={<RefreshCw size={48} style={{ color: 'var(--accent)' }} />}
+          title="The app was updated in the background"
+          description="This page is using an older route bundle. Reload to fetch the latest version and retry your result."
+          detail={error.message}
+          actions={[
+            { label: 'Reload app', onClick: () => window.location.reload() },
+            { label: 'Go to dashboard', to: '/dashboard', variant: 'outline' },
+          ]}
+        />
+      </div>
+    )
+  }
 
   return (
     <div className="error-gradient-bg">

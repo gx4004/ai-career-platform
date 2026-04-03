@@ -77,10 +77,49 @@ function PageTransition({ children }: { children: ReactNode }) {
 function RootDocument({ children }: { children: ReactNode }) {
   // Register service worker for PWA support
   useEffect(() => {
+    const RELOAD_FLAG = 'cw:sw-reload-pending'
+
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js').catch(() => {
+      const reloadOnceForUpdatedWorker = () => {
+        if (sessionStorage.getItem(RELOAD_FLAG) === '1') return
+        sessionStorage.setItem(RELOAD_FLAG, '1')
+        window.location.reload()
+      }
+
+      const handleControllerChange = () => {
+        reloadOnceForUpdatedWorker()
+      }
+
+      navigator.serviceWorker.addEventListener('controllerchange', handleControllerChange)
+
+      navigator.serviceWorker.register('/sw.js').then((registration) => {
+        sessionStorage.removeItem(RELOAD_FLAG)
+
+        if (registration.waiting) {
+          registration.waiting.postMessage({ type: 'SKIP_WAITING' })
+        }
+
+        registration.addEventListener('updatefound', () => {
+          const installing = registration.installing
+          if (!installing) return
+
+          installing.addEventListener('statechange', () => {
+            if (installing.state === 'installed' && navigator.serviceWorker.controller) {
+              installing.postMessage({ type: 'SKIP_WAITING' })
+            }
+          })
+        })
+
+        void registration.update().catch(() => {
+          // Update checks are best-effort only.
+        })
+      }).catch(() => {
         // SW registration failed — silent, non-critical
       })
+
+      return () => {
+        navigator.serviceWorker.removeEventListener('controllerchange', handleControllerChange)
+      }
     }
   }, [])
 

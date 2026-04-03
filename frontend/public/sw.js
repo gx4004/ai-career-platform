@@ -2,7 +2,7 @@
 // Caches the app shell for offline-ready PWA experience.
 // Does NOT cache API responses (LLM results require backend).
 
-const CACHE_NAME = 'cw-shell-v1'
+const CACHE_NAME = 'cw-shell-v2'
 
 const SHELL_ASSETS = [
   '/',
@@ -24,6 +24,12 @@ self.addEventListener('install', (event) => {
   self.skipWaiting()
 })
 
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting()
+  }
+})
+
 // Activate: clean old caches
 self.addEventListener('activate', (event) => {
   event.waitUntil(
@@ -36,7 +42,37 @@ self.addEventListener('activate', (event) => {
   self.clients.claim()
 })
 
-// Fetch: network-first for navigations and API, cache-first for static assets
+function shouldCache(response) {
+  return response && response.ok && response.type === 'basic'
+}
+
+async function networkFirst(request, fallbackUrl) {
+  const cache = await caches.open(CACHE_NAME)
+
+  try {
+    const response = await fetch(request)
+    if (shouldCache(response)) {
+      cache.put(request, response.clone())
+    }
+    return response
+  } catch (error) {
+    const cached = await caches.match(request)
+    if (cached) {
+      return cached
+    }
+
+    if (fallbackUrl) {
+      const fallback = await caches.match(fallbackUrl)
+      if (fallback) {
+        return fallback
+      }
+    }
+
+    throw error
+  }
+}
+
+// Fetch: network-first for navigations and same-origin assets
 self.addEventListener('fetch', (event) => {
   const { request } = event
   const url = new URL(request.url)
@@ -46,24 +82,14 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
-  // Static assets: cache-first (only Vite hashed output in /assets/)
-  if (url.pathname.startsWith('/assets/')) {
-    event.respondWith(
-      caches.match(request).then((cached) =>
-        cached || fetch(request).then((response) => {
-          const clone = response.clone()
-          caches.open(CACHE_NAME).then((cache) => cache.put(request, clone))
-          return response
-        })
-      )
-    )
+  // Same-origin static assets: network-first so deploys cannot strand old chunks.
+  if (url.origin === self.location.origin && url.pathname.startsWith('/assets/')) {
+    event.respondWith(networkFirst(request))
     return
   }
 
   // Navigations: network-first, fallback to cache
   if (request.mode === 'navigate') {
-    event.respondWith(
-      fetch(request).catch(() => caches.match('/dashboard').then((r) => r || caches.match('/')))
-    )
+    event.respondWith(networkFirst(request, '/dashboard'))
   }
 })
