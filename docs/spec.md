@@ -63,8 +63,10 @@ Premium visual pass across all tool pages:
 - [x] Premium result page redesign (all 6 tools)
 - [x] Ad gate bypassed for thesis demo
 - [x] Railway deployment on `deploy` branch
-- [ ] Auth surface refinements (`AuthSurface.tsx` + `auth.css`)
-- [ ] Full mobile QA pass across all 6 tools
+- [x] Auth surface refinements (dialog/sheet glass card, gradient page, Google button polish)
+- [x] Full mobile CSS audit across all 6 tools (grids collapse, sticky footer, hero scaling)
+- [x] White-page race condition fix (query cache fallback for guest results)
+- [x] Error state redesign (icon-based, no stock photos)
 
 ---
 
