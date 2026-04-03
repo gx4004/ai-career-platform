@@ -131,12 +131,12 @@ svg {
 }
 
 .content-max {
-  width: min(84rem, calc(100% - calc(var(--space-page-x) * 2)));
+  width: min(84rem, calc(100% - var(--space-page-x) * 2));
   margin-inline: auto;
 }
 
 .content-narrow {
-  width: min(72rem, calc(100% - calc(var(--space-page-x) * 2)));
+  width: min(72rem, calc(100% - var(--space-page-x) * 2));
   margin-inline: auto;
 }
 

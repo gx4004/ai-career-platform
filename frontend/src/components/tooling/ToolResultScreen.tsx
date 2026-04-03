@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { AlertCircle, Clock, Copy, Download, FileText, Loader2, RefreshCw, Star, Undo2, X } from 'lucide-react'
@@ -76,10 +76,18 @@ export function ToolResultScreen({
   const [parentRunId, setParentRunId] = useState<string | null>(null)
   const [showUndo, setShowUndo] = useState(true)
   const [bannerDismissed, setBannerDismissed] = useState(false)
+  const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const queryClient = useQueryClient()
   const demoItem = useMemo(() => getTransientResult(historyId), [historyId])
   const cachedItem = queryClient.getQueryData(['tool-run', historyId]) as ReturnType<typeof getTransientResult> | undefined
   const localItem = demoItem || cachedItem || null
+
+  // Cleanup copy timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current)
+    }
+  }, [])
   const hasLocalData = Boolean(localItem)
   const query = useQuery({
     queryKey: ['tool-run', historyId],
@@ -218,7 +226,8 @@ export function ToolResultScreen({
   async function handleCopy() {
     await navigator.clipboard.writeText(definition.copyText(payload, item!))
     setCopied(true)
-    window.setTimeout(() => setCopied(false), 1200)
+    if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current)
+    copyTimeoutRef.current = setTimeout(() => setCopied(false), 1200)
   }
 
   function handleExport(format: 'txt' | 'md') {

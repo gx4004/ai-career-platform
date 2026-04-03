@@ -49,7 +49,8 @@ def resolve_workspace(
         label=_default_workspace_label(tool_name, label),
     )
     db.add(workspace)
-    db.flush()
+    db.commit()
+    db.refresh(workspace)
     return workspace
 
 

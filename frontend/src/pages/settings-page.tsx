@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link } from '@tanstack/react-router'
 import { RotateCcw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -16,6 +16,13 @@ export function SettingsPage() {
   const { health } = useSession()
   const [cleared, setCleared] = useState(false)
   const { t, i18n } = useTranslation()
+
+  // Auto-hide cleared message after 3 seconds
+  useEffect(() => {
+    if (!cleared) return
+    const timer = setTimeout(() => setCleared(false), 3000)
+    return () => clearTimeout(timer)
+  }, [cleared])
 
   return (
     <PageFrame>

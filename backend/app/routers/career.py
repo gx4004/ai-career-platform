@@ -1,6 +1,5 @@
 from fastapi import APIRouter, Depends, Request
-from slowapi import Limiter
-from slowapi.util import get_remote_address
+from app.limiter import limiter
 from sqlalchemy.orm import Session
 
 from app.auth.security import get_optional_current_user
@@ -11,7 +10,6 @@ from app.services.career_recommender import recommend_career
 from app.services.tool_pipeline import run_tool_pipeline
 
 router = APIRouter()
-limiter = Limiter(key_func=get_remote_address)
 
 
 @router.post("/recommend", response_model=CareerResponse)

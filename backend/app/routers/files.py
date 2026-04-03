@@ -1,12 +1,10 @@
 from fastapi import APIRouter, HTTPException, Request, UploadFile
-from slowapi import Limiter
-from slowapi.util import get_remote_address
+from app.limiter import limiter
 
 from app.schemas.tools import ParsedCvResponse
 from app.services.cv_parser import parse_cv
 
 router = APIRouter()
-limiter = Limiter(key_func=get_remote_address)
 
 MAX_CV_SIZE = 10 * 1024 * 1024  # 10 MB
 

@@ -35,6 +35,7 @@ class ToolRunSummary(BaseModel):
 
 
 class ToolRunDetail(ToolRunSummary):
+    parent_run_id: str | None = None
     result_payload: dict = {}
 
 

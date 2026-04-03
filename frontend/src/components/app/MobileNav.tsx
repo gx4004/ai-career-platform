@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, useRouterState } from '@tanstack/react-router'
 import { Grid2x2, History, LayoutDashboard, UserRound } from 'lucide-react'
 import { useBreakpoint } from '#/hooks/use-breakpoint'
@@ -11,6 +11,11 @@ export function MobileNav() {
   const pathname = useRouterState({
     select: (state) => state.location.pathname,
   })
+
+  // Close tools menu on navigation (handles keyboard/middle-click)
+  useEffect(() => {
+    setToolsOpen(false)
+  }, [pathname])
 
   // Only show on mobile, hide on public routes (landing, login standalone)
   if (bp !== 'mobile' || isPublicRoute(pathname)) return null
@@ -28,7 +33,6 @@ export function MobileNav() {
         <Link
           to="/dashboard"
           className={`mobile-tab-item${isActive('/dashboard') ? ' is-active' : ''}`}
-          onClick={() => setToolsOpen(false)}
         >
           <LayoutDashboard size={20} strokeWidth={isActive('/dashboard') ? 2.2 : 1.8} />
           <span>Home</span>
@@ -46,7 +50,6 @@ export function MobileNav() {
         <Link
           to="/history"
           className={`mobile-tab-item${isActive('/history') ? ' is-active' : ''}`}
-          onClick={() => setToolsOpen(false)}
         >
           <History size={20} strokeWidth={isActive('/history') ? 2.2 : 1.8} />
           <span>History</span>
@@ -55,7 +58,6 @@ export function MobileNav() {
         <Link
           to="/account"
           className={`mobile-tab-item${isActive('/account') || isActive('/settings') ? ' is-active' : ''}`}
-          onClick={() => setToolsOpen(false)}
         >
           <UserRound size={20} strokeWidth={isActive('/account') || isActive('/settings') ? 2.2 : 1.8} />
           <span>Profile</span>

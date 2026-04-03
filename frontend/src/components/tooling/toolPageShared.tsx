@@ -71,11 +71,20 @@ export function useToolPageState(toolId: ToolId) {
   const bridge = useWorkflowBridge(toolId, draft, setDraft)
   const [errors, setErrors] = useState<Partial<Record<keyof typeof draft, string>>>({})
 
+  const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null
+  const parentRunId = urlParams?.get('parent_run_id') ?? undefined
+  const feedback = urlParams?.get('feedback') ?? undefined
+
   const handleSubmit = () => {
     const nextErrors = validateWorkflowDraft(config, draft)
     setErrors(nextErrors)
     if (Object.keys(nextErrors).length > 0) return
-    mutation.mutate({ payload: config.buildPayload(draft), draft })
+    mutation.mutate({
+      payload: config.buildPayload(draft),
+      draft,
+      parentRunId,
+      feedback,
+    })
   }
 
   return {

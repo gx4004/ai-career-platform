@@ -6,7 +6,7 @@ import { getWorkflowTargetRole } from '#/lib/tools/workflowContext'
 
 export function useWorkflowBridge(
   toolId: ToolId,
-  draft: ToolDraftState,
+  _draft: ToolDraftState,
   setDraft: (updater: (current: ToolDraftState) => ToolDraftState) => void,
 ) {
   const seededRef = useRef(false)
@@ -53,7 +53,7 @@ export function useWorkflowBridge(
     if (changed) {
       seededRef.current = true
     }
-  }, [draft.jobDescription, draft.resumeText, setDraft, toolId])
+  }, [setDraft, toolId]) // Only run once on mount; seededRef prevents re-seeding
 
   const context = useMemo(() => readWorkflowContext(), [])
   const seededResume = Boolean(context?.resumeText)

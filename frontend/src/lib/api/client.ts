@@ -21,7 +21,7 @@ import {
   workspaceSummarySchema,
 } from '#/lib/api/schemas'
 import type { JobMatchResult, ResumeResult } from '#/lib/api/schemas'
-import { clearAuthToken, getAuthToken } from '#/lib/auth/storage'
+import { clearAuthToken, getAuthToken, setAuthToken } from '#/lib/auth/storage'
 
 function trimTrailingSlash(value: string): string {
   return value.replace(/\/+$/, '')
@@ -52,9 +52,27 @@ function normalizeBody(body: RequestInit['body'] | Record<string, unknown> | und
   return JSON.stringify(body)
 }
 
+// Silent refresh mutex — prevents concurrent refresh calls
+let refreshPromise: Promise<string> | null = null
+
+async function silentRefresh(): Promise<string> {
+  const res = await fetch(`${API_URL}/auth/refresh`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: '{}',
+    credentials: 'include',
+  })
+  if (!res.ok) throw new Error('refresh failed')
+  const data = await res.json()
+  const newToken: string = data.access_token
+  setAuthToken(newToken)
+  return newToken
+}
+
 async function request<T>(
   path: string,
   options: RequestOptions<T> = {},
+  _isRetry = false,
 ): Promise<T> {
   const token = getAuthToken()
   const headers = new Headers(options.headers || {})
@@ -82,10 +100,22 @@ async function request<T>(
     .catch(async () => response.text().catch(() => ''))
 
   if (!response.ok) {
-    if (response.status === 401 && token) {
+    // Try silent refresh on 401 (skip for refresh endpoint itself and retries)
+    if (response.status === 401 && token && !_isRetry && path !== '/auth/refresh') {
+      try {
+        if (!refreshPromise) {
+          refreshPromise = silentRefresh()
+        }
+        await refreshPromise
+        refreshPromise = null
+        return request(path, options, true)
+      } catch {
+        refreshPromise = null
+        clearAuthToken()
+        window.dispatchEvent(new CustomEvent('cw:session-expired'))
+      }
+    } else if (response.status === 401 && token) {
       clearAuthToken()
-      // Dispatch custom event so SessionProvider can open auth dialog in-place
-      // Only fire when a previously authenticated session expires, not for guest 401s
       window.dispatchEvent(new CustomEvent('cw:session-expired'))
     }
 
@@ -130,7 +160,7 @@ export function register(payload: {
 }) {
   return request('/auth/register', {
     method: 'POST',
-    body: payload,
+    body: { ...payload, tos_accepted: true },
     schema: userSchema,
   })
 }

@@ -259,11 +259,15 @@ def _safe_parse_json(content: str | None, provider: str) -> dict:
     except json.JSONDecodeError:
         # Try to extract JSON from markdown code fences
         if "```json" in content:
-            json_str = content.split("```json")[1].split("```")[0].strip()
-            return json.loads(json_str)
+            parts = content.split("```json")
+            if len(parts) > 1:
+                json_str = parts[1].split("```")[0].strip()
+                return json.loads(json_str)
         if "```" in content:
-            json_str = content.split("```")[1].split("```")[0].strip()
-            return json.loads(json_str)
+            parts = content.split("```")
+            if len(parts) > 1:
+                json_str = parts[1].split("```")[0].strip()
+                return json.loads(json_str)
         logger.error(
             "Failed to parse LLM response as JSON  provider=%s  content_start=%s",
             provider,

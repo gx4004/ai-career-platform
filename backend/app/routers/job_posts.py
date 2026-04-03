@@ -1,8 +1,7 @@
 import logging
 
 from fastapi import APIRouter, HTTPException, Request
-from slowapi import Limiter
-from slowapi.util import get_remote_address
+from app.limiter import limiter
 
 from app.schemas.tools import ImportedJobResponse, ImportJobUrlRequest
 from app.services.job_scraper import scrape_job_posting
@@ -10,7 +9,6 @@ from app.services.job_scraper import scrape_job_posting
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-limiter = Limiter(key_func=get_remote_address)
 
 
 @router.post("/import-url", response_model=ImportedJobResponse)
