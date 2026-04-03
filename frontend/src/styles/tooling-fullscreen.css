@@ -114,6 +114,27 @@
   z-index: 1;
 }
 
+/* ── Hero flow variant: dark-to-light gradient ── */
+
+.tool-fullscreen--hero-flow {
+  background:
+    radial-gradient(circle at 14% 2%, rgba(88, 140, 234, 0.12) 0%, transparent 28%),
+    radial-gradient(circle at 88% 6%, rgba(120, 180, 255, 0.08) 0%, transparent 22%),
+    linear-gradient(180deg, #0f172a 0%, #162033 26%, #2a3a58 38%, #8fa6c4 50%, #d5e1ee 60%, #edf2f8 72%, #f4f7fb 100%);
+}
+
+.tool-fullscreen--hero-flow::before {
+  inset: 0 -10% 40%;
+  background:
+    radial-gradient(circle at 28% 14%, rgba(74, 130, 239, 0.1) 0%, transparent 36%),
+    radial-gradient(circle at 82% 18%, rgba(130, 190, 255, 0.06) 0%, transparent 24%);
+  filter: blur(24px);
+}
+
+.tool-fullscreen--hero-flow::after {
+  background: none;
+}
+
 /* ── Floating navigation bar ── */
 
 .tool-floating-nav {
@@ -837,6 +858,177 @@ body.tool-fullscreen-open .mobile-nav-pill {
 .tool-illust-tile--b { width: 1.2rem; height: 1.2rem; bottom: 0; right: 0.5rem; animation: fade-up 0.5s both 0.2s; }
 .tool-illust-tile--c { width: 1rem; height: 1rem; bottom: 0.3rem; left: 0; animation: fade-up 0.5s both 0.3s; }
 
+/* ── Enhanced hero-scoped animations ── */
+
+/* Resume: bigger scan beam, staggered badge entrance */
+.tool-input-hero .tool-illust-doc {
+  width: 5.5rem;
+  height: 6.5rem;
+}
+
+.tool-input-hero .tool-illust-scan-beam {
+  height: 3px;
+  box-shadow: 0 0 12px rgba(99, 130, 255, 0.5), 0 0 24px rgba(99, 130, 255, 0.2);
+  animation: hero-scan-sweep 2.8s ease-in-out infinite;
+}
+
+.tool-input-hero .tool-illust-badge {
+  animation: hero-badge-in 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.tool-input-hero .tool-illust-badge:nth-child(1) { animation-delay: 0.3s; }
+.tool-input-hero .tool-illust-badge:nth-child(2) { animation-delay: 0.5s; }
+.tool-input-hero .tool-illust-badge:nth-child(3) { animation-delay: 0.7s; }
+
+@keyframes hero-scan-sweep {
+  0%, 100% { top: 10%; opacity: 0.4; }
+  50% { top: 85%; opacity: 1; }
+}
+
+@keyframes hero-badge-in {
+  from { opacity: 0; transform: translateX(12px) scale(0.85); }
+  to { opacity: 1; transform: translateX(0) scale(1); }
+}
+
+/* Job Match: breathing circles with glow overlap */
+.tool-input-hero .tool-illust-venn {
+  width: 7.5rem;
+  height: 5rem;
+}
+
+.tool-input-hero .tool-illust-circle {
+  width: 4.5rem;
+  height: 4.5rem;
+  opacity: 0.6;
+}
+
+.tool-input-hero .tool-illust-circle--left {
+  animation: hero-circle-breathe 3s ease-in-out infinite;
+}
+
+.tool-input-hero .tool-illust-circle--right {
+  animation: hero-circle-breathe 3s ease-in-out infinite 0.6s;
+}
+
+.tool-input-hero .tool-illust-venn-icon {
+  animation: hero-fade-in 0.8s ease-out 0.4s both;
+}
+
+@keyframes hero-circle-breathe {
+  0%, 100% { transform: scale(1); opacity: 0.5; }
+  50% { transform: scale(1.08); opacity: 0.8; }
+}
+
+@keyframes hero-fade-in {
+  from { opacity: 0; transform: scale(0.8); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+/* Cover Letter: typing line animation */
+.tool-input-hero .tool-illust-letter-doc {
+  width: 5rem;
+  height: 6rem;
+}
+
+.tool-input-hero .tool-illust-letter-doc::after {
+  content: '';
+  position: absolute;
+  bottom: 2.2rem;
+  left: 0.8rem;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.4);
+  border-radius: 1px;
+  animation: hero-typing 2.5s ease-in-out infinite;
+}
+
+@keyframes hero-typing {
+  0% { width: 0; }
+  40% { width: 2.5rem; }
+  60% { width: 2.5rem; }
+  100% { width: 0; }
+}
+
+/* Interview: card fan / shuffle */
+.tool-input-hero .tool-illust-cards {
+  width: 6rem;
+  height: 5rem;
+}
+
+.tool-input-hero .tool-illust-card--back {
+  animation: hero-card-back 2.5s ease-in-out infinite;
+}
+
+.tool-input-hero .tool-illust-card--front {
+  animation: hero-card-front 2.5s ease-in-out infinite;
+}
+
+@keyframes hero-card-back {
+  0%, 100% { transform: translateX(0) rotate(0deg); opacity: 0.5; }
+  50% { transform: translateX(-6px) rotate(-3deg); opacity: 0.7; }
+}
+
+@keyframes hero-card-front {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+
+/* Career: branches grow outward */
+.tool-input-hero .tool-illust-paths {
+  width: 6rem;
+  height: 6rem;
+}
+
+.tool-input-hero .tool-illust-branch {
+  height: 0;
+  animation: hero-branch-grow 0.8s ease-out both;
+}
+
+.tool-input-hero .tool-illust-branch--a { animation-delay: 0.3s; }
+.tool-input-hero .tool-illust-branch--b { animation-delay: 0.5s; }
+.tool-input-hero .tool-illust-branch--c { animation-delay: 0.7s; }
+
+@keyframes hero-branch-grow {
+  from { height: 0; opacity: 0; }
+  to { height: 1.8rem; opacity: 0.7; }
+}
+
+/* Portfolio: tiles cascade in */
+.tool-input-hero .tool-illust-tiles {
+  width: 6rem;
+  height: 6rem;
+}
+
+.tool-input-hero .tool-illust-tile--a {
+  animation: hero-tile-cascade 0.6s cubic-bezier(0.16, 1, 0.3, 1) both 0.2s;
+}
+.tool-input-hero .tool-illust-tile--b {
+  animation: hero-tile-cascade 0.6s cubic-bezier(0.16, 1, 0.3, 1) both 0.4s;
+}
+.tool-input-hero .tool-illust-tile--c {
+  animation: hero-tile-cascade 0.6s cubic-bezier(0.16, 1, 0.3, 1) both 0.6s;
+}
+
+@keyframes hero-tile-cascade {
+  from { opacity: 0; transform: translateY(12px) scale(0.8); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Hero title + subtitle entrance */
+.tool-input-hero-title {
+  animation: hero-text-up 0.7s cubic-bezier(0.16, 1, 0.3, 1) both 0.1s;
+}
+
+.tool-input-hero-subtitle {
+  animation: hero-text-up 0.7s cubic-bezier(0.16, 1, 0.3, 1) both 0.25s;
+}
+
+.tool-input-hero-chips {
+  animation: hero-text-up 0.7s cubic-bezier(0.16, 1, 0.3, 1) both 0.4s;
+}
+
+@keyframes hero-text-up {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
 
 .dropzone-hero {
   border-color: var(--border-strong);
@@ -900,7 +1092,7 @@ body.tool-fullscreen-open .mobile-nav-pill {
   text-align: center;
   padding: 3rem 2rem 2.5rem;
   overflow: hidden;
-  background: linear-gradient(135deg, #0f172a 0%, #1a2744 100%);
+  background: transparent;
   isolation: isolate;
 }
 
@@ -1047,9 +1239,9 @@ body.tool-fullscreen-open .mobile-nav-pill {
   letter-spacing: 0.01em;
 }
 
-/* Form surface below hero */
+/* Form surface below hero — transparent, inherits page gradient */
 .tool-form-surface {
-  background: #f8f9fb;
+  background: transparent;
 }
 
 /* Inline status line (replaces ParsedResumeNotice card) */

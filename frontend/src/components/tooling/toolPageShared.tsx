@@ -107,10 +107,10 @@ export function ToolPageShell({
   const tool = tools[toolId]
 
   return (
-    <ToolFullScreen accent={tool.accent}>
+    <ToolFullScreen accent={tool.accent} heroFlow={Boolean(hero)}>
       <GuestSaveBanner />
       {hero}
-      <div className={cn('tool-fs-body', hero ? 'tool-form-surface' : '', bodyClassName)}>
+      <div className={cn('tool-fs-body', bodyClassName)}>
         {children}
       </div>
     </ToolFullScreen>
