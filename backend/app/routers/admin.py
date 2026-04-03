@@ -42,9 +42,18 @@ def list_users(
     total = query.count()
     users = query.order_by(User.created_at.desc()).offset((page - 1) * page_size).limit(page_size).all()
 
+    user_ids = [u.id for u in users]
+    run_counts: dict[str, int] = {}
+    if user_ids:
+        run_counts = dict(
+            db.query(ToolRun.user_id, func.count(ToolRun.id))
+            .filter(ToolRun.user_id.in_(user_ids))
+            .group_by(ToolRun.user_id)
+            .all()
+        )
+
     items = []
     for user in users:
-        run_count = db.query(func.count(ToolRun.id)).filter(ToolRun.user_id == user.id).scalar() or 0
         items.append(AdminUserItem(
             id=user.id,
             email=user.email,
@@ -52,7 +61,7 @@ def list_users(
             is_active=user.is_active,
             is_admin=getattr(user, "is_admin", False),
             created_at=user.created_at.isoformat() if user.created_at else None,
-            run_count=run_count,
+            run_count=run_counts.get(user.id, 0),
         ))
 
     return AdminUserListResponse(items=items, total=total, page=page, page_size=page_size)
