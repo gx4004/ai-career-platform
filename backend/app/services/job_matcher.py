@@ -212,7 +212,11 @@ async def match_job(resume_text: str, job_description: str) -> dict:
         locked_payload,
         prepass_evidence,
     )
-    result = await complete_structured(system_prompt, user_prompt)
+    try:
+        result = await complete_structured(system_prompt, user_prompt)
+    except Exception as exc:
+        logger.warning("LLM call failed for job match: %s", exc, exc_info=True)
+        raise
 
     requirements = _normalize_requirements(result, prepass.matched_keywords, prepass.missing_keywords)
     tailoring_actions = _normalize_tailoring_actions(result, prepass.missing_keywords)

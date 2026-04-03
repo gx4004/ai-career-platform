@@ -592,7 +592,11 @@ async def recommend_portfolio(
         locked_payload,
         helper_signals,
     )
-    result = await complete_structured(system_prompt, user_prompt)
+    try:
+        result = await complete_structured(system_prompt, user_prompt)
+    except Exception as exc:
+        logger.warning("LLM call failed for portfolio planner: %s", exc, exc_info=True)
+        raise
 
     projects = _normalize_projects(result, fallback_projects)
     sequence_plan = _normalize_sequence_plan(
