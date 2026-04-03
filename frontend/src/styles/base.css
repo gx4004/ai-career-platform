@@ -234,6 +234,19 @@ svg {
   z-index: 1;
 }
 
+/* App state panel icons */
+.app-state-icon {
+  color: var(--accent, #3b5bdb);
+}
+
+.app-state-icon--muted {
+  color: var(--text-muted, #9ca3af);
+}
+
+.app-state-icon--spin {
+  animation: mini-spin 1s linear infinite;
+}
+
 .muted-copy {
   color: var(--text-muted);
 }
