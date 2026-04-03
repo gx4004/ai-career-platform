@@ -1,6 +1,5 @@
 from fastapi import APIRouter, Depends, Request
-from slowapi import Limiter
-from slowapi.util import get_remote_address
+from app.limiter import limiter
 from sqlalchemy.orm import Session
 
 from app.auth.security import get_optional_current_user
@@ -16,7 +15,6 @@ from app.services.interview_gen import evaluate_practice_answer, generate_interv
 from app.services.tool_pipeline import run_tool_pipeline
 
 router = APIRouter()
-limiter = Limiter(key_func=get_remote_address)
 
 
 @router.post("/questions", response_model=InterviewResponse)
@@ -68,6 +66,8 @@ async def questions(
 async def practice_feedback(
     request: Request,
     body: InterviewPracticeFeedbackRequest,
+    current_user: User | None = Depends(get_optional_current_user),
+    db: Session = Depends(get_db),
 ):
     result = await evaluate_practice_answer(
         body.question, body.user_answer, body.model_answer

@@ -1,6 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
-from slowapi import Limiter
-from slowapi.util import get_remote_address
+from app.limiter import limiter
 from sqlalchemy.orm import Session
 
 from app.auth.security import (
@@ -34,7 +33,6 @@ from app.services.email_service import send_password_reset_email
 from app.services.tool_runs import delete_all_user_data
 
 router = APIRouter()
-limiter = Limiter(key_func=get_remote_address)
 
 
 @router.post("/login", response_model=TokenResponse)
@@ -103,6 +101,7 @@ def get_me(current_user: User = Depends(get_current_user)):
 
 
 @router.post("/refresh", response_model=TokenResponse)
+@limiter.limit("20/minute")
 def refresh_token(
     request: Request,
     response: Response,
