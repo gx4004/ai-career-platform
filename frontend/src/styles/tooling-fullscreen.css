@@ -135,28 +135,46 @@
   background: none;
 }
 
-/* Guest banner on dark hero: glass style, no white bg */
+/* Guest banner on dark hero: glass style, no white bg, flush top */
 .tool-fullscreen--hero-flow .guest-save-banner {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.12);
+  margin-top: 0;
+  border-radius: 0;
+  border: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  max-width: 100%;
+  background: rgba(255, 255, 255, 0.06);
   backdrop-filter: blur(12px);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  box-shadow: none;
+  padding: 0.65rem 1.5rem;
 }
 
 .tool-fullscreen--hero-flow .guest-save-banner-text {
-  color: rgba(255, 255, 255, 0.7);
+  color: rgba(255, 255, 255, 0.65);
 }
 
 .tool-fullscreen--hero-flow .guest-save-banner-link {
-  color: rgba(255, 255, 255, 0.9);
+  color: #fff;
+  background: rgba(255, 255, 255, 0.14);
+  padding: 0.3rem 0.75rem;
+  border-radius: 6px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: background 0.15s;
+}
+
+.tool-fullscreen--hero-flow .guest-save-banner-link:hover {
+  background: rgba(255, 255, 255, 0.22);
+  text-decoration: none;
 }
 
 .tool-fullscreen--hero-flow .guest-save-banner-icon {
-  color: rgba(255, 255, 255, 0.6);
+  color: rgba(255, 255, 255, 0.5);
 }
 
 .tool-fullscreen--hero-flow .guest-save-banner-close {
-  color: rgba(255, 255, 255, 0.5);
+  color: rgba(255, 255, 255, 0.4);
+  width: 2rem;
+  height: 2rem;
 }
 
 .tool-fullscreen--hero-flow .guest-save-banner-close:hover {
