@@ -118,9 +118,9 @@
 
 .tool-fullscreen--hero-flow {
   background:
-    radial-gradient(circle at 14% 2%, rgba(88, 140, 234, 0.12) 0%, transparent 28%),
-    radial-gradient(circle at 88% 6%, rgba(120, 180, 255, 0.08) 0%, transparent 22%),
-    linear-gradient(180deg, #0f172a 0%, #162033 26%, #2a3a58 38%, #8fa6c4 50%, #d5e1ee 60%, #edf2f8 72%, #f4f7fb 100%);
+    radial-gradient(circle at 14% 2%, rgba(88, 140, 234, 0.1) 0%, transparent 28%),
+    radial-gradient(circle at 88% 6%, rgba(120, 180, 255, 0.06) 0%, transparent 22%),
+    linear-gradient(180deg, #0f172a 0%, #182540 20%, #3d5a80 34%, #a3bcd5 44%, #d9e4ef 52%, #edf2f8 62%, #f4f7fb 100%);
 }
 
 .tool-fullscreen--hero-flow::before {
@@ -133,6 +133,59 @@
 
 .tool-fullscreen--hero-flow::after {
   background: none;
+}
+
+/* Guest banner on dark hero: glass style, no white bg */
+.tool-fullscreen--hero-flow .guest-save-banner {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.tool-fullscreen--hero-flow .guest-save-banner-text {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.tool-fullscreen--hero-flow .guest-save-banner-link {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.tool-fullscreen--hero-flow .guest-save-banner-icon {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.tool-fullscreen--hero-flow .guest-save-banner-close {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.tool-fullscreen--hero-flow .guest-save-banner-close:hover {
+  color: rgba(255, 255, 255, 0.8);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* Dropzone compact strip on dark: glass style */
+.tool-fullscreen--hero-flow .dropzone-compact-strip {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(8px);
+}
+
+.tool-fullscreen--hero-flow .dropzone-compact-inner {
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.tool-fullscreen--hero-flow .dropzone-compact-strip .dropzone-compact-file {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.tool-fullscreen--hero-flow .dropzone-compact-strip button {
+  color: rgba(255, 255, 255, 0.65);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.tool-fullscreen--hero-flow .dropzone-compact-strip svg {
+  color: rgba(255, 255, 255, 0.6);
 }
 
 /* ── Floating navigation bar ── */
@@ -1248,15 +1301,19 @@ body.tool-fullscreen-open .mobile-nav-pill {
 .tool-status-inline {
   display: flex;
   align-items: center;
-  gap: 0.45rem;
+  gap: 0.55rem;
   font-size: 0.82rem;
-  color: var(--text-muted, #9ca3af);
-  margin-bottom: 1.25rem;
+  color: var(--text-soft, #6b7280);
+  padding: 0.65rem 1rem;
+  border-radius: var(--radius-lg, 10px);
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  margin-bottom: 1rem;
 }
 
 .tool-status-inline-dot {
-  width: 6px;
-  height: 6px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   background: #22c55e;
   flex-shrink: 0;
@@ -1264,17 +1321,19 @@ body.tool-fullscreen-open .mobile-nav-pill {
 
 .tool-status-inline-change {
   margin-left: auto;
-  font-size: 0.82rem;
-  font-weight: 500;
+  font-size: 0.8rem;
+  font-weight: 600;
   color: var(--tool-accent, var(--accent));
   background: none;
   border: none;
-  padding: 0;
+  padding: 0.2rem 0.5rem;
+  border-radius: var(--radius-sm, 6px);
   cursor: pointer;
+  transition: background 0.15s;
 }
 
 .tool-status-inline-change:hover {
-  text-decoration: underline;
+  background: rgba(0, 0, 0, 0.05);
 }
 
 @media (max-width: 768px) {
