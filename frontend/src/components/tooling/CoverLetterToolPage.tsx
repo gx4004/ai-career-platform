@@ -11,6 +11,7 @@ import {
   ToolPageLoading,
   ToolPageShell,
   getSeededFieldNote,
+  useResumeEditorCollapse,
   useToolPageState,
 } from '#/components/tooling/toolPageShared'
 
@@ -32,10 +33,9 @@ export function CoverLetterToolPage() {
   const [phase, setPhase] = useState<'upload' | 'form'>(
     draft.resumeText.trim() || bridge.seededResume ? 'form' : 'upload',
   )
-  const [resumeEditorCollapsed, setResumeEditorCollapsed] = useState(
-    Boolean(draft.resumeText.trim() || bridge.seededResume),
-  )
   const hasResumeContent = Boolean(draft.resumeText.trim() || bridge.seededResume)
+  const { resumeEditorCollapsed, openResumeEditor, collapseResumeEditor } =
+    useResumeEditorCollapse(hasResumeContent, hasResumeContent)
 
   return (
     <ToolPageShell toolId="cover-letter" bodyClassName="cover-letter-bespoke-page">
@@ -58,11 +58,11 @@ export function CoverLetterToolPage() {
               accent={tool.accent}
               onParsed={(text) => {
                 setField('resumeText', text)
-                setResumeEditorCollapsed(true)
+                collapseResumeEditor()
                 setPhase('form')
               }}
               onPasteText={() => {
-                setResumeEditorCollapsed(false)
+                openResumeEditor()
                 setPhase('form')
               }}
             />
@@ -97,17 +97,17 @@ export function CoverLetterToolPage() {
                 preLoadedLabel={bridge.seededResume ? 'Resume carried from previous tool' : undefined}
                 onParsed={(text) => {
                   setField('resumeText', text)
-                  setResumeEditorCollapsed(true)
+                  collapseResumeEditor()
                 }}
                 onPasteText={() => {
-                  setResumeEditorCollapsed(false)
+                  openResumeEditor()
                   document.getElementById('cover-letter-resumeText')?.focus()
                 }}
               />
-              {resumeEditorCollapsed && draft.resumeText.trim() ? (
+              {resumeEditorCollapsed && hasResumeContent ? (
                 <ParsedResumeNotice
                   body="Resume parsed successfully. Open the extracted text only if you want to adjust it before generating the draft."
-                  onAction={() => setResumeEditorCollapsed(false)}
+                  onAction={openResumeEditor}
                 />
               ) : (
                 <div className="grid gap-2">
