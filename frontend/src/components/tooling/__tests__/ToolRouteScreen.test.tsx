@@ -179,7 +179,7 @@ describe('ToolRouteScreen', () => {
     expect(screen.getByText(/Resume parsed successfully/i)).toBeTruthy()
     expect(screen.queryByLabelText(/Resume textRequired/i)).toBeNull()
 
-    fireEvent.click(screen.getByRole('button', { name: /Review extracted text/i }))
+    fireEvent.click(screen.getByRole('button', { name: /Change/i }))
 
     expect(screen.getByLabelText(/Resume textRequired/i)).toBeTruthy()
   })
@@ -196,7 +196,7 @@ describe('ToolRouteScreen', () => {
     expect(screen.queryByLabelText(/Resume textRequired/i)).toBeNull()
     expect(screen.getByTestId('resume-sticky-submit')).toBeTruthy()
 
-    fireEvent.click(screen.getByRole('button', { name: /Review extracted text/i }))
+    fireEvent.click(screen.getByRole('button', { name: /Change/i }))
 
     expect(screen.getByLabelText(/Resume textRequired/i)).toBeTruthy()
   })

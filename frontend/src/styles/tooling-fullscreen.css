@@ -887,6 +887,223 @@ body.tool-fullscreen-open .mobile-nav-pill {
   }
 }
 
+/* ── Tool Input Hero Panel ── */
+
+.tool-input-hero {
+  position: relative;
+  width: 100%;
+  min-height: 42vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 3rem 2rem 2.5rem;
+  overflow: hidden;
+  background: linear-gradient(135deg, #0f172a 0%, #1a2744 100%);
+  isolation: isolate;
+}
+
+/* Noise texture */
+.tool-input-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 300px 300px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Radial glow behind illustration */
+.tool-input-hero::after {
+  content: '';
+  position: absolute;
+  width: 360px;
+  height: 360px;
+  background: radial-gradient(circle, rgba(99, 130, 255, 0.14) 0%, transparent 68%);
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -58%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.tool-input-hero > * {
+  position: relative;
+  z-index: 1;
+}
+
+.tool-input-hero-illust {
+  margin-bottom: 0.25rem;
+}
+
+/* Icon glow in dark */
+.tool-input-hero .tool-illust-wrap {
+  filter: drop-shadow(0 0 18px rgba(99, 130, 255, 0.22));
+}
+
+/* Make illustration elements work on dark bg */
+.tool-input-hero .tool-illust-doc,
+.tool-input-hero .tool-illust-letter-doc,
+.tool-input-hero .tool-illust-venn,
+.tool-input-hero .tool-illust-cards,
+.tool-input-hero .tool-illust-paths,
+.tool-input-hero .tool-illust-tiles {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.tool-input-hero .tool-illust-doc svg,
+.tool-input-hero .tool-illust-letter-doc svg,
+.tool-input-hero .tool-illust-paths svg,
+.tool-input-hero .tool-illust-tiles svg,
+.tool-input-hero .tool-illust-card--front svg {
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.tool-input-hero .tool-illust-badge {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.tool-input-hero .tool-illust-circle--left,
+.tool-input-hero .tool-illust-circle--right {
+  border-color: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.tool-input-hero .tool-illust-venn-icon {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.tool-input-hero .tool-illust-card--back {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.tool-input-hero .tool-illust-card--front {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.tool-input-hero .tool-illust-branch--a,
+.tool-input-hero .tool-illust-branch--b,
+.tool-input-hero .tool-illust-branch--c {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.tool-input-hero .tool-illust-tile--a,
+.tool-input-hero .tool-illust-tile--b,
+.tool-input-hero .tool-illust-tile--c {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+.tool-input-hero .tool-illust-cursor {
+  background: rgba(99, 130, 255, 0.6);
+}
+
+.tool-input-hero .tool-illust-scan-beam {
+  background: linear-gradient(180deg, rgba(99, 130, 255, 0.0) 0%, rgba(99, 130, 255, 0.45) 50%, rgba(99, 130, 255, 0.0) 100%);
+}
+
+.tool-input-hero-title {
+  font-size: clamp(1.875rem, 4vw, 2.625rem);
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: -0.02em;
+  margin: 0.5rem 0 0.3rem;
+  line-height: 1.15;
+}
+
+.tool-input-hero-subtitle {
+  font-size: 1rem;
+  color: rgba(255, 255, 255, 0.52);
+  max-width: 40ch;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.tool-input-hero-chips {
+  display: flex;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-top: 1rem;
+}
+
+.tool-input-hero-chip {
+  font-size: 0.72rem;
+  font-weight: 500;
+  padding: 0.2rem 0.65rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: rgba(255, 255, 255, 0.55);
+  background: rgba(255, 255, 255, 0.05);
+  letter-spacing: 0.01em;
+}
+
+/* Form surface below hero */
+.tool-form-surface {
+  background: #f8f9fb;
+}
+
+/* Inline status line (replaces ParsedResumeNotice card) */
+.tool-status-inline {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.82rem;
+  color: var(--text-muted, #9ca3af);
+  margin-bottom: 1.25rem;
+}
+
+.tool-status-inline-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #22c55e;
+  flex-shrink: 0;
+}
+
+.tool-status-inline-change {
+  margin-left: auto;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--tool-accent, var(--accent));
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+.tool-status-inline-change:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 768px) {
+  .tool-input-hero {
+    min-height: 36vh;
+    padding: 2.25rem 1.25rem 2rem;
+  }
+
+  .tool-input-hero-title {
+    font-size: 1.75rem;
+  }
+
+  .tool-input-hero-subtitle {
+    font-size: 0.9rem;
+  }
+
+  .tool-input-hero-chips {
+    gap: 0.35rem;
+  }
+}
+
 /* ── Resume Bespoke Page ── */
 
 .resume-bespoke-header {

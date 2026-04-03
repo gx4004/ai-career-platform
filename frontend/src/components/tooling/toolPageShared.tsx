@@ -4,6 +4,7 @@ import { Button } from '#/components/ui/button'
 import { CinematicLoader } from '#/components/tooling/CinematicLoader'
 import { GuestSaveBanner } from '#/components/tooling/GuestSaveBanner'
 import { ToolFullScreen } from '#/components/tooling/ToolFullScreen'
+import { ToolHeroIllustration } from '#/components/tooling/ToolHeroIllustration'
 import { useSession } from '#/hooks/useSession'
 import { useToolDraft } from '#/hooks/useToolDraft'
 import { useToolMutation } from '#/hooks/useToolMutation'
@@ -12,6 +13,15 @@ import { workflowConfigs, validateWorkflowDraft } from '#/lib/tools/workflowConf
 import { tools } from '#/lib/tools/registry'
 import type { ToolId } from '#/lib/tools/registry'
 import { cn } from '#/lib/utils'
+
+const toolHeroChips: Record<ToolId, string[]> = {
+  resume: ['Skills', 'Score', 'Tips'],
+  'job-match': ['Fit', 'Keywords', 'Gap'],
+  'cover-letter': ['Tone', 'Length', 'Match'],
+  interview: ['Questions', 'Difficulty', 'Role'],
+  career: ['Steps', 'Timeline', 'Options'],
+  portfolio: ['Projects', 'Impact', 'Role'],
+}
 
 export const loadingStagesByTool: Record<ToolId, Array<{ label: string }>> = {
   resume: [
@@ -86,10 +96,12 @@ export function useToolPageState(toolId: ToolId) {
 export function ToolPageShell({
   toolId,
   bodyClassName,
+  hero,
   children,
 }: {
   toolId: ToolId
   bodyClassName?: string
+  hero?: ReactNode
   children: ReactNode
 }) {
   const tool = tools[toolId]
@@ -97,8 +109,59 @@ export function ToolPageShell({
   return (
     <ToolFullScreen accent={tool.accent}>
       <GuestSaveBanner />
-      <div className={cn('tool-fs-body', bodyClassName)}>{children}</div>
+      {hero}
+      <div className={cn('tool-fs-body', hero ? 'tool-form-surface' : '', bodyClassName)}>
+        {children}
+      </div>
     </ToolFullScreen>
+  )
+}
+
+export function ToolInputHero({
+  toolId,
+  subtitle,
+}: {
+  toolId: ToolId
+  subtitle: string
+}) {
+  const tool = tools[toolId]
+  const chips = toolHeroChips[toolId]
+
+  return (
+    <div className="tool-input-hero">
+      <div className="tool-input-hero-illust">
+        <ToolHeroIllustration toolId={toolId} accent={tool.accent} loading={false} />
+      </div>
+      <h1 className="tool-input-hero-title">{tool.label}</h1>
+      <p className="tool-input-hero-subtitle">{subtitle}</p>
+      {chips.length > 0 && (
+        <div className="tool-input-hero-chips">
+          {chips.map((chip) => (
+            <span key={chip} className="tool-input-hero-chip">{chip}</span>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+export function ToolStatusInline({
+  label,
+  onChangeResume,
+}: {
+  label: string
+  onChangeResume?: () => void
+}) {
+  return (
+    <div className="tool-status-inline">
+      <span className="tool-status-inline-dot" />
+      <span>{label}</span>
+      {onChangeResume && (
+        <button type="button" className="tool-status-inline-change" onClick={onChangeResume}>
+          Change
+        </button>
+      )}
+    </div>
   )
 }
 
