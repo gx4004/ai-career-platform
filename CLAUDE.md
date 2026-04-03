@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # Career Workbench — Development Context
 
 ## What This Is
-AI-powered job-search workspace. 6 tools (Resume Analyzer, Job Match, Cover Letter, Interview Q&A, Career Path, Portfolio Planner). Users upload resume once, use it across all tools. Hybrid monetization: ad-gated results + future premium tier.
+AI-powered job-search workspace. 6 tools (Resume Analyzer, Job Match, Cover Letter, Interview Q&A, Career Path, Portfolio Planner). Users upload resume once, use it across all tools. Currently in **thesis demo mode** — all results fully visible, no ad gate. Hybrid monetization (ad-gated results + premium tier) planned for post-thesis launch.
 
 ## Stack
 - **Frontend**: React 19 + TanStack Start/Router + Vite 7 + Tailwind 4 + Radix/shadcn + Framer Motion
@@ -24,7 +24,7 @@ AI-powered job-search workspace. 6 tools (Resume Analyzer, Job Match, Cover Lett
 | Single LLM provider (Gemini Flash) | No multi-provider abstraction needed V1 |
 | BS4 + Playwright fallback for scraping | Best effort at JS sites, graceful paste fallback |
 | SameSite=Lax cookies, no CSRF tokens | Sufficient for SPA + JSON API |
-| Client-side ad unlock (sessionStorage) | Bypass risk accepted, pragmatic for V1 |
+| Client-side ad unlock (sessionStorage) | Bypass risk accepted, pragmatic for V1 (currently bypassed for thesis demo) |
 | English only V1 | Realistic scope for solo dev |
 | In-memory cache V1 | Redis V1.1 when traffic warrants |
 | 3 retry + exponential backoff for LLM | 1s→2s→4s, then tool-specific fallback |
@@ -76,6 +76,9 @@ cd backend && alembic upgrade head        # Run migrations
 - Every tool router endpoint calls `run_tool_pipeline()` — don't bypass it for new tools
 - CSS architecture: no CSS modules, plain CSS files in `styles/` with BEM-ish naming
 - Hybrid theme: dark sidebar/topbar + light content area. No dark mode toggle.
+- Tool input pages: dark-to-light gradient hero (tool-input-hero) with per-tool animations + chips, form surface below
+- Result pages: premium redesign with dark hero variant (Resume/Job Match), heroExtra sections, midSection (Fix First cards), per-tool views
+- Deploy: push to both `main` and `deploy` branches (`git push origin main && git push origin main:deploy`). Railway watches `deploy`.
 - Mobile: bottom tab bar, SwipeDeck for interview, StickyRunBar, FullScreenEditSheet
 - Re-generate always creates new ToolRun row (parent_run_id chain, never overwrite)
 - Guest runs: in-memory Map only, never persisted, drives signup conversion
@@ -118,6 +121,8 @@ Review gate is ON — Codex automatically reviews Claude's output before complet
 - Don't add affiliate links (V1.1)
 - Don't add CAPTCHA (V1.1, rate limit sufficient)
 - Don't implement real AdSense SDK (placeholder until approved)
+- Don't re-enable ad gate (thesis demo = fully free, AdGatedLock bypassed)
 - Don't add LLM streaming (v2)
 - Don't create new documentation files unless asked
 - Don't modify tool priority numbers without asking
+- Always push to BOTH `main` and `deploy` branches for Railway deployment

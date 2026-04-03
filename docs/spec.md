@@ -42,13 +42,29 @@ Security hardening: open redirect prevention, SSRF blocklist for scraper, model 
 
 ---
 
-## Current Phase: Landing & Auth Polish
+### Phase 7: Visual Redesign (2026-04)
+
+Premium visual pass across all tool pages:
+
+**Tool input pages**: Dark-to-light gradient hero (`tool-input-hero`) with per-tool CSS animations (scan beam, breathing venn circles, typing cursor, card shuffle, branch grow, tile cascade). Per-tool chip pills (Skills/Score/Tips, Fit/Keywords/Gap, etc.). Shared `ToolInputHero` + `ToolStatusInline` components. Glass-morphism guest banner on dark hero. Smooth gradient flow (no hard dark/white edge).
+
+**Tool result pages**: Restored premium redesign from `feat/railway-deploy` — dark hero variant for Resume/Job Match with score ring, heroExtra sections for all 6 tools, midSection with Fix First cards, confidence_note subtitles. Per-tool result views: document preview for Cover Letter, question cards for Interview, career path roadmaps, portfolio build sequences.
+
+**Ad gate bypassed**: `AdGatedLock` returns children immediately for thesis demo. All results fully visible without watching ads. Re-enable by removing early return in `AdGatedLock.tsx` when AdSense is approved.
+
+**Deployment**: Railway watches `deploy` branch. Both `main` and `deploy` must be pushed together.
+
+## Current Phase: Thesis Demo Polish
 
 - [x] Tool card equal heights + correct priority order
 - [x] Hero gap reduction
 - [x] Security hardening (open redirect, SSRF blocklist)
-- [ ] Auth surface refinements (`AuthSurface.tsx` + `auth.css` — in progress)
-- [ ] Spec rewrite to roadmap format (this document)
+- [x] Premium tool input page redesign (dark hero + animations)
+- [x] Premium result page redesign (all 6 tools)
+- [x] Ad gate bypassed for thesis demo
+- [x] Railway deployment on `deploy` branch
+- [ ] Auth surface refinements (`AuthSurface.tsx` + `auth.css`)
+- [ ] Full mobile QA pass across all 6 tools
 
 ---
 
