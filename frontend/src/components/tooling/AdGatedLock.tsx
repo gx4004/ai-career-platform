@@ -19,6 +19,10 @@ export function AdGatedLock({
   const { adBlocked, showAd } = useAd()
   const [watching, setWatching] = useState(false)
 
+  // Thesis demo: always show full results, no ad gate
+  // Re-enable by removing this early return when AdSense is approved
+  return <>{children}</>
+
   if (unlocked) {
     return <>{children}</>
   }
