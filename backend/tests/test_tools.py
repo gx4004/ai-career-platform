@@ -272,6 +272,56 @@ def test_interview(client, auth_headers, mock_ai_result):
     assert data["editable_blocks"]
 
 
+def test_interview_practice_feedback_requires_auth(client, monkeypatch):
+    async def fake_evaluate(*args, **kwargs):
+        return {
+            "strengths": ["Clear structure"],
+            "weaknesses": [],
+            "suggestions": ["Add one measurable outcome."],
+            "overall_feedback": "Promising answer.",
+            "is_empty_answer": False,
+        }
+
+    monkeypatch.setattr("app.routers.interview.evaluate_practice_answer", fake_evaluate)
+
+    resp = client.post(
+        f"{PREFIX}/interview/practice-feedback",
+        json={
+            "question": "Tell me about yourself",
+            "user_answer": "I build backend APIs.",
+            "model_answer": "Use a concise STAR structure.",
+        },
+    )
+    assert resp.status_code == 401
+
+
+def test_interview_practice_feedback_authenticated(client, auth_headers, monkeypatch):
+    async def fake_evaluate(*args, **kwargs):
+        return {
+            "strengths": ["Clear structure"],
+            "weaknesses": ["Needs more metrics"],
+            "suggestions": ["Add one measurable outcome."],
+            "overall_feedback": "Promising answer.",
+            "is_empty_answer": False,
+        }
+
+    monkeypatch.setattr("app.routers.interview.evaluate_practice_answer", fake_evaluate)
+
+    resp = client.post(
+        f"{PREFIX}/interview/practice-feedback",
+        json={
+            "question": "Tell me about yourself",
+            "user_answer": "I build backend APIs.",
+            "model_answer": "Use a concise STAR structure.",
+        },
+        headers=auth_headers,
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["overall_feedback"] == "Promising answer."
+    assert data["strengths"] == ["Clear structure"]
+
+
 def test_career(client, auth_headers, mock_ai_result):
     mock_ai_result(
         {

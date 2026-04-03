@@ -16,6 +16,7 @@ const transientResults = new Map<string, ToolRunDetail>()
 export function setTransientResult(
   toolId: ToolId,
   result: Record<string, unknown>,
+  parentRunId?: string,
 ): ToolRunDetail {
   const generatedAt =
     typeof result.generated_at === 'string' ? result.generated_at : new Date().toISOString()
@@ -30,6 +31,7 @@ export function setTransientResult(
     saved: false,
     access_mode: 'guest_demo',
     locked_actions: ['save', 'favorite', 'continue', 'history'],
+    parent_run_id: parentRunId ?? null,
     metadata: deriveRunMetadata(toolId, result),
     result_payload: result,
   }

@@ -70,6 +70,15 @@ def test_get_detail(client, auth_headers, test_user, db):
     assert data["workspace"] is None
 
 
+def test_get_detail_includes_parent_run_id(client, auth_headers, test_user, db):
+    parent = _create_run(db, test_user.id, label="Parent")
+    child = _create_run(db, test_user.id, label="Child", parent_run_id=parent.id)
+
+    resp = client.get(f"{PREFIX}/{child.id}", headers=auth_headers)
+    assert resp.status_code == 200
+    assert resp.json()["parent_run_id"] == parent.id
+
+
 def test_get_detail_includes_workspace_summary(client, auth_headers, test_user, db):
     workspace = Workspace(user_id=test_user.id, label="Application sprint")
     db.add(workspace)
