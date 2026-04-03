@@ -88,8 +88,9 @@ describe('resultDefinitions', () => {
 
     render(resultDefinitions.resume.render(payload, makeItem('resume', payload), tools.resume))
 
-    expect(screen.getByText(/Fix first/i)).toBeTruthy()
-    expect(screen.getByText(/Score breakdown/i)).toBeTruthy()
+    expect(screen.getByText(/Detailed feedback/i)).toBeTruthy()
+    expect(screen.getByText(/Keyword optimization/i)).toBeTruthy()
+    expect(screen.getByText(/Role fit/i)).toBeTruthy()
     expect(screen.getAllByText(/Impact is not backed up with enough measurable results/i).length).toBeGreaterThan(0)
     expect(screen.getByText(/Docker/i)).toBeTruthy()
   })
@@ -150,8 +151,8 @@ describe('resultDefinitions', () => {
       ),
     )
 
-    expect(screen.getByText(/Requirements/i)).toBeTruthy()
-    expect(screen.getByText(/Keyword coverage/i)).toBeTruthy()
+    expect(screen.getByText(/Detailed requirements/i)).toBeTruthy()
+    expect(screen.getByText(/Keyword breakdown/i)).toBeTruthy()
     expect(screen.getAllByText(/Kubernetes/i).length).toBeGreaterThan(0)
     expect(screen.getByText(/Recruiter summary/i)).toBeTruthy()
   })
@@ -284,7 +285,7 @@ describe('resultDefinitions', () => {
       ),
     )
 
-    expect(screen.getByText(/Gaps first/i)).toBeTruthy()
+    expect(screen.getByText(/Question breakdown/i)).toBeTruthy()
     expect(screen.getByText(/Weak signals/i)).toBeTruthy()
     expect(screen.getAllByText(/Kubernetes/i).length).toBeGreaterThan(0)
     expect(screen.getByText(/Interviewer notes/i)).toBeTruthy()
@@ -344,9 +345,9 @@ describe('resultDefinitions', () => {
     render(resultDefinitions.career.render(payload, makeItem('career', payload), tools.career))
 
     expect(screen.getByText(/Senior Backend Engineer/i)).toBeTruthy()
-    expect(screen.getByText(/Path comparison/i)).toBeTruthy()
-    expect(screen.getByText(/Skill gaps/i)).toBeTruthy()
-    expect(screen.getByText(/Roadmap/i)).toBeTruthy()
+    expect(screen.getByText(/Alternative paths/i)).toBeTruthy()
+    expect(screen.getByText(/Critical skill gaps/i)).toBeTruthy()
+    expect(screen.getByText(/step roadmap/i)).toBeTruthy()
     expect(screen.getAllByText(/Senior Backend Engineer/i).length).toBeGreaterThan(0)
   })
 
@@ -397,7 +398,7 @@ describe('resultDefinitions', () => {
 
     render(resultDefinitions.portfolio.render(payload, makeItem('portfolio', payload), tools.portfolio))
 
-    expect(screen.getByText(/Project roadmap/i)).toBeTruthy()
+    expect(screen.getByText(/The build sequence/i)).toBeTruthy()
     expect(screen.getByText(/Presentation tips/i)).toBeTruthy()
     expect(screen.getAllByText(/Operational Intake Service/i).length).toBeGreaterThan(0)
     expect(screen.getByText(/Strategy/i)).toBeTruthy()
