@@ -90,8 +90,16 @@ export function clearAllToolDrafts(): void {
   }
 }
 
+const WORKFLOW_CONTEXT_TTL_MS = 4 * 60 * 60 * 1000 // 4 hours
+
 export function readWorkflowContext(): WorkflowContextState | null {
-  return readSessionJson<WorkflowContextState>(WORKFLOW_CONTEXT_KEY)
+  const ctx = readSessionJson<WorkflowContextState>(WORKFLOW_CONTEXT_KEY)
+  if (!ctx) return null
+  if (Date.now() - (ctx.updatedAt ?? 0) > WORKFLOW_CONTEXT_TTL_MS) {
+    removeSessionValue(WORKFLOW_CONTEXT_KEY)
+    return null
+  }
+  return ctx
 }
 
 export function writeWorkflowContext(

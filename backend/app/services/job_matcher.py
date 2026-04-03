@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
 
 from app.prompts.job_match import build_job_match_prompt
+
+logger = logging.getLogger(__name__)
 from app.services.ai_client import complete_structured
 from app.services.quality_signals import (
     build_resume_prepass,

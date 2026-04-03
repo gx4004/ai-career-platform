@@ -133,6 +133,7 @@ export function CareerToolPage() {
                   id="career-resumeText"
                   rows={resumeField.rows}
                   className="resume-paste-textarea"
+                  aria-invalid={!!errors.resumeText}
                   value={String(draft.resumeText ?? '')}
                   placeholder={resumeField.placeholder}
                   onChange={(event) => setField('resumeText', event.target.value as never)}
