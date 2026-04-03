@@ -63,6 +63,25 @@ def test_me_no_token(client):
     assert resp.status_code in (401, 403)
 
 
+def test_logout_clears_cookie_backed_session(client, test_user):
+    login_resp = client.post(
+        f"{PREFIX}/login",
+        json={"email": "test@example.com", "password": "password123"},
+    )
+    assert login_resp.status_code == 200
+
+    me_resp = client.get(f"{PREFIX}/me")
+    assert me_resp.status_code == 200
+    assert me_resp.json()["email"] == "test@example.com"
+
+    logout_resp = client.post(f"{PREFIX}/logout")
+    assert logout_resp.status_code == 200
+    assert logout_resp.json() == {"ok": True}
+
+    expired_resp = client.get(f"{PREFIX}/me")
+    assert expired_resp.status_code in (401, 403)
+
+
 def test_providers(client):
     resp = client.get(f"{PREFIX}/providers")
     assert resp.status_code == 200
