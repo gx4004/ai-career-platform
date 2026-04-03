@@ -3,9 +3,8 @@ import logging
 import sentry_sdk
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
-from slowapi.util import get_remote_address
 
 from app.config import settings
 from app.routers import (
@@ -41,7 +40,7 @@ if settings.SENTRY_DSN:
 
 logger = logging.getLogger(__name__)
 
-limiter = Limiter(key_func=get_remote_address)
+from app.limiter import limiter
 
 app = FastAPI(title="Career Workbench API", version="1.0.0")
 app.state.limiter = limiter
@@ -61,7 +60,11 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
 
 app.add_middleware(SecurityHeadersMiddleware)
-app.add_middleware(SessionMiddleware, secret_key=settings.SECRET_KEY)
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=settings.SECRET_KEY,
+    https_only=settings.ENVIRONMENT != "development",
+)
 
 # --- CORS ---
 _origins = [o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()]

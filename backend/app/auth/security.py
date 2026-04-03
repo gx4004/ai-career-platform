@@ -109,6 +109,8 @@ def decode_token(token: str) -> str | None:
         payload = jwt.decode(
             token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
         )
+        if payload.get("type") == "refresh":
+            return None
         return payload.get("sub")
     except JWTError:
         return None
