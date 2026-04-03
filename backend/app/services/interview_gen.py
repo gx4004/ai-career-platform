@@ -329,7 +329,11 @@ async def generate_interview_questions(
         locked_payload,
         application_context,
     )
-    result = await complete_structured(system_prompt, user_prompt)
+    try:
+        result = await complete_structured(system_prompt, user_prompt)
+    except Exception as exc:
+        logger.warning("LLM call failed for interview questions: %s", exc, exc_info=True)
+        raise
 
     summary_raw = result.get("summary") if isinstance(result.get("summary"), dict) else {}
     weak_signals = _normalize_weak_signals(result, application_context)

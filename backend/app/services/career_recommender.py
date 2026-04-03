@@ -919,7 +919,11 @@ async def recommend_career(
         helper_signals,
         career_profile=career_profile,
     )
-    result = await complete_structured(system_prompt, user_prompt)
+    try:
+        result = await complete_structured(system_prompt, user_prompt)
+    except Exception as exc:
+        logger.warning("LLM call failed for career recommender: %s", exc, exc_info=True)
+        raise
 
     paths = _normalize_paths(result, fallback_paths)
     recommended_direction = _normalize_recommended_direction(result, paths, len(current_skills))
