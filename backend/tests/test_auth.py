@@ -6,7 +6,7 @@ PREFIX = "/api/v1/auth"
 def test_register(client):
     resp = client.post(
         f"{PREFIX}/register",
-        json={"email": "new@example.com", "password": "secret123", "full_name": "New"},
+        json={"email": "new@example.com", "password": "secret123", "full_name": "New", "tos_accepted": True},
     )
     assert resp.status_code == 201
     data = resp.json()
@@ -19,7 +19,7 @@ def test_register(client):
 def test_register_duplicate(client, test_user):
     resp = client.post(
         f"{PREFIX}/register",
-        json={"email": "test@example.com", "password": "secret123"},
+        json={"email": "test@example.com", "password": "secret123", "tos_accepted": True},
     )
     assert resp.status_code == 409
     assert "already registered" in resp.json()["detail"]

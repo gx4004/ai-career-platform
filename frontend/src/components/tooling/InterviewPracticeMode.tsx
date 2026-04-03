@@ -79,6 +79,7 @@ export function InterviewPracticeMode({
 
       const res = await fetch(`${import.meta.env.VITE_API_URL}/interview/practice-feedback`, {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           question: questionText,

@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Request
 from app.limiter import limiter
 from sqlalchemy.orm import Session
 
-from app.auth.security import get_optional_current_user
+from app.auth.security import get_current_user, get_optional_current_user
 from app.database import get_db
 from app.models.user import User
 from app.schemas.tools import (
@@ -66,9 +66,9 @@ async def questions(
 async def practice_feedback(
     request: Request,
     body: InterviewPracticeFeedbackRequest,
-    current_user: User | None = Depends(get_optional_current_user),
-    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
+    _ = current_user
     result = await evaluate_practice_answer(
         body.question, body.user_answer, body.model_answer
     )

@@ -109,7 +109,7 @@ export function useToolMutation(tool: ToolDefinition) {
       }
 
       if (!historyId) {
-        const demoItem = setTransientResult(tool.id, result)
+        const demoItem = setTransientResult(tool.id, result, parentRunId)
         historyId = demoItem.id
         saved = false
       }
@@ -145,13 +145,14 @@ export function useToolMutation(tool: ToolDefinition) {
 
       return { historyId, result, saved }
     },
-    onSuccess: async ({ historyId, result, saved }) => {
+    onSuccess: async ({ historyId, result, saved }, variables) => {
       queryClient.setQueryData(['tool-run', historyId], {
         id: historyId,
         tool_name: tool.id,
         label: tool.shortLabel,
         saved,
         access_mode: saved ? 'authenticated' : 'guest_demo',
+        parent_run_id: variables.parentRunId ?? null,
         result_payload: result,
         created_at: new Date().toISOString(),
       })

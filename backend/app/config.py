@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     FRONTEND_URL: str = "http://localhost:3000"
 
     ENVIRONMENT: str = "development"
+    TRUST_PROXY_HEADERS: bool = False
 
     RESULT_CACHE_TTL_SECONDS: int = 3600
     RESULT_CACHE_ENABLED: bool = True

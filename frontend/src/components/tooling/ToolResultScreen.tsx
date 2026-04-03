@@ -120,8 +120,14 @@ export function ToolResultScreen({
 
   useEffect(() => {
     if (!item) return
-    const parentId = (item.result_payload as Record<string, unknown>)?.parent_run_id
-    if (!parentId || typeof parentId !== 'string') return
+    const nestedParentId = (item.result_payload as Record<string, unknown>)?.parent_run_id
+    const parentId = typeof item.parent_run_id === 'string' ? item.parent_run_id : nestedParentId
+    if (!parentId || typeof parentId !== 'string') {
+      setParentRunId(null)
+      setScoreDelta(null)
+      setShowUndo(false)
+      return
+    }
 
     setParentRunId(parentId)
     setShowUndo(true)
