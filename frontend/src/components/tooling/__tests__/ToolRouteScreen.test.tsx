@@ -201,6 +201,18 @@ describe('ToolRouteScreen', () => {
     expect(screen.getByLabelText(/Resume textRequired/i)).toBeTruthy()
   })
 
+  it('keeps a carried resume collapsed even before the draft text hydrates into job match', () => {
+    draftState.resumeText = ''
+    seededResume = true
+    seededJob = true
+    bridgeBanner = 'Resume and job description carried from your recent workflow.'
+
+    render(<ToolRouteScreen toolId="job-match" />)
+
+    expect(screen.getByText(/Resume parsed and ready/i)).toBeTruthy()
+    expect(screen.queryByLabelText(/Resume textRequired/i)).toBeNull()
+  })
+
   it('shows the cinematic resume scanner while the resume run is pending', () => {
     isPending = true
 

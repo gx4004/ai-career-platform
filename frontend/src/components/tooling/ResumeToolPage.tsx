@@ -11,6 +11,7 @@ import {
   ParsedResumeNotice,
   ToolPageLoading,
   ToolPageShell,
+  useResumeEditorCollapse,
   useToolPageState,
 } from '#/components/tooling/toolPageShared'
 import { writeWorkflowContext } from '#/lib/tools/drafts'
@@ -35,13 +36,12 @@ export function ResumeToolPage() {
   )
   const bp = useBreakpoint()
   const isMobile = bp === 'mobile'
-  const [resumeEditorCollapsed, setResumeEditorCollapsed] = useState(
-    Boolean(draft.resumeText.trim() || bridge.seededResume),
-  )
   const [showOptionalJob, setShowOptionalJob] = useState(
     Boolean(bridge.seededJob || draft.jobDescription.trim()),
   )
   const hasResumeContent = Boolean(draft.resumeText.trim() || bridge.seededResume)
+  const { resumeEditorCollapsed, openResumeEditor: revealResumeEditor, collapseResumeEditor } =
+    useResumeEditorCollapse(hasResumeContent, hasResumeContent)
 
   const clearPendingResumeReview = () => {
     writeWorkflowContext({
@@ -52,13 +52,13 @@ export function ResumeToolPage() {
 
   const openResumeEditor = () => {
     clearPendingResumeReview()
-    setResumeEditorCollapsed(false)
+    revealResumeEditor()
   }
 
   const collapseResumeEditorAfterParse = (text: string) => {
     clearPendingResumeReview()
     setField('resumeText', text)
-    setResumeEditorCollapsed(true)
+    collapseResumeEditor()
   }
 
   return (

@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { CheckCircle2, FilePenLine } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { CinematicLoader } from '#/components/tooling/CinematicLoader'
@@ -175,4 +175,33 @@ export function ParsedResumeNotice({
       ) : null}
     </div>
   )
+}
+
+export function useResumeEditorCollapse(
+  hasResumeContent: boolean,
+  initialCollapsed: boolean,
+) {
+  const [resumeEditorCollapsed, setResumeEditorCollapsed] = useState(initialCollapsed)
+  const userOpenedEditorRef = useRef(false)
+
+  useEffect(() => {
+    if (!hasResumeContent || userOpenedEditorRef.current) return
+    setResumeEditorCollapsed(true)
+  }, [hasResumeContent])
+
+  const openResumeEditor = () => {
+    userOpenedEditorRef.current = true
+    setResumeEditorCollapsed(false)
+  }
+
+  const collapseResumeEditor = () => {
+    userOpenedEditorRef.current = false
+    setResumeEditorCollapsed(true)
+  }
+
+  return {
+    resumeEditorCollapsed,
+    openResumeEditor,
+    collapseResumeEditor,
+  }
 }

@@ -11,6 +11,7 @@ import {
   ToolPageLoading,
   ToolPageShell,
   getSeededFieldNote,
+  useResumeEditorCollapse,
   useToolPageState,
 } from '#/components/tooling/toolPageShared'
 export function JobMatchToolPage() {
@@ -30,10 +31,9 @@ export function JobMatchToolPage() {
   const [phase, setPhase] = useState<'upload' | 'form'>(
     draft.resumeText.trim() || bridge.seededResume ? 'form' : 'upload',
   )
-  const [resumeEditorCollapsed, setResumeEditorCollapsed] = useState(
-    Boolean(draft.resumeText.trim() || bridge.seededResume),
-  )
   const hasResumeContent = Boolean(draft.resumeText.trim() || bridge.seededResume)
+  const { resumeEditorCollapsed, openResumeEditor, collapseResumeEditor } =
+    useResumeEditorCollapse(hasResumeContent, hasResumeContent)
 
   return (
     <ToolPageShell toolId="job-match" bodyClassName="tool-fs-body--wide jobmatch-page">
@@ -56,11 +56,11 @@ export function JobMatchToolPage() {
               accent={tool.accent}
               onParsed={(text) => {
                 setField('resumeText', text)
-                setResumeEditorCollapsed(true)
+                collapseResumeEditor()
                 setPhase('form')
               }}
               onPasteText={() => {
-                setResumeEditorCollapsed(false)
+                openResumeEditor()
                 setPhase('form')
               }}
             />
@@ -98,17 +98,17 @@ export function JobMatchToolPage() {
                     preLoadedLabel={bridge.seededResume ? 'Resume carried from previous tool' : undefined}
                     onParsed={(text) => {
                       setField('resumeText', text)
-                      setResumeEditorCollapsed(true)
+                      collapseResumeEditor()
                     }}
                     onPasteText={() => {
-                      setResumeEditorCollapsed(false)
+                      openResumeEditor()
                       document.getElementById('job-match-resumeText')?.focus()
                     }}
                   />
-                  {resumeEditorCollapsed && draft.resumeText.trim() ? (
+                  {resumeEditorCollapsed && hasResumeContent ? (
                     <ParsedResumeNotice
                       body="Resume parsed and ready. Open the extracted text only if you want to review or edit it."
-                      onAction={() => setResumeEditorCollapsed(false)}
+                      onAction={openResumeEditor}
                     />
                   ) : (
                     <div className="grid gap-2">
