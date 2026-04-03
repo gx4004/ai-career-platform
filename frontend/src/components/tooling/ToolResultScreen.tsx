@@ -121,8 +121,9 @@ export function ToolResultScreen({
     // Hide undo button after 30 seconds
     const timer = setTimeout(() => setShowUndo(false), 30_000)
 
+    let mounted = true
     getHistoryItem(parentId).then((parent) => {
-      if (!parent) return
+      if (!mounted || !parent) return
       const parentPayload = parent.result_payload ?? parent
       const pp = parentPayload as Record<string, unknown>
       const rp = item.result_payload as Record<string, unknown>
@@ -133,7 +134,10 @@ export function ToolResultScreen({
       }
     })
 
-    return () => clearTimeout(timer)
+    return () => {
+      mounted = false
+      clearTimeout(timer)
+    }
   }, [item])
 
   if (!item && query.isPending) {
