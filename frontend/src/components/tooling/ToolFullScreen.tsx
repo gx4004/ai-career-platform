@@ -9,9 +9,11 @@ import { useSidebar } from '#/components/ui/sidebar'
 export function ToolFullScreen({
   children,
   accent,
+  heroFlow,
 }: {
   children: ReactNode
   accent?: string
+  heroFlow?: boolean
 }) {
   const { isMobile, open, setOpen } = useSidebar()
   const initialDesktopOpenRef = useRef<boolean | null>(null)
@@ -43,7 +45,7 @@ export function ToolFullScreen({
 
   return (
     <div
-      className="tool-fullscreen"
+      className={`tool-fullscreen${heroFlow ? ' tool-fullscreen--hero-flow' : ''}`}
       style={{ '--tool-accent': accent } as CSSProperties}
     >
       <div className="tool-fullscreen-scroll">{children}</div>
