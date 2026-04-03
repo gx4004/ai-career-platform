@@ -23,7 +23,26 @@ def _is_trusted_proxy(request: Request) -> bool:
         return False
 
     parsed = ipaddress.ip_address(client_host)
-    return parsed.is_loopback or parsed.is_private
+    if parsed.is_loopback or parsed.is_private:
+        return True
+
+    for network in _trusted_proxy_networks():
+        if parsed in network:
+            return True
+    return False
+
+
+def _trusted_proxy_networks() -> list[ipaddress._BaseNetwork]:
+    networks: list[ipaddress._BaseNetwork] = []
+    for raw_value in settings.TRUSTED_PROXY_CIDRS.split(","):
+        candidate = raw_value.strip()
+        if not candidate:
+            continue
+        try:
+            networks.append(ipaddress.ip_network(candidate, strict=False))
+        except ValueError:
+            continue
+    return networks
 
 
 def _is_valid_ip(value: str) -> bool:

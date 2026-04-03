@@ -24,6 +24,7 @@ class Settings(BaseSettings):
 
     ENVIRONMENT: str = "development"
     TRUST_PROXY_HEADERS: bool = False
+    TRUSTED_PROXY_CIDRS: str = ""
 
     RESULT_CACHE_TTL_SECONDS: int = 3600
     RESULT_CACHE_ENABLED: bool = True

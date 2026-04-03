@@ -66,9 +66,8 @@ async def questions(
 async def practice_feedback(
     request: Request,
     body: InterviewPracticeFeedbackRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User | None = Depends(get_optional_current_user),
 ):
-    _ = current_user
     result = await evaluate_practice_answer(
         body.question, body.user_answer, body.model_answer
     )

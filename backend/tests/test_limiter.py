@@ -23,6 +23,7 @@ def _make_request(*, client_host: str, forwarded_for: str | None = None) -> Requ
 
 def test_limiter_ignores_forwarded_header_by_default(monkeypatch):
     monkeypatch.setattr("app.limiter.settings.TRUST_PROXY_HEADERS", False)
+    monkeypatch.setattr("app.limiter.settings.TRUSTED_PROXY_CIDRS", "")
 
     request = _make_request(
         client_host="8.8.8.8",
@@ -34,6 +35,7 @@ def test_limiter_ignores_forwarded_header_by_default(monkeypatch):
 
 def test_limiter_uses_forwarded_header_for_trusted_proxy(monkeypatch):
     monkeypatch.setattr("app.limiter.settings.TRUST_PROXY_HEADERS", True)
+    monkeypatch.setattr("app.limiter.settings.TRUSTED_PROXY_CIDRS", "")
 
     request = _make_request(
         client_host="127.0.0.1",
@@ -45,6 +47,7 @@ def test_limiter_uses_forwarded_header_for_trusted_proxy(monkeypatch):
 
 def test_limiter_ignores_forwarded_header_from_untrusted_proxy(monkeypatch):
     monkeypatch.setattr("app.limiter.settings.TRUST_PROXY_HEADERS", True)
+    monkeypatch.setattr("app.limiter.settings.TRUSTED_PROXY_CIDRS", "")
 
     request = _make_request(
         client_host="8.8.8.8",
@@ -52,3 +55,15 @@ def test_limiter_ignores_forwarded_header_from_untrusted_proxy(monkeypatch):
     )
 
     assert _get_client_ip(request) == "8.8.8.8"
+
+
+def test_limiter_uses_forwarded_header_for_configured_public_proxy(monkeypatch):
+    monkeypatch.setattr("app.limiter.settings.TRUST_PROXY_HEADERS", True)
+    monkeypatch.setattr("app.limiter.settings.TRUSTED_PROXY_CIDRS", "8.8.8.0/24")
+
+    request = _make_request(
+        client_host="8.8.8.8",
+        forwarded_for="203.0.113.10, 8.8.8.8",
+    )
+
+    assert _get_client_ip(request) == "203.0.113.10"
