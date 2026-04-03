@@ -67,7 +67,7 @@ export const tools: Record<ToolId, ToolDefinition> = {
     priority: 1,
     summary: 'Score the resume you have and fix the issues recruiters notice first.',
     entryPointLabel: 'Review resume',
-    resultTitle: 'Resume analysis',
+    resultTitle: 'Resume Analyzer',
     emptyStateTitle: 'Review the resume you have now.',
     emptyStateBody: 'Upload once to create the baseline the rest of the workflow uses.',
     nextActions: [

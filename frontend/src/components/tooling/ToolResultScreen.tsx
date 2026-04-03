@@ -275,11 +275,11 @@ export function ToolResultScreen({
               <div className="result-hero__actions">
                 <a href={resolvedTool.route} className="result-hero__btn-text">Run again</a>
                 <button
-                  className="result-hero__btn-text"
+                  className="result-hero__btn-text result-hero__btn-text--accent"
                   onClick={() => setRegenOpen((v) => !v)}
                   title="Re-generate with feedback"
                 >
-                  <RefreshCw size={12} style={{ marginRight: 4 }} />
+                  <RefreshCw size={12} />
                   Re-generate
                 </button>
                 <button className="result-hero__btn" onClick={handleCopy} title={copied ? 'Copied' : 'Copy'}>
@@ -299,7 +299,7 @@ export function ToolResultScreen({
                 ) : null}
                 {(resolvedTool.id === 'cover-letter' || resolvedTool.id === 'interview') && status === 'authenticated' && historyId && (
                   <button className="result-hero__btn-text" onClick={() => exportPdf(historyId)} title="Export PDF">
-                    <FileText size={12} style={{ marginRight: 4 }} />
+                    <FileText size={12} />
                     PDF
                   </button>
                 )}
