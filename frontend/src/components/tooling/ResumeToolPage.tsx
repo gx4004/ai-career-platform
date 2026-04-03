@@ -135,6 +135,7 @@ export function ResumeToolPage() {
                 id={resumeFieldId}
                 rows={resumeField.rows}
                 className="resume-paste-textarea"
+                aria-invalid={!!errors.resumeText}
                 value={String(draft.resumeText ?? '')}
                 placeholder={resumeField.placeholder}
                 onChange={(event) => setField('resumeText', event.target.value as never)}
@@ -186,6 +187,7 @@ export function ResumeToolPage() {
                     <Textarea
                       id="resume-jobDescription"
                       rows={jobField.rows}
+                      aria-invalid={!!errors.jobDescription}
                       value={String(draft.jobDescription ?? '')}
                       placeholder={jobField.placeholder}
                       onChange={(event) => setField('jobDescription', event.target.value as never)}

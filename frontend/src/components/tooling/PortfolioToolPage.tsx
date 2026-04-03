@@ -112,6 +112,7 @@ export function PortfolioToolPage() {
               ) : null}
               <Input
                 id="portfolio-targetRole"
+                aria-invalid={!!errors.targetRole}
                 value={String(draft.targetRole ?? '')}
                 placeholder={targetRoleField.placeholder}
                 onChange={(event) => setField('targetRole', event.target.value as never)}
@@ -160,6 +161,7 @@ export function PortfolioToolPage() {
                   id="portfolio-resumeText"
                   rows={resumeField.rows}
                   className="resume-paste-textarea"
+                  aria-invalid={!!errors.resumeText}
                   value={String(draft.resumeText ?? '')}
                   placeholder={resumeField.placeholder}
                   onChange={(event) => setField('resumeText', event.target.value as never)}

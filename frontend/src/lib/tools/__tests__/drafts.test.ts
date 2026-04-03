@@ -136,14 +136,14 @@ describe('drafts', () => {
           interview_focus: ['Kubernetes'],
           recruiter_summary: 'Needs stronger infrastructure proof.',
         },
-        updatedAt: 1,
+        updatedAt: Date.now(),
       })
 
       writeWorkflowContext({
         resumeText: 'latest resume',
         resumePendingReview: false,
         lastToolId: 'cover-letter',
-        updatedAt: 2,
+        updatedAt: Date.now(),
       })
 
       const ctx = readWorkflowContext()

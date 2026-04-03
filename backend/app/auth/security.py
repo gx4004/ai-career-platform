@@ -95,7 +95,7 @@ def set_auth_cookies(response: Response, access_token: str, refresh_token: str) 
         secure=is_prod,
         samesite="lax",
         max_age=settings.REFRESH_TOKEN_EXPIRE_DAYS * 86400,
-        path="/api/v1/auth/refresh",
+        path="/api/v1/auth/refresh",  # Scoped to exact endpoint — frontend silentRefresh() must call /api/v1/auth/refresh
     )
 
 

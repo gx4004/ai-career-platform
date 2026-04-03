@@ -97,13 +97,18 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   // Listen for session-expired events from API client — open auth dialog in-place
   useEffect(() => {
     const handleExpired = () => {
+      // Clear user-specific query caches so stale data isn't visible after re-auth
+      queryClient.removeQueries({ queryKey: ['history-page'] })
+      queryClient.removeQueries({ queryKey: ['history-workspaces'] })
+      queryClient.removeQueries({ queryKey: ['tool-run'] })
+      queryClient.setQueryData(['current-user'], null)
       setToken(null)
       setAuthView('login')
       setAuthDialogOpen(true)
     }
     window.addEventListener('cw:session-expired', handleExpired)
     return () => window.removeEventListener('cw:session-expired', handleExpired)
-  }, [])
+  }, [queryClient])
 
   const closeAuthDialog = useCallback(() => {
     setAuthDialogOpen(false)
@@ -200,6 +205,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       setToken(null)
       setAuthDialogOpen(false)
       setAuthError('')
+      queryClient.removeQueries({ queryKey: ['history-page'] })
+      queryClient.removeQueries({ queryKey: ['history-workspaces'] })
+      queryClient.removeQueries({ queryKey: ['tool-run'] })
       queryClient.setQueryData(['current-user'], null)
       await queryClient.invalidateQueries({ queryKey: ['current-user'] })
     }

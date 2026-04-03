@@ -109,6 +109,7 @@ export function JobMatchToolPage() {
                     <Textarea
                       id="job-match-resumeText"
                       rows={resumeField.rows}
+                      aria-invalid={!!errors.resumeText}
                       value={String(draft.resumeText ?? '')}
                       placeholder={resumeField.placeholder}
                       onChange={(event) => setField('resumeText', event.target.value as never)}
@@ -141,6 +142,7 @@ export function JobMatchToolPage() {
                   <Textarea
                     id="job-match-jobDescription"
                     rows={jobField.rows}
+                    aria-invalid={!!errors.jobDescription}
                     value={String(draft.jobDescription ?? '')}
                     placeholder={jobField.placeholder}
                     onChange={(event) =>
