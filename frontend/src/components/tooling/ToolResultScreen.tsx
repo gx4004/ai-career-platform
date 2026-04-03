@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import { Copy, Download, FileText, RefreshCw, Star, Undo2, X } from 'lucide-react'
+import { AlertCircle, Clock, Copy, Download, FileText, Loader2, RefreshCw, Star, Undo2, X } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { FadeIn, FadeUp } from '#/components/ui/motion'
 import { ScoreTooltip } from '#/components/tooling/ScoreTooltip'
@@ -76,15 +76,19 @@ export function ToolResultScreen({
   const [parentRunId, setParentRunId] = useState<string | null>(null)
   const [showUndo, setShowUndo] = useState(true)
   const [bannerDismissed, setBannerDismissed] = useState(false)
+  const queryClient = useQueryClient()
   const demoItem = useMemo(() => getTransientResult(historyId), [historyId])
-  const isDemoResult = Boolean(demoItem)
+  const cachedItem = queryClient.getQueryData(['tool-run', historyId]) as ReturnType<typeof getTransientResult> | undefined
+  const localItem = demoItem || cachedItem || null
+  const hasLocalData = Boolean(localItem)
   const query = useQuery({
     queryKey: ['tool-run', historyId],
     queryFn: () => getHistoryItem(historyId),
-    enabled: !isDemoResult,
+    enabled: !hasLocalData,
   })
 
-  const item = demoItem || query.data
+  const item = localItem || query.data
+  const isDemoResult = Boolean(demoItem || cachedItem)
 
   useEffect(() => {
     if (!item) return
@@ -138,7 +142,7 @@ export function ToolResultScreen({
         badge="Loading result"
         title="Fetching saved output"
         description="The result payload is loading from history."
-        scene="emptyPlanning"
+        icon={<Loader2 size={40} className="app-state-icon app-state-icon--spin" />}
       />
     )
   }
@@ -164,7 +168,10 @@ export function ToolResultScreen({
               ? 'The saved run may have been deleted or no longer matches the current workspace state.'
               : 'The saved run is missing, inaccessible, or the backend is offline.'
         }
-        scene="emptyPlanning"
+        icon={isDemoResult
+          ? <Clock size={40} className="app-state-icon app-state-icon--muted" />
+          : <AlertCircle size={40} className="app-state-icon app-state-icon--muted" />
+        }
         detail={query.error instanceof Error ? query.error.message : undefined}
         actions={[
           ...(isDemoResult ? [] : [{ label: 'Back to history', to: '/history' as const }]),
