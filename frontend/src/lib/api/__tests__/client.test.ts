@@ -23,9 +23,10 @@ import {
   runInterview,
   runCareer,
   runPortfolio,
+  logout,
   API_URL,
 } from '#/lib/api/client'
-import { getAuthToken, clearAuthToken } from '#/lib/auth/storage'
+import { getAuthToken, clearAuthToken, setAuthToken } from '#/lib/auth/storage'
 
 const mockFetch = vi.fn()
 globalThis.fetch = mockFetch
@@ -113,14 +114,40 @@ describe('API client', () => {
       await expect(getHealth()).rejects.toThrow('Not found')
     })
 
-    it('clears auth token on 401', async () => {
+    it('clears auth token when refresh fails after a 401', async () => {
       vi.mocked(getAuthToken).mockReturnValue('existing-token')
+      const dispatchSpy = vi.spyOn(window, 'dispatchEvent')
       mockFetch.mockResolvedValueOnce(
         mockJsonResponse({ detail: 'Unauthorized' }, 401),
+      )
+      mockFetch.mockResolvedValueOnce(
+        mockJsonResponse({ detail: 'Refresh failed' }, 401),
       )
 
       await expect(getCurrentUser()).rejects.toThrow()
       expect(clearAuthToken).toHaveBeenCalled()
+      expect(dispatchSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'cw:session-expired' }),
+      )
+    })
+
+    it('attempts silent refresh for cookie-only sessions', async () => {
+      const userData = { id: '1', email: 'test@example.com', is_active: true }
+      mockFetch.mockResolvedValueOnce(
+        mockJsonResponse({ detail: 'Unauthorized' }, 401),
+      )
+      mockFetch.mockResolvedValueOnce(
+        mockJsonResponse({ access_token: 'cookie-refresh-token', token_type: 'bearer' }),
+      )
+      mockFetch.mockResolvedValueOnce(mockJsonResponse(userData))
+
+      const result = await getCurrentUser()
+
+      expect(result.email).toBe('test@example.com')
+      expect(mockFetch).toHaveBeenCalledTimes(3)
+      expect(mockFetch.mock.calls[1]?.[0]).toBe(`${API_URL}/auth/refresh`)
+      expect(mockFetch.mock.calls[2]?.[0]).toBe(`${API_URL}/auth/me`)
+      expect(setAuthToken).toHaveBeenCalledWith('cookie-refresh-token')
     })
   })
 
@@ -339,6 +366,19 @@ describe('API client', () => {
 
       const [url] = mockFetch.mock.calls[0]
       expect(url).toBe(`${API_URL}/portfolio/recommend`)
+    })
+  })
+
+  describe('logout', () => {
+    it('sends POST to /auth/logout', async () => {
+      mockFetch.mockResolvedValueOnce(mockJsonResponse({ ok: true }))
+
+      const result = await logout()
+
+      const [url, options] = mockFetch.mock.calls[0]
+      expect(url).toBe(`${API_URL}/auth/logout`)
+      expect(options.method).toBe('POST')
+      expect(result.ok).toBe(true)
     })
   })
 

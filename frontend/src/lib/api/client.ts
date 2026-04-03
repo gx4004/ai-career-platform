@@ -101,7 +101,7 @@ async function request<T>(
 
   if (!response.ok) {
     // Try silent refresh on 401 (skip for refresh endpoint itself and retries)
-    if (response.status === 401 && token && !_isRetry && path !== '/auth/refresh') {
+    if (response.status === 401 && !_isRetry && path !== '/auth/refresh') {
       try {
         if (!refreshPromise) {
           refreshPromise = silentRefresh()
@@ -112,7 +112,9 @@ async function request<T>(
       } catch {
         refreshPromise = null
         clearAuthToken()
-        window.dispatchEvent(new CustomEvent('cw:session-expired'))
+        if (token) {
+          window.dispatchEvent(new CustomEvent('cw:session-expired'))
+        }
       }
     } else if (response.status === 401 && token) {
       clearAuthToken()
@@ -355,5 +357,11 @@ export function refreshToken() {
     method: 'POST',
     body: {},
     schema: tokenSchema,
+  })
+}
+
+export function logout() {
+  return request<{ ok: boolean }>('/auth/logout', {
+    method: 'POST',
   })
 }

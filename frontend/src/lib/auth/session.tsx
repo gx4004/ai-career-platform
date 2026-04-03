@@ -9,7 +9,15 @@ import {
 } from 'react'
 import type { ReactNode } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { API_URL, getAuthProviders, getCurrentUser, getHealth, login as loginRequest, register as registerRequest } from '#/lib/api/client'
+import {
+  API_URL,
+  getAuthProviders,
+  getCurrentUser,
+  getHealth,
+  login as loginRequest,
+  logout as logoutRequest,
+  register as registerRequest,
+} from '#/lib/api/client'
 import { ApiError } from '#/lib/api/errors'
 import type { HealthCheck, OAuthProvider, User } from '#/lib/api/schemas'
 import {
@@ -43,7 +51,7 @@ export type SessionState = {
     password: string
     full_name?: string
   }) => Promise<void>
-  logout: () => void
+  logout: () => Promise<void>
   googleLogin: () => void
 }
 
@@ -180,14 +188,21 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     window.location.href = `${API_URL}/auth/google/login`
   }, [])
 
-  const logout = useCallback(() => {
-    clearAuthToken()
-    clearPendingIntent()
-    pendingActionRef.current = null
-    setToken(null)
-    setAuthDialogOpen(false)
-    setAuthError('')
-    void queryClient.invalidateQueries({ queryKey: ['current-user'] })
+  const logout = useCallback(async () => {
+    try {
+      await logoutRequest()
+    } catch {
+      // Local session cleanup still runs so the UI does not stay stuck.
+    } finally {
+      clearAuthToken()
+      clearPendingIntent()
+      pendingActionRef.current = null
+      setToken(null)
+      setAuthDialogOpen(false)
+      setAuthError('')
+      queryClient.setQueryData(['current-user'], null)
+      await queryClient.invalidateQueries({ queryKey: ['current-user'] })
+    }
   }, [queryClient])
 
   const status: SessionState['status'] = userQuery.isPending

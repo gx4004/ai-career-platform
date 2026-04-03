@@ -134,6 +134,12 @@ def refresh_token(
     return TokenResponse(access_token=access, refresh_token=refresh)
 
 
+@router.post("/logout", status_code=200)
+def logout(response: Response):
+    clear_auth_cookies(response)
+    return {"ok": True}
+
+
 @router.delete("/me", status_code=204)
 def delete_account(
     response: Response,
