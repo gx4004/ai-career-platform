@@ -272,7 +272,7 @@ def test_interview(client, auth_headers, mock_ai_result):
     assert data["editable_blocks"]
 
 
-def test_interview_practice_feedback_requires_auth(client, monkeypatch):
+def test_interview_practice_feedback_allows_guest_access(client, monkeypatch):
     async def fake_evaluate(*args, **kwargs):
         return {
             "strengths": ["Clear structure"],
@@ -292,7 +292,10 @@ def test_interview_practice_feedback_requires_auth(client, monkeypatch):
             "model_answer": "Use a concise STAR structure.",
         },
     )
-    assert resp.status_code == 401
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["overall_feedback"] == "Promising answer."
+    assert data["strengths"] == ["Clear structure"]
 
 
 def test_interview_practice_feedback_authenticated(client, auth_headers, monkeypatch):
