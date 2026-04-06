@@ -1113,7 +1113,7 @@
 /* Make every dashboard wrapper use the gradient-end color */
 body.page-tone-dashboard,
 body.page-tone-dashboard [data-slot="sidebar-inset"] {
-  background: transparent;
+  background: #d0e6f2;
 }
 
 body.page-tone-dashboard .app-main {
@@ -1123,7 +1123,7 @@ body.page-tone-dashboard .app-main {
 /* Premium canvas override for dashboard */
 
 .dashboard-page-frame.premium-corner-canvas {
-  --premium-canvas-bg: transparent;
+  --premium-canvas-bg: #d0e6f2;
   --premium-canvas-before: none;
   --premium-canvas-after: none;
   box-shadow: none;
