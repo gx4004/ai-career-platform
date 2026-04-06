@@ -1,3 +1,10 @@
+/* overflow:clip on premium-corner-canvas blocks IntersectionObserver for all
+   descendants — override both axes so useInView scroll animations work */
+.landing-page {
+  overflow-x: visible !important;
+  overflow-y: visible !important;
+}
+
 /* ── Glass utilities ── */
 
 .glass {

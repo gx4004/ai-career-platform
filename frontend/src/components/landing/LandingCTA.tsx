@@ -1,6 +1,5 @@
-import { useRef } from 'react'
 import { ArrowRight, Check } from 'lucide-react'
-import { motion, useReducedMotion, useInView } from 'framer-motion'
+import { motion, useReducedMotion } from 'framer-motion'
 import { Button } from '#/components/ui/button'
 import { ScrollStagger, ScrollStaggerItem, MagneticButton } from '#/components/ui/motion'
 import { AppBrandLockup } from '#/components/app/AppBrandLockup'
@@ -8,16 +7,14 @@ import { landingCtaCopy, landingPrimaryCta } from '#/components/landing/landingC
 
 export function LandingCTA() {
   const prefersReducedMotion = useReducedMotion() ?? false
-  const sectionRef = useRef<HTMLElement>(null)
-  const sectionTriggered = useInView(sectionRef, { once: true, amount: 0 })
 
   return (
     <motion.section
-      ref={sectionRef}
       className="landing-cta-dark"
       id="landing-cta"
       initial={prefersReducedMotion ? false : { opacity: 0, filter: 'blur(8px)' }}
-      animate={sectionTriggered || prefersReducedMotion ? { opacity: 1, filter: 'blur(0px)' } : { opacity: 0, filter: 'blur(8px)' }}
+      whileInView={{ opacity: 1, filter: 'blur(0px)' }}
+      viewport={{ once: true, amount: 0.05 }}
       transition={{ duration: prefersReducedMotion ? 0 : 0.6, ease: [0.16, 1, 0.3, 1] }}
     >
       {/* Aurora blob */}
@@ -39,15 +36,10 @@ export function LandingCTA() {
 
         <ScrollStaggerItem>
           <ul className="landing-cta-dark-bullets">
-            {landingCtaCopy.valueBullets.map((bullet, i) => (
+            {landingCtaCopy.valueBullets.map((bullet) => (
               <li
                 key={bullet}
                 className="landing-cta-dark-bullet"
-                style={prefersReducedMotion ? undefined : {
-                  opacity: sectionTriggered ? 1 : 0,
-                  transform: sectionTriggered ? 'none' : 'translateX(16px)',
-                  transition: `opacity 0.4s ${i * 0.08}s cubic-bezier(0.16,1,0.3,1), transform 0.4s ${i * 0.08}s cubic-bezier(0.16,1,0.3,1)`,
-                }}
               >
                 <Check size={14} className="landing-cta-dark-check" />
                 {bullet}

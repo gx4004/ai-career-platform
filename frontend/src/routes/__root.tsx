@@ -9,12 +9,13 @@ if (import.meta.env.VITE_SENTRY_DSN) {
     tracesSampleRate: 0.1,
   })
 }
-import { HeadContent, Outlet, Scripts, createRootRoute } from '@tanstack/react-router'
+import { HeadContent, Outlet, Scripts, createRootRoute, useRouterState } from '@tanstack/react-router'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { AppNotFound } from '#/components/app/AppNotFound'
 import { AppRouteError } from '#/components/app/AppRouteError'
 import { AppShell } from '#/components/app/AppShell'
 import { CookieConsent } from '#/components/app/CookieConsent'
+import { AnimatePresence, motion, MotionConfig } from '#/components/ui/motion'
 import { SessionProvider } from '#/lib/auth/session'
 import { queryClient } from '#/lib/query/queryClient'
 import appCss from '#/styles.css?url'
@@ -58,9 +59,20 @@ export const Route = createRootRoute({
 })
 
 function PageTransition({ children }: { children: ReactNode }) {
-  // CSS-based fade — no Framer Motion in critical path
-  // Individual pages use their own enter animations (.page-frame, .tool-hero, etc.)
-  return <>{children}</>
+  const pathname = useRouterState({ select: (s) => s.location.pathname })
+  return (
+    <AnimatePresence mode="wait" initial={false}>
+      <motion.div
+        key={pathname}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.15, ease: 'easeOut' }}
+      >
+        {children}
+      </motion.div>
+    </AnimatePresence>
+  )
 }
 
 function RootDocument({ children }: { children: ReactNode }) {
@@ -120,10 +132,12 @@ function RootDocument({ children }: { children: ReactNode }) {
       <body>
         <QueryClientProvider client={queryClient}>
           <SessionProvider>
-            <AppShell>
-              <PageTransition>{children || <Outlet />}</PageTransition>
-            </AppShell>
-            <CookieConsent />
+            <MotionConfig reducedMotion="user">
+              <AppShell>
+                <PageTransition>{children || <Outlet />}</PageTransition>
+              </AppShell>
+              <CookieConsent />
+            </MotionConfig>
           </SessionProvider>
         </QueryClientProvider>
         <Scripts />
