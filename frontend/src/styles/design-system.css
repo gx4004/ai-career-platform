@@ -195,7 +195,277 @@
 }
 
 /* ─────────────────────────────────────────────────
-   6. Route pending (lazy chunk loading)
+   6. Account page premium layout
+   ───────────────────────────────────────────────── */
+
+.account-layout {
+  display: grid;
+  gap: 1.25rem;
+  padding-top: 0.5rem;
+  animation: account-stagger 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes account-stagger {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Hero profile card */
+.account-hero {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius-2xl);
+  border: 1px solid color-mix(in srgb, var(--border-soft) 86%, white 14%);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.99), var(--surface-subtle));
+  box-shadow: var(--shadow-soft), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+.account-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse at top left, color-mix(in srgb, var(--accent) 10%, transparent), transparent 50%),
+    radial-gradient(ellipse at bottom right, rgba(127, 177, 228, 0.08), transparent 50%);
+}
+
+.account-hero > * {
+  position: relative;
+  z-index: 1;
+}
+
+.account-hero-accent {
+  height: 3px;
+  background: linear-gradient(90deg, var(--accent), color-mix(in srgb, var(--accent) 60%, #6366f1), var(--accent));
+}
+
+.account-hero-content {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  padding: 1.75rem 1.75rem 0;
+}
+
+.account-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 3.25rem;
+  height: 3.25rem;
+  border-radius: var(--radius-xl);
+  background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 70%, #6366f1));
+  color: white;
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  flex-shrink: 0;
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--accent) 25%, transparent);
+}
+
+.account-hero-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.account-hero-title {
+  font-family: var(--font-display);
+  font-size: clamp(1.35rem, 2vw, 1.6rem);
+  font-weight: 700;
+  letter-spacing: var(--tracking-title);
+  color: var(--text-strong);
+}
+
+.account-hero-email {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-hero-meta {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 1.25rem 1.75rem;
+  margin-top: 1.25rem;
+  border-top: 1px solid var(--border-soft);
+}
+
+.account-meta-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+}
+
+.account-meta-icon {
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.account-meta-label {
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.account-meta-value {
+  color: var(--text-strong);
+}
+
+.account-meta-divider {
+  width: 1px;
+  height: 1.25rem;
+  background: var(--border-soft);
+}
+
+/* Standard cards */
+.account-card {
+  position: relative;
+  overflow: hidden;
+  display: grid;
+  gap: 1rem;
+  padding: 1.5rem;
+  border-radius: var(--radius-2xl);
+  border: 1px solid color-mix(in srgb, var(--border-soft) 86%, white 14%);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.99), var(--surface-subtle));
+  box-shadow: var(--shadow-soft), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+.account-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at top left, rgba(127, 177, 228, 0.1), transparent 24%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.55), transparent 26%);
+}
+
+.account-card > * {
+  position: relative;
+  z-index: 1;
+}
+
+.account-card-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.account-card-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: var(--radius-lg);
+  background: linear-gradient(180deg, var(--surface-focus), color-mix(in srgb, var(--accent) 6%, var(--surface-subtle)));
+  border: 1px solid var(--border-soft);
+  color: var(--accent);
+  flex-shrink: 0;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+.account-card-icon--warn {
+  color: var(--destructive, #dc2626);
+  background: linear-gradient(180deg, var(--surface-focus), color-mix(in srgb, var(--destructive, #dc2626) 5%, var(--surface-subtle)));
+}
+
+.account-card-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-strong);
+}
+
+.account-card-description {
+  font-size: 0.875rem;
+  line-height: 1.45;
+  color: var(--text-muted);
+  max-width: 52ch;
+}
+
+/* Session card tint */
+.account-card--session {
+  border-color: color-mix(in srgb, var(--destructive, #dc2626) 10%, var(--border-soft));
+}
+
+.account-card--session::before {
+  background:
+    radial-gradient(circle at top left, color-mix(in srgb, var(--destructive, #dc2626) 5%, transparent), transparent 30%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.55), transparent 26%);
+}
+
+/* Provider cards */
+.account-provider-card {
+  position: relative;
+  padding: 1rem 1.15rem;
+  border-radius: var(--radius-xl);
+  border: 1px solid color-mix(in srgb, var(--border-soft) 86%, white 14%);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), var(--surface-focus));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  transition:
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast),
+    transform var(--transition-fast);
+}
+
+.account-provider-card:hover {
+  border-color: var(--border-strong);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-soft), inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+.account-provider-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--text-muted);
+  margin-right: 0.15rem;
+}
+
+.account-provider-dot.is-enabled {
+  background: #22c55e;
+}
+
+.account-badge-active[data-slot='badge'] {
+  border-color: color-mix(in srgb, #22c55e 25%, var(--border-soft));
+  color: #16a34a;
+}
+
+.account-badge-inactive[data-slot='badge'] {
+  color: var(--text-muted);
+}
+
+/* Mobile */
+@media (max-width: 640px) {
+  .account-hero-content {
+    padding: 1.25rem 1.25rem 0;
+  }
+
+  .account-hero-meta {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 1rem 1.25rem;
+  }
+
+  .account-meta-divider {
+    display: none;
+  }
+
+  .account-card {
+    padding: 1.25rem;
+  }
+}
+
+/* ─────────────────────────────────────────────────
+   7. Route pending (lazy chunk loading)
    ───────────────────────────────────────────────── */
 
 .route-pending {

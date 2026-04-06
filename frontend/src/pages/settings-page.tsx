@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link } from '@tanstack/react-router'
-import { RotateCcw } from 'lucide-react'
+import { Activity, Clock, Compass, Globe, HardDrive, RotateCcw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '#/components/ui/button'
 import { PageFrame } from '#/components/app/PageFrame'
@@ -16,6 +16,7 @@ export function SettingsPage() {
   const { health } = useSession()
   const [cleared, setCleared] = useState(false)
   const { t, i18n } = useTranslation()
+  const isOnline = health?.status === 'ok'
 
   // Auto-hide cleared message after 3 seconds
   useEffect(() => {
@@ -28,7 +29,6 @@ export function SettingsPage() {
     <PageFrame>
       <div className="content-max settings-layout">
         <header className="settings-header">
-          <h1 className="settings-header-title">Settings</h1>
           <p className="settings-header-subtitle">
             Manage your local workspace, onboarding preferences, and system diagnostics.
           </p>
@@ -37,6 +37,9 @@ export function SettingsPage() {
         <section className="settings-section">
           <div className="settings-panel">
             <div className="settings-row">
+              <div className="settings-row-icon">
+                <Compass size={18} />
+              </div>
               <div className="settings-info">
                 <h2 className="settings-title">Onboarding</h2>
                 <p className="settings-description">
@@ -59,11 +62,14 @@ export function SettingsPage() {
             </div>
 
             <div className="settings-row">
+              <div className="settings-row-icon">
+                <HardDrive size={18} />
+              </div>
               <div className="settings-info">
                 <h2 className="settings-title">Local workspace data</h2>
                 <p className="settings-description">
                   Clear locally cached drafts, guest demos, and workflow context to restart the guided flow.
-                  {cleared && " Local drafts and demo state were cleared."}
+                  {cleared && <span className="settings-cleared-msg"> Local drafts and demo state were cleared.</span>}
                 </p>
               </div>
               <div className="settings-action">
@@ -83,6 +89,9 @@ export function SettingsPage() {
             </div>
 
             <div className="settings-row">
+              <div className="settings-row-icon">
+                <Clock size={18} />
+              </div>
               <div className="settings-info">
                 <h2 className="settings-title">Saved workspace history</h2>
                 <p className="settings-description">
@@ -97,6 +106,9 @@ export function SettingsPage() {
             </div>
 
             <div className="settings-row">
+              <div className="settings-row-icon">
+                <Globe size={18} />
+              </div>
               <div className="settings-info">
                 <h2 className="settings-title">{t('settings.language')}</h2>
                 <p className="settings-description">
@@ -120,19 +132,25 @@ export function SettingsPage() {
         <section className="settings-section">
           <div className="settings-panel settings-status-panel">
             <div className="settings-status-header">
+              <div className="settings-row-icon">
+                <Activity size={18} />
+              </div>
               <div className="settings-info">
-                <h2 className="settings-title">System Diagnostics</h2>
+                <div className="flex items-center gap-2.5">
+                  <h2 className="settings-title">System Diagnostics</h2>
+                  <span className={`settings-status-dot ${isOnline ? 'is-online' : 'is-offline'}`} />
+                </div>
                 <p className="settings-description">
-                  Quick check for API reachability from the frontend client.
+                  {isOnline ? 'All systems operational — API is reachable.' : 'API connectivity could not be confirmed.'}
                 </p>
               </div>
             </div>
-            
+
             <div className="settings-status-grid">
               <div className="settings-status-item">
                 <span className="settings-status-label">API Status</span>
-                <span className={`settings-status-value ${health?.status !== 'ok' ? 'is-offline' : ''}`}>
-                  {health?.status === 'ok' ? 'Online & Healthy' : 'Unknown / Offline'}
+                <span className={`settings-status-value ${!isOnline ? 'is-offline' : ''}`}>
+                  {isOnline ? 'Online & Healthy' : 'Unknown / Offline'}
                 </span>
               </div>
               <div className="settings-status-item">
