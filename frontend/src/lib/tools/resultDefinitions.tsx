@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import {
+  AlertCircle,
   ArrowRight,
   CheckCircle2,
   ChevronRight,
@@ -10,7 +11,9 @@ import {
   Hash,
   Info,
   Lightbulb,
+  MessageSquare,
   Settings,
+  Star,
   TrendingUp,
   Zap,
 } from 'lucide-react'
@@ -1028,10 +1031,60 @@ function JobMatchView({ payload }: { payload: AnyObject }) {
 function CoverLetterHeroExtra({ payload }: { payload: AnyObject }) {
   const result = normalizeCoverLetterPayload(payload)
   const wordCount = result.fullText.split(/\s+/).filter(Boolean).length
+  const reqCount = result.customizationNotes.length
+
   return (
-    <div className="cl-hero-badges">
-      <span className="cl-hero-badge cl-hero-badge--tone">{result.toneUsed} tone</span>
-      <span className="cl-hero-badge cl-hero-badge--stat">{wordCount} words</span>
+    <div className="hero-stat-strip">
+      <div className="hero-stat-strip__item">
+        <span className="hero-stat-strip__label">Tone</span>
+        <span className="hero-stat-strip__value">{result.toneUsed}</span>
+      </div>
+      <div className="hero-stat-strip__divider" />
+      <div className="hero-stat-strip__item">
+        <span className="hero-stat-strip__label">Length</span>
+        <span className="hero-stat-strip__value">{wordCount} words</span>
+      </div>
+      {reqCount > 0 && (
+        <>
+          <div className="hero-stat-strip__divider" />
+          <div className="hero-stat-strip__item">
+            <span className="hero-stat-strip__label">Tailored for</span>
+            <span className="hero-stat-strip__value">{reqCount} requirements</span>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+function CoverLetterFixFirstStrip({ payload }: { payload: AnyObject }) {
+  const result = normalizeCoverLetterPayload(payload)
+  const actions = result.topActions.slice(0, 3)
+  if (actions.length === 0) return null
+
+  return (
+    <div className="fix-first-strip stagger-entrance">
+      {actions.map((a, i) => {
+        const Icon = FIX_FIRST_ICONS[i] || FileEdit
+        const style = FIX_FIRST_CARD_STYLES[i] || FIX_FIRST_CARD_STYLES[0]
+        return (
+          <div key={`${a.title}-${i}`} className="fix-first-card">
+            <div className="fix-first-card__icon" style={{ background: style.bg }}>
+              <Icon size={18} style={{ color: style.text }} />
+            </div>
+            <div className="fix-first-card__content">
+              <div className="fix-first-card__title">{a.title}</div>
+              <div className="fix-first-card__desc">{a.action}</div>
+              <div className="fix-first-card__footer">
+                <span className="fix-first-card__priority" style={{ color: style.text }}>
+                  {FIX_FIRST_LABELS[a.priority] || a.priority}
+                </span>
+                <ArrowRight size={16} style={{ color: 'var(--text-soft)' }} />
+              </div>
+            </div>
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -1117,12 +1170,20 @@ function CoverLetterView({ payload }: { payload: AnyObject }) {
               <span className="cl-notes-card__title">Customization notes</span>
             </div>
             <div className="cl-notes-card__list">
-              {result.customizationNotes.map((n, i) => (
-                <div key={`${n.note}-${i}`} className="cl-notes-card__item">
-                  <CheckCircle2 size={16} className="cl-notes-card__check" />
-                  <span>{n.note}</span>
-                </div>
-              ))}
+              {result.customizationNotes.map((n, i) => {
+                const CatIcon =
+                  n.category === 'tone' ? MessageSquare :
+                  n.category === 'evidence' ? Star :
+                  n.category === 'keyword' ? Hash :
+                  n.category === 'gap' ? AlertCircle :
+                  CheckCircle2
+                return (
+                  <div key={`${n.note}-${i}`} className="cl-notes-card__item">
+                    <CatIcon size={15} className="cl-notes-card__check" />
+                    <span>{n.note}</span>
+                  </div>
+                )
+              })}
             </div>
           </div>
         )}
@@ -1141,16 +1202,14 @@ function CoverLetterView({ payload }: { payload: AnyObject }) {
           </div>
         </div>
 
-        {/* Tips */}
-        {result.bodyPoints.length > 0 && (
-          <div className="cl-tips">
-            <div className="cl-tips__title">Pro tips</div>
-            <div className="cl-tips__list">
-              <div className="cl-tips__item">
-                <div className="cl-tips__item-icon"><Lightbulb size={14} /></div>
-                <p className="cl-tips__item-text">Include specific metrics and numbers to strengthen impact claims.</p>
-              </div>
+        {/* Letter strategy */}
+        {result.opening.whyThisParagraph && (
+          <div className="cl-strategy">
+            <div className="cl-strategy__eyebrow">
+              <Lightbulb size={12} />
+              <span>Letter strategy</span>
             </div>
+            <p className="cl-strategy__text">{result.opening.whyThisParagraph}</p>
           </div>
         )}
       </div>
@@ -1876,6 +1935,7 @@ export const resultDefinitions: Record<ToolId, ResultDefinition> = {
       content: coverLetterCopyText(payload),
     }),
     heroExtra: (payload) => <CoverLetterHeroExtra payload={payload} />,
+    midSection: (payload) => <CoverLetterFixFirstStrip payload={payload} />,
     render: (payload) => <CoverLetterView payload={payload} />,
   },
   interview: {
