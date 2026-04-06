@@ -3,7 +3,7 @@ import { Link } from '@tanstack/react-router'
 import { useRef } from 'react'
 import { motion, useReducedMotion, useScroll, useTransform } from 'framer-motion'
 import { Button } from '#/components/ui/button'
-import { StaggerChildren, StaggerItem, MagneticButton } from '#/components/ui/motion'
+import { StaggerChildren, StaggerItem } from '#/components/ui/motion'
 import {
   landingExperimentHeroCopy,
   landingPrimaryCta,
@@ -61,14 +61,12 @@ export function LandingExperimentHero({
           </StaggerItem>
           <StaggerItem>
             <div className="landing-cascade-actions">
-              <MagneticButton>
-                <Button asChild className="landing-cascade-cta landing-cascade-cta--shimmer" size="lg">
-                  <a href={landingPrimaryCta.to}>
-                    {copy.ctaLabel}
-                    <ArrowRight size={16} />
-                  </a>
-                </Button>
-              </MagneticButton>
+              <Button asChild className="landing-cascade-cta landing-cascade-cta--shimmer" size="lg">
+                <a href={landingPrimaryCta.to}>
+                  {copy.ctaLabel}
+                  <ArrowRight size={16} />
+                </a>
+              </Button>
               <Button
                 asChild
                 className="landing-cascade-cta landing-cascade-cta--ghost"
