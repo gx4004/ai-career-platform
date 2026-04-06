@@ -2900,9 +2900,9 @@
 
 /* Primary CTA — bright blue glow on dark */
 .landing-cascade-cta {
-  height: 2.5rem !important;
-  padding-left: 1.5rem !important;
-  padding-right: 1.5rem !important;
+  height: 2.25rem !important;
+  padding-left: 1.375rem !important;
+  padding-right: 1.375rem !important;
   font-size: 0.9375rem !important;
   background: linear-gradient(135deg, #4a93ef 0%, #1266c2 100%) !important;
   border-color: rgba(74, 158, 237, 0.28) !important;
