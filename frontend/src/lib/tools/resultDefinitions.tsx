@@ -995,24 +995,23 @@ function JobMatchView({ payload }: { payload: AnyObject }) {
       <div className="resume-body-right">
         {result.recruiterSummary && (
           <ScrollReveal>
-          <div className="rolefit-card">
-            <div className="rolefit-card__header">
-              <span className="rolefit-card__title">Recruiter summary</span>
+          <div className="jm-recruiter-card">
+            <div className="jm-recruiter-card__header">
+              <span className="jm-recruiter-card__title">Recruiter view</span>
+              <span className="jm-recruiter-card__badge">How they see you</span>
             </div>
-            <p style={{ fontSize: '0.875rem', color: 'var(--text-body)', lineHeight: 1.6 }}>{result.recruiterSummary}</p>
+            <p className="jm-recruiter-card__body">{result.recruiterSummary}</p>
           </div>
           </ScrollReveal>
         )}
         {result.interviewFocus.length > 0 && (
           <ScrollReveal>
-          <div className="rolefit-card">
-            <div className="rolefit-card__header">
-              <span className="rolefit-card__title">Interview prep</span>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+          <div className="jm-interview-card">
+            <div className="jm-interview-card__header">Interview prep</div>
+            <div className="jm-interview-card__items">
               {result.interviewFocus.map((f) => (
-                <div key={f} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', fontSize: '0.8125rem', color: 'var(--text-body)' }}>
-                  <span style={{ color: 'var(--accent)', fontWeight: 700, flexShrink: 0 }}>-</span>
+                <div key={f} className="jm-interview-card__item">
+                  <ArrowRight size={14} className="jm-interview-card__item-icon" />
                   <span>{f}</span>
                 </div>
               ))}
