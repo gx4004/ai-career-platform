@@ -57,7 +57,7 @@ export function AppSidebar() {
           )}
         >
           <Link
-            to="/dashboard"
+            to={pathname === '/dashboard' ? '/' : '/dashboard'}
             className="app-sidebar-brand-link"
             aria-label="Career Workbench"
           >
