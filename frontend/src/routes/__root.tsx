@@ -43,6 +43,8 @@ export const Route = createRootRoute({
     ],
     links: [
       { rel: 'stylesheet', href: appCss },
+      // Preload LCP hero image — browser fetches at HTML parse time, not after JS renders
+      { rel: 'preload', as: 'image', href: '/ai-generated/carousel/hero-resume-analyzer.webp', type: 'image/webp' },
       { rel: 'icon', href: '/favicon.ico', type: 'image/x-icon' },
       { rel: 'manifest', href: '/manifest.json' },
       { rel: 'apple-touch-icon', href: '/logo192.png' },

@@ -120,6 +120,8 @@ export function LandingExperimentHero({
               <img
                 src="/ai-generated/carousel/hero-resume-analyzer.webp"
                 alt="Career Workbench resume analyzer preview"
+                width={800}
+                height={471}
                 className="landing-cascade-window-image cursor-pointer"
                 loading="eager"
                 decoding="async"
