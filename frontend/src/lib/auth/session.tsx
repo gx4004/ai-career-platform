@@ -75,12 +75,14 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     queryKey: ['auth-providers'],
     queryFn: getAuthProviders,
     retry: false,
+    staleTime: 60 * 60_000,  // providers never change — cache 1 hour
   })
 
   const healthQuery = useQuery({
     queryKey: ['health'],
     queryFn: getHealth,
     retry: false,
+    staleTime: 10 * 60_000,  // backend health — cache 10 min
   })
 
   useEffect(() => {

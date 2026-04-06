@@ -1,3 +1,4 @@
+import '#/styles/auth.css'
 import { Link, useSearch } from '@tanstack/react-router'
 import { useState } from 'react'
 import { Lock } from 'lucide-react'
