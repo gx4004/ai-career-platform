@@ -1572,15 +1572,65 @@ function normalizePortfolioPayload(payload: AnyObject): PortfolioResultPayload {
 function CareerHeroExtra({ payload }: { payload: AnyObject }) {
   const result = normalizeCareerPayload(payload)
   const score = result.recommendedDirection.fitScore
-  const verdictClass = score >= 70 ? 'cp-hero-score__verdict--good' : score >= 40 ? 'cp-hero-score__verdict--ok' : 'cp-hero-score__verdict--low'
-  const verdictText = score >= 70 ? 'High match' : score >= 40 ? 'Moderate' : 'Stretch'
+  const gapCount = result.skillGaps.length
+  const timeline = result.recommendedDirection.transitionTimeline
+
   return (
-    <div className="cp-hero-score">
-      <span className="cp-hero-score__label">Fit score</span>
-      <span className="cp-hero-score__value">{score}%</span>
-      <span className={`cp-hero-score__verdict ${verdictClass}`}>
-        <CheckCircle2 size={14} /> {verdictText}
-      </span>
+    <div className="hero-stat-strip">
+      <div className="hero-stat-strip__item">
+        <span className="hero-stat-strip__label">Fit score</span>
+        <span className="hero-stat-strip__value">{score}%</span>
+      </div>
+      {timeline && (
+        <>
+          <div className="hero-stat-strip__divider" />
+          <div className="hero-stat-strip__item">
+            <span className="hero-stat-strip__label">Timeline</span>
+            <span className="hero-stat-strip__value">{timeline}</span>
+          </div>
+        </>
+      )}
+      {gapCount > 0 && (
+        <>
+          <div className="hero-stat-strip__divider" />
+          <div className="hero-stat-strip__item">
+            <span className="hero-stat-strip__label">Skill gaps</span>
+            <span className="hero-stat-strip__value">{gapCount} to close</span>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+function CareerFixFirstStrip({ payload }: { payload: AnyObject }) {
+  const result = normalizeCareerPayload(payload)
+  const actions = result.topActions.slice(0, 3)
+  if (actions.length === 0) return null
+
+  return (
+    <div className="fix-first-strip stagger-entrance">
+      {actions.map((a, i) => {
+        const Icon = FIX_FIRST_ICONS[i] || FileEdit
+        const style = FIX_FIRST_CARD_STYLES[i] || FIX_FIRST_CARD_STYLES[0]
+        return (
+          <div key={`${a.title}-${i}`} className="fix-first-card">
+            <div className="fix-first-card__icon" style={{ background: style.bg }}>
+              <Icon size={18} style={{ color: style.text }} />
+            </div>
+            <div className="fix-first-card__content">
+              <div className="fix-first-card__title">{a.title}</div>
+              <div className="fix-first-card__desc">{a.action}</div>
+              <div className="fix-first-card__footer">
+                <span className="fix-first-card__priority" style={{ color: style.text }}>
+                  {FIX_FIRST_LABELS[a.priority] || a.priority}
+                </span>
+                <ArrowRight size={16} style={{ color: 'var(--text-soft)' }} />
+              </div>
+            </div>
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -1670,14 +1720,17 @@ function CareerView({ payload }: { payload: AnyObject }) {
         {altPaths.length > 0 && (
           <div className="cp-alt-paths">
             <div className="cp-alt-paths__title">Alternative paths</div>
-            {altPaths.map((p) => (
+            {altPaths.map((p, idx) => (
               <div key={p.roleTitle} className="cp-alt-card">
-                <div className="cp-alt-card__top">
-                  <div className="cp-alt-card__icon"><TrendingUp size={16} /></div>
-                  <span className="cp-alt-card__score" style={{ color: scoreColor(p.fitScore) }}>{p.fitScore}% match</span>
+                <div className="cp-alt-card__header">
+                  <span className="cp-alt-card__rank">#{idx + 1} alt</span>
+                  <span className="cp-alt-card__score" style={{ color: scoreColor(p.fitScore) }}>{p.fitScore}%</span>
                 </div>
                 <div className="cp-alt-card__name">{p.roleTitle}</div>
-                <div className="cp-alt-card__desc">{p.rationale}</div>
+                <div className="cp-alt-card__score-bar">
+                  <div className="cp-alt-card__score-fill" style={{ width: `${p.fitScore}%`, background: scoreColor(p.fitScore) }} />
+                </div>
+                <p className="cp-alt-card__desc">{p.rationale}</p>
                 <div className="cp-alt-card__footer">
                   <span className="cp-alt-card__timeline">{p.transitionTimeline}</span>
                 </div>
@@ -1687,13 +1740,16 @@ function CareerView({ payload }: { payload: AnyObject }) {
         )}
 
         {/* Pro tip */}
-        <div className="cl-action-card">
-          <div className="cl-action-card__title">Pro tip</div>
-          <div className="cl-action-card__desc" style={{ marginBottom: 0 }}>
+        <div className="cp-tip-card">
+          <div className="cp-tip-card__eyebrow">
+            <Lightbulb size={12} />
+            <span>Pro tip</span>
+          </div>
+          <p className="cp-tip-card__text">
             {result.recommendedDirection.confidence === 'high'
               ? 'Your profile strongly matches this direction. Focus on closing the remaining skill gaps to maximize your timeline.'
               : 'Document your cross-team wins and build visible proof points to strengthen your candidacy.'}
-          </div>
+          </p>
         </div>
       </div>
     </div>
@@ -1978,7 +2034,9 @@ export const resultDefinitions: Record<ToolId, ResultDefinition> = {
   },
   career: {
     copyText: (payload) => careerCopyText(payload),
+    heroVariant: 'dark',
     heroExtra: (payload) => <CareerHeroExtra payload={payload} />,
+    midSection: (payload) => <CareerFixFirstStrip payload={payload} />,
     render: (payload) => <CareerView payload={payload} />,
   },
   portfolio: {
