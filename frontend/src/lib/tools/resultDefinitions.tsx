@@ -14,6 +14,7 @@ import {
   MessageSquare,
   Settings,
   Star,
+  Target,
   TrendingUp,
   Zap,
 } from 'lucide-react'
@@ -1758,16 +1759,65 @@ function CareerView({ payload }: { payload: AnyObject }) {
 
 function PortfolioHeroExtra({ payload }: { payload: AnyObject }) {
   const result = normalizePortfolioPayload(payload)
-  const completionPct = Math.min(100, Math.round((result.projects.length / Math.max(result.projects.length, 3)) * 100))
+  const projectCount = result.projects.length
+  const hasSequence = result.sequencePlan.length > 0
+
   return (
-    <div className="pf-hero-readiness">
-      <span className="pf-hero-readiness__label">Portfolio readiness</span>
-      <div className="pf-hero-readiness__bar">
-        <div className="pf-hero-readiness__track">
-          <div className="pf-hero-readiness__fill" style={{ width: `${completionPct}%` }} />
-        </div>
-        <span className="pf-hero-readiness__value">{completionPct}%</span>
+    <div className="hero-stat-strip">
+      <div className="hero-stat-strip__item">
+        <span className="hero-stat-strip__label">Projects</span>
+        <span className="hero-stat-strip__value">{projectCount} in sequence</span>
       </div>
+      {result.targetRole && (
+        <>
+          <div className="hero-stat-strip__divider" />
+          <div className="hero-stat-strip__item">
+            <span className="hero-stat-strip__label">Target role</span>
+            <span className="hero-stat-strip__value">{result.targetRole}</span>
+          </div>
+        </>
+      )}
+      {hasSequence && (
+        <>
+          <div className="hero-stat-strip__divider" />
+          <div className="hero-stat-strip__item">
+            <span className="hero-stat-strip__label">Start with</span>
+            <span className="hero-stat-strip__value">{result.recommendedStartProject.split(' ').slice(0, 3).join(' ')}{result.recommendedStartProject.split(' ').length > 3 ? '…' : ''}</span>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+function PortfolioFixFirstStrip({ payload }: { payload: AnyObject }) {
+  const result = normalizePortfolioPayload(payload)
+  const actions = result.topActions.slice(0, 3)
+  if (actions.length === 0) return null
+
+  return (
+    <div className="fix-first-strip stagger-entrance">
+      {actions.map((a, i) => {
+        const Icon = FIX_FIRST_ICONS[i] || FileEdit
+        const style = FIX_FIRST_CARD_STYLES[i] || FIX_FIRST_CARD_STYLES[0]
+        return (
+          <div key={`${a.title}-${i}`} className="fix-first-card">
+            <div className="fix-first-card__icon" style={{ background: style.bg }}>
+              <Icon size={18} style={{ color: style.text }} />
+            </div>
+            <div className="fix-first-card__content">
+              <div className="fix-first-card__title">{a.title}</div>
+              <div className="fix-first-card__desc">{a.action}</div>
+              <div className="fix-first-card__footer">
+                <span className="fix-first-card__priority" style={{ color: style.text }}>
+                  {FIX_FIRST_LABELS[a.priority] || a.priority}
+                </span>
+                <ArrowRight size={16} style={{ color: 'var(--text-soft)' }} />
+              </div>
+            </div>
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -1866,13 +1916,13 @@ function PortfolioView({ payload }: { payload: AnyObject }) {
         )}
 
         {/* Strategy card */}
-        <div className="cl-notes-card">
-          <div className="cl-notes-card__header">
-            <Settings size={16} className="cl-notes-card__icon" />
-            <span className="cl-notes-card__title">Strategy</span>
+        <div className="pf-strategy-card">
+          <div className="pf-strategy-card__header">
+            <Target size={15} className="pf-strategy-card__icon" />
+            <span className="pf-strategy-card__title">Strategy</span>
           </div>
-          <p className="cl-notes-card__desc">{result.strategy.headline}</p>
-          <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', lineHeight: 1.6 }}>{result.strategy.focus}</p>
+          <p className="pf-strategy-card__headline">{result.strategy.headline}</p>
+          <p className="pf-strategy-card__focus">{result.strategy.focus}</p>
         </div>
       </div>
     </div>
@@ -2042,6 +2092,7 @@ export const resultDefinitions: Record<ToolId, ResultDefinition> = {
   portfolio: {
     copyText: (payload) => portfolioCopyText(payload),
     heroExtra: (payload) => <PortfolioHeroExtra payload={payload} />,
+    midSection: (payload) => <PortfolioFixFirstStrip payload={payload} />,
     render: (payload) => <PortfolioView payload={payload} />,
   },
 }
