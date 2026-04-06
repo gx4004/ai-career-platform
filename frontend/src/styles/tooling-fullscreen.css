@@ -78,10 +78,7 @@
   position: relative;
   width: 100%;
   min-height: calc(100svh - var(--app-topbar-height, 0px));
-  background:
-    radial-gradient(circle at 14% 4%, rgba(88, 156, 234, 0.18) 0%, rgba(146, 202, 255, 0.08) 18%, transparent 34%),
-    radial-gradient(circle at 88% 8%, rgba(170, 219, 255, 0.1) 0%, transparent 20%),
-    linear-gradient(180deg, #edf3fa 0%, #f6faff 38%, #eef4fb 100%);
+  background: #f4f8fe;
   overflow: clip;
 }
 
@@ -114,13 +111,11 @@
   z-index: 1;
 }
 
-/* ── Hero flow variant: dark-to-light gradient ── */
+/* ── Hero flow variant: Arctic Minimal ice bg ── */
 
 .tool-fullscreen--hero-flow {
-  background:
-    radial-gradient(circle at 14% 2%, rgba(88, 140, 234, 0.1) 0%, transparent 28%),
-    radial-gradient(circle at 88% 6%, rgba(120, 180, 255, 0.06) 0%, transparent 22%),
-    linear-gradient(180deg, #0f172a 0%, #182540 20%, #3d5a80 34%, #a3bcd5 44%, #d9e4ef 52%, #edf2f8 62%, #f4f7fb 100%);
+  background: #f4f8fe;
+  background-image: radial-gradient(ellipse 72% 36% at 50% -4%, rgba(186,214,255,0.55) 0%, transparent 68%);
 }
 
 .tool-fullscreen--hero-flow::before {
@@ -135,76 +130,66 @@
   background: none;
 }
 
-/* Guest banner on dark hero: glass style, no white bg, flush top */
+/* Guest banner on light hero: light-mode glass */
 .tool-fullscreen--hero-flow .guest-save-banner {
-  margin-top: 0;
-  border-radius: 0;
-  border: none;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  max-width: 100%;
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(255,255,255,0.82);
+  border-color: rgba(186,214,255,0.5);
+  color: var(--text-body);
   backdrop-filter: blur(12px);
-  box-shadow: none;
-  padding: 0.65rem 1.5rem;
-  justify-content: center;
+  -webkit-backdrop-filter: blur(12px);
 }
 
 .tool-fullscreen--hero-flow .guest-save-banner-text {
-  color: rgba(255, 255, 255, 0.65);
+  color: var(--text-soft);
 }
 
 .tool-fullscreen--hero-flow .guest-save-banner-link {
-  color: #fff;
-  background: rgba(255, 255, 255, 0.14);
-  padding: 0.3rem 0.75rem;
-  border-radius: 6px;
-  font-weight: 600;
+  color: var(--accent-vivid);
   text-decoration: none;
   transition: background 0.15s;
 }
 
 .tool-fullscreen--hero-flow .guest-save-banner-link:hover {
-  background: rgba(255, 255, 255, 0.22);
-  text-decoration: none;
+  text-decoration: underline;
 }
 
 .tool-fullscreen--hero-flow .guest-save-banner-icon {
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--accent-vivid);
 }
 
 .tool-fullscreen--hero-flow .guest-save-banner-close {
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--text-muted);
   width: 2rem;
   height: 2rem;
 }
 
 .tool-fullscreen--hero-flow .guest-save-banner-close:hover {
-  color: rgba(255, 255, 255, 0.8);
-  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-body);
+  background: rgba(0, 0, 0, 0.05);
 }
 
-/* Dropzone compact strip on dark: glass style */
+/* Dropzone compact strip on light: standard light style */
 .tool-fullscreen--hero-flow .dropzone-compact-strip {
-  background: rgba(255, 255, 255, 0.06);
-  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.9);
+  border-color: rgba(186, 214, 255, 0.4);
   backdrop-filter: blur(8px);
 }
 
 .tool-fullscreen--hero-flow .dropzone-compact-inner {
-  color: rgba(255, 255, 255, 0.75);
+  color: var(--text-body);
 }
 
 .tool-fullscreen--hero-flow .dropzone-compact-strip .dropzone-compact-file {
-  color: rgba(255, 255, 255, 0.85);
+  color: var(--text-strong);
 }
 
 .tool-fullscreen--hero-flow .dropzone-compact-strip button {
-  color: rgba(255, 255, 255, 0.65);
-  border-color: rgba(255, 255, 255, 0.15);
+  color: var(--text-muted);
+  border-color: var(--border-soft);
 }
 
 .tool-fullscreen--hero-flow .dropzone-compact-strip svg {
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--text-muted);
 }
 
 /* ── Floating navigation bar ── */
@@ -293,9 +278,9 @@
   gap: 1.5rem;
   padding: clamp(1.35rem, 3vw, 2rem);
   border-radius: calc(var(--radius-2xl) + 0.1rem);
-  border: 1px solid color-mix(in srgb, var(--border-soft) 86%, white 14%);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.99) 0%, rgba(249, 252, 255, 0.97) 48%, rgba(244, 249, 255, 0.95) 100%);
-  box-shadow: var(--shadow-panel), 0 0 24px rgba(74, 147, 239, 0.05);
+  background: #ffffff;
+  border: none;
+  box-shadow: 0 2px 16px rgba(15,44,88,0.07), 0 0 0 1px rgba(186,214,255,0.4);
 }
 
 .tool-fs-header {
@@ -405,13 +390,13 @@
   justify-content: flex-end;
   padding: 0.85rem;
   border-radius: calc(var(--radius-2xl) - 0.15rem);
-  border: 1px solid color-mix(in srgb, var(--tool-accent, var(--accent)) 14%, var(--border-soft));
-  background: color-mix(in srgb, var(--surface-raised) 88%, white 10%);
+  border: 1px solid rgba(186,214,255,0.4);
+  background: rgba(244,248,254,0.92);
   box-shadow:
     0 18px 42px rgba(15, 23, 42, 0.14),
     inset 0 1px 0 rgba(255, 255, 255, 0.78);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
 }
 
 .tool-loading-box--compact {
@@ -420,7 +405,10 @@
 
 .tool-fs-submit-button {
   min-width: 14rem;
-  box-shadow: 0 10px 24px color-mix(in srgb, var(--tool-accent, var(--accent)) 24%, transparent);
+  background: #1d4ed8;
+  border-radius: 11px;
+  box-shadow: 0 3px 10px rgba(29,78,216,0.28);
+  font-weight: 700;
   transition:
     transform var(--transition-fast),
     box-shadow var(--transition-smooth),
@@ -496,13 +484,13 @@ body.tool-fullscreen-open .mobile-nav-pill {
 /* ── Dropzone Hero ── */
 
 .dropzone-hero {
-  min-height: 18rem;
+  min-height: 22rem;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: var(--radius-2xl);
-  border: 2px dashed var(--border-strong);
-  background: var(--surface-focus);
+  border-radius: 16px;
+  border: 2px dashed #b8d5f0;
+  background: linear-gradient(180deg, #f5f9ff 0%, #f0f6ff 100%);
   transition:
     border-color var(--transition-fast),
     background var(--transition-fast),
@@ -558,11 +546,12 @@ body.tool-fullscreen-open .mobile-nav-pill {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 5.5rem;
-  height: 5.5rem;
-  border-radius: 50%;
-  border: 2px solid var(--accent-soft);
-  background: var(--accent-soft);
+  width: 48px;
+  height: 48px;
+  border-radius: 13px;
+  border: none;
+  background: linear-gradient(135deg, #dbeafe, #bfdbfe);
+  box-shadow: 0 3px 12px rgba(37,99,235,0.14);
   color: var(--tool-accent, var(--accent));
   transition: border-color var(--transition-fast), background var(--transition-fast);
 }
@@ -1103,8 +1092,8 @@ body.tool-fullscreen-open .mobile-nav-pill {
 }
 
 .dropzone-hero {
-  border-color: var(--border-strong);
-  background: var(--surface-focus);
+  border-color: #b8d5f0;
+  background: linear-gradient(180deg, #f5f9ff 0%, #f0f6ff 100%);
 }
 
 .cinematic-doc {
@@ -1162,7 +1151,7 @@ body.tool-fullscreen-open .mobile-nav-pill {
   align-items: center;
   justify-content: center;
   text-align: center;
-  padding: 3rem 2rem 2.5rem;
+  padding: 2.5rem 1.5rem 2rem;
   overflow: hidden;
   background: transparent;
   isolation: isolate;
@@ -1203,21 +1192,21 @@ body.tool-fullscreen-open .mobile-nav-pill {
   margin-bottom: 0.25rem;
 }
 
-/* Icon glow in dark */
+/* Icon glow on light bg */
 .tool-input-hero .tool-illust-wrap {
-  filter: drop-shadow(0 0 18px rgba(99, 130, 255, 0.22));
+  filter: drop-shadow(0 0 18px rgba(37, 99, 235, 0.18));
 }
 
-/* Make illustration elements work on dark bg */
+/* Make illustration elements work on light bg */
 .tool-input-hero .tool-illust-doc,
 .tool-input-hero .tool-illust-letter-doc,
 .tool-input-hero .tool-illust-venn,
 .tool-input-hero .tool-illust-cards,
 .tool-input-hero .tool-illust-paths,
 .tool-input-hero .tool-illust-tiles {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.15);
-  color: rgba(255, 255, 255, 0.85);
+  background: rgba(255, 255, 255, 0.9);
+  border-color: rgba(186, 214, 255, 0.5);
+  color: var(--tool-accent, var(--accent));
 }
 
 .tool-input-hero .tool-illust-doc svg,
@@ -1225,71 +1214,73 @@ body.tool-fullscreen-open .mobile-nav-pill {
 .tool-input-hero .tool-illust-paths svg,
 .tool-input-hero .tool-illust-tiles svg,
 .tool-input-hero .tool-illust-card--front svg {
-  color: rgba(255, 255, 255, 0.75);
+  color: var(--tool-accent, var(--accent));
 }
 
 .tool-input-hero .tool-illust-badge {
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  color: rgba(255, 255, 255, 0.6);
+  background: rgba(37, 99, 235, 0.07);
+  border: 1px solid rgba(37, 99, 235, 0.14);
+  color: var(--accent);
 }
 
 .tool-input-hero .tool-illust-circle--left,
 .tool-input-hero .tool-illust-circle--right {
-  border-color: rgba(255, 255, 255, 0.2);
-  background: rgba(255, 255, 255, 0.04);
+  border-color: var(--tool-accent, var(--accent));
+  background: rgba(37, 99, 235, 0.05);
 }
 
 .tool-input-hero .tool-illust-venn-icon {
-  color: rgba(255, 255, 255, 0.7);
+  color: var(--tool-accent, var(--accent));
 }
 
 .tool-input-hero .tool-illust-card--back {
-  background: rgba(255, 255, 255, 0.06);
-  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(244, 248, 254, 0.9);
+  border-color: rgba(186, 214, 255, 0.4);
 }
 
 .tool-input-hero .tool-illust-card--front {
-  background: rgba(255, 255, 255, 0.12);
-  border-color: rgba(255, 255, 255, 0.2);
+  background: #ffffff;
+  border-color: rgba(186, 214, 255, 0.6);
 }
 
 .tool-input-hero .tool-illust-branch--a,
 .tool-input-hero .tool-illust-branch--b,
 .tool-input-hero .tool-illust-branch--c {
-  background: rgba(255, 255, 255, 0.2);
+  background: var(--tool-accent, var(--accent));
 }
 
 .tool-input-hero .tool-illust-tile--a,
 .tool-input-hero .tool-illust-tile--b,
 .tool-input-hero .tool-illust-tile--c {
-  background: rgba(255, 255, 255, 0.12);
-  border-color: rgba(255, 255, 255, 0.18);
+  background: rgba(37, 99, 235, 0.08);
+  border-color: rgba(186, 214, 255, 0.5);
 }
 
 .tool-input-hero .tool-illust-cursor {
-  background: rgba(99, 130, 255, 0.6);
+  background: var(--tool-accent, var(--accent));
 }
 
 .tool-input-hero .tool-illust-scan-beam {
-  background: linear-gradient(180deg, rgba(99, 130, 255, 0.0) 0%, rgba(99, 130, 255, 0.45) 50%, rgba(99, 130, 255, 0.0) 100%);
+  background: linear-gradient(180deg, rgba(37, 99, 235, 0.0) 0%, rgba(37, 99, 235, 0.45) 50%, rgba(37, 99, 235, 0.0) 100%);
 }
 
 .tool-input-hero-title {
-  font-size: clamp(1.875rem, 4vw, 2.625rem);
+  font-size: clamp(1.9rem, 2.5vw, 2.4rem);
   font-weight: 800;
-  color: #fff;
-  letter-spacing: -0.02em;
+  color: var(--text-strong);
+  letter-spacing: -0.4px;
   margin: 0.5rem 0 0.3rem;
   line-height: 1.15;
 }
 
 .tool-input-hero-subtitle {
-  font-size: 1rem;
-  color: rgba(255, 255, 255, 0.52);
-  max-width: 40ch;
+  font-size: 14.5px;
+  color: var(--text-muted);
+  max-width: 480px;
   line-height: 1.6;
   margin: 0;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .tool-input-hero-chips {
@@ -1302,12 +1293,12 @@ body.tool-fullscreen-open .mobile-nav-pill {
 
 .tool-input-hero-chip {
   font-size: 0.72rem;
-  font-weight: 500;
+  font-weight: 600;
   padding: 0.2rem 0.65rem;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  color: rgba(255, 255, 255, 0.55);
-  background: rgba(255, 255, 255, 0.05);
+  border-radius: 9999px;
+  border: 1px solid rgba(37,99,235,0.14);
+  color: var(--accent);
+  background: rgba(37,99,235,0.07);
   letter-spacing: 0.01em;
 }
 
@@ -1465,6 +1456,34 @@ body.tool-fullscreen-open .mobile-nav-pill {
   position: relative;
   isolation: isolate;
   padding-bottom: calc(8.5rem + env(safe-area-inset-bottom, 0px));
+}
+
+/* ── Tool input tab switcher ── */
+
+.tool-input-tabs {
+  display: flex;
+  background: #edf4ff;
+  border-radius: 11px;
+  padding: 3px;
+  width: fit-content;
+  margin-bottom: 18px;
+}
+
+.tool-input-tab {
+  padding: 7px 20px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s;
+  user-select: none;
+}
+
+.tool-input-tab.active {
+  background: #ffffff;
+  color: var(--accent);
+  box-shadow: 0 1px 5px rgba(15,44,88,0.1);
 }
 
 .resume-form-section::before {
