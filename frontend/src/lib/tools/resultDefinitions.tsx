@@ -606,34 +606,31 @@ const FIX_FIRST_LABELS: Record<string, string> = {
   low: 'Actionable',
 }
 
-
-function ResumeFixFirstStrip({ payload }: { payload: AnyObject }) {
-  const result = normalizeResumePayload(payload)
-  const actions = result.topActions.slice(0, 3)
-  if (actions.length === 0) return null
+function FixFirstStrip({ actions, showFooter = true }: { actions: Array<{ title: string; action: string; priority: string }>; showFooter?: boolean }) {
+  const items = actions.slice(0, 3)
+  if (items.length === 0) return null
 
   return (
     <div className="fix-first-strip stagger-entrance">
-      {actions.map((a, i) => {
+      {items.map((a, i) => {
         const Icon = FIX_FIRST_ICONS[i] || FileEdit
         const style = FIX_FIRST_CARD_STYLES[i] || FIX_FIRST_CARD_STYLES[0]
         return (
           <div key={`${a.title}-${i}`} className="fix-first-card">
-            <div
-              className="fix-first-card__icon"
-              style={{ background: style.bg }}
-            >
+            <div className="fix-first-card__icon" style={{ background: style.bg }}>
               <Icon size={18} style={{ color: style.text }} />
             </div>
             <div className="fix-first-card__content">
               <div className="fix-first-card__title">{a.title}</div>
               <div className="fix-first-card__desc">{a.action}</div>
-              <div className="fix-first-card__footer">
-                <span className="fix-first-card__priority" style={{ color: style.text }}>
-                  {FIX_FIRST_LABELS[a.priority] || a.priority}
-                </span>
-                <ArrowRight size={16} style={{ color: 'var(--text-soft)' }} />
-              </div>
+              {showFooter && (
+                <div className="fix-first-card__footer">
+                  <span className="fix-first-card__priority" style={{ color: style.text }}>
+                    {FIX_FIRST_LABELS[a.priority] || a.priority}
+                  </span>
+                  <ArrowRight size={16} style={{ color: 'var(--text-soft)' }} />
+                </div>
+              )}
             </div>
           </div>
         )
@@ -802,32 +799,6 @@ function ResumeResultView({ payload }: { payload: AnyObject }) {
         )}
       </div>
       )}
-    </div>
-  )
-}
-
-function JobMatchFixFirstStrip({ payload }: { payload: AnyObject }) {
-  const result = normalizeJobMatchPayload(payload)
-  const actions = result.topActions.slice(0, 3)
-  if (actions.length === 0) return null
-
-  return (
-    <div className="fix-first-strip stagger-entrance">
-      {actions.map((a, i) => {
-        const Icon = FIX_FIRST_ICONS[i] || FileEdit
-        const style = FIX_FIRST_CARD_STYLES[i] || FIX_FIRST_CARD_STYLES[0]
-        return (
-          <div key={`${a.title}-${i}`} className="fix-first-card">
-            <div className="fix-first-card__icon" style={{ background: style.bg }}>
-              <Icon size={18} style={{ color: style.text }} />
-            </div>
-            <div className="fix-first-card__content">
-              <div className="fix-first-card__title">{a.title}</div>
-              <div className="fix-first-card__desc">{a.action}</div>
-            </div>
-          </div>
-        )
-      })}
     </div>
   )
 }
@@ -1052,38 +1023,6 @@ function CoverLetterHeroExtra({ payload }: { payload: AnyObject }) {
   )
 }
 
-function CoverLetterFixFirstStrip({ payload }: { payload: AnyObject }) {
-  const result = normalizeCoverLetterPayload(payload)
-  const actions = result.topActions.slice(0, 3)
-  if (actions.length === 0) return null
-
-  return (
-    <div className="fix-first-strip stagger-entrance">
-      {actions.map((a, i) => {
-        const Icon = FIX_FIRST_ICONS[i] || FileEdit
-        const style = FIX_FIRST_CARD_STYLES[i] || FIX_FIRST_CARD_STYLES[0]
-        return (
-          <div key={`${a.title}-${i}`} className="fix-first-card">
-            <div className="fix-first-card__icon" style={{ background: style.bg }}>
-              <Icon size={18} style={{ color: style.text }} />
-            </div>
-            <div className="fix-first-card__content">
-              <div className="fix-first-card__title">{a.title}</div>
-              <div className="fix-first-card__desc">{a.action}</div>
-              <div className="fix-first-card__footer">
-                <span className="fix-first-card__priority" style={{ color: style.text }}>
-                  {FIX_FIRST_LABELS[a.priority] || a.priority}
-                </span>
-                <ArrowRight size={16} style={{ color: 'var(--text-soft)' }} />
-              </div>
-            </div>
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-
 function CoverLetterView({ payload }: { payload: AnyObject }) {
   const result = normalizeCoverLetterPayload(payload)
   const [openingText, setOpeningText] = useState(result.opening.text)
@@ -1158,7 +1097,6 @@ function CoverLetterView({ payload }: { payload: AnyObject }) {
       </ScrollReveal>
 
       {/* Right: Sidebar */}
-      <ScrollReveal delay={0.06}>
       <div className="cl-sidebar">
         {/* Customization notes */}
         {result.customizationNotes.length > 0 && (
@@ -1211,7 +1149,6 @@ function CoverLetterView({ payload }: { payload: AnyObject }) {
           </div>
         )}
       </div>
-      </ScrollReveal>
     </div>
   )
 }
@@ -1241,38 +1178,6 @@ function InterviewHeroExtra({ payload }: { payload: AnyObject }) {
           <span className="iv-hero-stat__value iv-hero-stat__value--warning">{result.weakSignals.length}</span>
         </div>
       )}
-    </div>
-  )
-}
-
-function InterviewFixFirstStrip({ payload }: { payload: AnyObject }) {
-  const result = normalizeInterviewPayload(payload)
-  const actions = result.topActions.slice(0, 3)
-  if (actions.length === 0) return null
-
-  return (
-    <div className="fix-first-strip stagger-entrance">
-      {actions.map((a, i) => {
-        const Icon = FIX_FIRST_ICONS[i] || FileEdit
-        const style = FIX_FIRST_CARD_STYLES[i] || FIX_FIRST_CARD_STYLES[0]
-        return (
-          <div key={`${a.title}-${i}`} className="fix-first-card">
-            <div className="fix-first-card__icon" style={{ background: style.bg }}>
-              <Icon size={18} style={{ color: style.text }} />
-            </div>
-            <div className="fix-first-card__content">
-              <div className="fix-first-card__title">{a.title}</div>
-              <div className="fix-first-card__desc">{a.action}</div>
-              <div className="fix-first-card__footer">
-                <span className="fix-first-card__priority" style={{ color: style.text }}>
-                  {FIX_FIRST_LABELS[a.priority] || a.priority}
-                </span>
-                <ArrowRight size={16} style={{ color: 'var(--text-soft)' }} />
-              </div>
-            </div>
-          </div>
-        )
-      })}
     </div>
   )
 }
@@ -1386,7 +1291,6 @@ function InterviewView({ payload }: { payload: AnyObject }) {
       </ScrollReveal>
 
       {/* Right: Sidebar */}
-      <ScrollReveal delay={0.06}>
       <div className="iv-sidebar">
         {/* Competency Map */}
         {result.focusAreas.length > 0 && (
@@ -1464,7 +1368,6 @@ function InterviewView({ payload }: { payload: AnyObject }) {
           </div>
         )}
       </div>
-      </ScrollReveal>
     </div>
   )
 }
@@ -1612,38 +1515,6 @@ function CareerHeroExtra({ payload }: { payload: AnyObject }) {
   )
 }
 
-function CareerFixFirstStrip({ payload }: { payload: AnyObject }) {
-  const result = normalizeCareerPayload(payload)
-  const actions = result.topActions.slice(0, 3)
-  if (actions.length === 0) return null
-
-  return (
-    <div className="fix-first-strip stagger-entrance">
-      {actions.map((a, i) => {
-        const Icon = FIX_FIRST_ICONS[i] || FileEdit
-        const style = FIX_FIRST_CARD_STYLES[i] || FIX_FIRST_CARD_STYLES[0]
-        return (
-          <div key={`${a.title}-${i}`} className="fix-first-card">
-            <div className="fix-first-card__icon" style={{ background: style.bg }}>
-              <Icon size={18} style={{ color: style.text }} />
-            </div>
-            <div className="fix-first-card__content">
-              <div className="fix-first-card__title">{a.title}</div>
-              <div className="fix-first-card__desc">{a.action}</div>
-              <div className="fix-first-card__footer">
-                <span className="fix-first-card__priority" style={{ color: style.text }}>
-                  {FIX_FIRST_LABELS[a.priority] || a.priority}
-                </span>
-                <ArrowRight size={16} style={{ color: 'var(--text-soft)' }} />
-              </div>
-            </div>
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-
 function CareerView({ payload }: { payload: AnyObject }) {
   const result = normalizeCareerPayload(payload)
   const altPaths = result.paths.filter((p) => p.roleTitle !== result.recommendedDirection.roleTitle)
@@ -1663,7 +1534,7 @@ function CareerView({ payload }: { payload: AnyObject }) {
             <span className="cp-primary-card__timeline">{result.recommendedDirection.transitionTimeline}</span>
           </div>
 
-          <div className="cp-primary-card__grid">
+          <div className="cp-primary-card__body">
             <div>
               <div className="cp-primary-card__why-title">Why this is your ideal next step</div>
               <p className="cp-primary-card__why-text">{result.recommendedDirection.whyNow}</p>
@@ -1723,7 +1594,6 @@ function CareerView({ payload }: { payload: AnyObject }) {
       </ScrollReveal>
 
       {/* Right: Sidebar */}
-      <ScrollReveal delay={0.06}>
       <div className="cp-sidebar">
         {/* Alternative paths */}
         {altPaths.length > 0 && (
@@ -1761,7 +1631,6 @@ function CareerView({ payload }: { payload: AnyObject }) {
           </p>
         </div>
       </div>
-      </ScrollReveal>
     </div>
   )
 }
@@ -1795,38 +1664,6 @@ function PortfolioHeroExtra({ payload }: { payload: AnyObject }) {
           </div>
         </>
       )}
-    </div>
-  )
-}
-
-function PortfolioFixFirstStrip({ payload }: { payload: AnyObject }) {
-  const result = normalizePortfolioPayload(payload)
-  const actions = result.topActions.slice(0, 3)
-  if (actions.length === 0) return null
-
-  return (
-    <div className="fix-first-strip stagger-entrance">
-      {actions.map((a, i) => {
-        const Icon = FIX_FIRST_ICONS[i] || FileEdit
-        const style = FIX_FIRST_CARD_STYLES[i] || FIX_FIRST_CARD_STYLES[0]
-        return (
-          <div key={`${a.title}-${i}`} className="fix-first-card">
-            <div className="fix-first-card__icon" style={{ background: style.bg }}>
-              <Icon size={18} style={{ color: style.text }} />
-            </div>
-            <div className="fix-first-card__content">
-              <div className="fix-first-card__title">{a.title}</div>
-              <div className="fix-first-card__desc">{a.action}</div>
-              <div className="fix-first-card__footer">
-                <span className="fix-first-card__priority" style={{ color: style.text }}>
-                  {FIX_FIRST_LABELS[a.priority] || a.priority}
-                </span>
-                <ArrowRight size={16} style={{ color: 'var(--text-soft)' }} />
-              </div>
-            </div>
-          </div>
-        )
-      })}
     </div>
   )
 }
@@ -1892,7 +1729,6 @@ function PortfolioView({ payload }: { payload: AnyObject }) {
       </ScrollReveal>
 
       {/* Right: Sidebar */}
-      <ScrollReveal delay={0.06}>
       <div className="pf-sidebar">
         {/* Presentation tips */}
         {result.presentationTips.length > 0 && (
@@ -1937,7 +1773,6 @@ function PortfolioView({ payload }: { payload: AnyObject }) {
           <p className="pf-strategy-card__focus">{result.strategy.focus}</p>
         </div>
       </div>
-      </ScrollReveal>
     </div>
   )
 }
@@ -2064,7 +1899,7 @@ export const resultDefinitions: Record<ToolId, ResultDefinition> = {
       return <ScoreCircleSvg score={r.overallScore} size={192} />
     },
     heroExtra: (payload) => <ResumeHeroExtra payload={payload} />,
-    midSection: (payload) => <ResumeFixFirstStrip payload={payload} />,
+    midSection: (payload) => <FixFirstStrip actions={normalizeResumePayload(payload).topActions} />,
     render: (payload) => <ResumeResultView payload={payload} />,
   },
   'job-match': {
@@ -2075,7 +1910,7 @@ export const resultDefinitions: Record<ToolId, ResultDefinition> = {
       return <ScoreCircleSvg score={r.matchScore} size={192} />
     },
     heroExtra: (payload) => <JobMatchHeroExtra payload={payload} />,
-    midSection: (payload) => <JobMatchFixFirstStrip payload={payload} />,
+    midSection: (payload) => <FixFirstStrip actions={normalizeJobMatchPayload(payload).topActions} showFooter={false} />,
     render: (payload) => <JobMatchView payload={payload} />,
   },
   'cover-letter': {
@@ -2085,27 +1920,27 @@ export const resultDefinitions: Record<ToolId, ResultDefinition> = {
       content: coverLetterCopyText(payload),
     }),
     heroExtra: (payload) => <CoverLetterHeroExtra payload={payload} />,
-    midSection: (payload) => <CoverLetterFixFirstStrip payload={payload} />,
+    midSection: (payload) => <FixFirstStrip actions={normalizeCoverLetterPayload(payload).topActions} />,
     render: (payload) => <CoverLetterView payload={payload} />,
   },
   interview: {
     copyText: (payload) => interviewCopyText(payload),
     heroVariant: 'dark',
     heroExtra: (payload) => <InterviewHeroExtra payload={payload} />,
-    midSection: (payload) => <InterviewFixFirstStrip payload={payload} />,
+    midSection: (payload) => <FixFirstStrip actions={normalizeInterviewPayload(payload).topActions} />,
     render: (payload) => <InterviewView payload={payload} />,
   },
   career: {
     copyText: (payload) => careerCopyText(payload),
     heroVariant: 'dark',
     heroExtra: (payload) => <CareerHeroExtra payload={payload} />,
-    midSection: (payload) => <CareerFixFirstStrip payload={payload} />,
+    midSection: (payload) => <FixFirstStrip actions={normalizeCareerPayload(payload).topActions} />,
     render: (payload) => <CareerView payload={payload} />,
   },
   portfolio: {
     copyText: (payload) => portfolioCopyText(payload),
     heroExtra: (payload) => <PortfolioHeroExtra payload={payload} />,
-    midSection: (payload) => <PortfolioFixFirstStrip payload={payload} />,
+    midSection: (payload) => <FixFirstStrip actions={normalizePortfolioPayload(payload).topActions} />,
     render: (payload) => <PortfolioView payload={payload} />,
   },
 }
