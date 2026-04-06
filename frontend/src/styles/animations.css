@@ -296,6 +296,12 @@
   .result-body,
   .dash-hero,
   .h-stat-card,
+  .app-state-panel,
+  .account-layout,
+  .history-layout,
+  .history-card,
+  .settings-layout,
+  .onboarding-step,
   [role='tabpanel'],
   .dashboard-stack > *,
   .animate-slide-in-right,
@@ -307,7 +313,8 @@
   /* Stop looping animations */
   .animate-pulse-glow,
   .skeleton-shimmer,
-  .skeleton {
+  .skeleton,
+  .settings-status-dot.is-online {
     animation: none !important;
   }
 

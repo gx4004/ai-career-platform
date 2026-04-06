@@ -1,19 +1,87 @@
+/* ── History Layout ── */
+
 .history-layout {
   display: grid;
   gap: 1.5rem;
+  animation: history-fade-in 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
+@keyframes history-fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ── History header upgrade ── */
+.history-layout > .grid:first-child .page-title {
+  font-family: var(--font-display);
+}
+
+/* ── Stats Row ── */
 .history-stats {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 1rem;
 }
 
+.h-stat-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius-2xl);
+  border: 1px solid color-mix(in srgb, var(--border-soft) 86%, white 14%);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.99), var(--surface-subtle));
+  box-shadow: var(--shadow-soft), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+.h-stat-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at top left, rgba(127, 177, 228, 0.12), transparent 40%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.6), transparent 30%);
+}
+
+.h-stat-card > * {
+  position: relative;
+  z-index: 1;
+}
+
+.h-stat-card .display-lg {
+  font-family: var(--font-display);
+  color: var(--accent);
+  letter-spacing: -0.03em;
+}
+
+.h-stat-card .eyebrow {
+  font-size: var(--type-xs);
+}
+
+/* Stagger stat cards */
+.history-stats .h-stat-card {
+  animation: stat-fade-up 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.history-stats .h-stat-card:nth-child(1) { animation-delay: 0.05s; }
+.history-stats .h-stat-card:nth-child(2) { animation-delay: 0.1s; }
+.history-stats .h-stat-card:nth-child(3) { animation-delay: 0.15s; }
+
+@keyframes stat-fade-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Filter Row ── */
 .history-filter-row {
   display: flex;
   flex-wrap: wrap;
   gap: 0.75rem;
   align-items: center;
+  padding: 0.75rem 1rem;
+  border-radius: calc(var(--radius-xl) + 0.1rem);
+  border: 1px solid color-mix(in srgb, var(--border-soft) 86%, white 14%);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), var(--surface-focus));
+  box-shadow: var(--shadow-soft), inset 0 1px 0 rgba(255, 255, 255, 0.7);
 }
 
 .history-pill-row {
@@ -31,16 +99,22 @@
   border: 1px solid color-mix(in srgb, var(--border-soft) 86%, white 14%);
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), var(--surface-focus));
   color: var(--text-muted);
+  font-size: var(--type-small);
+  font-weight: 500;
   white-space: nowrap;
+  cursor: pointer;
   transition:
     transform var(--transition-fast),
     border-color var(--transition-fast),
-    background var(--transition-fast);
+    background var(--transition-fast),
+    color var(--transition-fast),
+    box-shadow var(--transition-fast);
 }
 
 .history-pill:hover {
   transform: translateY(-1px);
   border-color: var(--border-strong);
+  box-shadow: var(--shadow-soft);
 }
 
 .history-pill:focus-visible {
@@ -49,16 +123,21 @@
 }
 
 .history-pill.is-active {
-  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 8%, white), rgba(255, 255, 255, 0.96));
-  color: var(--text-strong);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 10%, white), color-mix(in srgb, var(--accent) 5%, white));
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--border-soft));
+  color: var(--accent);
+  font-weight: 600;
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--accent) 10%, transparent);
 }
 
+/* ── Grid ── */
 .history-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(18.75rem, 1fr));
   gap: 1rem;
 }
 
+/* ── History Cards ── */
 .history-card {
   position: relative;
   display: grid;
@@ -69,10 +148,11 @@
   border: 1px solid color-mix(in srgb, var(--border-soft) 86%, white 14%);
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), var(--surface-subtle));
   box-shadow: var(--shadow-soft), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  will-change: transform;
   transition:
-    transform var(--transition-fast),
+    transform var(--transition-smooth),
     border-color var(--transition-fast),
-    box-shadow var(--transition-fast);
+    box-shadow var(--transition-smooth);
 }
 
 .history-card::before {
@@ -100,8 +180,8 @@
 }
 
 .history-card:hover {
-  transform: translateY(-2px);
-  border-color: var(--border-strong);
+  transform: translateY(-3px);
+  border-color: color-mix(in srgb, var(--tool-accent, var(--accent)) 30%, var(--border-strong));
   box-shadow: 0 20px 42px rgba(16, 42, 67, 0.08), 0 6px 16px rgba(16, 42, 67, 0.05);
 }
 
@@ -110,33 +190,47 @@
   box-shadow: 0 0 0 1px var(--accent), 0 0 0 4px color-mix(in srgb, var(--accent) 15%, transparent);
 }
 
+/* Stagger history cards */
+.history-grid .history-card {
+  animation: card-stagger 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.history-grid .history-card:nth-child(1) { animation-delay: 0.03s; }
+.history-grid .history-card:nth-child(2) { animation-delay: 0.06s; }
+.history-grid .history-card:nth-child(3) { animation-delay: 0.09s; }
+.history-grid .history-card:nth-child(4) { animation-delay: 0.12s; }
+.history-grid .history-card:nth-child(5) { animation-delay: 0.15s; }
+.history-grid .history-card:nth-child(6) { animation-delay: 0.18s; }
+.history-grid .history-card:nth-child(7) { animation-delay: 0.21s; }
+.history-grid .history-card:nth-child(8) { animation-delay: 0.24s; }
+.history-grid .history-card:nth-child(9) { animation-delay: 0.27s; }
+.history-grid .history-card:nth-child(10) { animation-delay: 0.3s; }
+.history-grid .history-card:nth-child(11) { animation-delay: 0.33s; }
+.history-grid .history-card:nth-child(12) { animation-delay: 0.36s; }
+
+@keyframes card-stagger {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Pagination ── */
 .history-pagination {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-}
-
-/* ── History polish ── */
-
-.history-filter-row {
-  padding: 0.75rem 1rem;
+  justify-content: center;
+  gap: 1.25rem;
+  padding: 0.875rem 1.25rem;
   border-radius: calc(var(--radius-xl) + 0.1rem);
   border: 1px solid color-mix(in srgb, var(--border-soft) 86%, white 14%);
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), var(--surface-focus));
-  box-shadow: var(--shadow-soft);
+  box-shadow: var(--shadow-soft), inset 0 1px 0 rgba(255, 255, 255, 0.7);
 }
 
-.history-card {
-  will-change: transform;
-}
-
-.history-pagination {
-  padding: 1rem;
-  border-radius: calc(var(--radius-xl) + 0.1rem);
-  border: 1px solid color-mix(in srgb, var(--border-soft) 86%, white 14%);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), var(--surface-focus));
-  box-shadow: var(--shadow-soft);
+.history-pagination .small-copy {
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text-strong);
 }
 
 /* ── Filter chips (mobile horizontal scroll) ── */
@@ -225,5 +319,9 @@
   .history-stats {
     grid-template-columns: 1fr;
     gap: 0.5rem;
+  }
+
+  .h-stat-card .display-lg {
+    font-size: clamp(1.5rem, 4vw, 2rem);
   }
 }
