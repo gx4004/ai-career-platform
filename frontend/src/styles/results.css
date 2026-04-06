@@ -48,7 +48,7 @@
     0 10px 28px rgba(19, 44, 72, 0.05),
     0 2px 8px rgba(19, 44, 72, 0.04);
   position: relative;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .result-hero__top {
@@ -232,21 +232,13 @@
   width: 4.5rem;
   height: 4.5rem;
   flex-shrink: 0;
-  display: grid;
+  display: none;
   place-items: center;
   border-radius: var(--radius-xl);
   background: color-mix(in srgb, var(--accent) 8%, transparent);
   border: 1px solid color-mix(in srgb, var(--accent) 14%, var(--border-soft));
   color: var(--accent);
   box-shadow: 0 2px 8px rgba(10, 102, 194, 0.08);
-}
-
-/* On dark hero, hide the icon entirely — headline takes full width */
-.result-hero--dark .result-hero__icon {
-  display: none;
-}
-.result-hero--dark .result-hero__top {
-  gap: 0;
 }
 
 /* Strip (inside hero bottom — bar metrics) */
@@ -334,7 +326,7 @@
     0 1px 2px rgba(255, 255, 255, 0.3) inset,
     0 10px 28px rgba(19, 44, 72, 0.05),
     0 2px 8px rgba(19, 44, 72, 0.04);
-  overflow: hidden;
+  overflow: visible;
   transition: box-shadow 0.3s cubic-bezier(0.32, 0.72, 0, 1);
 }
 
@@ -929,7 +921,8 @@
 .result-guest-banner {
   position: fixed;
   top: 4.5rem;
-  right: 1.5rem;
+  left: 50%;
+  transform: translateX(-50%);
   z-index: 20;
   font-size: 0.75rem;
   color: var(--text-muted);
@@ -1084,14 +1077,16 @@
   }
 
   .result-guest-banner {
-    top: 5rem;
-    right: 0.75rem;
+    top: 4.75rem;
+    left: 50%;
+    transform: translateX(-50%);
+    right: auto;
     font-size: 0.7rem;
     padding: 0.3rem 0.4rem 0.3rem 0.75rem;
   }
 
   .result-shell {
-    padding-bottom: calc(var(--mobile-tab-height, 56px) + 4.5rem);
+    padding-bottom: calc(var(--mobile-tab-height, 56px) + 7rem);
   }
 
   .result-hero {
@@ -1104,6 +1099,11 @@
     align-items: center;
     text-align: center;
     gap: 0.875rem;
+  }
+
+  .result-hero__score,
+  .result-hero__score--large {
+    margin-inline: auto;
   }
 
   .result-hero__strip-lbl {
@@ -2037,7 +2037,7 @@
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 1.5rem;
-  margin-top: -2.5rem;
+  margin-top: -1.25rem;
   position: relative;
   z-index: 20;
 }

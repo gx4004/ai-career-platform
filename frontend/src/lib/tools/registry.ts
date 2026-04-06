@@ -93,7 +93,7 @@ export const tools: Record<ToolId, ToolDefinition> = {
     priority: 2,
     summary: 'Compare your resume to a real role and surface the gaps that matter.',
     entryPointLabel: 'Compare to role',
-    resultTitle: 'Job match result',
+    resultTitle: 'Job Match',
     emptyStateTitle: 'Compare yourself to a real role.',
     emptyStateBody: 'Paste a job description and see where your current signal is strong or thin.',
     nextActions: [
@@ -119,7 +119,7 @@ export const tools: Record<ToolId, ToolDefinition> = {
     priority: 4,
     summary: 'Draft a tailored letter using your resume and the target job.',
     entryPointLabel: 'Draft cover letter',
-    resultTitle: 'Cover letter draft',
+    resultTitle: 'Cover Letter',
     emptyStateTitle: 'Draft a tailored cover letter.',
     emptyStateBody: 'Use your resume and a target role to start from something worth refining.',
     nextActions: [
@@ -145,7 +145,7 @@ export const tools: Record<ToolId, ToolDefinition> = {
     priority: 5,
     summary: 'Generate likely questions and stronger answer angles for the role.',
     entryPointLabel: 'Build interview prep',
-    resultTitle: 'Interview practice deck',
+    resultTitle: 'Interview Prep',
     emptyStateTitle: 'Build role-specific interview prep.',
     emptyStateBody: 'Generate practice questions and better answer angles from your resume plus the role.',
     nextActions: [
@@ -171,7 +171,7 @@ export const tools: Record<ToolId, ToolDefinition> = {
     priority: 3,
     summary: 'Compare next-step directions, timelines, and missing skills.',
     entryPointLabel: 'Compare career paths',
-    resultTitle: 'Career path options',
+    resultTitle: 'Career Path',
     emptyStateTitle: 'Explore realistic next moves.',
     emptyStateBody: 'Use your current resume to compare paths, timelines, and skill gaps.',
     nextActions: [
@@ -197,7 +197,7 @@ export const tools: Record<ToolId, ToolDefinition> = {
     priority: 6,
     summary: 'Turn career gaps into project ideas that prove your fit.',
     entryPointLabel: 'Plan proof projects',
-    resultTitle: 'Portfolio roadmap',
+    resultTitle: 'Portfolio Planner',
     emptyStateTitle: 'Plan proof-building projects.',
     emptyStateBody: 'Choose a direction and turn missing evidence into concrete work you can ship.',
     nextActions: [
