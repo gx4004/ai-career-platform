@@ -3,7 +3,7 @@ import { Link } from '@tanstack/react-router'
 import { useRef } from 'react'
 import { motion, useReducedMotion, useScroll, useTransform } from 'framer-motion'
 import { Button } from '#/components/ui/button'
-import { StaggerChildren, StaggerItem } from '#/components/ui/motion'
+import { StaggerChildren, StaggerItem, MagneticButton } from '#/components/ui/motion'
 import {
   landingExperimentHeroCopy,
   landingPrimaryCta,
@@ -21,6 +21,7 @@ export function LandingExperimentHero({
   const { scrollYProgress } = useScroll({ target: heroRef, offset: ['start start', 'end start'] })
   const mockupY = useTransform(scrollYProgress, [0, 1], [0, 120])
   const mockupOpacity = useTransform(scrollYProgress, [0, 0.8], [1, 0.85])
+  const mockupScale = useTransform(scrollYProgress, [0, 1], [1, 0.94])
 
   const handleSmoothScroll = (e: React.MouseEvent<HTMLAnchorElement>, targetId: string) => {
     e.preventDefault()
@@ -60,12 +61,14 @@ export function LandingExperimentHero({
           </StaggerItem>
           <StaggerItem>
             <div className="landing-cascade-actions">
-              <Button asChild className="landing-cascade-cta landing-cascade-cta--shimmer" size="lg">
-                <a href={landingPrimaryCta.to}>
-                  {copy.ctaLabel}
-                  <ArrowRight size={16} />
-                </a>
-              </Button>
+              <MagneticButton>
+                <Button asChild className="landing-cascade-cta landing-cascade-cta--shimmer" size="lg">
+                  <a href={landingPrimaryCta.to}>
+                    {copy.ctaLabel}
+                    <ArrowRight size={16} />
+                  </a>
+                </Button>
+              </MagneticButton>
               <Button
                 asChild
                 className="landing-cascade-cta landing-cascade-cta--ghost"
@@ -103,7 +106,7 @@ export function LandingExperimentHero({
           initial={prefersReducedMotion ? false : { opacity: 0, y: 28, scale: 0.98 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           transition={{ duration: prefersReducedMotion ? 0 : 0.6, delay: 0.15, ease: [0.16, 1, 0.3, 1] }}
-          style={prefersReducedMotion ? undefined : { y: mockupY, opacity: mockupOpacity }}
+          style={prefersReducedMotion ? undefined : { y: mockupY, opacity: mockupOpacity, scale: mockupScale }}
         >
           <div className="landing-cascade-mockup-glow landing-cascade-mockup-glow--multi" aria-hidden="true" />
           <div className="landing-cascade-window">
@@ -113,7 +116,7 @@ export function LandingExperimentHero({
                 <span />
                 <span />
               </div>
-              <div className="landing-cascade-window-url">careerworkbench.io</div>
+              <div className="landing-cascade-window-url">thecareerworkbench.com</div>
             </div>
             <Link to="/dashboard" className="block">
               <img

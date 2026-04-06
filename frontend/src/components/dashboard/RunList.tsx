@@ -1,6 +1,7 @@
 import type { ComponentType } from 'react'
 import { Link } from '@tanstack/react-router'
 import { Star } from 'lucide-react'
+import { motion, useReducedMotion } from 'framer-motion'
 import { Badge } from '#/components/ui/badge'
 import { useHistory } from '#/hooks/useHistory'
 import { useSession } from '#/hooks/useSession'
@@ -8,6 +9,7 @@ import type { HistoryQueryParams } from '#/lib/api/client'
 import { Skeleton } from '#/components/ui/skeleton'
 import { getToolByHistoryName } from '#/lib/tools/registry'
 import { toolAccentStyle } from '#/lib/tools/styleUtils'
+import { ScrollFadeUp } from '#/components/ui/motion'
 
 export function RunList({
   eyebrow,
@@ -32,6 +34,7 @@ export function RunList({
   const query = useHistory(queryParams, status === 'authenticated')
   const isAuthenticated = status === 'authenticated'
   const hasItems = query.data?.items.length
+  const prefersReducedMotion = useReducedMotion() ?? false
 
   // When not authenticated, show a compact inline message instead of a full card
   if (!isAuthenticated && !bare) {
@@ -52,15 +55,20 @@ export function RunList({
           ))}
         </div>
       ) : hasItems ? (
-        query.data!.items.map((item) => {
+        query.data!.items.map((item, i) => {
           const tool = getToolByHistoryName(item.tool_name)
           const route = tool
             ? tool.resultRoute.replace('$historyId', item.id)
             : '/history'
 
           return (
-            <div
+            <motion.div
               key={item.id}
+              initial={prefersReducedMotion ? false : { opacity: 0, y: 10, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              transition={prefersReducedMotion ? { duration: 0 } : { type: 'spring', stiffness: 80, damping: 18, delay: i * 0.05 }}
+            >
+            <div
               className="run-row"
               style={toolAccentStyle(tool?.accent)}
             >
@@ -91,6 +99,7 @@ export function RunList({
                 View
               </Link>
             </div>
+            </motion.div>
           )
         })
       ) : (
@@ -105,14 +114,16 @@ export function RunList({
   if (bare) return content
 
   return (
-    <section className="dash-card dash-card--runs">
-      <div className="grid gap-3">
-        <div className="grid gap-0.5">
-          <p className="eyebrow">{eyebrow}</p>
-          <h2 className="section-title">{title}</h2>
+    <ScrollFadeUp>
+      <section className="dash-card dash-card--runs">
+        <div className="grid gap-3">
+          <div className="grid gap-0.5">
+            <p className="eyebrow">{eyebrow}</p>
+            <h2 className="section-title">{title}</h2>
+          </div>
+          {content}
         </div>
-        {content}
-      </div>
-    </section>
+      </section>
+    </ScrollFadeUp>
   )
 }
