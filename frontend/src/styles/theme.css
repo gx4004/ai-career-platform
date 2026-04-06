@@ -36,6 +36,10 @@
   --interview-accent: var(--accent);
   --career-accent: var(--accent);
   --portfolio-accent: var(--accent);
+  --dark-surface: #0f1a2e;
+  --dark-text: #f0f4f8;
+  --dark-text-muted: #94a3b8;
+  --dark-text-soft: #64748b;
   --font-sans: 'Outfit', system-ui, -apple-system, sans-serif;
   --font-display: 'Geist', ui-sans-serif, system-ui, -apple-system, sans-serif;
   --type-display-xl: clamp(2.6rem, 4vw, 4rem);

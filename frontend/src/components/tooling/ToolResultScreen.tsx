@@ -26,6 +26,7 @@ import type { ToolId } from '#/lib/tools/registry'
 import { toolAccentStyle } from '#/lib/tools/styleUtils'
 import { trackTelemetry } from '#/lib/telemetry/client'
 import { AdGatedLock } from '#/components/tooling/AdGatedLock'
+import { ToolHeroIllustration } from './ToolHeroIllustration'
 
 function getStripGradient(value: number) {
   if (value >= 70) {
@@ -229,8 +230,6 @@ export function ToolResultScreen({
       : item.label || resolvedTool.shortLabel
   const savedResult = item.saved
   const guestResult = !savedResult
-  const canContinueWorkflow = status === 'authenticated' || savedResult
-
   function handleRegenSubmit() {
     const params = new URLSearchParams()
     params.set('parent_run_id', historyId)
@@ -242,8 +241,6 @@ export function ToolResultScreen({
 
   const heroMetric = definition.heroMetric?.(payload)
   const insightStrip = definition.insightStrip?.(payload)
-  const primaryNextAction = resolvedTool.nextActions[0]
-  const secondaryNextAction = resolvedTool.nextActions[1]
 
   async function handleCopy() {
     await navigator.clipboard.writeText(definition.copyText(payload, item!))
@@ -281,16 +278,14 @@ export function ToolResultScreen({
         {/* ── Hero ── */}
         <FadeIn delay={0.05}>
         <div className={`result-hero${definition.heroVariant === 'dark' ? ' result-hero--dark' : ''}`}>
-          <div className="result-hero__top">
+          <div className={`result-hero__top${!heroMetric ? ' result-hero__top--centered' : ''}`}>
             {heroMetric ? (
               <div style={{ position: 'relative' }}>
                 {heroMetric}
                 <ScoreTooltip toolId={resolvedTool.id} />
               </div>
             ) : (
-              <div className="result-hero__icon">
-                <resolvedTool.icon size={22} />
-              </div>
+              <ToolHeroIllustration toolId={resolvedTool.id} />
             )}
             <div className="result-hero__text">
               <div className="result-hero__label">
@@ -468,43 +463,6 @@ export function ToolResultScreen({
           </FadeUp>
         </AdGatedLock>
 
-        {/* ── Sticky CTA ── */}
-        {primaryNextAction ? (
-          <div className="result-action">
-            <div className="result-action__text">
-              <strong>{primaryNextAction.label}</strong> — {tools[primaryNextAction.to].summary}
-            </div>
-            <div className="result-action__btns">
-              <Button
-                size="sm"
-                onClick={() => {
-                  if (!canContinueWorkflow) {
-                    openAuthDialog({ to: tools[primaryNextAction.to].route, reason: 'continue-workflow', label: 'Sign in' })
-                    return
-                  }
-                  void navigate({ to: tools[primaryNextAction.to].route })
-                }}
-              >
-                {canContinueWorkflow ? `${tools[primaryNextAction.to].shortLabel} →` : 'Sign in'}
-              </Button>
-              {secondaryNextAction ? (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    if (!canContinueWorkflow) {
-                      openAuthDialog({ to: tools[secondaryNextAction.to].route, reason: 'continue-workflow', label: 'Sign in' })
-                      return
-                    }
-                    void navigate({ to: tools[secondaryNextAction.to].route })
-                  }}
-                >
-                  {tools[secondaryNextAction.to].shortLabel}
-                </Button>
-              ) : null}
-            </div>
-          </div>
-        ) : null}
       </section>
     </PageFrame>
   )

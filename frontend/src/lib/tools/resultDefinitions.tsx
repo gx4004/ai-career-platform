@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import {
+  AlertCircle,
   ArrowRight,
   CheckCircle2,
   ChevronRight,
@@ -10,7 +11,10 @@ import {
   Hash,
   Info,
   Lightbulb,
+  MessageSquare,
   Settings,
+  Star,
+  Target,
   TrendingUp,
   Zap,
 } from 'lucide-react'
@@ -277,12 +281,6 @@ function scoreColor(score: number) {
   if (score >= 70) return '#22c55e'
   if (score >= 41) return '#f59e0b'
   return '#ef4444'
-}
-
-function priorityTone(priority: 'high' | 'medium' | 'low') {
-  if (priority === 'high') return 'var(--destructive)'
-  if (priority === 'medium') return 'var(--warning)'
-  return 'var(--success)'
 }
 
 function statusTone(status: 'matched' | 'partial' | 'missing') {
@@ -608,34 +606,31 @@ const FIX_FIRST_LABELS: Record<string, string> = {
   low: 'Actionable',
 }
 
-
-function ResumeFixFirstStrip({ payload }: { payload: AnyObject }) {
-  const result = normalizeResumePayload(payload)
-  const actions = result.topActions.slice(0, 3)
-  if (actions.length === 0) return null
+function FixFirstStrip({ actions, showFooter = true }: { actions: Array<{ title: string; action: string; priority: string }>; showFooter?: boolean }) {
+  const items = actions.slice(0, 3)
+  if (items.length === 0) return null
 
   return (
     <div className="fix-first-strip stagger-entrance">
-      {actions.map((a, i) => {
+      {items.map((a, i) => {
         const Icon = FIX_FIRST_ICONS[i] || FileEdit
         const style = FIX_FIRST_CARD_STYLES[i] || FIX_FIRST_CARD_STYLES[0]
         return (
           <div key={`${a.title}-${i}`} className="fix-first-card">
-            <div
-              className="fix-first-card__icon"
-              style={{ background: style.bg }}
-            >
+            <div className="fix-first-card__icon" style={{ background: style.bg }}>
               <Icon size={18} style={{ color: style.text }} />
             </div>
             <div className="fix-first-card__content">
               <div className="fix-first-card__title">{a.title}</div>
               <div className="fix-first-card__desc">{a.action}</div>
-              <div className="fix-first-card__footer">
-                <span className="fix-first-card__priority" style={{ color: style.text }}>
-                  {FIX_FIRST_LABELS[a.priority] || a.priority}
-                </span>
-                <ArrowRight size={16} style={{ color: 'var(--text-soft)' }} />
-              </div>
+              {showFooter && (
+                <div className="fix-first-card__footer">
+                  <span className="fix-first-card__priority" style={{ color: style.text }}>
+                    {FIX_FIRST_LABELS[a.priority] || a.priority}
+                  </span>
+                  <ArrowRight size={16} style={{ color: 'var(--text-soft)' }} />
+                </div>
+              )}
             </div>
           </div>
         )
@@ -808,32 +803,6 @@ function ResumeResultView({ payload }: { payload: AnyObject }) {
   )
 }
 
-function JobMatchFixFirstStrip({ payload }: { payload: AnyObject }) {
-  const result = normalizeJobMatchPayload(payload)
-  const actions = result.topActions.slice(0, 3)
-  if (actions.length === 0) return null
-
-  return (
-    <div className="fix-first-strip stagger-entrance">
-      {actions.map((a, i) => {
-        const Icon = FIX_FIRST_ICONS[i] || FileEdit
-        const style = FIX_FIRST_CARD_STYLES[i] || FIX_FIRST_CARD_STYLES[0]
-        return (
-          <div key={`${a.title}-${i}`} className="fix-first-card">
-            <div className="fix-first-card__icon" style={{ background: style.bg }}>
-              <Icon size={18} style={{ color: style.text }} />
-            </div>
-            <div className="fix-first-card__content">
-              <div className="fix-first-card__title">{a.title}</div>
-              <div className="fix-first-card__desc">{a.action}</div>
-            </div>
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-
 function JobMatchHeroExtra({ payload }: { payload: AnyObject }) {
   const result = normalizeJobMatchPayload(payload)
   const met = result.requirements.filter((r) => r.status === 'matched').length
@@ -995,24 +964,23 @@ function JobMatchView({ payload }: { payload: AnyObject }) {
       <div className="resume-body-right">
         {result.recruiterSummary && (
           <ScrollReveal>
-          <div className="rolefit-card">
-            <div className="rolefit-card__header">
-              <span className="rolefit-card__title">Recruiter summary</span>
+          <div className="jm-recruiter-card">
+            <div className="jm-recruiter-card__header">
+              <span className="jm-recruiter-card__title">Recruiter view</span>
+              <span className="jm-recruiter-card__badge">How they see you</span>
             </div>
-            <p style={{ fontSize: '0.875rem', color: 'var(--text-body)', lineHeight: 1.6 }}>{result.recruiterSummary}</p>
+            <p className="jm-recruiter-card__body">{result.recruiterSummary}</p>
           </div>
           </ScrollReveal>
         )}
         {result.interviewFocus.length > 0 && (
           <ScrollReveal>
-          <div className="rolefit-card">
-            <div className="rolefit-card__header">
-              <span className="rolefit-card__title">Interview prep</span>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+          <div className="jm-interview-card">
+            <div className="jm-interview-card__header">Interview prep</div>
+            <div className="jm-interview-card__items">
               {result.interviewFocus.map((f) => (
-                <div key={f} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', fontSize: '0.8125rem', color: 'var(--text-body)' }}>
-                  <span style={{ color: 'var(--accent)', fontWeight: 700, flexShrink: 0 }}>-</span>
+                <div key={f} className="jm-interview-card__item">
+                  <ArrowRight size={14} className="jm-interview-card__item-icon" />
                   <span>{f}</span>
                 </div>
               ))}
@@ -1029,10 +997,28 @@ function JobMatchView({ payload }: { payload: AnyObject }) {
 function CoverLetterHeroExtra({ payload }: { payload: AnyObject }) {
   const result = normalizeCoverLetterPayload(payload)
   const wordCount = result.fullText.split(/\s+/).filter(Boolean).length
+  const reqCount = result.customizationNotes.length
+
   return (
-    <div className="cl-hero-badges">
-      <span className="cl-hero-badge cl-hero-badge--tone">{result.toneUsed} tone</span>
-      <span className="cl-hero-badge cl-hero-badge--stat">{wordCount} words</span>
+    <div className="hero-stat-strip">
+      <div className="hero-stat-strip__item">
+        <span className="hero-stat-strip__label">Tone</span>
+        <span className="hero-stat-strip__value">{result.toneUsed}</span>
+      </div>
+      <div className="hero-stat-strip__divider" />
+      <div className="hero-stat-strip__item">
+        <span className="hero-stat-strip__label">Length</span>
+        <span className="hero-stat-strip__value">{wordCount} words</span>
+      </div>
+      {reqCount > 0 && (
+        <>
+          <div className="hero-stat-strip__divider" />
+          <div className="hero-stat-strip__item">
+            <span className="hero-stat-strip__label">Tailored for</span>
+            <span className="hero-stat-strip__value">{reqCount} requirements</span>
+          </div>
+        </>
+      )}
     </div>
   )
 }
@@ -1062,6 +1048,7 @@ function CoverLetterView({ payload }: { payload: AnyObject }) {
   return (
     <div className="cl-body-grid">
       {/* Left: Document card */}
+      <ScrollReveal>
       <div className="cl-document">
         <div className="cl-document__annotations">
           {[result.opening, ...result.bodyPoints, result.closing].map((section, i) => (
@@ -1107,6 +1094,7 @@ function CoverLetterView({ payload }: { payload: AnyObject }) {
           </div>
         </div>
       </div>
+      </ScrollReveal>
 
       {/* Right: Sidebar */}
       <div className="cl-sidebar">
@@ -1118,12 +1106,20 @@ function CoverLetterView({ payload }: { payload: AnyObject }) {
               <span className="cl-notes-card__title">Customization notes</span>
             </div>
             <div className="cl-notes-card__list">
-              {result.customizationNotes.map((n, i) => (
-                <div key={`${n.note}-${i}`} className="cl-notes-card__item">
-                  <CheckCircle2 size={16} className="cl-notes-card__check" />
-                  <span>{n.note}</span>
-                </div>
-              ))}
+              {result.customizationNotes.map((n, i) => {
+                const CatIcon =
+                  n.category === 'tone' ? MessageSquare :
+                  n.category === 'evidence' ? Star :
+                  n.category === 'keyword' ? Hash :
+                  n.category === 'gap' ? AlertCircle :
+                  CheckCircle2
+                return (
+                  <div key={`${n.note}-${i}`} className="cl-notes-card__item">
+                    <CatIcon size={15} className="cl-notes-card__check" />
+                    <span>{n.note}</span>
+                  </div>
+                )
+              })}
             </div>
           </div>
         )}
@@ -1142,16 +1138,14 @@ function CoverLetterView({ payload }: { payload: AnyObject }) {
           </div>
         </div>
 
-        {/* Tips */}
-        {result.bodyPoints.length > 0 && (
-          <div className="cl-tips">
-            <div className="cl-tips__title">Pro tips</div>
-            <div className="cl-tips__list">
-              <div className="cl-tips__item">
-                <div className="cl-tips__item-icon"><Lightbulb size={14} /></div>
-                <p className="cl-tips__item-text">Include specific metrics and numbers to strengthen impact claims.</p>
-              </div>
+        {/* Letter strategy */}
+        {result.opening.whyThisParagraph && (
+          <div className="cl-strategy">
+            <div className="cl-strategy__eyebrow">
+              <Lightbulb size={12} />
+              <span>Letter strategy</span>
             </div>
+            <p className="cl-strategy__text">{result.opening.whyThisParagraph}</p>
           </div>
         )}
       </div>
@@ -1222,6 +1216,7 @@ function InterviewView({ payload }: { payload: AnyObject }) {
   return (
     <div className="iv-body-grid">
       {/* Left: Question cards */}
+      <ScrollReveal>
       <div className="iv-questions">
         <div className="iv-questions__header">
           <h2 className="iv-questions__title">
@@ -1293,6 +1288,7 @@ function InterviewView({ payload }: { payload: AnyObject }) {
           </div>
         ))}
       </div>
+      </ScrollReveal>
 
       {/* Right: Sidebar */}
       <div className="iv-sidebar">
@@ -1328,13 +1324,18 @@ function InterviewView({ payload }: { payload: AnyObject }) {
 
         {/* Weak signals */}
         {result.weakSignals.length > 0 && (
-          <div className="iv-keyword-card">
-            <div className="iv-keyword-card__title">Weak signals</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <div className="iv-weak-signals-card">
+            <div className="iv-weak-signals-card__title">Weak signals</div>
+            <div className="iv-weak-signals-card__list">
               {result.weakSignals.map((w) => (
-                <div key={w.title} style={{ paddingLeft: '0.75rem', borderLeft: `2px solid ${priorityTone(w.severity)}` }}>
-                  <div style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'var(--text-strong)', marginBottom: '0.25rem' }}>{w.title}</div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', lineHeight: 1.5 }}>{w.prepAction}</div>
+                <div key={w.title} className={`iv-weak-signal iv-weak-signal--${w.severity}`}>
+                  <div className="iv-weak-signal__header">
+                    <span className="iv-weak-signal__title">{w.title}</span>
+                    <span className={`iv-weak-signal__badge iv-weak-signal__badge--${w.severity}`}>
+                      {w.severity}
+                    </span>
+                  </div>
+                  <p className="iv-weak-signal__action">{w.prepAction}</p>
                 </div>
               ))}
             </div>
@@ -1483,15 +1484,33 @@ function normalizePortfolioPayload(payload: AnyObject): PortfolioResultPayload {
 function CareerHeroExtra({ payload }: { payload: AnyObject }) {
   const result = normalizeCareerPayload(payload)
   const score = result.recommendedDirection.fitScore
-  const verdictClass = score >= 70 ? 'cp-hero-score__verdict--good' : score >= 40 ? 'cp-hero-score__verdict--ok' : 'cp-hero-score__verdict--low'
-  const verdictText = score >= 70 ? 'High match' : score >= 40 ? 'Moderate' : 'Stretch'
+  const gapCount = result.skillGaps.length
+  const timeline = result.recommendedDirection.transitionTimeline
+
   return (
-    <div className="cp-hero-score">
-      <span className="cp-hero-score__label">Fit score</span>
-      <span className="cp-hero-score__value">{score}%</span>
-      <span className={`cp-hero-score__verdict ${verdictClass}`}>
-        <CheckCircle2 size={14} /> {verdictText}
-      </span>
+    <div className="hero-stat-strip">
+      <div className="hero-stat-strip__item">
+        <span className="hero-stat-strip__label">Fit score</span>
+        <span className="hero-stat-strip__value">{score}%</span>
+      </div>
+      {timeline && (
+        <>
+          <div className="hero-stat-strip__divider" />
+          <div className="hero-stat-strip__item">
+            <span className="hero-stat-strip__label">Timeline</span>
+            <span className="hero-stat-strip__value">{timeline}</span>
+          </div>
+        </>
+      )}
+      {gapCount > 0 && (
+        <>
+          <div className="hero-stat-strip__divider" />
+          <div className="hero-stat-strip__item">
+            <span className="hero-stat-strip__label">Skill gaps</span>
+            <span className="hero-stat-strip__value">{gapCount} to close</span>
+          </div>
+        </>
+      )}
     </div>
   )
 }
@@ -1503,6 +1522,7 @@ function CareerView({ payload }: { payload: AnyObject }) {
   return (
     <div className="cp-body-grid">
       {/* Left: Main content */}
+      <ScrollReveal>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
         {/* Primary recommended path */}
         <div className="cp-primary-card">
@@ -1514,7 +1534,7 @@ function CareerView({ payload }: { payload: AnyObject }) {
             <span className="cp-primary-card__timeline">{result.recommendedDirection.transitionTimeline}</span>
           </div>
 
-          <div className="cp-primary-card__grid">
+          <div className="cp-primary-card__body">
             <div>
               <div className="cp-primary-card__why-title">Why this is your ideal next step</div>
               <p className="cp-primary-card__why-text">{result.recommendedDirection.whyNow}</p>
@@ -1526,9 +1546,6 @@ function CareerView({ payload }: { payload: AnyObject }) {
                   </div>
                 ))}
               </div>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <ScoreCircleSvg score={result.recommendedDirection.fitScore} size={160} />
             </div>
           </div>
 
@@ -1574,6 +1591,7 @@ function CareerView({ payload }: { payload: AnyObject }) {
           </div>
         )}
       </div>
+      </ScrollReveal>
 
       {/* Right: Sidebar */}
       <div className="cp-sidebar">
@@ -1581,14 +1599,17 @@ function CareerView({ payload }: { payload: AnyObject }) {
         {altPaths.length > 0 && (
           <div className="cp-alt-paths">
             <div className="cp-alt-paths__title">Alternative paths</div>
-            {altPaths.map((p) => (
+            {altPaths.map((p, idx) => (
               <div key={p.roleTitle} className="cp-alt-card">
-                <div className="cp-alt-card__top">
-                  <div className="cp-alt-card__icon"><TrendingUp size={16} /></div>
-                  <span className="cp-alt-card__score" style={{ color: scoreColor(p.fitScore) }}>{p.fitScore}% match</span>
+                <div className="cp-alt-card__header">
+                  <span className="cp-alt-card__rank">#{idx + 1} alt</span>
+                  <span className="cp-alt-card__score" style={{ color: scoreColor(p.fitScore) }}>{p.fitScore}%</span>
                 </div>
                 <div className="cp-alt-card__name">{p.roleTitle}</div>
-                <div className="cp-alt-card__desc">{p.rationale}</div>
+                <div className="cp-alt-card__score-bar">
+                  <div className="cp-alt-card__score-fill" style={{ width: `${p.fitScore}%`, background: scoreColor(p.fitScore) }} />
+                </div>
+                <p className="cp-alt-card__desc">{p.rationale}</p>
                 <div className="cp-alt-card__footer">
                   <span className="cp-alt-card__timeline">{p.transitionTimeline}</span>
                 </div>
@@ -1598,13 +1619,16 @@ function CareerView({ payload }: { payload: AnyObject }) {
         )}
 
         {/* Pro tip */}
-        <div className="cl-action-card">
-          <div className="cl-action-card__title">Pro tip</div>
-          <div className="cl-action-card__desc" style={{ marginBottom: 0 }}>
+        <div className="cp-tip-card">
+          <div className="cp-tip-card__eyebrow">
+            <Lightbulb size={12} />
+            <span>Pro tip</span>
+          </div>
+          <p className="cp-tip-card__text">
             {result.recommendedDirection.confidence === 'high'
               ? 'Your profile strongly matches this direction. Focus on closing the remaining skill gaps to maximize your timeline.'
               : 'Document your cross-team wins and build visible proof points to strengthen your candidacy.'}
-          </div>
+          </p>
         </div>
       </div>
     </div>
@@ -1613,16 +1637,33 @@ function CareerView({ payload }: { payload: AnyObject }) {
 
 function PortfolioHeroExtra({ payload }: { payload: AnyObject }) {
   const result = normalizePortfolioPayload(payload)
-  const completionPct = Math.min(100, Math.round((result.projects.length / Math.max(result.projects.length, 3)) * 100))
+  const projectCount = result.projects.length
+  const hasSequence = result.sequencePlan.length > 0
+
   return (
-    <div className="pf-hero-readiness">
-      <span className="pf-hero-readiness__label">Portfolio readiness</span>
-      <div className="pf-hero-readiness__bar">
-        <div className="pf-hero-readiness__track">
-          <div className="pf-hero-readiness__fill" style={{ width: `${completionPct}%` }} />
-        </div>
-        <span className="pf-hero-readiness__value">{completionPct}%</span>
+    <div className="hero-stat-strip">
+      <div className="hero-stat-strip__item">
+        <span className="hero-stat-strip__label">Projects</span>
+        <span className="hero-stat-strip__value">{projectCount} in sequence</span>
       </div>
+      {result.targetRole && (
+        <>
+          <div className="hero-stat-strip__divider" />
+          <div className="hero-stat-strip__item">
+            <span className="hero-stat-strip__label">Target role</span>
+            <span className="hero-stat-strip__value">{result.targetRole}</span>
+          </div>
+        </>
+      )}
+      {hasSequence && (
+        <>
+          <div className="hero-stat-strip__divider" />
+          <div className="hero-stat-strip__item">
+            <span className="hero-stat-strip__label">Start with</span>
+            <span className="hero-stat-strip__value">{result.recommendedStartProject.split(' ').slice(0, 3).join(' ')}{result.recommendedStartProject.split(' ').length > 3 ? '…' : ''}</span>
+          </div>
+        </>
+      )}
     </div>
   )
 }
@@ -1638,6 +1679,7 @@ function PortfolioView({ payload }: { payload: AnyObject }) {
   return (
     <div className="pf-body-grid">
       {/* Left: Build sequence */}
+      <ScrollReveal>
       <div className="pf-sequence">
         <h3 className="pf-sequence__title">
           <Hash size={18} className="pf-sequence__title-icon" />
@@ -1684,6 +1726,7 @@ function PortfolioView({ payload }: { payload: AnyObject }) {
           })}
         </div>
       </div>
+      </ScrollReveal>
 
       {/* Right: Sidebar */}
       <div className="pf-sidebar">
@@ -1721,13 +1764,13 @@ function PortfolioView({ payload }: { payload: AnyObject }) {
         )}
 
         {/* Strategy card */}
-        <div className="cl-notes-card">
-          <div className="cl-notes-card__header">
-            <Settings size={16} className="cl-notes-card__icon" />
-            <span className="cl-notes-card__title">Strategy</span>
+        <div className="pf-strategy-card">
+          <div className="pf-strategy-card__header">
+            <Target size={15} className="pf-strategy-card__icon" />
+            <span className="pf-strategy-card__title">Strategy</span>
           </div>
-          <p className="cl-notes-card__desc">{result.strategy.headline}</p>
-          <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', lineHeight: 1.6 }}>{result.strategy.focus}</p>
+          <p className="pf-strategy-card__headline">{result.strategy.headline}</p>
+          <p className="pf-strategy-card__focus">{result.strategy.focus}</p>
         </div>
       </div>
     </div>
@@ -1856,7 +1899,7 @@ export const resultDefinitions: Record<ToolId, ResultDefinition> = {
       return <ScoreCircleSvg score={r.overallScore} size={192} />
     },
     heroExtra: (payload) => <ResumeHeroExtra payload={payload} />,
-    midSection: (payload) => <ResumeFixFirstStrip payload={payload} />,
+    midSection: (payload) => <FixFirstStrip actions={normalizeResumePayload(payload).topActions} />,
     render: (payload) => <ResumeResultView payload={payload} />,
   },
   'job-match': {
@@ -1867,7 +1910,7 @@ export const resultDefinitions: Record<ToolId, ResultDefinition> = {
       return <ScoreCircleSvg score={r.matchScore} size={192} />
     },
     heroExtra: (payload) => <JobMatchHeroExtra payload={payload} />,
-    midSection: (payload) => <JobMatchFixFirstStrip payload={payload} />,
+    midSection: (payload) => <FixFirstStrip actions={normalizeJobMatchPayload(payload).topActions} showFooter={false} />,
     render: (payload) => <JobMatchView payload={payload} />,
   },
   'cover-letter': {
@@ -1877,21 +1920,27 @@ export const resultDefinitions: Record<ToolId, ResultDefinition> = {
       content: coverLetterCopyText(payload),
     }),
     heroExtra: (payload) => <CoverLetterHeroExtra payload={payload} />,
+    midSection: (payload) => <FixFirstStrip actions={normalizeCoverLetterPayload(payload).topActions} />,
     render: (payload) => <CoverLetterView payload={payload} />,
   },
   interview: {
     copyText: (payload) => interviewCopyText(payload),
+    heroVariant: 'dark',
     heroExtra: (payload) => <InterviewHeroExtra payload={payload} />,
+    midSection: (payload) => <FixFirstStrip actions={normalizeInterviewPayload(payload).topActions} />,
     render: (payload) => <InterviewView payload={payload} />,
   },
   career: {
     copyText: (payload) => careerCopyText(payload),
+    heroVariant: 'dark',
     heroExtra: (payload) => <CareerHeroExtra payload={payload} />,
+    midSection: (payload) => <FixFirstStrip actions={normalizeCareerPayload(payload).topActions} />,
     render: (payload) => <CareerView payload={payload} />,
   },
   portfolio: {
     copyText: (payload) => portfolioCopyText(payload),
     heroExtra: (payload) => <PortfolioHeroExtra payload={payload} />,
+    midSection: (payload) => <FixFirstStrip actions={normalizePortfolioPayload(payload).topActions} />,
     render: (payload) => <PortfolioView payload={payload} />,
   },
 }
