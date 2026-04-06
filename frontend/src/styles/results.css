@@ -1077,7 +1077,8 @@
   }
 
   .result-guest-banner {
-    top: 4.75rem;
+    top: auto;
+    bottom: calc(var(--mobile-tab-height, 56px) + env(safe-area-inset-bottom, 0px) + 4.5rem);
     left: 50%;
     transform: translateX(-50%);
     right: auto;
@@ -1086,7 +1087,7 @@
   }
 
   .result-shell {
-    padding-bottom: calc(var(--mobile-tab-height, 56px) + 7rem);
+    padding-bottom: calc(var(--mobile-tab-height, 56px) + 1.5rem);
   }
 
   .result-hero {
@@ -1112,10 +1113,12 @@
   }
 
   .result-action {
+    position: relative;
+    bottom: auto;
     flex-direction: column;
     gap: 0.625rem;
     text-align: center;
-    bottom: calc(var(--mobile-tab-height, 56px) + env(safe-area-inset-bottom, 0px) + 0.5rem);
+    margin-bottom: 0.5rem;
   }
 
   .result-action__btns {
