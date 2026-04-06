@@ -70,7 +70,7 @@ export function Topbar() {
         )}
       >
         {isMobile ? (
-          <Link to="/dashboard" className="topbar-mobile-brand">
+          <Link to={isDashboard ? '/' : '/dashboard'} className="topbar-mobile-brand">
             <AppBrandLockup mode="compact" />
           </Link>
         ) : (
