@@ -1676,9 +1676,6 @@ function CareerView({ payload }: { payload: AnyObject }) {
                 ))}
               </div>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <ScoreCircleSvg score={result.recommendedDirection.fitScore} size={160} />
-            </div>
           </div>
 
           {/* Numbered roadmap */}
