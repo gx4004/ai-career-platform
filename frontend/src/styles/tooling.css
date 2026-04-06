@@ -17,22 +17,15 @@
   position: relative;
   overflow: hidden;
   border-radius: calc(var(--radius-2xl) + 0.05rem);
-  border: 1px solid color-mix(in srgb, var(--border-soft) 84%, white 16%);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.99) 0%, rgba(249, 252, 255, 0.97) 46%, rgba(244, 249, 255, 0.95) 100%);
-  box-shadow: var(--shadow-soft);
+  background: #ffffff;
+  box-shadow: 0 2px 16px rgba(15,44,88,0.07), 0 0 0 1px rgba(186,214,255,0.4);
 }
 
 .tool-panel::before,
 .tool-info-card::before,
 .tool-sticky-bar::before,
 .import-card::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background:
-    radial-gradient(circle at top right, rgba(188, 226, 255, 0.18), transparent 32%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.6), transparent 30%);
+  display: none;
 }
 
 .tool-panel > *,
@@ -69,9 +62,11 @@
   align-items: center;
   justify-content: space-between;
   margin-bottom: 0.45rem;
-  color: var(--text-strong);
-  font-size: var(--type-small);
-  font-weight: 600;
+  color: var(--text-body);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
   gap: 1rem;
 }
 
