@@ -243,6 +243,7 @@ export function ToolHeroIllustration({
 
   return (
     <div
+      className="tool-illust-wrap"
       style={{
         ...WRAP_STYLE,
         /* slightly faster scan when loading */

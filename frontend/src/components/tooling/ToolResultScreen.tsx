@@ -26,6 +26,7 @@ import type { ToolId } from '#/lib/tools/registry'
 import { toolAccentStyle } from '#/lib/tools/styleUtils'
 import { trackTelemetry } from '#/lib/telemetry/client'
 import { AdGatedLock } from '#/components/tooling/AdGatedLock'
+import { ToolHeroIllustration } from './ToolHeroIllustration'
 
 function getStripGradient(value: number) {
   if (value >= 70) {
@@ -288,9 +289,7 @@ export function ToolResultScreen({
                 <ScoreTooltip toolId={resolvedTool.id} />
               </div>
             ) : (
-              <div className="result-hero__icon">
-                <resolvedTool.icon size={22} />
-              </div>
+              <ToolHeroIllustration toolId={resolvedTool.id} />
             )}
             <div className="result-hero__text">
               <div className="result-hero__label">
