@@ -230,8 +230,6 @@ export function ToolResultScreen({
       : item.label || resolvedTool.shortLabel
   const savedResult = item.saved
   const guestResult = !savedResult
-  const canContinueWorkflow = status === 'authenticated' || savedResult
-
   function handleRegenSubmit() {
     const params = new URLSearchParams()
     params.set('parent_run_id', historyId)
@@ -243,8 +241,6 @@ export function ToolResultScreen({
 
   const heroMetric = definition.heroMetric?.(payload)
   const insightStrip = definition.insightStrip?.(payload)
-  const primaryNextAction = resolvedTool.nextActions[0]
-  const secondaryNextAction = resolvedTool.nextActions[1]
 
   async function handleCopy() {
     await navigator.clipboard.writeText(definition.copyText(payload, item!))
@@ -467,43 +463,6 @@ export function ToolResultScreen({
           </FadeUp>
         </AdGatedLock>
 
-        {/* ── Sticky CTA ── */}
-        {primaryNextAction ? (
-          <div className="result-action">
-            <div className="result-action__text">
-              <strong>{primaryNextAction.label}</strong> — {tools[primaryNextAction.to].summary}
-            </div>
-            <div className="result-action__btns">
-              <Button
-                size="sm"
-                onClick={() => {
-                  if (!canContinueWorkflow) {
-                    openAuthDialog({ to: tools[primaryNextAction.to].route, reason: 'continue-workflow', label: 'Sign in' })
-                    return
-                  }
-                  void navigate({ to: tools[primaryNextAction.to].route })
-                }}
-              >
-                {canContinueWorkflow ? `${tools[primaryNextAction.to].shortLabel} →` : 'Sign in'}
-              </Button>
-              {secondaryNextAction ? (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    if (!canContinueWorkflow) {
-                      openAuthDialog({ to: tools[secondaryNextAction.to].route, reason: 'continue-workflow', label: 'Sign in' })
-                      return
-                    }
-                    void navigate({ to: tools[secondaryNextAction.to].route })
-                  }}
-                >
-                  {tools[secondaryNextAction.to].shortLabel}
-                </Button>
-              ) : null}
-            </div>
-          </div>
-        ) : null}
       </section>
     </PageFrame>
   )
