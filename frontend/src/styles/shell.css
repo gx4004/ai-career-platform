@@ -1,6 +1,9 @@
 .app-main {
   min-height: 100svh;
   position: relative;
+  flex: 1;
+  min-width: 0;
+  width: 100%;
   background:
     radial-gradient(circle at top left, rgba(92, 155, 223, 0.1), transparent 24%),
     linear-gradient(180deg, rgba(255, 255, 255, 0.2), transparent 22%);
