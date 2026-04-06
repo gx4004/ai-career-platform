@@ -1,7 +1,7 @@
 import { ArrowRight, Check } from 'lucide-react'
 import { motion, useReducedMotion } from 'framer-motion'
 import { Button } from '#/components/ui/button'
-import { ScrollStagger, ScrollStaggerItem } from '#/components/ui/motion'
+import { ScrollStagger, ScrollStaggerItem, MagneticButton } from '#/components/ui/motion'
 import { AppBrandLockup } from '#/components/app/AppBrandLockup'
 import { landingCtaCopy, landingPrimaryCta } from '#/components/landing/landingContent'
 
@@ -36,22 +36,31 @@ export function LandingCTA() {
 
         <ScrollStaggerItem>
           <ul className="landing-cta-dark-bullets">
-            {landingCtaCopy.valueBullets.map((bullet) => (
-              <li key={bullet} className="landing-cta-dark-bullet">
+            {landingCtaCopy.valueBullets.map((bullet, i) => (
+              <motion.li
+                key={bullet}
+                className="landing-cta-dark-bullet"
+                initial={prefersReducedMotion ? false : { opacity: 0, x: 16 }}
+                whileInView={{ opacity: 1, x: 0 }}
+                viewport={{ once: true, amount: 0.5 }}
+                transition={{ duration: 0.4, delay: i * 0.08, ease: [0.16, 1, 0.3, 1] }}
+              >
                 <Check size={14} className="landing-cta-dark-check" />
                 {bullet}
-              </li>
+              </motion.li>
             ))}
           </ul>
         </ScrollStaggerItem>
 
         <ScrollStaggerItem>
-          <Button asChild className="landing-cta-dark-btn" size="lg">
-            <a href={landingPrimaryCta.to}>
-              {landingCtaCopy.ctaLabel}
-              <ArrowRight size={16} />
-            </a>
-          </Button>
+          <MagneticButton>
+            <Button asChild className="landing-cta-dark-btn" size="lg">
+              <a href={landingPrimaryCta.to}>
+                {landingCtaCopy.ctaLabel}
+                <ArrowRight size={16} />
+              </a>
+            </Button>
+          </MagneticButton>
           <p className="landing-cta-dark-trust">{landingCtaCopy.trustLine}</p>
         </ScrollStaggerItem>
       </ScrollStagger>

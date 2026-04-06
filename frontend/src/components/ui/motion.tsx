@@ -1,7 +1,7 @@
 'use client'
 
-import { type ReactNode, type CSSProperties, type RefObject, useState, useEffect } from 'react'
-import { motion, AnimatePresence, MotionConfig, useScroll, useTransform, useReducedMotion, type Variants } from 'framer-motion'
+import { type ReactNode, type CSSProperties, type RefObject, useRef, useState, useEffect } from 'react'
+import { motion, animate, AnimatePresence, MotionConfig, useScroll, useTransform, useReducedMotion, useMotionValue, type Variants } from 'framer-motion'
 
 const spring = { type: 'spring', stiffness: 260, damping: 20 }
 const ease = [0.16, 1, 0.3, 1] as const
@@ -288,6 +288,194 @@ export function AnimatedNumber({
   }, [value, duration, delay, prefersReducedMotion])
 
   return <span className={className}>{displayed}</span>
+}
+
+// ── New scroll animation utilities ──────────────────────────────────────────
+
+const fadeUpScale: Variants = {
+  hidden: { opacity: 0, y: 20, scale: 0.97 },
+  visible: { opacity: 1, y: 0, scale: 1 },
+}
+
+/**
+ * ScrollFadeUp — viewport-triggered reveal with spring physics.
+ * Fires once when 15% of the element is visible.
+ */
+export function ScrollFadeUp({
+  children,
+  delay = 0,
+  className,
+  style,
+}: {
+  children: ReactNode
+  delay?: number
+  className?: string
+  style?: CSSProperties
+}) {
+  const prefersReducedMotion = useReducedMotion() ?? false
+  if (prefersReducedMotion) {
+    return <div className={className} style={style}>{children}</div>
+  }
+  return (
+    <motion.div
+      variants={fadeUp}
+      initial="hidden"
+      whileInView="visible"
+      viewport={{ once: true, amount: 0.15 }}
+      transition={{ type: 'spring', stiffness: 80, damping: 20, delay }}
+      className={className}
+      style={style}
+    >
+      {children}
+    </motion.div>
+  )
+}
+
+/**
+ * ParallaxLayer — scroll-linked Y offset.
+ * speed > 0 → moves down as you scroll (float up effect)
+ * speed < 0 → moves up as you scroll (float down effect)
+ */
+export function ParallaxLayer({
+  children,
+  speed = 0.2,
+  className,
+  style,
+}: {
+  children: ReactNode
+  speed?: number
+  className?: string
+  style?: CSSProperties
+}) {
+  const ref = useRef<HTMLDivElement>(null)
+  const prefersReducedMotion = useReducedMotion() ?? false
+  const { scrollYProgress } = useScroll({ target: ref, offset: ['start end', 'end start'] })
+  const y = useTransform(scrollYProgress, [0, 1], [-speed * 60, speed * 60])
+
+  if (prefersReducedMotion) {
+    return <div className={className} style={style}>{children}</div>
+  }
+  return (
+    <motion.div ref={ref} style={{ y, ...style }} className={className}>
+      {children}
+    </motion.div>
+  )
+}
+
+/**
+ * MagneticButton — cursor pull effect.
+ * Children element pulls ±12px toward the cursor.
+ * Uses useMotionValue only — no useState, no re-renders.
+ */
+export function MagneticButton({
+  children,
+  className,
+  style,
+  strength = 0.35,
+}: {
+  children: ReactNode
+  className?: string
+  style?: CSSProperties
+  strength?: number
+}) {
+  const prefersReducedMotion = useReducedMotion() ?? false
+  const x = useMotionValue(0)
+  const y = useMotionValue(0)
+  const springCfg = { type: 'spring' as const, stiffness: 180, damping: 18 }
+
+  if (prefersReducedMotion) {
+    return <div className={className} style={style}>{children}</div>
+  }
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect()
+    const dx = e.clientX - (rect.left + rect.width / 2)
+    const dy = e.clientY - (rect.top + rect.height / 2)
+    animate(x, dx * strength, springCfg)
+    animate(y, dy * strength, springCfg)
+  }
+  const handleMouseLeave = () => {
+    animate(x, 0, springCfg)
+    animate(y, 0, springCfg)
+  }
+
+  return (
+    <motion.div
+      className={className}
+      style={{ x, y, display: 'inline-block', ...style }}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
+    >
+      {children}
+    </motion.div>
+  )
+}
+
+/**
+ * ScrollStaggerGrid — like ScrollStagger but children also scale in (0.97→1).
+ * Use for card grids where scale adds depth to the reveal.
+ */
+export function ScrollStaggerGrid({
+  children,
+  stagger = 0.07,
+  delay = 0,
+  className,
+  style,
+}: {
+  children: ReactNode
+  stagger?: number
+  delay?: number
+  className?: string
+  style?: CSSProperties
+}) {
+  const prefersReducedMotion = useReducedMotion() ?? false
+  if (prefersReducedMotion) {
+    return <div className={className} style={style}>{children}</div>
+  }
+  return (
+    <motion.div
+      initial="hidden"
+      whileInView="visible"
+      viewport={{ once: true, amount: 0.1 }}
+      variants={{
+        hidden: {},
+        visible: { transition: { staggerChildren: stagger, delayChildren: delay } },
+      }}
+      className={className}
+      style={style}
+    >
+      {children}
+    </motion.div>
+  )
+}
+
+/**
+ * ScrollStaggerGridItem — child of ScrollStaggerGrid.
+ * Fades up with a subtle scale (0.97→1) for depth.
+ */
+export function ScrollStaggerGridItem({
+  children,
+  className,
+  style,
+}: {
+  children: ReactNode
+  className?: string
+  style?: CSSProperties
+}) {
+  const prefersReducedMotion = useReducedMotion() ?? false
+  if (prefersReducedMotion) {
+    return <div className={className} style={style}>{children}</div>
+  }
+  return (
+    <motion.div
+      variants={fadeUpScale}
+      transition={{ type: 'spring', stiffness: 80, damping: 18 }}
+      className={className}
+      style={style}
+    >
+      {children}
+    </motion.div>
+  )
 }
 
 export { motion, AnimatePresence, MotionConfig, useScroll, useTransform, spring, ease }

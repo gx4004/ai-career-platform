@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect, useCallback } from 'react'
 import { useReducedMotion } from 'framer-motion'
-import { ScrollStagger, ScrollStaggerItem, useViewportTrigger } from '#/components/ui/motion'
+import { ScrollStaggerGrid, ScrollStaggerGridItem, useViewportTrigger } from '#/components/ui/motion'
 import { StaggerTestimonials } from '#/components/ui/stagger-testimonials'
 
 function AnimatedCounter({ target, suffix = '+' }: { target: number; suffix?: string }) {
@@ -39,21 +39,21 @@ export function LandingSocialProof() {
   return (
     <section className="landing-section landing-section-social-proof" id="landing-social-proof">
       <div className="content-max">
-        <ScrollStagger className="landing-section-heading" stagger={0.1}>
-          <ScrollStaggerItem>
+        <ScrollStaggerGrid className="landing-section-heading" stagger={0.1}>
+          <ScrollStaggerGridItem>
             <p className="eyebrow">Real results from real job seekers</p>
-          </ScrollStaggerItem>
-          <ScrollStaggerItem>
+          </ScrollStaggerGridItem>
+          <ScrollStaggerGridItem>
             <h2 className="display-lg">
               <AnimatedCounter target={2400} /> resumes analyzed. Careers unblocked.
             </h2>
-          </ScrollStaggerItem>
-          <ScrollStaggerItem>
+          </ScrollStaggerGridItem>
+          <ScrollStaggerGridItem>
             <p className="muted-copy">
               From first upload to first interview — here's what job seekers are saying.
             </p>
-          </ScrollStaggerItem>
-        </ScrollStagger>
+          </ScrollStaggerGridItem>
+        </ScrollStaggerGrid>
       </div>
       <StaggerTestimonials />
     </section>

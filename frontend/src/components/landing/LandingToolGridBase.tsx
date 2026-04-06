@@ -1,6 +1,6 @@
 import { Link } from '@tanstack/react-router'
 import { useReducedMotion } from 'framer-motion'
-import { ScrollStagger, ScrollStaggerItem } from '#/components/ui/motion'
+import { ScrollStagger, ScrollStaggerItem, ScrollStaggerGrid, ScrollStaggerGridItem } from '#/components/ui/motion'
 import { useCarousel } from '#/hooks/useCarousel'
 import { toolList, type ToolId } from '#/lib/tools/registry'
 import { toolAccentStyle } from '#/lib/tools/styleUtils'
@@ -137,9 +137,9 @@ export function LandingToolGridBase({
             </div>
           </div>
 
-          <ScrollStagger className="landing-tool-cards" stagger={0.08}>
+          <ScrollStaggerGrid className="landing-tool-cards" stagger={0.08}>
             {toolList.map((tool, index) => (
-              <ScrollStaggerItem key={tool.id}>
+              <ScrollStaggerGridItem key={tool.id}>
                 <button
                   type="button"
                   className={cn('landing-tool-card glass', tool.id === activeTool.id && 'is-active')}
@@ -159,9 +159,9 @@ export function LandingToolGridBase({
                     <p className="small-copy muted-copy">{baseToolCopy[tool.id].summary}</p>
                   </div>
                 </button>
-              </ScrollStaggerItem>
+              </ScrollStaggerGridItem>
             ))}
-          </ScrollStagger>
+          </ScrollStaggerGrid>
         </div>
       </div>
     </section>
