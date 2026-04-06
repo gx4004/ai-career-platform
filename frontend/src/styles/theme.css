@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap');
+
 :root {
   color-scheme: light;
   --background: #edf3fa;
@@ -34,7 +36,7 @@
   --interview-accent: var(--accent);
   --career-accent: var(--accent);
   --portfolio-accent: var(--accent);
-  --font-sans: 'Geist', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-sans: 'Outfit', system-ui, -apple-system, sans-serif;
   --font-display: 'Geist', ui-sans-serif, system-ui, -apple-system, sans-serif;
   --type-display-xl: clamp(2.6rem, 4vw, 4rem);
   --type-display-lg: clamp(2.15rem, 3vw, 3.15rem);
