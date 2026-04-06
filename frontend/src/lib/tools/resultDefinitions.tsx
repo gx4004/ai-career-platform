@@ -1109,6 +1109,7 @@ function CoverLetterView({ payload }: { payload: AnyObject }) {
   return (
     <div className="cl-body-grid">
       {/* Left: Document card */}
+      <ScrollReveal>
       <div className="cl-document">
         <div className="cl-document__annotations">
           {[result.opening, ...result.bodyPoints, result.closing].map((section, i) => (
@@ -1154,8 +1155,10 @@ function CoverLetterView({ payload }: { payload: AnyObject }) {
           </div>
         </div>
       </div>
+      </ScrollReveal>
 
       {/* Right: Sidebar */}
+      <ScrollReveal delay={0.06}>
       <div className="cl-sidebar">
         {/* Customization notes */}
         {result.customizationNotes.length > 0 && (
@@ -1208,6 +1211,7 @@ function CoverLetterView({ payload }: { payload: AnyObject }) {
           </div>
         )}
       </div>
+      </ScrollReveal>
     </div>
   )
 }
@@ -1307,6 +1311,7 @@ function InterviewView({ payload }: { payload: AnyObject }) {
   return (
     <div className="iv-body-grid">
       {/* Left: Question cards */}
+      <ScrollReveal>
       <div className="iv-questions">
         <div className="iv-questions__header">
           <h2 className="iv-questions__title">
@@ -1378,8 +1383,10 @@ function InterviewView({ payload }: { payload: AnyObject }) {
           </div>
         ))}
       </div>
+      </ScrollReveal>
 
       {/* Right: Sidebar */}
+      <ScrollReveal delay={0.06}>
       <div className="iv-sidebar">
         {/* Competency Map */}
         {result.focusAreas.length > 0 && (
@@ -1457,6 +1464,7 @@ function InterviewView({ payload }: { payload: AnyObject }) {
           </div>
         )}
       </div>
+      </ScrollReveal>
     </div>
   )
 }
@@ -1643,6 +1651,7 @@ function CareerView({ payload }: { payload: AnyObject }) {
   return (
     <div className="cp-body-grid">
       {/* Left: Main content */}
+      <ScrollReveal>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
         {/* Primary recommended path */}
         <div className="cp-primary-card">
@@ -1714,8 +1723,10 @@ function CareerView({ payload }: { payload: AnyObject }) {
           </div>
         )}
       </div>
+      </ScrollReveal>
 
       {/* Right: Sidebar */}
+      <ScrollReveal delay={0.06}>
       <div className="cp-sidebar">
         {/* Alternative paths */}
         {altPaths.length > 0 && (
@@ -1753,6 +1764,7 @@ function CareerView({ payload }: { payload: AnyObject }) {
           </p>
         </div>
       </div>
+      </ScrollReveal>
     </div>
   )
 }
@@ -1833,6 +1845,7 @@ function PortfolioView({ payload }: { payload: AnyObject }) {
   return (
     <div className="pf-body-grid">
       {/* Left: Build sequence */}
+      <ScrollReveal>
       <div className="pf-sequence">
         <h3 className="pf-sequence__title">
           <Hash size={18} className="pf-sequence__title-icon" />
@@ -1879,8 +1892,10 @@ function PortfolioView({ payload }: { payload: AnyObject }) {
           })}
         </div>
       </div>
+      </ScrollReveal>
 
       {/* Right: Sidebar */}
+      <ScrollReveal delay={0.06}>
       <div className="pf-sidebar">
         {/* Presentation tips */}
         {result.presentationTips.length > 0 && (
@@ -1925,6 +1940,7 @@ function PortfolioView({ payload }: { payload: AnyObject }) {
           <p className="pf-strategy-card__focus">{result.strategy.focus}</p>
         </div>
       </div>
+      </ScrollReveal>
     </div>
   )
 }
