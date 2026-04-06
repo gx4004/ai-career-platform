@@ -1,4 +1,3 @@
-import '#/styles/results.css'
 import { getRouteApi } from '@tanstack/react-router'
 import { ToolResultScreen } from '#/components/tooling/ToolResultScreen'
 

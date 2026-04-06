@@ -1,4 +1,3 @@
-import '#/styles/dashboard.css'
 import { useEffect } from 'react'
 import { DashboardHero } from '#/components/dashboard/DashboardHero'
 import { FavoriteRuns } from '#/components/dashboard/FavoriteRuns'

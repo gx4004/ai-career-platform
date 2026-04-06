@@ -140,7 +140,7 @@ export function ScrollReveal({
       variants={fadeUp}
       initial="hidden"
       whileInView="visible"
-      viewport={{ once: true, amount: 0.05 }}
+      viewport={{ once: true, amount: 0.2 }}
       transition={{ duration: 0.5, delay, ease }}
       className={className}
       style={style}
@@ -173,7 +173,7 @@ export function ScrollStagger({
     <motion.div
       initial="hidden"
       whileInView="visible"
-      viewport={{ once: true, amount: 0.05 }}
+      viewport={{ once: true, amount: 0.15 }}
       variants={{
         hidden: {},
         visible: { transition: { staggerChildren: stagger, delayChildren: delay } },
@@ -215,7 +215,7 @@ export function ScrollStaggerItem({
 
 export function useViewportTrigger(
   ref: RefObject<HTMLElement | null>,
-  { threshold = 0, once = true } = {},
+  { threshold = 0.4, once = true } = {},
 ) {
   const [triggered, setTriggered] = useState(false)
 
@@ -321,7 +321,7 @@ export function ScrollFadeUp({
       variants={fadeUp}
       initial="hidden"
       whileInView="visible"
-      viewport={{ once: true, amount: 0.05 }}
+      viewport={{ once: true, amount: 0.15 }}
       transition={{ type: 'spring', stiffness: 80, damping: 20, delay }}
       className={className}
       style={style}
@@ -436,7 +436,7 @@ export function ScrollStaggerGrid({
     <motion.div
       initial="hidden"
       whileInView="visible"
-      viewport={{ once: true, amount: 0.05 }}
+      viewport={{ once: true, amount: 0.1 }}
       variants={{
         hidden: {},
         visible: { transition: { staggerChildren: stagger, delayChildren: delay } },

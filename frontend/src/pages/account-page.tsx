@@ -1,4 +1,3 @@
-import '#/styles/settings.css'
 import { Link } from '@tanstack/react-router'
 import { Badge } from '#/components/ui/badge'
 import { Button } from '#/components/ui/button'
