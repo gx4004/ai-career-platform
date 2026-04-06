@@ -14,7 +14,7 @@ export function LandingCTA() {
       id="landing-cta"
       initial={prefersReducedMotion ? false : { opacity: 0, filter: 'blur(8px)' }}
       whileInView={{ opacity: 1, filter: 'blur(0px)' }}
-      viewport={{ once: true, amount: 0.05 }}
+      viewport={{ once: true, amount: 0.2 }}
       transition={{ duration: prefersReducedMotion ? 0 : 0.6, ease: [0.16, 1, 0.3, 1] }}
     >
       {/* Aurora blob */}
@@ -36,14 +36,18 @@ export function LandingCTA() {
 
         <ScrollStaggerItem>
           <ul className="landing-cta-dark-bullets">
-            {landingCtaCopy.valueBullets.map((bullet) => (
-              <li
+            {landingCtaCopy.valueBullets.map((bullet, i) => (
+              <motion.li
                 key={bullet}
                 className="landing-cta-dark-bullet"
+                initial={prefersReducedMotion ? false : { opacity: 0, x: 16 }}
+                whileInView={{ opacity: 1, x: 0 }}
+                viewport={{ once: true, amount: 0.5 }}
+                transition={{ duration: 0.4, delay: i * 0.08, ease: [0.16, 1, 0.3, 1] }}
               >
                 <Check size={14} className="landing-cta-dark-check" />
                 {bullet}
-              </li>
+              </motion.li>
             ))}
           </ul>
         </ScrollStaggerItem>

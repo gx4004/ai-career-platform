@@ -1,4 +1,3 @@
-import '#/styles/auth.css'
 import { Link, useRouter } from '@tanstack/react-router'
 import { useState } from 'react'
 import { AppStatePanel } from '#/components/app/AppStatePanel'

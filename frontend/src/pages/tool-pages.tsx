@@ -1,5 +1,3 @@
-import '#/styles/tooling.css'
-import '#/styles/tooling-fullscreen.css'
 import { CareerToolPage } from '#/components/tooling/CareerToolPage'
 import { CoverLetterToolPage } from '#/components/tooling/CoverLetterToolPage'
 import { InterviewToolPage } from '#/components/tooling/InterviewToolPage'

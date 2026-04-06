@@ -1,4 +1,3 @@
-import '#/styles/admin.css'
 import { Link, Outlet, useRouterState } from '@tanstack/react-router'
 import { LayoutDashboard, Users, FileText, ArrowLeft } from 'lucide-react'
 

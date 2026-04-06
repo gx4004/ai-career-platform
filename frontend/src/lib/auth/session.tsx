@@ -75,14 +75,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     queryKey: ['auth-providers'],
     queryFn: getAuthProviders,
     retry: false,
-    staleTime: 60 * 60_000,  // providers never change — cache 1 hour
   })
 
   const healthQuery = useQuery({
     queryKey: ['health'],
     queryFn: getHealth,
     retry: false,
-    staleTime: 10 * 60_000,  // backend health — cache 10 min
   })
 
   useEffect(() => {
@@ -102,16 +100,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       // Clear user-specific query caches so stale data isn't visible after re-auth
       queryClient.removeQueries({ queryKey: ['history-page'] })
       queryClient.removeQueries({ queryKey: ['history-workspaces'] })
-      // Only remove server-fetched (authenticated) tool-run entries.
-      // Preserve guest_demo entries and freshly-set mutation results so
-      // the user doesn't land on a blank result page during session expiry.
-      queryClient.removeQueries({
-        queryKey: ['tool-run'],
-        predicate: (query) => {
-          const data = query.state.data as Record<string, unknown> | undefined
-          return !data || data.access_mode === 'authenticated'
-        },
-      })
+      queryClient.removeQueries({ queryKey: ['tool-run'] })
       queryClient.setQueryData(['current-user'], null)
       setToken(null)
       setAuthView('login')
