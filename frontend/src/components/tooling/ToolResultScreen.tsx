@@ -89,6 +89,22 @@ export function ToolResultScreen({
     }
   }, [])
   const hasLocalData = Boolean(localItem)
+
+  // Track when the result page has no local data and must fetch from backend.
+  // This should rarely happen — a cache miss here means the mutation's onSuccess
+  // failed to populate the cache, or the cache was cleared between navigation.
+  useEffect(() => {
+    if (!hasLocalData) {
+      trackTelemetry({
+        event_name: 'result_page_cache_miss',
+        tool_id: toolId,
+        history_id: historyId,
+        metadata: { session_status: status },
+      })
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- only on mount
+  }, [])
+
   const query = useQuery({
     queryKey: ['tool-run', historyId],
     queryFn: () => getHistoryItem(historyId),

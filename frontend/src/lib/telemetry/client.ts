@@ -17,6 +17,7 @@ export type TelemetryEventName =
   | 'countdown_completed'
   | 'auth_signup_source'
   | 'workflow_continued'
+  | 'result_page_cache_miss'
 
 type TelemetryPayload = {
   event_name: TelemetryEventName

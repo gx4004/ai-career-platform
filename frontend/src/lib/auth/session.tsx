@@ -100,7 +100,16 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       // Clear user-specific query caches so stale data isn't visible after re-auth
       queryClient.removeQueries({ queryKey: ['history-page'] })
       queryClient.removeQueries({ queryKey: ['history-workspaces'] })
-      queryClient.removeQueries({ queryKey: ['tool-run'] })
+      // Only remove server-fetched (authenticated) tool-run entries.
+      // Preserve guest_demo entries and freshly-set mutation results so
+      // the user doesn't land on a blank result page during session expiry.
+      queryClient.removeQueries({
+        queryKey: ['tool-run'],
+        predicate: (query) => {
+          const data = query.state.data as Record<string, unknown> | undefined
+          return !data || data.access_mode === 'authenticated'
+        },
+      })
       queryClient.setQueryData(['current-user'], null)
       setToken(null)
       setAuthView('login')

@@ -6,6 +6,7 @@ import { useSession } from '#/hooks/useSession'
 import { readWorkflowContext, writeWorkflowContext } from '#/lib/tools/drafts'
 import type { ToolDraftState } from '#/lib/tools/drafts'
 import { setTransientResult } from '#/lib/tools/demoRuns'
+import { deriveRunMetadata } from '#/lib/tools/runMetadata'
 import { trackTelemetry } from '#/lib/telemetry/client'
 import { getApplicationHandoffPayload } from '#/lib/tools/applicationHandoff'
 import type { ToolDefinition } from '#/lib/tools/registry'
@@ -24,6 +25,9 @@ export function useToolMutation(tool: ToolDefinition) {
   const queryClient = useQueryClient()
   const { status, openAuthDialog } = useSession()
   const abortRef = useRef<AbortController | null>(null)
+  // Keep a ref so the async mutationFn always reads the latest session status
+  const statusRef = useRef(status)
+  statusRef.current = status
 
   // Abort in-flight request on tab close / visibility change
   const handleUnload = useCallback(() => {
@@ -42,9 +46,13 @@ export function useToolMutation(tool: ToolDefinition) {
       parentRunId?: string
       feedback?: string
     }) => {
-      const accessMode = status === 'authenticated' ? 'authenticated' : 'guest_demo'
+      // Preload the result page chunk while the LLM call runs (15-60s)
+      void import('#/pages/tool-result-pages').catch(() => {})
 
-      if (tool.authRequiredToRun && status !== 'authenticated') {
+      const currentStatus = statusRef.current
+      const accessMode = currentStatus === 'authenticated' ? 'authenticated' : 'guest_demo'
+
+      if (tool.authRequiredToRun && currentStatus !== 'authenticated') {
         openAuthDialog({
           to: tool.route,
           reason: `${tool.shortLabel.toLowerCase()}-run`,
@@ -99,7 +107,7 @@ export function useToolMutation(tool: ToolDefinition) {
       let historyId = extractHistoryId(result)
       let saved = typeof result.saved === 'boolean' ? result.saved : Boolean(historyId)
 
-      if (!historyId && saved && status === 'authenticated') {
+      if (!historyId && saved && statusRef.current === 'authenticated') {
         const latest = await getHistory({
           tool: tool.id,
           page: 1,
@@ -145,24 +153,35 @@ export function useToolMutation(tool: ToolDefinition) {
 
       return { historyId, result, saved }
     },
-    onSuccess: async ({ historyId, result, saved }, variables) => {
+    onSuccess: ({ historyId, result, saved }, variables) => {
+      // Synchronously populate the query cache with a complete ToolRunDetail shape
       queryClient.setQueryData(['tool-run', historyId], {
         id: historyId,
         tool_name: tool.id,
         label: tool.shortLabel,
+        is_favorite: false,
         saved,
         access_mode: saved ? 'authenticated' : 'guest_demo',
+        locked_actions: saved ? [] : ['save', 'favorite', 'continue', 'history'],
         parent_run_id: variables.parentRunId ?? null,
+        metadata: deriveRunMetadata(tool.id, result),
+        workspace: null,
         result_payload: result,
         created_at: new Date().toISOString(),
       })
-      if (saved) {
-        await queryClient.invalidateQueries({ queryKey: ['history-page'] })
-        await queryClient.invalidateQueries({ queryKey: ['history-workspaces'] })
-      }
-      await navigate({
+
+      // Navigate synchronously — do NOT await. This ensures navigation is
+      // queued in the same microtask as the cache set, before React re-renders
+      // the tool page (which would briefly flash the form).
+      void navigate({
         to: tool.resultRoute.replace('$historyId', historyId),
       })
+
+      // Fire-and-forget cache invalidation AFTER navigation is queued
+      if (saved) {
+        void queryClient.invalidateQueries({ queryKey: ['history-page'] })
+        void queryClient.invalidateQueries({ queryKey: ['history-workspaces'] })
+      }
     },
   })
 }
