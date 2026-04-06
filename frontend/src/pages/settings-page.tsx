@@ -1,3 +1,4 @@
+import '#/styles/settings.css'
 import { useState, useEffect } from 'react'
 import { Link } from '@tanstack/react-router'
 import { RotateCcw } from 'lucide-react'

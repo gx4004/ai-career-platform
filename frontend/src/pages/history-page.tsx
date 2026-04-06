@@ -1,3 +1,4 @@
+import '#/styles/history.css'
 import { getRouteApi } from '@tanstack/react-router'
 import { HistoryPage } from '#/components/history/HistoryPage'
 

@@ -47,6 +47,6 @@ describe('LandingExperimentHero', () => {
     expect(heading?.textContent).toContain('blind spots.')
     expect(heading?.textContent).toContain('We find them before recruiters do.')
     // Product mockup with window bar
-    expect(container.textContent).toContain('careerworkbench.io')
+    expect(container.textContent).toContain('thecareerworkbench.com')
   })
 })

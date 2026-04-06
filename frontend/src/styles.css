@@ -5,13 +5,5 @@
 @import './styles/typography.css';
 @import './styles/animations.css';
 @import './styles/shell.css';
-@import './styles/landing.css';
-@import './styles/dashboard.css';
-@import './styles/tooling.css';
-@import './styles/tooling-fullscreen.css';
-@import './styles/results.css';
-@import './styles/history.css';
-@import './styles/auth.css';
 @import './styles/responsive.css';
-@import './styles/settings.css';
-@import './styles/admin.css';
+/* Page-specific CSS is imported in each page component */
