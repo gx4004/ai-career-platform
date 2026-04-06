@@ -130,10 +130,9 @@ export function HistoryPage({
   if (status !== 'authenticated') {
     return (
       <AppStatePanel
-        badge="History"
-        title="Sign in to view your history"
-        description="Saved runs, favorites, and workspace persistence are tied to your account."
-        scene="emptyPlanning"
+        title="Pick up where you left off"
+        description="Your saved runs, favorites, and workflow chains live here — sign in to unlock your full workspace history."
+        scene="dashboardHero"
         actions={[
           {
             label: 'Sign in',
@@ -161,9 +160,9 @@ export function HistoryPage({
             ['Favorites', totalFavorites],
             ['Tools Used', totalTools],
           ].map(([label, value]) => (
-            <div key={label} className="section-card h-stat-card p-5">
+            <div key={label} className="h-stat-card p-5">
               <p className="eyebrow mb-2">{label}</p>
-              <p className="display-lg mono">{value}</p>
+              <p className="display-lg">{value}</p>
             </div>
           ))}
         </div>

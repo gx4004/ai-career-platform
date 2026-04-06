@@ -33,7 +33,7 @@ export function AppStatePanel({
   return (
     <section className="page-shell">
       <div className="content-narrow">
-        <div className="section-card grid gap-5 p-8 text-center">
+        <div className="app-state-panel section-card grid gap-5 p-8 text-center">
           {badge ? <div className="section-kicker mx-auto">{badge}</div> : null}
           {visual ? <div className="mx-auto w-full max-w-sm">{visual}</div> : null}
           {!visual && scene ? (
@@ -43,17 +43,18 @@ export function AppStatePanel({
           ) : null}
           {icon ? <div className="mx-auto">{icon}</div> : null}
           <div className="grid gap-2">
-            <h1 className="page-title">{title}</h1>
+            <h1 className="app-state-panel-title">{title}</h1>
             <p className="muted-copy">{description}</p>
             {detail ? <p className="small-copy muted-copy">{detail}</p> : null}
           </div>
           {actions.length > 0 ? (
             <div className="button-cluster button-cluster--center justify-center">
-              {actions.map((action) =>
+              {actions.map((action, i) =>
                 action.to ? (
                   <Button
                     key={action.label}
                     variant={action.variant || 'default'}
+                    className={i === 0 ? 'button-hero-primary' : undefined}
                     asChild
                   >
                     <Link to={action.to}>{action.label}</Link>
@@ -62,6 +63,7 @@ export function AppStatePanel({
                   <Button
                     key={action.label}
                     variant={action.variant || 'default'}
+                    className={i === 0 ? 'button-hero-primary' : undefined}
                     onClick={action.onClick}
                   >
                     {action.label}
