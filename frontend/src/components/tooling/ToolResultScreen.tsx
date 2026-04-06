@@ -282,7 +282,7 @@ export function ToolResultScreen({
         {/* ── Hero ── */}
         <FadeIn delay={0.05}>
         <div className={`result-hero${definition.heroVariant === 'dark' ? ' result-hero--dark' : ''}`}>
-          <div className="result-hero__top">
+          <div className={`result-hero__top${!heroMetric ? ' result-hero__top--centered' : ''}`}>
             {heroMetric ? (
               <div style={{ position: 'relative' }}>
                 {heroMetric}
