@@ -1,15 +1,15 @@
 import { useRef } from 'react'
 import { ArrowRight, Check } from 'lucide-react'
-import { motion, useReducedMotion } from 'framer-motion'
+import { motion, useReducedMotion, useInView } from 'framer-motion'
 import { Button } from '#/components/ui/button'
-import { ScrollStagger, ScrollStaggerItem, MagneticButton, useViewportTrigger } from '#/components/ui/motion'
+import { ScrollStagger, ScrollStaggerItem, MagneticButton } from '#/components/ui/motion'
 import { AppBrandLockup } from '#/components/app/AppBrandLockup'
 import { landingCtaCopy, landingPrimaryCta } from '#/components/landing/landingContent'
 
 export function LandingCTA() {
   const prefersReducedMotion = useReducedMotion() ?? false
   const sectionRef = useRef<HTMLElement>(null)
-  const sectionTriggered = useViewportTrigger(sectionRef, { threshold: 0.15 })
+  const sectionTriggered = useInView(sectionRef, { once: true, amount: 0 })
 
   return (
     <motion.section

@@ -1,7 +1,7 @@
 'use client'
 
 import { type ReactNode, type CSSProperties, type RefObject, useRef, useState, useEffect } from 'react'
-import { motion, animate, AnimatePresence, MotionConfig, useScroll, useTransform, useReducedMotion, useMotionValue, type Variants } from 'framer-motion'
+import { motion, animate, AnimatePresence, MotionConfig, useScroll, useTransform, useReducedMotion, useMotionValue, useInView, type Variants } from 'framer-motion'
 
 const spring = { type: 'spring', stiffness: 260, damping: 20 }
 const ease = [0.16, 1, 0.3, 1] as const
@@ -137,14 +137,14 @@ export function ScrollReveal({
 }) {
   const ref = useRef<HTMLDivElement>(null)
   const prefersReducedMotion = useReducedMotion() ?? false
-  const triggered = useViewportTrigger(ref, { threshold: 0.2 })
+  const inView = useInView(ref, { once: true, amount: 0 })
 
   return (
     <motion.div
       ref={ref}
       variants={fadeUp}
       initial="hidden"
-      animate={triggered || prefersReducedMotion ? 'visible' : 'hidden'}
+      animate={inView || prefersReducedMotion ? 'visible' : 'hidden'}
       transition={{ duration: 0.5, delay, ease }}
       className={className}
       style={style}
@@ -169,7 +169,7 @@ export function ScrollStagger({
 }) {
   const ref = useRef<HTMLDivElement>(null)
   const prefersReducedMotion = useReducedMotion() ?? false
-  const triggered = useViewportTrigger(ref, { threshold: 0.15 })
+  const inView = useInView(ref, { once: true, amount: 0 })
 
   if (prefersReducedMotion) {
     return <div className={className} style={style}>{children}</div>
@@ -179,7 +179,7 @@ export function ScrollStagger({
     <motion.div
       ref={ref}
       initial="hidden"
-      animate={triggered ? 'visible' : 'hidden'}
+      animate={inView ? 'visible' : 'hidden'}
       variants={{
         hidden: {},
         visible: { transition: { staggerChildren: stagger, delayChildren: delay } },
@@ -221,7 +221,7 @@ export function ScrollStaggerItem({
 
 export function useViewportTrigger(
   ref: RefObject<HTMLElement | null>,
-  { threshold = 0.4, once = true } = {},
+  { threshold = 0, once = true } = {},
 ) {
   const [triggered, setTriggered] = useState(false)
 
@@ -320,7 +320,7 @@ export function ScrollFadeUp({
 }) {
   const ref = useRef<HTMLDivElement>(null)
   const prefersReducedMotion = useReducedMotion() ?? false
-  const triggered = useViewportTrigger(ref, { threshold: 0.15 })
+  const inView = useInView(ref, { once: true, amount: 0 })
 
   if (prefersReducedMotion) {
     return <div className={className} style={style}>{children}</div>
@@ -330,7 +330,7 @@ export function ScrollFadeUp({
       ref={ref}
       variants={fadeUp}
       initial="hidden"
-      animate={triggered ? 'visible' : 'hidden'}
+      animate={inView ? 'visible' : 'hidden'}
       transition={{ type: 'spring', stiffness: 80, damping: 20, delay }}
       className={className}
       style={style}
@@ -439,7 +439,7 @@ export function ScrollStaggerGrid({
 }) {
   const ref = useRef<HTMLDivElement>(null)
   const prefersReducedMotion = useReducedMotion() ?? false
-  const triggered = useViewportTrigger(ref, { threshold: 0.1 })
+  const inView = useInView(ref, { once: true, amount: 0 })
 
   if (prefersReducedMotion) {
     return <div className={className} style={style}>{children}</div>
@@ -448,7 +448,7 @@ export function ScrollStaggerGrid({
     <motion.div
       ref={ref}
       initial="hidden"
-      animate={triggered ? 'visible' : 'hidden'}
+      animate={inView ? 'visible' : 'hidden'}
       variants={{
         hidden: {},
         visible: { transition: { staggerChildren: stagger, delayChildren: delay } },
