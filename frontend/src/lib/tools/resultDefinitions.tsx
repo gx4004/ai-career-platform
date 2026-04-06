@@ -282,12 +282,6 @@ function scoreColor(score: number) {
   return '#ef4444'
 }
 
-function priorityTone(priority: 'high' | 'medium' | 'low') {
-  if (priority === 'high') return 'var(--destructive)'
-  if (priority === 'medium') return 'var(--warning)'
-  return 'var(--success)'
-}
-
 function statusTone(status: 'matched' | 'partial' | 'missing') {
   if (status === 'matched') return 'var(--success)'
   if (status === 'partial') return 'var(--warning)'
@@ -1246,6 +1240,38 @@ function InterviewHeroExtra({ payload }: { payload: AnyObject }) {
   )
 }
 
+function InterviewFixFirstStrip({ payload }: { payload: AnyObject }) {
+  const result = normalizeInterviewPayload(payload)
+  const actions = result.topActions.slice(0, 3)
+  if (actions.length === 0) return null
+
+  return (
+    <div className="fix-first-strip stagger-entrance">
+      {actions.map((a, i) => {
+        const Icon = FIX_FIRST_ICONS[i] || FileEdit
+        const style = FIX_FIRST_CARD_STYLES[i] || FIX_FIRST_CARD_STYLES[0]
+        return (
+          <div key={`${a.title}-${i}`} className="fix-first-card">
+            <div className="fix-first-card__icon" style={{ background: style.bg }}>
+              <Icon size={18} style={{ color: style.text }} />
+            </div>
+            <div className="fix-first-card__content">
+              <div className="fix-first-card__title">{a.title}</div>
+              <div className="fix-first-card__desc">{a.action}</div>
+              <div className="fix-first-card__footer">
+                <span className="fix-first-card__priority" style={{ color: style.text }}>
+                  {FIX_FIRST_LABELS[a.priority] || a.priority}
+                </span>
+                <ArrowRight size={16} style={{ color: 'var(--text-soft)' }} />
+              </div>
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 function InterviewView({ payload }: { payload: AnyObject }) {
   const result = normalizeInterviewPayload(payload)
   const [showWeakestFirst, setShowWeakestFirst] = useState(false)
@@ -1386,13 +1412,18 @@ function InterviewView({ payload }: { payload: AnyObject }) {
 
         {/* Weak signals */}
         {result.weakSignals.length > 0 && (
-          <div className="iv-keyword-card">
-            <div className="iv-keyword-card__title">Weak signals</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <div className="iv-weak-signals-card">
+            <div className="iv-weak-signals-card__title">Weak signals</div>
+            <div className="iv-weak-signals-card__list">
               {result.weakSignals.map((w) => (
-                <div key={w.title} style={{ paddingLeft: '0.75rem', borderLeft: `2px solid ${priorityTone(w.severity)}` }}>
-                  <div style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'var(--text-strong)', marginBottom: '0.25rem' }}>{w.title}</div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', lineHeight: 1.5 }}>{w.prepAction}</div>
+                <div key={w.title} className={`iv-weak-signal iv-weak-signal--${w.severity}`}>
+                  <div className="iv-weak-signal__header">
+                    <span className="iv-weak-signal__title">{w.title}</span>
+                    <span className={`iv-weak-signal__badge iv-weak-signal__badge--${w.severity}`}>
+                      {w.severity}
+                    </span>
+                  </div>
+                  <p className="iv-weak-signal__action">{w.prepAction}</p>
                 </div>
               ))}
             </div>
@@ -1940,7 +1971,9 @@ export const resultDefinitions: Record<ToolId, ResultDefinition> = {
   },
   interview: {
     copyText: (payload) => interviewCopyText(payload),
+    heroVariant: 'dark',
     heroExtra: (payload) => <InterviewHeroExtra payload={payload} />,
+    midSection: (payload) => <InterviewFixFirstStrip payload={payload} />,
     render: (payload) => <InterviewView payload={payload} />,
   },
   career: {
