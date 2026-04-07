@@ -171,6 +171,37 @@ export const landingSocialProofStat = {
   label: 'resumes analyzed so far',
 } as const
 
+export const landingTestimonials = [
+  {
+    initials: 'AI',
+    name: 'Aisha',
+    role: 'Product Manager',
+    quote:
+      'The blind spot analysis found three missing keywords that were keeping me from getting interviews at Tier 1 tech firms.',
+  },
+  {
+    initials: 'DA',
+    name: 'Daniel',
+    role: 'Data Analyst',
+    quote:
+      'I finally understand why my profile wasn\u2019t matching. The Job Match tool is a game changer for tailored applications.',
+  },
+  {
+    initials: 'SA',
+    name: 'Sarah',
+    role: 'Sales Exec',
+    quote:
+      'Went from zero callbacks to three interviews in one week. The AI-generated cover letters actually sound human.',
+  },
+  {
+    initials: 'TO',
+    name: 'Tom\u00e1s',
+    role: 'Frontend Engineer',
+    quote:
+      'Simple, focused, and effective. The workflow moved me from being overwhelmed to being fully prepared.',
+  },
+] as const
+
 export const landingWorkflowFeatures = [
   {
     step: 'Review',
