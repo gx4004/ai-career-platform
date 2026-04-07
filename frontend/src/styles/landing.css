@@ -1108,7 +1108,7 @@ body:has(.lp-redesign)::after { display: none !important; }
   color: var(--lp-text-mute);
   overflow: hidden;
 }
-.lp-redesign .lp-hero-trust-label { display: block; margin-bottom: 0.75rem; }
+.lp-redesign .lp-hero-trust-label { display: block; margin-bottom: 0.75rem; text-align: center; }
 .lp-redesign .lp-hero-trust-track-wrap {
   overflow: hidden;
   -webkit-mask: linear-gradient(90deg, transparent, #000 14%, #000 86%, transparent);
