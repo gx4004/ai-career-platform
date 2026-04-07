@@ -255,6 +255,35 @@
   -webkit-backdrop-filter: blur(20px);
 }
 
+/* Dark mobile drawer for the redesigned landing — matches navbar theme,
+   ensures readable text contrast (the white drawer washed everything out). */
+.lp-redesign .landing-experiment-navbar-mobile {
+  background: linear-gradient(180deg, rgba(8, 18, 34, 0.98), rgba(6, 14, 28, 0.98));
+  color: rgba(235, 244, 255, 0.95);
+}
+.lp-redesign .landing-experiment-navbar-mobile a {
+  color: rgba(235, 244, 255, 0.95) !important;
+}
+.lp-redesign .landing-experiment-navbar-mobile a:hover {
+  color: #fff !important;
+}
+.lp-redesign .landing-experiment-navbar-mobile svg {
+  color: rgba(180, 200, 230, 0.75);
+}
+.lp-redesign .landing-experiment-navbar-mobile button[aria-label='Close menu'] {
+  color: rgba(235, 244, 255, 0.95);
+}
+.lp-redesign .landing-experiment-navbar-mobile .landing-experiment-navbar-cta--mobile.landing-experiment-navbar-cta--secondary {
+  color: rgba(235, 244, 255, 0.92) !important;
+  background: transparent !important;
+  border-color: rgba(120, 160, 210, 0.35) !important;
+}
+.lp-redesign .landing-experiment-navbar-mobile .landing-experiment-navbar-cta--mobile:not(.landing-experiment-navbar-cta--secondary) {
+  background: linear-gradient(135deg, #4f8af0, #3a6dd0) !important;
+  color: #fff !important;
+  border-color: transparent !important;
+}
+
 /* ── Navbar active indicator + hover ── */
 
 .nav-indicator-wrap {
@@ -1733,4 +1762,420 @@ body:has(.lp-redesign)::after { display: none !important; }
   .lp-redesign .lp-section-h2 { letter-spacing: -0.028em; }
 }
 
+/* ─────────────────────────────────────────────────────────────
+   LP WHITE THEME — live main landing only.
+   Final override layer that rethemes the existing deployed
+   landing structure without touching routes or content.
+   ───────────────────────────────────────────────────────────── */
+.landing-page-experiment.lp-redesign {
+  --lp-bg: #f7f7f4;
+  --lp-surface: rgba(255, 255, 255, 0.92);
+  --lp-surface-2: rgba(255, 255, 255, 0.98);
+  --lp-surface-3: #f1f1ec;
+  --lp-surface-hi: #e7e6df;
+  --lp-surface-lowest: #fbfbf8;
+  --lp-text: #171717;
+  --lp-text-dim: #4e4d48;
+  --lp-text-mute: #76736c;
+  --lp-primary: #181818;
+  --lp-primary-strong: #040404;
+  --lp-tertiary: #4f4f4b;
+  --lp-secondary: #30302d;
+  --lp-outline: rgba(24, 24, 24, 0.12);
+  background:
+    radial-gradient(circle at 50% -8%, rgba(255, 255, 255, 0.92), transparent 34%),
+    linear-gradient(180deg, #fbfbf8 0%, #f7f7f4 42%, #f1f0eb 100%);
+  color: var(--lp-text);
+}
+
+.landing-page-experiment.lp-redesign main {
+  background: transparent;
+}
+
+body:has(.landing-page-experiment.lp-redesign),
+body.page-tone-landing:has(.landing-page-experiment.lp-redesign) {
+  background:
+    radial-gradient(circle at 18% -4%, rgba(255, 255, 255, 0.96), transparent 24%),
+    radial-gradient(circle at 100% 0%, rgba(215, 215, 210, 0.16), transparent 22%),
+    linear-gradient(180deg, #fcfcfa 0%, #f7f7f4 48%, #f0efea 100%) !important;
+}
+
+body:has(.landing-page-experiment.lp-redesign)::before,
+body:has(.landing-page-experiment.lp-redesign)::after {
+  display: block !important;
+}
+
+body:has(.landing-page-experiment.lp-redesign)::before {
+  background:
+    linear-gradient(rgba(255, 255, 255, 0.42), rgba(255, 255, 255, 0.1)),
+    linear-gradient(90deg, rgba(70, 70, 65, 0.035) 1px, transparent 1px),
+    linear-gradient(rgba(70, 70, 65, 0.03) 1px, transparent 1px) !important;
+  background-size: 100% 100%, 72px 72px, 72px 72px !important;
+}
+
+body:has(.landing-page-experiment.lp-redesign)::after {
+  background: none !important;
+}
+
+.landing-page-experiment.lp-redesign .lp-ambient-orb {
+  opacity: 0.045;
+  filter: blur(180px);
+}
+
+.landing-page-experiment.lp-redesign .lp-ambient-orb-1 {
+  background: radial-gradient(circle, rgba(34, 34, 34, 0.2) 0%, transparent 66%);
+}
+
+.landing-page-experiment.lp-redesign .lp-ambient-orb-2 {
+  background: radial-gradient(circle, rgba(120, 120, 112, 0.14) 0%, transparent 68%);
+}
+
+.landing-page-experiment.lp-redesign .landing-experiment-navbar-inner,
+.landing-page-experiment.lp-redesign .landing-experiment-navbar-inner[data-state='dark'] {
+  background: rgba(255, 255, 255, 0.78) !important;
+  border: 1px solid rgba(28, 28, 28, 0.08) !important;
+  backdrop-filter: blur(22px) saturate(135%) !important;
+  -webkit-backdrop-filter: blur(22px) saturate(135%) !important;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.88) inset,
+    0 12px 32px rgba(18, 18, 18, 0.08),
+    0 2px 10px rgba(18, 18, 18, 0.04) !important;
+}
+
+.landing-page-experiment.lp-redesign .landing-experiment-navbar-link,
+.landing-page-experiment.lp-redesign [data-state='dark'] .landing-experiment-navbar-link,
+.landing-page-experiment.lp-redesign .landing-experiment-navbar-toggle,
+.landing-page-experiment.lp-redesign [data-state='dark'] .landing-experiment-navbar-toggle {
+  color: rgba(20, 20, 20, 0.72) !important;
+}
+
+.landing-page-experiment.lp-redesign .landing-experiment-navbar-link:hover,
+.landing-page-experiment.lp-redesign [data-state='dark'] .landing-experiment-navbar-link:hover,
+.landing-page-experiment.lp-redesign .landing-experiment-navbar-link--active,
+.landing-page-experiment.lp-redesign [data-state='dark'] .landing-experiment-navbar-link--active {
+  color: #050505 !important;
+}
+
+.landing-page-experiment.lp-redesign .nav-active-indicator,
+.landing-page-experiment.lp-redesign .nav-indicator-wrap:hover::before,
+.landing-page-experiment.lp-redesign .nav-indicator-wrap:has(.landing-experiment-navbar-link--active)::before {
+  background: rgba(18, 18, 18, 0.055) !important;
+}
+
+.landing-page-experiment.lp-redesign .landing-experiment-navbar-inner .landing-experiment-navbar-cta,
+.landing-page-experiment.lp-redesign .landing-experiment-navbar-inner[data-state='dark'] .landing-experiment-navbar-cta,
+.landing-page-experiment.lp-redesign .lp-btn-primary {
+  background: linear-gradient(180deg, #111111 0%, #000000 100%) !important;
+  color: #ffffff !important;
+  border: 1px solid rgba(0, 0, 0, 0.12) !important;
+  box-shadow:
+    0 14px 34px rgba(0, 0, 0, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12) !important;
+}
+
+.landing-page-experiment.lp-redesign .landing-experiment-navbar-inner .landing-experiment-navbar-cta:not(.landing-experiment-navbar-cta--secondary):hover,
+.landing-page-experiment.lp-redesign .lp-btn-primary:hover {
+  background: linear-gradient(180deg, #1d1d1d 0%, #050505 100%) !important;
+}
+
+.landing-page-experiment.lp-redesign .landing-experiment-navbar-inner .landing-experiment-navbar-cta--secondary,
+.landing-page-experiment.lp-redesign .landing-experiment-navbar-inner[data-state='dark'] .landing-experiment-navbar-cta--secondary,
+.landing-page-experiment.lp-redesign .lp-btn-ghost {
+  background: rgba(255, 255, 255, 0.58) !important;
+  color: #161616 !important;
+  border: 1px solid rgba(24, 24, 24, 0.1) !important;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.72) inset !important;
+}
+
+.landing-page-experiment.lp-redesign .landing-experiment-navbar-inner .landing-experiment-navbar-cta--secondary:hover,
+.landing-page-experiment.lp-redesign .lp-btn-ghost:hover {
+  background: rgba(245, 245, 241, 0.96) !important;
+  color: #060606 !important;
+  border-color: rgba(24, 24, 24, 0.16) !important;
+}
+
+.landing-page-experiment.lp-redesign .lp-hero-eyebrow {
+  background: rgba(18, 18, 18, 0.055);
+  color: #171717;
+}
+
+.landing-page-experiment.lp-redesign .lp-hero-beta {
+  background: rgba(255, 255, 255, 0.72);
+  border-color: rgba(24, 24, 24, 0.1);
+  color: #50504b;
+}
+
+.landing-page-experiment.lp-redesign .lp-hero-beta-dot {
+  background: #111111;
+  box-shadow: 0 0 0 4px rgba(17, 17, 17, 0.1);
+}
+
+.landing-page-experiment.lp-redesign .lp-hero-h1,
+.landing-page-experiment.lp-redesign .lp-section-h2,
+.landing-page-experiment.lp-redesign .lp-cta-h2,
+.landing-page-experiment.lp-redesign .lp-tool-title,
+.landing-page-experiment.lp-redesign .lp-tool-title--lg,
+.landing-page-experiment.lp-redesign .lp-workflow-title,
+.landing-page-experiment.lp-redesign .lp-testimonial-name,
+.landing-page-experiment.lp-redesign .lp-footer-h5,
+.landing-page-experiment.lp-redesign .lp-faq-trigger {
+  color: #111111;
+}
+
+.landing-page-experiment.lp-redesign .lp-hero-body,
+.landing-page-experiment.lp-redesign .lp-section-sub,
+.landing-page-experiment.lp-redesign .lp-workflow-body,
+.landing-page-experiment.lp-redesign .lp-tool-summary,
+.landing-page-experiment.lp-redesign .lp-tool-summary--lg,
+.landing-page-experiment.lp-redesign .lp-testimonial-quote,
+.landing-page-experiment.lp-redesign .lp-faq-content,
+.landing-page-experiment.lp-redesign .lp-footer-blurb {
+  color: #52514d;
+}
+
+.landing-page-experiment.lp-redesign .lp-hero-shimmer {
+  color: #050505;
+}
+
+@supports (-webkit-background-clip: text) or (background-clip: text) {
+  .landing-page-experiment.lp-redesign .lp-hero-shimmer {
+    background-image: linear-gradient(
+      105deg,
+      #111111 0%,
+      #3c3c3a 30%,
+      #6c6b67 55%,
+      #232321 78%,
+      #050505 100%
+    );
+  }
+}
+
+.landing-page-experiment.lp-redesign .lp-hero-image-halo {
+  background:
+    radial-gradient(60% 60% at 50% 40%, rgba(24, 24, 24, 0.1), transparent 70%),
+    radial-gradient(60% 60% at 70% 70%, rgba(110, 110, 104, 0.08), transparent 72%);
+}
+
+.landing-page-experiment.lp-redesign .lp-hero-image-card {
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(24, 24, 24, 0.08);
+  box-shadow:
+    0 36px 80px -34px rgba(0, 0, 0, 0.28),
+    0 12px 22px rgba(0, 0, 0, 0.06);
+}
+
+.landing-page-experiment.lp-redesign .lp-hero-image-card img {
+  filter: grayscale(1) contrast(1.02) brightness(1.01);
+  opacity: 0.98;
+}
+
+.landing-page-experiment.lp-redesign .lp-hero-image-card::after {
+  background: linear-gradient(to top, rgba(247, 247, 244, 0.16) 0%, rgba(247, 247, 244, 0) 34%);
+}
+
+.landing-page-experiment.lp-redesign .lp-hero-trust {
+  border-top-color: rgba(24, 24, 24, 0.08);
+  color: #7a776f;
+}
+
+.landing-page-experiment.lp-redesign .lp-hero-trust-track {
+  color: #4e4d48;
+}
+
+.landing-page-experiment.lp-redesign .lp-testimonial-card,
+.landing-page-experiment.lp-redesign .lp-workflow-card,
+.landing-page-experiment.lp-redesign .lp-tool-card,
+.landing-page-experiment.lp-redesign .lp-tools-bento > .lp-tool-card:not(.lp-tool-card--featured),
+.landing-page-experiment.lp-redesign .lp-faq-item {
+  background: rgba(255, 255, 255, 0.84);
+  border: 1px solid rgba(24, 24, 24, 0.08);
+  box-shadow:
+    0 16px 34px rgba(20, 20, 20, 0.04),
+    0 2px 8px rgba(20, 20, 20, 0.025);
+}
+
+.landing-page-experiment.lp-redesign .lp-testimonial-card:hover,
+.landing-page-experiment.lp-redesign .lp-tool-card:hover,
+.landing-page-experiment.lp-redesign .lp-tools-bento > .lp-tool-card:not(.lp-tool-card--featured):hover,
+.landing-page-experiment.lp-redesign .lp-faq-trigger:hover {
+  background: #f2f1ec;
+}
+
+.landing-page-experiment.lp-redesign .lp-testimonial-avatar,
+.landing-page-experiment.lp-redesign .lp-tool-icon,
+.landing-page-experiment.lp-redesign .lp-tool-icon--lg {
+  background: rgba(17, 17, 17, 0.06);
+  color: #111111;
+}
+
+.landing-page-experiment.lp-redesign .lp-tool-card.is-accent-2 .lp-tool-icon,
+.landing-page-experiment.lp-redesign .lp-tool-card.is-accent-3 .lp-tool-icon {
+  background: rgba(17, 17, 17, 0.06);
+  color: #111111;
+}
+
+.landing-page-experiment.lp-redesign .lp-tool-phase,
+.landing-page-experiment.lp-redesign .lp-testimonial-role,
+.landing-page-experiment.lp-redesign .lp-cta-micro,
+.landing-page-experiment.lp-redesign .lp-footer-meta,
+.landing-page-experiment.lp-redesign .lp-footer-list a,
+.landing-page-experiment.lp-redesign .lp-footer-bottom,
+.landing-page-experiment.lp-redesign .lp-faq-chevron {
+  color: #77746d;
+}
+
+.landing-page-experiment.lp-redesign .lp-tool-bullet-dot {
+  background: #151515;
+  box-shadow: 0 0 0 3px rgba(17, 17, 17, 0.08);
+}
+
+.landing-page-experiment.lp-redesign .lp-tool-featured-cta {
+  color: #131313;
+  border-top-color: rgba(24, 24, 24, 0.1);
+}
+
+.landing-page-experiment.lp-redesign .lp-workflow-card-wrap {
+  background: linear-gradient(180deg, rgba(18, 18, 18, 0.12) 0%, rgba(18, 18, 18, 0) 100%);
+}
+
+.landing-page-experiment.lp-redesign .lp-workflow-card-wrap.is-step-2,
+.landing-page-experiment.lp-redesign .lp-workflow-card-wrap.is-step-3,
+.landing-page-experiment.lp-redesign .lp-workflow-card-wrap:hover,
+.landing-page-experiment.lp-redesign .lp-workflow-card-wrap.is-step-2:hover,
+.landing-page-experiment.lp-redesign .lp-workflow-card-wrap.is-step-3:hover {
+  background: linear-gradient(180deg, rgba(18, 18, 18, 0.12) 0%, rgba(18, 18, 18, 0) 100%);
+}
+
+.landing-page-experiment.lp-redesign .lp-workflow-num {
+  color: rgba(17, 17, 17, 0.12);
+  text-shadow: none;
+}
+
+.landing-page-experiment.lp-redesign .lp-workflow-card-wrap.is-step-2 .lp-workflow-num,
+.landing-page-experiment.lp-redesign .lp-workflow-card-wrap.is-step-3 .lp-workflow-num {
+  color: rgba(17, 17, 17, 0.12);
+}
+
+.landing-page-experiment.lp-redesign .lp-workflow-img,
+.landing-page-experiment.lp-redesign .lp-duotone img {
+  filter: grayscale(1) contrast(1.03) brightness(0.98);
+}
+
+.landing-page-experiment.lp-redesign .lp-duotone {
+  background: #efeee9;
+}
+
+.landing-page-experiment.lp-redesign .lp-duotone::after {
+  background: linear-gradient(180deg, rgba(247, 247, 244, 0) 55%, rgba(247, 247, 244, 0.5) 100%);
+}
+
+.landing-page-experiment.lp-redesign .lp-tools-eyebrow {
+  background: rgba(17, 17, 17, 0.04);
+  border-color: rgba(17, 17, 17, 0.08);
+  color: #4d4c47;
+}
+
+.landing-page-experiment.lp-redesign .lp-tool-card--featured {
+  background:
+    radial-gradient(circle at top right, rgba(0, 0, 0, 0.06), transparent 38%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(244, 243, 238, 0.98) 100%) !important;
+}
+
+.landing-page-experiment.lp-redesign .lp-tool-card--featured::before {
+  background: radial-gradient(circle, rgba(0, 0, 0, 0.08), transparent 68%);
+}
+
+.landing-page-experiment.lp-redesign .lp-faq-item[data-open="true"] {
+  background: linear-gradient(180deg, rgba(17, 17, 17, 0.035) 0%, rgba(17, 17, 17, 0) 100%);
+  border-color: rgba(24, 24, 24, 0.1);
+}
+
+.landing-page-experiment.lp-redesign .lp-cta-card {
+  background:
+    radial-gradient(circle at top left, rgba(0, 0, 0, 0.05), transparent 34%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(241, 240, 235, 0.98) 100%);
+  border: 1px solid rgba(24, 24, 24, 0.08);
+  box-shadow:
+    0 34px 72px rgba(12, 12, 12, 0.07),
+    inset 0 1px 0 rgba(255, 255, 255, 0.92);
+}
+
+.landing-page-experiment.lp-redesign .lp-cta-orb-1 {
+  background: rgba(18, 18, 18, 0.08);
+}
+
+.landing-page-experiment.lp-redesign .lp-cta-orb-2 {
+  background: rgba(110, 110, 104, 0.08);
+}
+
+.landing-page-experiment.lp-redesign .lp-footer {
+  background: transparent;
+  border-top: 1px solid rgba(24, 24, 24, 0.08);
+}
+
+.landing-page-experiment.lp-redesign .lp-footer::before {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(24, 24, 24, 0.14) 50%,
+    transparent 100%
+  );
+}
+
+.landing-page-experiment.lp-redesign .lp-footer-brand-link .cw-brand-wordmark {
+  filter: grayscale(1) brightness(0);
+}
+
+.landing-page-experiment.lp-redesign .lp-footer-list a:hover {
+  color: #111111;
+}
+
+.landing-page-experiment.lp-redesign .lp-footer-bottom {
+  border-top-color: rgba(24, 24, 24, 0.08);
+}
+
+.landing-page-experiment.lp-redesign .lp-footer-status-dot,
+.landing-page-experiment.lp-redesign .lp-hero-beta-dot {
+  animation-duration: 3s;
+}
+
+.landing-page-experiment.lp-redesign .lp-footer-status-dot {
+  background: #121212;
+  box-shadow: 0 0 0 4px rgba(18, 18, 18, 0.08);
+}
+
+@keyframes lpFooterPulseWhite {
+  0%, 100% { box-shadow: 0 0 0 4px rgba(18, 18, 18, 0.08); }
+  50% { box-shadow: 0 0 0 6px rgba(18, 18, 18, 0.02); }
+}
+
+.landing-page-experiment.lp-redesign .lp-footer-status-dot {
+  animation-name: lpFooterPulseWhite;
+}
+
+.landing-page-experiment.lp-redesign .lp-spotlight::before {
+  background: radial-gradient(
+    460px circle at var(--spot-x, 50%) var(--spot-y, 50%),
+    rgba(16, 16, 16, 0.12),
+    rgba(16, 16, 16, 0) 42%
+  );
+}
+
+@media (max-width: 767px) {
+  .landing-page-experiment.lp-redesign .lp-workflow-grid::before {
+    background: linear-gradient(180deg, rgba(18, 18, 18, 0.18), rgba(18, 18, 18, 0.08), transparent);
+  }
+
+  .landing-page-experiment.lp-redesign .lp-workflow-num {
+    background: #ffffff;
+    border-color: rgba(17, 17, 17, 0.12);
+    color: #111111;
+  }
+
+  .landing-page-experiment.lp-redesign .lp-tool-card--featured,
+  .landing-page-experiment.lp-redesign .lp-tools-bento > .lp-tool-card:not(.lp-tool-card--featured) {
+    background: rgba(255, 255, 255, 0.88) !important;
+    border: 1px solid rgba(24, 24, 24, 0.08);
+  }
+}
 
