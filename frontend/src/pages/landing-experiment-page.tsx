@@ -43,11 +43,12 @@ export function LandingExperimentPage() {
   }
 
   return (
-    <div className="landing-page landing-page-experiment premium-corner-canvas" id="landing-experiment">
-      {/* Ambient: grain texture overlay */}
-      <div className="landing-ambient-grain" aria-hidden="true" />
-      {/* Ambient: slow gradient hue shift */}
-      <div className="landing-ambient-gradient-shift" aria-hidden="true" />
+    <div className="landing-page landing-page-experiment lp-redesign premium-corner-canvas" id="landing-experiment">
+      {/* Ambient: two slow-drifting blurred orbs (perpetual micro-motion) */}
+      <div className="lp-ambient" aria-hidden="true">
+        <div className="lp-ambient-orb lp-ambient-orb-1" />
+        <div className="lp-ambient-orb lp-ambient-orb-2" />
+      </div>
       <LandingTubelightNavbar
         items={experimentItems}
         sectionIds={SECTION_IDS}
