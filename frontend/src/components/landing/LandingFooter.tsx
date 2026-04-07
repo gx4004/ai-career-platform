@@ -1,6 +1,5 @@
 import { Link } from '@tanstack/react-router'
 import { AppBrandLockup } from '#/components/app/AppBrandLockup'
-import { LEGAL_CONTACT_EMAIL } from '#/components/legal/constants'
 
 const currentYear = new Date().getFullYear()
 
@@ -10,10 +9,13 @@ export function LandingFooter() {
       <div className="landing-footer__inner">
         <div className="landing-footer__brand">
           <Link to="/" className="landing-footer__brand-link" aria-label="Career Workbench home">
-            <AppBrandLockup mode="compact" />
+            <AppBrandLockup mode="full" className="landing-footer__lockup" />
           </Link>
           <p className="landing-footer__tagline">
-            Your AI-powered job-search workspace. Thesis project, free to use.
+            The AI workspace for job seekers who want to move smarter, not harder.
+          </p>
+          <p className="landing-footer__meta">
+            Crafted for focused applicants. Built in Europe.
           </p>
         </div>
 
@@ -62,21 +64,15 @@ export function LandingFooter() {
             </ul>
           </div>
 
-          <div className="landing-footer__col">
-            <h2 className="landing-footer__col-title">Contact</h2>
-            <ul className="landing-footer__list">
-              <li>
-                <a href={`mailto:${LEGAL_CONTACT_EMAIL}`} className="landing-footer__link">
-                  {LEGAL_CONTACT_EMAIL}
-                </a>
-              </li>
-            </ul>
-          </div>
         </nav>
       </div>
 
       <div className="landing-footer__bottom">
         <p className="landing-footer__copy">© {currentYear} Career Workbench. All rights reserved.</p>
+        <p className="landing-footer__bottom-meta">
+          <span className="landing-footer__status-dot" aria-hidden="true" />
+          All systems operational
+        </p>
       </div>
     </footer>
   )
