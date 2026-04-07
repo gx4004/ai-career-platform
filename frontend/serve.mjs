@@ -24,6 +24,13 @@ const mimeTypes = {
 const { default: server } = await import('./dist/server/server.js')
 
 const httpServer = createServer(async (req, res) => {
+  // Redirect HTTP → HTTPS (Railway sets x-forwarded-proto when TLS is terminated)
+  if (req.headers['x-forwarded-proto'] === 'http') {
+    res.writeHead(301, { Location: `https://${req.headers.host}${req.url}` })
+    res.end()
+    return
+  }
+
   const url = new URL(req.url, `http://${req.headers.host}`)
 
   // TanStack dev-only stylesheet — serve empty in production
