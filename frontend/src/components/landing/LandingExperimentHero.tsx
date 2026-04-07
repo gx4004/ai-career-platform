@@ -1,4 +1,5 @@
 import { ArrowRight } from 'lucide-react'
+import { Link } from '@tanstack/react-router'
 import {
   motion,
   useMotionValue,
@@ -10,6 +11,8 @@ import {
   landingExperimentHeroCopy,
   landingPrimaryCta,
 } from '#/components/landing/landingContent'
+
+const MotionLink = motion(Link)
 
 // Neutral audience descriptors — no real brands/universities to avoid implied-endorsement
 // or trademark issues. Swap in testimonials later once we have written permission.
@@ -93,15 +96,15 @@ export function LandingExperimentHero() {
           </div>
         </div>
 
-        <motion.a
-          href="/dashboard"
-          className="lp-hero-image-wrap"
+        <MotionLink
+          to="/dashboard"
+          className="lp-hero-image-wrap lp-hero-image-link"
+          aria-label="Open Career Workbench dashboard"
           initial={prefersReducedMotion ? false : { opacity: 0, y: 28, scale: 0.98 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           transition={{ duration: 0.8, delay: 0.15, ease: [0.16, 1, 0.3, 1] }}
           onMouseMove={handleTilt}
           onMouseLeave={resetTilt}
-          style={{ display: 'block', textDecoration: 'none', cursor: 'pointer' }}
         >
           <div className="lp-hero-image-halo" aria-hidden="true" />
           <motion.div
@@ -119,7 +122,7 @@ export function LandingExperimentHero() {
               draggable={false}
             />
           </motion.div>
-        </motion.a>
+        </MotionLink>
       </div>
 
       {/* Trust marquee — outside the grid so it spans the full hero width */}
