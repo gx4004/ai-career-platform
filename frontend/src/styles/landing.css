@@ -455,6 +455,12 @@
   margin: 0 auto;
 }
 @media (min-width: 1024px) { .lp-redesign .lp-hero-grid { grid-template-columns: 1fr 1fr; gap: 4rem; } }
+/* Force GPU compositing layer so background-clip:text on shimmer spans doesn't
+   prevent sibling text from painting (Chrome headless without GPU renders incorrectly
+   without this — text vanishes from the entire block when any child uses clip-text). */
+.lp-redesign .lp-hero-copy {
+  transform: translateZ(0);
+}
 .lp-redesign .lp-hero-eyebrow {
   display: inline-block;
   padding: 0.375rem 0.875rem;
@@ -994,25 +1000,33 @@ body:has(.lp-redesign)::after { display: none !important; }
 
 /* Multi-color gradient on hero accent words — emerald → teal → sky blue,
    matching the deployed thecareerworkbench.com hero. Slow shimmer gives
-   it a subtle sheen without looking like an animated ad. */
+   it a subtle sheen without looking like an animated ad.
+   Fallback: plain primary color for environments where background-clip: text
+   is unavailable (GPU-less headless Chrome, older browsers). */
 .lp-redesign .lp-hero-shimmer {
-  background-image: linear-gradient(
-    105deg,
-    #5ad6a6 0%,
-    #58c9b5 22%,
-    #55b6c9 44%,
-    #5aa3df 66%,
-    #6a97ef 84%,
-    #7a92f2 100%
-  );
-  background-size: 160% 100%;
-  background-position: 0% 50%;
-  -webkit-background-clip: text;
-          background-clip: text;
-  -webkit-text-fill-color: transparent;
-          color: transparent;
-  animation: lpShimmerSlide 14s ease-in-out infinite alternate;
+  color: var(--lp-primary);
   display: inline-block;
+}
+
+@supports (-webkit-background-clip: text) or (background-clip: text) {
+  .lp-redesign .lp-hero-shimmer {
+    background-image: linear-gradient(
+      105deg,
+      #5ad6a6 0%,
+      #58c9b5 22%,
+      #55b6c9 44%,
+      #5aa3df 66%,
+      #6a97ef 84%,
+      #7a92f2 100%
+    );
+    background-size: 160% 100%;
+    background-position: 0% 50%;
+    -webkit-background-clip: text;
+            background-clip: text;
+    -webkit-text-fill-color: transparent;
+            color: transparent;
+    animation: lpShimmerSlide 14s ease-in-out infinite alternate;
+  }
 }
 .lp-redesign .lp-hero-shimmer--alt {
   animation-duration: 16s;
