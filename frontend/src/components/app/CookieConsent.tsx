@@ -1,20 +1,14 @@
 import { useState, useEffect } from 'react'
+import { Link } from '@tanstack/react-router'
+import {
+  type ConsentState,
+  getStoredConsent,
+  setStoredConsent,
+  hasAnalyticsConsent as hasAnalyticsConsentFromLib,
+} from '#/lib/consent'
 
-const CONSENT_KEY = 'cw-cookie-consent'
-
-type ConsentState = 'pending' | 'accepted' | 'rejected'
-
-function getStoredConsent(): ConsentState {
-  if (typeof window === 'undefined') return 'pending'
-  const stored = localStorage.getItem(CONSENT_KEY)
-  if (stored === 'accepted' || stored === 'rejected') return stored
-  return 'pending'
-}
-
-/** Read consent state without rendering the banner (for use in telemetry/ads). */
-export function hasAnalyticsConsent(): boolean {
-  return getStoredConsent() === 'accepted'
-}
+/** Re-export for backwards compatibility with existing imports. */
+export const hasAnalyticsConsent = hasAnalyticsConsentFromLib
 
 export function CookieConsent() {
   const [state, setState] = useState<ConsentState>('accepted') // SSR-safe default
@@ -31,13 +25,13 @@ export function CookieConsent() {
   }, [])
 
   function accept() {
-    localStorage.setItem(CONSENT_KEY, 'accepted')
+    setStoredConsent('accepted')
     setState('accepted')
     setVisible(false)
   }
 
   function reject() {
-    localStorage.setItem(CONSENT_KEY, 'rejected')
+    setStoredConsent('rejected')
     setState('rejected')
     setVisible(false)
   }
@@ -48,8 +42,12 @@ export function CookieConsent() {
     <div className="cookie-banner" role="dialog" aria-label="Cookie consent">
       <div className="cookie-banner__inner">
         <p className="cookie-banner__text">
-          We use cookies for analytics and to improve your experience.
-          By continuing, you agree to our use of cookies.
+          We use strictly-necessary cookies to keep you signed in. Optional advertising cookies (Google AdSense) only
+          load if you accept. No third-party analytics are active today.{' '}
+          <Link to="/cookies" className="cookie-banner__link">
+            Learn more
+          </Link>
+          .
         </p>
         <div className="cookie-banner__actions">
           <button type="button" className="cookie-banner__btn cookie-banner__btn--reject" onClick={reject}>

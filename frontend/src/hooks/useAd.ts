@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { getStoredConsent } from '#/lib/consent'
 
 const AD_BAIT_CLASS = 'ad-placement'
 const ADSENSE_SCRIPT_URL = 'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js'
@@ -50,7 +51,7 @@ export function useAd() {
     detectionRan.current = true
 
     // Respect cookie consent — don't load ad scripts if user declined
-    const consent = localStorage.getItem('cw-cookie-consent')
+    const consent = getStoredConsent()
     if (consent === 'rejected') {
       setAdBlocked(true)
       return

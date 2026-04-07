@@ -1,4 +1,5 @@
 import { API_URL } from '#/lib/api/client'
+import { getStoredConsent } from '#/lib/consent'
 
 const TELEMETRY_URL = `${API_URL}/telemetry/events`
 
@@ -37,8 +38,7 @@ export function trackTelemetry(payload: TelemetryPayload): void {
   if (typeof window === 'undefined') return
 
   // Respect cookie consent — skip analytics if user declined
-  const consent = localStorage.getItem('cw-cookie-consent')
-  if (consent === 'rejected') return
+  if (getStoredConsent() === 'rejected') return
 
   const body = JSON.stringify({
     ...payload,
