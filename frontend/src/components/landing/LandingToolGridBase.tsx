@@ -98,7 +98,8 @@ export function LandingToolGridBase({
           }}
         >
           {/* Featured: Resume Analyzer (spans 2 columns on desktop) */}
-          <motion.article
+          <motion.a
+            href="/dashboard"
             className="lp-tool-card lp-tool-card--featured lp-spotlight"
             {...spotlight}
             variants={{
@@ -130,15 +131,16 @@ export function LandingToolGridBase({
               Start here
               <ArrowUpRight size={16} />
             </div>
-          </motion.article>
+          </motion.a>
 
           {/* Rest of the tools */}
           {rest.map((tool, i) => {
             const Icon = tool.icon
             const realIndex = i + 1
             return (
-              <motion.article
+              <motion.a
                 key={tool.id}
+                href="/dashboard"
                 className={`lp-tool-card lp-spotlight ${accentClassByIndex[realIndex] ?? ''}`}
                 {...spotlight}
                 variants={{
@@ -160,7 +162,7 @@ export function LandingToolGridBase({
                 </div>
                 <h3 className="lp-tool-title">{tool.label}</h3>
                 <p className="lp-tool-summary">{meta[tool.id].summary}</p>
-              </motion.article>
+              </motion.a>
             )
           })}
         </motion.div>

@@ -39,7 +39,7 @@ export function LandingExperimentHero() {
     damping: 20,
   })
 
-  const handleTilt = (event: React.MouseEvent<HTMLDivElement>) => {
+  const handleTilt = (event: React.MouseEvent<HTMLElement>) => {
     if (prefersReducedMotion) return
     const target = event.currentTarget
     const rect = target.getBoundingClientRect()
@@ -91,26 +91,17 @@ export function LandingExperimentHero() {
               {copy.secondaryCtaLabel}
             </a>
           </div>
-
-          <div className="lp-hero-trust" aria-label="Built for job seekers across disciplines">
-            <span className="lp-hero-trust-label">Built for</span>
-            <div className="lp-hero-trust-track-wrap">
-              <div className="lp-hero-trust-track" aria-hidden="true">
-                {[...TRUST_ITEMS, ...TRUST_ITEMS].map((item, i) => (
-                  <span key={`${item}-${i}`}>{item}</span>
-                ))}
-              </div>
-            </div>
-          </div>
         </div>
 
-        <motion.div
+        <motion.a
+          href="/dashboard"
           className="lp-hero-image-wrap"
           initial={prefersReducedMotion ? false : { opacity: 0, y: 28, scale: 0.98 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           transition={{ duration: 0.8, delay: 0.15, ease: [0.16, 1, 0.3, 1] }}
           onMouseMove={handleTilt}
           onMouseLeave={resetTilt}
+          style={{ display: 'block', textDecoration: 'none', cursor: 'pointer' }}
         >
           <div className="lp-hero-image-halo" aria-hidden="true" />
           <motion.div
@@ -128,7 +119,19 @@ export function LandingExperimentHero() {
               draggable={false}
             />
           </motion.div>
-        </motion.div>
+        </motion.a>
+      </div>
+
+      {/* Trust marquee — outside the grid so it spans the full hero width */}
+      <div className="lp-hero-trust" aria-label="Built for job seekers across disciplines">
+        <span className="lp-hero-trust-label">Built for</span>
+        <div className="lp-hero-trust-track-wrap">
+          <div className="lp-hero-trust-track" aria-hidden="true">
+            {[...TRUST_ITEMS, ...TRUST_ITEMS].map((item, i) => (
+              <span key={`${item}-${i}`}>{item}</span>
+            ))}
+          </div>
+        </div>
       </div>
     </section>
   )
