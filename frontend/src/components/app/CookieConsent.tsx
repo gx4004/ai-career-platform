@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { Link } from '@tanstack/react-router'
 
 const CONSENT_KEY = 'cw-cookie-consent'
 
@@ -48,8 +49,12 @@ export function CookieConsent() {
     <div className="cookie-banner" role="dialog" aria-label="Cookie consent">
       <div className="cookie-banner__inner">
         <p className="cookie-banner__text">
-          We use cookies for analytics and to improve your experience.
-          By continuing, you agree to our use of cookies.
+          We use strictly-necessary cookies to keep you signed in. Optional advertising cookies (Google AdSense) only
+          load if you accept. No third-party analytics are active today.{' '}
+          <Link to="/cookies" className="cookie-banner__link">
+            Learn more
+          </Link>
+          .
         </p>
         <div className="cookie-banner__actions">
           <button type="button" className="cookie-banner__btn cookie-banner__btn--reject" onClick={reject}>

@@ -9,16 +9,20 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as TermsRouteImport } from './routes/terms'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ResumeRouteImport } from './routes/resume'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
+import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as PortfolioRouteImport } from './routes/portfolio'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as JobMatchRouteImport } from './routes/job-match'
 import { Route as InterviewRouteImport } from './routes/interview'
+import { Route as ImprintRouteImport } from './routes/imprint'
 import { Route as HistoryRouteImport } from './routes/history'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as CoverLetterRouteImport } from './routes/cover-letter'
+import { Route as CookiesRouteImport } from './routes/cookies'
 import { Route as CareerRouteImport } from './routes/career'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as AccountRouteImport } from './routes/account'
@@ -34,6 +38,11 @@ import { Route as InterviewResultHistoryIdRouteImport } from './routes/interview
 import { Route as CoverLetterResultHistoryIdRouteImport } from './routes/cover-letter_.result.$historyId'
 import { Route as CareerResultHistoryIdRouteImport } from './routes/career_.result.$historyId'
 
+const TermsRoute = TermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
@@ -47,6 +56,11 @@ const ResumeRoute = ResumeRouteImport.update({
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
   id: '/reset-password',
   path: '/reset-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PortfolioRoute = PortfolioRouteImport.update({
@@ -69,6 +83,11 @@ const InterviewRoute = InterviewRouteImport.update({
   path: '/interview',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ImprintRoute = ImprintRouteImport.update({
+  id: '/imprint',
+  path: '/imprint',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const HistoryRoute = HistoryRouteImport.update({
   id: '/history',
   path: '/history',
@@ -82,6 +101,11 @@ const DashboardRoute = DashboardRouteImport.update({
 const CoverLetterRoute = CoverLetterRouteImport.update({
   id: '/cover-letter',
   path: '/cover-letter',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CookiesRoute = CookiesRouteImport.update({
+  id: '/cookies',
+  path: '/cookies',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CareerRoute = CareerRouteImport.update({
@@ -163,16 +187,20 @@ export interface FileRoutesByFullPath {
   '/account': typeof AccountRoute
   '/admin': typeof AdminRouteWithChildren
   '/career': typeof CareerRoute
+  '/cookies': typeof CookiesRoute
   '/cover-letter': typeof CoverLetterRoute
   '/dashboard': typeof DashboardRoute
   '/history': typeof HistoryRoute
+  '/imprint': typeof ImprintRoute
   '/interview': typeof InterviewRoute
   '/job-match': typeof JobMatchRoute
   '/login': typeof LoginRoute
   '/portfolio': typeof PortfolioRoute
+  '/privacy': typeof PrivacyRoute
   '/reset-password': typeof ResetPasswordRoute
   '/resume': typeof ResumeRoute
   '/settings': typeof SettingsRoute
+  '/terms': typeof TermsRoute
   '/admin/runs': typeof AdminRunsRoute
   '/admin/users': typeof AdminUsersRoute
   '/auth/callback': typeof AuthCallbackRoute
@@ -188,16 +216,20 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/account': typeof AccountRoute
   '/career': typeof CareerRoute
+  '/cookies': typeof CookiesRoute
   '/cover-letter': typeof CoverLetterRoute
   '/dashboard': typeof DashboardRoute
   '/history': typeof HistoryRoute
+  '/imprint': typeof ImprintRoute
   '/interview': typeof InterviewRoute
   '/job-match': typeof JobMatchRoute
   '/login': typeof LoginRoute
   '/portfolio': typeof PortfolioRoute
+  '/privacy': typeof PrivacyRoute
   '/reset-password': typeof ResetPasswordRoute
   '/resume': typeof ResumeRoute
   '/settings': typeof SettingsRoute
+  '/terms': typeof TermsRoute
   '/admin/runs': typeof AdminRunsRoute
   '/admin/users': typeof AdminUsersRoute
   '/auth/callback': typeof AuthCallbackRoute
@@ -215,16 +247,20 @@ export interface FileRoutesById {
   '/account': typeof AccountRoute
   '/admin': typeof AdminRouteWithChildren
   '/career': typeof CareerRoute
+  '/cookies': typeof CookiesRoute
   '/cover-letter': typeof CoverLetterRoute
   '/dashboard': typeof DashboardRoute
   '/history': typeof HistoryRoute
+  '/imprint': typeof ImprintRoute
   '/interview': typeof InterviewRoute
   '/job-match': typeof JobMatchRoute
   '/login': typeof LoginRoute
   '/portfolio': typeof PortfolioRoute
+  '/privacy': typeof PrivacyRoute
   '/reset-password': typeof ResetPasswordRoute
   '/resume': typeof ResumeRoute
   '/settings': typeof SettingsRoute
+  '/terms': typeof TermsRoute
   '/admin/runs': typeof AdminRunsRoute
   '/admin/users': typeof AdminUsersRoute
   '/auth/callback': typeof AuthCallbackRoute
@@ -243,16 +279,20 @@ export interface FileRouteTypes {
     | '/account'
     | '/admin'
     | '/career'
+    | '/cookies'
     | '/cover-letter'
     | '/dashboard'
     | '/history'
+    | '/imprint'
     | '/interview'
     | '/job-match'
     | '/login'
     | '/portfolio'
+    | '/privacy'
     | '/reset-password'
     | '/resume'
     | '/settings'
+    | '/terms'
     | '/admin/runs'
     | '/admin/users'
     | '/auth/callback'
@@ -268,16 +308,20 @@ export interface FileRouteTypes {
     | '/'
     | '/account'
     | '/career'
+    | '/cookies'
     | '/cover-letter'
     | '/dashboard'
     | '/history'
+    | '/imprint'
     | '/interview'
     | '/job-match'
     | '/login'
     | '/portfolio'
+    | '/privacy'
     | '/reset-password'
     | '/resume'
     | '/settings'
+    | '/terms'
     | '/admin/runs'
     | '/admin/users'
     | '/auth/callback'
@@ -294,16 +338,20 @@ export interface FileRouteTypes {
     | '/account'
     | '/admin'
     | '/career'
+    | '/cookies'
     | '/cover-letter'
     | '/dashboard'
     | '/history'
+    | '/imprint'
     | '/interview'
     | '/job-match'
     | '/login'
     | '/portfolio'
+    | '/privacy'
     | '/reset-password'
     | '/resume'
     | '/settings'
+    | '/terms'
     | '/admin/runs'
     | '/admin/users'
     | '/auth/callback'
@@ -321,16 +369,20 @@ export interface RootRouteChildren {
   AccountRoute: typeof AccountRoute
   AdminRoute: typeof AdminRouteWithChildren
   CareerRoute: typeof CareerRoute
+  CookiesRoute: typeof CookiesRoute
   CoverLetterRoute: typeof CoverLetterRoute
   DashboardRoute: typeof DashboardRoute
   HistoryRoute: typeof HistoryRoute
+  ImprintRoute: typeof ImprintRoute
   InterviewRoute: typeof InterviewRoute
   JobMatchRoute: typeof JobMatchRoute
   LoginRoute: typeof LoginRoute
   PortfolioRoute: typeof PortfolioRoute
+  PrivacyRoute: typeof PrivacyRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   ResumeRoute: typeof ResumeRoute
   SettingsRoute: typeof SettingsRoute
+  TermsRoute: typeof TermsRoute
   AuthCallbackRoute: typeof AuthCallbackRoute
   CareerResultHistoryIdRoute: typeof CareerResultHistoryIdRoute
   CoverLetterResultHistoryIdRoute: typeof CoverLetterResultHistoryIdRoute
@@ -342,6 +394,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/terms': {
+      id: '/terms'
+      path: '/terms'
+      fullPath: '/terms'
+      preLoaderRoute: typeof TermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/settings': {
       id: '/settings'
       path: '/settings'
@@ -361,6 +420,13 @@ declare module '@tanstack/react-router' {
       path: '/reset-password'
       fullPath: '/reset-password'
       preLoaderRoute: typeof ResetPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/portfolio': {
@@ -391,6 +457,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof InterviewRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/imprint': {
+      id: '/imprint'
+      path: '/imprint'
+      fullPath: '/imprint'
+      preLoaderRoute: typeof ImprintRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/history': {
       id: '/history'
       path: '/history'
@@ -410,6 +483,13 @@ declare module '@tanstack/react-router' {
       path: '/cover-letter'
       fullPath: '/cover-letter'
       preLoaderRoute: typeof CoverLetterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/cookies': {
+      id: '/cookies'
+      path: '/cookies'
+      fullPath: '/cookies'
+      preLoaderRoute: typeof CookiesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/career': {
@@ -532,16 +612,20 @@ const rootRouteChildren: RootRouteChildren = {
   AccountRoute: AccountRoute,
   AdminRoute: AdminRouteWithChildren,
   CareerRoute: CareerRoute,
+  CookiesRoute: CookiesRoute,
   CoverLetterRoute: CoverLetterRoute,
   DashboardRoute: DashboardRoute,
   HistoryRoute: HistoryRoute,
+  ImprintRoute: ImprintRoute,
   InterviewRoute: InterviewRoute,
   JobMatchRoute: JobMatchRoute,
   LoginRoute: LoginRoute,
   PortfolioRoute: PortfolioRoute,
+  PrivacyRoute: PrivacyRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   ResumeRoute: ResumeRoute,
   SettingsRoute: SettingsRoute,
+  TermsRoute: TermsRoute,
   AuthCallbackRoute: AuthCallbackRoute,
   CareerResultHistoryIdRoute: CareerResultHistoryIdRoute,
   CoverLetterResultHistoryIdRoute: CoverLetterResultHistoryIdRoute,

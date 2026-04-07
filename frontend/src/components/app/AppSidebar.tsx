@@ -168,6 +168,13 @@ export function AppSidebar() {
             </SidebarMenuItem>
           )}
         </SidebarMenu>
+        <div className="app-sidebar-legal" aria-label="Legal">
+          <Link to="/privacy" className="app-sidebar-legal__link">Privacy</Link>
+          <span className="app-sidebar-legal__sep" aria-hidden="true">·</span>
+          <Link to="/terms" className="app-sidebar-legal__link">Terms</Link>
+          <span className="app-sidebar-legal__sep" aria-hidden="true">·</span>
+          <Link to="/cookies" className="app-sidebar-legal__link">Cookies</Link>
+        </div>
       </SidebarFooter>
       {isDesktopToolRoute ? null : <SidebarRail />}
     </Sidebar>
