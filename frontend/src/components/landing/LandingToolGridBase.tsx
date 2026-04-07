@@ -1,5 +1,8 @@
 import { ArrowUpRight } from 'lucide-react'
+import { Link } from '@tanstack/react-router'
 import { motion, useReducedMotion } from 'framer-motion'
+
+const MotionLink = motion(Link)
 import { toolList, type ToolId } from '#/lib/tools/registry'
 import { useSpotlight } from '#/hooks/useSpotlight'
 
@@ -98,8 +101,8 @@ export function LandingToolGridBase({
           }}
         >
           {/* Featured: Resume Analyzer (spans 2 columns on desktop) */}
-          <motion.a
-            href="/dashboard"
+          <MotionLink
+            to="/dashboard"
             className="lp-tool-card lp-tool-card--featured lp-spotlight"
             {...spotlight}
             variants={{
@@ -131,16 +134,16 @@ export function LandingToolGridBase({
               Start here
               <ArrowUpRight size={16} />
             </div>
-          </motion.a>
+          </MotionLink>
 
           {/* Rest of the tools */}
           {rest.map((tool, i) => {
             const Icon = tool.icon
             const realIndex = i + 1
             return (
-              <motion.a
+              <MotionLink
                 key={tool.id}
-                href="/dashboard"
+                to="/dashboard"
                 className={`lp-tool-card lp-spotlight ${accentClassByIndex[realIndex] ?? ''}`}
                 {...spotlight}
                 variants={{
@@ -162,7 +165,7 @@ export function LandingToolGridBase({
                 </div>
                 <h3 className="lp-tool-title">{tool.label}</h3>
                 <p className="lp-tool-summary">{meta[tool.id].summary}</p>
-              </motion.a>
+              </MotionLink>
             )
           })}
         </motion.div>

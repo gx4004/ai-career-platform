@@ -535,8 +535,21 @@
   text-decoration: none;
 }
 .lp-redesign .lp-btn-ghost:hover { background: var(--lp-surface-3); border-color: var(--lp-text-mute); }
+/* scroll-margin-top compensates for the fixed navbar (~4.5rem) on in-page anchor jumps */
+.lp-redesign #landing-journey,
+.lp-redesign #landing-tools,
+.lp-redesign #landing-faq {
+  scroll-margin-top: 5rem;
+}
+
 .lp-redesign .lp-hero-image-wrap {
   position: relative;
+}
+/* Image wrap doubles as a dashboard link — reset anchor defaults */
+.lp-redesign .lp-hero-image-link {
+  display: block;
+  text-decoration: none;
+  cursor: pointer;
 }
 .lp-redesign .lp-hero-image-halo {
   position: absolute;
