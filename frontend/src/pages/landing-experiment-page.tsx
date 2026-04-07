@@ -14,6 +14,7 @@ import { LandingTubelightNavbar, type NavbarItem } from '#/components/landing/La
 import { LandingFaqsSection } from '#/components/landing/LandingFaqsSection'
 import { LandingSocialProof } from '#/components/landing/LandingSocialProof'
 import { LandingFeatureStepsDemo } from '#/components/landing/LandingFeatureStepsDemo'
+import { LandingFooter } from '#/components/landing/LandingFooter'
 import { LandingToolGridBase } from '#/components/landing/LandingToolGridBase'
 import { useLandingPageSetup } from '#/components/landing/useLandingPageSetup'
 
@@ -38,7 +39,7 @@ export function LandingExperimentPage() {
     tools: <LandingToolGridBase copy={landingExperimentToolsCopy} autoRotate={false} />,
     faq: <LandingFaqsSection />,
     cta: <LandingCTA />,
-    footer: null,
+    footer: <LandingFooter />,
   }
 
   return (

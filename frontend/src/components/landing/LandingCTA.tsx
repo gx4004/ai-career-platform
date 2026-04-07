@@ -2,7 +2,6 @@ import { ArrowRight, Check } from 'lucide-react'
 import { motion, useReducedMotion } from 'framer-motion'
 import { Button } from '#/components/ui/button'
 import { ScrollStagger, ScrollStaggerItem, MagneticButton } from '#/components/ui/motion'
-import { AppBrandLockup } from '#/components/app/AppBrandLockup'
 import { landingCtaCopy, landingPrimaryCta } from '#/components/landing/landingContent'
 
 export function LandingCTA() {
@@ -64,19 +63,6 @@ export function LandingCTA() {
           <p className="landing-cta-dark-trust">{landingCtaCopy.trustLine}</p>
         </ScrollStaggerItem>
       </ScrollStagger>
-
-      {/* Footer merged into the dark section */}
-      <footer className="landing-cta-footer">
-        <div className="content-max landing-footer-inner">
-          <div className="landing-footer-brand">
-            <AppBrandLockup className="landing-footer-lockup" />
-            <p className="landing-cta-footer-tagline">Signal first. Better applications. Clearer next steps.</p>
-          </div>
-          <p className="landing-cta-footer-copyright">
-            &copy; {new Date().getFullYear()} Career Workbench
-          </p>
-        </div>
-      </footer>
     </motion.section>
   )
 }
