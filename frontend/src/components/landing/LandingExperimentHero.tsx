@@ -1,140 +1,135 @@
-import { ArrowRight, Check } from 'lucide-react'
-import { Link } from '@tanstack/react-router'
-import { useRef } from 'react'
-import { motion, useReducedMotion, useScroll, useTransform } from 'framer-motion'
-import { Button } from '#/components/ui/button'
-import { StaggerChildren, StaggerItem } from '#/components/ui/motion'
+import { ArrowRight } from 'lucide-react'
+import {
+  motion,
+  useMotionValue,
+  useReducedMotion,
+  useSpring,
+  useTransform,
+} from 'framer-motion'
 import {
   landingExperimentHeroCopy,
   landingPrimaryCta,
-  type ExperimentHeroVariant,
 } from '#/components/landing/landingContent'
 
-export function LandingExperimentHero({
-  variant = 'strong',
-}: {
-  variant?: ExperimentHeroVariant
-}) {
-  const prefersReducedMotion = useReducedMotion() ?? false
-  const copy = landingExperimentHeroCopy[variant]
-  const heroRef = useRef<HTMLElement>(null)
-  const { scrollYProgress } = useScroll({ target: heroRef, offset: ['start start', 'end start'] })
-  const mockupY = useTransform(scrollYProgress, [0, 1], [0, 120])
-  const mockupOpacity = useTransform(scrollYProgress, [0, 0.8], [1, 0.85])
-  const mockupScale = useTransform(scrollYProgress, [0, 1], [1, 0.94])
+// Neutral audience descriptors — no real brands/universities to avoid implied-endorsement
+// or trademark issues. Swap in testimonials later once we have written permission.
+const TRUST_ITEMS = [
+  'CS graduates',
+  'Bootcamp alumni',
+  'Career switchers',
+  'MBA candidates',
+  'PhD researchers',
+  'Product managers',
+  'Design leads',
+] as const
 
-  const handleSmoothScroll = (e: React.MouseEvent<HTMLAnchorElement>, targetId: string) => {
+export function LandingExperimentHero() {
+  const prefersReducedMotion = useReducedMotion() ?? false
+  const copy = landingExperimentHeroCopy.strong
+
+  // Parallax tilt on the hero image card (no React state — pure motion values)
+  const mx = useMotionValue(0)
+  const my = useMotionValue(0)
+  const rotateY = useSpring(useTransform(mx, [-0.5, 0.5], [-6, 6]), {
+    stiffness: 120,
+    damping: 20,
+  })
+  const rotateX = useSpring(useTransform(my, [-0.5, 0.5], [4, -4]), {
+    stiffness: 120,
+    damping: 20,
+  })
+
+  const handleTilt = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (prefersReducedMotion) return
+    const target = event.currentTarget
+    const rect = target.getBoundingClientRect()
+    mx.set((event.clientX - rect.left) / rect.width - 0.5)
+    my.set((event.clientY - rect.top) / rect.height - 0.5)
+  }
+  const resetTilt = () => {
+    mx.set(0)
+    my.set(0)
+  }
+
+  const handleSmoothScroll = (
+    e: React.MouseEvent<HTMLAnchorElement>,
+    targetId: string,
+  ) => {
     e.preventDefault()
     const el = document.getElementById(targetId)
     if (el) el.scrollIntoView({ behavior: prefersReducedMotion ? 'auto' : 'smooth' })
   }
 
   return (
-    <section className="landing-cascade-hero landing-section" id="landing-hero" ref={heroRef}>
-      {/* Aurora blobs — always rendered, hidden via CSS when prefers-reduced-motion */}
-      <div className="landing-aurora-blob landing-aurora-blob--1" aria-hidden="true" />
-      <div className="landing-aurora-blob landing-aurora-blob--2" aria-hidden="true" />
+    <section className="lp-hero" id="landing-hero">
+      <div className="lp-hero-grid">
+        <div className="lp-hero-copy">
+          <div className="lp-hero-eyebrow-row">
+            <span className="lp-hero-eyebrow">{copy.eyebrow}</span>
+            <span className="lp-hero-beta">
+              <span className="lp-hero-beta-dot" aria-hidden="true" />
+              Now in public beta
+            </span>
+          </div>
+          <h1 className="lp-hero-h1">
+            Your <span className="lp-hero-shimmer">resume</span> has{' '}
+            <span className="lp-hero-shimmer lp-hero-shimmer--alt">blind spots</span>.
+            <br />
+            We find them before recruiters do.
+          </h1>
+          <p className="lp-hero-body">{copy.body}</p>
+          <div className="lp-hero-actions">
+            <a href={landingPrimaryCta.to} className="lp-btn-primary">
+              {copy.ctaLabel}
+              <ArrowRight size={18} />
+            </a>
+            <a
+              href="#landing-journey"
+              className="lp-btn-ghost"
+              onClick={(e) => handleSmoothScroll(e, 'landing-journey')}
+            >
+              {copy.secondaryCtaLabel}
+            </a>
+          </div>
 
-      {/* Background: multi-color gradient (blue + violet + green) */}
-      <div className="landing-cascade-bg landing-cascade-bg--multicolor" aria-hidden="true">
-        <div className="landing-cascade-beam landing-cascade-beam--multicolor" />
-        <div className="landing-cascade-beam-wash" />
-      </div>
-
-      {/* Split grid: copy left, product right */}
-      <div className="content-max landing-cascade-grid">
-        <StaggerChildren
-          className="landing-cascade-copy"
-          stagger={0.08}
-          startHidden={!prefersReducedMotion}
-        >
-          <StaggerItem>
-            <h1 className="landing-cascade-headline">
-              Your <span className="landing-cascade-accent landing-cascade-accent--multi">resume</span> has{' '}
-              <span className="landing-cascade-accent landing-cascade-accent--multi">blind spots</span>.
-              <br />
-              We find them before recruiters do.
-            </h1>
-          </StaggerItem>
-          <StaggerItem>
-            <p className="landing-cascade-body">{copy.body}</p>
-          </StaggerItem>
-          <StaggerItem>
-            <div className="landing-cascade-actions">
-              <Button asChild className="landing-cascade-cta landing-cascade-cta--shimmer" size="lg">
-                <a href={landingPrimaryCta.to}>
-                  {copy.ctaLabel}
-                  <ArrowRight size={16} />
-                </a>
-              </Button>
-              <Button
-                asChild
-                className="landing-cascade-cta landing-cascade-cta--ghost"
-                size="lg"
-                variant="outline"
-              >
-                <a
-                  href="#landing-journey"
-                  onClick={(e) => handleSmoothScroll(e, 'landing-journey')}
-                >
-                  {copy.secondaryCtaLabel}
-                </a>
-              </Button>
+          <div className="lp-hero-trust" aria-label="Built for job seekers across disciplines">
+            <span className="lp-hero-trust-label">Built for</span>
+            <div className="lp-hero-trust-track-wrap">
+              <div className="lp-hero-trust-track" aria-hidden="true">
+                {[...TRUST_ITEMS, ...TRUST_ITEMS].map((item, i) => (
+                  <span key={`${item}-${i}`}>{item}</span>
+                ))}
+              </div>
             </div>
-          </StaggerItem>
-          <StaggerItem>
-            <div className="landing-cascade-trust">
-              <span className="landing-cascade-badge">
-                <span className="landing-cascade-badge-dot" />
-                Now in public beta
-              </span>
-              {copy.trustItems.map((item) => (
-                <span key={item} className="landing-cascade-trust-item">
-                  <Check size={13} className="landing-cascade-trust-check" />
-                  {item}
-                </span>
-              ))}
-            </div>
-          </StaggerItem>
-        </StaggerChildren>
+          </div>
+        </div>
 
-        {/* Product mockup with 3D tilt */}
         <motion.div
-          className="landing-cascade-mockup"
+          className="lp-hero-image-wrap"
           initial={prefersReducedMotion ? false : { opacity: 0, y: 28, scale: 0.98 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
-          transition={{ duration: prefersReducedMotion ? 0 : 0.6, delay: 0.15, ease: [0.16, 1, 0.3, 1] }}
-          style={prefersReducedMotion ? undefined : { y: mockupY, opacity: mockupOpacity, scale: mockupScale }}
+          transition={{ duration: 0.8, delay: 0.15, ease: [0.16, 1, 0.3, 1] }}
+          onMouseMove={handleTilt}
+          onMouseLeave={resetTilt}
         >
-          <div className="landing-cascade-mockup-glow landing-cascade-mockup-glow--multi" aria-hidden="true" />
-          <div className="landing-cascade-window">
-            <div className="landing-cascade-window-bar">
-              <div className="landing-cascade-window-dots" aria-hidden="true">
-                <span />
-                <span />
-                <span />
-              </div>
-              <div className="landing-cascade-window-url">thecareerworkbench.com</div>
-            </div>
-            <Link to="/dashboard" className="block">
-              <img
-                src="/ai-generated/carousel/hero-resume-analyzer.webp"
-                alt="Career Workbench resume analyzer preview"
-                width={800}
-                height={471}
-                className="landing-cascade-window-image cursor-pointer"
-                loading="eager"
-                decoding="async"
-                fetchPriority="high"
-                draggable={false}
-              />
-            </Link>
-          </div>
+          <div className="lp-hero-image-halo" aria-hidden="true" />
+          <motion.div
+            className="lp-hero-image-card"
+            style={prefersReducedMotion ? undefined : { rotateX, rotateY }}
+          >
+            <img
+              src="/ai-generated/carousel/hero-resume-analyzer.webp"
+              alt="Career Workbench resume analyzer preview"
+              width={800}
+              height={471}
+              loading="eager"
+              decoding="async"
+              fetchPriority="high"
+              draggable={false}
+            />
+          </motion.div>
         </motion.div>
       </div>
-
-      {/* Cascade fade: dark gradient → light page */}
-      <div className="landing-cascade-fade" aria-hidden="true" />
     </section>
   )
 }
