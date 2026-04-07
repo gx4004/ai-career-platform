@@ -708,6 +708,9 @@
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+  cursor: pointer;
+  text-decoration: none;
+  color: inherit;
 }
 @media (min-width: 768px) { .lp-redesign .lp-tool-card { padding: 2rem; } }
 .lp-redesign .lp-tool-card:hover { background: var(--lp-surface-3); transform: translateY(-2px); }
@@ -1091,7 +1094,6 @@ body:has(.lp-redesign)::after { display: none !important; }
   text-transform: uppercase;
   color: var(--lp-text-mute);
   overflow: hidden;
-  max-width: 32rem;
 }
 .lp-redesign .lp-hero-trust-label { display: block; margin-bottom: 0.75rem; }
 .lp-redesign .lp-hero-trust-track-wrap {
@@ -1541,10 +1543,8 @@ body:has(.lp-redesign)::after { display: none !important; }
     justify-content: center;
   }
   .lp-redesign .lp-hero-trust {
-    margin: 1.5rem auto 0;
+    margin-top: 2rem;
     padding-top: 1.25rem;
-    max-width: 100%;
-    text-align: center;
   }
   .lp-redesign .lp-hero-trust-label { text-align: center; }
 
