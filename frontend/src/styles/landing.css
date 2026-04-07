@@ -1197,6 +1197,10 @@ body:has(.lp-redesign)::after { display: none !important; }
   border-radius: 1.5rem;
   transition: background .25s ease, transform .25s ease;
 }
+/* Portfolio Planner (last card) fills the full row so the layout feels complete */
+.lp-redesign .lp-tools-bento > .lp-tool-card:not(.lp-tool-card--featured):last-child {
+  grid-column: 1 / -1;
+}
 @media (max-width: 1023px) {
   .lp-redesign .lp-tool-card--featured,
   .lp-redesign .lp-tools-bento > .lp-tool-card:not(.lp-tool-card--featured) {
