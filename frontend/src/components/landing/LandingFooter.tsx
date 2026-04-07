@@ -1,6 +1,6 @@
 import { Link } from '@tanstack/react-router'
 import { AppBrandLockup } from '#/components/app/AppBrandLockup'
-import { LEGAL_CONTACT_EMAIL } from '#/components/legal/LegalLayout'
+import { LEGAL_CONTACT_EMAIL } from '#/components/legal/constants'
 
 const currentYear = new Date().getFullYear()
 

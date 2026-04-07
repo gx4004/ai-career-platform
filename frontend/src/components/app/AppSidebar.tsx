@@ -168,7 +168,7 @@ export function AppSidebar() {
             </SidebarMenuItem>
           )}
         </SidebarMenu>
-        <div className="app-sidebar-legal" aria-label="Legal">
+        <div className="app-sidebar-legal group-data-[collapsible=icon]:hidden" aria-label="Legal">
           <Link to="/privacy" className="app-sidebar-legal__link">Privacy</Link>
           <span className="app-sidebar-legal__sep" aria-hidden="true">·</span>
           <Link to="/terms" className="app-sidebar-legal__link">Terms</Link>

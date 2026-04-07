@@ -1,21 +1,14 @@
 import { useState, useEffect } from 'react'
 import { Link } from '@tanstack/react-router'
+import {
+  type ConsentState,
+  getStoredConsent,
+  setStoredConsent,
+  hasAnalyticsConsent as hasAnalyticsConsentFromLib,
+} from '#/lib/consent'
 
-const CONSENT_KEY = 'cw-cookie-consent'
-
-type ConsentState = 'pending' | 'accepted' | 'rejected'
-
-function getStoredConsent(): ConsentState {
-  if (typeof window === 'undefined') return 'pending'
-  const stored = localStorage.getItem(CONSENT_KEY)
-  if (stored === 'accepted' || stored === 'rejected') return stored
-  return 'pending'
-}
-
-/** Read consent state without rendering the banner (for use in telemetry/ads). */
-export function hasAnalyticsConsent(): boolean {
-  return getStoredConsent() === 'accepted'
-}
+/** Re-export for backwards compatibility with existing imports. */
+export const hasAnalyticsConsent = hasAnalyticsConsentFromLib
 
 export function CookieConsent() {
   const [state, setState] = useState<ConsentState>('accepted') // SSR-safe default
@@ -32,13 +25,13 @@ export function CookieConsent() {
   }, [])
 
   function accept() {
-    localStorage.setItem(CONSENT_KEY, 'accepted')
+    setStoredConsent('accepted')
     setState('accepted')
     setVisible(false)
   }
 
   function reject() {
-    localStorage.setItem(CONSENT_KEY, 'rejected')
+    setStoredConsent('rejected')
     setState('rejected')
     setVisible(false)
   }

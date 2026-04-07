@@ -1,10 +1,7 @@
 import type { ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
 import { AppBrandLockup } from '#/components/app/AppBrandLockup'
-
-export const LEGAL_CONTACT_EMAIL = 'privacy@careerworkbench.com'
-export const LEGAL_CONTROLLER = 'Career Workbench'
-export const LEGAL_LAST_UPDATED = '2026-04-07'
+import { LEGAL_CONTACT_EMAIL, LEGAL_LAST_UPDATED } from '#/components/legal/constants'
 
 type LegalLayoutProps = {
   title: string
@@ -20,16 +17,16 @@ export function LegalLayout({ title, lastUpdated = LEGAL_LAST_UPDATED, children 
           <AppBrandLockup mode="compact" />
         </Link>
         <nav className="legal-page__nav" aria-label="Legal pages">
-          <Link to="/privacy" className="legal-page__nav-link" activeProps={{ className: 'legal-page__nav-link is-active' }}>
+          <Link to="/privacy" className="legal-page__nav-link" activeProps={{ className: 'is-active' }}>
             Privacy
           </Link>
-          <Link to="/terms" className="legal-page__nav-link" activeProps={{ className: 'legal-page__nav-link is-active' }}>
+          <Link to="/terms" className="legal-page__nav-link" activeProps={{ className: 'is-active' }}>
             Terms
           </Link>
-          <Link to="/cookies" className="legal-page__nav-link" activeProps={{ className: 'legal-page__nav-link is-active' }}>
+          <Link to="/cookies" className="legal-page__nav-link" activeProps={{ className: 'is-active' }}>
             Cookies
           </Link>
-          <Link to="/imprint" className="legal-page__nav-link" activeProps={{ className: 'legal-page__nav-link is-active' }}>
+          <Link to="/imprint" className="legal-page__nav-link" activeProps={{ className: 'is-active' }}>
             Imprint
           </Link>
         </nav>

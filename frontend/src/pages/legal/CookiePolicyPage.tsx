@@ -1,13 +1,12 @@
 import { Link } from '@tanstack/react-router'
-import { LegalLayout, LEGAL_CONTACT_EMAIL } from '#/components/legal/LegalLayout'
+import { LegalLayout } from '#/components/legal/LegalLayout'
+import { LEGAL_CONTACT_EMAIL } from '#/components/legal/constants'
+import { clearStoredConsent } from '#/lib/consent'
 
 function resetConsent() {
-  if (typeof window === 'undefined') return
-  try {
-    localStorage.removeItem('cw-cookie-consent')
+  clearStoredConsent()
+  if (typeof window !== 'undefined') {
     window.location.reload()
-  } catch {
-    /* ignore */
   }
 }
 

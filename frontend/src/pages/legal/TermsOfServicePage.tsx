@@ -1,5 +1,6 @@
 import { Link } from '@tanstack/react-router'
-import { LegalLayout, LEGAL_CONTACT_EMAIL, LEGAL_CONTROLLER } from '#/components/legal/LegalLayout'
+import { LegalLayout } from '#/components/legal/LegalLayout'
+import { LEGAL_CONTACT_EMAIL, LEGAL_CONTROLLER } from '#/components/legal/constants'
 
 export function TermsOfServicePage() {
   return (
