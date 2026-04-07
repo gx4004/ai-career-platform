@@ -455,11 +455,12 @@
   margin: 0 auto;
 }
 @media (min-width: 1024px) { .lp-redesign .lp-hero-grid { grid-template-columns: 1fr 1fr; gap: 4rem; } }
-/* Force GPU compositing layer so background-clip:text on shimmer spans doesn't
-   prevent sibling text from painting (Chrome headless without GPU renders incorrectly
-   without this — text vanishes from the entire block when any child uses clip-text). */
+/* min-width:0 prevents the grid item from expanding to the trust track's max-content
+   width (the marquee uses width:max-content + white-space:nowrap). Without this the
+   grid cell blows out to ~2300px, text-align:center pushes hero text far off-screen,
+   and overflow:hidden on .lp-hero clips it — making all hero text invisible on mobile. */
 .lp-redesign .lp-hero-copy {
-  transform: translateZ(0);
+  min-width: 0;
 }
 .lp-redesign .lp-hero-eyebrow {
   display: inline-block;
