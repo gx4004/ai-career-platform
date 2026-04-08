@@ -255,6 +255,35 @@
   -webkit-backdrop-filter: blur(20px);
 }
 
+/* Dark mobile drawer for the redesigned landing — matches navbar theme,
+   ensures readable text contrast (the white drawer washed everything out). */
+.lp-redesign .landing-experiment-navbar-mobile {
+  background: linear-gradient(180deg, rgba(8, 18, 34, 0.98), rgba(6, 14, 28, 0.98));
+  color: rgba(235, 244, 255, 0.95);
+}
+.lp-redesign .landing-experiment-navbar-mobile a {
+  color: rgba(235, 244, 255, 0.95) !important;
+}
+.lp-redesign .landing-experiment-navbar-mobile a:hover {
+  color: #fff !important;
+}
+.lp-redesign .landing-experiment-navbar-mobile svg {
+  color: rgba(180, 200, 230, 0.75);
+}
+.lp-redesign .landing-experiment-navbar-mobile button[aria-label='Close menu'] {
+  color: rgba(235, 244, 255, 0.95);
+}
+.lp-redesign .landing-experiment-navbar-mobile .landing-experiment-navbar-cta--mobile.landing-experiment-navbar-cta--secondary {
+  color: rgba(235, 244, 255, 0.92) !important;
+  background: transparent !important;
+  border-color: rgba(120, 160, 210, 0.35) !important;
+}
+.lp-redesign .landing-experiment-navbar-mobile .landing-experiment-navbar-cta--mobile:not(.landing-experiment-navbar-cta--secondary) {
+  background: linear-gradient(135deg, #4f8af0, #3a6dd0) !important;
+  color: #fff !important;
+  border-color: transparent !important;
+}
+
 /* ── Navbar active indicator + hover ── */
 
 .nav-indicator-wrap {
