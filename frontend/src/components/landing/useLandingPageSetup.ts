@@ -55,34 +55,8 @@ export function useLandingPageSetup() {
   useEffect(() => {
     document.body.classList.add('page-tone-landing')
 
-    const themeColorMeta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')
-    const appleStatusBarMeta = document.querySelector<HTMLMetaElement>(
-      'meta[name="apple-mobile-web-app-status-bar-style"]',
-    )
-    const previousThemeColor = themeColorMeta?.getAttribute('content') ?? null
-    const previousAppleStatusBar = appleStatusBarMeta?.getAttribute('content') ?? null
-
-    themeColorMeta?.setAttribute('content', '#f7f7f4')
-    appleStatusBarMeta?.setAttribute('content', 'default')
-
     return () => {
       document.body.classList.remove('page-tone-landing')
-
-      if (themeColorMeta) {
-        if (previousThemeColor === null) {
-          themeColorMeta.removeAttribute('content')
-        } else {
-          themeColorMeta.setAttribute('content', previousThemeColor)
-        }
-      }
-
-      if (appleStatusBarMeta) {
-        if (previousAppleStatusBar === null) {
-          appleStatusBarMeta.removeAttribute('content')
-        } else {
-          appleStatusBarMeta.setAttribute('content', previousAppleStatusBar)
-        }
-      }
     }
   }, [])
 }
