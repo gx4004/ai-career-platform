@@ -33,6 +33,9 @@ export function LandingFooter() {
             <h2 id="landing-footer-heading" className="lp-footer-h5">Product</h2>
             <ul className="lp-footer-list">
               <li><Link to="/dashboard">Dashboard</Link></li>
+              <li><a href="#landing-journey">Workflow</a></li>
+              <li><a href="#landing-tools">Tools</a></li>
+              <li><a href="#landing-faq">FAQ</a></li>
               <li><Link to="/login">Sign in</Link></li>
             </ul>
           </div>
