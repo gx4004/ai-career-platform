@@ -1489,15 +1489,13 @@ body:has(.lp-redesign)::after { display: none !important; }
   .lp-redesign .lp-footer-status-dot,
   .lp-redesign .lp-hero-shimmer {
     animation: none !important;
+    background: none !important;
+    -webkit-text-fill-color: var(--lp-primary) !important;
+    color: var(--lp-primary) !important;
   }
   .lp-redesign .lp-btn-primary::before {
     animation: none !important;
     opacity: 0 !important;
-  }
-  .lp-redesign .lp-hero-shimmer {
-    background: none !important;
-    -webkit-text-fill-color: var(--lp-primary) !important;
-    color: var(--lp-primary) !important;
   }
 }
 
@@ -1664,6 +1662,7 @@ body:has(.lp-redesign)::after { display: none !important; }
   }
   .lp-redesign .lp-hero-body--mobile {
     display: block;
+    white-space: pre-line;
   }
   .lp-redesign .lp-hero-actions {
     flex-direction: column;

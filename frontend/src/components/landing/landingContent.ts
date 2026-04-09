@@ -139,23 +139,14 @@ export const landingExperimentToolsCopy = {
   body: '',
 } as const
 
-export type ExperimentHeroVariant = 'strong' | 'soft'
-
 export const landingExperimentHeroCopy = {
   strong: {
     eyebrow: 'Career Workbench',
     headlineAccent: 'blind spots',
     headlinePost: 'We find them before recruiters do.',
+    mobileHeadlineLines: ['We find them', 'before recruiters do.'],
     body: 'Upload your resume and see exactly what\u2019s working, what\u2019s not, and what to fix first \u2014 in under a minute.',
-    ctaLabel: 'Analyze your CV \u2014 Free',
-    secondaryCtaLabel: 'See how it works',
-    trustItems: ['No sign-up required'],
-  },
-  soft: {
-    eyebrow: 'Career Workbench',
-    headlineAccent: 'hiring signal',
-    headlinePost: 'From review to applications in one place.',
-    body: 'Upload your resume and see exactly what\u2019s working, what\u2019s not, and what to fix first \u2014 in under a minute.',
+    mobileBody: 'Upload your resume and see exactly what\u2019s\nworking, what\u2019s not, and what to fix first\n\u2014 in under a minute.',
     ctaLabel: 'Analyze your CV \u2014 Free',
     secondaryCtaLabel: 'See how it works',
     trustItems: ['No sign-up required'],

@@ -29,10 +29,7 @@ const TRUST_ITEMS = [
 export function LandingExperimentHero() {
   const prefersReducedMotion = useReducedMotion() ?? false
   const copy = landingExperimentHeroCopy.strong
-  const mobileHeadlineLines =
-    copy.headlinePost === 'We find them before recruiters do.'
-      ? ['We find them', 'before recruiters do.']
-      : [copy.headlinePost]
+  const mobileHeadlineLines = copy.mobileHeadlineLines
 
   // Parallax tilt on the hero image card (no React state — pure motion values)
   const mx = useMotionValue(0)
@@ -80,7 +77,7 @@ export function LandingExperimentHero() {
           </div>
           <h1 className="lp-hero-h1">
             Your{' '}
-            <span className="lp-hero-shimmer">{'resume'}</span>
+            <span className="lp-hero-shimmer">resume</span>
             <br className="lp-hero-br--mobile" />
             {' '}has{' '}
             <span className="lp-hero-shimmer lp-hero-shimmer--alt">{copy.headlineAccent}</span>
@@ -93,11 +90,7 @@ export function LandingExperimentHero() {
             </span>
           </h1>
           <p className="lp-hero-body lp-hero-body--desktop">{copy.body}</p>
-          <p className="lp-hero-body lp-hero-body--mobile">
-            Upload your resume and see exactly what{'\u2019'}s<br />
-            working, what{'\u2019'}s not, and what to fix first<br />
-            {' \u2014 '}in under a minute.
-          </p>
+          <p className="lp-hero-body lp-hero-body--mobile">{copy.mobileBody}</p>
           <div className="lp-hero-actions">
             <a href={landingPrimaryCta.to} className="lp-btn-primary">
               {copy.ctaLabel}
