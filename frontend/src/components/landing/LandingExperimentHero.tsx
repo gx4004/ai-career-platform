@@ -29,6 +29,7 @@ const TRUST_ITEMS = [
 export function LandingExperimentHero() {
   const prefersReducedMotion = useReducedMotion() ?? false
   const copy = landingExperimentHeroCopy.strong
+  const mobileHeadlineLines = copy.mobileHeadlineLines
 
   // Parallax tilt on the hero image card (no React state — pure motion values)
   const mx = useMotionValue(0)
@@ -75,12 +76,21 @@ export function LandingExperimentHero() {
             </span>
           </div>
           <h1 className="lp-hero-h1">
-            Your <span className="lp-hero-shimmer">resume</span> has{' '}
-            <span className="lp-hero-shimmer lp-hero-shimmer--alt">blind spots</span>.
-            <br />
-            We find them before recruiters do.
+            Your{' '}
+            <span className="lp-hero-shimmer">resume</span>
+            <br className="lp-hero-br--mobile" />
+            {' '}has{' '}
+            <span className="lp-hero-shimmer lp-hero-shimmer--alt">{copy.headlineAccent}</span>
+            .{' '}
+            <span className="lp-hero-line lp-hero-line--desktop">{copy.headlinePost}</span>
+            <span className="lp-hero-line lp-hero-line--mobile" aria-label={copy.headlinePost}>
+              {mobileHeadlineLines.map((line) => (
+                <span key={line}>{line}</span>
+              ))}
+            </span>
           </h1>
-          <p className="lp-hero-body">{copy.body}</p>
+          <p className="lp-hero-body lp-hero-body--desktop">{copy.body}</p>
+          <p className="lp-hero-body lp-hero-body--mobile">{copy.mobileBody}</p>
           <div className="lp-hero-actions">
             <a href={landingPrimaryCta.to} className="lp-btn-primary">
               {copy.ctaLabel}
