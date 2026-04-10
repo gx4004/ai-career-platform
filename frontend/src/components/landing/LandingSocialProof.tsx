@@ -1,46 +1,44 @@
-import { Star } from 'lucide-react'
 import { motion, useReducedMotion } from 'framer-motion'
 import {
   landingSocialProofStat,
   landingTestimonials,
 } from '#/components/landing/landingContent'
-import { useSpotlight } from '#/hooks/useSpotlight'
 
 export function LandingSocialProof() {
   const prefersReducedMotion = useReducedMotion() ?? false
-  const spotlight = useSpotlight()
 
   return (
-    <section className="lp-section lp-surface-lowest" id="landing-proof">
+    <section className="lp-section lp-proof-section" id="landing-proof">
+      <div className="lp-proof-bg" aria-hidden="true" />
+
       <div className="lp-container">
+        {/* ── Stat header ── */}
         <motion.div
-          style={{ textAlign: 'center', marginBottom: '1rem' }}
-          initial={prefersReducedMotion ? false : { opacity: 0, y: 18 }}
+          className="lp-proof-header"
+          initial={prefersReducedMotion ? false : { opacity: 0, y: 24 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, amount: 0.4 }}
-          transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+          transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
         >
-          <h2 className="lp-section-h2" style={{ marginBottom: '0.5rem' }}>
-            {landingSocialProofStat.value} resumes analyzed.
-          </h2>
-          <p style={{ color: 'var(--lp-tertiary)', fontWeight: 500 }}>Careers unblocked.</p>
+          <span className="lp-proof-stat-number">{landingSocialProofStat.value}</span>
+          <span className="lp-proof-stat-label">{landingSocialProofStat.label}</span>
         </motion.div>
 
+        {/* ── Testimonial grid ── */}
         <motion.div
-          className="lp-testimonials-grid"
+          className="lp-proof-grid"
           initial="hidden"
           whileInView="visible"
-          viewport={{ once: true, amount: 0.2 }}
+          viewport={{ once: true, amount: 0.15 }}
           variants={{
             hidden: {},
-            visible: { transition: { staggerChildren: 0.08 } },
+            visible: { transition: { staggerChildren: 0.06 } },
           }}
         >
           {landingTestimonials.map((t) => (
             <motion.figure
               key={t.name}
-              className="lp-testimonial-card lp-spotlight"
-              {...spotlight}
+              className="lp-proof-card"
               variants={{
                 hidden: prefersReducedMotion ? { opacity: 1 } : { opacity: 0, y: 20 },
                 visible: {
@@ -50,29 +48,11 @@ export function LandingSocialProof() {
                 },
               }}
             >
-              <div
-                style={{
-                  display: 'flex',
-                  gap: 2,
-                  color: 'var(--lp-tertiary)',
-                  marginBottom: '1rem',
-                }}
-                aria-label="5 out of 5 stars"
-              >
-                {Array.from({ length: 5 }).map((_, i) => (
-                  <Star key={i} size={14} fill="currentColor" strokeWidth={0} />
-                ))}
-              </div>
-              <blockquote className="lp-testimonial-quote">&ldquo;{t.quote}&rdquo;</blockquote>
+              <blockquote className="lp-testimonial-quote">
+                &ldquo;{t.quote}&rdquo;
+              </blockquote>
               <figcaption className="lp-testimonial-author">
-                <div
-                  className="lp-testimonial-avatar"
-                  aria-hidden="true"
-                  style={{
-                    background: 'linear-gradient(135deg, #adc6ff 0%, #0f69dc 100%)',
-                    color: '#002e6a',
-                  }}
-                >
+                <div className="lp-testimonial-avatar" aria-hidden="true">
                   {t.initials}
                 </div>
                 <div>

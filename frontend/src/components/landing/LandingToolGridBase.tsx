@@ -57,7 +57,7 @@ const meta: Record<ToolId, ToolMeta> = {
   },
 }
 
-const accentClassByIndex = ['', 'is-accent-2', 'is-accent-3', '', 'is-accent-2', 'is-accent-3'] as const
+// Single accent — no multi-color variants in Ice Monochrome
 
 export function LandingToolGridBase({
   copy = defaultCopy,
@@ -144,7 +144,7 @@ export function LandingToolGridBase({
               <MotionLink
                 key={tool.id}
                 to="/dashboard"
-                className={`lp-tool-card lp-spotlight ${accentClassByIndex[realIndex] ?? ''}`}
+                className="lp-tool-card lp-spotlight"
                 {...spotlight}
                 variants={{
                   hidden: prefersReducedMotion ? { opacity: 1 } : { opacity: 0, y: 20 },

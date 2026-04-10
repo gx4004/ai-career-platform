@@ -39,20 +39,28 @@ export function LandingCTA() {
         viewport={{ once: true, amount: 0.3 }}
         transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
       >
-        <div className="lp-cta-orb lp-cta-orb-1" aria-hidden="true" />
-        <div className="lp-cta-orb lp-cta-orb-2" aria-hidden="true" />
-        <h2 className="lp-cta-h2">{landingCtaCopy.title}</h2>
-        <motion.a
-          href={landingPrimaryCta.to}
-          className="lp-btn-primary"
-          onMouseMove={handleMagnet}
-          onMouseLeave={resetMagnet}
-          style={prefersReducedMotion ? undefined : { x, y }}
-        >
-          {landingCtaCopy.ctaLabel}
-          <ArrowRight size={18} />
-        </motion.a>
-        <p className="lp-cta-micro">No sign-up required. Your data stays yours.</p>
+        {/* Double-bezel inner */}
+        <div className="lp-cta-inner">
+          <div className="lp-cta-orb lp-cta-orb-1" aria-hidden="true" />
+          <div className="lp-cta-orb lp-cta-orb-2" aria-hidden="true" />
+          <span className="lp-section-eyebrow" style={{ position: 'relative', zIndex: 1 }}>
+            {landingCtaCopy.eyebrow}
+          </span>
+          <h2 className="lp-cta-h2">{landingCtaCopy.title}</h2>
+          <motion.a
+            href={landingPrimaryCta.to}
+            className="lp-btn-primary"
+            onMouseMove={handleMagnet}
+            onMouseLeave={resetMagnet}
+            style={prefersReducedMotion ? undefined : { x, y }}
+          >
+            <span>{landingCtaCopy.ctaLabel}</span>
+            <span className="lp-btn-icon-circle" aria-hidden="true">
+              <ArrowRight size={15} strokeWidth={2.5} />
+            </span>
+          </motion.a>
+          <p className="lp-cta-micro">No sign-up required. Your data stays yours.</p>
+        </div>
       </motion.div>
     </section>
   )
