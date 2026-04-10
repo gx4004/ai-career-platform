@@ -18,12 +18,15 @@ export function LandingFeatureStepsDemo(_: { autoPlay?: boolean } = {}) {
         >
           <span className="lp-section-eyebrow">{landingWorkflowCopy.eyebrow}</span>
           <h2 className="lp-section-h2">
-            {landingWorkflowCopy.title.split('.').filter(Boolean).map((word, i) => (
-              <span key={word}>
-                {word.trim()}
-                {i < 2 && <span className="lp-workflow-separator" aria-hidden="true"> · </span>}
-              </span>
-            ))}
+            {(() => {
+              const parts = landingWorkflowCopy.title.split('.').filter(Boolean)
+              return parts.map((word, i) => (
+                <span key={word}>
+                  {word.trim()}
+                  {i < parts.length - 1 && <span className="lp-workflow-separator" aria-hidden="true"> · </span>}
+                </span>
+              ))
+            })()}
           </h2>
         </motion.div>
 

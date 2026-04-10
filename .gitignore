@@ -44,6 +44,7 @@ frontend/test-results/
 # AI tool configs
 .claude/
 .superpowers/
+frontend/.codex-previews/
 
 # Legacy / archived
 frontend-legacy/

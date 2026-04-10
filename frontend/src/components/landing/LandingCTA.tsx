@@ -43,7 +43,7 @@ export function LandingCTA() {
         <div className="lp-cta-inner">
           <div className="lp-cta-orb lp-cta-orb-1" aria-hidden="true" />
           <div className="lp-cta-orb lp-cta-orb-2" aria-hidden="true" />
-          <span className="lp-section-eyebrow" style={{ position: 'relative', zIndex: 1 }}>
+          <span className="lp-section-eyebrow lp-cta-eyebrow">
             {landingCtaCopy.eyebrow}
           </span>
           <h2 className="lp-cta-h2">{landingCtaCopy.title}</h2>
