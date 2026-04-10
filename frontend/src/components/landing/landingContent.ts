@@ -124,7 +124,6 @@ export const landingResumeDemoCopy = {
 export const landingWorkflowCopy = {
   eyebrow: 'How it works',
   title: 'Review. Aim. Build.',
-  body: '',
 } as const
 
 export const landingToolsCopy = {

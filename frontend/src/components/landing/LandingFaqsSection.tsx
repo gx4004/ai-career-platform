@@ -84,7 +84,7 @@ export function LandingFaqsSection() {
                         transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
                         style={{ overflow: 'hidden' }}
                       >
-                        <div style={{ padding: '0 0 0.25rem' }}>{q.content}</div>
+                        <div className="lp-faq-content-inner">{q.content}</div>
                       </motion.div>
                     ) : null}
                   </AnimatePresence>

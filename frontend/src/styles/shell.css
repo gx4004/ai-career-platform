@@ -229,7 +229,7 @@
 
 .app-sidebar-brand-link .cw-brand-lockup--full {
   --cw-brand-lockup-width: 100%;
-  --cw-brand-wordmark-width: min(100%, 11.35rem);
+  --cw-brand-wordmark-width: min(100%, 12.5rem);
 }
 
 .app-sidebar-brand-link .cw-brand-wordmark {
@@ -238,9 +238,9 @@
 
 .app-sidebar-brand-row.is-collapsed .app-sidebar-brand-link {
   flex: none;
-  width: 3.05rem;
-  height: 3.05rem;
-  min-height: 3.05rem;
+  width: 3.4rem;
+  height: 3.4rem;
+  min-height: 3.4rem;
   justify-content: center;
   padding: 0.14rem;
   border-radius: var(--sidebar-compact-surface-radius);
@@ -250,8 +250,8 @@
 }
 
 .app-sidebar-brand-row.is-collapsed .cw-brand-mark {
-  width: 2.34rem;
-  height: 2.34rem;
+  width: 2.75rem;
+  height: 2.75rem;
 }
 
 .app-sidebar-brand-toggle {
