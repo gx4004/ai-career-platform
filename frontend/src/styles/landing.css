@@ -501,7 +501,7 @@
   max-width: 74rem;
   margin: 0 auto;
 }
-@media (min-width: 1024px) { .lp-redesign .lp-hero-grid { grid-template-columns: 1.15fr 1fr; gap: 4rem; } }
+@media (min-width: 1024px) { .lp-redesign .lp-hero-grid { grid-template-columns: 1fr 1.1fr; gap: 4rem; } }
 /* min-width:0 prevents the grid item from expanding to the trust track's max-content
    width (the marquee uses width:max-content + white-space:nowrap). Without this the
    grid cell blows out to ~2300px, text-align:center pushes hero text far off-screen,
@@ -646,19 +646,36 @@
   background: var(--lp-surface);
   border: 1px solid rgba(255, 255, 255, 0.06);
   border-radius: 1.25rem;
-  padding: 3px;
+  padding: 0;
+  overflow: hidden;
   box-shadow: 0 24px 60px -16px rgba(0, 0, 0, 0.5);
 }
+.lp-redesign .lp-hero-titlebar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 14px;
+  background: var(--lp-surface-2);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.lp-redesign .lp-hero-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+.lp-redesign .lp-hero-dot--red { background: #ff5f57; }
+.lp-redesign .lp-hero-dot--yellow { background: #febc2e; }
+.lp-redesign .lp-hero-dot--green { background: #28c840; }
 .lp-redesign .lp-hero-image-core {
-  border-radius: calc(1.25rem - 3px);
   overflow: hidden;
   background: var(--lp-bg);
-  border: 1px solid rgba(255, 255, 255, 0.03);
+  border: none;
 }
 .lp-redesign .lp-hero-image-core img {
   display: block;
   width: 100%;
   height: auto;
+  transform: scale(1.1);
 }
 
 /* Section eyebrow header */
@@ -842,11 +859,12 @@
   width: 100%;
   height: auto;
   opacity: 0.9;
+  transform: scale(1.15);
   transition: opacity .5s ease, transform .5s ease;
 }
 .lp-redesign .lp-workflow-step:hover .lp-workflow-img {
   opacity: 1;
-  transform: scale(1.02);
+  transform: scale(1.18);
 }
 
 /* Tools grid */

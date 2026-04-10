@@ -107,6 +107,11 @@ export function LandingExperimentHero() {
         >
           <div className="lp-hero-visual-glow" aria-hidden="true" />
           <div className="lp-hero-image-shell">
+            <div className="lp-hero-titlebar" aria-hidden="true">
+              <span className="lp-hero-dot lp-hero-dot--red" />
+              <span className="lp-hero-dot lp-hero-dot--yellow" />
+              <span className="lp-hero-dot lp-hero-dot--green" />
+            </div>
             <div className="lp-hero-image-core">
               <img
                 src="/ai-generated/carousel/landing-hero.webp"
