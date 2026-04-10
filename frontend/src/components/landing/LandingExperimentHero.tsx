@@ -115,7 +115,7 @@ export function LandingExperimentHero() {
             <div className="lp-hero-image-core">
               <img
                 src="/ai-generated/carousel/landing-hero.webp"
-                alt="Abstract crystalline structure representing AI-powered career analysis"
+                alt="Laptop showing a dark analytics dashboard with career metrics"
                 width={800}
                 height={450}
                 loading="eager"

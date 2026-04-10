@@ -83,6 +83,11 @@
   align-items: center;
   margin-right: 1.5rem;
 }
+.landing-experiment-navbar-brand .cw-brand-mark {
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 0.75rem;
+}
 
 .landing-experiment-navbar-nav {
   display: none;
@@ -449,7 +454,7 @@
   --lp-accent-dim: #06b6d4;
   --lp-accent-soft: rgba(34, 211, 238, 0.08);
   --lp-accent-glow: rgba(34, 211, 238, 0.18);
-  /* Legacy aliases — resolve to cyan while sections migrate */
+  /* Legacy aliases — all resolve to cyan (kept for backward compatibility) */
   --lp-primary: #22d3ee;
   --lp-primary-strong: #06b6d4;
   --lp-secondary: #22d3ee;
@@ -968,6 +973,9 @@
   color: var(--lp-text-dim);
   font-size: 0.875rem;
   line-height: 1.65;
+}
+.lp-redesign .lp-faq-content-inner {
+  padding: 0 0 0.25rem;
 }
 
 /* CTA — double-bezel card */

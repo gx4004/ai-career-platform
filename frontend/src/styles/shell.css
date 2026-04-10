@@ -40,8 +40,9 @@
 
 .cw-brand-mark {
   display: block;
-  width: 2.35rem;
-  height: 2.35rem;
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 0.75rem;
 }
 
 .cw-brand-subtitle {
@@ -686,8 +687,9 @@
 }
 
 .topbar-mobile-brand .cw-brand-mark {
-  width: 1.75rem;
-  height: 1.75rem;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 0.5rem;
 }
 
 .topbar-mobile-brand {
