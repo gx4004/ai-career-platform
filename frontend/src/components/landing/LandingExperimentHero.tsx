@@ -1,21 +1,10 @@
 import { ArrowRight } from 'lucide-react'
-import { Link } from '@tanstack/react-router'
-import {
-  motion,
-  useMotionValue,
-  useReducedMotion,
-  useSpring,
-  useTransform,
-} from 'framer-motion'
+import { motion, useReducedMotion } from 'framer-motion'
 import {
   landingExperimentHeroCopy,
   landingPrimaryCta,
 } from '#/components/landing/landingContent'
 
-const MotionLink = motion(Link)
-
-// Neutral audience descriptors — no real brands/universities to avoid implied-endorsement
-// or trademark issues. Swap in testimonials later once we have written permission.
 const TRUST_ITEMS = [
   'CS graduates',
   'Bootcamp alumni',
@@ -31,29 +20,11 @@ export function LandingExperimentHero() {
   const copy = landingExperimentHeroCopy.strong
   const mobileHeadlineLines = copy.mobileHeadlineLines
 
-  // Parallax tilt on the hero image card (no React state — pure motion values)
-  const mx = useMotionValue(0)
-  const my = useMotionValue(0)
-  const rotateY = useSpring(useTransform(mx, [-0.5, 0.5], [-6, 6]), {
-    stiffness: 120,
-    damping: 20,
+  const fadeUp = (delay: number) => ({
+    initial: prefersReducedMotion ? false : { opacity: 0, y: 24 },
+    animate: { opacity: 1, y: 0 },
+    transition: { duration: 0.7, delay, ease: [0.16, 1, 0.3, 1] as const },
   })
-  const rotateX = useSpring(useTransform(my, [-0.5, 0.5], [4, -4]), {
-    stiffness: 120,
-    damping: 20,
-  })
-
-  const handleTilt = (event: React.MouseEvent<HTMLElement>) => {
-    if (prefersReducedMotion) return
-    const target = event.currentTarget
-    const rect = target.getBoundingClientRect()
-    mx.set((event.clientX - rect.left) / rect.width - 0.5)
-    my.set((event.clientY - rect.top) / rect.height - 0.5)
-  }
-  const resetTilt = () => {
-    mx.set(0)
-    my.set(0)
-  }
 
   const handleSmoothScroll = (
     e: React.MouseEvent<HTMLAnchorElement>,
@@ -66,35 +37,56 @@ export function LandingExperimentHero() {
 
   return (
     <section className="lp-hero" id="landing-hero">
+      <div className="lp-hero-grid-bg" aria-hidden="true" />
+
       <div className="lp-hero-grid">
+        {/* ── Text column ── */}
         <div className="lp-hero-copy">
-          <div className="lp-hero-eyebrow-row">
+          <motion.div className="lp-hero-eyebrow-row" {...fadeUp(0)}>
             <span className="lp-hero-eyebrow">{copy.eyebrow}</span>
             <span className="lp-hero-beta">
               <span className="lp-hero-beta-dot" aria-hidden="true" />
               Now in public beta
             </span>
-          </div>
+          </motion.div>
+
           <h1 className="lp-hero-h1">
-            Your{' '}
-            <span className="lp-hero-shimmer">resume</span>
-            <br className="lp-hero-br--mobile" />
-            {' '}has{' '}
-            <span className="lp-hero-shimmer lp-hero-shimmer--alt">{copy.headlineAccent}</span>
-            .{' '}
-            <span className="lp-hero-line lp-hero-line--desktop">{copy.headlinePost}</span>
-            <span className="lp-hero-line lp-hero-line--mobile" aria-label={copy.headlinePost}>
+            <motion.span className="lp-hero-line lp-hero-line--desktop" {...fadeUp(0.08)}>
+              Your{' '}
+              <em className="lp-hero-shimmer">resume</em>
+              {' '}has{' '}
+              <em className="lp-hero-shimmer lp-hero-shimmer--alt">{copy.headlineAccent}</em>.
+            </motion.span>
+            <motion.span className="lp-hero-line lp-hero-line--desktop" {...fadeUp(0.16)}>
+              {copy.headlinePost}
+            </motion.span>
+
+            <motion.span className="lp-hero-line lp-hero-line--mobile" aria-label={copy.headlinePost} {...fadeUp(0.08)}>
+              Your{' '}
+              <em className="lp-hero-shimmer">resume</em>
+              {' '}has{' '}
+              <em className="lp-hero-shimmer lp-hero-shimmer--alt">{copy.headlineAccent}</em>.
+            </motion.span>
+            <motion.span className="lp-hero-line lp-hero-line--mobile" {...fadeUp(0.16)}>
               {mobileHeadlineLines.map((line) => (
                 <span key={line}>{line}</span>
               ))}
-            </span>
+            </motion.span>
           </h1>
-          <p className="lp-hero-body lp-hero-body--desktop">{copy.body}</p>
-          <p className="lp-hero-body lp-hero-body--mobile">{copy.mobileBody}</p>
-          <div className="lp-hero-actions">
+
+          <motion.p className="lp-hero-body lp-hero-body--desktop" {...fadeUp(0.24)}>
+            {copy.body}
+          </motion.p>
+          <motion.p className="lp-hero-body lp-hero-body--mobile" {...fadeUp(0.24)}>
+            {copy.mobileBody}
+          </motion.p>
+
+          <motion.div className="lp-hero-actions" {...fadeUp(0.32)}>
             <a href={landingPrimaryCta.to} className="lp-btn-primary">
-              {copy.ctaLabel}
-              <ArrowRight size={18} />
+              <span>{copy.ctaLabel}</span>
+              <span className="lp-btn-icon-circle" aria-hidden="true">
+                <ArrowRight size={15} strokeWidth={2.5} />
+              </span>
             </a>
             <a
               href="#landing-journey"
@@ -103,40 +95,45 @@ export function LandingExperimentHero() {
             >
               {copy.secondaryCtaLabel}
             </a>
-          </div>
+          </motion.div>
         </div>
 
-        <MotionLink
-          to="/dashboard"
-          className="lp-hero-image-wrap lp-hero-image-link"
-          aria-label="Open Career Workbench dashboard"
-          initial={prefersReducedMotion ? false : { opacity: 0, y: 28, scale: 0.98 }}
+        {/* ── Visual column: hero image ── */}
+        <motion.div
+          className="lp-hero-visual"
+          initial={prefersReducedMotion ? false : { opacity: 0, y: 32, scale: 0.96 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
-          transition={{ duration: 0.8, delay: 0.15, ease: [0.16, 1, 0.3, 1] }}
-          onMouseMove={handleTilt}
-          onMouseLeave={resetTilt}
+          transition={{ duration: 0.9, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
         >
-          <div className="lp-hero-image-halo" aria-hidden="true" />
-          <motion.div
-            className="lp-hero-image-card"
-            style={prefersReducedMotion ? undefined : { rotateX, rotateY }}
-          >
-            <img
-              src="/ai-generated/carousel/hero-resume-analyzer.webp"
-              alt="Career Workbench resume analyzer preview"
-              width={800}
-              height={471}
-              loading="eager"
-              decoding="async"
-              fetchPriority="high"
-              draggable={false}
-            />
-          </motion.div>
-        </MotionLink>
+          <div className="lp-hero-visual-glow" aria-hidden="true" />
+          <div className="lp-hero-image-shell">
+            <div className="lp-hero-titlebar" aria-hidden="true">
+              <span className="lp-hero-dot lp-hero-dot--red" />
+              <span className="lp-hero-dot lp-hero-dot--yellow" />
+              <span className="lp-hero-dot lp-hero-dot--green" />
+            </div>
+            <div className="lp-hero-image-core">
+              <img
+                src="/ai-generated/carousel/landing-hero.webp"
+                alt="Abstract crystalline structure representing AI-powered career analysis"
+                width={800}
+                height={450}
+                loading="eager"
+                decoding="async"
+                fetchPriority="high"
+                draggable={false}
+              />
+            </div>
+          </div>
+        </motion.div>
       </div>
 
-      {/* Trust marquee — outside the grid so it spans the full hero width */}
-      <div className="lp-hero-trust" aria-label="Built for job seekers across disciplines">
+      {/* Trust marquee */}
+      <motion.div
+        className="lp-hero-trust"
+        aria-label="Built for job seekers across disciplines"
+        {...fadeUp(0.5)}
+      >
         <span className="lp-hero-trust-label">Built for</span>
         <div className="lp-hero-trust-track-wrap">
           <div className="lp-hero-trust-track" aria-hidden="true">
@@ -145,7 +142,7 @@ export function LandingExperimentHero() {
             ))}
           </div>
         </div>
-      </div>
+      </motion.div>
     </section>
   )
 }
