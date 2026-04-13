@@ -38,8 +38,8 @@
   gap: 1rem;
   border-radius: 999px;
   padding: 0.55rem 0.8rem 0.55rem 0.95rem;
-  backdrop-filter: blur(16px) saturate(180%);
-  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 
   /* Light state (default) - clean, premium, glassy white */
   background: rgba(255, 255, 255, 0.88);
@@ -251,8 +251,8 @@
   inset: 0;
   z-index: 200;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(248, 252, 255, 0.99));
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
 /* Dark mobile drawer for the redesigned landing — matches navbar theme,
@@ -342,8 +342,8 @@
 /* ─── Navbar (page-level overrides) ─────────────────────── */
 .landing-page-experiment .landing-experiment-navbar-inner {
   background: rgba(8, 18, 34, 0.75) !important;
-  backdrop-filter: blur(24px) saturate(160%);
-  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   border: 1px solid rgba(60, 120, 190, 0.08) !important;
   box-shadow:
     0 4px 20px rgba(0, 0, 0, 0.15),
@@ -353,8 +353,8 @@
 /* Scrolled: slightly more opaque dark */
 .landing-page-experiment .landing-experiment-navbar-inner[data-state='dark'] {
   background: rgba(10, 24, 44, 0.92) !important;
-  backdrop-filter: blur(24px) saturate(160%);
-  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   border-color: rgba(60, 120, 190, 0.06) !important;
   box-shadow:
     0 4px 20px rgba(0, 0, 0, 0.18),
@@ -859,7 +859,7 @@
   width: 16rem;
   height: 16rem;
   border-radius: 9999px;
-  filter: blur(100px);
+  filter: blur(48px);
   pointer-events: none;
 }
 .lp-redesign .lp-cta-orb-1 { top: -6rem; left: -6rem; background: rgba(173, 198, 255, 0.18); }
@@ -1458,7 +1458,7 @@ body:has(.lp-redesign)::after { display: none !important; }
   max-width: 720px;
   max-height: 720px;
   border-radius: 9999px;
-  filter: blur(140px);
+  filter: blur(60px);
   opacity: 0.08;
   will-change: transform;
 }
@@ -1507,8 +1507,8 @@ body:has(.lp-redesign)::after { display: none !important; }
 .lp-redesign .landing-experiment-navbar-inner[data-state='dark'] {
   background: rgba(11, 19, 38, 0.62) !important;
   border-color: rgba(173, 198, 255, 0.12) !important;
-  backdrop-filter: blur(18px) saturate(170%) !important;
-  -webkit-backdrop-filter: blur(18px) saturate(170%) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
   box-shadow:
     0 1px 0 rgba(173, 198, 255, 0.04) inset,
     0 10px 30px -12px rgba(0, 0, 0, 0.55),
