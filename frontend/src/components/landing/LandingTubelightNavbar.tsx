@@ -46,8 +46,19 @@ export function LandingTubelightNavbar({
 
   useEffect(() => {
     handleScroll()
-    window.addEventListener('scroll', handleScroll, { passive: true })
-    return () => window.removeEventListener('scroll', handleScroll)
+    let rafId = 0
+    const onScroll = () => {
+      if (rafId) return
+      rafId = requestAnimationFrame(() => {
+        handleScroll()
+        rafId = 0
+      })
+    }
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => {
+      window.removeEventListener('scroll', onScroll)
+      cancelAnimationFrame(rafId)
+    }
   }, [handleScroll])
 
   useEffect(() => {
