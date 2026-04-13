@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { usePostHog } from 'posthog-js/react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { AlertCircle, Clock, Copy, Download, FileText, Loader2, RefreshCw, Star, Undo2, X } from 'lucide-react'
@@ -68,6 +69,7 @@ export function ToolResultScreen({
   historyId: string
 }) {
   const navigate = useNavigate()
+  const posthog = usePostHog()
   const { status, openAuthDialog } = useSession()
   const favoriteToggle = useFavoriteToggle()
   const [copied, setCopied] = useState(false)
@@ -133,7 +135,13 @@ export function ToolResultScreen({
       saved: item.saved,
       workspace_id: item.workspace?.id,
     })
-  }, [item, toolId])
+    posthog.capture('tool_result_viewed', {
+      tool_id: toolId,
+      history_id: item.id,
+      access_mode: item.access_mode === 'guest_demo' ? 'guest_demo' : 'authenticated',
+      is_guest: !item.saved,
+    })
+  }, [item, toolId, posthog])
 
   useEffect(() => {
     if (!item) return
@@ -244,12 +252,14 @@ export function ToolResultScreen({
 
   async function handleCopy() {
     await navigator.clipboard.writeText(definition.copyText(payload, item!))
+    posthog.capture('tool_result_copied', { tool_id: resolvedTool.id })
     setCopied(true)
     if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current)
     copyTimeoutRef.current = setTimeout(() => setCopied(false), 1200)
   }
 
   function handleExport(format: 'txt' | 'md') {
+    posthog.capture('tool_result_exported', { tool_id: resolvedTool.id, format })
     trackTelemetry({
       event_name: 'export_action_used',
       tool_id: resolvedTool.id,
@@ -350,6 +360,7 @@ export function ToolResultScreen({
                       openAuthDialog({ to: resolvedTool.route, reason: 'save-demo-result', label: 'Sign in to save' })
                       return
                     }
+                    posthog.capture('tool_result_favorited', { tool_id: resolvedTool.id, is_favorite: !item.is_favorite })
                     favoriteToggle.mutate({ historyId: item.id, isFavorite: !item.is_favorite })
                   }}
                   title={savedResult ? (item.is_favorite ? 'Favorited' : 'Favorite') : 'Sign in to save'}

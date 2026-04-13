@@ -145,6 +145,10 @@ function RootDocument({ children }: { children: ReactNode }) {
             defaults: '2025-05-24',
             capture_exceptions: true,
             debug: import.meta.env.DEV,
+            session_recording: {
+              maskAllInputs: false,
+              maskInputOptions: { password: true },
+            },
           }}
         >
         <QueryClientProvider client={queryClient}>
