@@ -147,7 +147,7 @@ function RootDocument({ children }: { children: ReactNode }) {
             debug: import.meta.env.DEV,
             session_recording: {
               maskAllInputs: false,
-              maskInputOptions: { password: true },
+              maskInputOptions: { password: true, email: true },
             },
           }}
         >

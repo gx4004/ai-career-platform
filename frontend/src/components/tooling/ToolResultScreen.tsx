@@ -125,8 +125,11 @@ export function ToolResultScreen({
     })
   }, [item])
 
+  const viewedRef = useRef<string | null>(null)
+
   useEffect(() => {
-    if (!item) return
+    if (!item || viewedRef.current === item.id) return
+    viewedRef.current = item.id
     trackTelemetry({
       event_name: 'result_page_loaded',
       tool_id: toolId,
