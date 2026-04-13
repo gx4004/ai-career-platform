@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { usePostHog } from 'posthog-js/react'
 import { Button } from '#/components/ui/button'
 import { Input } from '#/components/ui/input'
 import { Label } from '#/components/ui/label'
@@ -9,6 +10,7 @@ export function RegisterForm({
 }: {
   onSuccess?: () => void
 }) {
+  const posthog = usePostHog()
   const { register, googleLogin, authError } = useSession()
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
@@ -22,7 +24,10 @@ export function RegisterForm({
         variant="outline"
         size="lg"
         className="auth-submit w-full"
-        onClick={googleLogin}
+        onClick={() => {
+          posthog.capture('google_auth_initiated', { action: 'signup' })
+          googleLogin()
+        }}
       >
         <svg viewBox="0 0 24 24" width="18" height="18" className="mr-2" aria-hidden="true">
           <path
@@ -62,6 +67,7 @@ export function RegisterForm({
               password,
               full_name: fullName || undefined,
             })
+            posthog.capture('user_signed_up', { method: 'email' })
             onSuccess?.()
           } catch {
             // Error displayed via session authError state
