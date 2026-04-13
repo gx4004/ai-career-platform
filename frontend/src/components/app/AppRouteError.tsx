@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { usePostHog } from 'posthog-js/react'
 import { AlertTriangle, RefreshCw } from 'lucide-react'
 import { AppStatePanel } from '#/components/app/AppStatePanel'
 import { captureAppError } from '#/lib/telemetry/client'
@@ -24,15 +25,20 @@ export function AppRouteError({
   error: Error
   reset: () => void
 }) {
+  const posthog = usePostHog()
   const chunkLoadFailure = isChunkLoadError(error)
 
   useEffect(() => {
-    captureAppError(error, {
-      source: 'route-error',
-      failure_kind: chunkLoadFailure ? 'chunk-load' : 'generic-route',
-      route: typeof window !== 'undefined' ? window.location.pathname : undefined,
+    const route = typeof window !== 'undefined' ? window.location.pathname : undefined
+    const failureKind = chunkLoadFailure ? 'chunk-load' : 'generic-route'
+    captureAppError(error, { source: 'route-error', failure_kind: failureKind, route })
+    posthog.capture('app_error', {
+      error_message: error.message,
+      error_name: error.name,
+      failure_kind: failureKind,
+      route,
     })
-  }, [chunkLoadFailure, error])
+  }, [chunkLoadFailure, error, posthog])
 
   if (chunkLoadFailure) {
     return (
