@@ -99,6 +99,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   // Listen for session-expired events from API client — open auth dialog in-place
   useEffect(() => {
     const handleExpired = () => {
+      posthog.reset()
       // Clear user-specific query caches so stale data isn't visible after re-auth
       queryClient.removeQueries({ queryKey: ['history-page'] })
       queryClient.removeQueries({ queryKey: ['history-workspaces'] })
@@ -110,7 +111,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     }
     window.addEventListener('cw:session-expired', handleExpired)
     return () => window.removeEventListener('cw:session-expired', handleExpired)
-  }, [queryClient])
+  }, [queryClient, posthog])
 
   const closeAuthDialog = useCallback(() => {
     setAuthDialogOpen(false)
@@ -141,7 +142,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const openAuthDialog = useCallback<SessionState['openAuthDialog']>(
     (intent, action) => {
-      posthog.capture('auth_dialog_opened', { reason: intent?.reason || undefined })
+      posthog.capture('login_redirect_triggered', { reason: intent?.reason || undefined })
 
       if (intent) {
         writePendingIntent({
@@ -228,7 +229,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       queryClient.setQueryData(['current-user'], null)
       await queryClient.invalidateQueries({ queryKey: ['current-user'] })
     }
-  }, [queryClient])
+  }, [queryClient, posthog])
 
   const status: SessionState['status'] = userQuery.isPending
     ? 'loading'

@@ -33,9 +33,9 @@ export function DropzoneHero({
   const mutation = useMutation({
     mutationFn: parseCv,
     onMutate: () => setDropState('uploading'),
-    onSuccess: (data) => {
+    onSuccess: (data, variables) => {
       setDropState('success')
-      posthog.capture('resume_uploaded', { file_name: fileName })
+      posthog.capture('resume_uploaded', { file_name: variables?.name || null })
       onParsed(data.extracted_text)
     },
     onError: () => setDropState('idle'),

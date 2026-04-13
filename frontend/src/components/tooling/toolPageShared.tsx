@@ -83,7 +83,7 @@ export function useToolPageState(toolId: ToolId) {
     if (Object.keys(nextErrors).length > 0) return
     posthog.capture('tool_submitted', {
       tool_id: toolId,
-      is_regenerate: Boolean(feedback),
+      is_regenerate: Boolean(parentRunId),
     })
     mutation.mutate({
       payload: config.buildPayload(draft),
