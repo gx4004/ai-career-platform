@@ -8,6 +8,7 @@ import {
   useState,
 } from 'react'
 import type { ReactNode } from 'react'
+import { usePostHog } from 'posthog-js/react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   API_URL,
@@ -58,6 +59,7 @@ export type SessionState = {
 const SessionContext = createContext<SessionState | null>(null)
 
 export function SessionProvider({ children }: { children: ReactNode }) {
+  const posthog = usePostHog()
   const queryClient = useQueryClient()
   const [token, setToken] = useState<string | null>(() => getAuthToken())
   const [authDialogOpen, setAuthDialogOpen] = useState(false)
@@ -139,6 +141,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const openAuthDialog = useCallback<SessionState['openAuthDialog']>(
     (intent, action) => {
+      posthog.capture('auth_dialog_opened', { reason: intent?.reason || undefined })
+
       if (intent) {
         writePendingIntent({
           ...intent,
@@ -151,7 +155,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       // Navigate to /login instead of opening a popup dialog
       navigateToPath('/login')
     },
-    [],
+    [posthog],
   )
 
   const completeAuthentication = useCallback(
@@ -189,6 +193,17 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     [completeAuthentication],
   )
 
+  // Identify user in PostHog when authentication state resolves
+  useEffect(() => {
+    const user = userQuery.data
+    if (user) {
+      posthog.identify(String(user.id), {
+        email: user.email,
+        name: user.full_name || undefined,
+      })
+    }
+  }, [userQuery.data, posthog])
+
   const googleLogin = useCallback(() => {
     window.location.href = `${API_URL}/auth/google/login`
   }, [])
@@ -199,6 +214,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     } catch {
       // Local session cleanup still runs so the UI does not stay stuck.
     } finally {
+      posthog.capture('user_logged_out')
+      posthog.reset()
       clearAuthToken()
       clearPendingIntent()
       pendingActionRef.current = null

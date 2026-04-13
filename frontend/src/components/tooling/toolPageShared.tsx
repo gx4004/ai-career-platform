@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { usePostHog } from 'posthog-js/react'
 import { CheckCircle2, FilePenLine } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { CinematicLoader } from '#/components/tooling/CinematicLoader'
@@ -63,6 +64,7 @@ export const loadingStagesByTool: Record<ToolId, Array<{ label: string }>> = {
 }
 
 export function useToolPageState(toolId: ToolId) {
+  const posthog = usePostHog()
   const tool = tools[toolId]
   const config = workflowConfigs[toolId]
   const { status, openAuthDialog } = useSession()
@@ -79,6 +81,10 @@ export function useToolPageState(toolId: ToolId) {
     const nextErrors = validateWorkflowDraft(config, draft)
     setErrors(nextErrors)
     if (Object.keys(nextErrors).length > 0) return
+    posthog.capture('tool_submitted', {
+      tool_id: toolId,
+      is_regenerate: Boolean(feedback),
+    })
     mutation.mutate({
       payload: config.buildPayload(draft),
       draft,
