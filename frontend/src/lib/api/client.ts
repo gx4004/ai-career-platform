@@ -7,6 +7,7 @@ import {
   deletedResponseSchema,
   healthCheckSchema,
   importedJobSchema,
+  interviewPracticeFeedbackSchema,
   interviewResultSchema,
   jobMatchResultSchema,
   parsedCvSchema,
@@ -254,6 +255,18 @@ export function runInterview(payload: {
     method: 'POST',
     body: payload,
     schema: interviewResultSchema,
+  })
+}
+
+export function runInterviewPracticeFeedback(payload: {
+  question: string
+  user_answer: string
+  model_answer?: string
+}) {
+  return request('/interview/practice-feedback', {
+    method: 'POST',
+    body: payload,
+    schema: interviewPracticeFeedbackSchema,
   })
 }
 
