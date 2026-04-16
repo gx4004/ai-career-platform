@@ -64,6 +64,7 @@ def list_history(
 
 @router.get("/workspaces", response_model=WorkspaceListResponse)
 def list_workspaces(
+    limit: int = Query(100, ge=1, le=200),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -72,6 +73,7 @@ def list_workspaces(
         .options(selectinload(Workspace.tool_runs))
         .filter(Workspace.user_id == current_user.id)
         .order_by(Workspace.is_pinned.desc(), Workspace.updated_at.desc())
+        .limit(limit)
         .all()
     )
     items = []
@@ -81,7 +83,7 @@ def list_workspaces(
             items.append(summary)
     return WorkspaceListResponse(
         items=items,
-        total=len(workspaces),
+        total=len(items),
     )
 
 
