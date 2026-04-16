@@ -173,12 +173,16 @@ async def request_password_reset(request: Request, body: PasswordResetRequest, d
 
 @router.post("/password-reset/confirm", status_code=200)
 async def confirm_password_reset(body: PasswordResetConfirm, db: Session = Depends(get_db)):
-    # Decode token without verification first to get the email for user lookup
+    # Reset tokens are signed with a secret derived from the user's password
+    # hash, so we need the user record to verify the token. Extract the
+    # subject (email) from unverified claims for lookup only — the actual
+    # signature check happens below via verify_password_reset_token().
     try:
         from jose import jwt as jose_jwt
+        from jose.exceptions import JWTError
         unverified = jose_jwt.get_unverified_claims(body.token)
         email_claim = unverified.get("sub")
-    except Exception:
+    except (JWTError, ValueError, AttributeError):
         raise HTTPException(status_code=400, detail="Invalid or expired reset token")
     if not email_claim:
         raise HTTPException(status_code=400, detail="Invalid or expired reset token")
