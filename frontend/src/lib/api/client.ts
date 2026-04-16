@@ -55,6 +55,16 @@ function normalizeBody(body: RequestInit['body'] | Record<string, unknown> | und
 
 // Silent refresh mutex — prevents concurrent refresh calls
 let refreshPromise: Promise<string> | null = null
+// Cooldown after a failed refresh — avoids thundering-herd retries when the
+// refresh endpoint is down or the refresh cookie is gone.
+let refreshCooldownUntil = 0
+const REFRESH_COOLDOWN_MS = 2000
+
+// Test-only: reset module state between tests.
+export function __resetRefreshState() {
+  refreshPromise = null
+  refreshCooldownUntil = 0
+}
 
 async function silentRefresh(): Promise<string> {
   const res = await fetch(`${API_URL}/auth/refresh`, {
@@ -102,7 +112,12 @@ async function request<T>(
 
   if (!response.ok) {
     // Try silent refresh on 401 (skip for refresh endpoint itself and retries)
-    if (response.status === 401 && !_isRetry && path !== '/auth/refresh') {
+    if (
+      response.status === 401 &&
+      !_isRetry &&
+      path !== '/auth/refresh' &&
+      Date.now() >= refreshCooldownUntil
+    ) {
       try {
         if (!refreshPromise) {
           refreshPromise = silentRefresh()
@@ -112,6 +127,7 @@ async function request<T>(
         return request(path, options, true)
       } catch {
         refreshPromise = null
+        refreshCooldownUntil = Date.now() + REFRESH_COOLDOWN_MS
         clearAuthToken()
         if (token) {
           window.dispatchEvent(new CustomEvent('cw:session-expired'))
