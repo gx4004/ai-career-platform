@@ -1,3 +1,5 @@
+import json
+
 from fastapi import APIRouter, Depends, Request
 from app.limiter import limiter
 from sqlalchemy.orm import Session
@@ -32,6 +34,13 @@ async def questions(
         *(body.workspace_context.linked_history_ids if body.workspace_context else []),
     ]
 
+    resume_analysis_dict = (
+        body.resume_analysis.model_dump(exclude_none=True) if body.resume_analysis else None
+    )
+    job_match_dict = (
+        body.job_match.model_dump(exclude_none=True) if body.job_match else None
+    )
+
     response = await run_tool_pipeline(
         tool_name="interview",
         service_fn=generate_interview_questions,
@@ -39,14 +48,8 @@ async def questions(
             "resume_text": body.resume_text,
             "job_description": body.job_description,
             "num_questions": body.num_questions,
-            "resume_analysis": (
-                body.resume_analysis.model_dump(exclude_none=True)
-                if body.resume_analysis
-                else None
-            ),
-            "job_match": (
-                body.job_match.model_dump(exclude_none=True) if body.job_match else None
-            ),
+            "resume_analysis": resume_analysis_dict,
+            "job_match": job_match_dict,
         },
         label_fn=lambda r: f"Interview Prep ({len(r['questions'])} questions)",
         resume_text=body.resume_text,
@@ -57,6 +60,11 @@ async def questions(
         linked_context_ids=linked_context_ids,
         current_user=current_user,
         db=db,
+        cache_extra_keys={
+            "num_questions": str(body.num_questions) if body.num_questions is not None else "",
+            "resume_analysis": json.dumps(resume_analysis_dict, sort_keys=True) if resume_analysis_dict else "",
+            "job_match": json.dumps(job_match_dict, sort_keys=True) if job_match_dict else "",
+        },
     )
     return InterviewResponse(**response)
 
