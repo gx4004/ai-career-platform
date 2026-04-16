@@ -36,21 +36,36 @@ def create_access_token(subject: str) -> str:
     return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 
-def create_refresh_token(subject: str) -> str:
+def create_refresh_token(subject: str, token_version: int = 0) -> str:
     now = datetime.now(timezone.utc)
     expire = now + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
-    payload = {"sub": subject, "exp": expire, "iat": now, "type": "refresh", "jti": uuid.uuid4().hex}
+    payload = {
+        "sub": subject,
+        "exp": expire,
+        "iat": now,
+        "type": "refresh",
+        "jti": uuid.uuid4().hex,
+        "tv": token_version,
+    }
     return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 
-def verify_refresh_token(token: str) -> str | None:
+def verify_refresh_token(token: str) -> dict | None:
+    """Return decoded claims {sub, tv} if valid refresh token, else None.
+
+    Caller must still compare tv against the user's current token_version
+    to detect revocation (password reset, explicit logout-everywhere).
+    """
     try:
         payload = jwt.decode(
             token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
         )
         if payload.get("type") != "refresh":
             return None
-        return payload.get("sub")
+        sub = payload.get("sub")
+        if not sub:
+            return None
+        return {"sub": sub, "tv": payload.get("tv", 0)}
     except JWTError:
         return None
 
