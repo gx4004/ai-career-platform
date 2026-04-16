@@ -1,4 +1,5 @@
 import logging
+from urllib.parse import urlencode
 
 from authlib.integrations.starlette_client import OAuth
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -24,6 +25,22 @@ oauth.register(
 )
 
 
+def _resolve_frontend_url() -> str:
+    allowed_origins = [o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()]
+    return settings.FRONTEND_URL or (allowed_origins[0] if allowed_origins else "http://localhost:3000")
+
+
+def _oauth_error_redirect(reason: str) -> RedirectResponse:
+    """Redirect browser back to the frontend with a reason code.
+
+    The Google callback is a full-page GET from Google — raising a JSON
+    HTTPException lands users on a bare FastAPI error page. Redirecting back
+    to the frontend's login/error page keeps the flow coherent.
+    """
+    query = urlencode({"reason": reason})
+    return RedirectResponse(url=f"{_resolve_frontend_url()}/login?oauth_error={query}")
+
+
 @router.get("/login")
 async def google_login(request: Request):
     if not settings.GOOGLE_CLIENT_ID:
@@ -43,11 +60,11 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
         token = await oauth.google.authorize_access_token(request)
     except Exception:
         logger.exception("Google OAuth token exchange failed")
-        raise HTTPException(status_code=400, detail="OAuth authentication failed")
+        return _oauth_error_redirect("auth_failed")
 
     userinfo = token.get("userinfo")
     if not userinfo:
-        raise HTTPException(status_code=400, detail="Could not retrieve user info from Google")
+        return _oauth_error_redirect("no_userinfo")
 
     google_id = userinfo["sub"]
     email = userinfo["email"]
@@ -66,10 +83,7 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
                     "Blocking Google OAuth account link: email not verified by Google (email=%s)",
                     email,
                 )
-                raise HTTPException(
-                    status_code=400,
-                    detail="Google account email is not verified. Please verify your email with Google or sign in with password.",
-                )
+                return _oauth_error_redirect("unverified_email")
             user = existing
             user.google_id = google_id
             if not user.full_name and full_name:
@@ -81,10 +95,7 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
                     "Blocking Google OAuth signup: email not verified by Google (email=%s)",
                     email,
                 )
-                raise HTTPException(
-                    status_code=400,
-                    detail="Google account email is not verified.",
-                )
+                return _oauth_error_redirect("unverified_email")
             user = User(
                 email=email,
                 google_id=google_id,
@@ -97,10 +108,6 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
     access = create_access_token(user.id)
     refresh = create_refresh_token(user.id)
 
-    # OAuth callback is a GET redirect from Google — no Origin header is present.
-    # Use the first configured CORS origin as the frontend URL.
-    allowed_origins = [o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()]
-    frontend_url = settings.FRONTEND_URL or (allowed_origins[0] if allowed_origins else "http://localhost:3000")
-    response = RedirectResponse(url=f"{frontend_url}/dashboard")
+    response = RedirectResponse(url=f"{_resolve_frontend_url()}/dashboard")
     set_auth_cookies(response, access, refresh)
     return response
