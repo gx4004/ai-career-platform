@@ -175,8 +175,20 @@ def delete_history_item(
     run = _get_run(db, history_id, current_user.id)
     workspace = run.workspace
     db.delete(run)
-    if workspace and len(workspace.tool_runs) == 1:
-        db.delete(workspace)
+    if workspace is not None:
+        # Use a DB-level count rather than the in-memory relationship, which
+        # may not reflect concurrent inserts. If this run is the last one in
+        # the workspace, remove the workspace too.
+        remaining = (
+            db.query(ToolRun)
+            .filter(
+                ToolRun.workspace_id == workspace.id,
+                ToolRun.id != run.id,
+            )
+            .count()
+        )
+        if remaining == 0:
+            db.delete(workspace)
     db.commit()
     return DeletedResponse(deleted=1)
 
