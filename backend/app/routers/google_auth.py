@@ -51,17 +51,40 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
 
     google_id = userinfo["sub"]
     email = userinfo["email"]
+    email_verified = userinfo.get("email_verified", False)
     full_name = userinfo.get("name")
 
     user = db.query(User).filter(User.google_id == google_id).first()
     if not user:
-        user = db.query(User).filter(User.email == email).first()
-        if user:
+        existing = db.query(User).filter(User.email == email).first()
+        if existing:
+            # Only link Google identity to an existing account when Google has
+            # verified the email. Otherwise an attacker with a Google account
+            # using an unverified victim email could claim the account.
+            if not email_verified:
+                logger.warning(
+                    "Blocking Google OAuth account link: email not verified by Google (email=%s)",
+                    email,
+                )
+                raise HTTPException(
+                    status_code=400,
+                    detail="Google account email is not verified. Please verify your email with Google or sign in with password.",
+                )
+            user = existing
             user.google_id = google_id
             if not user.full_name and full_name:
                 user.full_name = full_name
             db.commit()
         else:
+            if not email_verified:
+                logger.warning(
+                    "Blocking Google OAuth signup: email not verified by Google (email=%s)",
+                    email,
+                )
+                raise HTTPException(
+                    status_code=400,
+                    detail="Google account email is not verified.",
+                )
             user = User(
                 email=email,
                 google_id=google_id,
