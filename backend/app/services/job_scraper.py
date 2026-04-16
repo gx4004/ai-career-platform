@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 
 _BS4_TIMEOUT = 5.0
 _PLAYWRIGHT_TIMEOUT_MS = 10_000
+_MAX_REDIRECTS = 5
 
 
 def _is_private_ip(ip_str: str) -> bool:
@@ -47,16 +48,27 @@ def _validate_url(url: str) -> None:
 
 async def _fetch_with_httpx(url: str) -> str:
     async with httpx.AsyncClient(
-        follow_redirects=True, timeout=_BS4_TIMEOUT
+        follow_redirects=False, timeout=_BS4_TIMEOUT
     ) as client:
-        response = await client.get(
-            url,
-            headers={
-                "User-Agent": "Mozilla/5.0 (compatible; CareerPlatformBot/1.0)"
-            },
-        )
-        response.raise_for_status()
-    return response.text
+        current = url
+        for _ in range(_MAX_REDIRECTS + 1):
+            response = await client.get(
+                current,
+                headers={
+                    "User-Agent": "Mozilla/5.0 (compatible; CareerPlatformBot/1.0)"
+                },
+            )
+            if response.is_redirect:
+                location = response.headers.get("location")
+                if not location:
+                    break
+                next_url = str(httpx.URL(current).join(location))
+                _validate_url(next_url)
+                current = next_url
+                continue
+            response.raise_for_status()
+            return response.text
+    raise httpx.HTTPError("Too many redirects")
 
 
 async def _fetch_with_playwright(url: str) -> str:
@@ -66,6 +78,16 @@ async def _fetch_with_playwright(url: str) -> str:
         browser = await p.chromium.launch(headless=True)
         try:
             page = await browser.new_page()
+
+            async def _guard(route):
+                try:
+                    _validate_url(route.request.url)
+                except ValueError:
+                    await route.abort()
+                    return
+                await route.continue_()
+
+            await page.route("**/*", _guard)
             await page.goto(url, timeout=_PLAYWRIGHT_TIMEOUT_MS, wait_until="domcontentloaded")
             content = await page.content()
         finally:
