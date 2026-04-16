@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { ArrowLeft, ArrowRight, Send, RotateCcw } from 'lucide-react'
 import { Button } from '#/components/ui/button'
+import { runInterviewPracticeFeedback } from '#/lib/api/client'
+import type { InterviewPracticeFeedback } from '#/lib/api/schemas'
 
 const MAX_ATTEMPTS = 3
 
@@ -12,14 +14,6 @@ interface Question {
   difficulty?: string
   answerStructure?: string[]
   focusArea?: string
-}
-
-interface PracticeFeedback {
-  strengths: string[]
-  weaknesses: string[]
-  suggestions: string[]
-  overall_feedback: string
-  is_empty_answer: boolean
 }
 
 function getIdealAnswer(q: Question): string {
@@ -43,7 +37,8 @@ export function InterviewPracticeMode({
 }) {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [answer, setAnswer] = useState('')
-  const [feedback, setFeedback] = useState<PracticeFeedback | null>(null)
+  const [feedback, setFeedback] = useState<InterviewPracticeFeedback | null>(null)
+  const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [attempts, setAttempts] = useState<Record<number, number>>(() => {
     try {
@@ -61,6 +56,7 @@ export function InterviewPracticeMode({
   const handleSubmit = async () => {
     setLoading(true)
     setFeedback(null)
+    setError(null)
 
     const newCount = attemptCount + 1
     setAttempts((prev) => {
@@ -77,23 +73,19 @@ export function InterviewPracticeMode({
           ? structure
           : ''
 
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/interview/practice-feedback`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          question: questionText,
-          user_answer: answer,
-          model_answer: modelAnswer,
-        }),
+      const result = await runInterviewPracticeFeedback({
+        question: questionText,
+        user_answer: answer,
+        model_answer: modelAnswer,
       })
-      if (res.ok) {
-        setFeedback(await res.json())
-      } else {
-        setFeedback(null)
-      }
-    } catch {
+      setFeedback(result)
+    } catch (err) {
       setFeedback(null)
+      setError(
+        err instanceof Error && err.message
+          ? err.message
+          : "Couldn't evaluate your answer. Please try again.",
+      )
     } finally {
       setLoading(false)
     }
@@ -104,6 +96,7 @@ export function InterviewPracticeMode({
       setCurrentIndex(currentIndex + 1)
       setAnswer('')
       setFeedback(null)
+      setError(null)
     }
   }
 
@@ -112,6 +105,7 @@ export function InterviewPracticeMode({
       setCurrentIndex(currentIndex - 1)
       setAnswer('')
       setFeedback(null)
+      setError(null)
     }
   }
 
@@ -167,11 +161,17 @@ export function InterviewPracticeMode({
               {loading ? 'Evaluating...' : <><Send size={14} /> Submit answer</>}
             </Button>
             {feedback && attemptCount < MAX_ATTEMPTS && (
-              <Button variant="outline" size="sm" onClick={() => { setAnswer(''); setFeedback(null) }}>
+              <Button variant="outline" size="sm" onClick={() => { setAnswer(''); setFeedback(null); setError(null) }}>
                 <RotateCcw size={14} /> Try again
               </Button>
             )}
           </div>
+
+          {error && !loading && (
+            <div className="practice-mode-error" role="alert">
+              {error}
+            </div>
+          )}
         </>
       )}
 

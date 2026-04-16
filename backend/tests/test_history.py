@@ -106,6 +106,40 @@ def test_delete(client, auth_headers, test_user, db):
     assert resp.status_code == 404
 
 
+def test_delete_last_run_removes_workspace(client, auth_headers, test_user, db):
+    workspace = Workspace(user_id=test_user.id, label="Solo workspace")
+    db.add(workspace)
+    db.commit()
+    db.refresh(workspace)
+    only_run = _create_run(db, test_user.id, workspace_id=workspace.id, label="Only run")
+
+    resp = client.delete(f"{PREFIX}/{only_run.id}", headers=auth_headers)
+    assert resp.status_code == 200
+
+    # Workspace should be gone because its only run was deleted.
+    db.expire_all()
+    remaining = db.query(Workspace).filter(Workspace.id == workspace.id).first()
+    assert remaining is None
+
+
+def test_delete_one_of_many_preserves_workspace(client, auth_headers, test_user, db):
+    workspace = Workspace(user_id=test_user.id, label="Multi-run")
+    db.add(workspace)
+    db.commit()
+    db.refresh(workspace)
+    first = _create_run(db, test_user.id, workspace_id=workspace.id, label="First")
+    _create_run(db, test_user.id, workspace_id=workspace.id, label="Second")
+
+    resp = client.delete(f"{PREFIX}/{first.id}", headers=auth_headers)
+    assert resp.status_code == 200
+
+    # Workspace must still exist — it still has the second run.
+    db.expire_all()
+    remaining = db.query(Workspace).filter(Workspace.id == workspace.id).first()
+    assert remaining is not None
+    assert len(remaining.tool_runs) == 1
+
+
 def test_toggle_favorite(client, auth_headers, test_user, db):
     run = _create_run(db, test_user.id, is_favorite=False)
 
