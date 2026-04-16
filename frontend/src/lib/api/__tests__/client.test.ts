@@ -25,6 +25,7 @@ import {
   runPortfolio,
   logout,
   API_URL,
+  __resetRefreshState,
 } from '#/lib/api/client'
 import { getAuthToken, clearAuthToken, setAuthToken } from '#/lib/auth/storage'
 
@@ -45,6 +46,7 @@ function mockJsonResponse(data: unknown, status = 200) {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  __resetRefreshState()
 })
 
 afterEach(() => {

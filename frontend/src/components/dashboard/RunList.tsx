@@ -33,7 +33,8 @@ export function RunList({
   const { status } = useSession()
   const query = useHistory(queryParams, status === 'authenticated')
   const isAuthenticated = status === 'authenticated'
-  const hasItems = query.data?.items.length
+  const items = query.data?.items ?? []
+  const hasItems = items.length > 0
   const prefersReducedMotion = useReducedMotion() ?? false
 
   // When not authenticated, show a compact inline message instead of a full card
@@ -55,7 +56,7 @@ export function RunList({
           ))}
         </div>
       ) : hasItems ? (
-        query.data!.items.map((item, i) => {
+        items.map((item, i) => {
           const tool = getToolByHistoryName(item.tool_name)
           const route = tool
             ? tool.resultRoute.replace('$historyId', item.id)
