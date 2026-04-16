@@ -106,7 +106,7 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
             db.refresh(user)
 
     access = create_access_token(user.id)
-    refresh = create_refresh_token(user.id)
+    refresh = create_refresh_token(user.id, user.token_version)
 
     response = RedirectResponse(url=f"{_resolve_frontend_url()}/dashboard")
     set_auth_cookies(response, access, refresh)

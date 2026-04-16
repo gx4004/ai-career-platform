@@ -45,7 +45,7 @@ def login(request: Request, response: Response, body: LoginRequest, db: Session 
             detail="Invalid email or password",
         )
     access = create_access_token(user.id)
-    refresh = create_refresh_token(user.id)
+    refresh = create_refresh_token(user.id, user.token_version)
     set_auth_cookies(response, access, refresh)
     return TokenResponse(access_token=access, refresh_token=refresh)
 
@@ -89,7 +89,7 @@ async def register(request: Request, response: Response, body: RegisterRequest, 
     db.refresh(user)
 
     access = create_access_token(user.id)
-    refresh = create_refresh_token(user.id)
+    refresh = create_refresh_token(user.id, user.token_version)
     set_auth_cookies(response, access, refresh)
 
     return _user_response(user)
@@ -116,20 +116,25 @@ def refresh_token(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="No refresh token provided",
         )
-    user_id = verify_refresh_token(token)
-    if user_id is None:
+    claims = verify_refresh_token(token)
+    if claims is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired refresh token",
         )
-    user = db.query(User).filter(User.id == user_id).first()
+    user = db.query(User).filter(User.id == claims["sub"]).first()
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User not found",
         )
+    if claims.get("tv", 0) != user.token_version:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Refresh token has been revoked",
+        )
     access = create_access_token(user.id)
-    refresh = create_refresh_token(user.id)
+    refresh = create_refresh_token(user.id, user.token_version)
     set_auth_cookies(response, access, refresh)
     return TokenResponse(access_token=access, refresh_token=refresh)
 
@@ -194,6 +199,7 @@ async def confirm_password_reset(body: PasswordResetConfirm, db: Session = Depen
     if not email:
         raise HTTPException(status_code=400, detail="Invalid or expired reset token")
     user.hashed_password = hash_password(body.new_password)
+    user.token_version = (user.token_version or 0) + 1
     db.commit()
     return {"message": "Password has been reset successfully."}
 
