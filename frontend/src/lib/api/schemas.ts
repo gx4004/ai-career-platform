@@ -390,5 +390,15 @@ export type ResumeResult = z.infer<typeof resumeResultSchema>
 export type JobMatchResult = z.infer<typeof jobMatchResultSchema>
 export type CoverLetterResult = z.infer<typeof coverLetterResultSchema>
 export type InterviewResult = z.infer<typeof interviewResultSchema>
+
+export const interviewPracticeFeedbackSchema = z.object({
+  strengths: z.array(z.string()).default([]),
+  weaknesses: z.array(z.string()).default([]),
+  suggestions: z.array(z.string()).default([]),
+  overall_feedback: z.string().default(''),
+  is_empty_answer: z.boolean().default(false),
+})
+
+export type InterviewPracticeFeedback = z.infer<typeof interviewPracticeFeedbackSchema>
 export type CareerResult = z.infer<typeof careerResultSchema>
 export type PortfolioResult = z.infer<typeof portfolioResultSchema>

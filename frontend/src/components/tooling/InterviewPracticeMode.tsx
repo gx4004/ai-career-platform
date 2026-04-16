@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { ArrowLeft, ArrowRight, Send, RotateCcw } from 'lucide-react'
 import { Button } from '#/components/ui/button'
+import { runInterviewPracticeFeedback } from '#/lib/api/client'
+import type { InterviewPracticeFeedback } from '#/lib/api/schemas'
 
 const MAX_ATTEMPTS = 3
 
@@ -12,14 +14,6 @@ interface Question {
   difficulty?: string
   answerStructure?: string[]
   focusArea?: string
-}
-
-interface PracticeFeedback {
-  strengths: string[]
-  weaknesses: string[]
-  suggestions: string[]
-  overall_feedback: string
-  is_empty_answer: boolean
 }
 
 function getIdealAnswer(q: Question): string {
@@ -43,7 +37,7 @@ export function InterviewPracticeMode({
 }) {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [answer, setAnswer] = useState('')
-  const [feedback, setFeedback] = useState<PracticeFeedback | null>(null)
+  const [feedback, setFeedback] = useState<InterviewPracticeFeedback | null>(null)
   const [loading, setLoading] = useState(false)
   const [attempts, setAttempts] = useState<Record<number, number>>(() => {
     try {
@@ -77,21 +71,12 @@ export function InterviewPracticeMode({
           ? structure
           : ''
 
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/interview/practice-feedback`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          question: questionText,
-          user_answer: answer,
-          model_answer: modelAnswer,
-        }),
+      const result = await runInterviewPracticeFeedback({
+        question: questionText,
+        user_answer: answer,
+        model_answer: modelAnswer,
       })
-      if (res.ok) {
-        setFeedback(await res.json())
-      } else {
-        setFeedback(null)
-      }
+      setFeedback(result)
     } catch {
       setFeedback(null)
     } finally {
