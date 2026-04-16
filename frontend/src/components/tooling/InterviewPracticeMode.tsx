@@ -38,6 +38,7 @@ export function InterviewPracticeMode({
   const [currentIndex, setCurrentIndex] = useState(0)
   const [answer, setAnswer] = useState('')
   const [feedback, setFeedback] = useState<InterviewPracticeFeedback | null>(null)
+  const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [attempts, setAttempts] = useState<Record<number, number>>(() => {
     try {
@@ -55,6 +56,7 @@ export function InterviewPracticeMode({
   const handleSubmit = async () => {
     setLoading(true)
     setFeedback(null)
+    setError(null)
 
     const newCount = attemptCount + 1
     setAttempts((prev) => {
@@ -77,8 +79,13 @@ export function InterviewPracticeMode({
         model_answer: modelAnswer,
       })
       setFeedback(result)
-    } catch {
+    } catch (err) {
       setFeedback(null)
+      setError(
+        err instanceof Error && err.message
+          ? err.message
+          : "Couldn't evaluate your answer. Please try again.",
+      )
     } finally {
       setLoading(false)
     }
@@ -89,6 +96,7 @@ export function InterviewPracticeMode({
       setCurrentIndex(currentIndex + 1)
       setAnswer('')
       setFeedback(null)
+      setError(null)
     }
   }
 
@@ -97,6 +105,7 @@ export function InterviewPracticeMode({
       setCurrentIndex(currentIndex - 1)
       setAnswer('')
       setFeedback(null)
+      setError(null)
     }
   }
 
@@ -152,11 +161,17 @@ export function InterviewPracticeMode({
               {loading ? 'Evaluating...' : <><Send size={14} /> Submit answer</>}
             </Button>
             {feedback && attemptCount < MAX_ATTEMPTS && (
-              <Button variant="outline" size="sm" onClick={() => { setAnswer(''); setFeedback(null) }}>
+              <Button variant="outline" size="sm" onClick={() => { setAnswer(''); setFeedback(null); setError(null) }}>
                 <RotateCcw size={14} /> Try again
               </Button>
             )}
           </div>
+
+          {error && !loading && (
+            <div className="practice-mode-error" role="alert">
+              {error}
+            </div>
+          )}
         </>
       )}
 
