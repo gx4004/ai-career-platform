@@ -67,54 +67,61 @@ The backend audit shipped. Parallel frontend audit covered: `lib/api/client.ts`,
 
 ---
 
-## Phase 3 — Performance Pass ✅ COMPLETE (partial — see notes)
+## Phase 3 — Performance Pass ⚠️ PARTIAL + REGRESSED BUNDLE
 
 **Tasks:**
-- [x] `pnpm build` → record bundle sizes. main.js 964 kB raw / 311 kB gzipped — dominated by framer-motion + posthog-js + tanstack stack.
-- [x] Lazy-load admin routes — already lazy-loaded into their own chunks (`admin-*.js`, not in `main.js`).
+- [x] `pnpm build` → record bundle sizes. **Bundle size regressed on this branch.** Main @ `main`: 987.27 kB / 310.85 kB gz JS + 399.14 kB / 64.25 kB gz CSS. This branch: 994.76 kB / 312.71 kB gz JS + 443.32 kB / 69.49 kB gz CSS. Delta: **+7 kB raw / +1.86 kB gz JS; +44 kB raw / +5.24 kB gz CSS.** Accepted as design-debt from Phase 5 styling; to be reconsidered in Phase 9.
+- [x] Lazy-load admin routes — admin routes are chunked into `admin-*.js` (not in `main.js`).
 - [ ] Framer-motion `m`/LazyMotion swap — **deferred**, ~100 call-sites, low reward vs risk. Revisit at end of overhaul.
 - [x] Memoize expensive derived state in result pages.
 - [x] `rAF`-throttle scroll/resize listeners (`LandingTubelightNavbar` confirmed).
 - [x] Replace `<img>` without `loading="lazy"` or explicit dimensions.
 - [x] Check `hooks/useBreakpoint` for stale closures.
 
-**Exit criteria:** total initial JS decrease ≥ 10% OR documented why not. Bundle size revisit deferred to Phase 9.
+**Exit criteria:** total initial JS decrease ≥ 10% OR documented why not. **Did not hit the 10% target.** Phase 5 styling added ~5 kB gz CSS; JS grew ~2 kB gz from primitive rewrites. Revisit in Phase 9.
 
 ---
 
-## Phase 4 — CSS Architecture Cleanup ✅ COMPLETE (deferred — see notes)
+## Phase 4 — CSS Architecture Cleanup ⚠️ DEFERRED (not complete)
 
 **Tasks:**
 - [ ] Split `tooling.css` — **deferred**. Currently 371 LOC, under the 800-LOC threshold.
-- [ ] Restructure `results.css` (5075 LOC) — **deferred**. Wholesale split carries regression risk; primitive layer (section-card, chip, sticky CTA, issue-card) was lifted in Phase 5 instead which lifts every result page.
-- [ ] Dead-CSS purge — **deferred**. purgecss estimated ~22% dead but many are dynamic (Radix / framer-motion / data-* modifiers); bulk prune unsafe without a full redesign pass. Revisit at end of overhaul.
+- [ ] Restructure `results.css` — **deferred**. File is now **5175 LOC** (grew during Phase 5). Wholesale per-tool split still carries regression risk without live visual verification.
+- [ ] Split `tooling-fullscreen.css` — **not considered in the original plan; noting for future work.** Currently **2909 LOC**.
+- [ ] Split `HistoryPage.tsx` (**604 LOC**) — deferred; acceptable for now, but the filter/list separation is a natural extraction point.
+- [ ] Dead-CSS purge — **deferred**. purgecss estimated ~22% dead but many are dynamic (Radix / framer-motion / data-* modifiers); bulk prune unsafe without a full redesign pass.
 
-**Exit criteria:** each tool's visual identity preserved. Visual identity preserved per Phase 5 commits.
+**Exit criteria:** each tool's visual identity preserved. Visual identity preserved per Phase 5 commits. **Structural cleanup did not happen and is deferred past this branch.**
 
 ---
 
-## Phase 5 — Premium Redesign (full app, not just results) ✅ COMPLETE
+## Phase 5 — Targeted polish pass + primitive foundation + surface lifts ✅ COMPLETE (rescoped)
 
-Scope expanded from "result pages" to the full 11-step redesign order: primitives, auth,
-legal, app shell, dashboard, tool inputs, tool results, history/account/settings, landing,
-admin, onboarding + 404 + error pages.
+**Honest scope:** this is NOT a wholesale redesign. Page architecture for landing,
+dashboard hero, tool flows, history, account, and admin surfaces was **not** rewritten.
+What shipped is a primitive-level foundation upgrade plus surgical lifts at high-leverage
+surfaces that consume those primitives.
 
-**Tasks:**
-- [x] **Primitives** (Button, Input, Textarea, Label, Badge, Skeleton, Separator, Accordion, Dialog, Sheet, Tooltip, DropdownMenu, Tabs) — layered shadows, spring easing, 3px accent focus rings, motion-reduce honored
-- [x] **Foundation CSS** — premium scrollbar, designed empty-state, skeleton-shimmer
-- [x] **Auth surfaces** (LoginForm, RegisterForm, /reset-password) — password toggle, no-shift loading state, designed error/success panels, distinct Google button
-- [x] **Legal pages** (imprint, privacy, terms, cookies) — readable typography (16px body, 1.75 line-height, text-wrap pretty), capped line lengths, layered shadow
-- [x] **App shell** (sidebar, topbar, mobile nav) — already premium per previous work; left as-is
-- [x] **Dashboard run rows** — full-row link, accent left-edge on hover, "Open" CTA chip with arrow, loading skeletons match row shape, designed empty state with icon frame
-- [x] **Tool input pages (all 6)** — per-tool accent on hero chips, status pill with green halo dot, layered editor/optional shells (triple-shadow), per-tool premium submit CTAs (idle accent shadow, focus ring, inset active state)
-- [x] **Tool result pages (all 6)** — section-card gradient + tinted accent variants, chips replace scale-on-hover with proper depth, sticky CTA tinted accent border + triple shadow + thicker backdrop blur, issue-card layered hover/open states
-- [x] **History** — pill + filter chip active states upgraded with layered shadow
-- [x] **Account + Settings** — already at Stripe/Linear tier per prior work
-- [x] **Landing** — already on its 2nd-3rd designed iteration (.lp-redesign Sovereign Career integration); left as-is
-- [x] **Admin** — sidebar gradient + active bubble matching main app, layered stat cards, sticky data-table header, accent-tinted clickable-row hover, focus rings on inputs/selects, gradient toolbar button with hover lift, gradient pagination buttons
-- [x] **404 + Route Error + Onboarding tour** — error-gradient-bg now layers 3 radial glows + noise, section-kicker accent-tinted gradient pill, tour-tooltip triple-layer shadow
+**What actually changed:**
+- [x] **All 12 UI primitives** (Button, Input, Textarea, Label, Badge, Skeleton, Separator, Accordion, Dialog, Sheet, Tooltip, DropdownMenu, Tabs) — layered shadows, spring easing, 3px accent focus rings, motion-reduce honored. APIs preserved so every consumer upgrades for free.
+- [x] **Foundation CSS** — premium scrollbar, designed empty-state, skeleton-shimmer keyframe.
+- [x] **Auth surfaces** (LoginForm, RegisterForm, /reset-password) — password toggle, no-shift loading state, designed error/success panels, distinct Google button treatment.
+- [x] **Legal pages** (imprint, privacy, terms, cookies) — readable typography (16 px body, 1.75 line-height, text-wrap pretty), capped line lengths, layered shadow.
+- [x] **Dashboard run rows** — full-row link, accent left-edge on hover, "Open" CTA chip with arrow, loading skeletons matching row shape, designed empty state.
+- [x] **Tool input pages (all 6)** — per-tool accent on hero chips, status pill with green halo dot, layered editor/optional shells, per-tool premium submit CTAs.
+- [x] **Tool result primitives (section cards, chips, sticky CTA, issue cards)** — the primitives shared across all 6 result pages were lifted. Per-page architecture was NOT rewritten.
+- [x] **History** — pill + filter chip active states upgraded with layered shadow. The page itself (604 LOC) was not restructured.
+- [x] **Admin** — sidebar gradient + active bubble, layered stat cards, sticky data-table header, accent-tinted clickable-row hover, focus rings on inputs/selects, gradient toolbar/pagination buttons.
+- [x] **404 + Route Error + Onboarding tour** — error-gradient-bg with 3 radial glows + noise, accent-tinted section kicker, tour-tooltip triple-layer shadow.
 
-**Exit criteria:** ✅ Every surface lifted to Linear/Vercel/Arc tier without breaking APIs or per-tool identity. Tests/typecheck/build green at every commit.
+**Explicitly NOT done in Phase 5:**
+- Landing page architecture (left on its previous `.lp-redesign` iteration).
+- Dashboard hero / DashboardHero component architecture.
+- Tool flow step architecture (ToolRouteScreen, SwipeDeck, FullScreenEditSheet).
+- History page restructure.
+- Account / Settings / admin page architecture (only skin lifts).
+
+**Exit criteria:** ✅ Every targeted surface lifted without breaking APIs or per-tool identity. typecheck / 124 tests / build green at every commit. Bundle grew (see Phase 3). Visual verification was done via typecheck + tests + build + HTTP 200 smoke; dev-browser Chromium blocked by SIGTRAP on this machine — no full screenshot matrix was captured this phase (deferred to Phase 6/9).
 
 ---
 
@@ -309,3 +316,32 @@ _Agent: fill this in as you go. One line per phase entry, date + short note._
   sidebar landscape-on-mobile mode (lines 425-477 of `admin.css`) doesn't yet
   account for the new active-bubble shadow, (c) the new `error-gradient-bg`
   noise overlay may be heavy on low-end devices — consider `prefers-reduced-data`.
+
+- 2026-04-17 — **Stage 0 (Codex P2 cleanup) complete.** Addressed four findings before
+  touching Phase 6:
+  1. **A11y regression fixed.** Removed `tabIndex={-1}` from the Eye/EyeOff password
+     toggles in `LoginForm`, `RegisterForm`, and `reset-password-page`. Keyboard users
+     can now reach them. The upgraded Button primitive's focus ring handles visible
+     state.
+  2. **Schema fidelity tightened.** `jobMatchResultSchema.missing_keywords` narrowed
+     from `z.union([z.string(), z.object(...)])` to object-only, matching
+     `backend/app/schemas/tools.py::MissingKeyword` exactly. Removed the
+     `typeof item === 'string'` branch in `applicationHandoff.ts::getCoverLetterSeed`
+     and the equivalent `readStringArray` misuse in `workflowContext.ts` (now maps
+     `.keyword`). The display-layer defensive branch in
+     `resultDefinitions.tsx::normalizeJobMatchPayload` was intentionally left intact
+     as defense against legacy history rows. Fixture test `drafts.test.ts` +
+     `applicationHandoff.test.ts` updated to the object shape.
+  3. **Motion prop warning fixed.** `LandingExperimentHero.tsx:113` switched
+     `initial={... ? false : {...}}` to `initial={... ? undefined : {...}}` so the
+     attribute is no longer forwarded to the DOM via `motion(Link)`. The runtime
+     warning in `LandingExperimentHero.test.tsx` is gone.
+  4. **Progress Log honesty pass.** Phase 3 now records the bundle regression
+     (JS +1.86 kB gz, CSS +5.24 kB gz on this branch vs main). Phase 4 is marked
+     DEFERRED, not complete: `results.css` 5175 LOC, `tooling-fullscreen.css`
+     2909 LOC, `HistoryPage.tsx` 604 LOC — none were restructured. Phase 5 is
+     relabeled as "targeted polish pass + primitive foundation + surface lifts,"
+     not a wholesale redesign, with an explicit "NOT done" list.
+
+  Gate after Stage 0: `pnpm typecheck` clean, **124/124 tests pass**, `pnpm build`
+  green. Two commits pushed on this branch.
