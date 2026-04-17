@@ -22,7 +22,6 @@ import {
   workspaceSummarySchema,
 } from '#/lib/api/schemas'
 import type { JobMatchResult, ResumeResult } from '#/lib/api/schemas'
-import { clearAuthToken, getAuthToken, setAuthToken } from '#/lib/auth/storage'
 
 function trimTrailingSlash(value: string): string {
   return value.replace(/\/+$/, '')
@@ -54,7 +53,7 @@ function normalizeBody(body: RequestInit['body'] | Record<string, unknown> | und
 }
 
 // Silent refresh mutex — prevents concurrent refresh calls
-let refreshPromise: Promise<string> | null = null
+let refreshPromise: Promise<void> | null = null
 // Cooldown after a failed refresh — avoids thundering-herd retries when the
 // refresh endpoint is down or the refresh cookie is gone.
 let refreshCooldownUntil = 0
@@ -66,7 +65,8 @@ export function __resetRefreshState() {
   refreshCooldownUntil = 0
 }
 
-async function silentRefresh(): Promise<string> {
+async function silentRefresh(): Promise<void> {
+  // Refresh endpoint sets new HttpOnly cookies server-side; response body is ignored.
   const res = await fetch(`${API_URL}/auth/refresh`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -74,10 +74,6 @@ async function silentRefresh(): Promise<string> {
     credentials: 'include',
   })
   if (!res.ok) throw new Error('refresh failed')
-  const data = await res.json()
-  const newToken: string = data.access_token
-  setAuthToken(newToken)
-  return newToken
 }
 
 async function request<T>(
@@ -85,16 +81,11 @@ async function request<T>(
   options: RequestOptions<T> = {},
   _isRetry = false,
 ): Promise<T> {
-  const token = getAuthToken()
   const headers = new Headers(options.headers || {})
   const body = normalizeBody(options.body as RequestInit['body'])
 
   if (body && !(body instanceof FormData) && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json')
-  }
-
-  if (token) {
-    headers.set('Authorization', `Bearer ${token}`)
   }
 
   const response = await fetch(`${API_URL}${path}`, {
@@ -128,13 +119,9 @@ async function request<T>(
       } catch {
         refreshPromise = null
         refreshCooldownUntil = Date.now() + REFRESH_COOLDOWN_MS
-        clearAuthToken()
-        if (token) {
-          window.dispatchEvent(new CustomEvent('cw:session-expired'))
-        }
+        window.dispatchEvent(new CustomEvent('cw:session-expired'))
       }
-    } else if (response.status === 401 && token) {
-      clearAuthToken()
+    } else if (response.status === 401) {
       window.dispatchEvent(new CustomEvent('cw:session-expired'))
     }
 
