@@ -979,8 +979,29 @@
 
 /* ── Error page gradient ── */
 .error-gradient-bg {
-  background: radial-gradient(ellipse at top, color-mix(in srgb, var(--accent) 4%, var(--background)), var(--background));
+  position: relative;
   min-height: 100%;
+  background:
+    radial-gradient(ellipse 60% 40% at 50% 0%, color-mix(in srgb, var(--accent) 6%, transparent) 0%, transparent 60%),
+    radial-gradient(circle at 18% 22%, color-mix(in srgb, var(--accent) 4%, transparent) 0%, transparent 36%),
+    radial-gradient(circle at 84% 76%, rgba(127, 177, 228, 0.06) 0%, transparent 32%),
+    var(--background);
+  overflow: hidden;
+}
+
+.error-gradient-bg::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='220' height='220' filter='url(%23n)' opacity='0.025'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  z-index: 0;
+}
+
+.error-gradient-bg > * {
+  position: relative;
+  z-index: 1;
 }
 
 /* ── Legacy classes still used by history-card-inline ── */
