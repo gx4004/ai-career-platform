@@ -40,8 +40,12 @@ export function getCoverLetterSeed(
 ): CoverLetterSeed {
   const jobMatch = context?.jobMatch
 
+  const missingKeywords = (jobMatch?.missing_keywords ?? [])
+    .map((item) => (typeof item === 'string' ? item : item.keyword))
+    .filter((keyword): keyword is string => Boolean(keyword))
+
   return {
-    missingKeywords: jobMatch?.missing_keywords ?? [],
+    missingKeywords,
     tailoringActions: jobMatch?.tailoring_actions ?? [],
   }
 }
