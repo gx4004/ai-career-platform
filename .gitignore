@@ -26,6 +26,9 @@ file::memory:
 .DS_Store
 .env
 .codex-*.png
+.codex-previews/
+.posthog-events.json
+posthog-setup-report.md
 AGENTS.md
 
 # Archive / unused assets (kept locally)
