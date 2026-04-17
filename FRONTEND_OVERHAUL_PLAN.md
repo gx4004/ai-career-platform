@@ -214,8 +214,23 @@ _Agent: fill this in as you go. One line per phase entry, date + short note._
   changing its API: layered shadow stack on primary, 0.985 active-scale press, loading
   prop with centered Loader2 spinner that preserves label width, focus ring upgraded to a
   3px accent-colored offset ring, motion-reduce honored. This lifts every CTA across all
-  30 import sites without any call-site churn. Typecheck + 124 tests green. **Remaining
-  Phase 5 work is substantial** — app shell, dashboard, 6 tool inputs, 6 tool results,
-  history/account/settings, landing polish, auth pages, legal/admin/onboarding. This
-  autonomous window landed the foundation (primitive + shadow stack + motion language);
-  page-level polish is safer to do interactively with visual review after each pass.
+  30 import sites without any call-site churn. Typecheck + 124 tests green.
+- 2026-04-17 — **Phase 5 foundation extended.** All shadcn UI primitives upgraded while
+  preserving APIs: `Input`, `Textarea`, `Label`, `Badge`, `Skeleton`, `Separator`,
+  `Accordion`, `Dialog`, `Sheet`, `Tooltip`, `DropdownMenu`, `Tabs`. Upgrades: layered
+  inset-highlight + ambient shadows, spring-ish `cubic-bezier(0.2,0.8,0.2,1)` easing,
+  3px accent focus rings with offset, motion-reduce honored throughout, richer
+  enter/exit keyframes on overlays, uppercase tracking on DropdownMenu label, pill-active
+  state on Tabs, new `skeleton-shimmer` translate-based keyframe for Skeleton. Also
+  upgraded foundation CSS: `.skeleton` uses the new shimmer (with `skeleton-pulse`
+  fallback for prefers-reduced-motion); `.empty-state` gets a designed icon frame +
+  fade-in; added a quiet premium scrollbar (hover-reveal thumb, separate style over dark
+  topbar/sidebar surfaces). 124/124 tests green at every commit, typecheck and build
+  clean. Visual verification via dev-browser Chromium was blocked by a macOS SIGTRAP on
+  this machine — relied on typecheck + tests + build + HTTP 200 smoke checks instead.
+  **Still pending** for a future interactive session: wholesale page redesigns (dashboard
+  Linear-inbox energy, 6 tool inputs, 6 tool results, history / account / settings,
+  landing polish, auth, legal, admin, onboarding) — these surfaces are already heavily
+  designed via `.app-sidebar-*`, `.dashboard-layout`, `results.css` etc., and rewriting
+  them without live visual review carries regression risk that conflicts with the
+  "never break UX" constraint.
