@@ -23,6 +23,8 @@
 .legal-page__brand {
   display: inline-flex;
   align-items: center;
+  min-height: var(--touch-target, 44px);
+  min-width: var(--touch-target, 44px);
   text-decoration: none;
   color: inherit;
 }
@@ -35,6 +37,10 @@
 }
 
 .legal-page__nav-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--touch-target, 44px);
+  padding: 0 6px;
   font-size: 0.875rem;
   font-weight: 500;
   color: var(--text-muted, #64748b);
@@ -207,6 +213,7 @@
 .legal-page__reset-btn {
   display: inline-flex;
   align-items: center;
+  min-height: var(--touch-target, 44px);
   padding: 0.5rem 1rem;
   border-radius: var(--radius-md, 0.5rem);
   border: 1px solid var(--border-soft, rgba(15, 23, 42, 0.15));
@@ -230,6 +237,11 @@
 }
 
 .legal-page__footer-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--touch-target, 44px);
+  padding: 0 0.5rem;
   font-size: 0.8125rem;
   color: var(--text-muted, #64748b);
   text-decoration: none;
