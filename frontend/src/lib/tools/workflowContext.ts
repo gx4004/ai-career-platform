@@ -31,7 +31,9 @@ export function deriveWorkflowUpdateFromResult(
       resumePendingReview: false,
       jobMatch: result as JobMatchResult,
       topActionTitles,
-      strongestMissingSkills: readStringArray(result.missing_keywords),
+      strongestMissingSkills: readObjectArray(result.missing_keywords)
+        .map((item) => toString(item.keyword))
+        .filter(Boolean) as string[],
     }
   }
 

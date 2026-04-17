@@ -134,4 +134,24 @@ describe('AuthDialog', () => {
 
     expect(screen.queryByRole('dialog')).toBeNull()
   })
+
+  it('does NOT open the dialog on cw:session-expired for a never-authed visitor', async () => {
+    // Regression guard: Phase 1 security migration removed the `if (token)`
+    // gate on session-expired dispatch; the only remaining guard is inside
+    // SessionProvider (`hadAuthRef`). Fresh anon visitors hit /auth/me → 401 →
+    // silent refresh → 401 → dispatch. This must NOT open the auth dialog.
+    getCurrentUserMock.mockRejectedValue(new Error('Unauthorized'))
+    renderAuthFlow()
+
+    await waitFor(() => {
+      expect(getCurrentUserMock).toHaveBeenCalled()
+    })
+
+    window.dispatchEvent(new CustomEvent('cw:session-expired'))
+
+    // Give React a microtask to process any state update
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
 })

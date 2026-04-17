@@ -1,25 +1,34 @@
 import { API_URL } from '#/lib/api/client'
-import { clearAuthToken, getAuthToken, setAuthToken } from '#/lib/auth/storage'
 import { ApiError } from '#/lib/api/errors'
 
-async function adminRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const token = getAuthToken()
+async function adminFetch(path: string, options: RequestInit = {}) {
   const headers = new Headers(options.headers || {})
-
   if (options.body && typeof options.body === 'string' && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json')
   }
-
-  if (token) {
-    headers.set('Authorization', `Bearer ${token}`)
-  }
-
-  const response = await fetch(`${API_URL}${path}`, {
+  return fetch(`${API_URL}${path}`, {
     ...options,
     headers,
     credentials: 'include',
     signal: AbortSignal.timeout(30_000),
   })
+}
+
+async function adminRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
+  let response = await adminFetch(path, options)
+
+  if (response.status === 401 && path !== '/auth/refresh') {
+    const refreshResponse = await adminFetch('/auth/refresh', {
+      method: 'POST',
+      body: '{}',
+    }).catch(() => null)
+
+    if (refreshResponse?.ok) {
+      response = await adminFetch(path, options)
+    } else {
+      window.dispatchEvent(new CustomEvent('cw:session-expired'))
+    }
+  }
 
   const parsed = await response
     .clone()
@@ -27,67 +36,6 @@ async function adminRequest<T>(path: string, options: RequestInit = {}): Promise
     .catch(async () => response.text().catch(() => ''))
 
   if (!response.ok) {
-    if (response.status === 401 && path !== '/auth/refresh') {
-      try {
-        const refreshResponse = await fetch(`${API_URL}/auth/refresh`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: '{}',
-          credentials: 'include',
-          signal: AbortSignal.timeout(30_000),
-        })
-
-        if (refreshResponse.ok) {
-          const refreshData = await refreshResponse.json()
-          if (
-            refreshData &&
-            typeof refreshData === 'object' &&
-            typeof (refreshData as { access_token?: unknown }).access_token === 'string'
-          ) {
-            setAuthToken((refreshData as { access_token: string }).access_token)
-            const refreshedHeaders = new Headers(options.headers || {})
-            refreshedHeaders.set(
-              'Authorization',
-              `Bearer ${(refreshData as { access_token: string }).access_token}`,
-            )
-            if (
-              options.body &&
-              typeof options.body === 'string' &&
-              !refreshedHeaders.has('Content-Type')
-            ) {
-              refreshedHeaders.set('Content-Type', 'application/json')
-            }
-
-            const retriedResponse = await fetch(`${API_URL}${path}`, {
-              ...options,
-              headers: refreshedHeaders,
-              credentials: 'include',
-              signal: AbortSignal.timeout(30_000),
-            })
-
-            const retriedParsed = await retriedResponse
-              .clone()
-              .json()
-              .catch(async () => retriedResponse.text().catch(() => ''))
-
-            if (retriedResponse.ok) {
-              return retriedParsed as T
-            }
-          }
-        }
-      } catch {
-        // Fall through to the normal 401 handling below.
-      }
-
-      clearAuthToken()
-      if (token) {
-        window.dispatchEvent(new CustomEvent('cw:session-expired'))
-      }
-    } else if (response.status === 401 && token) {
-      clearAuthToken()
-      window.dispatchEvent(new CustomEvent('cw:session-expired'))
-    }
-
     const detail =
       typeof parsed === 'string'
         ? parsed

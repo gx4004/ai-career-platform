@@ -51,16 +51,17 @@ export function LandingSocialProof() {
               }}
             >
               <div
+                role="img"
+                aria-label="5 out of 5 stars"
                 style={{
                   display: 'flex',
                   gap: 2,
                   color: 'var(--lp-tertiary)',
                   marginBottom: '1rem',
                 }}
-                aria-label="5 out of 5 stars"
               >
                 {Array.from({ length: 5 }).map((_, i) => (
-                  <Star key={i} size={14} fill="currentColor" strokeWidth={0} />
+                  <Star key={i} size={14} fill="currentColor" strokeWidth={0} aria-hidden="true" />
                 ))}
               </div>
               <blockquote className="lp-testimonial-quote">&ldquo;{t.quote}&rdquo;</blockquote>

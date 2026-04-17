@@ -24,7 +24,6 @@
 .auth-page-shell,
 .auth-dialog-content,
 .auth-dialog-sheet {
-  position: relative;
   overflow: hidden;
   border-radius: calc(var(--radius-2xl) + 0.1rem);
   border: 1px solid rgba(255, 255, 255, 0.18);
@@ -35,6 +34,12 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.6);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
+}
+
+/* Page shell needs its own positioning context for the ::before noise layer.
+   Dialog/Sheet primitives already set `position: fixed` — don't override it. */
+.auth-page-shell {
+  position: relative;
 }
 
 .auth-page-shell::before,
@@ -74,12 +79,17 @@
   font-size: 0.85rem;
 }
 
-.auth-page-actions a {
+.auth-page-actions a,
+.auth-page-actions button {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--touch-target, 44px);
   color: rgba(255, 255, 255, 0.7);
   text-decoration: none;
 }
 
-.auth-page-actions a:hover {
+.auth-page-actions a:hover,
+.auth-page-actions button:hover {
   color: #fff;
 }
 
@@ -259,6 +269,30 @@
   font-size: 1rem;
   font-weight: 600;
   margin-top: 0.25rem;
+}
+
+/* Google button — visually distinct from email submit without overpowering it */
+.auth-surface .auth-google[data-slot='button'] {
+  background: linear-gradient(180deg, #ffffff, #fbfdff) !important;
+  border-color: color-mix(in srgb, var(--border-strong) 72%, white 28%) !important;
+  color: var(--text-strong) !important;
+  box-shadow:
+    0 1px 0 0 rgba(255, 255, 255, 0.8) inset,
+    0 1px 2px 0 rgba(16, 24, 40, 0.05),
+    0 4px 12px -4px rgba(16, 24, 40, 0.08) !important;
+  transition:
+    border-color var(--transition-fast),
+    box-shadow var(--transition-smooth),
+    background var(--transition-fast);
+}
+
+.auth-surface .auth-google[data-slot='button']:hover {
+  border-color: color-mix(in srgb, var(--border-strong) 92%, white 8%) !important;
+  background: #ffffff !important;
+  box-shadow:
+    0 1px 0 0 rgba(255, 255, 255, 0.9) inset,
+    0 1px 2px 0 rgba(16, 24, 40, 0.06),
+    0 10px 24px -8px rgba(16, 24, 40, 0.14) !important;
 }
 
 .auth-submit:focus-visible {

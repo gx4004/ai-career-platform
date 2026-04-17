@@ -1,6 +1,6 @@
 import type { ComponentType } from 'react'
 import { Link } from '@tanstack/react-router'
-import { Star } from 'lucide-react'
+import { ArrowRight, Star } from 'lucide-react'
 import { motion, useReducedMotion } from 'framer-motion'
 import { Badge } from '#/components/ui/badge'
 import { useHistory } from '#/hooks/useHistory'
@@ -50,9 +50,16 @@ export function RunList({
   const content = (
     <div className="run-list">
       {query.isPending ? (
-        <div className="grid gap-2">
-          {[1, 2].map((i) => (
-            <Skeleton key={i} className="h-10 w-full rounded-md" />
+        <div className="run-list run-list--loading" aria-hidden>
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="run-row run-row--skeleton">
+              <Skeleton className="run-row-skeleton-icon" />
+              <div className="run-row-skeleton-body">
+                <Skeleton className="run-row-skeleton-meta" />
+                <Skeleton className="run-row-skeleton-label" />
+              </div>
+              <Skeleton className="run-row-skeleton-cta" />
+            </div>
           ))}
         </div>
       ) : hasItems ? (
@@ -69,8 +76,9 @@ export function RunList({
               animate={{ opacity: 1, y: 0, scale: 1 }}
               transition={prefersReducedMotion ? { duration: 0 } : { type: 'spring', stiffness: 80, damping: 18, delay: i * 0.05 }}
             >
-            <div
-              className="run-row"
+            <Link
+              to={route}
+              className="run-row run-row--linked"
               style={toolAccentStyle(tool?.accent)}
             >
               {tool && (
@@ -78,35 +86,38 @@ export function RunList({
                   <tool.icon size={16} />
                 </div>
               )}
-              <div className="grid gap-0.5" style={{ minWidth: 0 }}>
-                <div className="flex items-center gap-2">
+              <div className="run-row-body">
+                <div className="run-row-meta">
                   {showFavoriteStar && (
-                    <Star size={12} style={{ color: 'var(--warning)' }} />
+                    <Star size={12} className="run-row-favorite" aria-hidden />
                   )}
                   <Badge variant="outline">{tool?.shortLabel || item.tool_name}</Badge>
                   {!showFavoriteStar && (
-                    <span className="small-copy muted-copy">
+                    <span className="small-copy muted-copy run-row-date">
                       {new Date(item.created_at).toLocaleDateString()}
                     </span>
                   )}
                 </div>
                 <span className="run-row-label">{item.label || (showFavoriteStar ? 'Untitled favorite' : 'Untitled run')}</span>
               </div>
-              <Link
-                to={route}
-                className="small-copy run-row-view"
-                style={{ color: tool?.accent || 'var(--accent)' }}
+              <span
+                className="run-row-cta"
+                aria-hidden
+                style={tool?.accent ? { color: tool.accent } : undefined}
               >
-                View
-              </Link>
-            </div>
+                <span>Open</span>
+                <ArrowRight size={14} className="run-row-cta-arrow" />
+              </span>
+            </Link>
             </motion.div>
           )
         })
       ) : (
         <div className="empty-state-mini">
-          <EmptyIcon size={20} style={{ color: 'var(--text-soft)', opacity: 0.5 }} />
-          <p className="small-copy muted-copy">{emptyText}</p>
+          <span className="empty-state-mini-icon" aria-hidden>
+            <EmptyIcon size={18} style={{ color: 'currentColor' }} />
+          </span>
+          <p className="small-copy empty-state-mini-text">{emptyText}</p>
         </div>
       )}
     </div>

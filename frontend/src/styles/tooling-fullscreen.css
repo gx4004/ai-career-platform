@@ -40,10 +40,24 @@
   font-weight: 600;
   color: var(--accent-vivid);
   text-decoration: none;
+  /* Touch-target padding so the link is tappable on mobile without
+     ballooning the visual hit area on desktop. */
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--touch-target, 44px);
+  padding: 0 6px;
+  margin: -6px 0;
+  border-radius: var(--radius-sm);
 }
 
-.guest-save-banner-link:hover {
+.guest-save-banner-link:hover,
+.guest-save-banner-link:focus-visible {
   text-decoration: underline;
+}
+
+.guest-save-banner-link:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 30%, transparent);
 }
 
 .guest-save-banner-close {
@@ -159,8 +173,8 @@
 
 .tool-fullscreen--hero-flow .guest-save-banner-close {
   color: var(--text-muted);
-  width: 2rem;
-  height: 2rem;
+  width: 2.75rem;
+  height: 2.75rem;
 }
 
 .tool-fullscreen--hero-flow .guest-save-banner-close:hover {
@@ -390,11 +404,12 @@
   justify-content: flex-end;
   padding: 0.85rem;
   border-radius: calc(var(--radius-2xl) - 0.15rem);
-  border: 1px solid rgba(186,214,255,0.4);
-  background: rgba(244,248,254,0.92);
+  border: 1px solid color-mix(in srgb, var(--tool-accent, var(--accent)) 14%, rgba(186,214,255,0.4));
+  background: color-mix(in srgb, rgba(244, 248, 254, 0.92) 92%, var(--tool-accent, var(--accent)) 8%);
   box-shadow:
+    0 1px 2px rgba(15, 23, 42, 0.04),
     0 18px 42px rgba(15, 23, 42, 0.14),
-    inset 0 1px 0 rgba(255, 255, 255, 0.78);
+    inset 0 1px 0 rgba(255, 255, 255, 0.85);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
 }
@@ -405,31 +420,52 @@
 
 .tool-fs-submit-button {
   min-width: 14rem;
-  background: #1d4ed8;
+  background: var(--tool-accent, var(--accent));
   border-radius: 11px;
-  box-shadow: 0 3px 10px rgba(29,78,216,0.28);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 1px 2px color-mix(in srgb, var(--tool-accent, var(--accent)) 30%, rgba(15, 23, 42, 0.18)),
+    0 8px 20px color-mix(in srgb, var(--tool-accent, var(--accent)) 24%, transparent);
   font-weight: 700;
+  letter-spacing: -0.005em;
   transition:
-    transform var(--transition-fast),
-    box-shadow var(--transition-smooth),
-    background var(--transition-fast);
+    transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    box-shadow 220ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    background 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 .tool-fs-submit-button:hover {
   transform: translateY(-1px);
-  box-shadow: 0 14px 28px color-mix(in srgb, var(--tool-accent, var(--accent)) 28%, transparent);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    0 1px 2px color-mix(in srgb, var(--tool-accent, var(--accent)) 36%, rgba(15, 23, 42, 0.22)),
+    0 14px 28px color-mix(in srgb, var(--tool-accent, var(--accent)) 32%, transparent);
 }
 
 .tool-fs-submit-button:focus-visible {
   outline: none;
   box-shadow:
-    0 10px 24px color-mix(in srgb, var(--tool-accent, var(--accent)) 24%, transparent),
-    0 0 0 2px var(--tool-accent, var(--accent)),
-    0 0 0 5px color-mix(in srgb, var(--tool-accent, var(--accent)) 15%, transparent);
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    0 10px 24px color-mix(in srgb, var(--tool-accent, var(--accent)) 28%, transparent),
+    0 0 0 2px white,
+    0 0 0 5px color-mix(in srgb, var(--tool-accent, var(--accent)) 55%, transparent);
 }
 
 .tool-fs-submit-button:active {
   transform: scale(0.985);
+  box-shadow:
+    inset 0 2px 4px color-mix(in srgb, var(--tool-accent, var(--accent)) 30%, rgba(15, 23, 42, 0.2)),
+    0 4px 10px color-mix(in srgb, var(--tool-accent, var(--accent)) 22%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tool-fs-submit-button {
+    transition: none;
+  }
+  .tool-fs-submit-button:hover,
+  .tool-fs-submit-button:active {
+    transform: none;
+  }
 }
 
 body.tool-fullscreen-open .mobile-nav-pill {
@@ -1294,12 +1330,19 @@ body.tool-fullscreen-open .mobile-nav-pill {
 .tool-input-hero-chip {
   font-size: 0.72rem;
   font-weight: 600;
-  padding: 0.2rem 0.65rem;
+  padding: 0.28rem 0.78rem;
   border-radius: 9999px;
-  border: 1px solid rgba(37,99,235,0.14);
-  color: var(--accent);
-  background: rgba(37,99,235,0.07);
-  letter-spacing: 0.01em;
+  border: 1px solid color-mix(in srgb, var(--tool-accent, var(--accent)) 24%, rgba(255, 255, 255, 0.45));
+  color: color-mix(in srgb, var(--tool-accent, var(--accent)) 75%, var(--text-strong) 25%);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--tool-accent, var(--accent)) 9%, white) 0%,
+    color-mix(in srgb, var(--tool-accent, var(--accent)) 5%, white) 100%
+  );
+  letter-spacing: 0.02em;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.85),
+    0 1px 2px color-mix(in srgb, var(--tool-accent, var(--accent)) 14%, transparent);
 }
 
 /* Form surface below hero — transparent, inherits page gradient */
@@ -1311,39 +1354,59 @@ body.tool-fullscreen-open .mobile-nav-pill {
 .tool-status-inline {
   display: flex;
   align-items: center;
-  gap: 0.55rem;
+  gap: 0.6rem;
   font-size: 0.82rem;
-  color: var(--text-soft, #6b7280);
-  padding: 0.65rem 1rem;
+  color: var(--text-body, #4b5563);
+  padding: 0.7rem 1rem 0.7rem 0.95rem;
   border-radius: var(--radius-lg, 10px);
-  background: rgba(255, 255, 255, 0.7);
-  border: 1px solid rgba(0, 0, 0, 0.06);
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.92) 0%,
+    rgba(247, 252, 250, 0.88) 100%
+  );
+  border: 1px solid color-mix(in srgb, #22c55e 18%, var(--border-soft));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    0 1px 2px rgba(15, 44, 88, 0.04);
   margin-bottom: 1rem;
 }
 
 .tool-status-inline-dot {
-  width: 7px;
-  height: 7px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   background: #22c55e;
+  box-shadow: 0 0 0 3px color-mix(in srgb, #22c55e 18%, transparent);
   flex-shrink: 0;
 }
 
 .tool-status-inline-change {
   margin-left: auto;
-  font-size: 0.8rem;
-  font-weight: 600;
+  font-size: 0.78rem;
+  font-weight: 700;
   color: var(--tool-accent, var(--accent));
-  background: none;
-  border: none;
-  padding: 0.2rem 0.5rem;
+  background: transparent;
+  border: 1px solid transparent;
+  padding: 0.3rem 0.65rem;
   border-radius: var(--radius-sm, 6px);
   cursor: pointer;
-  transition: background 0.15s;
+  transition:
+    background 180ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    border-color 180ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    color 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 .tool-status-inline-change:hover {
-  background: rgba(0, 0, 0, 0.05);
+  background: color-mix(in srgb, var(--tool-accent, var(--accent)) 10%, white);
+  border-color: color-mix(in srgb, var(--tool-accent, var(--accent)) 22%, transparent);
+  color: color-mix(in srgb, var(--tool-accent, var(--accent)) 78%, black 22%);
+}
+
+.tool-status-inline-change:focus-visible {
+  outline: none;
+  background: color-mix(in srgb, var(--tool-accent, var(--accent)) 10%, white);
+  border-color: color-mix(in srgb, var(--tool-accent, var(--accent)) 22%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--tool-accent, var(--accent)) 22%, transparent);
 }
 
 @media (max-width: 768px) {
@@ -1442,12 +1505,15 @@ body.tool-fullscreen-open .mobile-nav-pill {
 
 .resume-editor-shell {
   display: grid;
-  gap: 0.9rem;
+  gap: 0.95rem;
   padding: 1.75rem;
   border-radius: var(--radius-2xl);
   border: 1px solid var(--border-soft);
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(246, 250, 255, 0.95));
-  box-shadow: var(--shadow-soft), 0 0 24px rgba(74, 147, 239, 0.05);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    0 1px 2px rgba(15, 44, 88, 0.04),
+    0 12px 32px rgba(15, 44, 88, 0.06);
 }
 
 .resume-form-section {
@@ -1527,7 +1593,10 @@ body.tool-fullscreen-open .mobile-nav-pill {
   border-radius: var(--radius-2xl);
   border: 1px solid var(--border-soft);
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(246, 250, 255, 0.95));
-  box-shadow: var(--shadow-soft), 0 0 24px rgba(74, 147, 239, 0.05);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    0 1px 2px rgba(15, 44, 88, 0.04),
+    0 12px 32px rgba(15, 44, 88, 0.06);
 }
 
 .resume-optional-header {
@@ -1559,9 +1628,11 @@ body.tool-fullscreen-open .mobile-nav-pill {
   border: 1px solid color-mix(in srgb, var(--tool-accent, var(--accent)) 14%, var(--border-soft));
   background: color-mix(in srgb, var(--surface-raised) 88%, white 10%);
   box-shadow:
+    0 1px 2px rgba(15, 23, 42, 0.04),
     0 18px 42px rgba(15, 23, 42, 0.14),
-    inset 0 1px 0 rgba(255, 255, 255, 0.78);
+    inset 0 1px 0 rgba(255, 255, 255, 0.85);
   backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
   pointer-events: auto;
 }
 
@@ -1590,18 +1661,40 @@ body.tool-fullscreen-open .mobile-nav-pill {
 
 .resume-submit-btn {
   min-width: 14rem;
-  font-weight: 600;
-  box-shadow: 0 12px 30px color-mix(in srgb, var(--tool-accent, var(--accent)) 18%, transparent);
-  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+  font-weight: 700;
+  letter-spacing: -0.005em;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 1px 2px color-mix(in srgb, var(--tool-accent, var(--accent)) 30%, rgba(15, 23, 42, 0.18)),
+    0 8px 20px color-mix(in srgb, var(--tool-accent, var(--accent)) 22%, transparent);
+  transition:
+    transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    box-shadow 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 .resume-submit-btn:hover {
   transform: translateY(-1px);
-  box-shadow: 0 16px 36px color-mix(in srgb, var(--tool-accent, var(--accent)) 24%, transparent);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    0 1px 2px color-mix(in srgb, var(--tool-accent, var(--accent)) 36%, rgba(15, 23, 42, 0.22)),
+    0 14px 28px color-mix(in srgb, var(--tool-accent, var(--accent)) 30%, transparent);
 }
 
 .resume-submit-btn:active {
-  transform: scale(0.98);
+  transform: scale(0.985);
+  box-shadow:
+    inset 0 2px 4px color-mix(in srgb, var(--tool-accent, var(--accent)) 30%, rgba(15, 23, 42, 0.2)),
+    0 4px 10px color-mix(in srgb, var(--tool-accent, var(--accent)) 22%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .resume-submit-btn {
+    transition: none;
+  }
+  .resume-submit-btn:hover,
+  .resume-submit-btn:active {
+    transform: none;
+  }
 }
 
 .resume-error-inline {
@@ -1617,10 +1710,18 @@ body.tool-fullscreen-open .mobile-nav-pill {
   align-items: center;
   justify-content: center;
   min-height: 24rem;
-  padding: 1.5rem;
+  padding: 2rem 1.5rem;
   border-radius: var(--radius-2xl);
   border: 1px solid var(--border-soft);
-  background: color-mix(in srgb, var(--surface-raised) 95%, white 3%);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--surface-raised) 96%, white 4%) 0%,
+    color-mix(in srgb, var(--surface-raised) 92%, white 8%) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    0 1px 2px rgba(15, 44, 88, 0.04),
+    0 16px 36px rgba(15, 44, 88, 0.06);
 }
 
 .resume-results-section {
@@ -2533,7 +2634,8 @@ body.tool-fullscreen-open .mobile-nav-pill {
   bottom: calc(var(--mobile-tab-height, 56px) + env(safe-area-inset-bottom, 0px));
   left: 0;
   right: 0;
-  z-index: 150;
+  /* Below modal overlays (z-50) and the mobile tab bar (z-40) is the bottom rail. */
+  z-index: 35;
   padding: 0.75rem var(--mobile-pad, 16px);
   background: linear-gradient(to top, var(--background) 70%, transparent);
   pointer-events: none;
@@ -2634,6 +2736,9 @@ body.tool-fullscreen-open .mobile-nav-pill {
 .swipe-deck-card-wrap {
   width: 100%;
   cursor: grab;
+  /* Allow vertical page scrolling from inside the deck while still letting
+     framer-motion capture horizontal swipes without fighting the browser. */
+  touch-action: pan-y;
 }
 
 .swipe-deck-card-wrap:active {
@@ -2748,11 +2853,10 @@ body.tool-fullscreen-open .mobile-nav-pill {
   font-weight: 600;
 }
 
-.edit-sheet-cancel {
-  font-size: var(--type-small);
-}
-
+.edit-sheet-cancel,
 .edit-sheet-done {
+  min-height: var(--touch-target, 44px);
+  padding-inline: 0.75rem;
   font-size: var(--type-small);
 }
 
@@ -2779,7 +2883,8 @@ body.tool-fullscreen-open .mobile-nav-pill {
   top: calc(var(--app-topbar-height, 0px) + 0.75rem);
   left: 50%;
   transform: translateX(-50%);
-  z-index: 200;
+  /* Stays above page content but still below modal overlays. */
+  z-index: 45;
   display: flex;
   align-items: center;
   gap: 8px;
