@@ -1288,6 +1288,7 @@ body.page-tone-dashboard .app-main {
   display: inline-flex;
   align-items: center;
   gap: 0.45rem;
+  min-height: var(--touch-target, 44px);
   font-size: 0.88rem;
   font-weight: 600;
   color: #fff;

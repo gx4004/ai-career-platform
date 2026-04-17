@@ -452,6 +452,12 @@ svg {
   justify-content: center;
 }
 
+/* Ensure buttons/links inside centered empty-state clusters clear the 44px
+   touch target on mobile without inflating desktop density. */
+.button-cluster--center [data-slot='button'] {
+  min-height: var(--touch-target, 44px);
+}
+
 .button-hero-primary {
   box-shadow: var(--shadow-soft);
 }
