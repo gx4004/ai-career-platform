@@ -1,0 +1,32 @@
+[
+  {
+    "event": "landing_cta_clicked",
+    "description": "User clicks the primary hero CTA button on the landing page",
+    "file": "src/components/landing/LandingExperimentHero.tsx"
+  },
+  {
+    "event": "landing_cta_clicked",
+    "description": "User clicks the bottom CTA section button on the landing page",
+    "file": "src/components/landing/LandingCTA.tsx"
+  },
+  {
+    "event": "google_auth_initiated",
+    "description": "User clicks the Google sign-in button on the login form",
+    "file": "src/components/auth/LoginForm.tsx"
+  },
+  {
+    "event": "google_auth_initiated",
+    "description": "User clicks the Google sign-up button on the register form",
+    "file": "src/components/auth/RegisterForm.tsx"
+  },
+  {
+    "event": "password_reset_requested",
+    "description": "User submits the password reset form",
+    "file": "src/components/auth/LoginForm.tsx"
+  },
+  {
+    "event": "auth_dialog_opened",
+    "description": "Auth dialog is opened, typically when a guest user tries to save or access a gated feature",
+    "file": "src/lib/auth/session.tsx"
+  }
+]
