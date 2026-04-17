@@ -81,7 +81,15 @@
 .landing-experiment-navbar-brand {
   display: flex;
   align-items: center;
+  min-height: var(--touch-target, 44px);
   margin-right: 1.5rem;
+}
+
+.landing-experiment-navbar-brand > a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--touch-target, 44px);
+  min-width: var(--touch-target, 44px);
 }
 
 .landing-experiment-navbar-nav {
@@ -231,6 +239,9 @@
 .landing-experiment-navbar-toggle {
   display: flex;
   align-items: center;
+  justify-content: center;
+  min-width: var(--touch-target, 44px);
+  min-height: var(--touch-target, 44px);
   padding: 0.25rem;
   color: var(--text-strong);
   transition: color 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
@@ -896,6 +907,8 @@
 .lp-redesign .lp-footer-brand-col { display: flex; flex-direction: column; gap: 1rem; }
 .lp-redesign .lp-footer-brand-link {
   display: inline-flex;
+  align-items: center;
+  min-height: var(--touch-target, 44px);
   text-decoration: none;
   color: inherit;
   margin-bottom: 1.25rem;
@@ -941,7 +954,17 @@
   font-size: 0.875rem;
   text-decoration: none;
   transition: color .2s ease, transform .2s ease;
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--touch-target, 44px);
+}
+
+@media (min-width: 768px) {
+  /* Footer density returns to normal on desktop where pointer precision is fine. */
+  .lp-redesign .lp-footer-list a {
+    min-height: 0;
+    display: inline-block;
+  }
 }
 .lp-redesign .lp-footer-list a:hover { color: var(--lp-primary); transform: translateX(2px); }
 .lp-redesign .lp-footer-bottom {
