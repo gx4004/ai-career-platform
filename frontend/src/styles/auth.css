@@ -74,12 +74,17 @@
   font-size: 0.85rem;
 }
 
-.auth-page-actions a {
+.auth-page-actions a,
+.auth-page-actions button {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--touch-target, 44px);
   color: rgba(255, 255, 255, 0.7);
   text-decoration: none;
 }
 
-.auth-page-actions a:hover {
+.auth-page-actions a:hover,
+.auth-page-actions button:hover {
   color: #fff;
 }
 
