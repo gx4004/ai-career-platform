@@ -176,3 +176,20 @@ Memory: `project_result_redesign.md` — audit done, needs premium visual upgrad
 _Agent: fill this in as you go. One line per phase entry, date + short note._
 
 - 2026-04-17 — Plan created on `experimental/frontend-overhaul-opus47`. Baseline not yet taken.
+- 2026-04-17 — **Phase 0 complete.** Branch, install, typecheck, build all clean. Fixed two
+  pre-existing flaky tests (`landing-experiment-page` double-brand-lockup via LandingFooter
+  mock; `resultDefinitions` job-match "Recruiter summary" copy). 124/124 passing. Baseline
+  screenshots captured at 1440×900 for 20 routes in `.codex-previews/baseline/`. `auth.callback`
+  is a pure redirect placeholder — skipped per addendum.
+- 2026-04-17 — Codex frontend audit `task-mo24x78z-26fa2u` orphaned (process died ~90s into
+  the run without emitting findings); `/codex:rescue` kick-off also failed with an internal
+  error. Proceeded with my own Phase 1 audit; will retry Codex after Phase 4 if still relevant.
+- 2026-04-17 — **Phase 1 complete.** Removed JWT access_token from localStorage + Bearer
+  header — all requests now cookie-only (`cw_access` HttpOnly, backend already accepts).
+  Updated `client.ts`, `admin.ts`, `session.tsx`, `storage.ts`, `exports.ts`. Tests assert
+  no `Authorization` header is ever attached and the three token helpers can't be
+  re-introduced. No `dangerouslySetInnerHTML` anywhere. No `eval`/`document.write`.
+  sessionStorage usage (resume-carry, practice attempts, ad unlock, guest demo runs, dismissed
+  banners) holds no tokens/PII beyond the intentional workflow carry. Route-level
+  `beforeLoad` guards deferred — component-level gates are intentional for guest/demo mode
+  (dashboard, tools, results) per CLAUDE.md; admin already has `requireAdmin`.
