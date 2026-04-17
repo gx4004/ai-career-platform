@@ -193,3 +193,14 @@ _Agent: fill this in as you go. One line per phase entry, date + short note._
   banners) holds no tokens/PII beyond the intentional workflow carry. Route-level
   `beforeLoad` guards deferred — component-level gates are intentional for guest/demo mode
   (dashboard, tools, results) per CLAUDE.md; admin already has `requireAdmin`.
+- 2026-04-17 — **Phase 2 complete.** strict TypeScript already enabled; fixed one schema
+  drift (`jobMatchResultSchema.missing_keywords` was `z.array(z.any())`, now mirrors
+  backend `MissingKeyword` union). ErrorBoundary already wraps children at three points in
+  `AppShell` and `__root.tsx` supplies `errorComponent`/`notFoundComponent`. All 124 tests
+  still green.
+- 2026-04-17 — **Phase 3 partial.** Admin routes are already lazy-loaded into their own
+  chunks (`admin-*.js`, not in `main.js`). `LandingTubelightNavbar` scroll listener already
+  rAF-throttled + passive. main.js is 964 kB raw / 311 kB gzipped — dominated by framer-motion
+  + posthog-js + tanstack stack. Deferred the framer-motion `m`/LazyMotion swap (~100
+  call-sites, low reward vs risk) in favor of spending that budget on the Phase 5 redesign.
+  Rechecked after the UI primitive rewrite — revisit bundle size in Phase 9.
