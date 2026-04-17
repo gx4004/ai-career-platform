@@ -82,6 +82,15 @@
   }
 }
 
+@keyframes skeleton-shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
 .page-frame {
   animation: fade-up 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
