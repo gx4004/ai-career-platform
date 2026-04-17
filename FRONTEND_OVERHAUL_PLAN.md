@@ -228,9 +228,26 @@ _Agent: fill this in as you go. One line per phase entry, date + short note._
   topbar/sidebar surfaces). 124/124 tests green at every commit, typecheck and build
   clean. Visual verification via dev-browser Chromium was blocked by a macOS SIGTRAP on
   this machine — relied on typecheck + tests + build + HTTP 200 smoke checks instead.
-  **Still pending** for a future interactive session: wholesale page redesigns (dashboard
-  Linear-inbox energy, 6 tool inputs, 6 tool results, history / account / settings,
-  landing polish, auth, legal, admin, onboarding) — these surfaces are already heavily
-  designed via `.app-sidebar-*`, `.dashboard-layout`, `results.css` etc., and rewriting
-  them without live visual review carries regression risk that conflicts with the
-  "never break UX" constraint.
+- 2026-04-17 — **Phase 5 / auth surface redesign.** `LoginForm`, `RegisterForm`, and the
+  `/reset-password` page all upgraded while preserving behavior: password visibility
+  toggle (Eye/EyeOff inside the input, `tabIndex={-1}` so it doesn't interfere with
+  Tab submit); submit button now uses the new `loading` prop so the label no longer
+  swaps to "Signing you in..." — layout stays still while the spinner fades in; auth
+  errors land in a designed red-tinted panel with `AlertCircle` + `role="alert"`,
+  with reserved `min-h-[2.5rem]` space so revealing an error doesn't push the submit
+  button downward; Google button gets an `.auth-google` class giving it a crisp
+  white-on-white treatment distinct from the primary "Sign in" button; reset-password
+  invalid/success states get proper icon frames with the appropriate tone. Divider copy
+  upgraded from "or" to "or continue with email" for intent clarity.
+- 2026-04-17 — **Phase 5 / legal readability.** Tightened `.legal-page__*` typography:
+  16px body (was ~15px) with 1.75 line-height and `text-wrap: pretty`; headings get
+  `scroll-margin-top` for stable in-page anchoring; paragraphs capped at 64ch and lists
+  at 62ch so no more "wall of text" line lengths; article gets a layered premium shadow
+  with white-inset highlight; meta line separated from body with a subtle divider;
+  `::marker` on bullets uses a muted accent tone. Nothing structural — pure CSS.
+  **Still pending** for a future interactive session (high-risk without live review):
+  wholesale redesigns of dashboard (Linear-inbox energy), 6 tool inputs, 6 tool
+  results, history/account/settings, landing marketing polish, admin, onboarding —
+  these surfaces are already heavily designed via `.app-sidebar-*`, `.dashboard-layout`,
+  `results.css` (5075 LOC) etc., and rewriting them without live visual verification
+  carries regression risk that conflicts with the "never break UX" constraint.
