@@ -966,7 +966,7 @@ function JobMatchView({ payload }: { payload: AnyObject }) {
           <ScrollReveal>
           <div className="jm-recruiter-card">
             <div className="jm-recruiter-card__header">
-              <span className="jm-recruiter-card__title">Recruiter view</span>
+              <span className="jm-recruiter-card__title">Recruiter summary</span>
               <span className="jm-recruiter-card__badge">How they see you</span>
             </div>
             <p className="jm-recruiter-card__body">{result.recruiterSummary}</p>
