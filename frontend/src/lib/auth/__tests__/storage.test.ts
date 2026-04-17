@@ -15,9 +15,6 @@ const localStorageMock = (() => {
 Object.defineProperty(window, 'localStorage', { value: localStorageMock, writable: true })
 
 import {
-  getAuthToken,
-  setAuthToken,
-  clearAuthToken,
   readStorageJson,
   writeStorageJson,
   removeStorageValue,
@@ -37,20 +34,12 @@ beforeEach(() => {
 })
 
 describe('auth storage', () => {
-  describe('auth token', () => {
-    it('returns null when no token set', () => {
-      expect(getAuthToken()).toBeNull()
-    })
-
-    it('stores and retrieves token', () => {
-      setAuthToken('test-token-123')
-      expect(getAuthToken()).toBe('test-token-123')
-    })
-
-    it('clears token', () => {
-      setAuthToken('token')
-      clearAuthToken()
-      expect(getAuthToken()).toBeNull()
+  describe('token isolation', () => {
+    it('exposes no auth-token helpers so JWTs cannot leak into localStorage', async () => {
+      const mod = (await import('#/lib/auth/storage')) as Record<string, unknown>
+      expect(mod.getAuthToken).toBeUndefined()
+      expect(mod.setAuthToken).toBeUndefined()
+      expect(mod.clearAuthToken).toBeUndefined()
     })
   })
 

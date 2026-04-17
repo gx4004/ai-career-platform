@@ -1,11 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
-vi.mock('#/lib/auth/storage', () => ({
-  getAuthToken: vi.fn(() => null),
-  clearAuthToken: vi.fn(),
-  setAuthToken: vi.fn(),
-}))
-
 import {
   login,
   register,
@@ -27,7 +21,6 @@ import {
   API_URL,
   __resetRefreshState,
 } from '#/lib/api/client'
-import { getAuthToken, clearAuthToken, setAuthToken } from '#/lib/auth/storage'
 
 const mockFetch = vi.fn()
 globalThis.fetch = mockFetch
@@ -116,8 +109,7 @@ describe('API client', () => {
       await expect(getHealth()).rejects.toThrow('Not found')
     })
 
-    it('clears auth token when refresh fails after a 401', async () => {
-      vi.mocked(getAuthToken).mockReturnValue('existing-token')
+    it('dispatches cw:session-expired when refresh fails after a 401', async () => {
       const dispatchSpy = vi.spyOn(window, 'dispatchEvent')
       mockFetch.mockResolvedValueOnce(
         mockJsonResponse({ detail: 'Unauthorized' }, 401),
@@ -127,7 +119,6 @@ describe('API client', () => {
       )
 
       await expect(getCurrentUser()).rejects.toThrow()
-      expect(clearAuthToken).toHaveBeenCalled()
       expect(dispatchSpy).toHaveBeenCalledWith(
         expect.objectContaining({ type: 'cw:session-expired' }),
       )
@@ -149,13 +140,11 @@ describe('API client', () => {
       expect(mockFetch).toHaveBeenCalledTimes(3)
       expect(mockFetch.mock.calls[1]?.[0]).toBe(`${API_URL}/auth/refresh`)
       expect(mockFetch.mock.calls[2]?.[0]).toBe(`${API_URL}/auth/me`)
-      expect(setAuthToken).toHaveBeenCalledWith('cookie-refresh-token')
     })
   })
 
-  describe('auth header', () => {
-    it('includes Authorization header when token exists', async () => {
-      vi.mocked(getAuthToken).mockReturnValue('my-token')
+  describe('cookie-only auth', () => {
+    it('never sends an Authorization header', async () => {
       mockFetch.mockResolvedValueOnce(
         mockJsonResponse({ status: 'ok' }),
       )
@@ -164,7 +153,8 @@ describe('API client', () => {
 
       const [, options] = mockFetch.mock.calls[0]
       const headers = options.headers as Headers
-      expect(headers.get('Authorization')).toBe('Bearer my-token')
+      expect(headers.get('Authorization')).toBeNull()
+      expect(options.credentials).toBe('include')
     })
   })
 

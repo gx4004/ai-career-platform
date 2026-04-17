@@ -19,18 +19,12 @@ import {
   logout as logoutRequest,
   register as registerRequest,
 } from '#/lib/api/client'
-import { ApiError } from '#/lib/api/errors'
 import type { HealthCheck, OAuthProvider, User } from '#/lib/api/schemas'
 import {
   clearPendingIntent,
   readPendingIntent,
   writePendingIntent,
 } from '#/lib/auth/pendingIntent'
-import {
-  clearAuthToken,
-  getAuthToken,
-  setAuthToken,
-} from '#/lib/auth/storage'
 import { navigateToPath } from '#/lib/navigation/redirect'
 
 export type SessionState = {
@@ -61,7 +55,6 @@ const SessionContext = createContext<SessionState | null>(null)
 export function SessionProvider({ children }: { children: ReactNode }) {
   const posthog = usePostHog()
   const queryClient = useQueryClient()
-  const [token, setToken] = useState<string | null>(() => getAuthToken())
   const [authDialogOpen, setAuthDialogOpen] = useState(false)
   const [authView, setAuthView] = useState<'login' | 'register'>('login')
   const [authError, setAuthError] = useState('')
@@ -85,17 +78,6 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     retry: false,
   })
 
-  useEffect(() => {
-    if (token && userQuery.isError) {
-      const err = userQuery.error
-      // 401 = expired token, 403 = deactivated account — both clear session
-      if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
-        clearAuthToken()
-        setToken(null)
-      }
-    }
-  }, [token, userQuery.isError, userQuery.error])
-
   // Listen for session-expired events from API client — open auth dialog in-place
   useEffect(() => {
     const handleExpired = () => {
@@ -105,7 +87,6 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       queryClient.removeQueries({ queryKey: ['history-workspaces'] })
       queryClient.removeQueries({ queryKey: ['tool-run'] })
       queryClient.setQueryData(['current-user'], null)
-      setToken(null)
       setAuthView('login')
       setAuthDialogOpen(true)
     }
@@ -159,24 +140,17 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     [posthog],
   )
 
-  const completeAuthentication = useCallback(
-    async (accessToken?: string) => {
-      if (accessToken) {
-        setAuthToken(accessToken)
-        setToken(accessToken)
-      }
-      await queryClient.invalidateQueries({ queryKey: ['current-user'] })
-      closeAuthDialog()
-      await consumePendingIntent()
-    },
-    [closeAuthDialog, consumePendingIntent, queryClient],
-  )
+  const completeAuthentication = useCallback(async () => {
+    await queryClient.invalidateQueries({ queryKey: ['current-user'] })
+    closeAuthDialog()
+    await consumePendingIntent()
+  }, [closeAuthDialog, consumePendingIntent, queryClient])
 
   const login = useCallback<SessionState['login']>(
     async (payload) => {
       setAuthError('')
-      const result = await loginRequest(payload)
-      await completeAuthentication(result.access_token)
+      await loginRequest(payload)
+      await completeAuthentication()
     },
     [completeAuthentication],
   )
@@ -185,11 +159,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     async (payload) => {
       setAuthError('')
       await registerRequest(payload)
-      const tokenResult = await loginRequest({
+      await loginRequest({
         email: payload.email,
         password: payload.password,
       })
-      await completeAuthentication(tokenResult.access_token)
+      await completeAuthentication()
     },
     [completeAuthentication],
   )
@@ -217,10 +191,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     } finally {
       posthog.capture('user_logged_out')
       posthog.reset()
-      clearAuthToken()
       clearPendingIntent()
       pendingActionRef.current = null
-      setToken(null)
       setAuthDialogOpen(false)
       setAuthError('')
       queryClient.removeQueries({ queryKey: ['history-page'] })
