@@ -16,16 +16,16 @@ export function LandingFooter() {
       viewport={{ once: true, amount: 0.2 }}
       transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
     >
-      <div className="lp-footer-grid">
+      <div className="lp-footer-grid lp-codex-footer-grid">
         <div className="lp-footer-brand-col">
           <Link to="/" aria-label="Career Workbench home" className="lp-footer-brand-link">
             <AppBrandLockup mode="full" />
           </Link>
           <p className="lp-footer-blurb">
-            The AI workspace for job seekers who want to move smarter, not harder. Precision career
-            architecture for the digital age.
+            Career Workbench keeps resume review, role fit, application writing, and planning in
+            one dark workspace that stays calm under pressure.
           </p>
-          <p className="lp-footer-meta">Crafted for focused applicants. Built in Europe.</p>
+          <p className="lp-footer-meta">Built for focused applicants. Designed to keep the signal clear.</p>
         </div>
 
         <nav className="lp-footer-nav" aria-label="Footer">
