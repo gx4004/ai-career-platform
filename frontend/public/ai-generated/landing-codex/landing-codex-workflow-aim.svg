@@ -1,0 +1,45 @@
+<svg width="1920" height="1280" viewBox="0 0 1920 1280" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1920" height="1280" fill="#0D1016"/>
+  <g opacity="0.48" filter="url(#a)">
+    <ellipse cx="420" cy="260" rx="320" ry="210" fill="#8B5CF6"/>
+  </g>
+  <rect x="120" y="118" width="1680" height="1044" rx="42" fill="#11151D" stroke="#272D3C" stroke-width="2"/>
+  <rect x="120" y="118" width="1680" height="74" rx="42" fill="#151A24"/>
+  <circle cx="178" cy="155" r="7" fill="#5F6572"/>
+  <circle cx="206" cy="155" r="7" fill="#5F6572"/>
+  <circle cx="234" cy="155" r="7" fill="#5F6572"/>
+  <rect x="200" y="250" width="640" height="836" rx="30" fill="#0E131B" stroke="#23293A" stroke-width="2"/>
+  <rect x="892" y="250" width="828" height="836" rx="30" fill="#0E131B" stroke="#23293A" stroke-width="2"/>
+  <rect x="262" y="320" width="242" height="16" rx="8" fill="#FAF8FF"/>
+  <rect x="262" y="364" width="184" height="12" rx="6" fill="#7B8395"/>
+  <rect x="262" y="442" width="518" height="204" rx="24" fill="#141A28"/>
+  <path d="M318 598L396 542L458 564L548 462L626 516L722 430" stroke="#B596FF" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="722" cy="430" r="15" fill="#8B5CF6"/>
+  <rect x="262" y="708" width="518" height="24" rx="12" fill="#23293A"/>
+  <rect x="262" y="708" width="366" height="24" rx="12" fill="#8B5CF6"/>
+  <rect x="262" y="768" width="518" height="24" rx="12" fill="#23293A"/>
+  <rect x="262" y="768" width="292" height="24" rx="12" fill="#B596FF"/>
+  <rect x="262" y="828" width="518" height="24" rx="12" fill="#23293A"/>
+  <rect x="262" y="828" width="420" height="24" rx="12" fill="#6D4AD5"/>
+  <rect x="960" y="320" width="264" height="16" rx="8" fill="#FAF8FF"/>
+  <rect x="960" y="364" width="182" height="12" rx="6" fill="#7B8395"/>
+  <rect x="960" y="432" width="692" height="176" rx="24" fill="#141A28"/>
+  <rect x="1002" y="474" width="130" height="92" rx="18" fill="#1B2232"/>
+  <rect x="1162" y="482" width="430" height="20" rx="10" fill="#23293A"/>
+  <rect x="1162" y="482" width="306" height="20" rx="10" fill="#8B5CF6"/>
+  <rect x="1162" y="528" width="356" height="16" rx="8" fill="#858EA2"/>
+  <rect x="1162" y="564" width="280" height="16" rx="8" fill="#858EA2"/>
+  <rect x="960" y="668" width="692" height="348" rx="24" fill="#141A28"/>
+  <rect x="1002" y="718" width="300" height="250" rx="22" fill="#191F2E"/>
+  <rect x="1340" y="718" width="252" height="20" rx="10" fill="#FAF8FF"/>
+  <rect x="1340" y="764" width="214" height="16" rx="8" fill="#858EA2"/>
+  <rect x="1340" y="814" width="220" height="24" rx="12" fill="#23293A"/>
+  <rect x="1340" y="814" width="138" height="24" rx="12" fill="#8B5CF6"/>
+  <rect x="1340" y="874" width="220" height="24" rx="12" fill="#23293A"/>
+  <rect x="1340" y="874" width="164" height="24" rx="12" fill="#B596FF"/>
+  <defs>
+    <filter id="a" x="-200" y="-250" width="1240" height="1020" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="150"/>
+    </filter>
+  </defs>
+</svg>
