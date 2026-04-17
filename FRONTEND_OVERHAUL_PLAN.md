@@ -5,12 +5,18 @@
 **Scope:** Frontend only. Backend is clean — do not touch `backend/` except to read schemas.
 **Goal:** Ambitious quality pass. Safe to be bold; this branch is a preview, not auto-deployed.
 
+> **Status update (2026-04-17, post-review):** PR #26 opened as **draft** against `main`.
+> Two independent adversarial reviews completed (Opus in-session + Codex GPT-5.4);
+> all P1 findings fixed in follow-up commits. Merge decision pending user sign-off on
+> the live preview. The "do not open PR / do not merge" directives below were
+> operational guardrails during the autonomous-work phase — superseded by the draft PR.
+
 ---
 
 ## Ground Rules (read before coding)
 
 1. **Do not break visuals or UX.** Every tool's golden path must still work identically at the end. Screenshot before/after for each tool.
-2. **Never merge to `main` or push to `deploy`.** This branch stays experimental until the user approves. Commit freely here; push to `origin experimental/frontend-overhaul-opus47`.
+2. **Merge to `main` and push to `deploy` only after explicit user sign-off.** Until then this branch stays preview-only. Commit freely; push to `origin experimental/frontend-overhaul-opus47`.
 3. **pnpm only** (not npm). Commands: `pnpm dev`, `pnpm test`, `pnpm typecheck`, `pnpm build`.
 4. **After every phase**: run `pnpm typecheck && pnpm test && pnpm build`. If any fails, fix before continuing.
 5. **Preserve tool identity** — each of the 6 tools has its own color/animation/copy. Do not homogenize.
@@ -170,7 +176,7 @@ surfaces that consume those primitives.
 - [ ] Screenshot set in `frontend/.codex-previews/final/` matching baseline set
 - [ ] `/codex:review --background` one final pass
 - [ ] Push branch: `git push origin experimental/frontend-overhaul-opus47`
-- [ ] Do NOT open PR; user will inspect and decide whether to merge.
+- [ ] Draft PR opened (PR #26); user inspects preview before merge.
 
 ---
 
@@ -181,7 +187,7 @@ surfaces that consume those primitives.
 - Do not re-enable ad gate.
 - Do not modify tool priority numbers.
 - Do not create new docs besides updating checkboxes in THIS file.
-- Do not merge to `main`. Do not push to `deploy`.
+- Do not merge to `main` or push to `deploy` **without explicit user sign-off on the draft PR**.
 
 ---
 
@@ -207,11 +213,15 @@ _Agent: fill this in as you go. One line per phase entry, date + short note._
   banners) holds no tokens/PII beyond the intentional workflow carry. Route-level
   `beforeLoad` guards deferred — component-level gates are intentional for guest/demo mode
   (dashboard, tools, results) per CLAUDE.md; admin already has `requireAdmin`.
-- 2026-04-17 — **Phase 2 complete.** strict TypeScript already enabled; fixed one schema
-  drift (`jobMatchResultSchema.missing_keywords` was `z.array(z.any())`, now mirrors
-  backend `MissingKeyword` union). ErrorBoundary already wraps children at three points in
-  `AppShell` and `__root.tsx` supplies `errorComponent`/`notFoundComponent`. All 124 tests
-  still green.
+- 2026-04-17 — **Phase 2 complete (with correction).** strict TypeScript already enabled;
+  fixed one schema drift on `jobMatchResultSchema.missing_keywords`. Attribution: the
+  initial commit `913f7e17` loosened it to `z.union([z.string(), z.object(...)])` —
+  *still* accepted strings, which was overclaimed as "mirrors backend" at the time.
+  The true object-only tightening landed later in `ed82d697` as a Codex P2 cleanup,
+  together with the dead string-branch removal in `getCoverLetterSeed`. Honest framing
+  now: Phase 2 shipped a partial fix first, was corrected after adversarial review.
+  ErrorBoundary already wraps children at three points in `AppShell` and `__root.tsx`
+  supplies `errorComponent`/`notFoundComponent`. All 124 tests still green.
 - 2026-04-17 — **Phase 3 partial.** Admin routes are already lazy-loaded into their own
   chunks (`admin-*.js`, not in `main.js`). `LandingTubelightNavbar` scroll listener already
   rAF-throttled + passive. main.js is 964 kB raw / 311 kB gzipped — dominated by framer-motion
@@ -306,7 +316,8 @@ _Agent: fill this in as you go. One line per phase entry, date + short note._
     error-page noise overlay are both untested.
   - **Phase 9 — Final Verification.** typecheck/test/build green, 60-screenshot
     set at 375/768/1280 for all 20 routes into `frontend/.codex-previews/final/`,
-    one final `/codex:review --background`, push branch. Do NOT open a PR.
+    one final `/codex:review --background`, push branch. PR opens only when
+    user explicitly authorizes (happened in post-review session; see PR #26).
 
   **Next agent starts here:** Phase 6 mobile audit. Begin with `cd frontend &&
   pnpm dev`, then walk every redesigned surface (dashboard run rows, tool input
@@ -557,5 +568,7 @@ _Agent: fill this in as you go. One line per phase entry, date + short note._
   - Bundle slim (framer-motion `m`/LazyMotion swap, dead-CSS purge).
   - MSW-based tool integration tests.
 
-  **Do NOT** open PR. **Do NOT** push to deploy. **Do NOT** merge to main.
-  Branch stays experimental for user review.
+  **Superseded.** Draft PR #26 opened against `main` at user request
+  post-review. Two adversarial reviews completed (Opus in-session + Codex
+  GPT-5.4); all P1 findings fixed. Merge to `main` + push to `deploy` pending
+  explicit user sign-off after live preview walkthrough.

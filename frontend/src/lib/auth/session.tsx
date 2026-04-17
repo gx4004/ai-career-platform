@@ -59,6 +59,21 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [authView, setAuthView] = useState<'login' | 'register'>('login')
   const [authError, setAuthError] = useState('')
   const pendingActionRef = useRef<null | (() => void | Promise<void>)>(null)
+  // Tracks whether the current browser session ever held an authenticated user.
+  // Used to gate `cw:session-expired` handling so fresh anonymous visitors
+  // don't get an unsolicited auth dialog on first-load 401 from /auth/me.
+  const hadAuthRef = useRef(false)
+
+  // One-shot cleanup: remove legacy localStorage token keys that pre-date the
+  // cookie-only migration (Phase 1). Safe to retain across reloads — idempotent.
+  useEffect(() => {
+    try {
+      window.localStorage.removeItem('auth_token')
+      window.localStorage.removeItem('refresh_token')
+    } catch {
+      // sandboxed storage — ignore
+    }
+  }, [])
 
   const userQuery = useQuery({
     queryKey: ['current-user'],
@@ -78,11 +93,14 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     retry: false,
   })
 
-  // Listen for session-expired events from API client — open auth dialog in-place
+  // Listen for session-expired events from API client. Only act on them if we
+  // had an authenticated user at some point — a 401 on the first-load
+  // /auth/me probe for an anon visitor must NOT open the auth dialog.
   useEffect(() => {
     const handleExpired = () => {
+      if (!hadAuthRef.current) return
+      hadAuthRef.current = false
       posthog.reset()
-      // Clear user-specific query caches so stale data isn't visible after re-auth
       queryClient.removeQueries({ queryKey: ['history-page'] })
       queryClient.removeQueries({ queryKey: ['history-workspaces'] })
       queryClient.removeQueries({ queryKey: ['tool-run'] })
@@ -168,10 +186,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     [completeAuthentication],
   )
 
-  // Identify user in PostHog when authentication state resolves
+  // Identify user in PostHog when authentication state resolves.
+  // Also flips `hadAuthRef` so future 401s are treated as expiry, not anon-probe.
   useEffect(() => {
     const user = userQuery.data
     if (user) {
+      hadAuthRef.current = true
       posthog.identify(String(user.id), {
         email: user.email,
         name: user.full_name || undefined,
@@ -195,6 +215,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       pendingActionRef.current = null
       setAuthDialogOpen(false)
       setAuthError('')
+      hadAuthRef.current = false
       queryClient.removeQueries({ queryKey: ['history-page'] })
       queryClient.removeQueries({ queryKey: ['history-workspaces'] })
       queryClient.removeQueries({ queryKey: ['tool-run'] })

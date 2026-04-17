@@ -13,7 +13,6 @@ import {
   parsedCvSchema,
   portfolioResultSchema,
   resumeResultSchema,
-  tokenSchema,
   toolRunDetailSchema,
   toolRunListSchema,
   toolRunSummarySchema,
@@ -58,11 +57,24 @@ let refreshPromise: Promise<void> | null = null
 // refresh endpoint is down or the refresh cookie is gone.
 let refreshCooldownUntil = 0
 const REFRESH_COOLDOWN_MS = 2000
+// Debounce `cw:session-expired` so a burst of concurrent 401s (e.g. userQuery
+// + historyQuery + workspacesQuery failing in the same tick) only fires one
+// event, not one per request.
+let sessionExpiredDispatchedAt = 0
+const SESSION_EXPIRED_DEBOUNCE_MS = 1000
+
+function dispatchSessionExpired() {
+  const now = Date.now()
+  if (now - sessionExpiredDispatchedAt < SESSION_EXPIRED_DEBOUNCE_MS) return
+  sessionExpiredDispatchedAt = now
+  window.dispatchEvent(new CustomEvent('cw:session-expired'))
+}
 
 // Test-only: reset module state between tests.
 export function __resetRefreshState() {
   refreshPromise = null
   refreshCooldownUntil = 0
+  sessionExpiredDispatchedAt = 0
 }
 
 async function silentRefresh(): Promise<void> {
@@ -119,10 +131,10 @@ async function request<T>(
       } catch {
         refreshPromise = null
         refreshCooldownUntil = Date.now() + REFRESH_COOLDOWN_MS
-        window.dispatchEvent(new CustomEvent('cw:session-expired'))
+        dispatchSessionExpired()
       }
     } else if (response.status === 401) {
-      window.dispatchEvent(new CustomEvent('cw:session-expired'))
+      dispatchSessionExpired()
     }
 
     const detail =
@@ -150,11 +162,14 @@ export type HistoryQueryParams = {
   page_size?: number
 }
 
-export function login(payload: { email: string; password: string }) {
-  return request('/auth/login', {
+// Auth endpoints don't parse response bodies — HttpOnly cookies set by the
+// backend are the sole source of session truth. Any `access_token` the
+// backend still returns in JSON is explicitly discarded by the frontend
+// (Codex-flagged cleanup: backend-side body removal is a follow-up).
+export async function login(payload: { email: string; password: string }): Promise<void> {
+  await request<unknown>('/auth/login', {
     method: 'POST',
     body: payload,
-    schema: tokenSchema,
   })
 }
 
@@ -368,11 +383,10 @@ export function confirmPasswordReset(payload: { token: string; new_password: str
   })
 }
 
-export function refreshToken() {
-  return request('/auth/refresh', {
+export async function refreshToken(): Promise<void> {
+  await request<unknown>('/auth/refresh', {
     method: 'POST',
     body: {},
-    schema: tokenSchema,
   })
 }
 
