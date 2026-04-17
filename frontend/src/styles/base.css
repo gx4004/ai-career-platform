@@ -120,6 +120,47 @@ svg {
   color: var(--text-strong);
 }
 
+/* Premium scrollbar — quiet by default, visible on hover, respects theme */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--border-strong) 70%, transparent) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--border-strong) 62%, transparent);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  border-radius: 9999px;
+  transition: background 180ms ease;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--text-muted) 55%, transparent);
+  background-clip: padding-box;
+}
+
+/* Dark surfaces (topbar, sidebar) get a lighter scrollbar thumb */
+.topbar *::-webkit-scrollbar-thumb,
+.app-sidebar-shell *::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.18);
+  background-clip: padding-box;
+}
+
+.topbar *::-webkit-scrollbar-thumb:hover,
+.app-sidebar-shell *::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.28);
+  background-clip: padding-box;
+}
+
 #main-content:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 6px;
