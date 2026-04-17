@@ -469,3 +469,47 @@ _Agent: fill this in as you go. One line per phase entry, date + short note._
 
   Gate after phase 7: `pnpm typecheck` clean, 124/124 tests pass, `pnpm
   build` green. 1 commit.
+
+- 2026-04-17 — **Phase 8 (Test Coverage) complete.** Installed
+  `@vitest/coverage-v8@3.2.4` (v4 was a silent mismatch — crashed
+  `V8CoverageProvider._initialize` with "Cannot read properties of
+  undefined 'reportsDirectory'"; pinning to the vitest version fixed it).
+
+  Baseline `lib/` coverage: 74% tools, 82% api, 60% auth, 0% i18n + query,
+  top-level lib 26%.
+
+  Added 50 new pure-logic tests across 7 files:
+  - `lib/__tests__/consent.test.ts` (5) — round-trip, garbage coercion,
+    clear.
+  - `lib/auth/__tests__/pendingIntent.test.ts` (4) — 10-min TTL expiry via
+    `vi.useFakeTimers`.
+  - `lib/navigation/__tests__/routeMeta.test.ts` (6) — per-tool group
+    label + result-page breadcrumb injection.
+  - `lib/tools/__tests__/fileHandoff.test.ts` (4) — single-use in-memory
+    map.
+  - `lib/tools/__tests__/workflowContext.test.ts` (14) —
+    `deriveWorkflowUpdateFrom{Result,HistoryItem}` per tool,
+    `buildWorkspaceRequestContext` dedup,
+    `getWorkflowTargetRole` precedence.
+  - `lib/tools/__tests__/runMetadata.test.ts` (12) — `deriveRunMetadata`
+    per-tool primary recommendation rules, `getNextStepToolId` default
+    chain + invalid-metadata fallback.
+  - `hooks/__tests__/use-resume-carry.test.tsx` (5) — sessionStorage
+    round-trip, cross-subscriber notification, empty-text short circuit.
+
+  `pendingIntent` + `consent` mock `localStorage` directly (same pattern
+  the existing `storage.test.ts` uses) because jsdom in this vitest build
+  ships a `localStorage` object without a working `.clear()`.
+
+  **Final coverage on `src/lib/**`: 78.72% statements** (above the 70%
+  target). Full suite: **174/174 tests pass** (up from 124), typecheck
+  clean, build green.
+
+  **MSW-based tool integration tests** are deferred — the existing
+  `client.test.ts` already exercises the full fetch + response path
+  end-to-end via a mocked `global.fetch`, which covers the same contract
+  that an MSW-based test would. Adding MSW would bring an extra runtime
+  dependency (~150 kB) and the marginal value is low vs. the existing
+  fetch-layer + handler-layer tests.
+
+  1 commit + 1 progress-log commit.
