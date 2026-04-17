@@ -24,7 +24,6 @@
 .auth-page-shell,
 .auth-dialog-content,
 .auth-dialog-sheet {
-  position: relative;
   overflow: hidden;
   border-radius: calc(var(--radius-2xl) + 0.1rem);
   border: 1px solid rgba(255, 255, 255, 0.18);
@@ -35,6 +34,12 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.6);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
+}
+
+/* Page shell needs its own positioning context for the ::before noise layer.
+   Dialog/Sheet primitives already set `position: fixed` — don't override it. */
+.auth-page-shell {
+  position: relative;
 }
 
 .auth-page-shell::before,
