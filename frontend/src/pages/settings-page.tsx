@@ -117,9 +117,11 @@ export function SettingsPage() {
               </div>
               <div className="settings-action">
                 <select
+                  id="settings-language-select"
                   className="settings-language-select"
                   value={i18n.language}
                   onChange={(e) => changeLanguage(e.target.value)}
+                  aria-label={t('settings.language')}
                 >
                   <option value="en">English</option>
                   <option value="tr">Türkçe</option>
