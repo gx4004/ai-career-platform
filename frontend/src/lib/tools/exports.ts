@@ -1,5 +1,4 @@
 import { API_URL } from '#/lib/api/client'
-import { getAuthToken } from '#/lib/auth/storage'
 
 type AnyObject = Record<string, unknown>
 
@@ -91,15 +90,14 @@ export function sanitizeDownloadTitle(title: string, format: ExportFormat): stri
 }
 
 export async function exportPdf(historyId: string): Promise<void> {
-  const token = getAuthToken()
-  if (!token) return
-
   const res = await fetch(
     `${API_URL}/history/${historyId}/export/pdf`,
-    {
-      headers: { Authorization: `Bearer ${token}` },
-    }
+    { credentials: 'include' },
   )
+  if (res.status === 401) {
+    window.dispatchEvent(new CustomEvent('cw:session-expired'))
+    throw new Error('PDF export requires sign-in')
+  }
   if (!res.ok) throw new Error('PDF export failed')
 
   const blob = await res.blob()

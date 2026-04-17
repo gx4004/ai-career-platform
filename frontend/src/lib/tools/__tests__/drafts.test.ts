@@ -131,7 +131,13 @@ describe('drafts', () => {
           verdict: 'borderline',
           requirements: [],
           matched_keywords: ['Python'],
-          missing_keywords: ['Kubernetes'],
+          missing_keywords: [
+            {
+              keyword: 'Kubernetes',
+              contextual_guidance: 'Orchestration appears twice in the JD.',
+              anti_stuffing_note: 'Only mention if you genuinely operated a cluster.',
+            },
+          ],
           tailoring_actions: [],
           interview_focus: ['Kubernetes'],
           recruiter_summary: 'Needs stronger infrastructure proof.',
@@ -148,7 +154,7 @@ describe('drafts', () => {
 
       const ctx = readWorkflowContext()
       expect(ctx?.resumeText).toBe('latest resume')
-      expect(ctx?.jobMatch?.missing_keywords).toEqual(['Kubernetes'])
+      expect(ctx?.jobMatch?.missing_keywords[0]?.keyword).toBe('Kubernetes')
       expect(ctx?.resumePendingReview).toBe(false)
       expect(ctx?.lastToolId).toBe('cover-letter')
     })

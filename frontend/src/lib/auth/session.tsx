@@ -19,18 +19,12 @@ import {
   logout as logoutRequest,
   register as registerRequest,
 } from '#/lib/api/client'
-import { ApiError } from '#/lib/api/errors'
 import type { HealthCheck, OAuthProvider, User } from '#/lib/api/schemas'
 import {
   clearPendingIntent,
   readPendingIntent,
   writePendingIntent,
 } from '#/lib/auth/pendingIntent'
-import {
-  clearAuthToken,
-  getAuthToken,
-  setAuthToken,
-} from '#/lib/auth/storage'
 import { navigateToPath } from '#/lib/navigation/redirect'
 
 export type SessionState = {
@@ -61,11 +55,25 @@ const SessionContext = createContext<SessionState | null>(null)
 export function SessionProvider({ children }: { children: ReactNode }) {
   const posthog = usePostHog()
   const queryClient = useQueryClient()
-  const [token, setToken] = useState<string | null>(() => getAuthToken())
   const [authDialogOpen, setAuthDialogOpen] = useState(false)
   const [authView, setAuthView] = useState<'login' | 'register'>('login')
   const [authError, setAuthError] = useState('')
   const pendingActionRef = useRef<null | (() => void | Promise<void>)>(null)
+  // Tracks whether the current browser session ever held an authenticated user.
+  // Used to gate `cw:session-expired` handling so fresh anonymous visitors
+  // don't get an unsolicited auth dialog on first-load 401 from /auth/me.
+  const hadAuthRef = useRef(false)
+
+  // One-shot cleanup: remove legacy localStorage token keys that pre-date the
+  // cookie-only migration (Phase 1). Safe to retain across reloads — idempotent.
+  useEffect(() => {
+    try {
+      window.localStorage.removeItem('auth_token')
+      window.localStorage.removeItem('refresh_token')
+    } catch {
+      // sandboxed storage — ignore
+    }
+  }, [])
 
   const userQuery = useQuery({
     queryKey: ['current-user'],
@@ -85,27 +93,18 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     retry: false,
   })
 
-  useEffect(() => {
-    if (token && userQuery.isError) {
-      const err = userQuery.error
-      // 401 = expired token, 403 = deactivated account — both clear session
-      if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
-        clearAuthToken()
-        setToken(null)
-      }
-    }
-  }, [token, userQuery.isError, userQuery.error])
-
-  // Listen for session-expired events from API client — open auth dialog in-place
+  // Listen for session-expired events from API client. Only act on them if we
+  // had an authenticated user at some point — a 401 on the first-load
+  // /auth/me probe for an anon visitor must NOT open the auth dialog.
   useEffect(() => {
     const handleExpired = () => {
+      if (!hadAuthRef.current) return
+      hadAuthRef.current = false
       posthog.reset()
-      // Clear user-specific query caches so stale data isn't visible after re-auth
       queryClient.removeQueries({ queryKey: ['history-page'] })
       queryClient.removeQueries({ queryKey: ['history-workspaces'] })
       queryClient.removeQueries({ queryKey: ['tool-run'] })
       queryClient.setQueryData(['current-user'], null)
-      setToken(null)
       setAuthView('login')
       setAuthDialogOpen(true)
     }
@@ -159,24 +158,17 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     [posthog],
   )
 
-  const completeAuthentication = useCallback(
-    async (accessToken?: string) => {
-      if (accessToken) {
-        setAuthToken(accessToken)
-        setToken(accessToken)
-      }
-      await queryClient.invalidateQueries({ queryKey: ['current-user'] })
-      closeAuthDialog()
-      await consumePendingIntent()
-    },
-    [closeAuthDialog, consumePendingIntent, queryClient],
-  )
+  const completeAuthentication = useCallback(async () => {
+    await queryClient.invalidateQueries({ queryKey: ['current-user'] })
+    closeAuthDialog()
+    await consumePendingIntent()
+  }, [closeAuthDialog, consumePendingIntent, queryClient])
 
   const login = useCallback<SessionState['login']>(
     async (payload) => {
       setAuthError('')
-      const result = await loginRequest(payload)
-      await completeAuthentication(result.access_token)
+      await loginRequest(payload)
+      await completeAuthentication()
     },
     [completeAuthentication],
   )
@@ -185,19 +177,21 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     async (payload) => {
       setAuthError('')
       await registerRequest(payload)
-      const tokenResult = await loginRequest({
+      await loginRequest({
         email: payload.email,
         password: payload.password,
       })
-      await completeAuthentication(tokenResult.access_token)
+      await completeAuthentication()
     },
     [completeAuthentication],
   )
 
-  // Identify user in PostHog when authentication state resolves
+  // Identify user in PostHog when authentication state resolves.
+  // Also flips `hadAuthRef` so future 401s are treated as expiry, not anon-probe.
   useEffect(() => {
     const user = userQuery.data
     if (user) {
+      hadAuthRef.current = true
       posthog.identify(String(user.id), {
         email: user.email,
         name: user.full_name || undefined,
@@ -217,12 +211,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     } finally {
       posthog.capture('user_logged_out')
       posthog.reset()
-      clearAuthToken()
       clearPendingIntent()
       pendingActionRef.current = null
-      setToken(null)
       setAuthDialogOpen(false)
       setAuthError('')
+      hadAuthRef.current = false
       queryClient.removeQueries({ queryKey: ['history-page'] })
       queryClient.removeQueries({ queryKey: ['history-workspaces'] })
       queryClient.removeQueries({ queryKey: ['tool-run'] })

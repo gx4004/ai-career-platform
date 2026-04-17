@@ -76,7 +76,13 @@ const workflowContext: WorkflowContextState = {
       },
     ],
     matched_keywords: ['Python'],
-    missing_keywords: ['Kubernetes'],
+    missing_keywords: [
+      {
+        keyword: 'Kubernetes',
+        contextual_guidance: 'Orchestration is referenced twice in the JD.',
+        anti_stuffing_note: 'Only add if you truly operated a cluster.',
+      },
+    ],
     tailoring_actions: [
       {
         section: 'experience',

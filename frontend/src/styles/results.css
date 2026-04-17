@@ -822,17 +822,21 @@
   justify-content: space-between;
   gap: 1rem;
 
-  padding: 0.75rem 1.25rem;
-  background: rgba(255, 255, 255, 0.72);
-  border: 1px solid rgba(215, 229, 241, 0.5);
+  padding: 0.85rem 1.25rem;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.78) 0%,
+    rgba(248, 251, 255, 0.7) 100%
+  );
+  border: 1px solid color-mix(in srgb, var(--accent) 12%, rgba(215, 229, 241, 0.55));
   border-radius: var(--radius-xl);
   box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.4) inset,
-    0 1px 2px rgba(255, 255, 255, 0.2) inset,
-    0 8px 32px rgba(19, 44, 72, 0.08),
-    0 2px 8px rgba(19, 44, 72, 0.04);
-  backdrop-filter: blur(20px) saturate(1.8);
-  -webkit-backdrop-filter: blur(20px) saturate(1.8);
+    inset 0 1px 0 rgba(255, 255, 255, 0.85),
+    0 1px 2px rgba(19, 44, 72, 0.04),
+    0 18px 42px rgba(19, 44, 72, 0.10),
+    0 4px 14px rgba(19, 44, 72, 0.05);
+  backdrop-filter: blur(22px) saturate(1.8);
+  -webkit-backdrop-filter: blur(22px) saturate(1.8);
 }
 
 .result-action__text {
@@ -975,8 +979,29 @@
 
 /* ── Error page gradient ── */
 .error-gradient-bg {
-  background: radial-gradient(ellipse at top, color-mix(in srgb, var(--accent) 4%, var(--background)), var(--background));
+  position: relative;
   min-height: 100%;
+  background:
+    radial-gradient(ellipse 60% 40% at 50% 0%, color-mix(in srgb, var(--accent) 6%, transparent) 0%, transparent 60%),
+    radial-gradient(circle at 18% 22%, color-mix(in srgb, var(--accent) 4%, transparent) 0%, transparent 36%),
+    radial-gradient(circle at 84% 76%, rgba(127, 177, 228, 0.06) 0%, transparent 32%),
+    var(--background);
+  overflow: hidden;
+}
+
+.error-gradient-bg::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='220' height='220' filter='url(%23n)' opacity='0.025'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  z-index: 0;
+}
+
+.error-gradient-bg > * {
+  position: relative;
+  z-index: 1;
 }
 
 /* ── Legacy classes still used by history-card-inline ── */
@@ -1399,38 +1424,69 @@
 
 /* ── Section Card ── */
 .section-card {
-  background: var(--surface-raised);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--surface-raised) 86%, white 14%) 0%,
+    var(--surface-raised) 100%
+  );
   border: 1px solid var(--border-soft);
   border-radius: var(--radius-xl);
   padding: 1.5rem 1.75rem;
   box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.5) inset,
-    0 1px 3px rgba(19, 44, 72, 0.03);
-  transition: box-shadow 0.25s cubic-bezier(0.32, 0.72, 0, 1),
-              transform 0.25s cubic-bezier(0.32, 0.72, 0, 1);
+    inset 0 1px 0 rgba(255, 255, 255, 0.85),
+    0 1px 2px rgba(19, 44, 72, 0.035);
+  transition:
+    box-shadow 220ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    border-color 220ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 .section-card:hover {
+  border-color: color-mix(in srgb, var(--accent) 16%, var(--border-soft));
   box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.5) inset,
-    0 4px 16px rgba(19, 44, 72, 0.06),
-    0 1px 4px rgba(19, 44, 72, 0.04);
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 1px 2px rgba(19, 44, 72, 0.04),
+    0 14px 30px rgba(19, 44, 72, 0.06);
   transform: translateY(-1px);
 }
 
 .section-card--accent-left {
   border-left: 3px solid var(--accent);
   padding-left: calc(1.5rem - 2px);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--surface-raised) 86%, white 14%) 0%,
+    color-mix(in srgb, var(--surface-raised) 96%, var(--accent) 4%) 100%
+  );
 }
 
 .section-card--success-left {
   border-left: 3px solid var(--success);
   padding-left: calc(1.5rem - 2px);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--surface-raised) 86%, white 14%) 0%,
+    color-mix(in srgb, var(--surface-raised) 96%, var(--success) 4%) 100%
+  );
 }
 
 .section-card--warning-left {
   border-left: 3px solid var(--warning);
   padding-left: calc(1.5rem - 2px);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--surface-raised) 86%, white 14%) 0%,
+    color-mix(in srgb, var(--surface-raised) 96%, var(--warning) 4%) 100%
+  );
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .section-card {
+    transition: none;
+  }
+  .section-card:hover {
+    transform: none;
+  }
 }
 
 .section-card-grid {
@@ -1508,46 +1564,73 @@
   align-items: center;
   gap: 0.3125rem;
   font-size: 0.8125rem;
-  padding: 0.25rem 0.75rem;
+  padding: 0.28rem 0.72rem;
   border-radius: var(--radius-pill);
-  font-weight: 500;
+  border: 1px solid transparent;
+  font-weight: 600;
   line-height: 1.5;
-  transition: transform 0.15s var(--spring), box-shadow 0.15s ease;
+  letter-spacing: 0.005em;
+  transition:
+    border-color 180ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    box-shadow 180ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    background 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 .chip:hover {
-  transform: scale(1.04);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.65),
+    0 1px 2px rgba(19, 44, 72, 0.04);
 }
 
 .chip--positive {
-  background: color-mix(in srgb, var(--success) 8%, #ffffff);
-  color: var(--success);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--success) 12%, #ffffff) 0%,
+    color-mix(in srgb, var(--success) 6%, #ffffff) 100%
+  );
+  border-color: color-mix(in srgb, var(--success) 22%, transparent);
+  color: color-mix(in srgb, var(--success) 80%, black 20%);
 }
 
 .chip--warning {
-  background: color-mix(in srgb, var(--warning) 8%, #ffffff);
-  color: var(--warning);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--warning) 12%, #ffffff) 0%,
+    color-mix(in srgb, var(--warning) 6%, #ffffff) 100%
+  );
+  border-color: color-mix(in srgb, var(--warning) 22%, transparent);
+  color: color-mix(in srgb, var(--warning) 80%, black 20%);
 }
 
 .chip--danger {
-  background: color-mix(in srgb, var(--destructive) 8%, #ffffff);
-  color: var(--destructive);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--destructive) 12%, #ffffff) 0%,
+    color-mix(in srgb, var(--destructive) 6%, #ffffff) 100%
+  );
+  border-color: color-mix(in srgb, var(--destructive) 22%, transparent);
+  color: color-mix(in srgb, var(--destructive) 80%, black 20%);
 }
 
 .chip--neutral {
-  background: color-mix(in srgb, var(--text-body) 6%, transparent);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--text-body) 4%, white) 0%,
+    color-mix(in srgb, var(--text-body) 7%, white) 100%
+  );
+  border-color: color-mix(in srgb, var(--text-body) 12%, transparent);
   color: var(--text-muted);
 }
 
 .chip--outline-positive {
   background: transparent;
-  border: 1px solid color-mix(in srgb, var(--success) 30%, transparent);
+  border-color: color-mix(in srgb, var(--success) 30%, transparent);
   color: var(--success);
 }
 
 .chip--outline-warning {
   background: transparent;
-  border: 1px solid color-mix(in srgb, var(--warning) 30%, transparent);
+  border-color: color-mix(in srgb, var(--warning) 30%, transparent);
   color: var(--warning);
 }
 
@@ -1785,20 +1868,37 @@
   border: 1px solid var(--border-soft) !important;
   border-radius: var(--radius-lg) !important;
   overflow: hidden;
-  transition: border-color 0.2s ease;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--surface-raised) 86%, white 14%) 0%,
+    var(--surface-raised) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.85),
+    0 1px 2px rgba(19, 44, 72, 0.025);
+  transition:
+    border-color 220ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    box-shadow 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 .issue-card:hover {
   border-color: var(--border-strong) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 1px 2px rgba(19, 44, 72, 0.04),
+    0 8px 18px rgba(19, 44, 72, 0.05);
 }
 
 .issue-card[data-state="open"] {
-  border-color: var(--border-strong) !important;
-  box-shadow: 0 2px 12px rgba(19, 44, 72, 0.05);
+  border-color: color-mix(in srgb, var(--accent) 22%, var(--border-strong)) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 1px 2px rgba(19, 44, 72, 0.04),
+    0 12px 24px rgba(19, 44, 72, 0.06);
 }
 
 .issue-card__trigger {
-  padding: 0.75rem 1rem !important;
+  padding: 0.85rem 1rem !important;
 }
 
 .issue-card__header {

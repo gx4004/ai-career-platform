@@ -110,7 +110,7 @@ export function LandingExperimentHero() {
           to="/dashboard"
           className="lp-hero-image-wrap lp-hero-image-link"
           aria-label="Open Career Workbench dashboard"
-          initial={prefersReducedMotion ? false : { opacity: 0, y: 28, scale: 0.98 }}
+          initial={prefersReducedMotion ? undefined : { opacity: 0, y: 28, scale: 0.98 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           transition={{ duration: 0.8, delay: 0.15, ease: [0.16, 1, 0.3, 1] }}
           onMouseMove={handleTilt}
