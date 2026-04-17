@@ -2736,6 +2736,9 @@ body.tool-fullscreen-open .mobile-nav-pill {
 .swipe-deck-card-wrap {
   width: 100%;
   cursor: grab;
+  /* Allow vertical page scrolling from inside the deck while still letting
+     framer-motion capture horizontal swipes without fighting the browser. */
+  touch-action: pan-y;
 }
 
 .swipe-deck-card-wrap:active {
@@ -2850,11 +2853,10 @@ body.tool-fullscreen-open .mobile-nav-pill {
   font-weight: 600;
 }
 
-.edit-sheet-cancel {
-  font-size: var(--type-small);
-}
-
+.edit-sheet-cancel,
 .edit-sheet-done {
+  min-height: var(--touch-target, 44px);
+  padding-inline: 0.75rem;
   font-size: var(--type-small);
 }
 
