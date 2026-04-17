@@ -782,7 +782,9 @@
   bottom: 0;
   left: 0;
   right: 0;
-  z-index: 200;
+  /* Sits above regular content but below Radix dialog/sheet overlays (z-50),
+     so modal sign-in sheets fully cover the nav instead of poking through. */
+  z-index: 40;
   display: flex;
   align-items: stretch;
   justify-content: space-around;

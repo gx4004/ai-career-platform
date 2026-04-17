@@ -40,10 +40,24 @@
   font-weight: 600;
   color: var(--accent-vivid);
   text-decoration: none;
+  /* Touch-target padding so the link is tappable on mobile without
+     ballooning the visual hit area on desktop. */
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--touch-target, 44px);
+  padding: 0 6px;
+  margin: -6px 0;
+  border-radius: var(--radius-sm);
 }
 
-.guest-save-banner-link:hover {
+.guest-save-banner-link:hover,
+.guest-save-banner-link:focus-visible {
   text-decoration: underline;
+}
+
+.guest-save-banner-link:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 30%, transparent);
 }
 
 .guest-save-banner-close {
@@ -159,8 +173,8 @@
 
 .tool-fullscreen--hero-flow .guest-save-banner-close {
   color: var(--text-muted);
-  width: 2rem;
-  height: 2rem;
+  width: 2.75rem;
+  height: 2.75rem;
 }
 
 .tool-fullscreen--hero-flow .guest-save-banner-close:hover {
@@ -2620,7 +2634,8 @@ body.tool-fullscreen-open .mobile-nav-pill {
   bottom: calc(var(--mobile-tab-height, 56px) + env(safe-area-inset-bottom, 0px));
   left: 0;
   right: 0;
-  z-index: 150;
+  /* Below modal overlays (z-50) and the mobile tab bar (z-40) is the bottom rail. */
+  z-index: 35;
   padding: 0.75rem var(--mobile-pad, 16px);
   background: linear-gradient(to top, var(--background) 70%, transparent);
   pointer-events: none;
@@ -2866,7 +2881,8 @@ body.tool-fullscreen-open .mobile-nav-pill {
   top: calc(var(--app-topbar-height, 0px) + 0.75rem);
   left: 50%;
   transform: translateX(-50%);
-  z-index: 200;
+  /* Stays above page content but still below modal overlays. */
+  z-index: 45;
   display: flex;
   align-items: center;
   gap: 8px;
