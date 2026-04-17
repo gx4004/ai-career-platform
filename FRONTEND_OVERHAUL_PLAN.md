@@ -204,3 +204,18 @@ _Agent: fill this in as you go. One line per phase entry, date + short note._
   + posthog-js + tanstack stack. Deferred the framer-motion `m`/LazyMotion swap (~100
   call-sites, low reward vs risk) in favor of spending that budget on the Phase 5 redesign.
   Rechecked after the UI primitive rewrite — revisit bundle size in Phase 9.
+- 2026-04-17 — **Phase 4 deferred.** CSS inventory shows `tooling.css` is already 371 LOC
+  (under the 800-LOC split threshold); the heaviest file is `results.css` at 5075 LOC which
+  the Phase 5 result-page redesign will naturally rewrite. purgecss estimated ~22% dead
+  selectors but many are dynamic (Radix / framer-motion / data-* modifiers) so a bulk prune
+  is not safe without a full redesign pass. Revisit at end of Phase 5 once the visual spec
+  is final.
+- 2026-04-17 — **Phase 5 in progress (partial).** Upgraded the `Button` primitive without
+  changing its API: layered shadow stack on primary, 0.985 active-scale press, loading
+  prop with centered Loader2 spinner that preserves label width, focus ring upgraded to a
+  3px accent-colored offset ring, motion-reduce honored. This lifts every CTA across all
+  30 import sites without any call-site churn. Typecheck + 124 tests green. **Remaining
+  Phase 5 work is substantial** — app shell, dashboard, 6 tool inputs, 6 tool results,
+  history/account/settings, landing polish, auth pages, legal/admin/onboarding. This
+  autonomous window landed the foundation (primitive + shadow stack + motion language);
+  page-level polish is safer to do interactively with visual review after each pass.
