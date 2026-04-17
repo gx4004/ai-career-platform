@@ -30,7 +30,7 @@ const buttonVariants = cva(
           // premium primary: layered shadow, top-edge highlight, active press
           "bg-primary text-primary-foreground",
           "shadow-[0_1px_0_0_rgba(255,255,255,0.12)_inset,0_1px_2px_0_rgba(12,17,29,0.10),0_8px_20px_-6px_rgba(12,17,29,0.35)]",
-          "[a]:hover:bg-primary/90 hover:bg-primary/92",
+          "hover:bg-primary/92",
           "hover:shadow-[0_1px_0_0_rgba(255,255,255,0.16)_inset,0_2px_6px_0_rgba(12,17,29,0.12),0_14px_28px_-10px_rgba(12,17,29,0.45)]",
           "active:scale-[0.985]",
         ].join(" "),
@@ -107,12 +107,10 @@ function Button({
 
   const content = loading ? (
     <>
-      <span className="absolute inset-0 flex items-center justify-center">
-        <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+      <span className="absolute inset-0 flex items-center justify-center" aria-hidden="true">
+        <Loader2 className="size-4 animate-spin" />
       </span>
-      <span className="opacity-0" aria-hidden="true">
-        {children}
-      </span>
+      <span className="opacity-0">{children}</span>
     </>
   ) : (
     children

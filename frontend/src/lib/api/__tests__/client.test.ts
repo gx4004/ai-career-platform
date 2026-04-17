@@ -48,9 +48,12 @@ afterEach(() => {
 
 describe('API client', () => {
   describe('login', () => {
-    it('sends POST to /auth/login and returns token', async () => {
-      const tokenData = { access_token: 'test-token', token_type: 'bearer' }
-      mockFetch.mockResolvedValueOnce(mockJsonResponse(tokenData))
+    it('sends POST to /auth/login and ignores any token in the response body', async () => {
+      // Backend may still return tokens in the body for legacy reasons; the
+      // frontend must not parse or leak them — cookies are the sole source.
+      mockFetch.mockResolvedValueOnce(
+        mockJsonResponse({ access_token: 'leaked-token', token_type: 'bearer' }),
+      )
 
       const result = await login({ email: 'test@example.com', password: 'pass123' })
 
@@ -58,7 +61,9 @@ describe('API client', () => {
       const [url, options] = mockFetch.mock.calls[0]
       expect(url).toBe(`${API_URL}/auth/login`)
       expect(options.method).toBe('POST')
-      expect(result.access_token).toBe('test-token')
+      expect(options.credentials).toBe('include')
+      // Callers must not receive tokens — return type is void.
+      expect(result).toBeUndefined()
     })
   })
 

@@ -14,6 +14,9 @@ import {
   buildWorkspaceRequestContext,
   deriveWorkflowUpdateFromResult,
 } from '#/lib/tools/workflowContext'
+// Note: `authRequiredToRun` on ToolDefinition is retained for future premium
+// gating but currently `false` for every registered tool; the runtime gate
+// that used to live here has been removed as unreachable.
 
 function extractHistoryId(result: Record<string, unknown>): string | null {
   const value = result.history_id
@@ -23,7 +26,7 @@ function extractHistoryId(result: Record<string, unknown>): string | null {
 export function useToolMutation(tool: ToolDefinition) {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const { status, openAuthDialog } = useSession()
+  const { status } = useSession()
   const abortRef = useRef<AbortController | null>(null)
   // Keep a ref so the async mutationFn always reads the latest session status
   const statusRef = useRef(status)
@@ -51,15 +54,6 @@ export function useToolMutation(tool: ToolDefinition) {
 
       const currentStatus = statusRef.current
       const accessMode = currentStatus === 'authenticated' ? 'authenticated' : 'guest_demo'
-
-      if (tool.authRequiredToRun && currentStatus !== 'authenticated') {
-        openAuthDialog({
-          to: tool.route,
-          reason: `${tool.shortLabel.toLowerCase()}-run`,
-          label: 'Sign in to run this tool',
-        })
-        throw new Error('Sign in to run this tool.')
-      }
 
       // Set up AbortController for orphan request handling
       abortRef.current?.abort()
