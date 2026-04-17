@@ -414,3 +414,58 @@ _Agent: fill this in as you go. One line per phase entry, date + short note._
 
   Gate green at every commit (typecheck clean / 124 tests / build ok). 7
   commits pushed in two batches.
+
+- 2026-04-17 — **Phase 7 (Accessibility) complete.** Installed `axe-core` +
+  `@axe-core/playwright` and wrote `scripts/axe-audit.mjs` that walks every
+  public + admin route at 1280×800 and fails on any critical/serious WCAG
+  2.1 AA finding. Report dumps to `.codex-previews/axe-report.json`.
+
+  **Baseline findings (4 distinct violations across 7 routes):**
+  - `aria-prohibited-attr` — 4 landing testimonials had `<div
+    aria-label="5 out of 5 stars">` with no `role`, which is invalid ARIA.
+    Added `role="img"` + `aria-hidden="true"` on the decorative `<Star>`
+    icons so SRs announce the rating once, not five times.
+  - `select-name` (**critical**) — /settings language `<select>` had no
+    label. Added `id` + `aria-label={t('settings.language')}` so the
+    control is announced consistently with its visible heading.
+  - `color-contrast` — `--text-muted: #617b95` on near-white = 4.36 (under
+    the 4.5 threshold). Darkened to `#546b84` (~5.4:1). The scoped
+    `.dashboard-layout --text-muted: #5e7893` on the 55%-white glass stat
+    card (bg ≈ #eaf4f9) was 4.1; bumped to `#4f6a82` (~4.9:1). ~3%
+    lightness drop, hierarchy preserved.
+
+  **After fixes: 18/18 routes pass axe with zero total violations** (and
+  zero critical + zero serious). `a11y(phase-7): zero axe critical/serious
+  — aria, label, contrast` committed.
+
+  **Manual audit results:**
+  - Form labels: spot-checked Login/Register/Reset/Settings — every input
+    has either an explicit `<label>` or an aria-label; no placeholder-only
+    controls.
+  - Focus rings: upgraded across primitives in Phase 5 — verified
+    visibility on dark sidebar (admin + main shell) and light content via
+    screenshots captured during Phase 6 at 375/414/768.
+  - Contrast: axe covers all static text; body text uses `--text-body`
+    (#36506b = 9.7:1) and headings use `--text-strong` (#16324b = 13:1).
+    Muted (#546b84 = 5.4:1) now passes.
+  - Tab order: Radix Dialog/Sheet/DropdownMenu manage focus trap + order
+    natively; no custom focus-visible overrides in Phase 5 primitives.
+  - Escape: Radix handles dismissal on all overlays (Dialog, Sheet,
+    DropdownMenu, Tabs). `SwipeDeck` card has `role="button"` + `tabIndex`
+    + `onKeyDown` for Enter/Space. No ad-hoc dialogs without Radix.
+  - `prefers-reduced-motion`: `animations.css` has a comprehensive
+    `@media (prefers-reduced-motion: reduce)` block covering page-frame,
+    tool-hero, result-hero, dashboard stack, skeleton shimmer, landing
+    ambient, auth entrance, and the Phase-5 premium primitives
+    (section-card, chip, score-bar, step-card, etc). All 12 UI primitives
+    from Phase 5 already honor `motion-reduce:` utilities.
+  - `role="button"` audit: one instance (`SwipeDeck` card) — correctly
+    paired with `tabIndex={0}` and Enter/Space handlers. Zero on real
+    `<button>` elements.
+  - aria-label redundancy: `InterviewToolPage`'s count pills ship
+    `aria-label="5 questions"` duplicating the concatenated visible
+    `<span>5</span><span>questions</span>` — harmless (accessible name
+    matches visible label). Left as-is.
+
+  Gate after phase 7: `pnpm typecheck` clean, 124/124 tests pass, `pnpm
+  build` green. 1 commit.
