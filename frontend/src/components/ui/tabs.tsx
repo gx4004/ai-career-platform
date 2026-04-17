@@ -25,7 +25,9 @@ function Tabs({
 const tabsListVariants = cva(
   [
     "group/tabs-list inline-flex w-fit items-center justify-center text-muted-foreground",
-    "group-data-[orientation=horizontal]/tabs:h-9 group-data-[orientation=vertical]/tabs:h-fit group-data-[orientation=vertical]/tabs:flex-col",
+    // Mobile: drop the rigid height and let the trigger's min-h-11 drive a 44px
+    // touch target. Desktop: restore the denser 36px bar.
+    "group-data-[orientation=horizontal]/tabs:h-auto sm:group-data-[orientation=horizontal]/tabs:h-9 group-data-[orientation=vertical]/tabs:h-fit group-data-[orientation=vertical]/tabs:flex-col",
     "data-[variant=line]:rounded-none",
   ].join(" "),
   {
@@ -70,7 +72,9 @@ function TabsTrigger({
       data-slot="tabs-trigger"
       className={cn(
         [
-          "relative inline-flex h-[calc(100%-2px)] flex-1 items-center justify-center gap-1.5 rounded-lg border border-transparent px-3 py-1 text-sm font-medium tracking-[-0.005em] whitespace-nowrap text-foreground/60",
+          // Mobile: explicit 44px hit box via min-h-11. Desktop: original
+          // h-[calc(100%-2px)] to fill the denser 36px bar.
+          "relative inline-flex min-h-11 sm:h-[calc(100%-2px)] sm:min-h-0 flex-1 items-center justify-center gap-1.5 rounded-lg border border-transparent px-3 py-1 text-sm font-medium tracking-[-0.005em] whitespace-nowrap text-foreground/60",
           "transition-[background-color,color,box-shadow,transform] duration-150 ease-[cubic-bezier(0.2,0.8,0.2,1)]",
           "motion-reduce:transition-none",
           "group-data-[orientation=vertical]/tabs:w-full group-data-[orientation=vertical]/tabs:justify-start",
