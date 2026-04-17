@@ -29,16 +29,34 @@
  * Uses the shimmer keyframe already defined in animations.css.
  */
 .skeleton {
-  background: linear-gradient(
-    90deg,
-    var(--divider) 25%,
-    var(--surface-subtle, #f7fbff) 50%,
-    var(--divider) 75%
-  );
-  background-size: 200% 100%;
-  animation: shimmer 1.8s ease-in-out infinite;
+  position: relative;
+  overflow: hidden;
+  background: var(--divider);
   border-radius: var(--radius-md);
   flex-shrink: 0;
+}
+
+.skeleton::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--surface-subtle, #f7fbff) 92%, white 8%),
+    transparent
+  );
+  animation: skeleton-shimmer 1.6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton::before {
+    animation: none;
+  }
+  .skeleton {
+    animation: skeleton-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
 }
 
 /* Text line skeletons */
@@ -106,16 +124,39 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 0.65rem;
-  padding: 2.5rem 1.5rem;
+  gap: 0.7rem;
+  padding: 3rem 1.5rem;
   text-align: center;
+  animation: empty-state-fade-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes empty-state-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .empty-state {
+    animation: none;
+  }
 }
 
 .empty-state-icon {
-  width: 2.5rem;
-  height: 2.5rem;
-  color: var(--text-soft);
-  margin-bottom: 0.1rem;
+  width: 2.75rem;
+  height: 2.75rem;
+  padding: 0.6rem;
+  border-radius: var(--radius-xl);
+  background: linear-gradient(180deg, var(--surface-focus), color-mix(in srgb, var(--accent) 4%, var(--surface-subtle)));
+  border: 1px solid color-mix(in srgb, var(--border-soft) 80%, white 20%);
+  color: var(--text-muted);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  margin-bottom: 0.25rem;
   flex-shrink: 0;
 }
 
@@ -130,12 +171,12 @@
 .empty-state-body {
   font-size: var(--type-body);
   color: var(--text-muted);
-  max-width: 36ch;
+  max-width: 40ch;
   line-height: 1.6;
 }
 
 .empty-state-action {
-  margin-top: 0.35rem;
+  margin-top: 0.5rem;
 }
 
 /* Compact variant — for inline empty slots inside cards */
