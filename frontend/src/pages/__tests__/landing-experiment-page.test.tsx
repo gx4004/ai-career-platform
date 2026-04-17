@@ -89,6 +89,10 @@ vi.mock('#/components/landing/LandingCTA', () => ({
   ),
 }))
 
+vi.mock('#/components/landing/LandingFooter', () => ({
+  LandingFooter: () => <footer data-testid="landing-footer" />,
+}))
+
 beforeEach(() => {
   scrollToMock.mockReset()
   Object.defineProperty(window, 'scrollTo', {
