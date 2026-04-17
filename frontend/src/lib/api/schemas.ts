@@ -222,14 +222,11 @@ export const jobMatchResultSchema = sharedResultEnvelopeSchema
     ),
     matched_keywords: z.array(z.string()),
     missing_keywords: z.array(
-      z.union([
-        z.string(),
-        z.object({
-          keyword: z.string(),
-          contextual_guidance: z.string().default(''),
-          anti_stuffing_note: z.string().default(''),
-        }),
-      ]),
+      z.object({
+        keyword: z.string(),
+        contextual_guidance: z.string().default(''),
+        anti_stuffing_note: z.string().default(''),
+      }),
     ),
     tailoring_actions: z.array(
       z.object({
