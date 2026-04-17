@@ -345,3 +345,72 @@ _Agent: fill this in as you go. One line per phase entry, date + short note._
 
   Gate after Stage 0: `pnpm typecheck` clean, **124/124 tests pass**, `pnpm build`
   green. Two commits pushed on this branch.
+
+- 2026-04-17 — **Phase 6 (Mobile Polish) complete.** dev-browser's bundled
+  Chromium SIGTRAP'd on this macOS build, as in the prior two sessions. Dropped
+  to Playwright with `channel: 'chrome'` driving system Chrome — works.
+  Committed three audit scripts under `frontend/scripts/`:
+  `mobile-screenshots.mjs` (375/414/768 matrix, seeds `cw-cookie-consent`
+  accepted so the banner doesn't swallow frames), `mobile-320-scroll-check.mjs`
+  (fails if any route scrolls horizontally at iPhone SE width), and
+  `mobile-touch-audit.mjs` (reports any interactive element under 44×44 on
+  mobile).
+
+  **Findings and fixes (7 commits):**
+
+  1. **`chore(dev)`** — added @playwright/test + three audit scripts.
+  2. **`mobile(shell+tools)`** — the mobile-tab-bar at z-200 punched through
+     Radix Dialog/Sheet (z-50) so the bottom nav rendered *in front of* the
+     auth sheet on /resume, /interview, etc. Dropped mobile-tab-bar → 40,
+     mobile-sticky-run-bar → 35, mini-loader → 45 so modal overlays properly
+     cover them. Also bumped guest-save-banner close 32→44 and added padded
+     hit box on its sign-in link.
+  3. **`mobile(auth)`** — password-toggle buttons 40×44 → 44×44
+     (`w-11`/`pr-11`); Radix Tabs trigger 165×35 → 44px min-h on mobile
+     (primitive-level change scoped by breakpoint so desktop still gets 36px);
+     Dialog + Sheet close 28×28 → 44×44 mobile / 28 desktop; auth-page-actions
+     Back/Continue-as-guest links +min-height 44.
+  4. **`mobile(dashboard)`** — `button-cluster--center` [data-slot='button']
+     was 66×32 (Button default h-8); added min-height var(--touch-target).
+     `dashboard-activity-signin-link` 221×41 → min-height 44.
+  5. **`mobile(legal)`** — nav/brand/footer-link/reset-button all bumped to
+     44px via min-height + inline-flex alignment. Desktop unchanged (already
+     comfortably above 44 from padding).
+  6. **`mobile(landing)`** — navbar hamburger 32×32 → 44×44,
+     navbar-brand anchor → 44×44, `.lp-footer-brand-link` → 44 min-height,
+     `.lp-footer-list a` → 44 min-height gated to `<768px` so desktop density
+     stays.
+  7. **`mobile(overlays+safe-area)`** — cookie-banner `padding-bottom:
+     calc(1rem + env(safe-area-inset-bottom))` so notched iPhones lift above
+     the home indicator. SwipeDeck card-wrap gets `touch-action: pan-y` so
+     framer-motion's horizontal drag doesn't fight vertical page scroll.
+     FullScreenEditSheet Cancel/Done headers 28 → 44 min-height.
+
+  **320px horizontal-scroll gate:** clean on every one of the 16 public
+  routes audited (/, /login, /dashboard, the 6 tools, /history, /account,
+  /settings, /imprint, /privacy, /terms, /cookies). mobile-tab-bar already had
+  `env(safe-area-inset-bottom)` padding from prior work; mobile-sticky-run-bar
+  positions bottom via `calc(var(--mobile-tab-height) + safe-area-inset-bottom)`
+  so they sit correctly on notched devices.
+
+  **What the touch audit still flags at 375px (intentional, not blockers):**
+  inline-prose links inside legal paragraphs (e.g. `aboutcookies.org`,
+  `goncuegemen@gmail.com`) are 20px tall — WCAG 2.5.5 exempts inline content
+  links from the 44px target, they'd break the reading flow if boxed.
+  Short-text footer nav links on `/` ("Tools" 32×44, "FAQ" 28×44) have 44px
+  height but <44px width because of the word length — widening with padding
+  would collapse the column. Accepted. Form `<label>` elements (341×14,
+  60×14) are not interactive targets in the WCAG sense — the associated
+  inputs carry the actual hit box and each input is >=44 tall. Accepted.
+
+  **Safe-area-inset coverage:** fixed-bottom elements audited and updated
+  where needed (cookie-banner lifted above home indicator; tab-bar +
+  sticky-run-bar were already clean).
+
+  **Visual verification:** 54 screenshots captured at 375/414/768 per route
+  in `frontend/.codex-previews/mobile/`. Auth sheet now correctly covers the
+  mobile nav; legal pages show their reworked nav; dashboard empty state and
+  tool hero chips all render without overflow.
+
+  Gate green at every commit (typecheck clean / 124 tests / build ok). 7
+  commits pushed in two batches.
