@@ -34,7 +34,7 @@ describe('LandingExperimentHero', () => {
     expect(heading?.textContent).toContain('blind spots')
     expect(heading?.textContent).toContain('We find them')
     expect(container.querySelector('.lp-hero-image-card img')).toBeTruthy()
-    expect(container.querySelector('a.lp-btn-primary')?.getAttribute('href')).toBe('/dashboard')
+    expect(container.querySelector('a.lp-codex-btn--primary')?.getAttribute('href')).toBe('/dashboard')
   })
 
   it('hero image link navigates to dashboard with aria-label', () => {

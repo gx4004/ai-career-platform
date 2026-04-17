@@ -1,4 +1,4 @@
-import { ArrowRight } from 'lucide-react'
+import { ArrowRight, BriefcaseBusiness, CircleCheckBig, ScanSearch } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 import {
   motion,
@@ -14,16 +14,10 @@ import {
 
 const MotionLink = motion(Link)
 
-// Neutral audience descriptors — no real brands/universities to avoid implied-endorsement
-// or trademark issues. Swap in testimonials later once we have written permission.
 const TRUST_ITEMS = [
-  'CS graduates',
-  'Bootcamp alumni',
-  'Career switchers',
-  'MBA candidates',
-  'PhD researchers',
-  'Product managers',
-  'Design leads',
+  'Resume signal mapped in 43 seconds',
+  'Role fit pulled from one live posting',
+  'Interview angles carried into the same session',
 ] as const
 
 export function LandingExperimentHero() {
@@ -65,50 +59,64 @@ export function LandingExperimentHero() {
   }
 
   return (
-    <section className="lp-hero" id="landing-hero">
-      <div className="lp-hero-grid">
-        <div className="lp-hero-copy">
-          <div className="lp-hero-eyebrow-row">
-            <span className="lp-hero-eyebrow">{copy.eyebrow}</span>
-            <span className="lp-hero-beta">
-              <span className="lp-hero-beta-dot" aria-hidden="true" />
-              Now in public beta
+    <section className="lp-hero lp-codex-hero" id="landing-hero">
+      <div className="lp-codex-hero-grid">
+        <div className="lp-hero-copy lp-codex-hero-copy">
+          <div className="lp-codex-eyebrow-row">
+            <span className="lp-codex-eyebrow">{copy.eyebrow}</span>
+            <span className="lp-codex-status">
+              <span className="lp-codex-status-dot" aria-hidden="true" />
+              Live analysis workspace
             </span>
           </div>
-          <h1 className="lp-hero-h1">
-            Your{' '}
-            <span className="lp-hero-shimmer">resume</span>
-            <br className="lp-hero-br--mobile" />
-            {' '}has{' '}
-            <span className="lp-hero-shimmer lp-hero-shimmer--alt">{copy.headlineAccent}</span>
-            .{' '}
-            <span className="lp-hero-line lp-hero-line--desktop">{copy.headlinePost}</span>
-            <span className="lp-hero-line lp-hero-line--mobile" aria-label={copy.headlinePost}>
+          <h1 className="lp-hero-h1 lp-codex-hero-title">
+            Your resume has <span className="lp-codex-accent">{copy.headlineAccent}</span>.
+            <span className="lp-codex-hero-title-desktop"> {copy.headlinePost}</span>
+            <span className="lp-codex-hero-title-mobile" aria-label={copy.headlinePost}>
               {mobileHeadlineLines.map((line) => (
                 <span key={line}>{line}</span>
               ))}
             </span>
           </h1>
-          <p className="lp-hero-body lp-hero-body--desktop">{copy.body}</p>
-          <p className="lp-hero-body lp-hero-body--mobile">{copy.mobileBody}</p>
-          <div className="lp-hero-actions">
-            <a href={landingPrimaryCta.to} className="lp-btn-primary">
+          <p className="lp-hero-body lp-codex-hero-body lp-codex-hero-body--desktop">{copy.body}</p>
+          <p className="lp-hero-body lp-codex-hero-body lp-codex-hero-body--mobile">{copy.mobileBody}</p>
+
+          <div className="lp-codex-hero-actions">
+            <a href={landingPrimaryCta.to} className="lp-codex-btn lp-codex-btn--primary">
               {copy.ctaLabel}
               <ArrowRight size={18} />
             </a>
             <a
               href="#landing-journey"
-              className="lp-btn-ghost"
+              className="lp-codex-btn lp-codex-btn--secondary"
               onClick={(e) => handleSmoothScroll(e, 'landing-journey')}
             >
               {copy.secondaryCtaLabel}
             </a>
           </div>
+
+          <div className="lp-codex-proof-grid" aria-label="Highlights from the workflow">
+            <article className="lp-codex-proof-card">
+              <ScanSearch size={18} aria-hidden="true" />
+              <strong>See the baseline</strong>
+              <p>Surface missing proof, weak phrasing, and the first edits worth making.</p>
+            </article>
+            <article className="lp-codex-proof-card">
+              <BriefcaseBusiness size={18} aria-hidden="true" />
+              <strong>Aim at one role</strong>
+              <p>Lock one real posting into the same workspace before you draft anything new.</p>
+            </article>
+            <article className="lp-codex-proof-card">
+              <CircleCheckBig size={18} aria-hidden="true" />
+              <strong>Carry context forward</strong>
+              <p>Cover letters, prep, and next steps all inherit the same signal.</p>
+            </article>
+          </div>
         </div>
 
         <MotionLink
           to="/dashboard"
-          className="lp-hero-image-wrap lp-hero-image-link"
+          className="lp-hero-image-wrap lp-hero-image-link lp-codex-hero-visual"
           aria-label="Open Career Workbench dashboard"
           initial={prefersReducedMotion ? undefined : { opacity: 0, y: 28, scale: 0.98 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -116,34 +124,45 @@ export function LandingExperimentHero() {
           onMouseMove={handleTilt}
           onMouseLeave={resetTilt}
         >
-          <div className="lp-hero-image-halo" aria-hidden="true" />
-          <motion.div
-            className="lp-hero-image-card"
-            style={prefersReducedMotion ? undefined : { rotateX, rotateY }}
-          >
-            <img
-              src="/ai-generated/carousel/hero-resume-analyzer.webp"
-              alt="Career Workbench resume analyzer preview"
-              width={800}
-              height={471}
-              loading="eager"
-              decoding="async"
-              fetchPriority="high"
-              draggable={false}
-            />
-          </motion.div>
+          <div className="lp-codex-hero-frame">
+            <div className="lp-codex-hero-kicker">
+              <span>Resume review</span>
+              <span>Role fit</span>
+              <span>Application flow</span>
+            </div>
+            <motion.div
+              className="lp-hero-image-card lp-codex-hero-image-card"
+              style={prefersReducedMotion ? undefined : { rotateX, rotateY }}
+            >
+              <img
+                src="/ai-generated/landing-codex/landing-codex-hero-dashboard.webp"
+                alt="Career Workbench dashboard showing resume review insights in a dark editorial interface"
+                width={1200}
+                height={675}
+                loading="eager"
+                decoding="async"
+                fetchPriority="high"
+                draggable={false}
+              />
+            </motion.div>
+            <div className="lp-codex-floating-note lp-codex-floating-note--top">
+              <span className="lp-codex-floating-note-label">Blind spots found</span>
+              <strong>3 fixes worth making first</strong>
+            </div>
+            <div className="lp-codex-floating-note lp-codex-floating-note--bottom">
+              <span className="lp-codex-floating-note-label">Role match snapshot</span>
+              <strong>Experience proof linked to one target role</strong>
+            </div>
+          </div>
         </MotionLink>
       </div>
 
-      {/* Trust marquee — outside the grid so it spans the full hero width */}
-      <div className="lp-hero-trust" aria-label="Built for job seekers across disciplines">
-        <span className="lp-hero-trust-label">Built for</span>
-        <div className="lp-hero-trust-track-wrap">
-          <div className="lp-hero-trust-track" aria-hidden="true">
-            {[...TRUST_ITEMS, ...TRUST_ITEMS].map((item, i) => (
-              <span key={`${item}-${i}`}>{item}</span>
-            ))}
-          </div>
+      <div className="lp-codex-trust-strip" aria-label="Workflow outcomes">
+        <span className="lp-codex-trust-label">Inside the workbench</span>
+        <div className="lp-codex-trust-items">
+          {TRUST_ITEMS.map((item) => (
+            <span key={item}>{item}</span>
+          ))}
         </div>
       </div>
     </section>

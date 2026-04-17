@@ -44,6 +44,9 @@ export function LandingExperimentPage() {
 
   return (
     <div className="landing-page landing-page-experiment lp-redesign premium-corner-canvas" id="landing-experiment">
+      <a className="lp-codex-skip-link" href="#main-content">
+        Skip to content
+      </a>
       {/* Ambient: two slow-drifting blurred orbs (perpetual micro-motion) */}
       <div className="lp-ambient" aria-hidden="true">
         <div className="lp-ambient-orb lp-ambient-orb-1" />
@@ -63,7 +66,7 @@ export function LandingExperimentPage() {
         }
       />
 
-      <main>
+      <main id="main-content">
         {landingExperimentSectionOrder.map((sectionId) => (
           <div
             key={sectionId}

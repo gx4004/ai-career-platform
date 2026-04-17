@@ -74,24 +74,22 @@ export function LandingToolGridBase({
   const FeaturedIcon = featured.icon
 
   return (
-    <section className="lp-section lp-surface-lowest" id="landing-tools">
-      <div className="lp-container">
+    <section className="lp-section lp-surface-lowest lp-codex-tools" id="landing-tools">
+      <div className="lp-container lp-codex-tools-shell">
         <motion.div
-          className="lp-tools-header"
+          className="lp-tools-header lp-codex-tools-header"
           initial={prefersReducedMotion ? false : { opacity: 0, y: 18 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, amount: 0.4 }}
           transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
         >
-          <div className="lp-tools-header-top">
-            <span className="lp-tools-eyebrow">The toolkit · 06 tools</span>
-          </div>
-          <h2 className="lp-section-h2">{copy.title}</h2>
-          {copy.body ? <p className="lp-section-sub">{copy.body}</p> : null}
+          <p className="lp-codex-section-label">{copy.eyebrow} · 06 tools</p>
+          <h2 className="lp-section-h2 lp-codex-section-title">{copy.title}</h2>
+          {copy.body ? <p className="lp-codex-section-copy">{copy.body}</p> : null}
         </motion.div>
 
         <motion.div
-          className="lp-tools-bento"
+          className="lp-tools-bento lp-codex-tools-bento"
           initial="hidden"
           whileInView="visible"
           viewport={{ once: true, amount: 0.15 }}
@@ -100,10 +98,9 @@ export function LandingToolGridBase({
             visible: { transition: { staggerChildren: 0.07 } },
           }}
         >
-          {/* Featured: Resume Analyzer (spans 2 columns on desktop) */}
           <MotionLink
             to="/dashboard"
-            className="lp-tool-card lp-tool-card--featured lp-spotlight"
+            className="lp-tool-card lp-tool-card--featured lp-codex-tool-card lp-codex-tool-card--featured"
             {...spotlight}
             variants={{
               hidden: prefersReducedMotion ? { opacity: 1 } : { opacity: 0, y: 22 },
@@ -114,11 +111,14 @@ export function LandingToolGridBase({
               },
             }}
           >
-            <div className="lp-tool-featured-head">
-              <div className="lp-tool-icon lp-tool-icon--lg">
+            <div className="lp-codex-tool-meta-row">
+              <span className="lp-codex-tool-index">01</span>
+              <span className="lp-tool-phase">{meta[featured.id].phase} phase</span>
+            </div>
+            <div className="lp-tool-featured-head lp-codex-tool-featured-head">
+              <div className="lp-tool-icon lp-tool-icon--lg lp-codex-tool-icon">
                 <FeaturedIcon size={26} />
               </div>
-              <span className="lp-tool-phase">{meta[featured.id].phase} · 01 / 06</span>
             </div>
             <h3 className="lp-tool-title lp-tool-title--lg">{featured.label}</h3>
             <p className="lp-tool-summary lp-tool-summary--lg">{meta[featured.id].summary}</p>
@@ -130,13 +130,12 @@ export function LandingToolGridBase({
                 </li>
               ))}
             </ul>
-            <div className="lp-tool-featured-cta">
-              Start here
+            <div className="lp-tool-featured-cta lp-codex-tool-cta">
+              Open the workbench
               <ArrowUpRight size={16} />
             </div>
           </MotionLink>
 
-          {/* Rest of the tools */}
           {rest.map((tool, i) => {
             const Icon = tool.icon
             const realIndex = i + 1
@@ -144,7 +143,7 @@ export function LandingToolGridBase({
               <MotionLink
                 key={tool.id}
                 to="/dashboard"
-                className={`lp-tool-card lp-spotlight ${accentClassByIndex[realIndex] ?? ''}`}
+                className={`lp-tool-card lp-codex-tool-card ${accentClassByIndex[realIndex] ?? ''}`}
                 {...spotlight}
                 variants={{
                   hidden: prefersReducedMotion ? { opacity: 1 } : { opacity: 0, y: 20 },
@@ -155,16 +154,21 @@ export function LandingToolGridBase({
                   },
                 }}
               >
+                <div className="lp-codex-tool-meta-row">
+                  <span className="lp-codex-tool-index">{String(realIndex + 1).padStart(2, '0')}</span>
+                  <span className="lp-tool-phase">{meta[tool.id].phase} phase</span>
+                </div>
                 <div className="lp-tool-card-head">
-                  <div className="lp-tool-icon">
+                  <div className="lp-tool-icon lp-codex-tool-icon">
                     <Icon size={20} />
                   </div>
-                  <span className="lp-tool-phase">
-                    {meta[tool.id].phase} · {String(realIndex + 1).padStart(2, '0')} / 06
-                  </span>
                 </div>
                 <h3 className="lp-tool-title">{tool.label}</h3>
                 <p className="lp-tool-summary">{meta[tool.id].summary}</p>
+                <div className="lp-codex-tool-cta">
+                  View tool
+                  <ArrowUpRight size={16} />
+                </div>
               </MotionLink>
             )
           })}

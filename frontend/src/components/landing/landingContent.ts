@@ -195,21 +195,21 @@ export const landingWorkflowFeatures = [
     title: 'Review the resume you already have',
     content:
       'Get a score, see the strongest proof, and find the first edits worth making before you start rewriting.',
-    image: '/ai-generated/carousel/final-job-match.webp',
+    image: '/ai-generated/landing-codex/landing-codex-workflow-review.webp',
   },
   {
     step: 'Aim',
     title: 'Check fit against a real role',
     content:
       'Bring in one job posting, compare it to the resume, and turn the gaps into focused application work.',
-    image: '/ai-generated/carousel/final-resume.webp',
+    image: '/ai-generated/landing-codex/landing-codex-workflow-aim.webp',
   },
   {
     step: 'Build',
     title: 'Finish the rest of the search faster',
     content:
       'Create a cover letter, prep for interviews, and plan projects or career moves from the same starting point.',
-    image: '/ai-generated/carousel/final-career.webp',
+    image: '/ai-generated/landing-codex/landing-codex-workflow-build.webp',
   },
 ] as const
 

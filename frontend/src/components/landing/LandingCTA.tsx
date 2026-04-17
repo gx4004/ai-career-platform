@@ -31,20 +31,19 @@ export function LandingCTA() {
   }
 
   return (
-    <section className="lp-section" id="landing-cta">
+    <section className="lp-section lp-codex-cta-section" id="landing-cta">
       <motion.div
-        className="lp-cta-card"
+        className="lp-cta-card lp-codex-cta-card"
         initial={prefersReducedMotion ? false : { opacity: 0, y: 24 }}
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true, amount: 0.3 }}
         transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
       >
-        <div className="lp-cta-orb lp-cta-orb-1" aria-hidden="true" />
-        <div className="lp-cta-orb lp-cta-orb-2" aria-hidden="true" />
+        <p className="lp-codex-section-label">{landingCtaCopy.eyebrow}</p>
         <h2 className="lp-cta-h2">{landingCtaCopy.title}</h2>
         <motion.a
           href={landingPrimaryCta.to}
-          className="lp-btn-primary"
+          className="lp-codex-btn lp-codex-btn--primary"
           onMouseMove={handleMagnet}
           onMouseLeave={resetMagnet}
           style={prefersReducedMotion ? undefined : { x, y }}
@@ -52,7 +51,13 @@ export function LandingCTA() {
           {landingCtaCopy.ctaLabel}
           <ArrowRight size={18} />
         </motion.a>
-        <p className="lp-cta-micro">No sign-up required. Your data stays yours.</p>
+        <p className="lp-codex-cta-copy">{landingCtaCopy.body}</p>
+        <ul className="lp-codex-cta-list" aria-label="What you get">
+          {landingCtaCopy.valueBullets.map((item) => (
+            <li key={item}>{item}</li>
+          ))}
+        </ul>
+        <p className="lp-cta-micro">{landingCtaCopy.trustLine}</p>
       </motion.div>
     </section>
   )

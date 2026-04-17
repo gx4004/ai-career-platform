@@ -8,11 +8,10 @@ export function LandingFaqsSection() {
   const prefersReducedMotion = useReducedMotion() ?? false
 
   return (
-    <section className="lp-section" id="landing-faq">
-      <div className="lp-container" style={{ maxWidth: '56rem' }}>
+    <section className="lp-section lp-codex-faq" id="landing-faq">
+      <div className="lp-container lp-codex-faq-shell">
         <motion.h2
-          className="lp-section-h2"
-          style={{ textAlign: 'center' }}
+          className="lp-section-h2 lp-codex-section-title"
           initial={prefersReducedMotion ? false : { opacity: 0, y: 18 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, amount: 0.4 }}
@@ -76,7 +75,7 @@ export function LandingFaqsSection() {
                       transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
                       style={{ overflow: 'hidden' }}
                     >
-                      <div style={{ padding: '0 0 0.25rem' }}>{q.content}</div>
+                      <div className="lp-codex-faq-answer">{q.content}</div>
                     </motion.div>
                   ) : null}
                 </AnimatePresence>
