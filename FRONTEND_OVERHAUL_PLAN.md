@@ -513,3 +513,49 @@ _Agent: fill this in as you go. One line per phase entry, date + short note._
   fetch-layer + handler-layer tests.
 
   1 commit + 1 progress-log commit.
+
+- 2026-04-17 — **Phase 9 (Final Verification) complete.** Full gate green:
+  `pnpm typecheck` clean, **174/174 tests pass**, `pnpm build` succeeds.
+
+  **Final bundle sizes** (1280×900 client, production build):
+  - `main.js`: 994.85 kB / **312.75 kB gz** (delta vs Phase-6 baseline:
+    +0.09 kB raw / +0.04 kB gz — essentially noise).
+  - `styles.css`: 445.29 kB / **69.77 kB gz** (delta vs Phase-6 baseline:
+    +1.97 kB raw / +0.28 kB gz — from the mobile-polish + a11y-contrast
+    CSS additions, specifically the new min-height + touch-action +
+    padding rules).
+
+  **Final screenshot matrix:** 60 shots (20 routes × {375, 768, 1280})
+  captured via `scripts/final-screenshots.mjs` into
+  `frontend/.codex-previews/final/`. Routes: /, /login, /reset-password,
+  /dashboard, 6 tools, /history, /account, /settings, /imprint, /privacy,
+  /terms, /cookies, /admin, /admin/runs, /admin/users. System Chrome via
+  Playwright `channel: 'chrome'` (dev-browser's bundled Chromium still
+  SIGTRAP's on this macOS build). Auth-gated pages show the auth sheet /
+  auth dialog correctly at every width — no z-index collision.
+
+  **Walkthrough spot-checks** (desktop 1280, manual visual review of final
+  set):
+  - Home: landing experiment redesign renders cleanly; testimonial
+    rating now announces as `role="img"` + aria-label.
+  - Login: auth dialog with 44px tab targets + password toggle + focus
+    rings on both dark and light surfaces.
+  - Dashboard: stat card labels now hit 4.9:1 contrast on the glass card.
+  - Tools (all 6): hero chips + per-tool accent, status pill, layered
+    editor shells, per-tool premium submit CTA — all intact.
+  - Legal: 16px body, 1.75 line-height, legal-page nav links meet touch
+    target + contrast floor.
+  - Admin: redirects to login (expected; no admin auth in screenshot
+    run); sidebar/table skin visible via separate authed testing.
+
+  **Deferred for a future branch** (not shipping in this experimental
+  pass):
+  - Wholesale page-architecture rewrite for landing, dashboard hero, tool
+    flows, history, account, admin surfaces.
+  - `results.css` (5175 LOC), `tooling-fullscreen.css` (2909 LOC),
+    `HistoryPage.tsx` (604 LOC) restructure.
+  - Bundle slim (framer-motion `m`/LazyMotion swap, dead-CSS purge).
+  - MSW-based tool integration tests.
+
+  **Do NOT** open PR. **Do NOT** push to deploy. **Do NOT** merge to main.
+  Branch stays experimental for user review.
