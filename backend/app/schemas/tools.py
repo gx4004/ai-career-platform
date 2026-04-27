@@ -4,13 +4,12 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, HttpUrl
 
-
 # --- Requests ---
 
 class ResumeAnalyzeRequest(BaseModel):
     resume_text: str
     job_description: str | None = None
-    workspace_context: "WorkspaceContextInput | None" = None
+    workspace_context: WorkspaceContextInput | None = None
     parent_run_id: str | None = None
     feedback: str | None = None
 
@@ -18,7 +17,7 @@ class ResumeAnalyzeRequest(BaseModel):
 class JobMatchRequest(BaseModel):
     resume_text: str
     job_description: str
-    workspace_context: "WorkspaceContextInput | None" = None
+    workspace_context: WorkspaceContextInput | None = None
     parent_run_id: str | None = None
     feedback: str | None = None
 
@@ -29,7 +28,7 @@ class CoverLetterRequest(BaseModel):
     tone: str | None = None
     resume_analysis: ResumeAnalysisHandoff | None = None
     job_match: JobMatchHandoff | None = None
-    workspace_context: "WorkspaceContextInput | None" = None
+    workspace_context: WorkspaceContextInput | None = None
     parent_run_id: str | None = None
     feedback: str | None = None
 
@@ -40,7 +39,7 @@ class InterviewRequest(BaseModel):
     num_questions: int | None = Field(None, ge=1, le=20)
     resume_analysis: ResumeAnalysisHandoff | None = None
     job_match: JobMatchHandoff | None = None
-    workspace_context: "WorkspaceContextInput | None" = None
+    workspace_context: WorkspaceContextInput | None = None
     parent_run_id: str | None = None
     feedback: str | None = None
 
@@ -48,7 +47,7 @@ class InterviewRequest(BaseModel):
 class CareerRequest(BaseModel):
     resume_text: str
     target_role: str | None = None
-    workspace_context: "WorkspaceContextInput | None" = None
+    workspace_context: WorkspaceContextInput | None = None
     parent_run_id: str | None = None
     feedback: str | None = None
 
@@ -56,7 +55,7 @@ class CareerRequest(BaseModel):
 class PortfolioRequest(BaseModel):
     resume_text: str
     target_role: str
-    workspace_context: "WorkspaceContextInput | None" = None
+    workspace_context: WorkspaceContextInput | None = None
     parent_run_id: str | None = None
     feedback: str | None = None
 

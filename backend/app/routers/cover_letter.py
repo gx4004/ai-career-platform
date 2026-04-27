@@ -1,11 +1,11 @@
 import json
 
 from fastapi import APIRouter, Depends, Request
-from app.limiter import limiter
 from sqlalchemy.orm import Session
 
 from app.auth.security import get_optional_current_user
 from app.database import get_db
+from app.limiter import limiter
 from app.models.user import User
 from app.schemas.tools import CoverLetterRequest, CoverLetterResponse
 from app.services.cover_letter_gen import generate_cover_letter

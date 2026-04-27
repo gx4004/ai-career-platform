@@ -112,7 +112,7 @@ async def _call_vertex(system_prompt: str, user_prompt: str, model_name: str | N
             ),
             timeout=_LLM_TIMEOUT_SECONDS,
         )
-    except asyncio.TimeoutError:
+    except TimeoutError:
         logger.error("Vertex AI request timed out after %ds", _LLM_TIMEOUT_SECONDS)
         raise TimeoutError(
             f"AI request timed out after {_LLM_TIMEOUT_SECONDS}s. Please try again."
@@ -155,7 +155,7 @@ async def _call_google_genai(system_prompt: str, user_prompt: str, model_name: s
             ),
             timeout=_LLM_TIMEOUT_SECONDS,
         )
-    except asyncio.TimeoutError:
+    except TimeoutError:
         logger.error("Google AI request timed out after %ds", _LLM_TIMEOUT_SECONDS)
         raise TimeoutError(
             f"AI request timed out after {_LLM_TIMEOUT_SECONDS}s. Please try again."

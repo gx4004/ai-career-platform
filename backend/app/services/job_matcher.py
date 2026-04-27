@@ -1,17 +1,17 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from app.prompts.job_match import build_job_match_prompt
-
-logger = logging.getLogger(__name__)
 from app.services.ai_client import complete_structured
 from app.services.quality_signals import (
     build_resume_prepass,
     compute_match_score,
     job_match_verdict,
 )
+
+logger = logging.getLogger(__name__)
 
 SCHEMA_VERSION = "quality_v2"
 CONFIDENCE_NOTE = (
@@ -180,7 +180,7 @@ async def match_job(resume_text: str, job_description: str) -> dict:
     prepass = build_resume_prepass(resume_text, job_description)
     match_score = compute_match_score(prepass.matched_keywords, prepass.missing_keywords)
     verdict = job_match_verdict(match_score)
-    generated_at = datetime.now(timezone.utc).isoformat()
+    generated_at = datetime.now(UTC).isoformat()
 
     locked_payload = {
         "schema_version": SCHEMA_VERSION,

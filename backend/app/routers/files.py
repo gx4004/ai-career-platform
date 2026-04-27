@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Request, UploadFile
-from app.limiter import limiter
 
+from app.limiter import limiter
 from app.schemas.tools import ParsedCvResponse
 from app.services.cv_parser import parse_cv
 

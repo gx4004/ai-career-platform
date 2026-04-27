@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from app.config import settings
 from app.prompts.resume import build_resume_prompt
@@ -284,7 +284,7 @@ async def analyze_resume(
     prepass = build_resume_prepass(resume_text, job_description)
     heuristic_breakdown = compute_resume_breakdown(prepass)
     heuristic_overall = compute_overall_score(heuristic_breakdown)
-    generated_at = datetime.now(timezone.utc).isoformat()
+    generated_at = datetime.now(UTC).isoformat()
     detected_sector = detect_sector(job_description) if job_description else None
 
     locked_payload = {
