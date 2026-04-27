@@ -3,12 +3,13 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 
 import sqlalchemy as sa
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.auth.security import get_current_admin
 from app.database import get_db
+from app.limiter import limiter
 from app.models.tool_run import ToolRun
 from app.models.user import User
 from app.schemas.admin import (
@@ -24,14 +25,21 @@ from app.schemas.admin import (
 
 router = APIRouter()
 
+# Admin endpoints are token-gated, but layering a per-IP cap is cheap defense
+# against credential theft + scripted enumeration. Keep it generous so a real
+# operator clicking through the panel never trips it.
+_ADMIN_RATE = "60/minute"
+
 
 # ── Users ──
 
 @router.get("/users", response_model=AdminUserListResponse)
+@limiter.limit(_ADMIN_RATE)
 def list_users(
+    request: Request,
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
-    q: str | None = None,
+    q: str | None = Query(None, max_length=100),
     admin: User = Depends(get_current_admin),
     db: Session = Depends(get_db),
 ):
@@ -68,7 +76,9 @@ def list_users(
 
 
 @router.get("/users/{user_id}", response_model=AdminUserDetailResponse)
+@limiter.limit(_ADMIN_RATE)
 def get_user(
+    request: Request,
     user_id: str,
     admin: User = Depends(get_current_admin),
     db: Session = Depends(get_db),
@@ -110,7 +120,9 @@ def get_user(
 
 
 @router.patch("/users/{user_id}/admin", status_code=200)
+@limiter.limit(_ADMIN_RATE)
 def set_admin(
+    request: Request,
     user_id: str,
     body: AdminSetAdminRequest,
     admin: User = Depends(get_current_admin),
@@ -130,7 +142,9 @@ def set_admin(
 # ── Runs ──
 
 @router.get("/runs", response_model=AdminRunListResponse)
+@limiter.limit(_ADMIN_RATE)
 def list_runs(
+    request: Request,
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     tool: str | None = None,
@@ -171,7 +185,9 @@ def list_runs(
 
 
 @router.get("/runs/{run_id}", response_model=AdminRunDetailResponse)
+@limiter.limit(_ADMIN_RATE)
 def get_run(
+    request: Request,
     run_id: str,
     admin: User = Depends(get_current_admin),
     db: Session = Depends(get_db),
@@ -199,7 +215,9 @@ def get_run(
 # ── Stats ──
 
 @router.get("/stats", response_model=AdminStatsResponse)
+@limiter.limit(_ADMIN_RATE)
 def get_stats(
+    request: Request,
     admin: User = Depends(get_current_admin),
     db: Session = Depends(get_db),
 ):
@@ -239,7 +257,9 @@ def get_stats(
 # ── Health ──
 
 @router.get("/health")
+@limiter.limit(_ADMIN_RATE)
 def admin_health(
+    request: Request,
     admin: User = Depends(get_current_admin),
     db: Session = Depends(get_db),
 ):

@@ -179,6 +179,13 @@ def get_optional_current_user(
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
     db: Session = Depends(get_db),
 ) -> User | None:
+    """Resolve the current user without requiring auth.
+
+    A missing, expired, malformed, or revoked token is treated as "guest" — we
+    never raise from here. Tool routers rely on this to fall through into the
+    guest-demo path; raising 401 would break stale-session UX (an expired access
+    cookie should silently downgrade to guest, not fail the whole request).
+    """
     token = None
     if credentials is not None:
         token = credentials.credentials
@@ -190,18 +197,10 @@ def get_optional_current_user(
 
     user_id = decode_token(token)
     if user_id is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token"
-        )
+        return None
 
     user = db.query(User).filter(User.id == user_id).first()
-    if user is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found"
-        )
-    if not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Account is deactivated"
-        )
+    if user is None or not user.is_active:
+        return None
 
     return user

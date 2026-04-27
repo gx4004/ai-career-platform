@@ -41,5 +41,10 @@ def get_db():
     db = SessionLocal()
     try:
         yield db
+    except Exception:
+        # If a route raised mid-transaction (e.g. after db.add() but before
+        # db.commit()), close the connection to the pool with a clean state.
+        db.rollback()
+        raise
     finally:
         db.close()
