@@ -79,13 +79,14 @@ export function __resetRefreshState() {
 
 async function silentRefresh(): Promise<void> {
   // Refresh endpoint sets new HttpOnly cookies server-side; response body is ignored.
-  // 5s ceiling so a hung auth endpoint can't block every 401-retry indefinitely.
+  // 10s ceiling so a hung auth endpoint can't block every 401-retry indefinitely
+  // while still being generous enough for slow mobile networks.
   const res = await fetch(`${API_URL}/auth/refresh`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: '{}',
     credentials: 'include',
-    signal: AbortSignal.timeout(5_000),
+    signal: AbortSignal.timeout(10_000),
   })
   if (!res.ok) throw new Error('refresh failed')
 }

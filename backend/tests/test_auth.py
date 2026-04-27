@@ -95,3 +95,41 @@ def test_password_hashing_and_verification():
     assert hashed.startswith("$2")
     assert verify_password("secret123", hashed) is True
     assert verify_password("wrong", hashed) is False
+
+
+def test_optional_auth_treats_bad_cookie_as_guest(db):
+    """A malformed access cookie must degrade to guest, not 401 — tool
+    routers depend on this fall-through for the guest-demo path."""
+    from starlette.requests import Request
+
+    from app.auth.security import get_optional_current_user
+
+    scope = {
+        "type": "http",
+        "headers": [(b"cookie", b"cw_access=this-is-not-a-valid-jwt")],
+    }
+    req = Request(scope)
+
+    result = get_optional_current_user(req, credentials=None, db=db)
+    assert result is None
+
+
+def test_optional_auth_returns_none_for_inactive_user(db, test_user):
+    """An access cookie for a deactivated account also degrades to guest."""
+    from starlette.requests import Request
+
+    from app.auth.security import create_access_token, get_optional_current_user
+
+    test_user.is_active = False
+    db.add(test_user)
+    db.commit()
+
+    token = create_access_token(test_user.id)
+    scope = {
+        "type": "http",
+        "headers": [(b"cookie", f"cw_access={token}".encode())],
+    }
+    req = Request(scope)
+
+    result = get_optional_current_user(req, credentials=None, db=db)
+    assert result is None

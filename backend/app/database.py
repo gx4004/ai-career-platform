@@ -44,7 +44,13 @@ def get_db():
     except Exception:
         # If a route raised mid-transaction (e.g. after db.add() but before
         # db.commit()), close the connection to the pool with a clean state.
-        db.rollback()
+        # Guard rollback itself — a poisoned connection (lost socket, server
+        # OOM) can fail to roll back, and we must not mask the original
+        # exception with a rollback failure.
+        try:
+            db.rollback()
+        except Exception:
+            logger.warning("get_db: rollback after route exception failed", exc_info=True)
         raise
     finally:
         db.close()
