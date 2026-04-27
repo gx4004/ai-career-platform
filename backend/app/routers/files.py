@@ -8,6 +8,12 @@ router = APIRouter()
 
 MAX_CV_SIZE = 10 * 1024 * 1024  # 10 MB
 
+# Magic bytes — extension can be spoofed; the parser will fail loudly on
+# arbitrary bytes, but rejecting at the boundary gives a clean 400 instead of
+# burning CPU in PyMuPDF/python-docx and emitting noisy stack traces.
+_PDF_MAGIC = b"%PDF-"
+_DOCX_MAGIC = b"PK\x03\x04"  # docx is a zip; this is the zip local-file header
+
 
 @router.post("/parse-cv", response_model=ParsedCvResponse)
 @limiter.limit("20/minute")
@@ -28,4 +34,12 @@ async def parse_cv_endpoint(request: Request, file: UploadFile):
             status_code=413,
             detail=f"File too large. Maximum size is {MAX_CV_SIZE // (1024 * 1024)} MB",
         )
+
+    expected_magic = _PDF_MAGIC if ext == "pdf" else _DOCX_MAGIC
+    if not content.startswith(expected_magic):
+        raise HTTPException(
+            status_code=400,
+            detail=f"File does not appear to be a valid .{ext} (content does not match expected format).",
+        )
+
     return parse_cv(content, file.filename, ext)

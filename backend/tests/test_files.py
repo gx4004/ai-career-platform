@@ -13,6 +13,28 @@ def test_parse_cv_unsupported(client):
     assert "Unsupported" in resp.json()["detail"]
 
 
+def test_parse_cv_rejects_spoofed_extension_pdf(client):
+    """Plain text renamed to .pdf must be rejected via magic-byte check."""
+    file = io.BytesIO(b"this is plain text, not a pdf")
+    resp = client.post(
+        f"{PREFIX}/files/parse-cv",
+        files={"file": ("malicious.pdf", file, "application/pdf")},
+    )
+    assert resp.status_code == 400
+    assert "valid" in resp.json()["detail"].lower()
+
+
+def test_parse_cv_rejects_spoofed_extension_docx(client):
+    """Plain text renamed to .docx must be rejected via magic-byte check."""
+    file = io.BytesIO(b"this is plain text, not a docx")
+    resp = client.post(
+        f"{PREFIX}/files/parse-cv",
+        files={"file": ("malicious.docx", file, "application/vnd.openxmlformats-officedocument.wordprocessingml.document")},
+    )
+    assert resp.status_code == 400
+    assert "valid" in resp.json()["detail"].lower()
+
+
 def test_health(client):
     resp = client.get(f"{PREFIX}/health")
     assert resp.status_code == 200

@@ -57,13 +57,16 @@ async def run_tool_pipeline(
     if "feedback" in service_kwargs:
         service_kwargs["feedback"] = clean_feedback
 
-    # Cache check
+    # Cache check — scope by user_id so authenticated users never see another user's
+    # cached result (defense-in-depth: tools are deterministic from inputs, but mixing
+    # cache scopes across accounts complicates audit and personalization later).
     cached = None
     content_hash = None
     if not clean_feedback:
-        hash_kwargs = {}
+        hash_kwargs: dict[str, str] = {}
         if cache_extra_keys:
-            hash_kwargs = cache_extra_keys
+            hash_kwargs.update(cache_extra_keys)
+        hash_kwargs["user_scope"] = current_user.id if current_user else "guest"
         content_hash = compute_content_hash(tool_name, clean_resume, clean_jd, **hash_kwargs)
         cached = get_cached_result(content_hash)
 
