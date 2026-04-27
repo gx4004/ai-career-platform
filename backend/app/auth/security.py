@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import bcrypt
 from fastapi import Depends, HTTPException, Request, status
@@ -30,14 +30,14 @@ def verify_password(plain: str, hashed: str) -> bool:
 
 
 def create_access_token(subject: str) -> str:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     expire = now + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     payload = {"sub": subject, "exp": expire, "iat": now}
     return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 
 def create_refresh_token(subject: str, token_version: int = 0) -> str:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     expire = now + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
     payload = {
         "sub": subject,
@@ -76,7 +76,7 @@ def _reset_token_secret(password_hash: str) -> str:
 
 
 def create_password_reset_token(email: str, password_hash: str) -> str:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     expire = now + timedelta(minutes=settings.PASSWORD_RESET_TOKEN_EXPIRE_MINUTES)
     payload = {"sub": email, "exp": expire, "iat": now, "type": "password_reset", "jti": uuid.uuid4().hex}
     return jwt.encode(payload, _reset_token_secret(password_hash), algorithm=settings.ALGORITHM)

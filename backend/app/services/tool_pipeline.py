@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from time import perf_counter
-from typing import Any, Callable, Awaitable
+from typing import Any
 
 from sqlalchemy.orm import Session
 

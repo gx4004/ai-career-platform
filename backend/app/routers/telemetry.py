@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Request
-from app.limiter import limiter
 
+from app.limiter import limiter
 from app.schemas.telemetry import TelemetryAcceptedResponse, TelemetryEventRequest
 from app.services.observability import log_frontend_telemetry
 

@@ -1,5 +1,4 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
-from app.limiter import limiter
 from sqlalchemy.orm import Session
 
 from app.auth.security import (
@@ -14,7 +13,9 @@ from app.auth.security import (
     verify_password_reset_token,
     verify_refresh_token,
 )
+from app.config import settings
 from app.database import get_db
+from app.limiter import limiter
 from app.models.user import User
 from app.schemas.auth import (
     AuthProvidersResponse,
@@ -26,7 +27,6 @@ from app.schemas.auth import (
     TokenResponse,
     UserResponse,
 )
-from app.config import settings
 from app.services.captcha import verify_captcha
 from app.services.email_blocklist import is_disposable_email
 from app.services.email_service import send_password_reset_email

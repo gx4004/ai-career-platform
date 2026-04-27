@@ -1,0 +1,18 @@
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = [".venv", "__pycache__", "alembic/versions"]
+
+[tool.ruff.lint]
+# Start conservative — we can broaden as the codebase tolerates more rules.
+# E/W: pycodestyle, F: pyflakes (unused imports/vars), I: import sorting,
+# B: bugbear (real footguns), UP: pyupgrade (syntactic modernization).
+select = ["E", "W", "F", "I", "B", "UP"]
+ignore = [
+    "E501",   # line too long — line-length is advisory, not blocking
+    "B008",   # function call in default argument — FastAPI Depends() relies on this
+    "B904",   # raise ... from — re-enable as a follow-up; existing tracebacks aren't broken
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["B", "F401"]  # tests pull in fixtures and assertion helpers freely

@@ -3,7 +3,6 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-
 SECTION_PATTERNS: dict[str, tuple[str, ...]] = {
     "Summary": (
         r"\bprofessional summary\b",
