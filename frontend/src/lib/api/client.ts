@@ -79,11 +79,13 @@ export function __resetRefreshState() {
 
 async function silentRefresh(): Promise<void> {
   // Refresh endpoint sets new HttpOnly cookies server-side; response body is ignored.
+  // 5s ceiling so a hung auth endpoint can't block every 401-retry indefinitely.
   const res = await fetch(`${API_URL}/auth/refresh`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: '{}',
     credentials: 'include',
+    signal: AbortSignal.timeout(5_000),
   })
   if (!res.ok) throw new Error('refresh failed')
 }
@@ -148,7 +150,16 @@ async function request<T>(
   }
 
   if (options.schema) {
-    return options.schema.parse(parsed)
+    // Convert a Zod parse failure into an ApiError so downstream consumers can
+    // rely on a uniform error shape (`.status`, `.detail`). A 200 with a body
+    // that no longer matches the schema is a backend/frontend contract drift,
+    // not a 4xx; surface it as 502 so users see "service issue" not "bad input".
+    try {
+      return options.schema.parse(parsed)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Invalid response shape'
+      throw new ApiError('Server returned an unexpected response', 502, message)
+    }
   }
 
   return parsed as T

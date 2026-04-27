@@ -29,7 +29,7 @@ export function useToolDraft(
   if (draft.resumeText) {
     const wordCount = draft.resumeText.trim().split(/\s+/).filter(Boolean).length
     if (wordCount > 0 && wordCount < 50) {
-      warnings.push('Bu CV çok kısa görünüyor — sonuçlar sınırlı olabilir.')
+      warnings.push('This resume looks very short — results may be limited.')
     }
   }
 
