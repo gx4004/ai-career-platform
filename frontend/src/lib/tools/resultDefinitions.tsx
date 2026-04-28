@@ -1722,7 +1722,12 @@ function PortfolioHeroExtra({ payload }: { payload: AnyObject }) {
           <div className="hero-stat-strip__divider" />
           <div className="hero-stat-strip__item">
             <span className="hero-stat-strip__label">Start with</span>
-            <span className="hero-stat-strip__value">{result.recommendedStartProject.split(' ').slice(0, 3).join(' ')}{result.recommendedStartProject.split(' ').length > 3 ? '…' : ''}</span>
+            <span
+              className="hero-stat-strip__value hero-stat-strip__value--clamp"
+              title={result.recommendedStartProject}
+            >
+              {result.recommendedStartProject}
+            </span>
           </div>
         </>
       )}

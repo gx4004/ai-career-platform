@@ -3436,6 +3436,15 @@
   color: var(--text-strong);
 }
 
+.hero-stat-strip__value--clamp {
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  max-width: 18ch;
+}
+
 .result-hero--dark .hero-stat-strip {
   border-top: 1px solid rgba(255, 255, 255, 0.06);
   padding-top: 1.25rem;
