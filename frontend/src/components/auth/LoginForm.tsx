@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { usePostHog } from 'posthog-js/react'
 import { Eye, EyeOff, AlertCircle, CheckCircle2 } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { Input } from '#/components/ui/input'
@@ -35,7 +34,6 @@ export function LoginForm({
 }: {
   onSuccess?: () => void
 }) {
-  const posthog = usePostHog()
   const { login, googleLogin, authError } = useSession()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -72,7 +70,6 @@ export function LoginForm({
               setResetError('')
               try {
                 const result = await requestPasswordReset({ email: resetEmail })
-                posthog.capture('password_reset_requested')
                 setResetMessage(result.message || 'Check your email for a reset link.')
               } catch (error) {
                 setResetError(error instanceof Error ? error.message : 'Something went wrong.')
@@ -140,7 +137,6 @@ export function LoginForm({
         size="lg"
         className="auth-submit auth-google w-full"
         onClick={() => {
-          posthog.capture('google_auth_initiated', { action: 'login' })
           googleLogin()
         }}
       >
@@ -161,7 +157,6 @@ export function LoginForm({
           setLoading(true)
           try {
             await login({ email, password })
-            posthog.capture('user_logged_in', { method: 'email' })
             onSuccess?.()
           } catch {
             // Error displayed via session authError state

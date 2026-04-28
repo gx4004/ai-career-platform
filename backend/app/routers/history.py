@@ -1,8 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session, selectinload
 
 from app.auth.security import get_current_user
 from app.database import get_db
+from app.limiter import limiter
 from app.models.tool_run import ToolRun
 from app.models.user import User
 from app.models.workspace import Workspace
@@ -129,7 +130,9 @@ def get_history_item(
 
 
 @router.get("/{run_id}/export/pdf")
+@limiter.limit("10/minute")
 def export_pdf(
+    request: Request,
     run_id: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),

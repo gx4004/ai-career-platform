@@ -97,6 +97,44 @@ def test_password_hashing_and_verification():
     assert verify_password("wrong", hashed) is False
 
 
+def test_delete_account_requires_email_confirmation_in_body(client, auth_headers, test_user, db):
+    """Server-side guard: the typed-email confirmation the UI shows is also
+    required by the API contract, so a direct call with no body or a wrong
+    confirmation cannot wipe the account."""
+    from app.models.tool_run import ToolRun
+
+    # Seed a row so we can confirm "no deletion happens" on rejection.
+    db.add(ToolRun(user_id=test_user.id, tool_name="resume", label="probe"))
+    db.commit()
+    pre_count = db.query(ToolRun).filter(ToolRun.user_id == test_user.id).count()
+    assert pre_count == 1
+
+    # Wrong confirmation → 400, no rows touched, account intact.
+    resp = client.post(
+        f"{PREFIX}/me/delete",
+        json={"confirmation": "not-the-email@example.com"},
+        headers=auth_headers,
+    )
+    assert resp.status_code == 400
+    assert "match" in resp.json()["detail"].lower()
+    assert db.query(ToolRun).filter(ToolRun.user_id == test_user.id).count() == pre_count
+
+    # Right confirmation (case-insensitive) → 204 and full erasure.
+    resp = client.post(
+        f"{PREFIX}/me/delete",
+        json={"confirmation": "TEST@Example.COM"},
+        headers=auth_headers,
+    )
+    assert resp.status_code == 204
+    assert db.query(ToolRun).filter(ToolRun.user_id == test_user.id).count() == 0
+
+
+def test_delete_account_requires_authentication(client):
+    """Direct calls without a session cookie or bearer must be rejected."""
+    resp = client.post(f"{PREFIX}/me/delete", json={"confirmation": "anyone@example.com"})
+    assert resp.status_code in (401, 403)
+
+
 def test_optional_auth_treats_bad_cookie_as_guest(db):
     """A malformed access cookie must degrade to guest, not 401 — tool
     routers depend on this fall-through for the guest-demo path."""

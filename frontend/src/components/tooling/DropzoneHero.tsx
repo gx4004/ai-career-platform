@@ -1,5 +1,4 @@
 import { useRef, useState, useCallback, type CSSProperties } from 'react'
-import { usePostHog } from 'posthog-js/react'
 import { useMutation } from '@tanstack/react-query'
 import { FileUp, CheckCircle2, FileText, Upload } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -25,7 +24,6 @@ export function DropzoneHero({
   preLoaded?: boolean
   preLoadedLabel?: string
 }) {
-  const posthog = usePostHog()
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const [dropState, setDropState] = useState<DropzoneState>(preLoaded ? 'success' : 'idle')
   const [fileName, setFileName] = useState<string | null>(preLoaded ? (preLoadedLabel || 'Resume loaded') : null)
@@ -33,9 +31,8 @@ export function DropzoneHero({
   const mutation = useMutation({
     mutationFn: parseCv,
     onMutate: () => setDropState('uploading'),
-    onSuccess: (data, variables) => {
+    onSuccess: (data) => {
       setDropState('success')
-      posthog.capture('resume_uploaded', { file_name: variables?.name || null })
       onParsed(data.extracted_text)
     },
     onError: () => setDropState('idle'),
@@ -166,7 +163,7 @@ export function DropzoneHero({
                   : 'Drop your resume to get started'}
               </p>
               <p className="dropzone-hero-subtitle">
-                Supports PDF, DOC, and DOCX files
+                Supports PDF and DOCX files
               </p>
               <div className="dropzone-hero-actions">
                 <Button
@@ -199,7 +196,7 @@ export function DropzoneHero({
       <input
         ref={fileInputRef}
         type="file"
-        accept=".pdf,.doc,.docx"
+        accept=".pdf,.docx"
         className="hidden"
         onChange={(e) => handleFile(e.target.files?.[0] || null)}
       />

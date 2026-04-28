@@ -25,8 +25,13 @@ def _token(email: str, sub: str = "google-sub-1", email_verified: bool = True, n
     return {"userinfo": {"sub": sub, "email": email, "email_verified": email_verified, "name": name}}
 
 
-def test_signup_rejects_unverified_email(client, db):
-    """A brand-new user whose Google email is unverified must not get an account."""
+def test_signup_with_unverified_email_does_not_create_account(client, db):
+    """Belt-and-braces: even before the new-signup block kicks in, an
+    unverified Google email must never produce a User row. After the
+    OAuth-signup gate landed, the redirect code is signup_via_email_required
+    (the router rejects any new signup, verified or not, until ToS is
+    wired into OAuth). The invariant we still care about is: no row was
+    created from an unverified Google email."""
     with patch(
         "app.routers.google_auth.oauth.google.authorize_access_token",
         new=AsyncMock(return_value=_token("attacker@example.com", email_verified=False)),
@@ -35,8 +40,7 @@ def test_signup_rejects_unverified_email(client, db):
 
     assert resp.status_code in (302, 307)
     assert "oauth_error" in resp.headers["location"]
-    assert "unverified_email" in resp.headers["location"]
-    # Ensure no user was created.
+    # Crucially: zero rows touched.
     assert db.query(User).filter(User.email == "attacker@example.com").first() is None
 
 
@@ -60,21 +64,28 @@ def test_link_rejects_unverified_email(client, db, test_user):
     assert test_user.google_id is None, "account was silently linked despite unverified email"
 
 
-def test_signup_accepts_verified_email(client, db):
+def test_signup_via_oauth_is_blocked_until_tos_flow_exists(client, db):
+    """Email registration now requires an explicit ToS checkbox
+    (RegisterRequest.tos_accepted). The OAuth callback used to silently
+    create new User rows on the first sign-in, which would let visitors
+    bypass the consent gate. Until a ToS flow is wired into OAuth, the
+    callback must redirect new accounts to the email signup form."""
     with patch(
         "app.routers.google_auth.oauth.google.authorize_access_token",
-        new=AsyncMock(return_value=_token("newuser@example.com", email_verified=True)),
+        new=AsyncMock(return_value=_token("brand-new@example.com", email_verified=True)),
     ):
         resp = client.get(CALLBACK, follow_redirects=False)
 
     assert resp.status_code in (302, 307)
-    assert "/dashboard" in resp.headers["location"]
-    created = db.query(User).filter(User.email == "newuser@example.com").first()
-    assert created is not None
-    assert created.google_id == "google-sub-1"
+    assert "oauth_error=signup_via_email_required" in resp.headers["location"]
+    # Crucially, no User row was created.
+    assert db.query(User).filter(User.email == "brand-new@example.com").first() is None
 
 
 def test_link_accepts_verified_email(client, db, test_user):
+    """Existing users (account created via email signup, ToS already accepted
+    there) can still link a Google identity on first OAuth sign-in. This is
+    the intended path for converting an email account to social sign-in."""
     with patch(
         "app.routers.google_auth.oauth.google.authorize_access_token",
         new=AsyncMock(
@@ -87,3 +98,23 @@ def test_link_accepts_verified_email(client, db, test_user):
     assert "/dashboard" in resp.headers["location"]
     db.refresh(test_user)
     assert test_user.google_id == "linked-google-sub"
+
+
+def test_returning_oauth_user_signs_in_normally(client, db, test_user):
+    """A user who previously linked Google (test_user.google_id is set)
+    must be able to sign in repeatedly — the new-signup block does not
+    apply because the lookup by google_id matches first."""
+    test_user.google_id = "returning-google-sub"
+    db.commit()
+
+    with patch(
+        "app.routers.google_auth.oauth.google.authorize_access_token",
+        new=AsyncMock(
+            return_value=_token(test_user.email, sub="returning-google-sub", email_verified=True)
+        ),
+    ):
+        resp = client.get(CALLBACK, follow_redirects=False)
+
+    assert resp.status_code in (302, 307)
+    assert "/dashboard" in resp.headers["location"]
+    assert "oauth_error" not in resp.headers["location"]

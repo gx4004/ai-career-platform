@@ -67,3 +67,15 @@ class UserResponse(BaseModel):
 
 class AuthProvidersResponse(BaseModel):
     providers: list[str] = []
+
+
+class DeleteAccountRequest(BaseModel):
+    """Confirmation payload for `POST /auth/me/delete`.
+
+    The router compares `confirmation` (case-insensitive, trimmed) against the
+    authenticated user's email. The Settings UI requires the same string in a
+    typed-confirmation dialog; surfacing the requirement here makes the
+    ceremony part of the API contract instead of a client-side niceity.
+    """
+
+    confirmation: str

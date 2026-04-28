@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -8,18 +9,32 @@ from app.models.tool_run import ToolRun
 from app.models.user import User
 from app.models.workspace import Workspace
 from app.schemas.history import WorkspaceSummary
+from app.services.observability import log_user_account_deleted
 from app.services.premium_outputs import attach_premium_outputs
 from app.services.workspaces import resolve_workspace, touch_workspace
+
+logger = logging.getLogger(__name__)
 
 GUEST_LOCKED_ACTIONS = ["save", "favorite", "continue", "history"]
 
 
 def delete_all_user_data(db: Session, user_id: str) -> None:
-    """Delete all tool runs, workspaces, and the user record. KVKK compliance."""
-    db.query(ToolRun).filter(ToolRun.user_id == user_id).delete()
-    db.query(Workspace).filter(Workspace.user_id == user_id).delete()
-    db.query(User).filter(User.id == user_id).delete()
+    """Delete all tool runs, workspaces, and the user record. RODO/GDPR right to erasure.
+
+    Counts what is deleted before committing so the audit log line carries
+    enough detail to reconstruct the request without persisting the user's
+    actual content.
+    """
+    runs_deleted = db.query(ToolRun).filter(ToolRun.user_id == user_id).delete()
+    workspaces_deleted = db.query(Workspace).filter(Workspace.user_id == user_id).delete()
+    users_deleted = db.query(User).filter(User.id == user_id).delete()
     db.commit()
+    log_user_account_deleted(
+        user_id=user_id,
+        runs_deleted=runs_deleted,
+        workspaces_deleted=workspaces_deleted,
+        user_record_deleted=bool(users_deleted),
+    )
 
 DEFAULT_NEXT_STEP_TOOL = {
     "resume": "job-match",
