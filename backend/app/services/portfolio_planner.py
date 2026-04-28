@@ -540,6 +540,7 @@ def _normalize_top_actions(
 async def recommend_portfolio(
     resume_text: str,
     target_role: str,
+    feedback: str | None = None,
 ) -> dict:
     prepass = build_resume_prepass(resume_text, target_role)
     generated_at = datetime.now(UTC).isoformat()
@@ -594,6 +595,7 @@ async def recommend_portfolio(
         target_role,
         locked_payload,
         helper_signals,
+        feedback=feedback,
     )
     try:
         result = await complete_structured(system_prompt, user_prompt)
