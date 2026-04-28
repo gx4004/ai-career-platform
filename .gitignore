@@ -36,6 +36,10 @@ coverage/
 frontend/coverage/
 *.lcov
 
+# Local task artifacts (claude-code, codex, etc.)
+.artifacts/
+frontend/.artifacts/
+
 # Archive / unused assets (kept locally)
 pics/
 frontend/src/assets/carousel/

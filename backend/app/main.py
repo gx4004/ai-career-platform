@@ -5,8 +5,12 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.middleware.sessions import SessionMiddleware
+from starlette.responses import Response
 
 from app.config import settings
+from app.limiter import limiter
 from app.routers import (
     admin,
     auth,
@@ -23,10 +27,6 @@ from app.routers import (
     resume,
     telemetry,
 )
-from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.middleware.sessions import SessionMiddleware
-from starlette.responses import Response
-
 from app.services.observability import configure_logging
 
 configure_logging()
@@ -39,8 +39,6 @@ if settings.SENTRY_DSN:
     )
 
 logger = logging.getLogger(__name__)
-
-from app.limiter import limiter
 
 app = FastAPI(title="Career Workbench API", version="1.0.0")
 app.state.limiter = limiter

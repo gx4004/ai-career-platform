@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import Boolean, DateTime, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -23,10 +23,10 @@ class User(Base):
         Integer, default=0, server_default="0", nullable=False
     )
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+        DateTime(timezone=True), default=lambda: datetime.now(UTC)
     )
     updated_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True, onupdate=lambda: datetime.now(timezone.utc)
+        DateTime(timezone=True), nullable=True, onupdate=lambda: datetime.now(UTC)
     )
 
     tool_runs = relationship("ToolRun", back_populates="user")

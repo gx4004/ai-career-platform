@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import bcrypt
 from fastapi import Depends, HTTPException, Request, status
@@ -30,14 +30,14 @@ def verify_password(plain: str, hashed: str) -> bool:
 
 
 def create_access_token(subject: str) -> str:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     expire = now + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     payload = {"sub": subject, "exp": expire, "iat": now}
     return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 
 def create_refresh_token(subject: str, token_version: int = 0) -> str:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     expire = now + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
     payload = {
         "sub": subject,
@@ -76,7 +76,7 @@ def _reset_token_secret(password_hash: str) -> str:
 
 
 def create_password_reset_token(email: str, password_hash: str) -> str:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     expire = now + timedelta(minutes=settings.PASSWORD_RESET_TOKEN_EXPIRE_MINUTES)
     payload = {"sub": email, "exp": expire, "iat": now, "type": "password_reset", "jti": uuid.uuid4().hex}
     return jwt.encode(payload, _reset_token_secret(password_hash), algorithm=settings.ALGORITHM)
@@ -179,6 +179,13 @@ def get_optional_current_user(
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
     db: Session = Depends(get_db),
 ) -> User | None:
+    """Resolve the current user without requiring auth.
+
+    A missing, expired, malformed, or revoked token is treated as "guest" — we
+    never raise from here. Tool routers rely on this to fall through into the
+    guest-demo path; raising 401 would break stale-session UX (an expired access
+    cookie should silently downgrade to guest, not fail the whole request).
+    """
     token = None
     if credentials is not None:
         token = credentials.credentials
@@ -190,18 +197,10 @@ def get_optional_current_user(
 
     user_id = decode_token(token)
     if user_id is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token"
-        )
+        return None
 
     user = db.query(User).filter(User.id == user_id).first()
-    if user is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found"
-        )
-    if not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Account is deactivated"
-        )
+    if user is None or not user.is_active:
+        return None
 
     return user

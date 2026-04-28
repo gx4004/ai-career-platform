@@ -70,13 +70,7 @@ async def complete_structured(
     logger.info("LLM request  provider=%s  model=%s", provider, model)
 
     async def _dispatch():
-        if provider == "openai":
-            return await _call_openai(system_prompt, user_prompt, schema, model)
-        elif provider == "groq":
-            return await _call_groq(system_prompt, user_prompt, model)
-        elif provider == "anthropic":
-            return await _call_anthropic(system_prompt, user_prompt, model)
-        elif provider == "vertex":
+        if provider == "vertex":
             return await _call_vertex(system_prompt, user_prompt, model)
         elif provider == "google":
             return await _call_google_genai(system_prompt, user_prompt, model)
@@ -92,58 +86,6 @@ async def complete_structured(
 # ---------------------------------------------------------------------------
 # Provider implementations
 # ---------------------------------------------------------------------------
-
-
-async def _call_openai(
-    system_prompt: str, user_prompt: str, schema: dict | None, model_name: str | None = None
-) -> dict:
-    from openai import AsyncOpenAI
-
-    client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
-
-    kwargs: dict = {
-        "model": model_name or settings.LLM_MODEL,
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt},
-        ],
-        "temperature": 0.3,
-        "timeout": _LLM_TIMEOUT_SECONDS,
-    }
-
-    if schema:
-        kwargs["response_format"] = {
-            "type": "json_schema",
-            "json_schema": {"name": "result", "schema": schema, "strict": True},
-        }
-    else:
-        kwargs["response_format"] = {"type": "json_object"}
-
-    response = await client.chat.completions.create(**kwargs)
-    content = response.choices[0].message.content
-    return _safe_parse_json(content, "openai")
-
-
-async def _call_groq(system_prompt: str, user_prompt: str, model_name: str | None = None) -> dict:
-    from openai import AsyncOpenAI
-
-    client = AsyncOpenAI(
-        api_key=settings.GROQ_API_KEY,
-        base_url="https://api.groq.com/openai/v1",
-    )
-
-    response = await client.chat.completions.create(
-        model=model_name or settings.LLM_MODEL,
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt},
-        ],
-        temperature=0.3,
-        response_format={"type": "json_object"},
-        timeout=_LLM_TIMEOUT_SECONDS,
-    )
-    content = response.choices[0].message.content
-    return _safe_parse_json(content, "groq")
 
 
 async def _call_vertex(system_prompt: str, user_prompt: str, model_name: str | None = None) -> dict:
@@ -170,7 +112,7 @@ async def _call_vertex(system_prompt: str, user_prompt: str, model_name: str | N
             ),
             timeout=_LLM_TIMEOUT_SECONDS,
         )
-    except asyncio.TimeoutError:
+    except TimeoutError:
         logger.error("Vertex AI request timed out after %ds", _LLM_TIMEOUT_SECONDS)
         raise TimeoutError(
             f"AI request timed out after {_LLM_TIMEOUT_SECONDS}s. Please try again."
@@ -213,7 +155,7 @@ async def _call_google_genai(system_prompt: str, user_prompt: str, model_name: s
             ),
             timeout=_LLM_TIMEOUT_SECONDS,
         )
-    except asyncio.TimeoutError:
+    except TimeoutError:
         logger.error("Google AI request timed out after %ds", _LLM_TIMEOUT_SECONDS)
         raise TimeoutError(
             f"AI request timed out after {_LLM_TIMEOUT_SECONDS}s. Please try again."
@@ -224,23 +166,6 @@ async def _call_google_genai(system_prompt: str, user_prompt: str, model_name: s
 
     content = response.text
     return _safe_parse_json(content, "google")
-
-
-async def _call_anthropic(system_prompt: str, user_prompt: str, model_name: str | None = None) -> dict:
-    from anthropic import AsyncAnthropic
-
-    client = AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
-
-    response = await client.messages.create(
-        model=model_name or settings.LLM_MODEL,
-        max_tokens=4096,
-        system=system_prompt,
-        messages=[{"role": "user", "content": user_prompt}],
-        timeout=_LLM_TIMEOUT_SECONDS,
-    )
-
-    content = response.content[0].text
-    return _safe_parse_json(content, "anthropic")
 
 
 # ---------------------------------------------------------------------------

@@ -129,6 +129,20 @@ describe('API client', () => {
       )
     })
 
+    it('wraps a Zod schema mismatch as an ApiError(502) so callers see a uniform shape', async () => {
+      const { ApiError } = await import('#/lib/api/errors')
+      // Health schema requires { status, service, time }; we return something else.
+      mockFetch.mockResolvedValueOnce(mockJsonResponse({ unexpected: 'shape' }, 200))
+
+      try {
+        await getHealth()
+        throw new Error('expected getHealth to throw')
+      } catch (err) {
+        expect(err).toBeInstanceOf(ApiError)
+        expect((err as InstanceType<typeof ApiError>).status).toBe(502)
+      }
+    })
+
     it('attempts silent refresh for cookie-only sessions', async () => {
       const userData = { id: '1', email: 'test@example.com', is_active: true }
       mockFetch.mockResolvedValueOnce(

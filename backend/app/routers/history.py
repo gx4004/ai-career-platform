@@ -134,11 +134,11 @@ def export_pdf(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    import io
+
     from fastapi.responses import StreamingResponse
 
     from app.services.pdf_export import generate_cover_letter_pdf, generate_interview_pdf
-
-    import io
 
     run = db.query(ToolRun).filter(
         ToolRun.id == run_id,
