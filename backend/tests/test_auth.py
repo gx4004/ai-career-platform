@@ -135,6 +135,37 @@ def test_delete_account_requires_authentication(client):
     assert resp.status_code in (401, 403)
 
 
+def test_login_blocks_deactivated_user(client, test_user, db):
+    test_user.is_active = False
+    db.add(test_user)
+    db.commit()
+
+    resp = client.post(
+        f"{PREFIX}/login",
+        json={"email": "test@example.com", "password": "password123"},
+    )
+    assert resp.status_code == 403
+    assert "deactivated" in resp.json()["detail"].lower()
+    assert "cw_access" not in resp.cookies
+    assert "cw_refresh" not in resp.cookies
+
+
+def test_refresh_blocks_deactivated_user(client, test_user, db):
+    login_resp = client.post(
+        f"{PREFIX}/login",
+        json={"email": "test@example.com", "password": "password123"},
+    )
+    assert login_resp.status_code == 200
+
+    test_user.is_active = False
+    db.add(test_user)
+    db.commit()
+
+    resp = client.post(f"{PREFIX}/refresh")
+    assert resp.status_code == 403
+    assert "deactivated" in resp.json()["detail"].lower()
+
+
 def test_optional_auth_treats_bad_cookie_as_guest(db):
     """A malformed access cookie must degrade to guest, not 401 — tool
     routers depend on this fall-through for the guest-demo path."""

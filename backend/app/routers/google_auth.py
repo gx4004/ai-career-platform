@@ -104,6 +104,9 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
             )
             return _oauth_error_redirect("signup_via_email_required")
 
+    if not user.is_active:
+        return _oauth_error_redirect("account_deactivated")
+
     access = create_access_token(user.id)
     refresh = create_refresh_token(user.id, user.token_version)
 

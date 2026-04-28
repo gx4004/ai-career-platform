@@ -13,6 +13,8 @@ const OAUTH_ERROR_COPY: Record<string, string> = {
     'Google reported your email as unverified. Verify your address with Google and try again.',
   no_userinfo: 'Google did not return profile details. Please try again.',
   auth_failed: 'Google sign-in failed. Please try again.',
+  account_deactivated:
+    'This account has been deactivated. Contact support if you believe this is a mistake.',
 }
 
 export function LoginPage() {

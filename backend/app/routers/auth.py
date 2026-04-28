@@ -45,6 +45,11 @@ def login(request: Request, response: Response, body: LoginRequest, db: Session 
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password",
         )
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Account is deactivated",
+        )
     access = create_access_token(user.id)
     refresh = create_refresh_token(user.id, user.token_version)
     set_auth_cookies(response, access, refresh)
@@ -133,6 +138,11 @@ def refresh_token(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Refresh token has been revoked",
+        )
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Account is deactivated",
         )
     access = create_access_token(user.id)
     refresh = create_refresh_token(user.id, user.token_version)
