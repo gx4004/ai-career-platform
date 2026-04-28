@@ -79,7 +79,7 @@ cd backend && alembic upgrade head        # Run migrations
 - Tool input pages: dark-to-light gradient hero (tool-input-hero) with per-tool animations + chips, form surface below
 - Result pages: premium redesign with dark hero variant (Resume/Job Match), heroExtra sections, midSection (Fix First cards), per-tool views
 - Deploy: push to both `main` and `deploy` branches (`git push origin main && git push origin main:deploy`). Railway watches `deploy`.
-- Mobile: bottom tab bar, SwipeDeck for interview, StickyRunBar, FullScreenEditSheet
+- Mobile: bottom tab bar (`MobileNav`) + tools sheet (`ToolGridSheet`); responsive CSS for the existing layouts. No bespoke mobile-only components beyond those.
 - Re-generate always creates new ToolRun row (parent_run_id chain, never overwrite)
 - Guest runs: in-memory Map only, never persisted, drives signup conversion
 - Workflow context: sessionStorage, tab-scoped, no cross-tab sync
