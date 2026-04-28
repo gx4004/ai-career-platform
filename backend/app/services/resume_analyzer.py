@@ -127,6 +127,7 @@ def _heuristic_issues(
             }
         )
 
+    issues.sort(key=lambda issue: _SEVERITY_ORDER.get(issue["severity"], 1))
     return issues[:5]
 
 
@@ -158,6 +159,9 @@ def _normalize_summary(result: dict, overall_score: int, prepass: ResumePrepass)
     }
 
 
+_SEVERITY_ORDER = {"high": 0, "medium": 1, "low": 2}
+
+
 def _normalize_issues(
     result: dict,
     prepass: ResumePrepass,
@@ -187,6 +191,7 @@ def _normalize_issues(
         )
 
     if normalized:
+        normalized.sort(key=lambda issue: _SEVERITY_ORDER.get(issue["severity"], 1))
         return normalized[:5]
     return _heuristic_issues(prepass, score_breakdown)
 
@@ -244,6 +249,13 @@ def _normalize_role_fit(
     }
 
 
+_CELEBRATORY_ACTION = {
+    "title": "Resume reads strong",
+    "action": "This resume is ready to send. Move on to Job Match for role-specific tailoring.",
+    "priority": "low",
+}
+
+
 def _build_heuristic_fallback(
     prepass: ResumePrepass,
     score_breakdown: list[dict[str, int | str]],
@@ -253,10 +265,12 @@ def _build_heuristic_fallback(
     """Build a complete response from heuristic data only (no LLM)."""
     issues = _heuristic_issues(prepass, score_breakdown)
     strengths = _fallback_strengths(prepass)
-    top_actions = [
+    top_actions: list[dict[str, str]] = [
         {"title": issue["title"], "action": issue["fix"], "priority": issue["severity"]}
         for issue in issues[:3]
     ]
+    if not top_actions:
+        top_actions.append(_CELEBRATORY_ACTION)
     return {
         "schema_version": SCHEMA_VERSION,
         "summary": {

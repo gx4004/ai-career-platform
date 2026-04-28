@@ -72,7 +72,11 @@ export function ResumeToolPage() {
       hero={<ToolInputHero toolId="resume" subtitle={heroSubtitle} />}
     >
       {mutation.isPending ? (
-        <ToolPageLoading toolId="resume" className="resume-loading-shell" />
+        <ToolPageLoading
+          toolId="resume"
+          className="resume-loading-shell"
+          mutationDone={!mutation.isPending}
+        />
       ) : phase === 'upload' ? (
         <section className="resume-upload-stage">
           <DropzoneHero

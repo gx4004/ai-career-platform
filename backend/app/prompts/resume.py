@@ -1,5 +1,11 @@
 import json
 
+# Bump when the prompt template changes shape, banned-words list, or output
+# schema. Included in the cache key so a rollout immediately invalidates
+# in-flight cached responses instead of serving stale outputs for up to the
+# RESULT_CACHE_TTL_SECONDS window.
+RESUME_PROMPT_VERSION = "2026-04-28-v1"
+
 
 def build_resume_prompt(
     resume_text: str,

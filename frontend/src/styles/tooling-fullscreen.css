@@ -621,6 +621,28 @@ body.tool-fullscreen-open .mobile-nav-pill {
   color: var(--destructive);
 }
 
+.dropzone-warning-icon {
+  color: var(--warning, #d97706);
+}
+
+.dropzone-warning-list {
+  margin-top: 0.5rem;
+  padding: 0.6rem 0.85rem;
+  list-style: none;
+  border-radius: var(--radius-md);
+  border: 1px solid color-mix(in srgb, var(--warning, #d97706) 24%, var(--border-soft));
+  background: color-mix(in srgb, var(--warning, #d97706) 8%, var(--surface-raised));
+  color: var(--text-strong);
+  font-size: 0.85rem;
+  text-align: left;
+  display: grid;
+  gap: 0.25rem;
+}
+
+.dropzone-warning-list li {
+  list-style: none;
+}
+
 /* Upload spinner */
 .dropzone-upload-spinner {
   width: 3rem;

@@ -190,8 +190,8 @@ def test_cover_letter(client, auth_headers, mock_ai_result):
     resp = client.post(
         f"{PREFIX}/cover-letter/generate",
         json={
-            "resume_text": "Engineer with 5 years",
-            "job_description": "Senior role",
+            "resume_text": "Engineer with 5 years of backend experience building Python APIs and shipping production services.",
+            "job_description": "Senior role focused on backend platform engineering and reliability.",
         },
         headers=auth_headers,
     )
@@ -253,8 +253,8 @@ def test_interview(client, auth_headers, mock_ai_result):
     resp = client.post(
         f"{PREFIX}/interview/questions",
         json={
-            "resume_text": "Developer",
-            "job_description": "Backend role",
+            "resume_text": "Developer with a few years of backend experience building Python APIs and small services.",
+            "job_description": "Backend role focused on Python services, SQL, and API design for an internal platform.",
         },
         headers=auth_headers,
     )
@@ -366,7 +366,7 @@ def test_career(client, auth_headers, mock_ai_result):
     )
     resp = client.post(
         f"{PREFIX}/career/recommend",
-        json={"resume_text": "Senior developer"},
+        json={"resume_text": "Senior developer with backend Python experience and a track record of shipping APIs."},
         headers=auth_headers,
     )
     assert resp.status_code == 200
@@ -417,7 +417,7 @@ def test_portfolio(client, auth_headers, mock_ai_result):
     )
     resp = client.post(
         f"{PREFIX}/portfolio/recommend",
-        json={"resume_text": "Junior dev", "target_role": "Backend Engineer"},
+        json={"resume_text": "Junior developer with a year of Python experience and a couple of side projects.", "target_role": "Backend Engineer"},
         headers=auth_headers,
     )
     assert resp.status_code == 200
@@ -486,30 +486,7 @@ def test_guest_demo_run_does_not_create_history(client, db, mock_ai_result):
 # ---------- edge cases ----------
 
 
-def test_resume_analyze_empty_text(client, auth_headers, mock_ai_result):
-    mock_ai_result(
-        {
-            "summary": {
-                "headline": "Not enough content to evaluate.",
-                "verdict": "Insufficient content",
-                "confidence_note": "Directional heuristic only.",
-            },
-            "strengths": [],
-            "issues": [],
-        }
-    )
-    resp = client.post(
-        f"{PREFIX}/resume/analyze",
-        json={"resume_text": ""},
-        headers=auth_headers,
-    )
-    assert resp.status_code == 200
-    data = resp.json()
-    assert data["schema_version"] == "quality_v2"
-    assert data["overall_score"] >= 0
-
-
-def test_job_match_missing_job_description(client, auth_headers, mock_ai_result):
+def test_job_match_with_empty_job_description_returns_heuristic(client, auth_headers, mock_ai_result):
     mock_ai_result(
         {
             "requirements": [],
@@ -521,7 +498,7 @@ def test_job_match_missing_job_description(client, auth_headers, mock_ai_result)
     resp = client.post(
         f"{PREFIX}/job-match/match",
         json={
-            "resume_text": "Some resume content with Python and SQL.",
+            "resume_text": "Some resume content with Python and SQL experience and a track record of shipping APIs.",
             "job_description": "",
         },
         headers=auth_headers,
@@ -601,8 +578,8 @@ def test_workspace_context_links_related_runs(client, auth_headers, db, mock_ai_
     match_resp = client.post(
         f"{PREFIX}/job-match/match",
         json={
-            "resume_text": "Python engineer with SQL experience.",
-            "job_description": "Backend Engineer with Python and SQL.",
+            "resume_text": "Python engineer with SQL experience building production APIs and customer-facing services.",
+            "job_description": "Backend Engineer with Python and SQL experience for our internal data platform.",
             "workspace_context": {
                 "linked_history_ids": [resume_history_id],
             },

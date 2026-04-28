@@ -4,9 +4,11 @@ from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
 
 from app.auth.security import get_optional_current_user
+from app.config import settings
 from app.database import get_db
 from app.limiter import limiter
 from app.models.user import User
+from app.prompts.cover_letter import COVER_LETTER_PROMPT_VERSION
 from app.schemas.tools import CoverLetterRequest, CoverLetterResponse
 from app.services.cover_letter_gen import generate_cover_letter
 from app.services.tool_pipeline import run_tool_pipeline
@@ -56,6 +58,8 @@ async def generate(
         current_user=current_user,
         db=db,
         cache_extra_keys={
+            "prompt_version": COVER_LETTER_PROMPT_VERSION,
+            "model": settings.LLM_MODEL,
             "tone": body.tone or "",
             "resume_analysis": json.dumps(resume_analysis_dict, sort_keys=True) if resume_analysis_dict else "",
             "job_match": json.dumps(job_match_dict, sort_keys=True) if job_match_dict else "",

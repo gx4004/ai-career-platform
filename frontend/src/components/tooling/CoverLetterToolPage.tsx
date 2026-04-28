@@ -48,7 +48,11 @@ export function CoverLetterToolPage() {
       hero={<ToolInputHero toolId="cover-letter" subtitle={heroSubtitle} />}
     >
       {mutation.isPending ? (
-        <ToolPageLoading toolId="cover-letter" className="cover-letter-loading-shell" />
+        <ToolPageLoading
+          toolId="cover-letter"
+          className="cover-letter-loading-shell"
+          mutationDone={!mutation.isPending}
+        />
       ) : phase === 'upload' ? (
         <section className="resume-upload-stage">
           <DropzoneHero

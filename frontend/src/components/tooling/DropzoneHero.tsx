@@ -1,6 +1,6 @@
 import { useRef, useState, useCallback, type CSSProperties } from 'react'
 import { useMutation } from '@tanstack/react-query'
-import { FileUp, CheckCircle2, FileText, Upload } from 'lucide-react'
+import { AlertCircle, FileUp, CheckCircle2, FileText, Upload } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Button } from '#/components/ui/button'
 import { parseCv } from '#/lib/api/client'
@@ -27,15 +27,23 @@ export function DropzoneHero({
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const [dropState, setDropState] = useState<DropzoneState>(preLoaded ? 'success' : 'idle')
   const [fileName, setFileName] = useState<string | null>(preLoaded ? (preLoadedLabel || 'Resume loaded') : null)
+  const [parseWarnings, setParseWarnings] = useState<string[]>([])
 
   const mutation = useMutation({
     mutationFn: parseCv,
-    onMutate: () => setDropState('uploading'),
+    onMutate: () => {
+      setDropState('uploading')
+      setParseWarnings([])
+    },
     onSuccess: (data) => {
       setDropState('success')
+      setParseWarnings(data.warnings ?? [])
       onParsed(data.extracted_text)
     },
-    onError: () => setDropState('idle'),
+    onError: () => {
+      setDropState('idle')
+      setParseWarnings([])
+    },
   })
 
   const handleFile = useCallback(
@@ -65,6 +73,8 @@ export function DropzoneHero({
     [handleFile],
   )
 
+  const hasWarnings = parseWarnings.length > 0
+
   if (collapseOnSuccess && dropState === 'success') {
     return (
       <motion.div
@@ -75,7 +85,11 @@ export function DropzoneHero({
         style={{ '--tool-accent': accent } as CSSProperties}
       >
         <div className="dropzone-compact-inner">
-          <CheckCircle2 size={18} style={{ color: accent }} />
+          {hasWarnings ? (
+            <AlertCircle size={18} className="dropzone-warning-icon" />
+          ) : (
+            <CheckCircle2 size={18} style={{ color: accent }} />
+          )}
           <span className="dropzone-compact-file">{fileName || 'Resume uploaded'}</span>
           <Button
             variant="ghost"
@@ -84,11 +98,19 @@ export function DropzoneHero({
             onClick={() => {
               setDropState('idle')
               setFileName(null)
+              setParseWarnings([])
             }}
           >
             Change
           </Button>
         </div>
+        {hasWarnings ? (
+          <ul className="dropzone-warning-list" role="status">
+            {parseWarnings.map((warning) => (
+              <li key={warning}>{warning}</li>
+            ))}
+          </ul>
+        ) : null}
       </motion.div>
     )
   }
@@ -127,9 +149,22 @@ export function DropzoneHero({
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
             >
-              <CheckCircle2 size={48} style={{ color: accent }} />
-              <p className="dropzone-hero-title">Resume parsed successfully</p>
+              {hasWarnings ? (
+                <AlertCircle size={48} className="dropzone-warning-icon" />
+              ) : (
+                <CheckCircle2 size={48} style={{ color: accent }} />
+              )}
+              <p className="dropzone-hero-title">
+                {hasWarnings ? 'Resume parsed with warnings' : 'Resume parsed successfully'}
+              </p>
               <p className="dropzone-hero-subtitle">{fileName}</p>
+              {hasWarnings ? (
+                <ul className="dropzone-warning-list" role="status">
+                  {parseWarnings.map((warning) => (
+                    <li key={warning}>{warning}</li>
+                  ))}
+                </ul>
+              ) : null}
               <Button
                 variant="outline"
                 size="sm"
@@ -137,6 +172,7 @@ export function DropzoneHero({
                 onClick={() => {
                   setDropState('idle')
                   setFileName(null)
+                  setParseWarnings([])
                 }}
               >
                 Upload a different file
