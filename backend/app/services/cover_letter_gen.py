@@ -1,14 +1,11 @@
 from __future__ import annotations
 
-import logging
 from datetime import UTC, datetime
 from typing import Any
 
 from app.prompts.cover_letter import build_cover_letter_prompt
 from app.services.ai_client import complete_structured
 from app.services.application_context import build_application_handoff
-
-logger = logging.getLogger(__name__)
 
 SCHEMA_VERSION = "quality_v2"
 
@@ -430,21 +427,13 @@ async def generate_cover_letter(
         application_context,
         feedback=feedback,
     )
-    try:
-        result = await complete_structured(system_prompt, user_prompt)
-    except Exception as exc:
-        logger.warning("Cover letter LLM call failed, using fallback: %s", exc)
-        full_text = _compose_full_text(
-            locked_payload["opening"],
-            locked_payload["body_points"],
-            locked_payload["closing"],
-        )
-        locked_payload["full_text"] = full_text
-        locked_payload["summary"]["confidence_note"] = (
-            "Generated from resume and job description templates. "
-            "Re-run for a fully personalized letter."
-        )
-        return locked_payload
+    # Spec decision #7 (CLAUDE.md): generative tools must surface explicit
+    # errors when the LLM fails. The previous silent fallback returned a
+    # template-built letter dressed as an "Application-ready draft" — a user
+    # could ship that to a real employer believing it was personalized. Let
+    # the exception propagate; tool_pipeline already logs it and the API
+    # returns a clean 5xx the frontend renders as `mutation.error`.
+    result = await complete_structured(system_prompt, user_prompt)
 
     opening = _normalize_section(
         result.get("opening"),

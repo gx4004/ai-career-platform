@@ -515,6 +515,46 @@ def test_job_match_rejects_short_job_description(client, auth_headers):
     assert resp_short.status_code == 422
 
 
+def test_cover_letter_surfaces_error_when_llm_fails(db, auth_headers, monkeypatch):
+    """Cover Letter is generative (CLAUDE.md spec decision #7): on LLM failure
+    it must surface an explicit error, not a 200 with a templated letter
+    dressed as an "Application-ready draft" — that footgun could ship a
+    non-AI letter to a real employer during a demo."""
+    from fastapi.testclient import TestClient
+
+    from app.database import get_db
+    from app.main import app
+
+    async def fake_complete(*_args, **_kwargs):
+        raise RuntimeError("Vertex AI hiccup")
+
+    monkeypatch.setattr("app.services.cover_letter_gen.complete_structured", fake_complete)
+
+    def override_get_db():
+        try:
+            yield db
+        finally:
+            pass
+
+    app.dependency_overrides[get_db] = override_get_db
+    try:
+        # raise_server_exceptions=False so the runtime error surfaces as the
+        # 500 the production middleware actually returns, not a re-raise.
+        with TestClient(app, raise_server_exceptions=False) as fail_client:
+            resp = fail_client.post(
+                f"{PREFIX}/cover-letter/generate",
+                json={
+                    "resume_text": "Engineer with 5 years of backend experience building Python APIs and shipping production services.",
+                    "job_description": "Senior role focused on backend platform engineering and reliability.",
+                },
+                headers=auth_headers,
+            )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert 500 <= resp.status_code < 600
+
+
 def test_resume_analyze_malformed_llm_json(client, auth_headers, mock_ai_result):
     """LLM returns a response missing expected keys — normalization fills defaults."""
     mock_ai_result(
