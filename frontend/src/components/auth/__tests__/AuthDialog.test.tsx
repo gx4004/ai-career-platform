@@ -154,4 +154,36 @@ describe('AuthDialog', () => {
 
     expect(screen.queryByRole('dialog')).toBeNull()
   })
+
+  it('writes a pendingIntent with the current path when cw:session-expired fires for a previously authed user', async () => {
+    renderAuthFlow()
+
+    await waitFor(() => {
+      expect(getCurrentUserMock).toHaveBeenCalled()
+    })
+
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    const originalPathname = window.location.pathname
+    const originalSearch = window.location.search
+    Object.defineProperty(window, 'location', {
+      value: { ...window.location, pathname: '/resume/result/abc', search: '?foo=bar' },
+      writable: true,
+    })
+
+    window.dispatchEvent(new CustomEvent('cw:session-expired'))
+
+    await waitFor(() => {
+      const stored = storageState.local['career-workbench:pending-intent']
+      expect(stored).toBeTruthy()
+      const parsed = JSON.parse(stored)
+      expect(parsed.to).toBe('/resume/result/abc?foo=bar')
+      expect(parsed.reason).toBe('session-expired')
+    })
+
+    Object.defineProperty(window, 'location', {
+      value: { ...window.location, pathname: originalPathname, search: originalSearch },
+      writable: true,
+    })
+  })
 })

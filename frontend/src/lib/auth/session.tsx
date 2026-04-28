@@ -115,6 +115,18 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       queryClient.removeQueries({ queryKey: ['history-workspaces'] })
       queryClient.removeQueries({ queryKey: ['tool-run'] })
       queryClient.setQueryData(['current-user'], null)
+
+      if (typeof window !== 'undefined') {
+        const path = window.location.pathname + window.location.search
+        if (path.startsWith('/') && !path.startsWith('//')) {
+          writePendingIntent({
+            to: path,
+            reason: 'session-expired',
+            createdAt: Date.now(),
+          })
+        }
+      }
+
       setAuthView('login')
       setAuthDialogOpen(true)
     }
