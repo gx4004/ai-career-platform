@@ -1545,7 +1545,14 @@ function CareerHeroExtra({ payload }: { payload: AnyObject }) {
 
 function CareerView({ payload }: { payload: AnyObject }) {
   const result = normalizeCareerPayload(payload)
-  const altPaths = result.paths.filter((p) => p.roleTitle !== result.recommendedDirection.roleTitle)
+  const recommendedRole = result.recommendedDirection.roleTitle.toLowerCase()
+  const altPaths = result.paths.filter((p) => p.roleTitle.toLowerCase() !== recommendedRole)
+  // _normalize_paths sorts by fit_score, so paths[0] is the highest-fit
+  // option — not necessarily the LLM's recommended direction. Source the
+  // strength chips from the path that matches the headline, falling back to
+  // paths[0] only when no match exists.
+  const recommendedPath =
+    result.paths.find((p) => p.roleTitle.toLowerCase() === recommendedRole) ?? result.paths[0]
 
   return (
     <div className="cp-body-grid">
@@ -1567,7 +1574,7 @@ function CareerView({ payload }: { payload: AnyObject }) {
               <div className="cp-primary-card__why-title">Why this is your ideal next step</div>
               <p className="cp-primary-card__why-text">{result.recommendedDirection.whyNow}</p>
               <div className="cp-primary-card__benefits">
-                {result.paths[0]?.strengthsToLeverage.slice(0, 3).map((s) => (
+                {recommendedPath?.strengthsToLeverage.slice(0, 3).map((s) => (
                   <div key={s} className="cp-primary-card__benefit">
                     <TrendingUp size={14} className="cp-primary-card__benefit-icon" />
                     <span>{s}</span>
