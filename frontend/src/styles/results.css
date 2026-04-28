@@ -3129,18 +3129,6 @@
   margin-bottom: 0.25rem;
 }
 
-.cl-document__addressee {
-  font-family: Georgia, 'Times New Roman', serif;
-  font-size: 1.0625rem;
-  font-weight: 700;
-  color: var(--text-strong);
-}
-
-.cl-document__company {
-  font-family: Georgia, 'Times New Roman', serif;
-  color: var(--text-body);
-}
-
 /* Editable paragraphs */
 .cl-document__paragraphs {
   display: flex;

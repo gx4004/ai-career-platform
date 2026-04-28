@@ -1077,7 +1077,6 @@ function CoverLetterView({ payload }: { payload: AnyObject }) {
         <div className="cl-document__inner">
           <div className="cl-document__header">
             <div className="cl-document__date">{result.generatedAt || new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</div>
-            <div className="cl-document__addressee">Hiring Manager</div>
           </div>
           <div className="cl-document__paragraphs">
             <div className="cl-document__para-wrapper">
