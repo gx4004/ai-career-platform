@@ -15,7 +15,7 @@ GUEST_LOCKED_ACTIONS = ["save", "favorite", "continue", "history"]
 
 
 def delete_all_user_data(db: Session, user_id: str) -> None:
-    """Delete all tool runs, workspaces, and the user record. KVKK compliance."""
+    """Delete all tool runs, workspaces, and the user record. RODO/GDPR right to erasure."""
     db.query(ToolRun).filter(ToolRun.user_id == user_id).delete()
     db.query(Workspace).filter(Workspace.user_id == user_id).delete()
     db.query(User).filter(User.id == user_id).delete()
