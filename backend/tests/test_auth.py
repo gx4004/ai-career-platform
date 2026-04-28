@@ -161,6 +161,67 @@ def test_password_reset_request_schedules_email_as_background_task(client, test_
     assert sent[0][0] == test_user.email
 
 
+async def test_password_reset_email_payload_includes_plain_text_body(monkeypatch):
+    from app.config import settings
+    from app.services import email_service
+
+    captured: dict = {}
+
+    class FakeEmails:
+        @staticmethod
+        def send(payload):
+            captured.update(payload)
+
+    class FakeResend:
+        api_key = ""
+        Emails = FakeEmails
+
+    monkeypatch.setattr(settings, "RESEND_API_KEY", "test-key")
+    monkeypatch.setattr(settings, "PASSWORD_RESET_REPLY_TO", "support@example.com")
+
+    import sys
+    monkeypatch.setitem(sys.modules, "resend", FakeResend)
+
+    result = await email_service.send_password_reset_email(
+        "user@example.com", "https://example.com/reset?token=x"
+    )
+
+    assert result is True
+    assert "html" in captured
+    assert "text" in captured
+    assert captured["text"]
+    assert "https://example.com/reset?token=x" in captured["text"]
+    assert captured["reply_to"] == ["support@example.com"]
+
+
+async def test_password_reset_email_omits_reply_to_when_unset(monkeypatch):
+    from app.config import settings
+    from app.services import email_service
+
+    captured: dict = {}
+
+    class FakeEmails:
+        @staticmethod
+        def send(payload):
+            captured.update(payload)
+
+    class FakeResend:
+        api_key = ""
+        Emails = FakeEmails
+
+    monkeypatch.setattr(settings, "RESEND_API_KEY", "test-key")
+    monkeypatch.setattr(settings, "PASSWORD_RESET_REPLY_TO", "")
+
+    import sys
+    monkeypatch.setitem(sys.modules, "resend", FakeResend)
+
+    await email_service.send_password_reset_email(
+        "user@example.com", "https://example.com/reset?token=x"
+    )
+
+    assert "reply_to" not in captured
+
+
 async def test_password_reset_email_failure_captures_sentry(monkeypatch):
     from app.config import settings
     from app.services import email_service

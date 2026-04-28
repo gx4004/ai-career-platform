@@ -31,11 +31,33 @@ from app.services.observability import configure_logging
 
 configure_logging()
 
+_SENSITIVE_HEADERS = {"authorization", "cookie", "set-cookie", "x-csrf-token"}
+
+
+def _scrub_sentry_event(event, _hint):
+    request = event.get("request")
+    if isinstance(request, dict):
+        request.pop("data", None)
+        request.pop("cookies", None)
+        headers = request.get("headers")
+        if isinstance(headers, dict):
+            for key in list(headers.keys()):
+                if key.lower() in _SENSITIVE_HEADERS:
+                    headers[key] = "[scrubbed]"
+    user = event.get("user")
+    if isinstance(user, dict):
+        user.pop("email", None)
+        user.pop("ip_address", None)
+    return event
+
+
 if settings.SENTRY_DSN:
     sentry_sdk.init(
         dsn=settings.SENTRY_DSN,
         environment=settings.ENVIRONMENT,
         traces_sample_rate=0.1,
+        send_default_pii=False,
+        before_send=_scrub_sentry_event,
     )
 
 logger = logging.getLogger(__name__)

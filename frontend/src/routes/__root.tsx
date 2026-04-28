@@ -7,6 +7,36 @@ if (import.meta.env.VITE_SENTRY_DSN) {
     dsn: import.meta.env.VITE_SENTRY_DSN,
     environment: import.meta.env.MODE,
     tracesSampleRate: 0.1,
+    sendDefaultPii: false,
+    beforeSend(event) {
+      if (event.request) {
+        delete event.request.data
+        delete event.request.cookies
+        const headers = event.request.headers
+        if (headers) {
+          for (const key of Object.keys(headers)) {
+            if (/^(authorization|cookie|set-cookie|x-csrf-token)$/i.test(key)) {
+              headers[key] = '[scrubbed]'
+            }
+          }
+        }
+      }
+      if (event.user) {
+        delete event.user.email
+        delete event.user.ip_address
+      }
+      return event
+    },
+    beforeBreadcrumb(breadcrumb) {
+      if (breadcrumb.category === 'fetch' || breadcrumb.category === 'xhr') {
+        if (breadcrumb.data) {
+          delete breadcrumb.data.body
+          delete breadcrumb.data.request_body
+          delete breadcrumb.data.response_body
+        }
+      }
+      return breadcrumb
+    },
   })
 }
 import { HeadContent, Outlet, Scripts, createRootRoute } from '@tanstack/react-router'
