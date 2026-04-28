@@ -215,11 +215,22 @@ async def match_job(resume_text: str, job_description: str) -> dict:
         locked_payload,
         prepass_evidence,
     )
+    # Spec decision #7: Resume Analyzer and Job Match fall back to a silent
+    # heuristic when the LLM is unavailable; the generative tools (cover-letter,
+    # interview, career, portfolio) surface explicit errors. The downstream
+    # _normalize_* helpers already accept an empty dict and fill in heuristic
+    # defaults from the prepass, so an empty result is enough to drive the
+    # fallback path through the same normalization pipeline as a successful
+    # LLM call.
     try:
         result = await complete_structured(system_prompt, user_prompt)
     except Exception as exc:
-        logger.warning("LLM call failed for job match: %s", exc, exc_info=True)
-        raise
+        logger.warning(
+            "LLM call failed for job match, returning heuristic-only result: %s",
+            exc,
+            exc_info=True,
+        )
+        result = {}
 
     requirements = _normalize_requirements(result, prepass.matched_keywords, prepass.missing_keywords)
     tailoring_actions = _normalize_tailoring_actions(result, prepass.missing_keywords)

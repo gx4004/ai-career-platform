@@ -134,6 +134,46 @@ async def test_job_match_for_aligned_resume_surfaces_missing_keyword_focus(monke
 
 
 @pytest.mark.asyncio
+async def test_job_match_falls_back_to_heuristic_when_llm_fails(monkeypatch):
+    """Spec decision #7: Job Match must degrade silently to a heuristic-only
+    response when the LLM call raises, mirroring the Resume Analyzer fallback.
+    Previously this raised, which propagated as a 500 to the caller."""
+
+    async def failing_complete(*_args, **_kwargs):
+        raise RuntimeError("AI service temporarily unavailable. Please try again.")
+
+    monkeypatch.setattr("app.services.job_matcher.complete_structured", failing_complete)
+
+    result = await match_job(
+        "Summary\nBackend engineer with Python and SQL experience.\n"
+        "Experience\n- Built and shipped APIs that handled 30% more traffic.\n"
+        "Skills\nPython, SQL, FastAPI, AWS",
+        "Backend Engineer\nNeed Python, SQL, FastAPI, AWS, and Kubernetes experience.",
+    )
+
+    # Heuristic envelope is intact and well-formed.
+    assert result["schema_version"] == "quality_v2"
+    assert result["match_score"] >= 0
+    assert result["verdict"] in {"strong", "borderline", "stretch"}
+    assert result["summary"]["headline"]
+    assert result["summary"]["confidence_note"]
+
+    # Heuristic prepass detected matched and missing keywords from the prompts.
+    matched = {kw.lower() for kw in result["matched_keywords"]}
+    missing = {kw["keyword"].lower() for kw in result["missing_keywords"]}
+    assert "python" in matched
+    assert "kubernetes" in missing
+
+    # Requirements, tailoring, top_actions and recruiter_summary all came
+    # from the heuristic fallback paths, not from a missing LLM payload.
+    assert result["requirements"]
+    assert result["tailoring_actions"]
+    assert result["top_actions"]
+    assert result["recruiter_summary"]
+    assert result["interview_focus"]
+
+
+@pytest.mark.asyncio
 async def test_cover_letter_uses_handoff_signals_for_notes_and_actions(monkeypatch):
     async def fake_complete(*_args, **_kwargs):
         return {}
