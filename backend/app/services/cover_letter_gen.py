@@ -399,6 +399,7 @@ async def generate_cover_letter(
     tone: str | None,
     resume_analysis: dict[str, Any] | None = None,
     job_match: dict[str, Any] | None = None,
+    feedback: str | None = None,
 ) -> dict[str, Any]:
     requested_tone = tone or "Professional"
     application_context = build_application_handoff(
@@ -427,6 +428,7 @@ async def generate_cover_letter(
         requested_tone,
         locked_payload,
         application_context,
+        feedback=feedback,
     )
     try:
         result = await complete_structured(system_prompt, user_prompt)
