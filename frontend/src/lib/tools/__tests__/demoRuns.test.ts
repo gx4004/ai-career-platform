@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import {
   clearTransientResults,
   getTransientResult,
+  isDemoHistoryId,
   setTransientResult,
 } from '#/lib/tools/demoRuns'
 
@@ -58,6 +59,17 @@ describe('demoRuns', () => {
     expect(recovered).not.toBeNull()
     expect(recovered!.id).toBe(id)
     expect(recovered!.tool_name).toBe('job-match')
+  })
+
+  it('isDemoHistoryId round-trips with setTransientResult and rejects real history ids', () => {
+    const item = setTransientResult('job-match', {
+      generated_at: '2026-04-29T08:00:00Z',
+      summary: { headline: 'Demo', verdict: 'Strong', confidence_note: '' },
+    })
+
+    expect(isDemoHistoryId(item.id)).toBe(true)
+    expect(isDemoHistoryId('cf2e8b6d-4a25-4c8a-9f3e-2c1f7a9d6b4c')).toBe(false)
+    expect(isDemoHistoryId('not-a-demo-id')).toBe(false)
   })
 
   it('cleans up sessionStorage entries on clearTransientResults', () => {
