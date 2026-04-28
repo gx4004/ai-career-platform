@@ -407,3 +407,7 @@ export function logout() {
     method: 'POST',
   })
 }
+
+export async function deleteAccount(): Promise<void> {
+  await request<unknown>('/auth/me', { method: 'DELETE' })
+}

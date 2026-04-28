@@ -76,6 +76,28 @@ def log_frontend_telemetry(payload: dict[str, Any]) -> None:
     _log("frontend_telemetry", **payload)
 
 
+def log_user_account_deleted(
+    *,
+    user_id: str,
+    runs_deleted: int,
+    workspaces_deleted: int,
+    user_record_deleted: bool,
+) -> None:
+    """RODO/GDPR audit trail for the right-to-erasure path.
+
+    The user_id ends up in the log even though the row is gone — that's the
+    whole point of an audit line: regulators need a record that the request
+    was honoured. No user content (resume, JD, name, email) is logged.
+    """
+    _log(
+        "user_account_deleted",
+        user_id=user_id,
+        runs_deleted=runs_deleted,
+        workspaces_deleted=workspaces_deleted,
+        user_record_deleted=user_record_deleted,
+    )
+
+
 def _log(event: str, level: str = "info", **fields: Any) -> None:
     sanitized = {key: value for key, value in fields.items() if value is not None}
     message = json.dumps({"event": event, **sanitized}, default=str, sort_keys=True)
