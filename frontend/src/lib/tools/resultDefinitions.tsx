@@ -1921,7 +1921,13 @@ export const resultDefinitions: Record<ToolId, ResultDefinition> = {
     heroVariant: 'dark',
     heroMetric: (payload) => {
       const r = normalizeJobMatchPayload(payload)
-      return <ScoreCircleSvg score={r.matchScore} size={192} />
+      return (
+        <ScoreCircleSvg
+          score={r.matchScore}
+          size={192}
+          ariaLabel={`Job match score: ${r.matchScore} out of 100`}
+        />
+      )
     },
     heroExtra: (payload) => <JobMatchHeroExtra payload={payload} />,
     midSection: (payload) => <FixFirstStrip actions={normalizeJobMatchPayload(payload).topActions} showFooter={false} />,
