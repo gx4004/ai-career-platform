@@ -175,6 +175,18 @@ def test_cover_letter_job_description_min_length(client, auth_headers, _patch_ai
     assert resp.status_code == 422
 
 
+def test_interview_job_description_min_length(client, auth_headers, _patch_ai):
+    """Interview mirrors Job Match + Cover Letter: a thin JD produces
+    default-templated questions on a phantom role — worse than a clear
+    input error."""
+    payload = {
+        "resume_text": VALID_RESUME,
+        "job_description": "x" * 19,
+    }
+    resp = client.post(f"{PREFIX}/interview/questions", json=payload, headers=auth_headers)
+    assert resp.status_code == 422
+
+
 @pytest.mark.parametrize(
     "path,base_payload",
     [
@@ -216,19 +228,20 @@ def test_cover_letter_tone_max_length(client, auth_headers, _patch_ai):
 
 
 def test_interview_num_questions_bounds(client, auth_headers, _patch_ai):
-    too_low = client.post(
-        f"{PREFIX}/interview/questions",
-        json={"resume_text": VALID_RESUME, "job_description": VALID_JD, "num_questions": 0},
-        headers=auth_headers,
-    )
-    assert too_low.status_code == 422
-
-    too_high = client.post(
-        f"{PREFIX}/interview/questions",
-        json={"resume_text": VALID_RESUME, "job_description": VALID_JD, "num_questions": 21},
-        headers=auth_headers,
-    )
-    assert too_high.status_code == 422
+    """Pydantic bounds match the service-side clamp (3-12). Sending values
+    outside that range used to be silently truncated, so callers received a
+    different question count than they asked for; now they get 422."""
+    for bad in (0, 2, 13, 21):
+        resp = client.post(
+            f"{PREFIX}/interview/questions",
+            json={
+                "resume_text": VALID_RESUME,
+                "job_description": VALID_JD,
+                "num_questions": bad,
+            },
+            headers=auth_headers,
+        )
+        assert resp.status_code == 422, f"num_questions={bad} should be rejected"
 
 
 def test_interview_practice_feedback_bounds(client):
