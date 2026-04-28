@@ -7,7 +7,6 @@ import pytest
 
 from app.services.ai_client import complete_structured
 
-
 SYSTEM = "You are a helpful assistant."
 USER = "Return JSON."
 
@@ -19,6 +18,23 @@ def _reset_vertex_singleton():
     mod._vertex_initialised = False
     yield
     mod._vertex_initialised = False
+
+
+@pytest.fixture(autouse=True)
+def _no_retry_sleep_global(monkeypatch):
+    """Make asyncio.sleep a no-op inside ai_client across the whole file.
+
+    `_with_retry` retries on a wider exception set (TimeoutError,
+    RuntimeError, JSONDecodeError, ValueError) so tests that exercise
+    permanent failures (e.g. unsupported provider) would otherwise sit
+    through 5+10+20+40s of exponential backoff between retries.
+    """
+    import app.services.ai_client as mod
+
+    async def _instant(_seconds):
+        return None
+
+    monkeypatch.setattr(mod.asyncio, "sleep", _instant)
 
 
 # ---------- provider routing ----------
@@ -55,7 +71,7 @@ async def test_provider_case_insensitive(monkeypatch):
 # ---------- JSON parse error ----------
 
 @pytest.mark.asyncio
-async def test_vertex_json_parse_error(monkeypatch):
+async def test_vertex_json_parse_error_after_retries_exhausts(monkeypatch):
     monkeypatch.setattr("app.services.ai_client.settings.LLM_PROVIDER", "vertex")
     monkeypatch.setattr("app.services.ai_client.settings.VERTEX_PROJECT_ID", "test")
 
@@ -67,6 +83,30 @@ async def test_vertex_json_parse_error(monkeypatch):
     monkeypatch.setattr(mod, "_call_vertex", _bad_vertex)
     with pytest.raises(json.JSONDecodeError):
         await complete_structured(SYSTEM, USER)
+
+
+@pytest.mark.asyncio
+async def test_with_retry_recovers_from_transient_json_decode_error(monkeypatch):
+    """A truncated JSON response on the first attempt should be retried, not
+    bubbled straight to the tool's heuristic fallback path."""
+    monkeypatch.setattr("app.services.ai_client.settings.LLM_PROVIDER", "vertex")
+    monkeypatch.setattr("app.services.ai_client.settings.VERTEX_PROJECT_ID", "test")
+
+    import app.services.ai_client as mod
+
+    call_count = 0
+
+    async def _flaky_vertex(_sp, _up, _model_name=None):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            raise json.JSONDecodeError("Expecting value", "doc", 0)
+        return {"ok": True}
+
+    monkeypatch.setattr(mod, "_call_vertex", _flaky_vertex)
+    result = await complete_structured(SYSTEM, USER)
+    assert result == {"ok": True}
+    assert call_count == 2
 
 
 # ---------- vertex lazy init ----------

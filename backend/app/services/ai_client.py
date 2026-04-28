@@ -41,12 +41,18 @@ _RETRY_BASE_DELAY = 5.0
 
 
 async def _with_retry(coro_factory, max_retries: int = _MAX_RETRIES, base_delay: float = _RETRY_BASE_DELAY):
-    """Retry with exponential backoff: 5s -> 10s -> 20s -> 40s + jitter."""
+    """Retry with exponential backoff: 5s -> 10s -> 20s -> 40s + jitter.
+
+    JSONDecodeError and ValueError are retried because the upstream Vertex
+    response occasionally truncates JSON under load; a clean retry usually
+    succeeds, and the caller would otherwise burn a free retry attempt
+    falling through to the tool's heuristic fallback.
+    """
     last_exc: Exception | None = None
     for attempt in range(max_retries + 1):
         try:
             return await coro_factory()
-        except (TimeoutError, RuntimeError) as exc:
+        except (TimeoutError, RuntimeError, json.JSONDecodeError, ValueError) as exc:
             last_exc = exc
             if attempt < max_retries:
                 delay = base_delay * (2 ** attempt) + random.uniform(0, 2.0)
