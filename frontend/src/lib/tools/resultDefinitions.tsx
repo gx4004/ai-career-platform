@@ -507,7 +507,7 @@ function normalizeInterviewPayload(payload: AnyObject): InterviewResultPayload {
     generatedAt: toString(payload.generated_at),
     questions: toObjectArray(payload.questions).map((item, index) => ({
       question: toString(item.question) || `Question ${index + 1}`,
-      answer: toString(item.answer) || 'No sample answer was returned.',
+      answer: toString(item.answer),
       keyPoints: toStringArray(item.key_points),
       answerStructure: toStringArray(item.answer_structure),
       followUpQuestions: toStringArray(item.follow_up_questions),
@@ -1289,16 +1289,18 @@ function InterviewView({ payload }: { payload: AnyObject }) {
                       <strong>Focus area:</strong> {item.whyAsked}
                     </div>
                   </div>
-                  <details className="iv-qcard__sample">
-                    <summary className="iv-qcard__sample-toggle">Show sample answer</summary>
-                    <p className="iv-qcard__answer-text iv-qcard__answer-text--muted">{item.answer}</p>
-                  </details>
+                  {item.answer ? (
+                    <details className="iv-qcard__sample">
+                      <summary className="iv-qcard__sample-toggle">Show sample answer</summary>
+                      <p className="iv-qcard__answer-text iv-qcard__answer-text--muted">{item.answer}</p>
+                    </details>
+                  ) : null}
                 </>
-              ) : (
+              ) : item.answer ? (
                 <div className="iv-qcard__answer">
                   <p className="iv-qcard__answer-text">{item.answer}</p>
                 </div>
-              )}
+              ) : null}
 
               {/* Key points as chips */}
               {item.keyPoints.length > 0 && (
