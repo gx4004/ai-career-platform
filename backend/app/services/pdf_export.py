@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+from html import escape
 from typing import Any
 
 from reportlab.lib.pagesizes import A4
@@ -9,8 +10,25 @@ from reportlab.lib.units import cm
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer
 
 
+def _safe_paragraph_html(text: str) -> str:
+    """Escape user/LLM text for reportlab's mini-HTML parser, then re-add <br/> for newlines.
+
+    reportlab.platypus.Paragraph interprets a subset of HTML markup; passing raw
+    LLM/user text through unescaped lets stray '<' '>' or '&' break rendering and
+    in principle lets a crafted resume inject reportlab tags via the LLM. Escape
+    first, then re-introduce the only markup we want (line breaks).
+    """
+    return escape(text).replace("\n", "<br/>")
+
+
 def generate_cover_letter_pdf(result: dict[str, Any]) -> bytes:
-    """Generate a professional letter-format PDF from cover letter result."""
+    """Render cover-letter result into a letter-format PDF.
+
+    Reads from the actual response shape produced by `cover_letter_gen.py`:
+    `opening`, `body_points`, `closing` (each `{text, why_this_paragraph, ...}`)
+    and the composed `full_text`. Falls back to `full_text` if the structured
+    sections are missing.
+    """
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
         buffer,
@@ -22,7 +40,6 @@ def generate_cover_letter_pdf(result: dict[str, Any]) -> bytes:
     )
     styles = getSampleStyleSheet()
 
-    # Custom styles for letter format
     letter_body = ParagraphStyle(
         "LetterBody",
         parent=styles["Normal"],
@@ -31,43 +48,43 @@ def generate_cover_letter_pdf(result: dict[str, Any]) -> bytes:
         spaceBefore=6,
         spaceAfter=6,
     )
-    letter_heading = ParagraphStyle(
-        "LetterHeading",
-        parent=styles["Heading2"],
-        fontSize=14,
-        spaceBefore=12,
-        spaceAfter=8,
-    )
 
-    elements = []
+    elements: list[Any] = [
+        Paragraph("Cover Letter", styles["Title"]),
+        Spacer(1, 0.5 * cm),
+    ]
 
-    # Title
-    elements.append(Paragraph("Cover Letter", styles["Title"]))
-    elements.append(Spacer(1, 0.5 * cm))
+    def _add_section_text(section: Any) -> bool:
+        if not isinstance(section, dict):
+            return False
+        text = section.get("text")
+        if not isinstance(text, str) or not text.strip():
+            return False
+        elements.append(Paragraph(_safe_paragraph_html(text.strip()), letter_body))
+        elements.append(Spacer(1, 0.3 * cm))
+        return True
 
-    # Extract sections from result
-    sections = result.get("sections", [])
-    if sections:
-        for section in sections:
-            if isinstance(section, dict):
-                title = section.get("title", "")
-                content = section.get("content", "")
-                if title:
-                    elements.append(Paragraph(title, letter_heading))
-                if content:
-                    # Replace newlines with <br/> for reportlab
-                    content_html = str(content).replace("\n", "<br/>")
-                    elements.append(Paragraph(content_html, letter_body))
-    else:
-        # Fallback: try full_letter field
-        full_letter = result.get("full_letter", "")
-        if full_letter:
-            for para in full_letter.split("\n\n"):
-                if para.strip():
-                    elements.append(Paragraph(para.strip().replace("\n", "<br/>"), letter_body))
+    added_any = False
+    added_any |= _add_section_text(result.get("opening"))
+
+    body_points = result.get("body_points")
+    if isinstance(body_points, list):
+        for item in body_points:
+            added_any |= _add_section_text(item)
+
+    added_any |= _add_section_text(result.get("closing"))
+
+    if not added_any:
+        full_text = result.get("full_text")
+        if isinstance(full_text, str) and full_text.strip():
+            for para in full_text.split("\n\n"):
+                stripped = para.strip()
+                if stripped:
+                    elements.append(Paragraph(_safe_paragraph_html(stripped), letter_body))
                     elements.append(Spacer(1, 0.3 * cm))
+                    added_any = True
 
-    if not elements or len(elements) <= 2:
+    if not added_any:
         elements.append(Paragraph("No content available for export.", letter_body))
 
     doc.build(elements)
@@ -75,7 +92,13 @@ def generate_cover_letter_pdf(result: dict[str, Any]) -> bytes:
 
 
 def generate_interview_pdf(result: dict[str, Any]) -> bytes:
-    """Generate a question-answer card format PDF from interview result."""
+    """Render interview result into a Q&A PDF.
+
+    Reads `questions[].{question, answer, key_points, answer_structure}` from the
+    actual response shape produced by `interview_gen.py`. Earlier versions read
+    `key_talking_points` which never exists in the payload — that field name is
+    a bug.
+    """
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
         buffer,
@@ -113,35 +136,51 @@ def generate_interview_pdf(result: dict[str, Any]) -> bytes:
         spaceBefore=2,
     )
 
-    elements = []
-    elements.append(Paragraph("Interview Q&A", styles["Title"]))
-    elements.append(Spacer(1, 0.5 * cm))
+    elements: list[Any] = [
+        Paragraph("Interview Q&amp;A", styles["Title"]),
+        Spacer(1, 0.5 * cm),
+    ]
 
-    questions = result.get("questions", [])
-    for i, q in enumerate(questions, 1):
-        if not isinstance(q, dict):
-            continue
-        text = str(q.get("question", q.get("text", f"Question {i}")))
-        elements.append(Paragraph(f"Q{i}: {text}", question_style))
+    questions = result.get("questions")
+    rendered_any = False
+    if isinstance(questions, list):
+        for index, q in enumerate(questions, start=1):
+            if not isinstance(q, dict):
+                continue
+            question_text = q.get("question") if isinstance(q.get("question"), str) else None
+            if not question_text or not question_text.strip():
+                question_text = f"Question {index}"
+            elements.append(
+                Paragraph(f"Q{index}: {_safe_paragraph_html(question_text.strip())}", question_style)
+            )
+            rendered_any = True
 
-        # Answer structure / key points
-        answer = q.get("answer_structure", q.get("answer", ""))
-        if isinstance(answer, list):
-            for point in answer:
-                elements.append(Paragraph(f"&bull; {str(point)}", answer_style))
-        elif answer:
-            elements.append(Paragraph(str(answer).replace("\n", "<br/>"), answer_style))
+            structure = q.get("answer_structure")
+            if isinstance(structure, list) and structure:
+                for step in structure:
+                    if isinstance(step, str) and step.strip():
+                        elements.append(
+                            Paragraph(f"&bull; {_safe_paragraph_html(step.strip())}", answer_style)
+                        )
 
-        # Key talking points
-        talking_points = q.get("key_talking_points", [])
-        if talking_points:
-            elements.append(Paragraph("Key Talking Points:", label_style))
-            for tp in talking_points:
-                elements.append(Paragraph(f"&bull; {str(tp)}", answer_style))
+            answer = q.get("answer")
+            if isinstance(answer, str) and answer.strip():
+                elements.append(
+                    Paragraph(_safe_paragraph_html(answer.strip()), answer_style)
+                )
 
-        elements.append(Spacer(1, 0.3 * cm))
+            key_points = q.get("key_points")
+            if isinstance(key_points, list) and key_points:
+                elements.append(Paragraph("Key Points:", label_style))
+                for point in key_points:
+                    if isinstance(point, str) and point.strip():
+                        elements.append(
+                            Paragraph(f"&bull; {_safe_paragraph_html(point.strip())}", answer_style)
+                        )
 
-    if not questions:
+            elements.append(Spacer(1, 0.3 * cm))
+
+    if not rendered_any:
         elements.append(Paragraph("No questions available for export.", answer_style))
 
     doc.build(elements)
