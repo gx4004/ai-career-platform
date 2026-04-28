@@ -7,7 +7,16 @@ logger = logging.getLogger(__name__)
 
 
 def _send_resend_sync(to_email: str, reset_url: str) -> None:
-    """Synchronous resend.Emails.send call, safe to off-load with asyncio.to_thread."""
+    """Synchronous resend.Emails.send call, safe to off-load with asyncio.to_thread.
+
+    The Resend Python SDK only supports module-level configuration
+    (`resend.api_key = ...`); there is no per-instance Client object. Two
+    concurrent worker threads would briefly race on this assignment, but
+    because `settings.RESEND_API_KEY` is a constant for the process lifetime
+    they always write the identical value, so the race is benign. If a
+    multi-tenant Resend usage pattern ever appears, switch to the SDK's
+    `default_http_client` swap or wrap the call in a process-wide lock.
+    """
     import resend
 
     resend.api_key = settings.RESEND_API_KEY

@@ -71,23 +71,31 @@ async def test_vertex_json_parse_error(monkeypatch):
 
 # ---------- vertex lazy init ----------
 
-def test_vertex_init_only_once(monkeypatch):
+def test_ensure_vertex_init_calls_vertexai_init_only_once(monkeypatch):
+    """The lazy-init guard in `_ensure_vertex_init` must skip the second call.
+
+    The previous test in this slot manually toggled the `_vertex_initialised`
+    flag and asserted the toggle worked, which passed for the wrong reason.
+    This version mocks `vertexai.init` itself and counts how many times the
+    real codepath invokes it across two consecutive calls.
+    """
     import app.services.ai_client as mod
 
-    call_count = 0
-    original_init = mod._ensure_vertex_init
+    monkeypatch.setattr(mod.settings, "VERTEX_PROJECT_ID", "test-project")
+    monkeypatch.setattr(mod.settings, "VERTEX_LOCATION", "us-central1")
 
-    def counting_init():
+    call_count = 0
+
+    def fake_init(**_kwargs):
         nonlocal call_count
-        # Reset flag to simulate first call
-        if call_count == 0:
-            mod._vertex_initialised = False
         call_count += 1
-        # Just set the flag without calling vertexai
-        mod._vertex_initialised = True
+
+    fake_vertexai = type("FakeVertexAI", (), {"init": staticmethod(fake_init)})
+    monkeypatch.setitem(__import__("sys").modules, "vertexai", fake_vertexai)
 
     mod._vertex_initialised = False
-    counting_init()
-    counting_init()
-    # Second call should still increment but the real function would short-circuit
+    mod._ensure_vertex_init()
+    mod._ensure_vertex_init()
+
+    assert call_count == 1, "vertexai.init must be called exactly once"
     assert mod._vertex_initialised is True
