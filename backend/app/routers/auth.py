@@ -19,6 +19,7 @@ from app.limiter import limiter
 from app.models.user import User
 from app.schemas.auth import (
     AuthProvidersResponse,
+    DeleteAccountRequest,
     LoginRequest,
     PasswordResetConfirm,
     PasswordResetRequest,
@@ -145,12 +146,28 @@ def logout(response: Response):
     return {"ok": True}
 
 
-@router.delete("/me", status_code=204)
+@router.post("/me/delete", status_code=204)
+@limiter.limit("5/minute")
 def delete_account(
+    request: Request,
     response: Response,
+    body: DeleteAccountRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """Permanently delete the current user's account and all associated data.
+
+    The frontend gates this behind a typed-email confirmation; the API
+    contract enforces the same confirmation server-side so a direct API
+    call (curl, malicious extension, leaked auth cookie used by an attacker
+    with another tab open) cannot bypass the ceremony. Confirmation is
+    case-insensitive on the email — see schemas.auth.DeleteAccountRequest.
+    """
+    if body.confirmation.strip().lower() != current_user.email.lower():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Confirmation must match the account email exactly.",
+        )
     clear_auth_cookies(response)
     delete_all_user_data(db, current_user.id)
     return None
