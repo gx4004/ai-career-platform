@@ -1764,9 +1764,17 @@ function PortfolioView({ payload }: { payload: AnyObject }) {
                       </div>
                       <p className="pf-project-card__desc">{project.description}</p>
                     </div>
-                    <div className="pf-project-card__complexity">
-                      <div className="pf-project-card__complexity-label">Complexity</div>
-                      <div className="pf-project-card__complexity-value">{project.complexity}</div>
+                    <div className="pf-project-card__meta">
+                      <div className="pf-project-card__meta-item">
+                        <div className="pf-project-card__meta-label">Complexity</div>
+                        <div className="pf-project-card__meta-value">{project.complexity}</div>
+                      </div>
+                      {project.estimatedTimeline && (
+                        <div className="pf-project-card__meta-item">
+                          <div className="pf-project-card__meta-label">Timeline</div>
+                          <div className="pf-project-card__meta-value">{project.estimatedTimeline}</div>
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -1780,6 +1788,20 @@ function PortfolioView({ payload }: { payload: AnyObject }) {
                       {project.skills.slice(0, 4).map((s) => (
                         <span key={s} className="pf-skill-chip">{s}</span>
                       ))}
+                    </div>
+                  )}
+
+                  {project.hiringSignals.length > 0 && (
+                    <div className="pf-project-card__signals">
+                      <div className="pf-project-card__signals-title">What this proves to hiring teams</div>
+                      <ul className="pf-project-card__signals-list">
+                        {project.hiringSignals.slice(0, 3).map((signal) => (
+                          <li key={signal} className="pf-project-card__signals-item">
+                            <CheckCircle2 size={12} className="pf-project-card__signals-icon" />
+                            <span>{signal}</span>
+                          </li>
+                        ))}
+                      </ul>
                     </div>
                   )}
                 </div>
