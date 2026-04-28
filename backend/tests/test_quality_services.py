@@ -134,6 +134,44 @@ async def test_job_match_for_aligned_resume_surfaces_missing_keyword_focus(monke
 
 
 @pytest.mark.asyncio
+async def test_resume_analyze_heuristic_fallback_emits_celebratory_action(monkeypatch):
+    """When the LLM call raises and the heuristic prepass produces no
+    issues (well-structured, quantified, dense resume), the Fix First
+    strip on the result page must not disappear. _build_heuristic_fallback
+    appends a celebratory action so the strip always renders."""
+
+    async def failing_complete(*_args, **_kwargs):
+        raise RuntimeError("ai upstream broken")
+
+    monkeypatch.setattr("app.services.resume_analyzer.complete_structured", failing_complete)
+
+    strong_resume = (
+        "Summary\nSenior backend engineer with 8 years of Python and SQL experience "
+        "building production services for fintech and e-commerce platforms across the "
+        "United States and Europe. Trusted technical lead for cross-functional teams.\n"
+        "Experience\n"
+        "- Improved API latency by 35% across 4 services in 2025 by introducing connection "
+        "pooling, caching, and read-replica routing for hot-path queries.\n"
+        "- Reduced deployment failures by 22% with CI/CD automation in 2024 across 12 "
+        "production microservices, cutting incident response time in half.\n"
+        "- Led migration of 12 microservices to Kubernetes in 2023, including database "
+        "sharding, service mesh adoption, and zero-downtime cutover for 3 customer tiers.\n"
+        "- Mentored 5 engineers and shipped 30 features over the past year, including "
+        "search ranking, billing reconciliation, and customer onboarding workflows.\n"
+        "Skills\nPython, SQL, FastAPI, AWS, Docker, Kubernetes, PostgreSQL, Redis, "
+        "RabbitMQ, Terraform\n"
+        "Education\nBS Computer Science, ten years of professional engineering experience."
+    )
+
+    result = await analyze_resume(strong_resume, None)
+
+    assert result["top_actions"], "Fix First strip would disappear without a top action"
+    titles = [a["title"] for a in result["top_actions"]]
+    # When prepass is clean, the only emitted action is the celebratory one.
+    assert "Resume reads strong" in titles
+
+
+@pytest.mark.asyncio
 async def test_resume_analyze_orders_issues_by_severity(monkeypatch):
     """LLMs return issues in arbitrary order. The Fix First strip lights up
     the first three actions in cards 1/2/3, so a low-priority item must

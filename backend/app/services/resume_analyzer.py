@@ -248,6 +248,13 @@ def _normalize_role_fit(
     }
 
 
+_CELEBRATORY_ACTION = {
+    "title": "Resume reads strong",
+    "action": "This resume is ready to send. Move on to Job Match for role-specific tailoring.",
+    "priority": "low",
+}
+
+
 def _build_heuristic_fallback(
     prepass: ResumePrepass,
     score_breakdown: list[dict[str, int | str]],
@@ -257,10 +264,12 @@ def _build_heuristic_fallback(
     """Build a complete response from heuristic data only (no LLM)."""
     issues = _heuristic_issues(prepass, score_breakdown)
     strengths = _fallback_strengths(prepass)
-    top_actions = [
+    top_actions: list[dict[str, str]] = [
         {"title": issue["title"], "action": issue["fix"], "priority": issue["severity"]}
         for issue in issues[:3]
     ]
+    if not top_actions:
+        top_actions.append(_CELEBRATORY_ACTION)
     return {
         "schema_version": SCHEMA_VERSION,
         "summary": {
