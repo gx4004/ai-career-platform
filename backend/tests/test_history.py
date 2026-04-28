@@ -197,7 +197,6 @@ def test_pagination(client, auth_headers, test_user, db):
 def test_user_isolation(client, auth_headers, test_user, db):
     """Users should not see other users' history."""
     from app.auth.security import hash_password
-
     from app.models.user import User
 
     other = User(

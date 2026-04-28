@@ -4481,6 +4481,65 @@
   color: #0a8a50;
 }
 
+/* Skills strip — `target_skills` + `current_skills` from the planner output.
+   Without this block both arrays were generated, normalized, then never
+   rendered — the most direct planning artifact ("what should I learn next")
+   was invisible to the user. */
+.cp-skills-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+  margin-top: 1.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--border-subtle, #e5e7eb);
+}
+
+.cp-skills-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.cp-skills-row--secondary .cp-skills-row__label {
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.cp-skills-row__label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-strong);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.cp-skills-row__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+}
+
+.cp-skill-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.625rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border: 1px solid var(--border-subtle, #e5e7eb);
+}
+
+.cp-skill-chip--target {
+  background: rgba(10, 138, 80, 0.08);
+  color: #0a8a50;
+  border-color: rgba(10, 138, 80, 0.25);
+}
+
+.cp-skill-chip--current {
+  background: var(--surface-muted, #f3f4f6);
+  color: var(--text-muted);
+}
+
 /* Numbered roadmap */
 .cp-roadmap {
   margin-top: 1.5rem;
@@ -4647,18 +4706,20 @@
 }
 
 .cp-gap-row__action {
-  font-size: 0.8125rem;
+  font-size: 0.75rem;
   font-weight: 500;
-  color: var(--accent);
+  color: var(--text-strong);
   display: flex;
-  align-items: center;
-  gap: 0.25rem;
-  flex-shrink: 0;
-  cursor: pointer;
+  align-items: flex-start;
+  gap: 0.375rem;
+  margin-top: 0.5rem;
+  line-height: 1.5;
 }
 
-.cp-gap-row__action:hover {
-  text-decoration: underline;
+.cp-gap-row__action-icon {
+  color: var(--accent);
+  flex-shrink: 0;
+  margin-top: 0.2rem;
 }
 
 /* Alternative path cards */

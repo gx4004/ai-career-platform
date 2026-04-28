@@ -6,7 +6,6 @@ import pytest
 
 from app.services.cv_parser import parse_cv
 
-
 # ---------- PDF extraction ----------
 
 def test_pdf_extraction():

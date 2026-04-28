@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import logging
 from datetime import UTC, datetime
 
 from app.prompts.career import build_career_prompt
@@ -15,8 +14,6 @@ from app.services.quality_signals import (
     ordered_unique,
     seniority_label,
 )
-
-logger = logging.getLogger(__name__)
 
 SCHEMA_VERSION = "planning_v1"
 CONFIDENCE_NOTE = (
@@ -864,6 +861,7 @@ def _normalize_top_actions(
 async def recommend_career(
     resume_text: str,
     target_role: str | None,
+    feedback: str | None = None,
 ) -> dict:
     prepass = build_resume_prepass(resume_text, target_role)
     generated_at = datetime.now(UTC).isoformat()
@@ -921,12 +919,9 @@ async def recommend_career(
         locked_payload,
         helper_signals,
         career_profile=career_profile,
+        feedback=feedback,
     )
-    try:
-        result = await complete_structured(system_prompt, user_prompt)
-    except Exception as exc:
-        logger.warning("LLM call failed for career recommender: %s", exc, exc_info=True)
-        raise
+    result = await complete_structured(system_prompt, user_prompt)
 
     paths = _normalize_paths(result, fallback_paths)
     recommended_direction = _normalize_recommended_direction(result, paths, len(current_skills))
