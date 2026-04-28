@@ -45,7 +45,10 @@ class InterviewRequest(BaseModel):
     # produce default-templated questions on a phantom role, which is worse than
     # an explicit input error.
     job_description: str = Field(..., min_length=20, max_length=20_000)
-    num_questions: int | None = Field(None, ge=1, le=20)
+    # Bounds match the service-side clamp in interview_gen.py
+    # (max(3, min(num_questions or 5, 12))). The UI picker exposes
+    # {4, 6, 8, 10}; raising the schema cap higher would silently clamp.
+    num_questions: int | None = Field(None, ge=3, le=12)
     resume_analysis: ResumeAnalysisHandoff | None = None
     job_match: JobMatchHandoff | None = None
     workspace_context: WorkspaceContextInput | None = None
