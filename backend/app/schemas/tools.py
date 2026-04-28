@@ -16,7 +16,10 @@ class ResumeAnalyzeRequest(BaseModel):
 
 class JobMatchRequest(BaseModel):
     resume_text: str = Field(..., min_length=50, max_length=50_000)
-    job_description: str = Field(..., max_length=20_000)
+    # min_length guards against thin/empty job descriptions that would otherwise
+    # produce a phantom 58% match score (the no-data fallback constant) with a
+    # "0 of 0 requirements met" UI strip — visibly broken, not informative.
+    job_description: str = Field(..., min_length=20, max_length=20_000)
     workspace_context: WorkspaceContextInput | None = None
     parent_run_id: str | None = None
     feedback: str | None = Field(None, max_length=2_000)
