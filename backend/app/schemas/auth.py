@@ -66,4 +66,4 @@ class UserResponse(BaseModel):
 
 
 class AuthProvidersResponse(BaseModel):
-    providers: list = []
+    providers: list[str] = []

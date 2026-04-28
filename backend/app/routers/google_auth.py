@@ -1,5 +1,4 @@
 import logging
-from urllib.parse import urlencode
 
 from authlib.integrations.starlette_client import OAuth
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -37,8 +36,7 @@ def _oauth_error_redirect(reason: str) -> RedirectResponse:
     HTTPException lands users on a bare FastAPI error page. Redirecting back
     to the frontend's login/error page keeps the flow coherent.
     """
-    query = urlencode({"reason": reason})
-    return RedirectResponse(url=f"{_resolve_frontend_url()}/login?oauth_error={query}")
+    return RedirectResponse(url=f"{_resolve_frontend_url()}/login?oauth_error={reason}")
 
 
 @router.get("/login")
