@@ -1641,10 +1641,10 @@ function CareerView({ payload }: { payload: AnyObject }) {
                 <div className="cp-gap-row__body">
                   <div className="cp-gap-row__skill">{g.skill}</div>
                   <div className="cp-gap-row__desc">{g.whyItMatters}</div>
-                </div>
-                <div className="cp-gap-row__action">
-                  {g.howToBuild.split(' ').slice(0, 2).join(' ')}
-                  <ArrowRight size={12} />
+                  <div className="cp-gap-row__action">
+                    <ArrowRight size={12} className="cp-gap-row__action-icon" />
+                    <span>{g.howToBuild}</span>
+                  </div>
                 </div>
               </div>
             ))}
