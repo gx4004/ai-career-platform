@@ -555,6 +555,63 @@ def test_cover_letter_surfaces_error_when_llm_fails(db, auth_headers, monkeypatc
     assert 500 <= resp.status_code < 600
 
 
+def test_interview_questions_surface_error_when_llm_fails(db, auth_headers, monkeypatch):
+    """Interview is generative (CLAUDE.md spec decision #7): the previous
+    fallback emitted default questions like "How would you demonstrate
+    {focus_area} in this role?" stitched from the user's own keywords —
+    visually identical to a real generation. Now the exception propagates."""
+
+    async def fake_complete(*_args, **_kwargs):
+        raise RuntimeError("Vertex AI hiccup")
+
+    monkeypatch.setattr("app.services.interview_gen.complete_structured", fake_complete)
+
+    def override_get_db():
+        try:
+            yield db
+        finally:
+            pass
+
+    app.dependency_overrides[get_db] = override_get_db
+    try:
+        with TestClient(app, raise_server_exceptions=False) as fail_client:
+            resp = fail_client.post(
+                f"{PREFIX}/interview/questions",
+                json={
+                    "resume_text": "Engineer with 5 years of backend experience building Python APIs and shipping production services.",
+                    "job_description": "Senior role focused on backend platform engineering and reliability.",
+                    "num_questions": 4,
+                },
+                headers=auth_headers,
+            )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert 500 <= resp.status_code < 600
+
+
+def test_interview_practice_feedback_surfaces_error_when_llm_fails(monkeypatch):
+    """Practice feedback bypasses tool_pipeline but the same spec decision #7
+    applies: silent fallback returned a generic "consider adding more specific
+    examples" coaching for every failed call, masking outages."""
+
+    async def fake_complete(*_args, **_kwargs):
+        raise RuntimeError("Vertex AI hiccup")
+
+    monkeypatch.setattr("app.services.interview_gen.complete_structured", fake_complete)
+
+    with TestClient(app, raise_server_exceptions=False) as fail_client:
+        resp = fail_client.post(
+            f"{PREFIX}/interview/practice-feedback",
+            json={
+                "question": "Tell me about a hard bug you fixed.",
+                "user_answer": "I rewrote the cache invalidation logic.",
+            },
+        )
+
+    assert 500 <= resp.status_code < 600
+
+
 def test_resume_analyze_malformed_llm_json(client, auth_headers, mock_ai_result):
     """LLM returns a response missing expected keys — normalization fills defaults."""
     mock_ai_result(

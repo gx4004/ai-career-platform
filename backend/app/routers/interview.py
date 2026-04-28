@@ -52,6 +52,10 @@ async def questions(
             "num_questions": body.num_questions,
             "resume_analysis": resume_analysis_dict,
             "job_match": job_match_dict,
+            # tool_pipeline only injects sanitized feedback when the key is
+            # present in service_kwargs; without this entry, regen-with-feedback
+            # silently dropped user feedback before reaching the prompt.
+            "feedback": body.feedback,
         },
         label_fn=lambda r: f"Interview Prep ({len(r['questions'])} questions)",
         resume_text=body.resume_text,
