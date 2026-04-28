@@ -814,14 +814,19 @@ function ResumeResultView({ payload }: { payload: AnyObject }) {
 function JobMatchHeroExtra({ payload }: { payload: AnyObject }) {
   const result = normalizeJobMatchPayload(payload)
   const met = result.requirements.filter((r) => r.status === 'matched').length
+  const totalReqs = result.requirements.length
 
   return (
     <div className="hero-stat-strip">
-      <div className="hero-stat-strip__item">
-        <CheckCircle2 size={16} style={{ color: '#22c55e' }} />
-        <span>{met}/{result.requirements.length} requirements met</span>
-      </div>
-      <div className="hero-stat-strip__divider" />
+      {totalReqs > 0 && (
+        <>
+          <div className="hero-stat-strip__item">
+            <CheckCircle2 size={16} style={{ color: '#22c55e' }} />
+            <span>{met}/{totalReqs} requirements met</span>
+          </div>
+          <div className="hero-stat-strip__divider" />
+        </>
+      )}
       <div className="hero-stat-strip__item">
         <Hash size={16} style={{ color: '#22c55e' }} />
         <span>{result.matchedKeywords.length} keywords matched</span>
@@ -844,6 +849,7 @@ function JobMatchView({ payload }: { payload: AnyObject }) {
       {/* ── Left column ── */}
       <div className="resume-body-left">
         {/* Requirements card */}
+        {result.requirements.length > 0 && (
         <ScrollReveal>
         <div className="feedback-card">
           <div className="feedback-card__header">
@@ -901,6 +907,7 @@ function JobMatchView({ payload }: { payload: AnyObject }) {
           </div>
         </div>
         </ScrollReveal>
+        )}
 
         {/* Tailoring Actions */}
         {result.tailoringActions.length > 0 && (
