@@ -143,6 +143,32 @@ async def test_portfolio_planning_for_strong_resume_with_clear_target_role(monke
 
 
 @pytest.mark.asyncio
+async def test_portfolio_passes_feedback_to_prompt_builder(monkeypatch):
+    """Pin the regen feedback wiring: previously the router accepted feedback,
+    tool_pipeline sanitized it, then the service silently dropped it because
+    the prompt builder kwarg was never threaded through."""
+    captured: dict[str, object] = {}
+
+    def fake_build_prompt(*_args, feedback=None, **_kwargs):
+        captured["feedback"] = feedback
+        return ("system", "user")
+
+    async def fake_complete(*_args, **_kwargs):
+        return {}
+
+    monkeypatch.setattr("app.services.portfolio_planner.build_portfolio_prompt", fake_build_prompt)
+    monkeypatch.setattr("app.services.portfolio_planner.complete_structured", fake_complete)
+
+    await recommend_portfolio(
+        "Summary\nBackend engineer with 5 years of Python experience.\nExperience\n- Shipped APIs.\nSkills\nPython, SQL",
+        "Backend Engineer",
+        feedback="Push more API design proof and skip the observability lab.",
+    )
+
+    assert captured["feedback"] == "Push more API design proof and skip the observability lab."
+
+
+@pytest.mark.asyncio
 async def test_portfolio_planning_accepts_prefilled_career_direction_like_any_direct_target_role(monkeypatch):
     async def fake_complete(*_args, **_kwargs):
         return {}
