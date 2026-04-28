@@ -134,6 +134,49 @@ async def test_job_match_for_aligned_resume_surfaces_missing_keyword_focus(monke
 
 
 @pytest.mark.asyncio
+async def test_resume_analyze_falls_back_to_heuristic_when_llm_fails(monkeypatch):
+    """Spec decision #7: Resume Analyzer must degrade silently to a heuristic
+    envelope when the LLM call raises. Previously this was implicit; the
+    fallback path shipped before B2 but had no regression test of its own."""
+
+    async def failing_complete(*_args, **_kwargs):
+        raise RuntimeError("AI service temporarily unavailable. Please try again.")
+
+    monkeypatch.setattr("app.services.resume_analyzer.complete_structured", failing_complete)
+
+    result = await analyze_resume(
+        "Summary\nBackend engineer with Python and SQL experience.\n"
+        "Experience\n- Built and shipped APIs that handled 30% more traffic.\n"
+        "Skills\nPython, SQL, FastAPI, AWS\nEducation\nBS Computer Science",
+        "Backend Engineer\nNeed Python, SQL, FastAPI, AWS, and Kubernetes experience.",
+    )
+
+    assert result["schema_version"] == "quality_v2"
+    assert isinstance(result["overall_score"], int)
+    assert result["overall_score"] >= 0
+    assert len(result["score_breakdown"]) == 5
+
+    # Heuristic prepass should still detect matched and missing keywords.
+    matched = {kw.lower() for kw in result["evidence"]["matched_keywords"]}
+    missing = {kw.lower() for kw in result["evidence"]["missing_keywords"]}
+    assert "python" in matched
+    assert "kubernetes" in missing
+
+    # Summary should never include a confidence_gap_note when only heuristic
+    # ran (no LLM scores to compare against).
+    assert "differ by" not in result["summary"]["confidence_note"]
+
+    # Heuristic fallback intentionally leaves role_fit empty — the
+    # synthesised version is only built on the LLM-success path.
+    assert result["role_fit"] is None
+
+    # Strengths and at least one heuristic top_action so the result page is
+    # not blank.
+    assert result["strengths"]
+    assert result["top_actions"]
+
+
+@pytest.mark.asyncio
 async def test_job_match_falls_back_to_heuristic_when_llm_fails(monkeypatch):
     """Spec decision #7: Job Match must degrade silently to a heuristic-only
     response when the LLM call raises, mirroring the Resume Analyzer fallback.
