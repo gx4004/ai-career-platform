@@ -50,6 +50,15 @@ export type SessionState = {
   googleLogin: () => void
 }
 
+// /auth/providers returns deployment-level enabled providers, not the
+// authenticated user's linked identities. We deliberately do not surface that
+// list as account-connection state on the account page — doing so would claim
+// a Google connection for every email/password user in a Google-enabled
+// deployment. Until UserResponse exposes a per-user linked_providers field,
+// SessionState.providers stays empty and the account page falls through to
+// its "no additional providers" copy.
+const NO_PROVIDERS: OAuthProvider[] = []
+
 const SessionContext = createContext<SessionState | null>(null)
 
 export function SessionProvider({ children }: { children: ReactNode }) {
@@ -81,7 +90,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     retry: false,
   })
 
-  const providersQuery = useQuery({
+  // /auth/providers is fetched primarily so a missing or misconfigured
+  // endpoint surfaces in tests/telemetry; the response itself is intentionally
+  // not surfaced as account-connection state. See NO_PROVIDERS above.
+  useQuery({
     queryKey: ['auth-providers'],
     queryFn: getAuthProviders,
     retry: false,
@@ -234,7 +246,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     () => ({
       status,
       user: userQuery.data || null,
-      providers: providersQuery.data?.providers || [],
+      providers: NO_PROVIDERS,
       health: healthQuery.data || null,
       authDialogOpen,
       authView,
@@ -270,7 +282,6 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       login,
       logout,
       openAuthDialog,
-      providersQuery.data?.providers,
       register,
       status,
       userQuery.data,

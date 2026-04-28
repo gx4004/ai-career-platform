@@ -177,7 +177,8 @@ async def request_password_reset(request: Request, body: PasswordResetRequest, d
 
 
 @router.post("/password-reset/confirm", status_code=200)
-async def confirm_password_reset(body: PasswordResetConfirm, db: Session = Depends(get_db)):
+@limiter.limit("10/minute")
+def confirm_password_reset(request: Request, body: PasswordResetConfirm, db: Session = Depends(get_db)):
     # Reset tokens are signed with a secret derived from the user's password
     # hash, so we need the user record to verify the token. Extract the
     # subject (email) from unverified claims for lookup only — the actual
