@@ -134,6 +134,32 @@ async def test_job_match_for_aligned_resume_surfaces_missing_keyword_focus(monke
 
 
 @pytest.mark.asyncio
+async def test_job_match_passes_feedback_to_prompt(monkeypatch):
+    """Pin the regen feedback wiring: previously the router accepted feedback,
+    tool_pipeline sanitized it, then the service silently dropped it because
+    the prompt builder kwarg was never threaded through."""
+    captured: dict[str, object] = {}
+
+    def fake_build_prompt(*_args, feedback=None, **_kwargs):
+        captured["feedback"] = feedback
+        return ("system", "user")
+
+    async def fake_complete(*_args, **_kwargs):
+        return {}
+
+    monkeypatch.setattr("app.services.job_matcher.build_job_match_prompt", fake_build_prompt)
+    monkeypatch.setattr("app.services.job_matcher.complete_structured", fake_complete)
+
+    await match_job(
+        "Summary\nBackend engineer with Python experience.\nExperience\n- Built APIs.\nSkills\nPython, SQL",
+        "Backend Engineer\nNeed Python, SQL, FastAPI, and AWS experience.",
+        feedback="Be harsher on the missing AWS experience and skip the soft-skill summary.",
+    )
+
+    assert captured["feedback"] == "Be harsher on the missing AWS experience and skip the soft-skill summary."
+
+
+@pytest.mark.asyncio
 async def test_job_match_omits_recruiter_summary_when_no_signal(monkeypatch):
     """When the LLM returns no recruiter_summary AND the heuristic prepass
     has no matched/missing keyword signal, return '' instead of a generic
