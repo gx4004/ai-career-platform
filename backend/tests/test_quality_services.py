@@ -382,6 +382,35 @@ async def test_cover_letter_uses_handoff_signals_for_notes_and_actions(monkeypat
 
 
 @pytest.mark.asyncio
+async def test_cover_letter_passes_feedback_to_prompt_builder(monkeypatch):
+    """Regen-with-feedback was silently dropped before this fix: the router's
+    service_kwargs missed the `feedback` key, so tool_pipeline never injected
+    sanitized feedback, and the service called build_cover_letter_prompt
+    without it. Lock the wiring at the prompt-builder boundary."""
+
+    captured: dict[str, str | None] = {}
+
+    def fake_build_prompt(*_args, feedback=None, **_kwargs):
+        captured["feedback"] = feedback
+        return ("system", "user")
+
+    async def fake_complete(*_args, **_kwargs):
+        return {}
+
+    monkeypatch.setattr("app.services.cover_letter_gen.build_cover_letter_prompt", fake_build_prompt)
+    monkeypatch.setattr("app.services.cover_letter_gen.complete_structured", fake_complete)
+
+    await generate_cover_letter(
+        "Summary\nBackend engineer with Python and cloud delivery experience.\nExperience\n- Improved API latency by 31%.\nSkills\nPython, SQL, AWS, Docker",
+        "Backend Engineer\nNeed Python, SQL, AWS experience.",
+        "Professional",
+        feedback="Make the opening warmer and reference the team's mission.",
+    )
+
+    assert captured["feedback"] == "Make the opening warmer and reference the team's mission."
+
+
+@pytest.mark.asyncio
 async def test_interview_handoff_surfaces_weak_signals_and_gap_first_questions(monkeypatch):
     async def fake_complete(*_args, **_kwargs):
         return {

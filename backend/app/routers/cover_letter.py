@@ -47,6 +47,10 @@ async def generate(
             "tone": body.tone,
             "resume_analysis": resume_analysis_dict,
             "job_match": job_match_dict,
+            # tool_pipeline only injects sanitized feedback when the key is
+            # present in service_kwargs; without this entry, regen-with-feedback
+            # silently dropped user feedback before reaching the prompt.
+            "feedback": body.feedback,
         },
         label_fn=lambda r: f"Cover Letter ({r['tone_used']})",
         resume_text=body.resume_text,
