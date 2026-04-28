@@ -4,6 +4,7 @@ import { Grid2x2, History, LayoutDashboard, UserRound } from 'lucide-react'
 import { useBreakpoint } from '#/hooks/use-breakpoint'
 import { ToolGridSheet } from '#/components/mobile/ToolGridSheet'
 import { isPublicRoute } from '#/lib/navigation/publicRoutes'
+import { toolList } from '#/lib/tools/registry'
 
 export function MobileNav() {
   const [toolsOpen, setToolsOpen] = useState(false)
@@ -22,10 +23,7 @@ export function MobileNav() {
 
   const isActive = (path: string) => pathname.startsWith(path)
   const isToolsActive =
-    toolsOpen ||
-    ['/resume', '/job-match', '/cover-letter', '/interview', '/career', '/portfolio'].some((r) =>
-      pathname.startsWith(r),
-    )
+    toolsOpen || toolList.some((tool) => pathname.startsWith(tool.route))
 
   return (
     <>
