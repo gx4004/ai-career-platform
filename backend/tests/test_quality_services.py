@@ -134,6 +134,32 @@ async def test_job_match_for_aligned_resume_surfaces_missing_keyword_focus(monke
 
 
 @pytest.mark.asyncio
+async def test_job_match_omits_recruiter_summary_when_no_signal(monkeypatch):
+    """When the LLM returns no recruiter_summary AND the heuristic prepass
+    has no matched/missing keyword signal, return '' instead of a generic
+    templated sentence about 'some relevant experience'. The frontend uses
+    falsy recruiter_summary to hide the right column on the result page."""
+
+    async def fake_complete(*_args, **_kwargs):
+        return {}  # LLM returns nothing useful
+
+    monkeypatch.setattr("app.services.job_matcher.complete_structured", fake_complete)
+
+    # Resume with no recognizable skills + JD whose 4+ char tokens are all
+    # stopwords or short → prepass.matched_keywords == [] and
+    # prepass.missing_keywords == []. (extract_job_keywords filters tokens
+    # by STOPWORDS and len<4; this JD intentionally hits nothing.)
+    result = await match_job(
+        "Personal narrative about hobbies and travel without any specific content here.",
+        "Our team must have strong skills and your work this team also.",
+    )
+
+    assert result["matched_keywords"] == []
+    assert result["missing_keywords"] == []
+    assert result["recruiter_summary"] == ""
+
+
+@pytest.mark.asyncio
 async def test_resume_analyze_heuristic_fallback_emits_celebratory_action(monkeypatch):
     """When the LLM call raises and the heuristic prepass produces no
     issues (well-structured, quantified, dense resume), the Fix First

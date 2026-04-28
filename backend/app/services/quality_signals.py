@@ -398,6 +398,11 @@ def format_keyword(token: str) -> str:
     upper_tokens = {"api", "apis", "sql", "aws", "gcp", "ci/cd", "ux", "ui"}
     if token.lower() in upper_tokens:
         return "APIs" if token.lower() in {"api", "apis"} else token.upper()
+    # Preserve mixed-case tokens like "JavaScript", "TypeScript", "PostgreSQL",
+    # "FastAPI" when the user already typed them correctly. token.title() would
+    # otherwise lowercase the second hump ("JavaScript" -> "Javascript").
+    if any(c.isupper() for c in token[1:]):
+        return token
     return token.title()
 
 
