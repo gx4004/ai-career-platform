@@ -40,7 +40,7 @@ def _validate_url(url: str) -> None:
     except socket.gaierror:
         return
 
-    for family, _, _, _, sockaddr in addrinfo:
+    for _family, _, _, _, sockaddr in addrinfo:
         ip_str = sockaddr[0]
         if _is_private_ip(ip_str):
             raise ValueError("URLs resolving to private/internal IPs are not allowed")

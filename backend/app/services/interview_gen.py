@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from typing import Any
-
 import logging
+from datetime import UTC, datetime
+from typing import Any
 
 from app.config import settings
 from app.prompts.interview import build_interview_prompt, build_practice_feedback_prompt
@@ -310,7 +309,7 @@ async def generate_interview_questions(
         resume_analysis,
         job_match,
     )
-    generated_at = datetime.now(timezone.utc).isoformat()
+    generated_at = datetime.now(UTC).isoformat()
     locked_payload = {
         "schema_version": SCHEMA_VERSION,
         "summary": _default_summary(application_context),

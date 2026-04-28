@@ -1,14 +1,14 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
-
-logger = logging.getLogger(__name__)
+from datetime import UTC, datetime
 from typing import Any
 
 from app.prompts.cover_letter import build_cover_letter_prompt
 from app.services.ai_client import complete_structured
 from app.services.application_context import build_application_handoff
+
+logger = logging.getLogger(__name__)
 
 SCHEMA_VERSION = "quality_v2"
 
@@ -407,7 +407,7 @@ async def generate_cover_letter(
         resume_analysis,
         job_match,
     )
-    generated_at = datetime.now(timezone.utc).isoformat()
+    generated_at = datetime.now(UTC).isoformat()
     locked_payload = {
         "schema_version": SCHEMA_VERSION,
         "summary": _default_summary(application_context),

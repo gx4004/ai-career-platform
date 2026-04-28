@@ -1,8 +1,8 @@
 import logging
 
 from fastapi import APIRouter, HTTPException, Request
-from app.limiter import limiter
 
+from app.limiter import limiter
 from app.schemas.tools import ImportedJobResponse, ImportJobUrlRequest
 from app.services.job_scraper import scrape_job_posting
 

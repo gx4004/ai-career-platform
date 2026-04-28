@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+import logging
+from datetime import UTC, datetime
 
 from app.prompts.career import build_career_prompt
 from app.services.ai_client import complete_structured
@@ -14,6 +15,8 @@ from app.services.quality_signals import (
     ordered_unique,
     seniority_label,
 )
+
+logger = logging.getLogger(__name__)
 
 SCHEMA_VERSION = "planning_v1"
 CONFIDENCE_NOTE = (
@@ -863,7 +866,7 @@ async def recommend_career(
     target_role: str | None,
 ) -> dict:
     prepass = build_resume_prepass(resume_text, target_role)
-    generated_at = datetime.now(timezone.utc).isoformat()
+    generated_at = datetime.now(UTC).isoformat()
 
     current_skills = ordered_unique(prepass.detected_skills)[:8]
     resume_discipline = infer_resume_discipline(resume_text, prepass.detected_skills)

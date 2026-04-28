@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy.orm import Session
 
@@ -55,7 +55,7 @@ def resolve_workspace(
 
 
 def touch_workspace(workspace: Workspace) -> None:
-    workspace.updated_at = datetime.now(timezone.utc)
+    workspace.updated_at = datetime.now(UTC)
 
 
 def _default_workspace_label(tool_name: str, label: str) -> str:
