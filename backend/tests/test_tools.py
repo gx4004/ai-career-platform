@@ -1,3 +1,7 @@
+from fastapi.testclient import TestClient
+
+from app.database import get_db
+from app.main import app
 from app.models.tool_run import ToolRun
 
 PREFIX = "/api/v1"
@@ -520,10 +524,6 @@ def test_cover_letter_surfaces_error_when_llm_fails(db, auth_headers, monkeypatc
     it must surface an explicit error, not a 200 with a templated letter
     dressed as an "Application-ready draft" — that footgun could ship a
     non-AI letter to a real employer during a demo."""
-    from fastapi.testclient import TestClient
-
-    from app.database import get_db
-    from app.main import app
 
     async def fake_complete(*_args, **_kwargs):
         raise RuntimeError("Vertex AI hiccup")
