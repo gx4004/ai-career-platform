@@ -1577,6 +1577,31 @@ function CareerView({ payload }: { payload: AnyObject }) {
             </div>
           </div>
 
+          {(result.targetSkills.length > 0 || result.currentSkills.length > 0) && (
+            <div className="cp-skills-block">
+              {result.targetSkills.length > 0 && (
+                <div className="cp-skills-row">
+                  <div className="cp-skills-row__label">Skills to develop next</div>
+                  <div className="cp-skills-row__chips">
+                    {result.targetSkills.map((skill) => (
+                      <span key={skill} className="cp-skill-chip cp-skill-chip--target">{skill}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {result.currentSkills.length > 0 && (
+                <div className="cp-skills-row cp-skills-row--secondary">
+                  <div className="cp-skills-row__label">Skills you already bring</div>
+                  <div className="cp-skills-row__chips">
+                    {result.currentSkills.map((skill) => (
+                      <span key={skill} className="cp-skill-chip cp-skill-chip--current">{skill}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Numbered roadmap */}
           {result.nextSteps.length > 0 && (
             <div className="cp-roadmap">
