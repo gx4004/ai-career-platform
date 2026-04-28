@@ -72,11 +72,29 @@ describe('API client', () => {
       const userData = { id: '1', email: 'test@example.com', is_active: true }
       mockFetch.mockResolvedValueOnce(mockJsonResponse(userData))
 
-      const result = await register({ email: 'test@example.com', password: 'pass123' })
+      const result = await register({
+        email: 'test@example.com',
+        password: 'pass123',
+        tos_accepted: true,
+      })
 
-      const [url] = mockFetch.mock.calls[0]
+      const [url, init] = mockFetch.mock.calls[0]
       expect(url).toBe(`${API_URL}/auth/register`)
       expect(result.id).toBe('1')
+      // ToS flag must travel as the user actually consented — not be hardcoded.
+      expect(JSON.parse(String(init?.body))).toMatchObject({ tos_accepted: true })
+    })
+
+    it('forwards a falsy tos_accepted as-is so the backend can reject it', async () => {
+      const errorPayload = { detail: 'You must accept the Terms of Service' }
+      mockFetch.mockResolvedValueOnce(mockJsonResponse(errorPayload, 422))
+
+      await expect(
+        register({ email: 'test@example.com', password: 'pass123', tos_accepted: false }),
+      ).rejects.toThrow()
+
+      const [, init] = mockFetch.mock.calls[0]
+      expect(JSON.parse(String(init?.body))).toMatchObject({ tos_accepted: false })
     })
   })
 

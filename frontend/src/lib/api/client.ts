@@ -190,10 +190,11 @@ export function register(payload: {
   password: string
   full_name?: string
   captcha_token?: string
+  tos_accepted: boolean
 }) {
   return request('/auth/register', {
     method: 'POST',
-    body: { ...payload, tos_accepted: true },
+    body: payload,
     schema: userSchema,
   })
 }
