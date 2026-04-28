@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response, status
 from sqlalchemy.orm import Session
 
 from app.auth.security import (
@@ -193,13 +193,18 @@ def get_providers():
 
 @router.post("/password-reset/request", status_code=200)
 @limiter.limit("3/minute")
-async def request_password_reset(request: Request, body: PasswordResetRequest, db: Session = Depends(get_db)):
+async def request_password_reset(
+    request: Request,
+    body: PasswordResetRequest,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+):
     user = db.query(User).filter(User.email == body.email).first()
     if user:
         token = create_password_reset_token(user.email, user.hashed_password or "")
         frontend_base = settings.FRONTEND_URL or "http://localhost:3000"
         reset_url = f"{frontend_base}/reset-password?token={token}"
-        await send_password_reset_email(user.email, reset_url)
+        background_tasks.add_task(send_password_reset_email, user.email, reset_url)
     return {"message": "If an account with this email exists, a reset link has been sent."}
 
 
