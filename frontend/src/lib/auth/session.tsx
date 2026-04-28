@@ -50,6 +50,18 @@ export type SessionState = {
   googleLogin: () => void
 }
 
+const PROVIDER_LABELS: Record<string, string> = {
+  google: 'Google',
+}
+
+function toOAuthProvider(name: string): OAuthProvider {
+  return {
+    provider: name,
+    label: PROVIDER_LABELS[name] ?? name,
+    enabled: true,
+  }
+}
+
 const SessionContext = createContext<SessionState | null>(null)
 
 export function SessionProvider({ children }: { children: ReactNode }) {
@@ -86,6 +98,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     queryFn: getAuthProviders,
     retry: false,
   })
+
+  const providers = useMemo<OAuthProvider[]>(
+    () => (providersQuery.data?.providers || []).map(toOAuthProvider),
+    [providersQuery.data?.providers],
+  )
 
   const healthQuery = useQuery({
     queryKey: ['health'],
@@ -234,7 +251,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     () => ({
       status,
       user: userQuery.data || null,
-      providers: providersQuery.data?.providers || [],
+      providers,
       health: healthQuery.data || null,
       authDialogOpen,
       authView,
@@ -270,7 +287,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       login,
       logout,
       openAuthDialog,
-      providersQuery.data?.providers,
+      providers,
       register,
       status,
       userQuery.data,

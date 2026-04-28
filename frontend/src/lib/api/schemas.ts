@@ -15,15 +15,18 @@ export const tokenSchema = z.object({
   token_type: z.string().default('bearer'),
 })
 
-export const oauthProviderSchema = z.object({
-  provider: z.string(),
-  enabled: z.boolean(),
-  label: z.string(),
+// The backend returns an array of provider name strings (e.g. ["google"]);
+// only enabled providers are included. The display shape (label, enabled flag)
+// is derived in the session layer.
+export const authProvidersSchema = z.object({
+  providers: z.array(z.string()).default([]),
 })
 
-export const authProvidersSchema = z.object({
-  providers: z.array(oauthProviderSchema).default([]),
-})
+export type OAuthProvider = {
+  provider: string
+  enabled: boolean
+  label: string
+}
 
 export const healthCheckSchema = z.object({
   status: z.string(),
@@ -383,7 +386,6 @@ export const portfolioResultSchema = sharedResultEnvelopeSchema
 
 export type User = z.infer<typeof userSchema>
 export type Token = z.infer<typeof tokenSchema>
-export type OAuthProvider = z.infer<typeof oauthProviderSchema>
 export type HealthCheck = z.infer<typeof healthCheckSchema>
 export type ParsedCvResult = z.infer<typeof parsedCvSchema>
 export type ImportedJobPost = z.infer<typeof importedJobSchema>
