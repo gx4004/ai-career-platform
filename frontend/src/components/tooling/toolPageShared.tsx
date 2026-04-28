@@ -23,45 +23,6 @@ const toolHeroChips: Record<ToolId, string[]> = {
   portfolio: ['Projects', 'Impact', 'Role'],
 }
 
-export const loadingStagesByTool: Record<ToolId, Array<{ label: string }>> = {
-  resume: [
-    { label: 'Reading your document...' },
-    { label: 'Scanning the resume...' },
-    { label: 'Extracting the text...' },
-    { label: 'Preparing your analysis...' },
-  ],
-  'job-match': [
-    { label: 'Reading the resume...' },
-    { label: 'Comparing against the role...' },
-    { label: 'Scoring fit and gaps...' },
-    { label: 'Preparing the match view...' },
-  ],
-  'cover-letter': [
-    { label: 'Reading your context...' },
-    { label: 'Structuring the letter...' },
-    { label: 'Tailoring the draft...' },
-    { label: 'Finalizing the letter...' },
-  ],
-  interview: [
-    { label: 'Reading your resume...' },
-    { label: 'Shaping interview questions...' },
-    { label: 'Drafting answer guidance...' },
-    { label: 'Preparing the practice deck...' },
-  ],
-  career: [
-    { label: 'Reading your experience...' },
-    { label: 'Mapping possible directions...' },
-    { label: 'Comparing role fit...' },
-    { label: 'Preparing the path options...' },
-  ],
-  portfolio: [
-    { label: 'Reading your background...' },
-    { label: 'Finding proof-building projects...' },
-    { label: 'Sequencing the roadmap...' },
-    { label: 'Preparing the plan...' },
-  ],
-}
-
 export function useToolPageState(toolId: ToolId) {
   const tool = tools[toolId]
   const config = workflowConfigs[toolId]
