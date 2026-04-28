@@ -285,11 +285,17 @@ async def match_job(resume_text: str, job_description: str) -> dict:
         )
     )
 
+    # The top-level `verdict` field is locked from the heuristic; force the
+    # `summary.verdict` to match it so the score circle and the summary card
+    # never disagree. The prompt asks the LLM to preserve locked fields
+    # exactly, but a single rule violation would otherwise render a split
+    # verdict on screen (e.g. circle reads "borderline", summary reads
+    # "stretch"). One-line guard, not a normalization layer.
     return {
         "schema_version": SCHEMA_VERSION,
         "summary": {
             "headline": str(result.get("summary", {}).get("headline") if isinstance(result.get("summary"), dict) else "") or _headline(verdict, prepass.matched_keywords, prepass.missing_keywords),
-            "verdict": str(result.get("summary", {}).get("verdict") if isinstance(result.get("summary"), dict) else "") or verdict,
+            "verdict": verdict,
             "confidence_note": str(result.get("summary", {}).get("confidence_note") if isinstance(result.get("summary"), dict) else "") or CONFIDENCE_NOTE,
         },
         "top_actions": top_actions,
