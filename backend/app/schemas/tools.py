@@ -7,57 +7,57 @@ from pydantic import BaseModel, Field, HttpUrl
 # --- Requests ---
 
 class ResumeAnalyzeRequest(BaseModel):
-    resume_text: str
-    job_description: str | None = None
+    resume_text: str = Field(..., min_length=50, max_length=50_000)
+    job_description: str | None = Field(None, max_length=20_000)
     workspace_context: WorkspaceContextInput | None = None
     parent_run_id: str | None = None
-    feedback: str | None = None
+    feedback: str | None = Field(None, max_length=2_000)
 
 
 class JobMatchRequest(BaseModel):
-    resume_text: str
-    job_description: str
+    resume_text: str = Field(..., min_length=50, max_length=50_000)
+    job_description: str = Field(..., max_length=20_000)
     workspace_context: WorkspaceContextInput | None = None
     parent_run_id: str | None = None
-    feedback: str | None = None
+    feedback: str | None = Field(None, max_length=2_000)
 
 
 class CoverLetterRequest(BaseModel):
-    resume_text: str
-    job_description: str
-    tone: str | None = None
+    resume_text: str = Field(..., min_length=50, max_length=50_000)
+    job_description: str = Field(..., max_length=20_000)
+    tone: str | None = Field(None, max_length=50)
     resume_analysis: ResumeAnalysisHandoff | None = None
     job_match: JobMatchHandoff | None = None
     workspace_context: WorkspaceContextInput | None = None
     parent_run_id: str | None = None
-    feedback: str | None = None
+    feedback: str | None = Field(None, max_length=2_000)
 
 
 class InterviewRequest(BaseModel):
-    resume_text: str
-    job_description: str
+    resume_text: str = Field(..., min_length=50, max_length=50_000)
+    job_description: str = Field(..., max_length=20_000)
     num_questions: int | None = Field(None, ge=1, le=20)
     resume_analysis: ResumeAnalysisHandoff | None = None
     job_match: JobMatchHandoff | None = None
     workspace_context: WorkspaceContextInput | None = None
     parent_run_id: str | None = None
-    feedback: str | None = None
+    feedback: str | None = Field(None, max_length=2_000)
 
 
 class CareerRequest(BaseModel):
-    resume_text: str
-    target_role: str | None = None
+    resume_text: str = Field(..., min_length=50, max_length=50_000)
+    target_role: str | None = Field(None, max_length=200)
     workspace_context: WorkspaceContextInput | None = None
     parent_run_id: str | None = None
-    feedback: str | None = None
+    feedback: str | None = Field(None, max_length=2_000)
 
 
 class PortfolioRequest(BaseModel):
-    resume_text: str
-    target_role: str
+    resume_text: str = Field(..., min_length=50, max_length=50_000)
+    target_role: str = Field(..., max_length=200)
     workspace_context: WorkspaceContextInput | None = None
     parent_run_id: str | None = None
-    feedback: str | None = None
+    feedback: str | None = Field(None, max_length=2_000)
 
 
 class ImportJobUrlRequest(BaseModel):
@@ -334,9 +334,9 @@ class PortfolioResponse(SharedResultEnvelope):
 
 
 class InterviewPracticeFeedbackRequest(BaseModel):
-    question: str
-    user_answer: str
-    model_answer: str | None = None
+    question: str = Field(..., max_length=4_000)
+    user_answer: str = Field(..., max_length=8_000)
+    model_answer: str | None = Field(None, max_length=4_000)
 
 
 class InterviewPracticeFeedbackResponse(BaseModel):
