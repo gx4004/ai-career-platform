@@ -3185,10 +3185,12 @@
   color: var(--text-body);
 }
 
-.cl-document__signoff-name {
-  font-weight: 700;
-  color: var(--text-strong);
+.cl-document__signature-hint {
   margin-top: 1rem;
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  font-style: italic;
+  white-space: pre-line;
 }
 
 /* Sidebar */

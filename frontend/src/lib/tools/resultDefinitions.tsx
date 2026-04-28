@@ -1108,6 +1108,7 @@ function CoverLetterView({ payload }: { payload: AnyObject }) {
               value={closingText}
               onChange={(e) => setClosingText(e.target.value)}
             />
+            <p className="cl-document__signature-hint">Sincerely,<br />[Your name]</p>
           </div>
         </div>
       </div>
