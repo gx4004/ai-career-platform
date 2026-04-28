@@ -14,6 +14,11 @@ import { tools } from '#/lib/tools/registry'
  */
 const transientResults = new Map<string, ToolRunDetail>()
 const SESSION_KEY_PREFIX = 'cw:demo-result:'
+const DEMO_ID_PATTERN = /^[a-z][a-z-]*-demo-\d+$/
+
+export function isDemoHistoryId(id: string): boolean {
+  return DEMO_ID_PATTERN.test(id)
+}
 
 export function setTransientResult(
   toolId: ToolId,
