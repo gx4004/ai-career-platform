@@ -1,9 +1,17 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { Pin, Search, Star, Trash2 } from 'lucide-react'
 import { Badge } from '#/components/ui/badge'
 import { Button } from '#/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '#/components/ui/dialog'
 import { Input } from '#/components/ui/input'
 import { Skeleton } from '#/components/ui/skeleton'
 import { PageFrame } from '#/components/app/PageFrame'
@@ -46,6 +54,20 @@ export function HistoryPage({
   const queryClient = useQueryClient()
   const page = search.page ?? 1
   const pageSize = search.page_size ?? 12
+
+  const [searchInput, setSearchInput] = useState(search.q ?? '')
+  useEffect(() => {
+    setSearchInput(search.q ?? '')
+  }, [search.q])
+  const searchDebounceRef = useRef<number | null>(null)
+  useEffect(() => {
+    return () => {
+      if (searchDebounceRef.current !== null) {
+        window.clearTimeout(searchDebounceRef.current)
+      }
+    }
+  }, [])
+
   const listQuery = useHistory(
     {
       ...search,
@@ -68,9 +90,11 @@ export function HistoryPage({
   const [actionError, setActionError] = useState<string | null>(null)
   const [continuingId, setContinuingId] = useState<string | null>(null)
   const [workspaceDrafts, setWorkspaceDrafts] = useState<Record<string, string>>({})
+  const [deleteCandidate, setDeleteCandidate] = useState<{ id: string; label: string } | null>(null)
   const deleteMutation = useMutation({
     mutationFn: deleteHistoryItem,
     onSuccess: async () => {
+      setDeleteCandidate(null)
       await queryClient.invalidateQueries({ queryKey: ['history-page'] })
     },
     onError: (error) => {
@@ -255,8 +279,17 @@ export function HistoryPage({
           <div className="relative min-w-[18rem] flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" size={16} />
             <Input
-              value={search.q || ''}
-              onChange={(event) => onSearchChange({ q: event.target.value, page: 1 })}
+              value={searchInput}
+              onChange={(event) => {
+                const next = event.target.value
+                setSearchInput(next)
+                if (searchDebounceRef.current !== null) {
+                  window.clearTimeout(searchDebounceRef.current)
+                }
+                searchDebounceRef.current = window.setTimeout(() => {
+                  onSearchChange({ q: next || undefined, page: 1 })
+                }, 200)
+              }}
               placeholder="Search by saved label"
               className="pl-10"
             />
@@ -519,7 +552,16 @@ export function HistoryPage({
                           variant="outline"
                           size="icon-sm"
                           className="button-destructive-soft"
-                          onClick={() => deleteMutation.mutate(item.id)}
+                          aria-label="Delete this saved run"
+                          onClick={() =>
+                            setDeleteCandidate({
+                              id: item.id,
+                              label:
+                                item.label ||
+                                item.metadata.primary_recommendation_title ||
+                                'Untitled run',
+                            })
+                          }
                           disabled={deleteMutation.isPending && deleteMutation.variables === item.id}
                         >
                           <Trash2 size={14} />
@@ -599,6 +641,48 @@ export function HistoryPage({
           </Button>
         </div>
       </section>
+      <Dialog
+        open={deleteCandidate !== null}
+        onOpenChange={(open) => {
+          if (!open && !deleteMutation.isPending) {
+            setDeleteCandidate(null)
+          }
+        }}
+      >
+        <DialogContent showCloseButton={!deleteMutation.isPending}>
+          <DialogHeader>
+            <DialogTitle>Delete this saved run?</DialogTitle>
+            <DialogDescription>
+              {deleteCandidate
+                ? `"${deleteCandidate.label}" will be permanently removed from your workspace timeline. This cannot be undone.`
+                : 'This run will be permanently removed.'}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setDeleteCandidate(null)}
+              disabled={deleteMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="outline"
+              className="button-destructive-soft"
+              onClick={() => {
+                if (deleteCandidate) {
+                  deleteMutation.mutate(deleteCandidate.id)
+                }
+              }}
+              loading={deleteMutation.isPending}
+              disabled={!deleteCandidate || deleteMutation.isPending}
+            >
+              <Trash2 size={14} className="mr-1.5" />
+              {deleteMutation.isPending ? 'Deleting…' : 'Delete run'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </PageFrame>
   )
 }
