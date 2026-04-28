@@ -88,20 +88,21 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
                 user.full_name = full_name
             db.commit()
         else:
-            if not email_verified:
-                logger.warning(
-                    "Blocking Google OAuth signup: email not verified by Google (email=%s)",
-                    email,
-                )
-                return _oauth_error_redirect("unverified_email")
-            user = User(
-                email=email,
-                google_id=google_id,
-                full_name=full_name,
+            # New-user path. The email registration flow now requires an
+            # explicit ToS checkbox (RegisterRequest.tos_accepted). If we
+            # silently created a User here, OAuth signups would bypass that
+            # consent gate. Until we ship a ToS-acceptance flow on the
+            # OAuth side (e.g. signed state carrying the consent or a
+            # post-callback /terms-acceptance interstitial), redirect new
+            # OAuth users to the email signup form instead. Existing Google
+            # accounts (already-linked users) are unaffected — the lookup
+            # by google_id above succeeds and we never reach this branch.
+            logger.info(
+                "Blocking Google OAuth signup: no existing account, ToS gate not yet "
+                "wired for OAuth (email=%s)",
+                email,
             )
-            db.add(user)
-            db.commit()
-            db.refresh(user)
+            return _oauth_error_redirect("signup_via_email_required")
 
     access = create_access_token(user.id)
     refresh = create_refresh_token(user.id, user.token_version)

@@ -409,6 +409,12 @@ export function logout() {
   })
 }
 
-export async function deleteAccount(): Promise<void> {
-  await request<unknown>('/auth/me', { method: 'DELETE' })
+export async function deleteAccount(confirmation: string): Promise<void> {
+  // The confirmation string must match the authenticated user's email.
+  // The backend re-validates it server-side so a direct API call cannot
+  // bypass the typed-confirmation ceremony the Settings UI imposes.
+  await request<unknown>('/auth/me/delete', {
+    method: 'POST',
+    body: { confirmation },
+  })
 }

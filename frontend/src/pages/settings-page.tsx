@@ -72,7 +72,9 @@ export function SettingsPage() {
     setDeleteSubmitting(true)
     setDeleteError(null)
     try {
-      await deleteAccount()
+      // The trimmed input is what the UI gate validated; send it to the
+      // backend so the server-side check sees the same string.
+      await deleteAccount(deleteConfirmInput.trim())
       // Backend clears auth cookies on its 204 response. Wipe local
       // sessionStorage state so a stale tab doesn't think the user is
       // still signed in, then exit to the landing page.
