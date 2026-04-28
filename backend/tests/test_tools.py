@@ -486,15 +486,11 @@ def test_guest_demo_run_does_not_create_history(client, db, mock_ai_result):
 # ---------- edge cases ----------
 
 
-def test_job_match_with_empty_job_description_returns_heuristic(client, auth_headers, mock_ai_result):
-    mock_ai_result(
-        {
-            "requirements": [],
-            "tailoring_actions": [],
-            "interview_focus": [],
-            "recruiter_summary": "No job description provided.",
-        }
-    )
+def test_job_match_rejects_short_job_description(client, auth_headers):
+    """Empty / too-short JDs short-circuit to the no-data heuristic (match_score
+    falls to the 58% no-data fallback constant, requirements list is empty).
+    The resulting page reads as a phantom match. Reject at the schema layer
+    instead — the user gets a clean 422 and never sees fictitious numbers."""
     resp = client.post(
         f"{PREFIX}/job-match/match",
         json={
@@ -503,11 +499,20 @@ def test_job_match_with_empty_job_description_returns_heuristic(client, auth_hea
         },
         headers=auth_headers,
     )
-    assert resp.status_code == 200
-    data = resp.json()
-    assert data["schema_version"] == "quality_v2"
-    assert isinstance(data["matched_keywords"], list)
-    assert isinstance(data["missing_keywords"], list)
+    assert resp.status_code == 422
+    detail = resp.json().get("detail", [])
+    assert any("job_description" in str(item.get("loc", [])) for item in detail)
+
+    # A 19-char JD is also rejected (below min_length=20).
+    resp_short = client.post(
+        f"{PREFIX}/job-match/match",
+        json={
+            "resume_text": "Some resume content with Python and SQL experience and a track record of shipping APIs.",
+            "job_description": "x" * 19,
+        },
+        headers=auth_headers,
+    )
+    assert resp_short.status_code == 422
 
 
 def test_resume_analyze_malformed_llm_json(client, auth_headers, mock_ai_result):

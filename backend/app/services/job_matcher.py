@@ -276,20 +276,33 @@ async def match_job(resume_text: str, job_description: str) -> dict:
                 }
             )
 
-    recruiter_summary = str(
-        result.get("recruiter_summary")
-        or (
+    # Only synthesize a heuristic recruiter summary when the prepass has real
+    # signal to work with. Otherwise return an empty string and let the
+    # frontend hide the right column instead of showing a generic templated
+    # sentence about "some relevant experience" / "the key job requirements".
+    llm_recruiter_summary = str(result.get("recruiter_summary") or "").strip()
+    if llm_recruiter_summary:
+        recruiter_summary = llm_recruiter_summary
+    elif prepass.matched_keywords or prepass.missing_keywords:
+        recruiter_summary = (
             f"This resume shows evidence for {', '.join(prepass.matched_keywords[:4]) or 'some relevant experience'}, "
             f"but it still needs clearer proof for {', '.join(prepass.missing_keywords[:4]) or 'the key job requirements'} "
             f"to read as a stronger match."
         )
-    )
+    else:
+        recruiter_summary = ""
 
+    # The top-level `verdict` field is locked from the heuristic; force the
+    # `summary.verdict` to match it so the score circle and the summary card
+    # never disagree. The prompt asks the LLM to preserve locked fields
+    # exactly, but a single rule violation would otherwise render a split
+    # verdict on screen (e.g. circle reads "borderline", summary reads
+    # "stretch"). One-line guard, not a normalization layer.
     return {
         "schema_version": SCHEMA_VERSION,
         "summary": {
             "headline": str(result.get("summary", {}).get("headline") if isinstance(result.get("summary"), dict) else "") or _headline(verdict, prepass.matched_keywords, prepass.missing_keywords),
-            "verdict": str(result.get("summary", {}).get("verdict") if isinstance(result.get("summary"), dict) else "") or verdict,
+            "verdict": verdict,
             "confidence_note": str(result.get("summary", {}).get("confidence_note") if isinstance(result.get("summary"), dict) else "") or CONFIDENCE_NOTE,
         },
         "top_actions": top_actions,

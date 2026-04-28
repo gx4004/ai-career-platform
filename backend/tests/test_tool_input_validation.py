@@ -153,6 +153,17 @@ def test_job_description_max_length(client, auth_headers, path, base_payload, _p
     assert resp.status_code == 422
 
 
+def test_job_match_job_description_min_length(client, auth_headers, _patch_ai):
+    """Only Job Match enforces min_length on job_description — empty/thin JDs
+    would otherwise produce a phantom 58% match score with 0/0 requirements."""
+    payload = {
+        "resume_text": VALID_RESUME,
+        "job_description": "x" * 19,
+    }
+    resp = client.post(f"{PREFIX}/job-match/match", json=payload, headers=auth_headers)
+    assert resp.status_code == 422
+
+
 @pytest.mark.parametrize(
     "path,base_payload",
     [

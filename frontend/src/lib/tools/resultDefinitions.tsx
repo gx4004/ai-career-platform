@@ -401,7 +401,11 @@ function normalizeJobMatchPayload(payload: AnyObject): JobMatchResultPayload {
       action: toString(item.action) || 'Add a more specific proof point for this keyword.',
     })),
     interviewFocus: toStringArray(payload.interview_focus),
-    recruiterSummary: toString(payload.recruiter_summary) || 'No recruiter summary was returned.',
+    // No literal-default fallback — when the backend has no real signal it
+    // returns ''. JobMatchView reads this via `hasRightContent` and hides
+    // the recruiter card instead of rendering a "No recruiter summary was
+    // returned." placeholder on the demo page.
+    recruiterSummary: toString(payload.recruiter_summary),
   }
 }
 
@@ -810,14 +814,19 @@ function ResumeResultView({ payload }: { payload: AnyObject }) {
 function JobMatchHeroExtra({ payload }: { payload: AnyObject }) {
   const result = normalizeJobMatchPayload(payload)
   const met = result.requirements.filter((r) => r.status === 'matched').length
+  const totalReqs = result.requirements.length
 
   return (
     <div className="hero-stat-strip">
-      <div className="hero-stat-strip__item">
-        <CheckCircle2 size={16} style={{ color: '#22c55e' }} />
-        <span>{met}/{result.requirements.length} requirements met</span>
-      </div>
-      <div className="hero-stat-strip__divider" />
+      {totalReqs > 0 && (
+        <>
+          <div className="hero-stat-strip__item">
+            <CheckCircle2 size={16} style={{ color: '#22c55e' }} />
+            <span>{met}/{totalReqs} requirements met</span>
+          </div>
+          <div className="hero-stat-strip__divider" />
+        </>
+      )}
       <div className="hero-stat-strip__item">
         <Hash size={16} style={{ color: '#22c55e' }} />
         <span>{result.matchedKeywords.length} keywords matched</span>
@@ -840,6 +849,7 @@ function JobMatchView({ payload }: { payload: AnyObject }) {
       {/* ── Left column ── */}
       <div className="resume-body-left">
         {/* Requirements card */}
+        {result.requirements.length > 0 && (
         <ScrollReveal>
         <div className="feedback-card">
           <div className="feedback-card__header">
@@ -897,6 +907,7 @@ function JobMatchView({ payload }: { payload: AnyObject }) {
           </div>
         </div>
         </ScrollReveal>
+        )}
 
         {/* Tailoring Actions */}
         {result.tailoringActions.length > 0 && (
@@ -1917,7 +1928,13 @@ export const resultDefinitions: Record<ToolId, ResultDefinition> = {
     heroVariant: 'dark',
     heroMetric: (payload) => {
       const r = normalizeJobMatchPayload(payload)
-      return <ScoreCircleSvg score={r.matchScore} size={192} />
+      return (
+        <ScoreCircleSvg
+          score={r.matchScore}
+          size={192}
+          ariaLabel={`Job match score: ${r.matchScore} out of 100`}
+        />
+      )
     },
     heroExtra: (payload) => <JobMatchHeroExtra payload={payload} />,
     midSection: (payload) => <FixFirstStrip actions={normalizeJobMatchPayload(payload).topActions} showFooter={false} />,
