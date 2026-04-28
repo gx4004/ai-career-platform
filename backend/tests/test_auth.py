@@ -135,6 +135,32 @@ def test_delete_account_requires_authentication(client):
     assert resp.status_code in (401, 403)
 
 
+def test_password_reset_request_schedules_email_as_background_task(client, test_user, monkeypatch):
+    sent: list[tuple[str, str]] = []
+
+    async def fake_send(to_email: str, reset_url: str) -> bool:
+        sent.append((to_email, reset_url))
+        return True
+
+    monkeypatch.setattr("app.routers.auth.send_password_reset_email", fake_send)
+
+    existing_resp = client.post(
+        f"{PREFIX}/password-reset/request",
+        json={"email": test_user.email},
+    )
+    nobody_resp = client.post(
+        f"{PREFIX}/password-reset/request",
+        json={"email": "nobody@example.com"},
+    )
+
+    assert existing_resp.status_code == 200
+    assert nobody_resp.status_code == 200
+    assert existing_resp.json() == nobody_resp.json()
+
+    assert len(sent) == 1
+    assert sent[0][0] == test_user.email
+
+
 def test_login_blocks_deactivated_user(client, test_user, db):
     test_user.is_active = False
     db.add(test_user)
