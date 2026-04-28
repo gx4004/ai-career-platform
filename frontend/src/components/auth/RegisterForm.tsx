@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { usePostHog } from 'posthog-js/react'
+import { Link } from '@tanstack/react-router'
 import { AlertCircle, Eye, EyeOff } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { Input } from '#/components/ui/input'
@@ -34,12 +34,12 @@ export function RegisterForm({
 }: {
   onSuccess?: () => void
 }) {
-  const posthog = usePostHog()
   const { register, googleLogin, authError } = useSession()
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
+  const [tosAccepted, setTosAccepted] = useState(false)
   const [loading, setLoading] = useState(false)
 
   return (
@@ -50,7 +50,6 @@ export function RegisterForm({
         size="lg"
         className="auth-submit auth-google w-full"
         onClick={() => {
-          posthog.capture('google_auth_initiated', { action: 'signup' })
           googleLogin()
         }}
       >
@@ -68,14 +67,15 @@ export function RegisterForm({
         className="grid gap-5"
         onSubmit={async (event) => {
           event.preventDefault()
+          if (!tosAccepted) return
           setLoading(true)
           try {
             await register({
               email,
               password,
               full_name: fullName || undefined,
+              tos_accepted: tosAccepted,
             })
-            posthog.capture('user_signed_up', { method: 'email' })
             onSuccess?.()
           } catch {
             // Error displayed via session authError state
@@ -136,6 +136,30 @@ export function RegisterForm({
             </button>
           </div>
         </div>
+        <div className="flex items-start gap-2.5">
+          <input
+            id="register-tos"
+            type="checkbox"
+            checked={tosAccepted}
+            onChange={(event) => setTosAccepted(event.target.checked)}
+            required
+            className="mt-1 size-4 rounded border border-input bg-background accent-foreground"
+          />
+          <Label
+            htmlFor="register-tos"
+            className="text-sm font-normal leading-relaxed text-muted-foreground"
+          >
+            I agree to the{' '}
+            <Link to="/terms" className="underline hover:text-foreground">
+              Terms of Service
+            </Link>{' '}
+            and{' '}
+            <Link to="/privacy" className="underline hover:text-foreground">
+              Privacy Policy
+            </Link>
+            .
+          </Label>
+        </div>
         <div className="min-h-[2.5rem]">
           {authError ? (
             <div
@@ -152,6 +176,7 @@ export function RegisterForm({
           size="lg"
           className="auth-submit w-full"
           loading={loading}
+          disabled={!tosAccepted}
         >
           Create free account
         </Button>

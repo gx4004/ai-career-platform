@@ -27,7 +27,7 @@ AI-powered job-search workspace. 6 tools (Resume Analyzer, Job Match, Cover Lett
 | Client-side ad unlock (sessionStorage) | Bypass risk accepted, pragmatic for V1 (currently bypassed for thesis demo) |
 | English only V1 | Realistic scope for solo dev |
 | In-memory cache V1 | Redis V1.1 when traffic warrants |
-| 3 retry + exponential backoff for LLM | 1s→2s→4s, then tool-specific fallback |
+| 4 retry + exponential backoff for LLM | 5s→10s→20s→40s + jitter, 120s per-call timeout, then tool-specific fallback (heuristic for Resume / Job Match, explicit error for generative tools) |
 | Admin panel integrated in main frontend | No separate app, /admin/* routes |
 
 ## File Structure
@@ -79,7 +79,7 @@ cd backend && alembic upgrade head        # Run migrations
 - Tool input pages: dark-to-light gradient hero (tool-input-hero) with per-tool animations + chips, form surface below
 - Result pages: premium redesign with dark hero variant (Resume/Job Match), heroExtra sections, midSection (Fix First cards), per-tool views
 - Deploy: push to both `main` and `deploy` branches (`git push origin main && git push origin main:deploy`). Railway watches `deploy`.
-- Mobile: bottom tab bar, SwipeDeck for interview, StickyRunBar, FullScreenEditSheet
+- Mobile: bottom tab bar (`MobileNav`) + tools sheet (`ToolGridSheet`); responsive CSS for the existing layouts. No bespoke mobile-only components beyond those.
 - Re-generate always creates new ToolRun row (parent_run_id chain, never overwrite)
 - Guest runs: in-memory Map only, never persisted, drives signup conversion
 - Workflow context: sessionStorage, tab-scoped, no cross-tab sync

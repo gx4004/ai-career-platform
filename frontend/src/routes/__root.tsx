@@ -17,7 +17,6 @@ import { AppRouteError } from '#/components/app/AppRouteError'
 import { AppShell } from '#/components/app/AppShell'
 import { CookieConsent } from '#/components/app/CookieConsent'
 import { AnimatePresence, motion, MotionConfig } from '#/components/ui/motion'
-import { PostHogProvider } from 'posthog-js/react'
 import { SessionProvider } from '#/lib/auth/session'
 import { queryClient } from '#/lib/query/queryClient'
 import appCss from '#/styles.css?url'
@@ -137,20 +136,6 @@ function RootDocument({ children }: { children: ReactNode }) {
         <HeadContent />
       </head>
       <body>
-        <PostHogProvider
-          apiKey={import.meta.env.VITE_PUBLIC_POSTHOG_PROJECT_TOKEN!}
-          options={{
-            api_host: import.meta.env.VITE_PUBLIC_POSTHOG_INGESTION_HOST || 'https://us.i.posthog.com',
-            ui_host: import.meta.env.VITE_PUBLIC_POSTHOG_HOST || 'https://us.posthog.com',
-            defaults: '2025-05-24',
-            capture_exceptions: true,
-            debug: import.meta.env.DEV,
-            session_recording: {
-              maskAllInputs: false,
-              maskInputOptions: { password: true, email: true },
-            },
-          }}
-        >
         <QueryClientProvider client={queryClient}>
           <SessionProvider>
             <MotionConfig reducedMotion="user">
@@ -161,7 +146,6 @@ function RootDocument({ children }: { children: ReactNode }) {
             </MotionConfig>
           </SessionProvider>
         </QueryClientProvider>
-        </PostHogProvider>
         <Scripts />
       </body>
     </html>

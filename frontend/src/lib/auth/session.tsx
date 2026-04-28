@@ -8,7 +8,6 @@ import {
   useState,
 } from 'react'
 import type { ReactNode } from 'react'
-import { usePostHog } from 'posthog-js/react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   API_URL,
@@ -45,6 +44,7 @@ export type SessionState = {
     email: string
     password: string
     full_name?: string
+    tos_accepted: boolean
   }) => Promise<void>
   logout: () => Promise<void>
   googleLogin: () => void
@@ -62,7 +62,6 @@ const NO_PROVIDERS: OAuthProvider[] = []
 const SessionContext = createContext<SessionState | null>(null)
 
 export function SessionProvider({ children }: { children: ReactNode }) {
-  const posthog = usePostHog()
   const queryClient = useQueryClient()
   const [authDialogOpen, setAuthDialogOpen] = useState(false)
   const [authView, setAuthView] = useState<'login' | 'register'>('login')
@@ -112,7 +111,6 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     const handleExpired = () => {
       if (!hadAuthRef.current) return
       hadAuthRef.current = false
-      posthog.reset()
       queryClient.removeQueries({ queryKey: ['history-page'] })
       queryClient.removeQueries({ queryKey: ['history-workspaces'] })
       queryClient.removeQueries({ queryKey: ['tool-run'] })
@@ -122,7 +120,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     }
     window.addEventListener('cw:session-expired', handleExpired)
     return () => window.removeEventListener('cw:session-expired', handleExpired)
-  }, [queryClient, posthog])
+  }, [queryClient])
 
   const closeAuthDialog = useCallback(() => {
     setAuthDialogOpen(false)
@@ -153,8 +151,6 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const openAuthDialog = useCallback<SessionState['openAuthDialog']>(
     (intent, action) => {
-      posthog.capture('login_redirect_triggered', { reason: intent?.reason || undefined })
-
       if (intent) {
         writePendingIntent({
           ...intent,
@@ -167,7 +163,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       // Navigate to /login instead of opening a popup dialog
       navigateToPath('/login')
     },
-    [posthog],
+    [],
   )
 
   const completeAuthentication = useCallback(async () => {
@@ -198,18 +194,13 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     [completeAuthentication],
   )
 
-  // Identify user in PostHog when authentication state resolves.
-  // Also flips `hadAuthRef` so future 401s are treated as expiry, not anon-probe.
+  // Flip `hadAuthRef` once an authenticated user resolves so future 401s
+  // are treated as expiry, not as a first-load anon probe.
   useEffect(() => {
-    const user = userQuery.data
-    if (user) {
+    if (userQuery.data) {
       hadAuthRef.current = true
-      posthog.identify(String(user.id), {
-        email: user.email,
-        name: user.full_name || undefined,
-      })
     }
-  }, [userQuery.data, posthog])
+  }, [userQuery.data])
 
   const googleLogin = useCallback(() => {
     window.location.href = `${API_URL}/auth/google/login`
@@ -221,8 +212,6 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     } catch {
       // Local session cleanup still runs so the UI does not stay stuck.
     } finally {
-      posthog.capture('user_logged_out')
-      posthog.reset()
       clearPendingIntent()
       pendingActionRef.current = null
       setAuthDialogOpen(false)
@@ -234,7 +223,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       queryClient.setQueryData(['current-user'], null)
       await queryClient.invalidateQueries({ queryKey: ['current-user'] })
     }
-  }, [queryClient, posthog])
+  }, [queryClient])
 
   const status: SessionState['status'] = userQuery.isPending
     ? 'loading'

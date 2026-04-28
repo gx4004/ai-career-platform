@@ -153,41 +153,12 @@ export const landingExperimentHeroCopy = {
   },
 } as const
 
-export const landingSocialProofStat = {
-  value: '2,400+',
-  label: 'resumes analyzed so far',
-} as const
-
-export const landingTestimonials = [
-  {
-    initials: 'AI',
-    name: 'Aisha',
-    role: 'Product Manager',
-    quote:
-      'The blind spot analysis found three missing keywords that were keeping me from getting interviews at Tier 1 tech firms.',
-  },
-  {
-    initials: 'DA',
-    name: 'Daniel',
-    role: 'Data Analyst',
-    quote:
-      'I finally understand why my profile wasn\u2019t matching. The Job Match tool is a game changer for tailored applications.',
-  },
-  {
-    initials: 'SA',
-    name: 'Sarah',
-    role: 'Sales Exec',
-    quote:
-      'Went from zero callbacks to three interviews in one week. The AI-generated cover letters actually sound human.',
-  },
-  {
-    initials: 'TO',
-    name: 'Tom\u00e1s',
-    role: 'Frontend Engineer',
-    quote:
-      'Simple, focused, and effective. The workflow moved me from being overwhelmed to being fully prepared.',
-  },
-] as const
+// Social proof: removed for the thesis demo. The previous exports here were
+// a fabricated `2,400+ resumes analyzed` stat and four invented testimonials
+// (Aisha / Daniel / Sarah / Tom\u00e1s). Real traction numbers and real quotes
+// belong here once they exist; until then LandingSocialProof renders a short
+// project-disclosure paragraph and consumers should not import a "stat" or
+// "testimonials" array from this module.
 
 export const landingWorkflowFeatures = [
   {
@@ -347,5 +318,5 @@ export const landingCtaCopy = {
     'No account needed',
   ],
   ctaLabel: 'Upload your resume \u2014 Free',
-  trustLine: `Join ${landingSocialProofStat.value} job seekers who started here`,
+  trustLine: 'Free to try \u2014 no signup required',
 } as const

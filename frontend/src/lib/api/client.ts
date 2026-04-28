@@ -190,10 +190,11 @@ export function register(payload: {
   password: string
   full_name?: string
   captcha_token?: string
+  tos_accepted: boolean
 }) {
   return request('/auth/register', {
     method: 'POST',
-    body: { ...payload, tos_accepted: true },
+    body: payload,
     schema: userSchema,
   })
 }
@@ -405,5 +406,15 @@ export async function refreshToken(): Promise<void> {
 export function logout() {
   return request<{ ok: boolean }>('/auth/logout', {
     method: 'POST',
+  })
+}
+
+export async function deleteAccount(confirmation: string): Promise<void> {
+  // The confirmation string must match the authenticated user's email.
+  // The backend re-validates it server-side so a direct API call cannot
+  // bypass the typed-confirmation ceremony the Settings UI imposes.
+  await request<unknown>('/auth/me/delete', {
+    method: 'POST',
+    body: { confirmation },
   })
 }

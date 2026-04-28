@@ -28,7 +28,6 @@ import { Route as AdminRouteImport } from './routes/admin'
 import { Route as AccountRouteImport } from './routes/account'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminIndexRouteImport } from './routes/admin/index'
-import { Route as AuthCallbackRouteImport } from './routes/auth.callback'
 import { Route as AdminUsersRouteImport } from './routes/admin/users'
 import { Route as AdminRunsRouteImport } from './routes/admin/runs'
 import { Route as ResumeResultHistoryIdRouteImport } from './routes/resume_.result.$historyId'
@@ -133,11 +132,6 @@ const AdminIndexRoute = AdminIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AdminRoute,
 } as any)
-const AuthCallbackRoute = AuthCallbackRouteImport.update({
-  id: '/auth/callback',
-  path: '/auth/callback',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const AdminUsersRoute = AdminUsersRouteImport.update({
   id: '/users',
   path: '/users',
@@ -203,7 +197,6 @@ export interface FileRoutesByFullPath {
   '/terms': typeof TermsRoute
   '/admin/runs': typeof AdminRunsRoute
   '/admin/users': typeof AdminUsersRoute
-  '/auth/callback': typeof AuthCallbackRoute
   '/admin/': typeof AdminIndexRoute
   '/career/result/$historyId': typeof CareerResultHistoryIdRoute
   '/cover-letter/result/$historyId': typeof CoverLetterResultHistoryIdRoute
@@ -232,7 +225,6 @@ export interface FileRoutesByTo {
   '/terms': typeof TermsRoute
   '/admin/runs': typeof AdminRunsRoute
   '/admin/users': typeof AdminUsersRoute
-  '/auth/callback': typeof AuthCallbackRoute
   '/admin': typeof AdminIndexRoute
   '/career/result/$historyId': typeof CareerResultHistoryIdRoute
   '/cover-letter/result/$historyId': typeof CoverLetterResultHistoryIdRoute
@@ -263,7 +255,6 @@ export interface FileRoutesById {
   '/terms': typeof TermsRoute
   '/admin/runs': typeof AdminRunsRoute
   '/admin/users': typeof AdminUsersRoute
-  '/auth/callback': typeof AuthCallbackRoute
   '/admin/': typeof AdminIndexRoute
   '/career_/result/$historyId': typeof CareerResultHistoryIdRoute
   '/cover-letter_/result/$historyId': typeof CoverLetterResultHistoryIdRoute
@@ -295,7 +286,6 @@ export interface FileRouteTypes {
     | '/terms'
     | '/admin/runs'
     | '/admin/users'
-    | '/auth/callback'
     | '/admin/'
     | '/career/result/$historyId'
     | '/cover-letter/result/$historyId'
@@ -324,7 +314,6 @@ export interface FileRouteTypes {
     | '/terms'
     | '/admin/runs'
     | '/admin/users'
-    | '/auth/callback'
     | '/admin'
     | '/career/result/$historyId'
     | '/cover-letter/result/$historyId'
@@ -354,7 +343,6 @@ export interface FileRouteTypes {
     | '/terms'
     | '/admin/runs'
     | '/admin/users'
-    | '/auth/callback'
     | '/admin/'
     | '/career_/result/$historyId'
     | '/cover-letter_/result/$historyId'
@@ -383,7 +371,6 @@ export interface RootRouteChildren {
   ResumeRoute: typeof ResumeRoute
   SettingsRoute: typeof SettingsRoute
   TermsRoute: typeof TermsRoute
-  AuthCallbackRoute: typeof AuthCallbackRoute
   CareerResultHistoryIdRoute: typeof CareerResultHistoryIdRoute
   CoverLetterResultHistoryIdRoute: typeof CoverLetterResultHistoryIdRoute
   InterviewResultHistoryIdRoute: typeof InterviewResultHistoryIdRoute
@@ -527,13 +514,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminIndexRouteImport
       parentRoute: typeof AdminRoute
     }
-    '/auth/callback': {
-      id: '/auth/callback'
-      path: '/auth/callback'
-      fullPath: '/auth/callback'
-      preLoaderRoute: typeof AuthCallbackRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/admin/users': {
       id: '/admin/users'
       path: '/users'
@@ -626,7 +606,6 @@ const rootRouteChildren: RootRouteChildren = {
   ResumeRoute: ResumeRoute,
   SettingsRoute: SettingsRoute,
   TermsRoute: TermsRoute,
-  AuthCallbackRoute: AuthCallbackRoute,
   CareerResultHistoryIdRoute: CareerResultHistoryIdRoute,
   CoverLetterResultHistoryIdRoute: CoverLetterResultHistoryIdRoute,
   InterviewResultHistoryIdRoute: InterviewResultHistoryIdRoute,
