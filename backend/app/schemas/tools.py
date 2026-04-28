@@ -27,7 +27,10 @@ class JobMatchRequest(BaseModel):
 
 class CoverLetterRequest(BaseModel):
     resume_text: str = Field(..., min_length=50, max_length=50_000)
-    job_description: str = Field(..., max_length=20_000)
+    # min_length mirrors Job Match: a thin/empty JD makes the heuristic fall
+    # back to a generic "this role" letter labelled as "targeted draft", which
+    # is worse than a clear input error on a thesis demo.
+    job_description: str = Field(..., min_length=20, max_length=20_000)
     tone: str | None = Field(None, max_length=50)
     resume_analysis: ResumeAnalysisHandoff | None = None
     job_match: JobMatchHandoff | None = None

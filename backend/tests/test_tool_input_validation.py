@@ -154,13 +154,24 @@ def test_job_description_max_length(client, auth_headers, path, base_payload, _p
 
 
 def test_job_match_job_description_min_length(client, auth_headers, _patch_ai):
-    """Only Job Match enforces min_length on job_description — empty/thin JDs
+    """Job Match enforces min_length on job_description — empty/thin JDs
     would otherwise produce a phantom 58% match score with 0/0 requirements."""
     payload = {
         "resume_text": VALID_RESUME,
         "job_description": "x" * 19,
     }
     resp = client.post(f"{PREFIX}/job-match/match", json=payload, headers=auth_headers)
+    assert resp.status_code == 422
+
+
+def test_cover_letter_job_description_min_length(client, auth_headers, _patch_ai):
+    """Cover Letter mirrors Job Match: a thin JD produces a generic "this role"
+    letter dressed as a targeted draft — worse than an explicit input error."""
+    payload = {
+        "resume_text": VALID_RESUME,
+        "job_description": "x" * 19,
+    }
+    resp = client.post(f"{PREFIX}/cover-letter/generate", json=payload, headers=auth_headers)
     assert resp.status_code == 422
 
 
