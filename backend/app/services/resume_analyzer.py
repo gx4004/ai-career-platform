@@ -158,6 +158,9 @@ def _normalize_summary(result: dict, overall_score: int, prepass: ResumePrepass)
     }
 
 
+_SEVERITY_ORDER = {"high": 0, "medium": 1, "low": 2}
+
+
 def _normalize_issues(
     result: dict,
     prepass: ResumePrepass,
@@ -187,6 +190,7 @@ def _normalize_issues(
         )
 
     if normalized:
+        normalized.sort(key=lambda issue: _SEVERITY_ORDER.get(issue["severity"], 1))
         return normalized[:5]
     return _heuristic_issues(prepass, score_breakdown)
 

@@ -134,6 +134,64 @@ async def test_job_match_for_aligned_resume_surfaces_missing_keyword_focus(monke
 
 
 @pytest.mark.asyncio
+async def test_resume_analyze_orders_issues_by_severity(monkeypatch):
+    """LLMs return issues in arbitrary order. The Fix First strip lights up
+    the first three actions in cards 1/2/3, so a low-priority item must
+    not land in the loudest visual slot."""
+
+    async def fake_complete(*_args, **_kwargs):
+        return {
+            "issues": [
+                {
+                    "id": "low-1",
+                    "severity": "low",
+                    "category": "clarity",
+                    "title": "Tighten verb tense",
+                    "why_it_matters": "Minor.",
+                    "evidence": "Mixed tenses in two bullets.",
+                    "fix": "Pick one.",
+                },
+                {
+                    "id": "high-1",
+                    "severity": "high",
+                    "category": "impact",
+                    "title": "Add metrics",
+                    "why_it_matters": "Numbers improve trust.",
+                    "evidence": "No quantified bullets.",
+                    "fix": "Quantify.",
+                },
+                {
+                    "id": "medium-1",
+                    "severity": "medium",
+                    "category": "structure",
+                    "title": "Tighten experience section",
+                    "why_it_matters": "Dense paragraphs hide impact.",
+                    "evidence": "Walls of prose.",
+                    "fix": "Bullet it.",
+                },
+            ],
+        }
+
+    monkeypatch.setattr("app.services.resume_analyzer.complete_structured", fake_complete)
+
+    result = await analyze_resume(
+        "Summary\nBackend engineer with Python and SQL experience.\n"
+        "Experience\n- Built APIs.\nSkills\nPython\nEducation\nBS",
+        None,
+    )
+
+    severities = [issue["severity"] for issue in result["issues"]]
+    assert severities[: 3] == ["high", "medium", "low"]
+    # top_actions falls back to issues[:3] when the LLM doesn't return its own;
+    # severity-driven order should propagate to the Fix First strip.
+    assert [a["title"] for a in result["top_actions"][:3]] == [
+        "Add metrics",
+        "Tighten experience section",
+        "Tighten verb tense",
+    ]
+
+
+@pytest.mark.asyncio
 async def test_resume_analyze_falls_back_to_heuristic_when_llm_fails(monkeypatch):
     """Spec decision #7: Resume Analyzer must degrade silently to a heuristic
     envelope when the LLM call raises. Previously this was implicit; the
