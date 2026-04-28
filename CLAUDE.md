@@ -27,7 +27,7 @@ AI-powered job-search workspace. 6 tools (Resume Analyzer, Job Match, Cover Lett
 | Client-side ad unlock (sessionStorage) | Bypass risk accepted, pragmatic for V1 (currently bypassed for thesis demo) |
 | English only V1 | Realistic scope for solo dev |
 | In-memory cache V1 | Redis V1.1 when traffic warrants |
-| 3 retry + exponential backoff for LLM | 1s→2s→4s, then tool-specific fallback |
+| 4 retry + exponential backoff for LLM | 5s→10s→20s→40s + jitter, 120s per-call timeout, then tool-specific fallback (heuristic for Resume / Job Match, explicit error for generative tools) |
 | Admin panel integrated in main frontend | No separate app, /admin/* routes |
 
 ## File Structure

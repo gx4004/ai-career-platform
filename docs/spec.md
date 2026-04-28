@@ -124,7 +124,7 @@ All decisions made during spec interview sessions.
 | 2 | Heuristic scoring scope | **Only Resume Analyzer & Job Match** use blended heuristic+LLM scoring | Generative tools can't produce meaningful heuristic scores |
 | 3 | Guest result expiry | **"Result expired — run again"** on back-navigation | Drives signup |
 | 4 | Guest ad-gate | **Client-side temp UUID** for ad-unlock tracking | Same ad experience for guest and auth |
-| 5 | Interview limits | **Max 5 questions, 2 practice attempts** | Cost control: worst case ~$0.02 |
+| 5 | Interview limits | **3–12 questions, 3 practice attempts per question** (defaults: 6 questions; UI quick-picks 4/6/8/10) | Cost control: bounded by `LLM_PRACTICE_MODEL` (cheaper) and per-IP rate limit |
 | 6 | Practice feedback model | **Cheaper/lighter model** for practice evaluations | Cost optimization |
 | 7 | LLM fallback | **Tool-specific** — silent heuristic for Resume/Job Match, explicit error for generative | Can't fake a cover letter with heuristics |
 | 8 | Job scraping | **BS4 + Playwright fallback** | Best effort at JS-rendered sites |
@@ -133,7 +133,7 @@ All decisions made during spec interview sessions.
 | 11 | Cross-tab workflow | **Tab-scoped only** (sessionStorage) | Simplicity, no sync bugs |
 | 12 | Re-generate storage | **New ToolRun row always** (parent_run_id chain) | Preserves history, enables score delta |
 | 13 | LLM async strategy | **Native async** (generate_content_async) | Proper async, no thread overhead |
-| 14 | LLM retry strategy | **3 retries + exponential backoff** (1s/2s/4s) | Robust error handling |
+| 14 | LLM retry strategy | **4 retries + exponential backoff with jitter** (5s/10s/20s/40s, per-call timeout 120s) | Robust handling of transient Vertex errors; 3-min worst case before tool-specific fallback |
 | 15 | Score visualization | **Universal ScoreRing** component across all tools | Consistent UX |
 | 16 | Monetization model | **Hybrid**: ads V1 + premium subscription V1.1 | Hybrid generates 3x ad-only revenue |
 | 17 | Ad provider | **Google AdSense** Day 1, GAM + Rewarded Phase 2 | No traffic minimum, career niche = premium CPM |
