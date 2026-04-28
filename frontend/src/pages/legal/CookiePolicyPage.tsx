@@ -84,7 +84,14 @@ export function CookiePolicyPage() {
       <h2>3. Analytics and advertising cookies</h2>
       <p>
         <strong>Right now, Career Workbench does not load any analytics or advertising cookies.</strong> No Google
-        Analytics, Plausible, PostHog, Meta Pixel, or similar trackers are active.
+        Analytics, Plausible, PostHog, Meta Pixel, or similar third-party trackers are active in the V1 thesis demo.
+      </p>
+      <p>
+        We do collect a small amount of first-party diagnostic telemetry to monitor whether the tools complete
+        successfully (event names like <code>tool_run_started</code>, <code>tool_run_succeeded</code>,
+        <code>frontend_error</code>). The payload contains the tool ID, route, access mode (guest or authenticated),
+        and an opaque history identifier, never the resume text or job description content. This telemetry runs from
+        our own backend and is suppressed when you decline cookies.
       </p>
       <p>
         In the future we may enable Google AdSense to support the free tier. If and when that happens, AdSense will
