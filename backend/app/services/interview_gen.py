@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import logging
 from datetime import UTC, datetime
 from typing import Any
 
@@ -8,8 +7,6 @@ from app.config import settings
 from app.prompts.interview import build_interview_prompt, build_practice_feedback_prompt
 from app.services.ai_client import complete_structured
 from app.services.application_context import build_application_handoff
-
-logger = logging.getLogger(__name__)
 
 SCHEMA_VERSION = "quality_v2"
 CONFIDENCE_NOTE = (
@@ -330,11 +327,13 @@ async def generate_interview_questions(
         application_context,
         feedback=feedback,
     )
-    try:
-        result = await complete_structured(system_prompt, user_prompt)
-    except Exception as exc:
-        logger.warning("LLM call failed for interview questions, using heuristic fallback: %s", exc, exc_info=True)
-        result = {}  # All _normalize_* functions have fallback logic; empty dict triggers them
+    # Spec decision #7 (CLAUDE.md): generative tools must surface explicit
+    # errors when the LLM fails. The previous silent fallback returned default
+    # questions ("How would you demonstrate {focus_area} in this role?")
+    # stitched from the resume's own keywords, labelled identically to a real
+    # generation. tool_pipeline already logs the exception and the API
+    # surfaces a clean 5xx the frontend renders as `mutation.error`.
+    result = await complete_structured(system_prompt, user_prompt)
 
     summary_raw = result.get("summary") if isinstance(result.get("summary"), dict) else {}
     weak_signals = _normalize_weak_signals(result, application_context)
@@ -370,42 +369,16 @@ async def evaluate_practice_answer(
 
     is_empty = not user_answer or not user_answer.strip()
 
-    try:
-        result = await complete_structured(
-            system_prompt,
-            user_prompt,
-            model_override=settings.LLM_PRACTICE_MODEL or None,
-        )
-    except Exception:
-        logger.warning("LLM call failed for practice feedback, returning heuristic fallback", exc_info=True)
-        if is_empty:
-            return {
-                "strengths": [],
-                "weaknesses": [],
-                "suggestions": [
-                    "Start by restating the question in your own words.",
-                    "Use a structured format like STAR (Situation, Task, Action, Result).",
-                    "Include a specific example from your experience.",
-                ],
-                "overall_feedback": (
-                    "Try answering in your own words first. A strong answer usually includes "
-                    "a concrete example with measurable outcomes."
-                ),
-                "is_empty_answer": True,
-            }
-        return {
-            "strengths": ["You provided an answer to the question."],
-            "weaknesses": ["Consider adding more specific examples and measurable outcomes."],
-            "suggestions": [
-                "Use concrete numbers or metrics where possible.",
-                "Structure your answer with a clear beginning, middle, and end.",
-            ],
-            "overall_feedback": (
-                "Review your answer for specificity and structure. "
-                "Strong answers tie directly to the question with evidence from your experience."
-            ),
-            "is_empty_answer": False,
-        }
+    # Spec decision #7 (CLAUDE.md): generative tools surface explicit errors
+    # on LLM failure. The previous silent fallback returned the same generic
+    # "consider adding more specific examples" coaching for every failed call
+    # — masking outages and giving the user a credibility-damaging "feedback"
+    # they may have shipped to a real interview practice loop.
+    result = await complete_structured(
+        system_prompt,
+        user_prompt,
+        model_override=settings.LLM_PRACTICE_MODEL or None,
+    )
 
     return {
         "strengths": _to_str_list(result.get("strengths")),
