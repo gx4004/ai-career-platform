@@ -1217,6 +1217,8 @@ function InterviewView({ payload }: { payload: AnyObject }) {
           question: q.question,
           answerStructure: q.answerStructure,
           focusArea: q.focusArea,
+          answer: q.answer,
+          keyPoints: q.keyPoints,
         }))}
         onExit={() => setPracticeMode(false)}
       />
@@ -1280,12 +1282,18 @@ function InterviewView({ payload }: { payload: AnyObject }) {
 
               {/* Answer or suggestion box */}
               {item.practiceFirst ? (
-                <div className="iv-qcard__suggestion">
-                  <Lightbulb size={16} className="iv-qcard__suggestion-icon" />
-                  <div className="iv-qcard__suggestion-text">
-                    <strong>Focus area:</strong> {item.whyAsked}
+                <>
+                  <div className="iv-qcard__suggestion">
+                    <Lightbulb size={16} className="iv-qcard__suggestion-icon" />
+                    <div className="iv-qcard__suggestion-text">
+                      <strong>Focus area:</strong> {item.whyAsked}
+                    </div>
                   </div>
-                </div>
+                  <details className="iv-qcard__sample">
+                    <summary className="iv-qcard__sample-toggle">Show sample answer</summary>
+                    <p className="iv-qcard__answer-text iv-qcard__answer-text--muted">{item.answer}</p>
+                  </details>
+                </>
               ) : (
                 <div className="iv-qcard__answer">
                   <p className="iv-qcard__answer-text">{item.answer}</p>

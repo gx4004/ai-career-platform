@@ -8,24 +8,10 @@ const MAX_ATTEMPTS = 3
 
 interface Question {
   question?: string
-  text?: string
-  answer_structure?: string | string[]
-  key_talking_points?: string[]
-  difficulty?: string
   answerStructure?: string[]
   focusArea?: string
-}
-
-function getIdealAnswer(q: Question): string {
-  const structure = q.answerStructure || q.answer_structure
-  const parts: string[] = []
-  if (structure) {
-    parts.push(Array.isArray(structure) ? structure.join('\n') : structure)
-  }
-  if (q.key_talking_points?.length) {
-    parts.push('Key points: ' + q.key_talking_points.join(', '))
-  }
-  return parts.join('\n\n') || 'Review the answer framework above for guidance.'
+  answer?: string
+  keyPoints?: string[]
 }
 
 export function InterviewPracticeMode({
@@ -49,7 +35,7 @@ export function InterviewPracticeMode({
 
   const current = questions[currentIndex]
   if (!current) return null
-  const questionText = current.question || current.text || `Question ${currentIndex + 1}`
+  const questionText = current.question || `Question ${currentIndex + 1}`
   const attemptCount = attempts[currentIndex] ?? 0
   const maxedOut = attemptCount >= MAX_ATTEMPTS
 
@@ -66,11 +52,10 @@ export function InterviewPracticeMode({
     })
 
     try {
-      const structure = current.answerStructure || current.answer_structure
-      const modelAnswer = Array.isArray(structure)
-        ? structure.join('\n')
-        : typeof structure === 'string'
-          ? structure
+      const modelAnswer = current.answer
+        ? current.answer
+        : current.answerStructure?.length
+          ? current.answerStructure.join('\n')
           : ''
 
       const result = await runInterviewPracticeFeedback({
@@ -122,7 +107,7 @@ export function InterviewPracticeMode({
 
       <div className="practice-mode-question">
         <div className="practice-mode-difficulty">
-          {current.focusArea || current.difficulty || 'Question'}
+          {current.focusArea || 'Question'}
         </div>
         <h3>{questionText}</h3>
         <span className="practice-mode-attempt-label">
@@ -133,10 +118,32 @@ export function InterviewPracticeMode({
       {maxedOut ? (
         <div className="practice-mode-maxed">
           <h4>Maximum attempts reached</h4>
-          <p>Here's the ideal answer framework for this question:</p>
-          <div className="practice-mode-ideal-answer" style={{ whiteSpace: 'pre-line' }}>
-            {getIdealAnswer(current)}
-          </div>
+          <p>Here's the model answer for this question:</p>
+          {current.answer ? (
+            <div className="practice-mode-ideal-answer practice-mode-ideal-answer--body">
+              {current.answer}
+            </div>
+          ) : null}
+          {current.answerStructure?.length ? (
+            <div className="practice-mode-ideal-block">
+              <span className="practice-mode-ideal-block__label">Structure</span>
+              <ul className="practice-mode-ideal-list">
+                {current.answerStructure.map((step) => (
+                  <li key={step}>{step}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+          {current.keyPoints?.length ? (
+            <div className="practice-mode-ideal-block">
+              <span className="practice-mode-ideal-block__label">Key points</span>
+              <ul className="practice-mode-ideal-list">
+                {current.keyPoints.map((point) => (
+                  <li key={point}>{point}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
           <Button onClick={goNext} disabled={currentIndex >= questions.length - 1}>
             Move to next question <ArrowRight size={14} />
           </Button>
