@@ -44,6 +44,7 @@ export type SessionState = {
     email: string
     password: string
     full_name?: string
+    tos_accepted: boolean
   }) => Promise<void>
   logout: () => Promise<void>
   googleLogin: () => void
