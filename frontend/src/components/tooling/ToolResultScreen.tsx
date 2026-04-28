@@ -11,7 +11,7 @@ import { ApiError } from '#/lib/api/errors'
 import { getHistoryItem } from '#/lib/api/client'
 import { useFavoriteToggle } from '#/hooks/useFavoriteToggle'
 import { useSession } from '#/hooks/useSession'
-import { getTransientResult } from '#/lib/tools/demoRuns'
+import { getTransientResult, isDemoHistoryId } from '#/lib/tools/demoRuns'
 import { writeWorkflowContext } from '#/lib/tools/drafts'
 import {
   exportPdf,
@@ -113,7 +113,7 @@ export function ToolResultScreen({
   })
 
   const item = localItem || query.data
-  const isDemoResult = Boolean(demoItem || cachedItem)
+  const isDemoResult = Boolean(demoItem || cachedItem) || isDemoHistoryId(historyId)
 
   useEffect(() => {
     if (!item) return
