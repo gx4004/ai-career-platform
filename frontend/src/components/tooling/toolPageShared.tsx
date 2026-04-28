@@ -5,6 +5,7 @@ import { CinematicLoader } from '#/components/tooling/CinematicLoader'
 import { GuestSaveBanner } from '#/components/tooling/GuestSaveBanner'
 import { ToolFullScreen } from '#/components/tooling/ToolFullScreen'
 import { ToolHeroIllustration } from '#/components/tooling/ToolHeroIllustration'
+import { WorkflowHandoffBanner } from '#/components/tooling/WorkflowHandoffBanner'
 import { useSession } from '#/hooks/useSession'
 import { useToolDraft } from '#/hooks/useToolDraft'
 import { useToolMutation } from '#/hooks/useToolMutation'
@@ -80,6 +81,7 @@ export function ToolPageShell({
     <ToolFullScreen accent={tool.accent} heroFlow={Boolean(hero)}>
       <GuestSaveBanner />
       {hero}
+      <WorkflowHandoffBanner toolId={toolId} />
       <div className={cn('tool-fs-body', bodyClassName)}>
         {children}
       </div>
