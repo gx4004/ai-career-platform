@@ -7,7 +7,6 @@ import pytest
 
 from app.services.job_scraper import _validate_url, scrape_job_posting
 
-
 HTML_PAGE = """
 <html>
 <head><title>Job</title></head>

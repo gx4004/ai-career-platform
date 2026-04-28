@@ -2,7 +2,6 @@
 
 from app.services.application_context import build_application_handoff
 
-
 RESUME = (
     "Professional Summary\n"
     "Python engineer with 5 years of SQL experience.\n"

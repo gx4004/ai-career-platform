@@ -70,6 +70,32 @@ async def test_career_recommendation_for_same_discipline_growth_keeps_senior_tra
 
 
 @pytest.mark.asyncio
+async def test_career_passes_feedback_to_prompt_builder(monkeypatch):
+    """Pin the regen feedback wiring: previously the router accepted feedback,
+    tool_pipeline sanitized it, then the service silently dropped it because
+    the prompt builder kwarg was never threaded through."""
+    captured: dict[str, object] = {}
+
+    def fake_build_prompt(*_args, feedback=None, **_kwargs):
+        captured["feedback"] = feedback
+        return ("system", "user")
+
+    async def fake_complete(*_args, **_kwargs):
+        return {}
+
+    monkeypatch.setattr("app.services.career_recommender.build_career_prompt", fake_build_prompt)
+    monkeypatch.setattr("app.services.career_recommender.complete_structured", fake_complete)
+
+    await recommend_career(
+        "Summary\nBackend engineer with 5 years of Python experience.\nExperience\n- Shipped APIs.\nSkills\nPython, SQL",
+        "Senior Backend Engineer",
+        feedback="Push more leadership-focused options and skip the platform track.",
+    )
+
+    assert captured["feedback"] == "Push more leadership-focused options and skip the platform track."
+
+
+@pytest.mark.asyncio
 async def test_career_recommendation_with_sparse_resume_has_fallback_structure(monkeypatch):
     async def fake_complete(*_args, **_kwargs):
         return {}

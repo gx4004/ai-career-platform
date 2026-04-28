@@ -1545,7 +1545,14 @@ function CareerHeroExtra({ payload }: { payload: AnyObject }) {
 
 function CareerView({ payload }: { payload: AnyObject }) {
   const result = normalizeCareerPayload(payload)
-  const altPaths = result.paths.filter((p) => p.roleTitle !== result.recommendedDirection.roleTitle)
+  const recommendedRole = result.recommendedDirection.roleTitle.toLowerCase()
+  const altPaths = result.paths.filter((p) => p.roleTitle.toLowerCase() !== recommendedRole)
+  // _normalize_paths sorts by fit_score, so paths[0] is the highest-fit
+  // option — not necessarily the LLM's recommended direction. Source the
+  // strength chips from the path that matches the headline, falling back to
+  // paths[0] only when no match exists.
+  const recommendedPath =
+    result.paths.find((p) => p.roleTitle.toLowerCase() === recommendedRole) ?? result.paths[0]
 
   return (
     <div className="cp-body-grid">
@@ -1567,7 +1574,7 @@ function CareerView({ payload }: { payload: AnyObject }) {
               <div className="cp-primary-card__why-title">Why this is your ideal next step</div>
               <p className="cp-primary-card__why-text">{result.recommendedDirection.whyNow}</p>
               <div className="cp-primary-card__benefits">
-                {result.paths[0]?.strengthsToLeverage.slice(0, 3).map((s) => (
+                {recommendedPath?.strengthsToLeverage.slice(0, 3).map((s) => (
                   <div key={s} className="cp-primary-card__benefit">
                     <TrendingUp size={14} className="cp-primary-card__benefit-icon" />
                     <span>{s}</span>
@@ -1576,6 +1583,31 @@ function CareerView({ payload }: { payload: AnyObject }) {
               </div>
             </div>
           </div>
+
+          {(result.targetSkills.length > 0 || result.currentSkills.length > 0) && (
+            <div className="cp-skills-block">
+              {result.targetSkills.length > 0 && (
+                <div className="cp-skills-row">
+                  <div className="cp-skills-row__label">Skills to develop next</div>
+                  <div className="cp-skills-row__chips">
+                    {result.targetSkills.map((skill) => (
+                      <span key={skill} className="cp-skill-chip cp-skill-chip--target">{skill}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {result.currentSkills.length > 0 && (
+                <div className="cp-skills-row cp-skills-row--secondary">
+                  <div className="cp-skills-row__label">Skills you already bring</div>
+                  <div className="cp-skills-row__chips">
+                    {result.currentSkills.map((skill) => (
+                      <span key={skill} className="cp-skill-chip cp-skill-chip--current">{skill}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Numbered roadmap */}
           {result.nextSteps.length > 0 && (
@@ -1609,10 +1641,10 @@ function CareerView({ payload }: { payload: AnyObject }) {
                 <div className="cp-gap-row__body">
                   <div className="cp-gap-row__skill">{g.skill}</div>
                   <div className="cp-gap-row__desc">{g.whyItMatters}</div>
-                </div>
-                <div className="cp-gap-row__action">
-                  {g.howToBuild.split(' ').slice(0, 2).join(' ')}
-                  <ArrowRight size={12} />
+                  <div className="cp-gap-row__action">
+                    <ArrowRight size={12} className="cp-gap-row__action-icon" />
+                    <span>{g.howToBuild}</span>
+                  </div>
                 </div>
               </div>
             ))}
@@ -1655,7 +1687,9 @@ function CareerView({ payload }: { payload: AnyObject }) {
           <p className="cp-tip-card__text">
             {result.recommendedDirection.confidence === 'high'
               ? 'Your profile strongly matches this direction. Focus on closing the remaining skill gaps to maximize your timeline.'
-              : 'Document your cross-team wins and build visible proof points to strengthen your candidacy.'}
+              : result.recommendedDirection.confidence === 'medium'
+                ? 'The fit is solid but needs sharper proof. Pick the highest-urgency gap and build one concrete example before applying.'
+                : 'Document your cross-team wins and build visible proof points to strengthen your candidacy.'}
           </p>
         </div>
       </div>
