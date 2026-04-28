@@ -4,12 +4,16 @@ import { AppStatePanel } from '#/components/app/AppStatePanel'
 import { captureAppError } from '#/lib/telemetry/client'
 
 function isChunkLoadError(error: Error) {
+  // Match the error names and message substrings Vite + the bundler runtime
+  // actually emit when a deferred route bundle is missing (typically because
+  // the user opened a stale tab after a deploy). Plain TypeErrors must NOT
+  // match — they are real bugs and we do not want to lure the user into a
+  // reload loop that hides them behind an "update required" prompt.
   const message = error.message.toLowerCase()
   const name = error.name.toLowerCase()
 
   return (
     name.includes('chunkloaderror') ||
-    name.includes('typeerror') ||
     message.includes('failed to fetch dynamically imported module') ||
     message.includes('importing a module script failed') ||
     message.includes('loading chunk') ||
