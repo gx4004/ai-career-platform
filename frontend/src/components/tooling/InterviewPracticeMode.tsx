@@ -44,13 +44,6 @@ export function InterviewPracticeMode({
     setFeedback(null)
     setError(null)
 
-    const newCount = attemptCount + 1
-    setAttempts((prev) => {
-      const next = { ...prev, [currentIndex]: newCount }
-      try { sessionStorage.setItem('cw:practice-attempts', JSON.stringify(next)) } catch {}
-      return next
-    })
-
     try {
       const modelAnswer = current.answer
         ? current.answer
@@ -64,6 +57,14 @@ export function InterviewPracticeMode({
         model_answer: modelAnswer,
       })
       setFeedback(result)
+      // Only consume an attempt once the LLM successfully responded. A
+      // network blip or 5xx used to burn one of three attempts on a request
+      // the user never got feedback for.
+      setAttempts((prev) => {
+        const next = { ...prev, [currentIndex]: attemptCount + 1 }
+        try { sessionStorage.setItem('cw:practice-attempts', JSON.stringify(next)) } catch {}
+        return next
+      })
     } catch (err) {
       setFeedback(null)
       setError(
