@@ -401,7 +401,11 @@ function normalizeJobMatchPayload(payload: AnyObject): JobMatchResultPayload {
       action: toString(item.action) || 'Add a more specific proof point for this keyword.',
     })),
     interviewFocus: toStringArray(payload.interview_focus),
-    recruiterSummary: toString(payload.recruiter_summary) || 'No recruiter summary was returned.',
+    // No literal-default fallback — when the backend has no real signal it
+    // returns ''. JobMatchView reads this via `hasRightContent` and hides
+    // the recruiter card instead of rendering a "No recruiter summary was
+    // returned." placeholder on the demo page.
+    recruiterSummary: toString(payload.recruiter_summary),
   }
 }
 
