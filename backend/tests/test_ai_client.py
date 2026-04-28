@@ -24,10 +24,9 @@ def _reset_vertex_singleton():
 def _no_retry_sleep_global(monkeypatch):
     """Make asyncio.sleep a no-op inside ai_client across the whole file.
 
-    `_with_retry` retries on a wider exception set (TimeoutError,
-    RuntimeError, JSONDecodeError, ValueError) so tests that exercise
-    permanent failures (e.g. unsupported provider) would otherwise sit
-    through 5+10+20+40s of exponential backoff between retries.
+    `_with_retry` retries on (TimeoutError, RuntimeError, JSONDecodeError);
+    the JSON-truncation scenarios below would otherwise sit through
+    5+10+20+40s of exponential backoff between retries.
     """
     import app.services.ai_client as mod
 

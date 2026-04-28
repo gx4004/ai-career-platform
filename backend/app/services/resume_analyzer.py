@@ -127,6 +127,7 @@ def _heuristic_issues(
             }
         )
 
+    issues.sort(key=lambda issue: _SEVERITY_ORDER.get(issue["severity"], 1))
     return issues[:5]
 
 
