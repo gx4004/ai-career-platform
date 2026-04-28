@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { usePostHog } from 'posthog-js/react'
 import { AlertCircle, Eye, EyeOff } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { Input } from '#/components/ui/input'
@@ -34,7 +33,6 @@ export function RegisterForm({
 }: {
   onSuccess?: () => void
 }) {
-  const posthog = usePostHog()
   const { register, googleLogin, authError } = useSession()
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
@@ -50,7 +48,6 @@ export function RegisterForm({
         size="lg"
         className="auth-submit auth-google w-full"
         onClick={() => {
-          posthog.capture('google_auth_initiated', { action: 'signup' })
           googleLogin()
         }}
       >
@@ -75,7 +72,6 @@ export function RegisterForm({
               password,
               full_name: fullName || undefined,
             })
-            posthog.capture('user_signed_up', { method: 'email' })
             onSuccess?.()
           } catch {
             // Error displayed via session authError state
