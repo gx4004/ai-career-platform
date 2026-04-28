@@ -133,7 +133,7 @@ All decisions made during spec interview sessions.
 | 11 | Cross-tab workflow | **Tab-scoped only** (sessionStorage) | Simplicity, no sync bugs |
 | 12 | Re-generate storage | **New ToolRun row always** (parent_run_id chain) | Preserves history, enables score delta |
 | 13 | LLM async strategy | **Native async** (generate_content_async) | Proper async, no thread overhead |
-| 14 | LLM retry strategy | **4 retries + exponential backoff with jitter** (5s/10s/20s/40s, per-call timeout 120s) | Robust handling of transient Vertex errors; 3-min worst case before tool-specific fallback |
+| 14 | LLM retry strategy | **4 retries + exponential backoff with jitter** (5s/10s/20s/40s, per-call timeout 120s) | Robust handling of transient Vertex errors; ~9-min worst case if every retry hangs the full 120s timeout (5×120s + 75s backoff), then tool-specific fallback |
 | 15 | Score visualization | **Universal ScoreRing** component across all tools | Consistent UX |
 | 16 | Monetization model | **Hybrid**: ads V1 + premium subscription V1.1 | Hybrid generates 3x ad-only revenue |
 | 17 | Ad provider | **Google AdSense** Day 1, GAM + Rewarded Phase 2 | No traffic minimum, career niche = premium CPM |
