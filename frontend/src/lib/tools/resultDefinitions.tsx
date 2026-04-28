@@ -1722,7 +1722,12 @@ function PortfolioHeroExtra({ payload }: { payload: AnyObject }) {
           <div className="hero-stat-strip__divider" />
           <div className="hero-stat-strip__item">
             <span className="hero-stat-strip__label">Start with</span>
-            <span className="hero-stat-strip__value">{result.recommendedStartProject.split(' ').slice(0, 3).join(' ')}{result.recommendedStartProject.split(' ').length > 3 ? '…' : ''}</span>
+            <span
+              className="hero-stat-strip__value hero-stat-strip__value--clamp"
+              title={result.recommendedStartProject}
+            >
+              {result.recommendedStartProject}
+            </span>
           </div>
         </>
       )}
@@ -1734,6 +1739,23 @@ function PortfolioView({ payload }: { payload: AnyObject }) {
   const result = normalizePortfolioPayload(payload)
   const isStartProject = (title: string) =>
     title.toLowerCase() === result.recommendedStartProject.toLowerCase()
+
+  // _normalize_projects and _normalize_sequence_plan are independent, so the
+  // LLM's intentional ordering lives in sequence_plan, not in the projects
+  // array. Drive the view from sequence_plan when present so the reason
+  // copy and slot order both reach the user; fall back to the raw project
+  // order only when the planner produced no sequence.
+  const projectsByTitle = new Map(
+    result.projects.map((project) => [project.projectTitle.toLowerCase(), project] as const),
+  )
+  const orderedSteps = result.sequencePlan.length > 0
+    ? result.sequencePlan
+        .map((step) => ({ step, project: projectsByTitle.get(step.projectTitle.toLowerCase()) }))
+        .filter((entry): entry is { step: typeof entry.step; project: NonNullable<typeof entry.project> } => entry.project !== undefined)
+    : result.projects.map((project, index) => ({
+        step: { order: index + 1, projectTitle: project.projectTitle, reason: '' },
+        project,
+      }))
 
   // Collect all unique deliverables across projects
   const allDeliverables = result.projects.flatMap((p) => p.deliverables).filter((d, i, arr) => arr.indexOf(d) === i).slice(0, 5)
@@ -1748,14 +1770,20 @@ function PortfolioView({ payload }: { payload: AnyObject }) {
           The build sequence
         </h3>
         <div className="pf-sequence__items">
-          {result.projects.map((project, i) => {
+          {orderedSteps.map(({ step, project }, i) => {
             const isStart = isStartProject(project.projectTitle)
             return (
               <div key={project.projectTitle} className="pf-sequence-item">
                 <div className={`pf-sequence-item__num ${isStart ? 'pf-sequence-item__num--start' : 'pf-sequence-item__num--default'}`}>
-                  {i + 1}
+                  {step.order || i + 1}
                 </div>
                 <div className="pf-project-card">
+                  {step.reason && (
+                    <div className="pf-project-card__sequence-reason">
+                      <span className="pf-project-card__sequence-reason-label">Why this slot</span>
+                      <span className="pf-project-card__sequence-reason-text">{step.reason}</span>
+                    </div>
+                  )}
                   <div className="pf-project-card__top">
                     <div>
                       <div className="pf-project-card__title-row">
@@ -1764,9 +1792,17 @@ function PortfolioView({ payload }: { payload: AnyObject }) {
                       </div>
                       <p className="pf-project-card__desc">{project.description}</p>
                     </div>
-                    <div className="pf-project-card__complexity">
-                      <div className="pf-project-card__complexity-label">Complexity</div>
-                      <div className="pf-project-card__complexity-value">{project.complexity}</div>
+                    <div className="pf-project-card__meta">
+                      <div className="pf-project-card__meta-item">
+                        <div className="pf-project-card__meta-label">Complexity</div>
+                        <div className="pf-project-card__meta-value">{project.complexity}</div>
+                      </div>
+                      {project.estimatedTimeline && (
+                        <div className="pf-project-card__meta-item">
+                          <div className="pf-project-card__meta-label">Timeline</div>
+                          <div className="pf-project-card__meta-value">{project.estimatedTimeline}</div>
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -1780,6 +1816,20 @@ function PortfolioView({ payload }: { payload: AnyObject }) {
                       {project.skills.slice(0, 4).map((s) => (
                         <span key={s} className="pf-skill-chip">{s}</span>
                       ))}
+                    </div>
+                  )}
+
+                  {project.hiringSignals.length > 0 && (
+                    <div className="pf-project-card__signals">
+                      <div className="pf-project-card__signals-title">What this proves to hiring teams</div>
+                      <ul className="pf-project-card__signals-list">
+                        {project.hiringSignals.slice(0, 3).map((signal) => (
+                          <li key={signal} className="pf-project-card__signals-item">
+                            <CheckCircle2 size={12} className="pf-project-card__signals-icon" />
+                            <span>{signal}</span>
+                          </li>
+                        ))}
+                      </ul>
                     </div>
                   )}
                 </div>

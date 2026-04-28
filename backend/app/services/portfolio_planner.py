@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import logging
 from datetime import UTC, datetime
 
 from app.prompts.portfolio import build_portfolio_prompt
@@ -14,8 +13,6 @@ from app.services.quality_signals import (
     ordered_unique,
     seniority_label,
 )
-
-logger = logging.getLogger(__name__)
 
 SCHEMA_VERSION = "planning_v1"
 CONFIDENCE_NOTE = (
@@ -540,6 +537,7 @@ def _normalize_top_actions(
 async def recommend_portfolio(
     resume_text: str,
     target_role: str,
+    feedback: str | None = None,
 ) -> dict:
     prepass = build_resume_prepass(resume_text, target_role)
     generated_at = datetime.now(UTC).isoformat()
@@ -594,12 +592,9 @@ async def recommend_portfolio(
         target_role,
         locked_payload,
         helper_signals,
+        feedback=feedback,
     )
-    try:
-        result = await complete_structured(system_prompt, user_prompt)
-    except Exception as exc:
-        logger.warning("LLM call failed for portfolio planner: %s", exc, exc_info=True)
-        raise
+    result = await complete_structured(system_prompt, user_prompt)
 
     projects = _normalize_projects(result, fallback_projects)
     sequence_plan = _normalize_sequence_plan(
