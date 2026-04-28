@@ -1,7 +1,7 @@
 """Unit tests for the LLM provider routing in ai_client.py."""
 
 import json
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -59,24 +59,14 @@ async def test_vertex_json_parse_error(monkeypatch):
     monkeypatch.setattr("app.services.ai_client.settings.LLM_PROVIDER", "vertex")
     monkeypatch.setattr("app.services.ai_client.settings.VERTEX_PROJECT_ID", "test")
 
-    bad_response = MagicMock()
-    bad_response.text = "not valid json {{"
+    import app.services.ai_client as mod
 
-    mock_model = MagicMock()
-    mock_model.generate_content = MagicMock(return_value=bad_response)
+    async def _bad_vertex(_sp, _up, _model_name=None):
+        return json.loads("not valid json {{")
 
-    with patch("app.services.ai_client._ensure_vertex_init"):
-        with patch("app.services.ai_client.GenerativeModel", return_value=mock_model) if False else \
-             patch("vertexai.generative_models.GenerativeModel", return_value=mock_model):
-            # We need to patch at the import location inside the function
-            import app.services.ai_client as mod
-
-            async def _bad_vertex(sp, up, model_name=None):
-                return json.loads("not valid json {{")
-
-            monkeypatch.setattr(mod, "_call_vertex", _bad_vertex)
-            with pytest.raises(json.JSONDecodeError):
-                await complete_structured(SYSTEM, USER)
+    monkeypatch.setattr(mod, "_call_vertex", _bad_vertex)
+    with pytest.raises(json.JSONDecodeError):
+        await complete_structured(SYSTEM, USER)
 
 
 # ---------- vertex lazy init ----------

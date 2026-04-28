@@ -166,7 +166,7 @@ export function DropzoneHero({
                   : 'Drop your resume to get started'}
               </p>
               <p className="dropzone-hero-subtitle">
-                Supports PDF, DOC, and DOCX files
+                Supports PDF and DOCX files
               </p>
               <div className="dropzone-hero-actions">
                 <Button
@@ -199,7 +199,7 @@ export function DropzoneHero({
       <input
         ref={fileInputRef}
         type="file"
-        accept=".pdf,.doc,.docx"
+        accept=".pdf,.docx"
         className="hidden"
         onChange={(e) => handleFile(e.target.files?.[0] || null)}
       />
