@@ -37,6 +37,7 @@ class Settings(BaseSettings):
 
     RESEND_API_KEY: str = ""
     PASSWORD_RESET_FROM_EMAIL: str = "noreply@careerworkbench.com"
+    PASSWORD_RESET_REPLY_TO: str = ""
     PASSWORD_RESET_TOKEN_EXPIRE_MINUTES: int = 60
 
     DISPOSABLE_EMAIL_BLOCK_ENABLED: bool = True

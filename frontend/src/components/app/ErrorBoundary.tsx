@@ -1,5 +1,6 @@
 import { Component } from 'react'
 import type { ErrorInfo, ReactNode } from 'react'
+import * as Sentry from '@sentry/react'
 import { AlertTriangle } from 'lucide-react'
 import { AppStatePanel } from '#/components/app/AppStatePanel'
 import { captureAppError } from '#/lib/telemetry/client'
@@ -20,6 +21,10 @@ export class ErrorBoundary extends Component<Props, State> {
     if (import.meta.env.DEV) {
       console.error('[ErrorBoundary]', error, info.componentStack)
     }
+    Sentry.captureException(error, {
+      contexts: { react: { componentStack: info.componentStack ?? '' } },
+      tags: { source: 'error-boundary' },
+    })
     captureAppError(error, {
       source: 'error-boundary',
       componentStack: info.componentStack,
