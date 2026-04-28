@@ -181,6 +181,8 @@ describe('AuthDialog', () => {
       expect(parsed.reason).toBe('session-expired')
     })
 
+    expect(screen.queryByRole('dialog')).not.toBeNull()
+
     Object.defineProperty(window, 'location', {
       value: { ...window.location, pathname: originalPathname, search: originalSearch },
       writable: true,
