@@ -33,6 +33,13 @@ async def match(
         service_kwargs={
             "resume_text": body.resume_text,
             "job_description": body.job_description,
+            # tool_pipeline.run_tool_pipeline only injects the sanitized
+            # feedback into service_kwargs when the key already exists in
+            # the dict. Without this entry the regen-payload feedback was
+            # accepted by the schema, logged, then silently dropped — the
+            # LLM produced an identical match no matter what the user typed
+            # in the "Re-generate with feedback" textarea.
+            "feedback": body.feedback,
         },
         label_fn=lambda r: f"Job Match ({r['match_score']}%)",
         resume_text=body.resume_text,

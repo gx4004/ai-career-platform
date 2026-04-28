@@ -176,7 +176,11 @@ def _normalize_top_actions(
     return actions[:3]
 
 
-async def match_job(resume_text: str, job_description: str) -> dict:
+async def match_job(
+    resume_text: str,
+    job_description: str,
+    feedback: str | None = None,
+) -> dict:
     prepass = build_resume_prepass(resume_text, job_description)
     match_score = compute_match_score(prepass.matched_keywords, prepass.missing_keywords)
     verdict = job_match_verdict(match_score)
@@ -214,6 +218,7 @@ async def match_job(resume_text: str, job_description: str) -> dict:
         job_description,
         locked_payload,
         prepass_evidence,
+        feedback=feedback,
     )
     # Spec decision #7: Resume Analyzer and Job Match fall back to a silent
     # heuristic when the LLM is unavailable; the generative tools (cover-letter,
