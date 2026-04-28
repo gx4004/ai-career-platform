@@ -11,12 +11,15 @@ class TelemetryEventRequest(BaseModel):
         "tool_run_succeeded",
         "tool_run_failed",
         "result_page_loaded",
+        "result_page_cache_miss",
         "export_action_used",
         "workspace_resumed",
         "frontend_error",
         "tool_regenerate",
         "ad_shown",
         "ad_completed",
+        "ad_blocked",
+        "countdown_completed",
         "auth_signup_source",
         "workflow_continued",
     ]
@@ -27,7 +30,7 @@ class TelemetryEventRequest(BaseModel):
     route: str | None = None
     workspace_id: str | None = None
     saved: bool | None = None
-    error_message: str | None = None
+    error_message: str | None = Field(default=None, max_length=500)
     occurred_at: str | None = None
     metadata: dict[str, str | int | float | bool | None] = Field(default_factory=dict)
 
