@@ -22,7 +22,9 @@ export function AuthSurface({
       <div className="auth-surface-header">
         <AppBrandLockup className="auth-brand-lockup" />
         <div className="auth-surface-copy">
-          <h1 className="auth-surface-title">Sign in to your workspace</h1>
+          <h1 className="auth-surface-title">
+            {view === 'register' ? 'Create your workspace account' : 'Sign in to your workspace'}
+          </h1>
           <p className="auth-intro-copy">
             Save runs, favorites, and progress across all six tools.
           </p>
