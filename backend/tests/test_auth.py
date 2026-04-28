@@ -161,6 +161,33 @@ def test_password_reset_request_schedules_email_as_background_task(client, test_
     assert sent[0][0] == test_user.email
 
 
+async def test_password_reset_email_failure_captures_sentry(monkeypatch):
+    from app.config import settings
+    from app.services import email_service
+
+    captured: list[BaseException] = []
+
+    monkeypatch.setattr(settings, "RESEND_API_KEY", "test-key")
+    monkeypatch.setattr(
+        "app.services.email_service.sentry_sdk.capture_exception",
+        lambda exc: captured.append(exc),
+    )
+
+    def boom(to_email: str, reset_url: str) -> None:
+        raise RuntimeError("resend down")
+
+    monkeypatch.setattr(email_service, "_send_resend_sync", boom)
+
+    result = await email_service.send_password_reset_email(
+        "user@example.com", "https://example.com/reset?token=x"
+    )
+
+    assert result is False
+    assert len(captured) == 1
+    assert isinstance(captured[0], RuntimeError)
+    assert str(captured[0]) == "resend down"
+
+
 def test_login_blocks_deactivated_user(client, test_user, db):
     test_user.is_active = False
     db.add(test_user)
