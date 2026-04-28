@@ -41,7 +41,10 @@ class CoverLetterRequest(BaseModel):
 
 class InterviewRequest(BaseModel):
     resume_text: str = Field(..., min_length=50, max_length=50_000)
-    job_description: str = Field(..., max_length=20_000)
+    # min_length mirrors Job Match + Cover Letter: a thin JD makes the heuristic
+    # produce default-templated questions on a phantom role, which is worse than
+    # an explicit input error.
+    job_description: str = Field(..., min_length=20, max_length=20_000)
     num_questions: int | None = Field(None, ge=1, le=20)
     resume_analysis: ResumeAnalysisHandoff | None = None
     job_match: JobMatchHandoff | None = None

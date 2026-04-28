@@ -175,6 +175,18 @@ def test_cover_letter_job_description_min_length(client, auth_headers, _patch_ai
     assert resp.status_code == 422
 
 
+def test_interview_job_description_min_length(client, auth_headers, _patch_ai):
+    """Interview mirrors Job Match + Cover Letter: a thin JD produces
+    default-templated questions on a phantom role — worse than a clear
+    input error."""
+    payload = {
+        "resume_text": VALID_RESUME,
+        "job_description": "x" * 19,
+    }
+    resp = client.post(f"{PREFIX}/interview/questions", json=payload, headers=auth_headers)
+    assert resp.status_code == 422
+
+
 @pytest.mark.parametrize(
     "path,base_payload",
     [
