@@ -411,6 +411,34 @@ async def test_cover_letter_passes_feedback_to_prompt_builder(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_interview_passes_feedback_to_prompt_builder(monkeypatch):
+    """Same regression as Cover Letter: the router's service_kwargs missed
+    the `feedback` key, so regen-with-feedback was silently dropped. Lock
+    the wiring at the prompt-builder boundary."""
+
+    captured: dict[str, str | None] = {}
+
+    def fake_build_prompt(*_args, feedback=None, **_kwargs):
+        captured["feedback"] = feedback
+        return ("system", "user")
+
+    async def fake_complete(*_args, **_kwargs):
+        return {}
+
+    monkeypatch.setattr("app.services.interview_gen.build_interview_prompt", fake_build_prompt)
+    monkeypatch.setattr("app.services.interview_gen.complete_structured", fake_complete)
+
+    await generate_interview_questions(
+        "Summary\nBackend engineer with Python and cloud delivery experience.\nExperience\n- Improved API latency by 31%.\nSkills\nPython, SQL, AWS, Docker",
+        "Backend Engineer\nNeed Python, SQL, AWS experience.",
+        num_questions=4,
+        feedback="Push more leadership-themed questions and skip the basics.",
+    )
+
+    assert captured["feedback"] == "Push more leadership-themed questions and skip the basics."
+
+
+@pytest.mark.asyncio
 async def test_interview_handoff_surfaces_weak_signals_and_gap_first_questions(monkeypatch):
     async def fake_complete(*_args, **_kwargs):
         return {

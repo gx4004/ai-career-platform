@@ -301,6 +301,7 @@ async def generate_interview_questions(
     num_questions: int | None,
     resume_analysis: dict[str, Any] | None = None,
     job_match: dict[str, Any] | None = None,
+    feedback: str | None = None,
 ) -> dict[str, Any]:
     count = max(3, min(num_questions or 5, 12))
     application_context = build_application_handoff(
@@ -327,6 +328,7 @@ async def generate_interview_questions(
         count,
         locked_payload,
         application_context,
+        feedback=feedback,
     )
     try:
         result = await complete_structured(system_prompt, user_prompt)
