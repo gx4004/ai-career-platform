@@ -1687,7 +1687,9 @@ function CareerView({ payload }: { payload: AnyObject }) {
           <p className="cp-tip-card__text">
             {result.recommendedDirection.confidence === 'high'
               ? 'Your profile strongly matches this direction. Focus on closing the remaining skill gaps to maximize your timeline.'
-              : 'Document your cross-team wins and build visible proof points to strengthen your candidacy.'}
+              : result.recommendedDirection.confidence === 'medium'
+                ? 'The fit is solid but needs sharper proof. Pick the highest-urgency gap and build one concrete example before applying.'
+                : 'Document your cross-team wins and build visible proof points to strengthen your candidacy.'}
           </p>
         </div>
       </div>
