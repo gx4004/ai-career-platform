@@ -48,7 +48,11 @@ export function CareerToolPage() {
       hero={<ToolInputHero toolId="career" subtitle={heroSubtitle} />}
     >
       {mutation.isPending ? (
-        <ToolPageLoading toolId="career" className="career-loading-shell" />
+        <ToolPageLoading
+          toolId="career"
+          className="career-loading-shell"
+          mutationDone={!mutation.isPending}
+        />
       ) : phase === 'upload' ? (
         <>
           <section className="career-step-shell" style={toolAccentStyle(tool.accent)}>

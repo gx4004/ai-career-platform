@@ -119,6 +119,12 @@ export function CinematicLoader({
     return () => timers.forEach(clearTimeout)
   }, [displayStages])
 
+  // When the LLM call finishes, jump to the final stage so the bar can hit 100%.
+  useEffect(() => {
+    if (!mutationDone) return
+    setStageIndex((current) => Math.max(current, displayStages.length - 1))
+  }, [mutationDone, displayStages.length])
+
   // Enforce minimum display: at least MIN_DISPLAY_MS and MIN_PHASES_SHOWN
   useEffect(() => {
     if (!mutationDone || !onReady) return
@@ -135,14 +141,26 @@ export function CinematicLoader({
     }
   }, [mutationDone, onReady, stageIndex])
 
-  const stage = displayStages[stageIndex]
+  const totalStages = displayStages.length
+  // Until mutationDone, the timer-driven stageIndex is capped at the
+  // penultimate slot — the final 100% slot is reserved for real completion.
+  const displayedStageIndex = mutationDone
+    ? stageIndex
+    : Math.min(stageIndex, Math.max(totalStages - 2, 0))
+  const stage = displayStages[displayedStageIndex]
   const Icon = stage.icon
-  const progress = ((stageIndex + 1) / displayStages.length) * 100
+  const progress = mutationDone
+    ? 100
+    : displayedStageIndex >= totalStages - 2
+      ? 90
+      : ((displayedStageIndex + 1) / totalStages) * 100
 
   return (
     <motion.div
       className="cinematic-loader"
       style={{ '--tool-accent': accent } as CSSProperties}
+      data-progress={Math.round(progress)}
+      data-stage-index={displayedStageIndex}
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -10 }}
@@ -162,7 +180,7 @@ export function CinematicLoader({
       <div className="cinematic-stage">
         <AnimatePresence mode="wait">
           <motion.div
-            key={stageIndex}
+            key={displayedStageIndex}
             className="cinematic-stage-content"
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}

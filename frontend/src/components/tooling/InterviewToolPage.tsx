@@ -50,7 +50,11 @@ export function InterviewToolPage() {
       hero={<ToolInputHero toolId="interview" subtitle={heroSubtitle} />}
     >
       {mutation.isPending ? (
-        <ToolPageLoading toolId="interview" className="interview-loading-shell" />
+        <ToolPageLoading
+          toolId="interview"
+          className="interview-loading-shell"
+          mutationDone={!mutation.isPending}
+        />
       ) : phase === 'upload' ? (
         <section className="resume-upload-stage">
           <DropzoneHero
