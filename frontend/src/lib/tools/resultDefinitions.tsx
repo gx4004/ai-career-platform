@@ -1049,7 +1049,12 @@ function CoverLetterView({ payload }: { payload: AnyObject }) {
     [bodyTexts, closingText, openingText],
   )
 
-  const annotationLabels = ['Hook strategy', 'Evidence loop', 'Culture fit', 'Value close', 'Closing']
+  const bodyAnnotationLabels = ['Evidence loop', 'Culture fit', 'Value close']
+  const annotationLabels = [
+    'Hook strategy',
+    ...result.bodyPoints.map((_b, idx) => bodyAnnotationLabels[idx] ?? 'Evidence loop'),
+    'Closing',
+  ]
 
   async function handleCopy() { await navigator.clipboard.writeText(compiledText) }
   function handleDownload() {
@@ -1066,11 +1071,9 @@ function CoverLetterView({ payload }: { payload: AnyObject }) {
       <ScrollReveal>
       <div className="cl-document">
         <div className="cl-document__annotations">
-          {[result.opening, ...result.bodyPoints, result.closing].map((section, i) => (
+          {[result.opening, ...result.bodyPoints, result.closing].map((_section, i) => (
             <span key={i} className="cl-document__annotation-label">
-              {section.whyThisParagraph
-                ? section.whyThisParagraph.split(' ').slice(0, 2).join(' ')
-                : annotationLabels[i] || `Para ${i + 1}`}
+              {annotationLabels[i] ?? `Para ${i + 1}`}
             </span>
           ))}
         </div>
