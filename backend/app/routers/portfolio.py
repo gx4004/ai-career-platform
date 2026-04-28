@@ -2,9 +2,11 @@ from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
 
 from app.auth.security import get_optional_current_user
+from app.config import settings
 from app.database import get_db
 from app.limiter import limiter
 from app.models.user import User
+from app.prompts.portfolio import PORTFOLIO_PROMPT_VERSION
 from app.schemas.tools import PortfolioRequest, PortfolioResponse
 from app.services.portfolio_planner import recommend_portfolio
 from app.services.tool_pipeline import run_tool_pipeline
@@ -40,6 +42,10 @@ async def recommend(
         linked_context_ids=linked_context_ids,
         current_user=current_user,
         db=db,
-        cache_extra_keys={"target_role": body.target_role or ""},
+        cache_extra_keys={
+            "prompt_version": PORTFOLIO_PROMPT_VERSION,
+            "model": settings.LLM_MODEL,
+            "target_role": body.target_role or "",
+        },
     )
     return PortfolioResponse(**response)

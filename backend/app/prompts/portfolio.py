@@ -1,5 +1,10 @@
 import json
 
+# Bump when the prompt template changes shape, banned-words list, or output
+# schema. Included in the cache key so a rollout immediately invalidates
+# in-flight cached responses.
+PORTFOLIO_PROMPT_VERSION = "2026-04-28-v1"
+
 
 def build_portfolio_prompt(
     resume_text: str,

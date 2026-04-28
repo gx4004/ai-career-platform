@@ -47,7 +47,11 @@ export function JobMatchToolPage() {
       hero={<ToolInputHero toolId="job-match" subtitle={heroSubtitle} />}
     >
       {mutation.isPending ? (
-        <ToolPageLoading toolId="job-match" className="resume-loading-shell" />
+        <ToolPageLoading
+          toolId="job-match"
+          className="resume-loading-shell"
+          mutationDone={!mutation.isPending}
+        />
       ) : phase === 'upload' ? (
         <section className="resume-upload-stage">
           <DropzoneHero

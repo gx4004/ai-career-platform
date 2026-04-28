@@ -4,9 +4,11 @@ from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
 
 from app.auth.security import get_optional_current_user
+from app.config import settings
 from app.database import get_db
 from app.limiter import limiter
 from app.models.user import User
+from app.prompts.interview import INTERVIEW_PROMPT_VERSION
 from app.schemas.tools import (
     InterviewPracticeFeedbackRequest,
     InterviewPracticeFeedbackResponse,
@@ -61,6 +63,8 @@ async def questions(
         current_user=current_user,
         db=db,
         cache_extra_keys={
+            "prompt_version": INTERVIEW_PROMPT_VERSION,
+            "model": settings.LLM_MODEL,
             "num_questions": str(body.num_questions) if body.num_questions is not None else "",
             "resume_analysis": json.dumps(resume_analysis_dict, sort_keys=True) if resume_analysis_dict else "",
             "job_match": json.dumps(job_match_dict, sort_keys=True) if job_match_dict else "",

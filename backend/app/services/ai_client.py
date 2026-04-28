@@ -41,12 +41,19 @@ _RETRY_BASE_DELAY = 5.0
 
 
 async def _with_retry(coro_factory, max_retries: int = _MAX_RETRIES, base_delay: float = _RETRY_BASE_DELAY):
-    """Retry with exponential backoff: 5s -> 10s -> 20s -> 40s + jitter."""
+    """Retry with exponential backoff: 5s -> 10s -> 20s -> 40s + jitter.
+
+    JSONDecodeError is retried because Vertex occasionally truncates JSON
+    under load. Bare ValueError is intentionally NOT retried — `_dispatch`
+    raises ValueError("Unsupported LLM provider: ...") as a config error
+    that will never recover from a retry; bouncing it through 75 seconds
+    of backoff just delays the user-visible failure.
+    """
     last_exc: Exception | None = None
     for attempt in range(max_retries + 1):
         try:
             return await coro_factory()
-        except (TimeoutError, RuntimeError) as exc:
+        except (TimeoutError, RuntimeError, json.JSONDecodeError) as exc:
             last_exc = exc
             if attempt < max_retries:
                 delay = base_delay * (2 ** attempt) + random.uniform(0, 2.0)
