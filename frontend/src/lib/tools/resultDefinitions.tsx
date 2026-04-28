@@ -541,10 +541,12 @@ function ScoreCircleSvg({
   score,
   size = 88,
   variant = 'hero',
+  ariaLabel,
 }: {
   score: number
   size?: number
   variant?: 'hero' | 'breakdown'
+  ariaLabel?: string
 }) {
   const isLarge = size >= 140
   const sw = isLarge ? 12 : 5
@@ -559,6 +561,8 @@ function ScoreCircleSvg({
     <div
       className={`result-hero__score${variant === 'breakdown' ? ' result-hero__score--breakdown' : ''}${isLarge ? ' result-hero__score--large' : ''}`}
       style={{ width: size, height: size }}
+      role={ariaLabel ? 'img' : undefined}
+      aria-label={ariaLabel}
     >
       <svg viewBox={`0 0 ${size} ${size}`} style={{ transform: 'rotate(-90deg)', position: 'absolute', inset: 0 }}>
         <defs>
@@ -1896,7 +1900,13 @@ export const resultDefinitions: Record<ToolId, ResultDefinition> = {
     heroVariant: 'dark',
     heroMetric: (payload) => {
       const r = normalizeResumePayload(payload)
-      return <ScoreCircleSvg score={r.overallScore} size={192} />
+      return (
+        <ScoreCircleSvg
+          score={r.overallScore}
+          size={192}
+          ariaLabel={`Resume score: ${r.overallScore} out of 100`}
+        />
+      )
     },
     heroExtra: (payload) => <ResumeHeroExtra payload={payload} />,
     midSection: (payload) => <FixFirstStrip actions={normalizeResumePayload(payload).topActions} />,
