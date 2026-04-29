@@ -73,3 +73,25 @@ def test_scrub_sentry_event_handles_non_dict_shapes():
 
     assert scrubbed["request"] == "not-a-dict"
     assert scrubbed["user"] == ["also", "not", "a", "dict"]
+
+
+def test_scrub_sentry_event_strips_url_query_and_fragment():
+    event = {
+        "request": {
+            "url": "https://example.com/reset-password?token=secret-jwt#anchor",
+            "query_string": "token=secret-jwt",
+        },
+    }
+
+    scrubbed = _scrub_sentry_event(event, None)
+
+    assert scrubbed["request"]["url"] == "https://example.com/reset-password"
+    assert "query_string" not in scrubbed["request"]
+
+
+def test_scrub_sentry_event_leaves_url_without_query_alone():
+    event = {"request": {"url": "https://example.com/dashboard"}}
+
+    scrubbed = _scrub_sentry_event(event, None)
+
+    assert scrubbed["request"]["url"] == "https://example.com/dashboard"

@@ -890,7 +890,7 @@
 
 .regen-feedback-textarea:focus-visible {
   border-color: var(--accent);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent);
+  box-shadow: 0 0 0 2px var(--accent);
 }
 
 .regen-feedback-actions {
@@ -3214,7 +3214,7 @@
 }
 
 .cl-document__textarea:focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--accent) 50%, transparent);
+  outline: 2px solid var(--accent);
   outline-offset: 4px;
   border-radius: var(--radius-sm);
 }
