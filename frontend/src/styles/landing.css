@@ -1136,9 +1136,8 @@ body:has(.lp-redesign)::after { display: none !important; }
   100% { left: 200%; }
 }
 
-/* Multi-color gradient on hero accent words — emerald → teal → sky blue,
-   matching the deployed thecareerworkbench.com hero. Slow shimmer gives
-   it a subtle sheen without looking like an animated ad.
+/* Multi-color gradient on hero accent words — emerald → teal → sky blue.
+   Slow shimmer gives a subtle sheen without looking like an animated ad.
    Fallback: plain primary color for environments where background-clip: text
    is unavailable (GPU-less headless Chrome, older browsers). */
 .lp-redesign .lp-hero-shimmer {
