@@ -26,6 +26,11 @@ export function AppBrandLockup({
         src={isCompact ? compactMark : fullWordmark}
         alt="Career Workbench"
         className={isCompact ? 'cw-brand-mark' : 'cw-brand-wordmark'}
+        width={isCompact ? 299 : 600}
+        height={isCompact ? 299 : 113}
+        loading="eager"
+        fetchPriority="high"
+        decoding="async"
       />
     </div>
   )
