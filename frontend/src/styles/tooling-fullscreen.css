@@ -2940,6 +2940,12 @@ body.tool-fullscreen-open .mobile-nav-pill {
   border: none;
   background: transparent;
   outline: none;
+  border-radius: var(--radius-sm);
+}
+
+.edit-sheet-textarea:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  outline-offset: 2px;
 }
 
 /* ── Mini loader (minimized cinematic loader) ── */

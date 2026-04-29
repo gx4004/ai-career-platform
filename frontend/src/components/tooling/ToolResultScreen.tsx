@@ -324,19 +324,34 @@ export function ToolResultScreen({
                   <RefreshCw size={12} style={{ marginRight: 4 }} />
                   Re-generate
                 </button>
-                <button className="result-hero__btn" onClick={handleCopy} title={copied ? 'Copied' : 'Copy'}>
-                  <Copy size={13} />
+                <button
+                  className="result-hero__btn"
+                  onClick={handleCopy}
+                  title={copied ? 'Copied' : 'Copy'}
+                  aria-label={copied ? 'Copied to clipboard' : 'Copy result to clipboard'}
+                >
+                  <Copy size={13} aria-hidden="true" />
                 </button>
                 {exportableSections.length > 0 ? (
-                  <button className="result-hero__btn" onClick={() => handleExport('txt')} title="Export TXT">
-                    <Download size={13} />
+                  <button
+                    className="result-hero__btn"
+                    onClick={() => handleExport('txt')}
+                    title="Export TXT"
+                    aria-label="Export result as plain-text file"
+                  >
+                    <Download size={13} aria-hidden="true" />
                   </button>
                 ) : definition.download ? (
-                  <button className="result-hero__btn" onClick={() => {
-                    const dl = definition.download?.(payload, item)
-                    if (dl) downloadTextFile(dl.filename, dl.content)
-                  }} title="Download">
-                    <Download size={13} />
+                  <button
+                    className="result-hero__btn"
+                    onClick={() => {
+                      const dl = definition.download?.(payload, item)
+                      if (dl) downloadTextFile(dl.filename, dl.content)
+                    }}
+                    title="Download"
+                    aria-label="Download result"
+                  >
+                    <Download size={13} aria-hidden="true" />
                   </button>
                 ) : null}
                 {(resolvedTool.id === 'cover-letter' || resolvedTool.id === 'interview') && status === 'authenticated' && historyId && (
@@ -356,8 +371,16 @@ export function ToolResultScreen({
                     favoriteToggle.mutate({ historyId: item.id, isFavorite: !item.is_favorite })
                   }}
                   title={savedResult ? (item.is_favorite ? 'Favorited' : 'Favorite') : 'Sign in to save'}
+                  aria-label={
+                    savedResult
+                      ? item.is_favorite
+                        ? 'Remove from favorites'
+                        : 'Add to favorites'
+                      : 'Sign in to favorite this result'
+                  }
+                  aria-pressed={savedResult ? Boolean(item.is_favorite) : undefined}
                 >
-                  <Star size={13} fill={item.is_favorite ? 'currentColor' : 'none'} />
+                  <Star size={13} fill={item.is_favorite ? 'currentColor' : 'none'} aria-hidden="true" />
                 </button>
               </div>
               {regenOpen && (
