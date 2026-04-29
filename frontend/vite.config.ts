@@ -29,6 +29,27 @@ export default defineConfig({
   build: {
     chunkSizeWarningLimit: 800,
   },
+  environments: {
+    client: {
+      build: {
+        rollupOptions: {
+          output: {
+            manualChunks(id) {
+              if (!id.includes('node_modules')) return
+              if (id.includes('framer-motion')) return 'vendor-framer'
+              if (id.includes('@sentry/')) return 'vendor-sentry'
+              if (/[\\/]node_modules[\\/](react|react-dom|scheduler)[\\/]/.test(id)) {
+                return 'vendor-react'
+              }
+              // @tanstack/* and @radix-ui/* deliberately left in default chunks:
+              // splitting them produces a chunk graph that triggers a Rollup
+              // getVariableForExportName crash under TanStack Start's SSR build.
+            },
+          },
+        },
+      },
+    },
+  },
   plugins: [
     tsconfigPaths({ projects: ['./tsconfig.json'] }),
     tailwindcss(),
