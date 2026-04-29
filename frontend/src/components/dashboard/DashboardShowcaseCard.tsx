@@ -23,7 +23,16 @@ export function DashboardShowcaseCard({
       <div className="dash-showcase-body">
         <div className="dash-showcase-header">
           <div className="dash-showcase-icon">
-            <img src={iconSrc} alt="" className="dash-showcase-icon-img" />
+            <img
+              src={iconSrc}
+              alt=""
+              aria-hidden="true"
+              className="dash-showcase-icon-img"
+              width={400}
+              height={400}
+              loading="lazy"
+              decoding="async"
+            />
           </div>
           <span className="dash-showcase-name">{label}</span>
         </div>
