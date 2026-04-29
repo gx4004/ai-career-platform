@@ -54,10 +54,6 @@ export function LandingFooter() {
 
       <div className="lp-footer-bottom">
         <p className="lp-footer-copy">© {currentYear} Career Workbench. All rights reserved.</p>
-        <p className="lp-footer-status">
-          <span className="lp-footer-status-dot" aria-hidden="true" />
-          All systems operational
-        </p>
       </div>
     </motion.footer>
   )
