@@ -30,7 +30,7 @@ export function DashboardShowcaseCard({
               className="dash-showcase-icon-img"
               width={400}
               height={400}
-              loading="lazy"
+              loading="eager"
               decoding="async"
             />
           </div>
