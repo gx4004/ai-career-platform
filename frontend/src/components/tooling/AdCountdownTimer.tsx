@@ -29,7 +29,7 @@ export function AdCountdownTimer({
 
   return (
     <div className="ad-countdown">
-      <div className="ad-countdown-ring">
+      <div className="ad-countdown-ring" aria-hidden="true">
         <svg viewBox="0 0 48 48" width={48} height={48}>
           <circle
             cx={24}
@@ -56,8 +56,8 @@ export function AdCountdownTimer({
         </svg>
         <span className="ad-countdown-number">{remaining}</span>
       </div>
-      <div className="ad-countdown-text">
-        <Timer size={16} />
+      <div className="ad-countdown-text" role="status" aria-live="polite">
+        <Timer size={16} aria-hidden="true" />
         <span>Results unlocking in {remaining}s...</span>
       </div>
     </div>
