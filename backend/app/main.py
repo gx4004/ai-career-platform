@@ -34,11 +34,21 @@ configure_logging()
 _SENSITIVE_HEADERS = {"authorization", "cookie", "set-cookie", "x-csrf-token"}
 
 
+def _strip_query(value: str) -> str:
+    cuts = [value.find(ch) for ch in ("?", "#")]
+    candidates = [c for c in cuts if c >= 0]
+    return value[: min(candidates)] if candidates else value
+
+
 def _scrub_sentry_event(event, _hint):
     request = event.get("request")
     if isinstance(request, dict):
         request.pop("data", None)
         request.pop("cookies", None)
+        request.pop("query_string", None)
+        url = request.get("url")
+        if isinstance(url, str):
+            request["url"] = _strip_query(url)
         headers = request.get("headers")
         if isinstance(headers, dict):
             for key in list(headers.keys()):

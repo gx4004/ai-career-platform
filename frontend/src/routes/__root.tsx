@@ -2,6 +2,13 @@ import '#/lib/i18n'
 import * as Sentry from '@sentry/react'
 import { type ReactNode, useEffect } from 'react'
 
+function stripQuery(value: string): string {
+  const cuts = ['?', '#']
+    .map((ch) => value.indexOf(ch))
+    .filter((i) => i >= 0)
+  return cuts.length ? value.slice(0, Math.min(...cuts)) : value
+}
+
 if (import.meta.env.VITE_SENTRY_DSN) {
   Sentry.init({
     dsn: import.meta.env.VITE_SENTRY_DSN,
@@ -12,6 +19,10 @@ if (import.meta.env.VITE_SENTRY_DSN) {
       if (event.request) {
         delete event.request.data
         delete event.request.cookies
+        delete event.request.query_string
+        if (typeof event.request.url === 'string') {
+          event.request.url = stripQuery(event.request.url)
+        }
         const headers = event.request.headers
         if (headers) {
           for (const key of Object.keys(headers)) {
@@ -28,12 +39,19 @@ if (import.meta.env.VITE_SENTRY_DSN) {
       return event
     },
     beforeBreadcrumb(breadcrumb) {
-      if (breadcrumb.category === 'fetch' || breadcrumb.category === 'xhr') {
-        if (breadcrumb.data) {
+      if (breadcrumb.data) {
+        for (const key of ['url', 'from', 'to'] as const) {
+          const v = breadcrumb.data[key]
+          if (typeof v === 'string') breadcrumb.data[key] = stripQuery(v)
+        }
+        if (breadcrumb.category === 'fetch' || breadcrumb.category === 'xhr') {
           delete breadcrumb.data.body
           delete breadcrumb.data.request_body
           delete breadcrumb.data.response_body
         }
+      }
+      if (typeof breadcrumb.message === 'string') {
+        breadcrumb.message = stripQuery(breadcrumb.message)
       }
       return breadcrumb
     },
