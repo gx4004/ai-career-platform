@@ -122,6 +122,7 @@ Review gate is ON — Codex automatically reviews Claude's output before complet
 - Don't add CAPTCHA (V1.1, rate limit sufficient)
 - Don't implement real AdSense SDK (placeholder until approved)
 - Don't re-enable ad gate (thesis demo = fully free, AdGatedLock bypassed)
+- Don't send welcome or account-deletion confirmation emails (V1.1; password-reset is the only transactional email V1)
 - Don't add LLM streaming (v2)
 - Don't create new documentation files unless asked
 - Don't modify tool priority numbers without asking
