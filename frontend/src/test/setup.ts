@@ -10,7 +10,10 @@ if (!window.matchMedia) {
   Object.defineProperty(window, 'matchMedia', {
     writable: true,
     value: (query: string) => ({
-      matches: false,
+      // Match prefers-reduced-motion in tests so framer-motion's AnimatePresence
+      // mode="wait" doesn't gate state transitions on real animation timings —
+      // that's the flake source for DropzoneHero parse-success assertions on CI.
+      matches: /prefers-reduced-motion/.test(query),
       media: query,
       onchange: null,
       addEventListener: () => undefined,
