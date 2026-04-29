@@ -92,10 +92,10 @@ export function LandingExperimentHero() {
           <p className="lp-hero-body lp-hero-body--desktop">{copy.body}</p>
           <p className="lp-hero-body lp-hero-body--mobile">{copy.mobileBody}</p>
           <div className="lp-hero-actions">
-            <a href={landingPrimaryCta.to} className="lp-btn-primary">
+            <Link to={landingPrimaryCta.to} className="lp-btn-primary">
               {copy.ctaLabel}
               <ArrowRight size={18} />
-            </a>
+            </Link>
             <a
               href="#landing-journey"
               className="lp-btn-ghost"

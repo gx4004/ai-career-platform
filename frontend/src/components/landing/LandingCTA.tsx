@@ -1,4 +1,5 @@
 import { ArrowRight } from 'lucide-react'
+import { Link } from '@tanstack/react-router'
 import {
   motion,
   useMotionValue,
@@ -6,6 +7,8 @@ import {
   useSpring,
 } from 'framer-motion'
 import { landingCtaCopy, landingPrimaryCta } from '#/components/landing/landingContent'
+
+const MotionLink = motion(Link)
 
 export function LandingCTA() {
   const prefersReducedMotion = useReducedMotion() ?? false
@@ -42,8 +45,8 @@ export function LandingCTA() {
         <div className="lp-cta-orb lp-cta-orb-1" aria-hidden="true" />
         <div className="lp-cta-orb lp-cta-orb-2" aria-hidden="true" />
         <h2 className="lp-cta-h2">{landingCtaCopy.title}</h2>
-        <motion.a
-          href={landingPrimaryCta.to}
+        <MotionLink
+          to={landingPrimaryCta.to}
           className="lp-btn-primary"
           onMouseMove={handleMagnet}
           onMouseLeave={resetMagnet}
@@ -51,7 +54,7 @@ export function LandingCTA() {
         >
           {landingCtaCopy.ctaLabel}
           <ArrowRight size={18} />
-        </motion.a>
+        </MotionLink>
         <p className="lp-cta-micro">No sign-up required. Your data stays yours.</p>
       </motion.div>
     </section>
