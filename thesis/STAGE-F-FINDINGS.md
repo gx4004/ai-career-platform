@@ -234,25 +234,23 @@ pairs, ≈10 s combined for the deterministic variants).
 | Variant | Pearson *r* vs LLM-only | 95% CI (cluster bootstrap, seed=42) | Δ vs v2 |
 |---|---:|---|---:|
 | heuristic-v2 (BM25 + ESCO + fuzzy) | **0.627** | [0.470, 0.758] | — |
-| heuristic-v3 with no Stage H features | 0.626 | [0.469, 0.757] | −0.001 |
-| + bigram / trigram (H.4) | 0.624 | [0.465, 0.753] | −0.003 |
-| + ESCO expansion 107 → 354 (H.5) | 0.613 | [0.459, 0.745] | −0.014 |
-| + SBERT semantic fallback (H.1) | 0.620 | [0.452, 0.756] | −0.007 |
-| + STAR detection (H.2) | 0.619 | [0.461, 0.751] | −0.008 |
-| + ESCO expansion 107 → 354 (H.5) | 0.613 | [0.459, 0.745] | −0.014 |
-| + cross-axis coherence (H.3) | 0.604 | [0.438, 0.745] | −0.023 |
-| heuristic-v3 (full, all five) | 0.588 | [0.415, 0.734] | −0.038 |
+| heuristic-v3 with no Stage H features | 0.627 | [0.470, 0.758] | +0.000 |
+| + bigram / trigram (H.4) | 0.629 | [0.470, 0.758] | +0.002 |
+| + SBERT semantic fallback (H.1) | 0.623 | [0.452, 0.759] | −0.004 |
+| + STAR detection (H.2) | 0.621 | [0.463, 0.755] | −0.006 |
+| + ESCO expansion 107 → 354 (H.5) | 0.617 | [0.461, 0.752] | −0.009 |
+| + cross-axis coherence (H.3) | 0.605 | [0.438, 0.746] | −0.022 |
+| heuristic-v3 (full, all five) | 0.590 | [0.415, 0.735] | −0.036 |
 
-Every single-feature variant agrees less well with the LLM-only baseline
-than v2 does, but every individual delta sits comfortably inside the ±0.15
-half-width of the cluster-bootstrap CI, so none of the single-feature
-differences is statistically distinguishable from zero on the 100-pair set.
-The full-stack v3 configuration is the most-negative cell at *r* = 0.588
-(Δ = −0.038), still inside the bootstrap CI half-width but suggestive that
+The `v3-empty` cell (v3 module with every Stage H feature disabled)
+reproduces the v2 baseline *exactly* to three decimal places (Δ = +0.000),
+validating that the v3 module degrades to v2 correctly. The single-feature
+deltas span +0.002 (n-gram phrase matching) to −0.022 (cross-axis coherence);
+every one of them sits inside the ±0.15 half-width of the cluster-bootstrap
+CI, so none is statistically distinguishable from zero on the 100-pair set.
+The full-stack v3 configuration is the most-negative cell at *r* = 0.590
+(Δ = −0.036), still inside the bootstrap CI half-width but suggestive that
 the small false-positive contributions compound rather than cancel.
-The `v3-empty` cell (v3 module with all features disabled) reproduces the
-v2 baseline to three decimal places (0.626 vs 0.627), confirming that the
-v3 module degrades to v2 correctly when no enhancements are active.
 
 ### Why null — two consistent readings
 

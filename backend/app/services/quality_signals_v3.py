@@ -50,6 +50,11 @@ from pathlib import Path
 from typing import Iterable, Sequence
 
 # v2 internals reused intentionally — v3 is an extension, not a fork.
+# NOTE: do NOT `from ... import _corpus_idf_override` — that captures the
+# value at import time, but `set_corpus_idf` rebinds the global inside v2,
+# so a copied reference would silently miss the runtime install. Read it
+# through `_v2_module.get_active_idf()` instead.
+from app.services import quality_signals_v2 as _v2_module  # noqa: E402
 from app.services.quality_signals_v2 import (  # noqa: E402
     _ACTION_VERBS_PATH,
     _BM25_B,
@@ -60,9 +65,7 @@ from app.services.quality_signals_v2 import (  # noqa: E402
     _MIN_ESCO_VARIANT_LEN,
     _QUANT_RE,
     _SECTION_WEIGHTS,
-    _baseline_idf,
     _bm25_score,
-    _corpus_idf_override,
     _detect_sections,
     _fuzzy_match,
     _load_action_verbs,
@@ -782,10 +785,11 @@ def build_resume_prepass_v3(
     jd_tokens = _tokenize(job_description or "")
     if corpus_idf is not None:
         idf_table = corpus_idf
-    elif _corpus_idf_override is not None:
-        idf_table = _corpus_idf_override
     else:
-        idf_table = _baseline_idf()
+        # Read live override-or-baseline through the v2 module so a
+        # `set_corpus_idf(...)` call from the eval harness is honoured.
+        # See module-top NOTE on why a direct import would silently fail.
+        idf_table = _v2_module.get_active_idf()
     bm25 = _bm25_score(resume_tf, jd_tokens, idf_table)
 
     weighted = _weighted_match_score_v3(
