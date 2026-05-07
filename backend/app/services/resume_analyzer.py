@@ -121,7 +121,14 @@ def _heuristic_issues(
             }
         )
 
-    if prepass.word_count < 140:
+    # The "thin resume" check has two layers: a hard floor at 100 tokens and a
+    # bullet-count guard. A resume with strong bullet structure is not thin even
+    # when its prose word count is below the floor, so the issue is suppressed
+    # when the candidate has surfaced four or more bulleted achievements. The
+    # 140-token threshold (used by v1) was calibrated against an older tokeniser
+    # that admitted single-letter words; v2's tokeniser drops them, so the same
+    # threshold systematically misclassified mid-length resumes as thin.
+    if prepass.word_count < 100 and prepass.bullet_lines < 4:
         issues.append(
             {
                 "id": "clarity-add-context",

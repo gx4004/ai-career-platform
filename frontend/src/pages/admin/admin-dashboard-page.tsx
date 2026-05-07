@@ -1,8 +1,19 @@
-import { useQuery } from '@tanstack/react-query'
-import { getAdminStats, getAdminHealth } from '#/lib/api/admin'
-import type { AdminStats, AdminHealth } from '#/lib/api/admin'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  getAdminHealth,
+  getAdminStats,
+  getScoringMode,
+  setScoringMode,
+} from '#/lib/api/admin'
+import type {
+  AdminHealth,
+  AdminScoringMode,
+  AdminScoringModeResponse,
+  AdminStats,
+} from '#/lib/api/admin'
 
 export function AdminDashboardPage() {
+  const queryClient = useQueryClient()
   const stats = useQuery<AdminStats>({
     queryKey: ['admin-stats'],
     queryFn: getAdminStats,
@@ -13,10 +24,81 @@ export function AdminDashboardPage() {
     queryFn: getAdminHealth,
     staleTime: 60_000,
   })
+  const scoringMode = useQuery<AdminScoringModeResponse>({
+    queryKey: ['admin-scoring-mode'],
+    queryFn: getScoringMode,
+    staleTime: 30_000,
+  })
+  const scoringMutation = useMutation({
+    mutationFn: (mode: AdminScoringMode) => setScoringMode(mode),
+    onSuccess: (data) => {
+      queryClient.setQueryData(['admin-scoring-mode'], data)
+    },
+  })
 
   return (
     <div>
       <h1 className="admin-page-title">Dashboard</h1>
+
+      <div
+        className="admin-info-panel"
+        style={{ marginBottom: '1.5rem', padding: '1rem 1.25rem' }}
+      >
+        <div className="admin-info-panel-title">Scoring Mode</div>
+        <p className="admin-table-muted" style={{ marginTop: 0, marginBottom: '0.75rem' }}>
+          Toggle the analytical core between blended (LLM + heuristic) and fully heuristic
+          modes. The change takes effect on the next analytical request.
+        </p>
+        {scoringMode.isLoading && <p className="admin-table-muted">Loading current mode…</p>}
+        {scoringMode.isError && (
+          <p className="admin-table-muted admin-error-text">Failed to load scoring mode.</p>
+        )}
+        {scoringMode.data && (
+          <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              onClick={() => scoringMutation.mutate('blended')}
+              disabled={scoringMutation.isPending || scoringMode.data.mode === 'blended'}
+              style={{
+                padding: '0.5rem 1rem',
+                borderRadius: '6px',
+                border: '1px solid #333',
+                background: scoringMode.data.mode === 'blended' ? '#1f6feb' : 'transparent',
+                color: scoringMode.data.mode === 'blended' ? 'white' : 'inherit',
+                cursor: scoringMode.data.mode === 'blended' ? 'default' : 'pointer',
+              }}
+            >
+              Blended (LLM + heuristic)
+            </button>
+            <button
+              type="button"
+              onClick={() => scoringMutation.mutate('heuristic')}
+              disabled={scoringMutation.isPending || scoringMode.data.mode === 'heuristic'}
+              style={{
+                padding: '0.5rem 1rem',
+                borderRadius: '6px',
+                border: '1px solid #333',
+                background: scoringMode.data.mode === 'heuristic' ? '#1f6feb' : 'transparent',
+                color: scoringMode.data.mode === 'heuristic' ? 'white' : 'inherit',
+                cursor: scoringMode.data.mode === 'heuristic' ? 'default' : 'pointer',
+              }}
+            >
+              Heuristic only
+            </button>
+            <span className="admin-table-muted" style={{ marginLeft: 'auto', fontSize: '0.85rem' }}>
+              version: <code>{scoringMode.data.heuristic_version}</code>
+              {scoringMode.data.mode === 'blended' && (
+                <> · blend {Math.round(scoringMode.data.blended_weight_heuristic * 100)}/{Math.round(scoringMode.data.blended_weight_llm * 100)}</>
+              )}
+            </span>
+          </div>
+        )}
+        {scoringMutation.isError && (
+          <p className="admin-error-text" style={{ marginTop: '0.5rem', fontSize: '0.85rem' }}>
+            Failed to update scoring mode.
+          </p>
+        )}
+      </div>
 
       {stats.isError && (
         <p className="admin-error-text" style={{ marginBottom: '1rem' }}>

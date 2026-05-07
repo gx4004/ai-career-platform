@@ -172,9 +172,10 @@ def main() -> int:
     print(f"- Kendall tau-b (overall score): **τ = {tau:.3f}**\n")
 
     # Per-sub-score correlations
-    print("| Sub-score | Pearson r | Spearman ρ |")
-    print("|-----------|-----------|------------|")
+    print("| Sub-score | Pearson r | Spearman ρ | Kendall τ |")
+    print("|-----------|-----------|------------|-----------|")
     sub_keys = ["keywords", "impact", "structure", "clarity", "completeness"]
+    sub_data: dict[str, tuple[list[float], list[float]]] = {}
     for key in sub_keys:
         b_sub: list[float] = []
         h_sub: list[float] = []
@@ -184,9 +185,11 @@ def main() -> int:
             if key in b_bd and key in h_bd:
                 b_sub.append(float(b_bd[key]))
                 h_sub.append(float(h_bd[key]))
+        sub_data[key] = (b_sub, h_sub)
         rk = pearson(b_sub, h_sub) if b_sub else float("nan")
         rhk = spearman(b_sub, h_sub) if b_sub else float("nan")
-        print(f"| {key} | {rk:.3f} | {rhk:.3f} |")
+        tk = kendall_tau(b_sub, h_sub) if b_sub else float("nan")
+        print(f"| {key} | {rk:.3f} | {rhk:.3f} | {tk:.3f} |")
     print()
 
     # 4.3.2 Distribution
@@ -213,6 +216,48 @@ def main() -> int:
     print(f"| Median | {bm:.1f} | {hm:.1f} | {bm / hm:.1f}× |")
     print(f"| 95th pct. | {b95:.1f} | {h95:.1f} | {b95 / h95:.1f}× |")
     print(f"| Maximum | {bmax:.1f} | {hmax:.1f} | {bmax / hmax:.1f}× |\n")
+
+    # 4.3.4 Per-call cost (approximate, derived from estimated token counts)
+    # Gemini 2.5 Flash pricing as of March 2026: input $0.075/M tokens, output $0.30/M tokens.
+    INPUT_RATE_PER_M = 0.075
+    OUTPUT_RATE_PER_M = 0.30
+    blended_in = [int(b.get("input_tokens_est", 0)) for b, _ in paired]
+    blended_out = [int(b.get("output_tokens_est", 0)) for b, _ in paired]
+    blended_costs = [
+        (i * INPUT_RATE_PER_M / 1_000_000) + (o * OUTPUT_RATE_PER_M / 1_000_000)
+        for i, o in zip(blended_in, blended_out, strict=True)
+    ]
+
+    print("## 4.3.4 Per-call cost (Gemini 2.5 Flash, approximate)\n")
+    print("| Cost item | Blended | Heuristic v2 |")
+    print("|-----------|---------|--------------|")
+    print(f"| Input tokens (avg., est.) | {statistics.mean(blended_in):.0f} | 0 |")
+    print(f"| Output tokens (avg., est.) | {statistics.mean(blended_out):.0f} | 0 |")
+    print(f"| Per-call USD (avg.) | ${statistics.mean(blended_costs):.5f} | $0.00000 |")
+    print(f"| Per-call USD (95th pct.) | ${percentile(blended_costs, 95):.5f} | $0.00000 |")
+    print(f"| 1 000 calls / day projected monthly bill | ${statistics.mean(blended_costs) * 1000 * 30:.2f} | $0.00 |\n")
+
+    # 4.3.5 Sensitivity to score-combination weights — equal-weight rerun
+    EQUAL_WEIGHT = 0.20
+
+    def overall_with_equal_weights(breakdown_rows: list[dict]) -> float:
+        if not breakdown_rows:
+            return 0.0
+        scores = [float(item.get("score", 0)) for item in breakdown_rows]
+        return sum(scores) * EQUAL_WEIGHT if scores else 0.0
+
+    blended_eq = [overall_with_equal_weights(b.get("score_breakdown") or []) for b, _ in paired]
+    heur_eq = [overall_with_equal_weights(h.get("score_breakdown") or []) for _, h in paired]
+    r_eq = pearson(blended_eq, heur_eq)
+    rho_eq = spearman(blended_eq, heur_eq)
+
+    print("## 4.3.5 Sensitivity to the score-combination weights\n")
+    print("| Weighting | Pearson r | Spearman ρ |")
+    print("|-----------|-----------|------------|")
+    print(f"| Author-selected (0.30/0.25/0.15/0.15/0.15) | {r:.3f} | {rho:.3f} |")
+    print(f"| Equal weights (0.20 across all five) | {r_eq:.3f} | {rho_eq:.3f} |")
+    delta_r = (r_eq - r) if (r == r and r_eq == r_eq) else float("nan")
+    print(f"\nΔ Pearson r = {delta_r:+.3f}. A small Δ indicates the comparative result is robust to the weight choice.\n")
 
     print("Done. Paste the tables above into `thesis/chapter-04-studies.md` Section 4.3 in place of the *to be filled* cells.")
     return 0

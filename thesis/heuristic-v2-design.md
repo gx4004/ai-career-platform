@@ -25,9 +25,13 @@
 
 **Citations:** Salton & McGill 1983 [28], Robertson & Zaragoza 2009 [27].
 
-**Implementation**
-- Build an IDF table from the bundled corpus of evaluation job descriptions (one-time, at module load).
-- For each (resume, job) pair, compute the BM25 score of the job description's keyword set against the resume's term frequencies.
+**Implementation (matches `quality_signals_v2.py` as shipped)**
+- IDF resolution order:
+  1. Per-call `corpus_idf=` argument to `build_resume_prepass_v2` (test path).
+  2. Process-wide override installed via `set_corpus_idf` — used by the evaluation harness, computed once over the full set of evaluation JDs before any pair is scored.
+  3. The bundled `_baseline_idf` table — pre-computed at import time from the ESCO knowledge base shipped with the application (each ESCO entry treated as one short document).
+- For each (resume, JD) pair: deduplicate JD query terms, look up the active IDF table, skip OOV terms (Lucene-style df=0 handling), and accumulate the BM25 score against the resume's term-frequency map.
+- BM25 contributes to the keywords axis as a soft additive boost rather than a stand-alone score: `keywords_score = clamp(0.7 · weighted_keyword_score + 0.3 · min(100, bm25 · 4))`.
 - Parameters: *k₁* = 1.5, *b* = 0.75 (BM25 defaults).
 
 **Pseudocode**
@@ -45,7 +49,7 @@ def bm25_keyword_score(resume_terms: dict[str, int], jd_keywords: list[str], idf
     return score
 ```
 
-Then normalise to [0, 100] by dividing by the maximum-achievable BM25 (computed against the JD's own term frequencies as the upper bound) and multiplying by 100.
+The raw BM25 value is *not* itself rescaled to [0, 100]; it is folded into the keywords axis through the soft-boost formula above (the `min(100, bm25 · 4)` clamp caps the contribution rather than rescaling).
 
 ### 2. ESCO skill normalisation
 
@@ -132,7 +136,7 @@ impact_quant_term = min(40, 12 * log2(1 + quantified_count))
 
 ### 6. Action-verb scoring
 
-**Implementation** — bundled list of ~250 strong action verbs in `app/data/action_verbs.txt`. Source: aggregated from Harvard FAS career-services resources, MIT Career Advising 2024, and Princeton Career Development.
+**Implementation** — bundled list of ~190 strong action verbs in `app/data/action_verbs.txt`. Source: aggregated from publicly available career-services resources of established universities (Harvard FAS, MIT Career Advising, Princeton Career Development).
 
 ```python
 def action_verb_fraction(bullets: list[str], action_verbs: set[str]) -> float:
@@ -169,8 +173,7 @@ def combine(sub_scores: dict[str, int]) -> int:
 ```
 backend/app/data/
 ├── esco_skills.json          # ~100 entries at submission (production target ~800)
-├── action_verbs.txt          # ~250 action verbs, one per line
-└── stop_words.txt            # English stop list for IDF building
+└── action_verbs.txt          # ~190 action verbs, one per line
 ```
 
 ---

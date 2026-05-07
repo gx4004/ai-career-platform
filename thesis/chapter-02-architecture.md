@@ -33,7 +33,7 @@ The non-functional requirements were derived from the practical constraints of a
 * **N3 — Availability.** A degraded but useful service is preferred over a hard failure. When the LLM call fails or times out, analytical tools (Resume, Job Match) fall back to a heuristic-only response and surface a `confidence_note` to the user. Generative tools (Cover Letter, Interview Q&A) fail loudly with a structured error rather than producing fabricated content.
 * **N4 — Auditability.** Every tool invocation produces a persistent record with the inputs (hashed), the output (full), and the timing and access mode. This supports the experimental work in Chapter 4 and gives the operator a forensic trail.
 * **N5 — Privacy.** No third-party analytics or advertising scripts are loaded on a logged-in user's screen. Personal data is encrypted in transit and at rest by the managed PostgreSQL provider; passwords are stored as bcrypt hashes only.
-* **N6 — Single deployment surface.** The thesis-scoped deployment runs as a single application on a single Railway service. There is no separate microservice architecture, no message broker, and no container orchestrator beyond what Railway provides natively.
+* **N6 — Single deployment surface.** The thesis-scoped deployment runs as a single Railway project that bundles the frontend service, the backend service, and a managed Postgres add-on. The two application services share a single hostname through path-based routing, so externally the system presents itself as one origin. There is no separate microservice architecture, no message broker, and no container orchestrator beyond what Railway provides natively.
 * **N7 — Demonstrability.** The running system must be operable and demonstrable from a laptop without specialised tooling. Both modes of the analytical core (blended and fully heuristic) must be switchable at runtime through an administrative interface, so that the comparative study reported in Chapter 4 can be reproduced live during the diploma defence.
 
 
@@ -112,7 +112,7 @@ For tools that produce a numerical score — Resume Analyzer and Job Match — t
 
 ## 2.4 Frontend architecture
 
-The frontend is a single-page application served from the same Railway service as the backend, behind a path-based router (the backend handles `/api/*`, the frontend handles everything else).
+The frontend is a single-page application served from a Railway service that lives in the same Railway project as the backend service; both share one external hostname through path-based routing (the backend handles `/api/*`, the frontend handles everything else). The deployment topology is described in detail in Section 2.7.
 
 ### 2.4.1 Route structure
 

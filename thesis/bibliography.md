@@ -42,7 +42,7 @@ Bibliography organised by topic; APA-style entries. Convert to Word footnote sty
 
 15. *Optimizing resume design for ATS compatibility: A large language model approach.* (2025). ResearchGate. https://www.researchgate.net/publication/390243685
 
-16. *AI-driven resume analysis and enhancement using natural language models.* (2025). CLiC-it Workshop, ACL Anthology. https://aclanthology.org/2025.clicit-1.51.pdf
+16. *AI-Driven Resume Analysis and Enhancement Using Semantic Modeling and Large Language Feedback Loops.* (2025). CLiC-it Workshop, ACL Anthology. https://aclanthology.org/2025.clicit-1.51.pdf
 
 
 ## 4. Skill extraction and labour-market taxonomies (ESCO, O*NET)

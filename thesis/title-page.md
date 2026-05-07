@@ -2,17 +2,16 @@
 
 ---
 
-## What goes on each line of the template
+## Title-page fields
 
-| Template label | Value to paste |
-|----------------|----------------|
+| Template label | Value |
+|----------------|-------|
 | Field of study: | **Electronic and Computer Engineering** |
-| Speciality: | — *(none assigned in APD; confirm with supervisor)* |
-| (Document subtitle) | **Bachelor Thesis** *(template default — leave as-is for first-cycle)* |
+| Speciality: | — |
+| (Document subtitle) | **Bachelor Thesis** |
 | Title of Thesis: | **An AI-Based System for Personalized Career Recommendation** |
 | AUTHOR: | **Egemen Goncu** |
 | SUPERVISOR: | **dr inż. Michał Błędowski** |
-| Header band (Wrocław Univ. + Faculty) | already in template — do not edit |
 | (Year footer) | **WROCŁAW 2026** |
 
 ## APD-confirmed metadata for the rest of the document
@@ -34,9 +33,7 @@
 | APD submission deadline | 22 May 2026 |
 | Defence window | 13–17 July 2026 |
 
-## Polish dual-page (only if supervisor requests it)
-
-Some WEFiM submissions retain a Polish-language *Strona tytułowa* even for English-language theses. Keep this version ready in case the supervisor asks for it. Do not insert it unless asked — the standard practice is one English title page for an English-language thesis.
+## Polish-language title page (only if requested)
 
 ```
 POLITECHNIKA WROCŁAWSKA

@@ -154,3 +154,26 @@ export function getAdminRuns(
 export function getAdminRun(runId: string) {
   return adminRequest<AdminRunDetail>(`/admin/runs/${runId}`)
 }
+
+// Scoring-mode toggle (Chapter 4.2.9 of the diploma thesis comparative study).
+
+export type AdminScoringMode = 'blended' | 'heuristic'
+export type AdminHeuristicVersion = 'v1' | 'v2'
+
+export type AdminScoringModeResponse = {
+  mode: AdminScoringMode
+  heuristic_version: AdminHeuristicVersion
+  blended_weight_heuristic: number
+  blended_weight_llm: number
+}
+
+export function getScoringMode() {
+  return adminRequest<AdminScoringModeResponse>('/admin/scoring-mode')
+}
+
+export function setScoringMode(mode: AdminScoringMode) {
+  return adminRequest<AdminScoringModeResponse>('/admin/scoring-mode', {
+    method: 'POST',
+    body: JSON.stringify({ mode }),
+  })
+}

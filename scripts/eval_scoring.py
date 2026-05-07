@@ -79,18 +79,38 @@ def install_corpus_idf(pairs: list[dict]) -> int:
     return len(documents)
 
 
+def _estimate_token_counts(resume_text: str, jd_text: str | None, result: dict) -> tuple[int, int]:
+    """Approximate input/output token counts for blended-mode cost estimation.
+
+    Uses the standard ~4-characters-per-token rule of thumb that the Vertex AI
+    documentation cites. Exact token counts would require a tokenizer call;
+    Chapter 4.3.4 of the thesis explicitly labels these as approximations.
+    """
+    input_chars = len(resume_text or "") + len(jd_text or "")
+    output_chars = len(json.dumps(result, default=str))
+    return max(0, input_chars // 4), max(0, output_chars // 4)
+
+
 async def run_pair(pair_id: str, resume_text: str, jd_text: str | None, mode: str) -> dict:
     runtime_settings.set_scoring_mode(mode)
     t0 = time.perf_counter()
     try:
         result = await analyze_resume(resume_text, jd_text)
         latency_ms = (time.perf_counter() - t0) * 1000
+        # Cost estimation: heuristic mode is zero-cost on the LLM side; blended
+        # mode uses the approximated token counts above.
+        if mode == "blended":
+            in_tok, out_tok = _estimate_token_counts(resume_text, jd_text, result)
+        else:
+            in_tok, out_tok = 0, 0
         return {
             "pair_id": pair_id,
             "mode": mode,
             "overall_score": result.get("overall_score"),
             "score_breakdown": result.get("score_breakdown"),
             "latency_ms": round(latency_ms, 2),
+            "input_tokens_est": in_tok,
+            "output_tokens_est": out_tok,
             "ok": True,
         }
     except Exception as exc:  # noqa: BLE001
@@ -101,6 +121,8 @@ async def run_pair(pair_id: str, resume_text: str, jd_text: str | None, mode: st
             "ok": False,
             "error": f"{type(exc).__name__}: {exc}",
             "latency_ms": round(latency_ms, 2),
+            "input_tokens_est": 0,
+            "output_tokens_est": 0,
         }
 
 
