@@ -3,12 +3,18 @@ from __future__ import annotations
 import logging
 from datetime import UTC, datetime
 
+from app.config import settings
 from app.prompts.job_match import build_job_match_prompt
+from app.services import runtime_settings
 from app.services.ai_client import complete_structured
 from app.services.quality_signals import (
     build_resume_prepass,
     compute_match_score,
     job_match_verdict,
+)
+from app.services.quality_signals_v2 import (
+    build_resume_prepass_v2,
+    compute_match_score_v2,
 )
 
 logger = logging.getLogger(__name__)
@@ -181,10 +187,92 @@ async def match_job(
     job_description: str,
     feedback: str | None = None,
 ) -> dict:
-    prepass = build_resume_prepass(resume_text, job_description)
-    match_score = compute_match_score(prepass.matched_keywords, prepass.missing_keywords)
-    verdict = job_match_verdict(match_score)
     generated_at = datetime.now(UTC).isoformat()
+
+    # Comparative-study toggle (Chapter 4.2.9 of the thesis): when the runtime
+    # mode is set to "heuristic", skip the LLM entirely and return a response
+    # built from the selected heuristic implementation. v2 (strong classical-IR
+    # baseline) is the comparative study target; v1 remains as production fallback.
+    if runtime_settings.get_scoring_mode() == "heuristic":
+        if settings.HEURISTIC_VERSION == "v2":
+            prepass_v2 = build_resume_prepass_v2(resume_text, job_description)
+            match_score_v2 = compute_match_score_v2(prepass_v2)
+            verdict_v2 = job_match_verdict(match_score_v2)
+            requirements = _fallback_requirements(prepass_v2.matched_keywords, prepass_v2.missing_keywords)
+            return {
+                "schema_version": SCHEMA_VERSION,
+                "summary": {
+                    "headline": _headline(verdict_v2, prepass_v2.matched_keywords, prepass_v2.missing_keywords),
+                    "verdict": verdict_v2,
+                    "confidence_note": (
+                        "Analysis ran in fully heuristic mode (strong heuristic v2, no "
+                        "language model invoked). Match score is deterministic given the inputs."
+                    ),
+                },
+                "top_actions": [
+                    {"title": f"Address {kw}", "action": f"Add concrete evidence for {kw} in the resume.", "priority": "high"}
+                    for kw in (prepass_v2.missing_keywords[:3] if prepass_v2.missing_keywords else [])
+                ],
+                "generated_at": generated_at,
+                "match_score": match_score_v2,
+                "verdict": verdict_v2,
+                "requirements": requirements,
+                "matched_keywords": prepass_v2.matched_keywords,
+                "missing_keywords": [
+                    {
+                        "keyword": kw,
+                        "contextual_guidance": "Consider adding relevant experience with this skill",
+                        "anti_stuffing_note": "Only mention if you have genuine experience",
+                    }
+                    for kw in prepass_v2.missing_keywords
+                ],
+                "tailoring_actions": [],
+                "interview_focus": prepass_v2.missing_keywords[:3] or prepass_v2.matched_keywords[:3],
+                "recruiter_summary": "",
+            }
+        # v1 heuristic-only path
+        prepass_v1 = build_resume_prepass(resume_text, job_description)
+        match_score_v1 = compute_match_score(prepass_v1.matched_keywords, prepass_v1.missing_keywords)
+        verdict_v1 = job_match_verdict(match_score_v1)
+        return {
+            "schema_version": SCHEMA_VERSION,
+            "summary": {
+                "headline": _headline(verdict_v1, prepass_v1.matched_keywords, prepass_v1.missing_keywords),
+                "verdict": verdict_v1,
+                "confidence_note": (
+                    "Analysis ran in fully heuristic mode (lightweight v1, no language "
+                    "model invoked). Match score is deterministic given the inputs."
+                ),
+            },
+            "top_actions": [],
+            "generated_at": generated_at,
+            "match_score": match_score_v1,
+            "verdict": verdict_v1,
+            "requirements": _fallback_requirements(prepass_v1.matched_keywords, prepass_v1.missing_keywords),
+            "matched_keywords": prepass_v1.matched_keywords,
+            "missing_keywords": [
+                {
+                    "keyword": kw,
+                    "contextual_guidance": "Consider adding relevant experience with this skill",
+                    "anti_stuffing_note": "Only mention if you have genuine experience",
+                }
+                for kw in prepass_v1.missing_keywords
+            ],
+            "tailoring_actions": [],
+            "interview_focus": prepass_v1.missing_keywords[:3] or prepass_v1.matched_keywords[:3],
+            "recruiter_summary": "",
+        }
+
+    # Blended-mode path: heuristic prepass + LLM call + 40/60 blended score.
+    # The heuristic implementation is consistent between blended and heuristic-only
+    # modes within a given run, controlled by `HEURISTIC_VERSION`.
+    if settings.HEURISTIC_VERSION == "v2":
+        prepass = build_resume_prepass_v2(resume_text, job_description)
+        match_score = compute_match_score_v2(prepass)
+    else:
+        prepass = build_resume_prepass(resume_text, job_description)
+        match_score = compute_match_score(prepass.matched_keywords, prepass.missing_keywords)
+    verdict = job_match_verdict(match_score)
 
     locked_payload = {
         "schema_version": SCHEMA_VERSION,

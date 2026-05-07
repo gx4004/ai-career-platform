@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 
 from app.config import settings
 from app.prompts.resume import build_resume_prompt
+from app.services import runtime_settings
 from app.services.ai_client import complete_structured
 from app.services.quality_signals import (
     ResumePrepass,
@@ -14,6 +15,11 @@ from app.services.quality_signals import (
     compute_resume_breakdown,
     confidence_gap_note,
     detect_sector,
+)
+from app.services.quality_signals_v2 import (
+    build_resume_prepass_v2,
+    compute_overall_score_v2,
+    compute_resume_breakdown_v2,
 )
 
 logger = logging.getLogger(__name__)
@@ -295,10 +301,47 @@ async def analyze_resume(
     *,
     feedback: str | None = None,
 ) -> dict:
-    prepass = build_resume_prepass(resume_text, job_description)
-    heuristic_breakdown = compute_resume_breakdown(prepass)
-    heuristic_overall = compute_overall_score(heuristic_breakdown)
     generated_at = datetime.now(UTC).isoformat()
+
+    # Comparative-study toggle (Chapter 4.2.9): when the runtime mode is set to
+    # "heuristic", skip the LLM entirely and return a response built from the
+    # selected heuristic implementation. The blended path below is otherwise
+    # untouched. `HEURISTIC_VERSION` selects between the lightweight v1 and the
+    # strong v2 baseline introduced for the thesis study.
+    if runtime_settings.get_scoring_mode() == "heuristic":
+        if settings.HEURISTIC_VERSION == "v2":
+            prepass_v2 = build_resume_prepass_v2(resume_text, job_description)
+            breakdown = compute_resume_breakdown_v2(prepass_v2)
+            overall = compute_overall_score_v2(breakdown)
+            response = _build_heuristic_fallback(prepass_v2, breakdown, overall, generated_at)
+            response["summary"]["confidence_note"] = (
+                "Analysis ran in fully heuristic mode (strong heuristic v2, no language "
+                "model invoked). Score is deterministic given the inputs."
+            )
+            return response
+        # Fall back to v1 heuristic response when v1 is selected
+        prepass_v1 = build_resume_prepass(resume_text, job_description)
+        breakdown = compute_resume_breakdown(prepass_v1)
+        overall = compute_overall_score(breakdown)
+        response = _build_heuristic_fallback(prepass_v1, breakdown, overall, generated_at)
+        response["summary"]["confidence_note"] = (
+            "Analysis ran in fully heuristic mode (lightweight v1, no language model "
+            "invoked). Score is deterministic given the inputs."
+        )
+        return response
+
+    # Blended-mode path: heuristic prepass + LLM call + 40/60 blended score.
+    # The selected heuristic implementation is consistent between blended mode
+    # and heuristic-only mode within a given run (same `HEURISTIC_VERSION`),
+    # which is the property the comparative study reported in Chapter 4 relies on.
+    if settings.HEURISTIC_VERSION == "v2":
+        prepass = build_resume_prepass_v2(resume_text, job_description)
+        heuristic_breakdown = compute_resume_breakdown_v2(prepass)
+        heuristic_overall = compute_overall_score_v2(heuristic_breakdown)
+    else:
+        prepass = build_resume_prepass(resume_text, job_description)
+        heuristic_breakdown = compute_resume_breakdown(prepass)
+        heuristic_overall = compute_overall_score(heuristic_breakdown)
     detected_sector = detect_sector(job_description) if job_description else None
 
     locked_payload = {

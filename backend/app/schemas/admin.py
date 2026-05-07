@@ -52,6 +52,28 @@ class AdminSetAdminRequest(BaseModel):
     is_admin: bool
 
 
+class AdminScoringModeResponse(BaseModel):
+    """Current state of the analytical scoring mode and the heuristic version in use.
+
+    `mode` controls whether analytical tools (Resume, Job Match) call the LLM:
+        - "blended"  -> heuristic prepass + Vertex AI Gemini call, blended 40/60
+        - "heuristic" -> heuristic prepass only, no LLM call
+
+    `heuristic_version` selects which heuristic implementation is active:
+        - "v1" -> lightweight production prepass shipped with the original product
+        - "v2" -> strong classical-IR baseline used in the comparative study
+    """
+
+    mode: str
+    heuristic_version: str
+    blended_weight_heuristic: float = 0.4
+    blended_weight_llm: float = 0.6
+
+
+class AdminScoringModeRequest(BaseModel):
+    mode: str  # "blended" or "heuristic"
+
+
 # Rebuild models that use forward references
 AdminUserDetailResponse.model_rebuild()
 AdminUserListResponse.model_rebuild()

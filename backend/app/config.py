@@ -26,6 +26,16 @@ class Settings(BaseSettings):
     RESULT_CACHE_TTL_SECONDS: int = 3600
     RESULT_CACHE_ENABLED: bool = True
     BLENDED_SCORING_ENABLED: bool = True
+    # Default scoring mode for the analytical core. "blended" = heuristic 40% + LLM 60%
+    # (production default); "heuristic" = strong-heuristic v2 only, no LLM call. Used by
+    # the comparative study reported in the diploma thesis (Chapter 4); operators can
+    # also flip the mode at runtime through /api/v1/admin/scoring-mode.
+    SCORING_MODE: str = "blended"
+    # Selects which heuristic implementation the analytical services use. "v1" is the
+    # lightweight prepass shipped with the original product; "v2" is the strong
+    # classical-IR baseline (BM25 + ESCO + fuzzy + section weights) introduced for the
+    # comparative study.
+    HEURISTIC_VERSION: str = "v1"
 
     CAPTCHA_ENABLED: bool = False
     CAPTCHA_SECRET_KEY: str = ""

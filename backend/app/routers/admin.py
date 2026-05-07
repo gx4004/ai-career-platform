@@ -16,12 +16,15 @@ from app.schemas.admin import (
     AdminRunDetailResponse,
     AdminRunItem,
     AdminRunListResponse,
+    AdminScoringModeRequest,
+    AdminScoringModeResponse,
     AdminSetAdminRequest,
     AdminStatsResponse,
     AdminUserDetailResponse,
     AdminUserItem,
     AdminUserListResponse,
 )
+from app.services import runtime_settings
 
 router = APIRouter()
 
@@ -251,6 +254,44 @@ def get_stats(
         runs_today=runs_today,
         active_users_7d=active_users_7d,
         runs_by_tool=runs_by_tool,
+    )
+
+
+# ── Scoring mode (comparative-study toggle) ──
+# These two endpoints back the live demonstration described in Chapter 4.2.9 of
+# the thesis. `mode` is held in process memory only; the configured default at
+# startup comes from settings.SCORING_MODE.
+
+@router.get("/scoring-mode", response_model=AdminScoringModeResponse)
+@limiter.limit(_ADMIN_RATE)
+def get_scoring_mode_endpoint(
+    request: Request,
+    admin: User = Depends(get_current_admin),
+):
+    from app.config import settings
+
+    return AdminScoringModeResponse(
+        mode=runtime_settings.get_scoring_mode(),
+        heuristic_version=settings.HEURISTIC_VERSION,
+    )
+
+
+@router.post("/scoring-mode", response_model=AdminScoringModeResponse)
+@limiter.limit(_ADMIN_RATE)
+def set_scoring_mode_endpoint(
+    request: Request,
+    body: AdminScoringModeRequest,
+    admin: User = Depends(get_current_admin),
+):
+    from app.config import settings
+
+    try:
+        runtime_settings.set_scoring_mode(body.mode)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return AdminScoringModeResponse(
+        mode=runtime_settings.get_scoring_mode(),
+        heuristic_version=settings.HEURISTIC_VERSION,
     )
 
 
