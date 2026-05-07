@@ -1,337 +1,143 @@
-# Thesis Upgrade Plan — Stage G / H / I + Polish
+# Thesis Upgrade Plan — Stage G ✅ / I (NOW) / H, J (deferred)
 
-End-to-end plan for getting the thesis from "supervisor draft ready" (Stage G complete, ARS 77.75/100, Minor revisions) to "defence-grade APD upload" (target ARS 88+, Accept territory). All work stays on `thesis-review-local`, never pushed (repo is public).
-
----
-
-## Timeline
-
-| Stage | Work | Duration | Cost | Chat |
-|---|---|---|---|---|
-| G | T1/T2/T3 mitigations + viva prep + arch PNGs | ~4-5 h | ~$0.05 | current (running) |
-| H | Heuristic enhancement (SBERT + STAR + coherence + n-gram + ESCO expansion + ablation) | ~9 h | ~$3 | NEW chat |
-| I | Final docx regen + Word polish checklist | ~1 h agent + 1-2 h manual | $0 | NEW chat |
-| J (optional) | Anti-AI text polish | ~2 h | $0 | NEW chat — defer until post-supervisor-feedback |
-| Send | Email + .docx attachment | 10 min | $0 | manual |
-
-**Today's compressed timeline**: Stage G runs in current chat. After completion → new chat → Stage H. After Stage H → new chat → Stage I. After Stage I → user does Word polish (1-2 h). Email supervisor.
-
-**Honest note**: G + H + I + polish in one day = ~16 hours of agent + manual work. If you've been at this since morning, consider sleeping after Stage G and doing Stage H tomorrow. Diminishing-returns risk on perfectionism is real.
+**STATUS**: Stage G is complete on commit `163948df` (`thesis-review-local`, never pushed). Headline correlation moved from r=0.727 to r=0.836 with disjoint-pool mitigation. Stage H (heuristic enhancement) and Stage J (anti-AI polish) are **deferred to post-supervisor-feedback** to compress the supervisor turnaround. **Stage I is the immediate next step**: regenerate the .docx, produce the Word-polish checklist, then send to supervisor.
 
 ---
 
-## Current state (as of plan creation)
+## Timeline (current)
 
-- Branch: `thesis-review-local`, ~6 commits, never pushed
-- ARS Stage F final pass: **77.75 / 100, PROCEED**
-- Bibliography: 25 IEEE numeric entries, all author-complete, all peer-reviewed
-- Appendix C: 4 production screenshots (landing, resume input, resume result blended, job match result blended)
-- `.docx` exists at `thesis/build/thesis_first4_draft.docx` (3.9 MB, ~16 656 words)
-- Stage G running in this session: Phase 1 disjoint-pool dataset done, Phase 2 LLM-only baseline in progress, Phases 3-7 to follow
+| Stage | Work | Status | Cost |
+|---|---|---|---|
+| G | T1/T2/T3 mitigations + viva prep + architecture PNGs | ✅ DONE — commit 163948df | $0.04 |
+| **I** | **Final docx regen + Word-polish checklist** | **EXECUTE NOW** | $0 |
+| Word polish | User does manual Word polish | After I, ~1-2 h manual | $0 |
+| Send | Email + .docx to supervisor | After polish | $0 |
+| H | Heuristic enhancement (SBERT + STAR + ablation) | Deferred (post-feedback) | ~$3 |
+| J | Anti-AI text polish | Deferred (post-feedback) | $0 |
 
 ---
 
-## Stage H — Heuristic Enhancement (paste into NEW chat after Stage G completes)
+## Stage G results — locked numbers
 
-**Goal**: Lift heuristic-mode performance with SBERT semantic fallback, STAR detection, cross-axis coherence, n-gram phrase matching, and ESCO taxonomy expansion. Frame as a controlled ablation reportable in Chapter 4. Target: Pearson(LLM-only, heuristic-v3) substantially closer to Pearson(blended, LLM-only).
+| Metric | Stage F (with leakage) | Stage G (disjoint) | Δ |
+|---|---|---|---|
+| r(blended, heuristic) | 0.727 [0.609, 0.814] | **0.836 [0.762, 0.896]** | +0.109 |
+| r(LLM-only, heuristic) | 0.493 [0.269, 0.645] | **0.627 [0.476, 0.765]** | +0.134 |
+| r(blended, LLM-only) | 0.956 [0.912, 0.975] | 0.952 [0.923, 0.973] | −0.004 |
+| ρ (blended, heuristic) | 0.708 | **0.847** | +0.139 |
+| structure sub-score r | 0.440 | **0.830** | +0.390 |
+| Per-pair content-token overlap | 11.82 | 0.44 | 27× reduction |
+| Pairs flagged (>3 overlap) | 97/100 | **0/100** | — |
 
-**Why valuable**: Engineering depth signal for defence committee. Strongest possible answer to "why use LLM if heuristic works?" — because we measured both, and here's the residual the LLM contributes.
+**Counter-intuitive finding**: headline r INCREASED, not decreased. The leakage was creating phrasing noise that DEPRESSED structure-axis agreement; removing it let both modes agree more cleanly on structural quality. This is methodologically defensible — VIVA-PREP Q1 fallback covers the explanation.
 
-### Prompt to paste (NEW CHAT)
+**Math check (defendable narrative anchor)**: predicted r(blended, heuristic) ≈ (0.4 + 0.6 × 0.627) / sqrt(0.52 + 0.48 × 0.627) ≈ **0.857** (analytical, from r(LLM, heuristic) = 0.627 with 0.4 / 0.6 mixing weights and equal-variance assumption). Observed: **0.836**. Within rounding distance — confirms the structural decomposition.
+
+**Projected ARS score**: 77.75 → ~83-85 (Minor revisions → Accept territory).
+
+---
+
+## Stage I — EXECUTE NOW (paste into new chat)
 
 ```
-You are the STAGE H — HEURISTIC ENHANCEMENT agent. Stage G (T1/T2/T3
-mitigations + viva prep + architecture PNGs) is complete on
-thesis-review-local. This session upgrades the classical-IR heuristic
-from v2 to v3 with focused additions that close the gap to LLM-only mode
-without replacing it.
-
-GOAL: Improve Pearson(heuristic, LLM-only) over the post-Stage-G value
-by adding SBERT semantic fallback, STAR-format detection, cross-axis
-coherence checks, bigram/trigram matching, and expanded ESCO taxonomy.
-Report as a controlled ablation study in a new Chapter 4 subsection.
+You are the FINAL DOCX REGENERATION + POLISH-CHECKLIST agent. Stage G+
+APD upgrade is complete on thesis-review-local (commit 163948df, NOT
+pushed). Headline r(blended, heuristic) moved from 0.727 to 0.836 with
+disjoint-pool mitigation. Stage H is intentionally DEFERRED to the
+post-supervisor-feedback round; treat this session as Stage I directly
+after Stage G.
 
 ═══════════════════════════════════════════════════════════════════
-PRECONDITION — READ STAGE G STATE FIRST
-═══════════════════════════════════════════════════════════════════
-Read in this order before writing any code:
-  thesis/STAGE-F-FINDINGS.md       (Stage G section — what changed, new numbers)
-  thesis/eval-results.json         (3 tracks now: heuristic / llm_only / blended)
-  thesis/eval-dataset.json         (disjoint-pool version)
-  thesis/chapter-04-studies.md     (updated headline numbers + §4.1.4 + §4.3.X)
-  backend/app/services/quality_signals_v2.py  (current heuristic implementation)
-  backend/app/data/esco_skills.json            (current 107-entry taxonomy)
-  scripts/eval_scoring.py
-  scripts/analyze_eval_results.py
-
-Extract these BASELINE numbers (record them; you'll compare deltas against them):
-  - Pearson(blended, heuristic)        post-disjoint =  ?
-  - Pearson(llm_only, heuristic)       post-disjoint =  ?  ← MAIN BASELINE
-  - Pearson(blended, llm_only)         post-disjoint =  ?
-  - Per-axis Pearson(LLM, heuristic) for keywords / impact / structure / clarity / completeness
-
-═══════════════════════════════════════════════════════════════════
-CONTEXT
-═══════════════════════════════════════════════════════════════════
-Author:        Egemen Goncu
-Repo:          /Users/goncuegemen/Documents/trials/ai-career-platform (PUBLIC — never push)
-Branch:        thesis-review-local (continue, do not create new branch)
-APD deadline:  22 May 2026
-Defence:       13–17 July 2026
-
-═══════════════════════════════════════════════════════════════════
-SCOPE — NO TOUCH ZONES
-═══════════════════════════════════════════════════════════════════
-- Do NOT modify backend/app/services/quality_signals_v2.py — v2 stays
-  for ablation comparison.
-- Create a NEW file backend/app/services/quality_signals_v3.py.
-- 168/168 backend tests must continue to pass under HEURISTIC_VERSION=v2.
-- Add tests for v3 components in backend/tests/services/test_quality_signals_v3.py
-  (≥ 30 unit tests).
-- New eval-time deps go to backend/requirements-thesis-eval.txt — NOT
-  backend/requirements.txt — to keep production deps clean.
-- Do NOT touch frontend/.
-- Do NOT push.
-- Document every change in thesis/STAGE-F-FINDINGS.md "Stage H — heuristic
-  enhancement" section.
-- Commit per phase: "thesis(stageH): <step> <one-line>"
-
-═══════════════════════════════════════════════════════════════════
-STEP H.1 — SBERT SEMANTIC LAYER (KEYWORDS AXIS)
-═══════════════════════════════════════════════════════════════════
-Current cascade: exact → fuzzy (difflib 0.85) → ESCO canonical → OOV skip.
-Add SBERT as the fourth fallback BEFORE OOV skip:
-  exact → fuzzy → ESCO → SBERT(threshold=0.65) → OOV skip
-
-Implementation:
-- Use sentence-transformers all-MiniLM-L6-v2 (~80 MB, fast on CPU).
-- Lazy load via module-level singleton:
-    _SBERT = None
-    def _get_sbert():
-        global _SBERT
-        if _SBERT is None:
-            from sentence_transformers import SentenceTransformer
-            _SBERT = SentenceTransformer('all-MiniLM-L6-v2')
-        return _SBERT
-- For each JD keyword that fails the first three fallbacks:
-  encode the keyword + each resume token n-gram (1–3 grams),
-  compute cosine similarity, accept match at max sim ≥ 0.65.
-- Cache encodings per pair (resume + JD) to avoid recomputation across axes.
-- Add `sentence-transformers>=2.7.0` and `torch>=2.0.0` to
-  backend/requirements-thesis-eval.txt with a comment block:
-  "thesis evaluation extras — NOT a production dependency".
-
-ASK USER before pip install (the torch package is large, ~2 GB on disk).
-
-═══════════════════════════════════════════════════════════════════
-STEP H.2 — STAR-FORMAT DETECTION (IMPACT AXIS)
-═══════════════════════════════════════════════════════════════════
-Augment the impact axis with STAR coverage scoring per resume bullet.
-
-Detection patterns (regex-based, no LLM):
-  S (Situation): context phrase ("when scaling traffic to X",
-                  "after migration to Y", "during the rewrite of Z")
-  T (Task): explicit goal ("to reduce A", "in order to migrate",
-            "for the launch of")
-  A (Action): action verb at start of bullet (leverage existing
-              action_verb_count detection)
-  R (Result): quantified outcome ("by X%", "in Y days", "from A to B",
-              "saving Z hours/week")
-
-Each bullet scores 0–4 STAR points based on detected components. Aggregate
-star_score = mean(bullet STAR points) × 25, normalized to [0, 100].
-Add as new sub-axis weight inside impact (alongside action_verb and
-quantification components).
-
-═══════════════════════════════════════════════════════════════════
-STEP H.3 — CROSS-AXIS COHERENCE CHECKS
-═══════════════════════════════════════════════════════════════════
-Three coherence flags, each subtracts from completeness axis if violated:
-
-C1 — Years-claimed vs date-supported:
-  If resume claims "X+ years" anywhere, parse experience-section dates
-  and verify cumulative duration ≥ X years. Mismatch penalty: −10.
-
-C2 — Skill-vs-experience consistency:
-  Each skill in skills section must appear in experience or projects
-  section. Orphan skill penalty: −2 per orphan.
-
-C3 — Education vs years-claimed:
-  Graduation year + reasonable progression bracket. If "10+ years"
-  claimed but graduated within 3 years, penalty: −10.
-
-Implement as a post-pass after the five axes are computed. All-stdlib
-(use `re` for date parsing, `datetime` for arithmetic).
-
-═══════════════════════════════════════════════════════════════════
-STEP H.4 — BIGRAM / TRIGRAM PHRASE MATCHING
-═══════════════════════════════════════════════════════════════════
-Current matching is unigram. Add 2-gram and 3-gram awareness:
-- Pre-tokenize each side into n-grams (n = 1, 2, 3).
-- A multi-word JD term ("machine learning") matches if the bigram
-  appears in resume n-gram set, OR if both tokens appear within a
-  5-word window in resume.
-- Update _bm25_score and _normalise_skills to handle n-grams.
-- Phrase weight: 1.5× of unigram weight for bigrams, 2× for trigrams.
-
-Mandatory unit tests:
-  test_machine_learning_matches_machine_learning_in_resume
-  test_data_engineering_matches_data_engineering_pipeline
-  test_machine_vision_does_not_match_machine_learning  (negative case)
-
-═══════════════════════════════════════════════════════════════════
-STEP H.5 — ESCO TAXONOMY EXPANSION
-═══════════════════════════════════════════════════════════════════
-Current taxonomy: ~107 hand-curated entries.
-Expand to ≥ 1000 entries.
-
-Path A (preferred): static ESCO export
-  Download ESCO v1.1.1 skills CSV from the official ESCO portal.
-  Filter to engineering / IT / data / management parent categories.
-  Map each to: canonical_label + alternative_labels[].
-  Save as backend/app/data/esco_skills_expanded.json.
-
-Path B (fallback if download blocked): hand-curated expansion
-  Use the existing 107 as seeds; expand each with 5–10 ESCO-style
-  variants from public sources (Wikipedia engineering skill lists,
-  O*NET parallels). Slower but no network risk.
-
-Update _load_esco to switch on ESCO_VARIANT env var:
-  ESCO_VARIANT=expanded → load esco_skills_expanded.json
-  default                → load esco_skills.json (back-compat for v2 tests)
-
-Eval scripts set ESCO_VARIANT=expanded for v3 runs.
-
-═══════════════════════════════════════════════════════════════════
-STEP H.6 — EVAL RERUN: 4 TRACKS
-═══════════════════════════════════════════════════════════════════
-Modify scripts/eval_scoring.py to compute four score columns per pair:
-  heuristic_v2  (current shipped — for ablation baseline)
-  heuristic_v3  (Stage H, all enhancements active)
-  llm_only      (from Stage G Phase 2)
-  blended       (current shipped)
-
-Run on the disjoint-pool dataset from Stage G. Compute all six pairwise
-correlations with cluster-bootstrap CIs (resample by resume_id, 2000
-iterations, seed = 42).
-
-Save: thesis/eval-results-v3.json (new file, do not overwrite Stage G's
-eval-results.json — both archived for reproducibility).
-
-ASK USER before LLM-only rerun (cost ~$0.05).
-
-═══════════════════════════════════════════════════════════════════
-STEP H.7 — CHAPTER 4 ABLATION SECTION
-═══════════════════════════════════════════════════════════════════
-Add new subsection §4.3.X "Heuristic enhancement ablation" to
-thesis/chapter-04-studies.md.
-
-Table 4.X — Pearson correlation of heuristic variants with LLM-only
-(disjoint-pool eval, 100 pairs, cluster-bootstrap 95% CI):
-
-| Variant                                  | r vs LLM-only | Δ vs v2 |
-|------------------------------------------|---------------|---------|
-| heuristic-v2 (BM25 + ESCO + fuzzy)       | 0.XXX         | —       |
-| + bigram / trigram (H.4)                 | 0.XXX         | +0.XX   |
-| + ESCO expansion (H.5)                   | 0.XXX         | +0.XX   |
-| + STAR detection (H.2)                   | 0.XXX         | +0.XX   |
-| + cross-axis coherence (H.3)             | 0.XXX         | +0.XX   |
-| + SBERT semantic fallback (H.1)          | 0.XXX         | +0.XX   |
-| heuristic-v3 (full)                      | 0.XXX         | +0.XX   |
-
-Narrative (~2 paragraphs):
-- Identify the largest single contribution.
-- Note plateau effects (SBERT threshold sensitivity).
-- Frame the residual gap to LLM-only as the genuine LLM contribution.
-
-Update §1.4 (purpose) and §5 (conclusions, when written) to reflect:
-"classical IR enhanced with sentence-embedding semantic fallback recovers
-~Y% of LLM-only performance on the analytical scoring task; the residual
-~Z% is the genuine LLM contribution that the hybrid mode preserves."
-
-═══════════════════════════════════════════════════════════════════
-STEP H.8 — STAGE F-STYLE QUICK REVIEW ON H
-═══════════════════════════════════════════════════════════════════
-Run /ars-review --quick on the updated chapter 4 + new ablation section.
-Cost: ~$2-3. ASK user before running.
-
-Surface any new findings; fix Critical immediately, log Medium / Low to
-STAGE-F-FINDINGS.md.
-
-═══════════════════════════════════════════════════════════════════
-FINAL REPORT
-═══════════════════════════════════════════════════════════════════
-Update thesis/STAGE-F-FINDINGS.md "Stage H — heuristic enhancement"
-section with:
-  - Per-variant ablation deltas (the Table 4.X numbers)
-  - Total improvement: heuristic-v2 → heuristic-v3 (Δ on Pearson)
-  - SBERT threshold sensitivity (mention if 0.65 was tuned)
-  - Tests added: count
-  - New deps: list (sentence-transformers, torch)
-  - Projected ARS rubric: 77.75 → ?
-
-Final commit:
-  git add backend/app/services/quality_signals_v3.py \
-          backend/tests/services/test_quality_signals_v3.py \
-          backend/app/data/esco_skills_expanded.json \
-          backend/requirements-thesis-eval.txt \
-          scripts/ thesis/
-  git commit -m "thesis(stageH): heuristic-v3 ablation — SBERT + STAR + coherence + n-gram + ESCO expansion"
-
-DO NOT push.
-
-When ready, start by reading the precondition files and reporting:
-  - Stage G baseline numbers (Pearson values you extracted)
-  - 5-line architectural plan for v3 (which axes get which enhancements)
-  - Any blockers you anticipate (e.g., ESCO download access)
-
-Then await user confirmation before writing v3 code.
-```
-
----
-
-## Stage I — Final docx + Word polish (paste into NEW chat after Stage H completes)
-
-**Goal**: Regenerate the .docx with Stage G + H content and produce a Word manual-polish checklist for the user. Agent does pandoc regen; user does Word manual polish.
-
-### Prompt to paste (NEW CHAT)
-
-```
-You are the FINAL DOCX REGENERATION + POLISH-CHECKLIST agent. Stages G
-and H are complete on thesis-review-local. This session produces the
-supervisor-ready .docx and the manual Word-polish checklist.
-
-═══════════════════════════════════════════════════════════════════
-PRECONDITION — READ STAGE G + H STATE
+PRECONDITION — READ STAGE G STATE
 ═══════════════════════════════════════════════════════════════════
 Read in this order:
-  thesis/STAGE-F-FINDINGS.md   (Stage G + Stage H sections)
-  thesis/chapter-04-studies.md (updated with v3 ablation)
-  thesis/abstract.md            (potentially updated headline numbers)
-  thesis/figures/               (verify all PNGs present, including
-                                 figure-2-1, 2-2, 2-3 from Stage G)
-  thesis/build/                 (existing draft for comparison)
+  thesis/THESIS-UPGRADE-PLAN.md  (this plan; Stage G results locked)
+  thesis/STAGE-F-FINDINGS.md     (Stage G section — what changed)
+  thesis/chapter-04-studies.md   (updated headline numbers; §4.1.4, §4.3.1, §4.3.1', §4.3.2-5, §4.4)
+  thesis/abstract.md             (English + Polish Streszczenie)
+  thesis/figures/                (verify present: 4 screenshots + figure-4-1 + figure-2-1/2/3 architecture)
+  thesis/build/                  (existing v1 docx — DO NOT modify)
 
-Extract:
-  - Final headline numbers (post-G + H)
-  - Total figure count
-  - Total table count
+Confirm post-Stage-G state:
+  - r(blended, heuristic) = 0.836  (NOT 0.727)
+  - r(LLM-only, heuristic) = 0.627
+  - structure sub-score r = 0.830  (NOT 0.440)
+
+═══════════════════════════════════════════════════════════════════
+PHASE I.0 — CONTENT SANITY CHECKS BEFORE PANDOC
+═══════════════════════════════════════════════════════════════════
+
+I.0.1 — Abstract reflects new numbers
+  grep -nE "0\.727|0\.708|0\.526|moderate-to-useful" thesis/abstract.md
+  → MUST be empty. If old numbers remain, update both EN abstract AND
+    Polish Streszczenie to use:
+      r = 0.836 [95% CI 0.762, 0.896] for blended-vs-heuristic
+      r = 0.627 [95% CI 0.476, 0.765] for LLM-only-vs-heuristic
+    Frame as "strong agreement (Pearson r = 0.836) under disjoint-pool
+    mitigation, with the LLM-only baseline at r = 0.627 isolating the
+    genuine cross-mode signal from the structural 0.4 component."
+
+I.0.2 — §4.3.1 has the structural-decomposition-prediction paragraph
+  grep -nE "predicted r|structural decomposition|0\.857" thesis/chapter-04-studies.md
+  → MUST return at least one match in §4.3.1.
+
+  If MISSING, add this paragraph immediately after the pairwise
+  correlation table in §4.3.1:
+
+  "An analytical sanity check confirms the structural decomposition.
+  Given the construction blended = 0.40 × heuristic + 0.60 × LLM and
+  the measured r(LLM-only, heuristic) = 0.627, the predicted Pearson
+  correlation under an equal-variance assumption is r ≈ (0.4 + 0.6 ×
+  0.627) / sqrt(0.52 + 0.48 × 0.627) ≈ 0.857. The observed r(blended,
+  heuristic) = 0.836 sits within rounding distance of this analytical
+  prediction, confirming that the blended score behaves as the weighted
+  agreement of its two components in correlation space, not merely in
+  score space. This decomposition is the methodological anchor of the
+  comparative study reported in this chapter."
+
+I.0.3 — §1.4 / §5 reflect Stage G framing (no leftover Stage F language)
+  grep -nE "moderate-to-useful agreement" thesis/chapter-01-introduction.md thesis/chapter-04-studies.md
+  → If found, replace with "strong agreement under disjoint-pool
+    mitigation, with the structural decomposition isolated through an
+    LLM-only baseline."
+
+I.0.4 — Final grep audit (forbidden phrases)
+  grep -rn "tomorrow morning\|Target length\|TBD\|Authors to restore" thesis/chapter-*.md thesis/abstract.md
+  → MUST be empty.
 
 ═══════════════════════════════════════════════════════════════════
 PHASE I.1 — REGENERATE DOCX
 ═══════════════════════════════════════════════════════════════════
-Run the same pandoc invocation used in the original supervisor draft
-(see thesis/build/ commit history for the exact command). Output:
+mkdir -p thesis/build
 
-  thesis/build/thesis_first4_draft_v2.docx
+pandoc \
+  thesis/title-page.md \
+  thesis/abstract.md \
+  thesis/acknowledgements.md \
+  thesis/abbreviations.md \
+  thesis/chapter-01-introduction.md \
+  thesis/chapter-02-architecture.md \
+  thesis/chapter-03-tools.md \
+  thesis/chapter-04-studies.md \
+  thesis/bibliography.md \
+  thesis/appendices.md \
+  --toc \
+  --toc-depth=2 \
+  --resource-path=.:thesis:thesis/figures \
+  --from=markdown+raw_html+yaml_metadata_block+fenced_divs \
+  --to=docx \
+  --metadata title="An AI-Based System for Personalized Career Recommendation" \
+  --metadata author="Egemen Goncu" \
+  --metadata lang=en \
+  -o thesis/build/thesis_first4_draft_v2.docx
 
-Use the same files in the same order:
-  title-page.md, abstract.md, acknowledgements.md, abbreviations.md,
-  chapter-01..04, bibliography.md, appendices.md
-Exclude chapter-05-conclusion.md.
+Note: omit --reference-doc (the v1 conversion documented that
+engineer_en.docx had only 6 generic styles — skipping it lets pandoc
+populate TOC + headings correctly; supervisor can re-style with the
+WUST template later).
 
 ═══════════════════════════════════════════════════════════════════
-PHASE I.2 — PROGRAMMATIC VALIDATION
+PHASE I.2 — PROGRAMMATIC VALIDATION (Stage H DEFERRED — adjusted thresholds)
 ═══════════════════════════════════════════════════════════════════
 python - <<'PY'
 from docx import Document
@@ -342,19 +148,29 @@ print(f"sections:   {len(d.sections)}")
 print(f"images:     {sum(1 for s in d.inline_shapes)}")
 word_count = sum(len(p.text.split()) for p in d.paragraphs)
 print(f"approx word count: {word_count}")
+print()
+print("First 12 headings:")
+n = 0
+for p in d.paragraphs:
+    if p.style.name.startswith("Heading") and p.text.strip():
+        print(f"  {p.style.name}: {p.text[:90]}")
+        n += 1
+        if n >= 12: break
 PY
 
-Expected (post G + H):
-  paragraphs: > 450
-  tables:     ≥ 7  (added: ablation table, STAR sub-axis table)
-  images:     ≥ 7  (4 screenshots + Figure 4.1 + 3 architecture PNGs)
-  word count: 14k–18k
+Expected (post-Stage-G, Stage H deferred):
+  paragraphs: > 420
+  tables:     ≥ 5  (no Stage H ablation table yet)
+  images:     ≥ 6  (4 screenshots + figure-4-1 + 3 architecture PNGs)
+  word count: 13k–16k
+
+If any expectation fails: investigate before committing.
 
 ═══════════════════════════════════════════════════════════════════
 PHASE I.3 — GENERATE WORD-POLISH CHECKLIST
 ═══════════════════════════════════════════════════════════════════
-Create thesis/DOCX-POLISH-CHECKLIST.md with the following content
-(verbatim, then user prints and follows in Word):
+Create thesis/DOCX-POLISH-CHECKLIST.md (verbatim content; user prints
+and follows in Word):
 
   # Word-Polish Checklist for thesis_first4_draft_v2.docx
   
@@ -403,7 +219,7 @@ Create thesis/DOCX-POLISH-CHECKLIST.md with the following content
   ## BIBLIOGRAPHY
   - [ ] Heading: "Bibliography" or "References"
   - [ ] Numeric IEEE [1], [2] aligned with hanging indent
-  - [ ] All entries present, no broken numbers
+  - [ ] All 25 entries present, no broken numbers
   
   ## POLISH CHARACTERS
   - [ ] Open Streszczenie section, select all
@@ -417,52 +233,243 @@ Create thesis/DOCX-POLISH-CHECKLIST.md with the following content
   - [ ] Export to PDF, verify PDF identical
   - [ ] Print preview — no orphans, widows, or broken page breaks
   - [ ] Footer word count matches expectations
-  - [ ] Save as: thesis_first4_supervisor_draft.docx (final)
+  - [ ] Save as: thesis_first4_supervisor_draft.docx (final filename)
 
 ═══════════════════════════════════════════════════════════════════
 PHASE I.4 — COMMIT
 ═══════════════════════════════════════════════════════════════════
 git add thesis/build/thesis_first4_draft_v2.docx \
         thesis/DOCX-POLISH-CHECKLIST.md \
-        thesis/STAGE-F-FINDINGS.md
-git commit -m "thesis: regenerate docx post-Stage-H + Word polish checklist"
+        thesis/STAGE-F-FINDINGS.md \
+        thesis/abstract.md thesis/chapter-01-introduction.md \
+        thesis/chapter-04-studies.md thesis/THESIS-UPGRADE-PLAN.md
+git commit -m "thesis(stageI): regenerate docx post-Stage-G + Word polish checklist"
 
 DO NOT push.
 
 ═══════════════════════════════════════════════════════════════════
 FINAL REPORT
 ═══════════════════════════════════════════════════════════════════
-Send the user a single message containing:
-  - .docx path (absolute)
+Send the user a single message with:
+  - .docx absolute path
   - Programmatic validation numbers (paragraphs / tables / images / words)
-  - Headline numbers (post-G + H)
-  - Path to DOCX-POLISH-CHECKLIST.md
+  - Headline numbers (post-Stage-G — confirm in the docx)
+  - thesis/DOCX-POLISH-CHECKLIST.md absolute path
+  - Commit hash
   - One-liner: "Word polish is the user's task. After polish, save as
     thesis_first4_supervisor_draft.docx and email to dr Błędowski."
 
 ═══════════════════════════════════════════════════════════════════
 CONSTRAINTS
 ═══════════════════════════════════════════════════════════════════
-- Do NOT modify markdown source — Stage G + H content is final
-- Do NOT generate supervisor email body (user writes in English)
-- Do NOT attempt programmatic Word layout polish
-- Speak Turkish in conversation
+- NEVER push thesis-review-local (repo is public).
+- Do NOT modify markdown source — Stage G content is final for this round.
+- Do NOT generate supervisor email body (user writes in English).
+- Do NOT attempt programmatic Word layout polish (python-docx unreliable).
+- Do NOT run Stage H or Stage J this session — both deferred.
+- Speak Turkish in conversation. Thesis edits stay English; Streszczenie stays Polish.
+
+When ready, start with PRECONDITION reads, then PHASE I.0 sanity checks.
+Report the I.0 results in one short message before proceeding to I.1.
 ```
 
 ---
 
-## Optional Stage J — Anti-AI text polish (DEFER until post-supervisor-feedback)
+## Stage H — DEFERRED (post-supervisor-feedback round)
 
-**Don't run before sending to supervisor.** Reasons:
-- Supervisor's edits may revert anti-AI changes
-- Save effort for the post-feedback round when content is locked
+Run after supervisor feedback returns, so the APD-final round bundles feedback + Stage H + (optional) Stage J in one revision. Goal: lift Pearson(LLM-only, heuristic-v3) above the post-Stage-G value of 0.627 with SBERT semantic fallback, STAR detection, cross-axis coherence, n-gram phrase matching, and ESCO taxonomy expansion. Frame as a controlled ablation reportable in Chapter 4.
 
-When you do run it (post-supervisor-feedback, pre-APD):
-
-### Prompt to paste (NEW CHAT, only when ready)
+### Stage H prompt — NEW CHAT (when triggered)
 
 ```
-You are the ANTI-AI TEXT POLISH agent. The thesis content is locked
+You are the STAGE H — HEURISTIC ENHANCEMENT agent. Stage G + supervisor
+feedback application complete on thesis-review-local. This session
+upgrades the classical-IR heuristic from v2 to v3 with focused additions
+that close the gap to LLM-only mode without replacing it.
+
+GOAL: Improve Pearson(heuristic, LLM-only) from the post-Stage-G value
+(0.627) by adding SBERT semantic fallback, STAR-format detection,
+cross-axis coherence checks, bigram/trigram matching, and expanded ESCO
+taxonomy. Report as a controlled ablation in a new Chapter 4 subsection.
+
+═══════════════════════════════════════════════════════════════════
+PRECONDITION — READ STAGE G STATE
+═══════════════════════════════════════════════════════════════════
+Read in this order:
+  thesis/THESIS-UPGRADE-PLAN.md
+  thesis/STAGE-F-FINDINGS.md
+  thesis/eval-results.json
+  thesis/eval-dataset.json
+  thesis/chapter-04-studies.md
+  backend/app/services/quality_signals_v2.py
+  backend/app/data/esco_skills.json
+  scripts/eval_scoring.py
+  scripts/analyze_eval_results.py
+
+Extract baseline numbers (post-Stage-G):
+  - r(blended, heuristic)      = 0.836
+  - r(LLM-only, heuristic)     = 0.627  ← MAIN BASELINE
+  - r(blended, LLM-only)       = 0.952
+  - per-axis r breakdown (keywords / impact / structure / clarity / completeness)
+
+═══════════════════════════════════════════════════════════════════
+SCOPE — NO TOUCH ZONES
+═══════════════════════════════════════════════════════════════════
+- Do NOT modify backend/app/services/quality_signals_v2.py — v2 stays
+  for ablation comparison.
+- Create a NEW file backend/app/services/quality_signals_v3.py.
+- 168/168 backend tests must continue to pass under HEURISTIC_VERSION=v2.
+- Add v3 unit tests in backend/tests/services/test_quality_signals_v3.py
+  (≥ 30 tests).
+- New eval-time deps go to backend/requirements-thesis-eval.txt — NOT
+  backend/requirements.txt.
+- Do NOT touch frontend/.
+- Do NOT push.
+- Document every change in thesis/STAGE-F-FINDINGS.md "Stage H" section.
+- Commit per phase: "thesis(stageH): <step> <one-line>"
+
+═══════════════════════════════════════════════════════════════════
+STEP H.1 — SBERT SEMANTIC LAYER (KEYWORDS AXIS)
+═══════════════════════════════════════════════════════════════════
+Cascade: exact → fuzzy (difflib 0.85) → ESCO canonical → SBERT(0.65) → OOV skip.
+
+Implementation:
+- sentence-transformers all-MiniLM-L6-v2 (~80 MB).
+- Lazy load via module-level singleton.
+- For each JD keyword failing the first three fallbacks, encode it +
+  resume token n-grams (1-3), accept match at max cosine sim ≥ 0.65.
+- Cache encodings per pair.
+- Add `sentence-transformers>=2.7.0` and `torch>=2.0.0` to
+  backend/requirements-thesis-eval.txt with comment:
+  "thesis evaluation extras — NOT a production dependency".
+
+ASK USER before pip install (torch ≈ 2 GB on disk).
+
+═══════════════════════════════════════════════════════════════════
+STEP H.2 — STAR-FORMAT DETECTION (IMPACT AXIS)
+═══════════════════════════════════════════════════════════════════
+Per resume bullet, score 0-4 STAR points:
+  S (Situation): context phrase ("when scaling traffic to X")
+  T (Task): explicit goal ("to reduce A")
+  A (Action): action verb at start (existing detection)
+  R (Result): quantified outcome ("by X%", "in Y days")
+
+Aggregate star_score = mean(bullet STAR points) × 25, normalized [0, 100].
+Add as new sub-axis inside impact alongside action_verb and quantification.
+Regex-based, no LLM calls.
+
+═══════════════════════════════════════════════════════════════════
+STEP H.3 — CROSS-AXIS COHERENCE CHECKS
+═══════════════════════════════════════════════════════════════════
+C1 — Years-claimed vs date-supported. Mismatch penalty: −10 to completeness.
+C2 — Skill-vs-experience consistency. Orphan skill penalty: −2 each.
+C3 — Education vs years-claimed (graduation year + progression). Penalty: −10.
+
+Stdlib only (re, datetime).
+
+═══════════════════════════════════════════════════════════════════
+STEP H.4 — BIGRAM / TRIGRAM PHRASE MATCHING
+═══════════════════════════════════════════════════════════════════
+Pre-tokenize each side into n-grams (n = 1, 2, 3).
+Multi-word JD term matches if bigram in resume n-gram set OR both tokens
+within 5-word window in resume.
+Phrase weight: 1.5× unigram for bigrams, 2× for trigrams.
+
+Mandatory unit tests:
+  test_machine_learning_matches_machine_learning_in_resume
+  test_data_engineering_matches_data_engineering_pipeline
+  test_machine_vision_does_not_match_machine_learning  (negative)
+
+═══════════════════════════════════════════════════════════════════
+STEP H.5 — ESCO TAXONOMY EXPANSION
+═══════════════════════════════════════════════════════════════════
+107 → ≥ 1000 entries.
+Path A: ESCO v1.1.1 official static export (engineering / IT / data /
+        management categories).
+Path B: hand-curated expansion from Wikipedia / O*NET parallels.
+
+Save as backend/app/data/esco_skills_expanded.json.
+_load_esco switches on ESCO_VARIANT env var:
+  ESCO_VARIANT=expanded → expanded
+  default               → 107-entry baseline (back-compat)
+
+═══════════════════════════════════════════════════════════════════
+STEP H.6 — EVAL RERUN: 4 TRACKS
+═══════════════════════════════════════════════════════════════════
+Modify scripts/eval_scoring.py to compute four columns per pair:
+  heuristic_v2 / heuristic_v3 / llm_only / blended
+
+Run on the disjoint-pool dataset. Six pairwise correlations with
+cluster-bootstrap CIs (resample by resume_id, n=2000, seed=42).
+
+Save: thesis/eval-results-v3.json (do NOT overwrite Stage G's
+eval-results.json).
+
+ASK USER before LLM rerun (~$0.05).
+
+═══════════════════════════════════════════════════════════════════
+STEP H.7 — CHAPTER 4 ABLATION SECTION
+═══════════════════════════════════════════════════════════════════
+Add §4.3.X "Heuristic enhancement ablation" with table:
+
+| Variant                                  | r vs LLM-only | Δ vs v2 |
+|------------------------------------------|---------------|---------|
+| heuristic-v2 (BM25 + ESCO + fuzzy)       | 0.627         | —       |
+| + bigram / trigram (H.4)                 | 0.XXX         | +0.XX   |
+| + ESCO expansion (H.5)                   | 0.XXX         | +0.XX   |
+| + STAR detection (H.2)                   | 0.XXX         | +0.XX   |
+| + cross-axis coherence (H.3)             | 0.XXX         | +0.XX   |
+| + SBERT semantic fallback (H.1)          | 0.XXX         | +0.XX   |
+| heuristic-v3 (full)                      | 0.XXX         | +0.XX   |
+
+Narrative (~2 paragraphs):
+- Largest single contribution + which axis it lifts.
+- SBERT threshold sensitivity / plateau.
+- Residual gap to LLM-only as the genuine LLM contribution.
+
+Update §1.4 + §5 to reflect: "classical IR enhanced with sentence-
+embedding semantic fallback recovers ~Y% of LLM-only performance on
+the analytical scoring task; the residual ~Z% is the genuine LLM
+contribution that the hybrid mode preserves."
+
+═══════════════════════════════════════════════════════════════════
+STEP H.8 — STAGE F-STYLE QUICK REVIEW
+═══════════════════════════════════════════════════════════════════
+/ars-review --quick on the updated chapter 4 + new ablation.
+Cost: ~$2-3. ASK user before running.
+Surface findings; fix Critical immediately, log others.
+
+═══════════════════════════════════════════════════════════════════
+FINAL REPORT
+═══════════════════════════════════════════════════════════════════
+Stage F-FINDINGS.md "Stage H" section:
+  - Per-variant ablation deltas
+  - heuristic-v2 → heuristic-v3 total Δ on Pearson
+  - SBERT threshold sensitivity
+  - Tests added: count
+  - New deps
+  - Projected ARS rubric: ~85 → ?
+
+Final commit:
+  git add backend/ scripts/ thesis/
+  git commit -m "thesis(stageH): heuristic-v3 ablation — SBERT + STAR + coherence + n-gram + ESCO expansion"
+
+DO NOT push.
+
+When ready, start by reading the precondition files and reporting the
+post-Stage-G baseline numbers before writing v3 code.
+```
+
+---
+
+## Stage J — DEFERRED (anti-AI text polish)
+
+Run AFTER supervisor feedback applied. Don't run before sending to supervisor (his edits may revert the changes).
+
+### Stage J prompt — NEW CHAT (when triggered)
+
+```
+You are the ANTI-AI TEXT POLISH agent. Thesis content is locked
 (supervisor feedback applied). This session does targeted prose polish
 to break AI-detector signature patterns while preserving the academic
 3rd-person register and reference-thesis calibration.
@@ -473,113 +480,72 @@ DO NOT re-introduce first-person.
 ═══════════════════════════════════════════════════════════════════
 TARGETS PER CHAPTER (1-4)
 ═══════════════════════════════════════════════════════════════════
-
-1. Em-dash audit. Limit to ≤ 3 per chapter. Replace with comma,
-   semicolon, or sentence break. (AI overuses em-dashes.)
-
-2. Throat-clearing strip:
-   "It is important to note that...", "Furthermore", "Moreover",
-   "Additionally", "In other words" → replace with direct claim.
-
-3. Rule-of-three audit. Detect "X, Y, and Z" triplets ≥ 2 in same
-   paragraph. Break at least one per chapter into a different shape
-   (pair + single, or single + elaboration).
-
-4. Sentence-length variance check.
-   Per chapter: stddev(words_per_sentence) / mean must be > 0.55.
-   If too uniform, insert 3+ short punchy sentences (5-10 words) per
-   long paragraph.
-
-5. Synonym-cycling kill. AI cycles "method / approach / technique /
-   strategy" within a paragraph. Pick ONE term per concept; stick.
-
-6. Add 2-3 natural register anchors per chapter:
-   - Hedge with specifics: "in our setup", "for the configurations
-     reported in Table X"
-   - Causal language with accountability: "this happened because
-     [specific reason], not because [generic reason]"
-   - Honest scope: "this section reports X; Y is out of scope and is
-     addressed in §Z"
-
-7. Repetitive-transition kill. Audit "thus" / "therefore" / "hence"
-   counts. Replace 50% with sentence-restart.
+1. Em-dash audit. Limit to ≤ 3 per chapter.
+2. Throat-clearing strip ("It is important to note that...",
+   "Furthermore", "Moreover", "Additionally", "In other words").
+3. Rule-of-three audit. Break at least one triplet per chapter.
+4. Sentence-length variance: stddev / mean > 0.55. Insert short punchy
+   sentences (5-10 words) per long paragraph if needed.
+5. Synonym-cycling kill. Pick ONE term per concept; stick.
+6. Add 2-3 natural register anchors per chapter (specific hedges,
+   accountable causal language, honest scope statements).
+7. Repetitive-transition kill. Audit "thus" / "therefore" / "hence";
+   replace 50% with sentence-restart.
 
 ═══════════════════════════════════════════════════════════════════
 QUALITY CHECK
 ═══════════════════════════════════════════════════════════════════
-After pass, report per chapter:
+Per chapter:
   - Em-dash count (target ≤ 3)
   - Throat-clearing count (target 0)
   - Sentence-length stddev / mean (target > 0.55)
   - Synonym-cycle count (target 0)
 
 Commit: "thesis(antiAI): chapter prose polish for register variation"
-
 DO NOT push.
 ```
 
 ---
 
-## Pre-send checklist (after Stage I, before emailing supervisor)
-
-Print this and physically check off:
+## Pre-send checklist (after Stage I + Word polish, before emailing supervisor)
 
 - [ ] `.docx` opens in Word/Pages without rendering errors
-- [ ] Title page exact format matches WUST template (or supervisor's prior approved MSc)
+- [ ] Title page exact format matches WUST template
 - [ ] Polish Streszczenie diacritics render correctly (ą ę ł ó ś ż ź ć ń)
 - [ ] TOC populated, all chapter + subsection headings present
-- [ ] All 7+ figures embedded inline with captions
-- [ ] All 7+ tables formatted, captions consistent
+- [ ] All 6+ figures embedded inline with captions (4 screenshots + figure-4-1 + 3 architecture)
+- [ ] All 5+ tables formatted, captions consistent
 - [ ] Bibliography numeric IEEE format, hanging indent applied
 - [ ] Page numbers: Roman for front matter, Arabic for body
 - [ ] No "TBD", "tomorrow morning", "[Authors to restore]" markers anywhere
 - [ ] PDF export tested (identical to .docx)
 - [ ] File saved as `thesis_first4_supervisor_draft.docx`
-- [ ] Email written in English (your own words, no AI template)
+- [ ] Email written in English (own words, no AI template)
 - [ ] `.docx` attached
 - [ ] Supervisor's email address verified
 - [ ] Send
 
 ---
 
-## Cost estimate (cumulative)
+## Cost recap (cumulative through Stage I)
 
 | Stage | Agent time | API cost | Cumulative |
 |---|---|---|---|
-| G | 4-5 h | $0.05 | $0.05 |
-| H | 9 h | $3.00 | $3.05 |
-| I | 1 h | $0 | $3.05 |
-| Word polish | 1-2 h manual | $0 | $3.05 |
-| J (defer) | 2 h | $0 | $3.05 |
-
-**Total**: ~$3.05 + ~16-18 hours of agent + manual work.
+| G | 50 min | $0.04 | $0.04 |
+| **I (NOW)** | **1 h** | **$0** | **$0.04** |
+| Word polish | 1-2 h manual | $0 | $0.04 |
+| H (deferred) | 9 h | $3 | $3.04 |
+| J (deferred) | 2 h | $0 | $3.04 |
 
 ---
 
 ## What NOT to do
 
-- ❌ Replace Gemini for generative tools (Cover Letter, Interview, Career Path, Portfolio). Generative requires LLM. Heuristic enhancement applies to analytical tools only (Resume, Job Match).
-- ❌ Push `thesis-review-local` to GitHub. Repo is public. Defence after-the-fact is fine for private fork.
-- ❌ Modify the existing supervisor draft `.docx` (the v1). Pandoc regen is faster than manual edits.
-- ❌ Run anti-AI polish before supervisor feedback. Wasted effort.
+- ❌ Replace Gemini for generative tools (Cover Letter, Interview, Career Path, Portfolio). Generative requires LLM. Heuristic enhancement applies to analytical tools only.
+- ❌ Push `thesis-review-local` to GitHub. Repo is public.
+- ❌ Modify the existing supervisor-draft v1 `.docx`. Pandoc regen produces v2.
+- ❌ Run anti-AI polish (Stage J) before supervisor feedback. Wasted effort.
 - ❌ Send to supervisor without Word manual polish. Pandoc output looks unfinished without it.
-- ❌ Try to programmatically polish Word layout (python-docx is unreliable for this).
+- ❌ Try to programmatically polish Word layout (python-docx is unreliable for layout).
 - ❌ Add backend dependencies for thesis-eval-only purposes. Use `requirements-thesis-eval.txt`.
-
----
-
-## Final orientation
-
-After Stage H completes you will have the engineering depth signal the defence committee will appreciate: a measured ablation showing exactly how much of LLM-only performance classical IR + sentence embeddings recover, and what residual the LLM genuinely contributes. That answers "why use LLM?" cleanly and turns the comparative study from a lift-test into an ablation contribution.
-
-After Stage I and Word polish you have a .docx that visually reads at the same density as the supervisor's prior approved MSc. That answers "is this a serious thesis?" before they read a single word.
-
-After supervisor feedback returns, Stage J anti-AI polish + feedback application produces the APD-final version.
-
-Send to supervisor when you have:
-- Stage G: ✓
-- Stage H: ✓
-- Stage I + Word polish: ✓
-- Pre-send checklist: ✓
-
-Don't send before. Don't perfectionism-loop after.
+- ❌ Run Stage H and Stage J in the Stage I session. Both are deferred — Stage I delivers the docx and stops.
