@@ -1,0 +1,40 @@
+flowchart LR
+    classDef step fill:#e8eaf6,stroke:#283593,stroke-width:2px,color:#000
+    classDef gate fill:#ffebee,stroke:#c62828,stroke-width:2px,color:#000
+    classDef external fill:#fff9c4,stroke:#827717,stroke-width:2px,color:#000
+    classDef terminal fill:#e8f5e9,stroke:#1b5e20,stroke-width:2px,color:#000
+
+    In([HTTP POST<br/>/api/v1/tools/&lt;tool&gt;]):::terminal
+
+    subgraph Pipe [run_tool_pipeline]
+        direction LR
+        S1[1. Sanitize<br/>strip · trim · normalise]:::step
+        S2{2. Cache<br/>lookup hash?}:::gate
+        S3[3. Service<br/>heuristic prepass + LLM]:::step
+        S4[4. Persist<br/>tool_runs row + parent chain]:::step
+        S5[5. Respond<br/>unified shape · history_id]:::step
+        S6[6. Observability<br/>start · success · failure events]:::step
+    end
+
+    Heur[Heuristic prepass v2]:::external
+    LLM[Vertex AI Gemini 2.5 Flash<br/>4-retry · 5/10/20/40s + jitter]:::external
+    Fallback[Heuristic-only<br/>fallback policy]:::external
+    DB[(PostgreSQL<br/>tool_runs)]:::external
+
+    Out([HTTP 200<br/>result + history_id]):::terminal
+
+    In --> S1 --> S2
+    S2 -- hit --> S5
+    S2 -- miss --> S3
+    S3 --> Heur
+    S3 --> LLM
+    LLM -- 4 retries fail --> Fallback
+    Fallback --> S4
+    S3 --> S4
+    S4 --> DB
+    S4 --> S5
+    S5 --> Out
+    S1 -. emit .-> S6
+    S3 -. emit .-> S6
+    S4 -. emit .-> S6
+    S5 -. emit .-> S6

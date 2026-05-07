@@ -1,0 +1,44 @@
+flowchart TB
+    classDef edge fill:#e3f2fd,stroke:#1565c0,stroke-width:2px,color:#000
+    classDef railway fill:#f3e5f5,stroke:#6a1b9a,stroke-width:2px,color:#000
+    classDef store fill:#fce4ec,stroke:#ad1457,stroke-width:2px,color:#000
+    classDef external fill:#fff9c4,stroke:#827717,stroke-width:2px,color:#000
+    classDef obs fill:#e0f7fa,stroke:#00695c,stroke-width:2px,color:#000
+
+    User([Browser<br/>thecareerworkbench.com]):::edge
+
+    subgraph Cloudflare [Cloudflare DNS + TLS]
+        direction TB
+        DNS[A record →<br/>Railway edge]:::edge
+    end
+
+    subgraph Railway [Railway project — single hostname, path-based routing]
+        direction TB
+        Edge[Edge proxy<br/>HTTPS termination]:::railway
+        FE[Frontend service<br/>Vite SSR · pnpm build · Node 20]:::railway
+        BE[Backend service<br/>FastAPI · uvicorn · Python 3.11]:::railway
+        PG[(PostgreSQL add-on<br/>Railway-managed)]:::store
+    end
+
+    subgraph CloudExt [External cloud services]
+        direction TB
+        Vertex[Google Vertex AI<br/>Gemini 2.5 Flash]:::external
+        Resend[Resend<br/>password-reset email]:::external
+    end
+
+    subgraph Observ [Observability]
+        direction TB
+        Sentry[Sentry free tier<br/>error tracking]:::obs
+        Metrics[Railway metrics<br/>CPU · memory · request rate]:::obs
+    end
+
+    User --> DNS --> Edge
+    Edge -- "/" path --> FE
+    Edge -- "/api/v1/*" path --> BE
+    BE --> PG
+    BE -- LLM inference --> Vertex
+    BE -- transactional email --> Resend
+    BE -. errors .-> Sentry
+    FE -. errors .-> Sentry
+    BE -. metrics .-> Metrics
+    FE -. metrics .-> Metrics

@@ -1,0 +1,417 @@
+/Library/Frameworks/Python.framework/Versions/3.11/lib/python3.11/site-packages/vertexai/generative_models/_generative_models.py:433: UserWarning: This feature is deprecated as of June 24, 2025 and will be removed on June 24, 2026. For details, see https://cloud.google.com/vertex-ai/generative-ai/docs/deprecations/genai-vertexai-sdk.
+  warning_logs.show_deprecation_warning()
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+/Library/Frameworks/Python.framework/Versions/3.11/lib/python3.11/site-packages/vertexai/generative_models/_generative_models.py:433: UserWarning: This feature is deprecated as of June 24, 2025 and will be removed on June 24, 2026. For details, see https://cloud.google.com/vertex-ai/generative-ai/docs/deprecations/genai-vertexai-sdk.
+  warning_logs.show_deprecation_warning()
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+ERROR:app.services.ai_client:Failed to parse LLM response as JSON  provider=vertex  content_start={
+  "schema_version": "quality_v2",
+  "summary": {
+    "headline": "The next revision should close the biggest keyword and evidence gaps.",
+    "verdict": "Promising but uneven",
+    "confidence_note"
+WARNING:app.services.ai_client:LLM retry 1/4 after 6.3s: Expecting ',' delimiter: line 11 column 29 (char 414)
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+WARNING:root:REST async clients requires async credentials set using aiplatform.initializer._set_async_rest_credentials().
+Falling back to grpc since no async rest credentials were detected.
+Loaded 100 pairs from /Users/goncuegemen/Documents/trials/ai-career-platform/thesis/eval-dataset.json
+Computed BM25 IDF over 20 distinct JDs and installed as runtime override.
+[001/100] r-backend-01__jd-backend-01   blended  -> score=65  latency=28412.52ms
+[001/100] r-backend-01__jd-backend-01 heuristic  -> score=56  latency=24.16ms
+[002/100] r-backend-01__jd-backend-02   blended  -> score=51  latency=17431.63ms
+[002/100] r-backend-01__jd-backend-02 heuristic  -> score=61  latency=21.55ms
+[003/100] r-backend-01__jd-backend-03   blended  -> score=70  latency=22448.73ms
+[003/100] r-backend-01__jd-backend-03 heuristic  -> score=61  latency=23.42ms
+[004/100] r-backend-02__jd-backend-01   blended  -> score=72  latency=17956.26ms
+[004/100] r-backend-02__jd-backend-01 heuristic  -> score=68  latency=18.21ms
+[005/100] r-backend-02__jd-backend-02   blended  -> score=63  latency=15192.76ms
+[005/100] r-backend-02__jd-backend-02 heuristic  -> score=66  latency=20.8ms
+[006/100] r-backend-02__jd-backend-03   blended  -> score=72  latency=18691.64ms
+[006/100] r-backend-02__jd-backend-03 heuristic  -> score=65  latency=25.16ms
+[007/100] r-backend-03__jd-backend-01   blended  -> score=64  latency=13916.15ms
+[007/100] r-backend-03__jd-backend-01 heuristic  -> score=67  latency=17.07ms
+[008/100] r-backend-03__jd-backend-02   blended  -> score=65  latency=13774.21ms
+[008/100] r-backend-03__jd-backend-02 heuristic  -> score=71  latency=20.93ms
+[009/100] r-backend-03__jd-backend-03   blended  -> score=74  latency=18160.96ms
+[009/100] r-backend-03__jd-backend-03 heuristic  -> score=71  latency=18.1ms
+[010/100] r-backend-04__jd-backend-01   blended  -> score=80  latency=19005.45ms
+[010/100] r-backend-04__jd-backend-01 heuristic  -> score=77  latency=19.95ms
+[011/100] r-backend-04__jd-backend-02   blended  -> score=77  latency=20605.61ms
+[011/100] r-backend-04__jd-backend-02 heuristic  -> score=76  latency=21.12ms
+[012/100] r-backend-04__jd-backend-03   blended  -> score=76  latency=19073.39ms
+[012/100] r-backend-04__jd-backend-03 heuristic  -> score=76  latency=26.86ms
+[013/100] r-backend-05__jd-backend-01   blended  -> score=82  latency=18192.27ms
+[013/100] r-backend-05__jd-backend-01 heuristic  -> score=76  latency=16.81ms
+[014/100] r-backend-05__jd-backend-02   blended  -> score=71  latency=21602.26ms
+[014/100] r-backend-05__jd-backend-02 heuristic  -> score=76  latency=30.58ms
+[015/100] r-backend-05__jd-backend-03   blended  -> score=80  latency=22617.79ms
+[015/100] r-backend-05__jd-backend-03 heuristic  -> score=76  latency=23.92ms
+[016/100] r-frontend-01__jd-frontend-01   blended  -> score=62  latency=12458.85ms
+[016/100] r-frontend-01__jd-frontend-01 heuristic  -> score=58  latency=24.93ms
+[017/100] r-frontend-01__jd-frontend-02   blended  -> score=54  latency=19058.26ms
+[017/100] r-frontend-01__jd-frontend-02 heuristic  -> score=60  latency=28.58ms
+[018/100] r-frontend-01__jd-frontend-03   blended  -> score=57  latency=16731.59ms
+[018/100] r-frontend-01__jd-frontend-03 heuristic  -> score=57  latency=24.28ms
+[019/100] r-frontend-02__jd-frontend-01   blended  -> score=73  latency=16794.01ms
+[019/100] r-frontend-02__jd-frontend-01 heuristic  -> score=66  latency=18.87ms
+[020/100] r-frontend-02__jd-frontend-02   blended  -> score=69  latency=20813.68ms
+[020/100] r-frontend-02__jd-frontend-02 heuristic  -> score=66  latency=21.0ms
+[021/100] r-frontend-02__jd-frontend-03   blended  -> score=64  latency=19902.15ms
+[021/100] r-frontend-02__jd-frontend-03 heuristic  -> score=63  latency=20.83ms
+[022/100] r-frontend-03__jd-frontend-01   blended  -> score=70  latency=16816.69ms
+[022/100] r-frontend-03__jd-frontend-01 heuristic  -> score=70  latency=23.19ms
+[023/100] r-frontend-03__jd-frontend-02   blended  -> score=74  latency=19175.38ms
+[023/100] r-frontend-03__jd-frontend-02 heuristic  -> score=72  latency=23.5ms
+[024/100] r-frontend-03__jd-frontend-03   blended  -> score=73  latency=17964.02ms
+[024/100] r-frontend-03__jd-frontend-03 heuristic  -> score=71  latency=24.25ms
+[025/100] r-frontend-04__jd-frontend-01   blended  -> score=75  latency=17515.54ms
+[025/100] r-frontend-04__jd-frontend-01 heuristic  -> score=73  latency=21.2ms
+[026/100] r-frontend-04__jd-frontend-02   blended  -> score=71  latency=17105.24ms
+[026/100] r-frontend-04__jd-frontend-02 heuristic  -> score=72  latency=23.05ms
+[027/100] r-frontend-04__jd-frontend-03   blended  -> score=68  latency=17545.32ms
+[027/100] r-frontend-04__jd-frontend-03 heuristic  -> score=70  latency=23.26ms
+[028/100] r-frontend-05__jd-frontend-01   blended  -> score=76  latency=21474.7ms
+[028/100] r-frontend-05__jd-frontend-01 heuristic  -> score=82  latency=17.74ms
+[029/100] r-frontend-05__jd-frontend-02   blended  -> score=78  latency=14955.16ms
+[029/100] r-frontend-05__jd-frontend-02 heuristic  -> score=82  latency=20.57ms
+[030/100] r-frontend-05__jd-frontend-03   blended  -> score=79  latency=19021.99ms
+[030/100] r-frontend-05__jd-frontend-03 heuristic  -> score=78  latency=23.28ms
+[031/100] r-fullstack-01__jd-fullstack-01   blended  -> score=73  latency=15099.41ms
+[031/100] r-fullstack-01__jd-fullstack-01 heuristic  -> score=68  latency=17.5ms
+[032/100] r-fullstack-01__jd-fullstack-02   blended  -> score=59  latency=15741.76ms
+[032/100] r-fullstack-01__jd-fullstack-02 heuristic  -> score=67  latency=20.89ms
+[033/100] r-fullstack-01__jd-fullstack-03   blended  -> score=65  latency=20175.72ms
+[033/100] r-fullstack-01__jd-fullstack-03 heuristic  -> score=66  latency=23.08ms
+[034/100] r-fullstack-01__jd-fullstack-04   blended  -> score=61  latency=15220.37ms
+[034/100] r-fullstack-01__jd-fullstack-04 heuristic  -> score=67  latency=24.27ms
+[035/100] r-fullstack-02__jd-fullstack-01   blended  -> score=63  latency=15570.53ms
+[035/100] r-fullstack-02__jd-fullstack-01 heuristic  -> score=63  latency=21.22ms
+[036/100] r-fullstack-02__jd-fullstack-02   blended  -> score=60  latency=15988.12ms
+[036/100] r-fullstack-02__jd-fullstack-02 heuristic  -> score=64  latency=23.31ms
+[037/100] r-fullstack-02__jd-fullstack-03   blended  -> score=62  latency=25177.99ms
+[037/100] r-fullstack-02__jd-fullstack-03 heuristic  -> score=65  latency=24.66ms
+[038/100] r-fullstack-02__jd-fullstack-04   blended  -> score=59  latency=18302.96ms
+[038/100] r-fullstack-02__jd-fullstack-04 heuristic  -> score=60  latency=25.47ms
+[039/100] r-fullstack-03__jd-fullstack-01   blended  -> score=78  latency=17622.62ms
+[039/100] r-fullstack-03__jd-fullstack-01 heuristic  -> score=81  latency=19.17ms
+[040/100] r-fullstack-03__jd-fullstack-02   blended  -> score=78  latency=17457.41ms
+[040/100] r-fullstack-03__jd-fullstack-02 heuristic  -> score=80  latency=20.2ms
+[041/100] r-fullstack-03__jd-fullstack-03   blended  -> score=77  latency=19307.97ms
+[041/100] r-fullstack-03__jd-fullstack-03 heuristic  -> score=78  latency=20.08ms
+[042/100] r-fullstack-03__jd-fullstack-04   blended  -> score=75  latency=13999.96ms
+[042/100] r-fullstack-03__jd-fullstack-04 heuristic  -> score=75  latency=25.12ms
+[043/100] r-fullstack-04__jd-fullstack-01   blended  -> score=82  latency=17894.86ms
+[043/100] r-fullstack-04__jd-fullstack-01 heuristic  -> score=83  latency=18.92ms
+[044/100] r-fullstack-04__jd-fullstack-02   blended  -> score=76  latency=20332.67ms
+[044/100] r-fullstack-04__jd-fullstack-02 heuristic  -> score=79  latency=21.61ms
+[045/100] r-fullstack-04__jd-fullstack-03   blended  -> score=76  latency=16357.7ms
+[045/100] r-fullstack-04__jd-fullstack-03 heuristic  -> score=78  latency=25.58ms
+[046/100] r-fullstack-04__jd-fullstack-04   blended  -> score=77  latency=21347.57ms
+[046/100] r-fullstack-04__jd-fullstack-04 heuristic  -> score=80  latency=25.83ms
+[047/100] r-fullstack-05__jd-fullstack-01   blended  -> score=79  latency=19915.2ms
+[047/100] r-fullstack-05__jd-fullstack-01 heuristic  -> score=78  latency=26.66ms
+[048/100] r-fullstack-05__jd-fullstack-02   blended  -> score=80  latency=16201.28ms
+[048/100] r-fullstack-05__jd-fullstack-02 heuristic  -> score=79  latency=27.89ms
+[049/100] r-fullstack-05__jd-fullstack-03   blended  -> score=73  latency=18846.45ms
+[049/100] r-fullstack-05__jd-fullstack-03 heuristic  -> score=77  latency=28.61ms
+[050/100] r-fullstack-05__jd-fullstack-04   blended  -> score=80  latency=12939.61ms
+[050/100] r-fullstack-05__jd-fullstack-04 heuristic  -> score=77  latency=30.77ms
+[051/100] r-data-01__jd-data-01   blended  -> score=58  latency=21395.65ms
+[051/100] r-data-01__jd-data-01 heuristic  -> score=63  latency=26.98ms
+[052/100] r-data-01__jd-data-02   blended  -> score=58  latency=20794.28ms
+[052/100] r-data-01__jd-data-02 heuristic  -> score=65  latency=28.21ms
+[053/100] r-data-01__jd-data-03   blended  -> score=67  latency=19327.37ms
+[053/100] r-data-01__jd-data-03 heuristic  -> score=64  latency=28.36ms
+[054/100] r-data-02__jd-data-01   blended  -> score=71  latency=19429.12ms
+[054/100] r-data-02__jd-data-01 heuristic  -> score=59  latency=27.96ms
+[055/100] r-data-02__jd-data-02   blended  -> score=61  latency=20231.41ms
+[055/100] r-data-02__jd-data-02 heuristic  -> score=59  latency=16.6ms
+[056/100] r-data-02__jd-data-03   blended  -> score=66  latency=22114.12ms
+[056/100] r-data-02__jd-data-03 heuristic  -> score=59  latency=30.5ms
+[057/100] r-data-03__jd-data-01   blended  -> score=73  latency=18493.41ms
+[057/100] r-data-03__jd-data-01 heuristic  -> score=73  latency=30.25ms
+[058/100] r-data-03__jd-data-02   blended  -> score=75  latency=30409.91ms
+[058/100] r-data-03__jd-data-02 heuristic  -> score=78  latency=30.64ms
+[059/100] r-data-03__jd-data-03   blended  -> score=74  latency=19078.42ms
+[059/100] r-data-03__jd-data-03 heuristic  -> score=75  latency=29.28ms
+[060/100] r-data-04__jd-data-01   blended  -> score=74  latency=17515.42ms
+[060/100] r-data-04__jd-data-01 heuristic  -> score=72  latency=31.45ms
+[061/100] r-data-04__jd-data-02   blended  -> score=74  latency=24689.23ms
+[061/100] r-data-04__jd-data-02 heuristic  -> score=74  latency=34.1ms
+[062/100] r-data-04__jd-data-03   blended  -> score=75  latency=65926.58ms
+[062/100] r-data-04__jd-data-03 heuristic  -> score=75  latency=32.11ms
+[063/100] r-data-05__jd-data-01   blended  -> score=73  latency=23030.76ms
+[063/100] r-data-05__jd-data-01 heuristic  -> score=76  latency=30.51ms
+[064/100] r-data-05__jd-data-02   blended  -> score=79  latency=18876.6ms
+[064/100] r-data-05__jd-data-02 heuristic  -> score=77  latency=31.03ms
+[065/100] r-data-05__jd-data-03   blended  -> score=79  latency=18129.5ms
+[065/100] r-data-05__jd-data-03 heuristic  -> score=77  latency=29.37ms
+[066/100] r-design-01__jd-design-01   blended  -> score=71  latency=15777.58ms
+[066/100] r-design-01__jd-design-01 heuristic  -> score=70  latency=22.91ms
+[067/100] r-design-01__jd-design-02   blended  -> score=68  latency=19746.32ms
+[067/100] r-design-01__jd-design-02 heuristic  -> score=69  latency=31.04ms
+[068/100] r-design-01__jd-design-03   blended  -> score=62  latency=16731.21ms
+[068/100] r-design-01__jd-design-03 heuristic  -> score=66  latency=29.21ms
+[069/100] r-design-01__jd-design-04   blended  -> score=65  latency=23570.21ms
+[069/100] r-design-01__jd-design-04 heuristic  -> score=69  latency=29.01ms
+[070/100] r-design-02__jd-design-01   blended  -> score=78  latency=27444.42ms
+[070/100] r-design-02__jd-design-01 heuristic  -> score=78  latency=23.71ms
+[071/100] r-design-02__jd-design-02   blended  -> score=76  latency=18649.22ms
+[071/100] r-design-02__jd-design-02 heuristic  -> score=76  latency=26.89ms
+[072/100] r-design-02__jd-design-03   blended  -> score=75  latency=20678.23ms
+[072/100] r-design-02__jd-design-03 heuristic  -> score=74  latency=27.77ms
+[073/100] r-design-02__jd-design-04   blended  -> score=78  latency=22918.78ms
+[073/100] r-design-02__jd-design-04 heuristic  -> score=74  latency=26.86ms
+[074/100] r-design-03__jd-design-01   blended  -> score=76  latency=17268.48ms
+[074/100] r-design-03__jd-design-01 heuristic  -> score=82  latency=26.58ms
+[075/100] r-design-03__jd-design-02   blended  -> score=71  latency=17889.7ms
+[075/100] r-design-03__jd-design-02 heuristic  -> score=79  latency=32.91ms
+[076/100] r-design-03__jd-design-03   blended  -> score=70  latency=15683.91ms
+[076/100] r-design-03__jd-design-03 heuristic  -> score=76  latency=32.52ms
+[077/100] r-design-03__jd-design-04   blended  -> score=74  latency=16312.01ms
+[077/100] r-design-03__jd-design-04 heuristic  -> score=79  latency=31.16ms
+[078/100] r-design-04__jd-design-01   blended  -> score=83  latency=17672.38ms
+[078/100] r-design-04__jd-design-01 heuristic  -> score=80  latency=28.52ms
+[079/100] r-design-04__jd-design-02   blended  -> score=82  latency=14234.28ms
+[079/100] r-design-04__jd-design-02 heuristic  -> score=81  latency=26.73ms
+[080/100] r-design-04__jd-design-03   blended  -> score=77  latency=17145.34ms
+[080/100] r-design-04__jd-design-03 heuristic  -> score=80  latency=27.0ms
+[081/100] r-design-04__jd-design-04   blended  -> score=79  latency=18660.3ms
+[081/100] r-design-04__jd-design-04 heuristic  -> score=79  latency=31.37ms
+[082/100] r-design-05__jd-design-01   blended  -> score=81  latency=14829.67ms
+[082/100] r-design-05__jd-design-01 heuristic  -> score=83  latency=22.58ms
+[083/100] r-design-05__jd-design-02   blended  -> score=81  latency=13809.91ms
+[083/100] r-design-05__jd-design-02 heuristic  -> score=84  latency=26.9ms
+[084/100] r-design-05__jd-design-03   blended  -> score=81  latency=17976.95ms
+[084/100] r-design-05__jd-design-03 heuristic  -> score=83  latency=25.59ms
+[085/100] r-design-05__jd-design-04   blended  -> score=80  latency=17567.7ms
+[085/100] r-design-05__jd-design-04 heuristic  -> score=82  latency=29.61ms
+[086/100] r-pm-01__jd-pm-01   blended  -> score=77  latency=21230.68ms
+[086/100] r-pm-01__jd-pm-01 heuristic  -> score=72  latency=25.37ms
+[087/100] r-pm-01__jd-pm-02   blended  -> score=56  latency=16821.83ms
+[087/100] r-pm-01__jd-pm-02 heuristic  -> score=66  latency=33.13ms
+[088/100] r-pm-01__jd-pm-03   blended  -> score=66  latency=21312.85ms
+[088/100] r-pm-01__jd-pm-03 heuristic  -> score=69  latency=29.74ms
+[089/100] r-pm-02__jd-pm-01   blended  -> score=73  latency=18496.71ms
+[089/100] r-pm-02__jd-pm-01 heuristic  -> score=74  latency=27.62ms
+[090/100] r-pm-02__jd-pm-02   blended  -> score=68  latency=17795.33ms
+[090/100] r-pm-02__jd-pm-02 heuristic  -> score=72  latency=31.85ms
+[091/100] r-pm-02__jd-pm-03   blended  -> score=70  latency=20081.8ms
+[091/100] r-pm-02__jd-pm-03 heuristic  -> score=72  latency=31.86ms
+[092/100] r-pm-03__jd-pm-01   blended  -> score=76  latency=15156.68ms
+[092/100] r-pm-03__jd-pm-01 heuristic  -> score=80  latency=27.44ms
+[093/100] r-pm-03__jd-pm-02   blended  -> score=73  latency=19625.11ms
+[093/100] r-pm-03__jd-pm-02 heuristic  -> score=78  latency=32.22ms
+[094/100] r-pm-03__jd-pm-03   blended  -> score=75  latency=21175.61ms
+[094/100] r-pm-03__jd-pm-03 heuristic  -> score=81  latency=27.64ms
+[095/100] r-pm-04__jd-pm-01   blended  -> score=69  latency=18271.84ms
+[095/100] r-pm-04__jd-pm-01 heuristic  -> score=75  latency=26.44ms
+[096/100] r-pm-04__jd-pm-02   blended  -> score=73  latency=17653.28ms
+[096/100] r-pm-04__jd-pm-02 heuristic  -> score=77  latency=27.84ms
+[097/100] r-pm-04__jd-pm-03   blended  -> score=72  latency=18424.0ms
+[097/100] r-pm-04__jd-pm-03 heuristic  -> score=76  latency=18.56ms
+[098/100] r-pm-05__jd-pm-01   blended  -> score=75  latency=17358.59ms
+[098/100] r-pm-05__jd-pm-01 heuristic  -> score=77  latency=23.38ms
+[099/100] r-pm-05__jd-pm-02   blended  -> score=80  latency=15790.99ms
+[099/100] r-pm-05__jd-pm-02 heuristic  -> score=81  latency=21.46ms
+[100/100] r-pm-05__jd-pm-03   blended  -> score=78  latency=18170.18ms
+[100/100] r-pm-05__jd-pm-03 heuristic  -> score=78  latency=24.69ms
+
+Wrote 200 rows to /Users/goncuegemen/Documents/trials/ai-career-platform/thesis/eval-results.json

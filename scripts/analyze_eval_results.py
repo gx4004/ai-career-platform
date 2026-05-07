@@ -7,6 +7,17 @@ median, percentiles, KS distance), latency (median, 95th, max), and per-call
 cost — and prints a Markdown block ready to paste into Chapter 4.3 in place of
 the *to be filled* cells.
 
+Stage-G additions (T2/T3 mitigation):
+  * Recovers an LLM-only score per pair via post-hoc decomposition of the
+    blended formula (blended = 0.4*heuristic + 0.6*llm_only ⇒
+    llm_only = (blended - 0.4*heuristic) / 0.6). This isolates the
+    cross-mode agreement, controlling for the structural component shared
+    between blended and heuristic-only modes by construction.
+  * Reports the three pairwise Pearson correlations with 95% confidence
+    intervals computed via cluster bootstrap on resume_id, where pairs
+    sharing a resume are resampled together to honour the in-track
+    pairing structure documented in Chapter 4.1.3.
+
 Stdlib only; no scipy/numpy/matplotlib. The figures are exported separately by
 hand into `thesis/figures/`.
 """
@@ -15,6 +26,7 @@ from __future__ import annotations
 
 import json
 import math
+import random
 import statistics
 import sys
 from pathlib import Path
@@ -126,6 +138,75 @@ def percentile(values: list[float], pct: float) -> float:
 
 
 # ---------------------------------------------------------------------------
+# Stage G additions (T2/T3 mitigation): LLM-only post-hoc + cluster bootstrap
+# ---------------------------------------------------------------------------
+
+
+def recover_llm_only(blended: float, heuristic: float) -> float:
+    """Post-hoc isolate the LLM-only score from blended and heuristic.
+
+    The system computes blended = 0.4 * heuristic + 0.6 * llm_only with a
+    locked heuristic prepass that the LLM cannot move (Chapter 3.2.3),
+    therefore llm_only = (blended - 0.4 * heuristic) / 0.6 exactly. This
+    is post-hoc reconstruction; it adds no LLM calls.
+    """
+    return (blended - 0.4 * heuristic) / 0.6
+
+
+def cluster_bootstrap_pearson(
+    pairs: list[tuple[str, float, float]],
+    n_iter: int = 2000,
+    seed: int = 42,
+) -> tuple[float, float, float]:
+    """Cluster bootstrap on a list of (cluster_key, x, y) triples.
+
+    Resamples CLUSTERS with replacement; within each cluster keeps all
+    pairs. Returns (mean_r, ci_lo, ci_hi) at 95% confidence (2.5/97.5
+    percentiles of the bootstrap distribution).
+
+    Per Chapter 4.1.3, in-track pairing means each resume is paired with
+    every JD in its track, so pairs sharing a resume_id are not
+    independent observations. Resampling at the resume level rather than
+    at the pair level produces honest interval estimates.
+    """
+    rng = random.Random(seed)
+    by_cluster: dict[str, list[tuple[float, float]]] = {}
+    for cid, x, y in pairs:
+        by_cluster.setdefault(cid, []).append((x, y))
+    cluster_ids = list(by_cluster)
+    n_clusters = len(cluster_ids)
+
+    rs: list[float] = []
+    for _ in range(n_iter):
+        sampled = [rng.choice(cluster_ids) for _ in range(n_clusters)]
+        xs: list[float] = []
+        ys: list[float] = []
+        for cid in sampled:
+            for x, y in by_cluster[cid]:
+                xs.append(x)
+                ys.append(y)
+        r = pearson(xs, ys)
+        if r == r:  # not NaN
+            rs.append(r)
+
+    if not rs:
+        return (float("nan"), float("nan"), float("nan"))
+
+    rs_sorted = sorted(rs)
+    mean_r = sum(rs_sorted) / len(rs_sorted)
+    lo = rs_sorted[int(0.025 * len(rs_sorted))]
+    hi = rs_sorted[int(0.975 * len(rs_sorted)) - 1]
+    return mean_r, lo, hi
+
+
+def cluster_id_from_pair(pair_id: str) -> str:
+    """Extract the resume cluster id from a pair_id of form r-<track>-<n>__jd-<...>."""
+    if "__" in pair_id:
+        return pair_id.split("__", 1)[0]
+    return pair_id
+
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
@@ -158,6 +239,14 @@ def main() -> int:
     blended_lat = [float(b["latency_ms"]) for b, _ in paired]
     heur_lat = [float(h["latency_ms"]) for _, h in paired]
 
+    # Stage-G recovery: post-hoc LLM-only score per pair
+    llm_only_scores = [
+        recover_llm_only(b, h) for b, h in zip(blended_scores, heur_scores, strict=True)
+    ]
+
+    # Cluster ids for bootstrap (resume_id from pair_id)
+    cluster_ids = [cluster_id_from_pair(b["pair_id"]) for b, _ in paired]
+
     print("# Chapter 4.3 metrics — autofill from eval-results.json\n")
 
     # 4.3.1 Score agreement
@@ -165,9 +254,14 @@ def main() -> int:
     rho = spearman(blended_scores, heur_scores)
     tau = kendall_tau(blended_scores, heur_scores)
 
+    # Cluster-bootstrap CI on the headline correlation
+    triples_bh = list(zip(cluster_ids, blended_scores, heur_scores, strict=True))
+    r_bh_mean, r_bh_lo, r_bh_hi = cluster_bootstrap_pearson(triples_bh)
+
     print("## 4.3.1 Score agreement\n")
     print(f"- Number of paired observations: **{len(paired)}**")
     print(f"- Pearson correlation (overall score): **r = {r:.3f}**")
+    print(f"  [95% CI {r_bh_lo:.3f}, {r_bh_hi:.3f}; cluster bootstrap on resume_id, 2000 iterations, seed=42]")
     print(f"- Spearman rank correlation (overall score): **ρ = {rho:.3f}**")
     print(f"- Kendall tau-b (overall score): **τ = {tau:.3f}**\n")
 
@@ -191,6 +285,37 @@ def main() -> int:
         tk = kendall_tau(b_sub, h_sub) if b_sub else float("nan")
         print(f"| {key} | {rk:.3f} | {rhk:.3f} | {tk:.3f} |")
     print()
+
+    # 4.3.1' LLM-only baseline (Stage G, T2 mitigation)
+    r_lh = pearson(llm_only_scores, heur_scores)
+    rho_lh = spearman(llm_only_scores, heur_scores)
+    triples_lh = list(zip(cluster_ids, llm_only_scores, heur_scores, strict=True))
+    r_lh_mean, r_lh_lo, r_lh_hi = cluster_bootstrap_pearson(triples_lh)
+    r_bl = pearson(blended_scores, llm_only_scores)
+    triples_bl = list(zip(cluster_ids, blended_scores, llm_only_scores, strict=True))
+    r_bl_mean, r_bl_lo, r_bl_hi = cluster_bootstrap_pearson(triples_bl)
+
+    print("## 4.3.1' LLM-only baseline (T2 mitigation)\n")
+    print(
+        "Post-hoc decomposition: with the locked heuristic prepass (Section 3.2.3), "
+        "blended = 0.4·heuristic + 0.6·LLM, so LLM-only = (blended − 0.4·heuristic) / 0.6 "
+        "is recoverable without additional LLM calls. The Pearson correlation between "
+        "LLM-only and heuristic-only scores isolates the cross-mode agreement, "
+        "controlling for the structural component shared between blended and "
+        "heuristic-only modes by construction.\n"
+    )
+    print("| Pair | Pearson r | 95% CI (cluster bootstrap) | Spearman ρ |")
+    print("|------|-----------|----------------------------|------------|")
+    print(f"| blended vs heuristic   | {r:.3f}   | [{r_bh_lo:.3f}, {r_bh_hi:.3f}] | {rho:.3f} |")
+    print(f"| LLM-only vs heuristic  | {r_lh:.3f}   | [{r_lh_lo:.3f}, {r_lh_hi:.3f}] | {rho_lh:.3f} |")
+    print(f"| blended vs LLM-only    | {r_bl:.3f}   | [{r_bl_lo:.3f}, {r_bl_hi:.3f}] | — |\n")
+
+    print("LLM-only score distribution: "
+          f"mean={statistics.mean(llm_only_scores):.2f}, "
+          f"std={statistics.pstdev(llm_only_scores):.2f}, "
+          f"median={statistics.median(llm_only_scores):.2f}, "
+          f"5th={percentile(llm_only_scores, 5):.2f}, "
+          f"95th={percentile(llm_only_scores, 95):.2f}.\n")
 
     # 4.3.2 Distribution
     print("## 4.3.2 Score distribution\n")
