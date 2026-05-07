@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel
 
 
@@ -64,14 +66,14 @@ class AdminScoringModeResponse(BaseModel):
         - "v2" -> strong classical-IR baseline used in the comparative study
     """
 
-    mode: str
-    heuristic_version: str
+    mode: Literal["blended", "heuristic"]
+    heuristic_version: Literal["v1", "v2"]
     blended_weight_heuristic: float = 0.4
     blended_weight_llm: float = 0.6
 
 
 class AdminScoringModeRequest(BaseModel):
-    mode: str  # "blended" or "heuristic"
+    mode: Literal["blended", "heuristic"]
 
 
 # Rebuild models that use forward references

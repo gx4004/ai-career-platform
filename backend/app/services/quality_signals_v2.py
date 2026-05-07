@@ -85,11 +85,14 @@ def _load_esco() -> tuple[dict[str, str], dict[str, list[str]]]:
         canonical_to_variants[canonical] = variants
         for v in variants:
             variant_to_canonical[v] = canonical
-        # The canonical itself is admitted regardless of length — short
-        # canonicals like "Go" are still matched via word-boundary regex on the
-        # canonical label, so this keeps "Go" matchable while dropping "go" as
-        # a variant alias that would also fire on "go to market".
-        variant_to_canonical[canonical.lower()] = canonical
+        # Apply the same filter to the canonical-add: a short alphabetic
+        # canonical (e.g., "Go") would otherwise be re-introduced as a key in
+        # the lookup table and re-fire on common English words ("go to market",
+        # "go live"). Multi-word and non-alphabetic canonicals are admitted as
+        # before. Skills whose canonical is short alphabetic remain matchable
+        # via their longer variants ("golang" for Go, etc.).
+        if len(canonical) >= _MIN_ESCO_VARIANT_LEN or not canonical.isalpha():
+            variant_to_canonical[canonical.lower()] = canonical
     return variant_to_canonical, canonical_to_variants
 
 
@@ -156,7 +159,22 @@ _BULLET_RE = re.compile(r"^\s*[-•●·*▪◦]\s+(.+)$", re.MULTILINE)
 
 
 def _tokenize(text: str) -> list[str]:
-    return [m.group(0).lower() for m in _TOKEN_RE.finditer(text)]
+    """Tokenise text and strip trailing sentence punctuation.
+
+    The body character class admits `.`, `/`, `-`, `+`, `#` so that intra-token
+    punctuation in skill names (`react.js`, `node-js`, `ci/cd`, `c++`, `c#`) is
+    preserved by the regex. Trailing punctuation that ends a sentence — `.`,
+    `,`, `;`, `:`, `!`, `?`, `/` — is then stripped so that `'fastapi.'` and
+    `'fastapi'` collapse to the same token. Without this rstrip, BM25, TF
+    lookups, the unique-token containment fast path, and the corpus-IDF table
+    all silently fragment around punctuation context.
+    """
+    out: list[str] = []
+    for m in _TOKEN_RE.finditer(text):
+        tok = m.group(0).lower().rstrip(".,;:!?/")
+        if tok:
+            out.append(tok)
+    return out
 
 
 def _detect_sections(text: str) -> dict[str, list[tuple[int, int]]]:
@@ -291,12 +309,24 @@ def _bm25_score(
     k1: float = _BM25_K1,
     b: float = _BM25_B,
 ) -> float:
-    """Standard BM25 score of a query against a single document's term-frequencies."""
+    """Standard BM25 score of a query against a single document's term-frequencies.
+
+    The standard BM25 formulation (Robertson & Zaragoza 2009) sums over **unique**
+    query terms; iterating the raw token stream would multiply each term's
+    contribution by its query-term-frequency, so a JD that mentions Python three
+    times would receive a score 3× higher than the same JD with a single mention,
+    independent of resume content. We deduplicate here to keep the function's
+    contract aligned with its docstring.
+    """
     if not query_terms:
         return 0.0
     dl = sum(resume_tf.values()) or 1
     score = 0.0
+    seen: set[str] = set()
     for term in query_terms:
+        if term in seen:
+            continue
+        seen.add(term)
         tf = resume_tf.get(term, 0)
         if tf == 0:
             continue

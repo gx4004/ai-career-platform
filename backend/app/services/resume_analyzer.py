@@ -20,6 +20,7 @@ from app.services.quality_signals_v2 import (
     build_resume_prepass_v2,
     compute_overall_score_v2,
     compute_resume_breakdown_v2,
+    confidence_gap_note_v2,
 )
 
 logger = logging.getLogger(__name__)
@@ -383,9 +384,16 @@ async def analyze_resume(
 
         llm_overall = None
         if isinstance(llm_breakdown, list) and llm_breakdown:
-            llm_scores = [int(item.get("score", 0)) for item in llm_breakdown if isinstance(item.get("score"), (int, float))]
-            if llm_scores:
-                llm_overall = round(sum(llm_scores) / len(llm_scores))
+            # Use the v2 weighted aggregator under HEURISTIC_VERSION=v2 so the
+            # heuristic_overall and llm_overall are on the same scale; otherwise
+            # the gap calculation below mixes weighted (62) and simple-mean (58)
+            # values and can produce a 4-point gap from identical breakdowns.
+            if settings.HEURISTIC_VERSION == "v2":
+                llm_overall = compute_overall_score_v2(llm_breakdown)
+            else:
+                llm_scores = [int(item.get("score", 0)) for item in llm_breakdown if isinstance(item.get("score"), (int, float))]
+                if llm_scores:
+                    llm_overall = round(sum(llm_scores) / len(llm_scores))
     else:
         score_breakdown = heuristic_breakdown
         llm_overall = None
@@ -402,8 +410,12 @@ async def analyze_resume(
 
     summary = _normalize_summary(result, overall_score, prepass)
 
-    # Append confidence gap note if scores diverge significantly
-    gap_note = confidence_gap_note(heuristic_overall, llm_overall)
+    # Append confidence gap note if scores diverge significantly. v2 uses a
+    # tighter 18-point threshold to match the tighter weighted-overall scale.
+    if settings.HEURISTIC_VERSION == "v2":
+        gap_note = confidence_gap_note_v2(heuristic_overall, llm_overall)
+    else:
+        gap_note = confidence_gap_note(heuristic_overall, llm_overall)
     if gap_note:
         summary["confidence_note"] = gap_note
 

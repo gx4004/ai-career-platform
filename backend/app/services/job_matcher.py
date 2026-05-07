@@ -244,7 +244,10 @@ async def match_job(
                     "model invoked). Match score is deterministic given the inputs."
                 ),
             },
-            "top_actions": [],
+            "top_actions": [
+                {"title": f"Address {kw}", "action": f"Add concrete evidence for {kw} in the resume.", "priority": "high"}
+                for kw in (prepass_v1.missing_keywords[:3] if prepass_v1.missing_keywords else [])
+            ],
             "generated_at": generated_at,
             "match_score": match_score_v1,
             "verdict": verdict_v1,
