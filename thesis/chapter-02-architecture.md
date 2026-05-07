@@ -68,7 +68,7 @@ In practice this trade-off was occasionally felt during the early weeks of front
 
 The backend is structured in four horizontal layers (Figure 2.1).
 
-![Figure 2.1: Backend layered architecture. The FastAPI surface (routers and schemas) delegates to a service layer that runs every analytical tool through the shared `run_tool_pipeline`, which in turn invokes the heuristic prepass, the LLM gateway (Vertex AI Gemini 2.5 Flash via `ai_client.py`), and the persistence layer (SQLAlchemy 2.0 + Alembic over PostgreSQL).](figures/figure-2-1-architecture.png)
+![Figure 2.1: Backend layered architecture. The FastAPI surface (routers and schemas) delegates to a service layer that runs every analytical tool through the shared `run_tool_pipeline`, which in turn invokes the heuristic prepass, the LLM gateway (Vertex AI Gemini 2.5 Flash via `ai_client.py`), and the persistence layer (SQLAlchemy 2.0 + Alembic over PostgreSQL).](figures/v2/figure-2-1.png)
 
 ### 2.3.1 Routers
 
@@ -85,7 +85,7 @@ The six functional tools share a single cross-cutting pipeline implemented in `s
 5. **Response assembly.** A unified response shape is built from the persisted record, including the history identifier and the access mode.
 6. **Observability.** A structured event is emitted on start, success, and failure, including the tool name, access mode, duration, and the error category if applicable. These events feed both the Sentry breadcrumb trail and the operator-facing metrics.
 
-![Figure 2.2: Tool pipeline (`run_tool_pipeline`). Six sequential stages form the cross-cutting wrapper around every analytical tool service: sanitise, cache, service, persist, respond, observe. The LLM gateway is shown as an external dependency exercised inside the service stage, with the four-retry exponential-backoff schedule and the heuristic-only fallback path that activates after the retries are exhausted.](figures/figure-2-2-pipeline.png)
+![Figure 2.2: Tool pipeline (`run_tool_pipeline`). Six sequential stages form the cross-cutting wrapper around every analytical tool service: sanitise, cache, service, persist, respond, observe. The LLM gateway is shown as an external dependency exercised inside the service stage, with the four-retry exponential-backoff schedule and the heuristic-only fallback path that activates after the retries are exhausted.](figures/v2/figure-2-2.png)
 
 This single point of indirection has two practical consequences for the thesis. First, every tool inherits the same cache, persistence, and observability behaviour by default; adding a new tool requires no plumbing beyond the service function and the prompt builder. Second, the comparative study in Chapter 4 can reason about cache and persistence behaviour uniformly across all tools, rather than maintaining a per-tool exception table.
 
@@ -156,7 +156,7 @@ Beyond authentication, three additional security measures are worth noting. Inpu
 
 The production deployment runs as a single Railway project containing two application services (frontend and backend) plus a managed PostgreSQL add-on (Figure 2.3).
 
-![Figure 2.3: Production deployment topology. Browser traffic resolves through Cloudflare DNS and TLS into a single Railway hostname; path-based routing at the Railway edge delivers the `/` path to the Vite-built frontend service and the `/api/v1/*` path to the FastAPI backend service. The backend uses a Railway-managed PostgreSQL add-on for persistence and three external dependencies: Vertex AI Gemini 2.5 Flash for inference, Resend for transactional email, and Sentry for error tracking. Both services emit metrics and breadcrumbs to the observability tier.](figures/figure-2-3-deployment.png)
+![Figure 2.3: Production deployment topology. Browser traffic resolves through Cloudflare DNS and TLS into a single Railway hostname; path-based routing at the Railway edge delivers the `/` path to the Vite-built frontend service and the `/api/v1/*` path to the FastAPI backend service. The backend uses a Railway-managed PostgreSQL add-on for persistence and three external dependencies: Vertex AI Gemini 2.5 Flash for inference, Resend for transactional email, and Sentry for error tracking. Both services emit metrics and breadcrumbs to the observability tier.](figures/v2/figure-2-3.png)
 
 The frontend and the backend share a single hostname, with path-based routing decided at the Railway edge. This eliminates cross-origin concerns for the SPA's API calls and simplifies cookie configuration. The Postgres database is provisioned as a managed Railway add-on; backups are configured to retain seven daily snapshots.
 

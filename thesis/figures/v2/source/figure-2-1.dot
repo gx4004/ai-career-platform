@@ -1,0 +1,57 @@
+digraph backend_layered_architecture {
+  graph [
+    rankdir=LR,
+    bgcolor="white",
+    dpi=300,
+    splines=ortho,
+    nodesep=0.55,
+    ranksep=0.75,
+    fontname="Times New Roman",
+    label="Backend layered architecture",
+    labelloc=t
+  ];
+  node [
+    shape=box,
+    style="filled",
+    fillcolor="white",
+    color="black",
+    penwidth=1.4,
+    fontname="Times New Roman",
+    fontsize=14,
+    margin="0.14,0.10"
+  ];
+  edge [
+    color="black",
+    arrowsize=0.7,
+    penwidth=1.2,
+    fontname="Times New Roman",
+    fontsize=12
+  ];
+
+  client [label="React 19 + TanStack Start\nfrontend client"];
+  routers [label="FastAPI routers\nschemas + dependencies"];
+  pipeline [label="run_tool_pipeline\nsanitize · cache · service · persist · respond"];
+  services [label="Tool services\nresume · job_match · cover_letter\ninterview · career · portfolio"];
+  repositories [label="Repository layer\nhistory · users · workspaces"];
+  orm [label="SQLAlchemy 2.0 ORM\nAlembic migrations"];
+  postgres [label="PostgreSQL\nusers · tool_runs · refresh_tokens · workspaces"];
+  prompts [label="Prompt builders\napp/prompts/*.py"];
+  heuristic [label="Heuristic prepass v2\nquality_signals_v2.py"];
+  gateway [label="LLM gateway\nai_client.py / complete_structured"];
+  vertex [label="Vertex AI Gemini 2.5 Flash\nstructured-output JSON"];
+  auth [label="Auth helpers\nJWT · bcrypt · Google OAuth"];
+  cache [label="Cache service\ncontent-hash lookup"];
+
+  client -> routers [label="HTTPS / JSON"];
+  routers -> pipeline;
+  pipeline -> services;
+  services -> repositories;
+  repositories -> orm;
+  orm -> postgres;
+  services -> prompts;
+  services -> heuristic;
+  services -> gateway [label="analytical services"];
+  gateway -> vertex;
+  pipeline -> auth;
+  pipeline -> cache;
+}

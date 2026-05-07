@@ -1,0 +1,58 @@
+digraph tool_pipeline {
+  graph [
+    rankdir=LR,
+    bgcolor="white",
+    dpi=300,
+    splines=ortho,
+    nodesep=0.45,
+    ranksep=0.65,
+    fontname="Times New Roman",
+    label="Shared tool pipeline",
+    labelloc=t
+  ];
+  node [
+    shape=box,
+    style="filled",
+    fillcolor="white",
+    color="black",
+    penwidth=1.4,
+    fontname="Times New Roman",
+    fontsize=14,
+    margin="0.13,0.10"
+  ];
+  edge [
+    color="black",
+    arrowsize=0.7,
+    penwidth=1.15,
+    fontname="Times New Roman",
+    fontsize=12
+  ];
+
+  request [label="HTTP POST\n/api/v1/tools/<tool>"];
+  sanitize [label="1. Sanitize\nstrip · trim · normalise"];
+  cache [label="2. Cache lookup\ncontent hash"];
+  service [label="3. Service call\nheuristic prepass + LLM"];
+  persist [label="4. Persist\nToolRun + parent chain"];
+  respond [label="5. Respond\nresult + history_id"];
+  success [label="HTTP 200\nunified response"];
+  observe [label="6. Observability\nstart · success · failure events"];
+  prepass [label="Heuristic prepass v2"];
+  llm [label="Vertex AI Gemini 2.5 Flash\n4 retries: 5 / 10 / 20 / 40 s"];
+  fallback [label="Heuristic-only fallback\nconfidence_note"];
+  database [label="PostgreSQL\ntool_runs"];
+
+  request -> sanitize -> cache;
+  cache -> respond [label="hit"];
+  cache -> service [label="miss"];
+  service -> persist;
+  persist -> respond -> success;
+  service -> prepass;
+  service -> llm;
+  llm -> fallback [label="retries fail"];
+  fallback -> persist;
+  persist -> database;
+  sanitize -> observe [style=dashed, label="emit"];
+  service -> observe [style=dashed, label="emit"];
+  persist -> observe [style=dashed, label="emit"];
+  respond -> observe [style=dashed, label="emit"];
+}

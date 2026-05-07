@@ -1,0 +1,52 @@
+digraph deployment_topology {
+  graph [
+    rankdir=TB,
+    bgcolor="white",
+    dpi=300,
+    splines=ortho,
+    nodesep=0.45,
+    ranksep=0.65,
+    fontname="Times New Roman",
+    label="Production deployment topology",
+    labelloc=t
+  ];
+  node [
+    shape=box,
+    style="filled",
+    fillcolor="white",
+    color="black",
+    penwidth=1.4,
+    fontname="Times New Roman",
+    fontsize=14,
+    margin="0.14,0.10"
+  ];
+  edge [
+    color="black",
+    arrowsize=0.7,
+    penwidth=1.15,
+    fontname="Times New Roman",
+    fontsize=12
+  ];
+
+  browser [label="Browser\nthecareerworkbench.com"];
+  cloudflare [label="Cloudflare DNS + TLS\nA record to Railway edge"];
+  edge [label="Railway edge proxy\nsingle hostname"];
+  frontend [label="Frontend service\nVite SSR · Node 20"];
+  backend [label="Backend service\nFastAPI · uvicorn · Python 3.11"];
+  postgres [label="Railway PostgreSQL add-on\nmanaged persistence"];
+  vertex [label="Google Vertex AI\nGemini 2.5 Flash"];
+  resend [label="Resend\npassword-reset email"];
+  sentry [label="Sentry free tier\nerror tracking"];
+  metrics [label="Railway metrics\nCPU · memory · request rate"];
+
+  browser -> cloudflare -> edge;
+  edge -> frontend [label="/"];
+  edge -> backend [label="/api/v1/*"];
+  backend -> postgres;
+  backend -> vertex [label="LLM inference"];
+  backend -> resend [label="transactional email"];
+  frontend -> sentry [style=dashed, label="frontend errors"];
+  backend -> sentry [style=dashed, label="backend errors"];
+  frontend -> metrics [style=dashed, label="service metrics"];
+  backend -> metrics [style=dashed, label="service metrics"];
+}
