@@ -1,6 +1,6 @@
-# Thesis Upgrade Plan — Stage G ✅ / I (NOW) / H, J (deferred)
+# Thesis Upgrade Plan — Stage G ✅ / H + I-AUTO (NOW) / J (deferred)
 
-**STATUS**: Stage G is complete on commit `163948df` (`thesis-review-local`, never pushed). Headline correlation moved from r=0.727 to r=0.836 with disjoint-pool mitigation. Stage H (heuristic enhancement) and Stage J (anti-AI polish) are **deferred to post-supervisor-feedback** to compress the supervisor turnaround. **Stage I is the immediate next step**: regenerate the .docx, produce the Word-polish checklist, then send to supervisor.
+**STATUS**: Stage G is complete on commit `163948df` (`thesis-review-local`, never pushed). Headline correlation moved from r=0.727 to r=0.836 with disjoint-pool mitigation. **User wants zero manual work** — Stage H (heuristic v3 ablation) is now in scope, and Stage I has been upgraded to **Stage I-AUTO** which automates Word layout via python-docx (no PDF export — `.docx` is the final deliverable). Stage J (anti-AI polish) stays deferred to post-supervisor-feedback. Only manual step remaining: **5-minute visual `.docx` check** before email.
 
 ---
 
@@ -9,10 +9,10 @@
 | Stage | Work | Status | Cost |
 |---|---|---|---|
 | G | T1/T2/T3 mitigations + viva prep + architecture PNGs | ✅ DONE — commit 163948df | $0.04 |
-| **I** | **Final docx regen + Word-polish checklist** | **EXECUTE NOW** | $0 |
-| Word polish | User does manual Word polish | After I, ~1-2 h manual | $0 |
-| Send | Email + .docx to supervisor | After polish | $0 |
-| H | Heuristic enhancement (SBERT + STAR + ablation) | Deferred (post-feedback) | ~$3 |
+| **H** | **Heuristic v3 ablation (SBERT + STAR + n-gram + ESCO + coherence)** | **EXECUTE NOW (1st)** | ~$3 |
+| **I-AUTO** | **Pandoc regen + python-docx layout automation (no PDF)** | **EXECUTE NOW (2nd, after H)** | $0 |
+| Visual check | 5-min `.docx` visual sanity (open + spot-check) | After I-AUTO, ~5 min | $0 |
+| Send | Email + `.docx` to supervisor | After visual check | $0 |
 | J | Anti-AI text polish | Deferred (post-feedback) | $0 |
 
 ---
@@ -37,15 +37,18 @@
 
 ---
 
-## Stage I — EXECUTE NOW (paste into new chat)
+## Stage I-AUTO — EXECUTE AFTER STAGE H (paste into new chat)
+
+This replaces the original Stage I "Word manual polish checklist" approach. Stage I-AUTO automates ~85% of Word layout via python-docx. **No PDF export** — `.docx` is the final supervisor deliverable. The only remaining user task is a 5-minute visual `.docx` sanity check.
+
+### Stage I-AUTO prompt
 
 ```
-You are the FINAL DOCX REGENERATION + POLISH-CHECKLIST agent. Stage G+
-APD upgrade is complete on thesis-review-local (commit 163948df, NOT
-pushed). Headline r(blended, heuristic) moved from 0.727 to 0.836 with
-disjoint-pool mitigation. Stage H is intentionally DEFERRED to the
-post-supervisor-feedback round; treat this session as Stage I directly
-after Stage G.
+You are the FINAL DOCX REGENERATION + AUTOMATED LAYOUT POLISH agent.
+Stage H is complete on thesis-review-local (heuristic-v3 ablation
+shipped). This session regenerates the .docx with all post-G+H content
+and applies programmatic layout polish via python-docx. No PDF export
+— .docx is the final deliverable.
 
 ═══════════════════════════════════════════════════════════════════
 PRECONDITION — READ STAGE G STATE
