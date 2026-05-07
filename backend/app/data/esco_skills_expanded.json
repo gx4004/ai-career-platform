@@ -1,0 +1,2606 @@
+{
+  "_metadata": {
+    "description": "Hand-curated expansion of the baseline ESCO skill subset, produced for the Stage H ablation in Chapter 4.3 of the thesis. Path B execution: extends the baseline 107 entries with ~200 additional canonical labels covering modern backend frameworks, databases, DevOps tooling, data engineering, frontend frameworks, mobile, ML/AI ecosystem, security/compliance, soft skills, and product/design.",
+    "source": "Baseline rows verbatim from https://esco.ec.europa.eu/en/download (CC BY 4.0, European Commission). Additional rows hand-curated from common job-posting vocabulary and the O*NET parallel taxonomy (https://www.onetonline.org/) — not re-attributed to ESCO.",
+    "subset_scope": "Digital, creative, and business-services skills relevant to the six role tracks in the evaluation set, plus an expanded long tail of supporting tools and methodologies.",
+    "version": "v0.2 — Stage H ESCO expansion (Path B, hand-curated)",
+    "license": "Baseline rows under CC BY 4.0 (attribute the European Commission). Additional rows are author-curated; treat them as Path-B extensions pending a Path-A re-derivation from the ESCO v1.1.1 official static export.",
+    "entry_count": 354,
+    "baseline_count": 107,
+    "added_count": 247,
+    "variant_collisions": 3
+  },
+  "skills": [
+    {
+      "canonical": "Python",
+      "variants": [
+        "python",
+        "python3",
+        "python 3",
+        "py"
+      ]
+    },
+    {
+      "canonical": "JavaScript",
+      "variants": [
+        "javascript",
+        "js",
+        "ecmascript",
+        "vanilla js"
+      ]
+    },
+    {
+      "canonical": "TypeScript",
+      "variants": [
+        "typescript",
+        "ts"
+      ]
+    },
+    {
+      "canonical": "Java",
+      "variants": [
+        "java"
+      ]
+    },
+    {
+      "canonical": "C++",
+      "variants": [
+        "c++",
+        "cpp",
+        "c plus plus"
+      ]
+    },
+    {
+      "canonical": "C#",
+      "variants": [
+        "c#",
+        "csharp",
+        "c sharp",
+        "dotnet",
+        ".net"
+      ]
+    },
+    {
+      "canonical": "Go",
+      "variants": [
+        "go",
+        "golang"
+      ]
+    },
+    {
+      "canonical": "Rust",
+      "variants": [
+        "rust",
+        "rustlang"
+      ]
+    },
+    {
+      "canonical": "Ruby",
+      "variants": [
+        "ruby",
+        "ruby on rails",
+        "rails"
+      ]
+    },
+    {
+      "canonical": "PHP",
+      "variants": [
+        "php",
+        "laravel"
+      ]
+    },
+    {
+      "canonical": "SQL",
+      "variants": [
+        "sql",
+        "structured query language",
+        "tsql",
+        "plsql",
+        "ansi sql"
+      ]
+    },
+    {
+      "canonical": "PostgreSQL",
+      "variants": [
+        "postgresql",
+        "postgres",
+        "psql",
+        "postgres database"
+      ]
+    },
+    {
+      "canonical": "MySQL",
+      "variants": [
+        "mysql",
+        "mariadb"
+      ]
+    },
+    {
+      "canonical": "MongoDB",
+      "variants": [
+        "mongodb",
+        "mongo"
+      ]
+    },
+    {
+      "canonical": "Redis",
+      "variants": [
+        "redis",
+        "redis cache"
+      ]
+    },
+    {
+      "canonical": "Elasticsearch",
+      "variants": [
+        "elasticsearch",
+        "elastic search",
+        "elk stack"
+      ]
+    },
+    {
+      "canonical": "AWS",
+      "variants": [
+        "aws",
+        "amazon web services",
+        "ec2",
+        "s3",
+        "cloudfront"
+      ]
+    },
+    {
+      "canonical": "Google Cloud Platform",
+      "variants": [
+        "gcp",
+        "google cloud",
+        "google cloud platform",
+        "vertex ai",
+        "bigquery"
+      ]
+    },
+    {
+      "canonical": "Microsoft Azure",
+      "variants": [
+        "azure",
+        "microsoft azure"
+      ]
+    },
+    {
+      "canonical": "Docker",
+      "variants": [
+        "docker",
+        "dockerfile",
+        "containerization",
+        "containers"
+      ]
+    },
+    {
+      "canonical": "Kubernetes",
+      "variants": [
+        "kubernetes",
+        "k8s",
+        "kubectl",
+        "helm"
+      ]
+    },
+    {
+      "canonical": "Terraform",
+      "variants": [
+        "terraform",
+        "iac",
+        "infrastructure as code"
+      ]
+    },
+    {
+      "canonical": "GitHub Actions",
+      "variants": [
+        "github actions",
+        "ci/cd",
+        "ci cd",
+        "continuous integration"
+      ]
+    },
+    {
+      "canonical": "Linux",
+      "variants": [
+        "linux",
+        "ubuntu",
+        "debian",
+        "centos",
+        "shell scripting"
+      ]
+    },
+    {
+      "canonical": "REST APIs",
+      "variants": [
+        "rest",
+        "rest api",
+        "restful",
+        "restful api",
+        "http api"
+      ]
+    },
+    {
+      "canonical": "GraphQL",
+      "variants": [
+        "graphql",
+        "graph ql",
+        "apollo"
+      ]
+    },
+    {
+      "canonical": "gRPC",
+      "variants": [
+        "grpc",
+        "protobuf",
+        "protocol buffers"
+      ]
+    },
+    {
+      "canonical": "WebSocket",
+      "variants": [
+        "websocket",
+        "websockets",
+        "ws"
+      ]
+    },
+    {
+      "canonical": "Microservices",
+      "variants": [
+        "microservices",
+        "micro services",
+        "service oriented architecture",
+        "soa"
+      ]
+    },
+    {
+      "canonical": "FastAPI",
+      "variants": [
+        "fastapi",
+        "fast api"
+      ]
+    },
+    {
+      "canonical": "Django",
+      "variants": [
+        "django",
+        "django rest framework",
+        "drf"
+      ]
+    },
+    {
+      "canonical": "Flask",
+      "variants": [
+        "flask"
+      ]
+    },
+    {
+      "canonical": "Express.js",
+      "variants": [
+        "express",
+        "express.js",
+        "expressjs"
+      ]
+    },
+    {
+      "canonical": "Node.js",
+      "variants": [
+        "node",
+        "node.js",
+        "nodejs"
+      ]
+    },
+    {
+      "canonical": "React",
+      "variants": [
+        "react",
+        "react.js",
+        "reactjs"
+      ]
+    },
+    {
+      "canonical": "Next.js",
+      "variants": [
+        "next",
+        "next.js",
+        "nextjs"
+      ]
+    },
+    {
+      "canonical": "Vue.js",
+      "variants": [
+        "vue",
+        "vue.js",
+        "vuejs",
+        "nuxt"
+      ]
+    },
+    {
+      "canonical": "Angular",
+      "variants": [
+        "angular",
+        "angularjs"
+      ]
+    },
+    {
+      "canonical": "Svelte",
+      "variants": [
+        "svelte",
+        "sveltekit"
+      ]
+    },
+    {
+      "canonical": "Tailwind CSS",
+      "variants": [
+        "tailwind",
+        "tailwind css",
+        "tailwindcss"
+      ]
+    },
+    {
+      "canonical": "CSS",
+      "variants": [
+        "css",
+        "css3",
+        "scss",
+        "sass",
+        "less"
+      ]
+    },
+    {
+      "canonical": "HTML",
+      "variants": [
+        "html",
+        "html5"
+      ]
+    },
+    {
+      "canonical": "Webpack",
+      "variants": [
+        "webpack"
+      ]
+    },
+    {
+      "canonical": "Vite",
+      "variants": [
+        "vite",
+        "vitejs"
+      ]
+    },
+    {
+      "canonical": "Git",
+      "variants": [
+        "git",
+        "github",
+        "gitlab",
+        "version control"
+      ]
+    },
+    {
+      "canonical": "Agile methodology",
+      "variants": [
+        "agile",
+        "scrum",
+        "kanban",
+        "agile development"
+      ]
+    },
+    {
+      "canonical": "Test-driven development",
+      "variants": [
+        "tdd",
+        "test driven development",
+        "test-driven development"
+      ]
+    },
+    {
+      "canonical": "Unit testing",
+      "variants": [
+        "unit test",
+        "unit testing",
+        "pytest",
+        "jest",
+        "junit",
+        "vitest"
+      ]
+    },
+    {
+      "canonical": "Integration testing",
+      "variants": [
+        "integration testing",
+        "end to end testing",
+        "e2e testing",
+        "playwright",
+        "cypress",
+        "selenium"
+      ]
+    },
+    {
+      "canonical": "Machine learning",
+      "variants": [
+        "machine learning",
+        "ml",
+        "supervised learning",
+        "unsupervised learning"
+      ]
+    },
+    {
+      "canonical": "Deep learning",
+      "variants": [
+        "deep learning",
+        "neural networks",
+        "cnn",
+        "rnn",
+        "lstm",
+        "transformer"
+      ]
+    },
+    {
+      "canonical": "Natural language processing",
+      "variants": [
+        "nlp",
+        "natural language processing",
+        "text classification",
+        "named entity recognition",
+        "ner"
+      ]
+    },
+    {
+      "canonical": "Computer vision",
+      "variants": [
+        "computer vision",
+        "cv",
+        "image classification",
+        "object detection"
+      ]
+    },
+    {
+      "canonical": "TensorFlow",
+      "variants": [
+        "tensorflow",
+        "tf",
+        "keras"
+      ]
+    },
+    {
+      "canonical": "PyTorch",
+      "variants": [
+        "pytorch",
+        "torch"
+      ]
+    },
+    {
+      "canonical": "scikit-learn",
+      "variants": [
+        "scikit-learn",
+        "scikit learn",
+        "sklearn"
+      ]
+    },
+    {
+      "canonical": "Pandas",
+      "variants": [
+        "pandas",
+        "dataframe"
+      ]
+    },
+    {
+      "canonical": "NumPy",
+      "variants": [
+        "numpy",
+        "np"
+      ]
+    },
+    {
+      "canonical": "Large language models",
+      "variants": [
+        "llm",
+        "llms",
+        "large language models",
+        "gpt",
+        "claude",
+        "gemini",
+        "openai",
+        "anthropic"
+      ]
+    },
+    {
+      "canonical": "Retrieval-augmented generation",
+      "variants": [
+        "rag",
+        "retrieval augmented generation",
+        "vector database",
+        "embedding"
+      ]
+    },
+    {
+      "canonical": "Apache Spark",
+      "variants": [
+        "spark",
+        "apache spark",
+        "pyspark"
+      ]
+    },
+    {
+      "canonical": "Apache Kafka",
+      "variants": [
+        "kafka",
+        "apache kafka",
+        "event streaming"
+      ]
+    },
+    {
+      "canonical": "Airflow",
+      "variants": [
+        "airflow",
+        "apache airflow",
+        "data pipeline"
+      ]
+    },
+    {
+      "canonical": "ETL",
+      "variants": [
+        "etl",
+        "extract transform load",
+        "elt"
+      ]
+    },
+    {
+      "canonical": "Data warehousing",
+      "variants": [
+        "data warehouse",
+        "data warehousing",
+        "snowflake",
+        "redshift",
+        "bigquery"
+      ]
+    },
+    {
+      "canonical": "Tableau",
+      "variants": [
+        "tableau"
+      ]
+    },
+    {
+      "canonical": "Power BI",
+      "variants": [
+        "power bi",
+        "powerbi",
+        "microsoft power bi"
+      ]
+    },
+    {
+      "canonical": "Excel",
+      "variants": [
+        "excel",
+        "ms excel",
+        "spreadsheets",
+        "google sheets"
+      ]
+    },
+    {
+      "canonical": "Statistics",
+      "variants": [
+        "statistics",
+        "statistical analysis",
+        "hypothesis testing"
+      ]
+    },
+    {
+      "canonical": "Data visualization",
+      "variants": [
+        "data visualization",
+        "data viz",
+        "matplotlib",
+        "seaborn",
+        "plotly",
+        "d3"
+      ]
+    },
+    {
+      "canonical": "User experience design",
+      "variants": [
+        "ux design",
+        "user experience design",
+        "ux research",
+        "user research"
+      ]
+    },
+    {
+      "canonical": "User interface design",
+      "variants": [
+        "ui design",
+        "user interface design"
+      ]
+    },
+    {
+      "canonical": "Wireframing",
+      "variants": [
+        "wireframing",
+        "wireframes",
+        "low fidelity",
+        "low-fi"
+      ]
+    },
+    {
+      "canonical": "Prototyping",
+      "variants": [
+        "prototype",
+        "prototyping",
+        "interactive prototypes"
+      ]
+    },
+    {
+      "canonical": "Figma",
+      "variants": [
+        "figma"
+      ]
+    },
+    {
+      "canonical": "Sketch (design tool)",
+      "variants": [
+        "sketch app",
+        "sketch application",
+        "sketch (design tool)"
+      ]
+    },
+    {
+      "canonical": "Adobe XD",
+      "variants": [
+        "adobe xd",
+        "xd"
+      ]
+    },
+    {
+      "canonical": "Adobe Photoshop",
+      "variants": [
+        "photoshop",
+        "ps",
+        "adobe photoshop"
+      ]
+    },
+    {
+      "canonical": "Adobe Illustrator",
+      "variants": [
+        "illustrator",
+        "ai",
+        "adobe illustrator"
+      ]
+    },
+    {
+      "canonical": "Design systems",
+      "variants": [
+        "design system",
+        "design systems"
+      ]
+    },
+    {
+      "canonical": "Accessibility",
+      "variants": [
+        "accessibility",
+        "a11y",
+        "wcag"
+      ]
+    },
+    {
+      "canonical": "Product management",
+      "variants": [
+        "product management",
+        "product manager",
+        "pm"
+      ]
+    },
+    {
+      "canonical": "Roadmapping",
+      "variants": [
+        "roadmap",
+        "roadmapping",
+        "product roadmap"
+      ]
+    },
+    {
+      "canonical": "Stakeholder management",
+      "variants": [
+        "stakeholder management",
+        "stakeholder communication",
+        "exec communication"
+      ]
+    },
+    {
+      "canonical": "Cross-functional collaboration",
+      "variants": [
+        "cross functional",
+        "cross-functional",
+        "cross-team collaboration"
+      ]
+    },
+    {
+      "canonical": "Project management",
+      "variants": [
+        "project management",
+        "project manager",
+        "pmp"
+      ]
+    },
+    {
+      "canonical": "Jira",
+      "variants": [
+        "jira",
+        "atlassian jira"
+      ]
+    },
+    {
+      "canonical": "Confluence",
+      "variants": [
+        "confluence"
+      ]
+    },
+    {
+      "canonical": "Linear (project management)",
+      "variants": [
+        "linear app",
+        "linear.app"
+      ]
+    },
+    {
+      "canonical": "Customer research",
+      "variants": [
+        "customer research",
+        "customer interviews",
+        "user interviews"
+      ]
+    },
+    {
+      "canonical": "A/B testing",
+      "variants": [
+        "ab testing",
+        "a/b test",
+        "split testing",
+        "experimentation"
+      ]
+    },
+    {
+      "canonical": "OKRs",
+      "variants": [
+        "okrs",
+        "okr",
+        "objectives key results"
+      ]
+    },
+    {
+      "canonical": "Public speaking",
+      "variants": [
+        "public speaking",
+        "presentations"
+      ]
+    },
+    {
+      "canonical": "Technical writing",
+      "variants": [
+        "technical writing",
+        "documentation",
+        "tech writing"
+      ]
+    },
+    {
+      "canonical": "Code review",
+      "variants": [
+        "code review",
+        "peer review"
+      ]
+    },
+    {
+      "canonical": "Mentoring",
+      "variants": [
+        "mentoring",
+        "mentorship",
+        "coaching"
+      ]
+    },
+    {
+      "canonical": "Performance optimization",
+      "variants": [
+        "performance optimization",
+        "perf",
+        "profiling",
+        "load testing"
+      ]
+    },
+    {
+      "canonical": "Security",
+      "variants": [
+        "security",
+        "infosec",
+        "owasp",
+        "penetration testing",
+        "pen test",
+        "auth"
+      ]
+    },
+    {
+      "canonical": "OAuth",
+      "variants": [
+        "oauth",
+        "oauth2",
+        "openid connect",
+        "oidc"
+      ]
+    },
+    {
+      "canonical": "JWT",
+      "variants": [
+        "jwt",
+        "json web token"
+      ]
+    },
+    {
+      "canonical": "GDPR",
+      "variants": [
+        "gdpr",
+        "general data protection regulation",
+        "data privacy"
+      ]
+    },
+    {
+      "canonical": "Observability",
+      "variants": [
+        "observability",
+        "logging",
+        "tracing",
+        "metrics",
+        "datadog",
+        "grafana",
+        "prometheus"
+      ]
+    },
+    {
+      "canonical": "Sentry",
+      "variants": [
+        "sentry",
+        "error tracking"
+      ]
+    },
+    {
+      "canonical": "Firebase",
+      "variants": [
+        "firebase"
+      ]
+    },
+    {
+      "canonical": "Supabase",
+      "variants": [
+        "supabase"
+      ]
+    },
+    {
+      "canonical": "Stripe",
+      "variants": [
+        "stripe",
+        "payments integration"
+      ]
+    },
+    {
+      "canonical": "REST design",
+      "variants": [
+        "api design",
+        "openapi",
+        "swagger"
+      ]
+    },
+    {
+      "canonical": "NestJS",
+      "variants": [
+        "nestjs",
+        "nest js",
+        "nest.js"
+      ]
+    },
+    {
+      "canonical": "Spring Boot",
+      "variants": [
+        "spring boot",
+        "springboot",
+        "spring framework",
+        "spring"
+      ]
+    },
+    {
+      "canonical": "Quarkus",
+      "variants": [
+        "quarkus"
+      ]
+    },
+    {
+      "canonical": "Micronaut",
+      "variants": [
+        "micronaut"
+      ]
+    },
+    {
+      "canonical": "Gin (Go framework)",
+      "variants": [
+        "gin framework",
+        "gin gonic"
+      ]
+    },
+    {
+      "canonical": "Echo (Go framework)",
+      "variants": [
+        "echo framework"
+      ]
+    },
+    {
+      "canonical": "Fiber (Go framework)",
+      "variants": [
+        "fiber framework",
+        "go fiber"
+      ]
+    },
+    {
+      "canonical": "Phoenix Framework",
+      "variants": [
+        "phoenix framework",
+        "phoenix elixir"
+      ]
+    },
+    {
+      "canonical": "Symfony",
+      "variants": [
+        "symfony"
+      ]
+    },
+    {
+      "canonical": "ASP.NET Core",
+      "variants": [
+        "asp.net core",
+        "asp net core",
+        "aspnet core",
+        "dotnet core"
+      ]
+    },
+    {
+      "canonical": "Actix Web",
+      "variants": [
+        "actix",
+        "actix web"
+      ]
+    },
+    {
+      "canonical": "Axum (Rust framework)",
+      "variants": [
+        "axum"
+      ]
+    },
+    {
+      "canonical": "Hapi.js",
+      "variants": [
+        "hapi",
+        "hapijs",
+        "hapi.js"
+      ]
+    },
+    {
+      "canonical": "Koa.js",
+      "variants": [
+        "koa",
+        "koajs",
+        "koa.js"
+      ]
+    },
+    {
+      "canonical": "Tornado",
+      "variants": [
+        "tornado web",
+        "tornado framework"
+      ]
+    },
+    {
+      "canonical": "Pyramid",
+      "variants": [
+        "pyramid framework"
+      ]
+    },
+    {
+      "canonical": "Sanic",
+      "variants": [
+        "sanic framework"
+      ]
+    },
+    {
+      "canonical": "Starlette",
+      "variants": [
+        "starlette"
+      ]
+    },
+    {
+      "canonical": "Tokio",
+      "variants": [
+        "tokio runtime"
+      ]
+    },
+    {
+      "canonical": "Hibernate",
+      "variants": [
+        "hibernate orm",
+        "hibernate"
+      ]
+    },
+    {
+      "canonical": "SQLAlchemy",
+      "variants": [
+        "sqlalchemy",
+        "sql alchemy"
+      ]
+    },
+    {
+      "canonical": "Sequelize",
+      "variants": [
+        "sequelize",
+        "sequelize orm"
+      ]
+    },
+    {
+      "canonical": "Prisma",
+      "variants": [
+        "prisma",
+        "prisma orm"
+      ]
+    },
+    {
+      "canonical": "TypeORM",
+      "variants": [
+        "typeorm",
+        "type orm"
+      ]
+    },
+    {
+      "canonical": "Apache Cassandra",
+      "variants": [
+        "cassandra",
+        "apache cassandra"
+      ]
+    },
+    {
+      "canonical": "Amazon DynamoDB",
+      "variants": [
+        "dynamodb",
+        "dynamo db",
+        "amazon dynamodb"
+      ]
+    },
+    {
+      "canonical": "Couchbase",
+      "variants": [
+        "couchbase"
+      ]
+    },
+    {
+      "canonical": "CouchDB",
+      "variants": [
+        "couchdb",
+        "apache couchdb"
+      ]
+    },
+    {
+      "canonical": "Neo4j",
+      "variants": [
+        "neo4j",
+        "neo 4j",
+        "graph database"
+      ]
+    },
+    {
+      "canonical": "Azure Cosmos DB",
+      "variants": [
+        "cosmos db",
+        "cosmosdb",
+        "azure cosmos"
+      ]
+    },
+    {
+      "canonical": "ClickHouse",
+      "variants": [
+        "clickhouse",
+        "click house"
+      ]
+    },
+    {
+      "canonical": "DuckDB",
+      "variants": [
+        "duckdb",
+        "duck db"
+      ]
+    },
+    {
+      "canonical": "SQLite",
+      "variants": [
+        "sqlite",
+        "sqlite3"
+      ]
+    },
+    {
+      "canonical": "Apache HBase",
+      "variants": [
+        "hbase",
+        "apache hbase"
+      ]
+    },
+    {
+      "canonical": "InfluxDB",
+      "variants": [
+        "influxdb",
+        "influx db",
+        "time series database"
+      ]
+    },
+    {
+      "canonical": "TimescaleDB",
+      "variants": [
+        "timescaledb",
+        "timescale db"
+      ]
+    },
+    {
+      "canonical": "ArangoDB",
+      "variants": [
+        "arangodb",
+        "arango db"
+      ]
+    },
+    {
+      "canonical": "ScyllaDB",
+      "variants": [
+        "scylladb",
+        "scylla db"
+      ]
+    },
+    {
+      "canonical": "Memcached",
+      "variants": [
+        "memcached",
+        "memcache"
+      ]
+    },
+    {
+      "canonical": "etcd",
+      "variants": [
+        "etcd"
+      ]
+    },
+    {
+      "canonical": "Apache Solr",
+      "variants": [
+        "solr",
+        "apache solr"
+      ]
+    },
+    {
+      "canonical": "OpenSearch",
+      "variants": [
+        "opensearch",
+        "open search"
+      ]
+    },
+    {
+      "canonical": "Pinecone (vector DB)",
+      "variants": [
+        "pinecone",
+        "vector store"
+      ]
+    },
+    {
+      "canonical": "Weaviate",
+      "variants": [
+        "weaviate"
+      ]
+    },
+    {
+      "canonical": "Chroma (vector DB)",
+      "variants": [
+        "chroma db",
+        "chromadb"
+      ]
+    },
+    {
+      "canonical": "Qdrant",
+      "variants": [
+        "qdrant"
+      ]
+    },
+    {
+      "canonical": "FAISS",
+      "variants": [
+        "faiss",
+        "facebook ai similarity search"
+      ]
+    },
+    {
+      "canonical": "Milvus",
+      "variants": [
+        "milvus"
+      ]
+    },
+    {
+      "canonical": "Ansible",
+      "variants": [
+        "ansible",
+        "ansible playbook"
+      ]
+    },
+    {
+      "canonical": "Puppet",
+      "variants": [
+        "puppet"
+      ]
+    },
+    {
+      "canonical": "Chef",
+      "variants": [
+        "chef configuration"
+      ]
+    },
+    {
+      "canonical": "Pulumi",
+      "variants": [
+        "pulumi"
+      ]
+    },
+    {
+      "canonical": "AWS CloudFormation",
+      "variants": [
+        "cloudformation",
+        "cloud formation",
+        "aws cloudformation"
+      ]
+    },
+    {
+      "canonical": "Argo CD",
+      "variants": [
+        "argo cd",
+        "argocd"
+      ]
+    },
+    {
+      "canonical": "Flux CD",
+      "variants": [
+        "flux cd",
+        "fluxcd"
+      ]
+    },
+    {
+      "canonical": "Istio",
+      "variants": [
+        "istio",
+        "service mesh"
+      ]
+    },
+    {
+      "canonical": "Linkerd",
+      "variants": [
+        "linkerd"
+      ]
+    },
+    {
+      "canonical": "Consul",
+      "variants": [
+        "consul"
+      ]
+    },
+    {
+      "canonical": "Vault (HashiCorp)",
+      "variants": [
+        "hashicorp vault",
+        "hashi vault"
+      ]
+    },
+    {
+      "canonical": "GitLab CI",
+      "variants": [
+        "gitlab ci",
+        "gitlab pipelines",
+        "gitlab ci/cd"
+      ]
+    },
+    {
+      "canonical": "CircleCI",
+      "variants": [
+        "circleci",
+        "circle ci"
+      ]
+    },
+    {
+      "canonical": "Jenkins",
+      "variants": [
+        "jenkins",
+        "jenkins pipeline"
+      ]
+    },
+    {
+      "canonical": "Travis CI",
+      "variants": [
+        "travis ci",
+        "travisci"
+      ]
+    },
+    {
+      "canonical": "Bazel",
+      "variants": [
+        "bazel build"
+      ]
+    },
+    {
+      "canonical": "Make (build system)",
+      "variants": [
+        "makefile",
+        "gnu make"
+      ]
+    },
+    {
+      "canonical": "Bash scripting",
+      "variants": [
+        "bash scripting",
+        "shell script",
+        "shell scripting"
+      ]
+    },
+    {
+      "canonical": "Heroku",
+      "variants": [
+        "heroku"
+      ]
+    },
+    {
+      "canonical": "Railway (PaaS)",
+      "variants": [
+        "railway app",
+        "railway platform"
+      ]
+    },
+    {
+      "canonical": "Render (PaaS)",
+      "variants": [
+        "render.com",
+        "render platform"
+      ]
+    },
+    {
+      "canonical": "Vercel",
+      "variants": [
+        "vercel"
+      ]
+    },
+    {
+      "canonical": "Netlify",
+      "variants": [
+        "netlify"
+      ]
+    },
+    {
+      "canonical": "Cloudflare",
+      "variants": [
+        "cloudflare",
+        "cloudflare workers"
+      ]
+    },
+    {
+      "canonical": "Fastly",
+      "variants": [
+        "fastly cdn"
+      ]
+    },
+    {
+      "canonical": "DigitalOcean",
+      "variants": [
+        "digitalocean",
+        "digital ocean"
+      ]
+    },
+    {
+      "canonical": "Datadog",
+      "variants": [
+        "datadog"
+      ]
+    },
+    {
+      "canonical": "New Relic",
+      "variants": [
+        "new relic",
+        "newrelic"
+      ]
+    },
+    {
+      "canonical": "PagerDuty",
+      "variants": [
+        "pagerduty",
+        "pager duty"
+      ]
+    },
+    {
+      "canonical": "OpenTelemetry",
+      "variants": [
+        "opentelemetry",
+        "open telemetry",
+        "otel"
+      ]
+    },
+    {
+      "canonical": "Splunk",
+      "variants": [
+        "splunk"
+      ]
+    },
+    {
+      "canonical": "dbt (data build tool)",
+      "variants": [
+        "dbt core",
+        "data build tool"
+      ]
+    },
+    {
+      "canonical": "Apache Beam",
+      "variants": [
+        "apache beam",
+        "beam pipeline"
+      ]
+    },
+    {
+      "canonical": "Apache Flink",
+      "variants": [
+        "flink",
+        "apache flink"
+      ]
+    },
+    {
+      "canonical": "Apache Hadoop",
+      "variants": [
+        "hadoop",
+        "apache hadoop",
+        "mapreduce"
+      ]
+    },
+    {
+      "canonical": "Apache NiFi",
+      "variants": [
+        "apache nifi",
+        "nifi"
+      ]
+    },
+    {
+      "canonical": "Apache Iceberg",
+      "variants": [
+        "apache iceberg",
+        "iceberg table"
+      ]
+    },
+    {
+      "canonical": "Apache Hudi",
+      "variants": [
+        "apache hudi",
+        "hudi"
+      ]
+    },
+    {
+      "canonical": "Delta Lake",
+      "variants": [
+        "delta lake",
+        "deltalake"
+      ]
+    },
+    {
+      "canonical": "Databricks",
+      "variants": [
+        "databricks",
+        "databricks platform"
+      ]
+    },
+    {
+      "canonical": "Snowflake",
+      "variants": [
+        "snowflake warehouse",
+        "snowflake data cloud"
+      ]
+    },
+    {
+      "canonical": "Dagster",
+      "variants": [
+        "dagster"
+      ]
+    },
+    {
+      "canonical": "Prefect",
+      "variants": [
+        "prefect orchestration"
+      ]
+    },
+    {
+      "canonical": "Luigi (workflow)",
+      "variants": [
+        "luigi pipeline",
+        "luigi workflow"
+      ]
+    },
+    {
+      "canonical": "Fivetran",
+      "variants": [
+        "fivetran"
+      ]
+    },
+    {
+      "canonical": "Stitch (data)",
+      "variants": [
+        "stitch data"
+      ]
+    },
+    {
+      "canonical": "Airbyte",
+      "variants": [
+        "airbyte"
+      ]
+    },
+    {
+      "canonical": "Looker",
+      "variants": [
+        "looker",
+        "looker studio"
+      ]
+    },
+    {
+      "canonical": "Metabase",
+      "variants": [
+        "metabase"
+      ]
+    },
+    {
+      "canonical": "Mode Analytics",
+      "variants": [
+        "mode analytics"
+      ]
+    },
+    {
+      "canonical": "Apache Druid",
+      "variants": [
+        "druid",
+        "apache druid"
+      ]
+    },
+    {
+      "canonical": "Solid.js",
+      "variants": [
+        "solid js",
+        "solidjs",
+        "solid.js"
+      ]
+    },
+    {
+      "canonical": "Qwik",
+      "variants": [
+        "qwik framework"
+      ]
+    },
+    {
+      "canonical": "Astro",
+      "variants": [
+        "astro framework",
+        "astro build"
+      ]
+    },
+    {
+      "canonical": "Remix",
+      "variants": [
+        "remix framework",
+        "remix run"
+      ]
+    },
+    {
+      "canonical": "Lit (web components)",
+      "variants": [
+        "lit element",
+        "lit framework"
+      ]
+    },
+    {
+      "canonical": "Stencil",
+      "variants": [
+        "stencil js",
+        "stenciljs"
+      ]
+    },
+    {
+      "canonical": "Preact",
+      "variants": [
+        "preact"
+      ]
+    },
+    {
+      "canonical": "Alpine.js",
+      "variants": [
+        "alpine js",
+        "alpinejs",
+        "alpine.js"
+      ]
+    },
+    {
+      "canonical": "HTMX",
+      "variants": [
+        "htmx"
+      ]
+    },
+    {
+      "canonical": "Storybook",
+      "variants": [
+        "storybook"
+      ]
+    },
+    {
+      "canonical": "Redux",
+      "variants": [
+        "redux",
+        "redux toolkit"
+      ]
+    },
+    {
+      "canonical": "MobX",
+      "variants": [
+        "mobx state"
+      ]
+    },
+    {
+      "canonical": "Zustand",
+      "variants": [
+        "zustand state"
+      ]
+    },
+    {
+      "canonical": "TanStack Query",
+      "variants": [
+        "tanstack query",
+        "react query"
+      ]
+    },
+    {
+      "canonical": "TanStack Router",
+      "variants": [
+        "tanstack router"
+      ]
+    },
+    {
+      "canonical": "Material UI",
+      "variants": [
+        "material ui",
+        "mui library"
+      ]
+    },
+    {
+      "canonical": "shadcn/ui",
+      "variants": [
+        "shadcn",
+        "shadcn ui"
+      ]
+    },
+    {
+      "canonical": "Bootstrap",
+      "variants": [
+        "bootstrap css",
+        "twitter bootstrap"
+      ]
+    },
+    {
+      "canonical": "Three.js",
+      "variants": [
+        "three js",
+        "threejs",
+        "three.js"
+      ]
+    },
+    {
+      "canonical": "WebGL",
+      "variants": [
+        "webgl",
+        "web gl"
+      ]
+    },
+    {
+      "canonical": "Web Components",
+      "variants": [
+        "web components",
+        "custom elements"
+      ]
+    },
+    {
+      "canonical": "Service workers",
+      "variants": [
+        "service worker",
+        "service workers"
+      ]
+    },
+    {
+      "canonical": "Progressive web apps",
+      "variants": [
+        "pwa",
+        "progressive web app"
+      ]
+    },
+    {
+      "canonical": "React Native",
+      "variants": [
+        "react native"
+      ]
+    },
+    {
+      "canonical": "Flutter",
+      "variants": [
+        "flutter framework",
+        "dart flutter"
+      ]
+    },
+    {
+      "canonical": "Swift",
+      "variants": [
+        "swift language",
+        "swift programming"
+      ]
+    },
+    {
+      "canonical": "Kotlin",
+      "variants": [
+        "kotlin language"
+      ]
+    },
+    {
+      "canonical": "SwiftUI",
+      "variants": [
+        "swiftui"
+      ]
+    },
+    {
+      "canonical": "Jetpack Compose",
+      "variants": [
+        "jetpack compose",
+        "android compose"
+      ]
+    },
+    {
+      "canonical": "Xamarin",
+      "variants": [
+        "xamarin"
+      ]
+    },
+    {
+      "canonical": "Ionic Framework",
+      "variants": [
+        "ionic framework",
+        "ionic app"
+      ]
+    },
+    {
+      "canonical": "Expo (React Native)",
+      "variants": [
+        "expo framework",
+        "expo go"
+      ]
+    },
+    {
+      "canonical": "Android SDK",
+      "variants": [
+        "android sdk",
+        "android development"
+      ]
+    },
+    {
+      "canonical": "iOS SDK",
+      "variants": [
+        "ios sdk",
+        "ios development"
+      ]
+    },
+    {
+      "canonical": "Objective-C",
+      "variants": [
+        "objective c",
+        "objc",
+        "objective-c"
+      ]
+    },
+    {
+      "canonical": "JAX",
+      "variants": [
+        "jax framework",
+        "google jax"
+      ]
+    },
+    {
+      "canonical": "Hugging Face",
+      "variants": [
+        "huggingface",
+        "hugging face",
+        "huggingface hub"
+      ]
+    },
+    {
+      "canonical": "LangChain",
+      "variants": [
+        "langchain",
+        "lang chain"
+      ]
+    },
+    {
+      "canonical": "LlamaIndex",
+      "variants": [
+        "llamaindex",
+        "llama index"
+      ]
+    },
+    {
+      "canonical": "vLLM",
+      "variants": [
+        "vllm"
+      ]
+    },
+    {
+      "canonical": "Ollama",
+      "variants": [
+        "ollama"
+      ]
+    },
+    {
+      "canonical": "MLflow",
+      "variants": [
+        "mlflow",
+        "ml flow"
+      ]
+    },
+    {
+      "canonical": "Weights & Biases",
+      "variants": [
+        "weights and biases",
+        "wandb",
+        "w&b"
+      ]
+    },
+    {
+      "canonical": "Kubeflow",
+      "variants": [
+        "kubeflow"
+      ]
+    },
+    {
+      "canonical": "Ray (distributed compute)",
+      "variants": [
+        "ray serve",
+        "ray framework"
+      ]
+    },
+    {
+      "canonical": "DVC (data version control)",
+      "variants": [
+        "dvc",
+        "data version control"
+      ]
+    },
+    {
+      "canonical": "ONNX",
+      "variants": [
+        "onnx runtime",
+        "open neural network exchange"
+      ]
+    },
+    {
+      "canonical": "Triton Inference Server",
+      "variants": [
+        "triton inference",
+        "nvidia triton"
+      ]
+    },
+    {
+      "canonical": "Stable Diffusion",
+      "variants": [
+        "stable diffusion",
+        "diffusers"
+      ]
+    },
+    {
+      "canonical": "OpenCV",
+      "variants": [
+        "opencv",
+        "open cv"
+      ]
+    },
+    {
+      "canonical": "spaCy",
+      "variants": [
+        "spacy",
+        "spa cy"
+      ]
+    },
+    {
+      "canonical": "NLTK",
+      "variants": [
+        "nltk"
+      ]
+    },
+    {
+      "canonical": "Gensim",
+      "variants": [
+        "gensim"
+      ]
+    },
+    {
+      "canonical": "XGBoost",
+      "variants": [
+        "xgboost",
+        "xg boost"
+      ]
+    },
+    {
+      "canonical": "LightGBM",
+      "variants": [
+        "lightgbm",
+        "light gbm"
+      ]
+    },
+    {
+      "canonical": "CatBoost",
+      "variants": [
+        "catboost"
+      ]
+    },
+    {
+      "canonical": "Reinforcement learning",
+      "variants": [
+        "reinforcement learning",
+        "deep reinforcement learning"
+      ]
+    },
+    {
+      "canonical": "Time series forecasting",
+      "variants": [
+        "time series",
+        "forecasting"
+      ]
+    },
+    {
+      "canonical": "Recommender systems",
+      "variants": [
+        "recommender system",
+        "recommendation engine"
+      ]
+    },
+    {
+      "canonical": "Embeddings",
+      "variants": [
+        "embeddings",
+        "word embeddings",
+        "sentence embeddings"
+      ]
+    },
+    {
+      "canonical": "Prompt engineering",
+      "variants": [
+        "prompt engineering",
+        "prompt design"
+      ]
+    },
+    {
+      "canonical": "Fine-tuning",
+      "variants": [
+        "fine tuning",
+        "fine-tuning",
+        "lora",
+        "qlora"
+      ]
+    },
+    {
+      "canonical": "Sentence Transformers",
+      "variants": [
+        "sentence transformers",
+        "sbert"
+      ]
+    },
+    {
+      "canonical": "BM25",
+      "variants": [
+        "bm25",
+        "okapi bm25"
+      ]
+    },
+    {
+      "canonical": "TF-IDF",
+      "variants": [
+        "tf idf",
+        "tf-idf",
+        "tfidf"
+      ]
+    },
+    {
+      "canonical": "Domain-driven design",
+      "variants": [
+        "ddd",
+        "domain driven design",
+        "domain-driven design"
+      ]
+    },
+    {
+      "canonical": "Event-driven architecture",
+      "variants": [
+        "event driven",
+        "event-driven architecture",
+        "eda"
+      ]
+    },
+    {
+      "canonical": "Hexagonal architecture",
+      "variants": [
+        "hexagonal architecture",
+        "ports and adapters"
+      ]
+    },
+    {
+      "canonical": "Clean architecture",
+      "variants": [
+        "clean architecture"
+      ]
+    },
+    {
+      "canonical": "CQRS",
+      "variants": [
+        "cqrs",
+        "command query responsibility"
+      ]
+    },
+    {
+      "canonical": "Event sourcing",
+      "variants": [
+        "event sourcing"
+      ]
+    },
+    {
+      "canonical": "Behaviour-driven development",
+      "variants": [
+        "bdd",
+        "behaviour driven development",
+        "behavior driven development"
+      ]
+    },
+    {
+      "canonical": "Pair programming",
+      "variants": [
+        "pair programming",
+        "pairing"
+      ]
+    },
+    {
+      "canonical": "Mob programming",
+      "variants": [
+        "mob programming"
+      ]
+    },
+    {
+      "canonical": "Twelve-factor app",
+      "variants": [
+        "12 factor",
+        "twelve factor",
+        "12-factor"
+      ]
+    },
+    {
+      "canonical": "Refactoring",
+      "variants": [
+        "refactoring",
+        "code refactor"
+      ]
+    },
+    {
+      "canonical": "Software design patterns",
+      "variants": [
+        "design patterns",
+        "gof patterns"
+      ]
+    },
+    {
+      "canonical": "SOLID principles",
+      "variants": [
+        "solid principles",
+        "solid design"
+      ]
+    },
+    {
+      "canonical": "Continuous deployment",
+      "variants": [
+        "continuous deployment",
+        "cd pipeline"
+      ]
+    },
+    {
+      "canonical": "Incident response",
+      "variants": [
+        "incident response",
+        "incident management",
+        "post mortem",
+        "postmortem"
+      ]
+    },
+    {
+      "canonical": "Chaos engineering",
+      "variants": [
+        "chaos engineering",
+        "chaos monkey"
+      ]
+    },
+    {
+      "canonical": "Site reliability engineering",
+      "variants": [
+        "sre",
+        "site reliability"
+      ]
+    },
+    {
+      "canonical": "DevSecOps",
+      "variants": [
+        "devsecops",
+        "dev sec ops"
+      ]
+    },
+    {
+      "canonical": "Static application security testing",
+      "variants": [
+        "sast",
+        "static analysis"
+      ]
+    },
+    {
+      "canonical": "Dynamic application security testing",
+      "variants": [
+        "dast",
+        "dynamic security testing"
+      ]
+    },
+    {
+      "canonical": "Software composition analysis",
+      "variants": [
+        "sca",
+        "dependency scanning"
+      ]
+    },
+    {
+      "canonical": "SOC 2 compliance",
+      "variants": [
+        "soc 2",
+        "soc2",
+        "soc-2"
+      ]
+    },
+    {
+      "canonical": "ISO 27001",
+      "variants": [
+        "iso 27001",
+        "iso27001"
+      ]
+    },
+    {
+      "canonical": "HIPAA",
+      "variants": [
+        "hipaa",
+        "health insurance portability"
+      ]
+    },
+    {
+      "canonical": "PCI DSS",
+      "variants": [
+        "pci dss",
+        "pci-dss"
+      ]
+    },
+    {
+      "canonical": "Zero trust security",
+      "variants": [
+        "zero trust",
+        "zero-trust"
+      ]
+    },
+    {
+      "canonical": "Threat modelling",
+      "variants": [
+        "threat modelling",
+        "threat modeling"
+      ]
+    },
+    {
+      "canonical": "Cryptography",
+      "variants": [
+        "cryptography",
+        "crypto",
+        "tls",
+        "encryption at rest"
+      ]
+    },
+    {
+      "canonical": "Identity and access management",
+      "variants": [
+        "iam",
+        "identity management",
+        "access management"
+      ]
+    },
+    {
+      "canonical": "Single sign-on",
+      "variants": [
+        "sso",
+        "single sign on"
+      ]
+    },
+    {
+      "canonical": "SAML",
+      "variants": [
+        "saml",
+        "saml 2.0"
+      ]
+    },
+    {
+      "canonical": "Communication skills",
+      "variants": [
+        "communication skills",
+        "verbal communication",
+        "written communication"
+      ]
+    },
+    {
+      "canonical": "Negotiation",
+      "variants": [
+        "negotiation",
+        "contract negotiation"
+      ]
+    },
+    {
+      "canonical": "Leadership",
+      "variants": [
+        "leadership",
+        "team leadership",
+        "tech lead"
+      ]
+    },
+    {
+      "canonical": "Decision-making",
+      "variants": [
+        "decision making",
+        "decision-making"
+      ]
+    },
+    {
+      "canonical": "Conflict resolution",
+      "variants": [
+        "conflict resolution"
+      ]
+    },
+    {
+      "canonical": "Time management",
+      "variants": [
+        "time management",
+        "prioritisation",
+        "prioritization"
+      ]
+    },
+    {
+      "canonical": "Critical thinking",
+      "variants": [
+        "critical thinking"
+      ]
+    },
+    {
+      "canonical": "Analytical thinking",
+      "variants": [
+        "analytical thinking",
+        "analytical mindset"
+      ]
+    },
+    {
+      "canonical": "Empathy",
+      "variants": [
+        "empathy",
+        "empathetic"
+      ]
+    },
+    {
+      "canonical": "Active listening",
+      "variants": [
+        "active listening"
+      ]
+    },
+    {
+      "canonical": "Adaptability",
+      "variants": [
+        "adaptability",
+        "adaptable"
+      ]
+    },
+    {
+      "canonical": "Problem solving",
+      "variants": [
+        "problem solving",
+        "problem-solving"
+      ]
+    },
+    {
+      "canonical": "Strategic thinking",
+      "variants": [
+        "strategic thinking",
+        "strategy"
+      ]
+    },
+    {
+      "canonical": "Customer orientation",
+      "variants": [
+        "customer orientation",
+        "customer focus",
+        "customer obsession"
+      ]
+    },
+    {
+      "canonical": "Cross-cultural collaboration",
+      "variants": [
+        "cross cultural",
+        "cross-cultural",
+        "multicultural"
+      ]
+    },
+    {
+      "canonical": "Remote work",
+      "variants": [
+        "remote work",
+        "distributed teams",
+        "async work"
+      ]
+    },
+    {
+      "canonical": "Hiring and recruiting",
+      "variants": [
+        "hiring",
+        "recruiting",
+        "interviewing candidates"
+      ]
+    },
+    {
+      "canonical": "Onboarding",
+      "variants": [
+        "onboarding"
+      ]
+    },
+    {
+      "canonical": "Performance management",
+      "variants": [
+        "performance management",
+        "performance reviews"
+      ]
+    },
+    {
+      "canonical": "Budget management",
+      "variants": [
+        "budget management",
+        "budgeting"
+      ]
+    },
+    {
+      "canonical": "Vendor management",
+      "variants": [
+        "vendor management"
+      ]
+    },
+    {
+      "canonical": "Risk management",
+      "variants": [
+        "risk management"
+      ]
+    },
+    {
+      "canonical": "Product strategy",
+      "variants": [
+        "product strategy"
+      ]
+    },
+    {
+      "canonical": "Product analytics",
+      "variants": [
+        "product analytics",
+        "amplitude",
+        "mixpanel"
+      ]
+    },
+    {
+      "canonical": "User journey mapping",
+      "variants": [
+        "user journey",
+        "journey mapping"
+      ]
+    },
+    {
+      "canonical": "Usability testing",
+      "variants": [
+        "usability testing",
+        "user testing"
+      ]
+    },
+    {
+      "canonical": "Information architecture",
+      "variants": [
+        "information architecture",
+        "ia design"
+      ]
+    },
+    {
+      "canonical": "Visual design",
+      "variants": [
+        "visual design",
+        "graphic design"
+      ]
+    },
+    {
+      "canonical": "Motion design",
+      "variants": [
+        "motion design",
+        "motion graphics"
+      ]
+    },
+    {
+      "canonical": "Brand strategy",
+      "variants": [
+        "brand strategy",
+        "branding"
+      ]
+    },
+    {
+      "canonical": "Content strategy",
+      "variants": [
+        "content strategy"
+      ]
+    },
+    {
+      "canonical": "Copywriting",
+      "variants": [
+        "copywriting"
+      ]
+    },
+    {
+      "canonical": "SEO",
+      "variants": [
+        "seo",
+        "search engine optimisation",
+        "search engine optimization"
+      ]
+    },
+    {
+      "canonical": "Digital marketing",
+      "variants": [
+        "digital marketing",
+        "growth marketing"
+      ]
+    },
+    {
+      "canonical": "Lifecycle marketing",
+      "variants": [
+        "lifecycle marketing",
+        "email marketing",
+        "crm marketing"
+      ]
+    },
+    {
+      "canonical": "Sales operations",
+      "variants": [
+        "sales operations",
+        "sales ops"
+      ]
+    },
+    {
+      "canonical": "English (language)",
+      "variants": [
+        "english language",
+        "english fluent",
+        "fluent english"
+      ]
+    },
+    {
+      "canonical": "Polish (language)",
+      "variants": [
+        "polish language",
+        "polski"
+      ]
+    },
+    {
+      "canonical": "German (language)",
+      "variants": [
+        "german language",
+        "deutsch"
+      ]
+    },
+    {
+      "canonical": "Spanish (language)",
+      "variants": [
+        "spanish language",
+        "español"
+      ]
+    },
+    {
+      "canonical": "French (language)",
+      "variants": [
+        "french language",
+        "français"
+      ]
+    },
+    {
+      "canonical": "Compilers",
+      "variants": [
+        "compilers",
+        "compiler design"
+      ]
+    },
+    {
+      "canonical": "Operating systems",
+      "variants": [
+        "operating systems",
+        "os internals"
+      ]
+    },
+    {
+      "canonical": "Distributed systems",
+      "variants": [
+        "distributed systems"
+      ]
+    },
+    {
+      "canonical": "Concurrent programming",
+      "variants": [
+        "concurrency",
+        "concurrent programming",
+        "multithreading"
+      ]
+    },
+    {
+      "canonical": "Functional programming",
+      "variants": [
+        "functional programming",
+        "fp"
+      ]
+    },
+    {
+      "canonical": "Algorithms and data structures",
+      "variants": [
+        "algorithms",
+        "data structures"
+      ]
+    },
+    {
+      "canonical": "Big-O analysis",
+      "variants": [
+        "big o",
+        "big-o",
+        "complexity analysis"
+      ]
+    },
+    {
+      "canonical": "Networking (TCP/IP)",
+      "variants": [
+        "tcp ip",
+        "tcp/ip",
+        "networking"
+      ]
+    },
+    {
+      "canonical": "WebRTC",
+      "variants": [
+        "webrtc"
+      ]
+    },
+    {
+      "canonical": "Blockchain",
+      "variants": [
+        "blockchain",
+        "ethereum",
+        "solidity",
+        "web3"
+      ]
+    },
+    {
+      "canonical": "Smart contracts",
+      "variants": [
+        "smart contracts"
+      ]
+    }
+  ]
+}

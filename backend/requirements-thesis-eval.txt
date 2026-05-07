@@ -1,0 +1,21 @@
+# Thesis-evaluation-only dependencies — NOT installed in production.
+#
+# These packages are required to reproduce the Stage H heuristic-enhancement
+# ablation reported in Chapter 4.3.6. They are intentionally separated from
+# backend/requirements.txt to keep the production deployment surface free
+# of neural dependencies.
+#
+# To install for the eval rerun:
+#     pip install -r backend/requirements-thesis-eval.txt
+#
+# torch is the SBERT inference backend; tf-keras is the compatibility shim
+# that prevents the Keras-3-vs-transformers TF import path from raising at
+# module-load time on environments where Keras 3 is already present.
+# (`TRANSFORMERS_NO_TF=1 USE_TF=0` env vars provide an alternative bypass
+# without installing tf-keras; either approach works.)
+
+sentence-transformers>=2.7.0
+torch>=2.0.0
+# tf-keras is OPTIONAL — only needed if Keras 3 is detected and the env-var
+# bypass cannot be used.
+# tf-keras>=2.16
