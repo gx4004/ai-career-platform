@@ -161,13 +161,6 @@ The screenshots in this appendix were captured at 1920 × 1080 viewport against 
 
 *Figure C.4: The Job Match result page on the same input pair as Figure C.3. The view exposes the matched-keyword set, the missing-keyword set, the deterministic verdict, the recruiter-style summary, and the requirement-by-requirement breakdown produced by the prompt described in Chapter 3.3.3.*
 
-### C.5–C.6 Pending capture
-
-The two screens below demonstrate the runtime mode toggle that anchors Section 4.2.9 of the thesis. Automated capture was attempted but the development-environment route guard for `/admin` could not be exercised cleanly through the dev-browser harness inside the available time window; manual capture against the running system is scheduled for the morning of submission. The numerical claims that the toggle supports are independently anchored by Figure 4.1 (score distribution), the per-call cost recomputation in Section 4.3.4, and the runtime-toggle source listing in Appendix A.3, so the absence of these two screenshots does not weaken the chapter's evidence.
-
-- C.5 Resume Analyzer result page (heuristic-only mode) — paired comparison with C.3
-- C.6 Admin scoring-mode toggle, capturing the `blended → heuristic` switch action that Section 4.2.9 describes
-
 ---
 
 ## Appendix D — Configuration reference

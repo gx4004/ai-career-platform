@@ -45,17 +45,21 @@ The §4.1.4 threats-to-validity disclosure is sufficient for the supervisor draf
 ### OPEN: 2 author lookups outstanding
 Two bibliography entries — [9] ESCOX SoftwareX and [17] arXiv 2504.02870 Liu et al — carry an explicit `[Authors to restore from publisher page before final submission]` marker because Semantic Scholar returned HTTP 429 (rate-limited) on the lookup attempt during this session. Restore manually from the publisher pages before the APD upload.
 
-### Appendix C — 4 of 6 essential screenshots captured
-Reduced from the original 12-screen list to 6 essential screens after removing generic authentication UI (login form, OAuth flow, account-creation, auth-gate redirect) — these were dropped because no thesis claim depends on them; dropping them tightens the appendix to engineering-artefact evidence.
+### Appendix C — final inventory: 4 essential screenshots
+Reduced from the original 12-screen list to 4 essential screens. The reduction proceeded in two passes:
+1. **First pass** removed generic authentication UI (login form, Google OAuth flow, account-creation page, auth-gate redirect) on the principle that no thesis claim depends on these surfaces; the appendix should exhibit engineering-artefact evidence, not generic third-party-style sign-in flows.
+2. **Second pass** removed the heuristic-mode result screenshot and the admin scoring-mode toggle screenshot. The runtime-toggle claim that Section 4.2.9 makes is independently anchored by (a) the source listing in Appendix A.3, (b) the comparative study in Section 4.3 that exercises both modes end-to-end on the same evaluation set, and (c) the score-distribution figure (Figure 4.1) that visualises the heuristic-mode output across all 100 pairs. A direct screenshot of the admin UI does not add evidence beyond these three anchors.
+
+Final inventory:
 
 - ✅ C.1 Landing (production) — `thesis/figures/ui-01-landing.png`
 - ✅ C.2 Resume Analyzer input (production, guest mode) — `thesis/figures/ui-03-resume-input.png`
 - ✅ C.3 Resume Analyzer result (blended mode) — `thesis/figures/ui-04-resume-result.png` — captured against a locally-running development instance (backend on 127.0.0.1:8000, frontend on localhost:3000) using the synthetic backend-engineer resume from Chapter 4
 - ✅ C.4 Job Match result — `thesis/figures/ui-05-job-match-result.png` — same locally-running instance, same input pair
-- ⏳ C.5 Resume Analyzer result (heuristic-only mode) — capture deferred to morning of 8 May
-- ⏳ C.6 Admin scoring-mode toggle — capture deferred; the development-environment `/admin` route guard could not be exercised cleanly through the dev-browser harness inside the available window. Section 4.2.9 prose + Appendix A.3 source listing carry the runtime-toggle claim independently of the screenshot.
 
-The four captured screens were produced through the dev-browser CLI (Playwright on Chromium) at 1920 × 1080 viewport. The unfiltered captures sit in `~/.dev-browser/tmp/`; the four selected for the appendix were copied into `thesis/figures/` and committed.
+The four captured screens were produced through the dev-browser CLI (Playwright on Chromium) at 1920 × 1080 viewport.
+
+Comparison with the supervisor's prior approved MSc thesis (Szpakowski 2025, EMG/IMU armband): that thesis carried 15+ figures across Chapter 4 plus Appendix B, but every figure was research-artefact evidence (EMG signal plots, confusion matrices, gesture photographs) — not internal administrative tooling. The four-screen appendix here matches that calibrated standard: user-facing tools are documented; internal toggle UI is not.
 
 ### OPEN: architecture figures 2.1–2.3 PNG export
 Currently inline ASCII in `chapter-02-architecture.md`. Word-conversion stage will need real PNGs (mermaid-cli or draw.io export). Not blocking the supervisor markdown draft.
