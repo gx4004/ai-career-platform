@@ -135,21 +135,40 @@ The manifest produced by the synthesis script at `thesis/eval-dataset.json` is a
 
 ## Appendix C — Production screenshots of the running system
 
-> Capture against the live deployment on the day of submission. Save as `thesis/figures/ui-<tool>.png`. Each screenshot should be 1280 px wide. Include a caption that names the deployment URL and the date.
+The screenshots in this appendix were captured against the live production deployment at `https://thecareerworkbench.com` at 1920 × 1080 viewport.
 
-The following screens are referenced from the body:
-- C.1 Landing page (signed-out)
-- C.2 Resume Analyzer input page
-- C.3 Resume Analyzer result page (blended mode)
-- C.4 Resume Analyzer result page (heuristic-only mode)
-- C.5 Job Match input page (paste mode)
-- C.6 Job Match input page (URL scrape mode)
-- C.7 Career Path result page
-- C.8 Cover Letter result page
-- C.9 Interview Q&A result page (with practice mode panel)
-- C.10 Portfolio Planner result page
-- C.11 Dashboard with history
-- C.12 Admin scoring-mode toggle (blended → heuristic switch)
+### C.1 Landing page (signed-out)
+
+![Figure C.1 — Career Workbench landing page (signed-out, production deployment).](figures/ui-01-landing.png)
+
+*Figure C.1: The public landing page at `https://thecareerworkbench.com`, presenting the six career-tooling pillars and the primary call-to-action to sign in or proceed as guest.*
+
+### C.2 Login page
+
+![Figure C.2 — Login page with email/password fields, Google OAuth, and "Continue as guest" link.](figures/ui-02-login.png)
+
+*Figure C.2: The `/login` route. The form supports email + password sign-in, account creation against the same form fields, federated Google OAuth, and a "Continue as guest" path that allows the analytical tools (Resume Analyzer, Job Match) to be exercised without an account.*
+
+### C.3 Resume Analyzer input page
+
+![Figure C.3 — Resume Analyzer input page, guest mode.](figures/ui-03-resume-input.png)
+
+*Figure C.3: The Resume Analyzer input page (`/resume`) as it renders for a guest visitor. The input surface accepts a free-text or uploaded resume, with an optional target job description, before invoking the analytical pipeline described in Chapter 3.2.*
+
+### C.4–C.12 Pending capture
+
+The following screens are referenced from the body and are scheduled for capture against the live deployment immediately before submission. The capture script that produces C.1–C.3 (in `~/.dev-browser/tmp/`) requires an authenticated administrator session for C.10–C.12 and an authenticated user session for C.4–C.9; both sessions will be created on the morning of submission so that the screenshots reflect the build that ships with this thesis.
+
+- C.4 Resume Analyzer result page (blended mode)
+- C.5 Resume Analyzer result page (heuristic-only mode)
+- C.6 Job Match input page (paste mode)
+- C.7 Job Match input page (URL scrape mode)
+- C.8 Career Path result page
+- C.9 Cover Letter result page
+- C.10 Interview Q&A result page (with practice mode panel)
+- C.11 Portfolio Planner result page
+- C.12 Dashboard with history
+- C.13 Admin scoring-mode toggle (blended → heuristic switch)
 
 ---
 

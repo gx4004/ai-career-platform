@@ -45,8 +45,17 @@ The §4.1.4 threats-to-validity disclosure is sufficient for the supervisor draf
 ### OPEN: 2 author lookups outstanding
 Two bibliography entries — [9] ESCOX SoftwareX and [17] arXiv 2504.02870 Liu et al — carry an explicit `[Authors to restore from publisher page before final submission]` marker because Semantic Scholar returned HTTP 429 (rate-limited) on the lookup attempt during this session. Restore manually from the publisher pages before the APD upload.
 
-### OPEN: 12 production screenshots (Appendix C)
-Capture against the live deployment morning of 8 May. Required: C.1 landing, C.2 Resume input, C.3 Resume result blended, C.4 Resume result heuristic, C.5 Job Match paste, C.6 Job Match URL scrape, C.7 Career Path result, C.8 Cover Letter result, C.9 Interview Q&A with practice mode, C.10 Portfolio Planner, C.11 Dashboard with history, C.12 Admin scoring-mode toggle.
+### OPEN: 9 of 12 production screenshots remain (Appendix C)
+Three captures completed via the `dev-browser` Playwright wrapper against the live deployment at `https://thecareerworkbench.com`:
+- ✅ C.1 Landing — `thesis/figures/ui-01-landing.png`
+- ✅ C.2 Login — `thesis/figures/ui-02-login.png`
+- ✅ C.3 Resume Analyzer input (guest mode) — `thesis/figures/ui-03-resume-input.png`
+
+The remaining nine require an authenticated user session and, for the admin toggle, an authenticated administrator session. Automated capture was attempted but the Bash sandbox blocked account creation against the production database without explicit pre-authorised credentials. Capture path morning of 8 May:
+- (a) sign in to an existing account and capture C.4–C.12 manually through the browser (~20 min), or
+- (b) provide existing credentials to the dev-browser wrapper and rerun the capture script.
+
+Required remaining screens: C.4 Resume result blended, C.5 Resume result heuristic-only, C.6 Job Match paste, C.7 Job Match URL scrape, C.8 Career Path result, C.9 Cover Letter result, C.10 Interview Q&A with practice mode, C.11 Portfolio Planner, C.12 Dashboard with history, C.13 Admin scoring-mode toggle.
 
 ### OPEN: architecture figures 2.1–2.3 PNG export
 Currently inline ASCII in `chapter-02-architecture.md`. Word-conversion stage will need real PNGs (mermaid-cli or draw.io export). Not blocking the supervisor markdown draft.
