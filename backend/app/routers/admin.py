@@ -284,11 +284,21 @@ def set_scoring_mode_endpoint(
     admin: User = Depends(get_current_admin),
 ):
     from app.config import settings
+    from app.services.result_cache import clear_cache
 
+    previous_mode = runtime_settings.get_scoring_mode()
     try:
         runtime_settings.set_scoring_mode(body.mode)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+    # When the mode actually changes, drop cached results so the next request
+    # re-runs through the new scoring path. Without this, the in-memory cache
+    # (1 h TTL, keyed by hashed inputs only) returns the previous mode's
+    # response — including its confidence_note — across a toggle, contradicting
+    # the active configuration during the live demonstration described in
+    # Chapter 4.2.9.
+    if previous_mode != runtime_settings.get_scoring_mode():
+        clear_cache()
     return AdminScoringModeResponse(
         mode=runtime_settings.get_scoring_mode(),
         heuristic_version=settings.HEURISTIC_VERSION,

@@ -38,8 +38,11 @@ from pathlib import Path
 
 # Make sure HEURISTIC_VERSION=v2 is in effect *before* `app.config` is imported
 # anywhere downstream — the Settings object snapshots env vars at construction.
-os.environ.setdefault("HEURISTIC_VERSION", "v2")
-os.environ.setdefault("RESULT_CACHE_ENABLED", "false")
+# Using direct assignment (not setdefault) so that a stale shell export cannot
+# silently override the harness's declared intent and cause the eval run to
+# accidentally execute against the v1 heuristic.
+os.environ["HEURISTIC_VERSION"] = "v2"
+os.environ["RESULT_CACHE_ENABLED"] = "false"
 
 # Make `app` importable when run from anywhere
 ROOT = Path(__file__).resolve().parent.parent

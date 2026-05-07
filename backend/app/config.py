@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic_settings import BaseSettings
 
 
@@ -30,12 +32,13 @@ class Settings(BaseSettings):
     # (production default); "heuristic" = strong-heuristic v2 only, no LLM call. Used by
     # the comparative study reported in the diploma thesis (Chapter 4); operators can
     # also flip the mode at runtime through /api/v1/admin/scoring-mode.
-    SCORING_MODE: str = "blended"
+    SCORING_MODE: Literal["blended", "heuristic"] = "blended"
     # Selects which heuristic implementation the analytical services use. "v1" is the
     # lightweight prepass shipped with the original product; "v2" is the strong
     # classical-IR baseline (BM25 + ESCO + fuzzy + section weights) introduced for the
-    # comparative study.
-    HEURISTIC_VERSION: str = "v1"
+    # comparative study. The Literal annotation causes Pydantic to raise at startup
+    # on unknown values rather than silently falling through to the v1 path.
+    HEURISTIC_VERSION: Literal["v1", "v2"] = "v1"
 
     CAPTCHA_ENABLED: bool = False
     CAPTCHA_SECRET_KEY: str = ""

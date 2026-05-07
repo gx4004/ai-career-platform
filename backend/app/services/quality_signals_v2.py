@@ -45,12 +45,25 @@ _ESCO_PATH = _DATA_DIR / "esco_skills.json"
 _ACTION_VERBS_PATH = _DATA_DIR / "action_verbs.txt"
 
 
+# Two-letter ESCO surface variants collide with extremely common English tokens
+# (`ai` → Adobe Illustrator, `go` → Go, `cv` → Computer vision, `ml`, `ts`, `js`,
+# `py`, `np`, `tf`, `ps`, `pm`). Drop variants below this length; abbreviations
+# that include a non-alphanumeric character (e.g. "c#", "c++", ".net") are still
+# admitted because they carry their own disambiguating punctuation.
+_MIN_ESCO_VARIANT_LEN = 3
+
+
 @lru_cache(maxsize=1)
 def _load_esco() -> tuple[dict[str, str], dict[str, list[str]]]:
     """Return (variant_to_canonical, canonical_to_variants).
 
     `variant_to_canonical` maps each lowercase surface variant to its canonical label.
     `canonical_to_variants` is the reverse for diagnostics.
+
+    Short alphabetic variants (length < `_MIN_ESCO_VARIANT_LEN`) are filtered out
+    to prevent false-positive matches against common English words. Variants
+    containing non-alphanumeric characters (e.g. "c#", "c++") bypass the length
+    filter because they cannot collide with English vocabulary.
     """
     if not _ESCO_PATH.exists():
         logger.warning("ESCO data file missing at %s; skill normalisation disabled.", _ESCO_PATH)
@@ -63,11 +76,19 @@ def _load_esco() -> tuple[dict[str, str], dict[str, list[str]]]:
         canonical = str(entry.get("canonical", "")).strip()
         if not canonical:
             continue
-        variants = [str(v).strip().lower() for v in entry.get("variants", []) if v]
+        raw_variants = [str(v).strip().lower() for v in entry.get("variants", []) if v]
+        # Filter short alphabetic variants that collide with English words.
+        variants = [
+            v for v in raw_variants
+            if len(v) >= _MIN_ESCO_VARIANT_LEN or not v.isalpha()
+        ]
         canonical_to_variants[canonical] = variants
         for v in variants:
             variant_to_canonical[v] = canonical
-        # canonical itself is also a valid match form
+        # The canonical itself is admitted regardless of length — short
+        # canonicals like "Go" are still matched via word-boundary regex on the
+        # canonical label, so this keeps "Go" matchable while dropping "go" as
+        # a variant alias that would also fire on "go to market".
         variant_to_canonical[canonical.lower()] = canonical
     return variant_to_canonical, canonical_to_variants
 
@@ -92,37 +113,41 @@ def _load_action_verbs() -> frozenset[str]:
 
 _TOKEN_RE = re.compile(r"[A-Za-z][A-Za-z0-9+#./-]{1,}")
 
+# Section headers — capitalised keys to match v1's contract (resume_analyzer's
+# _heuristic_issues compares against the literals "Summary", "Experience",
+# "Skills", "Education"). Patterns admit both bare-line headers and the inline
+# "Header: content" form by allowing optional content after the colon.
 _SECTION_HEADERS = {
-    "summary": re.compile(
+    "Summary": re.compile(
         r"^\s*(summary|profile|about|objective|professional summary|career summary|"
-        r"introduction|overview|personal profile)\s*:?\s*$",
+        r"introduction|overview|personal profile)\s*(?::.*)?\s*$",
         re.IGNORECASE | re.MULTILINE,
     ),
-    "experience": re.compile(
+    "Experience": re.compile(
         r"^\s*(experience|work experience|employment|professional experience|"
         r"work history|career history|relevant experience|professional history|"
-        r"employment history)\s*:?\s*$",
+        r"employment history)\s*(?::.*)?\s*$",
         re.IGNORECASE | re.MULTILINE,
     ),
-    "skills": re.compile(
+    "Skills": re.compile(
         r"^\s*(skills|technical skills|core skills|key skills|competencies|"
         r"technologies|tech stack|tools|tools and technologies|hard skills|"
-        r"core competencies|technical competencies|technical proficiency)\s*:?\s*$",
+        r"core competencies|technical competencies|technical proficiency)\s*(?::.*)?\s*$",
         re.IGNORECASE | re.MULTILINE,
     ),
-    "education": re.compile(
+    "Education": re.compile(
         r"^\s*(education|academic background|academic qualifications|qualifications|"
-        r"academic|education and training)\s*:?\s*$",
+        r"academic|education and training)\s*(?::.*)?\s*$",
         re.IGNORECASE | re.MULTILINE,
     ),
-    "projects": re.compile(
+    "Projects": re.compile(
         r"^\s*(projects|selected projects|portfolio|side projects|personal projects|"
-        r"key projects|notable projects)\s*:?\s*$",
+        r"key projects|notable projects)\s*(?::.*)?\s*$",
         re.IGNORECASE | re.MULTILINE,
     ),
-    "certifications": re.compile(
+    "Certifications": re.compile(
         r"^\s*(certifications?|licenses?|courses?|professional certifications?|"
-        r"continuing education|trainings?)\s*:?\s*$",
+        r"continuing education|trainings?)\s*(?::.*)?\s*$",
         re.IGNORECASE | re.MULTILINE,
     ),
 }
@@ -134,10 +159,12 @@ def _tokenize(text: str) -> list[str]:
     return [m.group(0).lower() for m in _TOKEN_RE.finditer(text)]
 
 
-def _detect_sections(text: str) -> dict[str, tuple[int, int]]:
-    """Return {section_name: (start_offset, end_offset)} for each detected section.
+def _detect_sections(text: str) -> dict[str, list[tuple[int, int]]]:
+    """Return {section_name: [(start_offset, end_offset), ...]} for detected sections.
 
-    The end offset is the start of the next detected section, or len(text) for the last one.
+    Returns a list of ranges per canonical name so that resumes which contain the
+    same canonical section twice (e.g. both "Technical Skills" and "Tools" mapping
+    to "Skills") preserve the content under each occurrence rather than overwriting.
     """
     hits: list[tuple[int, str]] = []
     for name, pattern in _SECTION_HEADERS.items():
@@ -146,18 +173,18 @@ def _detect_sections(text: str) -> dict[str, tuple[int, int]]:
     if not hits:
         return {}
     hits.sort()
-    sections: dict[str, tuple[int, int]] = {}
+    sections: dict[str, list[tuple[int, int]]] = {}
     for i, (offset, name) in enumerate(hits):
         end = hits[i + 1][0] if i + 1 < len(hits) else len(text)
-        # If the same section appears twice, keep the later occurrence's range
-        sections[name] = (offset, end)
+        sections.setdefault(name, []).append((offset, end))
     return sections
 
 
-def _section_for_offset(offset: int, sections: dict[str, tuple[int, int]]) -> str | None:
-    for name, (start, end) in sections.items():
-        if start <= offset < end:
-            return name
+def _section_for_offset(offset: int, sections: dict[str, list[tuple[int, int]]]) -> str | None:
+    for name, ranges in sections.items():
+        for start, end in ranges:
+            if start <= offset < end:
+                return name
     return None
 
 
@@ -166,7 +193,13 @@ def _section_for_offset(offset: int, sections: dict[str, tuple[int, int]]) -> st
 # ---------------------------------------------------------------------------
 
 _QUANT_RE = re.compile(
-    r"(?:\b\d+(?:[.,]\d+)?\s*(?:%|percent|x|×|times)\b"
+    # %/× alternation: no trailing \b — `%` and `×` are non-word characters, so
+    # `\b` after them requires the next character to be a word character, which
+    # systematically misses the dominant resume case "improved by 30%." (period
+    # / space / EOS after the percent sign).
+    r"(?:\b\d+(?:[.,]\d+)?\s*(?:%|×)(?!\w)"
+    # Word-ending alternations keep \b safely.
+    r"|\b\d+(?:[.,]\d+)?\s*(?:percent|times|x)\b"
     r"|\$\s?\d+(?:[.,]\d+)?(?:[kKmMbB])?"
     r"|\b\d+(?:[.,]\d+)?\s?(?:k|K|M|m|B|b)\b"
     r"|\b\d+\s+(?:users?|customers?|clients?|teams?|people|employees?|engineers?|developers?)\b"
@@ -285,11 +318,22 @@ def _fuzzy_match(target: str, candidates: Iterable[str], threshold: float = _FUZ
 
     SequenceMatcher is the Python stdlib equivalent of a normalised Levenshtein
     similarity for the purposes of catching typographic variants ("Javacript",
-    "PostgresSQL"). Cap candidates at 200 to keep complexity bounded.
+    "PostgresSQL"). The 200-candidate cap protects against pathological inputs;
+    callers are expected to pass a deduplicated unique-token set rather than the
+    raw token stream so the cap acts on vocabulary, not document position.
     """
     target_lower = target.lower()
-    for cand in list(candidates)[:200]:
-        if SequenceMatcher(None, target_lower, cand.lower()).ratio() >= threshold:
+    seen: set[str] = set()
+    n = 0
+    for cand in candidates:
+        cl = cand.lower()
+        if cl in seen:
+            continue
+        seen.add(cl)
+        n += 1
+        if n > 200:
+            break
+        if SequenceMatcher(None, target_lower, cl).ratio() >= threshold:
             return True
     return False
 
@@ -321,12 +365,12 @@ def _normalise_skills(text: str) -> set[str]:
 # ---------------------------------------------------------------------------
 
 _SECTION_WEIGHTS: dict[str, float] = {
-    "skills": 1.0,
-    "experience": 0.7,
-    "projects": 0.7,
-    "summary": 0.5,
-    "education": 0.3,
-    "certifications": 0.5,
+    "Skills": 1.0,
+    "Experience": 0.7,
+    "Projects": 0.7,
+    "Summary": 0.5,
+    "Education": 0.3,
+    "Certifications": 0.5,
     "_default": 0.4,
 }
 
@@ -346,7 +390,7 @@ def _weighted_match_score(
     for _, section in matched_locations:
         weight = _SECTION_WEIGHTS.get(section or "_default", _SECTION_WEIGHTS["_default"])
         achieved += weight
-    max_achievable = total_required * _SECTION_WEIGHTS["skills"]
+    max_achievable = total_required * _SECTION_WEIGHTS["Skills"]
     return min(100.0, (achieved / max_achievable) * 100.0)
 
 
@@ -403,6 +447,41 @@ class ResumePrepassV2:
 # ---------------------------------------------------------------------------
 
 
+def _best_section_for_canonical(
+    canonical: str,
+    text_lower: str,
+    sections: dict[str, list[tuple[int, int]]],
+    canonical_to_variants: dict[str, list[str]],
+) -> str | None:
+    """Find the strongest-section occurrence of a canonical ESCO skill.
+
+    Iterates every variant of the canonical (canonical itself + bundled variants),
+    locates *every* occurrence, looks up the section each occurrence falls into,
+    and returns the section with the highest weight. This addresses two defects:
+        (1) `str.find` returns only the first occurrence, so a skill appearing
+            in both Education and Skills latches onto whichever appears first.
+        (2) Searching for the *canonical* form misses variants — a resume that
+            says "postgres" against a canonical "PostgreSQL" would otherwise
+            silently fall back to the default section weight.
+    """
+    forms = [canonical.lower(), *canonical_to_variants.get(canonical, [])]
+    best_section: str | None = None
+    best_weight = -1.0
+    default_weight = _SECTION_WEIGHTS["_default"]
+    for form in forms:
+        if not form:
+            continue
+        # Word-boundary regex so "java" doesn't match inside "javascript"
+        pattern = rf"(?<![a-z0-9]){re.escape(form)}(?![a-z0-9])"
+        for m in re.finditer(pattern, text_lower):
+            section = _section_for_offset(m.start(), sections)
+            weight = _SECTION_WEIGHTS.get(section or "_default", default_weight)
+            if weight > best_weight:
+                best_weight = weight
+                best_section = section
+    return best_section
+
+
 def build_resume_prepass_v2(
     resume_text: str,
     job_description: str | None = None,
@@ -417,9 +496,21 @@ def build_resume_prepass_v2(
     ESCO-derived baseline IDF is used (see `_baseline_idf`).
     """
     text = resume_text or ""
+    text_lower = text.lower()
     sections = _detect_sections(text)
     bullets = [m.group(1) for m in _BULLET_RE.finditer(text)]
     tokens = _tokenize(text)
+    unique_tokens = set(tokens)
+    _, canonical_to_variants = _load_esco()
+
+    # Auto-derive the target role label from the JD if the caller did not pass
+    # one. Mirrors the v1 contract so role_fit downstream remains populated.
+    if target_role_label is None and job_description:
+        try:
+            from app.services.quality_signals import extract_role_label
+            target_role_label = extract_role_label(job_description) or None
+        except Exception:  # noqa: BLE001
+            target_role_label = None
 
     resume_skills = _normalise_skills(text)
 
@@ -430,24 +521,29 @@ def build_resume_prepass_v2(
 
     if job_description:
         jd_skills = _normalise_skills(job_description)
-        # If the JD did not surface ESCO skills, fall back to top-N JD tokens.
-        if not jd_skills:
-            jd_tokens = _tokenize(job_description)
-            counts: dict[str, int] = {}
-            for tok in jd_tokens:
-                if len(tok) >= 4 and tok.isalpha():
-                    counts[tok] = counts.get(tok, 0) + 1
-            jd_skills = {tok for tok, _ in sorted(counts.items(), key=lambda x: -x[1])[:15]}
+        # When ESCO yields no skills for the JD, do not fabricate a skill set
+        # from raw token frequency — the previous fallback pulled in stop words
+        # ("must", "with", "team") and contaminated the keyword statistics.
+        # Leaving the set empty causes `compute_match_score_v2` to return its
+        # neutral score, which is the honest behaviour when the JD has no
+        # role-relevant signal the heuristic can recognise.
         for skill in sorted(jd_skills):
-            # Exact / ESCO-normalised match
-            if skill in resume_skills or skill.lower() in tokens:
+            # Exact / ESCO-normalised match: also true when any variant of the
+            # canonical surfaces in the resume's normalised set or in tokens.
+            in_resume_skills = skill in resume_skills
+            in_tokens = skill.lower() in unique_tokens
+            if in_resume_skills or in_tokens:
                 matched.append(skill)
-                offset = text.lower().find(skill.lower())
-                section = _section_for_offset(offset, sections) if offset >= 0 else None
+                section = _best_section_for_canonical(
+                    skill, text_lower, sections, canonical_to_variants
+                )
                 matched_locations.append((skill, section))
                 continue
-            # Fuzzy fallback against tokens
-            if _fuzzy_match(skill, tokens):
+            # Fuzzy fallback against the deduplicated unique-token vocabulary
+            # (not the ordered, duplicate-laden token stream — otherwise the
+            # candidate cap silently truncates everything past the first ~200
+            # tokens of the resume).
+            if _fuzzy_match(skill, unique_tokens):
                 matched.append(skill)
                 matched_locations.append((skill, None))
                 fuzzy_count += 1
@@ -502,8 +598,18 @@ def compute_resume_breakdown_v2(prepass: ResumePrepassV2) -> list[dict[str, int 
     def clamp(v: float) -> int:
         return int(round(max(0.0, min(100.0, v))))
 
-    # keywords: weighted-coverage + a soft BM25 boost
-    keywords_score = clamp(0.7 * prepass.weighted_keyword_score + 0.3 * min(100.0, prepass.bm25_keyword_score * 4))
+    # keywords: weighted-coverage + a soft BM25 boost. When no JD context is
+    # available, both signals are zero by construction; fall back to a skill-
+    # density baseline derived from detected ESCO skills so the keywords axis
+    # is not pinned to 0 on the resume-only path. This mirrors the v1 fallback
+    # (see `quality_signals.compute_resume_breakdown`).
+    if not prepass.matched_keywords and not prepass.missing_keywords:
+        keywords_score = clamp(36 + len(prepass.detected_skills) * 7)
+    else:
+        keywords_score = clamp(
+            0.7 * prepass.weighted_keyword_score
+            + 0.3 * min(100.0, prepass.bm25_keyword_score * 4)
+        )
 
     # impact: saturating logarithmic on quantified bullets + verb fraction
     impact_score = clamp(

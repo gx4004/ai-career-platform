@@ -390,7 +390,15 @@ async def analyze_resume(
         score_breakdown = heuristic_breakdown
         llm_overall = None
 
-    overall_score = compute_overall_score(score_breakdown)
+    # Use the v2 weighted overall when v2 is the active heuristic, so the final
+    # score is on the same scale as the heuristic_overall computed above and as
+    # the heuristic-only mode produces. Without this gate the blended path
+    # silently reverts to the v1 simple-mean even under HEURISTIC_VERSION=v2,
+    # injecting a non-LLM-attributable scale offset into the comparative study.
+    if settings.HEURISTIC_VERSION == "v2":
+        overall_score = compute_overall_score_v2(score_breakdown)
+    else:
+        overall_score = compute_overall_score(score_breakdown)
 
     summary = _normalize_summary(result, overall_score, prepass)
 

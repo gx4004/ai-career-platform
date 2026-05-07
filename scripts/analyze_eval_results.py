@@ -64,7 +64,16 @@ def spearman(a: list[float], b: list[float]) -> float:
 
 
 def kendall_tau(a: list[float], b: list[float]) -> float:
-    """Kendall tau-b rank correlation. O(n^2) which is fine for ~100 pairs."""
+    """Kendall tau-b rank correlation. O(n^2), fine for ~100 pairs.
+
+    Matches `scipy.stats.kendalltau` and the Kendall (1945) formula:
+        n1 = number of pairs tied in x (regardless of y)
+        n2 = number of pairs tied in y (regardless of x)
+        denominator = sqrt((n0 - n1) * (n0 - n2))
+    Pairs tied in BOTH dimensions must contribute to BOTH n1 and n2 — earlier
+    versions of this function `continue`d on the both-tied case and silently
+    excluded such pairs from both counters.
+    """
     n = len(a)
     if n < 2 or n != len(b):
         return float("nan")
@@ -76,16 +85,15 @@ def kendall_tau(a: list[float], b: list[float]) -> float:
         for j in range(i + 1, n):
             da = a[i] - a[j]
             db = b[i] - b[j]
-            if da == 0 and db == 0:
-                continue
             if da == 0:
                 ties_a += 1
-            elif db == 0:
+            if db == 0:
                 ties_b += 1
-            elif (da > 0) == (db > 0):
-                concordant += 1
-            else:
-                discordant += 1
+            if da != 0 and db != 0:
+                if (da > 0) == (db > 0):
+                    concordant += 1
+                else:
+                    discordant += 1
     n0 = n * (n - 1) / 2
     denom = math.sqrt((n0 - ties_a) * (n0 - ties_b))
     return (concordant - discordant) / denom if denom else float("nan")
