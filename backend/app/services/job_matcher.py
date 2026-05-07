@@ -227,7 +227,7 @@ async def match_job(
                     for kw in prepass_v2.missing_keywords
                 ],
                 "tailoring_actions": [],
-                "interview_focus": prepass_v2.missing_keywords[:3] or prepass_v2.matched_keywords[:3],
+                "interview_focus": prepass_v2.missing_keywords[:4] or prepass_v2.matched_keywords[:4],
                 "recruiter_summary": "",
             }
         # v1 heuristic-only path
@@ -262,7 +262,7 @@ async def match_job(
                 for kw in prepass_v1.missing_keywords
             ],
             "tailoring_actions": [],
-            "interview_focus": prepass_v1.missing_keywords[:3] or prepass_v1.matched_keywords[:3],
+            "interview_focus": prepass_v1.missing_keywords[:4] or prepass_v1.matched_keywords[:4],
             "recruiter_summary": "",
         }
 
@@ -334,7 +334,7 @@ async def match_job(
     interview_focus = result.get("interview_focus") if isinstance(result.get("interview_focus"), list) else []
     interview_focus = [str(item) for item in interview_focus if str(item).strip()]
     if not interview_focus:
-        interview_focus = prepass.missing_keywords[:3] or prepass.matched_keywords[:3]
+        interview_focus = prepass.missing_keywords[:4] or prepass.matched_keywords[:4]
 
     # Normalize missing keywords with contextual guidance
     raw_missing = result.get("missing_keywords") if isinstance(result.get("missing_keywords"), list) else []

@@ -8,6 +8,7 @@ from app.limiter import limiter
 from app.models.user import User
 from app.prompts.resume import RESUME_PROMPT_VERSION
 from app.schemas.tools import ResumeAnalyzeRequest, ResumeAnalyzeResponse
+from app.services import runtime_settings
 from app.services.resume_analyzer import analyze_resume
 from app.services.tool_pipeline import run_tool_pipeline
 
@@ -47,6 +48,14 @@ async def analyze(
         cache_extra_keys={
             "prompt_version": RESUME_PROMPT_VERSION,
             "model": settings.LLM_MODEL,
+            # Mode/version are hashed into the cache key so a request started
+            # under one configuration cannot poison the cache for a request
+            # under another. Without these, an in-flight blended call that
+            # finishes after a /admin/scoring-mode toggle would write a
+            # blended response under a key that the new heuristic-mode call
+            # reads back.
+            "scoring_mode": runtime_settings.get_scoring_mode(),
+            "heuristic_version": settings.HEURISTIC_VERSION,
         },
     )
     return ResumeAnalyzeResponse(**response)

@@ -8,6 +8,7 @@ from app.limiter import limiter
 from app.models.user import User
 from app.prompts.job_match import JOB_MATCH_PROMPT_VERSION
 from app.schemas.tools import JobMatchRequest, JobMatchResponse
+from app.services import runtime_settings
 from app.services.job_matcher import match_job
 from app.services.tool_pipeline import run_tool_pipeline
 
@@ -53,6 +54,10 @@ async def match(
         cache_extra_keys={
             "prompt_version": JOB_MATCH_PROMPT_VERSION,
             "model": settings.LLM_MODEL,
+            # Hash mode/version into the cache key — see resume.py for the
+            # in-flight write race the toggle would otherwise expose.
+            "scoring_mode": runtime_settings.get_scoring_mode(),
+            "heuristic_version": settings.HEURISTIC_VERSION,
         },
     )
     return JobMatchResponse(**response)

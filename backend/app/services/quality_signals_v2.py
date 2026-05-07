@@ -330,7 +330,14 @@ def _bm25_score(
         tf = resume_tf.get(term, 0)
         if tf == 0:
             continue
-        term_idf = idf.get(term, math.log((1 + 0.5) / (0 + 0.5) + 1))  # smoothed default
+        # Skip out-of-vocabulary terms (Lucene-style df=0 handling) rather than
+        # crediting them with a constant default IDF. A fixed default that does
+        # not vary with corpus size N would be wrong by 2–5× across the
+        # production (ESCO baseline, N≈382) vs. eval-harness (~20 JD) configs,
+        # making BM25 values incomparable across IDF sources.
+        if term not in idf:
+            continue
+        term_idf = idf[term]
         norm = tf * (k1 + 1) / (tf + k1 * (1 - b + b * dl / avg_dl))
         score += term_idf * norm
     return score
@@ -493,8 +500,16 @@ def _best_section_for_canonical(
         (2) Searching for the *canonical* form misses variants — a resume that
             says "postgres" against a canonical "PostgreSQL" would otherwise
             silently fall back to the default section weight.
+
+    The canonical itself is included in `forms` only when it survives the same
+    short-alphabetic filter that `_load_esco` applies to variants — without
+    this gate, a short canonical like "Go" would re-introduce the false-positive
+    behaviour the filter exists to prevent (matching "go to market" prose).
     """
-    forms = [canonical.lower(), *canonical_to_variants.get(canonical, [])]
+    forms = list(canonical_to_variants.get(canonical, []))
+    canonical_lower = canonical.lower()
+    if len(canonical_lower) >= _MIN_ESCO_VARIANT_LEN or not canonical_lower.isalpha():
+        forms.insert(0, canonical_lower)
     best_section: str | None = None
     best_weight = -1.0
     default_weight = _SECTION_WEIGHTS["_default"]
@@ -557,11 +572,20 @@ def build_resume_prepass_v2(
         # Leaving the set empty causes `compute_match_score_v2` to return its
         # neutral score, which is the honest behaviour when the JD has no
         # role-relevant signal the heuristic can recognise.
+        variant_to_canonical, _ = _load_esco()
         for skill in sorted(jd_skills):
             # Exact / ESCO-normalised match: also true when any variant of the
             # canonical surfaces in the resume's normalised set or in tokens.
+            # The token-shortcut requires the lookup table to actually contain
+            # the candidate, so a short alphabetic canonical (e.g. "Go") that
+            # was filtered out of the lookup table cannot be re-introduced via
+            # the bare-token fast path against the English word "go".
+            skill_lower = skill.lower()
             in_resume_skills = skill in resume_skills
-            in_tokens = skill.lower() in unique_tokens
+            in_tokens = (
+                skill_lower in unique_tokens
+                and skill_lower in variant_to_canonical
+            )
             if in_resume_skills or in_tokens:
                 matched.append(skill)
                 section = _best_section_for_canonical(
@@ -572,8 +596,14 @@ def build_resume_prepass_v2(
             # Fuzzy fallback against the deduplicated unique-token vocabulary
             # (not the ordered, duplicate-laden token stream — otherwise the
             # candidate cap silently truncates everything past the first ~200
-            # tokens of the resume).
-            if _fuzzy_match(skill, unique_tokens):
+            # tokens of the resume). Short alphabetic canonicals are excluded
+            # from this path for the same reason they are excluded from the
+            # `_load_esco` lookup table — fuzzy on a 2-letter target would
+            # match common English words ("go" matches the bare word "go" at
+            # ratio 1.0, defeating the short-canonical filter).
+            if (
+                len(skill_lower) >= _MIN_ESCO_VARIANT_LEN or not skill_lower.isalpha()
+            ) and _fuzzy_match(skill, unique_tokens):
                 matched.append(skill)
                 matched_locations.append((skill, None))
                 fuzzy_count += 1
@@ -690,12 +720,20 @@ _OVERALL_WEIGHTS = {"keywords": 0.30, "impact": 0.25, "structure": 0.15, "clarit
 
 
 def compute_overall_score_v2(score_breakdown: list[dict[str, int | str]]) -> int:
+    """Weighted overall score, clamped to [0, 100].
+
+    Clamping protects the call site that consumes raw LLM output (resume_analyzer
+    passes `llm_score_breakdown` directly), where the model can hallucinate extra
+    keys, duplicate canonical keys, or scores outside [0, 100] that would
+    otherwise push the weighted sum off-scale and distort the v2 confidence-gap
+    note.
+    """
     weighted = 0.0
     for item in score_breakdown:
         key = str(item.get("key", ""))
         score = float(item.get("score", 0))
         weighted += score * _OVERALL_WEIGHTS.get(key, 0.20)
-    return int(round(weighted))
+    return int(round(max(0.0, min(100.0, weighted))))
 
 
 def compute_match_score_v2(prepass: ResumePrepassV2) -> int:
