@@ -21,7 +21,6 @@
 | CSV | Comma-Separated Values |
 | DOM | Document Object Model |
 | ECE | Electronic and Computer Engineering |
-| EMG | Electromyography (referenced in example thesis only) |
 | EN | English |
 | ESCO | European Skills, Competences, Qualifications and Occupations (EU multilingual taxonomy) |
 | EU | European Union |
@@ -100,4 +99,4 @@
 | *K*(·) | Keyword extractor function (returns the keyword set of an input) |
 | dl, avgdl | Document length, average document length (BM25 normalisation) |
 
-> Add new abbreviations to this table as they appear in the body. Keep the alphabetical order.
+<div style="page-break-after: always;"></div>

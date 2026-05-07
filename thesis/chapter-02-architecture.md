@@ -97,7 +97,7 @@ The six functional tools share a single cross-cutting pipeline implemented in `s
 
 This single point of indirection has two practical consequences for the thesis. First, every tool inherits the same cache, persistence, and observability behaviour by default; adding a new tool requires no plumbing beyond the service function and the prompt builder. Second, the comparative study in Chapter 4 can reason about cache and persistence behaviour uniformly across all tools, rather than maintaining a per-tool exception table.
 
-The pipeline-first design was not the original plan. The Resume Analyzer and the Job Match tool were the first two endpoints I built, each with its own cache wrapper, its own persistence call, and its own observability lines copy-pasted from the other. By the time the third tool was added the duplication was painful enough to motivate the refactor that produced `run_tool_pipeline`. That refactor is small in lines but is the single architectural change that has saved the most engineering effort across the project.
+The pipeline-first design was not the original plan. The Resume Analyzer and the Job Match tool were the first two endpoints implemented, each with its own cache wrapper, its own persistence call, and its own observability lines copy-pasted from the other. By the time the third tool was added the duplication was painful enough to motivate the refactor that produced `run_tool_pipeline`. That refactor is small in lines but is the single architectural change that has saved the most engineering effort across the project.
 
 ### 2.3.3 Tool services and prompt builders
 

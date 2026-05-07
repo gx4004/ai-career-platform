@@ -89,3 +89,38 @@ Currently inline ASCII in `chapter-02-architecture.md`. Word-conversion stage wi
 | **Aggregate** | **62** | **~75** |
 
 Decision shifts from **Major revisions** to **Minor revisions**. Ready for supervisor draft? **YES, conditional on Appendix C screenshots being captured morning of 8 May (the only remaining external dependency).** Two bibliography entries carry TBD-author markers that the user can resolve in 5 minutes from publisher pages before the APD upload on 22 May.
+
+---
+
+## Stage G — pre-conversion final-pass review (2026-05-07)
+
+ARS academic-paper-reviewer re-review (engineering BSc rubric, calibrated to Szpakowski 2025): **77.75 / 100** → **PROCEED to docx**. No critical regression detected.
+
+Per-dimension: engineering deliverable 84 · empirical rigour 72 · technical writing 80 · literature & framing 75 · originality 70 · structural coherence 82 · polish 78.
+
+### High (resolved this round before docx convert)
+
+- [x] **NEW-H1** §4 line 3 "representative sample" → "controlled synthetic evaluation set described in Section 4.1.1" (eliminates contradiction with the §1.4 M1 reframe).
+- [x] **NEW-H2** §1.6 line 73 stale Appendix C description → "four production screenshots illustrating the landing page, the Resume Analyzer (input and blended-mode result), and the Job Match result" (aligns with the Stage F second-pass appendix reduction).
+- [x] **NEW-H3** Bibliography [12] Panzaru and Grama 2025 enriched with `vol. 59, no. 1, art. 18` (volume/issue/article fetched from Crossref `10.1186/s12651-025-00409-x`).
+- [x] **NEW-H4** Acknowledgements first-person voice — register-OK note, intentionally retained per academic convention; matches Szpakowski reference.
+
+### Medium (deferred to APD round, 22 May)
+
+- [!] **NEW-M1** Resume2Vec [18] is cited five times across §1.3, §1.4, §3.2.2, §4.2.4 — one quantitative claim ("15.85% improvement in nDCG", §1.3 line 28) should carry a `[18, p. X]` or `[18, Tab. Y]` page-anchor for the JSA anti-plagiarism check.
+- [!] **NEW-M2** §3.1.3 schema-adherence universal claim ("schema-constrained generation in current language models generally reduces parsing-error rates relative to free-form prompting") is unanchored; either add a structured-output reference or hedge to operational observation.
+- [!] **NEW-M3** §4.3.4 token-counting note ("~4 characters per token rule of thumb") references the Vertex AI documentation footnote without an inline back-cite; one-sentence fix.
+- [!] **NEW-M4** §4.2.6 action-verb dictionary attribution to Harvard FAS / MIT Career Advising / Princeton Career Development is unverifiable — bibliography section 10 should list these three URLs as documentation footnotes alongside FastAPI/TanStack/etc.
+- [!] **NEW-M5** Architecture figures 2.1–2.3 remain ASCII art — for APD upload consider PNG exports via mermaid-cli or draw.io (already tracked in the open items list above; not blocking the supervisor draft).
+
+### Low (deferred to APD round, 22 May)
+
+- [!] **NEW-L1** Streszczenie phrasing "około dwa rzędy wielkości" — Polish technical-writing OK as-is; flag only for native-Polish supervisor review.
+- [!] **NEW-L2** Abbreviations table includes "EMG | Electromyography (referenced in example thesis only)" — leftover from the Szpakowski calibration exercise; remove before APD upload.
+- [!] **NEW-L3** Bibliography section 10 uses `>` blockquote markdown for the documentation references; pandoc renders this as a Word block-quote style — accept rendering or flatten to a normal sub-heading paragraph.
+- [!] **NEW-L4** §4.3.5 sensitivity table reports Δ = −0.023 for both Pearson and Spearman — coincidence of three-decimal rounding; one-line clarification in prose would help the reader avoid assuming a typo.
+- [!] **NEW-L5** §3.1.1 retry-schedule paragraph register slightly defensive ("was tuned empirically rather than chosen from a textbook") — softer "determined empirically through observation of Vertex AI's transient-error window" preferred for APD.
+
+### Devil's Advocate residual challenge (unchanged, viva-rehearsal item)
+
+The shared-vocabulary leakage in the synthetic dataset (T1) plus the structural 0.40 self-correlation floor in the headline *r* = 0.727 (T2) remain the strongest viva attack. Disclosed in §4.1.4 / §4.3.1, but disclosure is not closure — full closure requires APD-round dataset regeneration with disjoint vocabularies and an LLM-only-baseline rerun, both already tracked in the open-items list above.

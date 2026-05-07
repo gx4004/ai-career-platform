@@ -8,3 +8,5 @@ My thanks to the open-source maintainers of the FastAPI, TanStack, React, and SQ
 
 Egemen Goncu
 Wrocław, May 2026
+
+<div style="page-break-after: always;"></div>

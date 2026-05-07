@@ -2,13 +2,15 @@
 
 ---
 
+::: {lang=pl}
 ## Streszczenie
 
 W pracy przedstawiono projekt, implementację oraz ewaluację systemu opartego na sztucznej inteligencji do spersonalizowanego doradztwa zawodowego. System, wdrożony jako aplikacja webowa na zarządzanej platformie chmurowej, integruje sześć komplementarnych narzędzi — analizę CV, dopasowanie do oferty pracy, sugestię ścieżki kariery, generowanie listu motywacyjnego, przygotowanie do rozmowy kwalifikacyjnej oraz planowanie portfolio — które razem wspierają kandydata w pełnym przepływie pracy poszukiwania zatrudnienia. Frontend zbudowano w technologiach React 19 i TanStack Start; backend wykorzystuje FastAPI oraz PostgreSQL; wnioskowanie modelu językowego delegowano do usługi Google Vertex AI Gemini 2.5 Flash. W odpowiedzi na obawy dotyczące kosztu, opóźnienia oraz zależności od dostawcy zewnętrznego modelu, rdzeń analityczny systemu obsługuje dwa przełączalne w czasie działania tryby oceny: *tryb mieszany* łączący deterministyczną heurystykę ze strukturalnym wyjściem modelu językowego (40% / 60%), oraz *tryb w pełni heurystyczny* oparty na klasycznych metodach wyszukiwania informacji — ważonej dowodem TF–IDF analizie słów kluczowych z rankingiem BM25, normalizacji umiejętności zgodnej z taksonomią ESCO, dopasowaniu rozmytym opartym na odległości Levenshteina oraz ekstrakcji cech ważonych sekcjami. Kontrolowane studium porównawcze oceniło oba tryby na 100 parach (CV, opis stanowiska) obejmujących sześć ścieżek zawodowych, w czterech rodzinach miar: zgodności wyników (Pearson, Spearman, Kendall), kształcie rozkładu, opóźnieniu oraz koszcie jednego wywołania. Zbiór ewaluacyjny stanowią deterministycznie wygenerowane *syntetyczne CV oraz syntetyczne opisy stanowisk*; ograniczenia konstrukcji zbioru oraz wynikające z nich zagrożenia trafności są jawnie udokumentowane w rozdziale prezentującym wyniki. W obrębie tego syntetycznego zbioru ewaluacyjnego tryb w pełni heurystyczny śledzi tryb mieszany przy Pearsonowskim *r* = 0,727 oraz Spearmanowskim ρ = 0,708 na wyniku ogólnym, działa około dwa rzędy wielkości szybciej (mediana 36,5 ms wobec 17,3 s) oraz nie ponosi krańcowego kosztu po stronie modelu językowego. Tryb mieszany zachowuje nieredukowalną przewagę w zakresie dowodów jakości prozy (podwynik *clarity* *r* = 0,475), co motywuje utrzymanie komponentu językowego obok deterministycznej linii bazowej. Ograniczenia obejmują zakres jednojęzyczny (angielski), syntetyczny zbiór jednego autora oraz pojedynczą konfigurację dostawcy modelu językowego; długoterminowa walidacja podłużna pozostaje poza zakresem. Praca przyszła obejmuje integrację komponentu wyszukiwania wspomagającego, rozszerzenie o CV w języku polskim oraz uzupełnienie heurystyki o pośredni poziom dopasowania semantycznego oparty na transformatorach zdań.
 
 **Słowa kluczowe:** doradztwo zawodowe, analiza CV, duże modele językowe, wyszukiwanie informacji, taksonomia ESCO, ocena hybrydowa, FastAPI, React.
+:::
 
----
+<div style="page-break-after: always;"></div>
 
 ## Abstract (English)
 

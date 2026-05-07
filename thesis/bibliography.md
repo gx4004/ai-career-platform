@@ -25,13 +25,13 @@
 
 [8] M. le Vrang, A. Papantoniou, E. Pauwels, P. Fannes, D. Vandensteen, and J. De Smedt, "ESCO: Boosting job matching in Europe with semantic interoperability," *IEEE Computer*, vol. 47, no. 10, pp. 57–64, 2014. https://doi.org/10.1109/MC.2014.283
 
-[9] [Authors to restore from publisher page before final submission], "ESCOX: A tool for skill and occupation extraction using LLMs from unstructured text," *SoftwareX*, 2025. https://www.sciencedirect.com/science/article/pii/S2665963825000326
+[9] D. C. Kavargyris, K. Georgiou, E. Papaioannou, K. Petrakis, N. Mittas, and L. Angelis, "ESCOX: A tool for skill and occupation extraction using LLMs from unstructured text," *Software Impacts*, vol. 25, art. 100772, 2025. https://doi.org/10.1016/j.simpa.2025.100772
 
 [10] A. Herandi, Y. Li, Z. Liu, X. Hu, and X. Cai, "Skill-LLM: Repurposing general-purpose LLMs for skill extraction," *arXiv preprint arXiv:2410.12052*, 2024. https://arxiv.org/abs/2410.12052
 
 [11] S. Saroglou, K. Diamantaras, F. Preta, M. Delianidi, A. Benisis, and C. J. Meyer, "Enhancing job matching: Occupation, skill and qualification linking with the ESCO and EQF taxonomies," *arXiv preprint arXiv:2512.03195*, 2025. https://arxiv.org/abs/2512.03195
 
-[12] C. Panzaru and A. Grama, "Towards explicit soft skills labelling in ESCO through semantic NLP analysis," *Journal for Labour Market Research*, 2025. https://doi.org/10.1186/s12651-025-00409-x
+[12] C. Panzaru and A. Grama, "Towards explicit soft skills labelling in ESCO through semantic NLP analysis," *Journal for Labour Market Research*, vol. 59, no. 1, art. 18, 2025. https://doi.org/10.1186/s12651-025-00409-x
 
 [13] M. de Groot, J. Schutte, and D. Graus, "Job posting-enriched knowledge graph for skills-based matching," *arXiv preprint arXiv:2109.02554*, 2021. https://arxiv.org/abs/2109.02554
 
@@ -50,7 +50,7 @@
 
 [16] C. Gan, Q. Zhang, and T. Mori, "Application of LLM agents in recruitment: A novel framework for resume screening," *arXiv preprint arXiv:2401.08315*, 2024. https://arxiv.org/abs/2401.08315
 
-[17] [Authors to restore from publisher page before final submission], "AI hiring with LLMs: A context-aware and explainable multi-agent framework for resume screening," *arXiv preprint arXiv:2504.02870*, 2025. https://arxiv.org/abs/2504.02870
+[17] F. P.-W. Lo, J. Qiu, Z. Wang, H. Yu, Y. Chen, G. Zhang, and B. Lo, "AI hiring with LLMs: A context-aware and explainable multi-agent framework for resume screening," in *Proc. IEEE/CVF Conf. on Computer Vision and Pattern Recognition Workshops (CVPRW)*, 2025, pp. 4184–4193. https://doi.org/10.1109/CVPRW67362.2025.00402
 
 [18] R. V. K. Bevara, N. R. Mannuru, S. P. Karedla, B. D. Lund, T. Xiao, H. Pasem, S. C. Dronavalli, and S. Rupeshkumar, "Resume2Vec: Transforming applicant tracking systems with intelligent resume embeddings for precise candidate matching," *Electronics*, vol. 14, no. 4, art. 794, 2025. https://doi.org/10.3390/electronics14040794
 
