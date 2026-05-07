@@ -154,7 +154,7 @@ Beyond authentication, three additional security measures are worth noting. Inpu
 
 ## 2.7 Deployment topology
 
-The production deployment runs as a single Railway project containing three services (Figure 2.3).
+The production deployment runs as a single Railway project containing two application services (frontend and backend) plus a managed PostgreSQL add-on (Figure 2.3).
 
 ![Figure 2.3: Production deployment topology. Browser traffic resolves through Cloudflare DNS and TLS into a single Railway hostname; path-based routing at the Railway edge delivers the `/` path to the Vite-built frontend service and the `/api/v1/*` path to the FastAPI backend service. The backend uses a Railway-managed PostgreSQL add-on for persistence and three external dependencies: Vertex AI Gemini 2.5 Flash for inference, Resend for transactional email, and Sentry for error tracking. Both services emit metrics and breadcrumbs to the observability tier.](figures/figure-2-3-deployment.png)
 

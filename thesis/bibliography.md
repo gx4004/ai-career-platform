@@ -68,7 +68,7 @@
 
 [22] A. Köchling and M. C. Wehner, "Discriminated by an algorithm: A systematic review of discrimination and fairness by algorithmic decision-making in the context of HR recruitment and HR development," *Business Research*, vol. 13, no. 3, pp. 795–848, 2020. https://doi.org/10.1007/s40685-020-00134-w
 
-[23] M. Raghavan, S. Barocas, J. Kleinberg, and K. Levy, "Mitigating bias in algorithmic hiring: Evaluating claims and practices," in *Proceedings of the 2020 Conference on Fairness, Accountability, and Transparency (FAT* '20)*, 2020, pp. 469–481. https://doi.org/10.1145/3351095.3372828
+[23] M. Raghavan, S. Barocas, J. Kleinberg, and K. Levy, "Mitigating bias in algorithmic hiring: Evaluating claims and practices," in *Proceedings of the 2020 Conference on Fairness, Accountability, and Transparency (FAccT '20)*, 2020, pp. 469–481. https://doi.org/10.1145/3351095.3372828
 
 [24] Z. Chen, "Ethics and discrimination in artificial intelligence-enabled recruitment practices," *Humanities and Social Sciences Communications*, vol. 10, art. 567, 2023. https://doi.org/10.1057/s41599-023-02079-x
 
