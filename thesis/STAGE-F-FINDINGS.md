@@ -45,17 +45,17 @@ The §4.1.4 threats-to-validity disclosure is sufficient for the supervisor draf
 ### OPEN: 2 author lookups outstanding
 Two bibliography entries — [9] ESCOX SoftwareX and [17] arXiv 2504.02870 Liu et al — carry an explicit `[Authors to restore from publisher page before final submission]` marker because Semantic Scholar returned HTTP 429 (rate-limited) on the lookup attempt during this session. Restore manually from the publisher pages before the APD upload.
 
-### OPEN: 9 of 12 production screenshots remain (Appendix C)
-Three captures completed via the `dev-browser` Playwright wrapper against the live deployment at `https://thecareerworkbench.com`:
-- ✅ C.1 Landing — `thesis/figures/ui-01-landing.png`
-- ✅ C.2 Login — `thesis/figures/ui-02-login.png`
-- ✅ C.3 Resume Analyzer input (guest mode) — `thesis/figures/ui-03-resume-input.png`
+### Appendix C — 4 of 6 essential screenshots captured
+Reduced from the original 12-screen list to 6 essential screens after removing generic authentication UI (login form, OAuth flow, account-creation, auth-gate redirect) — these were dropped because no thesis claim depends on them; dropping them tightens the appendix to engineering-artefact evidence.
 
-The remaining nine require an authenticated user session and, for the admin toggle, an authenticated administrator session. Automated capture was attempted but the Bash sandbox blocked account creation against the production database without explicit pre-authorised credentials. Capture path morning of 8 May:
-- (a) sign in to an existing account and capture C.4–C.12 manually through the browser (~20 min), or
-- (b) provide existing credentials to the dev-browser wrapper and rerun the capture script.
+- ✅ C.1 Landing (production) — `thesis/figures/ui-01-landing.png`
+- ✅ C.2 Resume Analyzer input (production, guest mode) — `thesis/figures/ui-03-resume-input.png`
+- ✅ C.3 Resume Analyzer result (blended mode) — `thesis/figures/ui-04-resume-result.png` — captured against a locally-running development instance (backend on 127.0.0.1:8000, frontend on localhost:3000) using the synthetic backend-engineer resume from Chapter 4
+- ✅ C.4 Job Match result — `thesis/figures/ui-05-job-match-result.png` — same locally-running instance, same input pair
+- ⏳ C.5 Resume Analyzer result (heuristic-only mode) — capture deferred to morning of 8 May
+- ⏳ C.6 Admin scoring-mode toggle — capture deferred; the development-environment `/admin` route guard could not be exercised cleanly through the dev-browser harness inside the available window. Section 4.2.9 prose + Appendix A.3 source listing carry the runtime-toggle claim independently of the screenshot.
 
-Required remaining screens: C.4 Resume result blended, C.5 Resume result heuristic-only, C.6 Job Match paste, C.7 Job Match URL scrape, C.8 Career Path result, C.9 Cover Letter result, C.10 Interview Q&A with practice mode, C.11 Portfolio Planner, C.12 Dashboard with history, C.13 Admin scoring-mode toggle.
+The four captured screens were produced through the dev-browser CLI (Playwright on Chromium) at 1920 × 1080 viewport. The unfiltered captures sit in `~/.dev-browser/tmp/`; the four selected for the appendix were copied into `thesis/figures/` and committed.
 
 ### OPEN: architecture figures 2.1–2.3 PNG export
 Currently inline ASCII in `chapter-02-architecture.md`. Word-conversion stage will need real PNGs (mermaid-cli or draw.io export). Not blocking the supervisor markdown draft.

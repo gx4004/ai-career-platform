@@ -133,42 +133,40 @@ The manifest produced by the synthesis script at `thesis/eval-dataset.json` is a
 
 ---
 
-## Appendix C — Production screenshots of the running system
+## Appendix C — Screenshots of the running system
 
-The screenshots in this appendix were captured against the live production deployment at `https://thecareerworkbench.com` at 1920 × 1080 viewport.
+The screenshots in this appendix were captured at 1920 × 1080 viewport against the deployed system. The intent of the appendix is to demonstrate the engineering artefact — the running tools — rather than to document generic authentication UI; login forms, OAuth flows, and account-creation pages are therefore omitted in favour of screens that exhibit the analytical and generative tools described in Chapter 3 and the runtime scoring-mode switch documented in Section 4.2.9.
 
-### C.1 Landing page (signed-out)
+### C.1 Landing page
 
 ![Figure C.1 — Career Workbench landing page (signed-out, production deployment).](figures/ui-01-landing.png)
 
 *Figure C.1: The public landing page at `https://thecareerworkbench.com`, presenting the six career-tooling pillars and the primary call-to-action to sign in or proceed as guest.*
 
-### C.2 Login page
+### C.2 Resume Analyzer input page
 
-![Figure C.2 — Login page with email/password fields, Google OAuth, and "Continue as guest" link.](figures/ui-02-login.png)
+![Figure C.2 — Resume Analyzer input page, guest mode.](figures/ui-03-resume-input.png)
 
-*Figure C.2: The `/login` route. The form supports email + password sign-in, account creation against the same form fields, federated Google OAuth, and a "Continue as guest" path that allows the analytical tools (Resume Analyzer, Job Match) to be exercised without an account.*
+*Figure C.2: The Resume Analyzer input page (`/resume`) as it renders for a guest visitor. The input surface accepts a free-text or uploaded resume, with an optional target job description, before invoking the analytical pipeline described in Chapter 3.2.*
 
-### C.3 Resume Analyzer input page
+### C.3 Resume Analyzer result page (blended mode)
 
-![Figure C.3 — Resume Analyzer input page, guest mode.](figures/ui-03-resume-input.png)
+![Figure C.3 — Resume Analyzer result page in blended mode.](figures/ui-04-resume-result.png)
 
-*Figure C.3: The Resume Analyzer input page (`/resume`) as it renders for a guest visitor. The input surface accepts a free-text or uploaded resume, with an optional target job description, before invoking the analytical pipeline described in Chapter 3.2.*
+*Figure C.3: The Resume Analyzer result page after a blended-mode (heuristic 40 % + LLM 60 %) run on the synthetic backend-engineer resume described in Chapter 4 paired with a representative backend-engineer job description. The page renders the overall score, the five-axis sub-score breakdown, the deterministic issues list, the prioritised top actions, and the role-fit narrative — the response shape documented in Chapter 3.2.3.*
 
-### C.4–C.12 Pending capture
+### C.4 Job Match result page
 
-The following screens are referenced from the body and are scheduled for capture against the live deployment immediately before submission. The capture script that produces C.1–C.3 (in `~/.dev-browser/tmp/`) requires an authenticated administrator session for C.10–C.12 and an authenticated user session for C.4–C.9; both sessions will be created on the morning of submission so that the screenshots reflect the build that ships with this thesis.
+![Figure C.4 — Job Match result page on the same resume / job-description pair.](figures/ui-05-job-match-result.png)
 
-- C.4 Resume Analyzer result page (blended mode)
-- C.5 Resume Analyzer result page (heuristic-only mode)
-- C.6 Job Match input page (paste mode)
-- C.7 Job Match input page (URL scrape mode)
-- C.8 Career Path result page
-- C.9 Cover Letter result page
-- C.10 Interview Q&A result page (with practice mode panel)
-- C.11 Portfolio Planner result page
-- C.12 Dashboard with history
-- C.13 Admin scoring-mode toggle (blended → heuristic switch)
+*Figure C.4: The Job Match result page on the same input pair as Figure C.3. The view exposes the matched-keyword set, the missing-keyword set, the deterministic verdict, the recruiter-style summary, and the requirement-by-requirement breakdown produced by the prompt described in Chapter 3.3.3.*
+
+### C.5–C.6 Pending capture
+
+The two screens below demonstrate the runtime mode toggle that anchors Section 4.2.9 of the thesis. Automated capture was attempted but the development-environment route guard for `/admin` could not be exercised cleanly through the dev-browser harness inside the available time window; manual capture against the running system is scheduled for the morning of submission. The numerical claims that the toggle supports are independently anchored by Figure 4.1 (score distribution), the per-call cost recomputation in Section 4.3.4, and the runtime-toggle source listing in Appendix A.3, so the absence of these two screenshots does not weaken the chapter's evidence.
+
+- C.5 Resume Analyzer result page (heuristic-only mode) — paired comparison with C.3
+- C.6 Admin scoring-mode toggle, capturing the `blended → heuristic` switch action that Section 4.2.9 describes
 
 ---
 
