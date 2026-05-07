@@ -422,3 +422,107 @@ External checks used for citation sanity: ETASR CareerRec page (`https://etasr.c
 3. HIGH — Remove remaining contradiction on weights: fix `backend/app/services/quality_signals_v2.py:523` and `thesis/chapter-05-conclusion.md:15` so nothing says recruiter-survey-informed.
 4. HIGH — Strip submission-visible drafting residue: `thesis/abstract.md:1`, `thesis/acknowledgements.md:13-15`, `thesis/title-page.md:3`, `thesis/abbreviations.md:78`, and `thesis/bibliography.md:121`.
 5. HIGH — Align admin/demo claims with implementation: either add the frontend toggle promised at `thesis/chapter-04-studies.md:103` or remove that claim; update Appendix D response shape at `thesis/appendices.md:191-192`; decide whether blended mode should stay v1 or use v2 consistently with `thesis/chapter-04-studies.md:42`.
+
+## Round 3 — full validation (2026-05-07)
+
+Validation scope: branch `thesis-review-local` at `df77082d`, against `main` + commits `348e6d68`, `b1a47f45`, `df77082d`.
+
+### 1. Round-1 / round-2 fixes
+
+All explicitly requested smoke checks passed in this workspace.
+
+- BM25 duplicate-query-token dedup: `python3 /tmp/round3_smoke.py` printed `{'unique_query': 5.99902, 'duplicate_query': 5.99902, 'equal': True}`.
+- Tokenizer punctuation collapse: same run printed `['fastapi', 'fastapi']`.
+- ESCO false positives: same run printed `[]` for `go to market`, `lambda expressions`, `elastic load balancer`, `bash script`, `linear regression`, `sketch out`.
+- Section detection: same run detected inline/capitalised `Summary`, `Skills`, `EXPERIENCE`, `EDUCATION`.
+- Kendall tau-b: `HEURISTIC_VERSION=v2 python3 /tmp/round3_smoke2.py` printed `{'textbook_case': 1.0}` and `{'scipy_tau': np.float64(1.0), 'matches': True}`.
+- Cache invalidation: `HEURISTIC_VERSION=v2 python3 /tmp/round3_smoke3.py` printed `{'clear_cache_called': True, 'call_count': 1}` on mode change and no call on same-mode POST.
+- v2 confidence gap: same run printed `{'gap_note_same': None}`.
+- Runtime short-circuit: `HEURISTIC_VERSION=v2 python3 /tmp/round3_smoke3.py` and `HEURISTIC_VERSION=v2 python3 - <<'PY' ... match_job ... PY` both succeeded with `complete_structured` patched to raise, proving Resume Analyzer and Job Match skip the LLM in heuristic mode.
+
+### 2. Chapter 4.3 comparative-study runnability
+
+- Severity: Critical
+- Title: The Chapter 4.3 pipeline still cannot produce the cost and sensitivity sections the thesis promises
+- Evidence: `scripts/eval_scoring.py:88-104` writes only `pair_id`, `mode`, `overall_score`, `score_breakdown`, `latency_ms`, `ok`; no token counts, no cost fields, no alternate-weight rerun. `scripts/analyze_eval_results.py:161-217` prints only Sections 4.3.1-4.3.3 and exits after latency. `python3 /tmp/round3_eval_pipeline.py` ran the synthetic pipeline end-to-end and its analyzer output stopped at `## 4.3.3 Latency (milliseconds)` with no cost table and no 4.3.5 sensitivity output.
+- Impact: Section 4.3.4 and 4.3.5 are not just unfilled; they are not computable from the committed tooling. A careful supervisor can ask “where did the cost numbers and equal-weight robustness numbers come from?” and the student has no runnable answer.
+- Suggested action: Either implement token/cost capture plus the equal-weight rerun in the harness/analyzer, or cut 4.3.4/4.3.5 from the thesis before sending the draft.
+
+- Severity: Medium
+- Title: The analyzer only gives Kendall for the overall score, not for the “full numerical results” wording around the per-sub-score breakdown
+- Evidence: `thesis/chapter-04-studies.md:112` says “The full numerical results — including the per-sub-score breakdown — will be produced by the evaluation harness”. But `scripts/analyze_eval_results.py:175-189` prints a per-sub-score table with only `Pearson r` and `Spearman ρ` columns; no Kendall column exists there. The synthetic analyzer run in `python3 /tmp/round3_eval_pipeline.py` printed exactly that two-column sub-score table.
+- Impact: The thesis currently overstates what the analyzer emits. Even if the student fills the tables by hand, the “produced by the harness” claim is not fully true.
+- Suggested action: Either add Kendall to the sub-score table or narrow the prose so it only claims overall Kendall and per-sub-score Pearson/Spearman.
+
+### 3. Chapter 4 / design-doc drift against code
+
+- Severity: High
+- Title: `heuristic-v2-design.md` still describes an obsolete BM25/IDF pipeline
+- Evidence: `thesis/heuristic-v2-design.md:29-30` says IDF is built from a “bundled corpus of evaluation job descriptions (one-time, at module load)”; `thesis/heuristic-v2-design.md:48` says BM25 is normalised by a “maximum-achievable BM25”. The code at `backend/app/services/quality_signals_v2.py:281-301` builds the baseline IDF from bundled ESCO entries, `backend/app/services/quality_signals_v2.py:591-597` optionally overrides it with eval-corpus IDF, and `backend/app/services/quality_signals_v2.py:639-642` uses BM25 only as a soft additive boost inside `keywords_score = 0.7 * weighted + 0.3 * min(100, bm25 * 4)`.
+- Impact: The design spec is no longer an engineering bridge to the implementation. A supervisor comparing the thesis package against code will see an old algorithm described as current.
+- Suggested action: Rewrite the BM25/IDF subsection of the design doc to match the shipped code exactly, including the ESCO baseline path and the soft-boost formula.
+
+- Severity: Medium
+- Title: The design spec still documents resource sizes and files that the shipped branch does not contain
+- Evidence: `thesis/heuristic-v2-design.md:135` says the action-verb list is “~250”; the shipped file is smaller (`python3 - <<'PY' ... print(sum(...)) ... PY` counted 183 non-comment entries). `thesis/heuristic-v2-design.md:171-173` lists `backend/app/data/stop_words.txt`, but no such file exists in the repository.
+- Impact: This reads like a spec frozen before the implementation stabilised. It weakens confidence in the rest of the methodological documentation.
+- Suggested action: Update the design doc to the exact shipped artifact set and exact shipped counts, or remove counts entirely where they are not analytically important.
+
+### 4. Regressions introduced around the v2 path
+
+- Severity: High
+- Title: `HEURISTIC_VERSION=v2` breaks an existing backend test and misclassifies a strong resume as “too thin”
+- Evidence: `HEURISTIC_VERSION=v2 pytest backend/tests` failed with `FAILED backend/tests/test_quality_services.py::test_resume_analyze_heuristic_fallback_emits_celebratory_action`, while plain `pytest backend/tests` passed `168 passed`. The failing assertion is at `backend/tests/test_quality_services.py:188-223`. Reproduction: `HEURISTIC_VERSION=v2 python3 - <<'PY' ... build_resume_prepass_v2(strong_resume, None) ... _heuristic_issues(...) ... PY` printed `{'word_count': 125}` and then `The resume may be too thin to communicate your scope clearly`. The trigger is `backend/app/services/resume_analyzer.py:124-135`, which hard-flags resumes with `word_count < 140`; under v2 that same “strong” resume still scores well elsewhere (`backend/app/services/quality_signals_v2.py:645-674`) but falls into the thin-resume issue path.
+- Impact: In heuristic fallback or demo mode, a visibly strong resume can surface the wrong top action and lose the celebratory “Resume reads strong” state. This is both a user-facing regression and an objective branch-stability problem because the full backend suite is not green under v2.
+- Suggested action: Recalibrate the v2 word-count/clarity heuristic against the actual v2 tokeniser and score scale, then make `backend/tests` pass under both `HEURISTIC_VERSION=v1` and `v2` before the draft is sent.
+
+### 5. Parts previous passes missed
+
+- Severity: High
+- Title: The deployment story contradicts itself inside Chapter 2
+- Evidence: `thesis/chapter-02-architecture.md:36` says the thesis deployment runs “on a single Railway service”. `thesis/chapter-02-architecture.md:115` says the frontend is served “from the same Railway service as the backend”. But `thesis/chapter-02-architecture.md:167-179` then describes “a single Railway project containing three services” and diagrams separate frontend and backend services.
+- Impact: This is the kind of contradiction a supervisor catches in one read. It makes the architecture chapter look assembled from multiple drafts rather than settled.
+- Suggested action: Choose one truthful deployment description and make N6, Section 2.4, and Section 2.7 say the same thing.
+
+- Severity: High
+- Title: The promised admin interface for scoring-mode switching still does not exist in the frontend
+- Evidence: `thesis/chapter-02-architecture.md:37` requires runtime switching “through an administrative interface”. `thesis/chapter-04-studies.md:103` retreats to “the same operation is performed by issuing the POST request through any HTTP client”. Frontend search found no scoring-mode client or page: `rg -n "scoring-mode|getScoringMode|setScoringMode|AdminScoringMode" frontend/src -S` returned no matches, and `find frontend/src/pages/admin -maxdepth 2 -type f | sort` listed only `admin-dashboard-page.tsx`, `admin-layout.tsx`, `admin-runs-page.tsx`, and `admin-users-page.tsx`.
+- Impact: The live-demo story is backend-only. A supervisor reading “administrative interface” and then opening `/admin` will not find the feature the thesis foregrounds.
+- Suggested action: Either build the actual `/admin` scoring toggle before the draft goes out, or revise the thesis everywhere to say the mode is toggled via authenticated API call / Swagger, not via the admin UI.
+
+- Severity: Medium
+- Title: A sampled bibliography entry still points to the wrong paper title
+- Evidence: `thesis/bibliography.md:45` cites [16] as “AI-driven resume analysis and enhancement using natural language models.” The fetched PDF at `https://aclanthology.org/2025.clicit-1.51.pdf` opens to title lines `AI-Driven Resume Analysis and Enhancement Using Semantic Modeling and Large Language Feedback Loops` (`turn2view0`, lines `L0-L3`). Other sampled URLs resolved cleanly, including [1], [6], [14], [18], [27], [30], [33].
+- Impact: This is exactly the kind of citation sloppiness that makes a supervisor doubt the rest of the bibliography audit, especially because the bibliography header at `thesis/bibliography.md:3` claims the bootstrap notes “have been resolved”.
+- Suggested action: Re-verify every non-foundational citation against the landing page or PDF title and fix exact metadata, not just the URL.
+
+- Severity: Medium
+- Title: Working-draft/process instructions are still visible in front matter
+- Evidence: `thesis/acknowledgements.md:3` still contains “Personalise before submission — replace placeholders...”. `thesis/title-page.md:10` still says “confirm with supervisor”. `thesis/title-page.md:39` still says “Do not insert it unless asked”.
+- Impact: These are high-visibility draft artefacts. They make the package look like a generated assembly workspace rather than a supervisor-ready thesis draft.
+- Suggested action: Remove all process notes from front matter before the draft leaves the repository and keep them in a private checklist file instead.
+
+- Severity: Medium
+- Title: Several first-person implementation anecdotes are still hard to defend from the package itself
+- Evidence: `thesis/chapter-03-tools.md:36` states that a “Vertex AI regional outage” produced the first hard failure visible to a real user. `thesis/chapter-01-introduction.md:47` and `thesis/chapter-01-introduction.md:62` make concrete sequencing and failure-history claims. The package contains no supporting logs, dates, screenshots, or commit references for those anecdotes.
+- Impact: These passages invite viva-style follow-up questions that the student may answer from memory, but the thesis package itself does not substantiate them. They also read more like narrative colour than engineering evidence.
+- Suggested action: Keep only autobiographical details that can be defended concretely in conversation, or trim them so they do not become unnecessary attack surfaces.
+
+### 6. Production-readiness
+
+No new code-level production-readiness defect was found beyond the missing admin UI above.
+
+- Verified: `backend/app/main.py:128-147` includes the admin router.
+- Verified: admin endpoints are rate-limited at `backend/app/routers/admin.py:31-34`.
+- Verified: `get_current_admin` gates on `is_admin` at `backend/app/auth/security.py:166-174`, the user model has `is_admin` at `backend/app/models/user.py:20-21`, and the migration exists at `backend/alembic/versions/d1e2f3a4b5c6_add_is_admin_to_users.py:16-18`.
+- Verified: `result_cache.clear_cache()` exists and empties the in-memory cache at `backend/app/services/result_cache.py:70-72`.
+- Verified: `pnpm typecheck` passed in `frontend/`.
+- Verified: importing `app.main` succeeded, though the local environment logged `VERTEX_PROJECT_ID is empty`, which is an environment/config state rather than a branch bug.
+
+### Top 5 things the supervisor will catch first
+
+1. Chapter 4 promises cost and sensitivity-analysis results that the committed eval tooling cannot generate at all.
+2. Chapter 2 contradicts itself on deployment shape, and the touted scoring-mode admin interface is missing from the frontend.
+3. The branch is not actually stable under `HEURISTIC_VERSION=v2`: the full backend suite fails and strong resumes can be flagged as “too thin”.
+4. `heuristic-v2-design.md` still documents an older BM25/IDF algorithm than the code now ships.
+5. The package still contains obvious draft artefacts: front-matter instructions and at least one bibliography entry whose title does not match the fetched paper.

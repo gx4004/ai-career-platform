@@ -24,15 +24,15 @@ The same uploaded resume must serve as input across all six tools without re-ent
 
 The non-functional requirements were derived from the practical constraints of a single-developer, thesis-scoped deployment.
 
-* **N1 — Latency.** Two targets are stated separately because the analytical core supports two scoring modes (Section 4.2.9) whose cost models differ by two orders of magnitude.
+* **N1 (Latency).** Two targets are stated separately because the analytical core supports two scoring modes (Section 4.2.9) whose cost models differ by two orders of magnitude.
   * **N1a (heuristic-only path):** end-to-end tool latency at the 95th percentile under nominal load should remain below 50 ms; everything in the path is local string processing on commodity hardware.
   * **N1b (blended LLM path):** end-to-end tool latency at the 95th percentile under nominal load should remain below 25 s on the cold path, dominated by the upstream Gemini structured-output call; production cached-path latency is materially lower as reported in Section 3.9. The original single-target 95th-percentile-under-five-seconds figure that an earlier draft of this section stated cannot be met by the cold-path blended mode and was split into the two targets above to match the measured behaviour reported in Section 4.3.3.
-* **N2 — Cost ceiling.** Per-call LLM cost is bounded by the choice of Gemini 2.5 Flash, a low-cost variant of the model family. The fully-heuristic mode introduced in Chapter 4 reduces this to zero on the LLM side.
-* **N3 — Availability.** A degraded but useful service is preferred over a hard failure. When the LLM call fails or times out, analytical tools (Resume, Job Match) fall back to a heuristic-only response and surface a `confidence_note` to the user. Generative tools (Cover Letter, Interview Q&A) fail loudly with a structured error rather than producing fabricated content.
-* **N4 — Auditability.** Every tool invocation produces a persistent record with the inputs (hashed), the output (full), and the timing and access mode. This supports the experimental work in Chapter 4 and gives the operator a forensic trail.
-* **N5 — Privacy.** No third-party analytics or advertising scripts are loaded on a logged-in user's screen. Personal data is encrypted in transit and at rest by the managed PostgreSQL provider; passwords are stored as bcrypt hashes only.
-* **N6 — Single deployment surface.** The thesis-scoped deployment runs as a single Railway project that bundles the frontend service, the backend service, and a managed Postgres add-on. The two application services share a single hostname through path-based routing, so externally the system presents itself as one origin. There is no separate microservice architecture, no message broker, and no container orchestrator beyond what Railway provides natively.
-* **N7 — Demonstrability.** The running system must be operable and demonstrable from a laptop without specialised tooling. Both modes of the analytical core (blended and fully heuristic) must be switchable at runtime through an administrative interface, so that the comparative study reported in Chapter 4 can be reproduced live during the diploma defence.
+* **N2 (Cost ceiling).** Per-call LLM cost is bounded by the choice of Gemini 2.5 Flash, a low-cost variant of the model family. The fully-heuristic mode introduced in Chapter 4 reduces this to zero on the LLM side.
+* **N3 (Availability).** A degraded but useful service is preferred over a hard failure. When the LLM call fails or times out, analytical tools (Resume, Job Match) fall back to a heuristic-only response and surface a `confidence_note` to the user. Generative tools (Cover Letter, Interview Q&A) fail loudly with a structured error rather than producing fabricated content.
+* **N4 (Auditability).** Every tool invocation produces a persistent record with the inputs (hashed), the output (full), and the timing and access mode. This supports the experimental work in Chapter 4 and gives the operator a forensic trail.
+* **N5 (Privacy).** No third-party analytics or advertising scripts are loaded on a logged-in user's screen. Personal data is encrypted in transit and at rest by the managed PostgreSQL provider; passwords are stored as bcrypt hashes only.
+* **N6 (Single deployment surface).** The thesis-scoped deployment runs as a single Railway project that bundles the frontend service, the backend service, and a managed Postgres add-on. The two application services share a single hostname through path-based routing, so externally the system presents itself as one origin. There is no separate microservice architecture, no message broker, and no container orchestrator beyond what Railway provides natively.
+* **N7 (Demonstrability).** The running system must be operable and demonstrable from a laptop without specialised tooling. Both modes of the analytical core (blended and fully heuristic) must be switchable at runtime through an administrative interface, so that the comparative study reported in Chapter 4 can be reproduced live during the diploma defence.
 
 
 ## 2.2 Technology stack and rationale
@@ -57,7 +57,7 @@ The technology stack is summarised in Table 2.1.
 
 Two stack decisions deserve explicit defence because either could plausibly have been made differently.
 
-**Why FastAPI rather than a Node/TypeScript backend.** A unified TypeScript backend would have eliminated the language boundary at the API contract. FastAPI was preferred because the official Google Vertex AI client (used for the LLM path described in Chapter 3) and the most mature standard-library and third-party tools for text processing — Python's `re`, `difflib`, `unicodedata`, and the optional `rapidfuzz` and `scikit-learn` ecosystems available if the heuristic is later extended — are all native Python. Keeping the analytical core in Python avoids introducing fidelity risks on the critical path of the comparative study reported in Chapter 4, where any subtle difference between, for example, a Python regex and a JavaScript regex would be a confound rather than a finding.
+**Why FastAPI rather than a Node/TypeScript backend.** A unified TypeScript backend would have eliminated the language boundary at the API contract. FastAPI was preferred because the official Google Vertex AI client (used for the LLM path described in Chapter 3) and the most mature standard-library and third-party tools for text processing (Python's `re`, `difflib`, `unicodedata`, and the optional `rapidfuzz` and `scikit-learn` ecosystems available if the heuristic is later extended) are all native Python. Keeping the analytical core in Python avoids introducing fidelity risks on the critical path of the comparative study reported in Chapter 4, where any subtle difference between, for example, a Python regex and a JavaScript regex would be a confound rather than a finding.
 
 **Why TanStack Start rather than Next.js.** Next.js is the dominant framework for React applications in production. The decision to use TanStack Start instead was driven by three considerations specific to this project: (i) the application is fundamentally an authenticated single-page workspace rather than a content site, so server components and ISR offer little benefit; (ii) TanStack Router's file-based, type-safe routing produces fewer subtle bugs at refactor time; and (iii) co-locating search-parameter state and route-level data loaders made the multi-tool workflow easier to reason about. The trade-off is a thinner ecosystem of templates and tutorials.
 
@@ -68,7 +68,7 @@ In practice this trade-off was occasionally felt during the early weeks of front
 
 The backend is structured in four horizontal layers (Figure 2.1).
 
-![Figure 2.1 — Backend layered architecture. The FastAPI surface (routers and schemas) delegates to a service layer that runs every analytical tool through the shared `run_tool_pipeline`, which in turn invokes the heuristic prepass, the LLM gateway (Vertex AI Gemini 2.5 Flash via `ai_client.py`), and the persistence layer (SQLAlchemy 2.0 + Alembic over PostgreSQL).](figures/figure-2-1-architecture.png)
+![Figure 2.1: Backend layered architecture. The FastAPI surface (routers and schemas) delegates to a service layer that runs every analytical tool through the shared `run_tool_pipeline`, which in turn invokes the heuristic prepass, the LLM gateway (Vertex AI Gemini 2.5 Flash via `ai_client.py`), and the persistence layer (SQLAlchemy 2.0 + Alembic over PostgreSQL).](figures/figure-2-1-architecture.png)
 
 ### 2.3.1 Routers
 
@@ -85,7 +85,7 @@ The six functional tools share a single cross-cutting pipeline implemented in `s
 5. **Response assembly.** A unified response shape is built from the persisted record, including the history identifier and the access mode.
 6. **Observability.** A structured event is emitted on start, success, and failure, including the tool name, access mode, duration, and the error category if applicable. These events feed both the Sentry breadcrumb trail and the operator-facing metrics.
 
-![Figure 2.2 — Tool pipeline (`run_tool_pipeline`). Six sequential stages form the cross-cutting wrapper around every analytical tool service: sanitise, cache, service, persist, respond, observe. The LLM gateway is shown as an external dependency exercised inside the service stage, with the four-retry exponential-backoff schedule and the heuristic-only fallback path that activates after the retries are exhausted.](figures/figure-2-2-pipeline.png)
+![Figure 2.2: Tool pipeline (`run_tool_pipeline`). Six sequential stages form the cross-cutting wrapper around every analytical tool service: sanitise, cache, service, persist, respond, observe. The LLM gateway is shown as an external dependency exercised inside the service stage, with the four-retry exponential-backoff schedule and the heuristic-only fallback path that activates after the retries are exhausted.](figures/figure-2-2-pipeline.png)
 
 This single point of indirection has two practical consequences for the thesis. First, every tool inherits the same cache, persistence, and observability behaviour by default; adding a new tool requires no plumbing beyond the service function and the prompt builder. Second, the comparative study in Chapter 4 can reason about cache and persistence behaviour uniformly across all tools, rather than maintaining a per-tool exception table.
 
@@ -97,7 +97,7 @@ The body of each tool's logic lives in two files: a service module (`services/<t
 
 ### 2.3.4 The heuristic prepass
 
-For tools that produce a numerical score — Resume Analyzer and Job Match — the service computes a deterministic prepass before the LLM call. The prepass extracts evidence from the resume (detected sections, bullet counts, quantified bullets, matched and missing keywords against the job description, detected skill phrases), and computes a five-axis breakdown (keyword alignment, impact, structure, clarity, completeness). The prepass payload is appended to the prompt as a *locked payload* — text the LLM is instructed to use as authoritative ground truth rather than to overwrite. This has two effects: it stabilises the LLM's score against prompt-perturbation noise, and it makes the heuristic-only fallback (and the fully-heuristic mode) implementable without a parallel codepath.
+For tools that produce a numerical score (Resume Analyzer and Job Match) the service computes a deterministic prepass before the LLM call. The prepass extracts evidence from the resume (detected sections, bullet counts, quantified bullets, matched and missing keywords against the job description, detected skill phrases), and computes a five-axis breakdown (keyword alignment, impact, structure, clarity, completeness). The prepass payload is appended to the prompt as a *locked payload*: text the LLM is instructed to use as authoritative ground truth rather than to overwrite. This has two effects: it stabilises the LLM's score against prompt-perturbation noise, and it makes the heuristic-only fallback (and the fully-heuristic mode) implementable without a parallel codepath.
 
 
 ## 2.4 Frontend architecture
@@ -108,8 +108,8 @@ The frontend is a single-page application served from a Railway service that liv
 
 Routes live in `frontend/src/routes/` and are file-based. The route tree is generated at build time by TanStack Router. Each tool has a pair of routes:
 
-- An *input* route at `/<tool>` (for example, `/resume`, `/job-match`) — a workspace page with the resume input, the job-description input where applicable, and per-tool animation, copy, and chips.
-- A *result* route at `/<tool>_/result/$historyId` — the page rendered after a tool run completes. The route segment `_/` declares a layout split, and the dynamic segment `$historyId` is the persistent identifier of the `ToolRun` record on the backend.
+- An *input* route at `/<tool>` (for example, `/resume`, `/job-match`); this workspace page contains the resume input, the job-description input where applicable, and per-tool animation, copy, and chips.
+- A *result* route at `/<tool>_/result/$historyId`, the page rendered after a tool run completes. The route segment `_/` declares a layout split, and the dynamic segment `$historyId` is the persistent identifier of the `ToolRun` record on the backend.
 
 In addition, routes exist for the dashboard, account settings, login, password reset, history, and the small admin surface introduced in Chapter 4.
 
@@ -117,13 +117,13 @@ In addition, routes exist for the dashboard, account settings, login, password r
 
 Application state is partitioned into three scopes.
 
-1. **Server state** — anything that originates from the backend — is held in TanStack Query. This includes the current session, the list of tool runs in the user's history, and the result of any previously completed tool run. TanStack Query handles staleness, refetching, and request deduplication.
-2. **Workflow state** — the resume text being carried between tools and the most recent tool result the user is referencing — is held in `sessionStorage` and read through small custom hooks (`useResumeCarry`, `useSession`). Workflow state is tab-scoped by design: opening the same site in a second tab does not share workflow context, which prevents accidental cross-talk.
-3. **Component state** — input values, sheet open/closed flags, animation timing — is local to each component and uses standard React `useState` and `useReducer`.
+1. **Server state** (anything that originates from the backend) is held in TanStack Query. This includes the current session, the list of tool runs in the user's history, and the result of any previously completed tool run. TanStack Query handles staleness, refetching, and request deduplication.
+2. **Workflow state** (the resume text being carried between tools and the most recent tool result the user is referencing) is held in `sessionStorage` and read through small custom hooks (`useResumeCarry`, `useSession`). Workflow state is tab-scoped by design: opening the same site in a second tab does not share workflow context, which prevents accidental cross-talk.
+3. **Component state** (input values, sheet open/closed flags, animation timing) is local to each component and uses standard React `useState` and `useReducer`.
 
 ### 2.4.3 Layout shell and navigation
 
-The application shell consists of a dark sidebar and topbar with a light content area; there is no dark-mode toggle. The sidebar groups the six tools into three semantic clusters — *primary* (Resume, Job Match), *application* (Cover Letter, Interview Q&A), and *planning* (Career Path, Portfolio) — to reduce the cognitive load of navigation. On mobile breakpoints, the sidebar collapses into a bottom tab bar (`MobileNav`) and a tools sheet (`ToolGridSheet`). All tool metadata that drives the sidebar, the dashboard cards, and the tools-sheet grid is centralised in `frontend/src/lib/tools/registry.ts`, so a new tool can be exposed across the entire UI with a single registry entry.
+The application shell consists of a dark sidebar and topbar with a light content area; there is no dark-mode toggle. The sidebar groups the six tools into three semantic clusters, *primary* (Resume, Job Match), *application* (Cover Letter, Interview Q&A), and *planning* (Career Path, Portfolio), to reduce the cognitive load of navigation. On mobile breakpoints, the sidebar collapses into a bottom tab bar (`MobileNav`) and a tools sheet (`ToolGridSheet`). All tool metadata that drives the sidebar, the dashboard cards, and the tools-sheet grid is centralised in `frontend/src/lib/tools/registry.ts`, so a new tool can be exposed across the entire UI with a single registry entry.
 
 
 ## 2.5 Data model and persistence
@@ -156,12 +156,12 @@ Beyond authentication, three additional security measures are worth noting. Inpu
 
 The production deployment runs as a single Railway project containing three services (Figure 2.3).
 
-![Figure 2.3 — Production deployment topology. Browser traffic resolves through Cloudflare DNS and TLS into a single Railway hostname; path-based routing at the Railway edge delivers the `/` path to the Vite-built frontend service and the `/api/v1/*` path to the FastAPI backend service. The backend uses a Railway-managed PostgreSQL add-on for persistence and three external dependencies — Vertex AI Gemini 2.5 Flash for inference, Resend for transactional email, and Sentry for error tracking. Both services emit metrics and breadcrumbs to the observability tier.](figures/figure-2-3-deployment.png)
+![Figure 2.3: Production deployment topology. Browser traffic resolves through Cloudflare DNS and TLS into a single Railway hostname; path-based routing at the Railway edge delivers the `/` path to the Vite-built frontend service and the `/api/v1/*` path to the FastAPI backend service. The backend uses a Railway-managed PostgreSQL add-on for persistence and three external dependencies: Vertex AI Gemini 2.5 Flash for inference, Resend for transactional email, and Sentry for error tracking. Both services emit metrics and breadcrumbs to the observability tier.](figures/figure-2-3-deployment.png)
 
 The frontend and the backend share a single hostname, with path-based routing decided at the Railway edge. This eliminates cross-origin concerns for the SPA's API calls and simplifies cookie configuration. The Postgres database is provisioned as a managed Railway add-on; backups are configured to retain seven daily snapshots.
 
 Continuous deployment is wired to a single branch (`deploy`). Pushing to `main` is a development checkpoint; promoting a commit to `deploy` triggers a Railway build and rolls out the new revision with a brief health-check window before traffic is cut over. This two-branch model is intentional: it keeps the deployment surface narrow without introducing a CI/CD pipeline whose maintenance overhead is out of proportion to a thesis-scoped project.
 
-The Railway choice was driven by the desire for a unified deployment surface. Serving the frontend at `/` and the backend at `/api/*` from a single hostname collapses the entire system into one domain, which removes an entire class of CORS and `SameSite`-cookie configuration bugs from the project before they can be introduced. Split-deployment alternatives — typically a frontend host such as Vercel paired with a separate backend host — were considered briefly, but the operational overhead of running two services without a team to absorb that overhead did not seem justified at the project's scope. The same single-domain choice also meant that no separate edge router was required to glue the two halves of the application together at the boundary.
+The Railway choice was driven by the desire for a unified deployment surface. Serving the frontend at `/` and the backend at `/api/*` from a single hostname collapses the entire system into one domain, which removes an entire class of CORS and `SameSite`-cookie configuration bugs from the project before they can be introduced. Split-deployment alternatives (typically a frontend host such as Vercel paired with a separate backend host) were considered briefly, but the operational overhead of running two services without a team to absorb that overhead did not seem justified at the project's scope. The same single-domain choice also meant that no separate edge router was required to glue the two halves of the application together at the boundary.
 
 The next chapter details the implementation of each of the six tools that this architecture supports.
