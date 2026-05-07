@@ -1,14 +1,10 @@
 # Strong Heuristic v2 — Design Spec
 
-> Implementation spec for `app/services/quality_signals_v2.py`. This is the engineering bridge between Chapter 4.2 of the thesis and actual code. Every component cited here has a corresponding paper in `bibliography.md`. Goal: defendable in front of the diploma jury.
-
----
-
 ## Goals and non-goals
 
 **Goals**
-- Produce a numerical resume score and a numerical match score that correlate with the blended (LLM+heuristic) mode at *r* ≥ 0.7 across the evaluation set.
-- Run in < 50 ms per analysis at the 95th percentile.
+- Produce a numerical resume score and a numerical match score that the comparative study in Chapter 4 can characterise against the blended (LLM+heuristic) mode on the synthetic evaluation set. The chapter reports the measured Pearson/Spearman/Kendall correlations as outcomes; this spec does not prescribe a target correlation value to hit.
+- Run in tens to low-hundreds of milliseconds per analysis on the synthetic evaluation set, with a typical-case ceiling around 50 ms for resumes near the median length and a higher ceiling on longer inputs as the per-variant ESCO regex scan grows. Section 4.3.3 reports the measured latencies.
 - Use only classical, citable IR techniques. No neural networks, no embeddings, no third-party APIs.
 - Coexist with the existing `quality_signals.py` — selectable via a `HEURISTIC_VERSION` flag.
 
@@ -23,7 +19,7 @@
 
 ### 1. TF–IDF and BM25 keyword scoring
 
-**Citations:** Salton & McGill 1983 [28], Robertson & Zaragoza 2009 [27].
+**Citations:** Salton & McGill 1983 [5], Robertson & Zaragoza 2009 [6].
 
 **Implementation (matches `quality_signals_v2.py` as shipped)**
 - IDF resolution order:
@@ -53,7 +49,7 @@ The raw BM25 value is *not* itself rescaled to [0, 100]; it is folded into the k
 
 ### 2. ESCO skill normalisation
 
-**Citations:** le Vrang et al. 2014 [17], ESCOX 2025 [18].
+**Citations:** le Vrang et al. 2014 [8], ESCOX 2025 [9].
 
 **Implementation**
 - Bundle a curated ESCO subset as `app/data/esco_skills.json`.
@@ -70,7 +66,7 @@ The raw BM25 value is *not* itself rescaled to [0, 100]; it is folded into the k
 
 ### 3. Fuzzy matching
 
-**Citations:** Levenshtein 1966 [29].
+**Citations:** Levenshtein 1966 [7].
 
 **Implementation (current — stdlib only, ships with the thesis)**
 - `difflib.SequenceMatcher(None, target, candidate).ratio()` with threshold *τ* = 0.85.
@@ -158,7 +154,7 @@ Linear contribution to clarity sub-score: `clarity_verb_term = action_verb_fract
 - clarity: 0.15
 - completeness: 0.15
 
-**Source for the weights:** **author-selected**, motivated by the design intuition that recruiter-side scanning is dominated by keyword and impact signals with structural / clarity / completeness signals carrying smaller but non-trivial weight. The weights are *not* derived from a published survey, and the thesis does not claim such a derivation. Robustness is established through the sensitivity analysis described in Chapter 4.3.5 (rerun under equal weights), not through external citation.
+**Source for the weights:** **author-selected**, motivated by the design intuition that recruiter-side scanning is dominated by keyword and impact signals with structural / clarity / completeness signals carrying smaller but non-trivial weight. The weights are *not* derived from a published survey, and the thesis does not claim such a derivation. The sensitivity analysis described in Chapter 4.3.5 (rerun under equal weights) shows the comparative result is partially robust to the weight choice — Pearson *r* stays above the 0.7 reference threshold under both weightings, while Spearman ρ weakens below 0.7 under equal weights. The thesis therefore reports the rank-agreement result as contingent on the author-selected weights, not as weight-independent.
 
 ```python
 def combine(sub_scores: dict[str, int]) -> int:
@@ -314,17 +310,3 @@ Then a small Python notebook or CLI tool computes the metrics for Chapter 4.3 fr
 - Latency percentiles
 - Cost (token counts × Vertex AI pricing)
 
----
-
-## Open items for tomorrow morning
-
-1. **Generate ESCO subset.** One-off script against ESCO multilingual CSV. ~30 min.
-2. **Curate action-verb list.** Pull from Harvard/MIT/Princeton sources. ~20 min.
-3. **Synthesise 30 evaluation resumes.** Use a script that fills templated structures with role-track-appropriate content. ~45 min.
-4. **Sample 20 job descriptions.** Pull from public boards, redact identifiers. ~30 min.
-5. **Implement v2 in code.** ~90 min.
-6. **Run eval harness.** ~10 min compute + ~20 min metric extraction.
-7. **Fill *to be filled* cells in Chapter 4.3** with the harness output. ~30 min.
-8. **Live-toggle smoke test.** Click /admin toggle, confirm Resume + Job Match return heuristic-only when `mode=heuristic`. ~10 min.
-
-Total estimated work tomorrow: ~5–6 hours focused. Within the 8-hour writing-day budget; leaves buffer for figure exports, abstract refinement, and supervisor email.

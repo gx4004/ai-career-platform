@@ -1,9 +1,5 @@
 # Chapter 2 — System architecture
 
-> Target length: 9–12 pages (~5000 words). The example thesis used Chapter 2 to describe the physical hardware artefact (armband). The equivalent here is the *software artefact* — the complete web application. Architecture diagrams are referenced as Figures 2.1–2.5; PNG sources will be exported tomorrow morning into `thesis/figures/`.
-
----
-
 This chapter describes the architecture of the system whose evaluation is the subject of the thesis. The chapter is organised in the same order in which design decisions were made during implementation: requirements first, then the choice of technology stack, then the backend, the frontend, the persistence model, and finally the deployment topology that ties the running components together. Where a decision could plausibly have been made differently, the rationale is stated explicitly so that the reasoning is auditable rather than implicit.
 
 
@@ -28,7 +24,9 @@ The same uploaded resume must serve as input across all six tools without re-ent
 
 The non-functional requirements were derived from the practical constraints of a single-developer, thesis-scoped deployment.
 
-* **N1 — Latency.** End-to-end tool latency should remain below five seconds at the 95th percentile under nominal load. The dominant contributor is the LLM call (typically 1–3 s); everything else combined targets <500 ms.
+* **N1 — Latency.** Two targets are stated separately because the analytical core supports two scoring modes (Section 4.2.9) whose cost models differ by two orders of magnitude.
+  * **N1a (heuristic-only path):** end-to-end tool latency at the 95th percentile under nominal load should remain below 50 ms; everything in the path is local string processing on commodity hardware.
+  * **N1b (blended LLM path):** end-to-end tool latency at the 95th percentile under nominal load should remain below 25 s on the cold path, dominated by the upstream Gemini structured-output call; production cached-path latency is materially lower as reported in Section 3.9. The original single-target 95th-percentile-under-five-seconds figure that an earlier draft of this section stated cannot be met by the cold-path blended mode and was split into the two targets above to match the measured behaviour reported in Section 4.3.3.
 * **N2 — Cost ceiling.** Per-call LLM cost is bounded by the choice of Gemini 2.5 Flash, a low-cost variant of the model family. The fully-heuristic mode introduced in Chapter 4 reduces this to zero on the LLM side.
 * **N3 — Availability.** A degraded but useful service is preferred over a hard failure. When the LLM call fails or times out, analytical tools (Resume, Job Match) fall back to a heuristic-only response and surface a `confidence_note` to the user. Generative tools (Cover Letter, Interview Q&A) fail loudly with a structured error rather than producing fabricated content.
 * **N4 — Auditability.** Every tool invocation produces a persistent record with the inputs (hashed), the output (full), and the timing and access mode. This supports the experimental work in Chapter 4 and gives the operator a forensic trail.

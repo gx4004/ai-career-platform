@@ -1,9 +1,5 @@
 # List of abbreviations and symbols
 
-> WEFiM rules section A.6: required between the table of contents and the introduction. Compiled from terms used in chapters 1–5. Sorted alphabetically. Acronyms whose expansion is widely understood (e.g., USB, PDF, URL) are still listed here once because the WEFiM convention is exhaustive listing rather than first-use definition.
-
----
-
 | Abbreviation | Expansion |
 |---|---|
 | AI | Artificial Intelligence |

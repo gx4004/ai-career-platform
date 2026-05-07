@@ -1,9 +1,5 @@
 # Appendices
 
-> WEFiM rules section A.13: appendices are placed at the end of the document, after the bibliography. They are *not* part of the main page count for the body, but they do count toward the JSA upload. Each appendix should be referenced from the body at least once.
-
----
-
 ## Appendix A — Source listings
 
 > Excerpted listings of the most thesis-relevant code. Each listing is a representative excerpt; full source files of the same name in the repository contain additional helpers, error handling, and inline documentation that are not reproduced here in the interest of length. Each listing is preceded by its file path so the reader can navigate to the corresponding location in the public repository at the moment of submission.
@@ -119,21 +115,21 @@ The evaluation dataset used in Chapter 4.3 contains *N* = 30 resumes and *M* ≈
 
 ### B.1 Resume synthesis procedure
 
-Each resume was synthesised from a templated structure that fills role-track-appropriate content into a fixed skeleton: a summary line, three to four employment entries with bulleted outcomes, a skills list of approximately ten items, a short education block, and an optional projects section. The synthesis script seeds the templated fields from a curated content library that contains role-typical titles, employer-name placeholders, and outcome phrasings. Quantification, action-verb usage, and section header consistency were varied deliberately across the 30 resumes to exercise the strong-heuristic features described in Chapter 4.2.
+Each resume was synthesised from a templated structure that fills role-track-appropriate content into a fixed skeleton: a two-sentence summary, two or three employment entries with three responsibilities and one quantified achievement each, a skills list, a short Projects section with two open-source or side-project lines, and an education block. The synthesis script seeds the templated fields from a curated content library inside the script — role-track skill pools, action-verb-led outcome phrasings, fictional employer names, and a fixed candidate-name pool. Skill density and seniority increase monotonically across the five resumes per track so that the evaluation set spans junior, mid, and senior levels.
 
-The synthesis script is `scripts/synthesise_resumes.py` (to be added in the morning together with the user). The full content library and the 30 generated `.txt` files live under `thesis/eval-dataset/resumes/`.
+The synthesis script is `scripts/synthesise_eval_dataset.py`. It is fully deterministic: a fixed seed (`SEED = 42`) produces the same 30 resumes and 20 job descriptions on every run, which makes the evaluation manifest reproducible from the script alone.
 
-### B.2 Job description sampling procedure
+### B.2 Job description synthesis procedure
 
-Job descriptions were sampled from public listings on widely used job boards in March–April 2026. Identifying information — company names, hiring-manager names, exact compensation figures — was redacted before inclusion in the evaluation set. Each sampled description was reviewed for representativeness against the role track and lightly trimmed to remove non-substantive boilerplate. The 20 cleaned `.txt` files live under `thesis/eval-dataset/jds/`.
+Job descriptions were also synthesised from templates rather than scraped from public job boards. Each description draws responsibilities from the same role-track pool used for resumes, and the requirement list is composed from a track-specific must-have skill set sized by seniority (four to six core skills plus one to three secondary skills, with years-of-experience banding by junior, mid, and senior). Synthesising rather than scraping preserves a clean comparison surface (the same skill vocabulary in resume and JD), avoids any privacy or licence concern, and is a deliberate choice that limits external generalisability — see Section 4.4 of Chapter 4 for the limitation framing.
 
 ### B.3 Pair construction
 
-The evaluation harness `scripts/eval_scoring.py` constructs all (resume, JD) pairs within the same role track. With five resumes per track and three to four JDs per track, this yields fifteen to twenty pairs per track, for approximately one hundred pairs in total.
+The evaluation harness `scripts/eval_scoring.py` pairs each resume with every job description inside the same role track. The JD distribution is three JDs in four tracks and four JDs in two tracks, which produces an exact total of one hundred (resume, JD) pairs.
 
 ### B.4 Pair manifest
 
-A pair manifest lives at `thesis/eval-dataset.json` and lists every (resume_id, jd_id) pair with the role track, the seniority level, and any deliberate stress signals (e.g., "no quantification", "skills in summary only", "non-standard section headers") so the per-pair results in Section 4.3 can be inspected by failure mode rather than only as aggregate numbers.
+The manifest produced by the synthesis script at `thesis/eval-dataset.json` is a list of one hundred objects with the shape `{id, resume, jd, role_track}`. The `id` is composed as `r-<track>-<NN>__jd-<track>-<NN>` so that every row is traceable back to its constituent resume and job description, and every per-pair result in Section 4.3 can be re-queried by id.
 
 ---
 
