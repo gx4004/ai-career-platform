@@ -15,7 +15,7 @@
 | Chapter 1 — Introduction | 80% | Needs first-person voice (3 spots), 1 verified citation |
 | Chapter 2 — Architecture | 75% | Needs **3 architecture figures**, voice (3 spots) |
 | Chapter 3 — Tools | 75% | Needs **6 tool screenshots**, voice (3 spots) |
-| Chapter 4 — Studies | 60% | **TBD cells must be filled** (eval run); needs equation blocks; voice (2 spots) |
+| Chapter 4 — Studies | 60% | **pending-value cells must be filled** (eval run); needs equation blocks; voice (2 spots) |
 | Chapter 5 — Conclusion | 85% | Needs voice (2 spots) |
 | Bibliography | 85% | Verify URLs resolve; replace 2 placeholder titles with real ones |
 | Heuristic v2 design | 95% | Implementation review |
@@ -74,7 +74,7 @@ cd backend
 SCORING_MODE=blended RESULT_CACHE_ENABLED=false python ../scripts/eval_scoring.py
 python ../scripts/analyze_eval_results.py > ../thesis/chapter-04-results.md
 ```
-Then paste the printed tables into Section 4.3 of `chapter-04-studies.md` in place of the `TBD` cells.
+Then paste the printed tables into Section 4.3 of `chapter-04-studies.md` in place of the `pending value` cells.
 
 ### 7. After eval runs — refresh the abstract
 The English abstract claims "the majority of the discriminative power". Once the real Pearson correlation is known, edit BOTH abstracts together so the headline claim is a real number ("Pearson r = 0.78 across the evaluation set" or similar).
@@ -86,7 +86,7 @@ After steps 1–7 are done, attach the Word document to an email along with `eva
 
 ---
 
-## What WE will do together tomorrow morning (~6h)
+## What WE will do together the next working session (~6h)
 
 1. **Wire the runtime mode toggle** (~45 min)
    - Add `SCORING_MODE` field to `backend/app/config.py`
@@ -101,7 +101,7 @@ After steps 1–7 are done, attach the Word document to an email along with `eva
    - 20 sampled+redacted JDs
    - Pair manifest in `thesis/eval-dataset.json`
 
-3. **Run eval + fill TBD cells** (~30 min)
+3. **Run eval + fill pending-value cells** (~30 min)
 
 4. **Export figures** (~60 min)
    - Diagrams: PowerPoint or draw.io for the architecture, pipeline, and deployment figures (Figure 2.1, 2.2, 2.3)

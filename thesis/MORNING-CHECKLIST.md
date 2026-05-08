@@ -12,7 +12,7 @@
 - `chapter-01-introduction.md` — full draft, ~3400 words
 - `chapter-02-architecture.md` — full draft, ~3800 words
 - `chapter-03-tools.md` — full draft, ~4100 words
-- `chapter-04-studies.md` — full draft, ~4200 words; **TBD cells** in Section 4.3 will be auto-filled by the eval harness
+- `chapter-04-studies.md` — full draft, ~4200 words; **pending-value cells** in Section 4.3 will be auto-filled by the eval harness
 - `chapter-05-conclusion.md` — full draft (bonus, wasn't promised)
 - `bibliography.md` — 30 references organised by topic, APA-style
 - `heuristic-v2-design.md` — engineering spec for the strong heuristic

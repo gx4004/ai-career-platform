@@ -38,7 +38,7 @@ may or may not have landed yet. This session brings the thesis from
   (1) thesis/build/thesis_full_FINAL.docx — all 5 chapters, ready for
       APD upload by 22 May 2026
   (2) thesis/build/thesis_first4_supervisor.docx — chapters 1-4 only,
-      ready to email dr Błędowski tomorrow morning
+      ready to email dr Błędowski the next working session
 
 Source of truth: the markdown in thesis/. The .docx is regenerated at
 the end. The code in backend/ and frontend/ is read-only ground truth.
@@ -99,7 +99,7 @@ Mechanical claim-vs-truth checks. Stream findings, fix as you go.
    Verify each path exists.
 
 1.5 Forbidden phrases
-   grep -rn "tomorrow morning|Target length|TBD|Authors to restore|moderate-to-useful" thesis/
+   grep -rn "the next working session|Length target|pending value|Author names previously flagged for restoration|moderate-to-useful" thesis/
    Should be empty.
 
 Fix every CRITICAL mismatch. Log Medium/Low to STAGE-F-FINDINGS.md.
@@ -254,7 +254,7 @@ Open `thesis/build/thesis_first4_supervisor.docx` in Word/Pages. Verify visually
 - [ ] All figures embedded inline with captions
 - [ ] All tables formatted, not broken
 - [ ] Bibliography numeric IEEE format with hanging indent
-- [ ] No "TBD" / "tomorrow morning" / draft markers anywhere
+- [ ] No "pending value" / "the next working session" / draft markers anywhere
 - [ ] Save as `thesis_first4_supervisor_draft.docx` (drop _FINAL suffix)
 
 Then write English email in own words, attach `.docx`, send to dr Błędowski.

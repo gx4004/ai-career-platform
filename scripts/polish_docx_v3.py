@@ -160,6 +160,69 @@ def set_cell_margins(table, margin_twips: int = 85) -> None:
         node.set(qn("w:type"), "dxa")
 
 
+def set_table_geometry(table, widths_cm: list[float]) -> None:
+    tbl = table._tbl
+    tbl_pr = tbl.tblPr
+    tbl_w = tbl_pr.find(qn("w:tblW"))
+    if tbl_w is None:
+        tbl_w = OxmlElement("w:tblW")
+        tbl_pr.append(tbl_w)
+    total_twips = int(sum(widths_cm) * 567)
+    tbl_w.set(qn("w:w"), str(total_twips))
+    tbl_w.set(qn("w:type"), "dxa")
+
+    layout = tbl_pr.find(qn("w:tblLayout"))
+    if layout is None:
+        layout = OxmlElement("w:tblLayout")
+        tbl_pr.append(layout)
+    layout.set(qn("w:type"), "fixed")
+
+    grid = tbl.tblGrid
+    if grid is None:
+        grid = OxmlElement("w:tblGrid")
+        tbl.insert(list(tbl).index(tbl_pr) + 1, grid)
+    for child in list(grid):
+        grid.remove(child)
+    widths_twips = [int(w_cm * 567) for w_cm in widths_cm]
+    for width in widths_twips:
+        col = OxmlElement("w:gridCol")
+        col.set(qn("w:w"), str(width))
+        grid.append(col)
+
+    for row in table.rows:
+        for idx, cell in enumerate(row.cells):
+            if idx >= len(widths_twips):
+                continue
+            cell.width = Cm(widths_cm[idx])
+            tc_pr = cell._tc.get_or_add_tcPr()
+            tc_w = tc_pr.find(qn("w:tcW"))
+            if tc_w is None:
+                tc_w = OxmlElement("w:tcW")
+                tc_pr.append(tc_w)
+            tc_w.set(qn("w:w"), str(widths_twips[idx]))
+            tc_w.set(qn("w:type"), "dxa")
+
+
+def table_width_profile(table) -> list[float]:
+    headers = [cell.text.strip().lower() for cell in table.rows[0].cells] if table.rows else []
+    cols = len(table.columns)
+    if cols == 2:
+        return [3.2, 12.4]
+    if cols == 3:
+        if headers[:3] == ["id", "tool", "required behaviour"]:
+            return [1.2, 2.9, 11.5]
+        if headers[:3] == ["variable", "purpose", "default"]:
+            return [4.6, 7.0, 4.0]
+        return [3.8, 4.2, 7.6]
+    if cols == 4:
+        return [3.4, 4.2, 4.5, 3.5]
+    if cols == 5:
+        if headers and headers[0] == "variant":
+            return [5.1, 3.2, 2.7, 2.2, 2.0]
+        return [3.4, 3.5, 3.5, 2.4, 2.4]
+    return [15.6 / max(cols, 1)] * cols
+
+
 def apply_python_docx_polish(src: Path, staged: Path) -> None:
     doc = Document(str(src))
 
@@ -176,8 +239,8 @@ def apply_python_docx_polish(src: Path, staged: Path) -> None:
 
     set_style_font(doc.styles["Normal"], size_pt=12)
     normal_pf = doc.styles["Normal"].paragraph_format
-    normal_pf.line_spacing = 1.5
-    normal_pf.space_after = Pt(6)
+    normal_pf.line_spacing = 1.2
+    normal_pf.space_after = Pt(3)
     normal_pf.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
     normal_pf.first_line_indent = Cm(0.5)
 
@@ -185,8 +248,8 @@ def apply_python_docx_polish(src: Path, staged: Path) -> None:
         if name in doc.styles:
             set_style_font(doc.styles[name], size_pt=size)
             pf = doc.styles[name].paragraph_format
-            pf.line_spacing = 1.5
-            pf.space_after = Pt(6)
+            pf.line_spacing = 1.2
+            pf.space_after = Pt(3)
             pf.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
             pf.first_line_indent = Cm(0.5)
 
@@ -196,8 +259,8 @@ def apply_python_docx_polish(src: Path, staged: Path) -> None:
             remove_paragraph_borders(doc.styles[name])
             pf = doc.styles[name].paragraph_format
             pf.line_spacing = 1.15
-            pf.space_before = Pt(10 if name == "Heading 1" else 8)
-            pf.space_after = Pt(8 if name == "Heading 1" else 4)
+            pf.space_before = Pt(8 if name == "Heading 1" else 6)
+            pf.space_after = Pt(5 if name == "Heading 1" else 3)
             pf.keep_with_next = True
 
     previous_was_heading = False
@@ -222,8 +285,8 @@ def apply_python_docx_polish(src: Path, staged: Path) -> None:
             if style_name == "Heading 1":
                 p.paragraph_format.page_break_before = True
                 if text.startswith("Chapter "):
-                    p.paragraph_format.space_before = Pt(36)
-                    p.paragraph_format.space_after = Pt(18)
+                    p.paragraph_format.space_before = Pt(24)
+                    p.paragraph_format.space_after = Pt(12)
             for run in p.runs:
                 set_run_font(run, size_pt=18 if style_name == "Heading 1" else 14 if style_name == "Heading 2" else 12, bold=True, italic=(style_name == "Heading 3"))
                 if in_polish_abstract:
@@ -234,15 +297,15 @@ def apply_python_docx_polish(src: Path, staged: Path) -> None:
         if p._p.findall(".//" + qn("w:drawing")):
             p.alignment = WD_ALIGN_PARAGRAPH.CENTER
             p.paragraph_format.keep_with_next = True
-            p.paragraph_format.space_before = Pt(6)
-            p.paragraph_format.space_after = Pt(4)
+            p.paragraph_format.space_before = Pt(3)
+            p.paragraph_format.space_after = Pt(2)
             previous_was_heading = False
             continue
 
         if text:
             p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
-            p.paragraph_format.line_spacing = 1.5
-            p.paragraph_format.space_after = Pt(6)
+            p.paragraph_format.line_spacing = 1.2
+            p.paragraph_format.space_after = Pt(3)
             if in_bibliography and text.startswith("["):
                 p.paragraph_format.left_indent = Inches(0.5)
                 p.paragraph_format.first_line_indent = Inches(-0.5)
@@ -261,7 +324,7 @@ def apply_python_docx_polish(src: Path, staged: Path) -> None:
                     set_run_lang(run, "pl-PL")
         previous_was_heading = False
 
-    max_width = Cm(15.8)
+    max_width = Cm(11.2)
     for idx, shape in enumerate(doc.inline_shapes):
         if idx < 3 or shape.width > max_width:
             ratio = max_width / shape.width
@@ -271,7 +334,7 @@ def apply_python_docx_polish(src: Path, staged: Path) -> None:
     for table in doc.tables:
         table.alignment = WD_TABLE_ALIGNMENT.CENTER
         table.autofit = True
-        set_cell_margins(table, 110)
+        set_cell_margins(table, 65)
         for r_idx, row in enumerate(table.rows):
             for cell in row.cells:
                 cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
@@ -284,10 +347,10 @@ def apply_python_docx_polish(src: Path, staged: Path) -> None:
                 if r_idx == 0:
                     set_cell_shading(cell, "F2F2F2")
                 for p in cell.paragraphs:
-                    p.paragraph_format.line_spacing = 1.15
-                    p.paragraph_format.space_after = Pt(2)
+                    p.paragraph_format.line_spacing = 1.0
+                    p.paragraph_format.space_after = Pt(0)
                     for run in p.runs:
-                        set_run_font(run, size_pt=10.5, bold=(r_idx == 0))
+                        set_run_font(run, size_pt=9.0, bold=(r_idx == 0))
 
     doc.save(str(staged))
 
@@ -690,7 +753,7 @@ def main() -> int:
         apply_ooxml_polish(staged, dst)
 
     print(f"Saved polished thesis DOCX: {dst}")
-    print("Applied: title page, Times 12 body, 1.5 spacing, justified text, margins, book-style tables, caption/bibliography polish, placeholder-free TOC field, Polish language tags, Roman/Arabic section numbering.")
+    print("Applied: title page, Times 12 body, compact academic spacing, justified text, margins, book-style tables, caption/bibliography polish, placeholder-free TOC field, Polish language tags, Roman/Arabic section numbering.")
     return 0
 
 

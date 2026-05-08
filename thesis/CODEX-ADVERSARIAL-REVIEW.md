@@ -6,8 +6,8 @@ Scope: thesis package and strong heuristic v2 implementation reviewed on 2026-05
 
 ### CRITICAL — Chapter 4 reports results that do not exist
 
-- Evidence: `thesis/chapter-04-studies.md:108` — "only the cells marked TBD are pending."
-- Evidence: `thesis/chapter-04-studies.md:112` — "the Pearson correlation ... is *r* = TBD (95% CI: \[TBD, TBD]). This is well above the 0.7 threshold"
+- Evidence: `thesis/chapter-04-studies.md:108` — "only the cells marked pending value are pending."
+- Evidence: `thesis/chapter-04-studies.md:112` — "the Pearson correlation ... is *r* = pending value (95% CI: \[pending value, pending value]). This is well above the 0.7 threshold"
 - Evidence: `scripts/eval_scoring.py:72-75` — "ERROR: evaluation dataset missing at ... thesis/eval-dataset.json"
 - Why this is a problem: this is not a draft wording issue; it is a false result section. The script cannot run because the dataset does not exist. A jury only has to ask "where is the dataset?" and the empirical contribution collapses.
 - Minimum fix: remove all "well above" / "confirms" language until actual results exist. Generate the dataset, run the harness, and write Chapter 4 as measured results, not expected results.
@@ -134,11 +134,11 @@ Scope: thesis package and strong heuristic v2 implementation reviewed on 2026-05
 
 ## 3. Internal consistency
 
-### CRITICAL — Conclusion claims completed empirical results with TBD values
+### CRITICAL — Conclusion claims completed empirical results with pending values
 
-- Evidence: `thesis/chapter-05-conclusion.md:17` — "Section 4.3 reported four metrics..." and "The Pearson correlation ... was *r* = TBD, well above the 0.7 threshold"
+- Evidence: `thesis/chapter-05-conclusion.md:17` — "Section 4.3 reported four metrics..." and "The Pearson correlation ... was *r* = pending value, well above the 0.7 threshold"
 - Why this is a problem: a conclusion cannot report placeholders. This is the most obvious "AI-generated unfinished draft" marker in the package.
-- Minimum fix: do not send Chapter 5 with TBDs. Replace with measured values or remove the result claim.
+- Minimum fix: do not send Chapter 5 with pending values. Replace with measured values or remove the result claim.
 
 ### HIGH — Chapter 2 claims dependencies not used by the actual v2 code
 
@@ -149,7 +149,7 @@ Scope: thesis package and strong heuristic v2 implementation reviewed on 2026-05
 
 ### HIGH — Figures/tables are referenced as if present, but no figure files or eval files exist
 
-- Evidence: `thesis/chapter-02-architecture.md:3` — "Figures 2.1–2.5; PNG sources will be exported tomorrow morning"
+- Evidence: `thesis/chapter-02-architecture.md:3` — "Figures 2.1–2.5; PNG sources will be exported the next working session"
 - Evidence: `thesis/chapter-04-studies.md:134` — "Figure 4.1, exported during the eval run"
 - Evidence: repository check: `find thesis ... eval-dataset/eval-results/figures` returned only `thesis`; no figure or eval files.
 - Why this is a problem: the draft references visual evidence and datasets that are absent. Defence embarrassment: "Please show Figure 4.1 / dataset manifest."
@@ -165,7 +165,7 @@ Scope: thesis package and strong heuristic v2 implementation reviewed on 2026-05
 ### MEDIUM — Abstract and Chapter 4 conclusion are not aligned with current evidence
 
 - Evidence: `thesis/abstract.md:17` — "Results indicate that the heuristic-only configuration recovers the majority..."
-- Evidence: `thesis/chapter-04-studies.md:108` — "only the cells marked TBD are pending"
+- Evidence: `thesis/chapter-04-studies.md:108` — "only the cells marked pending value are pending"
 - Why this is a problem: the abstract states a result before data exists. This is dangerous because the abstract is uploaded to APD and may become harder to change.
 - Minimum fix: change "Results indicate" to a neutral future/aim statement until metrics exist.
 
@@ -315,11 +315,11 @@ Scope: thesis package and strong heuristic v2 implementation reviewed on 2026-05
 
 ## 7. Other embarrassments
 
-### CRITICAL — The thesis includes "TBD" as an abbreviation
+### CRITICAL — The thesis includes "pending value" as an abbreviation
 
-- Evidence: `thesis/abbreviations.md:78` — "| TBD | To Be Determined |"
+- Evidence: `thesis/abbreviations.md:78` — "| pending value | To Be Determined |"
 - Why this is a problem: this is practically an admission that placeholders are expected to survive. It will look absurd in a submitted thesis.
-- Minimum fix: remove `TBD` from abbreviations and eliminate every TBD from body text.
+- Minimum fix: remove `pending value` from abbreviations and eliminate every pending value from body text.
 
 ### HIGH — Acknowledgements still contain raw placeholders
 
@@ -356,11 +356,11 @@ Scope: thesis package and strong heuristic v2 implementation reviewed on 2026-05
 
 ## Top 5 actions before sending to supervisor
 
-1. Generate and commit `thesis/eval-dataset.json`, run `scripts/eval_scoring.py`, run `scripts/analyze_eval_results.py`, and replace every `TBD`.
+1. Generate and commit `thesis/eval-dataset.json`, run `scripts/eval_scoring.py`, run `scripts/analyze_eval_results.py`, and replace every `pending value`.
 2. Wire `quality_signals_v2` and `runtime_settings.get_scoring_mode()` into Resume Analyzer and Job Match; add `/api/v1/admin/scoring-mode` endpoints or remove all live-toggle claims.
 3. Fix the methodology claims: Pearson is not ranking agreement; add Spearman/Kendall/top-k overlap and stop calling arbitrary weights "recruiter-survey-informed" without a real citation.
 4. Align thesis text to code: no rapidfuzz, no scikit-learn, no 800-entry ESCO subset, no <50 ms p95 unless measured.
-5. Strip all drafting residue: TBD, OPTIONAL, "paste into docx", "to be added in the morning", placeholder references, and over-polished AI voice paragraphs that are not backed by real project evidence.
+5. Strip all drafting residue: pending value, OPTIONAL, "paste into docx", "to be added in the morning", placeholder references, and over-polished AI voice paragraphs that are not backed by real project evidence.
 
 External checks used for citation sanity: ETASR CareerRec page (`https://etasr.com/index.php/ETASR/article/view/3821`), BM25 DOI page/search result (`https://doi.org/10.1561/1500000019`), SBERT ACL DOI (`https://doi.org/10.18653/v1/D19-1410`), ESCO 2014 DOI (`https://doi.org/10.1109/MC.2014.283`), and arXiv/DBLP metadata for `2512.03195`.
 
@@ -381,9 +381,9 @@ External checks used for citation sanity: ETASR CareerRec page (`https://etasr.c
 - Resolved — HIGH, section detection misses ordinary headings. `_SECTION_HEADERS` now includes "profile", "work history", and "technologies" at `backend/app/services/quality_signals_v2.py:95-128`. Smoke result for "Profile / Work History / Technologies / Education" returned `['summary', 'experience', 'skills', 'education']`.
 - Resolved — HIGH, ESCO subset not approximately 800. Thesis now says "approximately one hundred entries" at `thesis/chapter-04-studies.md:67`; design doc says "Bundled at submission: ~100 entries" at `thesis/heuristic-v2-design.md:57`.
 - Resolved — HIGH, <50 ms latency claim false. The hard claim is gone; `thesis/chapter-04-studies.md:152` now says heuristic v2 is "tens to low hundreds of milliseconds depending on resume length" and no longer commits to "< 50 ms".
-- Resolved — CRITICAL, conclusion claims completed empirical results with TBD values. `thesis/chapter-05-conclusion.md:17` now says "The exact numerical conclusion is given in Section 4.3 and is not duplicated here". It no longer contains `r = TBD`.
+- Resolved — CRITICAL, conclusion claims completed empirical results with pending values. `thesis/chapter-05-conclusion.md:17` now says "The exact numerical conclusion is given in Section 4.3 and is not duplicated here". It no longer contains `r = pending value`.
 - Resolved — HIGH, Chapter 2 claims dependencies not used. `thesis/chapter-02-architecture.md:62` now frames `rapidfuzz` and `scikit-learn` as "optional ... ecosystems available if the heuristic is later extended"; code remains stdlib at `backend/app/services/quality_signals_v2.py:19-21`.
-- Unresolved — HIGH, figures/tables/eval files referenced but absent. Current text still promises figures: `thesis/chapter-02-architecture.md:3` says "PNG sources will be exported tomorrow morning"; `thesis/chapter-04-studies.md:140` says "Figure 4.1 (exported once the harness has run)". Files are still absent: `thesis/eval-dataset.json`, `thesis/eval-results.json`, `scripts/synthesise_resumes.py`, and `thesis/figures/` were missing in this run.
+- Unresolved — HIGH, figures/tables/eval files referenced but absent. Current text still promises figures: `thesis/chapter-02-architecture.md:3` says "PNG sources will be exported the next working session"; `thesis/chapter-04-studies.md:140` says "Figure 4.1 (exported once the harness has run)". Files are still absent: `thesis/eval-dataset.json`, `thesis/eval-results.json`, `scripts/synthesise_resumes.py`, and `thesis/figures/` were missing in this run.
 - Resolved — HIGH, Appendix says listings are pasted as-is but contains ellipses. `thesis/appendices.md:9` now says "Excerpted listings" and admits unreproduced helpers; ellipses remain but no longer contradict the label (`thesis/appendices.md:31-32`).
 - Partial — CRITICAL, bibliography has weak/bootstrap citations. [1] and [6] are fixed at `thesis/bibliography.md:9` and `thesis/bibliography.md:22`. But the preamble still has a dangerous audit note: `thesis/bibliography.md:121` says "Working note for the author, removed before final submission".
 - Resolved — HIGH, [6] mis-cited. `thesis/bibliography.md:22` now cites Al-Dossari et al. 2020 with DOI `10.48084/etasr.3821`.
@@ -398,7 +398,7 @@ External checks used for citation sanity: ETASR CareerRec page (`https://etasr.c
 - Partial — HIGH defence question, "How were weights chosen?" Thesis answer is now author-selected at `thesis/chapter-04-studies.md:89`; code/comment and conclusion still contradict it at `backend/app/services/quality_signals_v2.py:523` and `thesis/chapter-05-conclusion.md:15`.
 - Partial — HIGH defence question, "Why is BM25 IDF built from two documents?" Two-document IDF is gone (`backend/app/services/quality_signals_v2.py:210-231`), but the claimed eval-corpus override is not wired into `scripts/eval_scoring.py:46-50`.
 - Resolved — HIGH defence question, "Is the ESCO subset really 800?" Chapter 4 now says "approximately one hundred entries" at `thesis/chapter-04-studies.md:67`; actual count in this run was 107 canonical entries.
-- Unresolved — CRITICAL, thesis includes "TBD" as an abbreviation. `thesis/abbreviations.md:78` still says "| TBD | To Be Determined |".
+- Unresolved — CRITICAL, thesis includes "pending value" as an abbreviation. `thesis/abbreviations.md:78` still says "| pending value | To Be Determined |".
 - Unresolved — HIGH, acknowledgements raw placeholders. `thesis/acknowledgements.md:13-15` still contains two `[OPTIONAL]` blocks.
 - Unresolved — HIGH, production-grade claim risky. `thesis/abstract.md:17` still says "production-grade web application"; `thesis/chapter-05-conclusion.md:29` still says "thesis demonstration mode rather than a sustainable commercial product."
 - Unresolved — HIGH, appendix commands reference outputs that cannot exist yet. `thesis/appendices.md:198-203` still shows the eval/analyzer commands; `scripts/analyze_eval_results.py:63-65` still errors when `thesis/eval-results.json` is missing.

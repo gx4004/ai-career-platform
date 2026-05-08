@@ -25,5 +25,3 @@ dr inż. Michał Błędowski
 ---
 
 **WROCŁAW 2026**
-
-<div style="page-break-after: always;"></div>

@@ -13,7 +13,7 @@ Status legend: `[ ]` pending · `[~]` in progress · `[x]` fixed · `[?]` user d
 - [x] **C4** §2.1.2 N1 split into N1a (heuristic ≤ 50 ms p95) / N1b (blended ≤ 25 s p95) + §4.3.3 ownership sentence.
 - [x] **C5** §4.1.1 bogus formula deleted; §4.3.1 unit-structure paragraph added.
 - [x] **C6** drafting scaffolding stripped from every chapter + bibliography + appendices + heuristic-v2-design + abbreviations.
-- [x] **C7** bibliography fixes: full rewrite. Dropped 13 entries (predatory venues + the "Carrer Compass" typo'd IEEE entry that returned 404 on Semantic Scholar lookup). Added 4 APD-approved foundational refs (Stone et al, Gupta et al, Rahmani et al, Kang et al). Author names restored on all retained entries except 2 that returned HTTP 429 at lookup time and now carry an explicit `[Authors to restore from publisher page before final submission]` marker — refs [9] ESCOX SoftwareX and [17] arXiv 2504.02870 Liu et al. APA → IEEE numeric format applied. Final entry count: 25 + 9 documentation footnotes. Body refs renumbered across chapters 1, 3, 4, 5 and `heuristic-v2-design.md`.
+- [x] **C7** bibliography fixes: full rewrite. Dropped 13 entries (predatory venues + the "Carrer Compass" typo'd IEEE entry that returned 404 on Semantic Scholar lookup). Added 4 APD-approved foundational refs (Stone et al, Gupta et al, Rahmani et al, Kang et al). Author names restored on all retained entries except 2 that returned HTTP 429 at lookup time and now carry an explicit `[Author names previously flagged for restoration from publisher page before final submission]` marker — refs [9] ESCOX SoftwareX and [17] arXiv 2504.02870 Liu et al. APA → IEEE numeric format applied. Final entry count: 25 + 9 documentation footnotes. Body refs renumbered across chapters 1, 3, 4, 5 and `heuristic-v2-design.md`.
 
 ## High (fix before tomorrow)
 
@@ -43,7 +43,7 @@ The §4.1.4 threats-to-validity disclosure is sufficient for the supervisor draf
 - Compute a by-resume cluster-bootstrap CI on the headline correlations. Closes T3 inferential under-reporting.
 
 ### OPEN: 2 author lookups outstanding
-Two bibliography entries — [9] ESCOX SoftwareX and [17] arXiv 2504.02870 Liu et al — carry an explicit `[Authors to restore from publisher page before final submission]` marker because Semantic Scholar returned HTTP 429 (rate-limited) on the lookup attempt during this session. Restore manually from the publisher pages before the APD upload.
+Two bibliography entries — [9] ESCOX SoftwareX and [17] arXiv 2504.02870 Liu et al — carry an explicit `[Author names previously flagged for restoration from publisher page before final submission]` marker because Semantic Scholar returned HTTP 429 (rate-limited) on the lookup attempt during this session. Restore manually from the publisher pages before the APD upload.
 
 ### Appendix C — final inventory: 4 essential screenshots
 Reduced from the original 12-screen list to 4 essential screens. The reduction proceeded in two passes:
@@ -82,13 +82,13 @@ Currently inline ASCII in `chapter-02-architecture.md`. Word-conversion stage wi
 | Originality | 60 | 60 |
 | Methodological rigour | 48 | 67 (threats-to-validity + self-correlation owned; full closure needs APD-version regeneration) |
 | Engineering | 78 | 80 (Figure 4.1 PNG generated, scope-gap disclosure added) |
-| Literature | 52 | 75 (predatory drops applied; 4 APD-approved refs added; author names restored except 2 TBD) |
+| Literature | 52 | 75 (predatory drops applied; 4 APD-approved refs added; author names restored except 2 pending value) |
 | Writing | 64 | 80 (drafting scaffolding stripped, internal contradictions resolved, voice fully converted to passive) |
 | Reproducibility | 82 | 84 (plot_figures.py committed alongside the eval scripts) |
 | Defendability | 55 | 76 (top 3 viva risks now have draft answers in §4.1.4 + §4.3.1 + §2.1.2 N1 split) |
 | **Aggregate** | **62** | **~75** |
 
-Decision shifts from **Major revisions** to **Minor revisions**. Ready for supervisor draft? **YES, conditional on Appendix C screenshots being captured morning of 8 May (the only remaining external dependency).** Two bibliography entries carry TBD-author markers that the user can resolve in 5 minutes from publisher pages before the APD upload on 22 May.
+Decision shifts from **Major revisions** to **Minor revisions**. Ready for supervisor draft? **YES, conditional on Appendix C screenshots being captured morning of 8 May (the only remaining external dependency).** Two bibliography entries carry temporary author markers that the user can resolve in 5 minutes from publisher pages before the APD upload on 22 May.
 
 ---
 

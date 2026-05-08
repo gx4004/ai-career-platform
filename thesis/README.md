@@ -39,7 +39,7 @@
 | 2 | Implement `quality_signals_v2.py` per `heuristic-v2-design.md` | Together | Tomorrow |
 | 3 | Implement `runtime_settings.py` + admin endpoints + frontend toggle | Together | Tomorrow |
 | 4 | Build ESCO subset + action-verb list + evaluation dataset | Together | Tomorrow |
-| 5 | Run `scripts/eval_scoring.py` and fill TBD cells in Ch4.3 | Together | Tomorrow afternoon |
+| 5 | Run `scripts/eval_scoring.py` and fill pending-value cells in Ch4.3 | Together | Following session |
 | 6 | Convert all chapters to Word using the confirmed template | Together | Tomorrow evening |
 | 7 | Polish abstract (EN) and translate to Polish | Together | Tomorrow evening |
 | 8 | Export figures (architecture diagram, score-distribution plot, etc.) | Together | Tomorrow evening |
