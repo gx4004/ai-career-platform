@@ -7,7 +7,7 @@
 
 [2] S. Gupta, S. Modgil, S. Bhattacharyya, *et al.*, "Artificial intelligence for decision support systems in the field of operations research: review and future scope of research," *Annals of Operations Research*, vol. 308, pp. 215–274, 2022. https://doi.org/10.1007/s10479-020-03856-6
 
-[3] A. M. Rahmani, B. Rezazadeh, M. Haghparast, W.-C. Chang, and S. G. Ting, "Applications of artificial intelligence in the economy, including applications in stock trading, market analysis, and risk management," *IEEE Access*, vol. 11, pp. 80769–80793, 2023. https://doi.org/10.1109/ACCESS.2023.3300036
+[3] World Economic Forum, *The Future of Jobs Report 2023*. Geneva: WEF, May 2023. https://www.weforum.org/publications/the-future-of-jobs-report-2023/
 
 [4] Y. Kang, Z. Cai, C. W. Tan, Q. Huang, and H. Liu, "Natural language processing (NLP) in management research: A literature review," *Journal of Management Analytics*, vol. 7, no. 2, pp. 139–172, 2020. https://doi.org/10.1080/23270012.2020.1756939
 
@@ -78,7 +78,14 @@
 [25] Y. Gao, Y. Xiong, X. Gao, K. Jia, J. Pan, Y. Bi, Y. Dai, J. Sun, and H. Wang, "Retrieval-augmented generation for large language models: A survey," *arXiv preprint arXiv:2312.10997*, 2023. https://arxiv.org/abs/2312.10997
 
 
-## 10. Web frameworks and system tooling
+## 10. Statistical and evaluation methodology
+
+[26] J. Cohen, *Statistical Power Analysis for the Behavioral Sciences*, 2nd ed. Hillsdale, NJ: Lawrence Erlbaum, 1988.
+
+[27] T. D. Cook and D. T. Campbell, *Quasi-Experimentation: Design and Analysis Issues for Field Settings*. Boston, MA: Houghton Mifflin, 1979.
+
+
+## 11. Web frameworks and system tooling
 
 Documentation references for the engineering chapters; kept separate from the numbered academic bibliography because they document implementation APIs rather than research claims.
 

@@ -17,7 +17,7 @@ The harness pairs each resume with every job description in the same role track.
 
 Four metric families are computed per pair.
 
-**Score agreement.** Pearson *r* measures linear association between the two modes' overall scores. Spearman ρ and Kendall τ measure rank agreement, which is more relevant when the score is used as a screening signal. The value *r* ≈ 0.7 is used as a practical interpretation anchor, not as a formal hypothesis or a literature-derived pass/fail threshold.
+**Score agreement.** Pearson *r* measures linear association between the two modes' overall scores. Spearman ρ and Kendall τ measure rank agreement, which is more relevant when the score is used as a screening signal. The value *r* ≈ 0.7 is used as a practical interpretation anchor following Cohen's conventional benchmarks for large effects in behavioural research [26], not as a formal hypothesis or a literature-derived pass/fail threshold.
 
 **Score distribution.** The Kolmogorov–Smirnov distance compares the overall score distributions and shows whether the heuristic shifts or compresses the score scale even when ranking is similar.
 
@@ -43,7 +43,7 @@ Four threats are tracked so that the interpretation of Section 4.3 remains bound
 
 T1, T2, and T3 are mitigated by regeneration, LLM-only decomposition, and clustered intervals. T4 remains a disclosed limitation.
 
-In Cook-Campbell terms T1 and T2 cluster under construct validity (the operationalisation of agreement between the two scoring modes), T3 falls under statistical-conclusion validity (the inferential machinery accommodating dependent paired observations), and T4 falls under internal validity (researcher degrees of freedom in the post-hoc heuristic design). External validity, the fourth canonical category, is not addressed within the experiment because the dataset is single-language (English), single-author (one synthesiser produced all 30 resumes), and single-evaluator (one Gemini family); Section 4.4 enumerates these as deployment caveats, foregrounded as the most consequential next step before any generalisation beyond the synthetic benchmark.
+In Cook–Campbell terms [27] T1 and T2 cluster under construct validity (the operationalisation of agreement between the two scoring modes), T3 falls under statistical-conclusion validity (the inferential machinery accommodating dependent paired observations), and T4 falls under internal validity (researcher degrees of freedom in the post-hoc heuristic design). External validity, the fourth canonical category, is not addressed within the experiment because the dataset is single-language (English), single-author (one synthesiser produced all 30 resumes), and single-evaluator (one Gemini family); Section 4.4 enumerates these as deployment caveats, foregrounded as the most consequential next step before any generalisation beyond the synthetic benchmark.
 
 These threats also define how the results should not be read. The chapter does not claim population-level hiring validity, fairness, or universal superiority of one scoring family. It reports a controlled within-set characterisation of the implemented system, using a reproducible benchmark whose construction is transparent enough to audit.
 
@@ -82,7 +82,7 @@ The impact sub-score detects measurable outcomes through one composite regular e
 
 ### 4.2.6 Action-verb scoring
 
-The clarity sub-score counts the fraction of bullets whose leading token belongs to a curated action-verb dictionary of approximately 190 entries compiled from university career-services resources. Action verbs such as "led", "shipped", and "automated" are treated as stronger ownership evidence than passive or filler openings.
+The clarity sub-score counts the fraction of bullets whose leading token belongs to an author-compiled action-verb dictionary of 190 entries (assembled from publicly available career-services word lists; the working list is archived in the project repository alongside the heuristic implementation). Action verbs such as "led", "shipped", and "automated" are treated as stronger ownership evidence than passive or filler openings.
 
 ### 4.2.7 Score combination
 
