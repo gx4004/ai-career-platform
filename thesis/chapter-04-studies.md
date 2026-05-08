@@ -43,6 +43,8 @@ Four threats are tracked so that the interpretation of Section 4.3 remains bound
 
 T1, T2, and T3 are mitigated by regeneration, LLM-only decomposition, and clustered intervals. T4 remains a disclosed limitation.
 
+In Cook-Campbell terms T1 and T2 cluster under construct validity (the operationalisation of agreement between the two scoring modes), T3 falls under statistical-conclusion validity (the inferential machinery accommodating dependent paired observations), and T4 falls under internal validity (researcher degrees of freedom in the post-hoc heuristic design). External validity, the fourth canonical category, is not addressed within the experiment because the dataset is single-language (English), single-author (one synthesiser produced all 30 resumes), and single-evaluator (one Gemini family); Section 4.4 enumerates these as deployment caveats, foregrounded as the most consequential next step before any generalisation beyond the synthetic benchmark.
+
 These threats also define how the results should not be read. The chapter does not claim population-level hiring validity, fairness, or universal superiority of one scoring family. It reports a controlled within-set characterisation of the implemented system, using a reproducible benchmark whose construction is transparent enough to audit.
 
 
@@ -119,7 +121,7 @@ The post-mitigation Pearson *r* is higher than the leakage-version value even th
 | clarity | 0.395 | 0.475 | 0.373 | 0.289 |
 | completeness | 0.756 | 0.691 | 0.793 | 0.689 |
 
-The agreement is strongest on keywords and structure and weakest on clarity, the axis where the language model sees prose-quality evidence that the heuristic cannot inspect. A correlation-space sanity check is consistent with the blended formula: using r(LLM-only, heuristic) = 0.627, the equal-variance prediction is r ≈ 0.857, close to the observed r(blended, heuristic) = 0.836.
+The agreement is strongest on keywords and structure and weakest on clarity, the axis where the language model sees prose-quality evidence that the heuristic cannot inspect. A correlation-space sanity check is consistent with the blended formula. Under equal-variance assumptions on the heuristic and LLM-only sub-scores, the algebra of `blended = 0.4 × heuristic + 0.6 × LLM` predicts r(blended, heuristic) ≈ 0.857 from the observed r(LLM-only, heuristic) = 0.627; the observed value 0.836 sits within the cluster-bootstrap half-width of this prediction, indicating that the headline blended-versus-heuristic agreement is a transparent function of the two upstream agreements rather than an artefact of leakage or evaluator drift.
 
 The keyword axis being stable across leakage and disjoint versions is important. It shows that the post-mitigation result is not simply an artefact of repeated responsibility sentences; both modes still respond to legitimate skill labels such as Python, React, BM25, and PostgreSQL. By contrast, the clarity axis remains low because a deterministic rule set cannot assess ownership and role-fit prose with the same nuance as the language model.
 
@@ -168,7 +170,7 @@ Table 4.3 reports service-side latency for one tool invocation.
 | 95th percentile | 24 713.7 ms | 32.1 ms | 770× |
 | Maximum observed | 65 926.6 ms | 34.1 ms | 1 933× |
 
-Blended latency is dominated by Gemini structured-output inference over approximately 608 input tokens plus prompt overhead and 1 118 output tokens. The maximum of 65 926.6 ms reflects one retry-after-timeout case handled by the retry policy. Heuristic v2 runs in tens of milliseconds and satisfies the N1a target from Section 2.1.2.
+Blended latency is dominated by Gemini structured-output inference over approximately 608 input tokens plus prompt overhead and 1 118 output tokens. The maximum of 65 926.6 ms reflects one retry-after-timeout case handled by the retry policy. Heuristic v2 runs in tens of milliseconds and satisfies the N1a target from Section 2.1.2. Component-level decomposition between token generation, network round-trip, and serialisation overhead was not instrumented in the prototype; future work could profile this granularity (for instance via OpenTelemetry spans on the Vertex AI client or middleware timing decorators) to localise optimisation targets.
 
 ### 4.3.4 Per-call cost
 
