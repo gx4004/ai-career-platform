@@ -4,11 +4,9 @@ This thesis presented the design, implementation, and empirical evaluation of a 
 
 ## 5.1 Results
 
-Three results were obtained.
-
 **A deployed integrated system.** The system is deployed on Railway as a single application surface and integrates six tools: Resume Analyzer, Job Match, Career Path, Cover Letter, Interview Q&A, and Portfolio Planner. Chapters 2 and 3 documented the architecture, the shared pipeline, and the tool implementations. The system supports authenticated accounts, guest demonstrations, persisted tool history, regeneration chains, and runtime switching between scoring modes.
 
-**A defendable heuristic baseline.** Chapter 4 introduced strong heuristic v2, a strictly non-neural scoring pipeline based on TF–IDF and BM25 [5, 6], ESCO-aligned skill normalisation [8, 9, 12], Levenshtein-style fuzzy matching [7], section-weighted evidence [18], quantification detection, and action-verb scoring. The score-combination weights are author-selected but were checked through the sensitivity analysis in Section 4.3.5.
+**A defendable heuristic baseline.** Chapter 4 introduced strong heuristic v2, a strictly non-neural scoring pipeline based on TF–IDF and BM25 [5, 6], ESCO-aligned skill normalisation [8, 9, 12], string-similarity fuzzy matching [7], section-weighted evidence [18], quantification detection, and action-verb scoring. The score-combination weights are author-selected but were checked through the sensitivity analysis in Section 4.3.5.
 
 **A characterisation of the heuristic-versus-blended trade-off.** On 100 post-mitigation synthetic resume/job-description pairs, heuristic mode tracks blended mode at Pearson *r* = 0.836 [95% CI 0.762, 0.896] and Spearman ρ = 0.847, while running much faster (median 25.5 ms versus 18.2 s) and incurring zero LLM-side marginal cost. The post-hoc LLM-only-versus-heuristic correlation is *r* = 0.627 [95% CI 0.476, 0.765], showing that the headline agreement includes the structural 0.40 heuristic component in the blended score. Agreement is strongest on keywords (*r* = 0.937) and weakest on clarity (*r* = 0.395), which explains why the heuristic is useful as a deterministic baseline while the blended mode remains valuable for prose-quality judgement.
 
@@ -51,7 +49,5 @@ The retrieval layer would also help with the approved-topic phrase "current job-
 This change would preserve the current cache-key design while moving storage out of process memory. It would also make latency measurements easier to interpret in a scaled deployment because cache hits would not depend on which backend worker received the request.
 
 The thesis contributions are therefore an integrated deployed career-support system, a transparent non-neural heuristic baseline, and a measured comparison of that baseline against a language-model-augmented mode on score agreement, latency, and cost. The live deployment and administrative scoring-mode endpoint remain available for diploma-defence demonstration.
-
-The work is ready for supervisor review once the final document build passes page-count, citation, cross-reference, and visual checks. If the project continues after submission, the strongest next step is a broader evaluation set: real resumes, real job descriptions, multilingual inputs, and fairness-relevant annotations.
 
 That broader evaluation set would be the natural bridge from a Bachelor-level engineering thesis to a Master's-level research project. It would allow the same architecture and scoring modes to be tested under less synthetic language variation, with demographic safeguards and real user outcomes added to the evaluation design.

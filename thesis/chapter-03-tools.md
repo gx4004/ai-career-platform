@@ -9,18 +9,19 @@ Before discussing each tool, Section 3.1 isolates the cross-cutting concerns tha
 
 ### 3.1.1 The structured-output LLM client
 
-All LLM calls go through a single coroutine, `complete_structured(system_prompt, user_prompt, schema=None, model_override=None)`, defined in `app/services/ai_client.py`. The function lazily initialises the Vertex AI SDK once per process, dispatches the request to the configured provider (`vertex` in production), and returns a parsed Python dictionary.
+All LLM calls go through a single coroutine, `complete_structured(system_prompt, user_prompt, schema=None, model_override=None)`, defined in `app/services/ai_client.py`. The function lazily initialises the Vertex AI SDK once per process, dispatches the request to the configured provider (`vertex` in production), requests JSON output, and returns a parsed Python dictionary.
 
 Two reliability mechanisms are built into the client. **Per-call timeout** bounds an individual generation at 120 seconds; this is well above the 95th-percentile latency observed in practice but short enough that a stuck request does not tie up a worker indefinitely. **Exponential backoff with jitter** retries up to four times (at 5, 10, 20, and 40 seconds, plus a small random offset) for transient errors (`TimeoutError`, `RuntimeError`, `json.JSONDecodeError`). JSON-decode errors are retried because Gemini occasionally truncates structured output under load; the retry loop deliberately excludes `ValueError`, which is reserved for unrecoverable configuration errors that do not benefit from retrying. After the final retry exhausts, the exception propagates upward, where each tool service decides how to handle it according to the policy described in Section 3.1.4.
 
-The specific retry schedule (5, 10, 20, 40 seconds) was tuned empirically; an earlier 2–4–8–16 schedule retried inside Vertex AI's transient-error recovery window and reproduced the same upstream failure on the next attempt.
+The 5, 10, 20, and 40 second retry schedule was selected after early testing; a shorter 2–4–8–16 schedule often retried before the upstream transient error had cleared.
 
 ### 3.1.2 The locked-payload prompt pattern
 
-For the analytical tools (Resume Analyzer, Job Match) the prompt builder constructs three blocks: a *system* prompt that establishes role, register, and forbidden behaviours; a *user* prompt that contains the resume and (where applicable) the job description; and a *locked-payload* block that contains the full output of the heuristic prepass. The locked payload includes the deterministic score breakdown, the detected sections, the matched and missing keywords, and the evidence list. The LLM is instructed to treat this block as authoritative ground truth: to not modify the numerical scores, to not contradict the keyword detection, and to respect the evidence the prepass has already surfaced. This pattern stabilises the LLM's output against prompt perturbations and aligns the LLM's reasoning with a reproducible baseline.
+For the analytical tools (Resume Analyzer, Job Match) the prompt builder constructs three blocks: a *system* prompt that establishes role, register, and forbidden behaviours; a *user* prompt that contains the resume and (where applicable) the job description; and a *locked-payload* block that contains the full output of the heuristic prepass. The locked payload includes the deterministic score breakdown, the detected sections, the matched and missing keywords, and the evidence list. The LLM is instructed to treat this block as authoritative ground truth. The backend then recomputes the final score from the deterministic prepass and the returned LLM score breakdown, so the deployed response does not rely on the model to preserve arithmetic correctly.
+
 ### 3.1.3 Pydantic-validated structured output
 
-Every LLM response is validated against a Pydantic schema defined in `app/schemas/tools.py`. The schema is bidirectional: the same definition that constrains the JSON returned by Gemini also defines the Zod schema used by the frontend (`frontend/src/lib/api/schemas.ts`) to validate the API response before rendering it. Keeping these two definitions in lock-step is enforced through code review rather than through codegen, on the principle that the volume of fields in this project is small enough to not warrant a separate build step. Schema-constrained generation in current language models generally reduces parsing-error rates relative to free-form prompting, with adherence rates that depend on the model and on the prompt style; the operational data observed during the implementation of this thesis is consistent with that direction, although a precise per-cent agreement is not claimed here.
+Every API response returned from a tool router is validated against a Pydantic response model in `app/schemas/tools.py`. The frontend mirrors those response contracts with Zod schemas in `frontend/src/lib/api/schemas.ts` and validates responses before rendering. The two schema files are kept aligned by tests and code review rather than by code generation, which is adequate for the small number of response shapes in this project. Gemini itself is asked for JSON output, but the backend treats the model response as untrusted: service-level normalisation fills missing fields, drops invalid enum values, and falls back to deterministic heuristic content when the analytical LLM call fails.
 
 ### 3.1.4 Fallback policy
 
@@ -28,7 +29,6 @@ The system distinguishes two failure modes for an LLM call: a recoverable failur
 
 For *analytical* tools (Resume Analyzer, Job Match) the recoverable path is taken: when `complete_structured` raises after exhausting retries, the service constructs a complete response from the heuristic prepass alone, using the same payload structure the LLM would have populated but with the deterministic baseline as the source of truth. The user sees the result and a `confidence_note` indicating that the analysis ran in heuristic-only mode. This design satisfies non-functional requirement N3 of Chapter 2.
 
-This fallback path was not added defensively at the design stage; it was added after intermittent transient failures during early testing produced the system's first user-visible 500-class error.
 For *generative* tools (Cover Letter, Interview Q&A, Career Path, Portfolio) no fallback is offered. A heuristic-generated cover letter or interview-question list is not a credible substitute for an LLM-generated one; producing such an artefact would be misleading. These tools raise a structured 503 error that the frontend renders as a retry-able failure state.
 
 ### 3.1.5 Caching
@@ -42,7 +42,7 @@ The Resume Analyzer accepts a resume text and an optional target job description
 
 ### 3.2.1 Input contract
 
-The request body contains the raw resume text (free-form, minimum 80 characters), an optional job description text, and an optional `feedback` string used when the user regenerates with a specific instruction.
+The request body contains the raw resume text (free-form, minimum 50 characters), an optional job description text, and an optional `feedback` string used when the user regenerates with a specific instruction.
 
 ### 3.2.2 Heuristic prepass
 
@@ -51,7 +51,7 @@ The request body contains the raw resume text (free-form, minimum 80 characters)
 1. **Section detection.** A regular-expression pass identifies common resume section headers (`Summary`, `Experience`, `Skills`, `Education`, `Projects`, `Certifications`) and returns the set of sections present.
 2. **Keyword extraction.** When a job description is supplied, role-relevant keywords are extracted from the job description and matched against the resume. The result is a pair of lists: matched keywords and missing keywords. Chapter 4 introduces the strong-heuristic v2 of this extraction, which replaces the binary match/miss with a TF–IDF weighted overlap and a fuzzy-matching layer to accept minor surface variation.
 3. **Quantification detection.** Bullet lines are scanned for numbers, percentages, currency tokens, and time periods that indicate measurable outcomes. The count of quantified bullets is one of the inputs to the *impact* sub-score.
-4. **Skill extraction.** A curated list of skill phrases is searched against the resume; detected skills are returned as a list. Chapter 4 expands this stage to a top-down lookup against a bundled subset of the ESCO taxonomy [17].
+4. **Skill extraction.** A curated list of skill phrases is searched against the resume; detected skills are returned as a list. Chapter 4 expands this stage to a top-down lookup against a bundled subset of the ESCO taxonomy [8, 9, 12].
 5. **Structural metrics.** The total bullet count, the word count, and the number of detected sections are returned as inputs to the *structure*, *clarity*, and *completeness* sub-scores.
 
 The five-axis score breakdown (keyword alignment, impact, structure, clarity, and completeness) is computed from these extractions through `compute_resume_breakdown` in `app/services/quality_signals.py`. Each sub-score is clamped to the integer range \[0, 100].
@@ -60,7 +60,7 @@ The five-axis score breakdown (keyword alignment, impact, structure, clarity, an
 
 The resume prompt (`app/prompts/resume.py`) instructs the LLM to act as a senior career coach producing a structured assessment. The locked payload includes the score breakdown and the evidence dictionary. The LLM is asked to populate four narrative fields (a one-line headline, a verdict, a confidence note, and a list of strengths), to expand the deterministic issue list into prose with `why_it_matters`, `evidence`, and `fix` fields, and to produce up to three prioritised top actions that may be different in framing from the issues. When the user has specified a target role label in the job description, the LLM additionally produces a `role_fit` block with a fit score and a rationale.
 
-The service then computes the blended score (heuristic 40%, LLM 60%) following the formula in Section 4.2 and returns a unified response object. When the heuristic and LLM overall scores diverge by more than 20 points, an explicit `confidence_note` is added to the response surface so that the user understands that two independent estimates disagreed.
+The service then computes the blended score (heuristic 40%, LLM 60%) following the formula in Section 4.2 and returns a unified response object. When the heuristic and LLM overall scores diverge beyond the configured confidence-gap threshold (18 points for v2, 20 points for v1), an explicit `confidence_note` is added to the response surface so that the user understands that two estimates disagreed.
 
 
 ## 3.3 Job Match
@@ -79,7 +79,11 @@ The Job Match prepass extends the Resume Analyzer prepass with a single addition
 
 The Job Match prompt (`app/prompts/job_match.py`) instructs the LLM to produce a structured requirement-by-requirement breakdown. For each detected role requirement, the LLM populates an importance (`must` / `preferred`), a status (`matched` / `partial` / `missing`), a one-sentence resume-evidence statement, and a suggested fix. The locked payload supplies the matched and missing keyword lists; the LLM is asked to expand them into role-realistic phrasing rather than echoing back the raw tokens. The response also includes a recruiter-style summary and a list of tailoring actions ranked by expected impact.
 
-Because the deterministic match score is locked, the LLM cannot move it; this preserves comparability across regenerations and is also the property that makes the fully-heuristic mode of Chapter 4 a clean substitution rather than a re-implementation.
+Because the deterministic match score is computed outside the LLM response, the model cannot change the final score returned by the backend. This preserves comparability across regenerations and makes the fully-heuristic mode of Chapter 4 a substitution of the scoring path rather than a separate response contract.
+
+```{=openxml}
+<w:p><w:r><w:br w:type="page"/></w:r></w:p>
+```
 
 
 ## 3.4 Career Path
@@ -114,7 +118,7 @@ The Interview Q&A tool produces a curated list of likely interview questions for
 
 The prompt asks the LLM to cluster the generated questions into three categories (*behavioural*, *technical*, and *role-specific*) with a target of five to seven questions per category. Each question carries a one-sentence coaching note that names the underlying competency the interviewer is probing for and suggests the kind of evidence the candidate should be ready to recall.
 
-A practice mode is available as a follow-up flow: the user picks a question from the generated list and supplies a written practice answer. The system then sends the question, the candidate's answer, and the resume to a cheaper Gemini model (configurable through `LLM_PRACTICE_MODEL`) and returns structured feedback. This is the only place in the system where the LLM model is overridden; the override exists because practice feedback is invoked frequently during a single user session and the cost of using the same model as the rest of the system would be disproportionate to the value.
+A practice mode is available as a follow-up flow: the user picks a question from the generated list and supplies a written practice answer. The system then sends the question, the candidate's answer, and the resume to Gemini and may override the default model through `LLM_PRACTICE_MODEL`. This is the only place in the system where a model override is wired, because practice feedback can be invoked repeatedly during a single user session.
 
 
 ## 3.7 Portfolio Planner
@@ -139,6 +143,6 @@ Every tool result that runs in *authenticated* mode is persisted as a `ToolRun` 
 
 ## 3.9 Reliability behaviour observed in production
 
-During development-phase traffic the analytical tools (Resume Analyzer, Job Match) rarely surfaced the heuristic-only fallback path; the retry policy in Section 3.1.1 absorbed almost all transient failures before they reached fallback. The generative tools (Cover Letter, Interview Q&A, Career Path, Portfolio) cannot fall back, so their user-visible failure mode is a structured retry prompt rather than a fabricated artefact.
+During development-phase traffic the analytical tools (Resume Analyzer, Job Match) rarely surfaced the heuristic-only fallback path; the retry policy in Section 3.1.1 absorbed observed transient failures before they reached fallback. The generative tools (Cover Letter, Interview Q&A, Career Path, Portfolio) cannot fall back, so their user-visible failure mode is a structured retry prompt rather than a fabricated artefact.
 
 The blended scoring path (heuristic 40%, LLM 60%) and the heuristic-only fallback are exercised by the same code in the analytical services. The fully-heuristic mode introduced in Chapter 4 reuses the same fallback path and adds an administrative toggle that bypasses the LLM call unconditionally. This is the smallest possible change that satisfies non-functional requirement N7 from Chapter 2: runtime switchability between the two scoring modes for the comparative study reported next.

@@ -36,7 +36,7 @@ Job-description analysis is the demand-side counterpart. Recent work links job p
 
 ## 1.4 Heuristic and language-model scoring approaches
 
-The thesis centres on a design tension between two scoring families. The first is *heuristic*: deterministic information-retrieval methods such as TF–IDF [5], BM25 [6], Levenshtein-style fuzzy matching [7], taxonomy lookup [8, 9], and section-weighted feature extraction [18]. These methods are cheap, auditable, and independent of external inference services. Their strongest claim is that they capture much of the first-pass recruiter signal: skill overlap, measurable impact, structure, and completeness.
+The thesis centres on a design tension between two scoring families. The first is *heuristic*: deterministic information-retrieval methods such as TF–IDF [5], BM25 [6], string-similarity fuzzy matching [7], taxonomy lookup [8, 9], and section-weighted feature extraction [18]. These methods are cheap, auditable, and independent of external inference services. Their strongest claim is that they capture much of the first-pass recruiter signal: skill overlap, measurable impact, structure, and completeness.
 
 The second family is *language-model*: LLM services that read a resume and a job description as natural language and return structured reasoning about alignment. Recent recruitment research reports faster screening and richer feedback from LLM agents and semantic feedback loops than from manual or keyword-only review [16, 17, 18, 19]. Their trade-off is per-call cost, higher latency, and a reasoning process that is harder to audit.
 
@@ -47,6 +47,10 @@ The implementation order is also disclosed because it affects interpretation. Th
 The value of the comparison is operational. If the heuristic preserves useful ranking behaviour, it can act as a low-cost fallback when the LLM is unavailable and as a live demonstration mode during the diploma defence. If it fails, the system still benefits from the blended mode, but the fallback must be framed only as an emergency response.
 
 The comparison also clarifies the boundary between engineering and research in the project. The engineering task is to deliver a reliable user-facing system. The research task is to characterise one design decision inside that system: whether a transparent scoring baseline remains useful when compared with the LLM-augmented path. The two tasks reinforce each other because the same runtime switch used for the study is also a practical operational control.
+
+```{=openxml}
+<w:p><w:r><w:br w:type="page"/></w:r></w:p>
+```
 
 
 ## 1.5 Purpose of the thesis

@@ -163,6 +163,9 @@ def set_cell_margins(table, margin_twips: int = 85) -> None:
 def set_table_geometry(table, widths_cm: list[float]) -> None:
     tbl = table._tbl
     tbl_pr = tbl.tblPr
+    tbl_style = tbl_pr.find(qn("w:tblStyle"))
+    if tbl_style is not None:
+        tbl_pr.remove(tbl_style)
     tbl_w = tbl_pr.find(qn("w:tblW"))
     if tbl_w is None:
         tbl_w = OxmlElement("w:tblW")
@@ -239,8 +242,8 @@ def apply_python_docx_polish(src: Path, staged: Path) -> None:
 
     set_style_font(doc.styles["Normal"], size_pt=12)
     normal_pf = doc.styles["Normal"].paragraph_format
-    normal_pf.line_spacing = 1.2
-    normal_pf.space_after = Pt(3)
+    normal_pf.line_spacing = 1.3
+    normal_pf.space_after = Pt(4)
     normal_pf.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
     normal_pf.first_line_indent = Cm(0.5)
 
@@ -248,8 +251,8 @@ def apply_python_docx_polish(src: Path, staged: Path) -> None:
         if name in doc.styles:
             set_style_font(doc.styles[name], size_pt=size)
             pf = doc.styles[name].paragraph_format
-            pf.line_spacing = 1.2
-            pf.space_after = Pt(3)
+            pf.line_spacing = 1.3
+            pf.space_after = Pt(4)
             pf.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
             pf.first_line_indent = Cm(0.5)
 
@@ -304,8 +307,8 @@ def apply_python_docx_polish(src: Path, staged: Path) -> None:
 
         if text:
             p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
-            p.paragraph_format.line_spacing = 1.2
-            p.paragraph_format.space_after = Pt(3)
+            p.paragraph_format.line_spacing = 1.3
+            p.paragraph_format.space_after = Pt(4)
             if in_bibliography and text.startswith("["):
                 p.paragraph_format.left_indent = Inches(0.5)
                 p.paragraph_format.first_line_indent = Inches(-0.5)
@@ -333,7 +336,8 @@ def apply_python_docx_polish(src: Path, staged: Path) -> None:
 
     for table in doc.tables:
         table.alignment = WD_TABLE_ALIGNMENT.CENTER
-        table.autofit = True
+        table.autofit = False
+        set_table_geometry(table, table_width_profile(table))
         set_cell_margins(table, 65)
         for r_idx, row in enumerate(table.rows):
             for cell in row.cells:

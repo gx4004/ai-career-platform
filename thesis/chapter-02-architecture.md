@@ -41,8 +41,8 @@ The technology stack is summarised in Table 2.1.
 
 | Layer | Choice | Rationale |
 |-------|--------|-----------|
-| Backend | FastAPI 0.115, SQLAlchemy 2.0, Alembic | Python-native API, typed validation, mature relational persistence. |
-| Database | PostgreSQL 16 (Railway managed) | Single-node managed database is sufficient for thesis traffic. |
+| Backend | FastAPI 0.115+, SQLAlchemy 2.0, Alembic | Python-native API, typed validation, mature relational persistence. |
+| Database | PostgreSQL (Railway managed) | Single-node managed database is sufficient for thesis traffic. |
 | LLM provider | Google Vertex AI Gemini 2.5 Flash | Low-cost structured-output model with an asynchronous client. |
 | Frontend | React 19, TanStack Start, Vite 7 | SPA workspace, type-safe file routing, fast development build. |
 | Styling and UI | Tailwind 4, Radix UI, Framer Motion | Accessible primitives, utility styling, controlled animation. |
@@ -53,7 +53,7 @@ FastAPI was selected over a TypeScript backend because the analytical core benef
 
 TanStack Start was selected over Next.js because the application is an authenticated workspace rather than a content site. Type-safe file routing and co-located search-parameter state fit the multi-tool workflow, while server components and ISR would add little to the thesis scope.
 
-The deployment stack also reflects the thesis boundary. Railway provides enough operational structure for a live system without requiring a separate platform-engineering layer. PostgreSQL is used instead of a document store because tool history, users, regeneration chains, and workspaces are relational by nature. Sentry and Railway metrics are sufficient for defect investigation at thesis traffic levels.
+The deployment stack reflects the thesis boundary. Railway provides enough operational structure for a live system without requiring a separate platform-engineering layer. PostgreSQL is used instead of a document store because tool history, users, regeneration chains, and workspaces are relational by nature. Sentry and Railway metrics are sufficient for defect investigation at thesis traffic levels.
 
 
 ## 2.3 Backend architecture
@@ -92,6 +92,10 @@ The service modules are also where mode-specific behaviour is isolated. Analytic
 ### 2.3.4 The heuristic prepass
 
 Resume Analyzer and Job Match compute a deterministic prepass before the LLM call. The prepass detects sections, bullets, quantified achievements, matched and missing keywords, skill phrases, and five sub-scores: keyword alignment, impact, structure, clarity, and completeness. The payload is appended to the prompt as a locked block that the LLM must treat as ground truth. This stabilises scoring and makes heuristic-only fallback and fully heuristic mode possible without a separate response contract.
+
+```{=openxml}
+<w:p><w:r><w:br w:type="page"/></w:r></w:p>
+```
 
 
 ## 2.4 Frontend architecture

@@ -80,7 +80,7 @@
 
 ## 10. Web frameworks and system tooling
 
-> Documentation references for the engineering chapters; cited as official documentation footnotes rather than as numbered bibliography entries.
+Documentation references for the engineering chapters; kept separate from the numbered academic bibliography because they document implementation APIs rather than research claims.
 
 - FastAPI documentation. https://fastapi.tiangolo.com
 - TanStack Start / Router documentation. https://tanstack.com/router
