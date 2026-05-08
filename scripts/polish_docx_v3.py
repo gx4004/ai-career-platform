@@ -35,6 +35,9 @@ XML_NS = "http://www.w3.org/XML/1998/namespace"
 NS = {"w": W_NS, "r": R_NS}
 
 FONT = "Times New Roman"
+CODE_FONT = "Courier New"
+CODE_FILL = "F5F5F5"
+CODE_FONT_SIZE_PT = 9.5
 TITLE = "An AI-Based System for Personalized Career Recommendation"
 TITLE_PL = "System oparty na sztucznej inteligencji do spersonalizowanego doradztwa zawodowego"
 AUTHOR = "Egemen Goncu"
@@ -97,6 +100,69 @@ def set_cell_shading(cell, fill: str) -> None:
         shd = OxmlElement("w:shd")
         tc_pr.append(shd)
     shd.set(qn("w:fill"), fill)
+
+
+def set_paragraph_shading(paragraph_obj, fill: str) -> None:
+    ppr = paragraph_obj._p.get_or_add_pPr()
+    shd = ppr.find(qn("w:shd"))
+    if shd is None:
+        shd = OxmlElement("w:shd")
+        ppr.append(shd)
+    shd.set(qn("w:val"), "clear")
+    shd.set(qn("w:color"), "auto")
+    shd.set(qn("w:fill"), fill)
+
+
+def set_run_monospace(run, *, size_pt: float = CODE_FONT_SIZE_PT) -> None:
+    run.font.name = CODE_FONT
+    run.font.size = Pt(size_pt)
+    run.font.color.rgb = RGBColor(0, 0, 0)
+    run.bold = False
+    run.italic = False
+    rpr = run._element.get_or_add_rPr()
+    rfonts = rpr.find(qn("w:rFonts"))
+    if rfonts is None:
+        rfonts = OxmlElement("w:rFonts")
+        rpr.insert(0, rfonts)
+    for attr in ("w:ascii", "w:hAnsi", "w:eastAsia", "w:cs"):
+        rfonts.set(qn(attr), CODE_FONT)
+
+
+def is_code_paragraph(paragraph_obj) -> bool:
+    style_name = (paragraph_obj.style.name or "").lower()
+    if any(token in style_name for token in ("source code", "verbatim", "code")):
+        return True
+    runs = paragraph_obj.runs
+    if not runs:
+        return False
+    monospace_runs = 0
+    for run in runs:
+        rfonts = run._element.find(qn("w:rPr"))
+        if rfonts is None:
+            continue
+        rfonts_node = rfonts.find(qn("w:rFonts"))
+        if rfonts_node is None:
+            continue
+        ascii_font = (rfonts_node.get(qn("w:ascii")) or "").lower()
+        if any(token in ascii_font for token in ("courier", "consolas", "menlo", "monaco", "mono")):
+            monospace_runs += 1
+    return monospace_runs > 0 and monospace_runs == len(runs)
+
+
+def style_code_paragraph(paragraph_obj) -> None:
+    paragraph_obj.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    pf = paragraph_obj.paragraph_format
+    pf.line_spacing = 1.0
+    pf.space_before = Pt(2)
+    pf.space_after = Pt(2)
+    pf.first_line_indent = Cm(0)
+    pf.left_indent = Cm(0.4)
+    pf.right_indent = Cm(0.4)
+    pf.keep_together = True
+    pf.keep_with_next = False
+    set_paragraph_shading(paragraph_obj, CODE_FILL)
+    for run in paragraph_obj.runs:
+        set_run_monospace(run)
 
 
 def set_cell_borders(cell, color: str = "666666", size: str = "6", *, val: str = "single") -> None:
@@ -302,6 +368,11 @@ def apply_python_docx_polish(src: Path, staged: Path) -> None:
             p.paragraph_format.keep_with_next = True
             p.paragraph_format.space_before = Pt(3)
             p.paragraph_format.space_after = Pt(2)
+            previous_was_heading = False
+            continue
+
+        if is_code_paragraph(p):
+            style_code_paragraph(p)
             previous_was_heading = False
             continue
 

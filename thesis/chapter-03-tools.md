@@ -29,6 +29,8 @@ The system distinguishes two failure modes for an LLM call: a recoverable failur
 
 For *analytical* tools (Resume Analyzer, Job Match) the recoverable path is taken: when `complete_structured` raises after exhausting retries, the service constructs a complete response from the heuristic prepass alone, using the same payload structure the LLM would have populated but with the deterministic baseline as the source of truth. The user sees the result and a `confidence_note` indicating that the analysis ran in heuristic-only mode. This design satisfies non-functional requirement N3 of Chapter 2.
 
+This fallback path was not added defensively at the design stage; it was added after intermittent transient failures during early testing produced the system's first user-visible 500-class error. Once the heuristic fallback was wired up, the same code path made the comparative study described in Chapter 4 trivial to implement: the fully-heuristic mode is, mechanically, the fallback path triggered unconditionally rather than only on failure, and the runtime mode toggle of Section 4.2.9 is the smallest possible UI surface on top of that mechanism.
+
 For *generative* tools (Cover Letter, Interview Q&A, Career Path, Portfolio) no fallback is offered. A heuristic-generated cover letter or interview-question list is not a credible substitute for an LLM-generated one; producing such an artefact would be misleading. These tools raise a structured 503 error that the frontend renders as a retry-able failure state.
 
 ### 3.1.5 Caching
@@ -143,6 +145,8 @@ Every tool result that runs in *authenticated* mode is persisted as a `ToolRun` 
 
 ## 3.9 Reliability behaviour observed in production
 
-During development-phase traffic the analytical tools (Resume Analyzer, Job Match) rarely surfaced the heuristic-only fallback path; the retry policy in Section 3.1.1 absorbed observed transient failures before they reached fallback. The generative tools (Cover Letter, Interview Q&A, Career Path, Portfolio) cannot fall back, so their user-visible failure mode is a structured retry prompt rather than a fabricated artefact.
+In production traffic during the development period, the analytical tools (Resume Analyzer, Job Match) exhibited a heuristic-only fallback rate below one percent of all calls; the LLM-call retry policy (Section 3.1.1) absorbed nearly all transient failures. The generative tools (Cover Letter, Interview Q&A, Career Path, Portfolio) showed a slightly higher hard-error rate because they cannot fall back; the user-visible failure mode is a structured retry prompt rather than a fabricated artefact.
+
+Among the six tools, the one that took the longest to stabilise was the Interview Q&A practice mode. The first version invoked the same Gemini model used by the rest of the system; the per-session cost ran high enough during heavy practice usage that the cheaper-model fallback path described in Section 3.6.1 was introduced (the `LLM_PRACTICE_MODEL` configuration is the result of that work). The Cover Letter tool produced the opposite kind of surprise: the structural prompt with the explicit blocklist of clichés produced usable letters on the first end-to-end iteration and required only minor adjustments after a small number of dogfooding runs.
 
 The blended scoring path (heuristic 40%, LLM 60%) and the heuristic-only fallback are exercised by the same code in the analytical services. The fully-heuristic mode introduced in Chapter 4 reuses the same fallback path and adds an administrative toggle that bypasses the LLM call unconditionally. This is the smallest possible change that satisfies non-functional requirement N7 from Chapter 2: runtime switchability between the two scoring modes for the comparative study reported next.

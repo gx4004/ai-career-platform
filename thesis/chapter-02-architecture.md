@@ -1,57 +1,75 @@
 # Chapter 2 — System architecture
 
-This chapter describes the architecture of the implemented system: requirements, technology stack, backend and frontend structure, persistence, authentication, and deployment. Design rationales are included only where they affect the thesis evaluation or operational behaviour.
+This chapter describes the architecture of the system whose evaluation is the subject of the thesis. The chapter is organised in the same order in which design decisions were made during implementation: requirements first, then the choice of technology stack, then the backend, the frontend, the persistence model, and finally the deployment topology that ties the running components together. Where a decision could plausibly have been made differently, the rationale is stated explicitly so that the reasoning is auditable rather than implicit.
 
 
 ## 2.1 Functional and non-functional requirements
 
-The system was designed to satisfy six functional requirements, one per user-facing tool, and seven non-functional requirements.
+The system was designed to satisfy six functional requirements, each corresponding to one of the user-facing tools, and seven non-functional requirements that constrain how those tools are delivered.
 
 ### 2.1.1 Functional requirements
 
-| ID / tool | Required behaviour |
-|----|--------------------|
-| F1 Resume Analyzer | Assess a resume with overall score, sub-scores, issues, actions, and strengths. |
-| F2 Job Match | Compare a resume with a job description and return score, matched and missing keywords, verdict, and action items. |
-| F3 Career Path | Suggest ranked career paths with rationale, required skills, and progression timeline. |
-| F4 Cover Letter | Generate a tailored cover letter from resume and job description. |
-| F5 Interview Q&A | Generate likely interview questions by category with coaching notes. |
-| F6 Portfolio Planner | Identify skill gaps and concrete portfolio artefact ideas for a target role. |
+The functional requirements are summarised in Table 2.1; each row corresponds to one of the six user-facing tools whose implementation is described in Chapter 3.
 
-The same uploaded resume must serve all six tools without re-entry. Tool runs must be re-runnable, and previous results must be usable as context for later tools.
+*Table 2.1: Functional requirements F1–F6, one per user-facing tool.*
+
+| ID | Tool | Required behaviour |
+|----|------|--------------------|
+| F1 | Resume Analyzer | Accept a free-text or uploaded resume, return a structured assessment with overall score, per-category sub-scores, identified issues, prioritised actions, and detected strengths. |
+| F2 | Job Match | Accept a resume and a job description (text or URL), return a match score, matched keywords, missing keywords, a recruiter-style verdict, and a list of evidence-grounded action items. |
+| F3 | Career Path | Accept a resume and optional preferences, return a ranked list of suggested career paths with rationale, requisite skills, and a notional progression timeline. |
+| F4 | Cover Letter | Accept a resume and a job description, return a tailored cover letter with explicit structural sections that the user can copy and adapt. |
+| F5 | Interview Q&A | Accept a resume and a job description, return a curated list of likely interview questions clustered by category (behavioural, technical, role-specific), each with a coaching note. |
+| F6 | Portfolio Planner | Accept a resume and a target role, return a prioritised list of skill gaps and concrete artefact ideas (project briefs, contributions, certifications) that would close those gaps. |
+
+Three workflow constraints apply across all six tools. The same uploaded resume must serve as input across every tool without re-entry. Tool runs must be re-runnable: regeneration must produce a new history record rather than overwriting the original, so that a user can iterate without losing earlier output. A previously generated result must be referenceable as context when invoking another tool, so that a Cover Letter run can consume a Job Match result and an Interview Q&A run can consume a Resume Analyzer result without manual copy-pasting between tools.
 
 ### 2.1.2 Non-functional requirements
 
-The non-functional requirements reflect a single-developer, thesis-scoped deployment.
+The non-functional requirements were derived from the practical constraints of a single-developer, thesis-scoped deployment.
 
-* **N1 (Latency).** Two targets are separated because the analytical core supports two scoring modes (Section 4.2.9). **N1a:** the heuristic-only path should remain below 50 ms at the 95th percentile. **N1b:** the blended cold path should remain below 25 s at the 95th percentile, dominated by the upstream Gemini call; cached production requests are materially faster as reported in Section 3.9.
-* **N2 (Cost ceiling).** LLM cost is bounded by Gemini 2.5 Flash. Fully heuristic mode reduces LLM-side marginal cost to zero.
-* **N3 (Availability).** Analytical tools fall back to heuristic-only output after LLM failure and surface a `confidence_note`. Generative tools fail with a structured retry-able error rather than fabricating content.
-* **N4 (Auditability).** Each persisted tool invocation stores hashed inputs, full output, timing, access mode, and linkage metadata for later inspection and for the study in Chapter 4.
-* **N5 (Privacy).** Logged-in screens load no third-party advertising or analytics scripts. Personal data is encrypted in transit and at rest by the managed provider; passwords are stored as bcrypt hashes.
-* **N6 (Single deployment surface).** The thesis deployment runs as one Railway project with frontend, backend, and managed PostgreSQL behind one external origin.
-* **N7 (Demonstrability).** The system must be operable from a laptop and must allow the analytical core to switch between blended and fully heuristic modes during a diploma-defence demonstration.
+* **N1 (Latency).** Two targets are stated separately because the analytical core supports two scoring modes (Section 4.2.9) whose cost models differ by two orders of magnitude.
+  * **N1a (heuristic-only path):** end-to-end tool latency at the 95th percentile under nominal load should remain below 50 ms; everything in the path is local string processing on commodity hardware.
+  * **N1b (blended LLM path):** end-to-end tool latency at the 95th percentile under nominal load should remain below 25 s on the cold path, dominated by the upstream Gemini structured-output call; production cached-path latency is materially lower as reported in Section 3.9. The original single-target 95th-percentile-under-five-seconds figure that an earlier draft of this section stated cannot be met by the cold-path blended mode and was split into the two targets above to match the measured behaviour reported in Section 4.3.3.
+* **N2 (Cost ceiling).** Per-call LLM cost is bounded by the choice of Gemini 2.5 Flash, a low-cost variant of the model family. The fully-heuristic mode introduced in Chapter 4 reduces this to zero on the LLM side.
+* **N3 (Availability).** A degraded but useful service is preferred over a hard failure. When the LLM call fails or times out, analytical tools (Resume, Job Match) fall back to a heuristic-only response and surface a `confidence_note` to the user. Generative tools (Cover Letter, Interview Q&A) fail loudly with a structured error rather than producing fabricated content.
+* **N4 (Auditability).** Every tool invocation produces a persistent record with the inputs (hashed), the output (full), and the timing and access mode. This supports the experimental work in Chapter 4 and gives the operator a forensic trail.
+* **N5 (Privacy).** No third-party analytics or advertising scripts are loaded on a logged-in user's screen. Personal data is encrypted in transit and at rest by the managed PostgreSQL provider; passwords are stored as bcrypt hashes only.
+* **N6 (Single deployment surface).** The thesis-scoped deployment runs as a single Railway project that bundles the frontend service, the backend service, and a managed Postgres add-on. The two application services share a single hostname through path-based routing, so externally the system presents itself as one origin. There is no separate microservice architecture, no message broker, and no container orchestrator beyond what Railway provides natively.
+* **N7 (Demonstrability).** The running system must be operable and demonstrable from a laptop without specialised tooling. Both modes of the analytical core (blended and fully heuristic) must be switchable at runtime through an administrative interface, so that the comparative study reported in Chapter 4 can be reproduced live during the diploma defence.
 
-The latency requirement was split after measurement. An earlier single cold-path target below five seconds did not match the observed behaviour of structured LLM calls. Separating N1a and N1b keeps the requirement honest: the heuristic path is evaluated as local computation, while the blended path is evaluated as an upstream-service workflow whose tail latency is outside the application's direct control.
+The latency requirement N1 was split into N1a and N1b after measurement. An earlier single cold-path target below five seconds did not match the observed behaviour of structured LLM calls, which the comparative study in Chapter 4 confirms run for tens of seconds rather than under five. Separating the two targets keeps the requirement honest: the heuristic path is evaluated as local computation whose latency is fully under the application's control, while the blended path is evaluated as an upstream-service workflow whose tail latency is governed by the third-party inference provider and absorbed by the retry policy described in Section 3.1.1.
 
 
 ## 2.2 Technology stack and rationale
 
-The technology stack is summarised in Table 2.1.
+The technology stack is summarised in Table 2.2.
+
+*Table 2.2: System technology stack. Rationale entries record the specific property of each choice that makes it suitable for the thesis-scope deployment.*
 
 | Layer | Choice | Rationale |
 |-------|--------|-----------|
-| Backend | FastAPI 0.115+, SQLAlchemy 2.0, Alembic | Python-native API, typed validation, mature relational persistence. |
-| Database | PostgreSQL (Railway managed) | Single-node managed database is sufficient for thesis traffic. |
-| LLM provider | Google Vertex AI Gemini 2.5 Flash | Low-cost structured-output model with an asynchronous client. |
-| Frontend | React 19, TanStack Start, Vite 7 | SPA workspace, type-safe file routing, fast development build. |
-| Styling and UI | Tailwind 4, Radix UI, Framer Motion | Accessible primitives, utility styling, controlled animation. |
-| Authentication | JWT HttpOnly cookies, Google OAuth | No client-readable tokens and standard refresh rotation. |
-| Operations | Railway, Resend, Sentry | Unified deployment, transactional reset email, lightweight error tracking. |
+| Backend framework | FastAPI 0.115 | Python-native, asynchronous, automatic OpenAPI generation, Pydantic-driven schema validation. |
+| ORM and migrations | SQLAlchemy 2.0 + Alembic | Mature, type-safe in 2.0, integrates with FastAPI's dependency injection. |
+| Database | PostgreSQL 16 (Railway managed) | Single-node managed Postgres is sufficient for the workload; no sharding required. |
+| LLM provider | Google Vertex AI Gemini 2.5 Flash | Lowest cost per 1 M tokens in the production-quality tier at the time of selection; native asynchronous client; reliable structured-output mode. |
+| Frontend framework | React 19 | Concurrent rendering, automatic batching, and the most mature component ecosystem. |
+| Routing | TanStack Router via TanStack Start | File-based routes, type-safe links, search-param state co-location. |
+| Build tool | Vite 7 | Sub-second hot module replacement during development. |
+| Styling | Tailwind 4 + Radix UI primitives | Utility-first CSS without a parallel design-token system; Radix provides accessibility-correct primitives for menus, dialogs, and toggles. |
+| Animation | Framer Motion | Declarative timeline animations for the input page heroes. |
+| Authentication | JWT in HttpOnly cookies + Google OAuth (authlib) | No client-readable tokens; standard refresh-rotation pattern. |
+| Transactional email | Resend | Used only for password-reset emails (no welcome or marketing email is sent in V1). |
+| Hosting | Railway (backend, frontend, Postgres) | Single dashboard, single billing relationship, native GitHub deploy hooks. |
+| Observability | Railway built-in metrics + Sentry free tier | Sufficient for thesis-scope traffic; can be extended to a paid tier without code changes. |
 
-FastAPI was selected over a TypeScript backend because the analytical core benefits from Python's mature text-processing ecosystem (`re`, `difflib`, `unicodedata`, and optional retrieval libraries) and from the official Google Vertex AI client. Keeping scoring logic in Python reduces the risk of language-boundary differences in the comparative study.
+Two stack decisions deserve explicit defence because either could plausibly have been made differently.
 
-TanStack Start was selected over Next.js because the application is an authenticated workspace rather than a content site. Type-safe file routing and co-located search-parameter state fit the multi-tool workflow, while server components and ISR would add little to the thesis scope.
+**Why FastAPI rather than a Node/TypeScript backend.** A unified TypeScript backend would have eliminated the language boundary at the API contract. FastAPI was preferred because the official Google Vertex AI client (used for the LLM path described in Chapter 3) and the most mature standard-library and third-party tools for text processing (Python's `re`, `difflib`, `unicodedata`, and the optional `rapidfuzz` and `scikit-learn` ecosystems available if the heuristic is later extended) are all native Python. Keeping the analytical core in Python avoids introducing fidelity risks on the critical path of the comparative study reported in Chapter 4, where any subtle difference between, for example, a Python regex and a JavaScript regex would be a confound rather than a finding.
+
+**Why TanStack Start rather than Next.js.** Next.js is the dominant framework for React applications in production. The decision to use TanStack Start instead was driven by three considerations specific to this project: (i) the application is fundamentally an authenticated single-page workspace rather than a content site, so server components and ISR offer little benefit; (ii) TanStack Router's file-based, type-safe routing produces fewer subtle bugs at refactor time; and (iii) co-locating search-parameter state and route-level data loaders made the multi-tool workflow easier to reason about. The trade-off is a thinner ecosystem of templates and tutorials.
+
+In practice this trade-off was occasionally felt during the early weeks of frontend work, when answers to TanStack Start questions on Stack Overflow were still sparse and the official documentation had to fill the gap. By mid-development the framework's type-safety wins were paying back the early friction; the result-page route pattern `tool_/result/$historyId.tsx` would have required substantially more glue in a Next.js setup.
 
 The deployment stack reflects the thesis boundary. Railway provides enough operational structure for a live system without requiring a separate platform-engineering layer. PostgreSQL is used instead of a document store because tool history, users, regeneration chains, and workspaces are relational by nature. Sentry and Railway metrics are sufficient for defect investigation at thesis traffic levels.
 
@@ -64,34 +82,34 @@ The backend is structured in four horizontal layers (Figure 2.1).
 
 ### 2.3.1 Routers
 
-Routers live in `app/routers/` and are mounted under `/api/v1`. Each router validates the request body with the relevant Pydantic schema, resolves dependencies such as the current user and database session, invokes a service function, and returns the response. Keeping routers thin makes the tool services and the shared pipeline the main units of behaviour.
+Each domain has its own router file in `app/routers/`: `auth`, `google_auth`, `resume`, `job_match`, `career`, `cover_letter`, `interview`, `portfolio`, `history`, `files`, `admin`, `health`, and `telemetry`. All routers are mounted under the API prefix `/api/v1`. Routers are deliberately thin: they parse and validate the request body via the corresponding Pydantic schema, resolve dependencies (current user, database session), invoke the relevant service function, and return the response. Keeping routers thin makes the tool services and the shared pipeline the main units of behaviour, and means that a new endpoint typically requires only a new prompt module and a service function rather than any router-level plumbing.
 
 ### 2.3.2 The shared tool pipeline
 
-The six tools share `run_tool_pipeline(...)` in `services/tool_pipeline.py`. Its stages are shown in Figure 2.2.
+The six functional tools share a single cross-cutting pipeline implemented in `services/tool_pipeline.py` and exposed as the asynchronous function `run_tool_pipeline(...)`. Every tool router invokes this pipeline rather than calling the tool service directly. The pipeline has six stages, executed in order (Figure 2.2):
 
-1. **Sanitise.** Resume text, job descriptions, and feedback strings are normalised and bounded before reaching prompts.
-2. **Cache lookup.** A hash of the tool name, sanitised inputs, user identifier, and tool-specific keys is checked against the in-memory cache.
-3. **Service call.** The tool-specific coroutine performs heuristic extraction, prompt construction, LLM invocation where applicable, and post-processing.
-4. **Persistence.** Authenticated results are stored as `ToolRun` rows with labels, payloads, linked context, workspace identifiers, regeneration parent ids, and feedback text.
-5. **Response assembly.** A unified response shape returns the history identifier and access mode.
-6. **Observability.** Structured start, success, and failure events record tool name, access mode, duration, and error category.
+1. **Sanitise.** The resume text, the job description (if any), and any feedback string are passed through `sanitize_user_input`, which strips control characters, normalises whitespace, and bounds the input length. This is a defence-in-depth measure against prompt-injection-style payloads embedded in resumes.
+2. **Cache lookup.** A content hash is computed from the tool name, the sanitised inputs, the user's identifier (so authenticated users never see another user's cached result), and any tool-specific cache keys. If a result is present in the in-memory cache, it is returned without calling the LLM.
+3. **Service call.** The tool-specific service function is invoked. Each tool service is a coroutine that returns a fully populated response dictionary.
+4. **Persistence.** The result is persisted as a `ToolRun` record. The record stores the tool name, a human-readable label produced by a tool-specific labelling function, the full result payload, the linked context identifiers, the workspace identifier, the parent run identifier (for regeneration chains), and any feedback text supplied by the user.
+5. **Response assembly.** A unified response shape is built from the persisted record, including the history identifier and the access mode.
+6. **Observability.** A structured event is emitted on start, success, and failure, including the tool name, access mode, duration, and the error category if applicable. These events feed both the Sentry breadcrumb trail and the operator-facing metrics.
 
 ![Figure 2.2: Tool pipeline (`run_tool_pipeline`). Six sequential stages form the cross-cutting wrapper around every analytical tool service: sanitise, cache, service, persist, respond, observe. The LLM gateway is shown as an external dependency exercised inside the service stage, with the four-retry exponential-backoff schedule and the heuristic-only fallback path that activates after the retries are exhausted.](figures/v2/figure-2-2.png)
 
-The pipeline gives every tool the same cache, persistence, and observability behaviour. It also lets Chapter 4 reason about mode switching and fallback uniformly rather than per endpoint.
+This single point of indirection has two practical consequences for the thesis. First, every tool inherits the same cache, persistence, and observability behaviour by default; adding a new tool requires no plumbing beyond the service function and the prompt builder. Second, the comparative study in Chapter 4 can reason about cache and persistence behaviour uniformly across all tools, rather than maintaining a per-tool exception table.
 
-This common wrapper is especially important for regenerated results. A regeneration is just another pipeline run with a `parent_run_id`, optional feedback, and the same persistence contract. The design avoids hidden per-tool exceptions: whether the run is a resume analysis, a cover letter, or a portfolio plan, the frontend can expect a history identifier and a stable result page.
+The pipeline-first design was not the original plan. The Resume Analyzer and the Job Match tool were the first two endpoints implemented, each with its own cache wrapper, its own persistence call, and its own observability lines copy-pasted from the other. By the time the third tool was added the duplication was painful enough to motivate the refactor that produced `run_tool_pipeline`. That refactor is small in lines but is the single architectural change that has saved the most engineering effort across the project; it is also the reason why the regeneration path needed no special-case handling, because regeneration is just another pipeline call with a `parent_run_id`, optional feedback, and the same persistence contract.
 
 ### 2.3.3 Tool services and prompt builders
 
-Each tool is implemented through a service module and a prompt module. The service orchestrates the heuristic prepass, invokes `complete_structured` from `services/ai_client.py`, and post-processes the validated result. The prompt module assembles the system and user messages from inputs and the locked heuristic payload. This split keeps prompt content versioned but separate from service orchestration.
+The body of each tool's logic lives in two files: a service module (`services/<tool>_*.py`) and a prompt module (`prompts/<tool>.py`). The service module orchestrates the heuristic prepass, builds the prompt by delegating to the prompt module, calls `complete_structured` from `services/ai_client.py` to obtain a validated JSON response from Gemini, and post-processes the result. The prompt module is responsible only for assembling the `system` and `user` messages from the inputs and the heuristic prepass. Splitting these responsibilities keeps the prompt content under version control without coupling it to the service-orchestration code.
 
-The service modules are also where mode-specific behaviour is isolated. Analytical services can return a heuristic-only response when `SCORING_MODE=heuristic` or when the LLM path fails. Generative services do not attempt a heuristic substitute, because a deterministic cover letter or interview answer would be misleading.
+The service modules are also where mode-specific behaviour is isolated. Analytical services can return a heuristic-only response when `SCORING_MODE=heuristic` is set in the runtime configuration (Section 4.2.9) or when the LLM path fails after exhausting the retry policy described in Section 3.1.1. Generative services do not attempt a heuristic substitute, because a deterministic cover letter or interview answer would be misleading; instead they raise a structured error that the frontend renders as a retry-able failure state.
 
 ### 2.3.4 The heuristic prepass
 
-Resume Analyzer and Job Match compute a deterministic prepass before the LLM call. The prepass detects sections, bullets, quantified achievements, matched and missing keywords, skill phrases, and five sub-scores: keyword alignment, impact, structure, clarity, and completeness. The payload is appended to the prompt as a locked block that the LLM must treat as ground truth. This stabilises scoring and makes heuristic-only fallback and fully heuristic mode possible without a separate response contract.
+For tools that produce a numerical score (Resume Analyzer and Job Match) the service computes a deterministic prepass before the LLM call. The prepass extracts evidence from the resume (detected sections, bullet counts, quantified bullets, matched and missing keywords against the job description, detected skill phrases), and computes a five-axis breakdown (keyword alignment, impact, structure, clarity, completeness). The prepass payload is appended to the prompt as a *locked payload*: text the LLM is instructed to use as authoritative ground truth rather than to overwrite. This has two effects: it stabilises the LLM's score against prompt-perturbation noise, and it makes the heuristic-only fallback (and the fully-heuristic mode reported in Chapter 4) implementable without a parallel codepath, because disabling the LLM call leaves the prepass payload as the response on its own.
 
 ```{=openxml}
 <w:p><w:r><w:br w:type="page"/></w:r></w:p>
@@ -100,24 +118,35 @@ Resume Analyzer and Job Match compute a deterministic prepass before the LLM cal
 
 ## 2.4 Frontend architecture
 
-The frontend is a single-page application served from the same Railway project as the backend. The backend handles `/api/*`; the frontend handles the remaining routes.
+The frontend is a single-page application served from a Railway service that lives in the same Railway project as the backend service; both share one external hostname through path-based routing (the backend handles `/api/*`, the frontend handles everything else). The deployment topology is described in detail in Section 2.7.
 
 ### 2.4.1 Route structure
 
-Routes live in `frontend/src/routes/` and are generated by TanStack Router. Each tool has an input route such as `/resume` or `/job-match` and a result route at `/<tool>_/result/$historyId`, where `$historyId` points to the persisted `ToolRun`. Additional routes cover dashboard, account settings, login, password reset, history, and the admin scoring-mode surface.
+Routes live in `frontend/src/routes/` and are file-based. The route tree is generated at build time by TanStack Router. Each tool has a pair of routes:
+
+- An *input* route at `/<tool>` (for example, `/resume`, `/job-match`); this workspace page contains the resume input, the job-description input where applicable, and per-tool animation, copy, and chips.
+- A *result* route at `/<tool>_/result/$historyId`, the page rendered after a tool run completes. The route segment `_/` declares a layout split, and the dynamic segment `$historyId` is the persistent identifier of the `ToolRun` record on the backend.
+
+In addition, routes exist for the dashboard, account settings, login, password reset, history, and the small admin surface introduced in Chapter 4 for the runtime scoring-mode toggle.
 
 ### 2.4.2 State management
 
-State is split into three scopes. Server state is held in TanStack Query, including session, history, and loaded results. Workflow state, such as the carried resume and linked result context, is stored in `sessionStorage` through hooks such as `useResumeCarry` and `useSession`. Component state remains local to inputs, sheets, animations, and transient UI flags.
+Application state is partitioned into three scopes.
+
+1. **Server state** (anything that originates from the backend) is held in TanStack Query. This includes the current session, the list of tool runs in the user's history, and the result of any previously completed tool run. TanStack Query handles staleness, refetching, and request deduplication.
+2. **Workflow state** (the resume text being carried between tools and the most recent tool result the user is referencing) is held in `sessionStorage` and read through small custom hooks (`useResumeCarry`, `useSession`). Workflow state is tab-scoped by design: opening the same site in a second tab does not share workflow context, which prevents accidental cross-talk between unrelated tool runs.
+3. **Component state** (input values, sheet open/closed flags, animation timing) is local to each component and uses standard React `useState` and `useReducer`.
 
 ### 2.4.3 Layout shell and navigation
 
-The application shell uses a dark sidebar, topbar, and light content area. The sidebar groups the six tools into primary, application, and planning clusters. On mobile, navigation collapses into `MobileNav` and `ToolGridSheet`. Tool metadata is centralised in `frontend/src/lib/tools/registry.ts`, so adding a tool requires one registry entry rather than repeated UI edits.
+The application shell consists of a dark sidebar and topbar with a light content area; there is no dark-mode toggle. The sidebar groups the six tools into three semantic clusters, *primary* (Resume, Job Match), *application* (Cover Letter, Interview Q&A), and *planning* (Career Path, Portfolio), to reduce the cognitive load of navigation. On mobile breakpoints, the sidebar collapses into a bottom tab bar (`MobileNav`) and a tools sheet (`ToolGridSheet`). All tool metadata that drives the sidebar, the dashboard cards, and the tools-sheet grid is centralised in `frontend/src/lib/tools/registry.ts`, so a new tool can be exposed across the entire UI with a single registry entry.
 
 
 ## 2.5 Data model and persistence
 
-The persistence model contains three primary tables, summarised in Table 2.2.
+The persistence model contains three primary tables, summarised in Table 2.3.
+
+*Table 2.3: Primary persistence tables. The schema is intentionally narrow: every row in `tool_runs` is the unit of audit and history, and the regeneration parent pointer plus the linked-context list together carry the workflow graph without requiring an additional table.*
 
 | Table | Purpose | Key columns |
 |-------|---------|-------------|
@@ -125,28 +154,36 @@ The persistence model contains three primary tables, summarised in Table 2.2.
 | `tool_runs` | One row per tool invocation that the system chose to persist | `id`, `user_id`, `tool_name`, `label`, `result_json`, `parent_run_id` for regeneration chains, `linked_context_ids`, `workspace_id`, `feedback_text`, `created_at`. |
 | `workspaces` | Optional grouping of tool runs around a single role search | `id`, `user_id`, `label`, timestamps. |
 
-Regeneration never overwrites an existing result: a regenerated run creates a new `tool_runs` row with `parent_run_id` pointing to the earlier row. Guest runs are not persisted to PostgreSQL; they live briefly in memory behind a session cookie, which keeps the database focused on authenticated history.
+Two design choices on the data model deserve note.
 
-The `linked_context_ids` field supports the workflow argument of the thesis. When a user invokes a cover letter from a Job Match result, or opens Interview Q&A from an analysed resume, the new result can record the prior run it depended on. This creates a graph of tool usage without requiring a separate workflow engine.
+First, **regeneration never overwrites**. A regenerated tool run is a new `tool_runs` row whose `parent_run_id` points to the original. This produces a complete audit trail of the user's iteration on any single piece of analytical work, and supports rolling back a result that the user found less useful than its predecessor.
+
+Second, **guest tool runs are never persisted to the database**. Unauthenticated users can run any tool from the demo landing page; the result is held in an in-memory map keyed by a session cookie and discarded after a short TTL. This keeps the user research path open without polluting the persistence layer with low-value records, and isolates the cost-relevant tool runs (authenticated, persisted) from the cost-irrelevant ones (guest, ephemeral).
+
+The `linked_context_ids` field supports the workflow argument of the thesis. When a user invokes a cover letter from a Job Match result, or opens Interview Q&A from an analysed resume, the new result records the prior run it depended on. This produces a small graph of tool usage that the History page renders as a workflow chain rather than a flat reverse-chronological list, without requiring a separate workflow engine, queue, or state machine on the backend.
 
 
 ## 2.6 Authentication and security
 
-Authentication uses JWTs in HttpOnly cookies: a 30-minute access token and a 7-day refresh token. The refresh token is sent only to `/auth/refresh` and is rotated on every successful refresh to prevent replay. Cookies are marked `Secure`, `SameSite=Lax`, and `HttpOnly`; CSRF tokens are not issued because the API accepts JSON request bodies and the SameSite policy matches the threat model.
+Authentication uses JSON Web Tokens carried in HttpOnly cookies. There are two cookies: a 30-minute *access* token and a 7-day *refresh* token. The access token carries the user identifier and is validated on every protected request through a FastAPI dependency. The refresh token is sent only to a single endpoint (`/auth/refresh`) and is rotated on every successful refresh; the previous refresh token is invalidated atomically with the issue of the new pair to prevent replay. Cookies are marked `Secure`, `SameSite=Lax`, and `HttpOnly`. No CSRF tokens are issued, because the API accepts only `application/json` request bodies and the SameSite policy is sufficient against the threat model.
 
-Google OAuth is implemented with `authlib`. Password reset uses a single-use token sent through Resend and bound to the current password hash. Inputs are sanitised before prompt construction (Section 2.3.2), disposable-email domains are blocklisted, and `slowapi` rate limits login and password-reset endpoints more strictly than tool endpoints.
+Federated login is supported through Google OAuth using the `authlib` library. Password reset is implemented through a single-use token sent by Resend; the token is bound to a hash of the user's current password hash, so a successful reset implicitly invalidates earlier reset tokens.
+
+Beyond authentication, three additional security measures are worth noting. Inputs are sanitised before reaching any prompt builder (Section 2.3.2). Disposable-email domains are blocklisted at signup. Rate limiting is enforced through `slowapi`, with stricter limits on login and password-reset endpoints than on the tool endpoints, so that brute-force attempts on credentials are rate-controlled independently of the tool-traffic envelope.
 
 
 ## 2.7 Deployment topology
 
-The production deployment runs as a single Railway project with frontend service, backend service, and managed PostgreSQL add-on (Figure 2.3).
+The production deployment runs as a single Railway project containing two application services (frontend and backend) plus a managed PostgreSQL add-on (Figure 2.3).
 
 ![Figure 2.3: Production deployment topology. Browser traffic resolves through Cloudflare DNS and TLS into a single Railway hostname; path-based routing at the Railway edge delivers the `/` path to the Vite-built frontend service and the `/api/v1/*` path to the FastAPI backend service. The backend uses a Railway-managed PostgreSQL add-on for persistence and three external dependencies: Vertex AI Gemini 2.5 Flash for inference, Resend for transactional email, and Sentry for error tracking. Both services emit metrics and breadcrumbs to the observability tier.](figures/v2/figure-2-3.png)
 
-The shared hostname removes cross-origin complexity for SPA API calls and simplifies cookie configuration. PostgreSQL backups retain seven daily snapshots. Continuous deployment is tied to the `deploy` branch, while `main` remains a development checkpoint. This two-branch model keeps the thesis deployment surface narrow without introducing a CI/CD system larger than the project requires.
+The frontend and the backend share a single hostname, with path-based routing decided at the Railway edge. This eliminates cross-origin concerns for the SPA's API calls and simplifies cookie configuration. The Postgres database is provisioned as a managed Railway add-on; backups are configured to retain seven daily snapshots.
 
-Railway was chosen because it keeps frontend, backend, database, logs, and metrics under one operational surface. A split deployment, such as frontend hosting plus a separate backend host, was considered but rejected because it would add CORS, cookie, and routing overhead without improving the thesis evaluation.
+Continuous deployment is wired to a single branch (`deploy`). Pushing to `main` is a development checkpoint; promoting a commit to `deploy` triggers a Railway build and rolls out the new revision with a brief health-check window before traffic is cut over. This two-branch model is intentional: it keeps the deployment surface narrow without introducing a CI/CD pipeline whose maintenance overhead is out of proportion to a thesis-scoped project.
 
-The single-origin deployment is also relevant to authentication. HttpOnly cookies are simpler when the SPA and API share one origin, and path-based routing avoids the browser-policy complexity of maintaining separate frontend and backend domains. For a larger product this architecture could be split later, but doing so during the thesis would have added operational risk without strengthening the research result.
+The Railway choice was driven by the desire for a unified deployment surface. Serving the frontend at `/` and the backend at `/api/*` from a single hostname collapses the entire system into one domain, which removes an entire class of CORS and `SameSite`-cookie configuration bugs from the project before they can be introduced. Split-deployment alternatives (typically a frontend host such as Vercel paired with a separate backend host) were considered briefly, but the operational overhead of running two services without a team to absorb that overhead did not seem justified at the project's scope. The same single-domain choice also meant that no separate edge router was required to glue the two halves of the application together at the boundary.
 
-The next chapter details the six tools supported by this architecture.
+The single-origin deployment is also directly relevant to authentication. HttpOnly cookies are simpler to configure when the SPA and the API share one origin, and path-based routing avoids the browser-policy complexity that would arise from maintaining separate frontend and backend domains under different cookie scopes. For a larger product this architecture could be split later — for example, a multi-region frontend with a regional API tier — but doing so during the thesis would have added operational risk without strengthening the research result reported in Chapter 4.
+
+The next chapter details the implementation of each of the six tools that this architecture supports.

@@ -197,16 +197,28 @@ The administrative HTTP API used for the comparative study is exposed under `/ap
 - `GET /api/v1/admin/scoring-mode` → `AdminScoringModeResponse`
 - `POST /api/v1/admin/scoring-mode` with body `{ "mode": "blended" | "heuristic" }` → returns the updated `AdminScoringModeResponse`
 
-The response shape contains `mode`, `heuristic_version`, `blended_weight_heuristic`, and `blended_weight_llm`; for the default blended configuration the two weights are `0.4` and `0.6`.
+The response shape returned by both endpoints is:
+
+```json
+{
+  "mode": "blended",
+  "heuristic_version": "v1",
+  "blended_weight_heuristic": 0.4,
+  "blended_weight_llm": 0.6
+}
+```
 
 Both endpoints require an authenticated administrator (the `users.is_admin` flag controls access) and are rate-limited at 60 requests per minute per administrator. The runtime mode change is held in process memory only; restarting the backend restores the configured default from the `SCORING_MODE` environment variable.
 
 ### D.3 Running the evaluation harness
 
-The evaluation run used:
+The evaluation run used the following commands at the repository root:
 
-- `cd backend`
-- `SCORING_MODE=blended RESULT_CACHE_ENABLED=false python ../scripts/eval_scoring.py`
-- `python ../scripts/analyze_eval_results.py > ../thesis/chapter-04-results.md`
+```sh
+$ cd backend
+$ SCORING_MODE=blended RESULT_CACHE_ENABLED=false \
+    python ../scripts/eval_scoring.py
+$ python ../scripts/analyze_eval_results.py > ../thesis/chapter-04-results.md
+```
 
 The harness writes `thesis/eval-results.json`; the analyzer prints the Markdown tables ready to paste into Chapter 4.3.

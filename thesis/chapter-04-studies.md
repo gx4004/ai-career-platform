@@ -107,17 +107,27 @@ The evaluation harness `scripts/eval_scoring.py` produced 100 paired observation
 
 ### 4.3.1 Score agreement
 
-The post-mitigation agreement is Pearson *r* = **0.836** [95% CI 0.762, 0.896], Spearman ρ = **0.847**, and Kendall τ = **0.669**. The archived leakage-version run was weaker: Pearson *r* = 0.727 [95% CI 0.609, 0.814], Spearman ρ = 0.708, and Kendall τ = 0.526.
+Across the 100 (resume, job-description) pairs in the evaluation set, three rank- and value-agreement statistics are computed between the overall score in the blended mode and the overall score in the fully heuristic v2 mode: Pearson *r*, Spearman ρ, and Kendall τ. Table 4.1 reports the post-mitigation values computed on the disjoint-vocabulary dataset described in Section 4.1.1 alongside the pre-mitigation values from the archived leakage-version run, for an explicit before/after comparison.
 
-The post-mitigation Pearson *r* is higher than the leakage-version value even though leakage was expected to inflate keyword overlap. The per-sub-score table explains the result: lexical leakage added noise to some non-keyword axes, while the disjoint construction preserved legitimate canonical skill overlap.
+*Table 4.1: Overall agreement between blended and fully heuristic modes (n = 100 pairs). Pearson confidence intervals are computed by cluster bootstrap on `resume_id` with 2 000 resamples and seed = 42, addressing threat T3 of Section 4.1.4.*
 
-The post-mitigation sub-score correlations are:
+| Statistic | Post-mitigation (disjoint) | Pre-mitigation (leakage version) | Interpretation |
+|-----------|----------------------------|----------------------------------|----------------|
+| Pearson *r* | **0.836** [95% CI 0.762, 0.896] | 0.727 [95% CI 0.609, 0.814] | Linear association between mode scores. |
+| Spearman ρ | **0.847** | 0.708 | Rank agreement; the property most relevant to screening use. |
+| Kendall τ | **0.669** | 0.526 | Concordance-based rank agreement. |
 
-* **Keywords:** Pearson *r* = 0.937, Spearman ρ = 0.946, Kendall τ = 0.845; leakage Pearson *r* = 0.941.
-* **Impact:** Pearson *r* = 0.430, Spearman ρ = 0.447, Kendall τ = 0.332; leakage Pearson *r* = 0.561.
-* **Structure:** Pearson *r* = 0.830, Spearman ρ = 0.865, Kendall τ = 0.804; leakage Pearson *r* = 0.440.
-* **Clarity:** Pearson *r* = 0.395, Spearman ρ = 0.373, Kendall τ = 0.289; leakage Pearson *r* = 0.475.
-* **Completeness:** Pearson *r* = 0.756, Spearman ρ = 0.793, Kendall τ = 0.689; leakage Pearson *r* = 0.691.
+The post-mitigation Pearson *r* is higher than the leakage-version value even though leakage was expected to inflate keyword overlap. The per-sub-score breakdown in Table 4.2 explains the result: lexical leakage added noise to some non-keyword axes, while the disjoint construction preserved legitimate canonical skill overlap.
+
+*Table 4.2: Per-sub-score correlations between blended and heuristic-only modes, post-mitigation versus archived leakage version. Bold entries mark axes above the 0.7 practical interpretation anchor introduced in Section 4.1.2.*
+
+| Sub-score | Post-mitigation Pearson *r* | Pre-mitigation Pearson *r* | Spearman ρ | Kendall τ |
+|-----------|-----------------------------|----------------------------|------------|-----------|
+| Keywords | **0.937** | 0.941 | 0.946 | 0.845 |
+| Impact | 0.430 | 0.561 | 0.447 | 0.332 |
+| Structure | **0.830** | 0.440 | 0.865 | 0.804 |
+| Clarity | 0.395 | 0.475 | 0.373 | 0.289 |
+| Completeness | **0.756** | 0.691 | 0.793 | 0.689 |
 
 The agreement is strongest on keywords and structure and weakest on clarity, the axis where the language model sees prose-quality evidence that the heuristic cannot inspect. A correlation-space sanity check is consistent with the blended formula. Under equal-variance assumptions on the heuristic and LLM-only sub-scores, the algebra of `blended = 0.4 × heuristic + 0.6 × LLM` predicts r(blended, heuristic) ≈ 0.857 from the observed r(LLM-only, heuristic) = 0.627; the observed value 0.836 sits within the cluster-bootstrap half-width of this prediction, indicating that the headline blended-versus-heuristic agreement is a transparent function of the two upstream agreements rather than an artefact of leakage or evaluator drift.
 
@@ -125,15 +135,19 @@ The keyword axis being stable across leakage and disjoint versions is important.
 
 ### 4.3.1' LLM-only baseline (T2 mitigation)
 
-The locked-payload design makes the LLM-only score recoverable as:
+Because the heuristic prepass is exposed to the language model as a *locked payload* (Section 3.2.3), the heuristic component of the blended score is invariant under the LLM call. The blended formula `blended = 0.4 × heuristic + 0.6 × LLM-only` is therefore an exact identity, and the LLM-only score per pair is recoverable post-hoc from the blended and heuristic-only scores already reported in the manifest:
 
 LLM-only = (blended − 0.4 × heuristic) / 0.6
 
-The three pairwise correlations are:
+This recovery requires no additional API calls; it is a deterministic algebraic transformation of the existing per-pair results. The Pearson correlation between the recovered LLM-only score and the heuristic-only score isolates the *cross-mode agreement* (what the language model and the classical-IR heuristic agree on) controlling for the structural component shared between the blended and heuristic-only modes by construction. Table 4.3 reports the three pairwise correlations with cluster-bootstrap confidence intervals.
 
-* **Blended vs heuristic:** Pearson *r* = **0.836** [0.762, 0.896], Spearman ρ = 0.847.
-* **LLM-only vs heuristic:** Pearson *r* = **0.627** [0.476, 0.765], Spearman ρ = 0.596.
-* **Blended vs LLM-only:** Pearson *r* = 0.952 [0.923, 0.973].
+*Table 4.3: Pairwise score correlations after LLM-only decomposition. Cluster bootstrap on resume identity, 2 000 resamples, seed = 42. The LLM-only column is recovered post-hoc from the locked-payload identity rather than from a second LLM rerun.*
+
+| Pair | Pearson *r* | 95% CI (cluster bootstrap) | Spearman ρ |
+|------|-------------|----------------------------|------------|
+| Blended vs heuristic | **0.836** | [0.762, 0.896] | 0.847 |
+| LLM-only vs heuristic | **0.627** | [0.476, 0.765] | 0.596 |
+| Blended vs LLM-only | 0.952 | [0.923, 0.973] | — |
 
 The recovered LLM-only score has mean 71.29, standard deviation 8.45, median 73.33, 5th percentile 54.62, and 95th percentile 82.00. The 0.627 correlation is the honest cross-mode agreement after removing the 0.40 heuristic share embedded in the blended score; the 0.836 headline remains relevant for the operational question of what the runtime toggle changes.
 
@@ -141,9 +155,20 @@ The two numbers answer different questions. The LLM-only value asks how far clas
 
 ### 4.3.2 Score distribution
 
-Across all 100 pairs, blended mode has mean 71.84, standard deviation 7.19, median 73.00, 5th percentile 58.00, and 95th percentile 81.00. Heuristic v2 mode has mean 72.66, standard deviation 7.08, median 74.50, 5th percentile 59.00, and 95th percentile 82.00. The two distributions have KS distance **0.100**.
+Table 4.4 reports the per-mode score distribution statistics across all 100 pairs. The Kolmogorov–Smirnov distance between the two distributions complements the rank-correlation reading by reporting how differently the two modes spread the scores across the 0–100 range.
 
-The means differ by 0.82 points and the medians by 1.50 points, so the aggregate score distributions are close. The KS distance of 0.100 is half the leakage-version KS distance of 0.200. Figure 4.1 visualises the two distributions.
+*Table 4.4: Overall score distribution per mode (n = 100 pairs). The KS distance compares the empirical cumulative distribution functions of the two modes; smaller values indicate more similar distributions.*
+
+| Statistic | Blended mode | Heuristic v2 mode |
+|-----------|--------------|-------------------|
+| Mean | 71.84 | 72.66 |
+| Standard deviation | 7.19 | 7.08 |
+| Median | 73.00 | 74.50 |
+| 5th percentile | 58.00 | 59.00 |
+| 95th percentile | 81.00 | 82.00 |
+| KS distance vs other mode | 0.100 | 0.100 |
+
+The means differ by 0.82 points and the medians by 1.50 points, so the aggregate score distributions are close. The KS distance of 0.100 is half the leakage-version KS distance of 0.200, indicating that the disjoint-pool regeneration also tightens the per-mode distribution overlap, not only the rank agreement. Figure 4.1 visualises the two distributions.
 
 ![](figures/figure-4-1-score-distribution.png){width=100%}
 
@@ -155,48 +180,68 @@ The means differ by 0.82 points and the medians by 1.50 points, so the aggregate
 
 ### 4.3.3 Latency
 
-Service-side latency for one tool invocation is:
+Wall-clock service-side latency for a single tool invocation is summarised in Table 4.5. The blended-mode figure is dominated by the upstream Gemini structured-output inference call; the heuristic-only mode runs entirely as local string processing.
 
-* **Median:** blended 18 232.1 ms, heuristic v2 25.5 ms, ratio 714×.
-* **95th percentile:** blended 24 713.7 ms, heuristic v2 32.1 ms, ratio 770×.
-* **Maximum observed:** blended 65 926.6 ms, heuristic v2 34.1 ms, ratio 1 933×.
+*Table 4.5: Service-side latency for a single tool invocation, in milliseconds, with the per-row blended-to-heuristic ratio. The maximum-observed row reflects one retry-after-timeout case absorbed by the four-retry exponential-backoff policy described in Section 3.1.1.*
 
-Blended latency is dominated by Gemini structured-output inference over approximately 608 input tokens plus prompt overhead and 1 118 output tokens. The maximum of 65 926.6 ms reflects one retry-after-timeout case handled by the retry policy. Heuristic v2 runs in tens of milliseconds and satisfies the N1a target from Section 2.1.2. Component-level decomposition between token generation, network round-trip, and serialisation overhead was not instrumented in the prototype; future work could profile this granularity (for instance via OpenTelemetry spans on the Vertex AI client or middleware timing decorators) to localise optimisation targets.
+| Metric | Blended (ms) | Heuristic v2 (ms) | Ratio |
+|--------|--------------|-------------------|-------|
+| Median | 18 232.1 | 25.5 | 714× |
+| 95th percentile | 24 713.7 | 32.1 | 770× |
+| Maximum observed | 65 926.6 | 34.1 | 1 933× |
+
+Blended latency is dominated by Gemini structured-output inference over approximately 608 input tokens plus prompt overhead and 1 118 output tokens. The maximum of 65 926.6 ms reflects one retry-after-timeout case handled by the retry policy. Heuristic v2 runs in tens of milliseconds and satisfies the N1a target from Section 2.1.2. Component-level decomposition between token generation, network round-trip, and serialisation overhead was not instrumented in the prototype; future work could profile this granularity (for instance via OpenTelemetry spans on the Vertex AI client or middleware timing decorators) to localise optimisation targets. The two-to-three-orders-of-magnitude latency gap is the operational rationale for keeping both modes runtime-switchable rather than committing to one path.
 
 ### 4.3.4 Per-call cost
 
-Cost uses the Vertex AI Gemini 2.5 Flash rates in effect at measurement time: input $0.075 / 1 M tokens and output $0.30 / 1 M tokens.
+Cost uses the Vertex AI Gemini 2.5 Flash rates in effect at measurement time: input $0.075 / 1 M tokens and output $0.30 / 1 M tokens. The blended run used an estimated 608 input tokens and 1 118 output tokens per call on average; Table 4.6 summarises the resulting per-call and projected monthly cost figures.
 
-The blended run used an estimated 608 input tokens and 1 118 output tokens per call on average. This gives an average per-call LLM-side cost of $0.00038 and a 95th-percentile per-call estimate of $0.00042. At 1 000 analyses per day, the projected monthly blended-mode bill is $11.43. Heuristic v2 has zero LLM-side token cost in all three rows.
+*Table 4.6: Per-call LLM-side cost, in US dollars, at the Vertex AI Gemini 2.5 Flash rates in effect at measurement time. The estimator follows the ~4-characters-per-token rule of thumb and does not include all server-side prompt overhead, so the figures are order-of-magnitude rather than billing-grade.*
 
-The estimator follows the ~4 characters per token rule and does not include all server-side prompt overhead, so the claim is order-of-magnitude rather than billing-grade. At 1 000 analyses per day, blended mode projects to roughly $11.43 per month in LLM-side spend on this dataset; heuristic mode is free on the LLM side.
+| Statistic | Blended mode | Heuristic v2 mode |
+|-----------|--------------|-------------------|
+| Average per-call cost | $0.00038 | $0.00000 |
+| 95th-percentile per-call cost | $0.00042 | $0.00000 |
+| Projected monthly cost at 1 000 analyses/day | $11.43 | $0.00 |
+
+Token counts are approximations following the `~4 characters per token` rule of thumb that the Vertex AI documentation uses. The input-token figure counts the resume and the job description text the harness sends; the system prompt and the locked-payload block are configured server-side in the analytical service and contribute additional per-call overhead that is not captured by the harness's estimator. Exact tokeniser-derived counts are deferred to future work; the headline cost claim in this section is an order-of-magnitude statement, not a billing-grade figure. The recomputation that produces this table is implemented in `scripts/recompute_eval_cost.py`, which rebuilds the prompt for every pair without a second LLM call.
 
 This absolute cost is small at thesis scale, but the ratio matters for mode design. A demonstration, outage fallback, or high-volume preview flow can use the heuristic path without accumulating third-party inference cost. The blended path can then be reserved for cases where richer explanations are worth the additional latency.
 
 ### 4.3.5 Sensitivity to the score-combination weights
 
-The author-selected weights from Section 4.2.7 are compared with equal weights recomputed offline from the same per-sub-score breakdown.
+The five-sub-score weights introduced in Section 4.2.7 are author-selected. To check that the comparative result is not an artefact of the specific weights, the score is recomputed offline from the same per-sub-score breakdown using equal weights (0.20 each), and the Pearson and Spearman correlations between modes are computed under both weight settings. Table 4.7 reports the result.
 
-The author-selected 0.30/0.25/0.15/0.15/0.15 weighting gives Pearson *r* = 0.836 and Spearman ρ = 0.847. Equal 0.20 weighting across all five sub-scores gives Pearson *r* = 0.813 and Spearman ρ = 0.823.
+*Table 4.7: Sensitivity of the blended-versus-heuristic agreement to the score-combination weights. The Δ row shows the absolute movement after switching from the author-selected weighting to equal weights.*
 
-Pearson moves by Δ = −0.023 and Spearman by Δ = −0.024 after rounding to three decimals. Both remain above the practical 0.7 interpretation anchor, so the result is not dependent on the exact heuristic sub-score weighting choice.
+| Weighting | Pearson *r* | Spearman ρ |
+|-----------|-------------|------------|
+| Author-selected (0.30, 0.25, 0.15, 0.15, 0.15) | 0.836 | 0.847 |
+| Equal (0.20 across all five) | 0.813 | 0.823 |
+| Δ | −0.023 | −0.024 |
+
+Pearson moves by Δ = −0.023 and Spearman by Δ = −0.024 after rounding to three decimals. Both remain above the practical 0.7 interpretation anchor, so the value-association result is not dependent on the exact heuristic sub-score weighting choice. The rank-agreement reading is similarly robust; the comparative claim of Section 4.3.1 is therefore weighting-invariant within this evaluation set rather than weighting-specific.
 
 ### 4.3.6 Heuristic-enhancement ablation (Stage H)
 
 Stage H tested whether targeted heuristic enhancements could close the LLM-only residual without adding a deployed neural dependency. A separate `quality_signals_v3.py` module added five gated signals: SBERT semantic fallback with `all-MiniLM-L6-v2` at cosine threshold 0.65 (H.1), STAR-format detection (H.2), cross-axis coherence checks (H.3), bigram/trigram matching (H.4), and ESCO expansion from 107 to 354 entries (H.5). Each variant was compared against the same post-hoc LLM-only baseline, so no additional LLM calls were issued.
 
-The Stage H variants produce the following Pearson correlations against LLM-only:
+Table 4.8 reports the Pearson correlation against the post-hoc LLM-only score for each variant, with the cluster-bootstrap interval and the absolute delta against the v2 baseline.
 
-* **heuristic-v2 (BM25 + ESCO + fuzzy):** *r* = **0.627** [0.470, 0.758], Spearman ρ = 0.596, baseline.
-* **heuristic-v3 with no Stage H features:** *r* = 0.627 [0.470, 0.758], Spearman ρ = 0.596, Δ = +0.000.
-* **Bigram/trigram matching (H.4):** *r* = 0.629 [0.470, 0.758], Spearman ρ = 0.583, Δ = +0.002.
-* **SBERT semantic fallback (H.1):** *r* = 0.623 [0.452, 0.759], Spearman ρ = 0.573, Δ = −0.004.
-* **STAR detection (H.2):** *r* = 0.621 [0.463, 0.755], Spearman ρ = 0.596, Δ = −0.006.
-* **ESCO expansion 107 → 354 (H.5):** *r* = 0.617 [0.461, 0.752], Spearman ρ = 0.578, Δ = −0.009.
-* **Cross-axis coherence (H.3):** *r* = 0.605 [0.438, 0.746], Spearman ρ = 0.568, Δ = −0.022.
-* **heuristic-v3 full stack:** *r* = 0.590 [0.415, 0.735], Spearman ρ = 0.556, Δ = −0.036.
+*Table 4.8: Stage H ablation. Pearson correlation between each variant and the post-hoc LLM-only score, with cluster-bootstrap 95% confidence intervals (`resume_id` clusters, 2 000 resamples, seed = 42). Bold rows mark the v2 baseline and the full v3 stack endpoints of the ablation.*
 
-The result is a controlled null with small negative drift in the full configuration. `v3-empty` reproduces v2 exactly to three decimals, validating the module boundary. Single-feature deltas range from +0.002 to −0.022 and remain inside the cluster-bootstrap interval width. The full v3 stack falls to *r* = 0.590 (Δ = −0.036), suggesting that small false-positive effects compound.
+| Variant | Pearson *r* | 95% CI | Spearman ρ | Δ vs v2 |
+|---------|-------------|--------|------------|---------|
+| **heuristic-v2 (BM25 + ESCO + fuzzy)** | **0.627** | [0.470, 0.758] | 0.596 | baseline |
+| heuristic-v3 with no Stage H features | 0.627 | [0.470, 0.758] | 0.596 | +0.000 |
+| Bigram/trigram matching (H.4) | 0.629 | [0.470, 0.758] | 0.583 | +0.002 |
+| SBERT semantic fallback (H.1) | 0.623 | [0.452, 0.759] | 0.573 | −0.004 |
+| STAR detection (H.2) | 0.621 | [0.463, 0.755] | 0.596 | −0.006 |
+| ESCO expansion 107 → 354 (H.5) | 0.617 | [0.461, 0.752] | 0.578 | −0.009 |
+| Cross-axis coherence (H.3) | 0.605 | [0.438, 0.746] | 0.568 | −0.022 |
+| **heuristic-v3 full stack** | **0.590** | [0.415, 0.735] | 0.556 | −0.036 |
+
+The result is a controlled null with small negative drift in the full configuration. `v3-empty` reproduces v2 exactly to three decimals, validating the module boundary. Single-feature deltas range from +0.002 to −0.022 and remain inside the cluster-bootstrap interval width on the 100-pair set, so none of the variants are statistically distinguishable from the v2 baseline. The full v3 stack falls to *r* = 0.590 (Δ = −0.036), suggesting that small false-positive effects compound when all five gated signals fire simultaneously.
 
 The likely explanation is that the synthetic benchmark already exposes canonical skill overlap, so extra keyword recall through SBERT, n-grams, or ESCO expansion adds little. The remaining gap to the LLM-only score reflects prose quality, narrative coherence, and role-fit judgement rather than missing keyword evidence. The ablation is reproducible through `scripts/eval_scoring_v3_ablation.py`, `scripts/analyze_v3_ablation.py`, `backend/app/services/quality_signals_v3.py`, and `backend/app/data/esco_skills_expanded.json`; PyTorch and sentence-transformers stay in `backend/requirements-thesis-eval.txt`, outside the production requirements.
 
