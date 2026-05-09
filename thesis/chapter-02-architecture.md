@@ -82,7 +82,7 @@ The backend is structured in four horizontal layers (Figure 2.1).
 
 ### 2.3.1 Routers
 
-Each domain has its own router file in `app/routers/`: `auth`, `google_auth`, `resume`, `job_match`, `career`, `cover_letter`, `interview`, `portfolio`, `history`, `files`, `admin`, `health`, and `telemetry`. All routers are mounted under the API prefix `/api/v1`. Routers are deliberately thin: they parse and validate the request body via the corresponding Pydantic schema, resolve dependencies (current user, database session), invoke the relevant service function, and return the response. Keeping routers thin makes the tool services and the shared pipeline the main units of behaviour, and means that a new endpoint typically requires only a new prompt module and a service function rather than any router-level plumbing.
+Each domain has its own router file in `app/routers/`: `auth`, `google_auth`, `resume`, `job_match`, `job_posts`, `career`, `cover_letter`, `interview`, `portfolio`, `history`, `files`, `admin`, `health`, and `telemetry`. All routers are mounted under the API prefix `/api/v1`. Routers are deliberately thin: they parse and validate the request body via the corresponding Pydantic schema, resolve dependencies (current user, database session), invoke the relevant service function, and return the response. Keeping routers thin makes the tool services and the shared pipeline the main units of behaviour, and means that a new endpoint typically requires only a new prompt module and a service function rather than any router-level plumbing.
 
 ### 2.3.2 The shared tool pipeline
 

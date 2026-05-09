@@ -9,7 +9,7 @@ This chapter reports the empirical comparison between the two analytical scoring
 
 The evaluation dataset contains *N* = 30 resumes and *M* = 20 job descriptions across six role tracks: backend engineering, frontend engineering, full-stack engineering, data analytics, product design, and product management. Each track contains five resumes at junior, mid, and senior levels and three or four job descriptions.
 
-The dataset is generated deterministically by `scripts/synthesise_eval_dataset.py` with `SEED = 42`. Resume content is drawn from track-specific `resume_phrases` and job-description content from separate `jd_phrases`; after stop-words and role-domain skill terms are removed, the two pools are lexically disjoint. This Stage G construction mitigates shared-vocabulary leakage (T1) while preserving legitimate skill overlap through canonical labels. Synthetic generation avoids privacy and licensing issues but limits external validity, as discussed in Section 4.4.
+The dataset is generated deterministically by `scripts/synthesise_eval_dataset.py` with `SEED = 42`. Resume content is drawn from track-specific `resume_phrases` and job-description content from separate `jd_phrases`; after stop-words and role-domain skill terms are removed, the two pools share negligible content vocabulary (per-track residual overlap of 0–6 tokens), with per-pair overlap bounded as reported in Section 4.1.4. This Stage G construction mitigates shared-vocabulary leakage (T1) while preserving legitimate skill overlap through canonical labels. Synthetic generation avoids privacy and licensing issues but limits external validity, as discussed in Section 4.4.
 
 The harness pairs each resume with every job description in the same role track. Four tracks contain three job descriptions and two tracks contain four, giving 5 × 3 × 4 + 5 × 4 × 2 = 100 pairs. Each pair is run once in blended mode and once in fully heuristic mode, producing 200 response objects for the metrics in Section 4.3. Appendix B documents the dataset structure.
 
@@ -43,7 +43,7 @@ Four threats are tracked so that the interpretation of Section 4.3 remains bound
 
 T1, T2, and T3 are mitigated by regeneration, LLM-only decomposition, and clustered intervals. T4 remains a disclosed limitation.
 
-In Cook–Campbell terms [27] T1 and T2 cluster under construct validity (the operationalisation of agreement between the two scoring modes), T3 falls under statistical-conclusion validity (the inferential machinery accommodating dependent paired observations), and T4 falls under internal validity (researcher degrees of freedom in the post-hoc heuristic design). External validity, the fourth canonical category, is not addressed within the experiment because the dataset is single-language (English), single-author (one synthesiser produced all 30 resumes), and single-evaluator (one Gemini family); Section 4.4 enumerates these as deployment caveats, foregrounded as the most consequential next step before any generalisation beyond the synthetic benchmark.
+In Cook–Campbell terms [27] T1 and T2 cluster under construct validity (the operationalisation of agreement between the two scoring modes), T3 falls under statistical-conclusion validity (the inferential machinery accommodating dependent paired observations), and T4 falls under internal validity (researcher degrees of freedom in the post-hoc heuristic design). External validity, the fourth canonical category, is not addressed within the experiment because the dataset is single-language (English), single-author (one synthesiser produced all 30 resumes), and single-evaluator (one Gemini family); Section 4.4 enumerates these as deployment caveats, the most consequential next step before any generalisation beyond the synthetic benchmark.
 
 These threats also define how the results should not be read. The chapter does not claim population-level hiring validity, fairness, or universal superiority of one scoring family. It reports a controlled within-set characterisation of the implemented system, using a reproducible benchmark whose construction is transparent enough to audit.
 
@@ -107,7 +107,7 @@ The evaluation harness `scripts/eval_scoring.py` produced 100 paired observation
 
 ### 4.3.1 Score agreement
 
-Across the 100 (resume, job-description) pairs in the evaluation set, three rank- and value-agreement statistics are computed between the overall score in the blended mode and the overall score in the fully heuristic v2 mode: Pearson *r*, Spearman ρ, and Kendall τ. Table 4.1 reports the post-mitigation values computed on the disjoint-vocabulary dataset described in Section 4.1.1 alongside the pre-mitigation values from the archived leakage-version run, for an explicit before/after comparison.
+Across the 100 (resume, job-description) pairs in the evaluation set, three rank- and value-agreement statistics are computed between the overall score in the blended mode and the overall score in the fully heuristic v2 mode: Pearson *r*, Spearman ρ, and Kendall τ-b. Table 4.1 reports the post-mitigation values computed on the disjoint-vocabulary dataset described in Section 4.1.1 alongside the pre-mitigation values from the archived leakage-version run, for an explicit before/after comparison.
 
 *Table 4.1: Overall agreement between blended and fully heuristic modes (n = 100 pairs). Pearson confidence intervals are computed by cluster bootstrap on `resume_id` with 2 000 resamples and seed = 42, addressing threat T3 of Section 4.1.4.*
 
@@ -115,13 +115,13 @@ Across the 100 (resume, job-description) pairs in the evaluation set, three rank
 |-----------|----------------------------|----------------------------------|----------------|
 | Pearson *r* | **0.836** [95% CI 0.762, 0.896] | 0.727 [95% CI 0.609, 0.814] | Linear association between mode scores. |
 | Spearman ρ | **0.847** | 0.708 | Rank agreement; the property most relevant to screening use. |
-| Kendall τ | **0.669** | 0.526 | Concordance-based rank agreement. |
+| Kendall τ-b | **0.669** | 0.526 | Concordance-based rank agreement. |
 
 The post-mitigation Pearson *r* is higher than the leakage-version value even though leakage was expected to inflate keyword overlap. The per-sub-score breakdown in Table 4.2 explains the result: lexical leakage added noise to some non-keyword axes, while the disjoint construction preserved legitimate canonical skill overlap.
 
 *Table 4.2: Per-sub-score correlations between blended and heuristic-only modes, post-mitigation versus archived leakage version. Bold entries mark axes above the 0.7 practical interpretation anchor introduced in Section 4.1.2.*
 
-| Sub-score | Post-mitigation Pearson *r* | Pre-mitigation Pearson *r* | Spearman ρ | Kendall τ |
+| Sub-score | Post-mitigation Pearson *r* | Pre-mitigation Pearson *r* | Spearman ρ | Kendall τ-b |
 |-----------|-----------------------------|----------------------------|------------|-----------|
 | Keywords | **0.937** | 0.941 | 0.946 | 0.845 |
 | Impact | 0.430 | 0.561 | 0.447 | 0.332 |
@@ -146,7 +146,7 @@ This recovery requires no additional API calls; it is a deterministic algebraic 
 | Pair | Pearson *r* | 95% CI (cluster bootstrap) | Spearman ρ |
 |------|-------------|----------------------------|------------|
 | Blended vs heuristic | **0.836** | [0.762, 0.896] | 0.847 |
-| LLM-only vs heuristic | **0.627** | [0.476, 0.765] | 0.596 |
+| LLM-only vs heuristic | **0.627** | [0.470, 0.758] | 0.596 |
 | Blended vs LLM-only | 0.952 | [0.923, 0.973] | — |
 
 The recovered LLM-only score has mean 71.29, standard deviation 8.45, median 73.33, 5th percentile 54.62, and 95th percentile 82.00. The 0.627 correlation is the honest cross-mode agreement after removing the 0.40 heuristic share embedded in the blended score; the 0.836 headline remains relevant for the operational question of what the runtime toggle changes.
@@ -182,7 +182,7 @@ The means differ by 0.82 points and the medians by 1.50 points, so the aggregate
 
 Wall-clock service-side latency for a single tool invocation is summarised in Table 4.5. The blended-mode figure is dominated by the upstream Gemini structured-output inference call; the heuristic-only mode runs entirely as local string processing.
 
-*Table 4.5: Service-side latency for a single tool invocation, in milliseconds, with the per-row blended-to-heuristic ratio. The maximum-observed row reflects one retry-after-timeout case absorbed by the four-retry exponential-backoff policy described in Section 3.1.1.*
+*Table 4.5: Service-side latency for a single tool invocation, in milliseconds, with the per-row blended-to-heuristic ratio. The maximum-observed row reflects one transient LLM retry absorbed by the four-retry exponential-backoff policy described in Section 3.1.1.*
 
 | Metric | Blended (ms) | Heuristic v2 (ms) | Ratio |
 |--------|--------------|-------------------|-------|
@@ -190,7 +190,7 @@ Wall-clock service-side latency for a single tool invocation is summarised in Ta
 | 95th percentile | 24 713.7 | 32.1 | 770× |
 | Maximum observed | 65 926.6 | 34.1 | 1 933× |
 
-Blended latency is dominated by Gemini structured-output inference over approximately 608 input tokens plus prompt overhead and 1 118 output tokens. The maximum of 65 926.6 ms reflects one retry-after-timeout case handled by the retry policy. Heuristic v2 runs in tens of milliseconds and satisfies the N1a target from Section 2.1.2. Component-level decomposition between token generation, network round-trip, and serialisation overhead was not instrumented in the prototype; future work could profile this granularity (for instance via OpenTelemetry spans on the Vertex AI client or middleware timing decorators) to localise optimisation targets. The two-to-three-orders-of-magnitude latency gap is the operational rationale for keeping both modes runtime-switchable rather than committing to one path.
+Blended latency is dominated by Gemini structured-output inference over approximately 608 input tokens plus prompt overhead and 1 118 output tokens. The maximum of 65 926.6 ms reflects one transient LLM retry handled by the retry policy. Heuristic v2 runs in tens of milliseconds and satisfies the N1a target from Section 2.1.2. Component-level decomposition between token generation, network round-trip, and serialisation overhead was not instrumented in the prototype; future work could profile this granularity (for instance via OpenTelemetry spans on the Vertex AI client or middleware timing decorators) to localise optimisation targets. The two-to-three-orders-of-magnitude latency gap is the operational rationale for keeping both modes runtime-switchable rather than committing to one path.
 
 ### 4.3.4 Per-call cost
 
@@ -254,7 +254,7 @@ The ablation reuses `thesis/eval-results.json` from Stage G and recovers LLM-onl
 
 ## 4.4 Discussion and limitations
 
-Within this synthetic evaluation set, the fully heuristic mode recovers most of the blended mode's aggregate discrimination: Pearson *r* = 0.836 [95% CI 0.762, 0.896], Spearman ρ = 0.847, median latency 25.5 ms rather than 18.2 s, and zero LLM-side marginal cost. After removing the structural 0.40 heuristic share in the blended formula, LLM-only versus heuristic agreement is *r* = 0.627 [95% CI 0.476, 0.765]. The deterministic baseline is therefore strong enough to justify deployment as a fallback and runtime mode, while the blended mode remains valuable for qualitative explanations and clarity-sensitive judgement.
+Within this synthetic evaluation set, the fully heuristic mode recovers most of the blended mode's aggregate discriminative power: Pearson *r* = 0.836 [95% CI 0.762, 0.896], Spearman ρ = 0.847, median latency 25.5 ms rather than 18.2 s, and zero LLM-side marginal cost. After removing the structural 0.40 heuristic share in the blended formula, LLM-only versus heuristic agreement is *r* = 0.627 [95% CI 0.470, 0.758]. The deterministic baseline is therefore strong enough to justify deployment as a fallback and runtime mode, while the blended mode remains valuable for qualitative explanations and clarity-sensitive judgement.
 
 Four limitations constrain the claim. **Single-language scope:** all evaluation resumes and job descriptions are in English, although ESCO is multilingual. **Single-subject evaluation:** one author synthesised all 30 resumes, so stylistic regularities may not generalise. **Single LLM provider:** the blended mode uses Gemini 2.5 Flash only; cross-model comparisons remain a known limitation of LLM-as-judge evaluations [29]. **Bias and fairness:** the benchmark has no demographic annotations and cannot support disparate-impact analysis; production deployment beyond thesis scope would require a fairness audit aligned with algorithmic-hiring literature [22, 23, 24].
 

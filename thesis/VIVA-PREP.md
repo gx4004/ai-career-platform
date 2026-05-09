@@ -83,7 +83,7 @@ held constant; that means LLM-only = (blended − 0.4 × heuristic) / 0.6
 is recoverable post-hoc from the existing pair-level results without any
 additional API calls. The Pearson correlation between LLM-only and
 heuristic-only on the post-mitigation dataset is **0.627** with a 95%
-cluster-bootstrap confidence interval of **[0.476, 0.765]** —
+cluster-bootstrap confidence interval of **[0.470, 0.758]** —
 substantially lower than the headline post-mitigation *r* of 0.836,
 because that headline contains the structural floor of agreement
 attributable to the shared 0.40 heuristic component. The honest reading
@@ -241,7 +241,7 @@ relevant inferential question is the *width* of the cross-mode agreement
 interval, not its rejection of zero. The cluster-bootstrap CIs reported
 in Section 4.3.1' answer that question directly: the post-mitigation
 *r*(blended, heuristic) interval is **[0.762, 0.896]**, the *r*(LLM-only,
-heuristic) interval is **[0.476, 0.765]**, both honest under the
+heuristic) interval is **[0.470, 0.758]**, both honest under the
 in-track pairing structure that violates i.i.d. assumptions. If the
 committee prefers a different framing — for instance, equivalence
 testing against a TOST procedure — the pair-level data are committed to
@@ -289,7 +289,7 @@ without re-running the LLM eval.
 | Metric | Pre-mitigation (with leakage) | Post-mitigation (disjoint pools) | Δ |
 |---|---|---|---|
 | *r*(blended, heuristic) | 0.727 [0.609, 0.814] | **0.836 [0.762, 0.896]** | +0.109 |
-| *r*(LLM-only, heuristic) | 0.493 [0.269, 0.645] | **0.627 [0.476, 0.765]** | +0.134 |
+| *r*(LLM-only, heuristic) | 0.493 [0.269, 0.645] | **0.627 [0.470, 0.758]** | +0.134 |
 | *r*(blended, LLM-only) | 0.956 [0.912, 0.975] | 0.952 [0.923, 0.973] | −0.004 |
 | ρ (blended, heuristic) | 0.708 | **0.847** | +0.139 |
 | τ (blended, heuristic) | 0.526 | 0.669 | +0.143 |

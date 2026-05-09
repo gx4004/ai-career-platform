@@ -43,6 +43,48 @@ TITLE_PL = "System oparty na sztucznej inteligencji do spersonalizowanego doradz
 AUTHOR = "Egemen Goncu"
 SUPERVISOR = "dr inż. Michał Błędowski"
 
+TOC_ENTRIES = [
+    (1, "Chapter 1 — Introduction", "1"),
+    (2, "1.1 The career decision problem", "1"),
+    (2, "1.2 AI-based recommendation systems for careers", "2"),
+    (2, "1.3 Resume parsing and job-description analysis", "2"),
+    (2, "1.4 Heuristic and language-model scoring approaches", "3"),
+    (2, "1.5 Purpose of the thesis", "4"),
+    (2, "1.6 Structure of the thesis", "5"),
+    (1, "Chapter 2 — System architecture", "6"),
+    (2, "2.1 Functional and non-functional requirements", "6"),
+    (2, "2.2 Technology stack and rationale", "8"),
+    (2, "2.3 Backend architecture", "9"),
+    (2, "2.4 Frontend architecture", "12"),
+    (2, "2.5 Data model and persistence", "13"),
+    (2, "2.6 Authentication and security", "14"),
+    (2, "2.7 Deployment topology", "14"),
+    (1, "Chapter 3 — Tool implementations", "16"),
+    (2, "3.1 Cross-cutting design", "16"),
+    (2, "3.2 Resume Analyzer", "18"),
+    (2, "3.3 Job Match", "19"),
+    (2, "3.4 Career Path", "20"),
+    (2, "3.5 Cover Letter", "21"),
+    (2, "3.6 Interview Q&A", "21"),
+    (2, "3.7 Portfolio Planner", "21"),
+    (2, "3.8 Persistence, regeneration, and result history", "22"),
+    (2, "3.9 Reliability behaviour observed in production", "22"),
+    (1, "Chapter 4 — Conducted studies and results", "23"),
+    (2, "4.1 Methodology", "23"),
+    (2, "4.2 The strong heuristic (v2)", "25"),
+    (2, "4.3 Results", "27"),
+    (2, "4.4 Discussion and limitations", "33"),
+    (1, "Chapter 5 — Conclusions", "34"),
+    (2, "5.1 Results", "34"),
+    (2, "5.2 Limitations", "35"),
+    (2, "5.3 Future development", "36"),
+    (1, "Bibliography", "38"),
+    (1, "Appendix A — Source listings", "41"),
+    (1, "Appendix B — Evaluation dataset description", "43"),
+    (1, "Appendix C — Screenshots of the running system", "44"),
+    (1, "Appendix D — Configuration reference", "47"),
+]
+
 
 def set_run_font(run, *, size_pt: float | None = None, bold: bool | None = None, italic: bool | None = None) -> None:
     run.font.name = FONT
@@ -422,6 +464,13 @@ def apply_python_docx_polish(src: Path, staged: Path) -> None:
                 if r_idx == 0:
                     set_cell_shading(cell, "F2F2F2")
                 for p in cell.paragraphs:
+                    # Pandoc may assign a reference-doc paragraph style named
+                    # "Compact" to table cells. That style is absent after
+                    # python-docx rewrites the file, and LibreOffice can export
+                    # the cells as vertically stacked text. Normalize cell
+                    # paragraphs to an existing style before the PDF pass.
+                    p.style = doc.styles["Normal"]
+                    p.paragraph_format.first_line_indent = Cm(0)
                     p.paragraph_format.line_spacing = 1.0
                     p.paragraph_format.space_after = Pt(0)
                     for run in p.runs:
@@ -559,27 +608,41 @@ def is_horizontal_rule(p: etree._Element) -> bool:
 
 def toc_paragraphs(footer_rid: str) -> list[etree._Element]:
     title = paragraph("Contents", align="left", size=36, bold=True, before=0, after=160, page_break_before=True)
+    entries = [title]
+    for level, text, page in TOC_ENTRIES:
+        p = toc_entry_paragraph(level, text, page)
+        entries.append(p)
+    entries[-1].find(w("pPr")).append(section_properties(page_number_format="lowerRoman", footer_rid=footer_rid))
+    return entries
+
+
+def toc_entry_paragraph(level: int, text: str, page: str) -> etree._Element:
     p = etree.Element(w("p"))
     ppr = etree.SubElement(p, w("pPr"))
     pstyle = etree.SubElement(ppr, w("pStyle"))
-    pstyle.set(w("val"), "TOC1")
-    etree.SubElement(ppr, w("keepNext"))
+    pstyle.set(w("val"), "TOC1" if level == 1 else "TOC2")
     spacing = etree.SubElement(ppr, w("spacing"))
     spacing.set(w("before"), "0")
-    spacing.set(w("after"), "160")
-    fld_begin = etree.SubElement(etree.SubElement(p, w("r")), w("fldChar"))
-    fld_begin.set(w("fldCharType"), "begin")
-    fld_begin.set(w("dirty"), "true")
-    instr_run = etree.SubElement(p, w("r"))
-    instr = etree.SubElement(instr_run, w("instrText"))
-    instr.set(f"{{{XML_NS}}}space", "preserve")
-    instr.text = 'TOC \\o "1-2" \\h \\z \\u'
-    fld_sep = etree.SubElement(etree.SubElement(p, w("r")), w("fldChar"))
-    fld_sep.set(w("fldCharType"), "separate")
-    fld_end = etree.SubElement(etree.SubElement(p, w("r")), w("fldChar"))
-    fld_end.set(w("fldCharType"), "end")
-    ppr.append(section_properties(page_number_format="lowerRoman", footer_rid=footer_rid))
-    return [title, p]
+    spacing.set(w("after"), "45")
+
+    def add_text_run(value: str, *, bold: bool = False) -> None:
+        run = etree.SubElement(p, w("r"))
+        rpr = etree.SubElement(run, w("rPr"))
+        rfonts = etree.SubElement(rpr, w("rFonts"))
+        for key in ("ascii", "hAnsi", "eastAsia", "cs"):
+            rfonts.set(w(key), FONT)
+        if bold:
+            etree.SubElement(rpr, w("b"))
+            etree.SubElement(rpr, w("bCs"))
+        sz = etree.SubElement(rpr, w("sz"))
+        sz.set(w("val"), "24")
+        text_node = etree.SubElement(run, w("t"))
+        text_node.text = value
+
+    add_text_run(text, bold=(level == 1))
+    etree.SubElement(etree.SubElement(p, w("r")), w("tab"))
+    add_text_run(page, bold=(level == 1))
+    return p
 
 
 def footer_xml() -> bytes:
@@ -725,6 +788,23 @@ def tag_streszczenie_lang(body: etree._Element) -> None:
                 tag_run_lang_xml(run, "pl-PL")
 
 
+def add_page_break_before(p: etree._Element) -> None:
+    ppr = p.find(w("pPr"))
+    if ppr is None:
+        ppr = etree.Element(w("pPr"))
+        p.insert(0, ppr)
+    if ppr.find(w("pageBreakBefore")) is None:
+        etree.SubElement(ppr, w("pageBreakBefore"))
+
+
+def explicit_page_break_paragraph() -> etree._Element:
+    p = etree.Element(w("p"))
+    r_node = etree.SubElement(p, w("r"))
+    br = etree.SubElement(r_node, w("br"))
+    br.set(w("type"), "page")
+    return p
+
+
 def apply_ooxml_polish(staged: Path, dst: Path) -> None:
     with tempfile.TemporaryDirectory() as tmp:
         tmp_path = Path(tmp)
@@ -770,6 +850,8 @@ def apply_ooxml_polish(staged: Path, dst: Path) -> None:
         for child in list(body):
             if child.tag == w("p") and is_horizontal_rule(child):
                 body.remove(child)
+            elif child.tag == w("p") and paragraph_text(child) == f"{AUTHOR} Wrocław, May 2026":
+                body.remove(child)
 
         abstract_p = body[0]
         abstract_ppr = abstract_p.find(w("pPr"))
@@ -794,6 +876,13 @@ def apply_ooxml_polish(staged: Path, dst: Path) -> None:
             body.insert(body.index(chapter), p)
 
         body.append(section_properties(page_number_format="decimal", footer_rid=footer_rid))
+        for child in body:
+            if child.tag == w("p") and paragraph_text(child) in {"Acknowledgements", "List of abbreviations and symbols"}:
+                add_page_break_before(child)
+        for child in list(body):
+            if child.tag == w("p") and paragraph_text(child) == "List of abbreviations and symbols":
+                body.insert(body.index(child), explicit_page_break_paragraph())
+                break
         tag_streszczenie_lang(body)
 
         (tmp_path / "word" / footer_name).write_bytes(footer_xml())

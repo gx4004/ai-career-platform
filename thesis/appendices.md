@@ -111,7 +111,7 @@ async def run_tool_pipeline(
 
 ## Appendix B — Evaluation dataset description
 
-The evaluation dataset used in Chapter 4.3 contains *N* = 30 resumes and *M* ≈ 20 job descriptions, organised into six role tracks: backend engineering, frontend engineering, full-stack engineering, data analytics, product design, and product management.
+The evaluation dataset used in Chapter 4.3 contains *N* = 30 resumes and *M* = 20 job descriptions, organised into six role tracks: backend engineering, frontend engineering, full-stack engineering, data analytics, product design, and product management.
 
 ### B.1 Resume synthesis procedure
 
@@ -139,25 +139,25 @@ The screenshots in this appendix were captured at 1920 × 1080 viewport against 
 
 ### C.1 Landing page
 
-![Figure C.1 — Career Workbench landing page (signed-out, production deployment).](figures/ui-01-landing.png)
+![](figures/ui-01-landing.png)
 
 *Figure C.1: The public landing page at `https://thecareerworkbench.com`, presenting the six career-tooling pillars and the primary call-to-action to sign in or proceed as guest.*
 
 ### C.2 Resume Analyzer input page
 
-![Figure C.2 — Resume Analyzer input page, guest mode.](figures/ui-03-resume-input.png)
+![](figures/ui-03-resume-input.png)
 
 *Figure C.2: The Resume Analyzer input page (`/resume`) as it renders for a guest visitor. The input surface accepts a free-text or uploaded resume, with an optional target job description, before invoking the analytical pipeline described in Chapter 3.2.*
 
 ### C.3 Resume Analyzer result page (blended mode)
 
-![Figure C.3 — Resume Analyzer result page in blended mode.](figures/ui-04-resume-result.png)
+![](figures/ui-04-resume-result.png)
 
 *Figure C.3: The Resume Analyzer result page after a blended-mode (heuristic 40 % + LLM 60 %) run on the synthetic backend-engineer resume described in Chapter 4 paired with a representative backend-engineer job description. The page renders the overall score, the five-axis sub-score breakdown, the deterministic issues list, the prioritised top actions, and the role-fit narrative — the response shape documented in Chapter 3.2.3.*
 
 ### C.4 Job Match result page
 
-![Figure C.4 — Job Match result page on the same resume / job-description pair.](figures/ui-05-job-match-result.png)
+![](figures/ui-05-job-match-result.png)
 
 *Figure C.4: The Job Match result page on the same input pair as Figure C.3. The view exposes the matched-keyword set, the missing-keyword set, the deterministic verdict, the recruiter-style summary, and the requirement-by-requirement breakdown produced by the prompt described in Chapter 3.3.3.*
 
@@ -218,7 +218,7 @@ The evaluation run used the following commands at the repository root:
 $ cd backend
 $ SCORING_MODE=blended RESULT_CACHE_ENABLED=false \
     python ../scripts/eval_scoring.py
-$ python ../scripts/analyze_eval_results.py > ../thesis/chapter-04-results.md
+$ python ../scripts/analyze_eval_results.py
 ```
 
-The harness writes `thesis/eval-results.json`; the analyzer prints the Markdown tables ready to paste into Chapter 4.3.
+The harness writes `thesis/eval-results.json`; the analyzer emits the Markdown-formatted result tables reported in Chapter 4.3.

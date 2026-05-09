@@ -35,7 +35,7 @@ For *generative* tools (Cover Letter, Interview Q&A, Career Path, Portfolio) no 
 
 ### 3.1.5 Caching
 
-The shared pipeline (Chapter 2.3.2) computes a content hash from the tool name, the sanitised inputs, the user identifier, and any tool-specific cache keys. The result of a cache hit is returned without invoking the service function, bypassing the LLM call entirely. The cache is in-memory with a one-hour TTL and is intentionally not shared between processes; this is acceptable for thesis-scoped traffic, and Redis is documented in Chapter 5 as the planned upgrade for V1.1.
+The shared pipeline (Chapter 2.3.2) computes a content hash from the tool name, the sanitised inputs, the user identifier, and any tool-specific cache keys. The result of a cache hit is returned without invoking the service function, bypassing the LLM call entirely. The cache is in-memory with a one-hour TTL and is intentionally not shared between processes; this is acceptable for thesis-scoped traffic, and Section 5.3 documents the Redis-backed shared cache as the planned operational upgrade.
 
 
 ## 3.2 Resume Analyzer
