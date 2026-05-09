@@ -547,10 +547,26 @@ def paragraph(
     return p
 
 
+def horizontal_rule(*, before: int = 0, after: int = 0) -> etree._Element:
+    p = paragraph("", align="center", before=before, after=after)
+    ppr = p.find(w("pPr"))
+    pbdr = etree.SubElement(ppr, w("pBdr"))
+    bottom = etree.SubElement(pbdr, w("bottom"))
+    bottom.set(w("val"), "single")
+    bottom.set(w("sz"), "8")
+    bottom.set(w("space"), "1")
+    bottom.set(w("color"), "000000")
+    ind = etree.SubElement(ppr, w("ind"))
+    ind.set(w("left"), "720")
+    ind.set(w("right"), "720")
+    return p
+
+
 def title_page_paragraphs() -> list[etree._Element]:
     paras = [
         paragraph("Wrocław University of Science and Technology", align="center", size=28, bold=True, after=90),
-        paragraph("Faculty of Electronics, Photonics and Microsystems", align="center", size=26, after=700),
+        paragraph("Faculty of Electronics, Photonics and Microsystems", align="center", size=26, after=120),
+        horizontal_rule(after=560),
         paragraph("Field of Study: Electronic and Computer Engineering", align="center", size=24, after=560),
         paragraph("BACHELOR THESIS", align="center", size=36, bold=True, after=300),
         paragraph("Title of Thesis:", align="center", size=24, after=120),
@@ -560,6 +576,7 @@ def title_page_paragraphs() -> list[etree._Element]:
         paragraph(AUTHOR, align="center", size=24, bold=True, after=260),
         paragraph("Supervisor:", align="center", size=24, after=80),
         paragraph(SUPERVISOR, align="center", size=24, after=820),
+        horizontal_rule(after=120),
         paragraph("WROCŁAW 2026", align="center", size=24, bold=True, after=0),
     ]
     section_p = paragraph("")
@@ -797,6 +814,17 @@ def add_page_break_before(p: etree._Element) -> None:
         etree.SubElement(ppr, w("pageBreakBefore"))
 
 
+def prepend_page_break_run(p: etree._Element) -> None:
+    first_run = p.find(w("r"))
+    if first_run is not None and first_run.find(w("br")) is not None:
+        return
+    run = etree.Element(w("r"))
+    br = etree.SubElement(run, w("br"))
+    br.set(w("type"), "page")
+    insert_at = 1 if p.find(w("pPr")) is not None else 0
+    p.insert(insert_at, run)
+
+
 def explicit_page_break_paragraph() -> etree._Element:
     p = etree.Element(w("p"))
     r_node = etree.SubElement(p, w("r"))
@@ -879,10 +907,12 @@ def apply_ooxml_polish(staged: Path, dst: Path) -> None:
         for child in body:
             if child.tag == w("p") and paragraph_text(child) in {"Acknowledgements", "List of abbreviations and symbols"}:
                 add_page_break_before(child)
-        for child in list(body):
-            if child.tag == w("p") and paragraph_text(child) == "List of abbreviations and symbols":
-                body.insert(body.index(child), explicit_page_break_paragraph())
-                break
+                prepend_page_break_run(child)
+        for heading in ("Acknowledgements", "List of abbreviations and symbols"):
+            for child in list(body):
+                if child.tag == w("p") and paragraph_text(child) == heading:
+                    body.insert(body.index(child), explicit_page_break_paragraph())
+                    break
         tag_streszczenie_lang(body)
 
         (tmp_path / "word" / footer_name).write_bytes(footer_xml())
