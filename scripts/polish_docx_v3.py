@@ -51,38 +51,38 @@ TOC_ENTRIES = [
     (2, "1.4 Heuristic and language-model scoring approaches", "3"),
     (2, "1.5 Purpose of the thesis", "4"),
     (2, "1.6 Structure of the thesis", "5"),
-    (1, "Chapter 2 — System architecture", "6"),
-    (2, "2.1 Functional and non-functional requirements", "6"),
-    (2, "2.2 Technology stack and rationale", "8"),
-    (2, "2.3 Backend architecture", "9"),
-    (2, "2.4 Frontend architecture", "12"),
-    (2, "2.5 Data model and persistence", "13"),
-    (2, "2.6 Authentication and security", "14"),
-    (2, "2.7 Deployment topology", "14"),
-    (1, "Chapter 3 — Tool implementations", "16"),
-    (2, "3.1 Cross-cutting design", "16"),
-    (2, "3.2 Resume Analyzer", "18"),
-    (2, "3.3 Job Match", "19"),
-    (2, "3.4 Career Path", "20"),
-    (2, "3.5 Cover Letter", "21"),
-    (2, "3.6 Interview Q&A", "21"),
-    (2, "3.7 Portfolio Planner", "21"),
-    (2, "3.8 Persistence, regeneration, and result history", "22"),
-    (2, "3.9 Reliability behaviour observed in production", "22"),
-    (1, "Chapter 4 — Conducted studies and results", "23"),
-    (2, "4.1 Methodology", "23"),
-    (2, "4.2 The strong heuristic (v2)", "25"),
-    (2, "4.3 Results", "27"),
-    (2, "4.4 Discussion and limitations", "33"),
-    (1, "Chapter 5 — Conclusions", "34"),
-    (2, "5.1 Results", "34"),
-    (2, "5.2 Limitations", "35"),
-    (2, "5.3 Future development", "36"),
-    (1, "Bibliography", "38"),
-    (1, "Appendix A — Source listings", "41"),
-    (1, "Appendix B — Evaluation dataset description", "43"),
-    (1, "Appendix C — Screenshots of the running system", "44"),
-    (1, "Appendix D — Configuration reference", "47"),
+    (1, "Chapter 2 — System architecture", "7"),
+    (2, "2.1 Functional and non-functional requirements", "7"),
+    (2, "2.2 Technology stack and rationale", "9"),
+    (2, "2.3 Backend architecture", "10"),
+    (2, "2.4 Frontend architecture", "13"),
+    (2, "2.5 Data model and persistence", "14"),
+    (2, "2.6 Authentication and security", "15"),
+    (2, "2.7 Deployment topology", "15"),
+    (1, "Chapter 3 — Tool implementations", "18"),
+    (2, "3.1 Cross-cutting design", "18"),
+    (2, "3.2 Resume Analyzer", "20"),
+    (2, "3.3 Job Match", "21"),
+    (2, "3.4 Career Path", "22"),
+    (2, "3.5 Cover Letter", "22"),
+    (2, "3.6 Interview Q&A", "23"),
+    (2, "3.7 Portfolio Planner", "23"),
+    (2, "3.8 Persistence, regeneration, and result history", "23"),
+    (2, "3.9 Reliability behaviour observed in production", "24"),
+    (1, "Chapter 4 — Conducted studies and results", "25"),
+    (2, "4.1 Methodology", "25"),
+    (2, "4.2 The strong heuristic (v2)", "27"),
+    (2, "4.3 Results", "29"),
+    (2, "4.4 Discussion and limitations", "35"),
+    (1, "Chapter 5 — Conclusions", "37"),
+    (2, "5.1 Results", "37"),
+    (2, "5.2 Limitations", "38"),
+    (2, "5.3 Future development", "39"),
+    (1, "Bibliography", "42"),
+    (1, "Appendix A — Source listings", "47"),
+    (1, "Appendix B — Evaluation dataset description", "49"),
+    (1, "Appendix C — Screenshots of the running system", "50"),
+    (1, "Appendix D — Configuration reference", "53"),
 ]
 
 
@@ -904,15 +904,45 @@ def apply_ooxml_polish(staged: Path, dst: Path) -> None:
             body.insert(body.index(chapter), p)
 
         body.append(section_properties(page_number_format="decimal", footer_rid=footer_rid))
+        # Per-section page breaks: use inline <w:br type="page"> at the start
+        # of the heading paragraph's run sequence. Pandoc emits every "# / ##"
+        # marker as a Normal-styled paragraph (not Heading 1), so neither the
+        # python-docx style rule at L397 nor pPr-level pageBreakBefore fires
+        # reliably for these. LibreOffice silently ignores pageBreakBefore on
+        # Normal-styled paragraphs during PDF export, which produced visible
+        # bleeding (each chapter / appendix continuing mid-page from the
+        # previous one). Inline <w:br> is honored verbatim by both Word and
+        # LibreOffice without creating a leading blank.
+        #
+        # Excluded: "Chapter 1 — Introduction" and "Abstract — Streszczenie /
+        # Abstract" — these already get a page boundary from the section break
+        # inserted earlier in this function (title-page sectPr and TOC sectPr).
+        # Adding an inline <w:br> on top of an existing section break would
+        # produce a blank page.
+        page_break_headings = {
+            "Abstract (English)",
+            "Acknowledgements",
+            "List of abbreviations and symbols",
+            "Chapter 2 — System architecture",
+            "Chapter 3 — Tool implementations",
+            "Chapter 4 — Conducted studies and results",
+            "Chapter 5 — Conclusions",
+            "Bibliography",
+            "Appendices",
+        }
         for child in body:
-            if child.tag == w("p") and paragraph_text(child) in {"Acknowledgements", "List of abbreviations and symbols"}:
-                add_page_break_before(child)
+            if child.tag != w("p"):
+                continue
+            # Skip TOC entries — their text matches "Appendix X — ..." but
+            # they are not body section headings. Their pStyle is TOC1/TOC2.
+            ppr = child.find(w("pPr"))
+            if ppr is not None:
+                pstyle = ppr.find(w("pStyle"))
+                if pstyle is not None and pstyle.get(w("val"), "").startswith("TOC"):
+                    continue
+            text = paragraph_text(child)
+            if text in page_break_headings or text.startswith("Appendix "):
                 prepend_page_break_run(child)
-        for heading in ("Acknowledgements", "List of abbreviations and symbols"):
-            for child in list(body):
-                if child.tag == w("p") and paragraph_text(child) == heading:
-                    body.insert(body.index(child), explicit_page_break_paragraph())
-                    break
         tag_streszczenie_lang(body)
 
         (tmp_path / "word" / footer_name).write_bytes(footer_xml())
