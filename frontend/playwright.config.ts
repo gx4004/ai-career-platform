@@ -49,6 +49,10 @@ export default defineConfig({
       reuseExistingServer: false,
       timeout: 120_000,
       env: {
+        // TanStack Start's Vite dev server suppresses client hydration when
+        // GitHub Actions injects CI=true. The test runner remains in CI mode;
+        // only the interactive app server needs normal development semantics.
+        CI: '',
         VITE_API_URL: 'http://127.0.0.1:8000/api/v1',
       },
     },
