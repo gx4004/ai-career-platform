@@ -19,6 +19,8 @@ from app.services import (
 
 
 async def deterministic_complete_structured(*_args, **_kwargs) -> dict:
+    if any("[E2E_PROVIDER_FAILURE]" in str(value) for value in _args):
+        raise RuntimeError("Deterministic E2E provider failure")
     return {}
 
 

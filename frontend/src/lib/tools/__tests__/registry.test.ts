@@ -34,6 +34,15 @@ describe('Tool registry', () => {
     expect(toolList).toHaveLength(6)
   })
 
+  it('keeps provider failure behavior tool-specific', () => {
+    expect(tools.resume.providerFailureMode).toBe('heuristic_fallback')
+    expect(tools['job-match'].providerFailureMode).toBe('heuristic_fallback')
+
+    for (const toolId of ['career', 'cover-letter', 'interview', 'portfolio'] as const) {
+      expect(tools[toolId].providerFailureMode).toBe('explicit_error')
+    }
+  })
+
   describe('tool definitions', () => {
     for (const tool of toolList) {
       it(`${tool.id} has required fields`, () => {
