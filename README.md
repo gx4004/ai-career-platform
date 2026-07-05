@@ -18,11 +18,18 @@ The app supports guest demo runs, authenticated workspace persistence, exportabl
 
 ## Local Setup
 
+Prerequisites:
+
+- Node.js 22 and pnpm 10.30.3
+- Python 3.12
+- PostgreSQL 16 when verifying the complete migration history
+
 ### Frontend
 
 ```bash
 cd frontend
-pnpm install
+pnpm install --frozen-lockfile
+cp .env.example .env
 pnpm dev
 ```
 
@@ -34,8 +41,9 @@ Default frontend URL: `http://localhost:3000`
 cd backend
 python -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
+pip install -r requirements-dev.txt
 cp .env.example .env
+# Set DATABASE_URL in .env to a PostgreSQL 16 database before migrating.
 alembic upgrade head
 uvicorn app.main:app --reload
 ```
@@ -43,25 +51,28 @@ uvicorn app.main:app --reload
 Default backend URL: `http://localhost:8000`
 Default API prefix: `http://localhost:8000/api/v1`
 
+The backend example retains SQLite as a lightweight application-development
+default, but SQLite cannot replay the full Alembic history. Use a disposable
+PostgreSQL 16 database for clean setup and migration verification:
+
+```bash
+cd backend
+DATABASE_URL=postgresql+psycopg2://<user>:<password>@<host>/<database> \
+  alembic upgrade head
+```
+
 ## Environment
 
-Backend `.env` values:
+Use [`backend/.env.example`](backend/.env.example) and
+[`frontend/.env.example`](frontend/.env.example) as the authoritative setting
+inventories. At minimum, set a non-default backend `SECRET_KEY` and configure
+`DATABASE_URL` for the intended database.
 
-- `DATABASE_URL`
-- `SECRET_KEY`
-- `ACCESS_TOKEN_EXPIRE_MINUTES`
-- `ALGORITHM`
-- `LLM_PROVIDER`
-- `LLM_MODEL`
-- `OPENAI_API_KEY`
-- `ANTHROPIC_API_KEY`
-- `GROQ_API_KEY`
-- `VERTEX_PROJECT_ID`
-- `VERTEX_LOCATION`
-- `VERTEX_GEMINI_MODEL`
-- `VERTEX_IMAGEN_MODEL`
-- `VERTEX_IMAGE_VARIANTS`
-- `ENVIRONMENT`
+The V1 generation provider is Vertex AI. Local generative workflows require valid
+`VERTEX_PROJECT_ID` and `VERTEX_LOCATION` values plus working Google Cloud
+credentials. Provider-backed smoke tests are currently blocked by
+[issue #51](https://github.com/gx4004/ai-career-platform/issues/51). Automated tests
+mock AI responses and do not require live Vertex access.
 
 Notes:
 
@@ -77,8 +88,12 @@ Notes:
 ## Verification Commands
 
 ```bash
-cd backend && ./.venv/bin/pytest
-cd frontend && pnpm test
-cd frontend && pnpm build
-```
+cd frontend
+pnpm typecheck
+pnpm test
+pnpm build
 
+cd ../backend
+ruff check app
+pytest -q
+```
