@@ -30,7 +30,7 @@ BSc Computer Science
 async function submitResume(page: import('@playwright/test').Page) {
   await page.goto('/resume')
   await page.getByRole('button', { name: 'Paste text instead' }).click()
-  await page.getByLabel('Resume text').fill(resumeText)
+  await page.locator('#resume-resumeText').fill(resumeText)
   await page.getByRole('button', { name: 'Review resume' }).click()
   await expect(page).toHaveURL(/\/resume\/result\/[^/]+$/)
 }
@@ -38,10 +38,10 @@ async function submitResume(page: import('@playwright/test').Page) {
 async function register(page: import('@playwright/test').Page, prefix: string) {
   await page.goto('/login')
   await page.getByRole('tab', { name: 'Create Account' }).click()
-  await page.getByLabel('Full name').fill('R2 Test User')
-  await page.getByLabel('Email').fill(`${prefix}-${Date.now()}@example.com`)
-  await page.getByLabel('Password').fill('correct-horse-battery-staple')
-  await page.getByLabel(/I agree to the Terms of Service/).check()
+  await page.locator('#register-name').fill('R2 Test User')
+  await page.locator('#register-email').fill(`${prefix}-${Date.now()}@example.com`)
+  await page.locator('#register-password').fill('correct-horse-battery-staple')
+  await page.locator('#register-tos').check()
   await page.getByRole('button', { name: 'Create free account' }).click()
   await expect(page.getByRole('heading', { name: 'You are already signed in' })).toBeVisible()
 }
