@@ -78,7 +78,9 @@ cd backend && alembic upgrade head        # Run migrations
 - Hybrid theme: dark sidebar/topbar + light content area. No dark mode toggle.
 - Tool input pages: dark-to-light gradient hero (tool-input-hero) with per-tool animations + chips, form surface below
 - Result pages: premium redesign with dark hero variant (Resume/Job Match), heroExtra sections, midSection (Fix First cards), per-tool views
-- Deploy: push to both `main` and `deploy` branches (`git push origin main && git push origin main:deploy`). Railway watches `deploy`.
+- Deploy: Railway watches `deploy`. Promote reviewed release commits deliberately from
+  `chapter2` to `main`, then to `deploy`; never push experimental work directly to
+  either stable branch.
 - Mobile: bottom tab bar (`MobileNav`) + tools sheet (`ToolGridSheet`); responsive CSS for the existing layouts. No bespoke mobile-only components beyond those.
 - Re-generate always creates new ToolRun row (parent_run_id chain, never overwrite)
 - Guest runs: in-memory Map only, never persisted, drives signup conversion
@@ -126,4 +128,27 @@ Review gate is ON — Codex automatically reviews Claude's output before complet
 - Don't add LLM streaming (v2)
 - Don't create new documentation files unless asked
 - Don't modify tool priority numbers without asking
-- Always push to BOTH `main` and `deploy` branches for Railway deployment
+- Never push experimental work directly to `main` or `deploy`
+
+## Agent skills
+
+### Issue tracker
+
+Work is tracked in GitHub Issues; external pull requests are not a triage request
+surface. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+The canonical Matt Pocock triage roles map directly to GitHub labels. See
+`docs/agents/triage-labels.md`.
+
+### Domain docs
+
+This is a single-context repository with `CONTEXT.md` at the root and ADRs under
+`docs/adr/`. See `docs/agents/domain.md`.
+
+### Workflow
+
+Use the full `/grill-with-docs` → `/to-prd` → `/to-issues` → `/implement` (with
+`/tdd` where appropriate) → `/code-review` → `/triage` flow for major outcomes.
+For small fixes, use only the skills relevant to the risk and scope.
