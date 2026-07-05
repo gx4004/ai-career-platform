@@ -54,7 +54,6 @@ deferred; the eventual release posture is a free private beta.
 | Documentation drift | Old roadmap, frontend overhaul plan, `design.md`, and source code disagree in places. | Use canonical docs going forward; verify disputed behavior against code/UI. |
 | Mixed local worktree | Product edits can accidentally include active thesis/generated files. | Stage explicit product paths only and verify every commit. |
 | Release environment unverified | Railway topology, variables, migrations, domain, and deploy branch may have changed. | Run a deployment inventory and staging smoke test. |
-| Frontend animation test flake | `DropzoneHero` success-state timing failed once in Linux CI before passing on rerun. | Stabilize the animation-exit test seam in [#54](https://github.com/gx4004/ai-career-platform/issues/54) without changing product motion. |
 | Privacy retention unspecified | Resume text and generated output are sensitive. | Accept a retention/deletion decision before public launch. |
 | Design contract conflict | `design.md` says light heroes while older context describes dark tool heroes. | Visually audit current product and accept one direction. |
 | Browser storage contains workflow content | Useful for guests, but sensitive and easy to overlook. | Audit minimum data, expiry behavior, and clear-local-data UX. |
