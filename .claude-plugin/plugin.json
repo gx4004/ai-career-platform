@@ -1,0 +1,30 @@
+{
+  "name": "mattpocock-skills",
+  "version": "1.0.0",
+  "description": "Local Matt Pocock engineering workflow skills for Career Workbench.",
+  "author": {
+    "name": "Career Workbench contributors"
+  },
+  "skills": [
+    "./.claude/skills/ask-matt",
+    "./.claude/skills/diagnosing-bugs",
+    "./.claude/skills/grill-with-docs",
+    "./.claude/skills/triage",
+    "./.claude/skills/improve-codebase-architecture",
+    "./.claude/skills/setup-matt-pocock-skills",
+    "./.claude/skills/tdd",
+    "./.claude/skills/to-issues",
+    "./.claude/skills/to-prd",
+    "./.claude/skills/implement",
+    "./.claude/skills/prototype",
+    "./.claude/skills/research",
+    "./.claude/skills/domain-modeling",
+    "./.claude/skills/codebase-design",
+    "./.claude/skills/code-review",
+    "./.claude/skills/grill-me",
+    "./.claude/skills/grilling",
+    "./.claude/skills/handoff",
+    "./.claude/skills/teach",
+    "./.claude/skills/writing-great-skills"
+  ]
+}
