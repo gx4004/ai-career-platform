@@ -83,7 +83,7 @@ R0 is complete when:
 - frontend install, typecheck, tests, and production build have recorded outcomes;
 - backend tests and migration from an empty disposable database have recorded
   outcomes;
-- three guest workflow checks have recorded outcomes;
+- three guest submission checks have recorded outcomes;
 - environment examples are sufficient and contain no secrets;
 - every failure is fixed within policy or linked to a focused issue;
 - `docs/state.md` and the R0 pull request match the verified repository state;

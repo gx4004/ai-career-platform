@@ -14,9 +14,9 @@ The product baseline is being prepared on `r0-setup`, targeting the long-lived
 promotion branches. The working tree contains unrelated thesis and generated asset
 changes that agents must preserve and exclude from product commits.
 
-The next product release is not yet defined. The roadmap therefore treats release
-positioning and baseline verification as the first gate rather than assuming a public
-launch.
+The eventual first release posture is a free private beta. Launch operations,
+acquisition, and monetization remain deferred while the roadmap establishes the
+engineering and product-quality gates required to support that beta.
 
 The long-term direction is now accepted: perfect the current product first, then
 expand through an Evidence Profile, premium CV Studio, Application Campaigns, lawful
@@ -61,11 +61,11 @@ eventual release posture is a free private beta.
 | In-process cache | Multi-instance behavior may be inconsistent. | Confirm production instance count; document or replace when needed. |
 | Monetization deferred | Historical ad-gate code must not be mistaken for a current release requirement. | Keep gates disabled and revisit only after product-quality work. |
 
-## Baseline Still Needed
+## Baseline Work Remaining
 
-- current frontend typecheck, tests, production build, and bundle report;
-- current backend tests and migration-to-head from a clean database;
-- smoke test of all six guest tools;
+- live migration-to-head from a clean PostgreSQL database in PR CI;
+- provider-backed completion of Job Match and one generative guest tool;
+- later R2 smoke test of all six guest tools;
 - authenticated workflow and ownership checks;
 - export verification;
 - mobile and keyboard walkthrough;
@@ -93,8 +93,8 @@ that do not alter runtime behavior
 
 **Environment:** macOS, pnpm 10.30.3, Python 3.11.9, pytest 9.0.2
 
-**Status:** automated baseline passes; provider-dependent browser smoke and live
-PostgreSQL migration await external verification
+**Status:** automated baseline and PostgreSQL migration pass; provider-dependent
+browser smoke remains blocked
 
 | Check | Command | Duration | Result | Notes |
 |---|---|---:|---|---|
@@ -103,7 +103,7 @@ PostgreSQL migration await external verification
 | Frontend tests | `pnpm test` | 9.45 s | pass | 34 files, 181 tests. Non-blocking reduced-motion and Framer Motion deprecation warnings remain. |
 | Frontend build | `pnpm build` | 5.71 s | pass | Client and SSR builds completed; main client JS 495.80 kB and CSS 449.91 kB before gzip. |
 | Backend tests | `pytest -q` | 20.90 s | pass | 168 tests; five third-party SWIG deprecation warnings. |
-| PostgreSQL migration SQL | `alembic upgrade head --sql` with PostgreSQL URL | 0.67 s | pass | Generated 116 lines through revision `e4a7b2d918f3`; live empty-PostgreSQL execution delegated to existing PR CI job. |
+| PostgreSQL migration | Local `alembic upgrade head --sql`; PR CI `alembic upgrade head` against empty PostgreSQL 16 | 0.67 s local; CI backend job 1 m 24 s | pass | Generated 116 lines locally through revision `e4a7b2d918f3`; PR [#52](https://github.com/gx4004/ai-career-platform/pull/52) completed the live migration. |
 | SQLite migration replay | `alembic upgrade head` with disposable SQLite database | 0.42 s | unsupported | Stops at `8a9d2f4b1c55`; SQLite cannot add the migration's foreign-key constraint. R0 now documents PostgreSQL as the migration target. |
 | Guest Resume Analyzer | Browser submission using synthetic resume text | 89.74 s | degraded pass | UI/API completed and returned deterministic fallback after Vertex AI reported billing disabled. |
 | Guest Job Match | Browser form and carried resume context | — | blocked | Form and tab-scoped resume context loaded; provider-dependent completion blocked by [#51](https://github.com/gx4004/ai-career-platform/issues/51). |

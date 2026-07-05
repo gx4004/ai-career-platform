@@ -25,7 +25,7 @@ Acceptance gate:
 - frontend install, typecheck, tests, and production build have recorded outcomes;
 - backend tests and clean-database migration have recorded outcomes;
 - environment examples are checked for completeness without exposing secrets;
-- three representative guest workflows have recorded outcomes;
+- three representative guest submissions have recorded outcomes;
 - every failure is fixed within the R0 policy or linked to a focused issue.
 
 ### R1. Baseline Remediation and Code Quality
