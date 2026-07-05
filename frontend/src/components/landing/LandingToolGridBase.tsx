@@ -2,7 +2,7 @@ import { ArrowUpRight } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 import { motion, useReducedMotion } from 'framer-motion'
 
-const MotionLink = motion(Link)
+const MotionLink = motion.create(Link)
 import { toolList, type ToolId } from '#/lib/tools/registry'
 import { useSpotlight } from '#/hooks/useSpotlight'
 
