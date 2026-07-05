@@ -30,7 +30,7 @@ Acceptance gate:
 
 ### R1. Baseline Remediation and Code Quality
 
-**Status:** in progress
+**Status:** complete
 **Outcome:** failures and high-confidence code-quality defects discovered by R0 are
 resolved without changing accepted product contracts.
 
@@ -46,8 +46,12 @@ Acceptance gate:
 
 ### R2. End-to-End Product Audit
 
-**Status:** proposed
+**Status:** in progress
 **Outcome:** every V1 journey is verified against the canonical spec.
+
+R2 uses deterministic provider responses at the browser-test boundary. Live Vertex
+authorization remains separately owned by issue #51 and is not an R2 completion
+gate; no production mock provider or fallback is permitted.
 
 Acceptance gate:
 
