@@ -129,6 +129,13 @@ function PageTransition({ children }: { children: ReactNode }) {
 }
 
 function RootDocument({ children }: { children: ReactNode }) {
+  useEffect(() => {
+    document.documentElement.dataset.hydrated = 'true'
+    return () => {
+      delete document.documentElement.dataset.hydrated
+    }
+  }, [])
+
   // Register service worker for PWA support
   useEffect(() => {
     const RELOAD_FLAG = 'cw:sw-reload-pending'
