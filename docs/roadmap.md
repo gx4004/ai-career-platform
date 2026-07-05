@@ -14,7 +14,7 @@ automation grounded in their evidence.
 
 ### R0. Engineering Baseline
 
-**Status:** in progress
+**Status:** complete
 **Outcome:** the current product has a reproducible, evidence-backed engineering
 baseline on the product experimentation branch.
 
@@ -30,7 +30,7 @@ Acceptance gate:
 
 ### R1. Baseline Remediation and Code Quality
 
-**Status:** ready after R0
+**Status:** in progress
 **Outcome:** failures and high-confidence code-quality defects discovered by R0 are
 resolved without changing accepted product contracts.
 
@@ -93,7 +93,7 @@ Acceptance gate:
 
 ### R5. Staging and Release Operations
 
-**Status:** blocked by R0
+**Status:** blocked by R1–R4
 **Outcome:** deployment, migration, monitoring, and rollback are rehearsed before users
 depend on the product.
 
