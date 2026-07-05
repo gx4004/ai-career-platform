@@ -11,6 +11,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest run",
+    "test:e2e": "node scripts/run-e2e.mjs",
+    "test:e2e:ci": "playwright test",
     "typecheck": "tsc --noEmit",
     "ci": "pnpm typecheck && pnpm test && pnpm build"
   },

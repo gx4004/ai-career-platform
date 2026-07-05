@@ -9,10 +9,10 @@ Career Workbench is feature-rich and appears closer to release hardening than in
 MVP construction. All six tools, guest runs, authentication, history/workspaces,
 admin, exports, telemetry, and deployment configuration exist.
 
-R0 is merged into the long-lived `chapter2` product experimentation branch, and R1
-baseline remediation is in progress there. `main` and `deploy` remain stable
-promotion branches. The working tree contains unrelated thesis and generated asset
-changes that agents must preserve and exclude from product commits.
+R0 and R1 are merged into the long-lived `chapter2` product experimentation branch,
+and the R2 end-to-end product audit is in progress there. `main` and `deploy` remain
+stable promotion branches. The working tree contains unrelated thesis and generated
+asset changes that agents must preserve and exclude from product commits.
 
 The eventual first release posture is a free private beta. Launch operations,
 acquisition, and monetization remain deferred while the roadmap establishes the
@@ -40,12 +40,13 @@ features are not current implementation claims.
 
 ## Immediate Objective
 
-**Status: R1 in progress**
+**Status: R2 in progress**
 
-Resolve high-confidence baseline defects without changing accepted product
-contracts. Use the resulting evidence to drive R2–R4 before beginning Evidence
-Profile or CV Studio work. Launch, acquisition, and monetization planning remain
-deferred; the eventual release posture is a free private beta.
+Verify every V1 journey through maintained browser tests without changing accepted
+product contracts. R2 uses deterministic AI responses only inside its dedicated test
+process; live Vertex authorization remains the human-owned issue #51 and is not a
+current completion gate. Use the resulting evidence to drive R3–R4 before beginning
+Evidence Profile or CV Studio work.
 
 ## Risks and Drift to Resolve
 
@@ -60,10 +61,9 @@ deferred; the eventual release posture is a free private beta.
 | In-process cache | Multi-instance behavior may be inconsistent. | Confirm production instance count; document or replace when needed. |
 | Monetization deferred | Historical ad-gate code must not be mistaken for a current release requirement. | Keep gates disabled and revisit only after product-quality work. |
 
-## Baseline Work Remaining
+## Product Audit Work Remaining
 
-- provider-backed completion of Job Match and one generative guest tool;
-- later R2 smoke test of all six guest tools;
+- deterministic browser verification of all six guest tools;
 - authenticated workflow and ownership checks;
 - export verification;
 - mobile and keyboard walkthrough;
