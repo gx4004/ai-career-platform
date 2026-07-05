@@ -27,8 +27,13 @@ Education
 BSc Computer Science
 `.trim()
 
+async function gotoHydrated(page: import('@playwright/test').Page, path: string) {
+  await page.goto(path)
+  await page.locator('html[data-hydrated="true"]').waitFor()
+}
+
 async function submitResume(page: import('@playwright/test').Page) {
-  await page.goto('/resume')
+  await gotoHydrated(page, '/resume')
   await page.getByRole('button', { name: 'Paste text instead' }).click()
   await page.locator('#resume-resumeText').fill(resumeText)
   await page.getByRole('button', { name: 'Review resume' }).click()
@@ -36,7 +41,7 @@ async function submitResume(page: import('@playwright/test').Page) {
 }
 
 async function register(page: import('@playwright/test').Page, prefix: string) {
-  await page.goto('/login')
+  await gotoHydrated(page, '/login')
   await page.getByRole('tab', { name: 'Create Account' }).click()
   await page.locator('#register-name').fill('R2 Test User')
   await page.locator('#register-email').fill(`${prefix}-${Date.now()}@example.com`)
