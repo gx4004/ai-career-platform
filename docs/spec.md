@@ -1,178 +1,218 @@
-# Career Workbench — Development Roadmap
+# Career Workbench — Product Specification
 
-> Last updated: 2026-03-31 | Solo dev, student in Poland (RODO/GDPR) | Production product with real users, hybrid ad + subscription revenue
+**Status:** canonical baseline
+**Last reviewed:** 2026-07-05
+**Product stage:** pre-launch / thesis-demo transition
 
----
+## Product Promise
 
-## Completed Phases
+Career Workbench turns a job seeker's existing resume and a target role into a
+connected, explainable body of work: diagnosis, role fit, application materials,
+interview preparation, career direction, and proof-building projects.
 
-### Pre-Phase: Foundation (initial commit → landing polish)
+The product should feel like one workspace with a continuous context, not six
+unrelated AI generators.
 
-Built all 6 tools (Resume Analyzer, Job Match, Cover Letter, Interview Q&A, Career Path, Portfolio Planner), dashboard with hero/showcase/carousel, landing page, mobile components (SwipeDeck, StickyRunBar, BottomTabBar), design system (hybrid dark nav + light content theme), bespoke tool input/result pages, admin panel integrated at `/admin/*`.
+## Primary User
 
-Multiple design iterations: Material 3 tokens, Sovereign Archive palette, stitch redesign, editorial layout. Final: current hybrid theme with per-tool accent colors. Unused variants removed.
+An early-career or transitioning professional who:
 
-### Phase 1: Cleanup (2026-03)
+- has a resume but is unsure what is weakening it;
+- is evaluating or applying to a concrete role;
+- wants useful next actions rather than generic encouragement;
+- needs professional output without learning prompt engineering;
+- may try the product before creating an account.
 
-Removed dead code: preview routes, unused UI components, mock payloads. Archived legacy `admin/` directory. Cleaned up 477 unused images from `pics/`. Optimized hero image (1.5MB PNG -> 300KB JPEG).
+## Jobs to Be Done
 
-### Phase 2: Auth (2026-03)
+1. Show me what recruiters are likely to notice first in my resume.
+2. Explain how well my evidence matches a real role and what is missing.
+3. Help me create application material grounded in my actual experience.
+4. Prepare me for likely interview questions without fabricating achievements.
+5. Help me choose a realistic next direction and close its skill gaps.
+6. Turn missing evidence into portfolio projects I can actually build.
 
-Google OAuth via authlib. Password reset via Resend free tier. JWT in two HttpOnly cookies (access 30min + refresh 7day, SameSite=Lax). Disposable email domain blocklist. Silent token refresh with in-place auth dialog fallback.
+## Core Workflow
 
-### Phase 3: LLM (2026-03)
+```text
+Resume Analyzer ──> Job Match ──> Cover Letter
+       │                 └──────> Interview Q&A
+       └────────> Career Path ──> Portfolio Planner
+```
 
-Switched to native async Vertex AI (`generate_content_async`). 3 retries + exponential backoff (1s/2s/4s). Configured cheaper practice model for interview feedback. Single provider (Gemini 2.5 Flash), no multi-provider abstraction.
+The preferred tool order is:
 
-### Phase 4: Scraper (2026-03)
+1. Resume Analyzer
+2. Job Match
+3. Career Path
+4. Cover Letter
+5. Interview Q&A
+6. Portfolio Planner
 
-BS4 primary + Playwright headless Chromium fallback for JS-heavy sites (LinkedIn, Indeed). 5s/10s timeouts. Graceful fallback to paste textarea when both fail. Partial data pre-fills textarea.
+Users may enter at any tool. When context exists, downstream tools should reuse it
+without requiring repetitive paste/upload work.
 
-### Phase 5: Monetization (2026-03)
+## Tool Contracts
 
-Ad-gate: summary free, details locked behind ad interaction. Client-side sessionStorage unlock (keyed by runId). 30-second countdown fallback for ad-blocker users. `useAd()` hook with bait-element detection. AdSense placeholder only — real SDK pending approval.
+### Resume Analyzer
 
-### Phase 6: Deployment (2026-03)
+Inputs: resume file or text.
 
-Dockerfile for Railway. Railway config for backend + frontend + Postgres (3-service architecture, same domain, path-based routing). Sentry free tier integration (frontend ErrorBoundary + backend middleware). Alembic auto-migration as pre-deploy command.
+Outputs: explainable score, category breakdown, issues with evidence, strengths, and
+prioritized fixes.
 
-### Post-Phase: Hardening (2026-03)
+Rule: scoring blends deterministic quality signals with model analysis.
 
-Security hardening: open redirect prevention, SSRF blocklist for scraper, model override consistency. Landing page: tool card equal heights, correct tool priority order, reduced hero gap. A11y: reduced motion for scroll stagger, webp migration.
+### Job Match
 
----
+Inputs: resume plus job description or supported job import.
 
-### Phase 7: Visual Redesign (2026-04)
+Outputs: explainable match score, requirement states, missing keywords/evidence,
+tailoring actions, and recruiter-facing summary.
 
-Premium visual pass across all tool pages:
+Rule: scoring blends deterministic matching with model analysis.
 
-**Tool input pages**: Dark-to-light gradient hero (`tool-input-hero`) with per-tool CSS animations (scan beam, breathing venn circles, typing cursor, card shuffle, branch grow, tile cascade). Per-tool chip pills (Skills/Score/Tips, Fit/Keywords/Gap, etc.). Shared `ToolInputHero` + `ToolStatusInline` components. Glass-morphism guest banner on dark hero. Smooth gradient flow (no hard dark/white edge).
+### Career Path
 
-**Tool result pages**: Restored premium redesign from `feat/railway-deploy` — dark hero variant for Resume/Job Match with score ring, heroExtra sections for all 6 tools, midSection with Fix First cards, confidence_note subtitles. Per-tool result views: document preview for Cover Letter, question cards for Interview, career path roadmaps, portfolio build sequences.
+Inputs: resume and optional goals/preferences.
 
-**Ad gate bypassed**: `AdGatedLock` returns children immediately for thesis demo. All results fully visible without watching ads. Re-enable by removing early return in `AdGatedLock.tsx` when AdSense is approved.
+Outputs: realistic directions, comparisons, skill gaps, timelines, and next steps.
 
-**Deployment**: Railway watches `deploy` branch. Both `main` and `deploy` must be pushed together.
+Rule: recommendations must distinguish evidence from inference.
 
-## Current Phase: Thesis Demo Polish
+### Cover Letter
 
-- [x] Tool card equal heights + correct priority order
-- [x] Hero gap reduction
-- [x] Security hardening (open redirect, SSRF blocklist)
-- [x] Premium tool input page redesign (dark hero + animations)
-- [x] Premium result page redesign (all 6 tools)
-- [x] Ad gate bypassed for thesis demo
-- [x] Railway deployment on `deploy` branch
-- [x] Auth surface refinements (dialog/sheet glass card, gradient page, Google button polish)
-- [x] Full mobile CSS audit across all 6 tools (grids collapse, sticky footer, hero scaling)
-- [x] White-page race condition fix (query cache fallback for guest results)
-- [x] Error state redesign (icon-based, no stock photos)
+Inputs: resume, target job, and optional tone/context.
 
----
+Outputs: a tailored draft plus customization guidance.
 
-## Next: MVP1 Launch Checklist
+Rule: do not invent experience, metrics, employers, or credentials.
 
-### Cleanup (from audit)
+### Interview Q&A
 
-- [x] Remove preview routes — files never existed, already clean
-- [x] Remove `ToolResultPreview.tsx` + `mockPayloads.ts` — files never existed, already clean
-- [x] Remove unused UI components: `accordion.tsx`, `border-beam.tsx`, `breadcrumb.tsx`, `number-ticker.tsx` — deleted
-- [x] Remove separate `admin/` directory — integrated admin pages built at `/admin/*`
-- [ ] Remove root `package-lock.json` (project uses pnpm)
-- [ ] Remove duplicate scripts: `gen_carousel_fix.py`, `gen_carousel_fix2.py` (keep `gen_carousel_v3.py`)
-- [ ] Remove unused landing variants
-- [x] Delete `frontend-legacy/` (536MB, gitignored, not tracked — deleted from disk)
+Inputs: resume, target job, and question preferences.
 
-### .gitignore additions
+Outputs: role-specific questions, answer structures, focus areas, and practice
+feedback.
 
-- [ ] `.idea/`, `.cta.json`, `.DS_Store`, `.vite/`
+Rule: practice is bounded for cost and abuse control; feedback uses the configured
+practice model.
 
-### Verify before launch
+### Portfolio Planner
 
-- [ ] `pics/` directory — which images are actually referenced vs design working files (~186MB)
-- [ ] CSS files — check `landing.css` (123KB) and `tooling-fullscreen.css` (45KB) for dead rules
-- [ ] Root `package.json` — empty `{}`, needed for workspace config or removable?
-- [ ] AdSense approval + real SDK integration (currently placeholder)
-- [ ] Full test pass (frontend + backend + typecheck)
-- [ ] Production environment variables configured on Railway
-- [ ] Domain + SSL configured
-- [ ] GDPR/RODO: Google CMP (TCF 2.2) consent management active
+Inputs: resume, direction/role, and optional constraints.
 
----
+Outputs: evidence gaps, project concepts, recommended first project, and an ordered
+build plan.
 
-## Future (V1.1+)
+Rule: projects should create credible proof for the target direction.
 
-- Premium subscription tier ($5-10/month, no ads, unlimited runs) — payment processor TBD (Stripe/Paddle/Lemon Squeezy)
-- Affiliate links in result pages (Coursera, TopResume, Udemy, LinkedIn Premium)
-- CAPTCHA (Cloudflare Turnstile) if abuse detected post-launch
-- Redis cache (replace in-memory dict)
-- LLM streaming (v2)
-- i18n translations (TR, DE, FR, ES)
-- Fallback LLM provider (OpenAI) for resilience
-- Google Ad Manager + GPT Rewarded (at 10K+ sessions)
-- Mediavine/Raptive premium ad network (at 25K+ pageviews)
+## Access and Persistence
 
----
+### Guest
 
-## Architecture Decision Log (2026-03-30)
+- Can browse and run all six demo tools.
+- Receives a transient result identified by a client-side demo ID.
+- Result may survive refresh in the same tab through `sessionStorage`.
+- Result is not written to the authenticated history database.
+- Is prompted to sign in for durable history and workspace continuity.
 
-All decisions made during spec interview sessions.
+### Authenticated
 
-| # | Topic | Decision | Rationale |
-|---|-------|----------|-----------|
-| 1 | Result screen architecture | **Hybrid** — shared wrapper + tool-specific middle content | Best separation of concerns |
-| 2 | Heuristic scoring scope | **Only Resume Analyzer & Job Match** use blended heuristic+LLM scoring | Generative tools can't produce meaningful heuristic scores |
-| 3 | Guest result expiry | **"Result expired — run again"** on back-navigation | Drives signup |
-| 4 | Guest ad-gate | **Client-side temp UUID** for ad-unlock tracking | Same ad experience for guest and auth |
-| 5 | Interview limits | **3–12 questions, 3 practice attempts per question** (defaults: 6 questions; UI quick-picks 4/6/8/10) | Cost control: bounded by `LLM_PRACTICE_MODEL` (cheaper) and per-IP rate limit |
-| 6 | Practice feedback model | **Cheaper/lighter model** for practice evaluations | Cost optimization |
-| 7 | LLM fallback | **Tool-specific** — silent heuristic for Resume/Job Match, explicit error for generative | Can't fake a cover letter with heuristics |
-| 8 | Job scraping | **BS4 + Playwright fallback** | Best effort at JS-rendered sites |
-| 9 | Auth token storage | **Two HttpOnly cookies** (access 30min + refresh 7day) | Cross-tab, XSS-resistant, path-scoped refresh |
-| 10 | CSRF protection | **SameSite=Lax cookies** (no double-submit pattern) | Sufficient for modern SPA + JSON API |
-| 11 | Cross-tab workflow | **Tab-scoped only** (sessionStorage) | Simplicity, no sync bugs |
-| 12 | Re-generate storage | **New ToolRun row always** (parent_run_id chain) | Preserves history, enables score delta |
-| 13 | LLM async strategy | **Native async** (generate_content_async) | Proper async, no thread overhead |
-| 14 | LLM retry strategy | **4 retries + exponential backoff with jitter** (5s/10s/20s/40s, per-call timeout 120s) | Robust handling of transient Vertex errors; ~9-min worst case if every retry hangs the full 120s timeout (5×120s + 75s backoff), then tool-specific fallback |
-| 15 | Score visualization | **Universal ScoreRing** component across all tools | Consistent UX |
-| 16 | Monetization model | **Hybrid**: ads V1 + premium subscription V1.1 | Hybrid generates 3x ad-only revenue |
-| 17 | Ad provider | **Google AdSense** Day 1, GAM + Rewarded Phase 2 | No traffic minimum, career niche = premium CPM |
-| 18 | Ad unlock security | **Client-side sessionStorage** | Bypass risk accepted, pragmatic |
-| 19 | Ad blocker handling | **30-second countdown** fallback | Don't lose 30-40% of users |
-| 20 | Deployment platform | **Full Railway** (backend + frontend + Postgres) | Single platform, student-friendly, Docker support |
-| 21 | Database | **Railway Postgres** (replaces Neon) | Integrated with Railway, free tier |
-| 22 | Google OAuth | **V1** with authlib | Reduces signup friction |
-| 23 | Password reset | **V1** via Resend free tier | Essential UX for email/password users |
-| 24 | Disposable email blocking | **Blocklist** of known disposable domains | Prevents guest limit bypass |
-| 25 | i18n scope | **English only V1** | Realistic scope for single developer |
-| 26 | Preview routes | **Remove from production** | Dev-only tooling |
-| 27 | Admin panel | **Integrated** in main frontend, admin/ dir removed | Single codebase |
-| 28 | frontend-legacy/ | **Archive to separate branch**, remove from main | Clean up repo |
-| 29 | Landing page | **Current active variant** is final, remove others | No A/B testing |
-| 30 | Monitoring | **Railway metrics + Sentry free tier** | Error tracking + uptime |
-| 31 | Cache backend | **In-memory V1**, Redis V1.1 | Low traffic, acceptable |
-| 32 | Bundle budget | **200KB initial** with route-based code splitting | Realistic with tree-shaking |
-| 33 | DB migrations | **Automatic during deploy** (pre-deploy command) | Never forgotten |
-| 34 | Bot protection | **Rate limit V1**, CAPTCHA V1.1 | Google OAuth naturally filters bots |
-| 35 | Developer location | **Poland (student)** — RODO/GDPR compliance | Not Turkey |
-| 36 | Affiliate revenue | **V1.1** | Focus on core product first |
-| 37 | Payment processor | **V1.1** (Stripe/Paddle/Lemon Squeezy TBD) | Premium tier deferred |
-| 38 | Injection guard | **System prompt guard + heuristic only** | No input sanitization (false positive risk) |
-| 39 | Guest daily limit | **3-5 runs/day** (cookie tracked, bypass accepted) | Prevents LLM cost abuse |
-| 40 | Performance budget | **200KB** initial JS | Realistic with code splitting |
-| 41 | GDPR ad compliance | **Google CMP (TCF 2.2)** handles consent | Auto-detects user location |
+- Can save runs to history.
+- Can group linked runs into workspaces.
+- Can favorite, label, revisit, regenerate, and delete owned runs.
+- Regeneration creates a new run and preserves the revision chain.
+- Can manage account data subject to the privacy policy.
 
----
+### Admin
 
-## Product Gaps (Acknowledged, Not Planned)
+- Can access aggregate operational views and authorized user/run administration.
+- Must never expose secrets or unnecessary resume/application content.
 
-| Gap | Status |
-|-----|--------|
-| Real-time LLM streaming | Future (v2) |
-| Collaboration / sharing | Not planned (export covers this) |
-| Automated job discovery | Not planned |
-| Mobile native app | Not planned (responsive web) |
-| A/B testing framework | Not planned |
-| Portfolio project tracking | Out of scope |
-| Full dark mode | Not planned (hybrid theme is the design) |
-| CV library / version management | Not planned (each run is independent) |
+## Cross-Cutting Product Requirements
+
+### Trust
+
+- Clearly distinguish heuristic/model output from objective fact.
+- Ground advice in user-provided evidence.
+- Never fabricate user history.
+- Display readable error and recovery states instead of blank pages.
+
+### Privacy and Security
+
+- Follow GDPR/RODO principles: minimization, purpose limitation, deletion, and
+  transparent processors.
+- Keep auth tokens in secure HttpOnly cookies.
+- Do not place secrets or tokens in local/session storage.
+- Scrub sensitive request content from monitoring.
+- Treat resumes and job-search material as sensitive personal data.
+
+### Accessibility
+
+- Core flows work with keyboard navigation.
+- Interactive targets are at least 44×44 CSS pixels where practical.
+- Forms have programmatic labels and visible focus.
+- Text and controls meet WCAG AA contrast.
+- Reduced-motion preferences are honored.
+
+### Reliability
+
+- Resume and Job Match may use a documented heuristic fallback when the LLM fails.
+- Generative tools show an explicit retryable failure rather than fabricated output.
+- Duplicate deterministic requests may use a user-scoped cache.
+- API and frontend schemas stay synchronized.
+
+### Performance
+
+- Preserve route-level code splitting.
+- Avoid loading admin or result-heavy code on the public landing path.
+- Define a measured production budget before launch; the old 200 KB target is not
+  considered active until a new baseline is recorded.
+
+## V1 Scope
+
+Included:
+
+- six connected tools;
+- guest demo and email/Google authentication;
+- authenticated history, workspaces, and revision chains;
+- resume parsing and job-description import with paste fallback;
+- TXT/Markdown export and existing supported document export;
+- operational telemetry, rate limiting, and admin views;
+- responsive web experience;
+- English product experience.
+
+Not in V1:
+
+- native mobile apps;
+- collaboration or public sharing;
+- automated job discovery/application;
+- real-time LLM streaming;
+- multilingual product content;
+- subscriptions, affiliate revenue, or production ad gating until explicitly promoted;
+- resume version library beyond run history/revision chains.
+
+## Product Success Signals
+
+Instrumentation must eventually answer:
+
+- What share of visitors start and complete a first tool run?
+- What share continue to a second connected tool?
+- What share of guests create an account after receiving value?
+- Which tool and failure category cause abandonment?
+- Do users revisit or export saved results?
+- What is model cost and latency per completed workflow?
+
+Numeric targets remain `proposed` until a real analytics baseline and launch target
+are agreed.
+
+## Open Product Questions
+
+These require user decisions before their roadmap outcomes become `ready`:
+
+1. Is the next release a public MVP, a private beta, or a portfolio/thesis showcase?
+2. Which country/market and user segment is the first launch optimized for?
+3. Is monetization part of the first public release or a later validation phase?
+4. What retention/deletion policy applies to resume text and generated results?
+5. Which export formats are launch-critical?

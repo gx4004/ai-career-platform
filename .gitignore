@@ -29,7 +29,6 @@ file::memory:
 .codex-previews/
 .posthog-events.json
 posthog-setup-report.md
-AGENTS.md
 
 # Test coverage output (never commit — leaks source snapshots + local paths)
 coverage/
