@@ -100,7 +100,7 @@ browser smoke remains blocked
 |---|---|---:|---|---|
 | Frontend install | `pnpm install --frozen-lockfile` | 1.65 s | pass | Lockfile was current; no dependency changes. |
 | Frontend typecheck | `pnpm typecheck` | 5.72 s | pass | No TypeScript errors. |
-| Frontend tests | `pnpm test` | 9.45 s | pass | 34 files, 181 tests. Non-blocking reduced-motion and Framer Motion deprecation warnings remain. |
+| Frontend tests | `pnpm test` | 9.45 s | pass | 34 files, 181 tests. A non-blocking reduced-motion warning remains; Node 25 may also report an invalid `--localstorage-file` warning. |
 | Frontend build | `pnpm build` | 5.71 s | pass | Client and SSR builds completed; main client JS 495.80 kB and CSS 449.91 kB before gzip. |
 | Backend tests | `pytest -q` | 20.90 s | pass | 168 tests; five third-party SWIG deprecation warnings. |
 | PostgreSQL migration | Local `alembic upgrade head --sql`; PR CI `alembic upgrade head` against empty PostgreSQL 16 | 0.67 s local; CI backend job 1 m 24 s | pass | Generated 116 lines locally through revision `e4a7b2d918f3`; PR [#52](https://github.com/gx4004/ai-career-platform/pull/52) completed the live migration. |

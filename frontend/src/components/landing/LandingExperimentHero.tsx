@@ -12,7 +12,7 @@ import {
   landingPrimaryCta,
 } from '#/components/landing/landingContent'
 
-const MotionLink = motion(Link)
+const MotionLink = motion.create(Link)
 
 // Neutral audience descriptors — no real brands/universities to avoid implied-endorsement
 // or trademark issues. Swap in testimonials later once we have written permission.

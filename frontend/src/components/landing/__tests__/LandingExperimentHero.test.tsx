@@ -14,10 +14,12 @@ vi.mock('framer-motion', () => {
     <div {...(props as Record<string, unknown>)}>{children}</div>
   )
   const motionValue = () => ({ set: () => {}, get: () => 0 })
-  // motion(Component) returns the component itself so Link mock's href is preserved;
-  // motion.div / motion.a etc. return passthrough via Proxy.
   const motionFactory = (component: unknown) => component
-  const motion = new Proxy(motionFactory, { get: () => passthrough })
+  // motion.create(Component) returns the component itself so Link mock's href is
+  // preserved; motion.div / motion.a etc. return passthrough via Proxy.
+  const motion = new Proxy(motionFactory, {
+    get: (_target, property) => property === 'create' ? motionFactory : passthrough,
+  })
   return {
     motion,
     useReducedMotion: () => true,
