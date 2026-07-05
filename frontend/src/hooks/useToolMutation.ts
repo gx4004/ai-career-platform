@@ -9,6 +9,7 @@ import { setTransientResult } from '#/lib/tools/demoRuns'
 import { deriveRunMetadata } from '#/lib/tools/runMetadata'
 import { trackTelemetry } from '#/lib/telemetry/client'
 import { getApplicationHandoffPayload } from '#/lib/tools/applicationHandoff'
+import { getToolRunError } from '#/lib/tools/runErrors'
 import type { ToolDefinition } from '#/lib/tools/registry'
 import {
   buildWorkspaceRequestContext,
@@ -91,7 +92,7 @@ export function useToolMutation(tool: ToolDefinition) {
           level: 'error',
           error_message: error instanceof Error ? error.message : 'Unknown tool run failure.',
         })
-        throw error
+        throw getToolRunError(tool, error)
       } finally {
         window.removeEventListener('beforeunload', handleUnload)
         document.removeEventListener('visibilitychange', handleUnload)

@@ -51,6 +51,7 @@ export type ToolDefinition = {
   supportsJobImport: boolean
   authRequiredToRun: boolean
   guestDemoAllowed: boolean
+  providerFailureMode: 'heuristic_fallback' | 'explicit_error'
   submit: (payload: Record<string, unknown>) => Promise<Record<string, unknown>>
 }
 
@@ -79,6 +80,7 @@ export const tools: Record<ToolId, ToolDefinition> = {
     supportsJobImport: true,
     authRequiredToRun: false,
     guestDemoAllowed: true,
+    providerFailureMode: 'heuristic_fallback',
     submit: runResumeAnalysis as unknown as ToolDefinition['submit'],
   },
   'job-match': {
@@ -105,6 +107,7 @@ export const tools: Record<ToolId, ToolDefinition> = {
     supportsJobImport: true,
     authRequiredToRun: false,
     guestDemoAllowed: true,
+    providerFailureMode: 'heuristic_fallback',
     submit: runJobMatch as unknown as ToolDefinition['submit'],
   },
   'cover-letter': {
@@ -131,6 +134,7 @@ export const tools: Record<ToolId, ToolDefinition> = {
     supportsJobImport: true,
     authRequiredToRun: false,
     guestDemoAllowed: true,
+    providerFailureMode: 'explicit_error',
     submit: runCoverLetter as unknown as ToolDefinition['submit'],
   },
   interview: {
@@ -157,6 +161,7 @@ export const tools: Record<ToolId, ToolDefinition> = {
     supportsJobImport: true,
     authRequiredToRun: false,
     guestDemoAllowed: true,
+    providerFailureMode: 'explicit_error',
     submit: runInterview as unknown as ToolDefinition['submit'],
   },
   career: {
@@ -183,6 +188,7 @@ export const tools: Record<ToolId, ToolDefinition> = {
     supportsJobImport: false,
     authRequiredToRun: false,
     guestDemoAllowed: true,
+    providerFailureMode: 'explicit_error',
     submit: runCareer as unknown as ToolDefinition['submit'],
   },
   portfolio: {
@@ -209,6 +215,7 @@ export const tools: Record<ToolId, ToolDefinition> = {
     supportsJobImport: false,
     authRequiredToRun: false,
     guestDemoAllowed: true,
+    providerFailureMode: 'explicit_error',
     submit: runPortfolio as unknown as ToolDefinition['submit'],
   },
 }
