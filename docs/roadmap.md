@@ -10,28 +10,29 @@ Help a job seeker turn verified experience into exceptional, role-specific
 applications, discover suitable opportunities, and progress with advice and
 automation grounded in their evidence.
 
-## Now — Define and Baseline the Release
+## Now — Establish and Remediate the Engineering Baseline
 
-### R0. Release Charter
+### R0. Engineering Baseline
 
-**Status:** proposed
-**Outcome:** the next release has one audience, one environment, one scope, and one
-success definition.
+**Status:** in progress
+**Outcome:** the current product has a reproducible, evidence-backed engineering
+baseline on the product experimentation branch.
 
 Acceptance gate:
 
-- release mode is chosen: public MVP, private beta, or showcase;
-- target segment and initial market are named;
-- monetization is explicitly included or excluded;
-- product and thesis branch strategy is agreed;
-- staging and production promotion paths are documented;
-- 3–5 measurable launch indicators are accepted.
+- `chapter2` exists remotely while `main` and `deploy` remain stable;
+- repository skill, issue-tracker, and branch guidance is internally consistent;
+- frontend install, typecheck, tests, and production build have recorded outcomes;
+- backend tests and clean-database migration have recorded outcomes;
+- environment examples are checked for completeness without exposing secrets;
+- three representative guest submissions have recorded outcomes;
+- every failure is fixed within the R0 policy or linked to a focused issue.
 
-### R1. Reproducible Quality Baseline
+### R1. Baseline Remediation and Code Quality
 
-**Status:** ready after R0 branch decision
-**Outcome:** a clean checkout can be installed, tested, built, migrated, and run by
-following repository instructions.
+**Status:** ready after R0
+**Outcome:** failures and high-confidence code-quality defects discovered by R0 are
+resolved without changing accepted product contracts.
 
 Acceptance gate:
 
@@ -39,7 +40,8 @@ Acceptance gate:
 - backend tests pass;
 - clean database migrates to head;
 - environment examples cover required settings without secrets;
-- bundle and test baselines are recorded in `docs/state.md`;
+- setup instructions reproduce the verified baseline from a clean checkout;
+- accepted R0 defect issues are closed or explicitly deferred;
 - broken/stale setup instructions are corrected.
 
 ### R2. End-to-End Product Audit

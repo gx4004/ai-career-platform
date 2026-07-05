@@ -35,16 +35,15 @@ erase history.
 | D-024 | accepted | Evolve workspaces into Application Campaigns and pursue lawful, source-aware job discovery. | A role-specific campaign connects matching, materials, interview prep, tracking, tasks, and follow-up without becoming a generic CRM. |
 | D-025 | accepted | Treat application automation as progressive trust levels: Copilot, Approval Queue, then source-specific Trusted Autopilot. | Automation is valuable, but ambiguous answers and unsupported sources require human approval and legal/terms controls. |
 | D-026 | accepted | Prohibit unauthorized scraping, CAPTCHA/access-control circumvention, credential or session extraction, and unattended mass auto-apply. | These behaviors create platform, privacy, account, quality, and trust risks inconsistent with the product promise. |
+| D-027 | accepted | Use `chapter2` as the long-lived experimentation branch while `main` and `deploy` remain stable promotion branches. | Product hardening and expansion need room to iterate without destabilizing the release and Railway deployment branches. |
+| D-028 | accepted | Treat the eventual first release as a free private beta, while deferring launch operations and acquisition planning until engineering quality gates pass. | Engineering excellence is the immediate objective; billing and growth work would distract from measuring and improving the existing product. |
 
 ## Decisions Needed
 
 These are deliberately not accepted yet:
 
-- D-NEXT-1: next release mode — public MVP, private beta, or showcase;
 - D-NEXT-2: launch market and primary segment;
 - D-NEXT-3: retention/deletion policy for resume and generated content;
-- D-NEXT-4: launch monetization posture;
-- D-NEXT-5: deployment branch and promotion workflow;
 - D-NEXT-6: measurable launch and activation targets.
 
 When one is decided, replace its placeholder with the next numbered entry and update
