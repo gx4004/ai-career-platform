@@ -1,6 +1,7 @@
 /// <reference types="vitest/config" />
 
 import { defineConfig } from 'vite'
+import { configDefaults } from 'vitest/config'
 import { tanstackStart } from '@tanstack/react-start/plugin/vite'
 import viteReact from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
@@ -59,5 +60,6 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     setupFiles: './src/test/setup.ts',
+    exclude: [...configDefaults.exclude, 'e2e/**'],
   },
 })

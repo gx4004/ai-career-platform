@@ -97,3 +97,22 @@ cd ../backend
 ruff check app
 pytest -q
 ```
+
+The maintained browser suite starts the real frontend and FastAPI application,
+migrates a disposable PostgreSQL 16 database, and replaces only the external AI
+provider inside its dedicated test process. With Docker running:
+
+```bash
+cd frontend
+pnpm test:e2e
+```
+
+CI or an existing PostgreSQL service can use:
+
+```bash
+cd frontend
+E2E_DATABASE_URL=postgresql+psycopg2://<user>:<password>@<host>/<database> \
+  pnpm test:e2e:ci
+```
+
+The E2E harness never enables a production mock provider or runtime fallback.
