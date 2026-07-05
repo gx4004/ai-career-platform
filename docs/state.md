@@ -9,8 +9,8 @@ Career Workbench is feature-rich and appears closer to release hardening than in
 MVP construction. All six tools, guest runs, authentication, history/workspaces,
 admin, exports, telemetry, and deployment configuration exist.
 
-The product baseline is being prepared on `r0-setup`, targeting the long-lived
-`chapter2` product experimentation branch. `main` and `deploy` remain stable
+R0 is merged into the long-lived `chapter2` product experimentation branch, and R1
+baseline remediation is in progress there. `main` and `deploy` remain stable
 promotion branches. The working tree contains unrelated thesis and generated asset
 changes that agents must preserve and exclude from product commits.
 
@@ -40,21 +40,21 @@ features are not current implementation claims.
 
 ## Immediate Objective
 
-**Status: R0 in progress**
+**Status: R1 in progress**
 
-Produce a reproducible engineering baseline without changing product behavior. Use
-the resulting defect inventory to drive R1–R4 before beginning Evidence Profile or
-CV Studio work. Launch, acquisition, and monetization planning are deferred; the
-eventual release posture is a free private beta.
+Resolve high-confidence baseline defects without changing accepted product
+contracts. Use the resulting evidence to drive R2–R4 before beginning Evidence
+Profile or CV Studio work. Launch, acquisition, and monetization planning remain
+deferred; the eventual release posture is a free private beta.
 
 ## Risks and Drift to Resolve
 
 | Risk | Why it matters | Next action |
 |---|---|---|
 | Documentation drift | Old roadmap, frontend overhaul plan, `design.md`, and source code disagree in places. | Use canonical docs going forward; verify disputed behavior against code/UI. |
-| Mixed local worktree | Product edits can accidentally include active thesis/generated files. | Stage explicit R0 paths only and verify every commit. |
+| Mixed local worktree | Product edits can accidentally include active thesis/generated files. | Stage explicit product paths only and verify every commit. |
 | Release environment unverified | Railway topology, variables, migrations, domain, and deploy branch may have changed. | Run a deployment inventory and staging smoke test. |
-| No fresh quality baseline | Historical test counts and bundle sizes are stale. | Record current frontend/backend/build/migration results. |
+| Frontend animation test flake | `DropzoneHero` success-state timing failed once in Linux CI before passing on rerun. | Stabilize the animation-exit test seam in [#54](https://github.com/gx4004/ai-career-platform/issues/54) without changing product motion. |
 | Privacy retention unspecified | Resume text and generated output are sensitive. | Accept a retention/deletion decision before public launch. |
 | Design contract conflict | `design.md` says light heroes while older context describes dark tool heroes. | Visually audit current product and accept one direction. |
 | Browser storage contains workflow content | Useful for guests, but sensitive and easy to overlook. | Audit minimum data, expiry behavior, and clear-local-data UX. |
@@ -63,7 +63,6 @@ eventual release posture is a free private beta.
 
 ## Baseline Work Remaining
 
-- live migration-to-head from a clean PostgreSQL database in PR CI;
 - provider-backed completion of Job Match and one generative guest tool;
 - later R2 smoke test of all six guest tools;
 - authenticated workflow and ownership checks;
