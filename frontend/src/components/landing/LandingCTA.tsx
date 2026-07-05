@@ -8,7 +8,7 @@ import {
 } from 'framer-motion'
 import { landingCtaCopy, landingPrimaryCta } from '#/components/landing/landingContent'
 
-const MotionLink = motion(Link)
+const MotionLink = motion.create(Link)
 
 export function LandingCTA() {
   const prefersReducedMotion = useReducedMotion() ?? false
