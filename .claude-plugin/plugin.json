@@ -1,5 +1,10 @@
 {
   "name": "mattpocock-skills",
+  "version": "1.0.0",
+  "description": "Local Matt Pocock engineering workflow skills for Career Workbench.",
+  "author": {
+    "name": "Career Workbench contributors"
+  },
   "skills": [
     "./.claude/skills/ask-matt",
     "./.claude/skills/diagnosing-bugs",
