@@ -1,5 +1,5 @@
 import { Link, useSearch } from '@tanstack/react-router'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { AlertCircle, CheckCircle2, Eye, EyeOff, Lock } from 'lucide-react'
 import { confirmPasswordReset } from '#/lib/api/client'
 import { FadeUp } from '#/components/ui/motion'
@@ -8,12 +8,39 @@ import { Input } from '#/components/ui/input'
 import { Label } from '#/components/ui/label'
 
 export function ResetPasswordPage() {
-  const { token } = useSearch({ from: '/reset-password' })
+  const { token: legacyQueryToken } = useSearch({ from: '/reset-password' })
+  const [token, setToken] = useState<string | undefined>(legacyQueryToken)
+  const [tokenReady, setTokenReady] = useState(false)
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
   const [error, setError] = useState('')
+
+  useEffect(() => {
+    const fragment = new URLSearchParams(window.location.hash.slice(1))
+    setToken(fragment.get('token') ?? legacyQueryToken)
+
+    const url = new URL(window.location.href)
+    if (url.hash || url.searchParams.has('token')) {
+      url.hash = ''
+      url.searchParams.delete('token')
+      window.history.replaceState(
+        window.history.state,
+        '',
+        `${url.pathname}${url.search}`,
+      )
+    }
+    setTokenReady(true)
+  }, [legacyQueryToken])
+
+  if (!tokenReady) {
+    return (
+      <div className="auth-page" role="status" aria-live="polite">
+        Checking reset link…
+      </div>
+    )
+  }
 
   if (!token) {
     return (

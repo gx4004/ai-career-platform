@@ -159,6 +159,8 @@ def test_password_reset_request_schedules_email_as_background_task(client, test_
 
     assert len(sent) == 1
     assert sent[0][0] == test_user.email
+    assert "/reset-password#token=" in sent[0][1]
+    assert "?token=" not in sent[0][1]
 
 
 async def test_password_reset_email_payload_includes_plain_text_body(monkeypatch):

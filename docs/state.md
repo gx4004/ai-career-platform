@@ -40,7 +40,7 @@ features are not current implementation claims.
 
 ## Immediate Objective
 
-**Status: R2 recovery verified; R3 distributed abuse controls locally verified; CI and deployment evidence remain**
+**Status: R2 recovery verified; R3 implementation slices advancing; deployment evidence remains**
 
 The `docs/threat-model.md` canonical inventory is complete (#73). It maps system
 topology, trust boundaries, data flows, assets, browser storage, API surface, auth
@@ -69,7 +69,9 @@ changed. Production frontend/backend origins, CORS and redirect values, TLS/site
 relationship, and a staging OAuth state round trip remain ready-for-human evidence
 before #75 can close; regression coverage and rollback posture are recorded in
 `docs/threat-model.md` §7.5. The same review must accept forced cross-site logout
-as low-impact or authorize an Origin/CSRF mitigation.
+as low-impact or authorize an Origin/CSRF mitigation. New password-reset links now
+carry tokens in URL fragments and scrub them after hydration; legacy query links
+remain compatible during rollout.
 
 R3 #76 uses shared limiter storage outside development, HMAC-pseudonymized
 account and source-IP identities, shared model-cost and resource-import ceilings,
@@ -85,6 +87,15 @@ and entire user contexts. Model, import, email, and OAuth failure logs emit gene
 categories rather than content, emails, full URLs, or provider exception text.
 Sentry enablement, processor behavior, deletion-audit retention, and all bounded
 retention periods still depend on production evidence and #74.
+
+R3 #81 now has a locally verified frontend-response implementation: SSR and static
+responses receive a deployment-compatible CSP and baseline browser security
+headers, HSTS requires an explicit deployment switch plus HTTPS forwarding, and
+COEP/includeSubDomains/preload remain deliberately disabled pending compatibility
+and domain evidence. Both runtime images now drop root privileges; Docker build
+verification remains outstanding because the local Docker engine is unavailable.
+Production Railway origins, TLS forwarding, OAuth, Sentry, downloads, and font
+behavior still require staging verification before #81 can close.
 
 Remaining R3 slices are dependency-ordered. #74 (retention/deletion) requires human
 decisions D-UNK-6 and D-UNK-7; #77 and #78 depend on that decision. #76 depends on

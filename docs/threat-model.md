@@ -197,9 +197,9 @@ Browser → POST /auth/refresh (cw_refresh cookie scoped to /api/v1/auth/refresh
 Browser → POST /auth/password-reset/request {email}
   → always 200 (same message whether user exists or not)
   → create_password_reset_token(): secret = SECRET_KEY:reset:{password_hash[:16]}
-  → Resend email with reset URL: {FRONTEND_URL}/reset-password?token=TOKEN
+  → Resend email with reset URL: {FRONTEND_URL}/reset-password#token=TOKEN
 
-Browser → POST /auth/password-reset/confirm {email, token, new_password}
+Browser → POST /auth/password-reset/confirm {token, new_password}
   → verify_password_reset_token(): validates signature against current hash
   → on success: hash new password, increment user.token_version, clear cookies
 ```
@@ -564,14 +564,18 @@ SECRET_KEY + ":reset:" + password_hash[:16]
 ```
 
 This means a reset token is automatically invalidated once the password changes —
-no token blacklist needed. The token URL is:
+no token blacklist needed. New links keep the token in the URL fragment:
 ```
-{FRONTEND_URL}/reset-password?token=TOKEN
+{FRONTEND_URL}/reset-password#token=TOKEN
 ```
-Note: the token appears in the URL query string, meaning it leaks to browser
-history, server access logs, and HTTP Referer headers.
+The frontend consumes and removes the fragment after hydration, so the token is
+not sent to the frontend server, access logs, or HTTP Referer headers. Legacy
+`?token=` links remain accepted during rollout and are removed with
+`history.replaceState` after hydration.
 
 — `backend/app/auth/security.py:69-71`
+— `backend/app/routers/auth.py:request_password_reset`
+— `frontend/src/pages/reset-password-page.tsx`
 
 ### 7.8 Email Verification
 
@@ -862,7 +866,7 @@ Ad-blocker detection via bait div render check. 30-second countdown fallback.
 | 2 | **Credential stuffing / brute force** | API → Auth | Medium-High — account takeover | Distributed login limit, bcrypt hashing, expiring pseudonymized failure counters, bounded progressive delay after three failures | No password composition requirements; delay is intentionally capped and never hard-locks an account |
 | 3 | **SSRF via job URL import** | API → Internet | Medium — internal network access | All-answer IP checks, per-hop DNS pinning, redirect re-validation, browser network denial, response type/size bounds | Public endpoints can still return attacker-controlled HTML; extraction remains best-effort and intentionally unauthenticated |
 | 4 | **Session hijacking (cookie theft)** | Browser → API | High — full account access | HttpOnly cookies, SameSite=Lax, Secure in production | No token binding; refresh token lives 7 days; no device/session fingerprinting |
-| 5 | **Persistent XSS via stored/generated content** | DB → Browser | Medium — session theft, credential capture | Tool output is rendered in React (auto-escaped), no raw HTML insertion | Generated content includes untrusted LLM output; no CSP allowing inline scripts; no output sanitization beyond React defaults |
+| 5 | **Persistent XSS via stored/generated content** | DB → Browser | Medium — session theft, credential capture | Tool output is rendered in React (auto-escaped), no raw HTML insertion; the frontend CSP denies objects and framing and limits script origins | Generated content includes untrusted LLM output; the SSR-compatible CSP currently permits inline scripts; no output sanitization beyond React defaults |
 | 6 | **Malicious file upload** | Browser → API | Medium — DoS, parser exploitation | 10MB limit, magic byte validation, PDF/DOCX only | No page count limit; no ZIP bomb protection for DOCX; PyMuPDF processes arbitrary PDFs |
 | 7 | **Prompt injection to extract system prompts or influence outputs** | API → Vertex AI | Low-Medium — output manipulation | 17 regex patterns in `input_sanitizer.py` | Regex cannot block all injection vectors; no system prompt hardening / delimiters |
 | 8 | **Account enumeration** | API → Auth | Low — privacy | Login/register return distinct errors; password reset always returns 200 | Login says "Invalid email or password" (ambiguous), but registration says "Email already registered" (distinct) |
@@ -876,7 +880,7 @@ Ad-blocker detection via bait div render check. 30-second countdown fallback.
 | 1 | **Resume/JD leakage via logs or error reports** | Resume text, generated content | Sentry drops bodies, breadcrumb payloads, query strings, credentials, and user context; telemetry rejects unknown/content fields; model/import/email/OAuth failures log only generic categories | Sentry stack traces still expose code paths; processor enablement and retention remain unverified |
 | 2 | **Generated content accessible to wrong user** | ToolRun results | User-scoped cache keys; DB queries filter by `user_id` | In-memory cache key includes user scope; no cross-user access observed in code — confidence is high but only code-audit, not penetration-test, verified |
 | 3 | **Browser storage persistence after logout** | sessionStorage data | Tab-scoped sessionStorage clears on tab close; localStorage consent stays | Logout clears pending intent, invalidates query cache, but does not clear tool drafts, workflow context, demo results, or resume-carry from current tab's sessionStorage |
-| 4 | **Password reset token in URL** | Reset token | Single-use (password-hash-derived secret auto-invalidates on password change) | Token in URL query string leaks to browser history, server access logs, and Referer header if reset page loads external resources |
+| 4 | **Password reset link exposure** | Reset token | New links use a fragment that is scrubbed after hydration; single-use password-hash-derived signing invalidates the token on password change | Legacy query-token links remain accepted temporarily for rollout compatibility and are scrubbed client-side |
 | 5 | **Account deletion — data reappears from backup** | All user data | Cascading delete in single transaction; structured log emitted | No backup restoration procedure documented; no verification step |
 | 6 | **Incomplete account deletion** | User data | `delete_all_user_data()` cascading deletes `tool_runs`, `workspaces`, `users` | No verification query after deletion; no audit trail beyond structured log event; if Sentry is active, previously-captured events remain in Sentry's retention window |
 
@@ -888,13 +892,13 @@ Ad-blocker detection via bait div render check. 30-second countdown fallback.
 |---|-----|---------|----------|------|----------|
 | 1 | Distributed limiter deployment unverified | Code rejects local storage outside development | Configure and capacity-test shared storage | Misconfiguration prevents startup; backend outage fails limited routes closed | #76 / #81 |
 | 2 | In-memory result cache | Python dict, process-local | Redis or similar shared cache if scaling requires it | Fragmented caches in multi-instance; lost on restart | R10 |
-| 3 | Docker runs as root | No `USER` instruction in either Dockerfile | Non-root user with minimal capabilities | Container escape has root on host | #81 |
+| 3 | Docker runtime users | Frontend runs as the base image's `node` user; backend runs as dedicated UID 10001 with owned application and Playwright files | Non-root user with minimal capabilities | Image-build verification remains required where Docker is available | #81 |
 | 4 | No retention/deletion policy | Data persists indefinitely; no TTL cleanup | Bounded retention periods + automated cleanup | Unlimited sensitive data accumulation; no GDPR compliance path | #74 |
 | 5 | No automated backups | No backup scripts, no cron jobs | Regular database backups with documented restore procedure | Data loss on Railway incident | #74 |
 | 6 | PostHog infrastructure present, SDK inactive | Build args + env vars + proxy config exist | Decision: activate PostHog OR remove dead config | Confusion about active processors; CookiePolicyPage claims no analytics but proxy exists | #82 |
 | 7 | No email verification on password registration | Account immediately usable | Email verification before first tool use | Spam accounts, wrong-email lockouts | #75 |
 | 8 | Low-cost endpoints remain unlimited | `GET /auth/me`, `POST /auth/logout`, `GET /auth/providers`, history GET/PATCH/DELETE | Add limits only if availability evidence shows abuse | Broad limiting can degrade normal authenticated navigation | R10 |
-| 9 | Password reset token in URL query string | `?token=...` | Token in POST body or fragment | Leaks to browser history and server logs | #75 |
+| 9 | Password reset URL exposure | New links use `#token=...`; the page consumes and scrubs fragment and legacy query tokens | Remove legacy query compatibility after the reset-token lifetime and rollout window | Old links can retain tokens in pre-existing browser history | #75 |
 | 10 | CAPTCHA coverage is registration-only | Evidence can identify route-specific abuse, but the existing challenge contract covers registration | Add a reviewed challenge contract only to the attacked flow | Unconditional CAPTCHA harms access; unsupported activation would break clients | #76 follow-up if threshold triggers |
 | 11 | Login error message distinction | "Invalid email or password" (ambiguous) | Same message for both cases (no enumeration) | Registration says "Email already registered" — enables enumeration | #75 |
 
@@ -931,7 +935,7 @@ blocked only by their listed dependencies — all other context is available her
 | #78 — Telemetry, Sentry, logs, deletion audit | §§10,12,13 — Observability, privacy failures, gaps #6 | Unblocked (code evidence complete; D-UNK-3 may affect) |
 | #79 — Upload boundaries & parser resource limits | §8.5 — File upload handling | Unblocked (code evidence complete) |
 | #80 — Scraper SSRF hardening | §§8.6,9.2 — Scraper implementation, Playwright integration | Unblocked (code evidence complete) |
-| #81 — Deployment-compatible security headers | §§1,13 — Topology, gap inventory (#3, #6) | Partially blocked (D-UNK-1, D-UNK-3, D-UNK-5, D-UNK-9, D-UNK-10) |
+| #81 — Deployment-compatible security headers | §§1,13 — Topology, gap inventory (#3, #6) | Frontend response implementation locally verified; production compatibility remains blocked by D-UNK-1, D-UNK-3, D-UNK-5, D-UNK-9, D-UNK-10 |
 | #82 — Legal disclosure reconciliation | All sections + all prior issues | Blocked by #74–#81 |
 
 ---
