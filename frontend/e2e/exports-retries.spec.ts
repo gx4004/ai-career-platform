@@ -87,6 +87,10 @@ async function readDownloadedPdfText(page: Page): Promise<{
   return { filename: download.suggestedFilename(), text: pages.join(' ') }
 }
 
+function normalizeWhitespace(value: string): string {
+  return value.replace(/\s+/g, ' ').trim()
+}
+
 test.beforeEach(async ({ context }) => {
   await context.addInitScript(() => {
     localStorage.setItem('cw-cookie-consent', 'accepted')
@@ -105,7 +109,7 @@ test('owner Cover Letter PDF download contains the generated fixture content', a
   const pdf = await readDownloadedPdfText(page)
   expect(pdf.filename).toBe(`result-${historyId}.pdf`)
   expect(pdf.text).toContain('Cover Letter')
-  expect(pdf.text).toContain(expectedOpening)
+  expect(normalizeWhitespace(pdf.text)).toContain(normalizeWhitespace(expectedOpening))
 })
 
 test('owner Interview PDF download contains the generated fixture content', async ({ page }) => {
@@ -120,7 +124,7 @@ test('owner Interview PDF download contains the generated fixture content', asyn
   const pdf = await readDownloadedPdfText(page)
   expect(pdf.filename).toBe(`result-${historyId}.pdf`)
   expect(pdf.text).toContain('Interview Q&A')
-  expect(pdf.text).toContain(expectedQuestion)
+  expect(normalizeWhitespace(pdf.text)).toContain(normalizeWhitespace(expectedQuestion))
 })
 
 test('guest demo results show expired state after clearing sessionStorage', async ({
