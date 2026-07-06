@@ -72,21 +72,9 @@ test('workflow context carries resume through Resume → Job Match → Cover Let
   await register(page, 'WF Chain')
   await runResumeAnalyzer(page)
 
-  // Verify context was written to sessionStorage after Resume Analyzer
-  const ctx1 = await page.evaluate(() => {
-    const raw = sessionStorage.getItem('career-workbench:workflow-context')
-    return raw ? JSON.parse(raw) : null
-  })
-  expect(ctx1).toBeTruthy()
-  expect(ctx1.resumeText).toEqual(resumeText)
-
-  // Job Match should pre-fill with carried resume
+  // Job Match exposes the carried resume in the public form.
   await gotoHydrated(page, '/job-match')
-  const jobMatchResume = await page.evaluate(() => {
-    const raw = sessionStorage.getItem('career-workbench:workflow-context')
-    return raw ? JSON.parse(raw).resumeText : null
-  })
-  expect(jobMatchResume).toEqual(resumeText)
+  await expect(page.locator('#job-match-resumeText')).toHaveValue(resumeText)
 
   // Run Job Match
   const pasteBtn = page.getByRole('button', { name: 'Paste text instead' })
@@ -99,22 +87,26 @@ test('workflow context carries resume through Resume → Job Match → Cover Let
   await jmResponse
   await expect(page).toHaveURL(/\/job-match\/result\/[^/]+$/)
 
-  // Context now carries both resume and JD
-  const ctx2 = await page.evaluate(() => {
-    const raw = sessionStorage.getItem('career-workbench:workflow-context')
-    return raw ? JSON.parse(raw) : null
-  })
-  expect(ctx2.resumeText).toEqual(resumeText)
-  expect(ctx2.jobDescription).toEqual(jobDescription)
-
-  // Cover Letter should receive both
+  // Cover Letter exposes both carried fields in the public form.
   await gotoHydrated(page, '/cover-letter')
-  const ctx3 = await page.evaluate(() => {
-    const raw = sessionStorage.getItem('career-workbench:workflow-context')
-    return raw ? JSON.parse(raw) : null
-  })
-  expect(ctx3.resumeText).toEqual(resumeText)
-  expect(ctx3.jobDescription).toEqual(jobDescription)
+  await expect(page.locator('#cover-letter-resumeText')).toHaveValue(resumeText)
+  await expect(page.locator('#cover-letter-jobDescription')).toHaveValue(jobDescription)
+})
+
+test('Resume → Career Path carries the resume into the visible form', async ({ page }) => {
+  await register(page, 'WF Career')
+  await runResumeAnalyzer(page)
+
+  await gotoHydrated(page, '/career')
+  await expect(page.locator('#career-resumeText')).toHaveValue(resumeText)
+})
+
+test('Resume → Portfolio carries the resume into the visible form', async ({ page }) => {
+  await register(page, 'WF Portfolio')
+  await runResumeAnalyzer(page)
+
+  await gotoHydrated(page, '/portfolio')
+  await expect(page.locator('#portfolio-resumeText')).toHaveValue(resumeText)
 })
 
 test('workflow context is tab-scoped via sessionStorage', async ({
@@ -126,11 +118,8 @@ test('workflow context is tab-scoped via sessionStorage', async ({
   await register(page, 'WF Tab')
   await runResumeAnalyzer(page)
 
-  const ctxPage = await page.evaluate(() => {
-    const raw = sessionStorage.getItem('career-workbench:workflow-context')
-    return raw ? JSON.parse(raw) : null
-  })
-  expect(ctxPage.resumeText).toEqual(resumeText)
+  await gotoHydrated(page, '/job-match')
+  await expect(page.locator('#job-match-resumeText')).toHaveValue(resumeText)
 
   // New context (different tab) should have no context
   const otherContext = await browser.newContext()
@@ -141,21 +130,15 @@ test('workflow context is tab-scoped via sessionStorage', async ({
 
   try {
     await gotoHydrated(otherPage, '/job-match')
-    const otherCtx = await otherPage.evaluate(() => {
-      const raw = sessionStorage.getItem('career-workbench:workflow-context')
-      return raw ? JSON.parse(raw) : null
-    })
-    expect(otherCtx).toBeNull()
+    await expect(otherPage.getByRole('button', { name: 'Paste text instead' })).toBeVisible()
+    await expect(otherPage.locator('#job-match-resumeText')).toHaveCount(0)
   } finally {
     await otherContext.close()
   }
 
   // Original tab still has context
-  const stillThere = await page.evaluate(() => {
-    const raw = sessionStorage.getItem('career-workbench:workflow-context')
-    return raw ? JSON.parse(raw) : null
-  })
-  expect(stillThere).toBeTruthy()
+  await gotoHydrated(page, '/job-match')
+  await expect(page.locator('#job-match-resumeText')).toHaveValue(resumeText)
 })
 
 test('clearing context resets downstream', async ({ page }) => {
@@ -166,9 +149,6 @@ test('clearing context resets downstream', async ({ page }) => {
   await page.evaluate(() => sessionStorage.removeItem('career-workbench:workflow-context'))
 
   await gotoHydrated(page, '/job-match')
-  const ctx = await page.evaluate(() => {
-    const raw = sessionStorage.getItem('career-workbench:workflow-context')
-    return raw ? JSON.parse(raw) : null
-  })
-  expect(ctx).toBeNull()
+  await expect(page.getByRole('button', { name: 'Paste text instead' })).toBeVisible()
+  await expect(page.locator('#job-match-resumeText')).toHaveCount(0)
 })

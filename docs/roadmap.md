@@ -14,7 +14,7 @@ automation grounded in their evidence.
 
 ### R0. Engineering Baseline
 
-**Status:** complete
+**Status:** in progress
 **Outcome:** the current product has a reproducible, evidence-backed engineering
 baseline on the product experimentation branch.
 
@@ -66,7 +66,7 @@ Acceptance gate:
 
 ### R3. Privacy, Security, and Abuse Gate
 
-**Status:** in progress
+**Status:** blocked by R2
 **Outcome:** sensitive career data has a documented lifecycle and defensible controls.
 
 Acceptance gate:
