@@ -147,7 +147,10 @@ test('deleting one run preserves its workspace and deleting the final run remove
 
   await gotoHydrated(page, '/history')
   await expect(page.getByRole('button', { name: 'Delete this saved run' })).toHaveCount(2)
-  await page.getByRole('button', { name: 'Delete this saved run' }).first().click()
+  const originalRunCard = page.locator('.history-card').filter({
+    has: page.locator(`a[href="/resume/result/${firstId}"]`),
+  })
+  await originalRunCard.getByRole('button', { name: 'Delete this saved run' }).click()
   await page.getByRole('button', { name: 'Delete run' }).click()
   await expect(page.getByRole('button', { name: 'Delete this saved run' })).toHaveCount(1)
   await expect(page.getByPlaceholder('Name this workspace')).toHaveCount(1)
