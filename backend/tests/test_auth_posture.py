@@ -83,7 +83,9 @@ def test_simple_cross_origin_body_cannot_reach_json_account_deletion(
     assert db.get(type(test_user), test_user.id) is not None
 
 
-def test_bodyless_cross_origin_logout_reaches_cookie_deletion(client, test_user):
+def test_bodyless_cross_origin_logout_is_rejected_without_cookie_deletion(
+    client, test_user
+):
     login = client.post(
         f"{AUTH_PREFIX}/login",
         json={"email": test_user.email, "password": "password123"},
@@ -98,17 +100,33 @@ def test_bodyless_cross_origin_logout_reaches_cookie_deletion(client, test_user)
         },
     )
 
-    assert response.status_code == 200
+    assert response.status_code == 403
     assert "access-control-allow-origin" not in response.headers
     set_cookie_headers = response.headers.get_list("set-cookie")
-    assert any(
-        header.startswith("cw_access=") and "Max-Age=0" in header
-        for header in set_cookie_headers
+    assert not any(header.startswith("cw_access=") for header in set_cookie_headers)
+    assert not any(header.startswith("cw_refresh=") for header in set_cookie_headers)
+
+
+def test_logout_allows_configured_frontend_and_non_browser_clients(client):
+    allowed = client.post(
+        f"{AUTH_PREFIX}/logout",
+        headers={"Origin": ALLOWED_ORIGIN},
     )
-    assert any(
-        header.startswith("cw_refresh=") and "Max-Age=0" in header
-        for header in set_cookie_headers
-    )
+    non_browser = client.post(f"{AUTH_PREFIX}/logout")
+
+    assert allowed.status_code == 200
+    assert allowed.headers["access-control-allow-origin"] == ALLOWED_ORIGIN
+    assert non_browser.status_code == 200
+    for response in (allowed, non_browser):
+        set_cookie_headers = response.headers.get_list("set-cookie")
+        assert any(
+            header.startswith("cw_access=") and "Max-Age=0" in header
+            for header in set_cookie_headers
+        )
+        assert any(
+            header.startswith("cw_refresh=") and "Max-Age=0" in header
+            for header in set_cookie_headers
+        )
 
 
 def test_login_from_allowed_origin_sets_lax_path_scoped_http_only_cookies(
