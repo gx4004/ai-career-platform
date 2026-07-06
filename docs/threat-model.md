@@ -99,7 +99,7 @@ Browser ──────► Frontend SSR (serve.mjs, :3000) ──────
 | Boundary | Crosses Via | Enforcement | Assumptions |
 |----------|-------------|-------------|-------------|
 | Browser → SSR | HTTPS (Railway TLS) | `x-forwarded-proto` redirect in `serve.mjs` | Railway terminates TLS correctly |
-| SSR → API | HTTP within Railway network | CORS `allow_origins` whitelist (defaults: `localhost:5173,localhost:3000` + `FRONTEND_URL`; `backend/app/config.py:19`, `backend/app/main.py:100-106`), `allow_credentials=True` | Railway internal network is trusted; no mTLS between services |
+| Browser → API | Browser fetch over development HTTP or Railway HTTPS | CORS `allow_origins` whitelist (defaults: `localhost:5173,localhost:3000` + `FRONTEND_URL`; `backend/app/config.py:19`, `backend/app/main.py:100-106`), `allow_credentials=True` | Production frontend/backend origins and site relationship are unknown pending D-UNK-10 |
 | API → DB | TCP (psycopg2/sqlite) | Connection pool, `pool_pre_ping=True` | PostgreSQL credentials in env vars |
 | API → Vertex AI | HTTPS | Google Cloud IAM (vertexai.init) or API key (`GOOGLE_API_KEY`) | Credential scope limits which projects/models are accessible |
 | API → Internet (scraper) | HTTPS (httpx), TCP (Playwright) | `_validate_url()` with DNS-level IP checks, redirect re-validation | DNS resolver is trustworthy; no DNS-over-HTTPS |
@@ -291,7 +291,7 @@ artifact and are deleted on every app mount.
 
 All routes are mounted under `/api/v1` in `backend/app/main.py:128-147`.
 
-### 6.1 No Authentication Required (5 endpoints)
+### 6.1 No Authentication Required (12 endpoints)
 
 | Method | Path | Rate Limit | Purpose |
 |--------|------|------------|---------|
@@ -300,8 +300,15 @@ All routes are mounted under `/api/v1` in `backend/app/main.py:128-147`.
 | `POST` | `/auth/register` | 5/min | Account registration |
 | `GET` | `/auth/google/login` | None | Google OAuth redirect |
 | `GET` | `/auth/google/callback` | None | Google OAuth callback |
+| `POST` | `/auth/logout` | None | Clear any auth cookies present |
+| `POST` | `/auth/password-reset/request` | 3/min | Request reset email |
+| `POST` | `/auth/password-reset/confirm` | 10/min | Confirm reset with signed reset token |
+| `GET` | `/auth/providers` | None | List configured sign-in providers |
+| `POST` | `/files/parse-cv` | 20/min | Parse an uploaded CV without resolving identity |
+| `POST` | `/job-posts/import-url` | 10/min | Import a job post without resolving identity |
+| `POST` | `/telemetry/events` | 60/min | Accept allowlisted telemetry without resolving identity |
 
-### 6.2 Optional Authentication — Guest or Authenticated (10 endpoints)
+### 6.2 Optional Authentication — Guest or Authenticated (7 endpoints)
 
 These accept unauthenticated requests but extract authenticated user if present
 via `get_optional_current_user()`. Rate-limited at 10/min per endpoint.
@@ -315,21 +322,14 @@ via `get_optional_current_user()`. Rate-limited at 10/min per endpoint.
 | `POST` | `/interview/practice-feedback` | 10/min |
 | `POST` | `/career/recommend` | 10/min |
 | `POST` | `/portfolio/recommend` | 10/min |
-| `POST` | `/files/parse-cv` | 20/min |
-| `POST` | `/job-posts/import-url` | 10/min |
-| `POST` | `/telemetry/events` | 60/min |
 
-### 6.3 Authentication Required (15 endpoints)
+### 6.3 Authentication or Session Credential Required (11 endpoints)
 
 | Method | Path | Rate Limit |
 |--------|------|------------|
 | `GET` | `/auth/me` | None |
 | `POST` | `/auth/refresh` | 20/min |
-| `POST` | `/auth/logout` | None |
 | `POST` | `/auth/me/delete` | 5/min |
-| `POST` | `/auth/password-reset/request` | 3/min |
-| `POST` | `/auth/password-reset/confirm` | 10/min |
-| `GET` | `/auth/providers` | None |
 | `GET` | `/history` | None |
 | `GET` | `/history/workspaces` | None |
 | `PATCH` | `/history/workspaces/{id}` | None |
@@ -356,7 +356,7 @@ Rate-limited at 60/min.
 
 ### 6.5 Unrate-Limited Endpoints (Risk Note)
 
-The following authenticated endpoints have no rate limit:
+The following endpoints have no rate limit:
 `GET /auth/me`, `POST /auth/logout`, `GET /auth/providers`, all history
 `GET`/`PATCH`/`DELETE` endpoints (except PDF export), and the OAuth endpoints.
 
@@ -426,6 +426,122 @@ validation. SameSite=Lax is the authoritative CSRF control per PRD #72 and
 `docs/architecture.md` "Identity and Access" section. No accepted decision in
 `docs/decisions.md` addresses SameSite directly; D-008 covers HttpOnly cookie
 storage.
+
+#### R3 #75 provisional code posture
+
+R3 preserves PRD #72's existing SameSite=Lax contract while production topology
+remains unverified. This is characterization of the code/default-development
+posture, not a new accepted decision in `docs/decisions.md`. Current evidence does
+not justify adding a double-submit token or origin middleware
+(`backend/app/auth/security.py:set_auth_cookies`,
+`backend/app/main.py:99-109`):
+
+- credentialed JSON requests from the configured default frontend origin preflight
+  successfully and receive an exact `Access-Control-Allow-Origin` response
+  (`backend/tests/test_auth_posture.py:test_allowed_frontend_origin_can_preflight_cookie_authenticated_mutations`);
+- untrusted origins cannot preflight `Content-Type: application/json` or
+  `Authorization`, so browser JavaScript cannot send those protected request
+  shapes
+  (`backend/tests/test_auth_posture.py:test_untrusted_origin_cannot_preflight_json_or_authorization_mutations`);
+- the representative `/auth/me/delete` JSON mutation rejects a `text/plain`
+  body before business logic runs
+  (`backend/tests/test_auth_posture.py:test_simple_cross_origin_body_cannot_reach_json_account_deletion`);
+- authorization remains mandatory after CORS succeeds; an allowed origin is not
+  an identity or ownership signal
+  (`backend/tests/test_auth_posture.py:test_allowed_origin_never_replaces_endpoint_authorization`);
+- access and refresh cookies remain HttpOnly, host-only, path-scoped, Lax, and
+  Secure outside development
+  (`backend/app/auth/security.py:set_auth_cookies`,
+  `backend/tests/test_auth_posture.py:test_production_login_adds_secure_without_changing_lax_or_paths`);
+- OAuth callback handling redirects success or failure only to the configured
+  frontend URL and issues the same auth cookies. Authlib owns state validation,
+  but the current callback tests mock the token exchange and do not exercise that
+  validation (`backend/app/routers/google_auth.py:google_login`,
+  `backend/app/routers/google_auth.py:google_callback`,
+  `backend/tests/test_google_oauth.py:test_link_accepts_verified_email`).
+
+| Environment | Frontend/browser origin | API origin | Status |
+|-------------|-------------------------|------------|--------|
+| Vite development | `http://localhost:5173` (`backend/app/config.py:19`) | Relative `/api/v1` through the dev proxy, or explicit `VITE_API_URL` (`frontend/src/lib/api/client.ts:29-40`) | Code/default configuration verified |
+| Built local frontend | `http://localhost:3000` (`backend/app/config.py:20`) | Example `http://localhost:8000/api/v1` (`frontend/.env.example:1-2`) | Code/default configuration verified |
+| Railway | `FRONTEND_URL` / deployed frontend domain | `${BACKEND_URL}/api/v1` (`frontend/railway.toml:5-6`) | **Unknown:** deployed values, TLS, registrable-site relationship, and `GOOGLE_REDIRECT_URI` require human/staging evidence |
+
+#### Mutating-route and content-type matrix
+
+Routes are grouped only where their browser request shape and authorization
+behavior are equivalent.
+
+| Route group | Content/request shape | Ambient credential and CORS/CSRF behavior | Evidence |
+|-------------|-----------------------|-------------------------------------------|----------|
+| `/auth/login`, `/auth/register`, password-reset request/confirm | JSON `POST`; no existing session required | Cross-origin browser fetch preflights; login/register may issue auth cookies | `frontend/src/lib/api/client.ts:47-52,94-111`; `backend/app/routers/auth.py:login,register,request_password_reset,confirm_password_reset` |
+| `/auth/google/login`, `/auth/google/callback` | Top-level `GET` navigation; callback mutates/link/signs in | No CORS fetch; Authlib session/state flow, then callback issues auth cookies | `backend/app/main.py:93-97`; `backend/app/routers/google_auth.py:google_login,google_callback` |
+| `/auth/refresh` | Frontend sends JSON `{}` `POST`; server also accepts a bodyless request with path-scoped refresh cookie | JSON frontend call preflights cross-origin; Lax governs cookie delivery on cross-site requests | `frontend/src/lib/api/client.ts:80-90`; `backend/app/routers/auth.py:refresh_token`; `backend/app/auth/security.py:106-114` |
+| `/auth/logout` | Bodyless `POST`; endpoint requires no authenticated dependency | A simple cross-origin form can reach the endpoint and receive cookie-deletion headers; current code has no Origin check | `frontend/src/lib/api/client.ts:logout`; `backend/app/routers/auth.py:logout`; `backend/app/auth/security.py:clear_auth_cookies`; `backend/tests/test_auth_posture.py:test_bodyless_cross_origin_logout_reaches_cookie_deletion` |
+| `/auth/me/delete` | Authenticated JSON `POST` | Cross-origin fetch preflights; endpoint still requires access credential and typed-email confirmation | `backend/app/routers/auth.py:delete_account`; `backend/tests/test_auth_posture.py:test_allowed_origin_never_replaces_endpoint_authorization` |
+| Tool-generation POSTs | JSON; optional auth/guest behavior | Cross-origin browser fetch preflights; a denied origin cannot send this JSON shape, while non-browser clients are unaffected by CORS | `frontend/src/lib/api/client.ts:normalizeBody,request`; `backend/app/routers/resume.py:analyze`; `backend/app/routers/job_match.py:match`; `backend/app/routers/cover_letter.py:generate`; `backend/app/routers/interview.py:questions,practice_feedback`; `backend/app/routers/career.py:recommend`; `backend/app/routers/portfolio.py:recommend` |
+| Job import and telemetry POSTs | JSON; no auth dependency and cookies are ignored | Cross-origin browser fetch preflights; a denied origin cannot send this JSON shape, while non-browser clients remain able to call the rate-limited endpoint | `frontend/src/lib/api/client.ts:normalizeBody,request`; `frontend/src/lib/telemetry/client.ts:trackTelemetry`; `backend/app/routers/job_posts.py:import_job_url`; `backend/app/routers/telemetry.py:ingest_event` |
+| `/files/parse-cv` | Browser-generated multipart `FormData`; no auth dependency and cookies are ignored | Safelisted multipart requests may be sent without preflight; CORS prevents reading a disallowed response but does not stop parser work | `frontend/src/lib/api/client.ts:47-52`; `backend/app/routers/files.py:parse_cv_endpoint` |
+| History workspace/run PATCH endpoints | Authenticated JSON `PATCH` | Method/content type preflight cross-origin; owner authorization remains mandatory | `backend/app/routers/history.py:update_workspace,toggle_favorite,update_run` |
+| History run `DELETE` | Authenticated bodyless `DELETE` | Method preflights cross-origin; owner authorization remains mandatory | `backend/app/routers/history.py:delete_history_item` |
+| Admin role mutation | Admin-authenticated JSON `PATCH` | Method/content type preflight cross-origin; admin authorization remains mandatory | `frontend/src/lib/api/admin.ts:adminFetch`; `backend/app/routers/admin.py:set_admin` |
+
+| Flow | Browser/request shape | Compatibility under preserved posture |
+|------|-----------------------|----------------------------------------|
+| Login/register | Credentialed JSON `POST` from configured frontend (`frontend/src/lib/api/client.ts:request`) | Preflight allowed; Lax auth cookies issued |
+| Logout | Credentialed bodyless `POST` (`frontend/src/lib/api/client.ts:logout`) | Works from configured frontend; forced cross-site logout is a residual risk requiring human acceptance or mitigation |
+| Silent refresh | Credentialed `POST`; refresh cookie scoped to the exact endpoint (`frontend/src/lib/api/client.ts:silentRefresh`) | Works without a custom CSRF header |
+| Google OAuth | Top-level `GET` redirect and callback (`backend/app/routers/google_auth.py:google_login,google_callback`) | Code path is Lax-compatible; deployed state/callback round trip remains unverified |
+| Guest tools | JSON `POST` without auth cookies (`frontend/src/lib/api/client.ts:request`) | Preflight allowed from configured frontend; guest behavior unchanged |
+| Bearer clients | `Authorization` header (`backend/app/auth/security.py:get_current_user`) | Preflight required in browsers; non-browser API clients remain compatible |
+
+CORS is not treated as authentication or as a complete CSRF defense
+(`backend/app/main.py:99-109`,
+`backend/tests/test_auth_posture.py:test_allowed_origin_never_replaces_endpoint_authorization`).
+SameSite does not isolate sibling origins on the same registrable site, so
+production domain ownership and TLS remain trust assumptions under D-UNK-10. A
+compromised allowed frontend origin or XSS can act with the user's ambient cookies;
+neither a double-submit token nor this posture protects against XSS. This is the
+threat-model inference from the configured ambient-cookie and origin boundary
+(`backend/app/auth/security.py:set_auth_cookies`,
+`backend/app/main.py:99-109`).
+
+Default-origin preflights, authorization independence, one representative JSON
+mutation, cookie attributes, production-mode `Secure`, and forced logout are
+covered by the named tests in `backend/tests/test_auth_posture.py`:
+`test_allowed_frontend_origin_can_preflight_cookie_authenticated_mutations`,
+`test_untrusted_origin_cannot_preflight_json_or_authorization_mutations`,
+`test_allowed_origin_never_replaces_endpoint_authorization`,
+`test_simple_cross_origin_body_cannot_reach_json_account_deletion`,
+`test_login_from_allowed_origin_sets_lax_path_scoped_http_only_cookies`,
+`test_production_login_adds_secure_without_changing_lax_or_paths`, and
+`test_bodyless_cross_origin_logout_reaches_cookie_deletion`.
+Post-exchange OAuth redirects and cookies are covered by
+`backend/tests/test_google_oauth.py:test_link_accepts_verified_email`, but the
+external state round trip is not. Cookie-backed authorization and owner isolation
+remain covered by `backend/tests/test_auth.py:test_logout_clears_cookie_backed_session`
+and `frontend/e2e/auth-ownership.spec.ts`.
+
+Before #75 can close, a human must supply or verify the deployed frontend URL,
+backend URL, `CORS_ORIGINS`, `FRONTEND_URL`, `GOOGLE_REDIRECT_URI`, and end-to-end
+TLS. A staging browser check must then prove credentialed CORS, cookie delivery,
+OAuth state/callback compatibility, refresh, logout, and representative protected
+JSON, multipart, PATCH, and DELETE mutations. The human must also accept forced
+cross-site logout as low-impact or authorize an Origin/CSRF mitigation
+(`backend/app/config.py:19-20,34-36`,
+`backend/app/routers/google_auth.py:google_login`,
+`frontend/railway.toml:5-6`, D-UNK-10).
+
+#### Rollback and supersession
+
+This partial slice changes no runtime auth behavior, cookie attribute, origin,
+endpoint, or token contract: the incremental files are characterization tests and
+canonical Markdown only. Runtime rollback is therefore unnecessary, and these
+changes can be reverted independently without a database or session migration. If
+exploit evidence later requires an additional CSRF control, that supersession must
+be accepted in `docs/decisions.md` and ship with compatibility tests for login,
+logout, refresh, OAuth, guest tools, and bearer clients. Rolling back such a future
+control would restore this exact Lax/CORS/JSON posture and require no stored-data
+migration.
 
 ### 7.6 Password Hashing
 
@@ -785,7 +901,7 @@ Ad-blocker detection via bait div render check. 30-second countdown fallback.
 | D-UNK-7 | What is the backup schedule and restore procedure? | Data recovery posture before beta launch | #74 |
 | D-UNK-8 | What is the scope of the Google Cloud service account / API key permissions? | Limits blast radius of credential compromise | #79 |
 | D-UNK-9 | Are there any additional production environment variables not in `.env.example`? | Complete attack surface enumeration | #81 |
-| D-UNK-10 | What is the Railway domain and is TLS configured end-to-end? | Cookie `Secure` flag correctness; HSTS viability | #81 |
+| D-UNK-10 | What are the deployed frontend/backend domains, their registrable-site relationship, and is TLS configured end-to-end? | Cookie delivery, credentialed CORS, OAuth redirects, and HSTS viability | #75, #81 |
 
 ---
 
@@ -797,7 +913,7 @@ blocked only by their listed dependencies — all other context is available her
 | Issue | Depends On | Unblocked? |
 |-------|-----------|------------|
 | #74 — Retention/deletion lifecycle | §§4,12,13,14 — Asset inventory, privacy failures, gaps, unknowns D-UNK-6, D-UNK-7 | **Blocked by human decisions** (D-UNK-6, D-UNK-7) |
-| #75 — Auth, cookie, CORS, OAuth, CSRF posture | §§2,6,7 — Trust boundaries, API surface, session model | Unblocked (code evidence complete; SameSite=Lax authoritative per PRD #72) |
+| #75 — Auth, cookie, CORS, OAuth, CSRF posture | §§2,6,7 — Trust boundaries, API surface, session model | **Partially blocked:** code/default-development posture characterized; deployed origins, CORS/OAuth values, TLS, and staging browser evidence remain under D-UNK-10 |
 | #76 — Distributed abuse and ATO controls | §§6,11,13 — API surface with rate limits, abuse cases, gaps #1,#2,#8,#10 | Unblocked (code evidence complete) |
 | #77 — Browser storage minimization | §§4,5,12 — Asset inventory, storage inventory, privacy failure modes | Unblocked (code evidence complete) |
 | #78 — Telemetry, Sentry, logs, deletion audit | §§10,12,13 — Observability, privacy failures, gaps #6 | Unblocked (code evidence complete; D-UNK-3 may affect) |
