@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
+import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs'
 
 const apiUrl = `http://127.0.0.1:${process.env.E2E_BACKEND_PORT ?? '8000'}/api/v1`
 const password = 'correct-horse-battery-staple'
@@ -48,31 +49,78 @@ async function submitCoverLetter(page: Page): Promise<string> {
   return page.url().split('/').at(-1)!
 }
 
+async function submitInterview(page: Page): Promise<string> {
+  await gotoHydrated(page, '/interview')
+  await page.getByRole('button', { name: 'Paste text instead' }).click()
+  await page.locator('#interview-resumeText').fill(resumeText)
+  await page.locator('#interview-jobDescription').fill(jobDescription)
+  await page.getByRole('button', { name: 'Build interview prep' }).click()
+  await expect(page).toHaveURL(/\/interview\/result\/[^/]+$/)
+  return page.url().split('/').at(-1)!
+}
+
+async function readDownloadedPdfText(page: Page): Promise<{
+  filename: string
+  text: string
+}> {
+  const downloadPromise = page.waitForEvent('download')
+  await page.getByTitle('Export PDF').click()
+  const download = await downloadPromise
+  const stream = await download.createReadStream()
+  const chunks: Buffer[] = []
+  for await (const chunk of stream) chunks.push(Buffer.from(chunk))
+
+  const pdf = await getDocument({
+    data: new Uint8Array(Buffer.concat(chunks)),
+  }).promise
+  const pages: string[] = []
+  for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+    const pdfPage = await pdf.getPage(pageNumber)
+    const content = await pdfPage.getTextContent()
+    pages.push(
+      content.items
+        .map((item) => ('str' in item ? item.str : ''))
+        .join(' '),
+    )
+  }
+
+  return { filename: download.suggestedFilename(), text: pages.join(' ') }
+}
+
 test.beforeEach(async ({ context }) => {
   await context.addInitScript(() => {
     localStorage.setItem('cw-cookie-consent', 'accepted')
   })
 })
 
-test('owner PDF action returns a valid generated cover letter', async ({ page }) => {
+test('owner Cover Letter PDF download contains the generated fixture content', async ({ page }) => {
   test.setTimeout(60_000)
   await register(page, 'PDF Owner')
   const historyId = await submitCoverLetter(page)
 
-  const responsePromise = page.waitForResponse(
-    (response) => response.url() === `${apiUrl}/history/${historyId}/export/pdf`,
-  )
-  await page.getByTitle('Export PDF').click()
-  const response = await responsePromise
-  expect(response.status()).toBe(200)
-  expect(response.headers()['content-type']).toContain('application/pdf')
-  expect(response.headers()['content-disposition']).toContain('cover-letter.pdf')
+  const detail = await page.request.get(`${apiUrl}/history/${historyId}`)
+  expect(detail.ok()).toBe(true)
+  const expectedOpening = (await detail.json()).result_payload.opening.text as string
 
-  const pdfResponse = await page.request.get(`${apiUrl}/history/${historyId}/export/pdf`)
-  expect(pdfResponse.status()).toBe(200)
-  const content = await pdfResponse.body()
-  expect(content.subarray(0, 5).toString()).toBe('%PDF-')
-  expect(content.length).toBeGreaterThan(1_000)
+  const pdf = await readDownloadedPdfText(page)
+  expect(pdf.filename).toBe(`result-${historyId}.pdf`)
+  expect(pdf.text).toContain('Cover Letter')
+  expect(pdf.text).toContain(expectedOpening)
+})
+
+test('owner Interview PDF download contains the generated fixture content', async ({ page }) => {
+  test.setTimeout(60_000)
+  await register(page, 'PDF Interview')
+  const historyId = await submitInterview(page)
+
+  const detail = await page.request.get(`${apiUrl}/history/${historyId}`)
+  expect(detail.ok()).toBe(true)
+  const expectedQuestion = (await detail.json()).result_payload.questions[0].question as string
+
+  const pdf = await readDownloadedPdfText(page)
+  expect(pdf.filename).toBe(`result-${historyId}.pdf`)
+  expect(pdf.text).toContain('Interview Q&A')
+  expect(pdf.text).toContain(expectedQuestion)
 })
 
 test('guest demo results show expired state after clearing sessionStorage', async ({
