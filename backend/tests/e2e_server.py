@@ -17,6 +17,7 @@ from app.services import (
     portfolio_planner,
     resume_analyzer,
 )
+from app.limiter import limiter
 
 
 async def deterministic_complete_structured(*_args, **_kwargs) -> dict:
@@ -34,6 +35,11 @@ for service_module in (
     portfolio_planner,
 ):
     service_module.complete_structured = deterministic_complete_structured
+
+# The browser suite creates many isolated users through one loopback/CI address.
+# Production throttling is covered by backend tests; keeping it enabled here makes
+# test order and machine speed decide which otherwise-valid registrations receive 429.
+limiter.enabled = False
 
 app = import_module("app.main").app
 

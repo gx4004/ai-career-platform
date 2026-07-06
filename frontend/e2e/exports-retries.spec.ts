@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
+import { readFile } from 'node:fs/promises'
 
 const apiUrl = `http://127.0.0.1:${process.env.E2E_BACKEND_PORT ?? '8000'}/api/v1`
 const password = 'correct-horse-battery-staple'
@@ -11,6 +12,12 @@ Summary
 Backend engineer with six years of experience building reliable Python services.
 Skills
 Python, FastAPI, PostgreSQL, Docker, CI/CD, AWS
+`.trim()
+const jobDescription = `
+Senior Backend Engineer
+
+Build Python and FastAPI services backed by PostgreSQL. Improve reliability,
+mentor engineers, and deliver measurable production outcomes.
 `.trim()
 
 async function gotoHydrated(page: Page, path: string) {
@@ -32,13 +39,14 @@ async function register(page: Page, identity: string) {
   return email
 }
 
-async function submitResumeViaApi(page: Page): Promise<string> {
-  const resp = await page.request.post(`${apiUrl}/resume/analyze`, {
-    data: { resume_text: resumeText },
-  })
-  expect(resp.ok()).toBe(true)
-  const payload = await resp.json()
-  return payload.history_id as string
+async function submitCoverLetter(page: Page): Promise<string> {
+  await gotoHydrated(page, '/cover-letter')
+  await page.getByRole('button', { name: 'Paste text instead' }).click()
+  await page.locator('#cover-letter-resumeText').fill(resumeText)
+  await page.locator('#cover-letter-jobDescription').fill(jobDescription)
+  await page.getByRole('button', { name: 'Draft cover letter' }).click()
+  await expect(page).toHaveURL(/\/cover-letter\/result\/[^/]+$/)
+  return page.url().split('/').at(-1)!
 }
 
 test.beforeEach(async ({ context }) => {
@@ -47,24 +55,20 @@ test.beforeEach(async ({ context }) => {
   })
 })
 
-test('PDF export returns 404 when accessed by different user', async ({ page, browser }) => {
+test('owner downloads a valid PDF containing the generated cover letter', async ({ page }) => {
   test.setTimeout(60_000)
   await register(page, 'PDF Owner')
-  const historyId = await submitResumeViaApi(page)
+  const historyId = await submitCoverLetter(page)
 
-  const otherContext = await browser.newContext()
-  const otherPage = await otherContext.newPage()
-  await otherContext.addInitScript(() => {
-    localStorage.setItem('cw-cookie-consent', 'accepted')
-  })
-
-  try {
-    await register(otherPage, 'PDF Other')
-    const otherExport = await otherPage.request.get(`${apiUrl}/history/${historyId}/export/pdf`)
-    expect(otherExport.status()).toBe(404)
-  } finally {
-    await otherContext.close()
-  }
+  const downloadPromise = page.waitForEvent('download')
+  await page.getByRole('button', { name: 'PDF' }).click()
+  const download = await downloadPromise
+  expect(download.suggestedFilename()).toBe(`result-${historyId}.pdf`)
+  const path = await download.path()
+  expect(path).toBeTruthy()
+  const content = await readFile(path!)
+  expect(content.subarray(0, 5).toString()).toBe('%PDF-')
+  expect(content.length).toBeGreaterThan(1_000)
 })
 
 test('guest demo results show expired state after clearing sessionStorage', async ({
@@ -92,14 +96,10 @@ test('guest demo results show expired state after clearing sessionStorage', asyn
   await expect(page.getByRole('link', { name: /Run the tool again/i })).toBeVisible()
 })
 
-test('export action yields 404 for cross-owner access', async ({ page, browser }) => {
+test('PDF export returns 404 for cross-owner access', async ({ page, browser }) => {
   test.setTimeout(60_000)
   await register(page, 'Export Owner')
-  const historyId = await submitResumeViaApi(page)
-
-  // Owner can access
-  const ownerExport = await page.request.get(`${apiUrl}/history/${historyId}/export/pdf`)
-  expect([404, 200, 400]).toContain(ownerExport.status())
+  const historyId = await submitCoverLetter(page)
 
   // Other user can't export
   const otherContext = await browser.newContext()
@@ -116,14 +116,70 @@ test('export action yields 404 for cross-owner access', async ({ page, browser }
   }
 })
 
-test('authenticated history detail includes export metadata', async ({ page }) => {
-  test.setTimeout(30_000)
-  await register(page, 'Meta Export')
-  const historyId = await submitResumeViaApi(page)
+test('retry recovers from a transient request failure without duplicating the run', async ({ page }) => {
+  await register(page, 'Retry Run')
+  let attempts = 0
+  await page.route(`${apiUrl}/resume/analyze`, async (route) => {
+    attempts += 1
+    if (attempts === 1) {
+      await route.fulfill({
+        status: 503,
+        contentType: 'application/json',
+        body: JSON.stringify({ detail: 'Temporary service issue. Please try again.' }),
+      })
+      return
+    }
+    await route.continue()
+  })
 
-  const detail = await page.request.get(`${apiUrl}/history/${historyId}`)
-  expect(detail.ok()).toBe(true)
-  const json = await detail.json()
-  expect(json.id).toBe(historyId)
-  expect(json.saved).toBe(true)
+  await gotoHydrated(page, '/resume')
+  await page.getByRole('button', { name: 'Paste text instead' }).click()
+  await page.locator('#resume-resumeText').fill(resumeText)
+  await page.getByRole('button', { name: 'Review resume' }).click()
+  await expect(page.getByText('Temporary service issue. Please try again.')).toBeVisible()
+
+  await page.getByRole('button', { name: 'Review resume' }).click()
+  await expect(page).toHaveURL(/\/resume\/result\/[^/]+$/)
+  expect(attempts).toBe(2)
+
+  await gotoHydrated(page, '/history')
+  const totalRuns = page.locator('.h-stat-card').filter({ hasText: 'Total Runs' })
+  await expect(totalRuns).toContainText('1')
+})
+
+test('malformed success responses explain that the service returned an unexpected result', async ({
+  page,
+}) => {
+  await page.route(`${apiUrl}/resume/analyze`, (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: '{}',
+    }),
+  )
+
+  await gotoHydrated(page, '/resume')
+  await page.getByRole('button', { name: 'Paste text instead' }).click()
+  await page.locator('#resume-resumeText').fill(resumeText)
+  await page.getByRole('button', { name: 'Review resume' }).click()
+
+  await expect(page.getByText('Server returned an unexpected response')).toBeVisible()
+})
+
+test('terminal validation failures show a safe actionable message', async ({ page }) => {
+  await page.route(`${apiUrl}/resume/analyze`, (route) =>
+    route.fulfill({
+      status: 422,
+      contentType: 'application/json',
+      body: JSON.stringify({ detail: 'Check the resume text and try again.' }),
+    }),
+  )
+
+  await gotoHydrated(page, '/resume')
+  await page.getByRole('button', { name: 'Paste text instead' }).click()
+  await page.locator('#resume-resumeText').fill(resumeText)
+  await page.getByRole('button', { name: 'Review resume' }).click()
+
+  await expect(page.getByText('Check the resume text and try again.')).toBeVisible()
+  await expect(page.getByText(/Vertex|Gemini|provider/i)).toHaveCount(0)
 })

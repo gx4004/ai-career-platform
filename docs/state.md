@@ -40,13 +40,12 @@ features are not current implementation claims.
 
 ## Immediate Objective
 
-**Status: R2 complete, R3 in progress**
+**Status: R2 reopened; R3 blocked by R2**
 
-Verify every V1 journey through maintained browser tests without changing accepted
-product contracts. R2 uses deterministic AI responses only inside its dedicated test
-process; live Vertex authorization remains the human-owned issue #51 and is not a
-current completion gate. Use the resulting evidence to drive R3–R4 before beginning
-Evidence Profile or CV Studio work.
+Repair the unstable browser-test gate and complete the missing R2 UI evidence before
+starting R3 implementation. R2 uses deterministic AI responses only inside its
+dedicated test process; live Vertex authorization remains the human-owned issue #51
+and is not a current completion gate.
 
 ## Risks and Drift to Resolve
 
@@ -63,9 +62,10 @@ Evidence Profile or CV Studio work.
 
 ## Product Audit Work Remaining
 
-- deterministic browser verification of all six guest tools;
-- authenticated workflow and ownership checks;
-- export verification;
+- deterministic registration and session setup across the complete browser suite;
+- three connected workflows verified through visible carried inputs;
+- history, workspace, revision, and deletion behavior verified through the UI;
+- successful export contents, retries, and recoverable failures verified through the browser;
 - mobile and keyboard walkthrough;
 - staging health, telemetry, error scrubbing, OAuth, email, and rollback checks;
 - current production/staging database revision and backup posture.
