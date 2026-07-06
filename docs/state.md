@@ -96,6 +96,12 @@ verification remains outstanding because the local Docker engine is unavailable.
 Production Railway origins, TLS forwarding, OAuth, Sentry, downloads, and font
 behavior still require staging verification before #81 can close.
 
+R4 automated baseline work is now in progress. Representative public and
+authenticated-shell routes are covered at 320 px and 375 px for horizontal
+overflow, critical axe violations, visible keyboard focus, and reduced-motion
+behavior. The first CI run will establish concrete UI defects before performance
+budgets and wider keyboard walkthroughs are accepted.
+
 Remaining R3 slices are dependency-ordered. #74 (retention/deletion) requires human
 decisions D-UNK-6 and D-UNK-7; #77 and #78 depend on that decision. #76 depends on
 the remaining #75 production evidence but can proceed against its merged code
