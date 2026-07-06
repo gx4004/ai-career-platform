@@ -31,9 +31,8 @@ export function AppRouteError({
   const chunkLoadFailure = isChunkLoadError(error)
 
   useEffect(() => {
-    const route = typeof window !== 'undefined' ? window.location.pathname : undefined
     const failureKind = chunkLoadFailure ? 'chunk-load' : 'generic-route'
-    captureAppError(error, { source: 'route-error', failure_kind: failureKind, route })
+    captureAppError(error, { source: 'route-error', failure_kind: failureKind })
   }, [chunkLoadFailure, error])
 
   if (chunkLoadFailure) {

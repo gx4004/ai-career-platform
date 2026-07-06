@@ -27,7 +27,6 @@ export class ErrorBoundary extends Component<Props, State> {
     })
     captureAppError(error, {
       source: 'error-boundary',
-      componentStack: info.componentStack,
     })
 
     // Track consecutive crashes — auto-redirect on 2nd

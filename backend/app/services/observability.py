@@ -21,14 +21,12 @@ def log_tool_run_started(
     *,
     tool_name: str,
     access_mode: str,
-    workspace_id: str | None,
     linked_context_count: int,
 ) -> None:
     _log(
         "tool_run_started",
         tool_name=tool_name,
         access_mode=access_mode,
-        workspace_id=workspace_id,
         linked_context_count=linked_context_count,
     )
 
@@ -39,8 +37,6 @@ def log_tool_run_completed(
     access_mode: str,
     duration_ms: int,
     saved: bool,
-    history_id: str | None,
-    workspace_id: str | None,
 ) -> None:
     _log(
         "tool_run_completed",
@@ -48,8 +44,6 @@ def log_tool_run_completed(
         access_mode=access_mode,
         duration_ms=duration_ms,
         saved=saved,
-        history_id=history_id,
-        workspace_id=workspace_id,
     )
 
 
@@ -58,7 +52,6 @@ def log_tool_run_failed(
     tool_name: str,
     access_mode: str,
     duration_ms: int,
-    workspace_id: str | None,
     failure_category: str,
 ) -> None:
     _log(
@@ -67,7 +60,6 @@ def log_tool_run_failed(
         tool_name=tool_name,
         access_mode=access_mode,
         duration_ms=duration_ms,
-        workspace_id=workspace_id,
         failure_category=failure_category,
     )
 

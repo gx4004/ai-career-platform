@@ -329,8 +329,12 @@ async def analyze_resume(
 
     try:
         result = await complete_structured(system_prompt, user_prompt)
-    except Exception:
-        logger.warning("LLM call failed for resume analysis, returning heuristic fallback", exc_info=True)
+    except Exception as exc:
+        logger.warning(
+            "LLM call failed for resume analysis; returning heuristic fallback "
+            "error_type=%s",
+            type(exc).__name__,
+        )
         return _build_heuristic_fallback(prepass, heuristic_breakdown, heuristic_overall, generated_at)
 
     # Blended scoring: heuristic 40% + LLM 60%

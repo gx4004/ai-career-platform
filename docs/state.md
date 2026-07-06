@@ -78,6 +78,14 @@ without hard account lockout. Health probes remain unlimited. Production must
 provide and capacity-test `RATE_LIMIT_STORAGE_URI`; route-specific CAPTCHA work is
 triggered only by the accepted aggregate event threshold or provider cost alerts.
 
+R3 #78 now rejects unknown or content-bearing telemetry fields and removes raw
+frontend error messages plus stable run/workspace identifiers. Frontend/backend
+Sentry hooks drop request content, credentials, query strings, breadcrumb bodies,
+and entire user contexts. Model, import, email, and OAuth failure logs emit generic
+categories rather than content, emails, full URLs, or provider exception text.
+Sentry enablement, processor behavior, deletion-audit retention, and all bounded
+retention periods still depend on production evidence and #74.
+
 Remaining R3 slices are dependency-ordered. #74 (retention/deletion) requires human
 decisions D-UNK-6 and D-UNK-7; #77 and #78 depend on that decision. #76 depends on
 the remaining #75 production evidence but can proceed against its merged code

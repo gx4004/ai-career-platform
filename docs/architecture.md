@@ -130,7 +130,11 @@ must not make unrelated core flows unavailable.
 
 Tool execution emits start, completion, duration, access mode, save state, and
 categorized failures. Monitoring must not include raw resumes, job descriptions,
-cookies, auth headers, tokens, or email addresses.
+generated content, cookies, auth headers, tokens, email/IP addresses, full imported
+URLs, raw provider exceptions, stable run/workspace identifiers, or frontend error
+messages. Frontend telemetry is an extra-forbidden allowlist with no route or
+stable run/workspace fields and only explicit low-cardinality dimensions. Both Sentry SDKs drop request content,
+credentials, query strings, breadcrumb bodies, and the entire user context.
 
 Operational questions should be answerable without reconstructing sensitive content.
 

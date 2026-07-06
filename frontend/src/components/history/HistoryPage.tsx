@@ -241,9 +241,7 @@ export function HistoryPage({
                       trackTelemetry({
                         event_name: 'workspace_resumed',
                         tool_id: currentTool.id,
-                        history_id: detail.id,
                         access_mode: 'authenticated',
-                        workspace_id: featuredWorkspace.id,
                         saved: true,
                       })
                       await navigate({ to: toolList.find((tool) => tool.id === nextToolId)?.route || '/resume' })

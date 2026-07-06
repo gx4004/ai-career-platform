@@ -751,7 +751,7 @@ patterns to strip known injection markers, including:
 | What is sent | Recipient email + reset URL containing JWT token |
 | Auth mechanism | `RESEND_API_KEY` env var |
 | Network path | HTTPS to `api.resend.com` |
-| Failure mode | Background task; failure is silently logged, user always sees success |
+| Failure mode | Background task; generic failure category is logged and sent to Sentry without recipient, reset URL, or provider exception text; user always sees success |
 
 — `backend/app/services/email_service.py`
 
@@ -772,10 +772,10 @@ patterns to strip known injection markers, including:
 | Concern | Detail |
 |---------|--------|
 | What is captured | Error stack traces, request metadata (scrubbed), performance traces (10% sample) |
-| What is scrubbed | Request body, cookies, query strings, auth/cookie headers, user email, user IP |
+| What is scrubbed | Request body, cookies, query strings, auth/cookie headers, entire user context; frontend fetch/XHR breadcrumb bodies |
 | Opt-in behavior | Sentry SDK only initializes if `SENTRY_DSN` env var is set (empty by default) |
 | Backend scrubbing | `_scrub_sentry_event()` — `backend/app/main.py:37-65` |
-| Frontend scrubbing | `beforeSend` + `beforeBreadcrumb` — `frontend/src/routes/__root.tsx:14-58` |
+| Frontend scrubbing | Tested `beforeSend` + `beforeBreadcrumb` hooks — `frontend/src/lib/observability/sentryPrivacy.ts` |
 
 ### 9.6 Railway PostgreSQL
 
@@ -796,14 +796,16 @@ All log lines are single-line JSON objects emitted to stdout. Key events:
 
 | Event | Fields | Level |
 |-------|--------|-------|
-| `tool_run_started` | tool_name, access_mode, workspace_id, linked_context_count | info |
-| `tool_run_completed` | tool_name, access_mode, duration_ms, saved, history_id, workspace_id | info |
-| `tool_run_failed` | tool_name, access_mode, duration_ms, workspace_id, failure_category | error |
+| `tool_run_started` | tool_name, access_mode, linked_context_count | info |
+| `tool_run_completed` | tool_name, access_mode, duration_ms, saved | info |
+| `tool_run_failed` | tool_name, access_mode, duration_ms, failure_category | error |
 | `user_account_deleted` | user_id, runs_deleted, workspaces_deleted, user_record_deleted | info |
-| `frontend_telemetry` | Raw payload from frontend | info |
+| `frontend_telemetry` | Allowlisted event/category enums, tool/access mode, booleans, timestamp, and explicit low-cardinality dimensions | info |
 
 **Deliberately NOT logged:** Resume text, job descriptions, generated content,
-passwords, tokens, cookies, email addresses, IP addresses.
+passwords, tokens, cookies, email addresses, IP addresses, provider exception
+messages, full imported URLs, frontend error messages, run IDs, and workspace IDs.
+Deletion-audit `user_id` necessity and retention remain owned by #74.
 
 — `backend/app/services/observability.py`
 
@@ -813,6 +815,9 @@ passwords, tokens, cookies, email addresses, IP addresses.
   `fetch` with `keepalive: true`
 - **Endpoint:** `POST /api/v1/telemetry/events` (rate-limited at 60/min)
 - **Consent gate:** Skipped if `getStoredConsent() === 'rejected'`
+- **Schema:** Unknown fields are rejected. The contract has no arbitrary metadata,
+  raw error-message, route, history-ID, workspace-ID, resume, job-description, or
+  generated-content field.
 - **Event names:** `tool_run_started`, `tool_run_succeeded`, `tool_run_failed`,
   `result_page_loaded`, `export_action_used`, `workspace_resumed`,
   `frontend_error`, `tool_regenerate`, `ad_shown`, `ad_completed`,
@@ -868,7 +873,7 @@ Ad-blocker detection via bait div render check. 30-second countdown fallback.
 
 | Rank | Failure Mode | Affected Asset | Current Protection | Gap |
 |------|-------------|----------------|-------------------|-----|
-| 1 | **Resume/JD leakage via logs or error reports** | Resume text, generated content | Sentry scrubs body/cookies/query; structured logs exclude content | Sentry is opt-in but captures stack traces; if `SENTRY_DSN` unset, no log scrubbing in stdout (structured events exclude content by schema) |
+| 1 | **Resume/JD leakage via logs or error reports** | Resume text, generated content | Sentry drops bodies, breadcrumb payloads, query strings, credentials, and user context; telemetry rejects unknown/content fields; model/import/email/OAuth failures log only generic categories | Sentry stack traces still expose code paths; processor enablement and retention remain unverified |
 | 2 | **Generated content accessible to wrong user** | ToolRun results | User-scoped cache keys; DB queries filter by `user_id` | In-memory cache key includes user scope; no cross-user access observed in code — confidence is high but only code-audit, not penetration-test, verified |
 | 3 | **Browser storage persistence after logout** | sessionStorage data | Tab-scoped sessionStorage clears on tab close; localStorage consent stays | Logout clears pending intent, invalidates query cache, but does not clear tool drafts, workflow context, demo results, or resume-carry from current tab's sessionStorage |
 | 4 | **Password reset token in URL** | Reset token | Single-use (password-hash-derived secret auto-invalidates on password change) | Token in URL query string leaks to browser history, server access logs, and Referer header if reset page loads external resources |

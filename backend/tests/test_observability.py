@@ -1,4 +1,5 @@
 from app.main import _scrub_sentry_event
+from app.services.ai_client import _safe_parse_json
 
 
 def test_scrub_sentry_event_removes_request_body_and_cookies():
@@ -40,7 +41,7 @@ def test_scrub_sentry_event_redacts_sensitive_headers():
     assert headers["User-Agent"] == "test"
 
 
-def test_scrub_sentry_event_drops_user_pii():
+def test_scrub_sentry_event_drops_entire_stable_user_context():
     event = {
         "user": {
             "id": "u-1",
@@ -52,10 +53,7 @@ def test_scrub_sentry_event_drops_user_pii():
 
     scrubbed = _scrub_sentry_event(event, None)
 
-    assert "email" not in scrubbed["user"]
-    assert "ip_address" not in scrubbed["user"]
-    assert scrubbed["user"]["id"] == "u-1"
-    assert scrubbed["user"]["username"] == "user"
+    assert "user" not in scrubbed
 
 
 def test_scrub_sentry_event_handles_missing_keys_gracefully():
@@ -72,7 +70,7 @@ def test_scrub_sentry_event_handles_non_dict_shapes():
     scrubbed = _scrub_sentry_event(event, None)
 
     assert scrubbed["request"] == "not-a-dict"
-    assert scrubbed["user"] == ["also", "not", "a", "dict"]
+    assert "user" not in scrubbed
 
 
 def test_scrub_sentry_event_strips_url_query_and_fragment():
@@ -95,3 +93,15 @@ def test_scrub_sentry_event_leaves_url_without_query_alone():
     scrubbed = _scrub_sentry_event(event, None)
 
     assert scrubbed["request"]["url"] == "https://example.com/dashboard"
+
+
+def test_malformed_model_output_is_not_written_to_logs(caplog):
+    private_output = '{"resume_text":"private resume for user@example.com"'
+
+    try:
+        _safe_parse_json(private_output, "test-provider")
+    except ValueError:
+        pass
+
+    assert "private resume" not in caplog.text
+    assert "user@example.com" not in caplog.text
