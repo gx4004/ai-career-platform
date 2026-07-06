@@ -60,8 +60,9 @@ async function runResumeAnalyzer(page: Page) {
 }
 
 async function expectCarriedResume(page: Page, fieldSelector: string) {
-  await expect(page.getByText(/Resume parsed and ready/i)).toBeVisible()
-  await page.getByRole('button', { name: 'Change' }).click()
+  const status = page.locator('.tool-status-inline')
+  await expect(status).toBeVisible()
+  await status.getByRole('button', { name: 'Change' }).click()
   await expect(page.locator(fieldSelector)).toHaveValue(resumeText)
 }
 
