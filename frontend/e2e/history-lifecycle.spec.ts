@@ -101,18 +101,21 @@ test('workspace listing, labeling, and pinning work through the UI', async ({ pa
   await expect(page.getByText('My labeled workspace')).toBeVisible()
 })
 
-test('regeneration creates a new ToolRun linked by parent_run_id', async ({ page }) => {
+test('regeneration through the UI creates a new ToolRun linked by parent_run_id', async ({ page }) => {
   test.setTimeout(60_000)
   await register(page, 'Reg Full')
   const id1 = await submitResume(page)
 
-  const regen = await page.request.post(`${apiUrl}/resume/analyze`, {
-    data: { resume_text: resumeText, parent_run_id: id1 },
-  })
-  expect(regen.ok()).toBe(true)
-  const regenJson = await regen.json()
-  const id2 = regenJson.history_id
-  expect(id2).toBeTruthy()
+  await page.getByRole('button', { name: 'Re-generate' }).click()
+  await page.getByPlaceholder(/describe what you'd like changed/i).fill('Emphasize impact')
+  await page.getByRole('button', { name: 'Submit' }).click()
+  await expect(page).toHaveURL(new RegExp(`/resume\\?parent_run_id=${id1}`))
+
+  const status = page.locator('.tool-status-inline')
+  await expect(status).toBeVisible()
+  await page.getByRole('button', { name: 'Review resume' }).click()
+  await expect(page).toHaveURL(/\/resume\/result\/[^/]+$/)
+  const id2 = page.url().split('/').at(-1)!
   expect(id2).not.toBe(id1)
 
   const detail2 = await page.request.get(`${apiUrl}/history/${id2}`)
@@ -123,36 +126,29 @@ test('regeneration creates a new ToolRun linked by parent_run_id', async ({ page
   expect(detail1.ok()).toBe(true)
 })
 
-test('delete removes runs and their workspace when empty', async ({
+test('deleting one run preserves its workspace and deleting the final run removes it', async ({
   page,
 }) => {
   test.setTimeout(60_000)
   await register(page, 'Del Full')
-  await submitResume(page)
+  const firstId = await submitResume(page)
+  await page.getByRole('button', { name: 'Re-generate' }).click()
+  await page.getByRole('button', { name: 'Submit' }).click()
+  await expect(page).toHaveURL(new RegExp(`/resume\\?parent_run_id=${firstId}`))
+  await page.getByRole('button', { name: 'Review resume' }).click()
+  await expect(page).toHaveURL(/\/resume\/result\/[^/]+$/)
 
-  // API-only second run — creates own workspace (no browser workflow context)
-  const id2Resp = await page.request.post(`${apiUrl}/resume/analyze`, {
-    data: { resume_text: resumeText },
-  })
-  expect(id2Resp.ok()).toBe(true)
+  await gotoHydrated(page, '/history')
+  await expect(page.getByRole('button', { name: 'Delete this saved run' })).toHaveCount(2)
+  await page.getByRole('button', { name: 'Delete this saved run' }).first().click()
+  await page.getByRole('button', { name: 'Delete run' }).click()
+  await expect(page.getByRole('button', { name: 'Delete this saved run' })).toHaveCount(1)
+  await expect(page.getByPlaceholder('Name this workspace')).toHaveCount(1)
 
-  const allRuns = await page.request.get(`${apiUrl}/history?page_size=100`)
-  const allItems = (await allRuns.json()).items as Array<{ id: string }>
-  expect(allItems.length).toBeGreaterThanOrEqual(2)
-
-  // Delete all runs
-  for (const item of allItems) {
-    await page.request.delete(`${apiUrl}/history/${item.id}`)
-  }
-
-  // All workspaces should be gone
-  const ws3 = await page.request.get(`${apiUrl}/history/workspaces`)
-  const ws3Json = await ws3.json()
-  expect(ws3Json.items).toHaveLength(0)
-
-  // History is empty
-  const finalHistory = await page.request.get(`${apiUrl}/history?page_size=100`)
-  expect((await finalHistory.json()).items).toHaveLength(0)
+  await page.getByRole('button', { name: 'Delete this saved run' }).click()
+  await page.getByRole('button', { name: 'Delete run' }).click()
+  await expect(page.getByText(/no runs found/i)).toBeVisible()
+  await expect(page.getByPlaceholder('Name this workspace')).toHaveCount(0)
 })
 
 test('empty state renders when no runs exist', async ({ page }) => {
