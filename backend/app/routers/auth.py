@@ -154,7 +154,20 @@ def refresh_token(
 
 
 @router.post("/logout", status_code=200)
-def logout(response: Response):
+def logout(request: Request, response: Response):
+    origin = request.headers.get("origin")
+    allowed_origins = {
+        value.strip().rstrip("/")
+        for value in settings.CORS_ORIGINS.split(",")
+        if value.strip()
+    }
+    if settings.FRONTEND_URL:
+        allowed_origins.add(settings.FRONTEND_URL.rstrip("/"))
+    if origin and origin.rstrip("/") not in allowed_origins:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Origin is not allowed",
+        )
     clear_auth_cookies(response)
     return {"ok": True}
 
