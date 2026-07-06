@@ -82,7 +82,8 @@ R3 #81 now has a locally verified frontend-response implementation: SSR and stat
 responses receive a deployment-compatible CSP and baseline browser security
 headers, HSTS requires an explicit deployment switch plus HTTPS forwarding, and
 COEP/includeSubDomains/preload remain deliberately disabled pending compatibility
-and domain evidence.
+and domain evidence. Both runtime images now drop root privileges; Docker build
+verification remains outstanding because the local Docker engine is unavailable.
 Production Railway origins, TLS forwarding, OAuth, Sentry, downloads, and font
 behavior still require staging verification before #81 can close.
 
