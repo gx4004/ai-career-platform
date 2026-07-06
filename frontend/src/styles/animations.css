@@ -332,7 +332,10 @@
   .animate-pulse-glow,
   .skeleton-shimmer,
   .skeleton,
-  .settings-status-dot.is-online {
+  .settings-status-dot.is-online,
+  .dash-hero-accent-word,
+  .dash-hero-dark-drop-glow,
+  .dash-hero-dark .dropzone-hero {
     animation: none !important;
   }
 
