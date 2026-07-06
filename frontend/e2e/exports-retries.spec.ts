@@ -62,7 +62,7 @@ test('owner PDF action returns a valid generated cover letter', async ({ page })
   const responsePromise = page.waitForResponse(
     (response) => response.url() === `${apiUrl}/history/${historyId}/export/pdf`,
   )
-  await page.getByRole('button', { name: 'PDF' }).click()
+  await page.getByTitle('Export PDF').click()
   const response = await responsePromise
   expect(response.status()).toBe(200)
   expect(response.headers()['content-type']).toContain('application/pdf')
