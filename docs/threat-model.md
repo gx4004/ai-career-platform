@@ -485,7 +485,7 @@ behavior are equivalent.
 | `/auth/login`, `/auth/register`, password-reset request/confirm | JSON `POST`; no existing session required | Cross-origin browser fetch preflights; login/register may issue auth cookies | `frontend/src/lib/api/client.ts:47-52,94-111`; `backend/app/routers/auth.py:login,register,request_password_reset,confirm_password_reset` |
 | `/auth/google/login`, `/auth/google/callback` | Top-level `GET` navigation; callback mutates/link/signs in | No CORS fetch; Authlib session/state flow, then callback issues auth cookies | `backend/app/main.py:93-97`; `backend/app/routers/google_auth.py:google_login,google_callback` |
 | `/auth/refresh` | Frontend sends JSON `{}` `POST`; server also accepts a bodyless request with path-scoped refresh cookie | JSON frontend call preflights cross-origin; Lax governs cookie delivery on cross-site requests | `frontend/src/lib/api/client.ts:80-90`; `backend/app/routers/auth.py:refresh_token`; `backend/app/auth/security.py:106-114` |
-| `/auth/logout` | Bodyless `POST`; endpoint requires no authenticated dependency | A simple cross-origin form can reach the endpoint and receive cookie-deletion headers; current code has no Origin check | `frontend/src/lib/api/client.ts:logout`; `backend/app/routers/auth.py:logout`; `backend/app/auth/security.py:clear_auth_cookies`; `backend/tests/test_auth_posture.py:test_bodyless_cross_origin_logout_reaches_cookie_deletion` |
+| `/auth/logout` | Bodyless `POST`; endpoint requires no authenticated dependency | Requests with an explicit `Origin` must match configured CORS/frontend origins before cookies are cleared; non-browser clients without `Origin` remain compatible | `frontend/src/lib/api/client.ts:logout`; `backend/app/routers/auth.py:logout`; `backend/tests/test_auth_posture.py:test_bodyless_cross_origin_logout_is_rejected_without_cookie_deletion` |
 | `/auth/me/delete` | Authenticated JSON `POST` | Cross-origin fetch preflights; endpoint still requires access credential and typed-email confirmation | `backend/app/routers/auth.py:delete_account`; `backend/tests/test_auth_posture.py:test_allowed_origin_never_replaces_endpoint_authorization` |
 | Tool-generation POSTs | JSON; optional auth/guest behavior | Cross-origin browser fetch preflights; a denied origin cannot send this JSON shape, while non-browser clients are unaffected by CORS | `frontend/src/lib/api/client.ts:normalizeBody,request`; `backend/app/routers/resume.py:analyze`; `backend/app/routers/job_match.py:match`; `backend/app/routers/cover_letter.py:generate`; `backend/app/routers/interview.py:questions,practice_feedback`; `backend/app/routers/career.py:recommend`; `backend/app/routers/portfolio.py:recommend` |
 | Job import and telemetry POSTs | JSON; no auth dependency and cookies are ignored | Cross-origin browser fetch preflights; a denied origin cannot send this JSON shape, while non-browser clients remain able to call the rate-limited endpoint | `frontend/src/lib/api/client.ts:normalizeBody,request`; `frontend/src/lib/telemetry/client.ts:trackTelemetry`; `backend/app/routers/job_posts.py:import_job_url`; `backend/app/routers/telemetry.py:ingest_event` |
@@ -497,7 +497,7 @@ behavior are equivalent.
 | Flow | Browser/request shape | Compatibility under preserved posture |
 |------|-----------------------|----------------------------------------|
 | Login/register | Credentialed JSON `POST` from configured frontend (`frontend/src/lib/api/client.ts:request`) | Preflight allowed; Lax auth cookies issued |
-| Logout | Credentialed bodyless `POST` (`frontend/src/lib/api/client.ts:logout`) | Works from configured frontend; forced cross-site logout is a residual risk requiring human acceptance or mitigation |
+| Logout | Credentialed bodyless `POST` (`frontend/src/lib/api/client.ts:logout`) | Configured frontend and non-browser clients work; explicit untrusted origins receive 403 without cookie deletion |
 | Silent refresh | Credentialed `POST`; refresh cookie scoped to the exact endpoint (`frontend/src/lib/api/client.ts:silentRefresh`) | Works without a custom CSRF header |
 | Google OAuth | Top-level `GET` redirect and callback (`backend/app/routers/google_auth.py:google_login,google_callback`) | Code path is Lax-compatible; deployed state/callback round trip remains unverified |
 | Guest tools | JSON `POST` without auth cookies (`frontend/src/lib/api/client.ts:request`) | Preflight allowed from configured frontend; guest behavior unchanged |
@@ -522,8 +522,9 @@ covered by the named tests in `backend/tests/test_auth_posture.py`:
 `test_allowed_origin_never_replaces_endpoint_authorization`,
 `test_simple_cross_origin_body_cannot_reach_json_account_deletion`,
 `test_login_from_allowed_origin_sets_lax_path_scoped_http_only_cookies`,
-`test_production_login_adds_secure_without_changing_lax_or_paths`, and
-`test_bodyless_cross_origin_logout_reaches_cookie_deletion`.
+`test_production_login_adds_secure_without_changing_lax_or_paths`,
+`test_bodyless_cross_origin_logout_is_rejected_without_cookie_deletion`, and
+`test_logout_allows_configured_frontend_and_non_browser_clients`.
 Post-exchange OAuth redirects and cookies are covered by
 `backend/tests/test_google_oauth.py:test_link_accepts_verified_email`, but the
 external state round trip is not. Cookie-backed authorization and owner isolation
@@ -534,23 +535,20 @@ Before #75 can close, a human must supply or verify the deployed frontend URL,
 backend URL, `CORS_ORIGINS`, `FRONTEND_URL`, `GOOGLE_REDIRECT_URI`, and end-to-end
 TLS. A staging browser check must then prove credentialed CORS, cookie delivery,
 OAuth state/callback compatibility, refresh, logout, and representative protected
-JSON, multipart, PATCH, and DELETE mutations. The human must also accept forced
-cross-site logout as low-impact or authorize an Origin/CSRF mitigation
+JSON, multipart, PATCH, and DELETE mutations. Forced cross-site logout is mitigated
+by the accepted explicit-Origin guard
 (`backend/app/config.py:19-20,34-36`,
 `backend/app/routers/google_auth.py:google_login`,
 `frontend/railway.toml:5-6`, D-UNK-10).
 
 #### Rollback and supersession
 
-This partial slice changes no runtime auth behavior, cookie attribute, origin,
-endpoint, or token contract: the incremental files are characterization tests and
-canonical Markdown only. Runtime rollback is therefore unnecessary, and these
-changes can be reverted independently without a database or session migration. If
-exploit evidence later requires an additional CSRF control, that supersession must
-be accepted in `docs/decisions.md` and ship with compatibility tests for login,
-logout, refresh, OAuth, guest tools, and bearer clients. Rolling back such a future
-control would restore this exact Lax/CORS/JSON posture and require no stored-data
-migration.
+The logout endpoint now rejects explicit origins outside the configured
+CORS/frontend allowlist. Rolling it back restores forced cross-site logout but
+requires no database, cookie, token, or session migration. SameSite=Lax and the
+remaining JSON/CORS posture are unchanged. Any broader CSRF control must be
+accepted in `docs/decisions.md` and ship with compatibility tests for login,
+logout, refresh, OAuth, guest tools, and bearer clients.
 
 ### 7.6 Password Hashing
 

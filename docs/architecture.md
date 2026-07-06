@@ -85,6 +85,11 @@ authenticated persistence, observability, and response construction.
 Any auth change requires backend tests, frontend session tests, cookie review, CORS
 review, and an explicit decision if the trust model changes.
 
+Logout rejects an explicit browser `Origin` unless it matches `CORS_ORIGINS` or
+`FRONTEND_URL`; non-browser clients without `Origin` remain compatible. This
+targeted guard prevents forced cross-site logout without changing the accepted
+SameSite=Lax cookie posture or adding a token protocol.
+
 Password-reset emails place the bearer token in the URL fragment. The reset page
 reads it only after hydration and immediately removes it from the visible URL with
 `history.replaceState`; fragments are not sent to the frontend server or in HTTP
