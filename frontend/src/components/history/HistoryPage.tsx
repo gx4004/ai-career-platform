@@ -97,7 +97,10 @@ export function HistoryPage({
     mutationFn: deleteHistoryItem,
     onSuccess: async () => {
       setDeleteCandidate(null)
-      await queryClient.invalidateQueries({ queryKey: ['history-page'] })
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['history-page'] }),
+        queryClient.invalidateQueries({ queryKey: ['history-workspaces'] }),
+      ])
     },
     onError: (error) => {
       const msg = error instanceof Error ? error.message : 'Failed to delete run.'
