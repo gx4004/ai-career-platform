@@ -1,0 +1,194 @@
+import { expect, test, type Page } from '@playwright/test'
+
+const apiUrl = `http://127.0.0.1:${process.env.E2E_BACKEND_PORT ?? '8000'}/api/v1`
+const password = 'correct-horse-battery-staple'
+
+const resumeText = `
+Jordan Rivera
+Backend Engineer
+
+Summary
+Backend engineer with six years of experience building reliable Python services,
+data pipelines, and internal platforms for distributed product teams.
+Skills
+Python, FastAPI, PostgreSQL, Docker, CI/CD, AWS
+`.trim()
+
+async function gotoHydrated(page: Page, path: string) {
+  await page.goto(path)
+  await page.locator('html[data-hydrated="true"]').waitFor()
+  await page.evaluate(() => localStorage.setItem('cw-cookie-consent', 'accepted'))
+}
+
+async function register(page: Page, identity: string) {
+  const email = `${identity.toLowerCase().replaceAll(' ', '-')}-${Date.now()}@example.com`
+  await gotoHydrated(page, '/login')
+  await page.getByRole('tab', { name: 'Create Account' }).click()
+  await page.locator('#register-name').fill(identity)
+  await page.locator('#register-email').fill(email)
+  await page.locator('#register-password').fill(password)
+  await page.locator('#register-tos').check()
+  await page.getByRole('button', { name: 'Create free account' }).click()
+  await expect(page.getByRole('heading', { name: 'You are already signed in' })).toBeVisible()
+  return email
+}
+
+async function submitResume(page: Page): Promise<string> {
+  await gotoHydrated(page, '/resume')
+  await page.getByRole('button', { name: 'Paste text instead' }).click()
+  await page.locator('#resume-resumeText').fill(resumeText)
+  const responsePromise = page.waitForResponse(
+    (response) =>
+      response.url() === `${apiUrl}/resume/analyze` && response.request().method() === 'POST',
+  )
+  await page.getByRole('button', { name: 'Review resume' }).click()
+  const response = await responsePromise
+  expect(response.ok()).toBe(true)
+  const payload = await response.json()
+  expect(payload.history_id).toBeTruthy()
+  await expect(page).toHaveURL(new RegExp(`/resume/result/${payload.history_id}$`))
+  return payload.history_id as string
+}
+
+test.beforeEach(async ({ context }) => {
+  await context.addInitScript(() => {
+    localStorage.setItem('cw-cookie-consent', 'accepted')
+  })
+})
+
+test('history filtering, favorites, detail, and labels work through the API', async ({
+  page,
+}) => {
+  test.setTimeout(90_000)
+  await register(page, 'Hist Full')
+
+  const id1 = await submitResume(page)
+
+  const id2Resp = await page.request.post(`${apiUrl}/resume/analyze`, {
+    data: { resume_text: resumeText },
+  })
+  expect(id2Resp.ok()).toBe(true)
+
+  // Tool filter
+  const byTool = await page.request.get(`${apiUrl}/history?tool=resume&page_size=100`)
+  expect(byTool.ok()).toBe(true)
+  const byToolJson = await byTool.json()
+  expect(byToolJson.items).toHaveLength(2)
+
+  // Get detail
+  const detail = await page.request.get(`${apiUrl}/history/${id1}`)
+  expect(detail.ok()).toBe(true)
+  const detailJson = await detail.json()
+  expect(detailJson.id).toBe(id1)
+  expect(detailJson.is_favorite).toBe(false)
+
+  // Toggle favorite ON
+  const favOn = await page.request.patch(`${apiUrl}/history/${id1}/favorite`, {
+    data: { is_favorite: true },
+  })
+  expect(favOn.ok()).toBe(true)
+  expect((await favOn.json()).is_favorite).toBe(true)
+
+  // Filter by favorite
+  const favs = await page.request.get(`${apiUrl}/history?favorite=true`)
+  expect(favs.ok()).toBe(true)
+  const favJson = await favs.json()
+  expect(favJson.items).toHaveLength(1)
+  expect(favJson.items[0].id).toBe(id1)
+
+  // Toggle OFF
+  const favOff = await page.request.patch(`${apiUrl}/history/${id1}/favorite`, {
+    data: { is_favorite: false },
+  })
+  expect(favOff.ok()).toBe(true)
+  expect((await favOff.json()).is_favorite).toBe(false)
+
+  // Navigate to history page to verify UI renders
+  await gotoHydrated(page, '/history')
+  await expect(page.locator('h1').filter({ hasText: /Workspace Timeline/i })).toBeVisible()
+})
+
+test('workspace listing, labeling, and pinning work', async ({ page }) => {
+  test.setTimeout(60_000)
+  await register(page, 'WS Full')
+  await submitResume(page)
+
+  const wsResp = await page.request.get(`${apiUrl}/history/workspaces`)
+  expect(wsResp.ok()).toBe(true)
+  const wsJson = await wsResp.json()
+  expect(wsJson.items).toHaveLength(1)
+  const ws = wsJson.items[0]
+
+  const updated = await page.request.patch(`${apiUrl}/history/workspaces/${ws.id}`, {
+    data: { label: 'My labeled workspace', is_pinned: true },
+  })
+  expect(updated.ok()).toBe(true)
+  const updatedJson = await updated.json()
+  expect(updatedJson.label).toBe('My labeled workspace')
+  expect(updatedJson.is_pinned).toBe(true)
+
+  const ws2Resp = await page.request.get(`${apiUrl}/history/workspaces`)
+  const ws2Json = await ws2Resp.json()
+  expect(ws2Json.items[0].is_pinned).toBe(true)
+})
+
+test('regeneration creates a new ToolRun linked by parent_run_id', async ({ page }) => {
+  test.setTimeout(60_000)
+  await register(page, 'Reg Full')
+  const id1 = await submitResume(page)
+
+  const regen = await page.request.post(`${apiUrl}/resume/analyze`, {
+    data: { resume_text: resumeText, parent_run_id: id1 },
+  })
+  expect(regen.ok()).toBe(true)
+  const regenJson = await regen.json()
+  const id2 = regenJson.history_id
+  expect(id2).toBeTruthy()
+  expect(id2).not.toBe(id1)
+
+  const detail2 = await page.request.get(`${apiUrl}/history/${id2}`)
+  expect(detail2.ok()).toBe(true)
+  expect((await detail2.json()).parent_run_id).toBe(id1)
+
+  const detail1 = await page.request.get(`${apiUrl}/history/${id1}`)
+  expect(detail1.ok()).toBe(true)
+})
+
+test('delete removes runs and their workspace when empty', async ({
+  page,
+}) => {
+  test.setTimeout(60_000)
+  await register(page, 'Del Full')
+  await submitResume(page)
+
+  // API-only second run — creates own workspace (no browser workflow context)
+  const id2Resp = await page.request.post(`${apiUrl}/resume/analyze`, {
+    data: { resume_text: resumeText },
+  })
+  expect(id2Resp.ok()).toBe(true)
+
+  const allRuns = await page.request.get(`${apiUrl}/history?page_size=100`)
+  const allItems = (await allRuns.json()).items as Array<{ id: string }>
+  expect(allItems.length).toBeGreaterThanOrEqual(2)
+
+  // Delete all runs
+  for (const item of allItems) {
+    await page.request.delete(`${apiUrl}/history/${item.id}`)
+  }
+
+  // All workspaces should be gone
+  const ws3 = await page.request.get(`${apiUrl}/history/workspaces`)
+  const ws3Json = await ws3.json()
+  expect(ws3Json.items).toHaveLength(0)
+
+  // History is empty
+  const finalHistory = await page.request.get(`${apiUrl}/history?page_size=100`)
+  expect((await finalHistory.json()).items).toHaveLength(0)
+})
+
+test('empty state renders when no runs exist', async ({ page }) => {
+  test.setTimeout(30_000)
+  await register(page, 'Empty')
+  await gotoHydrated(page, '/history')
+  await expect(page.getByText(/no runs found/i)).toBeVisible()
+})
