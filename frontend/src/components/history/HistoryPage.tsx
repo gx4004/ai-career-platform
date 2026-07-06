@@ -25,6 +25,7 @@ import {
   deleteHistoryItem,
   getHistoryItem,
   getHistoryWorkspaces,
+  updateHistoryItem,
   updateHistoryWorkspace,
 } from '#/lib/api/client'
 import { writeWorkflowContext } from '#/lib/tools/drafts'
@@ -90,6 +91,7 @@ export function HistoryPage({
   const [actionError, setActionError] = useState<string | null>(null)
   const [continuingId, setContinuingId] = useState<string | null>(null)
   const [workspaceDrafts, setWorkspaceDrafts] = useState<Record<string, string>>({})
+  const [runDrafts, setRunDrafts] = useState<Record<string, string>>({})
   const [deleteCandidate, setDeleteCandidate] = useState<{ id: string; label: string } | null>(null)
   const deleteMutation = useMutation({
     mutationFn: deleteHistoryItem,
@@ -127,6 +129,17 @@ export function HistoryPage({
     },
     onError: (error) => {
       setActionError(error instanceof Error ? error.message : 'Failed to update workspace.')
+    },
+  })
+  const runMutation = useMutation({
+    mutationFn: ({ historyId, label }: { historyId: string; label: string }) =>
+      updateHistoryItem(historyId, label),
+    onSuccess: async (run) => {
+      setRunDrafts((current) => ({ ...current, [run.id]: run.label || '' }))
+      await queryClient.invalidateQueries({ queryKey: ['history-page'] })
+    },
+    onError: (error) => {
+      setActionError(error instanceof Error ? error.message : 'Failed to update saved run.')
     },
   })
 
@@ -380,6 +393,7 @@ export function HistoryPage({
                         variant="outline"
                         size="icon-sm"
                         className="button-toolbar-utility"
+                        aria-label={workspace.is_pinned ? 'Unpin workspace' : 'Pin workspace'}
                         disabled={workspaceMutation.isPending}
                         onClick={() =>
                           workspaceMutation.mutate({
@@ -518,7 +532,31 @@ export function HistoryPage({
                             {new Date(item.created_at).toLocaleDateString()}
                           </span>
                         </div>
-                        <p>{item.label || <em>Untitled run</em>}</p>
+                        <div className="flex items-center gap-2">
+                          <Input
+                            aria-label={`Label ${tool?.label || item.tool_name} run`}
+                            value={runDrafts[item.id] ?? item.label ?? ''}
+                            placeholder="Label this saved run"
+                            onChange={(event) =>
+                              setRunDrafts((current) => ({
+                                ...current,
+                                [item.id]: event.target.value,
+                              }))
+                            }
+                          />
+                          <Button
+                            variant="outline"
+                            disabled={runMutation.isPending}
+                            onClick={() =>
+                              runMutation.mutate({
+                                historyId: item.id,
+                                label: runDrafts[item.id] ?? item.label ?? '',
+                              })
+                            }
+                          >
+                            Save label
+                          </Button>
+                        </div>
                         {item.metadata.primary_recommendation_title ? (
                           <p className="small-copy">{item.metadata.primary_recommendation_title}</p>
                         ) : null}
@@ -536,6 +574,7 @@ export function HistoryPage({
                           variant="outline"
                           size="icon-sm"
                           className="button-toolbar-utility"
+                          aria-label={item.is_favorite ? 'Remove from favorites' : 'Add to favorites'}
                           onClick={() =>
                             favoriteToggle.mutate({
                               historyId: item.id,

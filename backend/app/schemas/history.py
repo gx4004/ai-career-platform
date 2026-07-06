@@ -60,6 +60,10 @@ class FavoriteRequest(BaseModel):
     is_favorite: bool
 
 
+class RunUpdateRequest(BaseModel):
+    label: str | None = Field(default=None, max_length=200)
+
+
 class WorkspaceUpdateRequest(BaseModel):
     label: str | None = None
     is_pinned: bool | None = None

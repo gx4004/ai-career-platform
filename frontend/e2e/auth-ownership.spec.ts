@@ -149,6 +149,9 @@ test('cookie auth persists owner runs and isolates every protected run and works
       otherPage.request.patch(`${apiUrl}/history/${historyId}/favorite`, {
         data: { is_favorite: true },
       }),
+      otherPage.request.patch(`${apiUrl}/history/${historyId}`, {
+        data: { label: 'Stolen run' },
+      }),
       otherPage.request.get(`${apiUrl}/history/${historyId}/export/pdf`),
       otherPage.request.delete(`${apiUrl}/history/${historyId}`),
       otherPage.request.patch(`${apiUrl}/history/workspaces/${workspaceId}`, {
