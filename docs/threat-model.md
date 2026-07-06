@@ -1,9 +1,8 @@
 # Career Workbench — Threat Model
 
 **Status:** canonical baseline
-**Created:** 2026-07-06
+**Last reviewed:** 2026-07-06
 **Source:** executable code, configuration, and intended Railway topology
-**Last verified against code:** 2026-07-06
 
 This document establishes the evidence baseline for R3: Privacy, Security, and
 Abuse Gate. Every claim cites an exact file path and function or line number.
@@ -38,8 +37,8 @@ Railway Platform
 Both services are configured with `numReplicas=1`. The backend runs a single
 uvicorn process without `--workers`. The frontend is a single Node process.
 
-- Backend: `railway.toml:7` — `numReplicas = 1`
-- Frontend: `frontend/railway.toml:10` — `numReplicas = 1`
+- Backend: `railway.toml:12` — `numReplicas = 1`
+- Frontend: `frontend/railway.toml:14` — `numReplicas = 1`
 - Backend: `backend/Dockerfile` — `CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]` (no `--workers`)
 
 ### 1.3 Health Checks
@@ -48,7 +47,7 @@ uvicorn process without `--workers`. The frontend is a single Node process.
   via `SELECT 1`. Returns `{"status": "ok"}` or `{"status": "degraded"}`.
   — `backend/app/routers/health.py:health_check`
 - Frontend: `GET /` — serves the homepage.
-  — `frontend/railway.toml:11` — `healthcheckPath = "/"`
+  — `frontend/railway.toml:10` — `healthcheckPath = "/"`
 
 ### 1.4 Container Posture
 
@@ -100,7 +99,7 @@ Browser ──────► Frontend SSR (serve.mjs, :3000) ──────
 | Boundary | Crosses Via | Enforcement | Assumptions |
 |----------|-------------|-------------|-------------|
 | Browser → SSR | HTTPS (Railway TLS) | `x-forwarded-proto` redirect in `serve.mjs` | Railway terminates TLS correctly |
-| SSR → API | HTTP within Railway network | CORS `allow_origins` whitelist, `allow_credentials=True` | Railway internal network is trusted; no mTLS between services |
+| SSR → API | HTTP within Railway network | CORS `allow_origins` whitelist (defaults: `localhost:5173,localhost:3000` + `FRONTEND_URL`; `backend/app/config.py:19`, `backend/app/main.py:100-106`), `allow_credentials=True` | Railway internal network is trusted; no mTLS between services |
 | API → DB | TCP (psycopg2/sqlite) | Connection pool, `pool_pre_ping=True` | PostgreSQL credentials in env vars |
 | API → Vertex AI | HTTPS | Google Cloud IAM (vertexai.init) or API key (`GOOGLE_API_KEY`) | Credential scope limits which projects/models are accessible |
 | API → Internet (scraper) | HTTPS (httpx), TCP (Playwright) | `_validate_url()` with DNS-level IP checks, redirect re-validation | DNS resolver is trustworthy; no DNS-over-HTTPS |
@@ -290,9 +289,9 @@ artifact and are deleted on every app mount.
 
 ## §6 API Surface & Authorization Matrix
 
-All routes are mounted under `/api/v1` in `backend/app/main.py:119-134`.
+All routes are mounted under `/api/v1` in `backend/app/main.py:128-147`.
 
-### 6.1 No Authentication Required (4 endpoints)
+### 6.1 No Authentication Required (5 endpoints)
 
 | Method | Path | Rate Limit | Purpose |
 |--------|------|------------|---------|
@@ -320,7 +319,7 @@ via `get_optional_current_user()`. Rate-limited at 10/min per endpoint.
 | `POST` | `/job-posts/import-url` | 10/min |
 | `POST` | `/telemetry/events` | 60/min |
 
-### 6.3 Authentication Required (10 endpoints)
+### 6.3 Authentication Required (15 endpoints)
 
 | Method | Path | Rate Limit |
 |--------|------|------------|
@@ -360,6 +359,16 @@ Rate-limited at 60/min.
 The following authenticated endpoints have no rate limit:
 `GET /auth/me`, `POST /auth/logout`, `GET /auth/providers`, all history
 `GET`/`PATCH`/`DELETE` endpoints (except PDF export), and the OAuth endpoints.
+
+### 6.6 Rate-Limit Identity
+
+The limiter keys on `_get_client_ip()` (`backend/app/limiter.py:10`). When
+`TRUST_PROXY_HEADERS=False` (the default), it uses `request.client.host` directly
+— the immediate TCP peer, which behind Railway's proxy is the proxy IP, not the
+real client. When `TRUST_PROXY_HEADERS=True`, it parses `X-Forwarded-For` only if
+the immediate peer is a trusted proxy (loopback/private or in
+`TRUSTED_PROXY_CIDRS`). Production values for both settings are unknown — see
+D-UNK-1.
 
 ---
 
@@ -413,7 +422,10 @@ Refresh tokens are rejected as access tokens (`type: "refresh"` check).
 
 Relies on `SameSite=Lax` cookies + HttpOnly + restricted CORS origins. There is
 no synchronizer token, double-submit cookie pattern, or `Origin`/`Referer` header
-validation. See D-010 and §10 of `docs/architecture.md`.
+validation. SameSite=Lax is the authoritative CSRF control per PRD #72 and
+`docs/architecture.md` "Identity and Access" section. No accepted decision in
+`docs/decisions.md` addresses SameSite directly; D-008 covers HttpOnly cookie
+storage.
 
 ### 7.6 Password Hashing
 
@@ -466,13 +478,12 @@ clears auth cookies, cascading-deletes all `tool_runs`, `workspaces`, and the
 All six tool endpoints route through `run_tool_pipeline()`, which coordinates:
 
 1. Optional authentication via `get_optional_current_user()`
-2. Input validation via Pydantic schema
-3. Prompt injection sanitization via `sanitize_user_input()`
-4. Content-hash-based cache lookup (user-scoped)
-5. Service invocation (LLM call or heuristic)
-6. Autoshave: boolean flags for Job Post + file upload if absent — extract JD/CV from attached files
-7. Authenticated persistence to `tool_runs` table
-8. Common response envelope construction
+2. Input validation via Pydantic schema (in router before pipeline call)
+3. Prompt injection sanitization via `sanitize_user_input()` on resume, JD, and feedback
+4. Content-hash-based cache lookup (user-scoped, skipped when feedback present)
+5. Service invocation (LLM call or heuristic fallback)
+6. Authenticated persistence to `tool_runs` table (skipped for guest runs)
+7. Common response envelope construction via `build_tool_response()`
 
 — `backend/app/services/tool_pipeline.py:run_tool_pipeline`
 
@@ -532,7 +543,8 @@ patterns to strip known injection markers, including:
   private, loopback, link-local, or reserved (`ipaddress.ip_address.is_*`)
 - **Redirect re-validation:** Each redirect target is re-validated by
   `_validate_url()` (max 5 redirects)
-- **Tier 1:** `httpx.AsyncClient` with 5.0s timeout
+- **Tier 1:** `httpx.AsyncClient` with 5.0s timeout; HTML parsed with BeautifulSoup
+  (`bs4`) for title, company, and description extraction
 - **Tier 2:** Playwright headless Chromium with 10s timeout; every
   navigation/sub-resource passes through `_validate_url()` route guard
 - **Tier 3:** Graceful failure with paste-textarea prompt
@@ -674,7 +686,7 @@ Ad-blocker detection via bait div render check. 30-second countdown fallback.
 | Rank | Abuse Case | Trust Boundary | Impact | Current Mitigation | Gap |
 |------|------------|----------------|--------|--------------------|-----|
 | 1 | **Unauthenticated LLM cost abuse** | API → Vertex AI | High — uncontrolled model spend | Per-endpoint rate limits (10/min), guest 3–5 runs/day cookie | Cookie-based guest limit is trivially bypassable; no CAPTCHA; no per-IP global rate limit |
-| 2 | **Credential stuffing / brute force** | API → Auth | Medium-High — account takeover | Login 10/min, register 5/min, bcrypt hashing | No account lockout after repeated failures; no password composition requirements |
+| 2 | **Credential stuffing / brute force** | API → Auth | Medium-High — account takeover | Login 10/min, register 5/min, bcrypt hashing | No account lockout after repeated failures; no password composition requirements. Lockout-DoS is currently moot (no lockout mechanism exists), but any future lockout must weigh account-takeover protection against denial-of-service via intentional lockout |
 | 3 | **SSRF via job URL import** | API → Internet | Medium — internal network access | DNS-level IP check (private/loopback/reserved), redirect re-validation | IPv6 special ranges checked; DNS rebinding depends on single `getaddrinfo` call; no connect-time enforcement |
 | 4 | **Session hijacking (cookie theft)** | Browser → API | High — full account access | HttpOnly cookies, SameSite=Lax, Secure in production | No token binding; refresh token lives 7 days; no device/session fingerprinting |
 | 5 | **Persistent XSS via stored/generated content** | DB → Browser | Medium — session theft, credential capture | Tool output is rendered in React (auto-escaped), no raw HTML insertion | Generated content includes untrusted LLM output; no CSP allowing inline scripts; no output sanitization beyond React defaults |
@@ -724,7 +736,7 @@ Ad-blocker detection via bait div render check. 30-second countdown fallback.
 | D-UNK-3 | Is the production deployment 1 replica or more? | Affects cache and rate limiter correctness | #76, #81 |
 | D-UNK-4 | Is `SENTRY_DSN` set in production? | Determines whether error data leaves the Railway network | #78 |
 | D-UNK-5 | Should PostHog be activated (and proxy cleaned up if not)? | Changes processor inventory and privacy disclosure requirements | #82 |
-| D-UNK-6 | What are the accepted retention periods for: primary data, backups, logs, Sentry events, audit records? | Required for GDPR compliance and privacy disclosures | #74 |
+| D-UNK-6 | What are the accepted retention periods for: primary data, backups, logs, Sentry events, audit records? (Overlaps with `docs/decisions.md` D-NEXT-3) | Required for GDPR compliance and privacy disclosures | #74 |
 | D-UNK-7 | What is the backup schedule and restore procedure? | Data recovery posture before beta launch | #74 |
 | D-UNK-8 | What is the scope of the Google Cloud service account / API key permissions? | Limits blast radius of credential compromise | #79 |
 | D-UNK-9 | Are there any additional production environment variables not in `.env.example`? | Complete attack surface enumeration | #81 |
@@ -740,7 +752,7 @@ blocked only by their listed dependencies — all other context is available her
 | Issue | Depends On | Unblocked? |
 |-------|-----------|------------|
 | #74 — Retention/deletion lifecycle | §§4,12,13,14 — Asset inventory, privacy failures, gaps, unknowns D-UNK-6, D-UNK-7 | **Blocked by human decisions** (D-UNK-6, D-UNK-7) |
-| #75 — Auth, cookie, CORS, OAuth, CSRF posture | §§2,6,7 — Trust boundaries, API surface, session model | Unblocked (code evidence complete; D-010 preserves SameSite=Lax) |
+| #75 — Auth, cookie, CORS, OAuth, CSRF posture | §§2,6,7 — Trust boundaries, API surface, session model | Unblocked (code evidence complete; SameSite=Lax authoritative per PRD #72) |
 | #76 — Distributed abuse and ATO controls | §§6,11,13 — API surface with rate limits, abuse cases, gaps #1,#2,#8,#10 | Unblocked (code evidence complete) |
 | #77 — Browser storage minimization | §§4,5,12 — Asset inventory, storage inventory, privacy failure modes | Unblocked (code evidence complete) |
 | #78 — Telemetry, Sentry, logs, deletion audit | §§10,12,13 — Observability, privacy failures, gaps #6 | Unblocked (code evidence complete; D-UNK-3 may affect) |
@@ -754,22 +766,27 @@ blocked only by their listed dependencies — all other context is available her
 ## Verification Record
 
 The following verifications were run against commit `bcbf887d` (chapter2 HEAD at
-time of creation). All claims in this document that reference code paths were
-confirmed by direct file inspection.
+time of creation) and re-verified after review fixes against commit `aec1a824`.
+All claims in this document that reference code paths were confirmed by direct
+file inspection.
 
 | Section | Verification | Result |
 |---------|-------------|--------|
-| §1 | `grep -r "numReplicas" railway.toml frontend/railway.toml` | 1 each |
+| §1 | `grep -n "numReplicas" railway.toml frontend/railway.toml` | `railway.toml:12`, `frontend/railway.toml:14` — 1 each |
 | §1 | `grep "CMD" backend/Dockerfile` | `uvicorn app.main:app --host 0.0.0.0 --port 8000` |
-| §2 | `grep -n "CORS_ORIGINS\|allow_origins\|allow_credentials" backend/app/main.py` | Lines 36, 97-104 |
+| §2 | `grep -n "CORS_ORIGINS" backend/app/config.py` | Line 19 |
+| §2 | `grep -n "allow_origins\|allow_credentials" backend/app/main.py` | Lines 100-106 |
 | §3 | `grep -n "run_tool_pipeline" backend/app/services/tool_pipeline.py` | Primary pipeline function |
 | §4 | `grep -n "result_payload\|hashed_password\|google_id" backend/app/models/` | All model fields confirmed |
 | §5 | `grep -rn "localStorage\|sessionStorage" frontend/src/ --include="*.ts" --include="*.tsx" -l` | 14 files matched |
-| §6 | `grep -rn "@router\.\(get\|post\|patch\|put\|delete\)" backend/app/routers/` | 40+ route decorators |
-| §6 | `grep -rn "limiter.limit" backend/app/routers/ --include="*.py"` | 16 rate-limit decorators |
+| §6 | `grep -rn "@router\.\(get\|post\|patch\|put\|delete\)" backend/app/routers/` | 37 route decorators |
+| §6 | `grep -rn "limiter.limit" backend/app/routers/ --include="*.py"` | 24 rate-limit decorators |
+| §6 | `grep -n "include_router" backend/app/main.py` | Lines 128-147 |
+| §6.6 | `grep -n "_get_client_ip\|TRUST_PROXY_HEADERS" backend/app/limiter.py` | Lines 10-17 |
 | §7 | `grep -n "ALGORITHM\|SECRET_KEY" backend/app/config.py` | Lines 17-18 |
-| §7 | `grep -n "set_cookie\|delete_cookie\|set_auth_cookies\|clear_auth_cookies" backend/app/auth/security.py` | Lines 100-127 |
-| §8 | `grep -n "sanitize_user_input\|_validate_url\|_L2_UNSAFE_PATTERNS" backend/app/services/` | sanitizer + scraper guards confirmed |
+| §7 | `grep -n "set_cookie\|delete_cookie\|set_auth_cookies\|clear_auth_cookies" backend/app/auth/security.py` | Lines 95-119 |
+| §8 | `grep -n "sanitize_user_input\|_validate_url" backend/app/services/` | sanitizer + scraper guards confirmed |
+| §8.6 | `grep -n "BeautifulSoup\|bs4" backend/app/services/job_scraper.py` | Lines 7, 99, 150, 165, 179 |
 | §10 | `grep -rn "Sentry.init\|beforeSend\|_scrub_sentry_event"` | Both frontend and backend scrubbing |
 | §13 | `grep "USER" backend/Dockerfile frontend/Dockerfile` | No USER instruction in either |
 | §13 | `grep "posthog" frontend/package.json` | No match (SDK not installed) |
