@@ -2,7 +2,7 @@ import logging
 
 from fastapi import APIRouter, HTTPException, Request
 
-from app.limiter import limiter
+from app.limiter import limiter, resource_abuse_limits
 from app.schemas.tools import ImportedJobResponse, ImportJobUrlRequest
 from app.services.job_scraper import scrape_job_posting
 
@@ -13,6 +13,7 @@ router = APIRouter()
 
 @router.post("/import-url", response_model=ImportedJobResponse)
 @limiter.limit("10/minute")
+@resource_abuse_limits
 async def import_job_url(request: Request, body: ImportJobUrlRequest):
     try:
         result = await scrape_job_posting(str(body.url))

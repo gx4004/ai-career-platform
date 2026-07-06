@@ -40,7 +40,7 @@ features are not current implementation claims.
 
 ## Immediate Objective
 
-**Status: R2 recovery verified; R3 upload/parser, scraper SSRF, and auth/CSRF code posture verified; production auth evidence blocked**
+**Status: R2 recovery verified; R3 distributed abuse controls locally verified; CI and deployment evidence remain**
 
 The `docs/threat-model.md` canonical inventory is complete (#73). It maps system
 topology, trust boundaries, data flows, assets, browser storage, API surface, auth
@@ -70,6 +70,13 @@ relationship, and a staging OAuth state round trip remain ready-for-human eviden
 before #75 can close; regression coverage and rollback posture are recorded in
 `docs/threat-model.md` §7.5. The same review must accept forced cross-site logout
 as low-impact or authorize an Origin/CSRF mitigation.
+
+R3 #76 uses shared limiter storage outside development, HMAC-pseudonymized
+account and source-IP identities, shared model-cost and resource-import ceilings,
+account-scoped registration/reset counters, and expiring progressive login delay
+without hard account lockout. Health probes remain unlimited. Production must
+provide and capacity-test `RATE_LIMIT_STORAGE_URI`; route-specific CAPTCHA work is
+triggered only by the accepted aggregate event threshold or provider cost alerts.
 
 Remaining R3 slices are dependency-ordered. #74 (retention/deletion) requires human
 decisions D-UNK-6 and D-UNK-7; #77 and #78 depend on that decision. #76 depends on

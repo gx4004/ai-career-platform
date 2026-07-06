@@ -2,7 +2,7 @@ import logging
 
 from fastapi import APIRouter, HTTPException, Request, UploadFile
 
-from app.limiter import limiter
+from app.limiter import limiter, resource_abuse_limits
 from app.schemas.tools import ParsedCvResponse
 from app.services.cv_parser_process import CvParserProcessRejected, parse_cv_isolated
 from app.services.cv_upload import (
@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 
 @router.post("/parse-cv", response_model=ParsedCvResponse)
 @limiter.limit("20/minute")
+@resource_abuse_limits
 async def parse_cv_endpoint(request: Request, file: UploadFile):
     try:
         upload = await read_validated_cv_upload(file)
