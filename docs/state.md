@@ -96,11 +96,17 @@ verification remains outstanding because the local Docker engine is unavailable.
 Production Railway origins, TLS forwarding, OAuth, Sentry, downloads, and font
 behavior still require staging verification before #81 can close.
 
-R4 automated baseline work is now in progress. Representative public and
-authenticated-shell routes are covered at 320 px and 375 px for horizontal
-overflow, critical axe violations, visible keyboard focus, and reduced-motion
-behavior. The first CI run will establish concrete UI defects before performance
-budgets and wider keyboard walkthroughs are accepted.
+R4 automated baseline now covers 10 representative routes (landing through settings)
+with axe-core critical-violation scans, 320/375 px horizontal-overflow checks,
+keyboard walkthrough (login→dashboard→resume flow with visible focus rings),
+semantic landmark verification (main, nav, headings), accessible-name validation
+for icon-only interactive elements, reduced-motion suppression for dashboard
+infinite animations (shimmer-multi, dropzone-pulse, dropzone-border-glow), FadeUp
+and FadeIn framer-motion wrappers, and performance budgets (JS transfer under
+540 kB, CSS transfer under 480 kB, JS heap under 50 MB). Framer-motion's
+useReducedMotion() is now checked in FadeUp and FadeIn components. The first CI
+run will expose actual UI defects; the branch intentionally starts green for the
+fixed gates and will fail on real violations.
 
 Remaining R3 slices are dependency-ordered. #74 (retention/deletion) requires human
 decisions D-UNK-6 and D-UNK-7; #77 and #78 depend on that decision. #76 depends on
