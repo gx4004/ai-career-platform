@@ -40,7 +40,7 @@ features are not current implementation claims.
 
 ## Immediate Objective
 
-**Status: R2 recovery verified; R3 distributed abuse controls locally verified; CI and deployment evidence remain**
+**Status: R2 recovery verified; R3 implementation slices advancing; deployment evidence remains**
 
 The `docs/threat-model.md` canonical inventory is complete (#73). It maps system
 topology, trust boundaries, data flows, assets, browser storage, API surface, auth
@@ -77,6 +77,15 @@ account-scoped registration/reset counters, and expiring progressive login delay
 without hard account lockout. Health probes remain unlimited. Production must
 provide and capacity-test `RATE_LIMIT_STORAGE_URI`; route-specific CAPTCHA work is
 triggered only by the accepted aggregate event threshold or provider cost alerts.
+
+R3 #81 now has a locally verified frontend-response implementation: SSR and static
+responses receive a deployment-compatible CSP and baseline browser security
+headers, HSTS requires an explicit deployment switch plus HTTPS forwarding, and
+COEP/includeSubDomains/preload remain deliberately disabled pending compatibility
+and domain evidence. Both runtime images now drop root privileges; Docker build
+verification remains outstanding because the local Docker engine is unavailable.
+Production Railway origins, TLS forwarding, OAuth, Sentry, downloads, and font
+behavior still require staging verification before #81 can close.
 
 Remaining R3 slices are dependency-ordered. #74 (retention/deletion) requires human
 decisions D-UNK-6 and D-UNK-7; #77 and #78 depend on that decision. #76 depends on

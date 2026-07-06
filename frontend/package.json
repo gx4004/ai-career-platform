@@ -10,7 +10,7 @@
     "dev": "vite dev --port 3000",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "vitest run",
+    "test": "vitest run && node --test tests/*.test.mjs",
     "test:e2e": "node scripts/run-e2e.mjs",
     "test:e2e:ci": "playwright test",
     "typecheck": "tsc --noEmit",
