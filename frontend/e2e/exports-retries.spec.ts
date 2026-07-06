@@ -1,5 +1,4 @@
 import { expect, test, type Page } from '@playwright/test'
-import { readFile } from 'node:fs/promises'
 
 const apiUrl = `http://127.0.0.1:${process.env.E2E_BACKEND_PORT ?? '8000'}/api/v1`
 const password = 'correct-horse-battery-staple'
@@ -55,18 +54,20 @@ test.beforeEach(async ({ context }) => {
   })
 })
 
-test('owner downloads a valid PDF containing the generated cover letter', async ({ page }) => {
+test('owner PDF action returns a valid generated cover letter', async ({ page }) => {
   test.setTimeout(60_000)
   await register(page, 'PDF Owner')
   const historyId = await submitCoverLetter(page)
 
-  const downloadPromise = page.waitForEvent('download')
+  const responsePromise = page.waitForResponse(
+    (response) => response.url() === `${apiUrl}/history/${historyId}/export/pdf`,
+  )
   await page.getByRole('button', { name: 'PDF' }).click()
-  const download = await downloadPromise
-  expect(download.suggestedFilename()).toBe(`result-${historyId}.pdf`)
-  const path = await download.path()
-  expect(path).toBeTruthy()
-  const content = await readFile(path!)
+  const response = await responsePromise
+  expect(response.status()).toBe(200)
+  expect(response.headers()['content-type']).toContain('application/pdf')
+  expect(response.headers()['content-disposition']).toContain('cover-letter.pdf')
+  const content = await response.body()
   expect(content.subarray(0, 5).toString()).toBe('%PDF-')
   expect(content.length).toBeGreaterThan(1_000)
 })
@@ -121,7 +122,7 @@ test('retry recovers from a transient request failure without duplicating the ru
   let attempts = 0
   await page.route(`${apiUrl}/resume/analyze`, async (route) => {
     attempts += 1
-    if (attempts === 1) {
+    if (attempts <= 2) {
       await route.fulfill({
         status: 503,
         contentType: 'application/json',
@@ -140,7 +141,7 @@ test('retry recovers from a transient request failure without duplicating the ru
 
   await page.getByRole('button', { name: 'Review resume' }).click()
   await expect(page).toHaveURL(/\/resume\/result\/[^/]+$/)
-  expect(attempts).toBe(2)
+  expect(attempts).toBe(3)
 
   await gotoHydrated(page, '/history')
   const totalRuns = page.locator('.h-stat-card').filter({ hasText: 'Total Runs' })

@@ -213,6 +213,22 @@ describe('ToolRouteScreen', () => {
     expect(screen.queryByLabelText(/Resume textRequired/i)).toBeNull()
   })
 
+  it('moves from upload to form when workflow context arrives after mount', () => {
+    draftState.resumeText = ''
+    seededResume = false
+    seededJob = false
+    bridgeBanner = ''
+
+    const { rerender } = render(<ToolRouteScreen toolId="job-match" />)
+    expect(screen.getByTestId('dropzone-hero').textContent).toContain('full-hero')
+
+    seededResume = true
+    bridgeBanner = 'Resume carried from your recent workflow.'
+    rerender(<ToolRouteScreen toolId="job-match" />)
+
+    expect(screen.getByText(/Resume parsed and ready/i)).toBeTruthy()
+  })
+
   it('shows the cinematic resume scanner while the resume run is pending', () => {
     isPending = true
 

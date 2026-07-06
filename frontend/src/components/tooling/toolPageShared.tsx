@@ -240,3 +240,15 @@ export function useResumeEditorCollapse(
     collapseResumeEditor,
   }
 }
+
+export function useSeededToolPhase(hasResumeContent: boolean) {
+  const [phase, setPhase] = useState<'upload' | 'form'>(
+    hasResumeContent ? 'form' : 'upload',
+  )
+
+  useEffect(() => {
+    if (hasResumeContent) setPhase('form')
+  }, [hasResumeContent])
+
+  return { phase, setPhase }
+}
