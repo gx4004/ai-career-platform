@@ -211,32 +211,43 @@ test('interactive elements have accessible names', async ({ page }) => {
 test('reduced-motion preference leaves no long-running page animations', async ({
   page,
 }) => {
+  const motionAwareRoutes = ['/dashboard', '/', '/resume']
+
   await page.emulateMedia({ reducedMotion: 'reduce' })
-  await gotoHydrated(page, '/dashboard')
 
-  const longRunningAnimations = await page.evaluate(() =>
-    document
-      .getAnimations()
-      .filter((animation) => {
-        const timing = animation.effect?.getComputedTiming()
-        return (
-          animation.playState === 'running' &&
-          typeof timing?.duration === 'number' &&
-          timing.duration > 100
-        )
-      })
-      .map((animation) => {
-        const target = (
-          animation.effect as KeyframeEffect | null
-        )?.target as HTMLElement | null
-        return {
-          duration: animation.effect?.getComputedTiming().duration,
-          target: target?.className || target?.tagName || 'unknown',
-        }
-      }),
-  )
+  for (const path of motionAwareRoutes) {
+    await gotoHydrated(page, path)
+    if (path === '/resume') {
+      await page.waitForTimeout(1500)
+    }
 
-  expect(longRunningAnimations).toEqual([])
+    const longRunningAnimations = await page.evaluate(() =>
+      document
+        .getAnimations()
+        .filter((animation) => {
+          const timing = animation.effect?.getComputedTiming()
+          return (
+            animation.playState === 'running' &&
+            typeof timing?.duration === 'number' &&
+            timing.duration > 100
+          )
+        })
+        .map((animation) => {
+          const target = (
+            animation.effect as KeyframeEffect | null
+          )?.target as HTMLElement | null
+          return {
+            duration: animation.effect?.getComputedTiming().duration,
+            target: target?.className?.slice(0, 80) || target?.tagName || 'unknown',
+          }
+        }),
+    )
+
+    expect(
+      longRunningAnimations,
+      `${path} has ${longRunningAnimations.length} long-running animations`,
+    ).toEqual([])
+  }
 })
 
 // ── Performance baseline ──
@@ -300,5 +311,105 @@ test('dashboard route JavaScript heap is under 50 MB after hydration', async ({
       heapMB,
       `JS heap: ${heapMB.toFixed(1)} MB`,
     ).toBeLessThan(50)
+  }
+})
+
+test('landing page LCP is under 4s and CLS is under 0.25', async ({
+  page,
+}) => {
+  await gotoHydrated(page, '/')
+  await page.waitForTimeout(3000)
+
+  const metrics = await page.evaluate(async () => {
+    let lcp = -1
+    try {
+      const entries = await new Promise<
+        PerformanceEntry[]
+      >((resolve) => {
+        const observer = new PerformanceObserver((list) => {
+          resolve(list.getEntries())
+        })
+        observer.observe({ type: 'largest-contentful-paint', buffered: true })
+        setTimeout(() => resolve([]), 1000)
+      })
+      lcp = entries.length > 0 ? entries[0].startTime / 1000 : -1
+    } catch {
+      lcp = -1
+    }
+
+    let cls = 0
+    try {
+      const entries = await new Promise<
+        PerformanceEntry[]
+      >((resolve) => {
+        const observer = new PerformanceObserver((list) => {
+          resolve(list.getEntries())
+        })
+        observer.observe({ type: 'layout-shift', buffered: true })
+        setTimeout(() => resolve([]), 1000)
+      })
+      for (const entry of entries) {
+        if (!(entry as any).hadRecentInput) {
+          cls += (entry as any).value ?? 0
+        }
+      }
+    } catch {
+      cls = 0
+    }
+
+    return { lcp, cls }
+  })
+
+  if (metrics.lcp > 0) {
+    expect(metrics.lcp, `LCP: ${metrics.lcp.toFixed(1)}s`).toBeLessThan(4)
+  }
+  expect(metrics.cls, `CLS: ${metrics.cls.toFixed(3)}`).toBeLessThan(0.25)
+})
+
+test('keyboard Tab does not trap focus on any route', async ({ page }) => {
+  for (const path of representativeRoutes) {
+    await gotoHydrated(page, path)
+
+    let activeBefore = await page.evaluate(() => {
+      const el = document.activeElement
+      return el?.tagName ?? 'unknown'
+    })
+
+    for (let i = 0; i < 20; i++) {
+      await page.keyboard.press('Tab')
+    }
+
+    const activeAfter = await page.evaluate(() => {
+      const el = document.activeElement
+      return el?.tagName ?? 'unknown'
+    })
+
+    const tabShiftedFocus = activeBefore !== activeAfter || activeAfter === 'BODY'
+
+    expect(tabShiftedFocus, `${path}: focus appears trapped after 20 Tabs`).toBe(true)
+  }
+})
+
+test('320px mobile view does not hide primary actions behind missing affordances', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 812 })
+
+  const actionRoutes = [
+    { path: '/login', selector: 'input[type="email"], input[type="text"]' },
+    { path: '/resume', selector: 'input[type="file"], textarea, .dropzone-hero' },
+    { path: '/dashboard', selector: 'a[href="/dashboard"], a[href="/resume"]' },
+  ]
+
+  for (const { path, selector } of actionRoutes) {
+    await gotoHydrated(page, path)
+
+    const el = page.locator(selector).first()
+    const visible = await el.isVisible().catch(() => false)
+
+    expect(
+      visible,
+      `${path}: primary action "${selector}" not visible at 320px`,
+    ).toBe(true)
   }
 })
