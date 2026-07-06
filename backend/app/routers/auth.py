@@ -207,7 +207,9 @@ async def request_password_reset(
     if user:
         token = create_password_reset_token(user.email, user.hashed_password or "")
         frontend_base = settings.FRONTEND_URL or "http://localhost:3000"
-        reset_url = f"{frontend_base}/reset-password?token={token}"
+        # Keep the bearer token in the URL fragment so it is not sent in HTTP
+        # requests, Referer headers, or ordinary server access logs.
+        reset_url = f"{frontend_base}/reset-password#token={token}"
         background_tasks.add_task(send_password_reset_email, user.email, reset_url)
     return {"message": "If an account with this email exists, a reset link has been sent."}
 
