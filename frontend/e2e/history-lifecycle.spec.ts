@@ -99,6 +99,13 @@ test('workspace listing, labeling, and pinning work through the UI', async ({ pa
 
   await page.getByRole('button', { name: 'Pin workspace' }).first().click()
   await expect(page.getByText('My labeled workspace').first()).toBeVisible()
+
+  await page.getByRole('button', { name: 'Resume later' }).first().click()
+  await expect(page).toHaveURL(/\/job-match$/)
+  const status = page.locator('.tool-status-inline')
+  await expect(status).toBeVisible()
+  await status.getByRole('button', { name: 'Change' }).click()
+  await expect(page.locator('#job-match-resumeText')).toHaveValue(resumeText)
 })
 
 test('regeneration through the UI creates a new ToolRun linked by parent_run_id', async ({ page }) => {

@@ -116,10 +116,7 @@ test('Resume → Portfolio carries the resume into the visible form', async ({ p
   await expectCarriedResume(page, '#portfolio-resumeText')
 })
 
-test('workflow context is tab-scoped via sessionStorage', async ({
-  context,
-  browser,
-}) => {
+test('workflow context is tab-scoped via sessionStorage', async ({ context }) => {
   test.setTimeout(60_000)
   const page = await context.newPage()
   await register(page, 'WF Tab')
@@ -128,19 +125,15 @@ test('workflow context is tab-scoped via sessionStorage', async ({
   await gotoHydrated(page, '/job-match')
   await expectCarriedResume(page, '#job-match-resumeText')
 
-  // New context (different tab) should have no context
-  const otherContext = await browser.newContext()
-  const otherPage = await otherContext.newPage()
-  await otherContext.addInitScript(() => {
-    localStorage.setItem('cw-cookie-consent', 'accepted')
-  })
+  // A second tab shares authentication and localStorage, but not sessionStorage.
+  const otherPage = await context.newPage()
 
   try {
     await gotoHydrated(otherPage, '/job-match')
     await expect(otherPage.getByRole('button', { name: 'Paste text instead' })).toBeVisible()
     await expect(otherPage.locator('#job-match-resumeText')).toHaveCount(0)
   } finally {
-    await otherContext.close()
+    await otherPage.close()
   }
 
   // Original tab still has context
