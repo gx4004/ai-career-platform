@@ -118,7 +118,9 @@ Persistence invariants:
   correctness and hit expectations before adopting Redis.
 
 Resume/workflow state in browser storage is sensitive. Store the minimum necessary,
-keep it tab-scoped, and expose a clear local-data reset.
+keep it tab-scoped, and expose a clear local-data reset. Explicit logout, successful
+account deletion, and that reset all clear drafts, workflow context, guest results,
+and resume carry while preserving consent, onboarding, and non-sensitive UI state.
 
 ## External Integrations
 

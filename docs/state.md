@@ -88,6 +88,13 @@ categories rather than content, emails, full URLs, or provider exception text.
 Sentry enablement, processor behavior, deletion-audit retention, and all bounded
 retention periods still depend on production evidence and #74.
 
+R3 #77 now centralizes sensitive tab-data cleanup for drafts, workflow context,
+guest results, and resume carry. Explicit logout clears it even if the server
+request fails; account deletion and the manual reset use the same operation.
+Persisted guest results are removed by prefix after reload, while consent,
+onboarding, and non-sensitive UI state remain intact. Retention-dependent closure
+still follows #74.
+
 R3 #81 now has a locally verified frontend-response implementation: SSR and static
 responses receive a deployment-compatible CSP and baseline browser security
 headers, HSTS requires an explicit deployment switch plus HTTPS forwarding, and
