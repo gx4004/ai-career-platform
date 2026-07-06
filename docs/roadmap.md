@@ -14,7 +14,7 @@ automation grounded in their evidence.
 
 ### R0. Engineering Baseline
 
-**Status:** in progress
+**Status:** complete
 **Outcome:** the current product has a reproducible, evidence-backed engineering
 baseline on the product experimentation branch.
 
