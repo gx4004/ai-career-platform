@@ -525,15 +525,46 @@ patterns to strip known injection markers, including:
 ### 8.5 File Upload & Parsing
 
 - **Endpoint:** `POST /files/parse-cv`, rate-limited at 20/min
-- **Size limit:** 10 MB (`MAX_CV_SIZE`)
-- **Allowed extensions:** `.pdf`, `.docx` only
-- **Magic byte validation:** `%PDF-` for PDF, `PK\x03\x04` for DOCX
-- **Extraction:** Entire file read into memory; never touches disk
-- **PDF parser:** PyMuPDF (`fitz`) — extracts text from all pages
-- **DOCX parser:** `python-docx` — extracts paragraph text
-
-— `backend/app/routers/files.py`
-— `backend/app/services/cv_parser.py`
+- **Bounded read:** the 10 MB product limit is enforced while reading 64 KiB
+  chunks; the reader stops after the first over-limit chunk rather than buffering
+  the remainder (`backend/app/services/cv_upload.py:_read_bounded`,
+  `backend/tests/test_cv_upload.py:test_upload_size_is_enforced_while_chunks_are_read`)
+- **Three-way type agreement:** extension, declared MIME, and magic bytes must all
+  identify the same PDF or DOCX format
+  (`backend/app/services/cv_upload.py:read_validated_cv_upload`,
+  `backend/tests/test_files.py:test_parse_cv_rejects_declared_mime_that_disagrees_with_pdf_extension`)
+- **DOCX container bounds:** required package members, safe member paths, no
+  encrypted entries, at most 2,000 files, 10 MB per entry, 50 MB total expansion,
+  and a maximum 100:1 compression ratio
+  (`backend/app/services/cv_upload.py:_validate_docx_container`,
+  `backend/tests/test_cv_upload.py:test_docx_requires_expected_package_members,test_docx_rejects_unsafe_paths,test_docx_rejects_excessive_file_count,test_docx_rejects_excessive_expansion,test_docx_rejects_suspicious_compression_ratio,test_docx_rejects_encrypted_members`)
+- **PDF bounds:** encrypted files are rejected, page count is capped at 100, and
+  extracted text across PDF/DOCX is capped at 2,000,000 characters
+  (`backend/app/services/cv_parser.py:_extract_pdf,_bounded_text_parts`,
+  `backend/tests/test_cv_parser.py:test_pdf_rejects_encrypted_documents,test_pdf_rejects_excessive_page_count,test_pdf_rejects_excessive_extracted_text,test_docx_rejects_excessive_extracted_text`)
+- **Parser isolation:** parsing runs in a spawned worker with an 8-second wall
+  timeout on every platform, a 6-second CPU limit on Unix, and a 512 MB
+  address-space limit on the Linux production target; Windows skips unavailable
+  Unix `resource` controls but retains process and wall-time isolation. Timeout,
+  crash, limit, malformed, and parser errors collapse to a generic rejection
+  (`backend/app/services/cv_parser_process.py:parse_cv_isolated,_apply_resource_limits`,
+  `backend/tests/test_cv_parser_process.py:test_isolated_parser_terminates_worker_at_wall_clock_timeout,test_isolated_parser_cleans_pipes_when_process_start_fails,test_isolated_parser_maps_spawned_worker_crash_to_rejection,test_linux_worker_sets_cpu_and_memory_limits,test_windows_worker_skips_unavailable_unix_resource_module`)
+- **Resource cleanup:** the router closes `UploadFile` in `finally`, PyMuPDF closes
+  documents in `finally`, DOCX buffers use a context manager, and timed-out workers
+  are terminated and joined
+  (`backend/app/routers/files.py:parse_cv_endpoint`,
+  `backend/app/services/cv_parser.py:_extract_pdf,_extract_docx`,
+  `backend/app/services/cv_parser_process.py:_parse_cv_isolated_sync,_terminate`,
+  `backend/tests/test_files.py:test_parse_cv_closes_upload_resource_on_rejection`)
+- **Storage:** validated bytes remain transient and never touch disk
+  (`backend/app/services/cv_upload.py:_read_bounded`,
+  `backend/app/services/cv_parser_process.py:_parse_cv_isolated_sync`).
+- **Rollback:** the change has no database or persisted-payload impact. Reverting
+  the upload/parser service and tests restores the old parser path; clients must
+  continue treating 400 and 413 details as user-facing errors rather than stable
+  machine codes (`backend/app/routers/files.py:parse_cv_endpoint`,
+  `backend/app/services/cv_upload.py:CvUploadRejected`,
+  `backend/app/services/cv_parser_process.py:CvParserProcessRejected`).
 
 ### 8.6 Scraper & SSRF Protections
 

@@ -1,5 +1,12 @@
 from app.schemas.tools import ParsedCvResponse
 
+MAX_PDF_PAGES = 100
+MAX_EXTRACTED_CHARS = 2_000_000
+
+
+class CvParserRejected(Exception):
+    pass
+
 
 def parse_cv(content: bytes, filename: str, ext: str) -> ParsedCvResponse:
     warnings: list[str] = []
@@ -27,7 +34,11 @@ def _extract_pdf(content: bytes) -> str:
 
     doc = fitz.open(stream=content, filetype="pdf")
     try:
-        pages = [page.get_text() for page in doc]
+        if doc.needs_pass:
+            raise CvParserRejected("Encrypted PDFs are not supported")
+        if doc.page_count > MAX_PDF_PAGES:
+            raise CvParserRejected("PDF page limit exceeded")
+        pages = _bounded_text_parts(page.get_text() for page in doc)
     finally:
         doc.close()
     return "\n".join(pages)
@@ -38,5 +49,20 @@ def _extract_docx(content: bytes) -> str:
 
     from docx import Document
 
-    doc = Document(io.BytesIO(content))
-    return "\n".join(p.text for p in doc.paragraphs)
+    with io.BytesIO(content) as buffer:
+        doc = Document(buffer)
+        paragraphs = _bounded_text_parts(p.text for p in doc.paragraphs)
+    return "\n".join(paragraphs)
+
+
+def _bounded_text_parts(parts) -> list[str]:
+    bounded: list[str] = []
+    chars_count = 0
+    for part in parts:
+        chars_count += len(part)
+        if bounded:
+            chars_count += 1
+        if chars_count > MAX_EXTRACTED_CHARS:
+            raise CvParserRejected("Extracted text limit exceeded")
+        bounded.append(part)
+    return bounded
