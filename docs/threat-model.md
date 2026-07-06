@@ -61,16 +61,17 @@ Both Dockerfiles run as root — no `USER` instruction exists.
 ### 1.5 Multi-Instance Readiness
 
 The `start.sh` script is explicitly multi-instance aware — it uses a `RUN_MIGRATIONS`
-env var and relies on Alembic locking for migration safety. However, two critical
-subsystems are process-local and would degrade in a multi-instance deployment:
+env var and relies on Alembic locking for migration safety. Rate-limit and abuse
+counter storage is shared outside development; the result cache remains local:
 
 | Subsystem | Current | Multi-Instance Impact |
 |-----------|---------|-----------------------|
-| Rate limiter | In-memory slowapi dict | Leaks — each instance has independent counters |
+| Rate limiter and abuse counters | `RATE_LIMIT_STORAGE_URI`; non-shared storage rejected outside development | Shared counters when the deployment supplies a supported distributed backend |
 | Result cache | In-memory Python dict | Fragmented — no cache sharing between instances |
 
 — `backend/app/services/result_cache.py` (docstring acknowledges this)
-— `backend/app/limiter.py` (slowapi default in-memory storage)
+— `backend/app/limiter.py:validate_abuse_control_config`,
+`backend/app/limiter.py:AbuseCounterStore`
 
 ---
 
@@ -362,13 +363,19 @@ The following endpoints have no rate limit:
 
 ### 6.6 Rate-Limit Identity
 
-The limiter keys on `_get_client_ip()` (`backend/app/limiter.py:10`). When
-`TRUST_PROXY_HEADERS=False` (the default), it uses `request.client.host` directly
-— the immediate TCP peer, which behind Railway's proxy is the proxy IP, not the
-real client. When `TRUST_PROXY_HEADERS=True`, it parses `X-Forwarded-For` only if
-the immediate peer is a trusted proxy (loopback/private or in
-`TRUSTED_PROXY_CIDRS`). Production values for both settings are unknown — see
-D-UNK-1.
+When `TRUST_PROXY_HEADERS=False` (the default), the limiter uses the immediate TCP
+peer. When enabled, it trusts `X-Forwarded-For` only if the immediate peer is in
+the explicit `TRUSTED_PROXY_CIDRS` allowlist, then walks the chain right-to-left
+until the first untrusted address. Private/loopback peers receive no implicit
+trust. Production values remain unknown — see D-UNK-1
+(`backend/app/limiter.py:_get_client_ip`,
+`backend/tests/test_limiter.py:test_limiter_walks_trusted_proxy_chain_from_right_to_left`).
+
+Keys are HMAC-pseudonymized. Abuse-sensitive model and import/upload routes enforce
+both verified-account/guest identity and independent source-IP windows. Login,
+registration, and password reset use source limits plus pseudonymized account/email
+counters. Route/model/resource windows expire with their declared limit; account
+actions expire after one hour and login-failure counters after 15 minutes.
 
 ---
 
@@ -846,8 +853,8 @@ Ad-blocker detection via bait div render check. 30-second countdown fallback.
 
 | Rank | Abuse Case | Trust Boundary | Impact | Current Mitigation | Gap |
 |------|------------|----------------|--------|--------------------|-----|
-| 1 | **Unauthenticated LLM cost abuse** | API → Vertex AI | High — uncontrolled model spend | Per-endpoint rate limits (10/min), guest 3–5 runs/day cookie | Cookie-based guest limit is trivially bypassable; no CAPTCHA; no per-IP global rate limit |
-| 2 | **Credential stuffing / brute force** | API → Auth | Medium-High — account takeover | Login 10/min, register 5/min, bcrypt hashing | No account lockout after repeated failures; no password composition requirements. Lockout-DoS is currently moot (no lockout mechanism exists), but any future lockout must weigh account-takeover protection against denial-of-service via intentional lockout |
+| 1 | **Unauthenticated LLM cost abuse** | API → Vertex AI | High — uncontrolled model spend | Distributed per-route bursts plus a shared hourly model-cost ceiling keyed by HMAC-pseudonymized account/IP identity | CAPTCHA remains evidence-triggered; distributed storage URL and capacity require deployment verification |
+| 2 | **Credential stuffing / brute force** | API → Auth | Medium-High — account takeover | Distributed login limit, bcrypt hashing, expiring pseudonymized failure counters, bounded progressive delay after three failures | No password composition requirements; delay is intentionally capped and never hard-locks an account |
 | 3 | **SSRF via job URL import** | API → Internet | Medium — internal network access | All-answer IP checks, per-hop DNS pinning, redirect re-validation, browser network denial, response type/size bounds | Public endpoints can still return attacker-controlled HTML; extraction remains best-effort and intentionally unauthenticated |
 | 4 | **Session hijacking (cookie theft)** | Browser → API | High — full account access | HttpOnly cookies, SameSite=Lax, Secure in production | No token binding; refresh token lives 7 days; no device/session fingerprinting |
 | 5 | **Persistent XSS via stored/generated content** | DB → Browser | Medium — session theft, credential capture | Tool output is rendered in React (auto-escaped), no raw HTML insertion | Generated content includes untrusted LLM output; no CSP allowing inline scripts; no output sanitization beyond React defaults |
@@ -874,16 +881,16 @@ Ad-blocker detection via bait div render check. 30-second countdown fallback.
 
 | # | Gap | Current | Intended | Risk | Owned By |
 |---|-----|---------|----------|------|----------|
-| 1 | In-memory rate limiter | slowapi in-memory dict, per-process counters | Distributed rate limiter (e.g., Redis-backed) | Leaks across instances if scaled beyond 1 replica | #76 |
-| 2 | In-memory result cache | Python dict, process-local | Redis or similar shared cache | Fragmented caches in multi-instance; lost on restart | #76 |
+| 1 | Distributed limiter deployment unverified | Code rejects local storage outside development | Configure and capacity-test shared storage | Misconfiguration prevents startup; backend outage fails limited routes closed | #76 / #81 |
+| 2 | In-memory result cache | Python dict, process-local | Redis or similar shared cache if scaling requires it | Fragmented caches in multi-instance; lost on restart | R10 |
 | 3 | Docker runs as root | No `USER` instruction in either Dockerfile | Non-root user with minimal capabilities | Container escape has root on host | #81 |
 | 4 | No retention/deletion policy | Data persists indefinitely; no TTL cleanup | Bounded retention periods + automated cleanup | Unlimited sensitive data accumulation; no GDPR compliance path | #74 |
 | 5 | No automated backups | No backup scripts, no cron jobs | Regular database backups with documented restore procedure | Data loss on Railway incident | #74 |
 | 6 | PostHog infrastructure present, SDK inactive | Build args + env vars + proxy config exist | Decision: activate PostHog OR remove dead config | Confusion about active processors; CookiePolicyPage claims no analytics but proxy exists | #82 |
 | 7 | No email verification on password registration | Account immediately usable | Email verification before first tool use | Spam accounts, wrong-email lockouts | #75 |
-| 8 | Rate limits missing on several auth endpoints | `GET /auth/me`, `POST /auth/logout`, `GET /auth/providers`, history GET/PATCH/DELETE | Rate limits on all authenticated endpoints | Enumeration amplification, DoS | #76 |
+| 8 | Low-cost endpoints remain unlimited | `GET /auth/me`, `POST /auth/logout`, `GET /auth/providers`, history GET/PATCH/DELETE | Add limits only if availability evidence shows abuse | Broad limiting can degrade normal authenticated navigation | R10 |
 | 9 | Password reset token in URL query string | `?token=...` | Token in POST body or fragment | Leaks to browser history and server logs | #75 |
-| 10 | No per-IP global rate limit | Per-endpoint decorators only | Global per-IP rate limit + progressive delay | Sustained abuse across different endpoints under individual limits | #76 |
+| 10 | CAPTCHA coverage is registration-only | Evidence can identify route-specific abuse, but the existing challenge contract covers registration | Add a reviewed challenge contract only to the attacked flow | Unconditional CAPTCHA harms access; unsupported activation would break clients | #76 follow-up if threshold triggers |
 | 11 | Login error message distinction | "Invalid email or password" (ambiguous) | Same message for both cases (no enumeration) | Registration says "Email already registered" — enables enumeration | #75 |
 
 ---

@@ -10,7 +10,11 @@ from starlette.middleware.sessions import SessionMiddleware
 from starlette.responses import Response
 
 from app.config import settings
-from app.limiter import limiter
+from app.limiter import (
+    get_abuse_identity_type,
+    limiter,
+    validate_abuse_control_config,
+)
 from app.routers import (
     admin,
     auth,
@@ -74,7 +78,19 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Career Workbench API", version="1.0.0")
 app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+
+async def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded):
+    identity_type = get_abuse_identity_type(request)
+    logger.warning(
+        "abuse_limit_exceeded route=%s identity_type=%s",
+        request.url.path,
+        identity_type,
+    )
+    return _rate_limit_exceeded_handler(request, exc)
+
+
+app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
 
 
 # --- Security headers ---
@@ -116,6 +132,8 @@ if settings.SECRET_KEY == _DEFAULT_SECRET and settings.ENVIRONMENT != "developme
         f"Set a strong random value before running in {settings.ENVIRONMENT}. "
         f"Generate one with: python -c \"import secrets; print(secrets.token_urlsafe(64))\""
     )
+
+validate_abuse_control_config()
 
 if settings.LLM_PROVIDER.lower() == "vertex" and not settings.VERTEX_PROJECT_ID:
     logger.critical(

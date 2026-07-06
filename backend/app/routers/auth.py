@@ -15,7 +15,7 @@ from app.auth.security import (
 )
 from app.config import settings
 from app.database import get_db
-from app.limiter import limiter
+from app.limiter import clear_auth_failures, limiter, record_account_pressure, record_auth_failure
 from app.models.user import User
 from app.schemas.auth import (
     AuthProvidersResponse,
@@ -38,9 +38,10 @@ router = APIRouter()
 
 @router.post("/login", response_model=TokenResponse)
 @limiter.limit("10/minute")
-def login(request: Request, response: Response, body: LoginRequest, db: Session = Depends(get_db)):
+async def login(request: Request, response: Response, body: LoginRequest, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == body.email).first()
     if not user or not verify_password(body.password, user.hashed_password):
+        await record_auth_failure(body.email)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password",
@@ -50,6 +51,7 @@ def login(request: Request, response: Response, body: LoginRequest, db: Session 
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Account is deactivated",
         )
+    clear_auth_failures(body.email)
     access = create_access_token(user.id)
     refresh = create_refresh_token(user.id, user.token_version)
     set_auth_cookies(response, access, refresh)
@@ -59,6 +61,7 @@ def login(request: Request, response: Response, body: LoginRequest, db: Session 
 @router.post("/register", response_model=UserResponse, status_code=201)
 @limiter.limit("5/minute")
 async def register(request: Request, response: Response, body: RegisterRequest, db: Session = Depends(get_db)):
+    await record_account_pressure("registration", body.email)
     if settings.DISPOSABLE_EMAIL_BLOCK_ENABLED and is_disposable_email(body.email):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -199,6 +202,7 @@ async def request_password_reset(
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
 ):
+    await record_account_pressure("password-reset", body.email)
     user = db.query(User).filter(User.email == body.email).first()
     if user:
         token = create_password_reset_token(user.email, user.hashed_password or "")
