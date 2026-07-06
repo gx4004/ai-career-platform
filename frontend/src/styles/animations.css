@@ -335,7 +335,9 @@
   .settings-status-dot.is-online,
   .dash-hero-accent-word,
   .dash-hero-dark-drop-glow,
-  .dash-hero-dark .dropzone-hero {
+  .dash-hero-dark .dropzone-hero,
+  .route-pending-spinner,
+  .button-session-signin-cta::before {
     animation: none !important;
   }
 

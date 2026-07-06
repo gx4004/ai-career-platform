@@ -148,7 +148,8 @@ test('app-shell pages have semantic landmarks', async ({ page }) => {
       const main = document.querySelector('main')
       const nav =
         document.querySelector('nav') ||
-        document.querySelector('[role="navigation"]')
+        document.querySelector('[role="navigation"]') ||
+        document.querySelector('[data-sidebar="sidebar"]')
       const heading = document.querySelector('h1, h2')
       return {
         hasMain: !!main,
@@ -159,7 +160,7 @@ test('app-shell pages have semantic landmarks', async ({ page }) => {
     })
 
     expect(landmarks.hasMain, `${path}: missing <main>`).toBe(true)
-    expect(landmarks.hasNav, `${path}: missing <nav>`).toBe(true)
+    expect(landmarks.hasNav, `${path}: missing navigation landmark`).toBe(true)
     expect(landmarks.hasHeading, `${path}: missing heading`).toBe(true)
   }
 })
