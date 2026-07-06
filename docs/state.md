@@ -40,24 +40,39 @@ features are not current implementation claims.
 
 ## Immediate Objective
 
-**Status: R2 recovery verified; R3 specification re-grill in progress**
+**Status: R2 recovery verified; R3 threat boundary inventory complete; implementation slices queued**
 
-Replace the incomplete R3 privacy/security/abuse proposal with a decision-complete
-threat model and dependency-ordered slices before implementation resumes. PR #83
-remains draft and must not merge under its current specification.
+The `docs/threat-model.md` canonical inventory is complete (#73). It maps system
+topology, trust boundaries, data flows, assets, browser storage, API surface, auth
+model, processing pipeline, external integrations, observability, abuse cases, and
+privacy failure modes from executable code and configuration. Unknown production
+facts are recorded as ready-for-human decisions (D-UNK-1 through D-UNK-10).
+
+Remaining R3 slices (#74–#82) are dependency-ordered and individually ready for
+agent implementation when their blockers clear. #74 (retention/deletion) requires
+human decisions D-UNK-6 and D-UNK-7. #81 (deployment headers) and #82 (legal
+reconciliation) are partially blocked by production unknowns. The other six slices
+(#75–#80) are unblocked.
+
+PR #83 remains draft and must not merge under its current specification.
 
 ## Risks and Drift to Resolve
 
 | Risk | Why it matters | Next action |
 |---|---|---|
-| Documentation drift | Old roadmap, frontend overhaul plan, `design.md`, and source code disagree in places. | Use canonical docs going forward; verify disputed behavior against code/UI. |
+| Documentation drift | Old roadmap, frontend overhaul plan, `design.md`, and source code disagree in places. | Use canonical docs going forward; verify disputed behavior against code/UI. `docs/threat-model.md` now anchors security claims to code. |
 | Mixed local worktree | Product edits can accidentally include active thesis/generated files. | Stage explicit product paths only and verify every commit. |
-| Release environment unverified | Railway topology, variables, migrations, domain, and deploy branch may have changed. | Run a deployment inventory and staging smoke test. |
-| Privacy retention unspecified | Resume text and generated output are sensitive. | Accept a retention/deletion decision before public launch. |
+| Release environment unverified | Railway topology, variables, migrations, domain, and deploy branch may have changed. | Run deployment inventory and staging smoke test. See `docs/threat-model.md` §14 D-UNK-1 through D-UNK-10. |
 | Design contract conflict | `design.md` says light heroes while older context describes dark tool heroes. | Visually audit current product and accept one direction. |
-| Browser storage contains workflow content | Useful for guests, but sensitive and easy to overlook. | Audit minimum data, expiry behavior, and clear-local-data UX. |
-| In-process cache | Multi-instance behavior may be inconsistent. | Confirm production instance count; document or replace when needed. |
 | Monetization deferred | Historical ad-gate code must not be mistaken for a current release requirement. | Keep gates disabled and revisit only after product-quality work. |
+
+### Resolved or Catalogued in Threat Model
+
+| Risk | Resolution |
+|---|---|
+| Privacy retention unspecified | Now captured as `docs/threat-model.md` §14 D-UNK-6; owned by issue #74. |
+| Browser storage contains workflow content | Now documented in `docs/threat-model.md` §5 with full inventory and classification; addressed by issue #77. |
+| In-process cache | Now documented in `docs/threat-model.md` §13 gap #2 and §8.3; addressed by issue #76. |
 
 ## Product Audit Work Remaining
 

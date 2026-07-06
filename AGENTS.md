@@ -11,8 +11,9 @@ Read only the context needed for the task:
 2. `docs/roadmap.md` — priorities and completion gates.
 3. `docs/spec.md` — product contract and scope.
 4. `docs/architecture.md` — boundaries, data flow, and engineering invariants.
-5. `docs/decisions.md` — accepted decisions that must not be silently reversed.
-6. `design.md` — UI tokens and visual rules, only for user-interface work.
+5. `docs/threat-model.md` — trust boundaries, assets, data flows, attack surface, abuse cases, and privacy failure modes.
+6. `docs/decisions.md` — accepted decisions that must not be silently reversed.
+7. `design.md` — UI tokens and visual rules, only for user-interface work.
 
 `docs/README.md` explains ownership and the update protocol for this memory system.
 
@@ -23,9 +24,10 @@ When sources disagree, use this order:
 1. User instruction for the current task
 2. Executable code, schemas, migrations, and tests
 3. Accepted entries in `docs/decisions.md`
-4. `docs/spec.md` and `docs/architecture.md`
-5. `docs/state.md` and `docs/roadmap.md`
-6. Historical plans, checklists, thesis files, and old comments
+4. `docs/threat-model.md` for security, privacy, and abuse concerns
+5. `docs/spec.md` and `docs/architecture.md`
+6. `docs/state.md` and `docs/roadmap.md`
+7. Historical plans, checklists, thesis files, and old comments
 
 Do not guess through a meaningful contradiction. Record it in `docs/state.md` and
 ask for a decision when it changes product behavior, data, security, or scope.
