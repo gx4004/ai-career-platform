@@ -231,9 +231,9 @@ async def match_job(
         result = await complete_structured(system_prompt, user_prompt)
     except Exception as exc:
         logger.warning(
-            "LLM call failed for job match, returning heuristic-only result: %s",
-            exc,
-            exc_info=True,
+            "LLM call failed for job match; returning heuristic-only result "
+            "error_type=%s",
+            type(exc).__name__,
         )
         result = {}
 

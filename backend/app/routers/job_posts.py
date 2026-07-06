@@ -19,8 +19,8 @@ async def import_job_url(request: Request, body: ImportJobUrlRequest):
         result = await scrape_job_posting(str(body.url))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    except Exception:
-        logger.exception("Job import failed for URL: %s", body.url)
+    except Exception as exc:
+        logger.error("Job import failed error_type=%s", type(exc).__name__)
         raise HTTPException(
             status_code=502,
             detail="Could not fetch or parse the job posting. Please check the URL and try again.",

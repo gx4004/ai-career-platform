@@ -180,7 +180,7 @@ def test_health(client):
     assert "time" in data
 
 
-def test_import_job_url_invalid(client, monkeypatch):
+def test_import_job_url_invalid(client, monkeypatch, caplog):
     import httpx
 
     async def mock_fetch(*args, **kwargs):
@@ -192,11 +192,12 @@ def test_import_job_url_invalid(client, monkeypatch):
 
     resp = client.post(
         f"{PREFIX}/job-posts/import-url",
-        json={"url": "https://example.com/job"},
+        json={"url": "https://example.com/job?token=private-token"},
     )
     assert resp.status_code == 200
     data = resp.json()
     assert "paste" in data.get("job_description", "").lower() or data.get("source") == "fallback"
+    assert "private-token" not in caplog.text
 
 
 def _mock_client_cls(mock_get):

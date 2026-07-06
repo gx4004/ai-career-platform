@@ -49,8 +49,11 @@ def get_db():
         # exception with a rollback failure.
         try:
             db.rollback()
-        except Exception:
-            logger.warning("get_db: rollback after route exception failed", exc_info=True)
+        except Exception as rollback_exc:
+            logger.warning(
+                "get_db: rollback after route exception failed error_type=%s",
+                type(rollback_exc).__name__,
+            )
         raise
     finally:
         db.close()

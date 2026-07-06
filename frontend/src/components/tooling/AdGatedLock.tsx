@@ -3,6 +3,7 @@ import { Lock, Unlock } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { AdCountdownTimer } from '#/components/tooling/AdCountdownTimer'
 import { trackTelemetry } from '#/lib/telemetry/client'
+import type { ToolId } from '#/lib/tools/registry'
 import { useAd } from '#/hooks/useAd'
 import { useAdUnlock } from '#/hooks/useAdUnlock'
 
@@ -11,7 +12,7 @@ export function AdGatedLock({
   runId,
   children,
 }: {
-  toolId: string
+  toolId: ToolId
   runId?: string
   children: ReactNode
 }) {

@@ -58,7 +58,11 @@ async def _with_retry(coro_factory, max_retries: int = _MAX_RETRIES, base_delay:
             if attempt < max_retries:
                 delay = base_delay * (2 ** attempt) + random.uniform(0, 2.0)
                 logger.warning(
-                    "LLM retry %d/%d after %.1fs: %s", attempt + 1, max_retries, delay, exc
+                    "LLM retry %d/%d after %.1fs error_type=%s",
+                    attempt + 1,
+                    max_retries,
+                    delay,
+                    type(exc).__name__,
                 )
                 await asyncio.sleep(delay)
     raise last_exc  # type: ignore[misc]
@@ -135,7 +139,7 @@ async def _call_vertex(system_prompt: str, user_prompt: str, model_name: str | N
         )
         raise RuntimeError("AI service configuration error. Please contact support.")
     except gcp_exceptions.GoogleAPICallError as exc:
-        logger.error("Vertex AI call failed: %s", exc)
+        logger.error("Vertex AI call failed error_type=%s", type(exc).__name__)
         raise RuntimeError("AI service temporarily unavailable. Please try again.")
 
     content = response.text
@@ -168,8 +172,8 @@ async def _call_google_genai(system_prompt: str, user_prompt: str, model_name: s
             f"AI request timed out after {_LLM_TIMEOUT_SECONDS}s. Please try again."
         )
     except Exception as exc:
-        logger.error("Google AI call failed: %s: %s", type(exc).__name__, exc)
-        raise RuntimeError(f"AI service error: {type(exc).__name__}: {exc}")
+        logger.error("Google AI call failed error_type=%s", type(exc).__name__)
+        raise RuntimeError("AI service temporarily unavailable. Please try again.")
 
     content = response.text
     return _safe_parse_json(content, "google")
@@ -200,9 +204,5 @@ def _safe_parse_json(content: str | None, provider: str) -> dict:
             if len(parts) > 1:
                 json_str = parts[1].split("```")[0].strip()
                 return json.loads(json_str)
-        logger.error(
-            "Failed to parse LLM response as JSON  provider=%s  content_start=%s",
-            provider,
-            content[:200],
-        )
+        logger.error("Failed to parse LLM response as JSON provider=%s", provider)
         raise

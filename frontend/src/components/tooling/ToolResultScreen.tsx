@@ -99,8 +99,7 @@ export function ToolResultScreen({
       trackTelemetry({
         event_name: 'result_page_cache_miss',
         tool_id: toolId,
-        history_id: historyId,
-        metadata: { session_status: status },
+        session_status: status,
       })
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps -- only on mount
@@ -131,10 +130,8 @@ export function ToolResultScreen({
     trackTelemetry({
       event_name: 'result_page_loaded',
       tool_id: toolId,
-      history_id: item.id,
       access_mode: item.access_mode === 'guest_demo' ? 'guest_demo' : 'authenticated',
       saved: item.saved,
-      workspace_id: item.workspace?.id,
     })
   }, [item, toolId])
 
@@ -256,10 +253,9 @@ export function ToolResultScreen({
     trackTelemetry({
       event_name: 'export_action_used',
       tool_id: resolvedTool.id,
-      history_id: item!.id,
       access_mode: savedResult ? 'authenticated' : 'guest_demo',
       saved: savedResult,
-      metadata: { format },
+      export_format: format,
     })
     if (format === 'md') {
       downloadTextFile(

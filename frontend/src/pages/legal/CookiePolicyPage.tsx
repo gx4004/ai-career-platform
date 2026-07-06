@@ -89,9 +89,10 @@ export function CookiePolicyPage() {
       <p>
         We do collect a small amount of first-party diagnostic telemetry to monitor whether the tools complete
         successfully (event names like <code>tool_run_started</code>, <code>tool_run_succeeded</code>,
-        <code>frontend_error</code>). The payload contains the tool ID, route, access mode (guest or authenticated),
-        and an opaque history identifier, never the resume text or job description content. This telemetry runs from
-        our own backend and is suppressed when you decline cookies.
+        <code>frontend_error</code>). The payload contains the tool ID, access mode (guest or authenticated),
+        completion status, and low-cardinality failure categories, never routes, raw error messages, history/workspace
+        identifiers, resume text, job descriptions, or generated content. This telemetry runs through our own backend
+        and is suppressed when you decline cookies.
       </p>
       <p>
         In the future we may enable Google AdSense to support the free tier. If and when that happens, AdSense will

@@ -47,22 +47,27 @@ describe('telemetry client', () => {
 
     trackTelemetry({
       event_name: 'workspace_resumed',
-      workspace_id: 'ws_1',
+      tool_id: 'resume',
     })
 
     await Promise.resolve()
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
-  it('reports frontend errors without throwing', () => {
+  it('reports frontend errors without serializing messages or arbitrary context', async () => {
     sendBeaconMock.mockReturnValue(true)
 
     expect(() =>
-      captureAppError(new Error('render failed'), {
+      captureAppError(new Error('render failed for user@example.com?token=secret'), {
         source: 'error-boundary',
       }),
     ).not.toThrow()
 
     expect(sendBeaconMock).toHaveBeenCalledTimes(1)
+    const blob = sendBeaconMock.mock.calls[0]?.[1] as Blob
+    const payload = JSON.parse(await blob.text())
+    expect(payload.failure_category).toBe('render_error')
+    expect(JSON.stringify(payload)).not.toContain('user@example.com')
+    expect(JSON.stringify(payload)).not.toContain('secret')
   })
 })

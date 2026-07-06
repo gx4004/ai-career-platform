@@ -90,7 +90,7 @@ export function useToolMutation(tool: ToolDefinition) {
           tool_id: tool.id,
           access_mode: accessMode,
           level: 'error',
-          error_message: error instanceof Error ? error.message : 'Unknown tool run failure.',
+          failure_category: 'tool_request_failed',
         })
         throw getToolRunError(tool, error)
       } finally {
@@ -134,7 +134,7 @@ export function useToolMutation(tool: ToolDefinition) {
           event_name: 'tool_regenerate',
           tool_id: tool.id,
           access_mode: saved ? 'authenticated' : 'guest_demo',
-          metadata: { has_feedback: Boolean(feedback) },
+          has_feedback: Boolean(feedback),
         })
       }
 
@@ -142,7 +142,6 @@ export function useToolMutation(tool: ToolDefinition) {
         event_name: 'tool_run_succeeded',
         tool_id: tool.id,
         access_mode: saved ? 'authenticated' : 'guest_demo',
-        history_id: historyId,
         saved,
       })
 
