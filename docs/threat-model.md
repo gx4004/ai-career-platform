@@ -857,7 +857,7 @@ Ad-blocker detection via bait div render check. 30-second countdown fallback.
 | 2 | **Credential stuffing / brute force** | API → Auth | Medium-High — account takeover | Distributed login limit, bcrypt hashing, expiring pseudonymized failure counters, bounded progressive delay after three failures | No password composition requirements; delay is intentionally capped and never hard-locks an account |
 | 3 | **SSRF via job URL import** | API → Internet | Medium — internal network access | All-answer IP checks, per-hop DNS pinning, redirect re-validation, browser network denial, response type/size bounds | Public endpoints can still return attacker-controlled HTML; extraction remains best-effort and intentionally unauthenticated |
 | 4 | **Session hijacking (cookie theft)** | Browser → API | High — full account access | HttpOnly cookies, SameSite=Lax, Secure in production | No token binding; refresh token lives 7 days; no device/session fingerprinting |
-| 5 | **Persistent XSS via stored/generated content** | DB → Browser | Medium — session theft, credential capture | Tool output is rendered in React (auto-escaped), no raw HTML insertion | Generated content includes untrusted LLM output; no CSP allowing inline scripts; no output sanitization beyond React defaults |
+| 5 | **Persistent XSS via stored/generated content** | DB → Browser | Medium — session theft, credential capture | Tool output is rendered in React (auto-escaped), no raw HTML insertion; the frontend CSP denies objects and framing and limits script origins | Generated content includes untrusted LLM output; the SSR-compatible CSP currently permits inline scripts; no output sanitization beyond React defaults |
 | 6 | **Malicious file upload** | Browser → API | Medium — DoS, parser exploitation | 10MB limit, magic byte validation, PDF/DOCX only | No page count limit; no ZIP bomb protection for DOCX; PyMuPDF processes arbitrary PDFs |
 | 7 | **Prompt injection to extract system prompts or influence outputs** | API → Vertex AI | Low-Medium — output manipulation | 17 regex patterns in `input_sanitizer.py` | Regex cannot block all injection vectors; no system prompt hardening / delimiters |
 | 8 | **Account enumeration** | API → Auth | Low — privacy | Login/register return distinct errors; password reset always returns 200 | Login says "Invalid email or password" (ambiguous), but registration says "Email already registered" (distinct) |
@@ -926,7 +926,7 @@ blocked only by their listed dependencies — all other context is available her
 | #78 — Telemetry, Sentry, logs, deletion audit | §§10,12,13 — Observability, privacy failures, gaps #6 | Unblocked (code evidence complete; D-UNK-3 may affect) |
 | #79 — Upload boundaries & parser resource limits | §8.5 — File upload handling | Unblocked (code evidence complete) |
 | #80 — Scraper SSRF hardening | §§8.6,9.2 — Scraper implementation, Playwright integration | Unblocked (code evidence complete) |
-| #81 — Deployment-compatible security headers | §§1,13 — Topology, gap inventory (#3, #6) | Partially blocked (D-UNK-1, D-UNK-3, D-UNK-5, D-UNK-9, D-UNK-10) |
+| #81 — Deployment-compatible security headers | §§1,13 — Topology, gap inventory (#3, #6) | Frontend response implementation locally verified; production compatibility remains blocked by D-UNK-1, D-UNK-3, D-UNK-5, D-UNK-9, D-UNK-10 |
 | #82 — Legal disclosure reconciliation | All sections + all prior issues | Blocked by #74–#81 |
 
 ---
