@@ -152,6 +152,19 @@ def test_toggle_favorite(client, auth_headers, test_user, db):
     assert resp.json()["is_favorite"] is True
 
 
+def test_update_run_label(client, auth_headers, test_user, db):
+    run = _create_run(db, test_user.id, label="Old label")
+
+    resp = client.patch(
+        f"{PREFIX}/{run.id}",
+        json={"label": "Backend application"},
+        headers=auth_headers,
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["label"] == "Backend application"
+
+
 def test_list_workspaces_and_update_workspace(client, auth_headers, test_user, db):
     workspace = Workspace(user_id=test_user.id, label="Draft chain")
     db.add(workspace)

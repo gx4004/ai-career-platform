@@ -353,6 +353,14 @@ export function deleteHistoryItem(historyId: string) {
   })
 }
 
+export function updateHistoryItem(historyId: string, label: string | null) {
+  return request(`/history/${historyId}`, {
+    method: 'PATCH',
+    body: { label },
+    schema: toolRunSummarySchema,
+  })
+}
+
 export function setHistoryFavorite(historyId: string, isFavorite: boolean) {
   return request(`/history/${historyId}/favorite`, {
     method: 'PATCH',

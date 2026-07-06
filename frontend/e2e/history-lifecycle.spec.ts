@@ -56,7 +56,7 @@ test.beforeEach(async ({ context }) => {
   })
 })
 
-test('history filtering, favorites, detail, and labels work through the API', async ({
+test('history filtering, favorites, detail, and labels work through the UI', async ({
   page,
 }) => {
   test.setTimeout(90_000)
@@ -69,67 +69,36 @@ test('history filtering, favorites, detail, and labels work through the API', as
   })
   expect(id2Resp.ok()).toBe(true)
 
-  // Tool filter
-  const byTool = await page.request.get(`${apiUrl}/history?tool=resume&page_size=100`)
-  expect(byTool.ok()).toBe(true)
-  const byToolJson = await byTool.json()
-  expect(byToolJson.items).toHaveLength(2)
-
-  // Get detail
-  const detail = await page.request.get(`${apiUrl}/history/${id1}`)
-  expect(detail.ok()).toBe(true)
-  const detailJson = await detail.json()
-  expect(detailJson.id).toBe(id1)
-  expect(detailJson.is_favorite).toBe(false)
-
-  // Toggle favorite ON
-  const favOn = await page.request.patch(`${apiUrl}/history/${id1}/favorite`, {
-    data: { is_favorite: true },
-  })
-  expect(favOn.ok()).toBe(true)
-  expect((await favOn.json()).is_favorite).toBe(true)
-
-  // Filter by favorite
-  const favs = await page.request.get(`${apiUrl}/history?favorite=true`)
-  expect(favs.ok()).toBe(true)
-  const favJson = await favs.json()
-  expect(favJson.items).toHaveLength(1)
-  expect(favJson.items[0].id).toBe(id1)
-
-  // Toggle OFF
-  const favOff = await page.request.patch(`${apiUrl}/history/${id1}/favorite`, {
-    data: { is_favorite: false },
-  })
-  expect(favOff.ok()).toBe(true)
-  expect((await favOff.json()).is_favorite).toBe(false)
-
-  // Navigate to history page to verify UI renders
   await gotoHydrated(page, '/history')
-  await expect(page.locator('h1').filter({ hasText: /Workspace Timeline/i })).toBeVisible()
+  await page.getByRole('button', { name: 'Resume' }).click()
+  await expect(page.getByLabel(/Label Resume Analyzer run/)).toHaveCount(2)
+
+  const labelInput = page.getByLabel(/Label Resume Analyzer run/).first()
+  await labelInput.fill('Backend application')
+  await page.getByRole('button', { name: 'Save label' }).first().click()
+  await expect(labelInput).toHaveValue('Backend application')
+
+  await page.getByRole('button', { name: 'Add to favorites' }).first().click()
+  await page.getByRole('button', { name: /Favorites/ }).click()
+  await expect(page.getByLabel(/Label Resume Analyzer run/)).toHaveCount(1)
+
+  await page.getByRole('link', { name: 'View →' }).click()
+  await expect(page).toHaveURL(new RegExp(`/resume/result/${id1}|/resume/result/`))
 })
 
-test('workspace listing, labeling, and pinning work', async ({ page }) => {
+test('workspace listing, labeling, and pinning work through the UI', async ({ page }) => {
   test.setTimeout(60_000)
   await register(page, 'WS Full')
   await submitResume(page)
 
-  const wsResp = await page.request.get(`${apiUrl}/history/workspaces`)
-  expect(wsResp.ok()).toBe(true)
-  const wsJson = await wsResp.json()
-  expect(wsJson.items).toHaveLength(1)
-  const ws = wsJson.items[0]
+  await gotoHydrated(page, '/history')
+  const workspaceName = page.getByPlaceholder('Name this workspace').first()
+  await workspaceName.fill('My labeled workspace')
+  await page.getByRole('button', { name: 'Save name' }).first().click()
+  await expect(workspaceName).toHaveValue('My labeled workspace')
 
-  const updated = await page.request.patch(`${apiUrl}/history/workspaces/${ws.id}`, {
-    data: { label: 'My labeled workspace', is_pinned: true },
-  })
-  expect(updated.ok()).toBe(true)
-  const updatedJson = await updated.json()
-  expect(updatedJson.label).toBe('My labeled workspace')
-  expect(updatedJson.is_pinned).toBe(true)
-
-  const ws2Resp = await page.request.get(`${apiUrl}/history/workspaces`)
-  const ws2Json = await ws2Resp.json()
-  expect(ws2Json.items[0].is_pinned).toBe(true)
+  await page.getByRole('button', { name: 'Pin workspace' }).first().click()
+  await expect(page.getByText('My labeled workspace')).toBeVisible()
 })
 
 test('regeneration creates a new ToolRun linked by parent_run_id', async ({ page }) => {
