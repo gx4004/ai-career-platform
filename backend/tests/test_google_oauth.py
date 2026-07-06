@@ -39,7 +39,9 @@ def test_signup_with_unverified_email_does_not_create_account(client, db):
         resp = client.get(CALLBACK, follow_redirects=False)
 
     assert resp.status_code in (302, 307)
-    assert "oauth_error" in resp.headers["location"]
+    assert resp.headers["location"].startswith(
+        "http://localhost:3000/login?oauth_error="
+    )
     # Crucially: zero rows touched.
     assert db.query(User).filter(User.email == "attacker@example.com").first() is None
 
@@ -58,7 +60,10 @@ def test_link_rejects_unverified_email(client, db, test_user):
         resp = client.get(CALLBACK, follow_redirects=False)
 
     assert resp.status_code in (302, 307)
-    assert "unverified_email" in resp.headers["location"]
+    assert (
+        resp.headers["location"]
+        == "http://localhost:3000/login?oauth_error=unverified_email"
+    )
 
     db.refresh(test_user)
     assert test_user.google_id is None, "account was silently linked despite unverified email"
@@ -77,7 +82,10 @@ def test_signup_via_oauth_is_blocked_until_tos_flow_exists(client, db):
         resp = client.get(CALLBACK, follow_redirects=False)
 
     assert resp.status_code in (302, 307)
-    assert "oauth_error=signup_via_email_required" in resp.headers["location"]
+    assert (
+        resp.headers["location"]
+        == "http://localhost:3000/login?oauth_error=signup_via_email_required"
+    )
     # Crucially, no User row was created.
     assert db.query(User).filter(User.email == "brand-new@example.com").first() is None
 
@@ -95,7 +103,22 @@ def test_link_accepts_verified_email(client, db, test_user):
         resp = client.get(CALLBACK, follow_redirects=False)
 
     assert resp.status_code in (302, 307)
-    assert "/dashboard" in resp.headers["location"]
+    assert resp.headers["location"] == "http://localhost:3000/dashboard"
+    set_cookie_headers = resp.headers.get_list("set-cookie")
+    assert any(
+        header.startswith("cw_access=")
+        and "HttpOnly" in header
+        and "SameSite=lax" in header
+        and "Path=/api;" in header
+        for header in set_cookie_headers
+    )
+    assert any(
+        header.startswith("cw_refresh=")
+        and "HttpOnly" in header
+        and "SameSite=lax" in header
+        and "Path=/api/v1/auth/refresh;" in header
+        for header in set_cookie_headers
+    )
     db.refresh(test_user)
     assert test_user.google_id == "linked-google-sub"
 
