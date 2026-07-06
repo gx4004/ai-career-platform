@@ -70,7 +70,7 @@ test('history filtering, favorites, detail, and labels work through the UI', asy
   expect(id2Resp.ok()).toBe(true)
 
   await gotoHydrated(page, '/history')
-  await page.getByRole('button', { name: 'Resume' }).click()
+  await page.getByRole('button', { name: 'Resume', exact: true }).click()
   await expect(page.getByLabel(/Label Resume Analyzer run/)).toHaveCount(2)
 
   const labelInput = page.getByLabel(/Label Resume Analyzer run/).first()
