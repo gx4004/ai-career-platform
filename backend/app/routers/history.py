@@ -10,6 +10,7 @@ from app.models.workspace import Workspace
 from app.schemas.history import (
     DeletedResponse,
     FavoriteRequest,
+    RunUpdateRequest,
     ToolRunDetail,
     ToolRunListResponse,
     ToolRunSummary,
@@ -207,6 +208,21 @@ def toggle_favorite(
 ):
     run = _get_run(db, history_id, current_user.id)
     run.is_favorite = body.is_favorite
+    db.commit()
+    db.refresh(run)
+    workspace_runs = _workspace_runs_map(db, current_user.id, [run])
+    return _summary(run, workspace_runs.get(run.workspace_id, []))
+
+
+@router.patch("/{history_id}", response_model=ToolRunSummary)
+def update_run(
+    history_id: str,
+    body: RunUpdateRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    run = _get_run(db, history_id, current_user.id)
+    run.label = body.label.strip() if body.label and body.label.strip() else None
     db.commit()
     db.refresh(run)
     workspace_runs = _workspace_runs_map(db, current_user.id, [run])
