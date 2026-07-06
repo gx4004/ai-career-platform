@@ -1,5 +1,9 @@
 import type { ToolRunDetail } from '#/lib/api/schemas'
-import { readSessionJson, removeSessionValue, writeSessionJson } from '#/lib/auth/storage'
+import {
+  readSessionJson,
+  removeSessionValuesByPrefix,
+  writeSessionJson,
+} from '#/lib/auth/storage'
 import { deriveRunMetadata } from '#/lib/tools/runMetadata'
 import type { ToolId } from '#/lib/tools/registry'
 import { tools } from '#/lib/tools/registry'
@@ -71,8 +75,6 @@ export function getTransientResult(demoId: string): ToolRunDetail | null {
 }
 
 export function clearTransientResults(): void {
-  for (const key of transientResults.keys()) {
-    removeSessionValue(`${SESSION_KEY_PREFIX}${key}`)
-  }
+  removeSessionValuesByPrefix(SESSION_KEY_PREFIX)
   transientResults.clear()
 }
