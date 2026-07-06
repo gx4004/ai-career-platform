@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { ArrowRight } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { Input } from '#/components/ui/input'
@@ -12,6 +11,7 @@ import {
   ToolStatusInline,
   getSeededFieldNote,
   useResumeEditorCollapse,
+  useSeededToolPhase,
   useToolPageState,
 } from '#/components/tooling/toolPageShared'
 import { toolAccentStyle } from '#/lib/tools/styleUtils'
@@ -30,10 +30,8 @@ export function PortfolioToolPage() {
 
   const resumeField = config.fields.find((field) => field.name === 'resumeText')!
   const targetRoleField = config.fields.find((field) => field.name === 'targetRole')!
-  const [phase, setPhase] = useState<'upload' | 'form'>(
-    draft.resumeText.trim() || bridge.seededResume ? 'form' : 'upload',
-  )
   const hasResumeContent = Boolean(draft.resumeText.trim() || bridge.seededResume)
+  const { phase, setPhase } = useSeededToolPhase(hasResumeContent)
   const { resumeEditorCollapsed, openResumeEditor, collapseResumeEditor } =
     useResumeEditorCollapse(hasResumeContent, hasResumeContent)
 
