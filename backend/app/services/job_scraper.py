@@ -1,7 +1,8 @@
 import ipaddress
 import logging
 import socket
-from urllib.parse import urlparse
+from dataclasses import dataclass
+from urllib.parse import urlparse, urlunparse
 
 import httpx
 from bs4 import BeautifulSoup
@@ -13,61 +14,176 @@ logger = logging.getLogger(__name__)
 _BS4_TIMEOUT = 5.0
 _PLAYWRIGHT_TIMEOUT_MS = 10_000
 _MAX_REDIRECTS = 5
+_MAX_RESPONSE_BYTES = 2_000_000
+_MAX_BROWSER_REQUESTS = 50
+_MAX_BROWSER_BYTES = 10_000_000
+_HTML_CONTENT_TYPES = frozenset({"text/html", "application/xhtml+xml"})
+_BROWSER_CONTENT_TYPES = frozenset(
+    {
+        *_HTML_CONTENT_TYPES,
+        "application/javascript",
+        "application/json",
+        "application/ld+json",
+        "application/x-javascript",
+        "text/css",
+        "text/javascript",
+        "text/plain",
+    }
+)
+
+
+@dataclass(frozen=True)
+class _ResolvedTarget:
+    connect_url: str
+    hostname: str
+    host_header: str
+
+
+@dataclass(frozen=True)
+class _FetchedResource:
+    content: bytes
+    content_type: str
 
 
 def _is_private_ip(ip_str: str) -> bool:
-    """Check if an IP address is private, loopback, or link-local."""
+    """Return whether an address is unsafe for an outbound public-web request."""
     try:
         addr = ipaddress.ip_address(ip_str)
-        return addr.is_private or addr.is_loopback or addr.is_link_local or addr.is_reserved
+        return not addr.is_global
     except ValueError:
         return True  # If we can't parse it, block it
 
 
-def _validate_url(url: str) -> None:
+def _resolve_public_target(url: str) -> _ResolvedTarget:
     parsed = urlparse(url)
     if parsed.scheme not in ("http", "https"):
         raise ValueError("Only HTTP(S) URLs are supported")
     hostname = parsed.hostname or ""
     if not hostname:
         raise ValueError("URL must have a hostname")
+    if parsed.username is not None or parsed.password is not None:
+        raise ValueError("Credentials in URLs are not allowed")
+    if "\\" in parsed.netloc or "%" in parsed.netloc:
+        raise ValueError("Encoded or ambiguous URL authorities are not allowed")
+    if hostname.endswith(".") or "%" in hostname:
+        raise ValueError("Non-canonical hostnames are not allowed")
+    if all(character.isdigit() or character == "." for character in hostname):
+        try:
+            ipaddress.ip_address(hostname)
+        except ValueError as exc:
+            raise ValueError("Alternate numeric IP formats are not allowed") from exc
 
-    # Resolve DNS and check ALL returned IPs to prevent DNS rebinding
-    # If hostname can't be resolved, pass through — no SSRF risk (can't be private IP)
-    # and the scraper's 3-tier fallback will handle it gracefully.
+    default_port = 443 if parsed.scheme == "https" else 80
     try:
-        addrinfo = socket.getaddrinfo(hostname, None, socket.AF_UNSPEC, socket.SOCK_STREAM)
-    except socket.gaierror:
-        return
+        port = parsed.port or default_port
+    except ValueError as exc:
+        raise ValueError("URL port is invalid") from exc
+    if port != default_port:
+        raise ValueError("Only standard HTTP(S) ports are allowed")
 
+    try:
+        addrinfo = socket.getaddrinfo(
+            hostname, port, socket.AF_UNSPEC, socket.SOCK_STREAM
+        )
+    except socket.gaierror as exc:
+        raise ValueError("URL hostname could not be resolved") from exc
+
+    public_ips: list[ipaddress.IPv4Address | ipaddress.IPv6Address] = []
     for _family, _, _, _, sockaddr in addrinfo:
-        ip_str = sockaddr[0]
-        if _is_private_ip(ip_str):
+        try:
+            address = ipaddress.ip_address(sockaddr[0])
+        except ValueError as exc:
+            raise ValueError("URL resolved to an invalid address") from exc
+        if _is_private_ip(str(address)):
             raise ValueError("URLs resolving to private/internal IPs are not allowed")
+        if address not in public_ips:
+            public_ips.append(address)
+
+    if not public_ips:
+        raise ValueError("URL hostname did not resolve to a public address")
+
+    selected_ip = public_ips[0]
+    connect_host = f"[{selected_ip}]" if selected_ip.version == 6 else str(selected_ip)
+    connect_url = urlunparse(
+        (
+            parsed.scheme,
+            connect_host,
+            parsed.path or "/",
+            parsed.params,
+            parsed.query,
+            "",
+        )
+    )
+    host_header = hostname if port == default_port else f"{hostname}:{port}"
+    return _ResolvedTarget(connect_url, hostname, host_header)
+
+
+def _validate_url(url: str) -> None:
+    _resolve_public_target(url)
 
 
 async def _fetch_with_httpx(url: str) -> str:
+    resource = await _fetch_resource_with_httpx(url, _HTML_CONTENT_TYPES)
+    return resource.content.decode("utf-8", errors="replace")
+
+
+async def _fetch_resource_with_httpx(
+    url: str,
+    allowed_content_types: frozenset[str],
+) -> _FetchedResource:
+    transport = httpx.AsyncHTTPTransport(retries=0)
     async with httpx.AsyncClient(
-        follow_redirects=False, timeout=_BS4_TIMEOUT
+        follow_redirects=False,
+        timeout=_BS4_TIMEOUT,
+        transport=transport,
+        trust_env=False,
     ) as client:
         current = url
         for _ in range(_MAX_REDIRECTS + 1):
-            response = await client.get(
-                current,
+            target = _resolve_public_target(current)
+            request = client.build_request(
+                "GET",
+                target.connect_url,
                 headers={
-                    "User-Agent": "Mozilla/5.0 (compatible; CareerPlatformBot/1.0)"
+                    "Host": target.host_header,
+                    "User-Agent": "Mozilla/5.0 (compatible; CareerPlatformBot/1.0)",
+                    "Accept": "text/html,application/xhtml+xml",
                 },
+                extensions={"sni_hostname": target.hostname},
             )
+            response = await client.send(request, stream=True)
             if response.is_redirect:
                 location = response.headers.get("location")
+                await response.aclose()
                 if not location:
                     break
                 next_url = str(httpx.URL(current).join(location))
-                _validate_url(next_url)
+                _resolve_public_target(next_url)
                 current = next_url
                 continue
-            response.raise_for_status()
-            return response.text
+            try:
+                response.raise_for_status()
+                content_type = (
+                    response.headers.get("content-type", "")
+                    .partition(";")[0]
+                    .strip()
+                    .lower()
+                )
+                if content_type not in allowed_content_types:
+                    raise httpx.HTTPError("Unsupported response content type")
+                content_length = response.headers.get("content-length")
+                if content_length and int(content_length) > _MAX_RESPONSE_BYTES:
+                    await response.aclose()
+                    raise httpx.HTTPError("Response is too large")
+
+                body = bytearray()
+                async for chunk in response.aiter_bytes():
+                    body.extend(chunk)
+                    if len(body) > _MAX_RESPONSE_BYTES:
+                        raise httpx.HTTPError("Response is too large")
+                return _FetchedResource(bytes(body), content_type)
+            finally:
+                await response.aclose()
     raise httpx.HTTPError("Too many redirects")
 
 
@@ -78,17 +194,44 @@ async def _fetch_with_playwright(url: str) -> str:
         browser = await p.chromium.launch(headless=True)
         try:
             page = await browser.new_page()
+            request_count = 0
+            fetched_bytes = 0
 
             async def _guard(route):
-                try:
-                    _validate_url(route.request.url)
-                except ValueError:
+                nonlocal request_count, fetched_bytes
+                request = route.request
+                if request.method != "GET" or request.resource_type in {
+                    "font",
+                    "image",
+                    "media",
+                    "websocket",
+                }:
                     await route.abort()
                     return
-                await route.continue_()
+                request_count += 1
+                if request_count > _MAX_BROWSER_REQUESTS:
+                    await route.abort()
+                    return
+                try:
+                    resource = await _fetch_resource_with_httpx(
+                        request.url, _BROWSER_CONTENT_TYPES
+                    )
+                    fetched_bytes += len(resource.content)
+                    if fetched_bytes > _MAX_BROWSER_BYTES:
+                        await route.abort()
+                        return
+                    await route.fulfill(
+                        status=200,
+                        content_type=resource.content_type,
+                        body=resource.content,
+                    )
+                except (ValueError, httpx.HTTPError):
+                    await route.abort()
 
             await page.route("**/*", _guard)
-            await page.goto(url, timeout=_PLAYWRIGHT_TIMEOUT_MS, wait_until="domcontentloaded")
+            await page.goto(
+                url, timeout=_PLAYWRIGHT_TIMEOUT_MS, wait_until="domcontentloaded"
+            )
             content = await page.content()
         finally:
             await browser.close()

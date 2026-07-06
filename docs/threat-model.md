@@ -569,18 +569,29 @@ patterns to strip known injection markers, including:
 ### 8.6 Scraper & SSRF Protections
 
 - **Endpoint:** `POST /job-posts/import-url`, rate-limited at 10/min
-- **Scheme restriction:** HTTP or HTTPS only
+- **URL restriction:** HTTP or HTTPS on their standard ports only; embedded
+  credentials, malformed/alternate numeric IPs, and unresolved hosts fail closed
 - **DNS-level SSRF guard:** Resolves hostname to all IPs; blocks any IP that is
   private, loopback, link-local, or reserved (`ipaddress.ip_address.is_*`)
-- **Redirect re-validation:** Each redirect target is re-validated by
-  `_validate_url()` (max 5 redirects)
-- **Tier 1:** `httpx.AsyncClient` with 5.0s timeout; HTML parsed with BeautifulSoup
-  (`bs4`) for title, company, and description extraction
-- **Tier 2:** Playwright headless Chromium with 10s timeout; every
-  navigation/sub-resource passes through `_validate_url()` route guard
+- **Connect-time enforcement:** Each hop connects to an IP selected from that
+  validated DNS result while preserving the original hostname for the Host header
+  and TLS SNI; environment proxies are disabled
+- **Redirect re-validation:** Each redirect target is resolved, checked, and pinned
+  independently (max 5 redirects)
+- **Response bounds:** Only HTML/XHTML responses up to 2 MB are accepted, including
+  streamed-body enforcement when `Content-Length` is absent or false
+- **Tier 1:** IP-pinned `httpx.AsyncClient` with 5.0s timeout; HTML parsed with
+  BeautifulSoup (`bs4`) for title, company, and description extraction
+- **Tier 2:** Playwright headless Chromium with 10s timeout renders pages through
+  intercepted navigation, script, stylesheet, fetch, and XHR requests fulfilled by
+  the pinned HTTP client; fonts, images, media, WebSockets, non-GET requests, and
+  requests beyond the 50-request/10 MB browser budget are aborted
 - **Tier 3:** Graceful failure with paste-textarea prompt
 
-— `backend/app/services/job_scraper.py`
+— `backend/app/services/job_scraper.py:_resolve_public_target`,
+`backend/app/services/job_scraper.py:_fetch_resource_with_httpx`,
+`backend/app/services/job_scraper.py:_fetch_with_playwright`;
+`backend/tests/test_job_scraper.py`
 
 ---
 
@@ -601,11 +612,14 @@ patterns to strip known injection markers, including:
 
 | Concern | Detail |
 |---------|--------|
-| What is sent | Target URL and all sub-resource requests triggered by the page |
+| What is sent | Browser-requested HTML, scripts, stylesheets, and JSON are fetched by the bounded IP-pinned HTTP client; media/font/image/WebSocket traffic is denied |
 | Auth mechanism | None — requests as headless Chromium |
-| Network path | Direct TCP to resolved IPs (post-`_validate_url()`) |
+| Network path | Every allowed browser request is intercepted and fulfilled by the HTTP client connected to a validated, pinned public IP |
 | Sandboxing | Chromium sandbox within container |
 | Failure mode | 10s timeout → falls through to graceful textarea fallback |
+
+— `backend/app/services/job_scraper.py:_fetch_with_playwright`;
+`backend/tests/test_job_scraper.py:test_playwright_renders_pinned_html_without_direct_network`
 
 ### 9.3 Resend (Email)
 
@@ -718,7 +732,7 @@ Ad-blocker detection via bait div render check. 30-second countdown fallback.
 |------|------------|----------------|--------|--------------------|-----|
 | 1 | **Unauthenticated LLM cost abuse** | API → Vertex AI | High — uncontrolled model spend | Per-endpoint rate limits (10/min), guest 3–5 runs/day cookie | Cookie-based guest limit is trivially bypassable; no CAPTCHA; no per-IP global rate limit |
 | 2 | **Credential stuffing / brute force** | API → Auth | Medium-High — account takeover | Login 10/min, register 5/min, bcrypt hashing | No account lockout after repeated failures; no password composition requirements. Lockout-DoS is currently moot (no lockout mechanism exists), but any future lockout must weigh account-takeover protection against denial-of-service via intentional lockout |
-| 3 | **SSRF via job URL import** | API → Internet | Medium — internal network access | DNS-level IP check (private/loopback/reserved), redirect re-validation | IPv6 special ranges checked; DNS rebinding depends on single `getaddrinfo` call; no connect-time enforcement |
+| 3 | **SSRF via job URL import** | API → Internet | Medium — internal network access | All-answer IP checks, per-hop DNS pinning, redirect re-validation, browser network denial, response type/size bounds | Public endpoints can still return attacker-controlled HTML; extraction remains best-effort and intentionally unauthenticated |
 | 4 | **Session hijacking (cookie theft)** | Browser → API | High — full account access | HttpOnly cookies, SameSite=Lax, Secure in production | No token binding; refresh token lives 7 days; no device/session fingerprinting |
 | 5 | **Persistent XSS via stored/generated content** | DB → Browser | Medium — session theft, credential capture | Tool output is rendered in React (auto-escaped), no raw HTML insertion | Generated content includes untrusted LLM output; no CSP allowing inline scripts; no output sanitization beyond React defaults |
 | 6 | **Malicious file upload** | Browser → API | Medium — DoS, parser exploitation | 10MB limit, magic byte validation, PDF/DOCX only | No page count limit; no ZIP bomb protection for DOCX; PyMuPDF processes arbitrary PDFs |

@@ -183,14 +183,16 @@ def test_health(client):
 def test_import_job_url_invalid(client, monkeypatch):
     import httpx
 
-    async def mock_get(*args, **kwargs):
+    async def mock_fetch(*args, **kwargs):
         raise httpx.HTTPError("Connection failed")
 
-    monkeypatch.setattr("app.services.job_scraper.httpx.AsyncClient", _mock_client_cls(mock_get))
+    monkeypatch.setattr("app.services.job_scraper._validate_url", lambda _url: None)
+    monkeypatch.setattr("app.services.job_scraper._fetch_with_httpx", mock_fetch)
+    monkeypatch.setattr("app.services.job_scraper._fetch_with_playwright", mock_fetch)
 
     resp = client.post(
         f"{PREFIX}/job-posts/import-url",
-        json={"url": "https://invalid.example.com/job"},
+        json={"url": "https://example.com/job"},
     )
     assert resp.status_code == 200
     data = resp.json()
