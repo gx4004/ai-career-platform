@@ -20,13 +20,74 @@ const mimeTypes = {
   '.woff2': 'font/woff2',
 }
 
+function configuredOrigin(value) {
+  if (!value) return null
+  try {
+    const url = new URL(value)
+    return url.protocol === 'http:' || url.protocol === 'https:' ? url.origin : null
+  } catch {
+    return null
+  }
+}
+
+function securityHeaders(req) {
+  const connectOrigins = new Set(["'self'"])
+  for (const value of [
+    process.env.VITE_API_URL,
+    process.env.VITE_SENTRY_DSN,
+    process.env.VITE_PUBLIC_POSTHOG_HOST,
+    process.env.VITE_PUBLIC_POSTHOG_INGESTION_HOST,
+  ]) {
+    const origin = configuredOrigin(value)
+    if (origin) connectOrigins.add(origin)
+  }
+
+  const headers = {
+    'Content-Security-Policy': [
+      "default-src 'self'",
+      "base-uri 'self'",
+      "object-src 'none'",
+      "frame-ancestors 'none'",
+      "form-action 'self'",
+      `connect-src ${[...connectOrigins].join(' ')}`,
+      "font-src 'self' https://fonts.gstatic.com",
+      "img-src 'self' data: blob: https:",
+      "script-src 'self' 'unsafe-inline'",
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+      "worker-src 'self' blob:",
+    ].join('; '),
+    'Cross-Origin-Opener-Policy': 'same-origin',
+    'Cross-Origin-Resource-Policy': 'same-origin',
+    'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
+    'Referrer-Policy': 'strict-origin-when-cross-origin',
+    'X-Content-Type-Options': 'nosniff',
+    'X-Frame-Options': 'DENY',
+  }
+
+  // Railway terminates TLS and supplies this header to the application service.
+  // includeSubDomains/preload remain intentionally disabled until domain ownership
+  // and the full subdomain inventory are verified.
+  if (
+    process.env.SECURITY_HSTS_ENABLED === 'true' &&
+    req.headers['x-forwarded-proto'] === 'https'
+  ) {
+    headers['Strict-Transport-Security'] = 'max-age=31536000'
+  }
+
+  return headers
+}
+
+function writeResponseHead(res, req, status, headers = {}) {
+  res.writeHead(status, { ...headers, ...securityHeaders(req) })
+}
+
 // Import the SSR server
 const { default: server } = await import('./dist/server/server.js')
 
 const httpServer = createServer(async (req, res) => {
   // Redirect HTTP → HTTPS (Railway sets x-forwarded-proto when TLS is terminated)
   if (req.headers['x-forwarded-proto'] === 'http') {
-    res.writeHead(301, { Location: `https://${req.headers.host}${req.url}` })
+    writeResponseHead(res, req, 301, { Location: `https://${req.headers.host}${req.url}` })
     res.end()
     return
   }
@@ -35,7 +96,7 @@ const httpServer = createServer(async (req, res) => {
 
   // TanStack dev-only stylesheet — serve empty in production
   if (url.pathname.startsWith('/@tanstack-start/styles.css')) {
-    res.writeHead(200, { 'Content-Type': 'text/css' })
+    writeResponseHead(res, req, 200, { 'Content-Type': 'text/css' })
     res.end('')
     return
   }
@@ -47,7 +108,7 @@ const httpServer = createServer(async (req, res) => {
     try {
       const data = readFileSync(filePath)
       const ext = extname(filePath)
-      res.writeHead(200, {
+      writeResponseHead(res, req, 200, {
         'Content-Type': mimeTypes[ext] || 'application/octet-stream',
         'Cache-Control': url.pathname.includes('/assets/') ? 'public, max-age=31536000, immutable' : 'public, max-age=3600',
       })
@@ -63,7 +124,7 @@ const httpServer = createServer(async (req, res) => {
       const cssFile = readdirSync(assetsDir).find(f => f.startsWith('styles-') && f.endsWith('.css'))
       if (cssFile) {
         const data = readFileSync(join(assetsDir, cssFile))
-        res.writeHead(200, { 'Content-Type': 'text/css', 'Cache-Control': 'public, max-age=3600' })
+        writeResponseHead(res, req, 200, { 'Content-Type': 'text/css', 'Cache-Control': 'public, max-age=3600' })
         res.end(data)
         return
       }
@@ -84,7 +145,7 @@ const httpServer = createServer(async (req, res) => {
 
     const response = await server.fetch(request)
 
-    res.writeHead(response.status, Object.fromEntries(response.headers.entries()))
+    writeResponseHead(res, req, response.status, Object.fromEntries(response.headers.entries()))
     let body = await response.text()
 
     // Strip TanStack dev-only stylesheet links
@@ -98,7 +159,7 @@ const httpServer = createServer(async (req, res) => {
     res.end(body)
   } catch (err) {
     console.error('SSR Error:', err)
-    res.writeHead(500)
+    writeResponseHead(res, req, 500)
     res.end('Internal Server Error')
   }
 })

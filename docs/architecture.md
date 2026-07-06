@@ -85,6 +85,12 @@ authenticated persistence, observability, and response construction.
 Any auth change requires backend tests, frontend session tests, cookie review, CORS
 review, and an explicit decision if the trust model changes.
 
+Password-reset emails place the bearer token in the URL fragment. The reset page
+reads it only after hydration and immediately removes it from the visible URL with
+`history.replaceState`; fragments are not sent to the frontend server or in HTTP
+Referer headers. Legacy query-token links remain accepted and scrubbed for rollout
+compatibility.
+
 ## Persistence Model
 
 Core entities:
@@ -127,6 +133,23 @@ and resume carry while preserving consent, onboarding, and non-sensitive UI stat
 
 Each integration must fail with an actionable product state. Optional integrations
 must not make unrelated core flows unavailable.
+
+## Frontend Response Security
+
+The production frontend server, not the API, owns browser document and static-asset
+security headers. It emits a CSP derived from the configured API, Sentry, and
+PostHog origins, denies framing and object embedding, and restricts fonts to the
+bundled files plus the Google Fonts hosts currently referenced by the root route.
+The policy retains inline script/style compatibility because the SSR wrapper and
+current UI emit inline content.
+
+COOP is `same-origin` and CORP is `same-origin`. COEP is intentionally omitted:
+the product does not require cross-origin isolation, and enabling it would require
+separate compatibility evidence for Google Fonts, monitoring, downloads, and OAuth.
+HSTS is emitted only when `SECURITY_HSTS_ENABLED=true` and Railway reports an
+HTTPS-forwarded request. The switch remains off until production domain ownership
+and end-to-end TLS are verified. It does not claim `includeSubDomains` or preload
+until the full subdomain inventory is also verified.
 
 ## Observability
 

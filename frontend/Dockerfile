@@ -16,9 +16,16 @@ RUN pnpm build
 
 FROM node:20-slim
 WORKDIR /app
-COPY --from=build /app/dist dist
-COPY --from=build /app/node_modules node_modules
-COPY --from=build /app/serve.mjs serve.mjs
+ARG VITE_API_URL
+ARG VITE_PUBLIC_POSTHOG_HOST
+ARG VITE_PUBLIC_POSTHOG_INGESTION_HOST
+ENV VITE_API_URL=$VITE_API_URL
+ENV VITE_PUBLIC_POSTHOG_HOST=$VITE_PUBLIC_POSTHOG_HOST
+ENV VITE_PUBLIC_POSTHOG_INGESTION_HOST=$VITE_PUBLIC_POSTHOG_INGESTION_HOST
+COPY --from=build --chown=node:node /app/dist dist
+COPY --from=build --chown=node:node /app/node_modules node_modules
+COPY --from=build --chown=node:node /app/serve.mjs serve.mjs
 EXPOSE 3000
 ENV PORT=3000
+USER node
 CMD ["node", "serve.mjs"]
