@@ -40,7 +40,7 @@ features are not current implementation claims.
 
 ## Immediate Objective
 
-**Status: R2 recovery verified; R3 upload/parser hardening verified; remaining slices queued**
+**Status: R2 recovery verified; R3 upload/parser and scraper SSRF hardening verified; remaining slices queued**
 
 The `docs/threat-model.md` canonical inventory is complete (#73). It maps system
 topology, trust boundaries, data flows, assets, browser storage, API surface, auth
@@ -55,10 +55,17 @@ encrypted, bomb-like, timed-out, and crashed parser inputs return generic errors
 temporary resources are closed. The change is backward-compatible for valid PDF
 and DOCX uploads and has no persistence or migration impact.
 
+R3 #80 now fails closed on unresolved or ambiguous URLs, checks every DNS answer,
+pins each HTTP and redirect connection to a validated public IP, bounds accepted
+HTML responses to 2 MB, and denies direct Playwright network access. Playwright
+retains rendered-site support by proxying bounded navigation and text subresources
+through that pinned client; failed or insufficient extraction retains the existing
+paste-text fallback.
+
 Remaining R3 slices are dependency-ordered. #74 (retention/deletion) requires human
 decisions D-UNK-6 and D-UNK-7; #77 and #78 depend on that decision. #75 remains a
-separate review stack for auth/CSRF production evidence. #76 and #80 remain
-independently implementable. #81 (deployment headers) and #82 (legal
+separate review stack for auth/CSRF production evidence. #76 remains independently
+implementable. #81 (deployment headers) and #82 (legal
 reconciliation) are partially blocked by production unknowns and prior slices.
 
 PR #83 remains draft and must not merge under its current specification.
