@@ -56,8 +56,11 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
 
     try:
         token = await oauth.google.authorize_access_token(request)
-    except Exception:
-        logger.exception("Google OAuth token exchange failed")
+    except Exception as exc:
+        logger.error(
+            "Google OAuth token exchange failed error_type=%s",
+            type(exc).__name__,
+        )
         return _oauth_error_redirect("auth_failed")
 
     userinfo = token.get("userinfo")
@@ -78,8 +81,7 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
             # using an unverified victim email could claim the account.
             if not email_verified:
                 logger.warning(
-                    "Blocking Google OAuth account link: email not verified by Google (email=%s)",
-                    email,
+                    "Blocking Google OAuth account link: email not verified by Google",
                 )
                 return _oauth_error_redirect("unverified_email")
             user = existing
@@ -99,8 +101,7 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
             # by google_id above succeeds and we never reach this branch.
             logger.info(
                 "Blocking Google OAuth signup: no existing account, ToS gate not yet "
-                "wired for OAuth (email=%s)",
-                email,
+                "wired for OAuth",
             )
             return _oauth_error_redirect("signup_via_email_required")
 

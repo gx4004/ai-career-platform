@@ -1,13 +1,10 @@
 import '#/lib/i18n'
 import * as Sentry from '@sentry/react'
 import { type ReactNode, useEffect } from 'react'
-
-function stripQuery(value: string): string {
-  const cuts = ['?', '#']
-    .map((ch) => value.indexOf(ch))
-    .filter((i) => i >= 0)
-  return cuts.length ? value.slice(0, Math.min(...cuts)) : value
-}
+import {
+  scrubSentryBreadcrumb,
+  scrubSentryEvent,
+} from '#/lib/observability/sentryPrivacy'
 
 if (import.meta.env.VITE_SENTRY_DSN) {
   Sentry.init({
@@ -15,46 +12,8 @@ if (import.meta.env.VITE_SENTRY_DSN) {
     environment: import.meta.env.MODE,
     tracesSampleRate: 0.1,
     sendDefaultPii: false,
-    beforeSend(event) {
-      if (event.request) {
-        delete event.request.data
-        delete event.request.cookies
-        delete event.request.query_string
-        if (typeof event.request.url === 'string') {
-          event.request.url = stripQuery(event.request.url)
-        }
-        const headers = event.request.headers
-        if (headers) {
-          for (const key of Object.keys(headers)) {
-            if (/^(authorization|cookie|set-cookie|x-csrf-token)$/i.test(key)) {
-              headers[key] = '[scrubbed]'
-            }
-          }
-        }
-      }
-      if (event.user) {
-        delete event.user.email
-        delete event.user.ip_address
-      }
-      return event
-    },
-    beforeBreadcrumb(breadcrumb) {
-      if (breadcrumb.data) {
-        for (const key of ['url', 'from', 'to'] as const) {
-          const v = breadcrumb.data[key]
-          if (typeof v === 'string') breadcrumb.data[key] = stripQuery(v)
-        }
-        if (breadcrumb.category === 'fetch' || breadcrumb.category === 'xhr') {
-          delete breadcrumb.data.body
-          delete breadcrumb.data.request_body
-          delete breadcrumb.data.response_body
-        }
-      }
-      if (typeof breadcrumb.message === 'string') {
-        breadcrumb.message = stripQuery(breadcrumb.message)
-      }
-      return breadcrumb
-    },
+    beforeSend: (event) => scrubSentryEvent(event),
+    beforeBreadcrumb: (breadcrumb) => scrubSentryBreadcrumb(breadcrumb),
   })
 }
 import { HeadContent, Outlet, Scripts, createRootRoute } from '@tanstack/react-router'

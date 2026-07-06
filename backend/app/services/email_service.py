@@ -53,9 +53,7 @@ def _send_resend_sync(to_email: str, reset_url: str) -> None:
 
 async def send_password_reset_email(to_email: str, reset_url: str) -> bool:
     if not settings.RESEND_API_KEY:
-        logger.warning(
-            "RESEND_API_KEY not configured — skipping password reset email to %s", to_email
-        )
+        logger.warning("RESEND_API_KEY not configured — skipping password reset email")
         return False
 
     # Off-load the sync resend SDK call to a worker thread so it does not
@@ -64,6 +62,9 @@ async def send_password_reset_email(to_email: str, reset_url: str) -> bool:
         await asyncio.to_thread(_send_resend_sync, to_email, reset_url)
         return True
     except Exception as exc:
-        sentry_sdk.capture_exception(exc)
-        logger.exception("Failed to send password reset email to %s", to_email)
+        sentry_sdk.capture_message("Password reset email delivery failed", level="error")
+        logger.error(
+            "Failed to send password reset email error_type=%s",
+            type(exc).__name__,
+        )
         return False

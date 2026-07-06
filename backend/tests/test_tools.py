@@ -445,16 +445,42 @@ def test_frontend_telemetry_ingest(client):
     resp = client.post(
         f"{PREFIX}/telemetry/events",
         json={
-            "event_name": "result_page_loaded",
+            "event_name": "export_action_used",
             "tool_id": "resume",
             "access_mode": "guest_demo",
-            "route": "/resume/result/demo-1",
             "saved": False,
-            "metadata": {"format": "md"},
+            "export_format": "md",
         },
     )
     assert resp.status_code == 200
     assert resp.json() == {"accepted": True}
+
+
+def test_frontend_telemetry_rejects_unknown_or_sensitive_fields(client):
+    for field, value in [
+        ("resume_text", "private resume"),
+        ("error_message", "Failure for user@example.com"),
+        ("history_id", "stable-run-id"),
+        ("metadata", {"job_description": "private role"}),
+    ]:
+        resp = client.post(
+            f"{PREFIX}/telemetry/events",
+            json={
+                "event_name": "frontend_error",
+                "failure_category": "render_error",
+                field: value,
+            },
+        )
+        assert resp.status_code == 422
+
+    route_resp = client.post(
+        f"{PREFIX}/telemetry/events",
+        json={
+            "event_name": "result_page_loaded",
+            "route": "/resume/result/stable-run-id",
+        },
+    )
+    assert route_resp.status_code == 422
 
 
 def test_guest_demo_run_does_not_create_history(client, db, mock_ai_result):

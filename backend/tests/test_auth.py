@@ -224,16 +224,18 @@ async def test_password_reset_email_omits_reply_to_when_unset(monkeypatch):
     assert "reply_to" not in captured
 
 
-async def test_password_reset_email_failure_captures_sentry(monkeypatch):
+async def test_password_reset_email_failure_captures_sentry_without_logging_email(
+    monkeypatch, caplog
+):
     from app.config import settings
     from app.services import email_service
 
-    captured: list[BaseException] = []
+    captured: list[tuple[str, str]] = []
 
     monkeypatch.setattr(settings, "RESEND_API_KEY", "test-key")
     monkeypatch.setattr(
-        "app.services.email_service.sentry_sdk.capture_exception",
-        lambda exc: captured.append(exc),
+        "app.services.email_service.sentry_sdk.capture_message",
+        lambda message, level: captured.append((message, level)),
     )
 
     def boom(to_email: str, reset_url: str) -> None:
@@ -246,9 +248,8 @@ async def test_password_reset_email_failure_captures_sentry(monkeypatch):
     )
 
     assert result is False
-    assert len(captured) == 1
-    assert isinstance(captured[0], RuntimeError)
-    assert str(captured[0]) == "resend down"
+    assert captured == [("Password reset email delivery failed", "error")]
+    assert "user@example.com" not in caplog.text
 
 
 def test_login_blocks_deactivated_user(client, test_user, db):

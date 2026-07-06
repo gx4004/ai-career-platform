@@ -58,10 +58,7 @@ def _scrub_sentry_event(event, _hint):
             for key in list(headers.keys()):
                 if key.lower() in _SENSITIVE_HEADERS:
                     headers[key] = "[scrubbed]"
-    user = event.get("user")
-    if isinstance(user, dict):
-        user.pop("email", None)
-        user.pop("ip_address", None)
+    event.pop("user", None)
     return event
 
 

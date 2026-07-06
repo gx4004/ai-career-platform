@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict
 
 
 class TelemetryEventRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     event_name: Literal[
         "tool_run_started",
         "tool_run_succeeded",
@@ -24,15 +27,27 @@ class TelemetryEventRequest(BaseModel):
         "workflow_continued",
     ]
     level: Literal["info", "error"] = "info"
-    tool_id: str | None = None
-    history_id: str | None = None
+    tool_id: Literal[
+        "resume",
+        "job-match",
+        "career",
+        "cover-letter",
+        "interview",
+        "portfolio",
+    ] | None = None
     access_mode: Literal["authenticated", "guest_demo"] | None = None
-    route: str | None = None
-    workspace_id: str | None = None
     saved: bool | None = None
-    error_message: str | None = Field(default=None, max_length=500)
-    occurred_at: str | None = None
-    metadata: dict[str, str | int | float | bool | None] = Field(default_factory=dict)
+    failure_category: Literal[
+        "tool_request_failed",
+        "render_error",
+        "route_error",
+        "chunk_load_error",
+    ] | None = None
+    export_format: Literal["txt", "md"] | None = None
+    has_feedback: bool | None = None
+    session_status: Literal["loading", "guest", "authenticated"] | None = None
+    unlock_method: Literal["ad", "countdown"] | None = None
+    occurred_at: datetime | None = None
 
 
 class TelemetryAcceptedResponse(BaseModel):

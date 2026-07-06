@@ -268,9 +268,10 @@ async def scrape_job_posting(url: str) -> ImportedJobResponse:
         if result.job_description and len(result.job_description) > 100:
             return result
         html = None
-    except Exception:
+    except Exception as exc:
         logger.info(
-            "BS4 scrape failed for %s, trying Playwright fallback", url, exc_info=True
+            "BS4 scrape failed; trying Playwright fallback error_type=%s",
+            type(exc).__name__,
         )
 
     # Tier 2: Playwright fallback (10s timeout)
@@ -278,8 +279,11 @@ async def scrape_job_posting(url: str) -> ImportedJobResponse:
         try:
             html = await _fetch_with_playwright(url)
             return _parse_job_data(html, url)
-        except Exception:
-            logger.info("Playwright scrape also failed for %s", url, exc_info=True)
+        except Exception as exc:
+            logger.info(
+                "Playwright scrape also failed error_type=%s",
+                type(exc).__name__,
+            )
 
     # Tier 3: Graceful failure
     return ImportedJobResponse(

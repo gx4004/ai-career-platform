@@ -23,15 +23,14 @@ export type TelemetryEventName =
 type TelemetryPayload = {
   event_name: TelemetryEventName
   level?: 'info' | 'error'
-  tool_id?: string
-  history_id?: string
+  tool_id?: 'resume' | 'job-match' | 'career' | 'cover-letter' | 'interview' | 'portfolio'
   access_mode?: 'authenticated' | 'guest_demo'
-  route?: string
-  workspace_id?: string
   saved?: boolean
-  error_message?: string
-  unlock_method?: string
-  metadata?: Record<string, string | number | boolean | null | undefined>
+  failure_category?: 'tool_request_failed' | 'render_error' | 'route_error' | 'chunk_load_error'
+  export_format?: 'txt' | 'md'
+  has_feedback?: boolean
+  session_status?: 'loading' | 'guest' | 'authenticated'
+  unlock_method?: 'ad' | 'countdown'
 }
 
 export function trackTelemetry(payload: TelemetryPayload): void {
@@ -42,7 +41,6 @@ export function trackTelemetry(payload: TelemetryPayload): void {
 
   const body = JSON.stringify({
     ...payload,
-    route: payload.route || window.location.pathname,
     occurred_at: new Date().toISOString(),
   })
 
@@ -67,20 +65,20 @@ export function trackTelemetry(payload: TelemetryPayload): void {
 }
 
 export function captureAppError(
-  error: Error | unknown,
-  metadata: Record<string, string | number | boolean | null | undefined> = {},
+  _error: Error | unknown,
+  context: {
+    source: 'error-boundary' | 'route-error'
+    failure_kind?: 'chunk-load' | 'generic-route'
+  },
 ): void {
-  const message =
-    error instanceof Error
-      ? error.message
-      : typeof error === 'string'
-        ? error
-        : 'Unknown frontend error'
-
   trackTelemetry({
     event_name: 'frontend_error',
     level: 'error',
-    error_message: message,
-    metadata,
+    failure_category:
+      context.source === 'error-boundary'
+        ? 'render_error'
+        : context.failure_kind === 'chunk-load'
+          ? 'chunk_load_error'
+          : 'route_error',
   })
 }

@@ -41,7 +41,6 @@ async def run_tool_pipeline(
     log_tool_run_started(
         tool_name=tool_name,
         access_mode=access_mode,
-        workspace_id=workspace_id,
         linked_context_count=len(linked_ids),
     )
 
@@ -81,7 +80,6 @@ async def run_tool_pipeline(
                 tool_name=tool_name,
                 access_mode=access_mode,
                 duration_ms=int((perf_counter() - start) * 1000),
-                workspace_id=workspace_id,
                 failure_category=exc.__class__.__name__,
             )
             raise
@@ -113,8 +111,6 @@ async def run_tool_pipeline(
         access_mode=access_mode,
         duration_ms=int((perf_counter() - start) * 1000),
         saved=run is not None,
-        history_id=run.id if run else None,
-        workspace_id=workspace_id,
     )
 
     return response
