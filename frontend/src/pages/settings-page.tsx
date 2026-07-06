@@ -28,8 +28,7 @@ import { useOnboarding } from '#/hooks/useOnboarding'
 import { useSession } from '#/hooks/useSession'
 import { deleteAccount } from '#/lib/api/client'
 import { changeLanguage } from '#/lib/i18n'
-import { clearTransientResults } from '#/lib/tools/demoRuns'
-import { clearAllToolDrafts, clearWorkflowContext } from '#/lib/tools/drafts'
+import { clearSensitiveBrowserData } from '#/lib/privacy/browserData'
 
 export function SettingsPage() {
   const onboarding = useOnboarding()
@@ -78,9 +77,7 @@ export function SettingsPage() {
       // Backend clears auth cookies on its 204 response. Wipe local
       // sessionStorage state so a stale tab doesn't think the user is
       // still signed in, then exit to the landing page.
-      clearAllToolDrafts()
-      clearWorkflowContext()
-      clearTransientResults()
+      clearSensitiveBrowserData()
       window.location.assign('/')
     } catch (error) {
       setDeleteError(
@@ -144,9 +141,7 @@ export function SettingsPage() {
                   variant="outline"
                   className="settings-btn settings-btn--destructive"
                   onClick={() => {
-                    clearAllToolDrafts()
-                    clearWorkflowContext()
-                    clearTransientResults()
+                    clearSensitiveBrowserData()
                     setCleared(true)
                   }}
                 >

@@ -80,6 +80,13 @@ without hard account lockout. Health probes remain unlimited. Production must
 provide and capacity-test `RATE_LIMIT_STORAGE_URI`; route-specific CAPTCHA work is
 triggered only by the accepted aggregate event threshold or provider cost alerts.
 
+R3 #77 now centralizes sensitive tab-data cleanup for drafts, workflow context,
+guest results, and resume carry. Explicit logout clears it even if the server
+request fails; account deletion and the manual reset use the same operation.
+Persisted guest results are removed by prefix after reload, while consent,
+onboarding, and non-sensitive UI state remain intact. Retention-dependent closure
+still follows #74.
+
 R3 #81 now has a locally verified frontend-response implementation: SSR and static
 responses receive a deployment-compatible CSP and baseline browser security
 headers, HSTS requires an explicit deployment switch plus HTTPS forwarding, and

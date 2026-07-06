@@ -47,3 +47,16 @@ export function removeSessionValue(key: string): void {
   if (!canUseDOM()) return
   window.sessionStorage.removeItem(key)
 }
+
+export function removeSessionValuesByPrefix(prefix: string): void {
+  if (!canUseDOM()) return
+
+  const matchingKeys: string[] = []
+  for (let index = 0; index < window.sessionStorage.length; index += 1) {
+    const key = window.sessionStorage.key(index)
+    if (key?.startsWith(prefix)) matchingKeys.push(key)
+  }
+  for (const key of matchingKeys) {
+    window.sessionStorage.removeItem(key)
+  }
+}

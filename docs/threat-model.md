@@ -250,11 +250,11 @@ the same data persists indefinitely in the `tool_runs` table.
 
 | Key | Owner | Data | Sensitivity | TTL | Cleared By |
 |-----|-------|------|-------------|-----|------------|
-| `career-workbench:draft:{toolId}` | `src/lib/tools/drafts.ts:77` | `{resumeText, jobDescription, ...}` | **High** — full resume + JD text | Tab close | `clearToolDraft()` or tab close |
-| `career-workbench:workflow-context` | `src/lib/tools/drafts.ts:97` | `{resumeText, jobDescription, resumeAnalysis, jobMatch, ...}` | **High** — full analysis results | 4 hours / tab close | `clearWorkflowContext()`, TTL, or tab close |
-| `cw:demo-result:{id}` | `src/lib/tools/demoRuns.ts:52` | Full `ToolRunDetail` (all LLM output) | **High** — complete tool result | Tab close | `clearTransientResults()` or tab close |
-| `cw:resume-carry` | `src/hooks/use-resume-carry.ts:21,35` | Raw resume text (plain string) | **High** — unstructured resume | Tab close | `clearResume()` or tab close |
-| `cw:resume-carry-filename` | `src/hooks/use-resume-carry.ts:35` | Filename string | Low | Tab close | `clearResume()` or tab close |
+| `career-workbench:draft:{toolId}` | `src/lib/tools/drafts.ts` | `{resumeText, jobDescription, ...}` | **High** — full resume + JD text | Tab close | Manual clear, explicit logout, account deletion, or tab close |
+| `career-workbench:workflow-context` | `src/lib/tools/drafts.ts` | `{resumeText, jobDescription, resumeAnalysis, jobMatch, ...}` | **High** — full analysis results | 4 hours / tab close | Manual clear, explicit logout, account deletion, TTL, or tab close |
+| `cw:demo-result:{id}` | `src/lib/tools/demoRuns.ts` | Full `ToolRunDetail` (all LLM output) | **High** — complete tool result | Tab close | Manual clear, explicit logout, account deletion, or tab close |
+| `cw:resume-carry` | `src/lib/tools/resumeCarryStore.ts` | Raw resume text (plain string) | **High** — unstructured resume | Tab close | Manual clear, explicit logout, account deletion, or tab close |
+| `cw:resume-carry-filename` | `src/lib/tools/resumeCarryStore.ts` | Filename string | Low | Tab close | Manual clear, explicit logout, account deletion, or tab close |
 | `ad-unlocked:{runId}` | `src/hooks/useAdUnlock.ts:6,15` | `"1"` flag | None | Tab close | Tab close |
 | `cw:practice-attempts` | `src/components/tooling/InterviewPracticeMode.tsx:31,65` | `Record<number,number>` | None | Tab close | Tab close |
 | `cw:consecutive-crashes` | `src/components/app/ErrorBoundary.tsx:34-38` | String number | None | On success/redirect | 2+ crashes → redirect + clear |
@@ -278,8 +278,10 @@ Four sessionStorage keys contain resume text and/or generated career content:
 3. `cw:demo-result:{demoId}` — complete `ToolRunDetail` payload from any guest tool run
 4. `cw:resume-carry` — raw resume text as a plain string
 
-All four are tab-scoped (die on tab close, with a 4-hour TTL only on workflow
-context). For authenticated users, the same data is also server-persisted in
+All four are tab-scoped and are cleared together by the settings control,
+explicit logout (including local cleanup after a server failure), and successful
+account deletion. They also die on tab close; workflow context has an additional
+4-hour TTL. For authenticated users, the same data is also server-persisted in
 `tool_runs.result_payload`.
 
 **No localStorage key stores resume text, JD text, or generated content.**
