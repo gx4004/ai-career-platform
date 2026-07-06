@@ -98,7 +98,7 @@ test('workspace listing, labeling, and pinning work through the UI', async ({ pa
   await expect(workspaceName).toHaveValue('My labeled workspace')
 
   await page.getByRole('button', { name: 'Pin workspace' }).first().click()
-  await expect(page.getByText('My labeled workspace')).toBeVisible()
+  await expect(page.getByText('My labeled workspace').first()).toBeVisible()
 })
 
 test('regeneration through the UI creates a new ToolRun linked by parent_run_id', async ({ page }) => {
