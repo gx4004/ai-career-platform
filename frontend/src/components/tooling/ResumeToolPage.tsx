@@ -12,6 +12,7 @@ import {
   ToolPageShell,
   ToolStatusInline,
   useResumeEditorCollapse,
+  useSeededToolPhase,
   useToolPageState,
 } from '#/components/tooling/toolPageShared'
 import { writeWorkflowContext } from '#/lib/tools/drafts'
@@ -31,15 +32,13 @@ export function ResumeToolPage() {
   const resumeField = config.fields.find((field) => field.name === 'resumeText')!
   const jobField = config.fields.find((field) => field.name === 'jobDescription')
   const resumeFieldId = 'resume-resumeText'
-  const [phase, setPhase] = useState<'upload' | 'form'>(
-    draft.resumeText.trim() || bridge.seededResume ? 'form' : 'upload',
-  )
   const bp = useBreakpoint()
   const isMobile = bp === 'mobile'
   const [showOptionalJob, setShowOptionalJob] = useState(
     Boolean(bridge.seededJob || draft.jobDescription.trim()),
   )
   const hasResumeContent = Boolean(draft.resumeText.trim() || bridge.seededResume)
+  const { phase, setPhase } = useSeededToolPhase(hasResumeContent)
   const { resumeEditorCollapsed, openResumeEditor: revealResumeEditor, collapseResumeEditor } =
     useResumeEditorCollapse(hasResumeContent, hasResumeContent)
 

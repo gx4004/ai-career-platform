@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { ArrowRight } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { Label } from '#/components/ui/label'
@@ -12,6 +11,7 @@ import {
   ToolStatusInline,
   getSeededFieldNote,
   useResumeEditorCollapse,
+  useSeededToolPhase,
   useToolPageState,
 } from '#/components/tooling/toolPageShared'
 
@@ -29,10 +29,8 @@ export function JobMatchToolPage() {
 
   const resumeField = config.fields.find((field) => field.name === 'resumeText')!
   const jobField = config.fields.find((field) => field.name === 'jobDescription')!
-  const [phase, setPhase] = useState<'upload' | 'form'>(
-    draft.resumeText.trim() || bridge.seededResume ? 'form' : 'upload',
-  )
   const hasResumeContent = Boolean(draft.resumeText.trim() || bridge.seededResume)
+  const { phase, setPhase } = useSeededToolPhase(hasResumeContent)
   const { resumeEditorCollapsed, openResumeEditor, collapseResumeEditor } =
     useResumeEditorCollapse(hasResumeContent, hasResumeContent)
 

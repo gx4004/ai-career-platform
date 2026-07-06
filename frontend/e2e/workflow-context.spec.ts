@@ -59,6 +59,12 @@ async function runResumeAnalyzer(page: Page) {
   await expect(page).toHaveURL(/\/resume\/result\/[^/]+$/)
 }
 
+async function expectCarriedResume(page: Page, fieldSelector: string) {
+  await expect(page.getByText(/Resume parsed and ready/i)).toBeVisible()
+  await page.getByRole('button', { name: 'Change' }).click()
+  await expect(page.locator(fieldSelector)).toHaveValue(resumeText)
+}
+
 test.beforeEach(async ({ context }) => {
   await context.addInitScript(() => {
     localStorage.setItem('cw-cookie-consent', 'accepted')
@@ -74,7 +80,7 @@ test('workflow context carries resume through Resume → Job Match → Cover Let
 
   // Job Match exposes the carried resume in the public form.
   await gotoHydrated(page, '/job-match')
-  await expect(page.locator('#job-match-resumeText')).toHaveValue(resumeText)
+  await expectCarriedResume(page, '#job-match-resumeText')
 
   // Run Job Match
   const pasteBtn = page.getByRole('button', { name: 'Paste text instead' })
@@ -89,7 +95,7 @@ test('workflow context carries resume through Resume → Job Match → Cover Let
 
   // Cover Letter exposes both carried fields in the public form.
   await gotoHydrated(page, '/cover-letter')
-  await expect(page.locator('#cover-letter-resumeText')).toHaveValue(resumeText)
+  await expectCarriedResume(page, '#cover-letter-resumeText')
   await expect(page.locator('#cover-letter-jobDescription')).toHaveValue(jobDescription)
 })
 
@@ -98,7 +104,7 @@ test('Resume → Career Path carries the resume into the visible form', async ({
   await runResumeAnalyzer(page)
 
   await gotoHydrated(page, '/career')
-  await expect(page.locator('#career-resumeText')).toHaveValue(resumeText)
+  await expectCarriedResume(page, '#career-resumeText')
 })
 
 test('Resume → Portfolio carries the resume into the visible form', async ({ page }) => {
@@ -106,7 +112,7 @@ test('Resume → Portfolio carries the resume into the visible form', async ({ p
   await runResumeAnalyzer(page)
 
   await gotoHydrated(page, '/portfolio')
-  await expect(page.locator('#portfolio-resumeText')).toHaveValue(resumeText)
+  await expectCarriedResume(page, '#portfolio-resumeText')
 })
 
 test('workflow context is tab-scoped via sessionStorage', async ({
@@ -119,7 +125,7 @@ test('workflow context is tab-scoped via sessionStorage', async ({
   await runResumeAnalyzer(page)
 
   await gotoHydrated(page, '/job-match')
-  await expect(page.locator('#job-match-resumeText')).toHaveValue(resumeText)
+  await expectCarriedResume(page, '#job-match-resumeText')
 
   // New context (different tab) should have no context
   const otherContext = await browser.newContext()
@@ -138,7 +144,7 @@ test('workflow context is tab-scoped via sessionStorage', async ({
 
   // Original tab still has context
   await gotoHydrated(page, '/job-match')
-  await expect(page.locator('#job-match-resumeText')).toHaveValue(resumeText)
+  await expectCarriedResume(page, '#job-match-resumeText')
 })
 
 test('clearing context resets downstream', async ({ page }) => {
