@@ -1,6 +1,6 @@
 # Career Workbench — Current State
 
-**Snapshot date:** 2026-07-05
+**Snapshot date:** 2026-07-06
 **Confidence:** code-informed, release environment not re-verified
 
 ## Current Posture
@@ -10,7 +10,7 @@ MVP construction. All six tools, guest runs, authentication, history/workspaces,
 admin, exports, telemetry, and deployment configuration exist.
 
 R0 and R1 are merged into the long-lived `chapter2` product experimentation branch,
-and the R2 end-to-end product audit is in progress there. `main` and `deploy` remain
+and the repaired R2 end-to-end product audit is green in PR #84. `main` and `deploy` remain
 stable promotion branches. The working tree contains unrelated thesis and generated
 asset changes that agents must preserve and exclude from product commits.
 
@@ -40,12 +40,11 @@ features are not current implementation claims.
 
 ## Immediate Objective
 
-**Status: R2 reopened; R3 blocked by R2**
+**Status: R2 recovery verified; R3 specification re-grill in progress**
 
-Repair the unstable browser-test gate and complete the missing R2 UI evidence before
-starting R3 implementation. R2 uses deterministic AI responses only inside its
-dedicated test process; live Vertex authorization remains the human-owned issue #51
-and is not a current completion gate.
+Replace the incomplete R3 privacy/security/abuse proposal with a decision-complete
+threat model and dependency-ordered slices before implementation resumes. PR #83
+remains draft and must not merge under its current specification.
 
 ## Risks and Drift to Resolve
 
@@ -62,10 +61,6 @@ and is not a current completion gate.
 
 ## Product Audit Work Remaining
 
-- deterministic registration and session setup across the complete browser suite;
-- three connected workflows verified through visible carried inputs;
-- history, workspace, revision, and deletion behavior verified through the UI;
-- successful export contents, retries, and recoverable failures verified through the browser;
 - mobile and keyboard walkthrough;
 - staging health, telemetry, error scrubbing, OAuth, email, and rollback checks;
 - current production/staging database revision and backup posture.
