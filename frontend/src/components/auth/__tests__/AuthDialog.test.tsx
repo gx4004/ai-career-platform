@@ -6,6 +6,8 @@ import { useSession } from '#/hooks/useSession'
 import { SessionProvider } from '#/lib/auth/session'
 
 const loginMock = vi.hoisted(() => vi.fn())
+const logoutMock = vi.hoisted(() => vi.fn())
+const clearSensitiveBrowserDataMock = vi.hoisted(() => vi.fn())
 const getAuthProvidersMock = vi.hoisted(() => vi.fn())
 const getCurrentUserMock = vi.hoisted(() => vi.fn())
 const getHealthMock = vi.hoisted(() => vi.fn())
@@ -25,7 +27,12 @@ vi.mock('#/lib/api/client', () => ({
   getCurrentUser: getCurrentUserMock,
   getHealth: getHealthMock,
   login: loginMock,
+  logout: logoutMock,
   register: registerMock,
+}))
+
+vi.mock('#/lib/privacy/browserData', () => ({
+  clearSensitiveBrowserData: clearSensitiveBrowserDataMock,
 }))
 
 vi.mock('#/lib/navigation/redirect', () => ({
@@ -78,6 +85,11 @@ function LandingSignInButton() {
   )
 }
 
+function LogoutButton() {
+  const { logout } = useSession()
+  return <button onClick={() => void logout()}>Log out</button>
+}
+
 function renderAuthFlow() {
   const queryClient = new QueryClient({
     defaultOptions: {
@@ -91,6 +103,7 @@ function renderAuthFlow() {
     <QueryClientProvider client={queryClient}>
       <SessionProvider>
         <LandingSignInButton />
+        <LogoutButton />
         <AuthDialog />
       </SessionProvider>
     </QueryClientProvider>,
@@ -102,6 +115,8 @@ describe('AuthDialog', () => {
     storageState.local = {}
     storageState.session = {}
     loginMock.mockReset()
+    logoutMock.mockReset()
+    clearSensitiveBrowserDataMock.mockReset()
     getAuthProvidersMock.mockReset()
     getCurrentUserMock.mockReset()
     getHealthMock.mockReset()
@@ -121,6 +136,7 @@ describe('AuthDialog', () => {
       full_name: 'Test User',
       is_active: true,
     })
+    logoutMock.mockResolvedValue(undefined)
   })
 
   it('navigates to /login instead of opening a dialog when openAuthDialog is called', async () => {
@@ -133,6 +149,28 @@ describe('AuthDialog', () => {
     })
 
     expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('clears sensitive browser data when logout succeeds', async () => {
+    renderAuthFlow()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Log out' }))
+
+    await waitFor(() => {
+      expect(logoutMock).toHaveBeenCalled()
+      expect(clearSensitiveBrowserDataMock).toHaveBeenCalled()
+    })
+  })
+
+  it('still clears sensitive browser data when the server logout request fails', async () => {
+    logoutMock.mockRejectedValueOnce(new Error('network unavailable'))
+    renderAuthFlow()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Log out' }))
+
+    await waitFor(() => {
+      expect(clearSensitiveBrowserDataMock).toHaveBeenCalled()
+    })
   })
 
   it('does NOT open the dialog on cw:session-expired for a never-authed visitor', async () => {

@@ -1,50 +1,22 @@
 import { useCallback, useSyncExternalStore } from 'react'
-
-const STORAGE_KEY = 'cw:resume-carry'
-const FILENAME_KEY = 'cw:resume-carry-filename'
-
-let listeners: Array<() => void> = []
-
-function emit() {
-  listeners.forEach((fn) => fn())
-}
-
-function subscribe(fn: () => void) {
-  listeners.push(fn)
-  return () => {
-    listeners = listeners.filter((l) => l !== fn)
-  }
-}
-
-function getSnapshot(): string {
-  if (typeof sessionStorage === 'undefined') return ''
-  return sessionStorage.getItem(STORAGE_KEY) ?? ''
-}
-
-function getFilenameSnapshot(): string {
-  if (typeof sessionStorage === 'undefined') return ''
-  return sessionStorage.getItem(FILENAME_KEY) ?? ''
-}
+import {
+  clearResumeCarry,
+  getResumeCarryFilename,
+  getResumeCarryText,
+  setResumeCarry,
+  subscribeToResumeCarry,
+} from '#/lib/tools/resumeCarryStore'
 
 export function useResumeCarry() {
-  const resumeText = useSyncExternalStore(subscribe, getSnapshot, () => '')
-  const filename = useSyncExternalStore(subscribe, getFilenameSnapshot, () => '')
+  const resumeText = useSyncExternalStore(subscribeToResumeCarry, getResumeCarryText, () => '')
+  const filename = useSyncExternalStore(subscribeToResumeCarry, getResumeCarryFilename, () => '')
 
   const setResumeText = useCallback((text: string, name?: string) => {
-    if (text) {
-      sessionStorage.setItem(STORAGE_KEY, text)
-      if (name) sessionStorage.setItem(FILENAME_KEY, name)
-    } else {
-      sessionStorage.removeItem(STORAGE_KEY)
-      sessionStorage.removeItem(FILENAME_KEY)
-    }
-    emit()
+    setResumeCarry(text, name)
   }, [])
 
   const clearResume = useCallback(() => {
-    sessionStorage.removeItem(STORAGE_KEY)
-    sessionStorage.removeItem(FILENAME_KEY)
-    emit()
+    clearResumeCarry()
   }, [])
 
   return {

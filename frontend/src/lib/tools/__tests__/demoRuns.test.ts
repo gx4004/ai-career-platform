@@ -90,4 +90,15 @@ describe('demoRuns', () => {
     expect(sessionStorage.getItem(`cw:demo-result:${item1.id}`)).toBeNull()
     expect(sessionStorage.getItem(`cw:demo-result:${item2.id}`)).toBeNull()
   })
+
+  it('cleans up persisted results that are not present in memory after reload', () => {
+    sessionStorage.setItem(
+      'cw:demo-result:resume-demo-123',
+      JSON.stringify({ id: 'resume-demo-123', result_payload: { resume: 'private' } }),
+    )
+
+    clearTransientResults()
+
+    expect(sessionStorage.getItem('cw:demo-result:resume-demo-123')).toBeNull()
+  })
 })

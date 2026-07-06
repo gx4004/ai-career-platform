@@ -25,6 +25,7 @@ import {
   writePendingIntent,
 } from '#/lib/auth/pendingIntent'
 import { navigateToPath } from '#/lib/navigation/redirect'
+import { clearSensitiveBrowserData } from '#/lib/privacy/browserData'
 
 export type SessionState = {
   status: 'loading' | 'guest' | 'authenticated'
@@ -224,6 +225,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     } catch {
       // Local session cleanup still runs so the UI does not stay stuck.
     } finally {
+      clearSensitiveBrowserData()
       clearPendingIntent()
       pendingActionRef.current = null
       setAuthDialogOpen(false)
