@@ -337,7 +337,12 @@
   .dash-hero-dark-drop-glow,
   .dash-hero-dark .dropzone-hero,
   .route-pending-spinner,
-  .button-session-signin-cta::before {
+  .button-session-signin-cta::before,
+  .tool-illust-scan-beam,
+  .tool-input-hero .tool-illust-scan-beam,
+  .tool-illust-circle,
+  .tool-illust-card,
+  .tool-typing-caret {
     animation: none !important;
   }
 
