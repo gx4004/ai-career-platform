@@ -85,6 +85,12 @@ authenticated persistence, observability, and response construction.
 Any auth change requires backend tests, frontend session tests, cookie review, CORS
 review, and an explicit decision if the trust model changes.
 
+Password-reset emails place the bearer token in the URL fragment. The reset page
+reads it only after hydration and immediately removes it from the visible URL with
+`history.replaceState`; fragments are not sent to the frontend server or in HTTP
+Referer headers. Legacy query-token links remain accepted and scrubbed for rollout
+compatibility.
+
 ## Persistence Model
 
 Core entities:
