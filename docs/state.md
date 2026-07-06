@@ -40,7 +40,7 @@ features are not current implementation claims.
 
 ## Immediate Objective
 
-**Status: R2 in progress**
+**Status: R2 complete, R3 in progress**
 
 Verify every V1 journey through maintained browser tests without changing accepted
 product contracts. R2 uses deterministic AI responses only inside its dedicated test

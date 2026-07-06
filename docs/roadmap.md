@@ -46,7 +46,7 @@ Acceptance gate:
 
 ### R2. End-to-End Product Audit
 
-**Status:** in progress
+**Status:** complete
 **Outcome:** every V1 journey is verified against the canonical spec.
 
 R2 uses deterministic provider responses at the browser-test boundary. Live Vertex
@@ -66,7 +66,7 @@ Acceptance gate:
 
 ### R3. Privacy, Security, and Abuse Gate
 
-**Status:** proposed
+**Status:** in progress
 **Outcome:** sensitive career data has a documented lifecycle and defensible controls.
 
 Acceptance gate:
