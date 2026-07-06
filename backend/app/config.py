@@ -22,6 +22,19 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = "development"
     TRUST_PROXY_HEADERS: bool = False
     TRUSTED_PROXY_CIDRS: str = ""
+    RATE_LIMIT_STORAGE_URI: str = "memory://"
+    RATE_LIMIT_KEY_PREFIX: str = "career-workbench"
+    ABUSE_IDENTITY_HMAC_KEY: str = ""
+    MODEL_COST_LIMIT: str = "30/hour"
+    MODEL_SOURCE_COST_LIMIT: str = "60/hour"
+    RESOURCE_IMPORT_LIMIT: str = "60/hour"
+    RESOURCE_SOURCE_LIMIT: str = "120/hour"
+    AUTH_FAILURE_WINDOW_SECONDS: int = 900
+    AUTH_PROGRESSIVE_DELAY_AFTER: int = 3
+    AUTH_PROGRESSIVE_DELAY_CAP_SECONDS: float = 4.0
+    ACCOUNT_ACTION_WINDOW_SECONDS: int = 3600
+    ACCOUNT_PROGRESSIVE_DELAY_AFTER: int = 3
+    ACCOUNT_PROGRESSIVE_DELAY_CAP_SECONDS: float = 2.0
 
     RESULT_CACHE_TTL_SECONDS: int = 3600
     RESULT_CACHE_ENABLED: bool = True

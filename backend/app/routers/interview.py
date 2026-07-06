@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from app.auth.security import get_optional_current_user
 from app.config import settings
 from app.database import get_db
-from app.limiter import limiter
+from app.limiter import limiter, model_abuse_limits
 from app.models.user import User
 from app.prompts.interview import INTERVIEW_PROMPT_VERSION
 from app.schemas.tools import (
@@ -23,6 +23,7 @@ router = APIRouter()
 
 @router.post("/questions", response_model=InterviewResponse)
 @limiter.limit("10/minute")
+@model_abuse_limits
 async def questions(
     request: Request,
     body: InterviewRequest,
@@ -79,6 +80,7 @@ async def questions(
 
 @router.post("/practice-feedback", response_model=InterviewPracticeFeedbackResponse)
 @limiter.limit("10/minute")
+@model_abuse_limits
 async def practice_feedback(
     request: Request,
     body: InterviewPracticeFeedbackRequest,
