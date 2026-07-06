@@ -1,5 +1,14 @@
 import io
 
+import fitz
+import pytest
+from docx import Document
+from fastapi import HTTPException
+from starlette.datastructures import Headers, UploadFile
+from starlette.requests import Request
+
+from app.routers.files import parse_cv_endpoint
+
 PREFIX = "/api/v1"
 
 
@@ -10,7 +19,7 @@ def test_parse_cv_unsupported(client):
         files={"file": ("test.txt", file, "text/plain")},
     )
     assert resp.status_code == 400
-    assert "Unsupported" in resp.json()["detail"]
+    assert resp.json()["detail"] == "The uploaded file could not be safely parsed."
 
 
 def test_parse_cv_rejects_spoofed_extension_pdf(client):
@@ -21,7 +30,7 @@ def test_parse_cv_rejects_spoofed_extension_pdf(client):
         files={"file": ("malicious.pdf", file, "application/pdf")},
     )
     assert resp.status_code == 400
-    assert "valid" in resp.json()["detail"].lower()
+    assert resp.json()["detail"] == "The uploaded file could not be safely parsed."
 
 
 def test_parse_cv_rejects_spoofed_extension_docx(client):
@@ -32,7 +41,134 @@ def test_parse_cv_rejects_spoofed_extension_docx(client):
         files={"file": ("malicious.docx", file, "application/vnd.openxmlformats-officedocument.wordprocessingml.document")},
     )
     assert resp.status_code == 400
-    assert "valid" in resp.json()["detail"].lower()
+    assert resp.json()["detail"] == "The uploaded file could not be safely parsed."
+
+
+def test_parse_cv_rejects_declared_mime_that_disagrees_with_pdf_extension(client):
+    resp = client.post(
+        f"{PREFIX}/files/parse-cv",
+        files={
+            "file": (
+                "resume.pdf",
+                io.BytesIO(b"%PDF-1.7\nboundary-test"),
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            )
+        },
+    )
+
+    assert resp.status_code == 400
+    assert resp.json()["detail"] == "The uploaded file could not be safely parsed."
+
+
+def test_parse_cv_rejects_fake_docx_zip_container_before_parser(client):
+    resp = client.post(
+        f"{PREFIX}/files/parse-cv",
+        files={
+            "file": (
+                "resume.docx",
+                io.BytesIO(b"PK\x03\x04not-a-real-zip"),
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            )
+        },
+    )
+
+    assert resp.status_code == 400
+    assert resp.json()["detail"] == "The uploaded file could not be safely parsed."
+
+
+def test_parse_cv_maps_malformed_pdf_parser_failure_to_generic_error(client):
+    resp = client.post(
+        f"{PREFIX}/files/parse-cv",
+        files={
+            "file": (
+                "resume.pdf",
+                io.BytesIO(b"%PDF-1.7\nmalformed"),
+                "application/pdf",
+            )
+        },
+    )
+
+    assert resp.status_code == 400
+    assert resp.json()["detail"] == "The uploaded file could not be safely parsed."
+
+
+def test_parse_cv_maps_unexpected_boundary_failure_to_generic_error(client, monkeypatch):
+    async def fail_boundary(file):
+        raise RuntimeError("internal parser detail")
+
+    monkeypatch.setattr(
+        "app.routers.files.read_validated_cv_upload",
+        fail_boundary,
+    )
+
+    resp = client.post(
+        f"{PREFIX}/files/parse-cv",
+        files={"file": ("resume.pdf", io.BytesIO(b"%PDF-1.7"), "application/pdf")},
+    )
+
+    assert resp.status_code == 400
+    assert resp.json()["detail"] == "The uploaded file could not be safely parsed."
+    assert "internal parser detail" not in resp.text
+
+
+def test_parse_cv_accepts_valid_pdf_through_isolated_parser(client):
+    document = fitz.open()
+    page = document.new_page()
+    page.insert_text((72, 72), "Safe resume text")
+    content = document.tobytes()
+    document.close()
+
+    resp = client.post(
+        f"{PREFIX}/files/parse-cv",
+        files={"file": ("resume.pdf", io.BytesIO(content), "application/pdf")},
+    )
+
+    assert resp.status_code == 200
+    assert "Safe resume text" in resp.json()["extracted_text"]
+
+
+def test_parse_cv_accepts_valid_docx_through_isolated_parser(client):
+    output = io.BytesIO()
+    document = Document()
+    document.add_paragraph("Safe DOCX resume text")
+    document.save(output)
+
+    resp = client.post(
+        f"{PREFIX}/files/parse-cv",
+        files={
+            "file": (
+                "resume.docx",
+                io.BytesIO(output.getvalue()),
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            )
+        },
+    )
+
+    assert resp.status_code == 200
+    assert "Safe DOCX resume text" in resp.json()["extracted_text"]
+
+
+async def test_parse_cv_closes_upload_resource_on_rejection():
+    stream = io.BytesIO(b"not-pdf")
+    upload = UploadFile(
+        stream,
+        filename="resume.pdf",
+        headers=Headers({"content-type": "application/pdf"}),
+    )
+    request = Request(
+        {
+            "type": "http",
+            "method": "POST",
+            "path": f"{PREFIX}/files/parse-cv",
+            "headers": [],
+            "client": ("127.0.0.1", 1234),
+        }
+    )
+
+    with pytest.raises(HTTPException):
+        await parse_cv_endpoint.__wrapped__(request, upload)
+
+    assert stream.closed is True
 
 
 def test_health(client):

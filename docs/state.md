@@ -40,7 +40,7 @@ features are not current implementation claims.
 
 ## Immediate Objective
 
-**Status: R2 recovery verified; R3 threat boundary inventory complete; implementation slices queued**
+**Status: R2 recovery verified; R3 upload/parser hardening verified; remaining slices queued**
 
 The `docs/threat-model.md` canonical inventory is complete (#73). It maps system
 topology, trust boundaries, data flows, assets, browser storage, API surface, auth
@@ -48,11 +48,18 @@ model, processing pipeline, external integrations, observability, abuse cases, a
 privacy failure modes from executable code and configuration. Unknown production
 facts are recorded as ready-for-human decisions (D-UNK-1 through D-UNK-10).
 
-Remaining R3 slices (#74–#82) are dependency-ordered and individually ready for
-agent implementation when their blockers clear. #74 (retention/deletion) requires
-human decisions D-UNK-6 and D-UNK-7. #81 (deployment headers) and #82 (legal
-reconciliation) are partially blocked by production unknowns. The other six slices
-(#75–#80) are unblocked.
+R3 #79 now enforces the existing 10 MB upload limit while reading, requires
+extension/MIME/magic agreement, bounds DOCX expansion and PDF pages/output, and
+isolates parsing behind wall-clock, Unix CPU, and Linux memory limits. Malformed,
+encrypted, bomb-like, timed-out, and crashed parser inputs return generic errors;
+temporary resources are closed. The change is backward-compatible for valid PDF
+and DOCX uploads and has no persistence or migration impact.
+
+Remaining R3 slices are dependency-ordered. #74 (retention/deletion) requires human
+decisions D-UNK-6 and D-UNK-7; #77 and #78 depend on that decision. #75 remains a
+separate review stack for auth/CSRF production evidence. #76 and #80 remain
+independently implementable. #81 (deployment headers) and #82 (legal
+reconciliation) are partially blocked by production unknowns and prior slices.
 
 PR #83 remains draft and must not merge under its current specification.
 
