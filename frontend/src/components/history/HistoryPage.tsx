@@ -95,8 +95,9 @@ export function HistoryPage({
   const [deleteCandidate, setDeleteCandidate] = useState<{ id: string; label: string } | null>(null)
   const deleteMutation = useMutation({
     mutationFn: deleteHistoryItem,
-    onSuccess: async () => {
+    onSuccess: async (_response, historyId) => {
       setDeleteCandidate(null)
+      queryClient.removeQueries({ queryKey: ['tool-run', historyId], exact: true })
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['history-page'] }),
         queryClient.invalidateQueries({ queryKey: ['history-workspaces'] }),
