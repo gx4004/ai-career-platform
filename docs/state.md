@@ -69,7 +69,9 @@ changed. Production frontend/backend origins, CORS and redirect values, TLS/site
 relationship, and a staging OAuth state round trip remain ready-for-human evidence
 before #75 can close; regression coverage and rollback posture are recorded in
 `docs/threat-model.md` §7.5. The same review must accept forced cross-site logout
-as low-impact or authorize an Origin/CSRF mitigation.
+as low-impact or authorize an Origin/CSRF mitigation. New password-reset links now
+carry tokens in URL fragments and scrub them after hydration; legacy query links
+remain compatible during rollout.
 
 R3 #76 uses shared limiter storage outside development, HMAC-pseudonymized
 account and source-IP identities, shared model-cost and resource-import ceilings,

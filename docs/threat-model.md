@@ -197,9 +197,9 @@ Browser → POST /auth/refresh (cw_refresh cookie scoped to /api/v1/auth/refresh
 Browser → POST /auth/password-reset/request {email}
   → always 200 (same message whether user exists or not)
   → create_password_reset_token(): secret = SECRET_KEY:reset:{password_hash[:16]}
-  → Resend email with reset URL: {FRONTEND_URL}/reset-password?token=TOKEN
+  → Resend email with reset URL: {FRONTEND_URL}/reset-password#token=TOKEN
 
-Browser → POST /auth/password-reset/confirm {email, token, new_password}
+Browser → POST /auth/password-reset/confirm {token, new_password}
   → verify_password_reset_token(): validates signature against current hash
   → on success: hash new password, increment user.token_version, clear cookies
 ```
@@ -564,14 +564,18 @@ SECRET_KEY + ":reset:" + password_hash[:16]
 ```
 
 This means a reset token is automatically invalidated once the password changes —
-no token blacklist needed. The token URL is:
+no token blacklist needed. New links keep the token in the URL fragment:
 ```
-{FRONTEND_URL}/reset-password?token=TOKEN
+{FRONTEND_URL}/reset-password#token=TOKEN
 ```
-Note: the token appears in the URL query string, meaning it leaks to browser
-history, server access logs, and HTTP Referer headers.
+The frontend consumes and removes the fragment after hydration, so the token is
+not sent to the frontend server, access logs, or HTTP Referer headers. Legacy
+`?token=` links remain accepted during rollout and are removed with
+`history.replaceState` after hydration.
 
 — `backend/app/auth/security.py:69-71`
+— `backend/app/routers/auth.py:request_password_reset`
+— `frontend/src/pages/reset-password-page.tsx`
 
 ### 7.8 Email Verification
 
@@ -871,7 +875,7 @@ Ad-blocker detection via bait div render check. 30-second countdown fallback.
 | 1 | **Resume/JD leakage via logs or error reports** | Resume text, generated content | Sentry scrubs body/cookies/query; structured logs exclude content | Sentry is opt-in but captures stack traces; if `SENTRY_DSN` unset, no log scrubbing in stdout (structured events exclude content by schema) |
 | 2 | **Generated content accessible to wrong user** | ToolRun results | User-scoped cache keys; DB queries filter by `user_id` | In-memory cache key includes user scope; no cross-user access observed in code — confidence is high but only code-audit, not penetration-test, verified |
 | 3 | **Browser storage persistence after logout** | sessionStorage data | Tab-scoped sessionStorage clears on tab close; localStorage consent stays | Logout clears pending intent, invalidates query cache, but does not clear tool drafts, workflow context, demo results, or resume-carry from current tab's sessionStorage |
-| 4 | **Password reset token in URL** | Reset token | Single-use (password-hash-derived secret auto-invalidates on password change) | Token in URL query string leaks to browser history, server access logs, and Referer header if reset page loads external resources |
+| 4 | **Password reset link exposure** | Reset token | New links use a fragment that is scrubbed after hydration; single-use password-hash-derived signing invalidates the token on password change | Legacy query-token links remain accepted temporarily for rollout compatibility and are scrubbed client-side |
 | 5 | **Account deletion — data reappears from backup** | All user data | Cascading delete in single transaction; structured log emitted | No backup restoration procedure documented; no verification step |
 | 6 | **Incomplete account deletion** | User data | `delete_all_user_data()` cascading deletes `tool_runs`, `workspaces`, `users` | No verification query after deletion; no audit trail beyond structured log event; if Sentry is active, previously-captured events remain in Sentry's retention window |
 
@@ -889,7 +893,7 @@ Ad-blocker detection via bait div render check. 30-second countdown fallback.
 | 6 | PostHog infrastructure present, SDK inactive | Build args + env vars + proxy config exist | Decision: activate PostHog OR remove dead config | Confusion about active processors; CookiePolicyPage claims no analytics but proxy exists | #82 |
 | 7 | No email verification on password registration | Account immediately usable | Email verification before first tool use | Spam accounts, wrong-email lockouts | #75 |
 | 8 | Low-cost endpoints remain unlimited | `GET /auth/me`, `POST /auth/logout`, `GET /auth/providers`, history GET/PATCH/DELETE | Add limits only if availability evidence shows abuse | Broad limiting can degrade normal authenticated navigation | R10 |
-| 9 | Password reset token in URL query string | `?token=...` | Token in POST body or fragment | Leaks to browser history and server logs | #75 |
+| 9 | Password reset URL exposure | New links use `#token=...`; the page consumes and scrubs fragment and legacy query tokens | Remove legacy query compatibility after the reset-token lifetime and rollout window | Old links can retain tokens in pre-existing browser history | #75 |
 | 10 | CAPTCHA coverage is registration-only | Evidence can identify route-specific abuse, but the existing challenge contract covers registration | Add a reviewed challenge contract only to the attacked flow | Unconditional CAPTCHA harms access; unsupported activation would break clients | #76 follow-up if threshold triggers |
 | 11 | Login error message distinction | "Invalid email or password" (ambiguous) | Same message for both cases (no enumeration) | Registration says "Email already registered" — enables enumeration | #75 |
 
