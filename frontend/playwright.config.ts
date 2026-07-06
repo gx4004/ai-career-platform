@@ -14,7 +14,10 @@ const backendUrl = `http://127.0.0.1:${backendPort}`
 export default defineConfig({
   testDir: './e2e',
   fullyParallel: false,
-  workers: 1,
+  // E2E files use isolated browser contexts/users and the dedicated backend
+  // disables request limiting, so CI can safely run two files concurrently.
+  // Keep local execution serial for easier debugging and lower laptop load.
+  workers: process.env.CI ? 2 : 1,
   retries: 0,
   reporter: process.env.CI ? 'github' : 'list',
   use: {
