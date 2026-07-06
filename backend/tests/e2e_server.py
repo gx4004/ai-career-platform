@@ -5,6 +5,7 @@ production application and exposes no runtime switch or HTTP control surface.
 """
 
 from importlib import import_module
+import os
 
 import uvicorn
 
@@ -38,4 +39,8 @@ app = import_module("app.main").app
 
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+    uvicorn.run(
+        app,
+        host="127.0.0.1",
+        port=int(os.environ.get("E2E_BACKEND_PORT", "8000")),
+    )
