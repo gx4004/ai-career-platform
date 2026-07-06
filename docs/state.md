@@ -40,7 +40,7 @@ features are not current implementation claims.
 
 ## Immediate Objective
 
-**Status: R2 recovery verified; R3 upload/parser and scraper SSRF hardening verified; remaining slices queued**
+**Status: R2 recovery verified; R3 upload/parser, scraper SSRF, and auth/CSRF code posture verified; production auth evidence blocked**
 
 The `docs/threat-model.md` canonical inventory is complete (#73). It maps system
 topology, trust boundaries, data flows, assets, browser storage, API surface, auth
@@ -62,11 +62,20 @@ retains rendered-site support by proxying bounded navigation and text subresourc
 through that pinned client; failed or insufficient extraction retains the existing
 paste-text fallback.
 
+R3 #75 preserves PRD #72's SameSite=Lax contract after characterizing the
+code/default-development cookie, OAuth callback, CORS, content-type, and
+authorization boundaries. No runtime auth behavior or stored-data contract
+changed. Production frontend/backend origins, CORS and redirect values, TLS/site
+relationship, and a staging OAuth state round trip remain ready-for-human evidence
+before #75 can close; regression coverage and rollback posture are recorded in
+`docs/threat-model.md` §7.5. The same review must accept forced cross-site logout
+as low-impact or authorize an Origin/CSRF mitigation.
+
 Remaining R3 slices are dependency-ordered. #74 (retention/deletion) requires human
-decisions D-UNK-6 and D-UNK-7; #77 and #78 depend on that decision. #75 remains a
-separate review stack for auth/CSRF production evidence. #76 remains independently
-implementable. #81 (deployment headers) and #82 (legal
-reconciliation) are partially blocked by production unknowns and prior slices.
+decisions D-UNK-6 and D-UNK-7; #77 and #78 depend on that decision. #76 depends on
+the remaining #75 production evidence but can proceed against its merged code
+posture. #81 (deployment headers) and #82 (legal reconciliation) remain partially
+blocked by production unknowns and prior slices.
 
 PR #83 remains draft and must not merge under its current specification.
 
