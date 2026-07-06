@@ -883,7 +883,7 @@ Ad-blocker detection via bait div render check. 30-second countdown fallback.
 |---|-----|---------|----------|------|----------|
 | 1 | Distributed limiter deployment unverified | Code rejects local storage outside development | Configure and capacity-test shared storage | Misconfiguration prevents startup; backend outage fails limited routes closed | #76 / #81 |
 | 2 | In-memory result cache | Python dict, process-local | Redis or similar shared cache if scaling requires it | Fragmented caches in multi-instance; lost on restart | R10 |
-| 3 | Docker runs as root | No `USER` instruction in either Dockerfile | Non-root user with minimal capabilities | Container escape has root on host | #81 |
+| 3 | Docker runtime users | Frontend runs as the base image's `node` user; backend runs as dedicated UID 10001 with owned application and Playwright files | Non-root user with minimal capabilities | Image-build verification remains required where Docker is available | #81 |
 | 4 | No retention/deletion policy | Data persists indefinitely; no TTL cleanup | Bounded retention periods + automated cleanup | Unlimited sensitive data accumulation; no GDPR compliance path | #74 |
 | 5 | No automated backups | No backup scripts, no cron jobs | Regular database backups with documented restore procedure | Data loss on Railway incident | #74 |
 | 6 | PostHog infrastructure present, SDK inactive | Build args + env vars + proxy config exist | Decision: activate PostHog OR remove dead config | Confusion about active processors; CookiePolicyPage claims no analytics but proxy exists | #82 |
