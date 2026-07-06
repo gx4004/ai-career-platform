@@ -134,6 +134,41 @@ cookies, auth headers, tokens, or email addresses.
 
 Operational questions should be answerable without reconstructing sensitive content.
 
+## Abuse Controls
+
+Availability monitoring and abuse enforcement are separate: `/health` remains
+unlimited for Railway probes, while abuse-sensitive auth, model, upload, import,
+telemetry, export, and admin routes use bounded request limits. Outside development,
+rate-limit state must use shared storage configured by `RATE_LIMIT_STORAGE_URI`;
+process-local memory is rejected at startup.
+
+Limiter keys are HMAC-pseudonymized. A verified access-token subject supplies the
+account dimension; explicitly trusted proxy hops supply the source-IP dimension.
+Model and import/upload work enforce both dimensions independently. Login,
+registration, and reset retain source limits and add pseudonymized account/email
+counters. Raw account IDs, email addresses, tokens, and IPs are not written to
+limiter storage.
+
+Per-route burst limits are supplemented by shared model-cost and import/upload
+ceilings. Route, model, and resource windows expire after their declared minute/hour
+window; account-action counters expire after one hour. Failed-login counters expire
+after 15 minutes, introduce a bounded delay after the third failure, never hard-lock
+an account, and reset after successful login. Registration/reset account pressure
+also delays but never suppresses the action. For an incident-wide reset, operators
+rotate `RATE_LIMIT_KEY_PREFIX`; abandoned keys expire naturally. Production code
+does not issue a datastore-global reset, and no relational migration exists.
+
+Rate-limit events log only the route and verified account/guest class. The release
+operator investigates when one route emits at least 50 limit events in 15 minutes
+for three consecutive windows, or when provider cost alerts fire. CAPTCHA is not
+enabled automatically. The existing flag protects registration only; challenging a
+different attacked flow requires a reviewed frontend/backend contract for that flow
+before activation. This keeps CAPTCHA evidence-triggered rather than unconditional.
+
+Rollback is configuration-first: raise bounded limits or disable the shared
+decorators in a code revert. Never fall back to per-process storage in production,
+because that silently weakens multi-instance enforcement.
+
 ## Contract Change Checklist
 
 For an API request/response change:
