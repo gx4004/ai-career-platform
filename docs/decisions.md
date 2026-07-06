@@ -38,6 +38,7 @@ erase history.
 | D-027 | accepted | Use `chapter2` as the long-lived experimentation branch while `main` and `deploy` remain stable promotion branches. | Product hardening and expansion need room to iterate without destabilizing the release and Railway deployment branches. |
 | D-028 | accepted | Treat the eventual first release as a free private beta, while deferring launch operations and acquisition planning until engineering quality gates pass. | Engineering excellence is the immediate objective; billing and growth work would distract from measuring and improving the existing product. |
 | D-029 | accepted | Use ephemeral distributed abuse counters with independent HMAC-pseudonymized account and source-IP dimensions; prefer bounded progressive login delay over account lockout, and add route-specific CAPTCHA only after the documented sustained-limit or provider-cost trigger. | Multi-instance enforcement must not store raw identifiers, let account rotation erase source limits, or create an attacker-controlled account-lockout denial of service. |
+| D-030 | accepted | Preserve SameSite=Lax and reject logout requests whose explicit Origin is outside the configured frontend/CORS allowlist, while allowing non-browser clients with no Origin. | This prevents forced cross-site logout with a narrow compatibility-tested control instead of introducing a broader CSRF token protocol. |
 
 ## Decisions Needed
 
