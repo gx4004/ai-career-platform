@@ -66,7 +66,7 @@ Acceptance gate:
 
 ### R3. Privacy, Security, and Abuse Gate
 
-**Status:** blocked by R2
+**Status:** specification re-grill in progress
 **Outcome:** sensitive career data has a documented lifecycle and defensible controls.
 
 Acceptance gate:
