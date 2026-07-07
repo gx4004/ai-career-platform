@@ -81,7 +81,7 @@ Acceptance gate:
 
 ### R4. Accessibility, Mobile, and Performance Gate
 
-**Status:** in progress
+**Status:** complete
 **Outcome:** core workflows are usable on common mobile sizes, by keyboard, and on a
 reasonable connection.
 
