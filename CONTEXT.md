@@ -40,6 +40,21 @@ Any event in the R6 taxonomy spanning landing → tool start → tool completion
 connected next step → signup → revisit/export, used to measure where users find
 value or abandon the workflow.
 
+## Output quality evaluation (R8)
+
+**Eval fixture**
+A small, hand-authored synthetic resume/job-description pair used to test tool
+output — never sampled or derived from real user content (see
+`docs/adr/0002-r8-eval-fixture-data-source.md`).
+
+**Calibration miss**
+For Resume Analyzer/Job Match only: a fixture whose actual blended score
+(`compute_blended_score`) falls outside its pre-assigned expected score band.
+
+**Fabrication candidate**
+For the four generative tools: a proper-noun/employer/quantified claim present
+in generated output that cannot be traced back to the source resume text.
+
 ## Branch roles
 
 - `chapter2` is the long-lived product experimentation and hardening branch.

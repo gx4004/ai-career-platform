@@ -148,7 +148,7 @@ increase in failure, cost, or privacy risk.
 
 ### R8. Output Quality Program
 
-**Status:** proposed
+**Status:** PRD published (#118; tracer issues #119–#124)
 **Outcome:** changes to prompts, heuristics, and models can be evaluated consistently.
 
 Acceptance gate:
