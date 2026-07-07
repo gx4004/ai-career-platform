@@ -1,5 +1,10 @@
 # Frontend Overhaul Plan — Experimental Branch
 
+> **HISTORICAL — kept as historical evidence, not current authority.** `AGENTS.md`
+> explicitly lists this plan among old plans to treat as historical. The overhaul
+> branch and its review cycle concluded in 2026-04; current priorities live in
+> `docs/roadmap.md` and current status in `docs/state.md`.
+
 **Branch:** `experimental/frontend-overhaul-opus47`
 **Base:** `main` @ `e1cef22f` (backend audit closed, 4 P1/P2 PRs merged & deployed)
 **Scope:** Frontend only. Backend is clean — do not touch `backend/` except to read schemas.

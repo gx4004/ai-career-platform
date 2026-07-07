@@ -130,8 +130,6 @@ the remaining #75 production evidence but can proceed against its merged code
 posture. #81 (deployment headers) and #82 (legal reconciliation) remain partially
 blocked by production unknowns and prior slices.
 
-PR #83 remains draft and must not merge under its current specification.
-
 ## Risks and Drift to Resolve
 
 | Risk | Why it matters | Next action |
@@ -139,7 +137,6 @@ PR #83 remains draft and must not merge under its current specification.
 | Documentation drift | Old roadmap, frontend overhaul plan, `design.md`, and source code disagree in places. | Use canonical docs going forward; verify disputed behavior against code/UI. `docs/threat-model.md` now anchors security claims to code. |
 | Mixed local worktree | Product edits can accidentally include active thesis/generated files. | Stage explicit product paths only and verify every commit. |
 | Release environment unverified | Railway topology, variables, migrations, domain, and deploy branch may have changed. | Run deployment inventory and staging smoke test. See `docs/threat-model.md` §14 D-UNK-1 through D-UNK-10. |
-| Design contract conflict | `design.md` says light heroes while older context describes dark tool heroes. | Visually audit current product and accept one direction. |
 | Monetization deferred | Historical ad-gate code must not be mistaken for a current release requirement. | Keep gates disabled and revisit only after product-quality work. |
 
 ### Resolved or Catalogued in Threat Model
@@ -149,6 +146,7 @@ PR #83 remains draft and must not merge under its current specification.
 | Privacy retention unspecified | Now captured as `docs/threat-model.md` §14 D-UNK-6; owned by issue #74. |
 | Browser storage contains workflow content | Now documented in `docs/threat-model.md` §5 with full inventory and classification; addressed by issue #77. |
 | In-process cache | Now documented in `docs/threat-model.md` §13 gap #2 and §8.3; addressed by issue #76. |
+| Design contract conflict | Resolved 2026-07-07: the shipped dark-to-light gradient tool heroes are the accepted direction; `design.md` updated to match. |
 
 ## Product Audit Work Remaining
 

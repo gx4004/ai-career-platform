@@ -1,5 +1,10 @@
 # Visual QA Pass — All 6 Tool Result Pages
 
+> **HISTORICAL — one-off agent task brief, not current authority.** This visual QA
+> pass was executed during the result-page redesign era. Accessibility/mobile
+> verification is now owned by the R4 baseline (see `docs/roadmap.md` and
+> `docs/state.md`); the visual contract is owned by `design.md`.
+
 ## Mission
 
 You are doing a comprehensive visual QA, debugging, and polish pass across all 6 tool result pages in this career platform. These pages were recently redesigned from Stitch mockups. You need to screenshot every page at desktop and mobile widths, identify every visual bug, layout issue, and design flaw, then fix them directly in the code.
