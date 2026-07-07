@@ -80,20 +80,29 @@ without hard account lockout. Health probes remain unlimited. Production must
 provide and capacity-test `RATE_LIMIT_STORAGE_URI`; route-specific CAPTCHA work is
 triggered only by the accepted aggregate event threshold or provider cost alerts.
 
+R3 #74 is resolved: D-031 through D-035 in `docs/decisions.md` accept indefinite
+primary-data retention until user-initiated deletion, no backups during the
+thesis-demo phase (Railway managed backups + a rehearsed restore procedure become
+required before beta launch, tracked by R5), Railway-managed log retention,
+processor-managed Sentry event retention when Sentry is enabled, and the existing
+structured deletion log line as the minimal audit record. `docs/threat-model.md`
+D-UNK-6/D-UNK-7 are marked resolved.
+
 R3 #78 now rejects unknown or content-bearing telemetry fields and removes raw
 frontend error messages plus stable run/workspace identifiers. Frontend/backend
 Sentry hooks drop request content, credentials, query strings, breadcrumb bodies,
 and entire user contexts. Model, import, email, and OAuth failure logs emit generic
 categories rather than content, emails, full URLs, or provider exception text.
-Sentry enablement, processor behavior, deletion-audit retention, and all bounded
-retention periods still depend on production evidence and #74.
+Deletion-audit and retention policy are now resolved by #74; Sentry enablement
+itself still depends on the separate D-UNK-4 production-evidence question (is
+`SENTRY_DSN` set in production).
 
 R3 #77 now centralizes sensitive tab-data cleanup for drafts, workflow context,
 guest results, and resume carry. Explicit logout clears it even if the server
 request fails; account deletion and the manual reset use the same operation.
 Persisted guest results are removed by prefix after reload, while consent,
-onboarding, and non-sensitive UI state remain intact. Retention-dependent closure
-still follows #74.
+onboarding, and non-sensitive UI state remain intact. Its retention dependency on
+#74 is now resolved.
 
 R3 #81 now has a locally verified frontend-response implementation: SSR and static
 responses receive a deployment-compatible CSP and baseline browser security
@@ -124,11 +133,10 @@ into a production-build Node test so missing asset headers cannot pass as a
 zero-byte measurement, then added deterministic API latency budgets to complete
 the R4 performance baseline.
 
-Remaining R3 slices are dependency-ordered. #74 (retention/deletion) requires human
-decisions D-UNK-6 and D-UNK-7; #77 and #78 depend on that decision. #76 depends on
-the remaining #75 production evidence but can proceed against its merged code
-posture. #81 (deployment headers) and #82 (legal reconciliation) remain partially
-blocked by production unknowns and prior slices.
+Remaining R3 slices: #74 is closed. #76 depends on the remaining #75 production
+evidence but can proceed against its merged code posture. #81 (deployment headers)
+and #82 (legal reconciliation) remain partially blocked by production unknowns and
+prior slices.
 
 ## Risks and Drift to Resolve
 
@@ -143,7 +151,7 @@ blocked by production unknowns and prior slices.
 
 | Risk | Resolution |
 |---|---|
-| Privacy retention unspecified | Now captured as `docs/threat-model.md` §14 D-UNK-6; owned by issue #74. |
+| Privacy retention unspecified | Resolved 2026-07-07 by D-031 through D-035 in `docs/decisions.md`; issue #74 closed. |
 | Browser storage contains workflow content | Now documented in `docs/threat-model.md` §5 with full inventory and classification; addressed by issue #77. |
 | In-process cache | Now documented in `docs/threat-model.md` §13 gap #2 and §8.3; addressed by issue #76. |
 | Design contract conflict | Resolved 2026-07-07: the shipped dark-to-light gradient tool heroes are the accepted direction; `design.md` updated to match. |
