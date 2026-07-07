@@ -1,5 +1,9 @@
 # Product QA Checklist
 
+> **HISTORICAL — kept for reference, not current authority.** Superseded by the
+> acceptance gates in `docs/roadmap.md` and the verified R2/R4 baselines recorded
+> in `docs/state.md`. Do not treat these items as present-day verification.
+
 ## Core Tool Coverage
 
 - Resume analyzer renders score breakdown, issues, evidence, and top actions

@@ -219,7 +219,9 @@ Use this document as the single source of truth when generating UI designs for t
 ### Hybrid Theme
 - **Sidebar/navigation**: Dark navy (`#0f1a2e`)
 - **Content area**: Light (`#edf3fa` background, white cards)
-- **Hero sections**: White card on light background (NOT dark hero)
+- **Tool input heroes**: Dark-to-light gradient hero (`tool-input-hero`) with per-tool animations and chips; smooth gradient into the light form surface below (no hard dark/white edge)
+- **Result heroes**: Dark hero variant for Resume Analyzer and Job Match (score ring); light hero treatment for the other tools
+- **Dashboard/landing content**: White cards on light background
 - **No dark mode toggle** — single theme only
 
 ### Design Principles

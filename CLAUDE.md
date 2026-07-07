@@ -49,7 +49,7 @@ backend/app/prompts/        — Prompt builders per tool
 backend/app/models/         — User, ToolRun, Workspace ORM models
 backend/app/schemas/        — Pydantic request/response schemas
 backend/app/auth/           — JWT + bcrypt + Google OAuth
-docs/spec.md                — Full spec + roadmap (reference doc)
+docs/spec.md                — Current product contract (roadmap lives in docs/roadmap.md)
 ```
 
 ## Commands
@@ -95,11 +95,11 @@ cd backend && alembic upgrade head        # Run migrations
 - **Design decisions**: `/codex:adversarial-review challenge whether <decision> was the right call`
 - **Stuck on a bug**: `/codex:rescue --background fix <description>` — let Codex try while Claude continues
 
-### Review Gate (ENABLED)
-Review gate is ON — Codex automatically reviews Claude's output before completing. If issues found, Claude must address them first. This catches bugs early.
+### Review Gate (DISABLED)
+Review gate is OFF — Codex does not automatically review Claude's output. Request reviews manually with `/codex:review` before creating a PR.
 - Enable: `/codex:setup --enable-review-gate`
-- Disable temporarily: `/codex:setup --disable-review-gate`
-- Warning: drains usage faster — disable during rapid iteration, re-enable before PR
+- Disable: `/codex:setup --disable-review-gate`
+- Warning: when enabled it drains usage faster — keep it off during rapid iteration; consider enabling before high-risk merges (auth, payments, data models)
 
 ### Collaboration Patterns
 - **Claude implements → Codex reviews**: Default workflow. Claude writes code, Codex validates.
