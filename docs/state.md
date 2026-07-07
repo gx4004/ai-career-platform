@@ -40,7 +40,7 @@ features are not current implementation claims.
 
 ## Immediate Objective
 
-**Status: R2 recovery verified; R3 implementation slices advancing; deployment evidence remains**
+**Status: R4 ready for merge; R3 production/legal decisions and R5 deployment evidence remain**
 
 The `docs/threat-model.md` canonical inventory is complete (#73). It maps system
 topology, trust boundaries, data flows, assets, browser storage, API surface, auth
@@ -104,6 +104,26 @@ verification remains outstanding because the local Docker engine is unavailable.
 Production Railway origins, TLS forwarding, OAuth, Sentry, downloads, and font
 behavior still require staging verification before #81 can close.
 
+R4 automated baseline is ready for merge in PR #96 and covers 10 representative routes (landing through settings)
+with axe-core critical-violation scans, 320/375 px horizontal-overflow checks,
+keyboard walkthrough (login→dashboard→resume flow with visible focus rings),
+semantic landmark verification (main, nav, headings), accessible-name validation
+for icon-only interactive elements, reduced-motion suppression for dashboard
+infinite animations (shimmer-multi, dropzone-pulse, dropzone-border-glow), the
+cookie banner, inline tool illustrations, FadeUp and FadeIn framer-motion
+wrappers, and performance budgets (production main JS under 540 kB, production
+CSS under 480 kB, JS heap under 50 MB, health API p95 under 500 ms, and
+deterministic resume API p95 under 3 s). Framer-motion's useReducedMotion() is
+now checked in FadeUp and FadeIn components. The accessibility/mobile route
+settle delay was trimmed after hydration to keep the suite coverage intact while
+reducing E2E runtime. PR #96 is green in CI as of 2026-07-07: frontend, backend,
+and E2E Playwright/PostgreSQL checks all pass, with the E2E browser journey
+completing in 7m28s and Playwright reporting `49 passed (6.0m)`. Follow-up local
+review moved the byte-budget assertions out of the dev-server Playwright path and
+into a production-build Node test so missing asset headers cannot pass as a
+zero-byte measurement, then added deterministic API latency budgets to complete
+the R4 performance baseline.
+
 Remaining R3 slices are dependency-ordered. #74 (retention/deletion) requires human
 decisions D-UNK-6 and D-UNK-7; #77 and #78 depend on that decision. #76 depends on
 the remaining #75 production evidence but can proceed against its merged code
@@ -132,7 +152,6 @@ PR #83 remains draft and must not merge under its current specification.
 
 ## Product Audit Work Remaining
 
-- mobile and keyboard walkthrough;
 - staging health, telemetry, error scrubbing, OAuth, email, and rollback checks;
 - current production/staging database revision and backup posture.
 

@@ -31,6 +31,12 @@ export function FadeIn({
   className?: string
   style?: CSSProperties
 }) {
+  const prefersReducedMotion = useReducedMotion() ?? false
+
+  if (prefersReducedMotion) {
+    return <div className={className} style={style}>{children}</div>
+  }
+
   return (
     <motion.div
       variants={fadeIn}
@@ -58,6 +64,12 @@ export function FadeUp({
   className?: string
   style?: CSSProperties
 }) {
+  const prefersReducedMotion = useReducedMotion() ?? false
+
+  if (prefersReducedMotion) {
+    return <div className={className} style={style}>{children}</div>
+  }
+
   return (
     <motion.div
       variants={fadeUp}

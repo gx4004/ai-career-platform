@@ -1468,6 +1468,13 @@ body:has(.lp-redesign)::after { display: none !important; }
 
 /* Accessibility */
 @media (prefers-reduced-motion: reduce) {
+  .landing-experiment-navbar-link,
+  .landing-experiment-navbar-link--active,
+  .lp-redesign .landing-experiment-navbar-link,
+  .lp-redesign .landing-experiment-navbar-link--active {
+    transition: none !important;
+  }
+
   .lp-redesign .lp-hero-image-halo,
   .lp-redesign .lp-hero-beta-dot,
   .lp-redesign .lp-hero-trust-track,

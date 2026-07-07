@@ -314,6 +314,7 @@
   .result-body,
   .dash-hero,
   .h-stat-card,
+  .cookie-banner,
   .app-state-panel,
   .account-layout,
   .history-layout,
@@ -332,7 +333,19 @@
   .animate-pulse-glow,
   .skeleton-shimmer,
   .skeleton,
-  .settings-status-dot.is-online {
+  .settings-status-dot.is-online,
+  .dash-hero-accent-word,
+  .dash-hero-dark-drop-glow,
+  .dash-hero-dark .dropzone-hero,
+  .route-pending-spinner,
+  .button-session-signin-cta::before,
+  .tool-illust-scan-beam,
+  .tool-input-hero .tool-illust-scan-beam,
+  .tool-illust-circle,
+  .tool-illust-card,
+  .tool-typing-caret,
+  .tool-illust-wrap,
+  .tool-illust-wrap * {
     animation: none !important;
   }
 
@@ -343,6 +356,10 @@
   .path-card,
   .settings-status-item,
   .auth-surface-benefit,
+  .dropzone-hero,
+  .dropzone-hero-content,
+  .dropzone-hero-icon-ring,
+  .dropzone-hero-actions [data-slot='button'],
   .practice-card {
     transition-duration: 1ms !important;
   }
