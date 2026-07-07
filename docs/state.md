@@ -101,12 +101,13 @@ with axe-core critical-violation scans, 320/375 px horizontal-overflow checks,
 keyboard walkthrough (login→dashboard→resume flow with visible focus rings),
 semantic landmark verification (main, nav, headings), accessible-name validation
 for icon-only interactive elements, reduced-motion suppression for dashboard
-infinite animations (shimmer-multi, dropzone-pulse, dropzone-border-glow), FadeUp
-and FadeIn framer-motion wrappers, and performance budgets (JS transfer under
-540 kB, CSS transfer under 480 kB, JS heap under 50 MB). Framer-motion's
-useReducedMotion() is now checked in FadeUp and FadeIn components. The first CI
-run will expose actual UI defects; the branch intentionally starts green for the
-fixed gates and will fail on real violations.
+infinite animations (shimmer-multi, dropzone-pulse, dropzone-border-glow), the
+cookie banner, inline tool illustrations, FadeUp and FadeIn framer-motion
+wrappers, and performance budgets (JS transfer under 540 kB, CSS transfer under
+480 kB, JS heap under 50 MB). Framer-motion's useReducedMotion() is now checked
+in FadeUp and FadeIn components. PR #96 is green in CI as of 2026-07-07:
+frontend, backend, and E2E Playwright/PostgreSQL checks all pass, with the E2E
+browser journey completing in 7m29s.
 
 Remaining R3 slices are dependency-ordered. #74 (retention/deletion) requires human
 decisions D-UNK-6 and D-UNK-7; #77 and #78 depend on that decision. #76 depends on
