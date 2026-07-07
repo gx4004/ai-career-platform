@@ -1471,7 +1471,8 @@ body:has(.lp-redesign)::after { display: none !important; }
   .landing-experiment-navbar-link,
   .landing-experiment-navbar-link--active,
   .lp-redesign .landing-experiment-navbar-link,
-  .lp-redesign .landing-experiment-navbar-link--active {
+  .lp-redesign .landing-experiment-navbar-link--active,
+  .nav-indicator-wrap::before {
     transition: none !important;
   }
 
