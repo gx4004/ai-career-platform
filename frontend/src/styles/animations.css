@@ -356,6 +356,10 @@
   .path-card,
   .settings-status-item,
   .auth-surface-benefit,
+  .dropzone-hero,
+  .dropzone-hero-content,
+  .dropzone-hero-icon-ring,
+  .dropzone-hero-actions [data-slot='button'],
   .practice-card {
     transition-duration: 1ms !important;
   }
