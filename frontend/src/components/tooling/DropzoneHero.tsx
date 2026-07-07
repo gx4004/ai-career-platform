@@ -1,7 +1,7 @@
 import { useRef, useState, useCallback, type CSSProperties } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { AlertCircle, FileUp, CheckCircle2, FileText, Upload } from 'lucide-react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
 import { Button } from '#/components/ui/button'
 import { parseCv } from '#/lib/api/client'
 
@@ -28,6 +28,17 @@ export function DropzoneHero({
   const [dropState, setDropState] = useState<DropzoneState>(preLoaded ? 'success' : 'idle')
   const [fileName, setFileName] = useState<string | null>(preLoaded ? (preLoadedLabel || 'Resume loaded') : null)
   const [parseWarnings, setParseWarnings] = useState<string[]>([])
+  const prefersReducedMotion = useReducedMotion() ?? false
+  const outerInitial = prefersReducedMotion ? false : { opacity: 0, y: 20 }
+  const outerAnimate = prefersReducedMotion ? undefined : { opacity: 1, y: 0 }
+  const compactInitial = prefersReducedMotion ? false : { opacity: 0, height: 0 }
+  const compactAnimate = prefersReducedMotion ? undefined : { opacity: 1, height: 'auto' }
+  const contentScaleInitial = prefersReducedMotion ? false : { opacity: 0, scale: 0.95 }
+  const contentScaleAnimate = prefersReducedMotion ? undefined : { opacity: 1, scale: 1 }
+  const contentScaleExit = prefersReducedMotion ? undefined : { opacity: 0, scale: 0.95 }
+  const contentFadeInitial = prefersReducedMotion ? false : { opacity: 0 }
+  const contentFadeAnimate = prefersReducedMotion ? undefined : { opacity: 1 }
+  const contentFadeExit = prefersReducedMotion ? undefined : { opacity: 0 }
 
   const mutation = useMutation({
     mutationFn: parseCv,
@@ -79,9 +90,9 @@ export function DropzoneHero({
     return (
       <motion.div
         className="dropzone-compact-strip"
-        initial={{ opacity: 0, height: 0 }}
-        animate={{ opacity: 1, height: 'auto' }}
-        transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+        initial={compactInitial}
+        animate={compactAnimate}
+        transition={{ duration: prefersReducedMotion ? 0 : 0.3, ease: [0.16, 1, 0.3, 1] }}
         style={{ '--tool-accent': accent } as CSSProperties}
       >
         <div className="dropzone-compact-inner">
@@ -123,19 +134,20 @@ export function DropzoneHero({
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
       style={{ '--tool-accent': accent } as CSSProperties}
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+      initial={outerInitial}
+      animate={outerAnimate}
+      transition={{ duration: prefersReducedMotion ? 0 : 0.5, ease: [0.16, 1, 0.3, 1] }}
     >
       <div className="dropzone-hero-inner">
-        <AnimatePresence mode="wait">
+        <AnimatePresence mode={prefersReducedMotion ? 'sync' : 'wait'}>
           {dropState === 'uploading' ? (
             <motion.div
               key="uploading"
               className="dropzone-hero-content"
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
+              initial={contentScaleInitial}
+              animate={contentScaleAnimate}
+              exit={contentScaleExit}
+              transition={{ duration: prefersReducedMotion ? 0 : 0.3, ease: [0.16, 1, 0.3, 1] }}
             >
               <div className="dropzone-upload-spinner" />
               <p className="dropzone-hero-title">Parsing your resume…</p>
@@ -145,9 +157,10 @@ export function DropzoneHero({
             <motion.div
               key="success"
               className="dropzone-hero-content"
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
+              initial={contentScaleInitial}
+              animate={contentScaleAnimate}
+              exit={contentScaleExit}
+              transition={{ duration: prefersReducedMotion ? 0 : 0.3, ease: [0.16, 1, 0.3, 1] }}
             >
               {hasWarnings ? (
                 <AlertCircle size={48} className="dropzone-warning-icon" />
@@ -182,9 +195,10 @@ export function DropzoneHero({
             <motion.div
               key="idle"
               className="dropzone-hero-content"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
+              initial={contentFadeInitial}
+              animate={contentFadeAnimate}
+              exit={contentFadeExit}
+              transition={{ duration: prefersReducedMotion ? 0 : 0.3, ease: [0.16, 1, 0.3, 1] }}
             >
               <div className="dropzone-hero-icon-ring">
                 {dropState === 'drag-over' ? (

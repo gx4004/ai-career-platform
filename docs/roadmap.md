@@ -97,7 +97,7 @@ Acceptance gate:
 
 ### R5. Staging and Release Operations
 
-**Status:** blocked by R1–R4
+**Status:** blocked by remaining R3 production decisions and evidence
 **Outcome:** deployment, migration, monitoring, and rollback are rehearsed before users
 depend on the product.
 
