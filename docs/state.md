@@ -40,7 +40,7 @@ features are not current implementation claims.
 
 ## Immediate Objective
 
-**Status: R4 ready for merge; R3 production/legal decisions and R5 deployment evidence remain**
+**Status: R4 merged; R3 production/legal decisions and R5 deployment evidence remain**
 
 The `docs/threat-model.md` canonical inventory is complete (#73). It maps system
 topology, trust boundaries, data flows, assets, browser storage, API surface, auth
@@ -104,7 +104,7 @@ verification remains outstanding because the local Docker engine is unavailable.
 Production Railway origins, TLS forwarding, OAuth, Sentry, downloads, and font
 behavior still require staging verification before #81 can close.
 
-R4 automated baseline is ready for merge in PR #96 and covers 10 representative routes (landing through settings)
+R4 automated baseline is merged in PR #96 and covers 10 representative routes (landing through settings)
 with axe-core critical-violation scans, 320/375 px horizontal-overflow checks,
 keyboard walkthrough (login→dashboard→resume flow with visible focus rings),
 semantic landmark verification (main, nav, headings), accessible-name validation
