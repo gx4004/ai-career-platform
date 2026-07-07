@@ -155,6 +155,11 @@ PR #83 remains draft and must not merge under its current specification.
 - staging health, telemetry, error scrubbing, OAuth, email, and rollback checks;
 - current production/staging database revision and backup posture.
 
+R5 now has a staging and launch runbook in `docs/launch-checklist.md` covering
+preflight inventory, environment checks, migration rehearsal, smoke coverage,
+rollback rehearsal, incident contacts, and evidence logging. Execution remains
+blocked by the R3 production decisions and staging facts listed above.
+
 ## Constraints Until Decided
 
 - Do not re-enable the ad gate.
