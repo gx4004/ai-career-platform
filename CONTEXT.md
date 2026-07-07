@@ -23,6 +23,23 @@ AI-powered job-search workspace with six tools:
 ## Current operating mode
 Thesis demo mode: all results are visible and ad gating is bypassed.
 
+## Analytics & instrumentation
+
+**Frontend telemetry**
+Client-observed behavioral events sent via `trackTelemetry()` to
+`POST /api/v1/telemetry/events`. Consent-gated (skipped if the user declined
+cookies); strict allowlist schema, never carries resume/JD/generated content.
+
+**Backend metrics**
+Server-computed operational data (per-tool duration, LLM cost estimate) written
+directly by the backend in the same request path that already runs the tool —
+not client-reported, so cookie consent does not gate it.
+
+**Activation event**
+Any event in the R6 taxonomy spanning landing → tool start → tool completion →
+connected next step → signup → revisit/export, used to measure where users find
+value or abandon the workflow.
+
 ## Branch roles
 
 - `chapter2` is the long-lived product experimentation and hardening branch.
