@@ -14,6 +14,8 @@ const representativeRoutes = [
   '/settings',
 ]
 
+test.describe.configure({ mode: 'parallel' })
+
 async function gotoHydrated(page: Page, path: string) {
   await page.goto(path, { waitUntil: 'domcontentloaded' })
   await page.locator('html[data-hydrated="true"]').waitFor({ timeout: 15000 })
