@@ -104,15 +104,17 @@ for icon-only interactive elements, reduced-motion suppression for dashboard
 infinite animations (shimmer-multi, dropzone-pulse, dropzone-border-glow), the
 cookie banner, inline tool illustrations, FadeUp and FadeIn framer-motion
 wrappers, and performance budgets (production main JS under 540 kB, production
-CSS under 480 kB, JS heap under 50 MB). Framer-motion's useReducedMotion() is now
-checked in FadeUp and FadeIn components. The accessibility/mobile route settle
-delay was trimmed after hydration to keep the suite coverage intact while
+CSS under 480 kB, JS heap under 50 MB, health API p95 under 500 ms, and
+deterministic resume API p95 under 3 s). Framer-motion's useReducedMotion() is
+now checked in FadeUp and FadeIn components. The accessibility/mobile route
+settle delay was trimmed after hydration to keep the suite coverage intact while
 reducing E2E runtime. PR #96 is green in CI as of 2026-07-07: frontend, backend,
 and E2E Playwright/PostgreSQL checks all pass, with the E2E browser journey
-completing in 7m28s and Playwright reporting `49 passed (6.0m)`. A follow-up
-local review moved the byte-budget assertions out of the dev-server Playwright
-path and into a production-build Node test so missing asset headers cannot pass
-as a zero-byte measurement.
+completing in 7m28s and Playwright reporting `49 passed (6.0m)`. Follow-up local
+review moved the byte-budget assertions out of the dev-server Playwright path and
+into a production-build Node test so missing asset headers cannot pass as a
+zero-byte measurement, then added deterministic API latency budgets to complete
+the R4 performance baseline.
 
 Remaining R3 slices are dependency-ordered. #74 (retention/deletion) requires human
 decisions D-UNK-6 and D-UNK-7; #77 and #78 depend on that decision. #76 depends on
