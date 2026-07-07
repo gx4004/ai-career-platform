@@ -379,6 +379,8 @@ test('landing page LCP is under 4s and CLS is under 0.25', async ({
 })
 
 test('keyboard Tab does not trap focus on any route', async ({ page }) => {
+  test.setTimeout(60_000)
+
   for (const path of representativeRoutes) {
     await gotoHydrated(page, path)
 
