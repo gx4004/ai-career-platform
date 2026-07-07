@@ -881,7 +881,7 @@ Ad-blocker detection via bait div render check. 30-second countdown fallback.
 | 2 | **Generated content accessible to wrong user** | ToolRun results | User-scoped cache keys; DB queries filter by `user_id` | In-memory cache key includes user scope; no cross-user access observed in code — confidence is high but only code-audit, not penetration-test, verified |
 | 3 | **Browser storage persistence after logout** | sessionStorage data | Tab-scoped sessionStorage clears on tab close; localStorage consent stays | Logout clears pending intent, invalidates query cache, but does not clear tool drafts, workflow context, demo results, or resume-carry from current tab's sessionStorage |
 | 4 | **Password reset link exposure** | Reset token | New links use a fragment that is scrubbed after hydration; single-use password-hash-derived signing invalidates the token on password change | Legacy query-token links remain accepted temporarily for rollout compatibility and are scrubbed client-side |
-| 5 | **Account deletion — data reappears from backup** | All user data | Cascading delete in single transaction; structured log emitted | No backup restoration procedure documented; no verification step |
+| 5 | **Account deletion — data reappears from backup** | All user data | Cascading delete in single transaction; structured log emitted; no backups exist during thesis-demo phase, so no restore-reappearance risk currently | Before R5/beta launch, the accepted backup + restore procedure (D-032) must document how deletions are honored across a restore |
 | 6 | **Incomplete account deletion** | User data | `delete_all_user_data()` cascading deletes `tool_runs`, `workspaces`, `users` | No verification query after deletion; no audit trail beyond structured log event; if Sentry is active, previously-captured events remain in Sentry's retention window |
 
 ---
@@ -893,8 +893,8 @@ Ad-blocker detection via bait div render check. 30-second countdown fallback.
 | 1 | Distributed limiter deployment unverified | Code rejects local storage outside development | Configure and capacity-test shared storage | Misconfiguration prevents startup; backend outage fails limited routes closed | #76 / #81 |
 | 2 | In-memory result cache | Python dict, process-local | Redis or similar shared cache if scaling requires it | Fragmented caches in multi-instance; lost on restart | R10 |
 | 3 | Docker runtime users | Frontend runs as the base image's `node` user; backend runs as dedicated UID 10001 with owned application and Playwright files | Non-root user with minimal capabilities | Image-build verification remains required where Docker is available | #81 |
-| 4 | No retention/deletion policy | Data persists indefinitely; no TTL cleanup | Bounded retention periods + automated cleanup | Unlimited sensitive data accumulation; no GDPR compliance path | #74 |
-| 5 | No automated backups | No backup scripts, no cron jobs | Regular database backups with documented restore procedure | Data loss on Railway incident | #74 |
+| 4 | No dormant-account TTL cleanup | Data persists indefinitely while an account exists; deletion is user-initiated only | Accepted as final posture (D-031) — no automated cleanup planned | None; user-initiated erasure satisfies GDPR right-to-erasure | #74 (resolved) |
+| 5 | No automated backups | No backup scripts, no cron jobs | Railway managed automated backups + rehearsed restore procedure, required before beta launch | Data loss on Railway incident until R5 lands the backup + restore rehearsal | #74 (resolved) / R5 |
 | 6 | PostHog infrastructure present, SDK inactive | Build args + env vars + proxy config exist | Decision: activate PostHog OR remove dead config | Confusion about active processors; CookiePolicyPage claims no analytics but proxy exists | #82 |
 | 7 | No email verification on password registration | Account immediately usable | Email verification before first tool use | Spam accounts, wrong-email lockouts | #75 |
 | 8 | Low-cost endpoints remain unlimited | `GET /auth/me`, `POST /auth/logout`, `GET /auth/providers`, history GET/PATCH/DELETE | Add limits only if availability evidence shows abuse | Broad limiting can degrade normal authenticated navigation | R10 |
@@ -913,11 +913,16 @@ Ad-blocker detection via bait div render check. 30-second countdown fallback.
 | D-UNK-3 | Is the production deployment 1 replica or more? | Affects cache and rate limiter correctness | #76, #81 |
 | D-UNK-4 | Is `SENTRY_DSN` set in production? | Determines whether error data leaves the Railway network | #78 |
 | D-UNK-5 | Should PostHog be activated (and proxy cleaned up if not)? | Changes processor inventory and privacy disclosure requirements | #82 |
-| D-UNK-6 | What are the accepted retention periods for: primary data, backups, logs, Sentry events, audit records? (Overlaps with `docs/decisions.md` D-NEXT-3) | Required for GDPR compliance and privacy disclosures | #74 |
-| D-UNK-7 | What is the backup schedule and restore procedure? | Data recovery posture before beta launch | #74 |
 | D-UNK-8 | What is the scope of the Google Cloud service account / API key permissions? | Limits blast radius of credential compromise | #79 |
 | D-UNK-9 | Are there any additional production environment variables not in `.env.example`? | Complete attack surface enumeration | #81 |
 | D-UNK-10 | What are the deployed frontend/backend domains, their registrable-site relationship, and is TLS configured end-to-end? | Cookie delivery, credentialed CORS, OAuth redirects, and HSTS viability | #75, #81 |
+
+### Resolved
+
+| ID | Resolution |
+|----|-----------|
+| D-UNK-6 | Retention periods accepted 2026-07-07: primary data indefinite until user deletion (D-031), logs use Railway-managed retention (D-033), Sentry events use processor-managed retention (D-034), deletion-audit is the existing structured log line (D-035). |
+| D-UNK-7 | Backup posture accepted 2026-07-07: no backups during thesis-demo phase; Railway managed automated backups + a rehearsed restore procedure become required before beta launch (D-032, tracked by R5 in `docs/roadmap.md`). |
 
 ---
 
@@ -928,7 +933,7 @@ blocked only by their listed dependencies — all other context is available her
 
 | Issue | Depends On | Unblocked? |
 |-------|-----------|------------|
-| #74 — Retention/deletion lifecycle | §§4,12,13,14 — Asset inventory, privacy failures, gaps, unknowns D-UNK-6, D-UNK-7 | **Blocked by human decisions** (D-UNK-6, D-UNK-7) |
+| #74 — Retention/deletion lifecycle | §§4,12,13,14 — Asset inventory, privacy failures, gaps, unknowns D-UNK-6, D-UNK-7 | Unblocked — resolved by D-031 through D-035 (2026-07-07) |
 | #75 — Auth, cookie, CORS, OAuth, CSRF posture | §§2,6,7 — Trust boundaries, API surface, session model | **Partially blocked:** code/default-development posture characterized; deployed origins, CORS/OAuth values, TLS, and staging browser evidence remain under D-UNK-10 |
 | #76 — Distributed abuse and ATO controls | §§6,11,13 — API surface with rate limits, abuse cases, gaps #1,#2,#8,#10 | Unblocked (code evidence complete) |
 | #77 — Browser storage minimization | §§4,5,12 — Asset inventory, storage inventory, privacy failure modes | Unblocked (code evidence complete) |
