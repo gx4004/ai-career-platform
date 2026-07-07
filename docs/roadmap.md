@@ -114,7 +114,7 @@ Acceptance gate:
 
 ### R6. Activation Instrumentation
 
-**Status:** proposed
+**Status:** PRD published (#103; tracer issues #104–#108)
 **Outcome:** the team can see where users receive value or abandon the workflow without
 collecting raw sensitive content.
 
