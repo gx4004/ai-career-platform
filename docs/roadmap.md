@@ -130,7 +130,7 @@ Acceptance gate:
 
 ### R7. First-Run and Continuity Improvements
 
-**Status:** proposed, evidence-driven
+**Status:** PROVISIONAL PRD published (#109; tracer issues #110–#115), still evidence-driven — no candidate ships live until R6's baseline exists
 **Outcome:** more users finish a first useful result and continue to the next relevant
 tool.
 
