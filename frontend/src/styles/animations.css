@@ -343,7 +343,9 @@
   .tool-input-hero .tool-illust-scan-beam,
   .tool-illust-circle,
   .tool-illust-card,
-  .tool-typing-caret {
+  .tool-typing-caret,
+  .tool-illust-wrap,
+  .tool-illust-wrap * {
     animation: none !important;
   }
 
