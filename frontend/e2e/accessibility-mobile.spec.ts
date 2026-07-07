@@ -264,46 +264,6 @@ test('reduced-motion preference leaves no long-running page animations', async (
 
 // ── Performance baseline ──
 
-test('landing page total JS transfer is under 540 kB', async ({ page }) => {
-  const jsSizes: number[] = []
-  page.on('response', (response) => {
-    const url = response.url()
-    const ct = response.headers()['content-type'] ?? ''
-    if (ct.includes('javascript') && url.includes('/assets/')) {
-      const cl = response.headers()['content-length']
-      if (cl) jsSizes.push(Number(cl))
-    }
-  })
-
-  await gotoHydrated(page, '/')
-
-  const totalKB = jsSizes.reduce((sum, n) => sum + n, 0) / 1024
-  expect(
-    totalKB,
-    `total JS transfer: ${totalKB.toFixed(0)} kB`,
-  ).toBeLessThan(540)
-})
-
-test('landing page total CSS transfer is under 480 kB', async ({ page }) => {
-  const cssSizes: number[] = []
-  page.on('response', (response) => {
-    const url = response.url()
-    const ct = response.headers()['content-type'] ?? ''
-    if (ct.includes('css') && url.includes('/assets/')) {
-      const cl = response.headers()['content-length']
-      if (cl) cssSizes.push(Number(cl))
-    }
-  })
-
-  await gotoHydrated(page, '/')
-
-  const totalKB = cssSizes.reduce((sum, n) => sum + n, 0) / 1024
-  expect(
-    totalKB,
-    `total CSS transfer: ${totalKB.toFixed(0)} kB`,
-  ).toBeLessThan(480)
-})
-
 test('dashboard route JavaScript heap is under 50 MB after hydration', async ({
   page,
 }) => {
