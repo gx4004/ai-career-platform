@@ -54,6 +54,29 @@ describe('telemetry client', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
+  it('dispatches the landing_page_viewed event through the shared pipe', () => {
+    sendBeaconMock.mockReturnValue(true)
+
+    trackTelemetry({ event_name: 'landing_page_viewed' })
+
+    expect(sendBeaconMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('skips landing_page_viewed entirely when cookie consent is declined', () => {
+    vi.stubGlobal('localStorage', {
+      getItem: vi.fn().mockReturnValue('rejected'),
+      setItem: vi.fn(),
+      removeItem: vi.fn(),
+      clear: vi.fn(),
+    })
+    sendBeaconMock.mockReturnValue(true)
+
+    trackTelemetry({ event_name: 'landing_page_viewed' })
+
+    expect(sendBeaconMock).not.toHaveBeenCalled()
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
   it('reports frontend errors without serializing messages or arbitrary context', async () => {
     sendBeaconMock.mockReturnValue(true)
 

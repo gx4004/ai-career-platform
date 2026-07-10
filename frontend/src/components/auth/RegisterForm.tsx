@@ -5,6 +5,17 @@ import { Button } from '#/components/ui/button'
 import { Input } from '#/components/ui/input'
 import { Label } from '#/components/ui/label'
 import { useSession } from '#/hooks/useSession'
+import { readPendingIntent } from '#/lib/auth/pendingIntent'
+import { trackTelemetry } from '#/lib/telemetry/client'
+
+// The originating surface a signup converted from, expressed with the existing
+// allowlisted `tool_id` dimension (D-040). A guest-save prompt records the tool
+// it was raised from in the pending intent, so the signup is attributed to that
+// tool; a direct registration has no pending tool context. Only low-cardinality
+// allowlisted values leave the client — never the raw intent route or reason.
+function resolveSignupSurfaceTool() {
+  return readPendingIntent()?.toolId
+}
 
 function GoogleG() {
   return (
@@ -69,12 +80,25 @@ export function RegisterForm({
           event.preventDefault()
           if (!tosAccepted) return
           setLoading(true)
+          // Capture the originating surface before `register` completes — a
+          // successful signup consumes and clears the pending intent.
+          const signupSurfaceTool = resolveSignupSurfaceTool()
           try {
             await register({
               email,
               password,
               full_name: fullName || undefined,
               tos_accepted: tosAccepted,
+            })
+            // Fire exactly once at successful signup completion (D-040). The
+            // originating surface is carried by `tool_id` (the tool a guest-save
+            // prompt was raised from; absent for a direct registration). Google
+            // OAuth never reaches here — first-time OAuth users are redirected to
+            // this email form to create the account (signup_via_email_required),
+            // so every account creation flows through this call site.
+            trackTelemetry({
+              event_name: 'auth_signup_source',
+              tool_id: signupSurfaceTool,
             })
             onSuccess?.()
           } catch {

@@ -116,6 +116,34 @@ def test_ingestion_endpoint_persists_accepted_event(client, db):
     assert stored.export_format == "md"
 
 
+@pytest.mark.parametrize(
+    "payload, expected_tool_id",
+    [
+        ({"event_name": "landing_page_viewed"}, None),
+        (
+            {"event_name": "workflow_continued", "tool_id": "resume",
+             "access_mode": "authenticated"},
+            "resume",
+        ),
+        (
+            {"event_name": "auth_signup_source", "tool_id": "job-match",
+             "session_status": "guest"},
+            "job-match",
+        ),
+    ],
+)
+def test_ingestion_endpoint_persists_r6_wired_events(client, db, payload, expected_tool_id):
+    """R6 taxonomy-gap events (D-040) flow through the existing ingestion path
+    and land durably: the new `landing_page_viewed` plus the two previously
+    dead-on-arrival names `workflow_continued` and `auth_signup_source`."""
+    resp = client.post(f"{PREFIX}/telemetry/events", json=payload)
+
+    assert resp.status_code == 200
+    stored = db.query(AnalyticsEvent).one()
+    assert stored.event_name == payload["event_name"]
+    assert stored.tool_id == expected_tool_id
+
+
 def test_ingestion_endpoint_rejects_sensitive_field_and_persists_nothing(client, db):
     resp = client.post(
         f"{PREFIX}/telemetry/events",

@@ -23,6 +23,7 @@ vi.mock('#/hooks/use-mobile', () => ({
 }))
 
 vi.mock('#/lib/api/client', () => ({
+  API_URL: 'http://localhost/api/v1',
   getAuthProviders: getAuthProvidersMock,
   getCurrentUser: getCurrentUserMock,
   getHealth: getHealthMock,
