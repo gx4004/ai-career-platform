@@ -181,7 +181,9 @@ entitlement system.
 
 ### R10. Reliability and Cost Scaling
 
-**Status:** deferred until traffic requires it
+**Status:** PROVISIONAL spec published (#135; tracer issues #136–#142), still
+deferred until the R10 scorecard records a sustained trigger for an independent
+response
 **Outcome:** maintain service quality as concurrency and spend grow.
 
 Candidate triggers and responses:
