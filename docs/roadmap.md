@@ -203,7 +203,9 @@ foundation is verified.
 
 ### R11. Evidence Profile
 
-**Status:** deferred until R1–R4
+**Status:** PROVISIONAL spec published (#143; tracer issues #144–#150), still
+deferred until the R1–R4 gate closes — no schema, endpoint, or UI ships before
+the gate (D-060–D-067, ADR 0005)
 **Outcome:** users have one inspectable, correctable source of verified career
 evidence that all tools can reuse.
 
