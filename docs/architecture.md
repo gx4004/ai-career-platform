@@ -118,6 +118,10 @@ Core entities:
   listings with source attribution, retrieval date, dedup, and per-source
   retention; distinct from campaign canonical listings. Contract defined; nothing
   ships until R13 lands and each source passes terms review (D-084).
+- Application packet (planned, R15; D-093, ADR 0009) — a composition referencing
+  campaign, listing, CV variant, drafts, rationale, and unresolved questions, with
+  an immutable snapshot on approval. Contract defined; nothing ships until R14
+  lands and quality evidence is accepted (D-092).
 
 Persistence invariants:
 
@@ -295,6 +299,25 @@ errors remain forbidden.
   user data in the standard lifecycle and telemetry boundaries (D-090).
 - Recommendations become campaigns only by explicit user adoption; discovery never
   auto-creates campaigns, tasks, or reminders (D-091).
+
+## Approval Queue Boundaries (R15, deferred)
+
+- Packets are compositions referencing existing entities; approval freezes an
+  immutable snapshot (D-093, ADR 0009).
+- Preparation runs only inside user-defined rules, volume caps, and cost ceilings
+  (D-094).
+- Sensitive, legal, eligibility, relocation, demographic, salary,
+  work-authorization, and uncertain fields are server-enforced mandatory stops;
+  unresolved questions block approval (D-095).
+- No R15 code path performs, schedules, or retries a submission; the user submits
+  on the official destination. Submission automation exists only behind R16's
+  per-source authorization contract (D-096).
+- Every packet passes the D-082 reviewer with zero unresolved fabrication findings
+  before queueing; regression evals gate continued operation (D-097).
+- Queue actions are append-only audit events with duplicate prevention and
+  verified rate limits (D-098).
+- Rules, packets, drafts, and audit events are owner-isolated sensitive content in
+  the standard lifecycle and telemetry boundaries (D-099).
 
 ## Abuse Controls
 
