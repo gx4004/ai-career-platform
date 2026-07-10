@@ -924,7 +924,6 @@ the R5 staging rehearsal — except the narrowed D-UNK-5, which is a human decis
 | D-UNK-1 | What are the production values for `TRUST_PROXY_HEADERS` and `TRUSTED_PROXY_CIDRS`? | Rate limiter IP resolution depends on correct proxy trust | #76 |
 | D-UNK-2 | What is the Railway PostgreSQL connection pool ceiling? | Current `pool_size=20, max_overflow=10` may need adjustment | #76 |
 | D-UNK-3 | Is the production deployment 1 replica or more? | Affects cache and rate limiter correctness | #76, #81 |
-| D-UNK-5 (narrowed) | What is the disposition of the historical PostHog cloud-project data captured Apr 2026 (delete, export-then-delete, or retain with documented basis)? | Changes processor inventory and privacy disclosure requirements | #82 |
 | D-UNK-8 | What is the scope of the Google Cloud service account / API key permissions? | Limits blast radius of credential compromise | #79 |
 | D-UNK-9 | Are there any additional production environment variables not in `.env.example`? | Complete attack surface enumeration | #81 |
 | D-UNK-10 | What are the deployed frontend/backend domains, their registrable-site relationship, and is TLS configured end-to-end? | Cookie delivery, credentialed CORS, OAuth redirects, and HSTS viability | #75, #81 |
@@ -934,7 +933,8 @@ the R5 staging rehearsal — except the narrowed D-UNK-5, which is a human decis
 | ID | Resolution |
 |----|-----------|
 | D-UNK-4 | Resolved 2026-07-10 by D-117: production launches with `SENTRY_DSN` unset; enabling Sentry later requires R5 staging scrub verification first. |
-| D-UNK-5 (product side) | Resolved 2026-07-10 by D-118: PostHog is not activated and is not a processor going forward; remnant proxy/configuration is removed as cleanup. The historical cloud-data disposition remains open above. |
+| D-UNK-5 (product side) | Resolved 2026-07-10 by D-118: PostHog is not activated and is not a processor going forward; remnant proxy/configuration is removed as cleanup. |
+| D-UNK-5 (historical data) | Resolved 2026-07-10 by D-119: delete the historical PostHog cloud project data without export; user console action tracked by #208. |
 | D-UNK-6 | Retention periods accepted 2026-07-07: primary data indefinite until user deletion (D-031), logs use Railway-managed retention (D-033), Sentry events use processor-managed retention (D-034), deletion-audit is the existing structured log line (D-035). |
 | D-UNK-7 | Backup posture accepted 2026-07-07: no backups during thesis-demo phase; Railway managed automated backups + a rehearsed restore procedure become required before beta launch (D-032, tracked by R5 in `docs/roadmap.md`). |
 
