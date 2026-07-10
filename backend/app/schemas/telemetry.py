@@ -20,10 +20,6 @@ TelemetryEventName = Literal[
     "workspace_resumed",
     "frontend_error",
     "tool_regenerate",
-    "ad_shown",
-    "ad_completed",
-    "ad_blocked",
-    "countdown_completed",
     "auth_signup_source",
     "workflow_continued",
 ]
@@ -45,7 +41,6 @@ FailureCategory = Literal[
 ]
 ExportFormat = Literal["txt", "md"]
 SessionStatus = Literal["loading", "guest", "authenticated"]
-UnlockMethod = Literal["ad", "countdown"]
 
 
 class TelemetryEventRequest(BaseModel):
@@ -60,7 +55,6 @@ class TelemetryEventRequest(BaseModel):
     export_format: ExportFormat | None = None
     has_feedback: bool | None = None
     session_status: SessionStatus | None = None
-    unlock_method: UnlockMethod | None = None
     occurred_at: datetime | None = None
 
 

@@ -95,13 +95,10 @@ export function CookiePolicyPage() {
         and is suppressed when you decline cookies.
       </p>
       <p>
-        In the future we may enable Google AdSense to support the free tier. If and when that happens, AdSense will
-        load only <em>after</em> you accept cookies, and Google may then set advertising cookies on your device. You
-        can read more in{' '}
-        <a href="https://policies.google.com/technologies/ads" target="_blank" rel="noreferrer" className="legal-page__link">
-          Google’s ads policy
-        </a>
-        .
+        Career Workbench does not serve advertising and sets no advertising cookies. There is no ad code in the
+        application. If we ever introduce advertising or another paid tier, we will update this policy first and load
+        any advertising vendor only <em>after</em> you give affirmative, purpose-specific consent — never on the basis
+        of a pending or assumed choice.
       </p>
 
       <h2>4. Error monitoring (Sentry)</h2>

@@ -13,10 +13,6 @@ export type TelemetryEventName =
   | 'workspace_resumed'
   | 'frontend_error'
   | 'tool_regenerate'
-  | 'ad_shown'
-  | 'ad_completed'
-  | 'ad_blocked'
-  | 'countdown_completed'
   | 'auth_signup_source'
   | 'workflow_continued'
   | 'result_page_cache_miss'
@@ -31,7 +27,6 @@ type TelemetryPayload = {
   export_format?: 'txt' | 'md'
   has_feedback?: boolean
   session_status?: 'loading' | 'guest' | 'authenticated'
-  unlock_method?: 'ad' | 'countdown'
 }
 
 export function trackTelemetry(payload: TelemetryPayload): void {

@@ -102,11 +102,13 @@ separate admin application exists.
 
 ## 8. Monetization Posture
 
-The historical ad-gate UI exists in code but is bypassed: in thesis demo mode all
-results are fully visible with no ad interaction (D-019). Do not re-enable the gate,
-implement subscriptions, add affiliate links, or integrate a real ad SDK without an
-explicit roadmap decision (R9). The historical client-side ad unlock is not a
-durable entitlement system and must not be treated as one.
+All results are fully visible with no ad interaction (D-019). The historical
+client-only ad-gate/unlock path has been removed (R9 #127, D-051): result content
+renders directly, and no ad wrapper, ad loader, countdown fallback, `ad-unlocked`
+storage flag, or ad/countdown telemetry remains. Do not reintroduce a client-side
+gate, implement subscriptions, add affiliate links, or integrate a real ad SDK
+without an explicit roadmap decision (R9). Any future monetized access must be
+server-authoritative (D-048, ADR 0003), never proven by editable browser storage.
 
 ## 9. Out of Scope for the Current Horizon
 

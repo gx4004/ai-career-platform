@@ -42,8 +42,9 @@ export function CookieConsent() {
     <div className="cookie-banner" role="dialog" aria-label="Cookie consent">
       <div className="cookie-banner__inner">
         <p className="cookie-banner__text">
-          We use strictly-necessary cookies to keep you signed in. Optional advertising cookies (Google AdSense) only
-          load if you accept. No third-party analytics are active today.{' '}
+          We use strictly-necessary cookies to keep you signed in, and a small amount of first-party diagnostic
+          telemetry to see whether the tools work — declining turns that telemetry off. We serve no advertising and
+          load no third-party analytics or advertising cookies.{' '}
           <Link to="/cookies" className="cookie-banner__link">
             Learn more
           </Link>

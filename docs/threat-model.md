@@ -255,7 +255,6 @@ the same data persists indefinitely in the `tool_runs` table.
 | `cw:demo-result:{id}` | `src/lib/tools/demoRuns.ts` | Full `ToolRunDetail` (all LLM output) | **High** — complete tool result | Tab close | Manual clear, explicit logout, account deletion, or tab close |
 | `cw:resume-carry` | `src/lib/tools/resumeCarryStore.ts` | Raw resume text (plain string) | **High** — unstructured resume | Tab close | Manual clear, explicit logout, account deletion, or tab close |
 | `cw:resume-carry-filename` | `src/lib/tools/resumeCarryStore.ts` | Filename string | Low | Tab close | Manual clear, explicit logout, account deletion, or tab close |
-| `ad-unlocked:{runId}` | `src/hooks/useAdUnlock.ts:6,15` | `"1"` flag | None | Tab close | Tab close |
 | `cw:practice-attempts` | `src/components/tooling/InterviewPracticeMode.tsx:31,65` | `Record<number,number>` | None | Tab close | Tab close |
 | `cw:consecutive-crashes` | `src/components/app/ErrorBoundary.tsx:34-38` | String number | None | On success/redirect | 2+ crashes → redirect + clear |
 | `cw:guest-banner-dismissed` | `src/components/tooling/GuestSaveBanner.tsx:17,27` | `"1"` flag | None | Tab close | Tab close |
@@ -822,11 +821,10 @@ Deletion-audit `user_id` necessity and retention remain owned by #74.
 - **Schema:** Unknown fields are rejected. The contract has no arbitrary metadata,
   raw error-message, route, history-ID, workspace-ID, resume, job-description, or
   generated-content field.
-- **Event names:** `tool_run_started`, `tool_run_succeeded`, `tool_run_failed`,
-  `result_page_loaded`, `export_action_used`, `workspace_resumed`,
-  `frontend_error`, `tool_regenerate`, `ad_shown`, `ad_completed`,
-  `ad_blocked`, `countdown_completed`, `auth_signup_source`,
-  `workflow_continued`, `result_page_cache_miss`
+- **Event names:** `landing_page_viewed`, `tool_run_started`, `tool_run_succeeded`,
+  `tool_run_failed`, `result_page_loaded`, `result_page_cache_miss`,
+  `export_action_used`, `workspace_resumed`, `frontend_error`, `tool_regenerate`,
+  `auth_signup_source`, `workflow_continued`
 - **Deliberately excluded:** Resume text, job descriptions, user emails, PII
 
 — `frontend/src/lib/telemetry/client.ts`
@@ -849,20 +847,28 @@ And the frontend Dockerfile declares them as build args. However:
 
 **Status:** Infrastructure present but SDK is not activated. See D-UNK-4.
 
-### 10.4 Google AdSense — Dormant UI, Unsafe Disabled Path
+### 10.4 Google AdSense — Client Ad/Unlock Path Removed
 
-The result wrapper returns full content before rendering an ad gate, but it calls
-`useAd()` before that early return. The hook rejects only explicit consent state
-`rejected`; both `pending` and `accepted` continue through ad-blocker detection and
-load the AdSense script when `VITE_AD_CLIENT_ID` exists. The current Dockerfile does
-not declare or inject that build argument, and no tracked environment example enables
-it, so this is not evidence that the deployed product currently loads AdSense. It is
-evidence that the dormant path is not safe to reactivate or retain as R9's foundation.
+The dormant client-only advertising path has been removed (R9 #127, D-051). The
+former result wrapper (`AdGatedLock`) invoked `useAd()` before its thesis-demo early
+return; `useAd()` rejected only explicit consent state `rejected`, so both `pending`
+and `accepted` continued through ad-blocker detection and could load the AdSense
+script when `VITE_AD_CLIENT_ID` was configured. That code was unsafe to retain as a
+disabled state and structurally incompatible with the server-authoritative access
+decision D-048 requires, so it was deleted rather than left dormant.
 
-R9 decision D-051 requires removing the client path before candidate implementation;
-D-048 requires any future access decision to be server-authoritative.
+Removed together: the result wrapper, the ad loader / ad-blocker detection
+(`useAd`), the sessionStorage `ad-unlocked:{runId}` unlock hook (`useAdUnlock`), the
+countdown fallback (`AdCountdownTimer`), their CSS, and the ad/countdown telemetry
+event names (`ad_shown`, `ad_completed`, `ad_blocked`, `countdown_completed`) and
+`unlock_method` field on both the frontend and backend contracts. Result content now
+renders directly; no advertising vendor script is injected for any consent state.
+No AdSense client id is declared or injected by the Dockerfile or any tracked
+environment example. Any future monetization must land through the server-
+authoritative access seam (D-048, ADR 0003); it may not reuse a client-only gate.
 
-— `frontend/src/components/tooling/AdGatedLock.tsx`, `frontend/src/hooks/useAd.ts`
+— removed from `frontend/src/components/tooling/`, `frontend/src/hooks/`,
+`frontend/src/lib/telemetry/client.ts`, `backend/app/schemas/telemetry.py`
 
 ---
 
@@ -909,7 +915,7 @@ D-048 requires any future access decision to be server-authoritative.
 | 9 | Password reset URL exposure | New links use `#token=...`; the page consumes and scrubs fragment and legacy query tokens | Remove legacy query compatibility after the reset-token lifetime and rollout window | Old links can retain tokens in pre-existing browser history | #75 |
 | 10 | CAPTCHA coverage is registration-only | Evidence can identify route-specific abuse, but the existing challenge contract covers registration | Add a reviewed challenge contract only to the attacked flow | Unconditional CAPTCHA harms access; unsupported activation would break clients | #76 follow-up if threshold triggers |
 | 11 | Login error message distinction | "Invalid email or password" (ambiguous) | Same message for both cases (no enumeration) | Registration says "Email already registered" — enables enumeration | #75 |
-| 12 | Dormant ad wrapper runs its loader hook before returning the free result | `useAd` treats pending consent like acceptance and can load AdSense when locally configured | Remove the dormant client ad/unlock path; require explicit candidate-specific consent and server-authoritative access before R9 | Third-party script may load before affirmative consent; future agents may revive a bypassable client gate | R9 / D-051 |
+| 12 | Dormant client ad/unlock path removed | `AdGatedLock`/`useAd`/`useAdUnlock`/`AdCountdownTimer`, their CSS, the `ad-unlocked:{runId}` key, and the ad/countdown telemetry names + `unlock_method` field are deleted; result content renders directly with no vendor script for any consent state (R9 #127) | Any future monetization uses the server-authoritative access seam with explicit candidate-specific consent, never a client-only gate (D-048, ADR 0003) | None from this path today; future agents must not revive a bypassable client gate | R9 / D-051 (resolved) |
 
 ---
 

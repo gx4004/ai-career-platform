@@ -14,7 +14,6 @@ from app.schemas.telemetry import (
     TelemetryEventName,
     TelemetryLevel,
     ToolId,
-    UnlockMethod,
 )
 
 # Activation-event names accepted by the durable write seam. This is the union
@@ -47,7 +46,6 @@ class ActivationEventCreate(BaseModel):
     export_format: ExportFormat | None = None
     has_feedback: bool | None = None
     session_status: SessionStatus | None = None
-    unlock_method: UnlockMethod | None = None
     duration_ms: int | None = None
     cost_estimate: Decimal | None = None
     occurred_at: datetime | None = None

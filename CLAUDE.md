@@ -24,7 +24,7 @@ AI-powered job-search workspace. 6 tools (Resume Analyzer, Job Match, Cover Lett
 | Single LLM provider (Gemini Flash) | No multi-provider abstraction needed V1 |
 | BS4 + Playwright fallback for scraping | Best effort at JS sites, graceful paste fallback |
 | SameSite=Lax cookies, no CSRF tokens | Sufficient for SPA + JSON API |
-| Client-side ad unlock (sessionStorage) | Bypass risk accepted, pragmatic for V1 (currently bypassed for thesis demo) |
+| No client-side ad/unlock path | Dormant ad gate + `ad-unlocked` sessionStorage contract removed (R9 #127, D-051); any future monetized access must be server-authoritative (D-048) |
 | English only V1 | Realistic scope for solo dev |
 | In-memory cache V1 | Redis V1.1 when traffic warrants |
 | 4 retry + exponential backoff for LLM | 5s→10s→20s→40s + jitter, 120s per-call timeout, then tool-specific fallback (heuristic for Resume / Job Match, explicit error for generative tools) |
@@ -123,7 +123,7 @@ Review gate is OFF — Codex does not automatically review Claude's output. Requ
 - Don't add affiliate links (V1.1)
 - Don't add CAPTCHA (V1.1, rate limit sufficient)
 - Don't implement real AdSense SDK (placeholder until approved)
-- Don't re-enable ad gate (thesis demo = fully free, AdGatedLock bypassed)
+- Don't re-introduce a client ad gate (dormant path removed in R9 #127; results are fully free; any future access gate must be server-authoritative per D-048)
 - Don't send welcome or account-deletion confirmation emails (V1.1; password-reset is the only transactional email V1)
 - Don't add LLM streaming (v2)
 - Don't create new documentation files unless asked
