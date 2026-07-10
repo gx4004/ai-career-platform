@@ -262,7 +262,9 @@ Acceptance gate:
 
 ### R14. Lawful Job Discovery
 
-**Status:** deferred until R13
+**Status:** PROVISIONAL spec published (#170; tracer issues #171–#177), still
+deferred until R13 ships, with every individual source additionally gated behind
+an accepted terms review (D-084–D-091, ADR 0008)
 **Outcome:** users receive deduplicated, explainable job recommendations from sources
 that explicitly permit the implemented behavior.
 

@@ -175,6 +175,30 @@ claim with its failed evidence trace, a missed listing requirement, a
 cross-document contradiction, generic writing, or a document defect. Findings are
 editable advice; they are never auto-applied and never create or confirm evidence.
 
+## Lawful Job Discovery (R14)
+
+**Source registry entry**
+The governance record that permits ingestion from one discovery source: owner,
+terms status and review date, allowed behavior, rate limit, attribution rule,
+retention rule, and kill switch. No ingestion happens outside the registry, and no
+source activates before its terms review is accepted.
+
+**Discovered listing**
+A job posting persisted in the product-owned listings store with source
+attribution and retrieval date, deduplicated across sources and expired per its
+source's retention rule. Distinct from a campaign's canonical listing, which is
+owner-isolated user content.
+
+**Recommendation**
+A discovered listing ranked against confirmed Evidence Profile items and
+preference items, always carrying an explainable match rationale. A recommendation
+becomes a campaign only by explicit user adoption.
+
+**Query contract**
+The registry-declared minimal parameters a source query may carry (for example
+role keywords and location). Profile text, employer history, and identity never
+leave the product.
+
 ## Branch roles
 
 - `chapter2` is the long-lived product experimentation and hardening branch.
