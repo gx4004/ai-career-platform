@@ -30,6 +30,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminIndexRouteImport } from './routes/admin/index'
 import { Route as AdminUsersRouteImport } from './routes/admin/users'
 import { Route as AdminRunsRouteImport } from './routes/admin/runs'
+import { Route as AdminActivationRouteImport } from './routes/admin/activation'
 import { Route as ResumeResultHistoryIdRouteImport } from './routes/resume_.result.$historyId'
 import { Route as PortfolioResultHistoryIdRouteImport } from './routes/portfolio_.result.$historyId'
 import { Route as JobMatchResultHistoryIdRouteImport } from './routes/job-match_.result.$historyId'
@@ -142,6 +143,11 @@ const AdminRunsRoute = AdminRunsRouteImport.update({
   path: '/runs',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminActivationRoute = AdminActivationRouteImport.update({
+  id: '/activation',
+  path: '/activation',
+  getParentRoute: () => AdminRoute,
+} as any)
 const ResumeResultHistoryIdRoute = ResumeResultHistoryIdRouteImport.update({
   id: '/resume_/result/$historyId',
   path: '/resume/result/$historyId',
@@ -195,6 +201,7 @@ export interface FileRoutesByFullPath {
   '/resume': typeof ResumeRoute
   '/settings': typeof SettingsRoute
   '/terms': typeof TermsRoute
+  '/admin/activation': typeof AdminActivationRoute
   '/admin/runs': typeof AdminRunsRoute
   '/admin/users': typeof AdminUsersRoute
   '/admin/': typeof AdminIndexRoute
@@ -223,6 +230,7 @@ export interface FileRoutesByTo {
   '/resume': typeof ResumeRoute
   '/settings': typeof SettingsRoute
   '/terms': typeof TermsRoute
+  '/admin/activation': typeof AdminActivationRoute
   '/admin/runs': typeof AdminRunsRoute
   '/admin/users': typeof AdminUsersRoute
   '/admin': typeof AdminIndexRoute
@@ -253,6 +261,7 @@ export interface FileRoutesById {
   '/resume': typeof ResumeRoute
   '/settings': typeof SettingsRoute
   '/terms': typeof TermsRoute
+  '/admin/activation': typeof AdminActivationRoute
   '/admin/runs': typeof AdminRunsRoute
   '/admin/users': typeof AdminUsersRoute
   '/admin/': typeof AdminIndexRoute
@@ -284,6 +293,7 @@ export interface FileRouteTypes {
     | '/resume'
     | '/settings'
     | '/terms'
+    | '/admin/activation'
     | '/admin/runs'
     | '/admin/users'
     | '/admin/'
@@ -312,6 +322,7 @@ export interface FileRouteTypes {
     | '/resume'
     | '/settings'
     | '/terms'
+    | '/admin/activation'
     | '/admin/runs'
     | '/admin/users'
     | '/admin'
@@ -341,6 +352,7 @@ export interface FileRouteTypes {
     | '/resume'
     | '/settings'
     | '/terms'
+    | '/admin/activation'
     | '/admin/runs'
     | '/admin/users'
     | '/admin/'
@@ -528,6 +540,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminRunsRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/activation': {
+      id: '/admin/activation'
+      path: '/activation'
+      fullPath: '/admin/activation'
+      preLoaderRoute: typeof AdminActivationRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/resume_/result/$historyId': {
       id: '/resume_/result/$historyId'
       path: '/resume/result/$historyId'
@@ -574,12 +593,14 @@ declare module '@tanstack/react-router' {
 }
 
 interface AdminRouteChildren {
+  AdminActivationRoute: typeof AdminActivationRoute
   AdminRunsRoute: typeof AdminRunsRoute
   AdminUsersRoute: typeof AdminUsersRoute
   AdminIndexRoute: typeof AdminIndexRoute
 }
 
 const AdminRouteChildren: AdminRouteChildren = {
+  AdminActivationRoute: AdminActivationRoute,
   AdminRunsRoute: AdminRunsRoute,
   AdminUsersRoute: AdminUsersRoute,
   AdminIndexRoute: AdminIndexRoute,

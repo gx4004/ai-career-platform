@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from typing import Literal
 
 import sqlalchemy as sa
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -13,6 +14,7 @@ from app.limiter import limiter
 from app.models.tool_run import ToolRun
 from app.models.user import User
 from app.schemas.admin import (
+    AdminActivationResponse,
     AdminRunDetailResponse,
     AdminRunItem,
     AdminRunListResponse,
@@ -21,6 +23,10 @@ from app.schemas.admin import (
     AdminUserDetailResponse,
     AdminUserItem,
     AdminUserListResponse,
+)
+from app.services.analytics import (
+    ACTIVATION_DEFAULT_WINDOW_DAYS,
+    aggregate_activation_metrics,
 )
 
 router = APIRouter()
@@ -251,6 +257,45 @@ def get_stats(
         runs_today=runs_today,
         active_users_7d=active_users_7d,
         runs_by_tool=runs_by_tool,
+    )
+
+
+# ── Activation dashboard (R6, issue #108) ──
+
+@router.get("/activation", response_model=AdminActivationResponse)
+@limiter.limit(_ADMIN_RATE)
+def get_activation(
+    request: Request,
+    # Inlined to mirror `AccessMode` (app/schemas/telemetry.py) — FastAPI cannot
+    # resolve the aliased Literal as a query-param forward ref under
+    # `from __future__ import annotations`.
+    access_mode: Literal["authenticated", "guest_demo"] | None = Query(None),
+    start: datetime | None = Query(None),
+    end: datetime | None = Query(None),
+    admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """Read-only activation funnel / failure / cost aggregate (D-039).
+
+    Admin-gated exactly like every other endpoint here (`get_current_admin`).
+    Filterable by access mode (guest vs. authenticated) and by a date window
+    that defaults to a rolling two weeks. Naive window bounds are treated as
+    UTC so comparison against the timezone-aware `created_at` column is well
+    defined on Postgres.
+    """
+    now = datetime.now(UTC)
+    window_end = end or now
+    window_start = start or (window_end - timedelta(days=ACTIVATION_DEFAULT_WINDOW_DAYS))
+    if window_start.tzinfo is None:
+        window_start = window_start.replace(tzinfo=UTC)
+    if window_end.tzinfo is None:
+        window_end = window_end.replace(tzinfo=UTC)
+
+    return aggregate_activation_metrics(
+        db,
+        window_start=window_start,
+        window_end=window_end,
+        access_mode=access_mode,
     )
 
 

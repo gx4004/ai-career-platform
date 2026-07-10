@@ -1,8 +1,9 @@
 import { Link, Outlet, useRouterState } from '@tanstack/react-router'
-import { LayoutDashboard, Users, FileText, ArrowLeft } from 'lucide-react'
+import { LayoutDashboard, Users, FileText, Activity, ArrowLeft } from 'lucide-react'
 
 const NAV = [
   { to: '/admin', label: 'Dashboard', icon: LayoutDashboard },
+  { to: '/admin/activation', label: 'Activation', icon: Activity },
   { to: '/admin/users', label: 'Users', icon: Users },
   { to: '/admin/runs', label: 'Runs', icon: FileText },
 ] as const

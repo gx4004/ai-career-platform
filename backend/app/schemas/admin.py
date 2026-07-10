@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from decimal import Decimal
+
 from pydantic import BaseModel
 
 
@@ -50,6 +52,56 @@ class AdminStatsResponse(BaseModel):
 
 class AdminSetAdminRequest(BaseModel):
     is_admin: bool
+
+
+# ── R6 activation dashboard (issue #108, parent #103, D-039) ──
+# Read-only aggregate view over the durable activation-event store. Plain
+# counts/tables only — no charting library, no BI tool (D-039, ADR 0001).
+
+
+class FunnelStepCount(BaseModel):
+    """One of the six taxonomy steps, landing → revisit/export, with its count.
+
+    ``step`` is the stable machine key; ``label`` is the human-readable name for
+    the admin table. ``count`` is the number of matching activation events inside
+    the requested window and access-mode filter.
+    """
+
+    step: str
+    label: str
+    count: int = 0
+
+
+class FailureCategoryCount(BaseModel):
+    """Failure events grouped by allowlisted failure category."""
+
+    failure_category: str
+    count: int = 0
+
+
+class ToolLatencyCost(BaseModel):
+    """Per-tool latency/cost aggregate over *completed* runs, using the
+    backend-computed metrics from issue #106. Scoped to ``tool_run_completed``
+    (not failed runs) so it stays consistent with the funnel's completion step;
+    ``runs`` counts completed runs; cost fields are null when no completed run
+    in scope recorded a cost estimate."""
+
+    tool_id: str
+    runs: int = 0
+    avg_duration_ms: float | None = None
+    total_cost_estimate: Decimal | None = None
+    avg_cost_estimate: Decimal | None = None
+
+
+class AdminActivationResponse(BaseModel):
+    """Funnel / failure / cost aggregate for the admin activation dashboard."""
+
+    window_start: str
+    window_end: str
+    access_mode: str | None = None
+    funnel: list[FunnelStepCount] = []
+    failures: list[FailureCategoryCount] = []
+    tools: list[ToolLatencyCost] = []
 
 
 # Rebuild models that use forward references

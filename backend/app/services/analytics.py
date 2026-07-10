@@ -2,12 +2,21 @@ from __future__ import annotations
 
 import logging
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from typing import Any
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.models.analytics_event import AnalyticsEvent
+from app.schemas.admin import (
+    AdminActivationResponse,
+    FailureCategoryCount,
+    FunnelStepCount,
+    ToolLatencyCost,
+)
 from app.schemas.analytics import ActivationEventCreate
+from app.schemas.telemetry import AccessMode
 
 logger = logging.getLogger("app.analytics")
 
@@ -15,6 +24,125 @@ logger = logging.getLogger("app.analytics")
 # whose server ingest time (`created_at`) is strictly older than this many days
 # are pruned; anything on or within the window is always kept.
 ACTIVATION_EVENT_RETENTION_DAYS = 180
+
+# Default admin-dashboard window: a rolling two weeks (D-039, parent #103). The
+# read endpoint uses this when the caller supplies no explicit date window.
+ACTIVATION_DEFAULT_WINDOW_DAYS = 14
+
+# The six funnel taxonomy steps, in order, each mapped to the activation event
+# name(s) that realise it. The completion step counts the backend-authoritative
+# ``tool_run_completed`` (fired unconditionally for every run incl. guest, and
+# the source of the #106 duration/cost metrics); its consent-gated frontend twin
+# ``tool_run_succeeded`` is intentionally not summed here to avoid double
+# counting a single run. ``workflow_continued`` and ``auth_signup_source`` are
+# the two events wired live in #105 (previously dead), and ``landing_page_viewed``
+# is the new entry-point event, so all six steps are real signals.
+ACTIVATION_FUNNEL_STEPS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
+    ("landing", "Landing viewed", ("landing_page_viewed",)),
+    ("tool_started", "Tool started", ("tool_run_started",)),
+    ("completed", "Tool completed", ("tool_run_completed",)),
+    ("connected_next_step", "Connected next step", ("workflow_continued",)),
+    ("signup", "Signup", ("auth_signup_source",)),
+    ("revisit_export", "Revisit / export", ("workspace_resumed", "export_action_used")),
+)
+
+
+def _quantize_cost(value: Any) -> Decimal | None:
+    """Normalise an aggregate cost to the store's 6-decimal precision."""
+    if value is None:
+        return None
+    return Decimal(str(value)).quantize(Decimal("0.000001"))
+
+
+def aggregate_activation_metrics(
+    db: Session,
+    *,
+    window_start: datetime,
+    window_end: datetime,
+    access_mode: AccessMode | None = None,
+) -> AdminActivationResponse:
+    """Aggregate the activation-event store into the admin dashboard shape (D-039).
+
+    Read-only. Returns the six-step funnel counts, failure counts by allowlisted
+    category, and per-tool latency/cost (over completed runs), all restricted to
+    ``[window_start, window_end]`` (by server ingest time) and, when
+    ``access_mode`` is given, to events tagged with that access mode. Plain
+    aggregate counts only — the dashboard renders them as tables, with no
+    charting library (ADR 0001).
+    """
+
+    def scoped(query):
+        query = query.filter(
+            AnalyticsEvent.created_at >= window_start,
+            AnalyticsEvent.created_at <= window_end,
+        )
+        if access_mode is not None:
+            query = query.filter(AnalyticsEvent.access_mode == access_mode)
+        return query
+
+    counts_by_name = dict(
+        scoped(db.query(AnalyticsEvent.event_name, func.count(AnalyticsEvent.id)))
+        .group_by(AnalyticsEvent.event_name)
+        .all()
+    )
+    funnel = [
+        FunnelStepCount(
+            step=step,
+            label=label,
+            count=sum(counts_by_name.get(name, 0) for name in names),
+        )
+        for step, label, names in ACTIVATION_FUNNEL_STEPS
+    ]
+
+    failure_rows = (
+        scoped(db.query(AnalyticsEvent.failure_category, func.count(AnalyticsEvent.id)))
+        .filter(AnalyticsEvent.failure_category.isnot(None))
+        .group_by(AnalyticsEvent.failure_category)
+        .order_by(func.count(AnalyticsEvent.id).desc())
+        .all()
+    )
+    failures = [
+        FailureCategoryCount(failure_category=category, count=count)
+        for category, count in failure_rows
+    ]
+
+    tool_rows = (
+        scoped(
+            db.query(
+                AnalyticsEvent.tool_id,
+                func.count(AnalyticsEvent.id),
+                func.avg(AnalyticsEvent.duration_ms),
+                func.sum(AnalyticsEvent.cost_estimate),
+                func.avg(AnalyticsEvent.cost_estimate),
+            )
+        )
+        .filter(
+            AnalyticsEvent.event_name == "tool_run_completed",
+            AnalyticsEvent.tool_id.isnot(None),
+        )
+        .group_by(AnalyticsEvent.tool_id)
+        .order_by(AnalyticsEvent.tool_id)
+        .all()
+    )
+    tools = [
+        ToolLatencyCost(
+            tool_id=tool_id,
+            runs=runs,
+            avg_duration_ms=(round(float(avg_duration), 1) if avg_duration is not None else None),
+            total_cost_estimate=_quantize_cost(total_cost),
+            avg_cost_estimate=_quantize_cost(avg_cost),
+        )
+        for tool_id, runs, avg_duration, total_cost, avg_cost in tool_rows
+    ]
+
+    return AdminActivationResponse(
+        window_start=window_start.isoformat(),
+        window_end=window_end.isoformat(),
+        access_mode=access_mode,
+        funnel=funnel,
+        failures=failures,
+        tools=tools,
+    )
 
 
 def record_activation_event(db: Session, **fields: Any) -> AnalyticsEvent:
