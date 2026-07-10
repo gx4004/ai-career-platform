@@ -75,6 +75,26 @@ browser unlock flag or provider UI state is never an entitlement.
 The unchanged full-access experience against which an R9 treatment is measured and
 which remains available as the accessible, non-deceptive fallback.
 
+## Reliability and cost scaling (R10)
+
+**Scaling trigger**
+A predeclared, sustained operational threshold that authorizes evaluation of one R10
+response. A trigger is evidence for review, not automatic permission to deploy the
+candidate response.
+
+**Reliability response**
+One bounded, reversible change selected for a fired scaling trigger. Independent
+responses are not bundled into a general scaling platform.
+
+**Provider incident**
+A time-bounded period in which the generation provider causes user-visible tool
+failures or latency-budget breaches, grouped without raw provider exceptions or user
+content.
+
+**Source family**
+An allowlisted job-import category such as a supported ATS family or `other`, used for
+aggregate reliability evidence without retaining a full hostname, path, or query.
+
 ## Branch roles
 
 - `chapter2` is the long-lived product experimentation and hardening branch.
