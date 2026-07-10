@@ -340,7 +340,8 @@ Acceptance gate:
 
 ### R18. Further Expansion
 
-**Status:** deferred until retention is demonstrated
+**Status:** selection gate defined (D-115; gate issue #204) — no direction is
+selected or pre-approved; deferred until retention is demonstrated
 
 Possible directions:
 
