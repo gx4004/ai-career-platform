@@ -1,4 +1,6 @@
+import asyncio
 import logging
+from contextlib import asynccontextmanager, suppress
 
 import sentry_sdk
 from fastapi import FastAPI, Request
@@ -32,6 +34,7 @@ from app.routers import (
     telemetry,
 )
 from app.services.observability import configure_logging
+from app.services.retention import run_activation_prune_scheduler
 
 configure_logging()
 
@@ -73,7 +76,24 @@ if settings.SENTRY_DSN:
 
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="Career Workbench API", version="1.0.0")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Start the recurring activation-event retention prune (D-037, #107).
+
+    See `app.services.retention` for why an app-startup task is the chosen
+    mechanism. The task is cancelled cleanly on shutdown.
+    """
+    prune_task = asyncio.create_task(run_activation_prune_scheduler())
+    try:
+        yield
+    finally:
+        prune_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await prune_task
+
+
+app = FastAPI(title="Career Workbench API", version="1.0.0", lifespan=lifespan)
 app.state.limiter = limiter
 
 
