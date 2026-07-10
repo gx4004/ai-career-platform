@@ -1,7 +1,7 @@
 # Career Workbench — Decision Log
 
 **Status:** append-only canonical record
-**Last reviewed:** 2026-07-10 (D-116–D-118 added same day, R3 re-grill closure)
+**Last reviewed:** 2026-07-10 (D-119 added same day)
 
 Use this log for durable product or architecture choices. New entries get the next
 ID. To reverse a decision, add a new entry and mark the old one `superseded`; do not
@@ -127,6 +127,7 @@ erase history.
 | D-116 | accepted | Close the R3 specification re-grill: every remaining acceptance item is either production/staging evidence (D-UNK-1, -2, -3, -8, -9, -10, plus the #75 staging OAuth round trip, #81 header/Docker verification, and `RATE_LIMIT_STORAGE_URI` capacity test) collected by the R3 Evidence Checklist in `docs/launch-checklist.md` during the R5 staging rehearsal, or one of two named human decisions — historical PostHog cloud-data disposition and launch market/segment (D-NEXT-2). No unresolved specification questions remain; the R3 gate closes when the checklist and the two decisions land. | The remaining unknowns are facts about a deployment that does not exist yet, not open design questions; keeping R3 "in re-grill" indefinitely conflated evidence collection with specification and blocked the R5 sequencing both gates need. |
 | D-117 | accepted | Resolve D-UNK-4 by default-safe decision: production launches with `SENTRY_DSN` unset (Sentry inactive), and enabling it later requires the R5 staging verification of scrubbing against representative failures before the DSN is ever set. | Extends the accepted Sentry posture (D-018, D-034): inactive-by-default means no error data leaves the Railway network until scrubbing is verified with evidence rather than assumed from code review. |
 | D-118 | accepted | Resolve the product side of D-UNK-5: PostHog is not activated and is not a processor for the product going forward; the remnant frontend proxy/configuration is removed as cleanup; disclosures reference PostHog only historically. The remaining human decision is narrowed to the disposition of the historical PostHog cloud-project data (delete, export-then-delete, or retain with documented basis). | D-036 and D-050 already chose the first-party analytics path twice and explicitly kept PostHog reactivation out of scope; carrying "should PostHog be activated?" as an open unknown contradicted the accepted decision log, while the un-purged 2026 cloud data remains a real, user-owned action item. |
+| D-119 | accepted | Resolve the historical PostHog cloud-data disposition (narrowed D-UNK-5): delete the historical PostHog cloud project data without export, as a user-performed console action tracked by issue #208; any future PostHog adoption is a brand-new processor decision starting from zero. | The data (real PII/session content captured 2026-04-13–28) has had no identified product need in over 100 days, D-118 already removed PostHog from the forward inventory, and deletion without export is the minimal-risk, RODO-aligned disposition. |
 
 ## Decisions Needed
 
