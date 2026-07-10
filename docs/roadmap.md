@@ -242,7 +242,9 @@ Acceptance gate:
 
 ### R13. Application Campaigns and Reviewer
 
-**Status:** deferred until R12
+**Status:** PROVISIONAL spec published (#161; tracer issues #162–#168), still
+deferred until R12 ships — no migration, endpoint, reminder channel, or reviewer
+ships earlier (D-076–D-083, ADR 0007)
 **Outcome:** each target role has a coherent campaign containing its listing,
 materials, preparation, tracking, and quality review.
 
