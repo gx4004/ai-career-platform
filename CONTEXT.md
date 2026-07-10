@@ -224,6 +224,29 @@ user to the official destination to submit themselves. No R15 code path performs
 schedules, or retries a submission; submission automation exists only behind R16's
 per-source authorization contract.
 
+## Trusted Autopilot (R16)
+
+**Submission source**
+A discovery-registry source additionally holding accepted legal/terms approval for
+submission and a maintained compatibility contract. Only submission sources may
+receive automated applications, and each has its own kill switch.
+
+**Submission authorization**
+The user's granular, explicit, per-source, revocable grant that permits automated
+submission, implemented only with authentication the source provides for this
+purpose — never stored third-party passwords or copied session state.
+
+**Submission record**
+The append-only audit of one idempotent submission: the exact user-visible packet
+snapshot, per-field record, outcome, and confirmation. The product's copies follow
+the standard lifecycle; the employer's copy is beyond recall, and the product says
+so honestly.
+
+**Compatibility contract**
+The documented fields, formats, and error semantics of one submission source, with
+automated breakage detection. A broken contract trips the source kill switch and
+degrades to the Level B human handoff.
+
 ## Branch roles
 
 - `chapter2` is the long-lived product experimentation and hardening branch.

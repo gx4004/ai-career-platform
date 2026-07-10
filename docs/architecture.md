@@ -122,6 +122,10 @@ Core entities:
   campaign, listing, CV variant, drafts, rationale, and unresolved questions, with
   an immutable snapshot on approval. Contract defined; nothing ships until R14
   lands and quality evidence is accepted (D-092).
+- Submission record (planned, R16; D-103, ADR 0010) — append-only audit of one
+  idempotent per-source submission with the exact packet snapshot and per-field
+  record. Contract defined; nothing ships until R15 demonstrates quality and
+  demand and each source passes legal review (D-100).
 
 Persistence invariants:
 
@@ -318,6 +322,26 @@ errors remain forbidden.
   verified rate limits (D-098).
 - Rules, packets, drafts, and audit events are owner-isolated sensitive content in
   the standard lifecycle and telemetry boundaries (D-099).
+
+## Trusted Submission Boundaries (R16, deferred)
+
+- Submission exists only behind four independent gates: source (terms approval +
+  compatibility contract), user (granular revocable authorization), packet
+  (approved snapshot, zero unresolved questions or unsupported claims), and
+  envelope (limits, anomaly detection, rehearsed incident controls) (D-100–D-104,
+  ADR 0010).
+- No stored third-party passwords, copied session state, or inferred
+  authorization; only source-provided authentication mechanisms (D-101, D-026).
+- Challenges, CAPTCHAs, uncertainty, or contract mismatches stop the attempt and
+  return the packet via the Level B handoff — never a workaround (D-102).
+- Submissions are idempotent with duplicate prevention; audit is append-only with
+  per-field reconstructability and user-inspectable confirmation (D-103).
+- Contract breakage trips the source kill switch and degrades to human handoff
+  (D-105).
+- Quality and user outcomes govern operation; raw volume never loosens controls
+  (D-106).
+- Submission records follow the standard lifecycle for product copies, with the
+  employer-copy limitation stated honestly (D-107).
 
 ## Abuse Controls
 
