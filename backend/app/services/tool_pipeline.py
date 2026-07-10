@@ -7,6 +7,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.models.user import User
+from app.services.analytics import safe_record_activation_event
 from app.services.input_sanitizer import sanitize_user_input
 from app.services.observability import (
     log_tool_run_completed,
@@ -43,6 +44,17 @@ async def run_tool_pipeline(
         access_mode=access_mode,
         linked_context_count=len(linked_ids),
     )
+    # Backend-only metrics are written unconditionally — no client/cookie is
+    # involved, so the frontend consent gate does not apply (D-038). Only
+    # allowlisted dimensions cross the seam; linked_context_count stays in the
+    # stdout log above and is deliberately not persisted (not in the D-037
+    # allowlist).
+    safe_record_activation_event(
+        db,
+        event_name="tool_run_started",
+        tool_id=tool_name,
+        access_mode=access_mode,
+    )
 
     # Sanitize
     clean_resume = sanitize_user_input(resume_text)
@@ -76,11 +88,24 @@ async def run_tool_pipeline(
         try:
             result = await service_fn(**service_kwargs)
         except Exception as exc:
+            failed_duration_ms = int((perf_counter() - start) * 1000)
             log_tool_run_failed(
                 tool_name=tool_name,
                 access_mode=access_mode,
-                duration_ms=int((perf_counter() - start) * 1000),
+                duration_ms=failed_duration_ms,
                 failure_category=exc.__class__.__name__,
+            )
+            # The exception class name is high-cardinality and not allowlisted,
+            # so it stays in the stdout log only; the durable event records the
+            # allowlisted `tool_request_failed` category (D-037).
+            safe_record_activation_event(
+                db,
+                event_name="tool_run_failed",
+                level="error",
+                tool_id=tool_name,
+                access_mode=access_mode,
+                duration_ms=failed_duration_ms,
+                failure_category="tool_request_failed",
             )
             raise
 
@@ -106,10 +131,19 @@ async def run_tool_pipeline(
         access_mode=access_mode,
     )
 
+    completed_duration_ms = int((perf_counter() - start) * 1000)
     log_tool_run_completed(
         tool_name=tool_name,
         access_mode=access_mode,
-        duration_ms=int((perf_counter() - start) * 1000),
+        duration_ms=completed_duration_ms,
+        saved=run is not None,
+    )
+    safe_record_activation_event(
+        db,
+        event_name="tool_run_completed",
+        tool_id=tool_name,
+        access_mode=access_mode,
+        duration_ms=completed_duration_ms,
         saved=run is not None,
     )
 
