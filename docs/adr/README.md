@@ -45,3 +45,4 @@ What becomes easier, what becomes harder, rollback posture.
 - [0002. Eval fixture data source for R8 Output Quality Program](0002-r8-eval-fixture-data-source.md) — accepted 2026-07-07
 - [0003. Server-authoritative access decisions for R9 Monetization Experiment](0003-r9-server-authoritative-access-decisions.md) — accepted 2026-07-10
 - [0004. Result cache remains fail-open acceleration for R10](0004-r10-cache-remains-fail-open-acceleration.md) — accepted 2026-07-10
+- [0005. Evidence Profile is a persisted user-scoped entity with per-item trust state](0005-r11-evidence-profile-persistence-boundary.md) — accepted 2026-07-10
