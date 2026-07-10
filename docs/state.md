@@ -145,7 +145,7 @@ prior slices.
 | Documentation drift | Old roadmap, frontend overhaul plan, `design.md`, and source code disagree in places. | Use canonical docs going forward; verify disputed behavior against code/UI. `docs/threat-model.md` now anchors security claims to code. |
 | Mixed local worktree | Product edits can accidentally include active thesis/generated files. | Stage explicit product paths only and verify every commit. |
 | Release environment unverified | Railway topology, variables, migrations, domain, and deploy branch may have changed. | Run deployment inventory and staging smoke test. See `docs/threat-model.md` §14 D-UNK-1 through D-UNK-10. |
-| Monetization deferred | Historical ad-gate code must not be mistaken for a current release requirement. | Keep gates disabled and revisit only after product-quality work. |
+| Monetization deferred | R9 has no activation baseline, accepted target, launch market, or selected candidate. The historical client ad wrapper is not a safe disabled state: its hook can load AdSense for pending consent when locally configured, even though the wrapper returns full results. | Remove the dormant client path (D-051); keep R9 candidate-neutral and dark until the D-046/D-047 evidence gate closes. |
 
 ### Resolved or Catalogued in Threat Model
 
