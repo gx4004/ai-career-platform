@@ -116,6 +116,39 @@ export type AdminHealth = {
   environment: string
 }
 
+// R6 activation dashboard — mirrors backend/app/schemas/admin.py
+// (FunnelStepCount / FailureCategoryCount / ToolLatencyCost / AdminActivationResponse).
+
+export type AdminAccessMode = 'authenticated' | 'guest_demo'
+
+export type FunnelStepCount = {
+  step: string
+  label: string
+  count: number
+}
+
+export type FailureCategoryCount = {
+  failure_category: string
+  count: number
+}
+
+export type ToolLatencyCost = {
+  tool_id: string
+  runs: number
+  avg_duration_ms: number | null
+  total_cost_estimate: number | string | null
+  avg_cost_estimate: number | string | null
+}
+
+export type AdminActivation = {
+  window_start: string
+  window_end: string
+  access_mode: AdminAccessMode | null
+  funnel: FunnelStepCount[]
+  failures: FailureCategoryCount[]
+  tools: ToolLatencyCost[]
+}
+
 // API functions
 
 export function getAdminStats() {
@@ -153,4 +186,16 @@ export function getAdminRuns(
 
 export function getAdminRun(runId: string) {
   return adminRequest<AdminRunDetail>(`/admin/runs/${runId}`)
+}
+
+export function getAdminActivation(
+  params: { access_mode?: AdminAccessMode; start?: string; end?: string } = {},
+) {
+  return adminRequest<AdminActivation>(
+    `/admin/activation${buildQs({
+      access_mode: params.access_mode,
+      start: params.start,
+      end: params.end,
+    })}`,
+  )
 }
