@@ -146,6 +146,7 @@ prior slices.
 | Mixed local worktree | Product edits can accidentally include active thesis/generated files. | Stage explicit product paths only and verify every commit. |
 | Release environment unverified | Railway topology, variables, migrations, domain, and deploy branch may have changed. | Run deployment inventory and staging smoke test. See `docs/threat-model.md` §14 D-UNK-1 through D-UNK-10. |
 | Monetization deferred | R9 has no activation baseline, accepted target, launch market, or selected candidate. The historical client ad wrapper is not a safe disabled state: its hook can load AdSense for pending consent when locally configured, even though the wrapper returns full results. | Remove the dormant client path (D-051); keep R9 candidate-neutral and dark until the D-046/D-047 evidence gate closes. |
+| Scaling responses deferred | The intended deployment currently starts one Uvicorn process, and no accepted evidence shows sustained cache, provider, latency, abuse/cost, database, or job-import pressure. | Implement the R10 aggregate trigger scorecard first; authorize only the independent response whose scaling trigger fires (D-052–D-059). |
 
 ### Resolved or Catalogued in Threat Model
 

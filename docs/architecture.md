@@ -119,8 +119,14 @@ Persistence invariants:
 - Guest results are transient browser state and may use `sessionStorage`.
 - Workflow carry is tab-scoped; there is no cross-tab synchronization.
 - Cached tool results are scoped by user ID or the shared guest scope.
-- Cache is in-process in V1; multi-instance deployment requires reassessing
-  correctness and hit expectations before adopting Redis.
+- Cache is in-process in V1; multi-instance deployment requires measuring hit-rate and
+  duplicate-cost impact before adopting Redis.
+- Result caching is fail-open acceleration only (D-054, ADR 0004). A cache miss or
+  backend failure executes the tool normally; cache state never owns authorization,
+  persistence, regeneration, or coordination semantics.
+- Cached values contain sensitive generated career content and therefore require the
+  same storage/lifecycle assessment as `ToolRun.result_payload` before a distributed
+  backend is adopted.
 
 Resume/workflow state in browser storage is sensitive. Store the minimum necessary,
 keep it tab-scoped, and expose a clear local-data reset. Explicit logout, successful
@@ -138,6 +144,11 @@ and resume carry while preserving consent, onboarding, and non-sensitive UI stat
 
 Each integration must fail with an actionable product state. Optional integrations
 must not make unrelated core flows unavailable.
+
+Provider fallback is not active. It may be introduced only after sustained provider-
+incident evidence and after the alternative passes R8 quality evaluation plus privacy,
+processor, cost, latency, and tool-specific failure review (D-055). Requests are not
+hedged across providers by default.
 
 ## Frontend Response Security
 
@@ -167,6 +178,24 @@ stable run/workspace fields and only explicit low-cardinality dimensions. Both S
 credentials, query strings, breadcrumb bodies, and the entire user context.
 
 Operational questions should be answerable without reconstructing sensitive content.
+R10 scaling evidence extends this boundary with allowlisted aggregate dimensions for
+topology, cache outcome, provider incident category, phase latency, database health,
+abuse/cost pressure, and job-import source family (D-053). Full URLs and raw provider
+errors remain forbidden.
+
+## Scaling Response Boundaries
+
+- R10 responses are independently trigger-gated; no general infrastructure rewrite
+  is authorized merely because traffic may grow (D-052).
+- The first perceived-latency response is real server phase progress, not simulated
+  timers or partial token persistence. Tool responses and `ToolRun` rows remain final,
+  validated JSON snapshots (D-056).
+- Abuse escalation preserves D-029's account/source quotas and reviewed per-flow
+  challenge contracts; there is no global automatic CAPTCHA response (D-057).
+- Database responses follow observed query plans and capacity evidence. Primary user
+  data is not pruned for capacity without a new decision superseding D-031 (D-058).
+- Job-import adapters require concentrated allowlisted source-family evidence, terms
+  review, a source-specific kill switch, and the existing paste fallback (D-059).
 
 ## Abuse Controls
 
