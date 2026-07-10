@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import Literal
 
 import sqlalchemy as sa
@@ -10,11 +11,13 @@ from sqlalchemy.orm import Session
 
 from app.auth.security import get_current_admin
 from app.database import get_db
+from app.evals.report_reader import ALL_TOOLS, REPORTS_DIR, latest_reports_by_tool
 from app.limiter import limiter
 from app.models.tool_run import ToolRun
 from app.models.user import User
 from app.schemas.admin import (
     AdminActivationResponse,
+    AdminEvalRunsResponse,
     AdminRunDetailResponse,
     AdminRunItem,
     AdminRunListResponse,
@@ -23,6 +26,7 @@ from app.schemas.admin import (
     AdminUserDetailResponse,
     AdminUserItem,
     AdminUserListResponse,
+    EvalRunItem,
 )
 from app.services.analytics import (
     ACTIVATION_DEFAULT_WINDOW_DAYS,
@@ -297,6 +301,64 @@ def get_activation(
         window_end=window_end,
         access_mode=access_mode,
     )
+
+
+# ── Eval Runs (R8, issue #124) ──
+
+
+def get_reports_dir() -> Path:
+    """Directory the R8 eval reports are read from.
+
+    A FastAPI dependency so tests can point the endpoint at a fixture directory
+    of fake reports via ``app.dependency_overrides`` without touching the real
+    ``app/evals/reports/`` tree.
+    """
+    return REPORTS_DIR
+
+
+@router.get("/eval-runs", response_model=AdminEvalRunsResponse)
+@limiter.limit(_ADMIN_RATE)
+def get_eval_runs(
+    request: Request,
+    admin: User = Depends(get_current_admin),
+    reports_dir: Path = Depends(get_reports_dir),
+):
+    """Read-only latest R8 eval report per tool, read from disk (D-045).
+
+    Surfaces the newest versioned JSON report file per tool from
+    ``app/evals/reports/`` beside the activation dashboard's per-tool
+    latency/cost view, so quality/latency/cost are visible together on one page
+    (parent spec #118). Reports are dev-tooling artifacts on disk and are never
+    read from the ``analytics_events`` table (D-045).
+
+    Admin-gated exactly like every other endpoint here (``get_current_admin``).
+    Every tool (all six, canonical tool-order) is returned; a tool with no
+    report yet carries ``has_report=False`` so the UI shows an explicit
+    "no eval run yet" state rather than an error or blank.
+    """
+    latest = latest_reports_by_tool(reports_dir)
+    items: list[EvalRunItem] = []
+    for tool_id in ALL_TOOLS:
+        data = latest.get(tool_id)
+        if data is None:
+            items.append(EvalRunItem(tool_id=tool_id, has_report=False))
+            continue
+        items.append(
+            EvalRunItem(
+                tool_id=tool_id,
+                has_report=True,
+                report_schema_version=data.get("report_schema_version"),
+                prompt_version=data.get("prompt_version"),
+                judge_prompt_version=data.get("judge_prompt_version"),
+                generated_at=data.get("generated_at"),
+                mode=data.get("mode"),
+                fixtures_evaluated=data.get("fixtures_evaluated"),
+                calibration_miss_rate=data.get("calibration_miss_rate"),
+                fabrication_candidate_count=data.get("fabrication_candidate_count"),
+                usefulness_score=data.get("usefulness_score"),
+            )
+        )
+    return AdminEvalRunsResponse(tools=items)
 
 
 # ── Health ──

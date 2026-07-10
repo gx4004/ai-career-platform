@@ -104,6 +104,45 @@ class AdminActivationResponse(BaseModel):
     tools: list[ToolLatencyCost] = []
 
 
+# ── R8 eval runs section (issue #124, parent #118, D-045) ──
+# Read-only view over the latest versioned JSON eval report per tool, read from
+# disk (`app/evals/reports/`) — never from `analytics_events` (D-045). Mirrors
+# the `ToolReport` shape written by `app/evals/run_eval.py`. Plain tables only,
+# no charting library (D-039).
+
+
+class EvalRunItem(BaseModel):
+    """Latest eval report for one tool, or the "no eval run yet" state.
+
+    When ``has_report`` is ``False`` no report file exists yet for the tool and
+    every metric field is ``None``; the admin UI renders an explicit "no eval
+    run yet" state rather than an error or blank space. When ``True`` the fields
+    mirror the on-disk ``ToolReport`` (see ``app/evals/run_eval.py``): Resume /
+    Job Match carry ``calibration_miss_rate``; the four generative tools carry
+    ``fabrication_candidate_count`` and ``usefulness_score``.
+    """
+
+    tool_id: str
+    has_report: bool = False
+    report_schema_version: str | None = None
+    prompt_version: str | None = None
+    judge_prompt_version: str | None = None
+    generated_at: str | None = None
+    mode: str | None = None
+    fixtures_evaluated: int | None = None
+    calibration_miss_rate: float | None = None
+    fabrication_candidate_count: int | None = None
+    usefulness_score: float | None = None
+
+
+class AdminEvalRunsResponse(BaseModel):
+    """Latest eval report per tool (all six, canonical tool-order) for the
+    admin dashboard's read-only Eval Runs section. Sourced from disk, not
+    ``analytics_events`` (D-045)."""
+
+    tools: list[EvalRunItem] = []
+
+
 # Rebuild models that use forward references
 AdminUserDetailResponse.model_rebuild()
 AdminUserListResponse.model_rebuild()
