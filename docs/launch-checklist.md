@@ -22,6 +22,24 @@ Do not promote or invite users when any of these are true:
 - Sentry, telemetry, and legal disclosures have not been reconciled with actual
   deployment settings.
 
+## R3 Evidence Checklist (closes the R3 gate; D-116)
+
+Record each answer in `docs/threat-model.md` §14 and the affected R3 issue
+(#75, #76, #81, #82). The R3 gate closes when every row has evidence plus the two
+named human decisions (historical PostHog data disposition; D-NEXT-2 launch market).
+
+- [ ] D-UNK-1: production `TRUST_PROXY_HEADERS` / `TRUSTED_PROXY_CIDRS` values match Railway's actual proxy chain (verify with a logged forwarded-header sample).
+- [ ] D-UNK-2: Railway PostgreSQL connection ceiling recorded; `pool_size=20, max_overflow=10` confirmed or adjusted.
+- [ ] D-UNK-3: production replica count recorded; single-replica assumptions (in-process cache, limiter) re-checked if >1.
+- [ ] D-UNK-8: Google Cloud credential permission scope enumerated and minimized.
+- [ ] D-UNK-9: full production environment variable inventory diffed against both `.env.example` files.
+- [ ] D-UNK-10: deployed frontend/backend domains, registrable-site relationship, and end-to-end TLS recorded (unblocks #75 cookie/CORS/OAuth closure and #81 HSTS decision).
+- [ ] #75: staging OAuth state round trip performed and recorded.
+- [ ] #76: `RATE_LIMIT_STORAGE_URI` configured and capacity-tested on staging.
+- [ ] #81: security headers verified on staging (CSP against real origins, fonts, downloads, OAuth); Docker builds verified.
+- [ ] D-117: confirm `SENTRY_DSN` is unset in production (or staging scrub verification exists before it is ever set).
+- [ ] D-118: remnant PostHog proxy/configuration removed; disclosures reference PostHog only historically.
+
 ## Preflight Inventory
 
 Record these before touching a shared environment:
