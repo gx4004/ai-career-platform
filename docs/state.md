@@ -40,7 +40,9 @@ features are not current implementation claims.
 
 ## Immediate Objective
 
-**Status: R4 merged; R3 production/legal decisions and R5 deployment evidence remain**
+**Status: R3 specification complete (D-116–D-118, 2026-07-10); the R5 staging
+rehearsal now owns the R3 Evidence Checklist, and two human decisions remain
+(historical PostHog data disposition; D-NEXT-2)**
 
 The `docs/threat-model.md` canonical inventory is complete (#73). It maps system
 topology, trust boundaries, data flows, assets, browser storage, API surface, auth
@@ -133,10 +135,13 @@ into a production-build Node test so missing asset headers cannot pass as a
 zero-byte measurement, then added deterministic API latency budgets to complete
 the R4 performance baseline.
 
-Remaining R3 slices: #74 is closed. #76 depends on the remaining #75 production
-evidence but can proceed against its merged code posture. #81 (deployment headers)
-and #82 (legal reconciliation) remain partially blocked by production unknowns and
-prior slices.
+Remaining R3 slices: #74 is closed. The re-grill is closed (D-116): #75, #76, and
+#81 wait only on the R3 Evidence Checklist in `docs/launch-checklist.md`, which the
+R5 staging rehearsal collects; D-117 resolved the Sentry unknown (launch with
+`SENTRY_DSN` unset) and D-118 resolved product-side PostHog (never a processor;
+remnant proxy removed as cleanup). #82 (legal reconciliation) waits on the
+checklist plus the two named human decisions: historical PostHog cloud-data
+disposition and D-NEXT-2 launch market.
 
 ## Risks and Drift to Resolve
 

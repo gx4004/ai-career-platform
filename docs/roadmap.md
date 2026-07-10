@@ -66,7 +66,10 @@ Acceptance gate:
 
 ### R3. Privacy, Security, and Abuse Gate
 
-**Status:** specification re-grill in progress
+**Status:** specification complete (re-grill closed 2026-07-10, D-116–D-118); the
+gate closes on the R3 Evidence Checklist in `docs/launch-checklist.md` (collected
+by the R5 staging rehearsal) plus two named human decisions — historical PostHog
+data disposition and D-NEXT-2
 **Outcome:** sensitive career data has a documented lifecycle and defensible controls.
 
 Acceptance gate:
@@ -97,7 +100,9 @@ Acceptance gate:
 
 ### R5. Staging and Release Operations
 
-**Status:** blocked by remaining R3 production decisions and evidence
+**Status:** unblocked for rehearsal — R3 specification is complete (D-116) and the
+R5 staging rehearsal now owns collecting the R3 Evidence Checklist; the checklist
+plus the two named human decisions close both gates
 **Outcome:** deployment, migration, monitoring, and rollback are rehearsed before users
 depend on the product.
 
