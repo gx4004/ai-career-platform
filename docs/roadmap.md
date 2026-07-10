@@ -280,7 +280,10 @@ Acceptance gate:
 
 ### R15. Application Approval Queue
 
-**Status:** deferred until R14
+**Status:** PROVISIONAL spec published (#179; tracer issues #180–#186), still
+deferred until R14 ships and packet-grade quality evidence is accepted — no
+packet preparation ships earlier, and R15 contains no submission code path
+(D-092–D-099, ADR 0009)
 **Outcome:** the system prepares high-quality application packets for explicit user
 review and approval.
 
