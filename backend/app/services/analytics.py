@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -9,6 +10,11 @@ from app.models.analytics_event import AnalyticsEvent
 from app.schemas.analytics import ActivationEventCreate
 
 logger = logging.getLogger("app.analytics")
+
+# Rolling retention window for the durable activation-event store (D-037). Rows
+# whose server ingest time (`created_at`) is strictly older than this many days
+# are pruned; anything on or within the window is always kept.
+ACTIVATION_EVENT_RETENTION_DAYS = 180
 
 
 def record_activation_event(db: Session, **fields: Any) -> AnalyticsEvent:
@@ -40,6 +46,34 @@ def record_activation_event(db: Session, **fields: Any) -> AnalyticsEvent:
     db.commit()
     db.refresh(row)
     return row
+
+
+def prune_activation_events(
+    db: Session,
+    *,
+    now: datetime | None = None,
+    retention_days: int = ACTIVATION_EVENT_RETENTION_DAYS,
+) -> int:
+    """Delete activation-event rows older than the retention window (D-037).
+
+    Pure data-lifecycle operation, kept independent of the scheduler that drives
+    it so the retention boundary is deterministically testable. Rows whose
+    `created_at` is strictly older than ``now - retention_days`` are removed;
+    rows on or within that boundary are always kept (a row exactly
+    ``retention_days`` old is treated as still in-window). Returns the number of
+    rows deleted. ``now`` is injectable so tests can pin the boundary without
+    depending on the wall clock; it defaults to the current UTC time.
+    """
+    if now is None:
+        now = datetime.now(UTC)
+    cutoff = now - timedelta(days=retention_days)
+    deleted = (
+        db.query(AnalyticsEvent)
+        .filter(AnalyticsEvent.created_at < cutoff)
+        .delete(synchronize_session=False)
+    )
+    db.commit()
+    return deleted
 
 
 def safe_record_activation_event(db: Session, **fields: Any) -> None:
