@@ -6,6 +6,6 @@ derived from real user ``ToolRun`` content (see docs/decisions.md D-041 and
 docs/adr/0002-r8-eval-fixture-data-source.md).
 """
 
-from app.evals.loader import EvalFixture, FIXTURES_DIR, load_fixtures
+from app.evals.loader import FIXTURES_DIR, EvalFixture, load_fixtures
 
 __all__ = ["EvalFixture", "FIXTURES_DIR", "load_fixtures"]
