@@ -107,6 +107,9 @@ Core entities:
 - Evidence Profile (planned, R11; D-061, ADR 0005) — per-user typed evidence items
   with provenance and confirmation state. Contract defined; no schema, endpoint, or
   UI ships until the R1–R4 gate closes (D-060).
+- CV document (planned, R12; D-069, ADR 0006) — per-user structured document whose
+  claims reference Evidence Profile items, with one working draft plus immutable
+  recoverable variants. Contract defined; nothing ships until R11 lands (D-068).
 
 Persistence invariants:
 
@@ -218,6 +221,29 @@ errors remain forbidden.
 - Evidence content is sensitive career content: analytics and telemetry record only
   allowlisted low-cardinality profile events, never evidence text or stable content
   identifiers (D-067).
+
+## CV Studio Boundaries (R12, deferred)
+
+- The CV document is its own persisted structured entity; it is never stored as
+  `ToolRun` payloads or freeform rich text, and its claims reference Evidence
+  Profile items (D-069, ADR 0006).
+- Import extends the existing isolated parser harness (subprocess, resource caps,
+  upload guards) into reviewed structured proposals; imported claims reach the
+  profile only via the R11 unconfirmed-proposal path (D-070).
+- The studio is a structured-section editor session surface with a seventh registry
+  entry; existing tool priorities are not renumbered and the six tools never depend
+  on CV documents (D-071).
+- Quality scoring extends the deterministic-plus-blend mechanism; ATS compatibility
+  is deterministic structural checks only — no universal ATS score or outcome
+  promise (D-072).
+- Tailoring writes only diff-reviewed changes with requirement/evidence provenance;
+  unsupported claims need an explicit user confirmation step (D-073).
+- Preview, DOCX, and PDF render deterministically from one document plus one of
+  three declarative templates, gated by visual, text-layer, link, page-break, and
+  own-parser re-import validation (D-074).
+- Model-backed studio calls run through the shared pipeline with bounded
+  per-document regeneration quotas; CV content joins the sensitive-content
+  lifecycle and allowlisted-telemetry boundaries (D-075).
 
 ## Abuse Controls
 
