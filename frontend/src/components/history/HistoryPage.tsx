@@ -623,6 +623,14 @@ export function HistoryPage({
                                 ...deriveWorkflowUpdateFromHistoryItem(detail),
                                 updatedAt: Date.now(),
                               })
+                              // Funnel: user moved from a completed run to its
+                              // connected next-best tool (D-040). tool_id is the
+                              // tool being continued from.
+                              trackTelemetry({
+                                event_name: 'workflow_continued',
+                                tool_id: currentTool.id,
+                                access_mode: 'authenticated',
+                              })
                               await navigate({ to: toolList.find((candidate) => candidate.id === nextToolId)?.route || route })
                             } catch (error) {
                               setActionError(error instanceof Error ? error.message : 'Failed to continue this workflow.')

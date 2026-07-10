@@ -1,4 +1,5 @@
-import { useEffect, useLayoutEffect } from 'react'
+import { useEffect, useLayoutEffect, useRef } from 'react'
+import { trackTelemetry } from '#/lib/telemetry/client'
 
 function resetWindowScrollToTop() {
   if (typeof window === 'undefined') {
@@ -58,5 +59,15 @@ export function useLandingPageSetup() {
     return () => {
       document.body.classList.remove('page-tone-landing')
     }
+  }, [])
+
+  // Fire the funnel-start event exactly once per landing page view (D-040).
+  // The guard survives React's Strict-Mode double-invoke so a single view
+  // dispatches a single event. Consent is enforced inside trackTelemetry.
+  const viewedRef = useRef(false)
+  useEffect(() => {
+    if (viewedRef.current) return
+    viewedRef.current = true
+    trackTelemetry({ event_name: 'landing_page_viewed' })
   }, [])
 }

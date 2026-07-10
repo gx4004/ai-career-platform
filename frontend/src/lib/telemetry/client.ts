@@ -4,6 +4,7 @@ import { getStoredConsent } from '#/lib/consent'
 const TELEMETRY_URL = `${API_URL}/telemetry/events`
 
 export type TelemetryEventName =
+  | 'landing_page_viewed'
   | 'tool_run_started'
   | 'tool_run_succeeded'
   | 'tool_run_failed'

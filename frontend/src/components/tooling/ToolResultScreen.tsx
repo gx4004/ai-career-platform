@@ -361,7 +361,7 @@ export function ToolResultScreen({
                   disabled={status !== 'authenticated' || favoriteToggle.isPending}
                   onClick={() => {
                     if (!savedResult) {
-                      openAuthDialog({ to: resolvedTool.route, reason: 'save-demo-result', label: 'Sign in to save' })
+                      openAuthDialog({ to: resolvedTool.route, reason: 'save-demo-result', label: 'Sign in to save', toolId: resolvedTool.id })
                       return
                     }
                     favoriteToggle.mutate({ historyId: item.id, isFavorite: !item.is_favorite })
@@ -457,7 +457,7 @@ export function ToolResultScreen({
                   size="sm"
                   style={{ height: '1.5rem', fontSize: '0.6875rem', padding: '0 0.5rem', borderRadius: '9999px' }}
                   onClick={() =>
-                    openAuthDialog({ to: resolvedTool.route, reason: 'guest-demo-result', label: 'Sign in' })
+                    openAuthDialog({ to: resolvedTool.route, reason: 'guest-demo-result', label: 'Sign in', toolId: resolvedTool.id })
                   }
                 >
                   Sign in

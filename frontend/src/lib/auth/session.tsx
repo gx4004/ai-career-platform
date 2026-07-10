@@ -26,6 +26,7 @@ import {
 } from '#/lib/auth/pendingIntent'
 import { navigateToPath } from '#/lib/navigation/redirect'
 import { clearSensitiveBrowserData } from '#/lib/privacy/browserData'
+import type { ToolId } from '#/lib/tools/registry'
 
 export type SessionState = {
   status: 'loading' | 'guest' | 'authenticated'
@@ -36,7 +37,7 @@ export type SessionState = {
   authView: 'login' | 'register'
   authError: string
   openAuthDialog: (
-    intent?: { to?: string; reason?: string; label?: string },
+    intent?: { to?: string; reason?: string; label?: string; toolId?: ToolId },
     action?: () => void | Promise<void>,
   ) => void
   closeAuthDialog: () => void
