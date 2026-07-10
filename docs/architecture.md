@@ -104,6 +104,9 @@ Core entities:
 - `Workspace` — groups related application/career work.
 - `ToolRun` — immutable result snapshot with tool, inputs/metadata, output, ownership,
   optional workspace, and optional parent revision.
+- Evidence Profile (planned, R11; D-061, ADR 0005) — per-user typed evidence items
+  with provenance and confirmation state. Contract defined; no schema, endpoint, or
+  UI ships until the R1–R4 gate closes (D-060).
 
 Persistence invariants:
 
@@ -196,6 +199,25 @@ errors remain forbidden.
   data is not pruned for capacity without a new decision superseding D-031 (D-058).
 - Job-import adapters require concentrated allowlisted source-family evidence, terms
   review, a source-specific kill switch, and the existing paste fallback (D-059).
+
+## Evidence Profile Boundaries (R11, deferred)
+
+- The Evidence Profile is a persisted, authenticated-only, user-scoped store; guest
+  flows keep tab-scoped carry and inline inputs, and no anonymous profile rows exist
+  (D-061, D-064).
+- Confirmation is user-only: imports, tool outputs, and model inference write items
+  as `unconfirmed` with provenance; no automated path may confirm (D-062).
+- Tools consume the profile only through `run_tool_pipeline()`: confirmed evidence
+  becomes locked prompt facts that generation may reframe but never alter or extend;
+  unconfirmed evidence appears at most as an explicit gap or suggestion; the profile
+  version joins the result cache key (D-063).
+- Profile data joins the user-initiated immediate deletion contract and the account
+  deletion cascade, and gains a self-serve machine-readable export (D-065, D-031).
+- Historical `ToolRun` snapshots stay immutable; profile edits never rewrite past
+  results and past runs never silently backfill the profile (D-066).
+- Evidence content is sensitive career content: analytics and telemetry record only
+  allowlisted low-cardinality profile events, never evidence text or stable content
+  identifiers (D-067).
 
 ## Abuse Controls
 

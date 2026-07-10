@@ -95,6 +95,29 @@ content.
 An allowlisted job-import category such as a supported ATS family or `other`, used for
 aggregate reliability evidence without retaining a full hostname, path, or query.
 
+## Evidence Profile (R11)
+
+**Evidence item**
+One typed, user-owned career claim (experience, achievement, skill, education,
+project, certification, preference, or reusable interview evidence) stored in the
+Evidence Profile with provenance and confirmation state.
+
+**Provenance**
+The recorded origin of an evidence item: `imported` (parsed from an uploaded
+document), `inferred` (proposed by tool or model output), or `user-entered`.
+
+**Confirmation state**
+The trust lifecycle of an evidence item: `unconfirmed` until an explicit user
+action marks it `confirmed` or `rejected`. No automated path may confirm. Only
+confirmed evidence may enter generation as locked fact; rejected evidence is
+excluded from all downstream use.
+
+**Run-derived evidence**
+The existing per-run fields (for example `ResumeEvidence`, `evidence_used`,
+`resume_evidence`) computed for a single tool result. Run-derived evidence is
+unverified model output, distinct from Evidence Profile items and never
+authoritative.
+
 ## Branch roles
 
 - `chapter2` is the long-lived product experimentation and hardening branch.
