@@ -149,6 +149,28 @@ export type AdminActivation = {
   tools: ToolLatencyCost[]
 }
 
+// R8 eval runs — mirrors backend/app/schemas/admin.py
+// (EvalRunItem / AdminEvalRunsResponse). Latest report per tool read from disk
+// (app/evals/reports/), never analytics_events (D-045).
+
+export type EvalRunItem = {
+  tool_id: string
+  has_report: boolean
+  report_schema_version: string | null
+  prompt_version: string | null
+  judge_prompt_version: string | null
+  generated_at: string | null
+  mode: string | null
+  fixtures_evaluated: number | null
+  calibration_miss_rate: number | null
+  fabrication_candidate_count: number | null
+  usefulness_score: number | null
+}
+
+export type AdminEvalRuns = {
+  tools: EvalRunItem[]
+}
+
 // API functions
 
 export function getAdminStats() {
@@ -198,4 +220,8 @@ export function getAdminActivation(
       end: params.end,
     })}`,
   )
+}
+
+export function getAdminEvalRuns() {
+  return adminRequest<AdminEvalRuns>('/admin/eval-runs')
 }

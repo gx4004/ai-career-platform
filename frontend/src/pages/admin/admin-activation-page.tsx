@@ -1,7 +1,12 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { getAdminActivation } from '#/lib/api/admin'
-import type { AdminAccessMode, AdminActivation } from '#/lib/api/admin'
+import { getAdminActivation, getAdminEvalRuns } from '#/lib/api/admin'
+import type {
+  AdminAccessMode,
+  AdminActivation,
+  AdminEvalRuns,
+  EvalRunItem,
+} from '#/lib/api/admin'
 
 function isoDaysAgo(days: number): string {
   const d = new Date()
@@ -19,6 +24,88 @@ function fmtCost(value: number | string | null): string {
 function fmtDuration(value: number | null): string {
   if (value === null || value === undefined) return '—'
   return `${Math.round(value).toLocaleString()} ms`
+}
+
+function fmtTimestamp(value: string | null): string {
+  if (!value) return '—'
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return value
+  return d.toLocaleString()
+}
+
+// Resume / Job Match carry a calibration miss rate; the four generative tools
+// carry a fabrication-candidate count and an LLM-as-judge usefulness score.
+// Only one branch is populated per tool (see backend `ToolReport`).
+function fmtQuality(item: EvalRunItem): string {
+  if (item.calibration_miss_rate !== null) {
+    return `Miss rate ${(item.calibration_miss_rate * 100).toFixed(1)}%`
+  }
+  const parts: string[] = []
+  if (item.fabrication_candidate_count !== null) {
+    parts.push(`Fabrication ${item.fabrication_candidate_count}`)
+  }
+  if (item.usefulness_score !== null) {
+    parts.push(`Usefulness ${item.usefulness_score.toFixed(2)}/5`)
+  }
+  return parts.length > 0 ? parts.join(' · ') : '—'
+}
+
+export function EvalRunsSection() {
+  const { data, isLoading, isError } = useQuery<AdminEvalRuns>({
+    queryKey: ['admin-eval-runs'],
+    queryFn: () => getAdminEvalRuns(),
+    staleTime: 30_000,
+  })
+
+  return (
+    <div className="admin-data-table-wrap" style={{ marginTop: '1.5rem' }}>
+      <div className="admin-info-panel-title" style={{ padding: '1rem 1rem 0' }}>
+        Eval Runs (quality)
+      </div>
+      {isError && (
+        <p className="admin-table-muted admin-error-text" style={{ padding: '1rem' }}>
+          Failed to load eval runs.
+        </p>
+      )}
+      {isLoading && (
+        <p className="admin-table-muted" style={{ padding: '1rem' }}>
+          Loading…
+        </p>
+      )}
+      {data && (
+        <table className="admin-table">
+          <thead>
+            <tr>
+              <th>Tool</th>
+              <th>Quality</th>
+              <th>Prompt version</th>
+              <th>Last run</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.tools.map((t) => (
+              <tr key={t.tool_id}>
+                <td>
+                  <span className="admin-badge admin-badge--tool">{t.tool_id}</span>
+                </td>
+                {t.has_report ? (
+                  <>
+                    <td className="admin-table-muted">{fmtQuality(t)}</td>
+                    <td className="admin-table-muted">{t.prompt_version ?? '—'}</td>
+                    <td className="admin-table-muted">{fmtTimestamp(t.generated_at)}</td>
+                  </>
+                ) : (
+                  <td colSpan={3} className="admin-table-muted">
+                    No eval run yet
+                  </td>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  )
 }
 
 export function AdminActivationPage() {
@@ -146,6 +233,8 @@ export function AdminActivationPage() {
           </table>
         </div>
       )}
+
+      <EvalRunsSection />
     </div>
   )
 }
