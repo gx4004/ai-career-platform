@@ -20,6 +20,7 @@ from app.models.analytics_event import AnalyticsEvent
 from app.schemas.analytics import ActivationEventCreate
 from app.schemas.telemetry import TelemetryEventName
 from app.services.analytics import record_activation_event
+from app.services.llm_cost import record_llm_usage
 from app.services.tool_pipeline import run_tool_pipeline
 
 PREFIX = "/api/v1"
@@ -186,3 +187,69 @@ async def test_pipeline_persists_failure_with_allowlisted_category(db):
     # The raw exception class name is high-cardinality and never persisted; the
     # durable event carries only the allowlisted category.
     assert failed.failure_category == "tool_request_failed"
+    # This service raised before reaching the model provider, so no tokens were
+    # consumed and duration is persisted but cost is not (issue #106).
+    assert failed.duration_ms is not None
+    assert failed.cost_estimate is None
+
+
+# --- Backend tool-run cost estimate (issue #106) ---------------------------
+
+
+async def test_completed_run_persists_duration_and_cost(db):
+    """Every successful run that reached the provider persists a non-null
+    duration AND a non-null cost estimate derived from actual token usage."""
+
+    async def service_fn(**kwargs):
+        # Mirrors the real provider path: the LLM client records the call's
+        # actual token usage into the request-scoped accumulator mid-run.
+        record_llm_usage(model="gemini-2.5-flash", prompt_tokens=1500, output_tokens=400)
+        return {"summary": {"headline": "ok"}}
+
+    await run_tool_pipeline(
+        tool_name="job-match",
+        service_fn=service_fn,
+        service_kwargs={"resume_text": "x"},
+        label_fn=lambda result: "label",
+        resume_text="Some resume text for a run that calls the model.",
+        current_user=None,
+        db=db,
+    )
+
+    completed = (
+        db.query(AnalyticsEvent)
+        .filter(AnalyticsEvent.event_name == "tool_run_completed")
+        .one()
+    )
+    assert completed.duration_ms is not None
+    assert completed.cost_estimate is not None
+    assert Decimal(str(completed.cost_estimate)) > 0
+
+
+async def test_failure_after_provider_call_persists_cost(db):
+    """A failure after the provider already consumed tokens persists whatever
+    cost is available at the point of failure (issue #106)."""
+
+    async def failing_service(**kwargs):
+        record_llm_usage(model="gemini-2.5-flash", prompt_tokens=800, output_tokens=100)
+        raise RuntimeError("parse failure after the model was called")
+
+    with pytest.raises(RuntimeError):
+        await run_tool_pipeline(
+            tool_name="interview",
+            service_fn=failing_service,
+            service_kwargs={"resume_text": "x"},
+            label_fn=lambda result: "label",
+            resume_text="Some resume text for a run that fails after the model.",
+            current_user=None,
+            db=db,
+        )
+
+    failed = (
+        db.query(AnalyticsEvent)
+        .filter(AnalyticsEvent.event_name == "tool_run_failed")
+        .one()
+    )
+    assert failed.duration_ms is not None
+    assert failed.cost_estimate is not None
+    assert Decimal(str(failed.cost_estimate)) > 0
