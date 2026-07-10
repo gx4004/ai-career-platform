@@ -144,6 +144,64 @@ def test_ingestion_endpoint_persists_r6_wired_events(client, db, payload, expect
     assert stored.tool_id == expected_tool_id
 
 
+# --- R9 dormant ad-path removal (issue #127) ------------------------------
+
+
+@pytest.mark.parametrize(
+    "removed_event_name",
+    ["ad_shown", "ad_completed", "ad_blocked", "countdown_completed"],
+)
+def test_ingestion_endpoint_rejects_removed_ad_event_names(client, db, removed_event_name):
+    """The dormant ad/countdown telemetry names are gone from the contract
+    (D-051): the ingestion endpoint rejects them and persists nothing."""
+    resp = client.post(
+        f"{PREFIX}/telemetry/events",
+        json={"event_name": removed_event_name, "tool_id": "resume"},
+    )
+
+    assert resp.status_code == 422
+    assert db.query(AnalyticsEvent).count() == 0
+
+
+def test_ingestion_endpoint_rejects_removed_unlock_method_field(client, db):
+    """The `unlock_method` dimension only ever carried ad/countdown unlock
+    telemetry; it is removed from the contract and rejected as an unknown
+    field (extra="forbid"), persisting nothing."""
+    resp = client.post(
+        f"{PREFIX}/telemetry/events",
+        json={
+            "event_name": "result_page_loaded",
+            "tool_id": "resume",
+            "unlock_method": "ad",
+        },
+    )
+
+    assert resp.status_code == 422
+    assert db.query(AnalyticsEvent).count() == 0
+
+
+@pytest.mark.parametrize(
+    "removed_event_name",
+    ["ad_shown", "ad_completed", "ad_blocked", "countdown_completed"],
+)
+def test_write_seam_rejects_removed_ad_event_names(db, removed_event_name):
+    """The durable write seam no longer accepts the removed ad/countdown event
+    names, so a stray caller cannot re-introduce them."""
+    with pytest.raises(ValidationError):
+        record_activation_event(db, event_name=removed_event_name, tool_id="resume")
+
+    assert db.query(AnalyticsEvent).count() == 0
+
+
+def test_write_seam_rejects_removed_unlock_method_field(db):
+    with pytest.raises(ValidationError):
+        record_activation_event(
+            db, event_name="result_page_loaded", unlock_method="countdown"
+        )
+
+    assert db.query(AnalyticsEvent).count() == 0
+
+
 def test_ingestion_endpoint_rejects_sensitive_field_and_persists_nothing(client, db):
     resp = client.post(
         f"{PREFIX}/telemetry/events",

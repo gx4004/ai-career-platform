@@ -25,7 +25,6 @@ import { getToolByHistoryName, tools } from '#/lib/tools/registry'
 import type { ToolId } from '#/lib/tools/registry'
 import { toolAccentStyle } from '#/lib/tools/styleUtils'
 import { trackTelemetry } from '#/lib/telemetry/client'
-import { AdGatedLock } from '#/components/tooling/AdGatedLock'
 import { ToolHeroIllustration } from './ToolHeroIllustration'
 
 function getStripGradient(value: number) {
@@ -477,13 +476,11 @@ export function ToolResultScreen({
         ) : null}
 
         {/* ── Content ── */}
-        <AdGatedLock toolId={resolvedTool.id}>
-          <FadeUp delay={0.12}>
+        <FadeUp delay={0.12}>
           <div className="result-content">
             {definition.render(payload, item, resolvedTool)}
           </div>
-          </FadeUp>
-        </AdGatedLock>
+        </FadeUp>
 
       </section>
     </PageFrame>

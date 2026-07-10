@@ -35,7 +35,6 @@ class AnalyticsEvent(Base):
     export_format: Mapped[str | None] = mapped_column(String, nullable=True)
     has_feedback: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     session_status: Mapped[str | None] = mapped_column(String, nullable=True)
-    unlock_method: Mapped[str | None] = mapped_column(String, nullable=True)
     # Backend-computed operational metrics (nullable — frontend events omit them).
     duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
     cost_estimate: Mapped[float | None] = mapped_column(Numeric(12, 6), nullable=True)

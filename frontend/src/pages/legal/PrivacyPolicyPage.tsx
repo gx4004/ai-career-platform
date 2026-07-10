@@ -66,8 +66,9 @@ export function PrivacyPolicyPage() {
           Resend.
         </li>
         <li>
-          <strong>Advertising (Art. 6(1)(a) GDPR — consent):</strong> if we enable Google AdSense in the future, it
-          will only load after you accept cookies. It is not active today.
+          <strong>Advertising (Art. 6(1)(a) GDPR — consent):</strong> we do not serve advertising and there is no ad
+          code in the Service. If we introduce advertising in the future, we will update this policy and load an
+          advertising vendor only after you give affirmative, purpose-specific consent.
         </li>
       </ul>
 
@@ -99,12 +100,6 @@ export function PrivacyPolicyPage() {
           <strong>Google reCAPTCHA</strong> — bot protection on sensitive forms.{' '}
           <a href="https://policies.google.com/privacy" target="_blank" rel="noreferrer" className="legal-page__link">
             Privacy policy
-          </a>
-        </li>
-        <li>
-          <strong>Google AdSense</strong> — advertising (only if enabled in the future and only with your consent).{' '}
-          <a href="https://policies.google.com/technologies/ads" target="_blank" rel="noreferrer" className="legal-page__link">
-            Ads policy
           </a>
         </li>
         <li>
