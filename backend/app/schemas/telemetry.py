@@ -10,6 +10,7 @@ from pydantic import BaseModel, ConfigDict
 # are the same low-cardinality values the frontend schema already restricts
 # itself to (D-037) — never resume/JD/generated content, email, or free text.
 TelemetryEventName = Literal[
+    "landing_page_viewed",
     "tool_run_started",
     "tool_run_succeeded",
     "tool_run_failed",
