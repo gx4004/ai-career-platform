@@ -130,14 +130,14 @@ def _result_for(
     score: int,
     threshold: int,
 ) -> CalibrationResult:
-    deviation = band_deviation(score, fixture.expected_score_band)
+    band = fixture.expected_score_band
     return CalibrationResult(
         tool=tool,
         fixture_id=fixture.id,
         score=score,
-        expected_band=fixture.expected_score_band,
-        deviation=deviation,
-        is_miss=deviation > threshold,
+        expected_band=band,
+        deviation=band_deviation(score, band),
+        is_miss=is_calibration_miss(score, band, threshold),
     )
 
 
