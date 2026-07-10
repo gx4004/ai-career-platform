@@ -199,6 +199,31 @@ The registry-declared minimal parameters a source query may carry (for example
 role keywords and location). Profile text, employer history, and identity never
 leave the product.
 
+## Application Approval Queue (R15)
+
+**Application packet**
+A prepared application composition referencing existing entities — campaign,
+listing, selected CV variant, optional cover letter, screening-answer drafts,
+match rationale, and an explicit unresolved-questions list. Packets never copy
+material content freestanding.
+
+**Queue rule**
+A user-defined filter (role, location, compensation, work authorization, quality
+threshold) plus volume caps and cost ceilings that a listing must pass before any
+packet is prepared. No rules, no queue.
+
+**Mandatory stop**
+A field category — sensitive, legal, eligibility, relocation, demographic, salary,
+work authorization, uncertain or free-form — that the system never drafts from
+inference. Only explicit user input resolves a stop, and an unresolved question
+blocks packet approval.
+
+**Packet approval**
+The explicit user action that freezes an immutable packet snapshot and hands the
+user to the official destination to submit themselves. No R15 code path performs,
+schedules, or retries a submission; submission automation exists only behind R16's
+per-source authorization contract.
+
 ## Branch roles
 
 - `chapter2` is the long-lived product experimentation and hardening branch.
