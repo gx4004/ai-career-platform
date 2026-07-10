@@ -1,6 +1,6 @@
 # Career Workbench — Current State
 
-**Snapshot date:** 2026-07-06
+**Snapshot date:** 2026-07-11
 **Confidence:** code-informed, release environment not re-verified
 
 ## Current Posture
@@ -40,10 +40,43 @@ features are not current implementation claims.
 
 ## Immediate Objective
 
-**Status: R3 specification complete (D-116–D-119, 2026-07-10); the R5 staging
-rehearsal owns the R3 Evidence Checklist but deployment work is owner-deferred
-for now; remaining human items: perform the PostHog data deletion (#208, D-119)
-and decide D-NEXT-2**
+**Status: R6, R8, and the R9 cleanup frontier are complete (2026-07-11). R3
+specification is complete (D-116–D-119, 2026-07-10); the R5 staging rehearsal
+owns the R3 Evidence Checklist but deployment work is owner-deferred for now.
+Remaining human items: perform the PostHog data deletion (#208, D-119), decide
+D-NEXT-2 (launch market) and D-NEXT-6 (activation target), and select the R18
+direction (#204).**
+
+## Session Handoff Snapshot (2026-07-11)
+
+- **Objective:** Ship the startable activation/quality/cleanup frontier — R6
+  Activation Instrumentation (#104–#108), R8 Output Quality Program (#119–#124),
+  and the R9 dormant-ad-gate cleanup (#127) — each via the ticket-runner flow,
+  merged into `chapter2`.
+- **Changed:** All 12 tickets merged and closed. R6 shipped the durable
+  `analytics_events` store + shared write seam (#104), the three previously-dead
+  activation events incl. `landing_page_viewed` (#105), per-tool latency + LLM
+  cost estimate (#106), a 180-day prune with a daily lifespan task (#107), and
+  the admin funnel/failure/cost dashboard (#108). R8 shipped the synthetic
+  fixture corpus (#119), calibration (#120), fabrication (#121), and usefulness
+  (#122) checks, the on-demand CLI eval runner writing versioned JSON reports
+  (#123), and the admin Eval Runs section (#124). R9 #127 removed the dormant
+  client ad gate/unlock path, its telemetry names/`unlock_method` column, and
+  reconciled the legal/threat-model/spec copy to candidate-neutral (D-051), with
+  the historical PostHog incident kept explicitly unresolved. Parent specs
+  #103/#118/#126 left open.
+- **Verified:** Every PR passed all three CI checks (Backend ruff+pytest,
+  Frontend typecheck+test+build, E2E Playwright/PostgreSQL) before a squash
+  merge; the analytics and ad-gate-removal migrations ran `alembic upgrade head`
+  against real PostgreSQL. No E2E flake reruns were needed.
+- **Blocked:** R7 (#110–#115, needs the two-week R6 activation baseline +
+  D-NEXT-6), R9 candidate work (#128+), R10 (#136–#142), and everything R11+ are
+  gate-blocked per their PROVISIONAL banners and were not started. The R5 staging
+  rehearsal and every R3 Evidence-Checklist item needing a deployed environment
+  are owner-deferred (Railway/production access).
+- **Next:** Owner runs the R6 admin activation dashboard for ~two weeks to
+  produce the baseline that unblocks R7 and informs D-NEXT-6; separately perform
+  the PostHog #208 deletion and decide D-NEXT-2 / the R18 direction (#204).
 
 The `docs/threat-model.md` canonical inventory is complete (#73). It maps system
 topology, trust boundaries, data flows, assets, browser storage, API surface, auth
