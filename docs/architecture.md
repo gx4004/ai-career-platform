@@ -114,6 +114,10 @@ Core entities:
   place with optional campaign fields and dependent owner-scoped tables (listing,
   events, tasks, notes, contacts). Contract defined; nothing ships until R12 lands
   (D-076).
+- Discovered listings store (planned, R14; D-087, ADR 0008) — product-owned
+  listings with source attribution, retrieval date, dedup, and per-source
+  retention; distinct from campaign canonical listings. Contract defined; nothing
+  ships until R13 lands and each source passes terms review (D-084).
 
 Persistence invariants:
 
@@ -269,6 +273,28 @@ errors remain forbidden.
   auto-applies findings or creates/confirms evidence (D-082).
 - Campaign content, including contacts (third-party personal data), joins the
   sensitive-content lifecycle and allowlisted-telemetry boundaries (D-083).
+
+## Discovery Boundaries (R14, deferred)
+
+- No ingestion outside a source registry entry documenting owner, terms status and
+  review date, allowed behavior, rate limit, attribution rule, retention rule, and
+  kill switch; sources activate only after accepted terms review (D-084, D-085,
+  ADR 0008).
+- Discovery operationalizes D-026: robots.txt honored, honest identifying user
+  agent in every tier, no unauthorized scraping, circumvention, or credential or
+  session use (D-086).
+- Discovered listings persist with attribution and retrieval date, deduplicated
+  and expired per source retention; the store is separate from campaign canonical
+  listings (D-087, D-078).
+- Ranking uses confirmed Evidence Profile items and preferences via deterministic
+  primitives first, with an explainable rationale and hide/correct/report controls
+  (D-088).
+- Outbound source queries carry only minimal registry-declared parameters; profile
+  content never leaves the product (D-089).
+- Personalization state (hidden sources, dismissals, reports) is owner-isolated
+  user data in the standard lifecycle and telemetry boundaries (D-090).
+- Recommendations become campaigns only by explicit user adoption; discovery never
+  auto-creates campaigns, tasks, or reminders (D-091).
 
 ## Abuse Controls
 
