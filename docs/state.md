@@ -147,6 +147,7 @@ prior slices.
 | Release environment unverified | Railway topology, variables, migrations, domain, and deploy branch may have changed. | Run deployment inventory and staging smoke test. See `docs/threat-model.md` §14 D-UNK-1 through D-UNK-10. |
 | Monetization deferred | R9 has no activation baseline, accepted target, launch market, or selected candidate. The historical client ad wrapper is not a safe disabled state: its hook can load AdSense for pending consent when locally configured, even though the wrapper returns full results. | Remove the dormant client path (D-051); keep R9 candidate-neutral and dark until the D-046/D-047 evidence gate closes. |
 | Scaling responses deferred | The intended deployment currently starts one Uvicorn process, and no accepted evidence shows sustained cache, provider, latency, abuse/cost, database, or job-import pressure. | Implement the R10 aggregate trigger scorecard first; authorize only the independent response whose scaling trigger fires (D-052–D-059). |
+| Evidence Profile deferred | No persisted profile entity, provenance/confirmation primitive, or full-data export exists; resume text is ephemeral tab-scoped state re-supplied inline per run, and R12/R13 depend on the profile's shape. | Keep R11 contract-only (D-060–D-067, ADR 0005) until the R1–R4 gate closes; implement the profile entity, confirmation lifecycle, and export slices first. |
 
 ### Resolved or Catalogued in Threat Model
 
