@@ -147,6 +147,34 @@ requirement and evidence provenance. It enters the document only through an
 explicit accept or edit action; a claim without confirmed supporting evidence
 requires an explicit user confirmation step.
 
+## Application Campaigns and Reviewer (R13)
+
+**Application campaign**
+A `Workspace` evolved in place: one container per target company and role holding
+the canonical listing, selected materials, bounded tracking (status, tasks, notes,
+minimal contacts), and an activity timeline. Every pre-R13 workspace remains a
+valid label-only campaign.
+
+**Canonical listing**
+The persisted job posting a campaign targets — title, company, description, source
+URL, and retrieval date — stored as owner-isolated user content. Telemetry about
+listings stays source-family aggregates only.
+
+**Campaign event**
+One append-only record of campaign activity (status change, material selection,
+note, task action) from which the activity timeline derives. Events are never
+updated or deleted by product code.
+
+**Submitted-application snapshot**
+An immutable bundle referencing the exact material versions at applied time,
+unaffected by later edits.
+
+**Reviewer finding**
+One advisory result from the Application Quality Reviewer pass — an unsupported
+claim with its failed evidence trace, a missed listing requirement, a
+cross-document contradiction, generic writing, or a document defect. Findings are
+editable advice; they are never auto-applied and never create or confirm evidence.
+
 ## Branch roles
 
 - `chapter2` is the long-lived product experimentation and hardening branch.
