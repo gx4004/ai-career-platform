@@ -4,8 +4,33 @@ import logging
 import random
 
 from app.config import settings
+from app.services.llm_cost import record_llm_usage
 
 logger = logging.getLogger(__name__)
+
+
+def _record_usage(response: object, model: str) -> None:
+    """Record a provider response's actual token usage for R6 cost estimation.
+
+    Reads the `usage_metadata` both Vertex and google-genai attach to a
+    response (`prompt_token_count` / `candidates_token_count`). Best effort:
+    cost instrumentation must never break a tool run, so any missing field or
+    unexpected shape is swallowed — the run simply carries no cost from this
+    call.
+    """
+    try:
+        usage = getattr(response, "usage_metadata", None)
+        if usage is None:
+            return
+        prompt_tokens = int(getattr(usage, "prompt_token_count", 0) or 0)
+        output_tokens = int(getattr(usage, "candidates_token_count", 0) or 0)
+        record_llm_usage(
+            model=model,
+            prompt_tokens=prompt_tokens,
+            output_tokens=output_tokens,
+        )
+    except Exception:  # noqa: BLE001 — usage capture is best-effort telemetry
+        logger.debug("LLM usage capture skipped model=%s", model, exc_info=True)
 
 # ---------------------------------------------------------------------------
 # Lazy Vertex AI singleton
@@ -142,6 +167,10 @@ async def _call_vertex(system_prompt: str, user_prompt: str, model_name: str | N
         logger.error("Vertex AI call failed error_type=%s", type(exc).__name__)
         raise RuntimeError("AI service temporarily unavailable. Please try again.")
 
+    # Record actual token usage before parsing: the tokens were consumed even if
+    # the JSON body later fails to parse (R6 cost estimate, issue #106).
+    _record_usage(response, model_name or settings.LLM_MODEL)
+
     content = response.text
     return _safe_parse_json(content, "vertex")
 
@@ -174,6 +203,10 @@ async def _call_google_genai(system_prompt: str, user_prompt: str, model_name: s
     except Exception as exc:
         logger.error("Google AI call failed error_type=%s", type(exc).__name__)
         raise RuntimeError("AI service temporarily unavailable. Please try again.")
+
+    # Record actual token usage before parsing: the tokens were consumed even if
+    # the JSON body later fails to parse (R6 cost estimate, issue #106).
+    _record_usage(response, model_name or settings.LLM_MODEL)
 
     content = response.text
     return _safe_parse_json(content, "google")
