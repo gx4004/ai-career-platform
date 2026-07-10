@@ -1,0 +1,10 @@
+{
+  "id": "frontend-engineering-no-jd",
+  "resume_text": "Milo Hartcastle\nFrontend Developer\n\nSummary\nFrontend developer focused on responsive web applications and UI engineering with React.\n\nExperience\nCinderpath - Frontend Developer (2019-Present)\n- Rebuilt the marketing site as a React web app, cutting load time by 35%.\n- Created a shared design system used by 3 teams.\n- Improved UI accessibility to meet WCAG AA across 20+ pages.\n\nSkills\nJavaScript, TypeScript, React, Accessibility, Design Systems\n\nEducation\nBS in Web Development, Westmere University",
+  "job_description": null,
+  "expected_score_band": [
+    58,
+    80
+  ],
+  "notes": "Second no-job-description case, frontend discipline. Exercises resume-only scoring for a UI-focused resume with no target JD."
+}

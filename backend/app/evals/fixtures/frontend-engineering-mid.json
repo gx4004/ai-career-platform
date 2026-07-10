@@ -1,0 +1,10 @@
+{
+  "id": "frontend-engineering-mid",
+  "resume_text": "Elin Fairweather\nFrontend Engineer\n\nSummary\nFrontend engineer with 4 years building accessible web applications and design systems in React and TypeScript.\n\nExperience\nBrightloom - Frontend Engineer (2021-Present)\n- Built a component library of 40+ React components adopted across 5 product teams.\n- Improved the accessibility score of the main web app from 74 to 98.\n- Led migration from JavaScript to TypeScript, reducing runtime type errors by 60%.\n- Optimized bundle size, cutting first-load time by 25%.\n\nSkills\nJavaScript, TypeScript, React, Node.js, Accessibility, Design Systems, interaction design\n\nEducation\nBS in Computer Science, Ashvale College",
+  "job_description": "Frontend Engineer\n\nWe need a frontend engineer to grow our web app and design system. You will build React components, own accessibility, and work in TypeScript.\n\nRequirements:\n- 3+ years with React and TypeScript\n- Experience building a component library or design system\n- Strong accessibility and interaction design sensibility\n- Comfort with Node.js tooling",
+  "expected_score_band": [
+    70,
+    90
+  ],
+  "notes": "Strong frontend match, mid-level; React/TypeScript/design-system resume aligned to a frontend JD. Exercises the frontend-engineering discipline."
+}
