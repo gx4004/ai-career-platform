@@ -1,0 +1,10 @@
+{
+  "id": "backend-engineering-senior",
+  "resume_text": "Robin Alcott\nSenior Backend Engineer\n\nSummary\nSenior backend engineer with 9 years designing distributed services, APIs, and data platforms. Led teams shipping high-throughput microservices on cloud infrastructure.\n\nExperience\nNimbus Ledger - Staff Backend Engineer (2019-Present)\n- Led migration of a payments monolith into 14 microservices, reducing p95 latency by 38%.\n- Designed an event-driven services platform handling 4,500 requests per second at 99.95% uptime.\n- Owned PostgreSQL schema and query tuning that cut database costs by 27%.\n- Mentored 6 engineers and established the on-call and incident review process.\n\nLarkfield Labs - Senior Software Engineer (2015-2019)\n- Built internal REST and GraphQL APIs used by 30+ downstream services.\n- Introduced CI/CD pipelines with GitHub Actions, cutting deploy time from 45 to 8 minutes.\n\nSkills\nPython, FastAPI, PostgreSQL, Docker, Kubernetes, AWS, CI/CD, System Design, distributed systems\n\nEducation\nBS in Computer Science, Grayford Institute of Technology",
+  "job_description": "Senior Backend Engineer\n\nWe are hiring a senior backend engineer to own our services platform. You will design and scale microservices and APIs, tune databases, and improve our cloud infrastructure.\n\nRequirements:\n- 7+ years building backend services and APIs\n- Strong Python and FastAPI experience\n- Deep PostgreSQL and system design skills\n- Experience with Docker, Kubernetes, AWS, and CI/CD\n- Track record leading distributed systems work",
+  "expected_score_band": [
+    74,
+    94
+  ],
+  "notes": "Strong backend match, senior seniority; well-structured, quantified resume closely aligned to a senior backend JD. Exercises the backend-engineering discipline and a high expected band."
+}
