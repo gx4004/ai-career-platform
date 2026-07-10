@@ -1,0 +1,4 @@
+# R8 eval report artifacts are generated on demand (D-045) and never committed.
+# Keep the directory in the tree so the CLI runner has a default output location.
+*
+!.gitignore
