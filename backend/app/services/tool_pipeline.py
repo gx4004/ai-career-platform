@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.models.user import User
 from app.services.analytics import safe_record_activation_event
 from app.services.input_sanitizer import sanitize_user_input
+from app.services.llm_cost import get_llm_cost, reset_llm_cost
 from app.services.observability import (
     log_tool_run_completed,
     log_tool_run_failed,
@@ -38,6 +39,9 @@ async def run_tool_pipeline(
     access_mode = "authenticated" if current_user else "guest_demo"
     linked_ids = linked_context_ids or []
     start = perf_counter()
+    # Clear any prior request's LLM cost so this run's estimate only reflects
+    # the provider calls it makes; stays None if none are reached (issue #106).
+    reset_llm_cost()
 
     log_tool_run_started(
         tool_name=tool_name,
@@ -97,7 +101,9 @@ async def run_tool_pipeline(
             )
             # The exception class name is high-cardinality and not allowlisted,
             # so it stays in the stdout log only; the durable event records the
-            # allowlisted `tool_request_failed` category (D-037).
+            # allowlisted `tool_request_failed` category (D-037). Cost is
+            # whatever provider calls consumed before the failure — None if it
+            # failed before reaching the provider (issue #106).
             safe_record_activation_event(
                 db,
                 event_name="tool_run_failed",
@@ -105,6 +111,7 @@ async def run_tool_pipeline(
                 tool_id=tool_name,
                 access_mode=access_mode,
                 duration_ms=failed_duration_ms,
+                cost_estimate=get_llm_cost(),
                 failure_category="tool_request_failed",
             )
             raise
@@ -144,6 +151,7 @@ async def run_tool_pipeline(
         tool_id=tool_name,
         access_mode=access_mode,
         duration_ms=completed_duration_ms,
+        cost_estimate=get_llm_cost(),
         saved=run is not None,
     )
 
