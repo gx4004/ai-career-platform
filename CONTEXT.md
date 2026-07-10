@@ -118,6 +118,35 @@ The existing per-run fields (for example `ResumeEvidence`, `evidence_used`,
 unverified model output, distinct from Evidence Profile items and never
 authoritative.
 
+## CV Studio (R12)
+
+**CV document**
+A persisted, per-user structured document of typed sections and entries whose
+factual claims reference Evidence Profile items. The editorial layer (selection,
+phrasing, ordering, layout) over the factual record — never a freeform rich-text
+document.
+
+**CV variant**
+An immutable, recoverable snapshot of a CV document, typically tailored to one
+target role. The base document and every prior variant remain restorable.
+
+**CV template**
+One of exactly three declarative initial layouts (ATS Essential, Professional
+Editorial, Technical/Portfolio) from which preview, DOCX, and PDF render
+deterministically from the same structured document.
+
+**ATS-aware check**
+A deterministic structural validation of a CV document or its exports — section
+structure, text layer, fonts, links, page breaks, re-import machine-readability.
+The product never presents a universal ATS score or a ranking, interview, or
+employment promise.
+
+**Tailored change**
+One proposed modification to a CV document, shown as a before/after diff carrying
+requirement and evidence provenance. It enters the document only through an
+explicit accept or edit action; a claim without confirmed supporting evidence
+requires an explicit user confirmation step.
+
 ## Branch roles
 
 - `chapter2` is the long-lived product experimentation and hardening branch.
