@@ -90,11 +90,15 @@ export function RegisterForm({
               full_name: fullName || undefined,
               tos_accepted: tosAccepted,
             })
-            // Fire exactly once at successful signup completion (D-040).
+            // Fire exactly once at successful signup completion (D-040). The
+            // originating surface is carried by `tool_id` (the tool a guest-save
+            // prompt was raised from; absent for a direct registration). Google
+            // OAuth never reaches here — first-time OAuth users are redirected to
+            // this email form to create the account (signup_via_email_required),
+            // so every account creation flows through this call site.
             trackTelemetry({
               event_name: 'auth_signup_source',
               tool_id: signupSurfaceTool,
-              session_status: 'guest',
             })
             onSuccess?.()
           } catch {

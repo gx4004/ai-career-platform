@@ -56,7 +56,6 @@ describe('RegisterForm — auth_signup_source telemetry (D-040)', () => {
       expect(trackTelemetryMock).toHaveBeenCalledWith({
         event_name: 'auth_signup_source',
         tool_id: undefined,
-        session_status: 'guest',
       }),
     )
     expect(
@@ -81,7 +80,6 @@ describe('RegisterForm — auth_signup_source telemetry (D-040)', () => {
       expect(trackTelemetryMock).toHaveBeenCalledWith({
         event_name: 'auth_signup_source',
         tool_id: 'resume',
-        session_status: 'guest',
       }),
     )
   })
