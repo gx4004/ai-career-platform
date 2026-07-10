@@ -126,6 +126,9 @@ Core entities:
   idempotent per-source submission with the exact packet snapshot and per-field
   record. Contract defined; nothing ships until R15 demonstrates quality and
   demand and each source passes legal review (D-100).
+- Development item (planned, R17; D-112) — one tracked response to a classified
+  gap, with completion feeding the R11 proposal path only. Contract defined;
+  nothing ships until campaign evidence supports the loop (D-108).
 
 Persistence invariants:
 
@@ -342,6 +345,20 @@ errors remain forbidden.
   (D-106).
 - Submission records follow the standard lifecycle for product copies, with the
   employer-copy limitation stated honestly (D-107).
+
+## Development Loop Boundaries (R17, deferred)
+
+- Gaps classify into exactly four explainable kinds built on the reviewer's
+  requirement and evidence traces (D-109, D-082).
+- Each kind gets its only honest response; tailoring is never offered for
+  substance gaps and no response fabricates (D-110, D-073).
+- Recommendations are source-attributed with no undisclosed commercial
+  relationships; sponsorship needs its own future decision (D-111).
+- Development items are bounded tracking, not project management (D-112).
+- Completion produces an `unconfirmed` R11 proposal; only explicit user
+  confirmation creates reusable evidence (D-113, D-062).
+- Development data (a record of the user's gaps) is owner-isolated sensitive
+  content in the standard lifecycle and telemetry boundaries (D-114).
 
 ## Abuse Controls
 

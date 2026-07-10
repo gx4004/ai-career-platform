@@ -247,6 +247,30 @@ The documented fields, formats, and error semantics of one submission source, wi
 automated breakage detection. A broken contract trips the source kill switch and
 degrades to the Level B human handoff.
 
+## Career Development Loop (R17)
+
+**Gap classification**
+The reviewer-traced diagnosis of a gap tailoring cannot truthfully close, as
+exactly one of four kinds: presentation weakness, uncaptured evidence, evidence
+not yet produced, or missing skill. Every classification cites the failed
+requirement or evidence trace that produced it.
+
+**Development item**
+One tracked response to a classified gap — the gap reference, chosen response,
+planned/in-progress/completed state, optional target date, and notes. Bounded by
+design; not a generic project manager.
+
+**Honest-response rule**
+Each gap kind maps to its only truthful response: rewording for presentation,
+capture proposal for uncaptured evidence, portfolio project for evidence not yet
+produced, learning recommendation for missing skill. Tailoring is never offered
+for substance gaps, and no response fabricates.
+
+**Completion proposal**
+The R11 proposal created when a development item completes: an `unconfirmed`
+evidence item that only explicit user confirmation turns into reusable verified
+evidence. The development loop never writes confirmed evidence.
+
 ## Branch roles
 
 - `chapter2` is the long-lived product experimentation and hardening branch.
