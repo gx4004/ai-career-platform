@@ -1,7 +1,7 @@
 # Career Workbench — Decision Log
 
 **Status:** append-only canonical record
-**Last reviewed:** 2026-07-10 (D-108–D-114 added same day, R17)
+**Last reviewed:** 2026-07-10 (D-115 added same day, R18)
 
 Use this log for durable product or architecture choices. New entries get the next
 ID. To reverse a decision, add a new entry and mark the old one `superseded`; do not
@@ -123,6 +123,7 @@ erase history.
 | D-112 | accepted | Track development items with a bounded model — gap reference, chosen response, planned/in-progress/completed state, optional target date, and notes — and nothing more; no boards, dependencies, or generic project-management features. | The product direction requires focused progress tracking, and the campaign scope decision (D-080) already establishes the bounded-domain pattern for adjacent tooling. |
 | D-113 | accepted | Completed development work never enters the Evidence Profile automatically: completion produces an R11 proposal as an `unconfirmed` item with recorded provenance, and only the user's explicit confirmation makes it reusable evidence for future CVs, packets, and recommendations. | The confirmation model (D-062) is the product's trust foundation, and self-certifying completed work would let the development loop mint its own evidence — the exact laundering the profile forbids. |
 | D-114 | accepted | Treat development plans, gap classifications, and progress as owner-isolated sensitive content: immediate deletion, account-deletion cascade, machine-readable export, and allowlisted low-cardinality telemetry only (gap kind, response kind, state transitions, counts). | A record of a user's skill gaps is among the most sensitive career data the product could hold, and the accepted lifecycle and telemetry boundaries already govern its class (D-031, D-067). |
+| D-115 | accepted | Gate every R18 expansion direction behind a five-part selection gate: demonstrated retention against an accepted target, the R11–R17 chain shipped or consciously descoped, a direction-specific recorded evidence case, a written connected-workbench argument (D-001), and its own full grill → decisions → provisional spec → tickets cycle with proportional privacy, legal, and cost review; no direction inherits authorization from the roadmap listing. | R18 deliberately has no outcome or acceptance gate — it is a holding area, and the roadmap itself requires a new product decision plus evidence per expansion; codifying the gate prevents a listed direction from ever being treated as pre-approved scope. |
 
 ## Decisions Needed
 
