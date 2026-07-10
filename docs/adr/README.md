@@ -43,3 +43,4 @@ What becomes easier, what becomes harder, rollback posture.
 
 - [0001. Instrumentation backend for R6 Activation Instrumentation](0001-r6-instrumentation-backend-choice.md) — accepted 2026-07-07
 - [0002. Eval fixture data source for R8 Output Quality Program](0002-r8-eval-fixture-data-source.md) — accepted 2026-07-07
+- [0003. Server-authoritative access decisions for R9 Monetization Experiment](0003-r9-server-authoritative-access-decisions.md) — accepted 2026-07-10

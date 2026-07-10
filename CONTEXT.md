@@ -55,6 +55,26 @@ For Resume Analyzer/Job Match only: a fixture whose actual blended score
 For the four generative tools: a proper-noun/employer/quantified claim present
 in generated output that cannot be traced back to the source resume text.
 
+## Monetization experimentation (R9)
+
+**Monetization evidence gate**
+The prerequisite evidence and decisions that must exist before a revenue treatment
+can reach users: the R6 two-week activation baseline, an accepted activation target,
+an accepted launch market/segment, and candidate-specific legal readiness.
+
+**Monetization candidate**
+One revenue hypothesis evaluated for R9: advertising, subscription, or a defined
+hybrid of the two. No candidate is selected while the monetization evidence gate is
+open.
+
+**Entitlement**
+A server-issued right to receive a monetized capability or restricted payload. A
+browser unlock flag or provider UI state is never an entitlement.
+
+**Control experience**
+The unchanged full-access experience against which an R9 treatment is measured and
+which remains available as the accessible, non-deceptive fallback.
+
 ## Branch roles
 
 - `chapter2` is the long-lived product experimentation and hardening branch.

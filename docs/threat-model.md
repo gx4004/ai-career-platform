@@ -849,12 +849,20 @@ And the frontend Dockerfile declares them as build args. However:
 
 **Status:** Infrastructure present but SDK is not activated. See D-UNK-4.
 
-### 10.4 Google AdSense — Consent-Gated
+### 10.4 Google AdSense — Dormant UI, Unsafe Disabled Path
 
-Loaded only if cookie consent is accepted AND `VITE_AD_CLIENT_ID` env var is set.
-Ad-blocker detection via bait div render check. 30-second countdown fallback.
+The result wrapper returns full content before rendering an ad gate, but it calls
+`useAd()` before that early return. The hook rejects only explicit consent state
+`rejected`; both `pending` and `accepted` continue through ad-blocker detection and
+load the AdSense script when `VITE_AD_CLIENT_ID` exists. The current Dockerfile does
+not declare or inject that build argument, and no tracked environment example enables
+it, so this is not evidence that the deployed product currently loads AdSense. It is
+evidence that the dormant path is not safe to reactivate or retain as R9's foundation.
 
-— `frontend/src/hooks/useAd.ts`
+R9 decision D-051 requires removing the client path before candidate implementation;
+D-048 requires any future access decision to be server-authoritative.
+
+— `frontend/src/components/tooling/AdGatedLock.tsx`, `frontend/src/hooks/useAd.ts`
 
 ---
 
@@ -901,6 +909,7 @@ Ad-blocker detection via bait div render check. 30-second countdown fallback.
 | 9 | Password reset URL exposure | New links use `#token=...`; the page consumes and scrubs fragment and legacy query tokens | Remove legacy query compatibility after the reset-token lifetime and rollout window | Old links can retain tokens in pre-existing browser history | #75 |
 | 10 | CAPTCHA coverage is registration-only | Evidence can identify route-specific abuse, but the existing challenge contract covers registration | Add a reviewed challenge contract only to the attacked flow | Unconditional CAPTCHA harms access; unsupported activation would break clients | #76 follow-up if threshold triggers |
 | 11 | Login error message distinction | "Invalid email or password" (ambiguous) | Same message for both cases (no enumeration) | Registration says "Email already registered" — enables enumeration | #75 |
+| 12 | Dormant ad wrapper runs its loader hook before returning the free result | `useAd` treats pending consent like acceptance and can load AdSense when locally configured | Remove the dormant client ad/unlock path; require explicit candidate-specific consent and server-authoritative access before R9 | Third-party script may load before affirmative consent; future agents may revive a bypassable client gate | R9 / D-051 |
 
 ---
 

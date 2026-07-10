@@ -163,7 +163,9 @@ Acceptance gate:
 
 ### R9. Monetization Experiment
 
-**Status:** deferred pending activation evidence
+**Status:** PROVISIONAL spec published (#126; tracer issues #127–#133), still
+deferred pending the R6 two-week baseline, accepted activation target, and
+launch-market/legal readiness
 **Outcome:** test a revenue model without damaging trust or the core workflow.
 
 Sequence:
