@@ -110,6 +110,10 @@ Core entities:
 - CV document (planned, R12; D-069, ADR 0006) — per-user structured document whose
   claims reference Evidence Profile items, with one working draft plus immutable
   recoverable variants. Contract defined; nothing ships until R11 lands (D-068).
+- Application campaign (planned, R13; D-077, ADR 0007) — `Workspace` evolved in
+  place with optional campaign fields and dependent owner-scoped tables (listing,
+  events, tasks, notes, contacts). Contract defined; nothing ships until R12 lands
+  (D-076).
 
 Persistence invariants:
 
@@ -244,6 +248,27 @@ errors remain forbidden.
 - Model-backed studio calls run through the shared pipeline with bounded
   per-document regeneration quotas; CV content joins the sensitive-content
   lifecycle and allowlisted-telemetry boundaries (D-075).
+
+## Campaign and Reviewer Boundaries (R13, deferred)
+
+- Campaigns are the `Workspace` entity evolved additively; existing workspaces stay
+  valid label-only campaigns and the implicit creation path keeps working (D-077,
+  ADR 0007).
+- The canonical listing is persisted owner-isolated user content including source
+  URL and retrieval date; listing telemetry remains source-family only (D-078,
+  D-059).
+- Campaign history is append-only events; material links reference immutable
+  versions; the submitted snapshot is an immutable bundle (D-079, D-010).
+- Tracking is bounded to the job-search domain — fixed status lifecycle, tasks,
+  notes, minimal contacts; no generic CRM features (D-080).
+- Reminders are in-product, consented, rate-limited, and revocable; email/push
+  channels need a future decision extending the password-reset-only email boundary
+  (D-081).
+- The reviewer is a separate advisory pass through the shared pipeline; it
+  implements the D-043 fabrication tracer against confirmed evidence and never
+  auto-applies findings or creates/confirms evidence (D-082).
+- Campaign content, including contacts (third-party personal data), joins the
+  sensitive-content lifecycle and allowlisted-telemetry boundaries (D-083).
 
 ## Abuse Controls
 

@@ -47,3 +47,4 @@ What becomes easier, what becomes harder, rollback posture.
 - [0004. Result cache remains fail-open acceleration for R10](0004-r10-cache-remains-fail-open-acceleration.md) — accepted 2026-07-10
 - [0005. Evidence Profile is a persisted user-scoped entity with per-item trust state](0005-r11-evidence-profile-persistence-boundary.md) — accepted 2026-07-10
 - [0006. CV documents are structured entities referencing Evidence Profile facts](0006-r12-cv-document-model.md) — accepted 2026-07-10
+- [0007. Workspaces evolve in place into Application Campaigns](0007-r13-workspaces-become-campaigns.md) — accepted 2026-07-10
