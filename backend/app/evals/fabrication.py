@@ -159,14 +159,15 @@ def extract_claims(output_text: str) -> list[Claim]:
 
 
 def _figure_traceable(figure: str, resume_text: str) -> bool:
-    """Return ``True`` when a numeric figure appears in the resume text.
+    r"""Return ``True`` when a numeric figure appears in the resume text.
 
     Commas are stripped from both sides so ``4,500`` matches ``4500``; digit
-    boundaries prevent ``12`` from matching inside ``120``.
+    boundaries prevent ``12`` from matching inside ``120``, and the trailing
+    ``(?!\.\d)`` stops a bare ``2`` from matching the integer part of ``2.5``.
     """
     normalized = figure.replace(",", "")
     resume_normalized = resume_text.replace(",", "")
-    pattern = rf"(?<![\w.]){re.escape(normalized)}(?![\w])"
+    pattern = rf"(?<![\w.]){re.escape(normalized)}(?![\w])(?!\.\d)"
     return bool(re.search(pattern, resume_normalized))
 
 
@@ -182,13 +183,14 @@ def claim_traceable(claim: Claim, resume_text: str) -> bool:
     return keyword_present(claim.text, resume_text)
 
 
+def _untraceable_claims(claims: list[Claim], resume_text: str) -> tuple[Claim, ...]:
+    """Return the subset of ``claims`` that cannot be traced to ``resume_text``."""
+    return tuple(claim for claim in claims if not claim_traceable(claim, resume_text))
+
+
 def find_fabrication_candidates(output_text: str, resume_text: str) -> list[Claim]:
     """Return the claims in ``output_text`` not traceable to ``resume_text``."""
-    return [
-        claim
-        for claim in extract_claims(output_text)
-        if not claim_traceable(claim, resume_text)
-    ]
+    return list(_untraceable_claims(extract_claims(output_text), resume_text))
 
 
 @dataclass(frozen=True)
@@ -236,9 +238,7 @@ def check_output(tool: str, fixture: EvalFixture, output_text: str) -> Fabricati
         A :class:`FabricationResult` with every untraceable claim flagged.
     """
     claims = extract_claims(output_text)
-    candidates = tuple(
-        claim for claim in claims if not claim_traceable(claim, fixture.resume_text)
-    )
+    candidates = _untraceable_claims(claims, fixture.resume_text)
     return FabricationResult(
         tool=tool,
         fixture_id=fixture.id,

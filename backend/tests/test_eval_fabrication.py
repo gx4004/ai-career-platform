@@ -113,6 +113,13 @@ def test_figure_claim_respects_digit_boundaries() -> None:
     assert not claim_traceable(Claim("12", KIND_FIGURE), "Scaled to 120 nodes.")
 
 
+def test_figure_claim_does_not_match_decimal_prefix() -> None:
+    # A bare "2" must not trace to the integer part of "2.5".
+    assert not claim_traceable(Claim("2", KIND_FIGURE), "Grew revenue 2.5x.")
+    # A figure directly before a sentence-ending period still traces.
+    assert claim_traceable(Claim("38%", KIND_FIGURE), "Cut latency by 38%.")
+
+
 # --- Acceptance: absent claim is flagged ---
 
 
