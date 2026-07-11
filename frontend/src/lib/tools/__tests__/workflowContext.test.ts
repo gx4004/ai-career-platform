@@ -1,12 +1,15 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
   buildWorkspaceRequestContext,
+  clearCarriedField,
   deriveWorkflowUpdateFromHistoryItem,
   deriveWorkflowUpdateFromResult,
+  getCarriedFields,
   getWorkflowTargetRole,
 } from '#/lib/tools/workflowContext'
 import type { ToolRunDetail } from '#/lib/api/schemas'
 import type { WorkflowContextState } from '#/lib/tools/drafts'
+import { readWorkflowContext, writeWorkflowContext } from '#/lib/tools/drafts'
 
 function historyItem(partial: Partial<ToolRunDetail> = {}): ToolRunDetail {
   return {
@@ -196,5 +199,164 @@ describe('getWorkflowTargetRole', () => {
       targetRole: 'Real Role',
     } as WorkflowContextState
     expect(getWorkflowTargetRole(ctx)).toBe('Real Role')
+  })
+})
+
+describe('getCarriedFields', () => {
+  const fullContext = {
+    lastToolId: 'resume',
+    resumePendingReview: false,
+    updatedAt: 1,
+    resumeText: 'Resume body',
+    jobDescription: 'Job posting body',
+    targetRole: 'Backend Engineer',
+  } as WorkflowContextState
+
+  it('returns no fields for a null or empty context', () => {
+    expect(getCarriedFields(null, 'job-match')).toEqual([])
+    expect(
+      getCarriedFields(
+        {
+          lastToolId: 'resume',
+          resumePendingReview: false,
+          updatedAt: 1,
+        } as WorkflowContextState,
+        'job-match',
+      ),
+    ).toEqual([])
+  })
+
+  it('names resume + job description on a non-planner tool (mirrors useWorkflowBridge)', () => {
+    expect(getCarriedFields(fullContext, 'job-match')).toEqual([
+      { key: 'resume', label: 'Resume' },
+      { key: 'jobDescription', label: 'Job description' },
+    ])
+    // Same on cover-letter/interview: still no target role there.
+    expect(getCarriedFields(fullContext, 'cover-letter')).toEqual([
+      { key: 'resume', label: 'Resume' },
+      { key: 'jobDescription', label: 'Job description' },
+    ])
+  })
+
+  it('names resume + target role on a planner tool, not the job description', () => {
+    expect(getCarriedFields(fullContext, 'career')).toEqual([
+      { key: 'resume', label: 'Resume' },
+      { key: 'targetRole', label: 'Target role' },
+    ])
+    expect(getCarriedFields(fullContext, 'portfolio')).toEqual([
+      { key: 'resume', label: 'Resume' },
+      { key: 'targetRole', label: 'Target role' },
+    ])
+  })
+
+  it('reports only the fields that actually carry', () => {
+    const ctx = {
+      lastToolId: 'resume',
+      resumePendingReview: false,
+      updatedAt: 1,
+      resumeText: 'Resume body',
+      jobDescription: '   ',
+    } as WorkflowContextState
+
+    expect(getCarriedFields(ctx, 'job-match')).toEqual([{ key: 'resume', label: 'Resume' }])
+  })
+
+  it('derives the target-role field from any role source on a planner', () => {
+    const ctx = {
+      lastToolId: 'career',
+      resumePendingReview: false,
+      updatedAt: 1,
+      recommendedDirectionRole: 'Staff Engineer',
+    } as WorkflowContextState
+
+    expect(getCarriedFields(ctx, 'portfolio')).toEqual([
+      { key: 'targetRole', label: 'Target role' },
+    ])
+  })
+})
+
+describe('clearCarriedField', () => {
+  beforeEach(() => {
+    window.sessionStorage.clear()
+  })
+
+  afterEach(() => {
+    window.sessionStorage.clear()
+  })
+
+  function seed(partial: Partial<WorkflowContextState>): void {
+    writeWorkflowContext({
+      lastToolId: 'job-match',
+      resumePendingReview: false,
+      updatedAt: Date.now(),
+      ...partial,
+    })
+  }
+
+  it('is a no-op when there is no workflow context', () => {
+    expect(() => clearCarriedField('resume')).not.toThrow()
+    expect(readWorkflowContext()).toBeNull()
+  })
+
+  it('stops the resume from carrying while preserving other fields', () => {
+    seed({
+      resumeText: 'Resume body',
+      resumePendingReview: true,
+      jobDescription: 'Job posting body',
+    })
+
+    clearCarriedField('resume')
+
+    const next = readWorkflowContext()
+    expect(next?.resumeText).toBeUndefined()
+    expect(next?.jobDescription).toBe('Job posting body')
+    expect(getCarriedFields(next, 'job-match')).toEqual([
+      { key: 'jobDescription', label: 'Job description' },
+    ])
+  })
+
+  it('does not cross-clear a target role that only a carried resume analysis derives', () => {
+    seed({
+      resumeText: 'Resume body',
+      resumeAnalysis: {
+        role_fit: { target_role_label: 'Backend Engineer' },
+      } as WorkflowContextState['resumeAnalysis'],
+    })
+
+    clearCarriedField('resume')
+
+    const next = readWorkflowContext()
+    expect(next?.resumeText).toBeUndefined()
+    // Clearing the resume must not neutralise an independent carried field.
+    expect(getWorkflowTargetRole(next)).toBe('Backend Engineer')
+  })
+
+  it('stops the job description from carrying', () => {
+    seed({ resumeText: 'Resume body', jobDescription: 'Job posting body' })
+
+    clearCarriedField('jobDescription')
+
+    const next = readWorkflowContext()
+    expect(next?.jobDescription).toBeUndefined()
+    expect(getCarriedFields(next, 'job-match')).toEqual([{ key: 'resume', label: 'Resume' }])
+  })
+
+  it('stops the target role from carrying across every role source', () => {
+    seed({
+      resumeText: 'Resume body',
+      selectedTargetRole: 'Staff Engineer',
+      targetRole: 'Senior Engineer',
+      recommendedDirectionRole: 'Lead Engineer',
+      resumeAnalysis: {
+        role_fit: { target_role_label: 'Backend Engineer' },
+      } as WorkflowContextState['resumeAnalysis'],
+    })
+
+    clearCarriedField('targetRole')
+
+    const next = readWorkflowContext()
+    expect(getWorkflowTargetRole(next)).toBeUndefined()
+    expect(next?.resumeText).toBe('Resume body')
+    expect(getCarriedFields(next, 'career')).toEqual([{ key: 'resume', label: 'Resume' }])
   })
 })
