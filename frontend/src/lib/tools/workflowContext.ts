@@ -6,6 +6,7 @@ import type {
   ToolRunDetail,
 } from '#/lib/api/schemas'
 import type { WorkflowContextState } from '#/lib/tools/drafts'
+import { readWorkflowContext, writeWorkflowContext } from '#/lib/tools/drafts'
 import { getToolByHistoryName, type ToolId } from '#/lib/tools/registry'
 
 type AnyObject = Record<string, unknown>
@@ -127,6 +128,105 @@ export function getWorkflowTargetRole(
   ]
 
   return candidates.find((value): value is string => Boolean(value?.trim()))
+}
+
+/**
+ * Identifies a field carried across the tab-scoped workflow context (D-011).
+ * These are exactly the fields that pre-fill the next tool's input via
+ * `useWorkflowBridge`, so the R7 #112 transparency layer can name them and a
+ * per-field clear can stop a specific one from carrying forward.
+ */
+export type CarriedFieldKey = 'resume' | 'jobDescription' | 'targetRole'
+
+export type CarriedField = {
+  key: CarriedFieldKey
+  label: string
+}
+
+const CARRIED_FIELD_LABELS: Record<CarriedFieldKey, string> = {
+  resume: 'Resume',
+  jobDescription: 'Job description',
+  targetRole: 'Target role',
+}
+
+/**
+ * The specific fields the workflow context would pre-fill into `toolId`'s input,
+ * in tool-input order (resume → job description → target role). This mirrors the
+ * seeding gates in `useWorkflowBridge` exactly, so the banner names only the
+ * fields the target tool actually carries over — not everything present in the
+ * context. Resume seeds on every tool; the job description seeds on every tool
+ * except the planners (career/portfolio); the target role seeds only on the
+ * planners.
+ */
+export function getCarriedFields(
+  context: WorkflowContextState | null,
+  toolId: ToolId,
+): CarriedField[] {
+  if (!context) return []
+
+  const isPlanner = toolId === 'career' || toolId === 'portfolio'
+  const fields: CarriedField[] = []
+
+  if (context.resumeText?.trim()) {
+    fields.push({ key: 'resume', label: CARRIED_FIELD_LABELS.resume })
+  }
+  if (!isPlanner && context.jobDescription?.trim()) {
+    fields.push({ key: 'jobDescription', label: CARRIED_FIELD_LABELS.jobDescription })
+  }
+  if (isPlanner && getWorkflowTargetRole(context)) {
+    fields.push({ key: 'targetRole', label: CARRIED_FIELD_LABELS.targetRole })
+  }
+  return fields
+}
+
+/**
+ * Removes a single carried field from the tab-scoped workflow context so it no
+ * longer pre-fills the next tool's input. Stays within the existing
+ * `sessionStorage` boundary (D-011): no new persistence, no cross-tab carry, and
+ * persisted `ToolRun` history is untouched.
+ *
+ * Each branch clears exactly the source(s) that feed that field's pre-fill and
+ * nothing else: the target role is derived from several keys (see
+ * `getWorkflowTargetRole`), so all of them are neutralised — but only the role
+ * sub-field of a carried result object, never the whole object, so other
+ * carried data (starter project, skill gaps, results) survives.
+ */
+export function clearCarriedField(key: CarriedFieldKey): void {
+  const context = readWorkflowContext()
+  if (!context) return
+
+  const next: WorkflowContextState = { ...context }
+
+  if (key === 'resume') {
+    next.resumeText = undefined
+    next.resumePendingReview = undefined
+  } else if (key === 'jobDescription') {
+    next.jobDescription = undefined
+  } else {
+    next.targetRole = undefined
+    next.selectedTargetRole = undefined
+    next.recommendedDirectionRole = undefined
+    if (next.portfolioResult?.target_role) {
+      next.portfolioResult = { ...next.portfolioResult, target_role: '' }
+    }
+    if (next.careerResult?.recommended_direction?.role_title) {
+      next.careerResult = {
+        ...next.careerResult,
+        recommended_direction: {
+          ...next.careerResult.recommended_direction,
+          role_title: '',
+        },
+      }
+    }
+    if (next.resumeAnalysis?.role_fit?.target_role_label) {
+      next.resumeAnalysis = {
+        ...next.resumeAnalysis,
+        role_fit: { ...next.resumeAnalysis.role_fit, target_role_label: '' },
+      }
+    }
+  }
+
+  writeWorkflowContext({ ...next, updatedAt: Date.now() })
 }
 
 function asObject(value: unknown): AnyObject {

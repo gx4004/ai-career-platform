@@ -48,3 +48,19 @@ export function isR7EntryChoiceEnabled(): boolean {
 export function isR7SampleQuickfillEnabled(): boolean {
   return readBooleanFlag(import.meta.env.VITE_R7_SAMPLE_QUICKFILL)
 }
+
+/**
+ * R7 candidate #112 — context-carry field transparency and per-field clear.
+ *
+ * When off (default), the workflow handoff banner is unchanged: a single line
+ * naming the source tool the current inputs were carried over from.
+ * When on, the banner additionally names the specific fields carried over
+ * (resume, job description, target role) and exposes a per-field control to
+ * clear a specific carried field for the current tab, so it no longer pre-fills
+ * the next tool's input. This stays within the existing tab-scoped
+ * `sessionStorage` carry boundary (D-011) — no new persistence layer, no
+ * cross-tab/cross-device carry.
+ */
+export function isR7ContextCarryEnabled(): boolean {
+  return readBooleanFlag(import.meta.env.VITE_R7_CONTEXT_CARRY)
+}
