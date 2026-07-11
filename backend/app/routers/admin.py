@@ -21,6 +21,7 @@ from app.schemas.admin import (
     AdminRunDetailResponse,
     AdminRunItem,
     AdminRunListResponse,
+    AdminScorecardResponse,
     AdminSetAdminRequest,
     AdminStatsResponse,
     AdminUserDetailResponse,
@@ -32,6 +33,7 @@ from app.services.analytics import (
     ACTIVATION_DEFAULT_WINDOW_DAYS,
     aggregate_activation_metrics,
 )
+from app.services.scorecard import compute_scorecard
 
 router = APIRouter()
 
@@ -301,6 +303,28 @@ def get_activation(
         window_end=window_end,
         access_mode=access_mode,
     )
+
+
+# ── Scaling-trigger scorecard (R10, issue #136) ──
+
+
+@router.get("/scorecard", response_model=AdminScorecardResponse)
+@limiter.limit(_ADMIN_RATE)
+def get_scorecard(
+    request: Request,
+    admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """Read-only R10 operational scaling-trigger scorecard (#136, D-052/D-053).
+
+    Admin-gated exactly like every other endpoint here (``get_current_admin``).
+    For each of the six predeclared triggers it reports the threshold,
+    observation window, minimum sample, current evidence, freshness, trigger
+    state, owner, rollback, and exit criteria, plus the deferred response ticket
+    a fired trigger authorises *review* of. It never changes any response
+    configuration — a crossed threshold only sets ``review_required``.
+    """
+    return compute_scorecard(db)
 
 
 # ── Eval Runs (R8, issue #124) ──
