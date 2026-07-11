@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import { AlertCircle, Clock, Copy, Download, FileText, Loader2, RefreshCw, Star, Undo2, X } from 'lucide-react'
+import { AlertCircle, ArrowRight, Clock, Copy, Download, FileText, Loader2, RefreshCw, Star, Undo2, X } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { FadeIn, FadeUp } from '#/components/ui/motion'
 import { ScoreTooltip } from '#/components/tooling/ScoreTooltip'
@@ -9,6 +9,7 @@ import { AppStatePanel } from '#/components/app/AppStatePanel'
 import { PageFrame } from '#/components/app/PageFrame'
 import { ApiError } from '#/lib/api/errors'
 import { getHistoryItem } from '#/lib/api/client'
+import { isR7NextBestActionEnabled } from '#/lib/flags/featureFlags'
 import { useFavoriteToggle } from '#/hooks/useFavoriteToggle'
 import { useSession } from '#/hooks/useSession'
 import { getTransientResult, isDemoHistoryId } from '#/lib/tools/demoRuns'
@@ -21,6 +22,7 @@ import {
 } from '#/lib/tools/exports'
 import { resultDefinitions } from '#/lib/tools/resultDefinitions'
 import { deriveWorkflowUpdateFromHistoryItem } from '#/lib/tools/workflowContext'
+import { getNextStepToolId } from '#/lib/tools/runMetadata'
 import { getToolByHistoryName, tools } from '#/lib/tools/registry'
 import type { ToolId } from '#/lib/tools/registry'
 import { toolAccentStyle } from '#/lib/tools/styleUtils'
@@ -229,6 +231,8 @@ export function ToolResultScreen({
       : item.label || resolvedTool.shortLabel
   const savedResult = item.saved
   const guestResult = !savedResult
+  const nextBestActionEnabled = isR7NextBestActionEnabled()
+  const nextTool = tools[getNextStepToolId(resolvedTool.id, item.metadata)]
   function handleRegenSubmit() {
     const params = new URLSearchParams()
     params.set('parent_run_id', historyId)
@@ -268,6 +272,15 @@ export function ToolResultScreen({
         formatExportContent(exportableSections, 'txt'),
       )
     }
+  }
+
+  function handleNextBestAction() {
+    trackTelemetry({
+      event_name: 'workflow_continued',
+      tool_id: resolvedTool.id,
+      access_mode: savedResult ? 'authenticated' : 'guest_demo',
+    })
+    void navigate({ to: nextTool.route })
   }
 
   return (
@@ -481,6 +494,20 @@ export function ToolResultScreen({
             {definition.render(payload, item, resolvedTool)}
           </div>
         </FadeUp>
+
+        {nextBestActionEnabled ? (
+          <div className="result-action" aria-label="Try next suggestion">
+            <div className="result-action__text">
+              <strong>Keep your workflow moving.</strong> Use this result in {nextTool.label}.
+            </div>
+            <div className="result-action__btns">
+              <Button type="button" onClick={handleNextBestAction}>
+                Try next: {nextTool.label}
+                <ArrowRight aria-hidden="true" />
+              </Button>
+            </div>
+          </div>
+        ) : null}
 
       </section>
     </PageFrame>
