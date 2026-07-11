@@ -8,6 +8,7 @@ import httpx
 from bs4 import BeautifulSoup
 
 from app.schemas.tools import ImportedJobResponse
+from app.services.import_source import set_import_outcome
 
 logger = logging.getLogger(__name__)
 
@@ -266,6 +267,8 @@ async def scrape_job_posting(url: str) -> ImportedJobResponse:
         html = await _fetch_with_httpx(url)
         result = _parse_job_data(html, url)
         if result.job_description and len(result.job_description) > 100:
+            # R10 import outcome (#136, D-059): first-tier HTTP fetch succeeded.
+            set_import_outcome("success")
             return result
         html = None
     except Exception as exc:
@@ -278,14 +281,18 @@ async def scrape_job_posting(url: str) -> ImportedJobResponse:
     if html is None:
         try:
             html = await _fetch_with_playwright(url)
-            return _parse_job_data(html, url)
+            result = _parse_job_data(html, url)
+            # R10 import outcome: the bounded Playwright fallback produced it.
+            set_import_outcome("fallback")
+            return result
         except Exception as exc:
             logger.info(
                 "Playwright scrape also failed error_type=%s",
                 type(exc).__name__,
             )
 
-    # Tier 3: Graceful failure
+    # Tier 3: Graceful failure — neither tier yielded a usable posting.
+    set_import_outcome("failure")
     return ImportedJobResponse(
         job_title=None,
         company_name=None,

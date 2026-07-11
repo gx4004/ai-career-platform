@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from decimal import Decimal
+from typing import Literal
 
 from pydantic import BaseModel
 
@@ -141,6 +142,52 @@ class AdminEvalRunsResponse(BaseModel):
     ``analytics_events`` (D-045)."""
 
     tools: list[EvalRunItem] = []
+
+
+# ── R10 scaling-trigger scorecard (issue #136, parent #135, D-052/D-053) ──
+# Read-only aggregate over the same first-party operational store. Never enables
+# a response: a crossed threshold sets `review_required` and links the deferred
+# response ticket. Plain tables only — no charting library, no BI tool (D-039).
+
+
+# fired: threshold met on a sufficient, sustained sample. not_fired: sufficient
+# evidence shows the threshold is not met (includes a transient breach that did
+# not sustain — a reset false positive). insufficient_sample: not enough fresh
+# evidence, or the sub-signal is not yet instrumented, to decide.
+TriggerState = Literal["fired", "not_fired", "insufficient_sample"]
+
+
+class ScorecardTrigger(BaseModel):
+    """One R10 scaling trigger with its predeclared plan and current evidence."""
+
+    id: str
+    label: str
+    threshold: str
+    observation_window: str
+    minimum_sample: str
+    evidence: str
+    evidence_detail: dict[str, float | int | str] = {}
+    evidence_fresh: bool = False
+    last_evidence_at: str | None = None
+    state: TriggerState = "insufficient_sample"
+    # True only when `state == "fired"`. Signals the operator to *review* the
+    # linked response; the scorecard never enables the response itself.
+    review_required: bool = False
+    response_ticket: int
+    response_ticket_title: str
+    owner: str
+    rollback: str
+    exit_criteria: str
+
+
+class AdminScorecardResponse(BaseModel):
+    """The full R10 operational scaling-trigger scorecard (read-only)."""
+
+    generated_at: str
+    window_start: str
+    window_end: str
+    replica_class: str
+    triggers: list[ScorecardTrigger] = []
 
 
 # Rebuild models that use forward references

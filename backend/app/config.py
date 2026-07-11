@@ -40,6 +40,22 @@ class Settings(BaseSettings):
     RESULT_CACHE_ENABLED: bool = True
     BLENDED_SCORING_ENABLED: bool = True
 
+    # ── R10 scaling-trigger scorecard inputs (issue #136, parent #135) ──
+    # Operator-declared deployment topology class. The intended backend starts
+    # one Uvicorn process, so `single` is the accurate default; declare `multi`
+    # only when two or more API replicas are actually verified (D-052/ADR 0004).
+    API_REPLICA_CLASS: str = "single"
+    # Per-tool submit-to-result p95 latency budget in milliseconds. The latency
+    # trigger fires only if this is sustained across consecutive daily windows.
+    LATENCY_P95_BUDGET_MS: int = 60000
+    # Provider LLM-cost alert budget over a rolling 24h window, in USD. Feeds the
+    # abuse/cost trigger's cost-alert branch (D-057).
+    COST_ALERT_USD_24H: float = 5.0
+    # Provisioned Postgres capacity in bytes for the storage-headroom signal;
+    # 0 means "unknown" and the database trigger reports insufficient evidence
+    # for storage rather than guessing (D-058).
+    DB_CAPACITY_BYTES: int = 0
+
     CAPTCHA_ENABLED: bool = False
     CAPTCHA_SECRET_KEY: str = ""
     CAPTCHA_VERIFY_URL: str = "https://www.google.com/recaptcha/api/siteverify"

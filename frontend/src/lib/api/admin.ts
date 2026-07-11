@@ -171,6 +171,40 @@ export type AdminEvalRuns = {
   tools: EvalRunItem[]
 }
 
+// R10 scaling-trigger scorecard — mirrors backend/app/schemas/admin.py
+// (ScorecardTrigger / AdminScorecardResponse). Read-only aggregate over the
+// same first-party operational store; a fired trigger sets review_required and
+// links its deferred response ticket — the scorecard never enables a response.
+
+export type TriggerState = 'fired' | 'not_fired' | 'insufficient_sample'
+
+export type ScorecardTrigger = {
+  id: string
+  label: string
+  threshold: string
+  observation_window: string
+  minimum_sample: string
+  evidence: string
+  evidence_detail: Record<string, number | string>
+  evidence_fresh: boolean
+  last_evidence_at: string | null
+  state: TriggerState
+  review_required: boolean
+  response_ticket: number
+  response_ticket_title: string
+  owner: string
+  rollback: string
+  exit_criteria: string
+}
+
+export type AdminScorecard = {
+  generated_at: string
+  window_start: string
+  window_end: string
+  replica_class: string
+  triggers: ScorecardTrigger[]
+}
+
 // API functions
 
 export function getAdminStats() {
@@ -224,4 +258,8 @@ export function getAdminActivation(
 
 export function getAdminEvalRuns() {
   return adminRequest<AdminEvalRuns>('/admin/eval-runs')
+}
+
+export function getAdminScorecard() {
+  return adminRequest<AdminScorecard>('/admin/scorecard')
 }

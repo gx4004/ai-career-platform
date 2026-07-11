@@ -15,6 +15,7 @@ from app.services.observability import (
     log_tool_run_failed,
     log_tool_run_started,
 )
+from app.services.provider_incident import get_provider_incident, reset_provider_incident
 from app.services.result_cache import compute_content_hash, get_cached_result, set_cached_result
 from app.services.tool_runs import build_tool_response, extract_linked_context_ids, persist_tool_run
 
@@ -42,6 +43,9 @@ async def run_tool_pipeline(
     # Clear any prior request's LLM cost so this run's estimate only reflects
     # the provider calls it makes; stays None if none are reached (issue #106).
     reset_llm_cost()
+    # Clear any prior request's provider-incident category so a failure in this
+    # run is attributed to this run only (R10 #136, D-055).
+    reset_provider_incident()
 
     log_tool_run_started(
         tool_name=tool_name,
@@ -84,7 +88,16 @@ async def run_tool_pipeline(
             hash_kwargs.update(cache_extra_keys)
         hash_kwargs["user_scope"] = current_user.id if current_user else "guest"
         content_hash = compute_content_hash(tool_name, clean_resume, clean_jd, **hash_kwargs)
-        cached = get_cached_result(content_hash)
+        # Cache lookup stays fail-open (ADR 0004): a lookup error must degrade to
+        # a normal miss, never break the run. The R10 scorecard records the
+        # outcome class only — the content hash is never persisted (#136, D-054).
+        try:
+            cached = get_cached_result(content_hash)
+        except Exception:  # noqa: BLE001 — cache is a disposable acceleration layer
+            cached = None
+            _record_cache_outcome(db, "failure")
+        else:
+            _record_cache_outcome(db, "hit" if cached is not None else "miss")
 
     if cached is not None:
         result = {**cached}
@@ -114,10 +127,29 @@ async def run_tool_pipeline(
                 cost_estimate=get_llm_cost(),
                 failure_category="tool_request_failed",
             )
+            # R10 provider-incident evidence (#136, D-055): if the failure came
+            # from a categorised provider error, record exactly one incident for
+            # this user-visible failure — the LLM client's internal retries have
+            # already been collapsed into a single category by the contextvar.
+            incident_category = get_provider_incident()
+            if incident_category is not None:
+                safe_record_activation_event(
+                    db,
+                    event_name="r10_provider_incident",
+                    level="error",
+                    tool_id=tool_name,
+                    access_mode=access_mode,
+                    operational_dimension=incident_category,
+                )
             raise
 
         if content_hash is not None:
-            set_cached_result(content_hash, result)
+            try:
+                set_cached_result(content_hash, result)
+            except Exception:  # noqa: BLE001 — cache write is best-effort
+                _record_cache_outcome(db, "failure")
+            else:
+                _record_cache_outcome(db, "write")
 
     run = persist_tool_run(
         db,
@@ -156,3 +188,18 @@ async def run_tool_pipeline(
     )
 
     return response
+
+
+def _record_cache_outcome(db: Session, outcome: str) -> None:
+    """Emit one allowlisted `r10_cache_outcome` event (outcome class only).
+
+    R10 multi-instance/cache evidence (#136, ADR 0004). Best-effort like every
+    other instrumentation call here — `safe_record_activation_event` swallows
+    operational failures — and carries no cache key or payload, only the
+    hit/miss/write/failure class.
+    """
+    safe_record_activation_event(
+        db,
+        event_name="r10_cache_outcome",
+        operational_outcome=outcome,
+    )
