@@ -3,7 +3,9 @@ import { useMutation } from '@tanstack/react-query'
 import { Link2 } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { Input } from '#/components/ui/input'
+import { SampleQuickfill } from '#/components/tooling/SampleQuickfill'
 import { importJobUrl } from '#/lib/api/client'
+import { SAMPLE_JOB_DESCRIPTION } from '#/lib/tools/sampleContent'
 
 export function JobImportCard({
   onImported,
@@ -44,6 +46,11 @@ export function JobImportCard({
             {mutation.error instanceof Error ? mutation.error.message : 'Job import failed.'}
           </p>
         ) : null}
+        {/* R7 #111 sample quick-fill ships dark: renders nothing unless VITE_R7_SAMPLE_QUICKFILL=true. */}
+        <SampleQuickfill
+          label="Try a sample job description"
+          onUse={() => onImported(SAMPLE_JOB_DESCRIPTION)}
+        />
       </div>
     </div>
   )

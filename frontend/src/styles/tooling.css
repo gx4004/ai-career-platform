@@ -369,3 +369,20 @@
   margin-top: 4px;
   font-style: italic;
 }
+
+/* R7 #111 sample quick-fill (dark-shipped: only rendered when VITE_R7_SAMPLE_QUICKFILL=true) */
+.sample-quickfill {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  margin-top: 0.75rem;
+}
+.sample-quickfill-btn {
+  gap: 0.375rem;
+}
+.sample-quickfill-note {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-style: italic;
+}
