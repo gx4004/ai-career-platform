@@ -34,6 +34,7 @@ import { deriveWorkflowUpdateFromHistoryItem } from '#/lib/tools/workflowContext
 import { getToolByHistoryName, toolList } from '#/lib/tools/registry'
 import { toolAccentStyle } from '#/lib/tools/styleUtils'
 import { trackTelemetry } from '#/lib/telemetry/client'
+import { ResultsNudge } from '#/components/history/ResultsNudge'
 
 export type HistorySearchState = {
   tool?: string
@@ -207,6 +208,7 @@ export function HistoryPage({
             </div>
           ))}
         </div>
+        <ResultsNudge />
         <div className="history-grid">
           <div className="section-card grid gap-3 p-5">
             <p className="eyebrow">Resume latest workspace</p>
