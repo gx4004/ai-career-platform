@@ -74,3 +74,14 @@ export function isR7ContextCarryEnabled(): boolean {
 export function isR7NextBestActionEnabled(): boolean {
   return readBooleanFlag(import.meta.env.VITE_R7_NEXT_BEST_ACTION)
 }
+
+/**
+ * R7 candidate #114 — value-specific guest signup prompt.
+ *
+ * When off (default), the completed-result guest prompt keeps its existing
+ * generic copy and behavior. When on, it names the tool result the guest would
+ * keep while retaining the existing tool-scoped signup attribution.
+ */
+export function isR7ValueSpecificSignupEnabled(): boolean {
+  return readBooleanFlag(import.meta.env.VITE_R7_VALUE_SPECIFIC_SIGNUP)
+}
