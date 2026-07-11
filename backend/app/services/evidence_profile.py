@@ -1,7 +1,14 @@
+from datetime import UTC, datetime
+
 from sqlalchemy.orm import Session
 
 from app.models.evidence_item import EvidenceItem
-from app.schemas.evidence_profile import EvidenceItemCreate, EvidenceItemUpdate
+from app.schemas.evidence_profile import (
+    EvidenceItemCreate,
+    EvidenceItemResponse,
+    EvidenceItemUpdate,
+    EvidenceProfileExport,
+)
 
 
 class EvidenceItemNotFoundError(Exception):
@@ -69,3 +76,19 @@ def set_evidence_confirmation(
 def delete_evidence_item(db: Session, item_id: str, user_id: str) -> None:
     db.delete(get_evidence_item(db, item_id, user_id))
     db.commit()
+
+
+def export_evidence_profile(db: Session, user_id: str) -> EvidenceProfileExport:
+    """Assemble the complete, portable snapshot of one user's Evidence Profile.
+
+    Reuses the same owner-scoped query as the list surface so the export can never
+    reach across accounts, and emits every item in full (provenance and
+    confirmation state included) per D-065 / user story 15.
+    """
+    items = list_evidence_items(db, user_id)
+    exported = [EvidenceItemResponse.model_validate(item) for item in items]
+    return EvidenceProfileExport(
+        exported_at=datetime.now(UTC),
+        item_count=len(exported),
+        items=exported,
+    )
