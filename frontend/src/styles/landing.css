@@ -889,6 +889,13 @@
 .lp-redesign .lp-cta-card .lp-btn-primary { position: relative; z-index: 1; padding: 1.25rem 2.5rem; font-size: 1.0625rem; }
 
 /* R7 #110 entry choice (dark-shipped: only rendered when VITE_R7_ENTRY_CHOICE=true) */
+.lp-redesign .lp-hero-entry {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1.25rem;
+}
+.lp-redesign .lp-hero-entry .lp-entry-choice { margin: 0; }
 .lp-redesign .lp-entry-choice {
   position: relative;
   z-index: 1;

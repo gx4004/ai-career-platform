@@ -7,10 +7,10 @@
  * (see PRD #109, decision D-049 for the dark-ship posture).
  *
  * Each candidate reads its own `import.meta.env.VITE_R7_*` variable. Flags are
- * config-driven (a Vite env var, resolved per read), so a candidate can be
- * flipped on or off without a source change and independently of every other
- * candidate — exactly the on/off toggle the PRD asks for (A/B / experiment
- * infrastructure is explicitly out of scope).
+ * config-driven (a Vite env var, inlined at build time), so a candidate can be
+ * flipped on or off by changing deploy configuration — not source — and
+ * independently of every other candidate: exactly the on/off toggle the PRD asks
+ * for (A/B / experiment infrastructure is explicitly out of scope).
  *
  * Default is OFF: when the variable is unset or anything other than the string
  * "true" (case-insensitively, trimmed), the flag reads false.

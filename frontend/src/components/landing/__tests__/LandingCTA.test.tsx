@@ -60,10 +60,10 @@ describe('LandingCTA', () => {
     expect(screen.queryByRole('link', { name: /Upload your resume/i })).toBeNull()
     expect(container.querySelector('.lp-entry-choice')).toBeTruthy()
 
-    const resumeFirst = screen.getByRole('link', { name: /I have a resume/i })
-    expect(resumeFirst.getAttribute('href')).toBe('/resume')
+    const resumeFirst = container.querySelector('[data-entry-choice="resume-first"]')
+    expect(resumeFirst?.getAttribute('href')).toBe('/resume')
 
-    const roleFirst = screen.getByRole('link', { name: /I'm targeting a role/i })
-    expect(roleFirst.getAttribute('href')).toBe('/job-match')
+    const roleFirst = container.querySelector('[data-entry-choice="role-first"]')
+    expect(roleFirst?.getAttribute('href')).toBe('/job-match')
   })
 })
