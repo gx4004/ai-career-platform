@@ -42,11 +42,12 @@ class Settings(BaseSettings):
 
     # ── R11 Evidence Profile injection (issue #147, D-063, ADR 0005) ──
     # Master switch for injecting confirmed profile evidence through the shared
-    # pipeline. When False, tools fall back to today's inline-input behavior
-    # with no data loss (ADR 0005). Enabled by default; it is a no-op for guests
-    # and for authenticated users with no profile items, so tools behave exactly
-    # as today until a user confirms evidence.
-    EVIDENCE_PROFILE_INJECTION_ENABLED: bool = True
+    # pipeline. Ships dark (default False) to honor the still-open R1–R4 / R3
+    # gate (D-060) and match the repo's dark-ship pattern (#144 shipped dormant,
+    # R7 flags default OFF). When False, tools use today's inline-input behavior
+    # with no data loss (ADR 0005); an operator enables it once the gate closes.
+    # Even when True it is a no-op for guests and users with no profile items.
+    EVIDENCE_PROFILE_INJECTION_ENABLED: bool = False
 
     # ── R10 scaling-trigger scorecard inputs (issue #136, parent #135) ──
     # Operator-declared deployment topology class. The intended backend starts

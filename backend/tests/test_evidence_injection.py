@@ -50,11 +50,22 @@ def _seed_profile(db, user_id: str) -> None:
     db.commit()
 
 
+@pytest.fixture
+def injection_enabled(monkeypatch):
+    """Turn the dark-by-default injection switch ON for a test.
+
+    Injection ships dark (default False) to honor the open R1–R4 / R3 gate
+    (D-060), so tests that exercise the injection path must opt in explicitly
+    rather than rely on the default.
+    """
+    monkeypatch.setattr(settings, "EVIDENCE_PROFILE_INJECTION_ENABLED", True)
+
+
 # ── Seam wiring: the pipeline builds and injects the payload by state ──────────
 
 
 @pytest.mark.asyncio
-async def test_pipeline_injects_payload_split_by_confirmation_state(db, test_user):
+async def test_pipeline_injects_payload_split_by_confirmation_state(db, test_user, injection_enabled):
     _seed_profile(db, test_user.id)
     captured: dict = {}
 
@@ -85,7 +96,7 @@ async def test_pipeline_injects_payload_split_by_confirmation_state(db, test_use
 
 
 @pytest.mark.asyncio
-async def test_no_injection_for_guest(db):
+async def test_no_injection_for_guest(db, injection_enabled):
     captured: dict = {"payload": "sentinel"}
 
     async def fake_service(resume_text=None, job_description=None, feedback=None, evidence_profile=None):
@@ -106,7 +117,7 @@ async def test_no_injection_for_guest(db):
 
 
 @pytest.mark.asyncio
-async def test_no_injection_for_user_without_profile_items(db, test_user):
+async def test_no_injection_for_user_without_profile_items(db, test_user, injection_enabled):
     captured: dict = {"payload": "sentinel"}
 
     async def fake_service(resume_text=None, job_description=None, feedback=None, evidence_profile=None):
@@ -127,9 +138,12 @@ async def test_no_injection_for_user_without_profile_items(db, test_user):
 
 
 @pytest.mark.asyncio
-async def test_disabling_injection_restores_inline_behavior(db, test_user, monkeypatch):
+async def test_default_off_injection_is_a_no_op(db, test_user):
+    # Ships dark: the switch defaults OFF to honor the open R1–R4 / R3 gate
+    # (D-060), matching #144's dormant build-ahead and the R7 flag pattern.
+    assert settings.EVIDENCE_PROFILE_INJECTION_ENABLED is False
+
     _seed_profile(db, test_user.id)
-    monkeypatch.setattr(settings, "EVIDENCE_PROFILE_INJECTION_ENABLED", False)
     captured: dict = {"payload": "sentinel"}
 
     async def fake_service(resume_text=None, job_description=None, feedback=None, evidence_profile=None):
@@ -145,7 +159,8 @@ async def test_disabling_injection_restores_inline_behavior(db, test_user, monke
         current_user=test_user,
         db=db,
     )
-    # Switch off → the profile is never read, restoring inline-input behavior.
+    # Default OFF → the profile is never read even with confirmed items present,
+    # so tools keep today's inline-input behavior with no data loss (ADR 0005).
     assert captured["payload"] is None
 
 
@@ -153,7 +168,7 @@ async def test_disabling_injection_restores_inline_behavior(db, test_user, monke
 
 
 @pytest.mark.asyncio
-async def test_profile_edit_invalidates_result_cache(db, test_user):
+async def test_profile_edit_invalidates_result_cache(db, test_user, injection_enabled):
     clear_cache()
     calls = {"n": 0}
 
@@ -198,7 +213,7 @@ async def test_profile_edit_invalidates_result_cache(db, test_user):
 
 
 @pytest.mark.asyncio
-async def test_resume_prompt_composition_by_state(db, test_user, monkeypatch):
+async def test_resume_prompt_composition_by_state(db, test_user, monkeypatch, injection_enabled):
     _seed_profile(db, test_user.id)
     captured: dict = {}
 
@@ -228,7 +243,7 @@ async def test_resume_prompt_composition_by_state(db, test_user, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_cover_letter_prompt_composition_by_state(db, test_user, monkeypatch):
+async def test_cover_letter_prompt_composition_by_state(db, test_user, monkeypatch, injection_enabled):
     _seed_profile(db, test_user.id)
     captured: dict = {}
 
