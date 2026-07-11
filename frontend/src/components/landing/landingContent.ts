@@ -320,3 +320,19 @@ export const landingCtaCopy = {
   ctaLabel: 'Upload your resume \u2014 Free',
   trustLine: 'Free to try \u2014 no signup required',
 } as const
+
+// R7 #110 first-run entry choice (dark-shipped). Copy only; routes/icons are
+// resolved from the tool registry in LandingEntryChoice so ordering stays canonical.
+export const landingEntryChoiceCopy = {
+  ariaLabel: 'Choose how you want to start',
+  choices: {
+    'resume-first': {
+      title: 'I have a resume',
+      description: 'Score the resume you have and fix what recruiters notice first.',
+    },
+    'role-first': {
+      title: 'I\u2019m targeting a role',
+      description: 'Start from a job description and see where your signal is thin.',
+    },
+  },
+} as const

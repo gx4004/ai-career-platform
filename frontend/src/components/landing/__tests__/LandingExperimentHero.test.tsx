@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { render } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { LandingExperimentHero } from '#/components/landing/LandingExperimentHero'
 
 vi.mock('@tanstack/react-router', () => ({
@@ -30,6 +30,10 @@ vi.mock('framer-motion', () => {
 })
 
 describe('LandingExperimentHero', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs()
+  })
+
   it('renders the headline, hero image, and CTAs', () => {
     const { container } = render(<LandingExperimentHero />)
     const heading = container.querySelector('h1')
@@ -44,6 +48,20 @@ describe('LandingExperimentHero', () => {
     const imageLink = container.querySelector('.lp-hero-image-link')
     expect(imageLink?.getAttribute('href')).toBe('/dashboard')
     expect(imageLink?.getAttribute('aria-label')).toBeTruthy()
+  })
+
+  it('replaces the generic hero CTA with the resume-first vs role-first choice when the R7 flag is on', () => {
+    vi.stubEnv('VITE_R7_ENTRY_CHOICE', 'true')
+    const { container } = render(<LandingExperimentHero />)
+
+    // The generic single primary CTA is gone; the explicit choice takes its place.
+    expect(container.querySelector('.lp-hero-actions')).toBeNull()
+    expect(container.querySelector('.lp-hero-entry .lp-entry-choice')).toBeTruthy()
+
+    const resumeFirst = container.querySelector('[data-entry-choice="resume-first"]')
+    const roleFirst = container.querySelector('[data-entry-choice="role-first"]')
+    expect(resumeFirst?.getAttribute('href')).toBe('/resume')
+    expect(roleFirst?.getAttribute('href')).toBe('/job-match')
   })
 
   it('lp-hero-copy has min-width:0 to prevent trust marquee from expanding grid cell', () => {
