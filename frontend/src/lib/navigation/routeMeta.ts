@@ -29,6 +29,16 @@ export function getRouteMeta(pathname: string): RouteMeta {
     }
   }
 
+  if (pathname === '/profile') {
+    return {
+      title: 'Evidence Profile',
+      description: 'Inspect, confirm, correct, and remove the career evidence stored for your account.',
+      sectionLabel: 'Trust',
+      breadcrumbs: ['Dashboard', 'Evidence Profile'],
+      topbarVariant: 'compact',
+    }
+  }
+
   if (pathname === '/account') {
     return {
       title: 'Account',

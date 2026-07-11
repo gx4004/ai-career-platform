@@ -1,0 +1,323 @@
+/* Evidence Profile — inspection and trust-state UI (R11, #145).
+   Light content surface consistent with the hybrid theme. State legibility is
+   carried by color + label + border so it never depends on color alone (WCAG). */
+
+.evidence-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 1.75rem;
+  padding-block: 1.5rem 4rem;
+}
+
+.evidence-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1.25rem;
+}
+
+.evidence-header__title {
+  display: flex;
+  gap: 0.9rem;
+  max-width: 44rem;
+}
+
+.evidence-header__icon {
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  flex-shrink: 0;
+  border-radius: var(--radius-lg);
+  background: var(--surface-subtle);
+  border: 1px solid var(--border-soft);
+  color: var(--accent);
+}
+
+.evidence-header__heading {
+  font-family: var(--font-display);
+  font-size: 1.55rem;
+  font-weight: 650;
+  letter-spacing: var(--tracking-title);
+  color: var(--text-strong);
+}
+
+.evidence-header__subtitle {
+  margin-top: 0.35rem;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.evidence-summary {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.evidence-summary__stat {
+  min-width: 5.5rem;
+  padding: 0.6rem 0.85rem;
+  border-radius: var(--radius-lg);
+  background: var(--surface-raised);
+  border: 1px solid var(--border-soft);
+  box-shadow: var(--shadow-soft);
+}
+
+.evidence-summary__stat dt {
+  font-size: var(--type-xs);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.evidence-summary__stat dd {
+  font-family: var(--font-display);
+  font-size: 1.4rem;
+  font-weight: 650;
+  color: var(--text-strong);
+}
+
+.evidence-banner {
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-lg);
+  font-size: 0.875rem;
+}
+
+.evidence-banner--error {
+  background: var(--destructive-soft);
+  color: var(--destructive);
+  border: 1px solid color-mix(in srgb, var(--destructive) 22%, transparent);
+}
+
+.evidence-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 1.75rem;
+}
+
+.evidence-skeleton {
+  height: 8rem;
+  border-radius: var(--radius-xl);
+}
+
+.evidence-group__title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 620;
+  color: var(--text-strong);
+  margin-bottom: 0.85rem;
+}
+
+.evidence-group__count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.4rem;
+  height: 1.4rem;
+  padding: 0 0.4rem;
+  border-radius: var(--radius-pill);
+  background: var(--surface-subtle);
+  border: 1px solid var(--border-soft);
+  font-size: var(--type-xs);
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.evidence-group__list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(20rem, 1fr));
+  gap: 1rem;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.evidence-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  padding: 1.1rem;
+  border-radius: var(--radius-xl);
+  background: var(--surface-raised);
+  border: 1px solid var(--border-soft);
+  border-left: 4px solid var(--border-strong);
+  box-shadow: var(--shadow-soft);
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.evidence-card--confirmed {
+  border-left-color: var(--success);
+}
+
+.evidence-card--unconfirmed {
+  border-left-color: var(--warning);
+  background: color-mix(in srgb, var(--warning-soft) 60%, var(--surface-raised));
+}
+
+.evidence-card--rejected {
+  border-left-color: var(--destructive);
+  background: var(--surface-subtle);
+  opacity: 0.72;
+}
+
+.evidence-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.evidence-state {
+  font-weight: 600;
+}
+
+.evidence-state--confirmed {
+  background: var(--success-soft);
+  color: var(--success);
+  border-color: color-mix(in srgb, var(--success) 30%, transparent);
+}
+
+.evidence-state--unconfirmed {
+  background: var(--warning-soft);
+  color: var(--warning);
+  border-color: color-mix(in srgb, var(--warning) 30%, transparent);
+}
+
+.evidence-state--rejected {
+  background: var(--destructive-soft);
+  color: var(--destructive);
+  border-color: color-mix(in srgb, var(--destructive) 30%, transparent);
+}
+
+.evidence-card__content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0;
+}
+
+.evidence-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.evidence-field__key {
+  font-size: var(--type-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.evidence-field__value {
+  margin: 0;
+  color: var(--text-strong);
+  font-size: 0.9rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.evidence-card--rejected .evidence-field__value {
+  text-decoration: line-through;
+  text-decoration-color: color-mix(in srgb, var(--destructive) 55%, transparent);
+}
+
+.evidence-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: auto;
+  padding-top: 0.35rem;
+}
+
+.evidence-action--confirm {
+  color: var(--success);
+  border-color: color-mix(in srgb, var(--success) 35%, transparent);
+}
+
+.evidence-action--danger {
+  color: var(--destructive);
+}
+
+.evidence-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 2.5rem 1.5rem;
+  border-radius: var(--radius-2xl);
+  background: var(--surface-subtle);
+  border: 1px dashed var(--border-strong);
+}
+
+.evidence-empty__title {
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  font-weight: 620;
+  color: var(--text-strong);
+}
+
+.evidence-danger {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.1rem 1.25rem;
+  border-radius: var(--radius-xl);
+  border: 1px solid color-mix(in srgb, var(--destructive) 28%, var(--border-soft));
+  background: var(--destructive-soft);
+}
+
+.evidence-danger__title {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 620;
+  color: var(--text-strong);
+}
+
+.evidence-correct__editor {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.evidence-correct__confirm {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-size: 0.875rem;
+  color: var(--text-strong);
+  cursor: pointer;
+}
+
+.evidence-correct__confirm input {
+  width: 1rem;
+  height: 1rem;
+  accent-color: var(--accent);
+}
+
+@media (max-width: 640px) {
+  .evidence-group__list {
+    grid-template-columns: 1fr;
+  }
+
+  .evidence-header {
+    flex-direction: column;
+  }
+
+  .evidence-danger {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .evidence-card {
+    transition: none;
+  }
+}
