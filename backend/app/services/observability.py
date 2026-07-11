@@ -73,19 +73,23 @@ def log_user_account_deleted(
     user_id: str,
     runs_deleted: int,
     workspaces_deleted: int,
+    evidence_items_deleted: int,
     user_record_deleted: bool,
 ) -> None:
     """RODO/GDPR audit trail for the right-to-erasure path.
 
     The user_id ends up in the log even though the row is gone — that's the
     whole point of an audit line: regulators need a record that the request
-    was honoured. No user content (resume, JD, name, email) is logged.
+    was honoured. The cascade counts (runs, workspaces, evidence items) let the
+    request be reconstructed without persisting any user content (resume, JD,
+    evidence text, name, email) (D-031).
     """
     _log(
         "user_account_deleted",
         user_id=user_id,
         runs_deleted=runs_deleted,
         workspaces_deleted=workspaces_deleted,
+        evidence_items_deleted=evidence_items_deleted,
         user_record_deleted=user_record_deleted,
     )
 
