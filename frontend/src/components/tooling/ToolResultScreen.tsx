@@ -9,7 +9,10 @@ import { AppStatePanel } from '#/components/app/AppStatePanel'
 import { PageFrame } from '#/components/app/PageFrame'
 import { ApiError } from '#/lib/api/errors'
 import { getHistoryItem } from '#/lib/api/client'
-import { isR7NextBestActionEnabled } from '#/lib/flags/featureFlags'
+import {
+  isR7NextBestActionEnabled,
+  isR7ValueSpecificSignupEnabled,
+} from '#/lib/flags/featureFlags'
 import { useFavoriteToggle } from '#/hooks/useFavoriteToggle'
 import { useSession } from '#/hooks/useSession'
 import { getTransientResult, isDemoHistoryId } from '#/lib/tools/demoRuns'
@@ -78,6 +81,7 @@ export function ToolResultScreen({
   const [parentRunId, setParentRunId] = useState<string | null>(null)
   const [showUndo, setShowUndo] = useState(true)
   const [bannerDismissed, setBannerDismissed] = useState(false)
+  const valueSpecificSignupEnabled = isR7ValueSpecificSignupEnabled()
   const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const queryClient = useQueryClient()
   const demoItem = useMemo(() => getTransientResult(historyId), [historyId])
@@ -219,6 +223,9 @@ export function ToolResultScreen({
 
   const resolvedTool = getToolByHistoryName(item.tool_name) || tools[toolId]
   const definition = resultDefinitions[resolvedTool.id]
+  const guestSignupLabel = valueSpecificSignupEnabled
+    ? `Sign in to save your ${resolvedTool.label} result`
+    : 'Sign in'
   const payload = item.result_payload
   const summary =
     payload.summary && typeof payload.summary === 'object'
@@ -462,17 +469,26 @@ export function ToolResultScreen({
           <div className="result-guest-banner">
             {status !== 'authenticated' ? (
               <>
-                <span>Guest demo</span>
+                <span>
+                  {valueSpecificSignupEnabled
+                    ? `Keep your ${resolvedTool.label} result`
+                    : 'Guest demo'}
+                </span>
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
                   style={{ height: '1.5rem', fontSize: '0.6875rem', padding: '0 0.5rem', borderRadius: '9999px' }}
-                  onClick={() =>
-                    openAuthDialog({ to: resolvedTool.route, reason: 'guest-demo-result', label: 'Sign in', toolId: resolvedTool.id })
-                  }
+                  onClick={() => {
+                    openAuthDialog({
+                      to: resolvedTool.route,
+                      reason: 'guest-demo-result',
+                      label: guestSignupLabel,
+                      toolId: resolvedTool.id,
+                    })
+                  }}
                 >
-                  Sign in
+                  {guestSignupLabel}
                 </Button>
               </>
             ) : (

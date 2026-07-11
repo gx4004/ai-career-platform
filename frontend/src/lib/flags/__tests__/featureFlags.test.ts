@@ -4,6 +4,7 @@ import {
   isR7EntryChoiceEnabled,
   isR7NextBestActionEnabled,
   isR7SampleQuickfillEnabled,
+  isR7ValueSpecificSignupEnabled,
 } from '#/lib/flags/featureFlags'
 
 describe('R7 feature flags', () => {
@@ -113,6 +114,26 @@ describe('R7 feature flags', () => {
       vi.stubEnv('VITE_R7_CONTEXT_CARRY', 'true')
       vi.stubEnv('VITE_R7_NEXT_BEST_ACTION', undefined as unknown as string)
       expect(isR7NextBestActionEnabled()).toBe(false)
+    })
+  })
+
+  describe('isR7ValueSpecificSignupEnabled (dark-ship default off)', () => {
+    it('is off unless explicitly enabled with "true"', () => {
+      for (const value of [undefined, 'false', '0', 'yes', '', ' ']) {
+        vi.stubEnv('VITE_R7_VALUE_SPECIFIC_SIGNUP', value as string)
+        expect(isR7ValueSpecificSignupEnabled()).toBe(false)
+      }
+      for (const value of ['true', 'TRUE', '  true  ']) {
+        vi.stubEnv('VITE_R7_VALUE_SPECIFIC_SIGNUP', value)
+        expect(isR7ValueSpecificSignupEnabled()).toBe(true)
+      }
+    })
+
+    it('is independent of the other R7 candidate flags', () => {
+      vi.stubEnv('VITE_R7_NEXT_BEST_ACTION', 'true')
+      vi.stubEnv('VITE_R7_VALUE_SPECIFIC_SIGNUP', undefined as unknown as string)
+      expect(isR7ValueSpecificSignupEnabled()).toBe(false)
+      expect(isR7NextBestActionEnabled()).toBe(true)
     })
   })
 })
