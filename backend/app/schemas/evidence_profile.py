@@ -45,6 +45,43 @@ class ConfirmationAction(BaseModel):
     action: Literal["confirm", "reject"]
 
 
+class EvidenceImportRequest(BaseModel):
+    """Request to derive reviewable proposals from an uploaded resume (R11, #146).
+
+    Bounds mirror the resume-analyzer request so the same parsed resume text can
+    feed both surfaces. The endpoint is authenticated-only; guest uploads never
+    reach this contract (D-064).
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    resume_text: str = Field(min_length=50, max_length=50_000)
+
+
+class EvidenceProposal(BaseModel):
+    """One ephemeral, reviewable evidence proposal derived from resume parsing.
+
+    A proposal is not a stored item: it carries no confirmation state and is
+    never persisted by the proposal endpoint. Accepting it goes through the
+    normal item-create path, which stamps it `unconfirmed` with `imported`
+    provenance (D-062); discarding it simply drops this object.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    # Per-request handle for the review UI only — not a database id.
+    proposal_id: str
+    kind: EvidenceKind
+    content: dict[str, Any] = Field(min_length=1)
+    # Resume-derived proposals are always `imported`; the model may not propose
+    # `user-entered` or `inferred` provenance for extracted facts.
+    provenance: Literal["imported"] = "imported"
+
+
+class EvidenceImportProposalsResponse(BaseModel):
+    proposals: list[EvidenceProposal]
+
+
 class EvidenceItemResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

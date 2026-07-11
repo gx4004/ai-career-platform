@@ -321,3 +321,127 @@
     transition: none;
   }
 }
+
+/* R11 (#146) — reviewable resume-import proposals.
+   Entry CTA on the profile page plus the review dialog list. Proposals are
+   ephemeral: nothing here is persisted until the user accepts an item. */
+
+.evidence-import-cta {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg, 14px);
+  background: var(--surface-muted, rgba(0, 0, 0, 0.02));
+}
+
+.evidence-import-cta__icon {
+  display: grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  flex-shrink: 0;
+  border-radius: var(--radius-md, 10px);
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.evidence-import-cta__body {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.evidence-import-cta__title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-strong);
+  margin-bottom: 0.15rem;
+}
+
+.evidence-import__dialog {
+  max-width: 34rem;
+}
+
+.evidence-import__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-height: 22rem;
+  overflow-y: auto;
+  padding-right: 0.25rem;
+}
+
+.evidence-import__item {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md, 10px);
+  padding: 0.85rem 1rem;
+  background: var(--surface, #fff);
+}
+
+.evidence-import__item-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.evidence-import__kind {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.evidence-import__content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin-bottom: 0.75rem;
+}
+
+.evidence-import__field {
+  display: flex;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
+.evidence-import__field dt {
+  flex-shrink: 0;
+  min-width: 5.5rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.evidence-import__field dd {
+  color: var(--text-strong);
+  word-break: break-word;
+}
+
+.evidence-import__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.evidence-import__edit {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.evidence-import__empty {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  align-items: flex-start;
+}
+
+@media (max-width: 640px) {
+  .evidence-import-cta {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

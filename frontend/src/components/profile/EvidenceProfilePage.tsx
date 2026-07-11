@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ShieldCheck, Trash2 } from 'lucide-react'
+import { FileUp, ShieldCheck, Trash2 } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import {
   Dialog,
@@ -14,6 +14,7 @@ import { Skeleton } from '#/components/ui/skeleton'
 import { PageFrame } from '#/components/app/PageFrame'
 import { AppStatePanel } from '#/components/app/AppStatePanel'
 import { useSession } from '#/hooks/useSession'
+import { useResumeCarry } from '#/hooks/use-resume-carry'
 import {
   deleteEvidenceItem,
   listEvidenceItems,
@@ -27,6 +28,7 @@ import {
   CorrectEvidenceDialog,
   type CorrectionSubmit,
 } from '#/components/profile/CorrectEvidenceDialog'
+import { ResumeImportDialog } from '#/components/profile/ResumeImportDialog'
 
 const EVIDENCE_QUERY_KEY = ['evidence-profile', 'items'] as const
 
@@ -34,7 +36,9 @@ export function EvidenceProfilePage() {
   const { status, openAuthDialog } = useSession()
   const queryClient = useQueryClient()
   const isAuthenticated = status === 'authenticated'
+  const { hasResume, resumeText, filename } = useResumeCarry()
 
+  const [importOpen, setImportOpen] = useState(false)
   const [pendingItemId, setPendingItemId] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
   const [correctTarget, setCorrectTarget] = useState<EvidenceItem | null>(null)
@@ -199,6 +203,25 @@ export function EvidenceProfilePage() {
           ) : null}
         </header>
 
+        {hasResume && resumeText.length >= 50 ? (
+          <section className="evidence-import-cta" aria-label="Import from resume">
+            <div className="evidence-import-cta__icon" aria-hidden="true">
+              <FileUp size={18} />
+            </div>
+            <div className="evidence-import-cta__body">
+              <h2 className="evidence-import-cta__title">Import evidence from your resume</h2>
+              <p className="muted-copy small-copy">
+                Review suggestions extracted from{' '}
+                {filename ? <strong>{filename}</strong> : 'your uploaded resume'}. Nothing is saved
+                unless you accept it, and everything you accept arrives as unconfirmed.
+              </p>
+            </div>
+            <Button variant="outline" onClick={() => setImportOpen(true)}>
+              Review resume evidence
+            </Button>
+          </section>
+        ) : null}
+
         {actionError ? (
           <p role="alert" className="evidence-banner evidence-banner--error">
             {actionError}
@@ -275,6 +298,15 @@ export function EvidenceProfilePage() {
           </section>
         ) : null}
       </section>
+
+      {importOpen ? (
+        <ResumeImportDialog
+          open={importOpen}
+          resumeText={resumeText}
+          onOpenChange={setImportOpen}
+          onImported={invalidate}
+        />
+      ) : null}
 
       <CorrectEvidenceDialog
         item={correctTarget}

@@ -3,16 +3,19 @@ from sqlalchemy.orm import Session
 
 from app.auth.security import get_current_user
 from app.database import get_db
-from app.limiter import limiter
+from app.limiter import limiter, model_abuse_limits
 from app.models.user import User
 from app.schemas.evidence_profile import (
     ConfirmationAction,
+    EvidenceImportProposalsResponse,
+    EvidenceImportRequest,
     EvidenceItemCreate,
     EvidenceItemListResponse,
     EvidenceItemResponse,
     EvidenceItemUpdate,
     EvidenceProfileExport,
 )
+from app.services.evidence_import import generate_import_proposals
 from app.services.evidence_profile import (
     EvidenceItemNotFoundError,
     create_evidence_item,
@@ -51,6 +54,29 @@ def export_profile(
     is a bulk read of the user's most sensitive stored content (D-065, D-064).
     """
     return export_evidence_profile(db, current_user.id)
+
+
+@router.post("/import/proposals", response_model=EvidenceImportProposalsResponse)
+@limiter.limit("10/minute")
+@model_abuse_limits
+async def propose_import(
+    request: Request,
+    body: EvidenceImportRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Derive reviewable evidence proposals from an uploaded resume (R11, #146).
+
+    Authenticated-owner-only: ``get_current_user`` rejects guests with 401/403, so
+    guest uploads never trigger proposals or any profile write (D-064). Proposals
+    are derived from the resume text and returned for review only — this endpoint
+    persists nothing, so a proposal the user discards or skips leaves no
+    server-side trace of its content. Accepting a proposal is a separate call to
+    ``POST /items`` that stores it `unconfirmed` with `imported` provenance
+    (D-062).
+    """
+    proposals = await generate_import_proposals(body.resume_text)
+    return EvidenceImportProposalsResponse(proposals=proposals)
 
 
 @router.post("/items", response_model=EvidenceItemResponse, status_code=status.HTTP_201_CREATED)
