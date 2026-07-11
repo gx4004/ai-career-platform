@@ -1,5 +1,39 @@
 import { z } from 'zod'
 
+export const evidenceKindSchema = z.enum([
+  'experience', 'achievement', 'skill', 'education', 'project',
+  'certification', 'preference', 'interview-evidence',
+])
+export const evidenceProvenanceSchema = z.enum(['imported', 'inferred', 'user-entered'])
+export const evidenceConfirmationStateSchema = z.enum(['unconfirmed', 'confirmed', 'rejected'])
+export const evidenceItemCreateSchema = z.strictObject({
+  kind: evidenceKindSchema,
+  content: z.record(z.string(), z.unknown()).refine((value) => Object.keys(value).length > 0),
+  provenance: evidenceProvenanceSchema,
+})
+export const evidenceItemUpdateSchema = evidenceItemCreateSchema
+  .partial()
+  .refine((value) => Object.keys(value).length > 0)
+export const evidenceConfirmationActionSchema = z.strictObject({
+  action: z.enum(['confirm', 'reject']),
+})
+export const evidenceItemSchema = z.object({
+  id: z.string(),
+  kind: evidenceKindSchema,
+  content: z.record(z.string(), z.unknown()),
+  provenance: evidenceProvenanceSchema,
+  confirmation_state: evidenceConfirmationStateSchema,
+  created_at: z.string(),
+  updated_at: z.string(),
+})
+export const evidenceItemListSchema = z.object({ items: z.array(evidenceItemSchema) })
+export type EvidenceItem = z.infer<typeof evidenceItemSchema>
+export type EvidenceKind = z.infer<typeof evidenceKindSchema>
+export type EvidenceProvenance = z.infer<typeof evidenceProvenanceSchema>
+export type EvidenceItemCreate = z.infer<typeof evidenceItemCreateSchema>
+export type EvidenceItemUpdate = z.infer<typeof evidenceItemUpdateSchema>
+export type EvidenceConfirmationAction = z.infer<typeof evidenceConfirmationActionSchema>
+
 export const userSchema = z.object({
   id: z.string(),
   email: z.string().email(),
