@@ -3,6 +3,7 @@ import {
   isR7ContextCarryEnabled,
   isR7EntryChoiceEnabled,
   isR7NextBestActionEnabled,
+  isR7ResultsNudgeEnabled,
   isR7SampleQuickfillEnabled,
   isR7ValueSpecificSignupEnabled,
 } from '#/lib/flags/featureFlags'
@@ -134,6 +135,26 @@ describe('R7 feature flags', () => {
       vi.stubEnv('VITE_R7_VALUE_SPECIFIC_SIGNUP', undefined as unknown as string)
       expect(isR7ValueSpecificSignupEnabled()).toBe(false)
       expect(isR7NextBestActionEnabled()).toBe(true)
+    })
+  })
+
+  describe('isR7ResultsNudgeEnabled (dark-ship default off)', () => {
+    it('is off unless explicitly enabled with "true"', () => {
+      for (const value of [undefined, 'false', '0', 'yes', '', ' ']) {
+        vi.stubEnv('VITE_R7_RESULTS_NUDGE', value as string)
+        expect(isR7ResultsNudgeEnabled()).toBe(false)
+      }
+      for (const value of ['true', 'TRUE', '  true  ']) {
+        vi.stubEnv('VITE_R7_RESULTS_NUDGE', value)
+        expect(isR7ResultsNudgeEnabled()).toBe(true)
+      }
+    })
+
+    it('is independent of the other R7 candidate flags', () => {
+      vi.stubEnv('VITE_R7_VALUE_SPECIFIC_SIGNUP', 'true')
+      vi.stubEnv('VITE_R7_RESULTS_NUDGE', undefined as unknown as string)
+      expect(isR7ResultsNudgeEnabled()).toBe(false)
+      expect(isR7ValueSpecificSignupEnabled()).toBe(true)
     })
   })
 })
