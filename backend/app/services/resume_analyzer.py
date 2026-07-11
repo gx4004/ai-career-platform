@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 from app.config import settings
 from app.prompts.resume import build_resume_prompt
 from app.services.ai_client import complete_structured
+from app.services.evidence_injection import EvidencePayload, render_evidence_section
 from app.services.quality_signals import (
     ResumePrepass,
     build_resume_prepass,
@@ -294,6 +295,7 @@ async def analyze_resume(
     job_description: str | None,
     *,
     feedback: str | None = None,
+    evidence_profile: EvidencePayload | None = None,
 ) -> dict:
     prepass = build_resume_prepass(resume_text, job_description)
     heuristic_breakdown = compute_resume_breakdown(prepass)
@@ -325,6 +327,7 @@ async def analyze_resume(
         prepass.evidence(),
         feedback=feedback,
         detected_sector=detected_sector,
+        evidence_section=render_evidence_section(evidence_profile),
     )
 
     try:

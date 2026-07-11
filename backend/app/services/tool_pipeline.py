@@ -1,13 +1,16 @@
 from __future__ import annotations
 
+import inspect
 from collections.abc import Awaitable, Callable
 from time import perf_counter
 from typing import Any
 
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.models.user import User
 from app.services.analytics import safe_record_activation_event
+from app.services.evidence_injection import load_profile_for_injection
 from app.services.input_sanitizer import sanitize_user_input
 from app.services.llm_cost import get_llm_cost, reset_llm_cost
 from app.services.observability import (
@@ -77,6 +80,19 @@ async def run_tool_pipeline(
     if "feedback" in service_kwargs:
         service_kwargs["feedback"] = clean_feedback
 
+    # Evidence Profile injection (R11, D-063 / ADR 0005). The shared pipeline is
+    # the only seam that reads the profile — no tool router gains its own access
+    # path. Authenticated-only; guests keep inline inputs and tab-scoped carry
+    # (D-064). Gated by a settings flag so injection can be disabled to restore
+    # today's inline-input behavior with no data loss (ADR 0005). A user with no
+    # confirmed/unconfirmed items yields an empty payload, so tools behave
+    # exactly as today until the user confirms evidence.
+    profile_version: str | None = None
+    if settings.EVIDENCE_PROFILE_INJECTION_ENABLED and current_user is not None:
+        evidence_payload, profile_version = load_profile_for_injection(db, current_user.id)
+        if not evidence_payload.is_empty() and _accepts_evidence_profile(service_fn):
+            service_kwargs["evidence_profile"] = evidence_payload
+
     # Cache check — scope by user_id so authenticated users never see another user's
     # cached result (defense-in-depth: tools are deterministic from inputs, but mixing
     # cache scopes across accounts complicates audit and personalization later).
@@ -87,6 +103,11 @@ async def run_tool_pipeline(
         if cache_extra_keys:
             hash_kwargs.update(cache_extra_keys)
         hash_kwargs["user_scope"] = current_user.id if current_user else "guest"
+        # The profile version joins the cache key so a profile edit invalidates
+        # cached results (D-063, ADR 0005). Only present for authenticated users
+        # while injection is enabled; guests and the disabled path are unaffected.
+        if profile_version is not None:
+            hash_kwargs["profile_version"] = profile_version
         content_hash = compute_content_hash(tool_name, clean_resume, clean_jd, **hash_kwargs)
         # Cache lookup stays fail-open (ADR 0004): a lookup error must degrade to
         # a normal miss, never break the run. The R10 scorecard records the
@@ -188,6 +209,18 @@ async def run_tool_pipeline(
     )
 
     return response
+
+
+def _accepts_evidence_profile(fn: Callable[..., Any]) -> bool:
+    """True when a service function declares an explicit `evidence_profile` param.
+
+    Keeps the injection precise: only tools wired to consume the profile receive
+    it, and services with an unrelated signature are never handed the kwarg.
+    """
+    try:
+        return "evidence_profile" in inspect.signature(fn).parameters
+    except (TypeError, ValueError):
+        return False
 
 
 def _record_cache_outcome(db: Session, outcome: str) -> None:

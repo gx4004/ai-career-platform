@@ -14,6 +14,7 @@ def build_career_prompt(
     *,
     career_profile: dict | None = None,
     feedback: str | None = None,
+    evidence_section: str | None = None,
 ) -> tuple[str, str]:
     system = """You are an expert career strategist.
 
@@ -114,6 +115,9 @@ Return JSON with this exact schema:
             f"Seniority: {seniority}, Discipline: {discipline}, Years: {years_str}. "
             f"Tailor recommendations to this career stage."
         )
+
+    if evidence_section:
+        user_parts.append(f"\n{evidence_section}")
 
     if feedback:
         user_parts.append(

@@ -6,6 +6,7 @@ from typing import Any
 from app.prompts.cover_letter import build_cover_letter_prompt
 from app.services.ai_client import complete_structured
 from app.services.application_context import build_application_handoff
+from app.services.evidence_injection import EvidencePayload, render_evidence_section
 
 SCHEMA_VERSION = "quality_v2"
 
@@ -397,6 +398,7 @@ async def generate_cover_letter(
     resume_analysis: dict[str, Any] | None = None,
     job_match: dict[str, Any] | None = None,
     feedback: str | None = None,
+    evidence_profile: EvidencePayload | None = None,
 ) -> dict[str, Any]:
     requested_tone = tone or "Professional"
     application_context = build_application_handoff(
@@ -426,6 +428,7 @@ async def generate_cover_letter(
         locked_payload,
         application_context,
         feedback=feedback,
+        evidence_section=render_evidence_section(evidence_profile),
     )
     # Spec decision #7 (CLAUDE.md): generative tools must surface explicit
     # errors when the LLM fails. The previous silent fallback returned a

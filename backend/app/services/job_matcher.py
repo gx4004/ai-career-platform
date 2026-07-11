@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 
 from app.prompts.job_match import build_job_match_prompt
 from app.services.ai_client import complete_structured
+from app.services.evidence_injection import EvidencePayload, render_evidence_section
 from app.services.quality_signals import (
     build_resume_prepass,
     compute_match_score,
@@ -180,6 +181,7 @@ async def match_job(
     resume_text: str,
     job_description: str,
     feedback: str | None = None,
+    evidence_profile: EvidencePayload | None = None,
 ) -> dict:
     prepass = build_resume_prepass(resume_text, job_description)
     match_score = compute_match_score(prepass.matched_keywords, prepass.missing_keywords)
@@ -219,6 +221,7 @@ async def match_job(
         locked_payload,
         prepass_evidence,
         feedback=feedback,
+        evidence_section=render_evidence_section(evidence_profile),
     )
     # Spec decision #7: Resume Analyzer and Job Match fall back to a silent
     # heuristic when the LLM is unavailable; the generative tools (cover-letter,

@@ -15,6 +15,7 @@ def build_resume_prompt(
     *,
     feedback: str | None = None,
     detected_sector: str | None = None,
+    evidence_section: str | None = None,
 ) -> tuple[str, str]:
     system = """You are an expert resume analyst and career advisor.
 
@@ -117,6 +118,9 @@ Return JSON with this exact schema:
         user_parts.append(f"\n## Target Job Description\n{job_description}")
     else:
         user_parts.append("\n## Target Job Description\nNone provided.")
+
+    if evidence_section:
+        user_parts.append(f"\n{evidence_section}")
 
     if feedback:
         user_parts.append(
