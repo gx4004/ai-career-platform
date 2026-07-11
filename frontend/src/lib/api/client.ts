@@ -10,6 +10,8 @@ import {
   evidenceItemCreateSchema,
   evidenceItemUpdateSchema,
   evidenceConfirmationActionSchema,
+  evidenceImportRequestSchema,
+  evidenceImportProposalsSchema,
   healthCheckSchema,
   importedJobSchema,
   interviewPracticeFeedbackSchema,
@@ -266,6 +268,17 @@ export function setEvidenceItemConfirmation(
 
 export function deleteEvidenceItem(itemId: string) {
   return request<void>(`/evidence-profile/items/${itemId}`, { method: 'DELETE' })
+}
+
+// R11 (#146): derive reviewable evidence proposals from parsed resume text.
+// Authenticated-only server-side (guests get 401/403). Proposals are ephemeral —
+// nothing is stored until the user accepts one via createEvidenceItem.
+export function requestEvidenceImportProposals(resumeText: string) {
+  return request('/evidence-profile/import/proposals', {
+    method: 'POST',
+    body: evidenceImportRequestSchema.parse({ resume_text: resumeText }),
+    schema: evidenceImportProposalsSchema,
+  })
 }
 
 export function parseCv(file: File) {
