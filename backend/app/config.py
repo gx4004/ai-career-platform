@@ -40,6 +40,14 @@ class Settings(BaseSettings):
     RESULT_CACHE_ENABLED: bool = True
     BLENDED_SCORING_ENABLED: bool = True
 
+    # ── R11 Evidence Profile injection (issue #147, D-063, ADR 0005) ──
+    # Master switch for injecting confirmed profile evidence through the shared
+    # pipeline. When False, tools fall back to today's inline-input behavior
+    # with no data loss (ADR 0005). Enabled by default; it is a no-op for guests
+    # and for authenticated users with no profile items, so tools behave exactly
+    # as today until a user confirms evidence.
+    EVIDENCE_PROFILE_INJECTION_ENABLED: bool = True
+
     # ── R10 scaling-trigger scorecard inputs (issue #136, parent #135) ──
     # Operator-declared deployment topology class. The intended backend starts
     # one Uvicorn process, so `single` is the accurate default; declare `multi`
