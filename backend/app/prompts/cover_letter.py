@@ -34,6 +34,7 @@ def build_cover_letter_prompt(
     application_context: dict,
     *,
     feedback: str | None = None,
+    evidence_section: str | None = None,
 ) -> tuple[str, str]:
     tone_instruction = tone or "Professional"
 
@@ -123,6 +124,9 @@ Return JSON with this exact schema:
         f"\n## Candidate Resume\n{resume_text}",
         f"\n## Job Description\n{job_description}",
     ]
+
+    if evidence_section:
+        user_parts.append(f"\n{evidence_section}")
 
     if feedback:
         user_parts.append(

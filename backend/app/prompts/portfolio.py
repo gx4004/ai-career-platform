@@ -13,6 +13,7 @@ def build_portfolio_prompt(
     helper_signals: dict,
     *,
     feedback: str | None = None,
+    evidence_section: str | None = None,
 ) -> tuple[str, str]:
     system = """You are an expert portfolio strategist and technical mentor.
 
@@ -95,6 +96,9 @@ Return JSON with this exact schema:
         f"\n## Candidate Resume\n{resume_text}",
         f"\n## Target Role\n{target_role}",
     ]
+
+    if evidence_section:
+        user_parts.append(f"\n{evidence_section}")
 
     if feedback:
         user_parts.append(

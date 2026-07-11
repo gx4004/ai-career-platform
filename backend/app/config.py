@@ -40,6 +40,15 @@ class Settings(BaseSettings):
     RESULT_CACHE_ENABLED: bool = True
     BLENDED_SCORING_ENABLED: bool = True
 
+    # ── R11 Evidence Profile injection (issue #147, D-063, ADR 0005) ──
+    # Master switch for injecting confirmed profile evidence through the shared
+    # pipeline. Ships dark (default False) to honor the still-open R1–R4 / R3
+    # gate (D-060) and match the repo's dark-ship pattern (#144 shipped dormant,
+    # R7 flags default OFF). When False, tools use today's inline-input behavior
+    # with no data loss (ADR 0005); an operator enables it once the gate closes.
+    # Even when True it is a no-op for guests and users with no profile items.
+    EVIDENCE_PROFILE_INJECTION_ENABLED: bool = False
+
     # ── R10 scaling-trigger scorecard inputs (issue #136, parent #135) ──
     # Operator-declared deployment topology class. The intended backend starts
     # one Uvicorn process, so `single` is the accurate default; declare `multi`

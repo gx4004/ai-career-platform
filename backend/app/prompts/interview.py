@@ -14,6 +14,7 @@ def build_interview_prompt(
     application_context: dict,
     *,
     feedback: str | None = None,
+    evidence_section: str | None = None,
 ) -> tuple[str, str]:
     system = f"""You are an expert interview coach and hiring manager.
 
@@ -98,6 +99,9 @@ Return JSON with this exact schema:
         f"\n## Candidate Resume\n{resume_text}",
         f"\n## Job Description\n{job_description}",
     ]
+
+    if evidence_section:
+        user_parts.append(f"\n{evidence_section}")
 
     if feedback:
         user_parts.append(

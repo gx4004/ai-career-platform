@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 
 from app.prompts.career import build_career_prompt
 from app.services.ai_client import complete_structured
+from app.services.evidence_injection import EvidencePayload, render_evidence_section
 from app.services.quality_signals import (
     build_resume_prepass,
     discipline_label,
@@ -862,6 +863,7 @@ async def recommend_career(
     resume_text: str,
     target_role: str | None,
     feedback: str | None = None,
+    evidence_profile: EvidencePayload | None = None,
 ) -> dict:
     prepass = build_resume_prepass(resume_text, target_role)
     generated_at = datetime.now(UTC).isoformat()
@@ -920,6 +922,7 @@ async def recommend_career(
         helper_signals,
         career_profile=career_profile,
         feedback=feedback,
+        evidence_section=render_evidence_section(evidence_profile),
     )
     result = await complete_structured(system_prompt, user_prompt)
 
