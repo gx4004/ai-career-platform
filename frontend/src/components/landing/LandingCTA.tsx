@@ -7,6 +7,8 @@ import {
   useSpring,
 } from 'framer-motion'
 import { landingCtaCopy, landingPrimaryCta } from '#/components/landing/landingContent'
+import { LandingEntryChoice } from '#/components/landing/LandingEntryChoice'
+import { isR7EntryChoiceEnabled } from '#/lib/flags/featureFlags'
 
 const MotionLink = motion.create(Link)
 
@@ -45,16 +47,21 @@ export function LandingCTA() {
         <div className="lp-cta-orb lp-cta-orb-1" aria-hidden="true" />
         <div className="lp-cta-orb lp-cta-orb-2" aria-hidden="true" />
         <h2 className="lp-cta-h2">{landingCtaCopy.title}</h2>
-        <MotionLink
-          to={landingPrimaryCta.to}
-          className="lp-btn-primary"
-          onMouseMove={handleMagnet}
-          onMouseLeave={resetMagnet}
-          style={prefersReducedMotion ? undefined : { x, y }}
-        >
-          {landingCtaCopy.ctaLabel}
-          <ArrowRight size={18} />
-        </MotionLink>
+        {/* R7 #110 entry choice ships dark: default off keeps the single generic CTA below. */}
+        {isR7EntryChoiceEnabled() ? (
+          <LandingEntryChoice />
+        ) : (
+          <MotionLink
+            to={landingPrimaryCta.to}
+            className="lp-btn-primary"
+            onMouseMove={handleMagnet}
+            onMouseLeave={resetMagnet}
+            style={prefersReducedMotion ? undefined : { x, y }}
+          >
+            {landingCtaCopy.ctaLabel}
+            <ArrowRight size={18} />
+          </MotionLink>
+        )}
         <p className="lp-cta-micro">No sign-up required. Your data stays yours.</p>
       </motion.div>
     </section>
