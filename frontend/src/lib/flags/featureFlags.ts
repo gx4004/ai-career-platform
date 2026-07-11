@@ -34,3 +34,17 @@ function readBooleanFlag(value: string | undefined): boolean {
 export function isR7EntryChoiceEnabled(): boolean {
   return readBooleanFlag(import.meta.env.VITE_R7_ENTRY_CHOICE)
 }
+
+/**
+ * R7 candidate #111 — sample resume / sample job-description quick-fill.
+ *
+ * When off (default), the dropzone/job-import inputs are unchanged: users must
+ * upload, paste, or import their own content.
+ * When on, a clearly-labeled "try a sample" affordance seeds the existing
+ * paste-text path with synthetic sample content (no real user data), so a
+ * first-time visitor can see what a tool does before trusting it with their own
+ * resume or job description.
+ */
+export function isR7SampleQuickfillEnabled(): boolean {
+  return readBooleanFlag(import.meta.env.VITE_R7_SAMPLE_QUICKFILL)
+}

@@ -3,7 +3,9 @@ import { useMutation } from '@tanstack/react-query'
 import { AlertCircle, FileUp, CheckCircle2, FileText, Upload } from 'lucide-react'
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
 import { Button } from '#/components/ui/button'
+import { SampleQuickfill } from '#/components/tooling/SampleQuickfill'
 import { parseCv } from '#/lib/api/client'
+import { SAMPLE_RESUME_TEXT } from '#/lib/tools/sampleContent'
 
 type DropzoneState = 'idle' | 'drag-over' | 'uploading' | 'success'
 
@@ -230,6 +232,11 @@ export function DropzoneHero({
                   </Button>
                 )}
               </div>
+              {/* R7 #111 sample quick-fill ships dark: renders nothing unless VITE_R7_SAMPLE_QUICKFILL=true. */}
+              <SampleQuickfill
+                label="Try a sample resume"
+                onUse={() => onParsed(SAMPLE_RESUME_TEXT)}
+              />
             </motion.div>
           )}
         </AnimatePresence>

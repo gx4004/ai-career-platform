@@ -4,6 +4,7 @@ import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { DropzoneHero } from '#/components/tooling/DropzoneHero'
+import { SAMPLE_RESUME_TEXT } from '#/lib/tools/sampleContent'
 
 const parseCvMock = vi.hoisted(() => vi.fn())
 
@@ -48,6 +49,7 @@ describe('DropzoneHero', () => {
 
   afterEach(() => {
     parseCvMock.mockReset()
+    vi.unstubAllEnvs()
   })
 
   it('shows a warning banner when parseCv returns warnings', async () => {
@@ -88,5 +90,28 @@ describe('DropzoneHero', () => {
 
     expect(screen.queryByText(/Resume parsed with warnings/i)).toBeNull()
     expect(onParsed).toHaveBeenCalledWith('Real resume content goes here.')
+  })
+
+  describe('R7 #111 sample quick-fill', () => {
+    it('does not render the sample affordance when the flag is off (default, unchanged)', () => {
+      vi.stubEnv('VITE_R7_SAMPLE_QUICKFILL', undefined as unknown as string)
+      renderHero({ onPasteText: vi.fn() })
+
+      expect(screen.queryByText(/Try a sample resume/i)).toBeNull()
+      // The existing idle actions are unchanged.
+      expect(screen.getByRole('button', { name: /Choose file/i })).toBeTruthy()
+      expect(screen.getByRole('button', { name: /Paste text instead/i })).toBeTruthy()
+    })
+
+    it('seeds the paste-text path with synthetic sample content when the flag is on', () => {
+      vi.stubEnv('VITE_R7_SAMPLE_QUICKFILL', 'true')
+      const { onParsed } = renderHero()
+
+      const sampleButton = screen.getByRole('button', { name: /Try a sample resume/i })
+      fireEvent.click(sampleButton)
+
+      expect(onParsed).toHaveBeenCalledWith(SAMPLE_RESUME_TEXT)
+      expect(parseCvMock).not.toHaveBeenCalled()
+    })
   })
 })
