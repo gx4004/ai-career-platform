@@ -27,7 +27,26 @@ export const evidenceItemSchema = z.object({
   updated_at: z.string(),
 })
 export const evidenceItemListSchema = z.object({ items: z.array(evidenceItemSchema) })
+
+// R11 reviewable resume-import proposals (#146). A proposal is ephemeral — it is
+// never persisted server-side and carries no confirmation state. Resume-derived
+// proposals are always `imported`; accepting one goes through the normal
+// item-create path, which stores it `unconfirmed` (D-062).
+export const evidenceImportRequestSchema = z.strictObject({
+  resume_text: z.string().min(50).max(50_000),
+})
+export const evidenceProposalSchema = z.object({
+  proposal_id: z.string(),
+  kind: evidenceKindSchema,
+  content: z.record(z.string(), z.unknown()),
+  provenance: z.literal('imported'),
+})
+export const evidenceImportProposalsSchema = z.object({
+  proposals: z.array(evidenceProposalSchema),
+})
 export type EvidenceItem = z.infer<typeof evidenceItemSchema>
+export type EvidenceProposal = z.infer<typeof evidenceProposalSchema>
+export type EvidenceImportRequest = z.infer<typeof evidenceImportRequestSchema>
 export type EvidenceKind = z.infer<typeof evidenceKindSchema>
 export type EvidenceProvenance = z.infer<typeof evidenceProvenanceSchema>
 export type EvidenceConfirmationState = z.infer<typeof evidenceConfirmationStateSchema>
