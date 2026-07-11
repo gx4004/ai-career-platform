@@ -104,9 +104,10 @@ Core entities:
 - `Workspace` — groups related application/career work.
 - `ToolRun` — immutable result snapshot with tool, inputs/metadata, output, ownership,
   optional workspace, and optional parent revision.
-- Evidence Profile (planned, R11; D-061, ADR 0005) — per-user typed evidence items
-  with provenance and confirmation state. Contract defined; no schema, endpoint, or
-  UI ships until the R1–R4 gate closes (D-060).
+- `EvidenceItem` (R11 foundation built dark under explicit owner override; D-061,
+  ADR 0005) — per-user typed evidence with provenance and confirmation state.
+  Authenticated CRUD exists; profile injection, import/export, and UI activation
+  remain unshipped and the D-060 production-activation gate remains closed.
 - CV document (planned, R12; D-069, ADR 0006) — per-user structured document whose
   claims reference Evidence Profile items, with one working draft plus immutable
   recoverable variants. Contract defined; nothing ships until R11 lands (D-068).
@@ -222,7 +223,7 @@ errors remain forbidden.
 - Job-import adapters require concentrated allowlisted source-family evidence, terms
   review, a source-specific kill switch, and the existing paste fallback (D-059).
 
-## Evidence Profile Boundaries (R11, deferred)
+## Evidence Profile Boundaries (R11, foundation built dark)
 
 - The Evidence Profile is a persisted, authenticated-only, user-scoped store; guest
   flows keep tab-scoped carry and inline inputs, and no anonymous profile rows exist

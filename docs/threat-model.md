@@ -219,10 +219,11 @@ Browser → POST /auth/password-reset/confirm {token, new_password}
 | 5 | Session tokens (`cw_access`, `cw_refresh`) | High | HttpOnly cookies | 30 min / 7 days | Account hijacking for token lifetime |
 | 6 | Email address | Medium | `users.email` | Until account deletion | Phishing, enumeration, spam |
 | 7 | Google identity (`google_id`, `email_verified`) | Medium | `users.google_id` | Until account deletion | Cross-service correlation |
-| 8 | Tool metadata (scores, skill gaps, recommendations) | Medium | `tool_runs.result_payload` | Until deletion | Career profile inference |
-| 9 | Workspace labels and structure | Low | `workspaces.label`, `workspaces.is_pinned` | Until deletion | Organizational preference leakage |
-| 10 | Behavioral telemetry (event names, routes, timestamps) | Low | Log stdout, Sentry (if enabled) | Undefined (no TTL) | Usage pattern inference |
-| 11 | Sidebar state, language preference | None | `sidebar_state` cookie, `app_language` localStorage | 7 days / forever | None |
+| 8 | Evidence Profile career claims | High | `evidence_items.content` | Until item/account deletion | Career history, preferences, employer or institution exposure |
+| 9 | Tool metadata (scores, skill gaps, recommendations) | Medium | `tool_runs.result_payload` | Until deletion | Career profile inference |
+| 10 | Workspace labels and structure | Low | `workspaces.label`, `workspaces.is_pinned` | Until deletion | Organizational preference leakage |
+| 11 | Behavioral telemetry (event names, routes, timestamps) | Low | Log stdout, Sentry (if enabled) | Undefined (no TTL) | Usage pattern inference |
+| 12 | Sidebar state, language preference | None | `sidebar_state` cookie, `app_language` localStorage | 7 days / forever | None |
 
 ### 4.1 Guest-Specific Storage Note
 
@@ -589,8 +590,9 @@ not sent to the frontend server, access logs, or HTTP Referer headers. Legacy
 ### 7.9 Account Deletion
 
 `POST /auth/me/delete` requires email confirmation (case-insensitive match),
-clears auth cookies, cascading-deletes all `tool_runs`, `workspaces`, and the
-`users` row in a single transaction.
+clears auth cookies, deletes all owner-scoped `evidence_items`, `tool_runs`, and
+`workspaces`, then deletes the `users` row in a single transaction. PostgreSQL
+also enforces `ON DELETE CASCADE` for evidence items.
 
 — `backend/app/routers/auth.py:me_delete`
 — `backend/app/services/tool_runs.py:delete_all_user_data:20-32`
@@ -896,7 +898,7 @@ authoritative access seam (D-048, ADR 0003); it may not reuse a client-only gate
 | 3 | **Browser storage persistence after logout** | sessionStorage data | Tab-scoped sessionStorage clears on tab close; localStorage consent stays | Logout clears pending intent, invalidates query cache, but does not clear tool drafts, workflow context, demo results, or resume-carry from current tab's sessionStorage |
 | 4 | **Password reset link exposure** | Reset token | New links use a fragment that is scrubbed after hydration; single-use password-hash-derived signing invalidates the token on password change | Legacy query-token links remain accepted temporarily for rollout compatibility and are scrubbed client-side |
 | 5 | **Account deletion — data reappears from backup** | All user data | Cascading delete in single transaction; structured log emitted; no backups exist during thesis-demo phase, so no restore-reappearance risk currently | Before R5/beta launch, the accepted backup + restore procedure (D-032) must document how deletions are honored across a restore |
-| 6 | **Incomplete account deletion** | User data | `delete_all_user_data()` cascading deletes `tool_runs`, `workspaces`, `users` | No verification query after deletion; no audit trail beyond structured log event; if Sentry is active, previously-captured events remain in Sentry's retention window |
+| 6 | **Incomplete account deletion** | User data | `delete_all_user_data()` deletes `evidence_items`, `tool_runs`, `workspaces`, and `users`; PostgreSQL independently cascades profile rows | No verification query after deletion; no audit trail beyond structured log event; if Sentry is active, previously-captured events remain in Sentry's retention window |
 
 ---
 

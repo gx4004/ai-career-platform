@@ -31,3 +31,6 @@ class User(Base):
 
     tool_runs = relationship("ToolRun", back_populates="user")
     workspaces = relationship("Workspace", back_populates="user")
+    evidence_items = relationship(
+        "EvidenceItem", back_populates="user", cascade="all, delete-orphan"
+    )
