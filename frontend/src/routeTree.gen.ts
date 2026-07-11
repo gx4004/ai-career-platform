@@ -32,6 +32,7 @@ import { Route as AdminIndexRouteImport } from './routes/admin/index'
 import { Route as AdminUsersRouteImport } from './routes/admin/users'
 import { Route as AdminScorecardRouteImport } from './routes/admin/scorecard'
 import { Route as AdminRunsRouteImport } from './routes/admin/runs'
+import { Route as AdminProfileAdoptionRouteImport } from './routes/admin/profile-adoption'
 import { Route as AdminActivationRouteImport } from './routes/admin/activation'
 import { Route as ResumeResultHistoryIdRouteImport } from './routes/resume_.result.$historyId'
 import { Route as PortfolioResultHistoryIdRouteImport } from './routes/portfolio_.result.$historyId'
@@ -155,6 +156,11 @@ const AdminRunsRoute = AdminRunsRouteImport.update({
   path: '/runs',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminProfileAdoptionRoute = AdminProfileAdoptionRouteImport.update({
+  id: '/profile-adoption',
+  path: '/profile-adoption',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminActivationRoute = AdminActivationRouteImport.update({
   id: '/activation',
   path: '/activation',
@@ -215,6 +221,7 @@ export interface FileRoutesByFullPath {
   '/settings': typeof SettingsRoute
   '/terms': typeof TermsRoute
   '/admin/activation': typeof AdminActivationRoute
+  '/admin/profile-adoption': typeof AdminProfileAdoptionRoute
   '/admin/runs': typeof AdminRunsRoute
   '/admin/scorecard': typeof AdminScorecardRoute
   '/admin/users': typeof AdminUsersRoute
@@ -246,6 +253,7 @@ export interface FileRoutesByTo {
   '/settings': typeof SettingsRoute
   '/terms': typeof TermsRoute
   '/admin/activation': typeof AdminActivationRoute
+  '/admin/profile-adoption': typeof AdminProfileAdoptionRoute
   '/admin/runs': typeof AdminRunsRoute
   '/admin/scorecard': typeof AdminScorecardRoute
   '/admin/users': typeof AdminUsersRoute
@@ -279,6 +287,7 @@ export interface FileRoutesById {
   '/settings': typeof SettingsRoute
   '/terms': typeof TermsRoute
   '/admin/activation': typeof AdminActivationRoute
+  '/admin/profile-adoption': typeof AdminProfileAdoptionRoute
   '/admin/runs': typeof AdminRunsRoute
   '/admin/scorecard': typeof AdminScorecardRoute
   '/admin/users': typeof AdminUsersRoute
@@ -313,6 +322,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/terms'
     | '/admin/activation'
+    | '/admin/profile-adoption'
     | '/admin/runs'
     | '/admin/scorecard'
     | '/admin/users'
@@ -344,6 +354,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/terms'
     | '/admin/activation'
+    | '/admin/profile-adoption'
     | '/admin/runs'
     | '/admin/scorecard'
     | '/admin/users'
@@ -376,6 +387,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/terms'
     | '/admin/activation'
+    | '/admin/profile-adoption'
     | '/admin/runs'
     | '/admin/scorecard'
     | '/admin/users'
@@ -579,6 +591,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminRunsRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/profile-adoption': {
+      id: '/admin/profile-adoption'
+      path: '/profile-adoption'
+      fullPath: '/admin/profile-adoption'
+      preLoaderRoute: typeof AdminProfileAdoptionRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/activation': {
       id: '/admin/activation'
       path: '/activation'
@@ -633,6 +652,7 @@ declare module '@tanstack/react-router' {
 
 interface AdminRouteChildren {
   AdminActivationRoute: typeof AdminActivationRoute
+  AdminProfileAdoptionRoute: typeof AdminProfileAdoptionRoute
   AdminRunsRoute: typeof AdminRunsRoute
   AdminScorecardRoute: typeof AdminScorecardRoute
   AdminUsersRoute: typeof AdminUsersRoute
@@ -641,6 +661,7 @@ interface AdminRouteChildren {
 
 const AdminRouteChildren: AdminRouteChildren = {
   AdminActivationRoute: AdminActivationRoute,
+  AdminProfileAdoptionRoute: AdminProfileAdoptionRoute,
   AdminRunsRoute: AdminRunsRoute,
   AdminScorecardRoute: AdminScorecardRoute,
   AdminUsersRoute: AdminUsersRoute,

@@ -1,9 +1,10 @@
 import { Link, Outlet, useRouterState } from '@tanstack/react-router'
-import { LayoutDashboard, Users, FileText, Activity, Gauge, ArrowLeft } from 'lucide-react'
+import { LayoutDashboard, Users, FileText, Activity, Gauge, ShieldCheck, ArrowLeft } from 'lucide-react'
 
 const NAV = [
   { to: '/admin', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/admin/activation', label: 'Activation', icon: Activity },
+  { to: '/admin/profile-adoption', label: 'Profile Adoption', icon: ShieldCheck },
   { to: '/admin/scorecard', label: 'Scaling Triggers', icon: Gauge },
   { to: '/admin/users', label: 'Users', icon: Users },
   { to: '/admin/runs', label: 'Runs', icon: FileText },

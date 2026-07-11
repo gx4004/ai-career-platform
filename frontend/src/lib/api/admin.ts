@@ -171,6 +171,37 @@ export type AdminEvalRuns = {
   tools: EvalRunItem[]
 }
 
+// R11 profile-adoption view — mirrors backend/app/schemas/admin.py
+// (ProfileKindCount / ProfileProvenanceCount / ProfileTransitionCount /
+// AdminProfileAdoptionResponse). Read-only aggregate over the same first-party
+// analytics store; every figure is a bounded low-cardinality count derived from
+// allowlisted profile events — no evidence content is reachable (D-067).
+
+export type ProfileKindCount = {
+  kind: string
+  count: number
+}
+
+export type ProfileProvenanceCount = {
+  provenance: string
+  count: number
+}
+
+export type ProfileTransitionCount = {
+  transition: string
+  count: number
+}
+
+export type AdminProfileAdoption = {
+  window_start: string
+  window_end: string
+  total_created: number
+  total_deleted: number
+  created_by_kind: ProfileKindCount[]
+  created_by_provenance: ProfileProvenanceCount[]
+  confirmation_transitions: ProfileTransitionCount[]
+}
+
 // R10 scaling-trigger scorecard — mirrors backend/app/schemas/admin.py
 // (ScorecardTrigger / AdminScorecardResponse). Read-only aggregate over the
 // same first-party operational store; a fired trigger sets review_required and
@@ -262,4 +293,12 @@ export function getAdminEvalRuns() {
 
 export function getAdminScorecard() {
   return adminRequest<AdminScorecard>('/admin/scorecard')
+}
+
+export function getAdminProfileAdoption(
+  params: { start?: string; end?: string } = {},
+) {
+  return adminRequest<AdminProfileAdoption>(
+    `/admin/profile-adoption${buildQs({ start: params.start, end: params.end })}`,
+  )
 }
