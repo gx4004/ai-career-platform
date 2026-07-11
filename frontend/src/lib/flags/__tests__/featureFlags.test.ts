@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   isR7ContextCarryEnabled,
   isR7EntryChoiceEnabled,
+  isR7NextBestActionEnabled,
   isR7SampleQuickfillEnabled,
 } from '#/lib/flags/featureFlags'
 
@@ -86,6 +87,32 @@ describe('R7 feature flags', () => {
       expect(isR7ContextCarryEnabled()).toBe(false)
       expect(isR7EntryChoiceEnabled()).toBe(true)
       expect(isR7SampleQuickfillEnabled()).toBe(true)
+    })
+  })
+
+  describe('isR7NextBestActionEnabled (dark-ship default off)', () => {
+    it('is off when the env var is unset', () => {
+      vi.stubEnv('VITE_R7_NEXT_BEST_ACTION', undefined as unknown as string)
+      expect(isR7NextBestActionEnabled()).toBe(false)
+    })
+
+    it('is on only for "true" (case-insensitive, trimmed)', () => {
+      for (const value of ['false', '0', 'yes', '', ' ']) {
+        vi.stubEnv('VITE_R7_NEXT_BEST_ACTION', value)
+        expect(isR7NextBestActionEnabled()).toBe(false)
+      }
+      for (const value of ['true', 'TRUE', '  true  ']) {
+        vi.stubEnv('VITE_R7_NEXT_BEST_ACTION', value)
+        expect(isR7NextBestActionEnabled()).toBe(true)
+      }
+    })
+
+    it('is independent of the other R7 candidate flags', () => {
+      vi.stubEnv('VITE_R7_ENTRY_CHOICE', 'true')
+      vi.stubEnv('VITE_R7_SAMPLE_QUICKFILL', 'true')
+      vi.stubEnv('VITE_R7_CONTEXT_CARRY', 'true')
+      vi.stubEnv('VITE_R7_NEXT_BEST_ACTION', undefined as unknown as string)
+      expect(isR7NextBestActionEnabled()).toBe(false)
     })
   })
 })

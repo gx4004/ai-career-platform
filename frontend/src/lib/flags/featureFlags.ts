@@ -64,3 +64,13 @@ export function isR7SampleQuickfillEnabled(): boolean {
 export function isR7ContextCarryEnabled(): boolean {
   return readBooleanFlag(import.meta.env.VITE_R7_CONTEXT_CARRY)
 }
+
+/**
+ * R7 candidate #113 — next-best-action suggestion on completed results.
+ *
+ * When off (default), result screens are unchanged. When on, the result screen
+ * exposes the same metadata-aware next-tool continuation used by history.
+ */
+export function isR7NextBestActionEnabled(): boolean {
+  return readBooleanFlag(import.meta.env.VITE_R7_NEXT_BEST_ACTION)
+}
