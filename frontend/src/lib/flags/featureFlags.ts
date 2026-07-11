@@ -85,3 +85,15 @@ export function isR7NextBestActionEnabled(): boolean {
 export function isR7ValueSpecificSignupEnabled(): boolean {
   return readBooleanFlag(import.meta.env.VITE_R7_VALUE_SPECIFIC_SIGNUP)
 }
+
+/**
+ * R7 candidate #115 — in-app recent-results nudge.
+ *
+ * When off (default), dashboard and history render exactly as before. When on,
+ * those surfaces may call attention to recent results that are not favorites.
+ * The current history model does not persist export state, so this flag does
+ * not imply that an export can be inferred or tracked.
+ */
+export function isR7ResultsNudgeEnabled(): boolean {
+  return readBooleanFlag(import.meta.env.VITE_R7_RESULTS_NUDGE)
+}

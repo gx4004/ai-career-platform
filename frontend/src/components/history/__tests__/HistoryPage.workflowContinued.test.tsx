@@ -86,6 +86,8 @@ describe('HistoryPage — workflow_continued telemetry (D-040)', () => {
   it('fires workflow_continued once when continuing a completed run to its next tool', async () => {
     renderPage()
 
+    expect(screen.queryByRole('region', { name: 'Recent results reminder' })).toBeNull()
+
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
 
     await waitFor(() => expect(getHistoryItemMock).toHaveBeenCalledWith('run-1'))
