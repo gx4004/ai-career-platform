@@ -5,6 +5,7 @@ import random
 
 from app.config import settings
 from app.services.llm_cost import record_llm_usage
+from app.services.provider_incident import set_provider_incident
 
 logger = logging.getLogger(__name__)
 
@@ -150,11 +151,15 @@ async def _call_vertex(system_prompt: str, user_prompt: str, model_name: str | N
         )
     except TimeoutError:
         logger.error("Vertex AI request timed out after %ds", _LLM_TIMEOUT_SECONDS)
+        # R10 provider-incident category (#136, D-055) — closed-set label only,
+        # never the raw exception message.
+        set_provider_incident("timeout")
         raise TimeoutError(
             f"AI request timed out after {_LLM_TIMEOUT_SECONDS}s. Please try again."
         )
     except gcp_exceptions.ResourceExhausted:
         logger.error("Vertex AI quota exceeded")
+        set_provider_incident("quota")
         raise RuntimeError(
             "AI service quota exceeded. Please try again in a few minutes."
         )
@@ -162,9 +167,11 @@ async def _call_vertex(system_prompt: str, user_prompt: str, model_name: str | N
         logger.error(
             "Vertex AI permission denied for project=%s", settings.VERTEX_PROJECT_ID
         )
+        set_provider_incident("permission")
         raise RuntimeError("AI service configuration error. Please contact support.")
     except gcp_exceptions.GoogleAPICallError as exc:
         logger.error("Vertex AI call failed error_type=%s", type(exc).__name__)
+        set_provider_incident("unavailable")
         raise RuntimeError("AI service temporarily unavailable. Please try again.")
 
     # Record actual token usage before parsing: the tokens were consumed even if
@@ -197,11 +204,13 @@ async def _call_google_genai(system_prompt: str, user_prompt: str, model_name: s
         )
     except TimeoutError:
         logger.error("Google AI request timed out after %ds", _LLM_TIMEOUT_SECONDS)
+        set_provider_incident("timeout")
         raise TimeoutError(
             f"AI request timed out after {_LLM_TIMEOUT_SECONDS}s. Please try again."
         )
     except Exception as exc:
         logger.error("Google AI call failed error_type=%s", type(exc).__name__)
+        set_provider_incident("unavailable")
         raise RuntimeError("AI service temporarily unavailable. Please try again.")
 
     # Record actual token usage before parsing: the tokens were consumed even if
@@ -238,4 +247,7 @@ def _safe_parse_json(content: str | None, provider: str) -> dict:
                 json_str = parts[1].split("```")[0].strip()
                 return json.loads(json_str)
         logger.error("Failed to parse LLM response as JSON provider=%s", provider)
+        # R10 provider-incident category (#136, D-055): a malformed structured
+        # response is a distinct provider failure mode from timeout/quota/etc.
+        set_provider_incident("malformed")
         raise

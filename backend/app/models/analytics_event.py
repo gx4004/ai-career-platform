@@ -38,6 +38,15 @@ class AnalyticsEvent(Base):
     # Backend-computed operational metrics (nullable — frontend events omit them).
     duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
     cost_estimate: Mapped[float | None] = mapped_column(Numeric(12, 6), nullable=True)
+    # R10 operational-event dimensions (issue #136, D-053). Two reused, closed-set
+    # low-cardinality columns feeding the scaling-trigger scorecard: the primary
+    # category/family (provider incident category or import source family) and the
+    # outcome class (cache outcome or import outcome). Null for every R6 event;
+    # the `ActivationEventCreate` allowlist keeps both to Literal values only.
+    operational_dimension: Mapped[str | None] = mapped_column(
+        String, nullable=True, index=True
+    )
+    operational_outcome: Mapped[str | None] = mapped_column(String, nullable=True)
     # occurred_at: event-reported time (may be null); created_at: server ingest
     # time, indexed to drive the 180-day retention prune.
     occurred_at: Mapped[datetime | None] = mapped_column(

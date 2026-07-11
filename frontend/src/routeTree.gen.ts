@@ -29,6 +29,7 @@ import { Route as AccountRouteImport } from './routes/account'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminIndexRouteImport } from './routes/admin/index'
 import { Route as AdminUsersRouteImport } from './routes/admin/users'
+import { Route as AdminScorecardRouteImport } from './routes/admin/scorecard'
 import { Route as AdminRunsRouteImport } from './routes/admin/runs'
 import { Route as AdminActivationRouteImport } from './routes/admin/activation'
 import { Route as ResumeResultHistoryIdRouteImport } from './routes/resume_.result.$historyId'
@@ -138,6 +139,11 @@ const AdminUsersRoute = AdminUsersRouteImport.update({
   path: '/users',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminScorecardRoute = AdminScorecardRouteImport.update({
+  id: '/scorecard',
+  path: '/scorecard',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminRunsRoute = AdminRunsRouteImport.update({
   id: '/runs',
   path: '/runs',
@@ -203,6 +209,7 @@ export interface FileRoutesByFullPath {
   '/terms': typeof TermsRoute
   '/admin/activation': typeof AdminActivationRoute
   '/admin/runs': typeof AdminRunsRoute
+  '/admin/scorecard': typeof AdminScorecardRoute
   '/admin/users': typeof AdminUsersRoute
   '/admin/': typeof AdminIndexRoute
   '/career/result/$historyId': typeof CareerResultHistoryIdRoute
@@ -232,6 +239,7 @@ export interface FileRoutesByTo {
   '/terms': typeof TermsRoute
   '/admin/activation': typeof AdminActivationRoute
   '/admin/runs': typeof AdminRunsRoute
+  '/admin/scorecard': typeof AdminScorecardRoute
   '/admin/users': typeof AdminUsersRoute
   '/admin': typeof AdminIndexRoute
   '/career/result/$historyId': typeof CareerResultHistoryIdRoute
@@ -263,6 +271,7 @@ export interface FileRoutesById {
   '/terms': typeof TermsRoute
   '/admin/activation': typeof AdminActivationRoute
   '/admin/runs': typeof AdminRunsRoute
+  '/admin/scorecard': typeof AdminScorecardRoute
   '/admin/users': typeof AdminUsersRoute
   '/admin/': typeof AdminIndexRoute
   '/career_/result/$historyId': typeof CareerResultHistoryIdRoute
@@ -295,6 +304,7 @@ export interface FileRouteTypes {
     | '/terms'
     | '/admin/activation'
     | '/admin/runs'
+    | '/admin/scorecard'
     | '/admin/users'
     | '/admin/'
     | '/career/result/$historyId'
@@ -324,6 +334,7 @@ export interface FileRouteTypes {
     | '/terms'
     | '/admin/activation'
     | '/admin/runs'
+    | '/admin/scorecard'
     | '/admin/users'
     | '/admin'
     | '/career/result/$historyId'
@@ -354,6 +365,7 @@ export interface FileRouteTypes {
     | '/terms'
     | '/admin/activation'
     | '/admin/runs'
+    | '/admin/scorecard'
     | '/admin/users'
     | '/admin/'
     | '/career_/result/$historyId'
@@ -533,6 +545,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminUsersRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/scorecard': {
+      id: '/admin/scorecard'
+      path: '/scorecard'
+      fullPath: '/admin/scorecard'
+      preLoaderRoute: typeof AdminScorecardRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/runs': {
       id: '/admin/runs'
       path: '/runs'
@@ -595,6 +614,7 @@ declare module '@tanstack/react-router' {
 interface AdminRouteChildren {
   AdminActivationRoute: typeof AdminActivationRoute
   AdminRunsRoute: typeof AdminRunsRoute
+  AdminScorecardRoute: typeof AdminScorecardRoute
   AdminUsersRoute: typeof AdminUsersRoute
   AdminIndexRoute: typeof AdminIndexRoute
 }
@@ -602,6 +622,7 @@ interface AdminRouteChildren {
 const AdminRouteChildren: AdminRouteChildren = {
   AdminActivationRoute: AdminActivationRoute,
   AdminRunsRoute: AdminRunsRoute,
+  AdminScorecardRoute: AdminScorecardRoute,
   AdminUsersRoute: AdminUsersRoute,
   AdminIndexRoute: AdminIndexRoute,
 }

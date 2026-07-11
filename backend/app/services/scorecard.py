@@ -1,0 +1,648 @@
+"""R10 operational scaling-trigger scorecard (issue #136, parent #135).
+
+Read-only instrument. For each of the six predeclared R10 scaling triggers it
+reads the first-party operational evidence already collected on the R6
+analytics/admin boundary (D-053) plus live runtime introspection (declared
+replica class, connection-pool checkout, database storage), decides whether the
+trigger's threshold is met on a sufficient, sustained sample, and surfaces the
+result beside its owner, rollback, and exit criteria.
+
+It never enables a response. A crossed threshold produces ``state="fired"`` and
+``review_required=True`` linking the deferred response ticket (#137–#142); the
+scorecard makes the next frontier visible and records when evidence is
+insufficient or a breach did not sustain (a reset false positive). This mirrors
+the trigger semantics in the parent spec: "a threshold must be sustained for its
+stated window and based on a minimum useful sample before a response ticket
+becomes the frontier" (D-052).
+"""
+from __future__ import annotations
+
+import logging
+import math
+from collections.abc import Sequence
+from datetime import UTC, datetime, timedelta
+
+from sqlalchemy import func, text
+from sqlalchemy.orm import Session
+
+from app.config import settings
+from app.models.analytics_event import AnalyticsEvent
+from app.schemas.admin import AdminScorecardResponse, ScorecardTrigger, TriggerState
+
+logger = logging.getLogger("app.scorecard")
+
+# ── Trigger thresholds (verbatim from the parent spec #135 / D-054–D-059) ──
+
+CACHE_WINDOW_DAYS = 7
+CACHE_MIN_SAMPLE = 100
+
+PROVIDER_INCIDENT_WINDOW_DAYS = 30
+PROVIDER_INCIDENT_THRESHOLD = 3
+# Provider-caused failures closer together than this gap belong to one incident
+# window; this is the *read-side* grouping (the write side already collapses a
+# request's internal retries into a single incident event).
+PROVIDER_INCIDENT_GAP_SECONDS = 300
+
+LATENCY_WINDOW_DAYS = 3
+LATENCY_MIN_DAILY_SAMPLE = 20
+
+ABUSE_COST_WINDOW_HOURS = 24
+
+DB_STORAGE_TRIGGER_PCT = 70.0
+
+IMPORT_WINDOW_DAYS = 14
+IMPORT_MIN_ATTEMPTS = 50
+IMPORT_FAILURE_RATE = 0.25
+IMPORT_FAILURE_SHARE = 0.40
+IMPORT_MIN_FAILURES_FOR_SHARE = 10
+
+
+# Static, predeclared plan for each trigger: owner, rollback, exit criteria, and
+# the deferred response ticket a fired trigger authorises *review* of. Threshold
+# / window / minimum-sample strings are rendered from the constants above so the
+# displayed numbers cannot drift from the logic.
+_TRIGGER_META: dict[str, dict[str, object]] = {
+    "cache_multi_instance": {
+        "label": "Multi-instance / cache",
+        "threshold": (
+            f"≥2 verified API replicas AND {CACHE_WINDOW_DAYS}-day material "
+            "duplicate provider cost or cache-efficiency loss vs the accepted budget"
+        ),
+        "observation_window": f"{CACHE_WINDOW_DAYS} days",
+        "minimum_sample": f"≥{CACHE_MIN_SAMPLE} cache observations in window",
+        "response_ticket": 137,
+        "response_ticket_title": "Respond to verified multi-instance cache inefficiency",
+        "owner": "Product owner (infrastructure)",
+        "rollback": "Configuration-first: disable the distributed cache back to in-process, fail-open (ADR 0004)",
+        "exit_criteria": "Replica count returns to one, or 7-day cache efficiency/cost returns within the accepted budget",
+    },
+    "provider_incidents": {
+        "label": "Provider incidents",
+        "threshold": (
+            f"≥{PROVIDER_INCIDENT_THRESHOLD} user-visible provider incidents in "
+            f"{PROVIDER_INCIDENT_WINDOW_DAYS} days, or provider-caused availability "
+            "breaches the accepted 7-day SLO"
+        ),
+        "observation_window": f"{PROVIDER_INCIDENT_WINDOW_DAYS} days",
+        "minimum_sample": "Any grouped incident (retries collapsed into one)",
+        "response_ticket": 138,
+        "response_ticket_title": "Qualify and circuit-break a provider fallback after incidents",
+        "owner": "Product owner (with privacy/processor review)",
+        "rollback": "Circuit breaker returns to closed; no fallback vendor stays configured until R8 quality + processor review pass",
+        "exit_criteria": "Incident count falls below threshold across a full window with no SLO breach",
+    },
+    "latency_abandonment": {
+        "label": "Perceived generation latency / abandonment",
+        "threshold": (
+            f"A tool's submit-to-result p95 breaches its {settings.LATENCY_P95_BUDGET_MS} ms "
+            f"budget for {LATENCY_WINDOW_DAYS} consecutive daily windows AND loader "
+            "abandonment is materially elevated"
+        ),
+        "observation_window": f"{LATENCY_WINDOW_DAYS} consecutive daily windows",
+        "minimum_sample": f"≥{LATENCY_MIN_DAILY_SAMPLE} completed runs per tool per day",
+        "response_ticket": 139,
+        "response_ticket_title": "Add real staged generation progress after latency evidence",
+        "owner": "Product owner (with developer)",
+        "rollback": "Feature-flag staged progress off; the request still returns one validated JSON result (D-056)",
+        "exit_criteria": "p95 returns within budget for a full window, or the abandonment signal is instrumented and shows no elevation",
+    },
+    "abuse_cost": {
+        "label": "Abuse / cost pressure",
+        "threshold": (
+            "One route emits ≥50 limit events in 15 min for 3 consecutive windows, "
+            f"or provider LLM cost exceeds ${settings.COST_ALERT_USD_24H:.2f} over "
+            f"{ABUSE_COST_WINDOW_HOURS}h"
+        ),
+        "observation_window": f"15-min limit windows / rolling {ABUSE_COST_WINDOW_HOURS}h cost",
+        "minimum_sample": "Sustained limit windows or a fired cost alert",
+        "response_ticket": 140,
+        "response_ticket_title": "Escalate quotas and challenge only the attacked flow",
+        "owner": "Product owner",
+        "rollback": "Configuration-first quota tuning; a challenge is scoped to the attacked flow only, never a global CAPTCHA switch (D-057)",
+        "exit_criteria": "Cost returns within budget and limit-event pressure subsides across consecutive windows",
+    },
+    "database_growth": {
+        "label": "Database growth",
+        "threshold": (
+            "A representative query breaches its accepted p95, pool checkout "
+            f"pressure is sustained, storage reaches {DB_STORAGE_TRIGGER_PCT:.0f}%, "
+            "or the 90-day forecast reaches provisioned capacity"
+        ),
+        "observation_window": "Rolling; capacity-plan before saturation",
+        "minimum_sample": "Configured DB capacity + representative query volume",
+        "response_ticket": 141,
+        "response_ticket_title": "Optimize the measured PostgreSQL bottleneck",
+        "owner": "Product owner (with developer)",
+        "rollback": "Additive indexes / bounded query changes are revertible by migration; D-031 primary retention is never auto-pruned (D-058)",
+        "exit_criteria": "Query p95 and pool/storage headroom return within the accepted budget after the change",
+    },
+    "import_concentration": {
+        "label": "Job-import source concentration",
+        "threshold": (
+            f"An allowlisted source family has ≥{IMPORT_MIN_ATTEMPTS} attempts in "
+            f"{IMPORT_WINDOW_DAYS} days with a ≥{IMPORT_FAILURE_RATE:.0%} failure rate, "
+            f"or produces ≥{IMPORT_FAILURE_SHARE:.0%} of import failures"
+        ),
+        "observation_window": f"{IMPORT_WINDOW_DAYS} days",
+        "minimum_sample": f"≥{IMPORT_MIN_ATTEMPTS} attempts for a family",
+        "response_ticket": 142,
+        "response_ticket_title": "Specialize or reduce the concentrated job-import source",
+        "owner": "Product owner (with terms review)",
+        "rollback": "Any source adapter sits behind a kill switch back to the generic path + paste fallback (D-059)",
+        "exit_criteria": "The family's failure rate/share returns within budget, or its scope is honestly reduced",
+    },
+}
+
+
+def _as_utc(value: datetime | None) -> datetime | None:
+    """Normalise a possibly naive stored timestamp to timezone-aware UTC."""
+    if value is None:
+        return None
+    return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
+
+
+def _p95(values: Sequence[float]) -> float | None:
+    """Nearest-rank p95 of a non-empty sample, else None."""
+    if not values:
+        return None
+    ordered = sorted(values)
+    rank = max(0, math.ceil(0.95 * len(ordered)) - 1)
+    return float(ordered[min(rank, len(ordered) - 1)])
+
+
+def _iso(value: datetime | None) -> str | None:
+    return value.isoformat() if value is not None else None
+
+
+# ── Per-trigger evaluators. Each returns the dynamic fields for one trigger. ──
+
+
+def _evaluate_cache(db: Session, now: datetime) -> dict[str, object]:
+    window_start = now - timedelta(days=CACHE_WINDOW_DAYS)
+    rows = (
+        db.query(AnalyticsEvent.operational_outcome, func.count(AnalyticsEvent.id))
+        .filter(
+            AnalyticsEvent.event_name == "r10_cache_outcome",
+            AnalyticsEvent.created_at >= window_start,
+        )
+        .group_by(AnalyticsEvent.operational_outcome)
+        .all()
+    )
+    counts = {outcome: count for outcome, count in rows}
+    hits = counts.get("hit", 0)
+    misses = counts.get("miss", 0)
+    writes = counts.get("write", 0)
+    failures = counts.get("failure", 0)
+    lookups = hits + misses + failures
+    hit_ratio = round(hits / lookups, 4) if lookups else 0.0
+    last_at = _as_utc(
+        db.query(func.max(AnalyticsEvent.created_at))
+        .filter(
+            AnalyticsEvent.event_name == "r10_cache_outcome",
+            AnalyticsEvent.created_at >= window_start,
+        )
+        .scalar()
+    )
+    detail: dict[str, float | int | str] = {
+        "replica_class": settings.API_REPLICA_CLASS,
+        "hits": hits,
+        "misses": misses,
+        "writes": writes,
+        "failures": failures,
+        "hit_ratio": hit_ratio,
+    }
+
+    multi_instance = settings.API_REPLICA_CLASS.lower() != "single"
+    if not multi_instance:
+        # Multi-instance topology alone starts the review; a single process
+        # cannot duplicate provider cost across replicas, so the distributed
+        # cache is out of scope regardless of hit ratio (ADR 0004).
+        state: TriggerState = "not_fired"
+        evidence = (
+            f"Single-instance topology; distributed-cache review not triggered. "
+            f"Hit ratio {hit_ratio:.0%} over {lookups} lookups."
+        )
+    elif lookups < CACHE_MIN_SAMPLE:
+        state = "insufficient_sample"
+        evidence = (
+            f"Multi-instance declared but only {lookups} cache observations "
+            f"(need ≥{CACHE_MIN_SAMPLE}) to judge duplicate cost."
+        )
+    elif failures > 0 or hit_ratio < 0.5:
+        state = "fired"
+        evidence = (
+            f"Multi-instance with cache inefficiency: hit ratio {hit_ratio:.0%}, "
+            f"{failures} lookup failures over {lookups} lookups."
+        )
+    else:
+        state = "not_fired"
+        evidence = (
+            f"Multi-instance but cache healthy: hit ratio {hit_ratio:.0%} over "
+            f"{lookups} lookups."
+        )
+    return {
+        "state": state,
+        "evidence": evidence,
+        "evidence_detail": detail,
+        "last_evidence_at": _iso(last_at),
+        "evidence_fresh": last_at is not None and last_at >= window_start,
+    }
+
+
+def group_provider_incidents(
+    timestamps: Sequence[datetime],
+    *,
+    gap_seconds: int = PROVIDER_INCIDENT_GAP_SECONDS,
+) -> int:
+    """Group sorted provider-failure timestamps into distinct incident windows.
+
+    Consecutive failures within ``gap_seconds`` of each other belong to one
+    incident; a larger gap starts a new one. Pure and deterministic so the
+    grouping rule is unit-testable without a database.
+    """
+    if not timestamps:
+        return 0
+    ordered = sorted(_as_utc(t) for t in timestamps)
+    incidents = 1
+    previous = ordered[0]
+    for current in ordered[1:]:
+        if (current - previous).total_seconds() > gap_seconds:
+            incidents += 1
+        previous = current
+    return incidents
+
+
+def _evaluate_provider(db: Session, now: datetime) -> dict[str, object]:
+    window_start = now - timedelta(days=PROVIDER_INCIDENT_WINDOW_DAYS)
+    events = (
+        db.query(AnalyticsEvent.created_at, AnalyticsEvent.operational_dimension)
+        .filter(
+            AnalyticsEvent.event_name == "r10_provider_incident",
+            AnalyticsEvent.created_at >= window_start,
+        )
+        .order_by(AnalyticsEvent.created_at)
+        .all()
+    )
+    timestamps = [row[0] for row in events]
+    incidents = group_provider_incidents(timestamps)
+    by_category: dict[str, int] = {}
+    for _, category in events:
+        if category is not None:
+            by_category[category] = by_category.get(category, 0) + 1
+    last_at = _as_utc(timestamps[-1]) if timestamps else None
+    detail: dict[str, float | int | str] = {
+        "incidents": incidents,
+        "raw_failures": len(timestamps),
+        **{f"category_{k}": v for k, v in by_category.items()},
+    }
+    if incidents >= PROVIDER_INCIDENT_THRESHOLD:
+        state: TriggerState = "fired"
+        evidence = (
+            f"{incidents} grouped provider incidents in "
+            f"{PROVIDER_INCIDENT_WINDOW_DAYS}d (≥{PROVIDER_INCIDENT_THRESHOLD})."
+        )
+    else:
+        state = "not_fired"
+        evidence = (
+            f"{incidents} grouped provider incidents in "
+            f"{PROVIDER_INCIDENT_WINDOW_DAYS}d (threshold {PROVIDER_INCIDENT_THRESHOLD}); "
+            f"{len(timestamps)} raw failures."
+        )
+    return {
+        "state": state,
+        "evidence": evidence,
+        "evidence_detail": detail,
+        "last_evidence_at": _iso(last_at),
+        "evidence_fresh": last_at is not None,
+    }
+
+
+def _evaluate_latency(db: Session, now: datetime) -> dict[str, object]:
+    budget = settings.LATENCY_P95_BUDGET_MS
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    # Each tool sustains a breach only if it breaches every one of the last
+    # LATENCY_WINDOW_DAYS complete daily windows. A day that recovers resets the
+    # streak — that is the false-positive reset the spec requires.
+    per_tool_breaches: dict[str, list[bool]] = {}
+    worst_p95 = 0.0
+    evaluated_days = 0
+    for day_index in range(1, LATENCY_WINDOW_DAYS + 1):
+        day_end = today_start - timedelta(days=day_index - 1)
+        day_start = today_start - timedelta(days=day_index)
+        rows = (
+            db.query(AnalyticsEvent.tool_id, AnalyticsEvent.duration_ms)
+            .filter(
+                AnalyticsEvent.event_name == "tool_run_completed",
+                AnalyticsEvent.duration_ms.isnot(None),
+                AnalyticsEvent.tool_id.isnot(None),
+                AnalyticsEvent.created_at >= day_start,
+                AnalyticsEvent.created_at < day_end,
+            )
+            .all()
+        )
+        by_tool: dict[str, list[float]] = {}
+        for tool_id, duration in rows:
+            by_tool.setdefault(tool_id, []).append(float(duration))
+        day_had_sample = False
+        for tool_id, durations in by_tool.items():
+            if len(durations) < LATENCY_MIN_DAILY_SAMPLE:
+                # Insufficient sample this day → cannot confirm a breach → the
+                # streak cannot be sustained (records as non-breach).
+                per_tool_breaches.setdefault(tool_id, []).append(False)
+                continue
+            day_had_sample = True
+            p95 = _p95(durations) or 0.0
+            worst_p95 = max(worst_p95, p95)
+            per_tool_breaches.setdefault(tool_id, []).append(p95 > budget)
+        if day_had_sample:
+            evaluated_days += 1
+
+    sustained = [
+        tool_id
+        for tool_id, breaches in per_tool_breaches.items()
+        if len(breaches) == LATENCY_WINDOW_DAYS and all(breaches)
+    ]
+    detail: dict[str, float | int | str] = {
+        "budget_ms": budget,
+        "worst_p95_ms": round(worst_p95, 1),
+        "days_with_sample": evaluated_days,
+        "sustained_breach_tools": ", ".join(sorted(sustained)) or "none",
+    }
+    if sustained:
+        # Latency clearly sustains a breach, but the trigger also requires
+        # materially elevated loader abandonment, which is not yet instrumented
+        # — so the honest state is "review the abandonment signal", never fired.
+        state: TriggerState = "insufficient_sample"
+        evidence = (
+            f"p95 breach sustained {LATENCY_WINDOW_DAYS}d for {', '.join(sorted(sustained))} "
+            f"(worst {worst_p95:.0f} ms > {budget} ms); loader-abandonment signal not "
+            "instrumented (see #139) so elevation cannot be confirmed."
+        )
+    elif evaluated_days == 0:
+        state = "insufficient_sample"
+        evidence = (
+            f"Fewer than {LATENCY_MIN_DAILY_SAMPLE} completed runs per tool on each of "
+            f"the last {LATENCY_WINDOW_DAYS} days; p95 not evaluable."
+        )
+    else:
+        state = "not_fired"
+        evidence = (
+            f"No tool sustained a p95 breach across {LATENCY_WINDOW_DAYS} consecutive days "
+            f"(worst {worst_p95:.0f} ms vs {budget} ms budget)."
+        )
+    return {
+        "state": state,
+        "evidence": evidence,
+        "evidence_detail": detail,
+        "last_evidence_at": None,
+        "evidence_fresh": evaluated_days > 0,
+    }
+
+
+def _evaluate_abuse_cost(db: Session, now: datetime) -> dict[str, object]:
+    window_start = now - timedelta(hours=ABUSE_COST_WINDOW_HOURS)
+    total_cost = (
+        db.query(func.coalesce(func.sum(AnalyticsEvent.cost_estimate), 0)).filter(
+            AnalyticsEvent.created_at >= window_start
+        ).scalar()
+    )
+    total_cost_f = float(total_cost or 0)
+    budget = settings.COST_ALERT_USD_24H
+    detail: dict[str, float | int | str] = {
+        "cost_24h_usd": round(total_cost_f, 6),
+        "cost_alert_budget_usd": budget,
+        "rate_limit_events": "not instrumented (see #140)",
+    }
+    if total_cost_f > budget:
+        state: TriggerState = "fired"
+        evidence = (
+            f"Provider cost ${total_cost_f:.4f} over {ABUSE_COST_WINDOW_HOURS}h exceeds "
+            f"the ${budget:.2f} alert budget."
+        )
+    else:
+        state = "not_fired"
+        evidence = (
+            f"Provider cost ${total_cost_f:.4f} over {ABUSE_COST_WINDOW_HOURS}h within the "
+            f"${budget:.2f} budget; route rate-limit-event branch not yet instrumented."
+        )
+    return {
+        "state": state,
+        "evidence": evidence,
+        "evidence_detail": detail,
+        "last_evidence_at": None,
+        "evidence_fresh": True,
+    }
+
+
+def gather_database_evidence(db: Session) -> tuple[float | None, float | None]:
+    """Best-effort live DB storage-headroom % and pool-checkout ratio.
+
+    Returns ``(storage_pct, pool_checkout_ratio)`` where either element is
+    ``None`` when the signal is unavailable (e.g. SQLite in tests, or no
+    configured capacity). Never raises: introspection failures degrade to
+    ``None`` so the scorecard reports insufficient evidence rather than erroring.
+    """
+    storage_pct: float | None = None
+    capacity = settings.DB_CAPACITY_BYTES
+    if capacity > 0:
+        try:
+            used = db.execute(
+                text("SELECT pg_database_size(current_database())")
+            ).scalar()
+            if used is not None:
+                storage_pct = round(float(used) / capacity * 100, 2)
+        except Exception:  # noqa: BLE001 — non-Postgres or permission; treat as unknown
+            storage_pct = None
+
+    pool_ratio: float | None = None
+    try:
+        pool = db.get_bind().pool
+        checked_out = pool.checkedout()
+        capacity_conns = pool.size() + getattr(pool, "_max_overflow", 0)
+        if capacity_conns > 0:
+            pool_ratio = round(checked_out / capacity_conns, 4)
+    except Exception:  # noqa: BLE001 — pool without introspection (e.g. StaticPool)
+        pool_ratio = None
+    return storage_pct, pool_ratio
+
+
+def evaluate_database_growth(storage_pct: float | None) -> tuple[TriggerState, str]:
+    """Pure threshold logic for the database-growth trigger (D-058).
+
+    Fires only on a hard, measured storage-headroom breach. Pool checkout
+    pressure is shown as supporting evidence but not fired on, because a single
+    live reading cannot establish that it is *sustained*; query-plan p95 and the
+    90-day capacity forecast are not yet instrumented either, so with no storage
+    signal the trigger reports insufficient evidence rather than guessing.
+    """
+    if storage_pct is not None and storage_pct >= DB_STORAGE_TRIGGER_PCT:
+        return "fired", (
+            f"Storage at {storage_pct:.1f}% of provisioned capacity "
+            f"(≥{DB_STORAGE_TRIGGER_PCT:.0f}%)."
+        )
+    if storage_pct is not None:
+        return "not_fired", (
+            f"Storage at {storage_pct:.1f}% of capacity (< {DB_STORAGE_TRIGGER_PCT:.0f}%); "
+            "query-plan and 90-day forecast signals not yet instrumented (see #141)."
+        )
+    return "insufficient_sample", (
+        "No provisioned-capacity/storage signal available (set DB_CAPACITY_BYTES on "
+        "Postgres); query-plan and forecast signals not yet instrumented (see #141)."
+    )
+
+
+def _evaluate_database(db: Session, now: datetime) -> dict[str, object]:
+    storage_pct, pool_ratio = gather_database_evidence(db)
+    state, evidence = evaluate_database_growth(storage_pct)
+    detail: dict[str, float | int | str] = {
+        "storage_pct": storage_pct if storage_pct is not None else "unknown",
+        "pool_checkout_ratio": pool_ratio if pool_ratio is not None else "unknown",
+        "storage_trigger_pct": DB_STORAGE_TRIGGER_PCT,
+    }
+    return {
+        "state": state,
+        "evidence": evidence,
+        "evidence_detail": detail,
+        "last_evidence_at": _iso(now),
+        "evidence_fresh": storage_pct is not None or pool_ratio is not None,
+    }
+
+
+def _evaluate_import(db: Session, now: datetime) -> dict[str, object]:
+    window_start = now - timedelta(days=IMPORT_WINDOW_DAYS)
+    rows = (
+        db.query(
+            AnalyticsEvent.operational_dimension,
+            AnalyticsEvent.operational_outcome,
+            func.count(AnalyticsEvent.id),
+        )
+        .filter(
+            AnalyticsEvent.event_name == "r10_import_outcome",
+            AnalyticsEvent.created_at >= window_start,
+        )
+        .group_by(
+            AnalyticsEvent.operational_dimension,
+            AnalyticsEvent.operational_outcome,
+        )
+        .all()
+    )
+    attempts: dict[str, int] = {}
+    failures: dict[str, int] = {}
+    for family, outcome, count in rows:
+        family = family or "other"
+        attempts[family] = attempts.get(family, 0) + count
+        if outcome == "failure":
+            failures[family] = failures.get(family, 0) + count
+    total_attempts = sum(attempts.values())
+    total_failures = sum(failures.values())
+
+    fired_family: str | None = None
+    fired_reason = ""
+    for family, family_attempts in attempts.items():
+        family_failures = failures.get(family, 0)
+        rate = family_failures / family_attempts if family_attempts else 0.0
+        share = family_failures / total_failures if total_failures else 0.0
+        if family_attempts >= IMPORT_MIN_ATTEMPTS and rate >= IMPORT_FAILURE_RATE:
+            fired_family = family
+            fired_reason = f"{family_attempts} attempts, {rate:.0%} failure rate"
+            break
+        if (
+            total_failures >= IMPORT_MIN_FAILURES_FOR_SHARE
+            and share >= IMPORT_FAILURE_SHARE
+        ):
+            fired_family = family
+            fired_reason = f"{share:.0%} of all import failures"
+            break
+
+    last_at = _as_utc(
+        db.query(func.max(AnalyticsEvent.created_at))
+        .filter(
+            AnalyticsEvent.event_name == "r10_import_outcome",
+            AnalyticsEvent.created_at >= window_start,
+        )
+        .scalar()
+    )
+    top_family = max(attempts, key=lambda k: attempts[k]) if attempts else "none"
+    detail: dict[str, float | int | str] = {
+        "total_attempts": total_attempts,
+        "total_failures": total_failures,
+        "top_family": top_family,
+        "top_family_attempts": attempts.get(top_family, 0) if attempts else 0,
+    }
+    if fired_family is not None:
+        state: TriggerState = "fired"
+        evidence = f"Source family '{fired_family}' concentrated failure: {fired_reason}."
+    elif total_attempts < IMPORT_MIN_ATTEMPTS:
+        state = "insufficient_sample"
+        evidence = (
+            f"Only {total_attempts} import attempts in {IMPORT_WINDOW_DAYS}d "
+            f"(need ≥{IMPORT_MIN_ATTEMPTS} for a family) to judge concentration."
+        )
+    else:
+        state = "not_fired"
+        evidence = (
+            f"No source family concentrated failures across {total_attempts} attempts "
+            f"({total_failures} failures) in {IMPORT_WINDOW_DAYS}d."
+        )
+    return {
+        "state": state,
+        "evidence": evidence,
+        "evidence_detail": detail,
+        "last_evidence_at": _iso(last_at),
+        "evidence_fresh": last_at is not None and last_at >= window_start,
+    }
+
+
+_EVALUATORS = {
+    "cache_multi_instance": _evaluate_cache,
+    "provider_incidents": _evaluate_provider,
+    "latency_abandonment": _evaluate_latency,
+    "abuse_cost": _evaluate_abuse_cost,
+    "database_growth": _evaluate_database,
+    "import_concentration": _evaluate_import,
+}
+
+
+def compute_scorecard(db: Session, *, now: datetime | None = None) -> AdminScorecardResponse:
+    """Compute the full read-only R10 scaling-trigger scorecard.
+
+    Evaluates every trigger over its own observation window ending at ``now``
+    (injectable for deterministic tests). Never enables a response — a fired
+    trigger only sets ``review_required`` and links its deferred response ticket.
+    """
+    if now is None:
+        now = datetime.now(UTC)
+    window_start = now - timedelta(days=PROVIDER_INCIDENT_WINDOW_DAYS)
+
+    triggers: list[ScorecardTrigger] = []
+    for trigger_id, meta in _TRIGGER_META.items():
+        computed = _EVALUATORS[trigger_id](db, now)
+        state = computed["state"]
+        triggers.append(
+            ScorecardTrigger(
+                id=trigger_id,
+                label=meta["label"],
+                threshold=meta["threshold"],
+                observation_window=meta["observation_window"],
+                minimum_sample=meta["minimum_sample"],
+                evidence=computed["evidence"],
+                evidence_detail=computed["evidence_detail"],
+                evidence_fresh=computed["evidence_fresh"],
+                last_evidence_at=computed["last_evidence_at"],
+                state=state,
+                review_required=state == "fired",
+                response_ticket=meta["response_ticket"],
+                response_ticket_title=meta["response_ticket_title"],
+                owner=meta["owner"],
+                rollback=meta["rollback"],
+                exit_criteria=meta["exit_criteria"],
+            )
+        )
+
+    return AdminScorecardResponse(
+        generated_at=now.isoformat(),
+        window_start=window_start.isoformat(),
+        window_end=now.isoformat(),
+        replica_class=settings.API_REPLICA_CLASS,
+        triggers=triggers,
+    )
