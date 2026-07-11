@@ -1,6 +1,7 @@
 import { Link, useRouterState } from '@tanstack/react-router'
 import {
   ArrowLeft,
+  BadgeCheck,
   ChevronLeft,
   ChevronRight,
   History,
@@ -33,6 +34,7 @@ import { toolAccentStyle } from '#/lib/tools/styleUtils'
 
 const accountNavItems = [
   { label: 'History', icon: History, route: '/history' },
+  { label: 'Evidence', icon: BadgeCheck, route: '/profile' },
   { label: 'Account', icon: UserRound, route: '/account' },
   { label: 'Settings', icon: Settings, route: '/settings' },
 ] as const

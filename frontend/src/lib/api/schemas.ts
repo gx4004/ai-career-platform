@@ -30,6 +30,7 @@ export const evidenceItemListSchema = z.object({ items: z.array(evidenceItemSche
 export type EvidenceItem = z.infer<typeof evidenceItemSchema>
 export type EvidenceKind = z.infer<typeof evidenceKindSchema>
 export type EvidenceProvenance = z.infer<typeof evidenceProvenanceSchema>
+export type EvidenceConfirmationState = z.infer<typeof evidenceConfirmationStateSchema>
 export type EvidenceItemCreate = z.infer<typeof evidenceItemCreateSchema>
 export type EvidenceItemUpdate = z.infer<typeof evidenceItemUpdateSchema>
 export type EvidenceConfirmationAction = z.infer<typeof evidenceConfirmationActionSchema>
