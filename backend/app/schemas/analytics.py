@@ -6,6 +6,11 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
+from app.schemas.evidence_profile import (
+    ConfirmationState,
+    EvidenceKind,
+    EvidenceProvenance,
+)
 from app.schemas.telemetry import (
     AccessMode,
     ExportFormat,
@@ -75,12 +80,36 @@ ImportOutcome = Literal["success", "fallback", "failure"]
 OperationalDimension = ProviderIncidentCategory | ImportSourceFamily
 OperationalOutcome = CacheOutcome | ImportOutcome
 
+# ── R11 profile-adoption allowlist (issue #150, parent #143, D-067) ──
+# The Evidence Profile extends the SAME first-party analytics path — no new
+# vendor. Profile events are backend-generated at the profile service seam where
+# items are created or transition state, and carry only these three closed-set,
+# low-cardinality dimensions plus bounded aggregate counts (never evidence text,
+# employer/institution names, or stable content identifiers, D-067):
+#   - `evidence_kind`  — the typed item kind (reused `EvidenceKind`, 8 values)
+#   - `evidence_provenance` — provenance class (imported/inferred/user-entered)
+#   - `confirmation_transition` — the resulting confirmation state of a
+#     create/edit/confirm/reject transition (null on deletion)
+# Because `ActivationEventCreate` sets `extra="forbid"`, any attempt to attach an
+# item's `content`, `statement`, employer, or free text is rejected before a row
+# is written — exactly like every other dimension in this file.
+ProfileEventName = Literal[
+    "profile_item_created",
+    "profile_item_updated",
+    "profile_item_confirmed",
+    "profile_item_rejected",
+    "profile_item_deleted",
+]
+
 # Activation-event names accepted by the durable write seam. This is the union
 # of every event name already firing today: the frontend-telemetry taxonomy
 # (`TelemetryEventName`) plus the backend-only tool-run outcome event, which the
 # server logs as `tool_run_completed` (the frontend's client-observed twin is
-# `tool_run_succeeded`), plus the backend-only R10 operational events (#136).
-ActivationEventName = TelemetryEventName | Literal["tool_run_completed"] | R10EventName
+# `tool_run_succeeded`), plus the backend-only R10 operational events (#136) and
+# the backend-only R11 profile-adoption events (#150).
+ActivationEventName = (
+    TelemetryEventName | Literal["tool_run_completed"] | R10EventName | ProfileEventName
+)
 
 
 class ActivationEventCreate(BaseModel):
@@ -110,4 +139,10 @@ class ActivationEventCreate(BaseModel):
     cost_estimate: Decimal | None = None
     operational_dimension: OperationalDimension | None = None
     operational_outcome: OperationalOutcome | None = None
+    # R11 profile-adoption dimensions (#150, D-067). Null for every non-profile
+    # event; each constrained to a closed Literal set so no evidence content can
+    # ever ride along.
+    evidence_kind: EvidenceKind | None = None
+    evidence_provenance: EvidenceProvenance | None = None
+    confirmation_transition: ConfirmationState | None = None
     occurred_at: datetime | None = None

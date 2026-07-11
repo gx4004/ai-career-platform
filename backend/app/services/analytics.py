@@ -11,8 +11,12 @@ from sqlalchemy.orm import Session
 from app.models.analytics_event import AnalyticsEvent
 from app.schemas.admin import (
     AdminActivationResponse,
+    AdminProfileAdoptionResponse,
     FailureCategoryCount,
     FunnelStepCount,
+    ProfileKindCount,
+    ProfileProvenanceCount,
+    ProfileTransitionCount,
     ToolLatencyCost,
 )
 from app.schemas.analytics import ActivationEventCreate
@@ -142,6 +146,92 @@ def aggregate_activation_metrics(
         funnel=funnel,
         failures=failures,
         tools=tools,
+    )
+
+
+def aggregate_profile_adoption(
+    db: Session,
+    *,
+    window_start: datetime,
+    window_end: datetime,
+) -> AdminProfileAdoptionResponse:
+    """Aggregate allowlisted profile events into the admin adoption view (D-067, #150).
+
+    Read-only. Answers "is the Evidence Profile being adopted and trusted?" from
+    the same first-party analytics store: lifecycle totals, created items grouped
+    by kind and provenance class (adoption breadth), and explicit trust decisions
+    grouped by their resulting confirmation state (confirmed vs rejected). Every
+    figure is a bounded low-cardinality count — no evidence content is reachable
+    from these events. Restricted to ``[window_start, window_end]`` by server
+    ingest time. Plain aggregate counts only, rendered as tables (ADR 0001).
+    """
+
+    def scoped(query):
+        return query.filter(
+            AnalyticsEvent.created_at >= window_start,
+            AnalyticsEvent.created_at <= window_end,
+        )
+
+    counts_by_name = dict(
+        scoped(db.query(AnalyticsEvent.event_name, func.count(AnalyticsEvent.id)))
+        .filter(AnalyticsEvent.event_name.like("profile_item_%"))
+        .group_by(AnalyticsEvent.event_name)
+        .all()
+    )
+
+    kind_rows = (
+        scoped(db.query(AnalyticsEvent.evidence_kind, func.count(AnalyticsEvent.id)))
+        .filter(
+            AnalyticsEvent.event_name == "profile_item_created",
+            AnalyticsEvent.evidence_kind.isnot(None),
+        )
+        .group_by(AnalyticsEvent.evidence_kind)
+        .order_by(func.count(AnalyticsEvent.id).desc(), AnalyticsEvent.evidence_kind)
+        .all()
+    )
+    provenance_rows = (
+        scoped(db.query(AnalyticsEvent.evidence_provenance, func.count(AnalyticsEvent.id)))
+        .filter(
+            AnalyticsEvent.event_name == "profile_item_created",
+            AnalyticsEvent.evidence_provenance.isnot(None),
+        )
+        .group_by(AnalyticsEvent.evidence_provenance)
+        .order_by(func.count(AnalyticsEvent.id).desc(), AnalyticsEvent.evidence_provenance)
+        .all()
+    )
+    # Trust signal: only the explicit user confirm/reject decisions (an edit also
+    # lands as `unconfirmed`, but the trust view counts decisions, not reversions).
+    transition_rows = (
+        scoped(
+            db.query(AnalyticsEvent.confirmation_transition, func.count(AnalyticsEvent.id))
+        )
+        .filter(
+            AnalyticsEvent.event_name.in_(
+                ("profile_item_confirmed", "profile_item_rejected")
+            ),
+            AnalyticsEvent.confirmation_transition.isnot(None),
+        )
+        .group_by(AnalyticsEvent.confirmation_transition)
+        .order_by(func.count(AnalyticsEvent.id).desc(), AnalyticsEvent.confirmation_transition)
+        .all()
+    )
+
+    return AdminProfileAdoptionResponse(
+        window_start=window_start.isoformat(),
+        window_end=window_end.isoformat(),
+        total_created=counts_by_name.get("profile_item_created", 0),
+        total_deleted=counts_by_name.get("profile_item_deleted", 0),
+        created_by_kind=[
+            ProfileKindCount(kind=kind, count=count) for kind, count in kind_rows
+        ],
+        created_by_provenance=[
+            ProfileProvenanceCount(provenance=provenance, count=count)
+            for provenance, count in provenance_rows
+        ],
+        confirmation_transitions=[
+            ProfileTransitionCount(transition=transition, count=count)
+            for transition, count in transition_rows
+        ],
     )
 
 
