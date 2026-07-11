@@ -59,3 +59,35 @@ class EvidenceItemResponse(BaseModel):
 
 class EvidenceItemListResponse(BaseModel):
     items: list[EvidenceItemResponse]
+
+
+# Stable identifier for the self-serve export contract (D-065). The version is
+# embedded in every payload so a consumer can detect the format it received, and a
+# future breaking change bumps the string rather than silently reshaping the data.
+EVIDENCE_PROFILE_EXPORT_SCHEMA_VERSION = "evidence-profile-export/v1"
+
+
+class EvidenceProfileExport(BaseModel):
+    """Self-serve, machine-readable snapshot of one user's complete Evidence Profile.
+
+    Every item is emitted in full — provenance and confirmation state included — so
+    the export is a faithful, portable copy of the verified record (D-065, user
+    story 15). The Pydantic model is the published schema: it is surfaced as the
+    ``GET /evidence-profile/export`` response in the OpenAPI document, and every
+    export payload validates against it by construction.
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    schema_version: Literal["evidence-profile-export/v1"] = (
+        EVIDENCE_PROFILE_EXPORT_SCHEMA_VERSION
+    )
+    exported_at: datetime
+    item_count: int = Field(ge=0)
+    items: list[EvidenceItemResponse]
+
+    @model_validator(mode="after")
+    def item_count_matches(self):
+        if self.item_count != len(self.items):
+            raise ValueError("item_count must equal the number of exported items")
+        return self

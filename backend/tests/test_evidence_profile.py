@@ -3,8 +3,13 @@ import pytest
 from app.auth.security import hash_password
 from app.models.evidence_item import EvidenceItem
 from app.models.user import User
+from app.schemas.evidence_profile import (
+    EVIDENCE_PROFILE_EXPORT_SCHEMA_VERSION,
+    EvidenceProfileExport,
+)
 
 PREFIX = "/api/v1/evidence-profile/items"
+EXPORT = "/api/v1/evidence-profile/export"
 
 
 @pytest.fixture
@@ -160,3 +165,81 @@ def test_account_deletion_cascades_to_evidence_items(client, auth_headers, test_
     )
     assert response.status_code == 204
     assert db.query(EvidenceItem).filter_by(user_id=test_user.id).count() == 0
+
+
+def test_account_deletion_reports_evidence_count_in_audit_log(
+    client, auth_headers, test_user, db, monkeypatch
+):
+    captured = {}
+
+    def fake_log(**kwargs):
+        captured.update(kwargs)
+
+    monkeypatch.setattr("app.services.tool_runs.log_user_account_deleted", fake_log)
+
+    client.post(PREFIX, json=_payload(), headers=auth_headers)
+    client.post(PREFIX, json=_payload(), headers=auth_headers)
+
+    response = client.post(
+        "/api/v1/auth/me/delete",
+        json={"confirmation": test_user.email},
+        headers=auth_headers,
+    )
+    assert response.status_code == 204
+    # The deletion cascade over profile rows happens inside the same transactional
+    # erasure path and its count reaches the RODO/GDPR audit line (D-031, D-065).
+    assert captured["evidence_items_deleted"] == 2
+    assert captured["user_record_deleted"] is True
+
+
+def test_export_returns_full_schema_valid_profile(client, auth_headers):
+    created = client.post(PREFIX, json=_payload(), headers=auth_headers).json()
+    client.post(
+        f"{PREFIX}/{created['id']}/confirmation",
+        json={"action": "confirm"},
+        headers=auth_headers,
+    )
+
+    response = client.get(EXPORT, headers=auth_headers)
+    assert response.status_code == 200
+
+    # The documented published schema is the Pydantic model surfaced in OpenAPI;
+    # the payload must validate against it, provenance + confirmation state included.
+    export = EvidenceProfileExport.model_validate(response.json())
+    assert export.schema_version == EVIDENCE_PROFILE_EXPORT_SCHEMA_VERSION
+    assert export.item_count == 1
+    item = export.items[0]
+    assert item.id == created["id"]
+    assert item.provenance == "user-entered"
+    assert item.confirmation_state == "confirmed"
+
+
+def test_export_is_owner_scoped(client, auth_headers, test_user, second_user, db):
+    db.add(
+        EvidenceItem(
+            user_id=second_user.id,
+            kind="skill",
+            content={"name": "Synthetic skill"},
+            provenance="user-entered",
+            confirmation_state="confirmed",
+        )
+    )
+    db.commit()
+
+    export = EvidenceProfileExport.model_validate(
+        client.get(EXPORT, headers=auth_headers).json()
+    )
+    assert export.item_count == 0
+    assert export.items == []
+
+
+def test_export_requires_authentication(client):
+    assert client.get(EXPORT).status_code in (401, 403)
+
+
+def test_export_is_rate_limited_like_sensitive_endpoints(client, auth_headers):
+    # Matches the 5/minute ceiling on POST /auth/me/delete: the sixth call in the
+    # window is rejected before it can dump the profile again.
+    statuses = [client.get(EXPORT, headers=auth_headers).status_code for _ in range(6)]
+    assert statuses[:5] == [200, 200, 200, 200, 200]
+    assert statuses[5] == 429

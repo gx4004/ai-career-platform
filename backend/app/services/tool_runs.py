@@ -29,7 +29,7 @@ def delete_all_user_data(db: Session, user_id: str) -> None:
     # Explicit deletion preserves the existing transactional erasure behavior in
     # environments where database FK cascades are not enabled (including tests).
     # PostgreSQL also enforces ON DELETE CASCADE as a second line of defense.
-    db.query(EvidenceItem).filter(EvidenceItem.user_id == user_id).delete()
+    evidence_deleted = db.query(EvidenceItem).filter(EvidenceItem.user_id == user_id).delete()
     runs_deleted = db.query(ToolRun).filter(ToolRun.user_id == user_id).delete()
     workspaces_deleted = db.query(Workspace).filter(Workspace.user_id == user_id).delete()
     users_deleted = db.query(User).filter(User.id == user_id).delete()
@@ -38,6 +38,7 @@ def delete_all_user_data(db: Session, user_id: str) -> None:
         user_id=user_id,
         runs_deleted=runs_deleted,
         workspaces_deleted=workspaces_deleted,
+        evidence_items_deleted=evidence_deleted,
         user_record_deleted=bool(users_deleted),
     )
 
