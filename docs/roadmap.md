@@ -208,9 +208,10 @@ foundation is verified.
 
 ### R11. Evidence Profile
 
-**Status:** PROVISIONAL spec published (#143; tracer issues #144–#150), still
-deferred until the R1–R4 gate closes — no schema, endpoint, or UI ships before
-the gate (D-060–D-067, ADR 0005)
+**Status:** PROVISIONAL spec published (#143; tracer issues #144–#150). Under an
+explicit owner build-ahead override, #144's persistence/API foundation is built
+dark; profile injection, import/export, UI activation, and production activation
+remain deferred behind the D-060 gate (D-060–D-067, ADR 0005).
 **Outcome:** users have one inspectable, correctable source of verified career
 evidence that all tools can reuse.
 

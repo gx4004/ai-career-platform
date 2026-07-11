@@ -22,6 +22,7 @@ from app.routers import (
     auth,
     career,
     cover_letter,
+    evidence_profile,
     files,
     google_auth,
     health,
@@ -178,5 +179,10 @@ app.include_router(
     portfolio.router, prefix=f"{prefix}/portfolio", tags=["portfolio"]
 )
 app.include_router(history.router, prefix=f"{prefix}/history", tags=["history"])
+app.include_router(
+    evidence_profile.router,
+    prefix=f"{prefix}/evidence-profile",
+    tags=["evidence-profile"],
+)
 app.include_router(telemetry.router, prefix=f"{prefix}/telemetry", tags=["telemetry"])
 app.include_router(admin.router, prefix=f"{prefix}/admin", tags=["admin"])

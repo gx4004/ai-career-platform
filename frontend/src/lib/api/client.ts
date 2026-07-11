@@ -5,6 +5,11 @@ import {
   careerResultSchema,
   coverLetterResultSchema,
   deletedResponseSchema,
+  evidenceItemListSchema,
+  evidenceItemSchema,
+  evidenceItemCreateSchema,
+  evidenceItemUpdateSchema,
+  evidenceConfirmationActionSchema,
   healthCheckSchema,
   importedJobSchema,
   interviewPracticeFeedbackSchema,
@@ -20,7 +25,13 @@ import {
   workspaceListSchema,
   workspaceSummarySchema,
 } from '#/lib/api/schemas'
-import type { JobMatchResult, ResumeResult } from '#/lib/api/schemas'
+import type {
+  EvidenceConfirmationAction,
+  EvidenceItemCreate,
+  EvidenceItemUpdate,
+  JobMatchResult,
+  ResumeResult,
+} from '#/lib/api/schemas'
 
 function trimTrailingSlash(value: string): string {
   return value.replace(/\/+$/, '')
@@ -218,6 +229,43 @@ export function getHealth() {
     method: 'GET',
     schema: healthCheckSchema,
   })
+}
+
+export function listEvidenceItems() {
+  return request('/evidence-profile/items', {
+    method: 'GET',
+    schema: evidenceItemListSchema,
+  })
+}
+
+export function createEvidenceItem(payload: EvidenceItemCreate) {
+  return request('/evidence-profile/items', {
+    method: 'POST', body: evidenceItemCreateSchema.parse(payload), schema: evidenceItemSchema,
+  })
+}
+
+export function updateEvidenceItem(
+  itemId: string,
+  payload: EvidenceItemUpdate,
+) {
+  return request(`/evidence-profile/items/${itemId}`, {
+    method: 'PATCH', body: evidenceItemUpdateSchema.parse(payload), schema: evidenceItemSchema,
+  })
+}
+
+export function setEvidenceItemConfirmation(
+  itemId: string,
+  action: EvidenceConfirmationAction['action'],
+) {
+  return request(`/evidence-profile/items/${itemId}/confirmation`, {
+    method: 'POST',
+    body: evidenceConfirmationActionSchema.parse({ action }),
+    schema: evidenceItemSchema,
+  })
+}
+
+export function deleteEvidenceItem(itemId: string) {
+  return request<void>(`/evidence-profile/items/${itemId}`, { method: 'DELETE' })
 }
 
 export function parseCv(file: File) {

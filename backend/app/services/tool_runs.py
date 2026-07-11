@@ -5,6 +5,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
+from app.models.evidence_item import EvidenceItem
 from app.models.tool_run import ToolRun
 from app.models.user import User
 from app.models.workspace import Workspace
@@ -25,6 +26,10 @@ def delete_all_user_data(db: Session, user_id: str) -> None:
     enough detail to reconstruct the request without persisting the user's
     actual content.
     """
+    # Explicit deletion preserves the existing transactional erasure behavior in
+    # environments where database FK cascades are not enabled (including tests).
+    # PostgreSQL also enforces ON DELETE CASCADE as a second line of defense.
+    db.query(EvidenceItem).filter(EvidenceItem.user_id == user_id).delete()
     runs_deleted = db.query(ToolRun).filter(ToolRun.user_id == user_id).delete()
     workspaces_deleted = db.query(Workspace).filter(Workspace.user_id == user_id).delete()
     users_deleted = db.query(User).filter(User.id == user_id).delete()
