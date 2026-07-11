@@ -47,6 +47,17 @@ class AnalyticsEvent(Base):
         String, nullable=True, index=True
     )
     operational_outcome: Mapped[str | None] = mapped_column(String, nullable=True)
+    # R11 profile-adoption dimensions (issue #150, D-067). Three reused, closed-set
+    # low-cardinality columns feeding the profile-adoption view: the typed item
+    # kind, the provenance class, and the resulting confirmation state of a
+    # transition (null on deletion). Null for every non-profile event; the
+    # `ActivationEventCreate` allowlist keeps all three to Literal values only, so
+    # no evidence text, employer/institution name, or content id can land here.
+    evidence_kind: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
+    evidence_provenance: Mapped[str | None] = mapped_column(String, nullable=True)
+    confirmation_transition: Mapped[str | None] = mapped_column(
+        String, nullable=True, index=True
+    )
     # occurred_at: event-reported time (may be null); created_at: server ingest
     # time, indexed to drive the 180-day retention prune.
     occurred_at: Mapped[datetime | None] = mapped_column(

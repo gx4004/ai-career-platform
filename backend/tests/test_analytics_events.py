@@ -17,7 +17,7 @@ import pytest
 from pydantic import ValidationError
 
 from app.models.analytics_event import AnalyticsEvent
-from app.schemas.analytics import ActivationEventCreate
+from app.schemas.analytics import ActivationEventCreate, ProfileEventName
 from app.schemas.telemetry import TelemetryEventName
 from app.services.analytics import record_activation_event
 from app.services.llm_cost import record_llm_usage
@@ -90,6 +90,87 @@ def test_activation_allowlist_is_a_superset_of_frontend_taxonomy():
     for name in get_args(TelemetryEventName):
         model = ActivationEventCreate(event_name=name)
         assert model.event_name == name
+
+
+# --- R11 profile-adoption allowlist (issue #150, D-067) --------------------
+
+
+def test_profile_event_names_are_accepted_by_the_write_seam(db):
+    """Drift guard: every R11 profile-adoption event name is accepted by the
+    durable write seam, so the profile service seam can always persist."""
+    for name in get_args(ProfileEventName):
+        row = record_activation_event(
+            db,
+            event_name=name,
+            evidence_kind="skill",
+            evidence_provenance="imported",
+        )
+        assert row.event_name == name
+
+
+def test_record_profile_event_persists_allowlisted_dimensions(db):
+    row = record_activation_event(
+        db,
+        event_name="profile_item_confirmed",
+        evidence_kind="experience",
+        evidence_provenance="user-entered",
+        confirmation_transition="confirmed",
+    )
+
+    stored = db.query(AnalyticsEvent).one()
+    assert stored.id == row.id
+    assert stored.event_name == "profile_item_confirmed"
+    assert stored.evidence_kind == "experience"
+    assert stored.evidence_provenance == "user-entered"
+    assert stored.confirmation_transition == "confirmed"
+
+
+@pytest.mark.parametrize(
+    "field, value",
+    [
+        # Free-text evidence content and identifying strings that must NEVER ride
+        # along on a profile event (D-067).
+        ("content", {"statement": "Led the migration at Acme Corp."}),
+        ("statement", "Improved throughput by 30% at Contoso University"),
+        ("employer", "Acme Corp"),
+        ("institution", "MIT"),
+        ("item_id", "stable-evidence-item-id"),
+        ("evidence_text", "free-text career claim"),
+    ],
+)
+def test_profile_event_rejects_free_text_content(db, field, value):
+    """A profile event carrying any free-text content or stable identifier is
+    rejected by the same allowlist (`extra="forbid"`) before anything is written
+    — evidence text can never reach the analytics store (D-067)."""
+    with pytest.raises(ValidationError):
+        record_activation_event(
+            db,
+            event_name="profile_item_created",
+            evidence_kind="achievement",
+            evidence_provenance="imported",
+            **{field: value},
+        )
+
+    assert db.query(AnalyticsEvent).count() == 0
+
+
+@pytest.mark.parametrize(
+    "field, value",
+    [
+        ("evidence_kind", "not-a-kind"),
+        ("evidence_provenance", "made-up"),
+        ("confirmation_transition", "half-confirmed"),
+    ],
+)
+def test_profile_event_rejects_out_of_set_dimension_values(db, field, value):
+    """Each profile dimension is a closed Literal set, so a value outside it is
+    rejected — the columns can only ever hold low-cardinality allowlisted terms."""
+    with pytest.raises(ValidationError):
+        record_activation_event(
+            db, event_name="profile_item_created", **{field: value}
+        )
+
+    assert db.query(AnalyticsEvent).count() == 0
 
 
 # --- Frontend-telemetry ingestion endpoint now persists --------------------

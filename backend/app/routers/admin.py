@@ -18,6 +18,7 @@ from app.models.user import User
 from app.schemas.admin import (
     AdminActivationResponse,
     AdminEvalRunsResponse,
+    AdminProfileAdoptionResponse,
     AdminRunDetailResponse,
     AdminRunItem,
     AdminRunListResponse,
@@ -32,6 +33,7 @@ from app.schemas.admin import (
 from app.services.analytics import (
     ACTIVATION_DEFAULT_WINDOW_DAYS,
     aggregate_activation_metrics,
+    aggregate_profile_adoption,
 )
 from app.services.scorecard import compute_scorecard
 
@@ -302,6 +304,43 @@ def get_activation(
         window_start=window_start,
         window_end=window_end,
         access_mode=access_mode,
+    )
+
+
+# ── Profile adoption view (R11, issue #150) ──
+
+
+@router.get("/profile-adoption", response_model=AdminProfileAdoptionResponse)
+@limiter.limit(_ADMIN_RATE)
+def get_profile_adoption(
+    request: Request,
+    start: datetime | None = Query(None),
+    end: datetime | None = Query(None),
+    admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """Read-only Evidence Profile adoption/trust aggregate (#150, D-067).
+
+    Admin-gated exactly like every other endpoint here (``get_current_admin``).
+    Answers "is the profile being adopted and trusted?" from allowlisted
+    low-cardinality profile events only — created counts by kind and provenance
+    class, and confirm/reject trust decisions — over a date window that defaults
+    to a rolling two weeks. No evidence content is reachable from this view.
+    Naive window bounds are treated as UTC so comparison against the
+    timezone-aware ``created_at`` column is well defined on Postgres.
+    """
+    now = datetime.now(UTC)
+    window_end = end or now
+    window_start = start or (window_end - timedelta(days=ACTIVATION_DEFAULT_WINDOW_DAYS))
+    if window_start.tzinfo is None:
+        window_start = window_start.replace(tzinfo=UTC)
+    if window_end.tzinfo is None:
+        window_end = window_end.replace(tzinfo=UTC)
+
+    return aggregate_profile_adoption(
+        db,
+        window_start=window_start,
+        window_end=window_end,
     )
 
 

@@ -144,6 +144,52 @@ class AdminEvalRunsResponse(BaseModel):
     tools: list[EvalRunItem] = []
 
 
+# ── R11 profile-adoption view (issue #150, parent #143, D-067) ──
+# Read-only aggregate over the same first-party analytics store, answering "is
+# the Evidence Profile being adopted and trusted?". Plain counts/tables only —
+# no charting library, no BI tool (D-039, ADR 0001). Every count is derived from
+# allowlisted low-cardinality profile events; no evidence content is reachable.
+
+
+class ProfileKindCount(BaseModel):
+    """Count of created evidence items grouped by their typed kind."""
+
+    kind: str
+    count: int = 0
+
+
+class ProfileProvenanceCount(BaseModel):
+    """Count of created evidence items grouped by their provenance class."""
+
+    provenance: str
+    count: int = 0
+
+
+class ProfileTransitionCount(BaseModel):
+    """Count of explicit trust decisions grouped by the resulting confirmation
+    state (``confirmed`` / ``rejected``) — the profile's trust signal."""
+
+    transition: str
+    count: int = 0
+
+
+class AdminProfileAdoptionResponse(BaseModel):
+    """Profile adoption/trust aggregate for the admin profile-adoption view.
+
+    ``total_created`` / ``total_deleted`` are the bounded lifecycle totals in the
+    window; ``created_by_kind`` and ``created_by_provenance`` describe adoption
+    breadth; ``confirmation_transitions`` describes trust (confirmed vs rejected).
+    """
+
+    window_start: str
+    window_end: str
+    total_created: int = 0
+    total_deleted: int = 0
+    created_by_kind: list[ProfileKindCount] = []
+    created_by_provenance: list[ProfileProvenanceCount] = []
+    confirmation_transitions: list[ProfileTransitionCount] = []
+
+
 # ── R10 scaling-trigger scorecard (issue #136, parent #135, D-052/D-053) ──
 # Read-only aggregate over the same first-party operational store. Never enables
 # a response: a crossed threshold sets `review_required` and links the deferred

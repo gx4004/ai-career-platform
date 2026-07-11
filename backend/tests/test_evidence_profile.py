@@ -1,6 +1,7 @@
 import pytest
 
 from app.auth.security import hash_password
+from app.models.analytics_event import AnalyticsEvent
 from app.models.evidence_item import EvidenceItem
 from app.models.user import User
 from app.schemas.evidence_profile import (
@@ -231,6 +232,74 @@ def test_export_is_owner_scoped(client, auth_headers, test_user, second_user, db
     )
     assert export.item_count == 0
     assert export.items == []
+
+
+# --- R11 profile-adoption telemetry emitted from the service seam (#150) ---
+
+
+def _profile_events(db):
+    return (
+        db.query(AnalyticsEvent)
+        .filter(AnalyticsEvent.event_name.like("profile_item_%"))
+        .order_by(AnalyticsEvent.created_at.asc())
+        .all()
+    )
+
+
+def test_profile_lifecycle_emits_allowlisted_events(client, auth_headers, db):
+    """Creating, editing, confirming, rejecting, and deleting an item each emit
+    exactly one allowlisted low-cardinality event from the shared write seam —
+    carrying kind, provenance, and the confirmation transition, never content."""
+    secret = "Led the migration at Acme Corp for MIT alumni."
+    created = client.post(
+        PREFIX,
+        json=_payload(kind="experience", provenance="imported", content={"statement": secret}),
+        headers=auth_headers,
+    ).json()
+    client.patch(
+        f"{PREFIX}/{created['id']}",
+        json={"content": {"statement": secret + " (revised)"}},
+        headers=auth_headers,
+    )
+    client.post(
+        f"{PREFIX}/{created['id']}/confirmation",
+        json={"action": "confirm"},
+        headers=auth_headers,
+    )
+    client.post(
+        f"{PREFIX}/{created['id']}/confirmation",
+        json={"action": "reject"},
+        headers=auth_headers,
+    )
+    client.delete(f"{PREFIX}/{created['id']}", headers=auth_headers)
+
+    events = _profile_events(db)
+    names = [e.event_name for e in events]
+    assert names == [
+        "profile_item_created",
+        "profile_item_updated",
+        "profile_item_confirmed",
+        "profile_item_rejected",
+        "profile_item_deleted",
+    ]
+
+    created_ev, updated_ev, confirmed_ev, rejected_ev, deleted_ev = events
+    assert (created_ev.evidence_kind, created_ev.evidence_provenance) == ("experience", "imported")
+    assert created_ev.confirmation_transition == "unconfirmed"
+    assert updated_ev.confirmation_transition == "unconfirmed"
+    assert confirmed_ev.confirmation_transition == "confirmed"
+    assert rejected_ev.confirmation_transition == "rejected"
+    # Deletion has no resulting confirmation state, but still carries the kind.
+    assert deleted_ev.confirmation_transition is None
+    assert deleted_ev.evidence_kind == "experience"
+
+    # No evidence text, employer, or institution name ever reaches the store.
+    for event in events:
+        for value in vars(event).values():
+            assert secret not in str(value)
+            assert "Acme" not in str(value)
+            assert "MIT" not in str(value)
+            assert created["id"] != str(value)
 
 
 def test_export_requires_authentication(client):

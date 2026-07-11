@@ -326,7 +326,7 @@ via `get_optional_current_user()`. Rate-limited at 10/min per endpoint.
 | `POST` | `/career/recommend` | 10/min |
 | `POST` | `/portfolio/recommend` | 10/min |
 
-### 6.3 Authentication or Session Credential Required (11 endpoints)
+### 6.3 Authentication or Session Credential Required (18 endpoints)
 
 | Method | Path | Rate Limit |
 |--------|------|------------|
@@ -341,6 +341,19 @@ via `get_optional_current_user()`. Rate-limited at 10/min per endpoint.
 | `DELETE` | `/history/{id}` | None |
 | `PATCH` | `/history/{id}/favorite` | None |
 | `PATCH` | `/history/{id}` | None |
+| `GET` | `/evidence-profile/items` | None |
+| `POST` | `/evidence-profile/items` | None |
+| `GET` | `/evidence-profile/items/{id}` | None |
+| `PATCH` | `/evidence-profile/items/{id}` | None |
+| `POST` | `/evidence-profile/items/{id}/confirmation` | None |
+| `DELETE` | `/evidence-profile/items/{id}` | None |
+| `GET` | `/evidence-profile/export` | 5/min |
+
+The Evidence Profile endpoints are authenticated-owner-only (`get_current_user`
+scopes every row to the caller; no anonymous profile rows exist — D-064). The
+bulk `GET /evidence-profile/export` is rate-limited at the same 5/min ceiling as
+`POST /auth/me/delete` because it is a bulk read of the user's most sensitive
+stored content (#149, D-065); see §8.7.
 
 ### 6.4 Admin Required (7 endpoints)
 
@@ -721,6 +734,53 @@ patterns to strip known injection markers, including:
 `backend/app/services/job_scraper.py:_fetch_with_playwright`;
 `backend/tests/test_job_scraper.py`
 
+### 8.7 Evidence Profile Store, Export & Adoption Telemetry
+
+The R11 Evidence Profile (#143, ADR 0005) is a per-user, server-side store of
+typed career claims (`evidence_items`), each carrying provenance and
+confirmation state (D-061/D-062). It is the product's first durable store of
+user-confirmed sensitive career content and is asset #8 in §4. Three surfaces
+carry security/privacy weight:
+
+**Store & access.** Every endpoint (§6.3) is authenticated-owner-only:
+`get_current_user` scopes each query to the caller and there are no anonymous
+profile rows (D-064). Guests keep tab-scoped inline inputs only. Content lives in
+`evidence_items.content` (JSON) and is never written to logs, telemetry, or the
+model provider prompt except as confirmed locked facts routed through the shared
+pipeline (D-063).
+
+**Export surface (bulk read).** `GET /evidence-profile/export` (#149) returns the
+owner's *entire* profile in one machine-readable payload — the highest-value
+single read in the product. It is owner-scoped (reuses the same list query, so it
+cannot reach across accounts) and rate-limited at **5/min**, matching the
+`POST /auth/me/delete` ceiling, to bound scripted exfiltration if a session token
+is stolen. The export is the product's first full-user-data export surface;
+R3's outcome may extend it beyond the profile.
+
+**Deletion cascade.** Item- and profile-level deletions are immediate
+(`DELETE /evidence-profile/items/{id}`; D-065). Account deletion removes all
+owner-scoped `evidence_items` inside the same single transaction as
+`tool_runs`/`workspaces`/`users` (`delete_all_user_data`, §7.9), with PostgreSQL
+`ON DELETE CASCADE` as a second line of defense. The account-deletion cascade
+uses a bulk delete and deliberately emits no per-item adoption telemetry, so
+erasure produces no residual event trail keyed to the departing user.
+
+**Adoption telemetry (allowlisted).** Profile create/edit/confirm/reject/delete
+actions emit backend-only events through the same first-party write seam as R6/R10
+(`record_activation_event`), carrying only three closed-set, low-cardinality
+dimensions — item kind, provenance class, and the resulting confirmation-state
+transition — plus bounded aggregate counts. `extra="forbid"` on the allowlist
+rejects any attempt to attach `content`, a statement, an employer/institution
+name, or a stable item id before a row is written (D-067). No evidence content is
+reachable from the admin profile-adoption view (§6.4 admin surface), which reports
+only counts by kind, provenance, and confirm/reject decision.
+
+— `backend/app/routers/evidence_profile.py`;
+`backend/app/services/evidence_profile.py`;
+`backend/app/services/tool_runs.py:delete_all_user_data`;
+`backend/app/schemas/analytics.py` (profile-event allowlist);
+`backend/tests/test_evidence_profile.py`
+
 ---
 
 ## §9 External Integration Boundaries
@@ -806,6 +866,7 @@ All log lines are single-line JSON objects emitted to stdout. Key events:
 | `tool_run_failed` | tool_name, access_mode, duration_ms, failure_category | error |
 | `user_account_deleted` | user_id, runs_deleted, workspaces_deleted, user_record_deleted | info |
 | `frontend_telemetry` | Allowlisted event/category enums, tool/access mode, booleans, timestamp, and explicit low-cardinality dimensions | info |
+| `profile_item_*` (adoption) | Backend-only; item kind, provenance class, confirmation-state transition, bounded counts — never evidence content, employer/institution names, or content ids (D-067) | info |
 
 **Deliberately NOT logged:** Resume text, job descriptions, generated content,
 passwords, tokens, cookies, email addresses, IP addresses, provider exception
