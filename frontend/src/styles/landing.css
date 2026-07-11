@@ -888,6 +888,61 @@
 }
 .lp-redesign .lp-cta-card .lp-btn-primary { position: relative; z-index: 1; padding: 1.25rem 2.5rem; font-size: 1.0625rem; }
 
+/* R7 #110 entry choice (dark-shipped: only rendered when VITE_R7_ENTRY_CHOICE=true) */
+.lp-redesign .lp-entry-choice {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+  max-width: 44rem;
+  margin: 0 auto;
+  text-align: left;
+}
+@media (min-width: 640px) {
+  .lp-redesign .lp-entry-choice { grid-template-columns: 1fr 1fr; gap: 1.25rem; }
+}
+.lp-redesign .lp-entry-choice-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 1.5rem;
+  border-radius: 1.25rem;
+  background: var(--lp-surface-3);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  text-decoration: none;
+  transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+}
+.lp-redesign .lp-entry-choice-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--lp-text-mute);
+  background: var(--lp-surface-hi);
+}
+.lp-redesign .lp-entry-choice-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 0.875rem;
+  background: rgba(173, 198, 255, 0.14);
+  color: #cfe0ff;
+}
+.lp-redesign .lp-entry-choice-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: var(--lp-font-display);
+  font-weight: 700;
+  font-size: 1.125rem;
+  color: #f1f5fd;
+}
+.lp-redesign .lp-entry-choice-desc {
+  font-size: 0.9375rem;
+  line-height: 1.45;
+  color: var(--lp-text-mute);
+}
+
 /* Footer */
 .lp-redesign .lp-footer {
   background: #060e20;

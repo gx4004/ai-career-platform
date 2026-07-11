@@ -1,6 +1,6 @@
 import type { AnchorHTMLAttributes, ReactNode } from 'react'
 import { render, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { LandingCTA } from '#/components/landing/LandingCTA'
 
 class IntersectionObserverMock {
@@ -27,12 +27,43 @@ vi.mock('@tanstack/react-router', () => ({
 vi.stubGlobal('IntersectionObserver', IntersectionObserverMock)
 
 describe('LandingCTA', () => {
-  it('renders one stable CTA to the dashboard', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs()
+  })
+
+  it('renders one stable CTA to the dashboard when the R7 entry-choice flag is off (default)', () => {
     const { container } = render(<LandingCTA />)
 
     expect(screen.getByRole('link', { name: /Upload your resume/i }).getAttribute('href')).toBe(
       '/dashboard',
     )
+    // Dark-shipped: the entry-choice step is absent by default.
+    expect(container.querySelector('.lp-entry-choice')).toBeNull()
     expect(container.querySelector('#landing-cta')).toBeTruthy()
+  })
+
+  it('stays on the single-CTA path for any non-"true" flag value', () => {
+    vi.stubEnv('VITE_R7_ENTRY_CHOICE', 'false')
+    const { container } = render(<LandingCTA />)
+
+    expect(screen.getByRole('link', { name: /Upload your resume/i }).getAttribute('href')).toBe(
+      '/dashboard',
+    )
+    expect(container.querySelector('.lp-entry-choice')).toBeNull()
+  })
+
+  it('renders the resume-first vs role-first entry choice when the flag is on', () => {
+    vi.stubEnv('VITE_R7_ENTRY_CHOICE', 'true')
+    const { container } = render(<LandingCTA />)
+
+    // The generic single CTA is replaced by the explicit choice.
+    expect(screen.queryByRole('link', { name: /Upload your resume/i })).toBeNull()
+    expect(container.querySelector('.lp-entry-choice')).toBeTruthy()
+
+    const resumeFirst = screen.getByRole('link', { name: /I have a resume/i })
+    expect(resumeFirst.getAttribute('href')).toBe('/resume')
+
+    const roleFirst = screen.getByRole('link', { name: /I'm targeting a role/i })
+    expect(roleFirst.getAttribute('href')).toBe('/job-match')
   })
 })
