@@ -101,6 +101,8 @@ export const cvDocumentsExportSchema = z.object({
 export type CvEntry = z.infer<typeof cvEntrySchema>
 export type CvSection = z.infer<typeof cvSectionSchema>
 export type CvDocument = z.infer<typeof cvDocumentSchema>
+export type CvVariant = z.infer<typeof cvVariantSchema>
+export type CvDocumentUpdate = z.infer<typeof cvDocumentUpdateSchema>
 
 export const cvImportClaimSchema = z.strictObject({
   kind: evidenceKindSchema,

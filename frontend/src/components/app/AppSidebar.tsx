@@ -29,7 +29,7 @@ import {
   useSidebar,
 } from '#/components/ui/sidebar'
 import { cn } from '#/lib/utils'
-import { toolList } from '#/lib/tools/registry'
+import { registryEntries, toolList } from '#/lib/tools/registry'
 import { toolAccentStyle } from '#/lib/tools/styleUtils'
 
 const accountNavItems = [
@@ -116,7 +116,7 @@ export function AppSidebar() {
           <SidebarGroupLabel>Career Tools</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {toolList.map((tool) => (
+              {registryEntries.map((tool) => (
                 <SidebarMenuItem key={tool.id}>
                   <SidebarMenuButton
                     asChild

@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router'
-import { tools } from '#/lib/tools/registry'
+import { registryEntries } from '#/lib/tools/registry'
 import {
   Sheet,
   SheetContent,
@@ -20,7 +20,7 @@ export function ToolGridSheet({ open, onOpenChange }: ToolGridSheetProps) {
           <SheetTitle className="mobile-tool-grid-title">Tools</SheetTitle>
         </SheetHeader>
         <div className="mobile-tool-grid">
-          {Object.values(tools).map((tool) => (
+          {registryEntries.map((tool) => (
             <Link
               key={tool.id}
               to={tool.route}

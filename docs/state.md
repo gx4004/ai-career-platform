@@ -58,7 +58,13 @@ and UTF-8 text are structured inside the existing capped parser subprocess and
 returned only as transient review proposals. Explicit acceptance atomically creates
 a CV document plus imported, unconfirmed Evidence Profile items; an owner-scoped
 opaque import id makes acceptance retries idempotent. There is still no frontend
-activation. This does not close or supersede D-068.
+activation. The override also covers #155's authenticated structured editor:
+CV Studio is registered as a seventh editor surface without changing the six
+single-shot tools, and supports typed-section editing, race-safe autosave, and
+named snapshot restore over the owner-scoped #153 APIs. It remains an additive,
+account-only build-ahead surface; no public landing promotion, scoring, tailoring,
+preview, or file-export activation is implied. This does not close or supersede
+D-068.
 
 ## Session Handoff Snapshot (2026-07-11)
 

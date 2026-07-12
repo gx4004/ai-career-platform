@@ -22,6 +22,7 @@ import { Route as InterviewRouteImport } from './routes/interview'
 import { Route as ImprintRouteImport } from './routes/imprint'
 import { Route as HistoryRouteImport } from './routes/history'
 import { Route as DashboardRouteImport } from './routes/dashboard'
+import { Route as CvStudioRouteImport } from './routes/cv-studio'
 import { Route as CoverLetterRouteImport } from './routes/cover-letter'
 import { Route as CookiesRouteImport } from './routes/cookies'
 import { Route as CareerRouteImport } from './routes/career'
@@ -104,6 +105,11 @@ const HistoryRoute = HistoryRouteImport.update({
 const DashboardRoute = DashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CvStudioRoute = CvStudioRouteImport.update({
+  id: '/cv-studio',
+  path: '/cv-studio',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CoverLetterRoute = CoverLetterRouteImport.update({
@@ -207,6 +213,7 @@ export interface FileRoutesByFullPath {
   '/career': typeof CareerRoute
   '/cookies': typeof CookiesRoute
   '/cover-letter': typeof CoverLetterRoute
+  '/cv-studio': typeof CvStudioRoute
   '/dashboard': typeof DashboardRoute
   '/history': typeof HistoryRoute
   '/imprint': typeof ImprintRoute
@@ -239,6 +246,7 @@ export interface FileRoutesByTo {
   '/career': typeof CareerRoute
   '/cookies': typeof CookiesRoute
   '/cover-letter': typeof CoverLetterRoute
+  '/cv-studio': typeof CvStudioRoute
   '/dashboard': typeof DashboardRoute
   '/history': typeof HistoryRoute
   '/imprint': typeof ImprintRoute
@@ -273,6 +281,7 @@ export interface FileRoutesById {
   '/career': typeof CareerRoute
   '/cookies': typeof CookiesRoute
   '/cover-letter': typeof CoverLetterRoute
+  '/cv-studio': typeof CvStudioRoute
   '/dashboard': typeof DashboardRoute
   '/history': typeof HistoryRoute
   '/imprint': typeof ImprintRoute
@@ -308,6 +317,7 @@ export interface FileRouteTypes {
     | '/career'
     | '/cookies'
     | '/cover-letter'
+    | '/cv-studio'
     | '/dashboard'
     | '/history'
     | '/imprint'
@@ -340,6 +350,7 @@ export interface FileRouteTypes {
     | '/career'
     | '/cookies'
     | '/cover-letter'
+    | '/cv-studio'
     | '/dashboard'
     | '/history'
     | '/imprint'
@@ -373,6 +384,7 @@ export interface FileRouteTypes {
     | '/career'
     | '/cookies'
     | '/cover-letter'
+    | '/cv-studio'
     | '/dashboard'
     | '/history'
     | '/imprint'
@@ -407,6 +419,7 @@ export interface RootRouteChildren {
   CareerRoute: typeof CareerRoute
   CookiesRoute: typeof CookiesRoute
   CoverLetterRoute: typeof CoverLetterRoute
+  CvStudioRoute: typeof CvStudioRoute
   DashboardRoute: typeof DashboardRoute
   HistoryRoute: typeof HistoryRoute
   ImprintRoute: typeof ImprintRoute
@@ -519,6 +532,13 @@ declare module '@tanstack/react-router' {
       path: '/dashboard'
       fullPath: '/dashboard'
       preLoaderRoute: typeof DashboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/cv-studio': {
+      id: '/cv-studio'
+      path: '/cv-studio'
+      fullPath: '/cv-studio'
+      preLoaderRoute: typeof CvStudioRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/cover-letter': {
@@ -677,6 +697,7 @@ const rootRouteChildren: RootRouteChildren = {
   CareerRoute: CareerRoute,
   CookiesRoute: CookiesRoute,
   CoverLetterRoute: CoverLetterRoute,
+  CvStudioRoute: CvStudioRoute,
   DashboardRoute: DashboardRoute,
   HistoryRoute: HistoryRoute,
   ImprintRoute: ImprintRoute,

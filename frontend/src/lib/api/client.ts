@@ -26,6 +26,11 @@ import {
   userSchema,
   workspaceListSchema,
   workspaceSummarySchema,
+  cvDocumentListSchema,
+  cvDocumentSchema,
+  cvDocumentUpdateSchema,
+  cvVariantCreateSchema,
+  cvVariantSchema,
 } from '#/lib/api/schemas'
 import type {
   EvidenceConfirmationAction,
@@ -33,7 +38,34 @@ import type {
   EvidenceItemUpdate,
   JobMatchResult,
   ResumeResult,
+  CvDocumentUpdate,
 } from '#/lib/api/schemas'
+
+export function listCvDocuments() {
+  return request('/cv-documents', { method: 'GET', schema: cvDocumentListSchema })
+}
+
+export function getCvDocument(documentId: string) {
+  return request(`/cv-documents/${documentId}`, { method: 'GET', schema: cvDocumentSchema })
+}
+
+export function updateCvDocument(documentId: string, payload: CvDocumentUpdate) {
+  return request(`/cv-documents/${documentId}`, {
+    method: 'PATCH', body: cvDocumentUpdateSchema.parse(payload), schema: cvDocumentSchema,
+  })
+}
+
+export function snapshotCvVariant(documentId: string, name: string) {
+  return request(`/cv-documents/${documentId}/variants`, {
+    method: 'POST', body: cvVariantCreateSchema.parse({ name, target_role: null }), schema: cvVariantSchema,
+  })
+}
+
+export function restoreCvVariant(documentId: string, variantId: string) {
+  return request(`/cv-documents/${documentId}/variants/${variantId}/restore`, {
+    method: 'POST', body: {}, schema: cvDocumentSchema,
+  })
+}
 
 function trimTrailingSlash(value: string): string {
   return value.replace(/\/+$/, '')

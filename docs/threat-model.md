@@ -804,13 +804,20 @@ The bulk machine-readable export is owner-scoped and rate-limited to 5/minute.
 Account deletion explicitly removes variants and documents in the existing single
 transaction, with PostgreSQL `ON DELETE CASCADE` as a second line of defense.
 Routes emit no CV content logs or telemetry; the existing request/Sentry scrubbing
-boundary still applies. There is no frontend route or activation surface yet.
+boundary still applies. R12 #155 adds an authenticated `/cv-studio` route over
+these owner-scoped APIs. Guest and unresolved sessions never start document
+queries; a guest receives the existing sign-in intent instead. The editor keeps
+content in React/query memory only, serializes autosave writes to prevent stale
+draft commits, and emits no content telemetry. Its navigation entry is the
+seventh editor surface under the temporary build-ahead override; it is not a
+public landing promotion and does not close D-068.
 
 — `backend/app/routers/cv_documents.py`;
 `backend/app/services/cv_documents.py`;
 `backend/app/services/tool_runs.py:delete_all_user_data`;
 `backend/app/schemas/analytics.py` (profile-event allowlist);
-`backend/tests/test_evidence_profile.py`
+`backend/tests/test_evidence_profile.py`;
+`frontend/src/components/cv-studio/CvStudio.tsx`
 
 ### 8.9 Dormant Reviewed CV Import
 

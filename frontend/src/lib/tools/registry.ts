@@ -6,6 +6,7 @@ import {
   FolderKanban,
   MessagesSquare,
   ScanText,
+  PanelsTopLeft,
 } from 'lucide-react'
 import {
   runCareer,
@@ -223,6 +224,23 @@ export const tools: Record<ToolId, ToolDefinition> = {
 export const toolList = Object.values(tools).sort(
   (a, b) => a.priority - b.priority,
 )
+
+export const cvStudioEntry = {
+  id: 'cv-studio',
+  label: 'CV Studio',
+  shortLabel: 'Studio',
+  route: '/cv-studio',
+  icon: PanelsTopLeft,
+  accent: 'var(--accent)',
+  priority: 7,
+  mode: 'editor' as const,
+  authRequiredToRun: true,
+}
+
+export const registryEntries = [
+  ...toolList.map((tool) => ({ ...tool, mode: 'single-shot' as const })),
+  cvStudioEntry,
+]
 
 export const toolGroups = {
   primary: toolList.filter((tool) => tool.group === 'primary'),
