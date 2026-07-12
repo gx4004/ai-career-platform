@@ -15,6 +15,7 @@ MAX_DOCX_COMPRESSION_RATIO = 100
 
 GENERIC_INVALID_FILE_DETAIL = "The uploaded file could not be safely parsed."
 GENERIC_LIMIT_DETAIL = "The uploaded file exceeds safety limits."
+IMPORT_SIZE_DETAIL = "The uploaded file is larger than the 10 MB limit."
 
 _PDF_MIME = "application/pdf"
 _DOCX_MIME = (
@@ -22,13 +23,15 @@ _DOCX_MIME = (
 )
 _PDF_MAGIC = b"%PDF-"
 _DOCX_MAGIC = b"PK\x03\x04"
+_TEXT_MIME = "text/plain"
 
 
 class CvUploadRejected(Exception):
-    def __init__(self, *, status_code: int, detail: str):
+    def __init__(self, *, status_code: int, detail: str, category: str = "invalid"):
         super().__init__(detail)
         self.status_code = status_code
         self.detail = detail
+        self.category = category
 
 
 @dataclass(frozen=True)
@@ -38,17 +41,24 @@ class ValidatedCvUpload:
     extension: str
 
 
-async def read_validated_cv_upload(file: UploadFile) -> ValidatedCvUpload:
+async def read_validated_cv_upload(
+    file: UploadFile, *, allow_plain_text: bool = False
+) -> ValidatedCvUpload:
     filename = file.filename or ""
     extension = _extension(filename)
-    expected_mime = {"pdf": _PDF_MIME, "docx": _DOCX_MIME}.get(extension)
+    accepted = {"pdf": _PDF_MIME, "docx": _DOCX_MIME}
+    if allow_plain_text:
+        accepted["txt"] = _TEXT_MIME
+    expected_mime = accepted.get(extension)
     if expected_mime is None or file.content_type != expected_mime:
         raise _invalid_file()
 
     content = await _read_bounded(file)
-    expected_magic = _PDF_MAGIC if extension == "pdf" else _DOCX_MAGIC
-    if not content.startswith(expected_magic):
+    expected_magic = {"pdf": _PDF_MAGIC, "docx": _DOCX_MAGIC}.get(extension)
+    if expected_magic is not None and not content.startswith(expected_magic):
         raise _invalid_file()
+    if extension == "txt":
+        _validate_plain_text(content)
     if extension == "docx":
         _validate_docx_container(content)
 
@@ -74,6 +84,7 @@ async def _read_bounded(file: UploadFile) -> bytes:
             raise CvUploadRejected(
                 status_code=413,
                 detail=GENERIC_LIMIT_DETAIL,
+                category="size",
             )
         chunks.append(chunk)
     return b"".join(chunks)
@@ -113,6 +124,15 @@ def _validate_docx_container(content: bytes) -> None:
         raise _invalid_file() from exc
 
 
+def _validate_plain_text(content: bytes) -> None:
+    try:
+        content.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise _invalid_file() from exc
+    if b"\x00" in content:
+        raise _invalid_file()
+
+
 def _unsafe_archive_path(filename: str) -> bool:
     normalized = filename.replace("\\", "/")
     return normalized.startswith("/") or ".." in normalized.split("/")
@@ -123,4 +143,6 @@ def _invalid_file() -> CvUploadRejected:
 
 
 def _limit_exceeded() -> CvUploadRejected:
-    return CvUploadRejected(status_code=413, detail=GENERIC_LIMIT_DETAIL)
+    return CvUploadRejected(
+        status_code=413, detail=GENERIC_LIMIT_DETAIL, category="archive_limit"
+    )

@@ -812,6 +812,33 @@ boundary still applies. There is no frontend route or activation surface yet.
 `backend/app/schemas/analytics.py` (profile-event allowlist);
 `backend/tests/test_evidence_profile.py`
 
+### 8.9 Dormant Reviewed CV Import
+
+R12 #154 extends the authenticated-only CV API without adding a frontend surface.
+PDF, DOCX, and UTF-8 plain text pass the bounded 10 MB upload reader; PDF/DOCX keep
+their magic/container checks and text rejects invalid UTF-8 and NUL bytes. Flat text
+extraction and deterministic section/entry/claim structuring both execute in the
+existing spawned parser process with the same wall-clock, CPU, memory, page, and
+extracted-character caps. Validated bytes and review proposals are transient.
+
+Discard requires no server write. Explicit accept performs one database transaction:
+it creates the CV document/Base snapshot and one `imported`, `unconfirmed` Evidence
+Profile item per retained claim. A transient proposal carries an opaque import id;
+the accepted document stores it under an owner-scoped unique constraint, so retries
+and concurrent replay return one document without duplicating claim rows. The
+ordinary document create/update APIs still
+require confirmed owner evidence; this narrow import path preserves pending imported
+references so review cannot silently become confirmation (D-062/D-070). Upload,
+archive-expansion, invalid/encrypted input, and timeout responses use bounded
+actionable categories and never echo parser exceptions or resume text. The routes
+remain owner-authenticated and emit no content telemetry.
+
+— `backend/app/routers/cv_documents.py`;
+`backend/app/services/cv_upload.py`;
+`backend/app/services/cv_parser_process.py`;
+`backend/app/services/cv_documents.py`;
+`backend/tests/test_cv_import.py`
+
 ---
 
 ## §9 External Integration Boundaries

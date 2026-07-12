@@ -7,8 +7,9 @@ import sys
 from collections.abc import Callable
 from multiprocessing.connection import Connection
 
+from app.schemas.cv_documents import CvImportProposal
 from app.schemas.tools import ParsedCvResponse
-from app.services.cv_parser import parse_cv
+from app.services.cv_parser import parse_cv, parse_cv_import
 
 PARSER_TIMEOUT_SECONDS = 8.0
 PARSER_MEMORY_LIMIT_BYTES = 512 * 1024 * 1024
@@ -30,8 +31,8 @@ async def parse_cv_isolated(
     _worker: ParserWorker | None = None,
     _context: multiprocessing.context.BaseContext | None = None,
 ) -> ParsedCvResponse:
-    return await asyncio.to_thread(
-        _parse_cv_isolated_sync,
+    payload = await asyncio.to_thread(
+        _run_parser_isolated_sync,
         content,
         filename,
         extension,
@@ -39,16 +40,38 @@ async def parse_cv_isolated(
         _worker or _parse_worker,
         _context or multiprocessing.get_context("spawn"),
     )
+    return ParsedCvResponse.model_validate(payload)
 
 
-def _parse_cv_isolated_sync(
+async def parse_cv_import_isolated(
+    content: bytes,
+    filename: str,
+    extension: str,
+    *,
+    timeout_seconds: float = PARSER_TIMEOUT_SECONDS,
+    _worker: ParserWorker | None = None,
+    _context: multiprocessing.context.BaseContext | None = None,
+) -> CvImportProposal:
+    payload = await asyncio.to_thread(
+        _run_parser_isolated_sync,
+        content,
+        filename,
+        extension,
+        timeout_seconds,
+        _worker or _parse_import_worker,
+        _context or multiprocessing.get_context("spawn"),
+    )
+    return CvImportProposal.model_validate(payload)
+
+
+def _run_parser_isolated_sync(
     content: bytes,
     filename: str,
     extension: str,
     timeout_seconds: float,
     worker: ParserWorker,
     context: multiprocessing.context.BaseContext,
-) -> ParsedCvResponse:
+) -> dict:
     receiver, sender = context.Pipe(duplex=False)
     process = context.Process(
         target=worker,
@@ -74,7 +97,7 @@ def _parse_cv_isolated_sync(
         process.join(timeout=1)
         if status != "ok":
             raise CvParserProcessRejected("Parser rejected file")
-        return ParsedCvResponse.model_validate(payload)
+        return payload
     finally:
         receiver.close()
         if started:
@@ -82,18 +105,24 @@ def _parse_cv_isolated_sync(
                 _terminate(process)
             else:
                 process.join(timeout=1)
-
-
 def _parse_worker(
     sender: Connection,
     content: bytes,
     filename: str,
     extension: str,
 ) -> None:
+    _send_parse_result(sender, content, filename, extension, parse_cv)
+
+
+def _parse_import_worker(sender, content, filename, extension) -> None:
+    _send_parse_result(sender, content, filename, extension, parse_cv_import)
+
+
+def _send_parse_result(sender, content, filename, extension, parser) -> None:
     try:
         _apply_resource_limits()
-        result = parse_cv(content, filename, extension)
-        sender.send(("ok", result.model_dump()))
+        result = parser(content, filename, extension)
+        sender.send(("ok", result.model_dump(mode="json")))
     except BaseException:
         sender.send(("error", None))
     finally:

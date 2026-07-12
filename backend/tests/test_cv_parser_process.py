@@ -9,6 +9,8 @@ from app.services import cv_parser_process
 from app.services.cv_parser_process import (
     CvParserProcessRejected,
     _apply_resource_limits,
+    _parse_import_worker,
+    parse_cv_import_isolated,
     parse_cv_isolated,
 )
 
@@ -96,6 +98,36 @@ async def test_isolated_parser_terminates_worker_at_wall_clock_timeout():
         )
 
     assert time.monotonic() - started < 0.5
+
+
+async def test_isolated_import_uses_the_same_wall_clock_timeout():
+    with pytest.raises(CvParserProcessRejected):
+        await parse_cv_import_isolated(
+            b"Summary\nSynthetic content",
+            "resume.txt",
+            "txt",
+            timeout_seconds=0.05,
+            _worker=_sleeping_worker,
+            _context=multiprocessing.get_context("spawn"),
+        )
+
+
+def test_import_worker_applies_resource_limits_before_structuring(monkeypatch):
+    calls = []
+
+    class Sender:
+        def send(self, value):
+            calls.append(value)
+
+        def close(self):
+            calls.append("closed")
+
+    monkeypatch.setattr(cv_parser_process, "_apply_resource_limits", lambda: calls.append("limits"))
+    _parse_import_worker(Sender(), b"Skills\nPython", "resume.txt", "txt")
+
+    assert calls[0] == "limits"
+    assert calls[1][0] == "ok"
+    assert calls[2] == "closed"
 
 
 async def test_isolated_parser_maps_worker_failure_to_generic_rejection():

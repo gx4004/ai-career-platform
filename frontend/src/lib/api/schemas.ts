@@ -60,7 +60,7 @@ export const cvSectionKindSchema = z.enum([
 ])
 export const cvEntrySchema = z.strictObject({
   id: z.string().min(1).max(100),
-  evidence_item_id: z.string().min(1),
+  evidence_item_id: z.string().min(1).nullable(),
   body: z.string().min(1).max(5_000),
   position: z.number().int().nonnegative(),
 })
@@ -101,6 +101,28 @@ export const cvDocumentsExportSchema = z.object({
 export type CvEntry = z.infer<typeof cvEntrySchema>
 export type CvSection = z.infer<typeof cvSectionSchema>
 export type CvDocument = z.infer<typeof cvDocumentSchema>
+
+export const cvImportClaimSchema = z.strictObject({
+  kind: evidenceKindSchema,
+  content: z.record(z.string(), z.string()).refine((value) => Object.keys(value).length > 0),
+  provenance: z.literal('imported'),
+})
+export const cvImportEntrySchema = z.strictObject({
+  id: z.string().min(1).max(100), body: z.string().min(1).max(5_000),
+  position: z.number().int().nonnegative(), claim: cvImportClaimSchema.nullable(),
+})
+export const cvImportSectionSchema = z.strictObject({
+  id: z.string().min(1).max(100), kind: cvSectionKindSchema,
+  title: z.string().min(1).max(120), visible: z.boolean().default(true),
+  position: z.number().int().nonnegative(), entries: z.array(cvImportEntrySchema).max(200),
+})
+export const cvImportProposalSchema = z.strictObject({
+  filename: z.string().min(1).max(255), import_id: z.uuid(),
+  name: z.string().min(1).max(120),
+  sections: z.array(cvImportSectionSchema).max(50), warnings: z.array(z.string()).max(20),
+})
+export const cvImportAcceptSchema = cvImportProposalSchema
+export type CvImportProposal = z.infer<typeof cvImportProposalSchema>
 
 export const userSchema = z.object({
   id: z.string(),
