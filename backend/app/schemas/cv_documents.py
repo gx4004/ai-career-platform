@@ -18,6 +18,10 @@ CvSectionKind = Literal[
     "interview-evidence",
     "custom",
 ]
+CvQualityDimensionKey = Literal["impact", "clarity", "completeness", "structure"]
+CvAtsCheckKey = Literal[
+    "section_structure", "text_layer", "links", "page_breaks", "re_importability"
+]
 
 
 class CvEntry(BaseModel):
@@ -88,6 +92,40 @@ class CvDocumentResponse(BaseModel):
 
 class CvDocumentListResponse(BaseModel):
     items: list[CvDocumentResponse]
+
+
+class CvQualityRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    use_model: bool = False
+    checks: list[CvAtsCheckKey] | None = Field(default=None, min_length=1, max_length=5)
+
+
+class CvQualityDimension(BaseModel):
+    key: CvQualityDimensionKey
+    label: str
+    score: int = Field(ge=0, le=100)
+    reasons: list[str] = Field(min_length=1, max_length=4)
+    remediation: str
+
+
+class CvAtsCheck(BaseModel):
+    key: CvAtsCheckKey
+    label: str
+    status: Literal["pass", "fail", "review", "not_run"]
+    explanation: str
+    remediation: str
+
+
+class CvQualityResponse(BaseModel):
+    schema_version: Literal["cv-quality/v1"] = "cv-quality/v1"
+    dimensions: list[CvQualityDimension]
+    ats_checks: list[CvAtsCheck]
+    scoring_mode: Literal["heuristic", "blended"]
+    advisory_note: str
+    history_id: str | None = None
+    access_mode: Literal["authenticated"] = "authenticated"
+    saved: bool = True
+    locked_actions: list[str] = Field(default_factory=list)
 
 
 class CvImportClaim(BaseModel):

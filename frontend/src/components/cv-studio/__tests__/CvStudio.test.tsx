@@ -6,6 +6,7 @@ import { CvStudio } from '#/components/cv-studio/CvStudio'
 const api = vi.hoisted(() => ({
   listCvDocuments: vi.fn(), getCvDocument: vi.fn(), updateCvDocument: vi.fn(),
   snapshotCvVariant: vi.fn(), restoreCvVariant: vi.fn(),
+  scoreCvDocument: vi.fn(),
 }))
 const session = vi.hoisted(() => ({ status: 'authenticated', openAuthDialog: vi.fn() }))
 vi.mock('#/lib/api/client', () => api)
@@ -23,6 +24,13 @@ beforeEach(() => {
   api.listCvDocuments.mockResolvedValue({ items: [document] })
   api.getCvDocument.mockResolvedValue(document)
   api.updateCvDocument.mockResolvedValue(document)
+  api.scoreCvDocument.mockResolvedValue({
+    schema_version: 'cv-quality/v1', scoring_mode: 'heuristic',
+    advisory_note: 'Quality scores are directional editing guidance. Compatibility checks report only named structural properties.',
+    dimensions: [{ key: 'impact', label: 'Evidence of impact', score: 64, reasons: ['Two entries include outcomes.'], remediation: 'Add truthful measurements.' }],
+    ats_checks: [{ key: 'section_structure', label: 'Section structure', status: 'pass', explanation: 'Found clear typed sections.', remediation: 'Add missing standard headings.' }],
+    history_id: 'h1', access_mode: 'authenticated', saved: true, locked_actions: [],
+  })
 })
 
 describe('CV Studio editor surface', () => {
@@ -74,10 +82,21 @@ describe('CV Studio editor surface', () => {
     view()
     const moveUp = await screen.findByRole('button', { name: 'Move Skills up' })
     fireEvent.keyDown(moveUp, { key: 'Enter' }); fireEvent.click(moveUp)
-    await waitFor(() => expect(screen.getByLabelText('CV sections').querySelectorAll('article')[0]?.textContent).toContain('Skills'))
+    await waitFor(() => expect(screen.getByLabelText('CV sections').querySelectorAll('.studio-section')[0]?.textContent).toContain('Skills'))
     await waitFor(() => expect(screen.getByRole('status').textContent).toContain('Saved'), { timeout: 1500 })
     fireEvent.click(screen.getByRole('button', { name: /Restore/ }))
     expect(window.confirm).toHaveBeenCalled()
     expect((await screen.findByRole('alert')).textContent).toContain('Restore unavailable')
+  })
+
+  it('shows explainable quality without a universal ATS score and reruns a named check', async () => {
+    view()
+    expect(await screen.findByText('Evidence of impact')).toBeTruthy()
+    expect(screen.getByText('Two entries include outcomes.')).toBeTruthy()
+    expect(screen.queryByText(/ATS score/i)).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Rerun Section structure' }))
+    await waitFor(() => expect(api.scoreCvDocument).toHaveBeenLastCalledWith('d1', {
+      use_model: false, checks: ['section_structure'],
+    }))
   })
 })

@@ -9,6 +9,29 @@
 .studio-save-state--saved { color: var(--success); }
 .studio-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(17rem, 22rem); gap: clamp(1.5rem, 4vw, 4rem); align-items: start; }
 .studio-editor { min-width: 0; display: grid; gap: 1.25rem; }
+.studio-quality { display: grid; gap: 1rem; padding-block: 1rem 1.5rem; border-block: 1px solid var(--divider); }
+.studio-quality-head, .studio-quality-head > div, .studio-dimensions article > div { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.studio-quality-head > div { align-items: start; flex-direction: column; gap: .15rem; }
+.studio-quality-head > .studio-quality-actions { align-items: center; flex-direction: row; gap: .5rem; }
+.studio-inline-error { color: var(--destructive) !important; }
+.studio-quality h2 { color: var(--text-strong); font: 650 var(--type-section)/1.2 var(--font-display); }
+.studio-quality-note { max-width: 72ch; color: var(--text-muted); font-size: var(--type-small); line-height: 1.5; }
+.studio-dimensions { display: grid; grid-template-columns: 1.15fr .85fr; gap: 1px; background: var(--divider); border: 1px solid var(--divider); border-radius: var(--radius-lg); overflow: hidden; }
+.studio-dimensions article { display: grid; gap: .6rem; padding: 1rem; background: var(--surface-raised); }
+.studio-dimensions h3, .studio-checks h3, .studio-checks h4 { color: var(--text-strong); font-weight: 650; }
+.studio-dimensions strong { color: var(--accent); font: 700 1.45rem/1 var(--font-display); }
+.studio-dimensions strong span { color: var(--text-muted); font-size: var(--type-xs); }
+.studio-dimensions ul { margin: 0; padding-left: 1.1rem; color: var(--text-body); font-size: var(--type-small); line-height: 1.45; }
+.studio-dimensions p, .studio-checks p { color: var(--text-muted); font-size: var(--type-xs); line-height: 1.45; }
+.studio-checks { display: grid; gap: 0; }
+.studio-checks > div { padding-block: .4rem .8rem; }
+.studio-checks article { display: grid; grid-template-columns: 6rem minmax(0, 1fr) auto; align-items: start; gap: 1rem; padding: .9rem 0; border-top: 1px solid var(--divider); }
+.studio-check-status { display: inline-flex; align-items: center; gap: .35rem; width: fit-content; color: var(--text-muted); font-size: var(--type-xs); font-weight: 700; text-transform: uppercase; }
+.studio-check-status svg { width: 14px; height: 14px; }
+.studio-check-status--pass { color: var(--success); }
+.studio-check-status--fail, .studio-check-status--review { color: var(--warning); }
+.studio-quality-skeleton { height: 24rem; border-radius: var(--radius-lg); background: var(--surface-subtle); animation: studio-shimmer 1.3s ease-in-out infinite; }
+.studio-quality-error { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: 1rem; border: 1px solid var(--border-soft); border-radius: var(--radius-lg); color: var(--destructive); }
 .studio-add-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding-block: .75rem; border-block: 1px solid var(--divider); }
 .studio-add-row label, .studio-versions label, .studio-entry label { color: var(--text-muted); font-size: var(--type-small); font-weight: 600; }
 .studio-add-row select, .studio-versions input { min-height: var(--touch-target); border: 1px solid var(--border-soft); border-radius: var(--radius-md); background: var(--surface-raised); color: var(--text-body); padding: 0 .8rem; }
@@ -45,6 +68,8 @@
   .studio-header-actions { justify-content: space-between; }
   .studio-save-state { text-align: left; }
   .studio-layout { grid-template-columns: 1fr; gap: var(--mobile-section-gap); }
+  .studio-dimensions { grid-template-columns: 1fr; }
+  .studio-checks article { grid-template-columns: 1fr; gap: .5rem; }
   .studio-versions { position: static; order: -1; }
   .studio-add-row { align-items: stretch; flex-direction: column; }
   .studio-section-head { grid-template-columns: minmax(0, 1fr) auto; gap: .4rem; }
@@ -52,4 +77,4 @@
   .studio-section-head > input { padding-left: 0; }
   .studio-entry textarea { min-height: 7rem; }
 }
-@media (prefers-reduced-motion: reduce) { .studio-skeleton { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .studio-skeleton, .studio-quality-skeleton { animation: none; } }

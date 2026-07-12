@@ -8,6 +8,7 @@ import { useSession } from '#/hooks/useSession'
 import { getCvDocument, listCvDocuments, restoreCvVariant, snapshotCvVariant, updateCvDocument } from '#/lib/api/client'
 import type { CvDocument, CvSection } from '#/lib/api/schemas'
 import { addEntry, addSection, moveEntry, moveSection, sectionLabels } from '#/lib/cv-studio/editor'
+import { CvQualityPanel } from './CvQualityPanel'
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error'
 const LIST_KEY = ['cv-studio', 'documents'] as const
@@ -23,7 +24,7 @@ export function CvStudio() {
   const [actionError, setActionError] = useState('')
   const [snapshotName, setSnapshotName] = useState('')
   const saveGeneration = useRef(0)
-  const saveQueue = useRef<Promise<unknown>>(Promise.resolve())
+  const saveQueue = useRef<Promise<CvDocument | undefined>>(Promise.resolve(undefined))
 
   const listQuery = useQuery({ queryKey: LIST_KEY, queryFn: listCvDocuments, enabled: authenticated })
   useEffect(() => {
@@ -49,8 +50,9 @@ export function CvStudio() {
         saveQueue.current = saveQueue.current
           .catch(() => undefined)
           .then(() => updateCvDocument(draft.id, { name: draft.name, sections: draft.sections }))
-        await saveQueue.current
+        const saved = await saveQueue.current
         if (generation !== saveGeneration.current) return
+        if (saved) setDraft(saved)
         setDirty(false)
         setSaveState('saved')
         setActionError('')
@@ -109,6 +111,7 @@ export function CvStudio() {
       {actionError ? <div className="studio-error" role="alert">{actionError} <button type="button" onClick={() => setActionError('')}>Dismiss</button></div> : null}
       <div className="studio-layout">
         <section className="studio-editor" aria-label="CV sections">
+          <CvQualityPanel documentId={draft.id} revision={draft.updated_at} />
           <div className="studio-add-row">
             <label htmlFor="add-section">Add a typed section</label>
             <select id="add-section" defaultValue="" onChange={(event) => { if (event.target.value) edit((current) => ({ ...current, sections: addSection(current.sections, event.target.value as CvSection['kind']) })); event.target.value = '' }}>

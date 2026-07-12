@@ -31,6 +31,8 @@ import {
   cvDocumentUpdateSchema,
   cvVariantCreateSchema,
   cvVariantSchema,
+  cvQualityRequestSchema,
+  cvQualityResponseSchema,
 } from '#/lib/api/schemas'
 import type {
   EvidenceConfirmationAction,
@@ -39,6 +41,7 @@ import type {
   JobMatchResult,
   ResumeResult,
   CvDocumentUpdate,
+  CvAtsCheckKey,
 } from '#/lib/api/schemas'
 
 export function listCvDocuments() {
@@ -64,6 +67,15 @@ export function snapshotCvVariant(documentId: string, name: string) {
 export function restoreCvVariant(documentId: string, variantId: string) {
   return request(`/cv-documents/${documentId}/variants/${variantId}/restore`, {
     method: 'POST', body: {}, schema: cvDocumentSchema,
+  })
+}
+
+export function scoreCvDocument(
+  documentId: string,
+  payload: { use_model: boolean; checks?: CvAtsCheckKey[] },
+) {
+  return request(`/cv-documents/${documentId}/quality`, {
+    method: 'POST', body: cvQualityRequestSchema.parse(payload), schema: cvQualityResponseSchema,
   })
 }
 

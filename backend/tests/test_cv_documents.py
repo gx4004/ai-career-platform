@@ -4,6 +4,7 @@ from app.auth.security import hash_password
 from app.models.cv_document import CvDocument, CvVariant
 from app.models.evidence_item import EvidenceItem
 from app.models.user import User
+from app.routers.cv_documents import CV_QUALITY_MODEL_RUN_LIMIT
 
 PREFIX = "/api/v1/cv-documents"
 
@@ -190,3 +191,149 @@ def test_export_is_owner_scoped_and_contains_recoverable_snapshots(
     assert payload["document_count"] == 1
     assert payload["documents"][0]["id"] == document["id"]
     assert payload["documents"][0]["variants"][0]["name"] == "Base"
+
+
+def test_owner_can_score_quality_and_rerun_one_named_ats_check(
+    client, auth_headers, confirmed_evidence
+):
+    sections = [
+        _section(confirmed_evidence.id),
+        {
+            "id": "section-skills",
+            "kind": "skills",
+            "title": "Skills",
+            "visible": True,
+            "position": 1,
+            "entries": [
+                {
+                    "id": "skill-one",
+                    "evidence_item_id": confirmed_evidence.id,
+                    "body": "Python, PostgreSQL, accessibility",
+                    "position": 0,
+                }
+            ],
+        },
+    ]
+    document = client.post(
+        PREFIX, json={"name": "Quality fixture", "sections": sections}, headers=auth_headers
+    ).json()
+
+    response = client.post(
+        f"{PREFIX}/{document['id']}/quality",
+        json={"use_model": False, "checks": ["section_structure"]},
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert {dimension["key"] for dimension in payload["dimensions"]} == {
+        "impact",
+        "clarity",
+        "completeness",
+        "structure",
+    }
+    assert all(dimension["reasons"] for dimension in payload["dimensions"])
+    assert [check["key"] for check in payload["ats_checks"]] == ["section_structure"]
+    assert payload["ats_checks"][0]["remediation"]
+    assert payload["advisory_note"].startswith("Quality scores are directional")
+
+
+def test_quality_endpoint_is_authenticated_and_owner_isolated(
+    client, auth_headers, db, second_user
+):
+    foreign = CvDocument(user_id=second_user.id, name="Private quality", sections=[])
+    db.add(foreign)
+    db.commit()
+    assert (
+        client.post(f"{PREFIX}/{foreign.id}/quality", json={"use_model": False}).status_code == 401
+    )
+    assert (
+        client.post(
+            f"{PREFIX}/{foreign.id}/quality", json={"use_model": False}, headers=auth_headers
+        ).status_code
+        == 404
+    )
+
+
+def test_model_quality_uses_shared_pipeline_and_enforces_document_quota(
+    client, auth_headers, db, test_user, confirmed_evidence, monkeypatch
+):
+    document = client.post(
+        PREFIX,
+        json={"name": "Bounded", "sections": [_section(confirmed_evidence.id)]},
+        headers=auth_headers,
+    ).json()
+    stored = db.query(CvDocument).filter(CvDocument.id == document["id"]).one()
+    stored.quality_model_runs = CV_QUALITY_MODEL_RUN_LIMIT
+    db.commit()
+    response = client.post(
+        f"{PREFIX}/{document['id']}/quality", json={"use_model": True}, headers=auth_headers
+    )
+    assert response.status_code == 429
+    assert "Deterministic checks remain available" in response.json()["detail"]
+
+
+def test_model_quality_delegates_to_shared_pipeline(
+    client, auth_headers, confirmed_evidence, monkeypatch
+):
+    document = client.post(
+        PREFIX,
+        json={"name": "Pipeline seam", "sections": [_section(confirmed_evidence.id)]},
+        headers=auth_headers,
+    ).json()
+    captured = {}
+
+    async def pipeline(**kwargs):
+        captured.update(kwargs)
+        return {
+            "schema_version": "cv-quality/v1",
+            "dimensions": [
+                {
+                    "key": "impact",
+                    "label": "Evidence of impact",
+                    "score": 60,
+                    "reasons": ["Synthetic reason."],
+                    "remediation": "Synthetic fix.",
+                }
+            ],
+            "ats_checks": [],
+            "scoring_mode": "blended",
+            "advisory_note": "Directional guidance only.",
+            "history_id": "run-one",
+            "access_mode": "authenticated",
+            "saved": True,
+            "locked_actions": [],
+        }
+
+    monkeypatch.setattr("app.routers.cv_documents.run_tool_pipeline", pipeline)
+    response = client.post(
+        f"{PREFIX}/{document['id']}/quality", json={"use_model": True}, headers=auth_headers
+    )
+    assert response.status_code == 200
+    assert captured["tool_name"] == "cv-quality"
+    assert captured["current_user"].id
+    assert captured["service_fn"].__name__ == "analyze_cv_quality"
+
+
+def test_failed_pipeline_still_consumes_document_model_allowance(
+    client, auth_headers, db, confirmed_evidence, monkeypatch
+):
+    document = client.post(
+        PREFIX,
+        json={"name": "Failed attempt", "sections": [_section(confirmed_evidence.id)]},
+        headers=auth_headers,
+    ).json()
+
+    async def fail(**_):
+        raise RuntimeError("synthetic pipeline failure")
+
+    monkeypatch.setattr("app.routers.cv_documents.run_tool_pipeline", fail)
+    with pytest.raises(RuntimeError, match="synthetic pipeline failure"):
+        client.post(
+            f"{PREFIX}/{document['id']}/quality",
+            json={"use_model": True},
+            headers=auth_headers,
+        )
+    db.expire_all()
+    stored = db.query(CvDocument).filter(CvDocument.id == document["id"]).one()
+    assert stored.quality_model_runs == 1
