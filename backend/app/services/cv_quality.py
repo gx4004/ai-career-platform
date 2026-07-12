@@ -104,14 +104,6 @@ def run_ats_checks(sections: list[dict], selected: list[str] | None = None) -> l
     kinds = {str(s.get("kind")) for s in visible}
     total_words = sum(len(re.findall(r"\w+", body)) for body in bodies)
     urls = re.findall(r"https?://[^\s)]+", " ".join(bodies))
-    ids = [str(s.get("id", "")) for s in sections] + [
-        str(e.get("id", "")) for s in sections for e in s.get("entries", [])
-    ]
-    ordered_positions = all(
-        len([e.get("position") for e in s.get("entries", [])])
-        == len(set(e.get("position") for e in s.get("entries", [])))
-        for s in sections
-    )
     checks = {
         "section_structure": (
             "Section structure",
@@ -120,10 +112,10 @@ def run_ats_checks(sections: list[dict], selected: list[str] | None = None) -> l
             "Add explicit Experience and Skills sections with truthful content.",
         ),
         "text_layer": (
-            "Searchable text layer",
-            "pass" if bodies and all(bodies) else "fail",
-            f"Found {len(bodies)} non-image text entries in the structured source.",
-            "Replace empty or image-only content with selectable text.",
+            "Text-content preflight",
+            "not_run",
+            f"Found {len(bodies)} text entries in the structured source. Searchable export text is validated when a rendered artifact exists.",
+            "Keep content as text; run rendered-artifact validation before export.",
         ),
         "links": (
             "Links",
@@ -135,15 +127,15 @@ def run_ats_checks(sections: list[dict], selected: list[str] | None = None) -> l
         ),
         "page_breaks": (
             "Page-break risk",
-            "pass" if total_words <= 900 else "review",
-            f"The structured source contains about {total_words} words.",
-            "Preview the export and shorten or move entries that split awkwardly across pages.",
+            "not_run",
+            f"The structured source contains about {total_words} words. Actual page breaks require a rendered artifact.",
+            "Run rendered-artifact validation, then shorten or move entries that split awkwardly.",
         ),
         "re_importability": (
-            "Re-importability",
-            "pass" if all(ids) and len(ids) == len(set(ids)) and ordered_positions else "fail",
-            "Checked stable IDs and unambiguous entry ordering in the structured source.",
-            "Resolve duplicate identifiers or positions before exporting and re-importing.",
+            "Re-import structure preflight",
+            "not_run",
+            "Own-parser re-import has not run because no rendered artifact exists at this stage.",
+            "Resolve source identifier issues, then run own-parser validation on the export.",
         ),
     }
     wanted = set(selected or CHECK_ORDER)

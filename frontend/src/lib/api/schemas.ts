@@ -119,7 +119,7 @@ export const cvQualityResponseSchema = z.object({
     reasons: z.array(z.string()).min(1).max(4), remediation: z.string(),
   })),
   ats_checks: z.array(z.object({
-    key: cvAtsCheckKeySchema, label: z.string(), status: z.enum(['pass', 'fail', 'review']),
+    key: cvAtsCheckKeySchema, label: z.string(), status: z.enum(['pass', 'fail', 'review', 'not_run']),
     explanation: z.string(), remediation: z.string(),
   })),
   scoring_mode: z.enum(['heuristic', 'blended']), advisory_note: z.string(),

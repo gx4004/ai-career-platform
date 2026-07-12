@@ -111,7 +111,7 @@ class CvQualityDimension(BaseModel):
 class CvAtsCheck(BaseModel):
     key: CvAtsCheckKey
     label: str
-    status: Literal["pass", "fail", "review"]
+    status: Literal["pass", "fail", "review", "not_run"]
     explanation: str
     remediation: str
 

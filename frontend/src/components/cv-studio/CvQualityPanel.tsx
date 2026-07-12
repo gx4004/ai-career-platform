@@ -52,7 +52,7 @@ export function CvQualityPanel({ documentId, revision }: { documentId: string; r
       <ul>{dimension.reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul><p><b>Next edit:</b> {dimension.remediation}</p>
     </article>)}</div>
     <div className="studio-checks"><div><p className="eyebrow">Deterministic checks</p><h3>Named compatibility checks</h3></div>{data.ats_checks.map((check) => <article key={check.key}>
-      <span className={`studio-check-status studio-check-status--${check.status}`}>{check.status === 'pass' ? <Check /> : <TriangleAlert />}{check.status}</span>
+      <span className={`studio-check-status studio-check-status--${check.status}`}>{check.status === 'pass' ? <Check /> : <TriangleAlert />}{check.status === 'not_run' ? 'Not run' : check.status}</span>
       <div><h4>{check.label}</h4><p>{check.explanation}</p><p><b>Remediation:</b> {check.remediation}</p>{checkState?.key === check.key && checkState.state === 'error' ? <p className="studio-inline-error" role="alert">This check could not be rerun. The previous result remains visible.</p> : null}</div>
       <Button type="button" variant="ghost" size="sm" disabled={checkState?.key === check.key && checkState.state === 'loading'} onClick={() => void rerunCheck(check.key)}>{checkState?.key === check.key && checkState.state === 'loading' ? 'Checking…' : `Rerun ${check.label}`}</Button>
     </article>)}</div>
