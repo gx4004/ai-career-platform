@@ -9,12 +9,16 @@ from app.database import Base
 
 class CvDocument(Base):
     __tablename__ = "cv_documents"
+    __table_args__ = (
+        UniqueConstraint("user_id", "source_import_id", name="uq_cv_documents_user_import"),
+    )
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     user_id: Mapped[str] = mapped_column(
         String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
     name: Mapped[str] = mapped_column(String(120), nullable=False)
+    source_import_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     sections: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)

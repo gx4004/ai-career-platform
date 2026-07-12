@@ -1,11 +1,17 @@
 from copy import deepcopy
 from datetime import UTC, datetime
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
 from app.models.cv_document import CvDocument, CvVariant
 from app.models.evidence_item import EvidenceItem
-from app.schemas.cv_documents import CvDocumentCreate, CvDocumentsExport
+from app.schemas.cv_documents import CvDocumentCreate, CvDocumentsExport, CvImportAccept
+from app.schemas.evidence_profile import EvidenceItemCreate
+from app.services.evidence_profile import (
+    record_evidence_proposal_created,
+    stage_evidence_proposal,
+)
 
 
 class CvDocumentNotFoundError(Exception):
@@ -40,7 +46,12 @@ def get_document(db: Session, document_id: str, user_id: str) -> CvDocument:
 
 
 def _validate_evidence(db: Session, user_id: str, sections: list[dict]) -> None:
-    ids = {entry["evidence_item_id"] for section in sections for entry in section["entries"]}
+    ids = {
+        entry["evidence_item_id"]
+        for section in sections
+        for entry in section["entries"]
+        if entry["evidence_item_id"] is not None
+    }
     if not ids:
         return
     confirmed = {
@@ -113,6 +124,73 @@ def create_document(db: Session, user_id: str, body: CvDocumentCreate) -> CvDocu
     document.variants.append(CvVariant(name="Base", sections=deepcopy(sections)))
     db.add(document)
     db.commit()
+    return get_document(db, document.id, user_id)
+
+
+def accept_import(db: Session, user_id: str, body: CvImportAccept) -> CvDocument:
+    """Atomically persist a reviewed import and its unconfirmed R11 claims."""
+    import_id = str(body.import_id)
+    existing = _query(db, user_id).filter(CvDocument.source_import_id == import_id).first()
+    if existing is not None:
+        return existing
+    sections = []
+    staged_items = []
+    try:
+        for section in body.sections:
+            entries = []
+            for entry in section.entries:
+                item = None
+                if entry.claim is not None:
+                    item = stage_evidence_proposal(
+                        db,
+                        user_id,
+                        EvidenceItemCreate(
+                            kind=entry.claim.kind,
+                            content=entry.claim.content,
+                            provenance="imported",
+                        ),
+                    )
+                    staged_items.append(item)
+                entries.append(
+                    {
+                        "id": entry.id,
+                        "evidence_item_id": None if item is None else item.id,
+                        "body": entry.body,
+                        "position": entry.position,
+                    }
+                )
+            sections.append(
+                {
+                    "id": section.id,
+                    "kind": section.kind,
+                    "title": section.title,
+                    "visible": section.visible,
+                    "position": section.position,
+                    "entries": entries,
+                }
+            )
+        document = CvDocument(
+            user_id=user_id,
+            name=body.name,
+            source_import_id=import_id,
+            sections=deepcopy(sections),
+        )
+        document.variants.append(CvVariant(name="Base", sections=deepcopy(sections)))
+        db.add(document)
+        db.commit()
+        for item in staged_items:
+            record_evidence_proposal_created(db, item)
+    except IntegrityError:
+        db.rollback()
+        existing = _query(db, user_id).filter(
+            CvDocument.source_import_id == import_id
+        ).first()
+        if existing is not None:
+            return existing
+        raise
+    except Exception:
+        db.rollback()
+        raise
     return get_document(db, document.id, user_id)
 
 

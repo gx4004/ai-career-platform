@@ -53,6 +53,12 @@ additive CV document/API foundation is built dark:
 there is no navigation, editor, tool-registry entry, import, scoring, tailoring,
 preview, or export-file activation. Existing six-tool behavior is unchanged. The
 new owner-only store remains dormant until the R12 gate is explicitly promoted.
+The same override now covers #154's authenticated import API: validated PDF, DOCX,
+and UTF-8 text are structured inside the existing capped parser subprocess and
+returned only as transient review proposals. Explicit acceptance atomically creates
+a CV document plus imported, unconfirmed Evidence Profile items; an owner-scoped
+opaque import id makes acceptance retries idempotent. There is still no frontend
+activation. This does not close or supersede D-068.
 
 ## Session Handoff Snapshot (2026-07-11)
 
@@ -196,6 +202,7 @@ launch market.
 | Scaling responses deferred | The intended deployment currently starts one Uvicorn process, and no accepted evidence shows sustained cache, provider, latency, abuse/cost, database, or job-import pressure. | Implement the R10 aggregate trigger scorecard first; authorize only the independent response whose scaling trigger fires (D-052–D-059). |
 | Evidence Profile deferred | No persisted profile entity, provenance/confirmation primitive, or full-data export exists; resume text is ephemeral tab-scoped state re-supplied inline per run, and R12/R13 depend on the profile's shape. | Keep R11 contract-only (D-060–D-067, ADR 0005) until the R1–R4 gate closes; implement the profile entity, confirmation lifecycle, and export slices first. |
 | CV Studio deferred | Every studio layer is greenfield: parsing is text-only, no structured CV model, DOCX generation, template system, print/page-break handling, variant versioning, or editor surface exists, and per-route rate limits do not bound iterative editing loops. | Keep R12 contract-only (D-068–D-075, ADR 0006) until R11 lands; implement document entity and reviewed import first, exporters behind validation gates. |
+| R12 #154 built dark ahead of D-068 under owner override | The authenticated import API accepts PDF, DOCX, and UTF-8 text, produces a transient structured review proposal in the isolated parser worker, and persists only on explicit, idempotent accept. Imported claims remain `unconfirmed` with `imported` provenance; accepting an import may therefore create document entries that reference pending imported items, while the ordinary #153 create/update APIs continue requiring confirmed owner evidence. | Keep the API without frontend activation. Do not treat import review as Evidence Profile confirmation or D-068 as closed; later editor work must expose the separate confirmation lifecycle. |
 | Campaigns and reviewer deferred | Workspaces are bare label+pin containers, listings are never persisted (no source URL or retrieval date), no status/task/reminder/notification infra exists, and the D-043 fabrication tracer is unimplemented; contacts will be the first third-party personal data. | Keep R13 contract-only (D-076–D-083, ADR 0007) until R12 lands; implement the additive workspace migration and listing persistence first, reviewer after the tracer. |
 | Job discovery deferred | No source registry, robots handling, listings store, dedup, ranking surface, or per-source governance exists; the only fetcher is the user-directed single-URL importer. | Keep R14 contract-only (D-084–D-091, ADR 0008) until R13 lands; no source activates without an accepted terms review; build registry enforcement before any ingestion. |
 | Approval queue deferred | No packet, rule, mandatory-stop, or queue-audit primitive exists, and packet-grade quality evidence (R8 evals, R13 reviewer) does not yet exist to justify prepared-application volume. | Keep R15 contract-only (D-092–D-099, ADR 0009) until R14 lands and quality evidence is accepted; the submission boundary stays structural — no submission code path in R15. |

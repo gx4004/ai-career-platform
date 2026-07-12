@@ -1,7 +1,11 @@
+import re
 from datetime import datetime
 from typing import Literal
+from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+from app.schemas.evidence_profile import EvidenceKind
 
 CvSectionKind = Literal[
     "summary",
@@ -20,7 +24,7 @@ class CvEntry(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     id: str = Field(min_length=1, max_length=100)
-    evidence_item_id: str = Field(min_length=1)
+    evidence_item_id: str | None
     body: str = Field(min_length=1, max_length=5_000)
     position: int = Field(ge=0)
 
@@ -84,6 +88,55 @@ class CvDocumentResponse(BaseModel):
 
 class CvDocumentListResponse(BaseModel):
     items: list[CvDocumentResponse]
+
+
+class CvImportClaim(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    kind: EvidenceKind
+    content: dict[str, str] = Field(min_length=1)
+    provenance: Literal["imported"]
+
+
+class CvImportEntry(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    id: str = Field(min_length=1, max_length=100)
+    body: str = Field(min_length=1, max_length=5_000)
+    position: int = Field(ge=0)
+    claim: CvImportClaim | None
+
+
+class CvImportSection(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    id: str = Field(min_length=1, max_length=100)
+    kind: CvSectionKind
+    title: str = Field(min_length=1, max_length=120)
+    visible: bool = True
+    position: int = Field(ge=0)
+    entries: list[CvImportEntry] = Field(max_length=200)
+
+
+class CvImportProposal(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    filename: str = Field(min_length=1, max_length=255)
+    import_id: UUID
+    name: str = Field(min_length=1, max_length=120)
+    sections: list[CvImportSection] = Field(max_length=50)
+    warnings: list[str] = Field(max_length=20)
+
+    @field_validator("import_id", mode="before")
+    @classmethod
+    def require_canonical_uuid(cls, value):
+        if not isinstance(value, str) or not re.fullmatch(
+            r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-"
+            r"[0-9a-fA-F]{4}-[0-9a-fA-F]{12}",
+            value,
+        ):
+            raise ValueError("import_id must be a canonical UUID string")
+        return value
+
+
+class CvImportAccept(CvImportProposal):
+    pass
 
 
 CV_DOCUMENTS_EXPORT_SCHEMA_VERSION = "cv-documents-export/v1"

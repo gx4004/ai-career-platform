@@ -108,9 +108,12 @@ Core entities:
   ADR 0005) — per-user typed evidence with provenance and confirmation state.
   Authenticated CRUD exists; profile injection, import/export, and UI activation
   remain unshipped and the D-060 production-activation gate remains closed.
-- CV document (planned, R12; D-069, ADR 0006) — per-user structured document whose
-  claims reference Evidence Profile items, with one working draft plus immutable
-  recoverable variants. Contract defined; nothing ships until R11 lands (D-068).
+- CV document (R12 foundation built dark under owner override; D-069, ADR 0006) —
+  per-user structured document whose claims reference Evidence Profile items, with
+  one working draft plus immutable recoverable variants. The authenticated import
+  API is also dark: review proposals are transient and only explicit acceptance
+  atomically creates the document and imported/unconfirmed profile items. Acceptance
+  retries are owner-scoped and idempotent. D-068's activation gate remains closed.
 - Application campaign (planned, R13; D-077, ADR 0007) — `Workspace` evolved in
   place with optional campaign fields and dependent owner-scoped tables (listing,
   events, tasks, notes, contacts). Contract defined; nothing ships until R12 lands
