@@ -54,6 +54,54 @@ export type EvidenceItemCreate = z.infer<typeof evidenceItemCreateSchema>
 export type EvidenceItemUpdate = z.infer<typeof evidenceItemUpdateSchema>
 export type EvidenceConfirmationAction = z.infer<typeof evidenceConfirmationActionSchema>
 
+export const cvSectionKindSchema = z.enum([
+  'summary', 'experience', 'achievements', 'skills', 'education', 'projects',
+  'certifications', 'interview-evidence', 'custom',
+])
+export const cvEntrySchema = z.strictObject({
+  id: z.string().min(1).max(100),
+  evidence_item_id: z.string().min(1),
+  body: z.string().min(1).max(5_000),
+  position: z.number().int().nonnegative(),
+})
+export const cvSectionSchema = z.strictObject({
+  id: z.string().min(1).max(100),
+  kind: cvSectionKindSchema,
+  title: z.string().min(1).max(120),
+  visible: z.boolean().default(true),
+  position: z.number().int().nonnegative(),
+  entries: z.array(cvEntrySchema).max(200).default([]),
+})
+export const cvDocumentCreateSchema = z.strictObject({
+  name: z.string().min(1).max(120),
+  sections: z.array(cvSectionSchema).max(50).default([]),
+  seed_evidence_item_ids: z.array(z.string()).max(200).default([]),
+})
+export const cvDocumentUpdateSchema = z.strictObject({
+  name: z.string().min(1).max(120).optional(),
+  sections: z.array(cvSectionSchema).max(50).optional(),
+}).refine((value) => Object.keys(value).length > 0)
+export const cvVariantCreateSchema = z.strictObject({
+  name: z.string().min(1).max(120),
+  target_role: z.string().min(1).max(200).nullable().optional(),
+})
+export const cvVariantSchema = z.object({
+  id: z.string(), name: z.string(), target_role: z.string().nullable(),
+  sections: z.array(cvSectionSchema), created_at: z.iso.datetime(),
+})
+export const cvDocumentSchema = z.object({
+  id: z.string(), name: z.string(), sections: z.array(cvSectionSchema),
+  created_at: z.iso.datetime(), updated_at: z.iso.datetime(), variants: z.array(cvVariantSchema),
+})
+export const cvDocumentListSchema = z.object({ items: z.array(cvDocumentSchema) })
+export const cvDocumentsExportSchema = z.object({
+  schema_version: z.literal('cv-documents-export/v1'), exported_at: z.iso.datetime(),
+  document_count: z.number().int().nonnegative(), documents: z.array(cvDocumentSchema),
+}).refine((value) => value.document_count === value.documents.length)
+export type CvEntry = z.infer<typeof cvEntrySchema>
+export type CvSection = z.infer<typeof cvSectionSchema>
+export type CvDocument = z.infer<typeof cvDocumentSchema>
+
 export const userSchema = z.object({
   id: z.string(),
   email: z.string().email(),

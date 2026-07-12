@@ -34,3 +34,6 @@ class User(Base):
     evidence_items = relationship(
         "EvidenceItem", back_populates="user", cascade="all, delete-orphan"
     )
+    cv_documents = relationship(
+        "CvDocument", back_populates="user", cascade="all, delete-orphan"
+    )

@@ -47,6 +47,13 @@ Remaining human items: perform the PostHog data deletion (#208, D-119), decide
 D-NEXT-2 (launch market) and D-NEXT-6 (activation target), and select the R18
 direction (#204).**
 
+An explicit temporary owner build-ahead override (2026-07-12) authorizes R12 #153
+ahead of D-068's activation gate without closing or superseding that gate. The
+additive CV document/API foundation is built dark:
+there is no navigation, editor, tool-registry entry, import, scoring, tailoring,
+preview, or export-file activation. Existing six-tool behavior is unchanged. The
+new owner-only store remains dormant until the R12 gate is explicitly promoted.
+
 ## Session Handoff Snapshot (2026-07-11)
 
 - **Objective:** Ship the startable activation/quality/cleanup frontier — R6

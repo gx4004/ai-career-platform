@@ -220,10 +220,11 @@ Browser → POST /auth/password-reset/confirm {token, new_password}
 | 6 | Email address | Medium | `users.email` | Until account deletion | Phishing, enumeration, spam |
 | 7 | Google identity (`google_id`, `email_verified`) | Medium | `users.google_id` | Until account deletion | Cross-service correlation |
 | 8 | Evidence Profile career claims | High | `evidence_items.content` | Until item/account deletion | Career history, preferences, employer or institution exposure |
-| 9 | Tool metadata (scores, skill gaps, recommendations) | Medium | `tool_runs.result_payload` | Until deletion | Career profile inference |
-| 10 | Workspace labels and structure | Low | `workspaces.label`, `workspaces.is_pinned` | Until deletion | Organizational preference leakage |
-| 11 | Behavioral telemetry (event names, routes, timestamps) | Low | Log stdout, Sentry (if enabled) | Undefined (no TTL) | Usage pattern inference |
-| 12 | Sidebar state, language preference | None | `sidebar_state` cookie, `app_language` localStorage | 7 days / forever | None |
+| 9 | Structured CV drafts and variant snapshots | High | `cv_documents.sections`, `cv_variants.sections` | Until document/account deletion | Full career history, target-role intent, professional reputation exposure |
+| 10 | Tool metadata (scores, skill gaps, recommendations) | Medium | `tool_runs.result_payload` | Until deletion | Career profile inference |
+| 11 | Workspace labels and structure | Low | `workspaces.label`, `workspaces.is_pinned` | Until deletion | Organizational preference leakage |
+| 12 | Behavioral telemetry (event names, routes, timestamps) | Low | Log stdout, Sentry (if enabled) | Undefined (no TTL) | Usage pattern inference |
+| 13 | Sidebar state, language preference | None | `sidebar_state` cookie, `app_language` localStorage | 7 days / forever | None |
 
 ### 4.1 Guest-Specific Storage Note
 
@@ -326,7 +327,7 @@ via `get_optional_current_user()`. Rate-limited at 10/min per endpoint.
 | `POST` | `/career/recommend` | 10/min |
 | `POST` | `/portfolio/recommend` | 10/min |
 
-### 6.3 Authentication or Session Credential Required (18 endpoints)
+### 6.3 Authentication or Session Credential Required (26 endpoints)
 
 | Method | Path | Rate Limit |
 |--------|------|------------|
@@ -348,6 +349,14 @@ via `get_optional_current_user()`. Rate-limited at 10/min per endpoint.
 | `POST` | `/evidence-profile/items/{id}/confirmation` | None |
 | `DELETE` | `/evidence-profile/items/{id}` | None |
 | `GET` | `/evidence-profile/export` | 5/min |
+| `GET` | `/cv-documents` | None |
+| `POST` | `/cv-documents` | None |
+| `GET` | `/cv-documents/{id}` | None |
+| `PATCH` | `/cv-documents/{id}` | None |
+| `DELETE` | `/cv-documents/{id}` | None |
+| `POST` | `/cv-documents/{id}/variants` | None |
+| `POST` | `/cv-documents/{id}/variants/{variant_id}/restore` | None |
+| `GET` | `/cv-documents/export` | 5/min |
 
 The Evidence Profile endpoints are authenticated-owner-only (`get_current_user`
 scopes every row to the caller; no anonymous profile rows exist — D-064). The
@@ -777,6 +786,28 @@ only counts by kind, provenance, and confirm/reject decision.
 
 — `backend/app/routers/evidence_profile.py`;
 `backend/app/services/evidence_profile.py`;
+`backend/app/services/tool_runs.py:delete_all_user_data`;
+
+### 8.8 Dormant CV Document Store and Variants
+
+R12 #153 adds a dark, authenticated-only structured CV store under the explicit
+owner build-ahead override recorded in `docs/state.md`. Every API query is scoped by
+both document id and the authenticated user's id. Each factual entry must reference
+a `confirmed` Evidence Profile item owned by the same user; foreign, unconfirmed,
+rejected, and missing references fail validation without revealing which condition
+applied.
+
+The editable draft lives in `cv_documents.sections`. Creation also records an
+immutable `Base` snapshot and later named snapshots live in `cv_variants.sections`;
+restore copies a snapshot into the working draft and never updates the snapshot.
+The bulk machine-readable export is owner-scoped and rate-limited to 5/minute.
+Account deletion explicitly removes variants and documents in the existing single
+transaction, with PostgreSQL `ON DELETE CASCADE` as a second line of defense.
+Routes emit no CV content logs or telemetry; the existing request/Sentry scrubbing
+boundary still applies. There is no frontend route or activation surface yet.
+
+— `backend/app/routers/cv_documents.py`;
+`backend/app/services/cv_documents.py`;
 `backend/app/services/tool_runs.py:delete_all_user_data`;
 `backend/app/schemas/analytics.py` (profile-event allowlist);
 `backend/tests/test_evidence_profile.py`

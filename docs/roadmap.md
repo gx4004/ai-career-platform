@@ -228,8 +228,10 @@ Acceptance gate:
 ### R12. Premium CV Studio
 
 **Status:** PROVISIONAL spec published (#152; tracer issues #153–#159), still
-deferred until R11 ships behind the closed R1–R4 gate — no schema, endpoint,
-editor, or export ships earlier (D-068–D-075, ADR 0006)
+deferred until R11 ships behind the closed R1–R4 gate. Under an explicit owner
+build-ahead override, #153's owner-only document/variant persistence and API
+foundation is built dark; editor registration and all user-facing activation remain
+deferred (D-068–D-075, ADR 0006).
 **Outcome:** a user can import, create, edit, score, tailor, version, preview, and
 export a professional ATS-aware CV in the browser.
 

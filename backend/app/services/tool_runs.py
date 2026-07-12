@@ -5,6 +5,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
+from app.models.cv_document import CvDocument, CvVariant
 from app.models.evidence_item import EvidenceItem
 from app.models.tool_run import ToolRun
 from app.models.user import User
@@ -29,6 +30,14 @@ def delete_all_user_data(db: Session, user_id: str) -> None:
     # Explicit deletion preserves the existing transactional erasure behavior in
     # environments where database FK cascades are not enabled (including tests).
     # PostgreSQL also enforces ON DELETE CASCADE as a second line of defense.
+    cv_document_ids = [
+        row.id for row in db.query(CvDocument.id).filter(CvDocument.user_id == user_id)
+    ]
+    if cv_document_ids:
+        db.query(CvVariant).filter(CvVariant.document_id.in_(cv_document_ids)).delete(
+            synchronize_session=False
+        )
+    cv_documents_deleted = db.query(CvDocument).filter(CvDocument.user_id == user_id).delete()
     evidence_deleted = db.query(EvidenceItem).filter(EvidenceItem.user_id == user_id).delete()
     runs_deleted = db.query(ToolRun).filter(ToolRun.user_id == user_id).delete()
     workspaces_deleted = db.query(Workspace).filter(Workspace.user_id == user_id).delete()
@@ -39,8 +48,10 @@ def delete_all_user_data(db: Session, user_id: str) -> None:
         runs_deleted=runs_deleted,
         workspaces_deleted=workspaces_deleted,
         evidence_items_deleted=evidence_deleted,
+        cv_documents_deleted=cv_documents_deleted,
         user_record_deleted=bool(users_deleted),
     )
+
 
 DEFAULT_NEXT_STEP_TOOL = {
     "resume": "job-match",

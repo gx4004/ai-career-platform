@@ -74,6 +74,7 @@ def log_user_account_deleted(
     runs_deleted: int,
     workspaces_deleted: int,
     evidence_items_deleted: int,
+    cv_documents_deleted: int,
     user_record_deleted: bool,
 ) -> None:
     """RODO/GDPR audit trail for the right-to-erasure path.
@@ -90,6 +91,7 @@ def log_user_account_deleted(
         runs_deleted=runs_deleted,
         workspaces_deleted=workspaces_deleted,
         evidence_items_deleted=evidence_items_deleted,
+        cv_documents_deleted=cv_documents_deleted,
         user_record_deleted=user_record_deleted,
     )
 
