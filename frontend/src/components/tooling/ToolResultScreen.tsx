@@ -6,6 +6,7 @@ import { Button } from '#/components/ui/button'
 import { FadeIn, FadeUp } from '#/components/ui/motion'
 import { ScoreTooltip } from '#/components/tooling/ScoreTooltip'
 import { AppStatePanel } from '#/components/app/AppStatePanel'
+import { ClaimPromotionSection } from '#/components/profile/ClaimPromotionSection'
 import { PageFrame } from '#/components/app/PageFrame'
 import { ApiError } from '#/lib/api/errors'
 import { getHistoryItem } from '#/lib/api/client'
@@ -510,6 +511,12 @@ export function ToolResultScreen({
             {definition.render(payload, item, resolvedTool)}
           </div>
         </FadeUp>
+
+        <ClaimPromotionSection
+          toolId={resolvedTool.id}
+          payload={payload as Record<string, unknown>}
+          authenticated={status === 'authenticated'}
+        />
 
         {nextBestActionEnabled ? (
           <div className="result-action" aria-label="Try next suggestion">

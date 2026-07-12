@@ -5331,3 +5331,101 @@
     text-align: left;
   }
 }
+
+/* ── R11 #148: promote reusable claims from a saved result into the profile ── */
+.claim-promote {
+  width: min(var(--shell-max), calc(100% - var(--space-page-x) * 2));
+  margin: 1.5rem auto 0;
+  padding: 1.25rem 1.5rem;
+  background: var(--surface-raised);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-2xl);
+}
+
+.claim-promote__head {
+  margin-bottom: 0.85rem;
+}
+
+.claim-promote__title {
+  display: block;
+  color: var(--text-strong);
+  font-size: 0.95rem;
+}
+
+.claim-promote__hint {
+  margin: 0.2rem 0 0;
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+}
+
+.claim-promote__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.claim-promote__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.6rem 0.75rem;
+  background: var(--surface-base);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+}
+
+.claim-promote__label {
+  color: var(--text-default);
+  font-size: 0.85rem;
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.claim-promote__btn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.7rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 9999px;
+  background: transparent;
+  color: var(--text-strong);
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.claim-promote__btn:hover:not(:disabled) {
+  background: var(--surface-blue);
+}
+
+.claim-promote__btn:disabled {
+  cursor: default;
+}
+
+.claim-promote__btn--done {
+  border-color: #22c55e;
+  color: #15803d;
+}
+
+.claim-promote__btn--error {
+  border-color: #ef4444;
+  color: #b91c1c;
+}
+
+.claim-promote__spin {
+  animation: spin 0.9s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .claim-promote__spin {
+    animation: none;
+  }
+}
