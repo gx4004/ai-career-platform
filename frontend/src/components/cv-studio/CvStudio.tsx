@@ -9,6 +9,7 @@ import { getCvDocument, listCvDocuments, restoreCvVariant, snapshotCvVariant, up
 import type { CvDocument, CvSection } from '#/lib/api/schemas'
 import { addEntry, addSection, moveEntry, moveSection, sectionLabels } from '#/lib/cv-studio/editor'
 import { CvQualityPanel } from './CvQualityPanel'
+import { CvTailoringPanel } from './CvTailoringPanel'
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error'
 const LIST_KEY = ['cv-studio', 'documents'] as const
@@ -112,6 +113,7 @@ export function CvStudio() {
       <div className="studio-layout">
         <section className="studio-editor" aria-label="CV sections">
           <CvQualityPanel documentId={draft.id} revision={draft.updated_at} />
+          <CvTailoringPanel documentId={draft.id} disabled={dirty} onApplied={() => void documentQuery.refetch()} />
           <div className="studio-add-row">
             <label htmlFor="add-section">Add a typed section</label>
             <select id="add-section" defaultValue="" onChange={(event) => { if (event.target.value) edit((current) => ({ ...current, sections: addSection(current.sections, event.target.value as CvSection['kind']) })); event.target.value = '' }}>

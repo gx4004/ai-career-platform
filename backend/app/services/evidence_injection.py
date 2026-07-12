@@ -55,7 +55,7 @@ class EvidencePayload:
 
 def _item_view(item: EvidenceItem) -> dict:
     """Minimal, prompt-safe projection of an evidence item."""
-    return {"kind": item.kind, "content": item.content}
+    return {"evidence_item_id": item.id, "kind": item.kind, "content": item.content}
 
 
 def build_evidence_payload(items: list[EvidenceItem]) -> EvidencePayload:

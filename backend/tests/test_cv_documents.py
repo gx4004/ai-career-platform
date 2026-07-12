@@ -4,7 +4,8 @@ from app.auth.security import hash_password
 from app.models.cv_document import CvDocument, CvVariant
 from app.models.evidence_item import EvidenceItem
 from app.models.user import User
-from app.routers.cv_documents import CV_QUALITY_MODEL_RUN_LIMIT
+from app.routers.cv_documents import CV_QUALITY_MODEL_RUN_LIMIT, CV_TAILORING_MODEL_RUN_LIMIT
+from app.services.cv_tailoring import proposal_token
 
 PREFIX = "/api/v1/cv-documents"
 
@@ -49,6 +50,13 @@ def _section(evidence_id: str, *, body: str = "Improved a synthetic process by 2
             }
         ],
     }
+
+
+def _signed(document_id, user_id, payload):
+    payload["proposal_token"] = proposal_token(
+        payload["request_id"], document_id, user_id, payload["job_title"], payload["changes"]
+    )
+    return payload
 
 
 def test_owner_can_create_edit_snapshot_and_restore_without_mutating_variants(
@@ -337,3 +345,266 @@ def test_failed_pipeline_still_consumes_document_model_allowance(
     db.expire_all()
     stored = db.query(CvDocument).filter(CvDocument.id == document["id"]).one()
     assert stored.quality_model_runs == 1
+
+
+def test_tailoring_uses_shared_pipeline_and_returns_reviewable_provenance(
+    client, auth_headers, confirmed_evidence, monkeypatch
+):
+    document = client.post(
+        PREFIX,
+        json={"name": "Tailor", "sections": [_section(confirmed_evidence.id)]},
+        headers=auth_headers,
+    ).json()
+    captured = {}
+
+    async def pipeline(**kwargs):
+        captured.update(kwargs)
+        return {
+            "schema_version": "cv-tailoring/v1",
+            "job_title": "Platform Engineer",
+            "changes": [
+                {
+                    "id": "change-one",
+                    "section_id": "section-achievements",
+                    "entry_id": "entry-one",
+                    "before": "Improved a synthetic process by 20%.",
+                    "after": "Improved a synthetic platform process by 20%.",
+                    "job_requirement": "Improve platform reliability",
+                    "evidence_item_ids": [confirmed_evidence.id],
+                    "support": "confirmed",
+                }
+            ],
+            "history_id": "run",
+            "access_mode": "authenticated",
+            "saved": True,
+            "locked_actions": [],
+        }
+
+    monkeypatch.setattr("app.routers.cv_documents.run_tool_pipeline", pipeline)
+    response = client.post(
+        f"{PREFIX}/{document['id']}/tailoring",
+        json={
+            "job_title": "Platform Engineer",
+            "job_description": "Improve platform reliability across distributed services.",
+        },
+        headers=auth_headers,
+    )
+    assert response.status_code == 200
+    assert captured["tool_name"] == "cv-tailoring"
+    assert captured["service_fn"].__name__ == "generate_cv_tailoring"
+    assert response.json()["changes"][0]["evidence_item_ids"] == [confirmed_evidence.id]
+    assert response.json()["remaining_regenerations"] == CV_TAILORING_MODEL_RUN_LIMIT - 1
+
+
+def test_review_rejects_without_mutating_and_accept_creates_immutable_variant(
+    client, auth_headers, test_user, confirmed_evidence
+):
+    document = client.post(
+        PREFIX,
+        json={"name": "Review", "sections": [_section(confirmed_evidence.id)]},
+        headers=auth_headers,
+    ).json()
+    change = {
+        "id": "change-one",
+        "section_id": "section-achievements",
+        "entry_id": "entry-one",
+        "before": "Improved a synthetic process by 20%.",
+        "after": "Improved platform delivery by 20%.",
+        "job_requirement": "Platform delivery",
+        "evidence_item_ids": [confirmed_evidence.id],
+        "support": "confirmed",
+    }
+    invented_edit = _signed(
+        document["id"],
+        test_user.id,
+        {
+            "request_id": "d5ac39c0-5a76-4e94-98f1-a0fd8b42a5b2",
+            "variant_name": "Invented edit",
+            "job_title": "Platform Engineer",
+            "changes": [change],
+            "decisions": [
+                {
+                    "change_id": "change-one",
+                    "action": "edit",
+                    "edited_after": "Managed a newly invented team of 90.",
+                }
+            ],
+        },
+    )
+    assert (
+        client.post(
+            f"{PREFIX}/{document['id']}/tailoring/apply", json=invented_edit, headers=auth_headers
+        ).status_code
+        == 422
+    )
+    edit_proposal = client.post(
+        f"{PREFIX}/{document['id']}/tailoring/edit-proposals",
+        json={
+            key: invented_edit[key]
+            for key in ("request_id", "job_title", "proposal_token", "changes")
+        }
+        | {"change_id": "change-one", "edited_after": "Managed a newly invented team of 90."},
+        headers=auth_headers,
+    )
+    assert edit_proposal.status_code == 201
+    assert edit_proposal.json()["confirmation_state"] == "unconfirmed"
+    payload = _signed(
+        document["id"],
+        test_user.id,
+        {
+            "request_id": "a5ac39c0-5a76-4e94-98f1-a0fd8b42a5b2",
+            "variant_name": "Platform tailored",
+            "job_title": "Platform Engineer",
+            "changes": [change],
+            "decisions": [{"change_id": "change-one", "action": "accept"}],
+        },
+    )
+    response = client.post(
+        f"{PREFIX}/{document['id']}/tailoring/apply", json=payload, headers=auth_headers
+    )
+    assert response.status_code == 201
+    assert (
+        response.json()["sections"][0]["entries"][0]["body"] == "Improved platform delivery by 20%."
+    )
+    current = client.get(f"{PREFIX}/{document['id']}", headers=auth_headers).json()
+    assert current["sections"] == document["sections"]
+    assert (
+        client.post(
+            f"{PREFIX}/{document['id']}/tailoring/apply", json=payload, headers=auth_headers
+        ).json()["id"]
+        == response.json()["id"]
+    )
+
+
+def test_unsupported_tailoring_change_is_blocked_until_evidence_is_confirmed(
+    client, auth_headers, test_user, confirmed_evidence
+):
+    document = client.post(
+        PREFIX,
+        json={"name": "Blocked", "sections": [_section(confirmed_evidence.id)]},
+        headers=auth_headers,
+    ).json()
+    blocked = {
+        "request_id": "b5ac39c0-5a76-4e94-98f1-a0fd8b42a5b2",
+        "variant_name": "Blocked",
+        "job_title": "Lead",
+        "changes": [
+            {
+                "id": "invented",
+                "section_id": "section-achievements",
+                "entry_id": "entry-one",
+                "before": "Improved a synthetic process by 20%.",
+                "after": "Managed 50 people.",
+                "job_requirement": "People leadership",
+                "evidence_item_ids": [],
+                "support": "unsupported",
+            }
+        ],
+        "decisions": [{"change_id": "invented", "action": "accept"}],
+    }
+    response = client.post(
+        f"{PREFIX}/{document['id']}/tailoring/apply",
+        json=_signed(document["id"], test_user.id, blocked),
+        headers=auth_headers,
+    )
+    assert response.status_code == 422
+    assert "Confirm evidence explicitly" in response.json()["detail"]
+
+    proposal = client.post(
+        "/api/v1/evidence-profile/items",
+        json={
+            "kind": "achievement",
+            "content": {"statement": "Managed a synthetic team of 50."},
+            "provenance": "user-entered",
+        },
+        headers=auth_headers,
+    )
+    assert proposal.status_code == 201
+    proposed_item = proposal.json()
+    assert proposed_item["confirmation_state"] == "unconfirmed"
+    confirmation = client.post(
+        f"/api/v1/evidence-profile/items/{proposed_item['id']}/confirmation",
+        json={"action": "confirm"},
+        headers=auth_headers,
+    )
+    assert confirmation.status_code == 200
+    assert confirmation.json()["confirmation_state"] == "confirmed"
+
+    supported = _signed(
+        document["id"],
+        test_user.id,
+        {
+            "request_id": "c5ac39c0-5a76-4e94-98f1-a0fd8b42a5b2",
+            "variant_name": "Confirmed leadership",
+            "job_title": "Lead",
+            "changes": [
+                {
+                    "id": "supported",
+                    "section_id": "section-achievements",
+                    "entry_id": "entry-one",
+                    "before": "Improved a synthetic process by 20%.",
+                    "after": "Managed a synthetic team of 50.",
+                    "job_requirement": "People leadership",
+                    "evidence_item_ids": [proposed_item["id"]],
+                    "support": "confirmed",
+                }
+            ],
+            "decisions": [{"change_id": "supported", "action": "accept"}],
+        },
+    )
+    accepted = client.post(
+        f"{PREFIX}/{document['id']}/tailoring/apply", json=supported, headers=auth_headers
+    )
+    assert accepted.status_code == 201
+    assert accepted.json()["sections"][0]["entries"][0]["body"] == "Managed a synthetic team of 50."
+
+
+@pytest.mark.parametrize(
+    ("section_kind", "evidence_kind"),
+    [
+        ("experience", "experience"),
+        ("achievements", "achievement"),
+        ("skills", "skill"),
+        ("education", "education"),
+        ("projects", "project"),
+        ("certifications", "certification"),
+    ],
+)
+def test_custom_tailoring_edits_stage_the_typed_r11_evidence_kind(
+    client, auth_headers, test_user, confirmed_evidence, section_kind, evidence_kind
+):
+    section = _section(confirmed_evidence.id)
+    section["kind"] = section_kind
+    document = client.post(
+        PREFIX, json={"name": section_kind, "sections": [section]}, headers=auth_headers
+    ).json()
+    change = {
+        "id": "typed-edit",
+        "section_id": "section-achievements",
+        "entry_id": "entry-one",
+        "before": "Improved a synthetic process by 20%.",
+        "after": "Improved a synthetic platform process by 20%.",
+        "job_requirement": "Relevant evidence",
+        "evidence_item_ids": [confirmed_evidence.id],
+        "support": "confirmed",
+    }
+    request = _signed(
+        document["id"],
+        test_user.id,
+        {
+            "request_id": "f5ac39c0-5a76-4e94-98f1-a0fd8b42a5b2",
+            "variant_name": "unused",
+            "job_title": "Target",
+            "changes": [change],
+            "decisions": [],
+        },
+    )
+    response = client.post(
+        f"{PREFIX}/{document['id']}/tailoring/edit-proposals",
+        json={key: request[key] for key in ("request_id", "job_title", "proposal_token", "changes")}
+        | {"change_id": "typed-edit", "edited_after": "New user-authored wording."},
+        headers=auth_headers,
+    )
+    assert response.status_code == 201
+    assert response.json()["kind"] == evidence_kind
+    assert response.json()["confirmation_state"] == "unconfirmed"
