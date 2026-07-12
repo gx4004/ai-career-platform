@@ -104,6 +104,31 @@ export type CvDocument = z.infer<typeof cvDocumentSchema>
 export type CvVariant = z.infer<typeof cvVariantSchema>
 export type CvDocumentUpdate = z.infer<typeof cvDocumentUpdateSchema>
 
+export const cvAtsCheckKeySchema = z.enum([
+  'section_structure', 'text_layer', 'links', 'page_breaks', 're_importability',
+])
+export const cvQualityRequestSchema = z.strictObject({
+  use_model: z.boolean().default(false),
+  checks: z.array(cvAtsCheckKeySchema).min(1).max(5).optional(),
+})
+export const cvQualityResponseSchema = z.object({
+  schema_version: z.literal('cv-quality/v1'),
+  dimensions: z.array(z.object({
+    key: z.enum(['impact', 'clarity', 'completeness', 'structure']),
+    label: z.string(), score: z.number().min(0).max(100),
+    reasons: z.array(z.string()).min(1).max(4), remediation: z.string(),
+  })),
+  ats_checks: z.array(z.object({
+    key: cvAtsCheckKeySchema, label: z.string(), status: z.enum(['pass', 'fail', 'review']),
+    explanation: z.string(), remediation: z.string(),
+  })),
+  scoring_mode: z.enum(['heuristic', 'blended']), advisory_note: z.string(),
+  history_id: z.string().nullable().optional(), access_mode: z.literal('authenticated'),
+  saved: z.boolean(), locked_actions: z.array(z.string()),
+})
+export type CvAtsCheckKey = z.infer<typeof cvAtsCheckKeySchema>
+export type CvQualityResponse = z.infer<typeof cvQualityResponseSchema>
+
 export const cvImportClaimSchema = z.strictObject({
   kind: evidenceKindSchema,
   content: z.record(z.string(), z.string()).refine((value) => Object.keys(value).length > 0),

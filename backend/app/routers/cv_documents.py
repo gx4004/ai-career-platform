@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from app.auth.security import get_current_user
 from app.database import get_db
 from app.limiter import limiter
+from app.models.tool_run import ToolRun
 from app.models.user import User
 from app.schemas.cv_documents import (
     CvDocumentCreate,
@@ -13,6 +14,8 @@ from app.schemas.cv_documents import (
     CvDocumentUpdate,
     CvImportAccept,
     CvImportProposal,
+    CvQualityRequest,
+    CvQualityResponse,
     CvVariantCreate,
     CvVariantResponse,
 )
@@ -31,9 +34,12 @@ from app.services.cv_documents import (
     update_document,
 )
 from app.services.cv_parser_process import CvParserProcessRejected, parse_cv_import_isolated
+from app.services.cv_quality import analyze_cv_quality, analyze_cv_quality_heuristic
 from app.services.cv_upload import CvUploadRejected, read_validated_cv_upload
+from app.services.tool_pipeline import run_tool_pipeline
 
 router = APIRouter()
+CV_QUALITY_MODEL_RUN_LIMIT = 10
 
 _INVALID_IMPORT = (
     "Use an unencrypted PDF, a valid DOCX without unsafe archive content, or UTF-8 plain text."
@@ -127,6 +133,61 @@ def get_one(
         return get_document(db, document_id, current_user.id)
     except CvDocumentNotFoundError as error:
         _not_found(error)
+
+
+@router.post("/{document_id}/quality", response_model=CvQualityResponse)
+@limiter.limit("20/minute")
+async def quality(
+    request: Request,
+    document_id: str,
+    body: CvQualityRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    try:
+        document = get_document(db, document_id, current_user.id)
+    except CvDocumentNotFoundError as error:
+        _not_found(error)
+    sections = document.sections
+    text = "\n".join(
+        str(entry.get("body", ""))
+        for section in sections
+        if section.get("visible", True)
+        for entry in section.get("entries", [])
+    )
+    service = analyze_cv_quality_heuristic
+    if body.use_model:
+        used = (
+            db.query(ToolRun)
+            .filter(
+                ToolRun.user_id == current_user.id,
+                ToolRun.tool_name == "cv-quality",
+                ToolRun.label == f"CV quality model · {document.id}",
+            )
+            .count()
+        )
+        if used >= CV_QUALITY_MODEL_RUN_LIMIT:
+            raise HTTPException(
+                status_code=429,
+                detail="This document has reached its model scoring limit. Deterministic checks remain available.",
+            )
+        service = analyze_cv_quality
+    result = await run_tool_pipeline(
+        tool_name="cv-quality",
+        service_fn=service,
+        service_kwargs={"resume_text": text, "sections": sections, "selected_checks": body.checks},
+        label_fn=lambda _: f"CV quality {'model' if body.use_model else 'check'} · {document.id}",
+        resume_text=text,
+        current_user=current_user,
+        db=db,
+        cache_extra_keys={
+            "document_id": document.id,
+            "updated_at": document.updated_at.isoformat(),
+            "mode": "model" if body.use_model else "heuristic",
+            "checks": ",".join(body.checks or []),
+        },
+    )
+    return CvQualityResponse(**result)
 
 
 @router.patch("/{document_id}", response_model=CvDocumentResponse)
