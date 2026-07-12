@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, UploadFile, status
 from sqlalchemy.orm import Session
 
 from app.auth.security import get_current_user
@@ -11,6 +11,8 @@ from app.schemas.cv_documents import (
     CvDocumentResponse,
     CvDocumentsExport,
     CvDocumentUpdate,
+    CvImportAccept,
+    CvImportProposal,
     CvVariantCreate,
     CvVariantResponse,
 )
@@ -18,6 +20,7 @@ from app.services.cv_documents import (
     CvDocumentNotFoundError,
     DuplicateVariantNameError,
     InvalidEvidenceReferenceError,
+    accept_import,
     create_document,
     create_variant,
     delete_document,
@@ -27,8 +30,17 @@ from app.services.cv_documents import (
     restore_variant,
     update_document,
 )
+from app.services.cv_parser_process import CvParserProcessRejected, parse_cv_import_isolated
+from app.services.cv_upload import CvUploadRejected, read_validated_cv_upload
 
 router = APIRouter()
+
+_INVALID_IMPORT = (
+    "Use an unencrypted PDF, a valid DOCX without unsafe archive content, or UTF-8 plain text."
+)
+_IMPORT_LIMIT = "The uploaded file is larger than the 10 MB limit."
+_IMPORT_ARCHIVE_LIMIT = "The DOCX expands beyond safe processing limits. Try a simpler document."
+_IMPORT_TIMEOUT = "Import took too long. Try a smaller or simpler document."
 
 
 def _not_found(error: Exception):
@@ -40,6 +52,42 @@ def _invalid_evidence(error: Exception):
         status_code=422,
         detail="Every CV entry must reference a confirmed Evidence Profile item owned by you",
     ) from error
+
+
+@router.post("/import/proposals", response_model=CvImportProposal)
+@limiter.limit("20/minute")
+async def propose_import(
+    request: Request,
+    file: UploadFile,
+    current_user: User = Depends(get_current_user),
+):
+    try:
+        upload = await read_validated_cv_upload(file, allow_plain_text=True)
+        return await parse_cv_import_isolated(upload.content, upload.filename, upload.extension)
+    except CvUploadRejected as error:
+        detail = {
+            "size": _IMPORT_LIMIT,
+            "archive_limit": _IMPORT_ARCHIVE_LIMIT,
+        }.get(error.category, _INVALID_IMPORT)
+        raise HTTPException(status_code=error.status_code, detail=detail) from error
+    except CvParserProcessRejected as error:
+        detail = _IMPORT_TIMEOUT if "timed out" in str(error) else _INVALID_IMPORT
+        raise HTTPException(status_code=400, detail=detail) from error
+    finally:
+        await file.close()
+
+
+@router.post(
+    "/import/accept",
+    response_model=CvDocumentResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def accept_reviewed_import(
+    body: CvImportAccept,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    return accept_import(db, current_user.id, body)
 
 
 @router.get("/export", response_model=CvDocumentsExport)

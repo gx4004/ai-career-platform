@@ -60,14 +60,7 @@ def get_evidence_item(db: Session, item_id: str, user_id: str) -> EvidenceItem:
 
 
 def create_evidence_item(db: Session, user_id: str, body: EvidenceItemCreate) -> EvidenceItem:
-    item = EvidenceItem(
-        user_id=user_id,
-        kind=body.kind,
-        content=body.content,
-        provenance=body.provenance,
-        confirmation_state="unconfirmed",
-    )
-    db.add(item)
+    item = stage_evidence_proposal(db, user_id, body)
     db.commit()
     db.refresh(item)
     # A new proposal is always unconfirmed (D-062); record the adoption event.
@@ -78,6 +71,32 @@ def create_evidence_item(db: Session, user_id: str, body: EvidenceItemCreate) ->
         confirmation_transition="unconfirmed",
     )
     return item
+
+
+def stage_evidence_proposal(
+    db: Session, user_id: str, body: EvidenceItemCreate
+) -> EvidenceItem:
+    """Stage one unconfirmed proposal in the caller's transaction (D-062)."""
+    item = EvidenceItem(
+        user_id=user_id,
+        kind=body.kind,
+        content=body.content,
+        provenance=body.provenance,
+        confirmation_state="unconfirmed",
+    )
+    db.add(item)
+    db.flush()
+    return item
+
+
+def record_evidence_proposal_created(db: Session, item: EvidenceItem) -> None:
+    """Record the allowlisted adoption event after the caller commits its transaction."""
+    _record_profile_event(
+        db,
+        event_name="profile_item_created",
+        item=item,
+        confirmation_transition="unconfirmed",
+    )
 
 
 def update_evidence_item(
