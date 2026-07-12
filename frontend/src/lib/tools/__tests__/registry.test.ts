@@ -3,6 +3,7 @@ import {
   tools,
   toolList,
   toolGroups,
+  registryEntries,
   getToolByHistoryName,
   type ToolId,
 } from '#/lib/tools/registry'
@@ -22,6 +23,15 @@ describe('Tool registry', () => {
     for (const id of expectedIds) {
       expect(tools[id]).toBeDefined()
     }
+  })
+
+  it('registers CV Studio as a seventh editor surface without renumbering workflows', () => {
+    expect(registryEntries).toHaveLength(7)
+    expect(registryEntries.at(-1)).toMatchObject({ id: 'cv-studio', route: '/cv-studio', mode: 'editor' })
+    expect(toolList.map((tool) => [tool.id, tool.priority])).toEqual([
+      ['resume', 1], ['job-match', 2], ['career', 3], ['cover-letter', 4],
+      ['interview', 5], ['portfolio', 6],
+    ])
   })
 
   it('toolList is sorted by priority', () => {
