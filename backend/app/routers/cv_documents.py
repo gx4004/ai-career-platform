@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from app.auth.security import get_current_user
 from app.database import get_db
 from app.limiter import limiter
-from app.models.tool_run import ToolRun
+from app.models.cv_document import CvDocument
 from app.models.user import User
 from app.schemas.cv_documents import (
     CvDocumentCreate,
@@ -157,20 +157,21 @@ async def quality(
     )
     service = analyze_cv_quality_heuristic
     if body.use_model:
-        used = (
-            db.query(ToolRun)
-            .filter(
-                ToolRun.user_id == current_user.id,
-                ToolRun.tool_name == "cv-quality",
-                ToolRun.label == f"CV quality model · {document.id}",
-            )
-            .count()
+        quota_document = (
+            db.query(CvDocument)
+            .filter(CvDocument.id == document.id, CvDocument.user_id == current_user.id)
+            .with_for_update()
+            .one()
         )
-        if used >= CV_QUALITY_MODEL_RUN_LIMIT:
+        if quota_document.quality_model_runs >= CV_QUALITY_MODEL_RUN_LIMIT:
             raise HTTPException(
                 status_code=429,
                 detail="This document has reached its model scoring limit. Deterministic checks remain available.",
             )
+        # Consume before the provider pipeline so concurrent and failed attempts
+        # remain bounded. PostgreSQL serializes this owner/document row lock.
+        quota_document.quality_model_runs += 1
+        db.commit()
         service = analyze_cv_quality
     result = await run_tool_pipeline(
         tool_name="cv-quality",

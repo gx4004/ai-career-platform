@@ -3,7 +3,6 @@ import pytest
 from app.auth.security import hash_password
 from app.models.cv_document import CvDocument, CvVariant
 from app.models.evidence_item import EvidenceItem
-from app.models.tool_run import ToolRun
 from app.models.user import User
 from app.routers.cv_documents import CV_QUALITY_MODEL_RUN_LIMIT
 
@@ -264,15 +263,8 @@ def test_model_quality_uses_shared_pipeline_and_enforces_document_quota(
         json={"name": "Bounded", "sections": [_section(confirmed_evidence.id)]},
         headers=auth_headers,
     ).json()
-    for index in range(CV_QUALITY_MODEL_RUN_LIMIT):
-        db.add(
-            ToolRun(
-                user_id=test_user.id,
-                tool_name="cv-quality",
-                label=f"CV quality model · {document['id']}",
-                result_payload={"index": index},
-            )
-        )
+    stored = db.query(CvDocument).filter(CvDocument.id == document["id"]).one()
+    stored.quality_model_runs = CV_QUALITY_MODEL_RUN_LIMIT
     db.commit()
     response = client.post(
         f"{PREFIX}/{document['id']}/quality", json={"use_model": True}, headers=auth_headers
@@ -321,3 +313,27 @@ def test_model_quality_delegates_to_shared_pipeline(
     assert captured["tool_name"] == "cv-quality"
     assert captured["current_user"].id
     assert captured["service_fn"].__name__ == "analyze_cv_quality"
+
+
+def test_failed_pipeline_still_consumes_document_model_allowance(
+    client, auth_headers, db, confirmed_evidence, monkeypatch
+):
+    document = client.post(
+        PREFIX,
+        json={"name": "Failed attempt", "sections": [_section(confirmed_evidence.id)]},
+        headers=auth_headers,
+    ).json()
+
+    async def fail(**_):
+        raise RuntimeError("synthetic pipeline failure")
+
+    monkeypatch.setattr("app.routers.cv_documents.run_tool_pipeline", fail)
+    with pytest.raises(RuntimeError, match="synthetic pipeline failure"):
+        client.post(
+            f"{PREFIX}/{document['id']}/quality",
+            json={"use_model": True},
+            headers=auth_headers,
+        )
+    db.expire_all()
+    stored = db.query(CvDocument).filter(CvDocument.id == document["id"]).one()
+    assert stored.quality_model_runs == 1

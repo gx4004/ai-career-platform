@@ -24,7 +24,7 @@ export function CvStudio() {
   const [actionError, setActionError] = useState('')
   const [snapshotName, setSnapshotName] = useState('')
   const saveGeneration = useRef(0)
-  const saveQueue = useRef<Promise<unknown>>(Promise.resolve())
+  const saveQueue = useRef<Promise<CvDocument | undefined>>(Promise.resolve(undefined))
 
   const listQuery = useQuery({ queryKey: LIST_KEY, queryFn: listCvDocuments, enabled: authenticated })
   useEffect(() => {
@@ -50,8 +50,9 @@ export function CvStudio() {
         saveQueue.current = saveQueue.current
           .catch(() => undefined)
           .then(() => updateCvDocument(draft.id, { name: draft.name, sections: draft.sections }))
-        await saveQueue.current
+        const saved = await saveQueue.current
         if (generation !== saveGeneration.current) return
+        if (saved) setDraft(saved)
         setDirty(false)
         setSaveState('saved')
         setActionError('')
