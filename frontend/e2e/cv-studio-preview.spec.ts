@@ -26,8 +26,15 @@ test('CV artifact preview fits 320/375px and has a clean print surface', async (
     await expect(page.getByTitle(`${template} PDF preview`)).toBeVisible()
     for (const width of [320, 375]) {
       await page.setViewportSize({ width, height: 812 })
-      const metrics = await page.evaluate(() => ({ viewport: innerWidth, document: document.documentElement.scrollWidth }))
-      expect(metrics.document).toBeLessThanOrEqual(metrics.viewport)
+      const metrics = await page.evaluate(() => ({
+        viewport: innerWidth,
+        document: document.documentElement.scrollWidth,
+        offenders: [...document.querySelectorAll<HTMLElement>('body *')]
+          .filter((element) => element.getBoundingClientRect().right > innerWidth + 1)
+          .map((element) => `${element.tagName}.${element.className}`)
+          .slice(0, 8),
+      }))
+      expect(metrics.document, metrics.offenders.join(', ')).toBeLessThanOrEqual(metrics.viewport)
       await expect(page.getByRole('link', { name: /DOCX/ })).toBeVisible()
       await expect(page.getByRole('link', { name: /^PDF/ })).toBeVisible()
     }
