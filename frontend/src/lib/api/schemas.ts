@@ -126,9 +126,14 @@ export const careerDataExportSchema = z.strictObject({
       listing: campaignListingSchema.nullable().default(null),
       listing_revisions: z.array(campaignListingSchema).default([]),
       events: z.array(z.object({
-        id: z.string(), event_type: z.enum(['status_changed', 'deadline_changed', 'listing_attached']),
+        id: z.string(), event_type: z.enum(['status_changed', 'deadline_changed', 'listing_attached', 'material_selection_changed']),
         details: z.record(z.string(), z.unknown()), created_at: z.iso.datetime(),
       })),
+      selected_cv_variant_id: z.string().nullable().default(null),
+      selected_cover_letter_run_id: z.string().nullable().default(null),
+      selected_interview_run_id: z.string().nullable().default(null),
+      selected_cover_letter: z.object({ id: z.string(), tool_name: z.literal('cover-letter'), label: z.string().nullable(), parent_run_id: z.string().nullable(), result_payload: z.record(z.string(), z.unknown()), created_at: z.iso.datetime() }).nullable().default(null),
+      selected_interview: z.object({ id: z.string(), tool_name: z.literal('interview'), label: z.string().nullable(), parent_run_id: z.string().nullable(), result_payload: z.record(z.string(), z.unknown()), created_at: z.iso.datetime() }).nullable().default(null),
     })),
   }).refine((value) => value.campaign_count === value.campaigns.length),
 }).refine((value) => value.item_count === value.items.length)
@@ -367,6 +372,32 @@ export const workspaceListSchema = z.object({
   items: z.array(workspaceSummarySchema),
   total: z.number(),
 })
+
+export const campaignCvVariantReferenceSchema = z.object({
+  id: z.string(), document_id: z.string(), document_name: z.string(), name: z.string(),
+  target_role: z.string().nullable().default(null), created_at: z.iso.datetime(),
+})
+export const campaignRunReferenceSchema = z.object({
+  id: z.string(), label: z.string().nullable().default(null),
+  parent_run_id: z.string().nullable().default(null), created_at: z.iso.datetime(),
+})
+export const campaignDetailSchema = workspaceSummarySchema.extend({
+  selected_materials: z.object({
+    cv_variant: campaignCvVariantReferenceSchema.nullable(),
+    cover_letter: campaignRunReferenceSchema.nullable(),
+    interview: campaignRunReferenceSchema.nullable(),
+  }),
+  available_materials: z.object({
+    cv_variants: z.array(campaignCvVariantReferenceSchema),
+    cover_letters: z.array(campaignRunReferenceSchema),
+    interviews: z.array(campaignRunReferenceSchema),
+  }),
+})
+export const campaignMaterialSelectionSchema = z.strictObject({
+  cv_variant_id: z.string().nullable().optional(),
+  cover_letter_run_id: z.string().nullable().optional(),
+  interview_run_id: z.string().nullable().optional(),
+}).refine((value) => Object.keys(value).length > 0)
 
 export const deletedResponseSchema = z.object({
   deleted: z.number(),
@@ -647,6 +678,8 @@ export type ToolRunList = z.infer<typeof toolRunListSchema>
 export type WorkspaceSummary = z.infer<typeof workspaceSummarySchema>
 export type WorkspaceList = z.infer<typeof workspaceListSchema>
 export type WorkspaceUpdate = z.input<typeof workspaceUpdateSchema>
+export type CampaignDetail = z.infer<typeof campaignDetailSchema>
+export type CampaignMaterialSelection = z.input<typeof campaignMaterialSelectionSchema>
 export type ResumeResult = z.infer<typeof resumeResultSchema>
 export type JobMatchResult = z.infer<typeof jobMatchResultSchema>
 export type CoverLetterResult = z.infer<typeof coverLetterResultSchema>

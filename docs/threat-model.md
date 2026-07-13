@@ -327,7 +327,7 @@ via `get_optional_current_user()`. Rate-limited at 10/min per endpoint.
 | `POST` | `/career/recommend` | 10/min |
 | `POST` | `/portfolio/recommend` | 10/min |
 
-### 6.3 Authentication or Session Credential Required (26 endpoints)
+### 6.3 Authentication or Session Credential Required (28 endpoints)
 
 | Method | Path | Rate Limit |
 |--------|------|------------|
@@ -336,7 +336,9 @@ via `get_optional_current_user()`. Rate-limited at 10/min per endpoint.
 | `POST` | `/auth/me/delete` | 5/min |
 | `GET` | `/history` | None |
 | `GET` | `/history/workspaces` | None |
+| `GET` | `/history/workspaces/{id}` | None |
 | `PATCH` | `/history/workspaces/{id}` | None |
+| `PATCH` | `/history/workspaces/{id}/materials` | None |
 | `GET` | `/history/{id}` | None |
 | `GET` | `/history/{run_id}/export/pdf` | 10/min |
 | `DELETE` | `/history/{id}` | None |
@@ -512,7 +514,7 @@ behavior are equivalent.
 | Tool-generation POSTs | JSON; optional auth/guest behavior | Cross-origin browser fetch preflights; a denied origin cannot send this JSON shape, while non-browser clients are unaffected by CORS | `frontend/src/lib/api/client.ts:normalizeBody,request`; `backend/app/routers/resume.py:analyze`; `backend/app/routers/job_match.py:match`; `backend/app/routers/cover_letter.py:generate`; `backend/app/routers/interview.py:questions,practice_feedback`; `backend/app/routers/career.py:recommend`; `backend/app/routers/portfolio.py:recommend` |
 | Job import and telemetry POSTs | JSON; no auth dependency and cookies are ignored | Cross-origin browser fetch preflights; a denied origin cannot send this JSON shape, while non-browser clients remain able to call the rate-limited endpoint | `frontend/src/lib/api/client.ts:normalizeBody,request`; `frontend/src/lib/telemetry/client.ts:trackTelemetry`; `backend/app/routers/job_posts.py:import_job_url`; `backend/app/routers/telemetry.py:ingest_event` |
 | `/files/parse-cv` | Browser-generated multipart `FormData`; no auth dependency and cookies are ignored | Safelisted multipart requests may be sent without preflight; CORS prevents reading a disallowed response but does not stop parser work | `frontend/src/lib/api/client.ts:47-52`; `backend/app/routers/files.py:parse_cv_endpoint` |
-| History workspace/run PATCH endpoints | Authenticated JSON `PATCH` | Method/content type preflight cross-origin; owner authorization remains mandatory | `backend/app/routers/history.py:update_workspace,toggle_favorite,update_run` |
+| History workspace/run PATCH endpoints | Authenticated JSON `PATCH` | Method/content type preflight cross-origin; owner authorization remains mandatory | `backend/app/routers/history.py:update_workspace,update_campaign_materials,toggle_favorite,update_run` |
 | History run `DELETE` | Authenticated bodyless `DELETE` | Method preflights cross-origin; owner authorization remains mandatory | `backend/app/routers/history.py:delete_history_item` |
 | Admin role mutation | Admin-authenticated JSON `PATCH` | Method/content type preflight cross-origin; admin authorization remains mandatory | `frontend/src/lib/api/admin.ts:adminFetch`; `backend/app/routers/admin.py:set_admin` |
 

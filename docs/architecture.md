@@ -316,6 +316,12 @@ errors remain forbidden.
   auto-attaches tool input.
 - Campaign history is append-only events; material links reference immutable
   versions; the submitted snapshot is an immutable bundle (D-079, D-010).
+- The campaign detail API resolves owner-scoped selectable material metadata without
+  copying document content: `selected_cv_variant_id` targets an immutable `CvVariant`,
+  while cover-letter and interview IDs target exact immutable `ToolRun` revisions and
+  are validated against their expected tool names. Selection events contain only the
+  bounded material kind and selected/cleared action; nullable foreign keys use
+  `ON DELETE SET NULL` so existing immediate material deletion remains compatible.
 - Tracking is bounded to the job-search domain — fixed status lifecycle, tasks,
   notes, minimal contacts; no generic CRM features (D-080).
 - Reminders are in-product, consented, rate-limited, and revocable; email/push

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from datetime import datetime
 from enum import StrEnum
 from typing import Literal
@@ -80,6 +82,52 @@ class WorkspaceListResponse(BaseModel):
     total: int
 
 
+class CampaignCvVariantReference(BaseModel):
+    id: str
+    document_id: str
+    document_name: str
+    name: str
+    target_role: str | None = None
+    created_at: datetime
+
+
+class CampaignRunReference(BaseModel):
+    id: str
+    label: str | None = None
+    parent_run_id: str | None = None
+    created_at: datetime
+
+
+class CampaignSelectedMaterials(BaseModel):
+    cv_variant: CampaignCvVariantReference | None = None
+    cover_letter: CampaignRunReference | None = None
+    interview: CampaignRunReference | None = None
+
+
+class CampaignAvailableMaterials(BaseModel):
+    cv_variants: list[CampaignCvVariantReference] = Field(default_factory=list)
+    cover_letters: list[CampaignRunReference] = Field(default_factory=list)
+    interviews: list[CampaignRunReference] = Field(default_factory=list)
+
+
+class CampaignDetailResponse(WorkspaceSummary):
+    selected_materials: CampaignSelectedMaterials
+    available_materials: CampaignAvailableMaterials
+
+
+class CampaignMaterialSelectionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    cv_variant_id: str | None = None
+    cover_letter_run_id: str | None = None
+    interview_run_id: str | None = None
+
+    @model_validator(mode="after")
+    def require_change(self):
+        if not self.model_fields_set:
+            raise ValueError("At least one material selection is required")
+        return self
+
+
 class DeletedResponse(BaseModel):
     deleted: int
 
@@ -116,6 +164,22 @@ class WorkspaceUpdateRequest(BaseModel):
         return self
 
 
+class CampaignRunExport(BaseModel):
+    id: str
+    label: str | None = None
+    parent_run_id: str | None = None
+    result_payload: dict
+    created_at: datetime
+
+
+class CampaignCoverLetterExport(CampaignRunExport):
+    tool_name: Literal["cover-letter"]
+
+
+class CampaignInterviewExport(CampaignRunExport):
+    tool_name: Literal["interview"]
+
+
 class CampaignExportItem(BaseModel):
     id: str
     label: str | None = None
@@ -126,14 +190,21 @@ class CampaignExportItem(BaseModel):
     deadline: datetime | None = None
     created_at: datetime
     updated_at: datetime
-    events: list["CampaignEventExport"] = Field(default_factory=list)
+    events: list[CampaignEventExport] = Field(default_factory=list)
     listing: CampaignListingResponse | None = None
     listing_revisions: list[CampaignListingResponse] = Field(default_factory=list)
+    selected_cv_variant_id: str | None = None
+    selected_cover_letter_run_id: str | None = None
+    selected_interview_run_id: str | None = None
+    selected_cover_letter: CampaignCoverLetterExport | None = None
+    selected_interview: CampaignInterviewExport | None = None
 
 
 class CampaignEventExport(BaseModel):
     id: str
-    event_type: Literal["status_changed", "deadline_changed", "listing_attached"]
+    event_type: Literal[
+        "status_changed", "deadline_changed", "listing_attached", "material_selection_changed"
+    ]
     details: dict
     created_at: datetime
 

@@ -35,6 +35,15 @@ class Workspace(Base):
         ForeignKey("campaign_listings.id", ondelete="SET NULL", use_alter=True),
         nullable=True,
     )
+    selected_cv_variant_id: Mapped[str | None] = mapped_column(
+        String, ForeignKey("cv_variants.id", ondelete="SET NULL"), nullable=True
+    )
+    selected_cover_letter_run_id: Mapped[str | None] = mapped_column(
+        String, ForeignKey("tool_runs.id", ondelete="SET NULL", use_alter=True), nullable=True
+    )
+    selected_interview_run_id: Mapped[str | None] = mapped_column(
+        String, ForeignKey("tool_runs.id", ondelete="SET NULL", use_alter=True), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC)
     )
@@ -48,6 +57,7 @@ class Workspace(Base):
     tool_runs = relationship(
         "ToolRun",
         back_populates="workspace",
+        foreign_keys="ToolRun.workspace_id",
         order_by="ToolRun.created_at.desc()",
     )
     campaign_events = relationship(
@@ -69,3 +79,6 @@ class Workspace(Base):
         foreign_keys=[current_listing_id],
         post_update=True,
     )
+    selected_cv_variant = relationship("CvVariant", foreign_keys=[selected_cv_variant_id])
+    selected_cover_letter_run = relationship("ToolRun", foreign_keys=[selected_cover_letter_run_id])
+    selected_interview_run = relationship("ToolRun", foreign_keys=[selected_interview_run_id])

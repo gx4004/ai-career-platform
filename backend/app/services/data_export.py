@@ -61,6 +61,34 @@ def export_career_data(db: Session, user_id: str) -> CareerDataExport:
                         )
                         for listing in workspace.listings
                     ],
+                    selected_cv_variant_id=workspace.selected_cv_variant_id,
+                    selected_cover_letter_run_id=workspace.selected_cover_letter_run_id,
+                    selected_interview_run_id=workspace.selected_interview_run_id,
+                    selected_cover_letter=(
+                        {
+                            "id": workspace.selected_cover_letter_run.id,
+                            "tool_name": workspace.selected_cover_letter_run.tool_name,
+                            "label": workspace.selected_cover_letter_run.label,
+                            "parent_run_id": workspace.selected_cover_letter_run.parent_run_id,
+                            "result_payload": workspace.selected_cover_letter_run.result_payload
+                            or {},
+                            "created_at": _as_utc(workspace.selected_cover_letter_run.created_at),
+                        }
+                        if workspace.selected_cover_letter_run
+                        else None
+                    ),
+                    selected_interview=(
+                        {
+                            "id": workspace.selected_interview_run.id,
+                            "tool_name": workspace.selected_interview_run.tool_name,
+                            "label": workspace.selected_interview_run.label,
+                            "parent_run_id": workspace.selected_interview_run.parent_run_id,
+                            "result_payload": workspace.selected_interview_run.result_payload or {},
+                            "created_at": _as_utc(workspace.selected_interview_run.created_at),
+                        }
+                        if workspace.selected_interview_run
+                        else None
+                    ),
                     events=[
                         CampaignEventExport(
                             id=event.id,
