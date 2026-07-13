@@ -104,6 +104,25 @@ export type CvDocument = z.infer<typeof cvDocumentSchema>
 export type CvVariant = z.infer<typeof cvVariantSchema>
 export type CvDocumentUpdate = z.infer<typeof cvDocumentUpdateSchema>
 
+export const cvTailoringChangeSchema = z.strictObject({
+  id: z.string().min(1).max(100), section_id: z.string().min(1).max(100), entry_id: z.string().min(1).max(100),
+  before: z.string().min(1).max(5_000), after: z.string().min(1).max(5_000), job_requirement: z.string().min(1).max(1_000),
+  evidence_item_ids: z.array(z.string()).max(20), support: z.enum(['confirmed', 'document', 'unsupported']),
+})
+export const cvTailoringProposalSchema = z.object({
+  schema_version: z.literal('cv-tailoring/v1'), job_title: z.string(), changes: z.array(cvTailoringChangeSchema).max(50),
+  remaining_regenerations: z.number().int().nonnegative(), request_id: z.string().uuid(), proposal_token: z.string().length(64), history_id: z.string().nullable(), access_mode: z.literal('authenticated'),
+  saved: z.boolean(), locked_actions: z.array(z.string()),
+})
+export const cvTailoringApplySchema = z.strictObject({
+  request_id: z.string().uuid(), variant_name: z.string().min(1).max(120), job_title: z.string().min(1).max(200), proposal_token: z.string().length(64),
+  changes: z.array(cvTailoringChangeSchema).max(50), decisions: z.array(z.strictObject({
+    change_id: z.string(), action: z.enum(['accept', 'reject', 'edit']), edited_after: z.string().min(1).max(5_000).optional(),
+  })).max(50),
+})
+export type CvTailoringProposal = z.infer<typeof cvTailoringProposalSchema>
+export type CvTailoringChange = z.infer<typeof cvTailoringChangeSchema>
+
 export const cvAtsCheckKeySchema = z.enum([
   'section_structure', 'text_layer', 'links', 'page_breaks', 're_importability',
 ])

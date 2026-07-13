@@ -128,6 +128,70 @@ class CvQualityResponse(BaseModel):
     locked_actions: list[str] = Field(default_factory=list)
 
 
+class CvTailoringRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    job_title: str = Field(min_length=1, max_length=200)
+    job_description: str = Field(min_length=20, max_length=50_000)
+
+
+class CvTailoringChange(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    id: str = Field(min_length=1, max_length=100)
+    section_id: str = Field(min_length=1, max_length=100)
+    entry_id: str = Field(min_length=1, max_length=100)
+    before: str = Field(min_length=1, max_length=5_000)
+    after: str = Field(min_length=1, max_length=5_000)
+    job_requirement: str = Field(min_length=1, max_length=1_000)
+    evidence_item_ids: list[str] = Field(max_length=20)
+    support: Literal["confirmed", "document", "unsupported"]
+
+
+class CvTailoringProposal(BaseModel):
+    schema_version: Literal["cv-tailoring/v1"] = "cv-tailoring/v1"
+    job_title: str
+    changes: list[CvTailoringChange] = Field(max_length=50)
+    remaining_regenerations: int = Field(ge=0)
+    request_id: UUID
+    proposal_token: str = Field(min_length=64, max_length=64)
+    history_id: str | None = None
+    access_mode: Literal["authenticated"] = "authenticated"
+    saved: bool = True
+    locked_actions: list[str] = Field(default_factory=list)
+
+
+class CvTailoringDecision(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    change_id: str
+    action: Literal["accept", "reject", "edit"]
+    edited_after: str | None = Field(default=None, min_length=1, max_length=5_000)
+
+    @model_validator(mode="after")
+    def edit_requires_text(self):
+        if (self.action == "edit") != (self.edited_after is not None):
+            raise ValueError("edited_after is required only for edit decisions")
+        return self
+
+
+class CvTailoringApply(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    request_id: UUID
+    variant_name: str = Field(min_length=1, max_length=120)
+    job_title: str = Field(min_length=1, max_length=200)
+    proposal_token: str = Field(min_length=64, max_length=64)
+    changes: list[CvTailoringChange] = Field(max_length=50)
+    decisions: list[CvTailoringDecision] = Field(max_length=50)
+
+
+class CvTailoringEditProposal(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    request_id: UUID
+    job_title: str = Field(min_length=1, max_length=200)
+    proposal_token: str = Field(min_length=64, max_length=64)
+    changes: list[CvTailoringChange] = Field(max_length=50)
+    change_id: str
+    edited_after: str = Field(min_length=1, max_length=5_000)
+
+
 class CvImportClaim(BaseModel):
     model_config = ConfigDict(extra="forbid")
     kind: EvidenceKind
