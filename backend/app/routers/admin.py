@@ -31,12 +31,14 @@ from app.schemas.admin import (
     AdminUserListResponse,
     EvalRunItem,
 )
+from app.schemas.discovery_personalization import AdminRecommendationReportList
 from app.schemas.discovery_sources import DiscoverySourceListResponse
 from app.services.analytics import (
     ACTIVATION_DEFAULT_WINDOW_DAYS,
     aggregate_activation_metrics,
     aggregate_profile_adoption,
 )
+from app.services.discovery_personalization import list_admin_reports
 from app.services.scorecard import compute_scorecard
 
 router = APIRouter()
@@ -60,6 +62,22 @@ def list_discovery_sources(
     """Read-only governance registry; source activation is never changed here."""
     items = db.query(DiscoverySource).order_by(DiscoverySource.display_name).all()
     return DiscoverySourceListResponse(items=items)
+
+
+@router.get("/discovery-reports", response_model=AdminRecommendationReportList)
+@limiter.limit(_ADMIN_RATE)
+def list_discovery_reports(
+    request: Request,
+    admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """Recommendation error reports for review (R14, #175).
+
+    Read-only. Each row carries the product listing snapshot, the closed-set
+    reason category, and the reporter's own reason text — never the reporter's
+    identity or any Evidence Profile content (D-090).
+    """
+    return list_admin_reports(db)
 
 
 # ── Users ──

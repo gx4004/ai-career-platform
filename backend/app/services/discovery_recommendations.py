@@ -18,6 +18,10 @@ from app.schemas.discovery_recommendations import (
     RecommendationAttribution,
     RecommendationSignal,
 )
+from app.services.discovery_personalization import (
+    dismissed_listing_ids,
+    hidden_source_ids,
+)
 from app.services.quality_signals import (
     compute_match_score,
     extract_job_keywords,
@@ -54,7 +58,14 @@ def rank_discovery_recommendations(
             preference_item_count=0,
         )
 
-    candidate_ids = _live_candidate_ids(db, now)
+    # Owner correction controls filter the feed on every read so a hide, dismiss,
+    # or preference change takes effect immediately on the next load (D-090, D-088).
+    hidden_sources = hidden_source_ids(db, user_id)
+    dismissed = dismissed_listing_ids(db, user_id)
+
+    candidate_ids = [
+        listing_id for listing_id in _live_candidate_ids(db, now) if listing_id not in dismissed
+    ]
     listings = (
         db.query(DiscoveredListing)
         .options(
@@ -70,8 +81,11 @@ def rank_discovery_recommendations(
         live_attributions = [
             attribution
             for attribution in listing.attributions
-            if _is_live(attribution.retrieved_at, attribution.source.retention_days, now)
+            if attribution.source_id not in hidden_sources
+            and _is_live(attribution.retrieved_at, attribution.source.retention_days, now)
         ]
+        # A hidden source is removed from the listing's attributions; a listing left
+        # with no visible, live source drops out of the feed entirely.
         if not live_attributions:
             continue
         recommendations.append(_rank_listing(listing, live_attributions, evidence, preferences))
@@ -146,6 +160,7 @@ def _rank_listing(listing, attributions, evidence, preferences) -> DiscoveryReco
         )
     attribution_models = [
         RecommendationAttribution(
+            source_id=attribution.source.id,
             source_name=attribution.source.display_name,
             source_family=attribution.source.source_family,
             source_url=attribution.source_url,
