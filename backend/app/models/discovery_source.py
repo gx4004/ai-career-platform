@@ -1,7 +1,7 @@
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import Boolean, CheckConstraint, DateTime, Integer, String, Text
+from sqlalchemy import JSON, Boolean, CheckConstraint, DateTime, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -26,12 +26,20 @@ class DiscoverySource(Base):
             name="ck_discovery_sources_allowed_behavior",
         ),
         CheckConstraint(
+            "robots_policy IS NULL OR robots_policy IN ('required', 'not_applicable')",
+            name="ck_discovery_sources_robots_policy",
+        ),
+        CheckConstraint(
             "rate_limit_per_minute > 0 AND rate_limit_per_minute <= 10000",
             name="ck_discovery_sources_rate_limit",
         ),
         CheckConstraint(
             "retention_days > 0 AND retention_days <= 3650",
             name="ck_discovery_sources_retention_days",
+        ),
+        CheckConstraint(
+            "rate_window_count >= 0",
+            name="ck_discovery_sources_rate_window_count",
         ),
         CheckConstraint(
             "(terms_status = 'pending' AND terms_reviewed_at IS NULL AND "
@@ -54,7 +62,16 @@ class DiscoverySource(Base):
     )
     terms_reviewed_by: Mapped[str | None] = mapped_column(String(160), nullable=True)
     allowed_behavior: Mapped[str] = mapped_column(String(40), nullable=False)
+    endpoint_url: Mapped[str | None] = mapped_column(String(2048), nullable=True)
+    allowed_query_parameters: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
+    robots_policy: Mapped[str | None] = mapped_column(String(20), nullable=True)
     rate_limit_per_minute: Mapped[int] = mapped_column(Integer, nullable=False)
+    rate_window_started_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    rate_window_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
     attribution_rule: Mapped[str] = mapped_column(Text, nullable=False)
     retention_days: Mapped[int] = mapped_column(Integer, nullable=False)
     kill_switch: Mapped[bool] = mapped_column(

@@ -82,6 +82,7 @@ DiscoveryRegistryOutcome = Literal[
     "kill_switch_enabled",
     "kill_switch_disabled",
 ]
+DiscoveryFetchOutcome = Literal["blocked"]
 
 # The two reused generic operational columns. `operational_dimension` holds the
 # primary category/family for an event (provider incident category or import
@@ -89,7 +90,7 @@ DiscoveryRegistryOutcome = Literal[
 # or import outcome). Which axis a value belongs to is unambiguous from
 # `event_name`, so aggregation never has to disambiguate a bare string.
 OperationalDimension = ProviderIncidentCategory | ImportSourceFamily | DiscoverySourceFamily
-OperationalOutcome = CacheOutcome | ImportOutcome | DiscoveryRegistryOutcome
+OperationalOutcome = CacheOutcome | ImportOutcome | DiscoveryRegistryOutcome | DiscoveryFetchOutcome
 
 # ── R11 profile-adoption allowlist (issue #150, parent #143, D-067) ──
 # The Evidence Profile extends the SAME first-party analytics path — no new
@@ -122,7 +123,10 @@ StudioEventName = Literal[
     "studio_tailoring_generated",
 ]
 
-DiscoveryEventName = Literal["discovery_source_registry_changed"]
+DiscoveryEventName = Literal[
+    "discovery_source_registry_changed",
+    "discovery_source_fetch_outcome",
+]
 
 # Activation-event names accepted by the durable write seam. This is the union
 # of every event name already firing today: the frontend-telemetry taxonomy

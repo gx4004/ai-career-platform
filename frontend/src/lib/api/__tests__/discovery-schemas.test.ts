@@ -16,6 +16,9 @@ describe('discovery source contracts', () => {
             terms_reviewed_at: '2026-07-13T00:00:00Z',
             terms_reviewed_by: 'Legal Reviewer',
             allowed_behavior: 'feed',
+            endpoint_url: 'https://fixture.example/jobs',
+            allowed_query_parameters: ['role', 'location'],
+            robots_policy: 'required',
             rate_limit_per_minute: 12,
             attribution_rule: 'Show source name and original link',
             retention_days: 30,
@@ -42,6 +45,9 @@ describe('discovery source contracts', () => {
           terms_reviewed_at: '2026-07-13T00:00:00Z',
           terms_reviewed_by: 'Reviewer',
           allowed_behavior: 'crawler',
+          endpoint_url: 'https://fixture.example/jobs',
+          allowed_query_parameters: ['role'],
+          robots_policy: 'required',
           rate_limit_per_minute: 10,
           attribution_rule: 'None',
           retention_days: 30,
@@ -68,6 +74,9 @@ describe('discovery source contracts', () => {
           terms_reviewed_at: 'yesterday',
           terms_reviewed_by: null,
           allowed_behavior: 'feed',
+          endpoint_url: 'https://fixture.example/jobs',
+          allowed_query_parameters: ['role'],
+          robots_policy: 'required',
           rate_limit_per_minute: 12,
           attribution_rule: 'Show source name and original link',
           retention_days: 30,
@@ -75,6 +84,35 @@ describe('discovery source contracts', () => {
           ingestion_allowed: false,
           created_at: 'not-a-date',
           updated_at: '2026-07-13',
+        },
+      ],
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects unsafe endpoints and duplicate query declarations', () => {
+    const result = discoverySourceListSchema.safeParse({
+      items: [
+        {
+          id: 'source-1',
+          source_key: 'licensed-example',
+          display_name: 'Licensed Example Feed',
+          source_family: 'licensed',
+          owner: 'Discovery Operations',
+          terms_status: 'pending',
+          terms_reviewed_at: null,
+          terms_reviewed_by: null,
+          allowed_behavior: 'feed',
+          endpoint_url: 'https://user:password@fixture.example/jobs?profile=secret',
+          allowed_query_parameters: ['role', 'role'],
+          robots_policy: 'required',
+          rate_limit_per_minute: 12,
+          attribution_rule: 'Show source name and original link',
+          retention_days: 30,
+          kill_switch: true,
+          ingestion_allowed: false,
+          created_at: '2026-07-13T00:00:00Z',
+          updated_at: '2026-07-13T00:00:00Z',
         },
       ],
     })

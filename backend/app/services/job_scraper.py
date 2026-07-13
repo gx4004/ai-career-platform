@@ -1,14 +1,12 @@
-import ipaddress
 import logging
-import socket
 from dataclasses import dataclass
-from urllib.parse import urlparse, urlunparse
 
 import httpx
 from bs4 import BeautifulSoup
 
 from app.schemas.tools import ImportedJobResponse
 from app.services.import_source import set_import_outcome
+from app.services.outbound_target import resolve_public_target
 
 logger = logging.getLogger(__name__)
 
@@ -34,93 +32,13 @@ _BROWSER_CONTENT_TYPES = frozenset(
 
 
 @dataclass(frozen=True)
-class _ResolvedTarget:
-    connect_url: str
-    hostname: str
-    host_header: str
-
-
-@dataclass(frozen=True)
 class _FetchedResource:
     content: bytes
     content_type: str
 
 
-def _is_private_ip(ip_str: str) -> bool:
-    """Return whether an address is unsafe for an outbound public-web request."""
-    try:
-        addr = ipaddress.ip_address(ip_str)
-        return not addr.is_global
-    except ValueError:
-        return True  # If we can't parse it, block it
-
-
-def _resolve_public_target(url: str) -> _ResolvedTarget:
-    parsed = urlparse(url)
-    if parsed.scheme not in ("http", "https"):
-        raise ValueError("Only HTTP(S) URLs are supported")
-    hostname = parsed.hostname or ""
-    if not hostname:
-        raise ValueError("URL must have a hostname")
-    if parsed.username is not None or parsed.password is not None:
-        raise ValueError("Credentials in URLs are not allowed")
-    if "\\" in parsed.netloc or "%" in parsed.netloc:
-        raise ValueError("Encoded or ambiguous URL authorities are not allowed")
-    if hostname.endswith(".") or "%" in hostname:
-        raise ValueError("Non-canonical hostnames are not allowed")
-    if all(character.isdigit() or character == "." for character in hostname):
-        try:
-            ipaddress.ip_address(hostname)
-        except ValueError as exc:
-            raise ValueError("Alternate numeric IP formats are not allowed") from exc
-
-    default_port = 443 if parsed.scheme == "https" else 80
-    try:
-        port = parsed.port or default_port
-    except ValueError as exc:
-        raise ValueError("URL port is invalid") from exc
-    if port != default_port:
-        raise ValueError("Only standard HTTP(S) ports are allowed")
-
-    try:
-        addrinfo = socket.getaddrinfo(
-            hostname, port, socket.AF_UNSPEC, socket.SOCK_STREAM
-        )
-    except socket.gaierror as exc:
-        raise ValueError("URL hostname could not be resolved") from exc
-
-    public_ips: list[ipaddress.IPv4Address | ipaddress.IPv6Address] = []
-    for _family, _, _, _, sockaddr in addrinfo:
-        try:
-            address = ipaddress.ip_address(sockaddr[0])
-        except ValueError as exc:
-            raise ValueError("URL resolved to an invalid address") from exc
-        if _is_private_ip(str(address)):
-            raise ValueError("URLs resolving to private/internal IPs are not allowed")
-        if address not in public_ips:
-            public_ips.append(address)
-
-    if not public_ips:
-        raise ValueError("URL hostname did not resolve to a public address")
-
-    selected_ip = public_ips[0]
-    connect_host = f"[{selected_ip}]" if selected_ip.version == 6 else str(selected_ip)
-    connect_url = urlunparse(
-        (
-            parsed.scheme,
-            connect_host,
-            parsed.path or "/",
-            parsed.params,
-            parsed.query,
-            "",
-        )
-    )
-    host_header = hostname if port == default_port else f"{hostname}:{port}"
-    return _ResolvedTarget(connect_url, hostname, host_header)
-
-
 def _validate_url(url: str) -> None:
-    _resolve_public_target(url)
+    resolve_public_target(url)
 
 
 async def _fetch_with_httpx(url: str) -> str:
@@ -141,7 +59,7 @@ async def _fetch_resource_with_httpx(
     ) as client:
         current = url
         for _ in range(_MAX_REDIRECTS + 1):
-            target = _resolve_public_target(current)
+            target = resolve_public_target(current)
             request = client.build_request(
                 "GET",
                 target.connect_url,
@@ -159,16 +77,13 @@ async def _fetch_resource_with_httpx(
                 if not location:
                     break
                 next_url = str(httpx.URL(current).join(location))
-                _resolve_public_target(next_url)
+                resolve_public_target(next_url)
                 current = next_url
                 continue
             try:
                 response.raise_for_status()
                 content_type = (
-                    response.headers.get("content-type", "")
-                    .partition(";")[0]
-                    .strip()
-                    .lower()
+                    response.headers.get("content-type", "").partition(";")[0].strip().lower()
                 )
                 if content_type not in allowed_content_types:
                     raise httpx.HTTPError("Unsupported response content type")
@@ -214,9 +129,7 @@ async def _fetch_with_playwright(url: str) -> str:
                     await route.abort()
                     return
                 try:
-                    resource = await _fetch_resource_with_httpx(
-                        request.url, _BROWSER_CONTENT_TYPES
-                    )
+                    resource = await _fetch_resource_with_httpx(request.url, _BROWSER_CONTENT_TYPES)
                     fetched_bytes += len(resource.content)
                     if fetched_bytes > _MAX_BROWSER_BYTES:
                         await route.abort()
@@ -230,9 +143,7 @@ async def _fetch_with_playwright(url: str) -> str:
                     await route.abort()
 
             await page.route("**/*", _guard)
-            await page.goto(
-                url, timeout=_PLAYWRIGHT_TIMEOUT_MS, wait_until="domcontentloaded"
-            )
+            await page.goto(url, timeout=_PLAYWRIGHT_TIMEOUT_MS, wait_until="domcontentloaded")
             content = await page.content()
         finally:
             await browser.close()

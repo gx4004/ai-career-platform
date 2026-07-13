@@ -159,6 +159,18 @@ killed or remove the read-only admin route; after any legal-review records exist
 schema downgrade is destructive and requires an explicit backup/restore decision,
 so production incidents should be forward-fixed instead.
 
+R14 #172 adds a dark licensed API/feed fetch adapter but registers or activates no
+real source. Registry fetch policy now declares one HTTPS endpoint, a closed subset
+of seven minimal query keys, and whether robots checks apply. The adapter reuses
+DNS-pinned public-target validation, sends an identifying user agent, rejects
+redirects/content-type/size violations, atomically claims the per-source database
+rate window, rechecks the kill switch immediately before the source request, and
+emits only source-family/outcome telemetry. Synthetic HTTP transports assert every
+boundary without third-party traffic. The additive nullable policy columns leave
+older dark registry rows safe-but-ineligible; rollback is kill-switching/removing
+the adapter, while schema downgrade discards policy/rate state and is forward-fix
+only after use.
+
 ## Session Handoff Snapshot (2026-07-11)
 
 - **Objective:** Ship the startable activation/quality/cleanup frontier — R6

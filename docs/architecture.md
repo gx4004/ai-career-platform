@@ -340,6 +340,13 @@ errors remain forbidden.
   switch. Its single enforcement seam refuses unregistered, terms-unaccepted, or
   killed sources before ingestion; no source entry or adapter is active yet
   (D-084, D-085, ADR 0008).
+- Licensed API/feed fetch policy is registry-declared: one credential-free HTTPS
+  endpoint, a closed subset of minimal role/location/pagination parameters, robots
+  applicability, and an atomic database-backed request window. The dark adapter
+  DNS-pins public targets, rejects redirects, identifies itself, rechecks the kill
+  switch before the source request, and returns bounded bytes for the future
+  listings-store layer; no real source or ingestion schedule is configured (#172,
+  D-086, D-089).
 - Discovery operationalizes D-026: robots.txt honored, honest identifying user
   agent in every tier, no unauthorized scraping, circumvention, or credential or
   session use (D-086).

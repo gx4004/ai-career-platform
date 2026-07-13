@@ -39,6 +39,9 @@ def _source_body() -> DiscoverySourceCreate:
         source_family="licensed",
         owner="Discovery Operations",
         allowed_behavior="feed",
+        endpoint_url="https://fixture.example/jobs",
+        allowed_query_parameters=["role", "location"],
+        robots_policy="required",
         rate_limit_per_minute=12,
         attribution_rule="Show source name and original link",
         retention_days=30,
@@ -98,6 +101,9 @@ def test_ingestion_refuses_unregistered_pending_failed_and_killed_sources(db):
     assert authorization.source_id == source.id
     assert authorization.rate_limit_per_minute == 12
     assert authorization.retention_days == 30
+    assert authorization.endpoint_url == "https://fixture.example/jobs"
+    assert authorization.allowed_query_parameters == ("role", "location")
+    assert authorization.robots_policy == "required"
     with pytest.raises(SourceIngestionRefused) as wrong_behavior:
         require_ingestion_allowed(db, source.source_key, "api")
     assert wrong_behavior.value.reason == IngestionRefusal.BEHAVIOR_NOT_ALLOWED
@@ -170,6 +176,9 @@ def test_admin_registry_view_is_read_only_and_complete(client, db, admin_headers
         "terms_reviewed_at": None,
         "terms_reviewed_by": None,
         "allowed_behavior": "feed",
+        "endpoint_url": "https://fixture.example/jobs",
+        "allowed_query_parameters": ["role", "location"],
+        "robots_policy": "required",
         "rate_limit_per_minute": 12,
         "attribution_rule": "Show source name and original link",
         "retention_days": 30,

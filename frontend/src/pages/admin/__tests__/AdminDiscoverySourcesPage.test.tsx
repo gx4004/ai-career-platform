@@ -32,6 +32,9 @@ describe('AdminDiscoverySourcesPage', () => {
         terms_reviewed_at: '2026-07-13T00:00:00Z',
         terms_reviewed_by: 'Legal Reviewer',
         allowed_behavior: 'feed',
+        endpoint_url: 'https://fixture.example/jobs',
+        allowed_query_parameters: ['role', 'location'],
+        robots_policy: 'required',
         rate_limit_per_minute: 12,
         attribution_rule: 'Show source name and original link',
         retention_days: 30,
@@ -44,6 +47,9 @@ describe('AdminDiscoverySourcesPage', () => {
 
     expect(await screen.findByText('Licensed Example Feed')).toBeTruthy()
     expect(screen.getByText('Discovery Operations')).toBeTruthy()
+    expect(screen.getByText('https://fixture.example/jobs')).toBeTruthy()
+    expect(screen.getByText('Query: role, location')).toBeTruthy()
+    expect(screen.getByText('Robots: required')).toBeTruthy()
     expect(screen.getByText('accepted')).toBeTruthy()
     expect(screen.getByText('Legal Reviewer', { exact: false })).toBeTruthy()
     expect(screen.getByText('12/minute')).toBeTruthy()
