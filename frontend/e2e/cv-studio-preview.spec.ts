@@ -40,7 +40,12 @@ test('CV artifact preview fits 320/375px and has a clean print surface', async (
         document: document.documentElement.scrollWidth,
         offenders: [...document.querySelectorAll<HTMLElement>('body *')]
           .filter((element) => element.getBoundingClientRect().right > innerWidth + 1)
-          .map((element) => `${element.tagName}.${element.className}`)
+          .map((element) => {
+            const rect = element.getBoundingClientRect()
+            const parentRect = element.parentElement?.getBoundingClientRect()
+            const style = getComputedStyle(element)
+            return `${element.tagName}.${element.className} rect=${rect.left.toFixed(1)}/${rect.width.toFixed(1)}/${rect.right.toFixed(1)} parent=${parentRect ? `${parentRect.left.toFixed(1)}/${parentRect.width.toFixed(1)}/${parentRect.right.toFixed(1)}` : 'none'} css=${style.display}/${style.width}/${style.minWidth}/${style.maxWidth}`
+          })
           .slice(0, 8),
       }))
       expect(metrics.document, metrics.offenders.join(', ')).toBeLessThanOrEqual(metrics.viewport)
