@@ -356,8 +356,16 @@ errors remain forbidden.
   canonical rows. These tables have no workspace/user foreign key and remain
   separate from campaign canonical listings (D-087, D-078, #173).
 - Ranking uses confirmed Evidence Profile items and preferences via deterministic
-  primitives first, with an explainable rationale and hide/correct/report controls
-  (D-088).
+  keyword-overlap primitives first. The authenticated recommendation endpoint
+  re-evaluates source retention at read time, emits each canonical listing once,
+  and returns the matched keyword, owner evidence-item references, component
+  scores, source attribution, and retrieval date that explain its rank. The
+  responsive account-only surface exposes the trace without changing the six
+  single-shot tools; hide/correct/report controls remain the next layer (D-088,
+  #174).
+  Each request selects at most 500 canonical candidates by their latest currently
+  live attribution and returns at most 50 ranked results, so expired rows consume
+  no candidate budget and profile-to-corpus comparison work stays bounded.
 - Outbound source queries carry only minimal registry-declared parameters; profile
   content never leaves the product (D-089).
 - Personalization state (hidden sources, dismissals, reports) is owner-isolated

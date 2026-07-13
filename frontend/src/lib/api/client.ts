@@ -12,6 +12,7 @@ import {
   evidenceConfirmationActionSchema,
   evidenceImportRequestSchema,
   evidenceImportProposalsSchema,
+  discoveryRecommendationListSchema,
   healthCheckSchema,
   importedJobSchema,
   importJobTextSchema,
@@ -344,6 +345,13 @@ export function listEvidenceItems() {
   return request('/evidence-profile/items', {
     method: 'GET',
     schema: evidenceItemListSchema,
+  })
+}
+
+export function listDiscoveryRecommendations() {
+  return request('/discovery/recommendations', {
+    method: 'GET',
+    schema: discoveryRecommendationListSchema,
   })
 }
 

@@ -182,6 +182,17 @@ cover the boundary. The migration is additive; rollback can stop the scheduler,
 while schema downgrade destroys the product listing corpus and requires backup or
 a forward fix after ingestion begins.
 
+R14 #174 adds an authenticated recommendation read path and account-only discovery
+surface. It ranks each live canonical listing once with deterministic keyword
+overlap against confirmed Evidence Profile facts and confirmed preference items;
+unconfirmed and rejected items never contribute. Every result carries the two
+component scores, matched keywords, owner evidence-item references, source links,
+and retrieval dates that produced its position. Retention is re-evaluated on every
+read so scheduler lag cannot expose an expired listing. No profile content leaves
+the product, no recommendation state persists yet, and the existing six tools are
+unchanged. Hide, dismiss, preference correction, and error reports remain #175;
+campaign adoption remains #176.
+
 ## Session Handoff Snapshot (2026-07-11)
 
 - **Objective:** Ship the startable activation/quality/cleanup frontier — R6

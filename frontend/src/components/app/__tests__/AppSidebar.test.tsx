@@ -8,6 +8,7 @@ import { SidebarProvider } from '#/components/ui/sidebar'
 
 const mockUseIsMobile = vi.hoisted(() => vi.fn())
 const mockPathname = vi.hoisted(() => ({ current: '/dashboard' }))
+const mockSessionUser = vi.hoisted(() => ({ current: { id: 'u1', email: 'test@example.com', name: 'Test User' } as { id: string; email: string; name: string } | null }))
 
 vi.mock('@tanstack/react-router', () => ({
   Link: ({
@@ -44,7 +45,7 @@ vi.mock('#/hooks/use-mobile', () => ({
 vi.mock('#/hooks/useSession', () => ({
   useSession: () => ({
     status: 'authenticated',
-    user: { id: 'u1', email: 'test@example.com', name: 'Test User' },
+    user: mockSessionUser.current,
     login: vi.fn(),
     logout: vi.fn(),
     register: vi.fn(),
@@ -110,6 +111,17 @@ describe('AppSidebar', () => {
   beforeEach(() => {
     mockPathname.current = '/dashboard'
     mockUseIsMobile.mockReturnValue(false)
+    mockSessionUser.current = { id: 'u1', email: 'test@example.com', name: 'Test User' }
+  })
+
+  it('shows discovery only to authenticated users', () => {
+    const authenticated = renderSidebar()
+    expect(screen.getByRole('link', { name: 'Discover' })).toBeTruthy()
+    authenticated.unmount()
+
+    mockSessionUser.current = null
+    renderSidebar()
+    expect(screen.queryByRole('link', { name: 'Discover' })).toBeNull()
   })
 
   it('starts collapsed on desktop when no cookie exists', () => {

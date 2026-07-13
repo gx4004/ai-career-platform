@@ -39,6 +39,16 @@ export function getRouteMeta(pathname: string): RouteMeta {
     }
   }
 
+  if (pathname === '/discovery') {
+    return {
+      title: 'Job Discovery',
+      description: 'Review live roles ranked against evidence and preferences you confirmed.',
+      sectionLabel: 'Opportunities',
+      breadcrumbs: ['Dashboard', 'Job Discovery'],
+      topbarVariant: 'compact',
+    }
+  }
+
   if (pathname === '/account') {
     return {
       title: 'Account',

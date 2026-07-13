@@ -38,6 +38,38 @@ export const evidenceItemSchema = z.object({
 })
 export const evidenceItemListSchema = z.object({ items: z.array(evidenceItemSchema) })
 
+export const discoveryRecommendationSignalSchema = z.strictObject({
+  kind: z.enum(['confirmed_evidence', 'preference']),
+  label: z.string(),
+  matched_keywords: z.array(z.string()),
+  evidence_item_ids: z.array(z.string()),
+  score: z.number().int().min(0).max(100),
+})
+export const discoveryRecommendationAttributionSchema = z.strictObject({
+  source_name: z.string(),
+  source_family: z.enum([
+    'licensed', 'employer_ats', 'public_career_page', 'user_provided',
+  ]),
+  source_url: z.string().url().max(2_048).refine((value) => value.startsWith('https://')),
+  retrieved_at: z.iso.datetime({ offset: true }),
+})
+export const discoveryRecommendationSchema = z.strictObject({
+  listing_id: z.string(),
+  title: z.string(),
+  company: z.string(),
+  description: z.string(),
+  score: z.number().int().min(0).max(100),
+  rationale: z.array(discoveryRecommendationSignalSchema),
+  attributions: z.array(discoveryRecommendationAttributionSchema).min(1),
+})
+export const discoveryRecommendationListSchema = z.strictObject({
+  items: z.array(discoveryRecommendationSchema),
+  confirmed_item_count: z.number().int().nonnegative(),
+  preference_item_count: z.number().int().nonnegative(),
+})
+export type DiscoveryRecommendation = z.infer<typeof discoveryRecommendationSchema>
+export type DiscoveryRecommendationList = z.infer<typeof discoveryRecommendationListSchema>
+
 // R11 reviewable resume-import proposals (#146). A proposal is ephemeral — it is
 // never persisted server-side and carries no confirmation state. Resume-derived
 // proposals are always `imported`; accepting one goes through the normal
