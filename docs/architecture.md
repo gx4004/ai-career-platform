@@ -264,6 +264,21 @@ errors remain forbidden.
 - Preview, DOCX, and PDF render deterministically from one document plus one of
   three declarative templates, gated by visual, text-layer, link, page-break, and
   own-parser re-import validation (D-074).
+  `cv-render/v1` is the normalized source for all three targets. Its canonical hash
+  covers normalized visible content, ordering, page geometry, and template tokens.
+  ReportLab invariant mode makes PDF byte-stable; DOCX core dates, ZIP member order,
+  timestamps, compression, and permissions are normalized for byte stability with
+  the pinned runtime dependency set. Cross-runtime compatibility is defined as
+  canonical render-hash equality plus equivalent own-parser section-entry content,
+  because different office/PDF engines may serialize equivalent packages differently.
+  Artifact ATS checks remain `not_run` until an actual DOCX/PDF is generated and
+  inspected; only generated-artifact evidence may promote them to pass/fail.
+  Browser preview embeds that same authenticated PDF artifact rather than
+  reimplementing template layout in CSS, so multi-page boundaries and links are
+  identical to the downloaded PDF. Automated PDF snapshots compare text-block
+  coordinates at 0.1-point tolerance and fixed-DPI rendered pixel hashes. DOCX
+  package semantics plus mandatory LibreOffice/Poppler pagination inspection in
+  CI cover the editable artifact.
 - Model-backed studio calls run through the shared pipeline with bounded
   per-document regeneration quotas; CV content joins the sensitive-content
   lifecycle and allowlisted-telemetry boundaries (D-075).

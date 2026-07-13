@@ -35,6 +35,7 @@ import {
   cvQualityResponseSchema,
   cvTailoringApplySchema,
   cvTailoringProposalSchema,
+  cvRenderModelSchema,
 } from '#/lib/api/schemas'
 import type {
   EvidenceConfirmationAction,
@@ -44,6 +45,7 @@ import type {
   ResumeResult,
   CvDocumentUpdate,
   CvAtsCheckKey,
+  CvTemplateId,
 } from '#/lib/api/schemas'
 
 export function listCvDocuments() {
@@ -74,11 +76,39 @@ export function restoreCvVariant(documentId: string, variantId: string) {
 
 export function scoreCvDocument(
   documentId: string,
-  payload: { use_model: boolean; checks?: CvAtsCheckKey[] },
+  payload: { use_model: boolean; checks?: CvAtsCheckKey[]; artifact_template?: CvTemplateId; artifact_format?: 'docx' | 'pdf' },
 ) {
   return request(`/cv-documents/${documentId}/quality`, {
     method: 'POST', body: cvQualityRequestSchema.parse(payload), schema: cvQualityResponseSchema,
   })
+}
+
+export function getCvRenderModel(documentId: string, template: CvTemplateId) {
+  return request(`/cv-documents/${documentId}/render?template=${encodeURIComponent(template)}`, { method: 'GET', schema: cvRenderModelSchema })
+}
+
+export function cvArtifactUrl(documentId: string, template: CvTemplateId, format: 'docx' | 'pdf') {
+  return `${API_URL}/cv-documents/${encodeURIComponent(documentId)}/artifacts/${format}?template=${encodeURIComponent(template)}`
+}
+
+export async function fetchCvArtifactBlob(documentId: string, template: CvTemplateId, format: 'docx' | 'pdf', retry = false): Promise<Blob> {
+  const response = await fetch(cvArtifactUrl(documentId, template, format), {
+    credentials: 'include', signal: AbortSignal.timeout(180_000),
+  })
+  if (response.status === 401 && !retry && Date.now() >= refreshCooldownUntil) {
+    try {
+      if (!refreshPromise) refreshPromise = silentRefresh()
+      await refreshPromise
+      refreshPromise = null
+      return fetchCvArtifactBlob(documentId, template, format, true)
+    } catch {
+      refreshPromise = null
+      refreshCooldownUntil = Date.now() + REFRESH_COOLDOWN_MS
+      dispatchSessionExpired()
+    }
+  }
+  if (!response.ok) throw new ApiError('Artifact export failed', response.status)
+  return response.blob()
 }
 
 export function tailorCvDocument(documentId: string, payload: { job_title: string; job_description: string }) {

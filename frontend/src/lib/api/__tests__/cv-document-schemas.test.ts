@@ -3,6 +3,7 @@ import {
   cvDocumentCreateSchema,
   cvDocumentSchema,
   cvDocumentsExportSchema,
+  cvQualityRequestSchema,
   cvTailoringProposalSchema,
 } from '#/lib/api/schemas'
 
@@ -47,5 +48,10 @@ describe('CV document schema (R12, #153)', () => {
       changes: [{ id: 'change-1', section_id: 'section-1', entry_id: 'entry-1', before: 'Before', after: 'After', job_requirement: 'Reliable platforms', evidence_item_ids: ['evidence-1'], support: 'confirmed' }],
     })
     expect(parsed.changes[0].support).toBe('confirmed')
+  })
+
+  it('requires artifact template and format as a matched validation pair', () => {
+    expect(() => cvQualityRequestSchema.parse({ use_model: false, artifact_template: 'ats-essential' })).toThrow()
+    expect(cvQualityRequestSchema.parse({ use_model: false, artifact_template: 'ats-essential', artifact_format: 'pdf' }).artifact_format).toBe('pdf')
   })
 })
