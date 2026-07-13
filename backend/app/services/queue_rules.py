@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
 
@@ -148,13 +149,50 @@ def _passes_all_rules(rec: DiscoveryRecommendation, rules: list[QueueRule]) -> b
     return all(_passes_rule(rec, rule) for rule in rules)
 
 
-def preview_queue_candidates(
+def matched_keywords_for_rule(rec: DiscoveryRecommendation, rule: QueueRule) -> list[str]:
+    """The keywords of a keyword rule that actually fired for this listing.
+
+    Deterministic and traceable — used to build a packet's match rationale from
+    the same signals the server used to admit the candidate. Returns an empty
+    list for the ``quality_threshold`` dimension (which has no keywords).
+    """
+    if rule.rule_type not in _KEYWORD_RULE_TYPES:
+        return []
+    text = _listing_text(rec)
+    return [keyword for keyword in (rule.keywords or []) if keyword_present(keyword, text)]
+
+
+@dataclass(frozen=True)
+class AdmittedCandidates:
+    """Candidates that survive every rule, the volume cap, and the cost ceiling.
+
+    Single-sources the server-side enforcement so the queue *preview* and packet
+    *preparation* (R15 #181) admit exactly the same listings under the same caps
+    and ceiling. ``rules`` are the owner's rules every admitted listing passed —
+    the deterministic gate behind each packet's match rationale.
+    """
+
+    prepares: bool
+    reason: str
+    evaluated_count: int
+    passed_rules_count: int
+    admitted: list[DiscoveryRecommendation]
+    rules: list[QueueRule]
+    excluded_by_volume_cap: int
+    excluded_by_cost_ceiling: int
+    volume_cap: int
+    cost_ceiling_usd: Decimal
+    packet_cost: Decimal
+    total_cost: Decimal
+
+
+def select_admitted_candidates(
     db: Session, user_id: str, *, now: datetime | None = None
-) -> QueuePreview:
-    """Every rule applied server-side, then the volume cap and cost ceiling.
+) -> AdmittedCandidates:
+    """Apply every rule server-side, then the volume cap and cost ceiling.
 
     A listing failing any rule never becomes a candidate (and so never a packet).
-    With no rules defined the queue prepares nothing (R15 #180).
+    With no rules defined the queue prepares nothing (R15 #180, D-094).
     """
     rules = db.query(QueueRule).filter(QueueRule.user_id == user_id).all()
     settings = get_settings(db, user_id)
@@ -163,19 +201,19 @@ def preview_queue_candidates(
     packet_cost = ESTIMATED_PACKET_COST_USD
 
     if not rules:
-        return QueuePreview(
+        return AdmittedCandidates(
             prepares=False,
             reason="no_rules_defined",
             evaluated_count=0,
             passed_rules_count=0,
-            prepared_count=0,
+            admitted=[],
+            rules=[],
             excluded_by_volume_cap=0,
             excluded_by_cost_ceiling=0,
             volume_cap=volume_cap,
-            cost_ceiling_usd=round(float(ceiling), 4),
-            estimated_packet_cost_usd=round(float(packet_cost), 4),
-            estimated_total_cost_usd=0.0,
-            candidates=[],
+            cost_ceiling_usd=ceiling,
+            packet_cost=packet_cost,
+            total_cost=Decimal(0),
         )
 
     ranked = rank_discovery_recommendations(db, user_id, now=now)
@@ -197,28 +235,53 @@ def preview_queue_candidates(
         else:
             excluded_by_cost += 1
 
+    return AdmittedCandidates(
+        prepares=True,
+        reason="ready",
+        evaluated_count=len(evaluated),
+        passed_rules_count=len(passed),
+        admitted=admitted,
+        rules=rules,
+        excluded_by_volume_cap=excluded_by_volume,
+        excluded_by_cost_ceiling=excluded_by_cost,
+        volume_cap=volume_cap,
+        cost_ceiling_usd=ceiling,
+        packet_cost=packet_cost,
+        total_cost=running,
+    )
+
+
+def preview_queue_candidates(
+    db: Session, user_id: str, *, now: datetime | None = None
+) -> QueuePreview:
+    """Every rule applied server-side, then the volume cap and cost ceiling.
+
+    A listing failing any rule never becomes a candidate (and so never a packet).
+    With no rules defined the queue prepares nothing (R15 #180).
+    """
+    selection = select_admitted_candidates(db, user_id, now=now)
     candidates = [
         QueueCandidate(
             listing_id=rec.listing_id,
             title=rec.title,
             company=rec.company,
             score=rec.score,
-            estimated_cost_usd=round(float(packet_cost), 4),
+            estimated_cost_usd=round(float(selection.packet_cost), 4),
         )
-        for rec in admitted
+        for rec in selection.admitted
     ]
     return QueuePreview(
-        prepares=True,
-        reason="ready",
-        evaluated_count=len(evaluated),
-        passed_rules_count=len(passed),
-        prepared_count=len(admitted),
-        excluded_by_volume_cap=excluded_by_volume,
-        excluded_by_cost_ceiling=excluded_by_cost,
-        volume_cap=volume_cap,
-        cost_ceiling_usd=round(float(ceiling), 4),
-        estimated_packet_cost_usd=round(float(packet_cost), 4),
-        estimated_total_cost_usd=round(float(running), 4),
+        prepares=selection.prepares,
+        reason=selection.reason,  # type: ignore[arg-type]
+        evaluated_count=selection.evaluated_count,
+        passed_rules_count=selection.passed_rules_count,
+        prepared_count=len(selection.admitted),
+        excluded_by_volume_cap=selection.excluded_by_volume_cap,
+        excluded_by_cost_ceiling=selection.excluded_by_cost_ceiling,
+        volume_cap=selection.volume_cap,
+        cost_ceiling_usd=round(float(selection.cost_ceiling_usd), 4),
+        estimated_packet_cost_usd=round(float(selection.packet_cost), 4),
+        estimated_total_cost_usd=round(float(selection.total_cost), 4),
         candidates=candidates,
     )
 

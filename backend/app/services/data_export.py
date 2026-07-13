@@ -10,6 +10,7 @@ from app.schemas.history import (
     CampaignListingResponse,
     CampaignsExport,
 )
+from app.services.application_packets import export_application_packets
 from app.services.campaign_snapshots import snapshot_response
 from app.services.cv_documents import export_documents
 from app.services.discovery_personalization import export_personalization
@@ -32,6 +33,7 @@ def export_career_data(db: Session, user_id: str) -> CareerDataExport:
         cv_documents=export_documents(db, user_id),
         personalization=export_personalization(db, user_id),
         queue_rules=export_queue_rules(db, user_id),
+        application_packets=export_application_packets(db, user_id),
         campaigns=CampaignsExport(
             campaign_count=len(workspaces),
             campaigns=[
