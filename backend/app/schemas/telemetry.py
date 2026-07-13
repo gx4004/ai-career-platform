@@ -31,6 +31,7 @@ ToolId = Literal[
     "cover-letter",
     "interview",
     "portfolio",
+    "application-reviewer",
 ]
 AccessMode = Literal["authenticated", "guest_demo"]
 FailureCategory = Literal[

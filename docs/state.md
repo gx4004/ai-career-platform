@@ -138,6 +138,14 @@ change the stored bytes. A content-free campaign event links the expandable
 timeline view to each snapshot; snapshots export with campaign data and cascade
 on campaign/account deletion. This does not close the provisional R13 parent.
 
+R13 #168 adds a separate `application-reviewer` advisory run through the shared
+tool pipeline. It reuses the single D-043 deterministic fabrication tracer
+against confirmed Evidence Profile facts and selected source materials, then
+adds locatable missed-requirement, contradiction, generic-language, repetition,
+and document-defect findings. Synthetic trigger/near-miss fixtures cover every
+category. Findings persist as immutable `ToolRun` output, are dismissible in the
+current campaign view, and never edit materials or create/confirm evidence.
+
 ## Session Handoff Snapshot (2026-07-11)
 
 - **Objective:** Ship the startable activation/quality/cleanup frontier — R6

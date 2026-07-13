@@ -9,6 +9,7 @@ import { getCampaign, updateCampaignMaterials } from '#/lib/api/client'
 import type { CampaignMaterialSelection } from '#/lib/api/schemas'
 import { CampaignTracking } from './CampaignTracking'
 import { CampaignReminders } from './CampaignReminders'
+import { CampaignReviewer } from './CampaignReviewer'
 
 type SelectionKey = keyof CampaignMaterialSelection
 
@@ -64,6 +65,7 @@ export function CampaignPage({ campaignId }: { campaignId: string }) {
     </div>
     <CampaignTracking campaign={campaign} campaignId={campaignId} refresh={refresh} />
     <CampaignReminders campaignId={campaignId} />
+    <CampaignReviewer campaignId={campaignId} />
   </PageFrame>
 }
 

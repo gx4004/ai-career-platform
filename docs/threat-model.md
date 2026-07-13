@@ -328,7 +328,7 @@ via `get_optional_current_user()`. Rate-limited at 10/min per endpoint.
 | `POST` | `/career/recommend` | 10/min |
 | `POST` | `/portfolio/recommend` | 10/min |
 
-### 6.3 Authentication or Session Credential Required (37 endpoints)
+### 6.3 Authentication or Session Credential Required (38 endpoints)
 
 | Method | Path | Rate Limit |
 |--------|------|------------|
@@ -349,6 +349,7 @@ via `get_optional_current_user()`. Rate-limited at 10/min per endpoint.
 | `DELETE` | `/history/workspaces/{id}/contacts/{contact_id}` | None |
 | `GET` | `/history/workspaces/{id}/reminders` | 10/min |
 | `PATCH` | `/history/workspaces/{id}/reminders` | None (revocation must remain immediate) |
+| `POST` | `/history/workspaces/{id}/review` | 10/min |
 | `GET` | `/history/{id}` | None |
 | `GET` | `/history/{run_id}/export/pdf` | 10/min |
 | `DELETE` | `/history/{id}` | None |
@@ -1174,8 +1175,8 @@ file inspection.
 | §3 | `grep -n "run_tool_pipeline" backend/app/services/tool_pipeline.py` | Primary pipeline function |
 | §4 | `grep -n "result_payload\|hashed_password\|google_id" backend/app/models/` | All model fields confirmed |
 | §5 | `grep -rn "localStorage\|sessionStorage" frontend/src/ --include="*.ts" --include="*.tsx" -l` | 14 files matched |
-| §6 | `rg '@router\.(get|post|patch|put|delete)' backend/app/routers/` | 80 route decorators |
-| §6 | `rg 'limiter\.limit' backend/app/routers/ --glob='*.py'` | 38 rate-limit decorators |
+| §6 | `rg '@router\.(get|post|patch|put|delete)' backend/app/routers/` | 81 route decorators |
+| §6 | `rg 'limiter\.limit' backend/app/routers/ --glob='*.py'` | 39 rate-limit decorators |
 | §6 | `grep -n "include_router" backend/app/main.py` | Lines 128-147 |
 | §6.6 | `grep -n "_get_client_ip\|TRUST_PROXY_HEADERS" backend/app/limiter.py` | Lines 10-17 |
 | §7 | `grep -n "ALGORITHM\|SECRET_KEY" backend/app/config.py` | Lines 17-18 |
@@ -1209,3 +1210,11 @@ owner-scoped campaign detail/export paths, and have no update endpoint. Campaign
 and account deletion remove snapshot rows explicitly and through database
 cascades. Timeline events contain only the opaque snapshot id; snapshot content,
 company names, and digest values never enter telemetry.
+
+Application-reviewer findings are sensitive derived campaign content persisted
+through the existing authenticated `ToolRun` lifecycle. The reviewer reads only
+owner-scoped campaign materials and injected confirmed evidence, returns advice,
+and exposes no mutation path into documents or Evidence Profile state. Durable
+analytics receives only the closed `application-reviewer` tool id and aggregate
+run outcome/latency; claims, traces, locations, listing text, and findings remain
+outside telemetry.

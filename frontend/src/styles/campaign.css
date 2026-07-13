@@ -53,5 +53,14 @@
 .campaign-reminders button svg { width: 1rem; }
 .campaign-reminders ul { grid-column: 1 / -1; display: grid; gap: .5rem; list-style: none; }
 .campaign-reminders li { display: flex; justify-content: space-between; gap: 1rem; padding-top: .6rem; border-top: 1px solid var(--divider); }
-@media (max-width: 767px) { .campaign-page { padding-inline: var(--mobile-pad); } .campaign-hero, .campaign-layout, .campaign-tracking-grid, .campaign-reminders { grid-template-columns: minmax(0, 1fr); } .campaign-hero { gap: 1.25rem; } .campaign-back { margin-bottom: 1.25rem; } .campaign-materials { position: static; } .campaign-section-heading { display: grid; } .campaign-reminders button { width: 100%; justify-content: center; } }
+.campaign-reviewer { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 1.25rem 2rem; align-items: start; margin-bottom: 4rem; padding: 1.5rem; border: 1px solid var(--border-soft); border-radius: var(--radius-xl); background: var(--surface-raised); }
+.campaign-reviewer h2 { margin: .2rem 0 .4rem; color: var(--text-strong); font-size: var(--type-section); }
+.campaign-reviewer > button, .campaign-findings article > button { display: inline-flex; align-items: center; justify-content: center; gap: .5rem; min-height: var(--touch-target); padding: .6rem .9rem; border: 1px solid var(--border-strong); border-radius: var(--radius-md); color: var(--accent-vivid); }
+.campaign-reviewer button svg { width: 1rem; }
+.campaign-findings { grid-column: 1 / -1; display: grid; gap: .8rem; }
+.campaign-findings article { display: grid; gap: .65rem; min-width: 0; padding: 1rem; border: 1px solid var(--divider); border-radius: var(--radius-lg); overflow-wrap: anywhere; }
+.campaign-findings article > div { display: flex; align-items: center; gap: .65rem; }
+.campaign-finding-severity { padding: .2rem .45rem; border-radius: var(--radius-pill); background: var(--surface-focus); font-size: var(--type-xs); text-transform: uppercase; }
+.campaign-findings details ul { padding: .6rem 0 0 1.2rem; }
+@media (max-width: 767px) { .campaign-page { padding-inline: var(--mobile-pad); } .campaign-hero, .campaign-layout, .campaign-tracking-grid, .campaign-reminders, .campaign-reviewer { grid-template-columns: minmax(0, 1fr); } .campaign-hero { gap: 1.25rem; } .campaign-back { margin-bottom: 1.25rem; } .campaign-materials { position: static; } .campaign-section-heading { display: grid; } .campaign-reminders button, .campaign-reviewer > button { width: 100%; justify-content: center; } }
 @media (prefers-reduced-motion: reduce) { .campaign-page *, .campaign-page *::before, .campaign-page *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; } }

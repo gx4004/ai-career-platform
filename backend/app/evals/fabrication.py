@@ -62,11 +62,48 @@ _SENTENCE_SPLIT = re.compile(r"[.!?\n]+")
 # extraction to cut the most obvious false positives (D-043 accepts the rest).
 _CAPITALIZED_STOPWORDS: frozenset[str] = frozenset(
     {
-        "a", "an", "and", "as", "at", "but", "by", "dear", "during", "for",
-        "from", "hi", "hello", "here", "i", "in", "it", "my", "of", "on", "or",
-        "our", "please", "regards", "she", "sincerely", "thank", "thanks",
-        "that", "the", "their", "them", "these", "they", "this", "those", "to",
-        "we", "with", "you", "your",
+        "a",
+        "an",
+        "and",
+        "as",
+        "at",
+        "but",
+        "by",
+        "cv",
+        "dear",
+        "during",
+        "for",
+        "from",
+        "hi",
+        "hello",
+        "here",
+        "i",
+        "in",
+        "it",
+        "my",
+        "of",
+        "on",
+        "or",
+        "our",
+        "please",
+        "regards",
+        "she",
+        "sincerely",
+        "thank",
+        "thanks",
+        "that",
+        "the",
+        "their",
+        "them",
+        "these",
+        "they",
+        "this",
+        "those",
+        "to",
+        "we",
+        "with",
+        "you",
+        "your",
     }
 )
 
@@ -82,6 +119,22 @@ class Claim:
 
     text: str
     kind: str
+
+
+@dataclass(frozen=True)
+class ClaimTraceAttempt:
+    source: str
+    matched: bool
+
+
+@dataclass(frozen=True)
+class ClaimTrace:
+    claim: Claim
+    attempts: tuple[ClaimTraceAttempt, ...]
+
+    @property
+    def traceable(self) -> bool:
+        return any(attempt.matched for attempt in self.attempts)
 
 
 def _has_internal_signal(word: str) -> bool:
@@ -107,11 +160,7 @@ def _extract_proper_nouns(sentence: str, seen: set[str], claims: list[Claim]) ->
         # always just sentence casing, not a proper noun — skip unless it
         # carries an internal case/digit signal.
         sentence_initial = match.start() == lead_offset
-        if (
-            sentence_initial
-            and len(words) == 1
-            and not _has_internal_signal(words[0])
-        ):
+        if sentence_initial and len(words) == 1 and not _has_internal_signal(words[0]):
             continue
         # Trim stopword tokens (articles, pronouns, greeting/letter filler) from
         # both edges of a run, so adjacent capitalized function words don't glue
@@ -183,6 +232,17 @@ def claim_traceable(claim: Claim, resume_text: str) -> bool:
     return keyword_present(claim.text, resume_text)
 
 
+def trace_claim(claim: Claim, sources: Mapping[str, str]) -> ClaimTrace:
+    """Trace one claim against named sources, preserving every exact attempt."""
+    return ClaimTrace(
+        claim=claim,
+        attempts=tuple(
+            ClaimTraceAttempt(source=name, matched=claim_traceable(claim, text))
+            for name, text in sources.items()
+        ),
+    )
+
+
 def _untraceable_claims(claims: list[Claim], resume_text: str) -> tuple[Claim, ...]:
     """Return the subset of ``claims`` that cannot be traced to ``resume_text``."""
     return tuple(claim for claim in claims if not claim_traceable(claim, resume_text))
@@ -190,7 +250,11 @@ def _untraceable_claims(claims: list[Claim], resume_text: str) -> tuple[Claim, .
 
 def find_fabrication_candidates(output_text: str, resume_text: str) -> list[Claim]:
     """Return the claims in ``output_text`` not traceable to ``resume_text``."""
-    return list(_untraceable_claims(extract_claims(output_text), resume_text))
+    return [
+        claim
+        for claim in extract_claims(output_text)
+        if not trace_claim(claim, {"resume": resume_text}).traceable
+    ]
 
 
 @dataclass(frozen=True)
@@ -249,9 +313,7 @@ def check_output(tool: str, fixture: EvalFixture, output_text: str) -> Fabricati
 
 def _tool_count(tool: str, results: list[FabricationResult]) -> ToolFabricationCount:
     tool_results = [result for result in results if result.tool == tool]
-    flagged = tuple(
-        result.fixture_id for result in tool_results if result.candidate_count > 0
-    )
+    flagged = tuple(result.fixture_id for result in tool_results if result.candidate_count > 0)
     return ToolFabricationCount(
         tool=tool,
         evaluated=len(tool_results),
@@ -297,8 +359,7 @@ def run_fabrication_check(
             fixture = fixtures_by_id.get(fixture_id)
             if fixture is None:
                 raise ValueError(
-                    f"output for tool {tool!r} references unknown fixture id "
-                    f"{fixture_id!r}"
+                    f"output for tool {tool!r} references unknown fixture id {fixture_id!r}"
                 )
             results.append(check_output(tool, fixture, output_text))
 

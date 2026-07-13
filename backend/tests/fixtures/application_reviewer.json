@@ -1,0 +1,14 @@
+{
+  "trigger": {
+    "confirmed": [{"evidence_item_id": "fixture-confirmed-1", "kind": "experience", "content": {"statement": "Worked at Acme for 5 years using Python."}}],
+    "cv": "Results-driven engineer at Acme with 5 years of Python delivery. TODO replace this placeholder. This substantive sentence is deliberately repeated across documents for deterministic testing.",
+    "cover": "I am excited to apply. At Nimbus Labs I delivered 40% growth across 7 years. This substantive sentence is deliberately repeated across documents for deterministic testing.",
+    "listing": "Seeking Kubernetes expertise and Python delivery experience."
+  },
+  "near_miss": {
+    "confirmed": [{"evidence_item_id": "fixture-confirmed-1", "kind": "experience", "content": {"statement": "Worked at Acme for 5 years using Python and Kubernetes."}}],
+    "cv": "Engineer at Acme with 5 years of Python and Kubernetes delivery, building reliable services and measurable operational improvements for cross-functional product teams.",
+    "cover": "I bring 5 years of Python and Kubernetes delivery at Acme, where I built reliable services and improved operations. My confirmed experience directly addresses the role requirements while keeping every claim grounded in the selected CV and verified evidence.",
+    "listing": "Seeking Kubernetes expertise and Python delivery experience."
+  }
+}
