@@ -65,7 +65,28 @@ class Workspace(Base):
         back_populates="workspace",
         cascade="all, delete-orphan",
         passive_deletes=True,
-        order_by="CampaignEvent.created_at.asc()",
+        order_by="CampaignEvent.created_at.asc(), CampaignEvent.id.asc()",
+    )
+    campaign_tasks = relationship(
+        "CampaignTask",
+        back_populates="workspace",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        order_by="CampaignTask.created_at.asc()",
+    )
+    campaign_notes = relationship(
+        "CampaignNote",
+        back_populates="workspace",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        order_by="CampaignNote.created_at.asc()",
+    )
+    campaign_contacts = relationship(
+        "CampaignContact",
+        back_populates="workspace",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        order_by="CampaignContact.created_at.asc()",
     )
     listings = relationship(
         "CampaignListing",

@@ -1,3 +1,5 @@
+from typing import Any
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session, selectinload
 
@@ -5,13 +7,21 @@ from app.auth.security import get_current_user
 from app.database import get_db
 from app.limiter import limiter
 from app.models.campaign_event import CampaignEvent
+from app.models.campaign_tracking import CampaignContact, CampaignNote, CampaignTask
 from app.models.tool_run import ToolRun
 from app.models.user import User
 from app.models.workspace import Workspace
 from app.schemas.history import (
+    CampaignContactCreate,
+    CampaignContactResponse,
     CampaignDetailResponse,
     CampaignMaterialSelectionRequest,
+    CampaignNoteCreate,
+    CampaignNoteResponse,
     CampaignStatus,
+    CampaignTaskCreate,
+    CampaignTaskResponse,
+    CampaignTaskUpdate,
     DeletedResponse,
     FavoriteRequest,
     RunUpdateRequest,
@@ -27,9 +37,15 @@ from app.services.campaign_materials import (
     get_campaign_detail,
     update_material_selections,
 )
+from app.services.campaign_tracking import add_contact, add_note, add_task, record_event
 from app.services.tool_runs import build_workspace_summary, derive_saved_run_metadata
 
 router = APIRouter()
+TRACKING_DELETE_CONFIG = {
+    CampaignTask: ("Task", "task_deleted", "task_id"),
+    CampaignNote: ("Note", "note_deleted", "note_id"),
+    CampaignContact: ("Contact", "contact_deleted", "contact_id"),
+}
 
 CAMPAIGN_STATUS_TRANSITIONS: dict[CampaignStatus | None, set[CampaignStatus]] = {
     None: {CampaignStatus.PLANNING},
@@ -147,6 +163,119 @@ def update_campaign_materials(
 ):
     workspace = _get_workspace(db, workspace_id, current_user.id)
     return update_material_selections(db, workspace, current_user.id, body)
+
+
+@router.post(
+    "/workspaces/{workspace_id}/tasks", response_model=CampaignTaskResponse, status_code=201
+)
+def create_campaign_task(
+    workspace_id: str,
+    body: CampaignTaskCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    return add_task(db, _get_workspace(db, workspace_id, current_user.id), body)
+
+
+@router.patch("/workspaces/{workspace_id}/tasks/{item_id}", response_model=CampaignTaskResponse)
+def update_campaign_task(
+    workspace_id: str,
+    item_id: str,
+    body: CampaignTaskUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    _get_workspace(db, workspace_id, current_user.id)
+    item = (
+        db.query(CampaignTask)
+        .filter(CampaignTask.id == item_id, CampaignTask.workspace_id == workspace_id)
+        .first()
+    )
+    if item is None:
+        raise HTTPException(status_code=404, detail="Task not found")
+    if item.completed != body.completed:
+        item.completed = body.completed
+        record_event(
+            db,
+            workspace_id,
+            "task_completed" if body.completed else "task_reopened",
+            {"task_id": item.id},
+        )
+        db.commit()
+        db.refresh(item)
+    return item
+
+
+@router.delete("/workspaces/{workspace_id}/tasks/{item_id}", response_model=DeletedResponse)
+def delete_campaign_task(
+    workspace_id: str,
+    item_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    return _delete_campaign_record(db, current_user.id, workspace_id, item_id, CampaignTask)
+
+
+@router.post(
+    "/workspaces/{workspace_id}/notes", response_model=CampaignNoteResponse, status_code=201
+)
+def create_campaign_note(
+    workspace_id: str,
+    body: CampaignNoteCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    return add_note(db, _get_workspace(db, workspace_id, current_user.id), body)
+
+
+@router.delete("/workspaces/{workspace_id}/notes/{item_id}", response_model=DeletedResponse)
+def delete_campaign_note(
+    workspace_id: str,
+    item_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    return _delete_campaign_record(db, current_user.id, workspace_id, item_id, CampaignNote)
+
+
+@router.post(
+    "/workspaces/{workspace_id}/contacts", response_model=CampaignContactResponse, status_code=201
+)
+def create_campaign_contact(
+    workspace_id: str,
+    body: CampaignContactCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    return add_contact(db, _get_workspace(db, workspace_id, current_user.id), body)
+
+
+@router.delete("/workspaces/{workspace_id}/contacts/{item_id}", response_model=DeletedResponse)
+def delete_campaign_contact(
+    workspace_id: str,
+    item_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    return _delete_campaign_record(db, current_user.id, workspace_id, item_id, CampaignContact)
+
+
+def _delete_campaign_record(
+    db: Session,
+    user_id: str,
+    workspace_id: str,
+    item_id: str,
+    model: Any,
+) -> DeletedResponse:
+    label, event_type, detail_key = TRACKING_DELETE_CONFIG[model]
+    _get_workspace(db, workspace_id, user_id)
+    item = db.query(model).filter_by(id=item_id, workspace_id=workspace_id).first()
+    if item is None:
+        raise HTTPException(status_code=404, detail=f"{label} not found")
+    record_event(db, workspace_id, event_type, {detail_key: item.id})
+    db.delete(item)
+    db.commit()
+    return DeletedResponse(deleted=1)
 
 
 @router.patch("/workspaces/{workspace_id}", response_model=WorkspaceSummary)

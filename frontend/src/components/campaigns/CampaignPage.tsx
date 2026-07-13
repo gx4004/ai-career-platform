@@ -7,6 +7,7 @@ import { Skeleton } from '#/components/ui/skeleton'
 import { useSession } from '#/hooks/useSession'
 import { getCampaign, updateCampaignMaterials } from '#/lib/api/client'
 import type { CampaignMaterialSelection } from '#/lib/api/schemas'
+import { CampaignTracking } from './CampaignTracking'
 
 type SelectionKey = keyof CampaignMaterialSelection
 
@@ -24,6 +25,7 @@ export function CampaignPage({ campaignId }: { campaignId: string }) {
       void queryClient.invalidateQueries({ queryKey: ['history-workspaces'] })
     },
   })
+  const refresh = () => queryClient.invalidateQueries({ queryKey: ['campaign', campaignId] })
 
   if (status === 'loading') return <CampaignSkeleton />
   if (!authenticated) return <PageFrame><AppStatePanel badge="Account only" title="Sign in to open this campaign" description="Campaign listings and selected materials stay private to their owner." icon={<LockKeyhole aria-hidden="true" />} actions={[{ label: 'Sign in', onClick: () => openAuthDialog({ to: `/campaigns/${campaignId}`, reason: 'campaign' }) }]} /></PageFrame>
@@ -59,6 +61,7 @@ export function CampaignPage({ campaignId }: { campaignId: string }) {
         {mutation.isError ? <p className="campaign-error" role="alert">The selection could not be saved. Try again.</p> : null}
       </aside>
     </div>
+    <CampaignTracking campaign={campaign} campaignId={campaignId} refresh={refresh} />
   </PageFrame>
 }
 

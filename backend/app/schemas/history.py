@@ -110,9 +110,76 @@ class CampaignAvailableMaterials(BaseModel):
     interviews: list[CampaignRunReference] = Field(default_factory=list)
 
 
+class CampaignEventResponse(BaseModel):
+    id: str
+    event_type: str
+    details: dict
+    provenance: Literal["user", "system"] = "user"
+    created_at: datetime
+
+
+class CampaignTaskResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+    title: str
+    deadline: datetime | None = None
+    completed: bool
+    created_at: datetime
+
+
+class CampaignNoteResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+    text: str
+    created_at: datetime
+
+
+class CampaignContactResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+    name: str
+    role: str | None = None
+    channel: str | None = None
+    created_at: datetime
+
+
 class CampaignDetailResponse(WorkspaceSummary):
     selected_materials: CampaignSelectedMaterials
     available_materials: CampaignAvailableMaterials
+    events: list[CampaignEventResponse] = Field(default_factory=list)
+    tasks: list[CampaignTaskResponse] = Field(default_factory=list)
+    notes: list[CampaignNoteResponse] = Field(default_factory=list)
+    contacts: list[CampaignContactResponse] = Field(default_factory=list)
+
+
+class CampaignTaskCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    title: str = Field(min_length=1, max_length=240)
+    deadline: datetime | None = None
+
+    @field_validator("deadline")
+    @classmethod
+    def task_deadline_requires_timezone(cls, value):
+        if value is not None and value.tzinfo is None:
+            raise ValueError("deadline must include a timezone offset")
+        return value
+
+
+class CampaignTaskUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    completed: bool
+
+
+class CampaignNoteCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    text: str = Field(min_length=1, max_length=5000)
+
+
+class CampaignContactCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    name: str = Field(min_length=1, max_length=200)
+    role: str | None = Field(default=None, max_length=200)
+    channel: str | None = Field(default=None, max_length=200)
 
 
 class CampaignMaterialSelectionRequest(BaseModel):
@@ -198,12 +265,26 @@ class CampaignExportItem(BaseModel):
     selected_interview_run_id: str | None = None
     selected_cover_letter: CampaignCoverLetterExport | None = None
     selected_interview: CampaignInterviewExport | None = None
+    tasks: list[CampaignTaskResponse] = Field(default_factory=list)
+    notes: list[CampaignNoteResponse] = Field(default_factory=list)
+    contacts: list[CampaignContactResponse] = Field(default_factory=list)
 
 
 class CampaignEventExport(BaseModel):
     id: str
     event_type: Literal[
-        "status_changed", "deadline_changed", "listing_attached", "material_selection_changed"
+        "status_changed",
+        "deadline_changed",
+        "listing_attached",
+        "material_selection_changed",
+        "task_created",
+        "task_completed",
+        "task_reopened",
+        "task_deleted",
+        "note_added",
+        "note_deleted",
+        "contact_added",
+        "contact_deleted",
     ]
     details: dict
     created_at: datetime

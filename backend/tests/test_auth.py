@@ -6,7 +6,12 @@ PREFIX = "/api/v1/auth"
 def test_register(client):
     resp = client.post(
         f"{PREFIX}/register",
-        json={"email": "new@example.com", "password": "secret123", "full_name": "New", "tos_accepted": True},
+        json={
+            "email": "new@example.com",
+            "password": "secret123",
+            "full_name": "New",
+            "tos_accepted": True,
+        },
     )
     assert resp.status_code == 201
     data = resp.json()
@@ -102,10 +107,22 @@ def test_delete_account_requires_email_confirmation_in_body(client, auth_headers
     required by the API contract, so a direct call with no body or a wrong
     confirmation cannot wipe the account."""
     from app.models.tool_run import ToolRun
+    from app.models.campaign_tracking import CampaignContact, CampaignNote, CampaignTask
+    from app.models.workspace import Workspace
 
     # Seed a row so we can confirm "no deletion happens" on rejection.
-    db.add(ToolRun(user_id=test_user.id, tool_name="resume", label="probe"))
+    workspace = Workspace(user_id=test_user.id, label="Private campaign")
+    db.add_all([ToolRun(user_id=test_user.id, tool_name="resume", label="probe"), workspace])
+    db.flush()
+    db.add_all(
+        [
+            CampaignTask(workspace_id=workspace.id, title="Private task"),
+            CampaignNote(workspace_id=workspace.id, text="Private note"),
+            CampaignContact(workspace_id=workspace.id, name="Private contact"),
+        ]
+    )
     db.commit()
+    workspace_id = workspace.id
     pre_count = db.query(ToolRun).filter(ToolRun.user_id == test_user.id).count()
     assert pre_count == 1
 
@@ -127,6 +144,9 @@ def test_delete_account_requires_email_confirmation_in_body(client, auth_headers
     )
     assert resp.status_code == 204
     assert db.query(ToolRun).filter(ToolRun.user_id == test_user.id).count() == 0
+    assert db.query(CampaignTask).filter_by(workspace_id=workspace_id).count() == 0
+    assert db.query(CampaignNote).filter_by(workspace_id=workspace_id).count() == 0
+    assert db.query(CampaignContact).filter_by(workspace_id=workspace_id).count() == 0
 
 
 def test_delete_account_requires_authentication(client):
@@ -182,6 +202,7 @@ async def test_password_reset_email_payload_includes_plain_text_body(monkeypatch
     monkeypatch.setattr(settings, "PASSWORD_RESET_REPLY_TO", "support@example.com")
 
     import sys
+
     monkeypatch.setitem(sys.modules, "resend", FakeResend)
 
     result = await email_service.send_password_reset_email(
@@ -215,6 +236,7 @@ async def test_password_reset_email_omits_reply_to_when_unset(monkeypatch):
     monkeypatch.setattr(settings, "PASSWORD_RESET_REPLY_TO", "")
 
     import sys
+
     monkeypatch.setitem(sys.modules, "resend", FakeResend)
 
     await email_service.send_password_reset_email(

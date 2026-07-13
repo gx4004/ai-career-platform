@@ -115,6 +115,15 @@ references are additive, export with campaign data, and clear on referenced-mate
 deletion. Existing history behavior remains intact and now provides an explicit link
 to the focused campaign view.
 
+R13 #165 extends that owner-only surface with bounded job-search tracking:
+tasks with optional deadlines, private notes, and contacts limited to name,
+role, and channel. Every create, completion/reopen, and delete action appends a
+content-free campaign event; the ordered timeline labels user versus system
+provenance without copying note, contact, task, or company text into events or
+telemetry. Records are owner-isolated, included in `career-data-export/v1`, and
+deleted with their record, campaign, or account. This does not introduce a
+generic CRM or close the provisional R13 parent.
+
 ## Session Handoff Snapshot (2026-07-11)
 
 - **Objective:** Ship the startable activation/quality/cleanup frontier — R6

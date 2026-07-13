@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.models.campaign_event import CampaignEvent
 from app.models.campaign_listing import CampaignListing
+from app.models.campaign_tracking import CampaignContact, CampaignNote, CampaignTask
 from app.models.cv_document import CvDocument, CvVariant
 from app.models.evidence_item import EvidenceItem
 from app.models.tool_run import ToolRun
@@ -48,6 +49,10 @@ def delete_all_user_data(db: Session, user_id: str) -> None:
         row.id for row in db.query(Workspace.id).filter(Workspace.user_id == user_id)
     ]
     if workspace_ids:
+        for model in (CampaignTask, CampaignNote, CampaignContact):
+            db.query(model).filter(model.workspace_id.in_(workspace_ids)).delete(
+                synchronize_session=False
+            )
         db.query(CampaignListing).filter(
             CampaignListing.workspace_id.in_(workspace_ids)
         ).delete(synchronize_session=False)

@@ -3,7 +3,6 @@ from typing import Literal
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
-from app.models.campaign_event import CampaignEvent
 from app.models.cv_document import CvDocument, CvVariant
 from app.models.tool_run import ToolRun
 from app.models.workspace import Workspace
@@ -15,6 +14,7 @@ from app.schemas.history import (
     CampaignRunReference,
     CampaignSelectedMaterials,
 )
+from app.services.campaign_tracking import record_event
 from app.services.tool_runs import build_workspace_summary
 
 
@@ -45,6 +45,19 @@ def get_campaign_detail(db: Session, workspace: Workspace, user_id: str) -> Camp
             cover_letters=[_run_ref(item) for item in runs if item.tool_name == "cover-letter"],
             interviews=[_run_ref(item) for item in runs if item.tool_name == "interview"],
         ),
+        events=[
+            {
+                "id": e.id,
+                "event_type": e.event_type,
+                "details": e.details,
+                "provenance": e.details.get("provenance", "user"),
+                "created_at": e.created_at,
+            }
+            for e in workspace.campaign_events
+        ],
+        tasks=list(workspace.campaign_tasks),
+        notes=list(workspace.campaign_notes),
+        contacts=list(workspace.campaign_contacts),
     )
 
 
@@ -80,7 +93,7 @@ def clear_selected_run(db: Session, user_id: str, run: ToolRun) -> None:
             campaign.selected_cover_letter_run_id = None
         else:
             campaign.selected_interview_run_id = None
-        _record_event(db, campaign.id, material_type, "cleared")
+        _record_event(db, campaign.id, material_type, "cleared", provenance="system")
 
 
 def clear_selected_variants(db: Session, document: CvDocument) -> None:
@@ -96,7 +109,7 @@ def clear_selected_variants(db: Session, document: CvDocument) -> None:
     )
     for campaign in campaigns:
         campaign.selected_cv_variant_id = None
-        _record_event(db, campaign.id, "cv_variant", "cleared")
+        _record_event(db, campaign.id, "cv_variant", "cleared", provenance="system")
 
 
 def _select_cv_variant(db: Session, workspace: Workspace, user_id: str, value: str | None) -> None:
@@ -150,13 +163,15 @@ def _validate_owned_run(
         raise HTTPException(status_code=422, detail=f"Invalid {tool_name} reference")
 
 
-def _record_event(db: Session, workspace_id: str, material_type: str, action: str) -> None:
-    db.add(
-        CampaignEvent(
-            workspace_id=workspace_id,
-            event_type="material_selection_changed",
-            details={"material_type": material_type, "action": action},
-        )
+def _record_event(
+    db: Session, workspace_id: str, material_type: str, action: str, *, provenance: str = "user"
+) -> None:
+    record_event(
+        db,
+        workspace_id,
+        "material_selection_changed",
+        {"material_type": material_type, "action": action},
+        provenance=provenance,
     )
 
 
