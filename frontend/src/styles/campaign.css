@@ -41,6 +41,12 @@
 .campaign-tracker li { display: flex; justify-content: space-between; gap: .75rem; align-items: start; padding-top: .65rem; border-top: 1px solid var(--divider); overflow-wrap: anywhere; }
 .campaign-timeline li { display: grid; }
 .campaign-timeline small { color: var(--text-muted); }
+.campaign-snapshots { grid-column: 1 / -1; }
+.campaign-snapshots details { padding: .7rem 0; border-top: 1px solid var(--divider); }
+.campaign-snapshots summary { color: var(--accent-vivid); cursor: pointer; }
+.campaign-snapshot-content { display: grid; gap: .6rem; padding: 1rem 0; overflow-wrap: anywhere; }
+.campaign-snapshot-content pre { max-height: 16rem; overflow: auto; padding: .75rem; border-radius: var(--radius-md); background: var(--surface-focus); white-space: pre-wrap; font-size: var(--type-xs); }
+.campaign-snapshot-content small { color: var(--text-muted); word-break: break-all; }
 .campaign-reminders { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 1rem 2rem; align-items: center; margin-bottom: 4rem; padding: 1.25rem; border: 1px solid var(--border-soft); border-left: 3px solid var(--accent); border-radius: var(--radius-lg); background: var(--surface-raised); }
 .campaign-reminders h2 { margin: .2rem 0 .35rem; color: var(--text-strong); font-size: var(--type-section); }
 .campaign-reminders button { display: inline-flex; align-items: center; gap: .5rem; min-height: var(--touch-target); padding: .6rem .9rem; border: 1px solid var(--border-strong); border-radius: var(--radius-md); color: var(--accent-vivid); }

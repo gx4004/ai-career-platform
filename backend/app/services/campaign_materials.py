@@ -14,6 +14,7 @@ from app.schemas.history import (
     CampaignRunReference,
     CampaignSelectedMaterials,
 )
+from app.services.campaign_snapshots import snapshot_response
 from app.services.campaign_tracking import record_event
 from app.services.tool_runs import build_workspace_summary
 
@@ -58,6 +59,7 @@ def get_campaign_detail(db: Session, workspace: Workspace, user_id: str) -> Camp
         tasks=list(workspace.campaign_tasks),
         notes=list(workspace.campaign_notes),
         contacts=list(workspace.campaign_contacts),
+        submission_snapshots=[snapshot_response(item) for item in workspace.submission_snapshots],
     )
 
 

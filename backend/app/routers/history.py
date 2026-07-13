@@ -40,6 +40,7 @@ from app.services.campaign_materials import (
     update_material_selections,
 )
 from app.services.campaign_reminders import claim_due_reminders, set_reminder_consent
+from app.services.campaign_snapshots import capture_submission_snapshot
 from app.services.campaign_tracking import add_contact, add_note, add_task, record_event
 from app.services.tool_runs import build_workspace_summary, derive_saved_run_metadata
 
@@ -310,7 +311,17 @@ def update_workspace(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    workspace = _get_workspace(db, workspace_id, current_user.id)
+    if "status" in body.model_fields_set:
+        workspace = (
+            db.query(Workspace)
+            .filter(Workspace.id == workspace_id, Workspace.user_id == current_user.id)
+            .with_for_update()
+            .first()
+        )
+        if workspace is None:
+            raise HTTPException(status_code=404, detail="Workspace not found")
+    else:
+        workspace = _get_workspace(db, workspace_id, current_user.id)
     if body.label is not None:
         workspace.label = body.label.strip() or None
     if body.is_pinned is not None:
@@ -337,6 +348,8 @@ def update_workspace(
         transition = _apply_campaign_status_transition(workspace, body.status)
         if transition is not None:
             previous, requested = transition
+            if requested == CampaignStatus.APPLIED:
+                capture_submission_snapshot(db, workspace)
             db.add(
                 CampaignEvent(
                     workspace_id=workspace.id,

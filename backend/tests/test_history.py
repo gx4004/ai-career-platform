@@ -333,11 +333,16 @@ def test_campaign_status_lifecycle_is_enforced_server_side(client, auth_headers,
         "withdrawn",
     ]
     events = db.query(CampaignEvent).filter_by(workspace_id=workspace.id).all()
-    assert [(event.event_type, event.details) for event in events] == [
+    assert [
+        (event.event_type, event.details)
+        for event in events
+        if event.event_type == "status_changed"
+    ] == [
         ("status_changed", {"from": None, "to": "planning"}),
         ("status_changed", {"from": "planning", "to": "preparing"}),
         ("status_changed", {"from": "preparing", "to": "applied"}),
     ]
+    assert [event.event_type for event in events].count("submission_snapshot_created") == 1
 
 
 def test_campaign_deadline_changes_are_append_only(client, auth_headers, test_user, db):
@@ -654,3 +659,79 @@ def test_campaign_reminders_are_owner_isolated(client, auth_headers, db):
         ).status_code
         == 404
     )
+
+
+def test_applied_transition_captures_immutable_submission_snapshot(
+    client, auth_headers, test_user, db
+):
+    from app.models.campaign_listing import CampaignListing
+    from app.models.campaign_snapshot import CampaignSubmissionSnapshot
+    from app.models.cv_document import CvDocument, CvVariant
+    from app.models.tool_run import ToolRun
+
+    workspace = Workspace(user_id=test_user.id, status="planning")
+    document = CvDocument(user_id=test_user.id, name="CV", sections=[])
+    cover = ToolRun(
+        user_id=test_user.id,
+        tool_name="cover-letter",
+        label="Letter",
+        result_payload={"body": "Original letter"},
+    )
+    db.add_all([workspace, document, cover])
+    db.flush()
+    original_section = {
+        "id": "summary",
+        "kind": "summary",
+        "title": "Summary",
+        "visible": True,
+        "position": 0,
+        "entries": [
+            {"id": "entry", "evidence_item_id": None, "body": "Original CV", "position": 0}
+        ],
+    }
+    variant = CvVariant(document_id=document.id, name="Applied CV", sections=[original_section])
+    listing = CampaignListing(
+        workspace_id=workspace.id,
+        title="Engineer",
+        company="Example",
+        description="Original listing",
+    )
+    db.add_all([variant, listing])
+    db.flush()
+    workspace.current_listing_id = listing.id
+    workspace.selected_cv_variant_id = variant.id
+    workspace.selected_cover_letter_run_id = cover.id
+    db.commit()
+    endpoint = f"{PREFIX}/workspaces/{workspace.id}"
+    assert (
+        client.patch(endpoint, json={"status": "preparing"}, headers=auth_headers).status_code
+        == 200
+    )
+    assert (
+        client.patch(endpoint, json={"status": "applied"}, headers=auth_headers).status_code == 200
+    )
+    snapshot = db.query(CampaignSubmissionSnapshot).filter_by(workspace_id=workspace.id).one()
+    original_bytes = snapshot.content_json.encode()
+    original_digest = snapshot.content_sha256
+    variant.sections = [
+        {**original_section, "entries": [{**original_section["entries"][0], "body": "Changed CV"}]}
+    ]
+    cover.result_payload = {"body": "Changed letter"}
+    listing.description = "Changed listing"
+    db.commit()
+    db.expire_all()
+    unchanged = db.query(CampaignSubmissionSnapshot).filter_by(id=snapshot.id).one()
+    assert unchanged.content_json.encode() == original_bytes
+    assert unchanged.content_sha256 == original_digest
+    detail = client.get(endpoint, headers=auth_headers).json()
+    assert (
+        detail["submission_snapshots"][0]["content"]["cover_letter"]["result_payload"]["body"]
+        == "Original letter"
+    )
+    assert "submission_snapshot_created" in [event["event_type"] for event in detail["events"]]
+    exported = client.get("/api/v1/evidence-profile/export", headers=auth_headers).json()[
+        "campaigns"
+    ]["campaigns"][0]
+    assert exported["submission_snapshots"][0]["content_sha256"] == original_digest
+    assert client.delete(endpoint, headers=auth_headers).status_code == 200
+    assert db.query(CampaignSubmissionSnapshot).filter_by(id=snapshot.id).count() == 0

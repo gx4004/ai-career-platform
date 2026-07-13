@@ -10,6 +10,7 @@ from app.schemas.history import (
     CampaignListingResponse,
     CampaignsExport,
 )
+from app.services.campaign_snapshots import snapshot_response
 from app.services.cv_documents import export_documents
 from app.services.evidence_profile import export_evidence_profile
 
@@ -93,6 +94,9 @@ def export_career_data(db: Session, user_id: str) -> CareerDataExport:
                     tasks=list(workspace.campaign_tasks),
                     notes=list(workspace.campaign_notes),
                     contacts=list(workspace.campaign_contacts),
+                    submission_snapshots=[
+                        snapshot_response(item) for item in workspace.submission_snapshots
+                    ],
                     events=[
                         CampaignEventExport(
                             id=event.id,
