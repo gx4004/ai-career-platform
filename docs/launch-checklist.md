@@ -153,6 +153,56 @@ Run these in a clean browser profile against the staging URL.
 - Rate limiting uses shared storage and emits only pseudonymized or categorical
   identifiers.
 
+## Discovery Source Operations (R14)
+
+Governance and operations for registry-gated job discovery (spec #170, D-084–D-090,
+ADR 0008). A source is a governance object, not a config toggle: adding one is a
+reviewed decision with a named owner. Ingestion is refused unless a source's terms
+review is `accepted` and its kill switch is off; both conditions are re-read on
+every fetch, so operator changes take effect immediately with no deploy or restart.
+
+### Source onboarding governance flow
+
+1. **Propose and assign an owner.** Every source has a named owner accountable for
+   its terms record. Choose the source in registry preference order: licensed
+   APIs/feeds first, then permitted employer/ATS integrations, then allowlisted
+   public career pages after terms and robots review, then user-provided URLs/paste.
+2. **Register the entry dark.** Create the registry entry (owner, source family,
+   allowed behavior, endpoint, allowlisted query parameters, robots policy, rate
+   limit, attribution rule, retention days). New entries are always created with
+   `terms_status = pending` and the kill switch **on** — never ingesting.
+3. **Terms review.** The owner (or legal reviewer) records the terms decision. Only
+   an admin reviewer may move `terms_status` to `accepted` or `failed`; the review
+   timestamp and reviewer are stamped automatically. A source with `pending` or
+   `failed` terms can never ingest, regardless of the kill switch (D-084).
+4. **Activation.** Once terms are `accepted`, an admin clears the kill switch to
+   activate the source. Clearing the kill switch is refused while terms are not
+   accepted, so activation can never outrun permission.
+5. **Verify honesty by construction.** Confirm the fetch tier honors robots.txt and
+   sends the identifying `CareerWorkbenchDiscovery` user agent, and that outbound
+   queries carry only the registry-declared parameters (never profile content).
+
+### Kill procedure (operator)
+
+Use the admin panel to trip or clear a source's kill switch:
+
+1. Open **Admin → Discovery Sources**.
+2. For the affected source, click **Trip kill switch**. The next fetch/ingest for
+   that source is refused immediately (`kill_switched`) — no deploy or restart. Only
+   that one source is affected; discovery continues for every other source.
+3. The action is recorded as a bounded operational event
+   (`discovery_source_kill_switch`, source family + trip/clear outcome only — no
+   source key, name, URL, or user data).
+4. To resume, click **Clear kill switch** (enabled only when terms are `accepted`).
+5. Watch **Admin → Source Health** for the family's fetch outcomes, staleness,
+   listing volume, and dedup/expiry rates to confirm the source is healthy before
+   and after a change. All health figures are source-family aggregates only.
+
+Trip a source's kill switch on any terms dispute, source outage, anomalous fetch
+failures, or suspected non-compliant behavior. When in doubt, trip first and
+investigate — a tripped source degrades discovery gracefully, an unlawful fetch does
+not.
+
 ## Rollback Rehearsal
 
 For the release candidate, record one successful rollback or forward-fix drill:
