@@ -152,6 +152,24 @@ class CampaignDetailResponse(WorkspaceSummary):
     contacts: list[CampaignContactResponse] = Field(default_factory=list)
 
 
+class CampaignReminderConsent(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    enabled: bool
+
+
+class CampaignReminderItem(BaseModel):
+    kind: Literal["campaign_deadline", "task_deadline"]
+    task_id: str | None = None
+    label: str
+    deadline: datetime
+
+
+class CampaignReminderResponse(BaseModel):
+    enabled: bool
+    items: list[CampaignReminderItem] = Field(default_factory=list)
+    next_surface_at: datetime | None = None
+
+
 class CampaignTaskCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
     title: str = Field(min_length=1, max_length=240)
@@ -255,6 +273,7 @@ class CampaignExportItem(BaseModel):
     role: str | None = None
     status: CampaignStatus | None = None
     deadline: datetime | None = None
+    reminders_enabled: bool = False
     created_at: datetime
     updated_at: datetime
     events: list[CampaignEventExport] = Field(default_factory=list)

@@ -30,6 +30,10 @@ class Workspace(Base):
     role: Mapped[str | None] = mapped_column(String(200), nullable=True)
     status: Mapped[str | None] = mapped_column(String(32), nullable=True)
     deadline: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    reminders_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    reminders_last_surfaced_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     current_listing_id: Mapped[str | None] = mapped_column(
         String,
         ForeignKey("campaign_listings.id", ondelete="SET NULL", use_alter=True),

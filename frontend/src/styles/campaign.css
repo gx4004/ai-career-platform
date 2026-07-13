@@ -41,5 +41,11 @@
 .campaign-tracker li { display: flex; justify-content: space-between; gap: .75rem; align-items: start; padding-top: .65rem; border-top: 1px solid var(--divider); overflow-wrap: anywhere; }
 .campaign-timeline li { display: grid; }
 .campaign-timeline small { color: var(--text-muted); }
-@media (max-width: 767px) { .campaign-page { padding-inline: var(--mobile-pad); } .campaign-hero, .campaign-layout, .campaign-tracking-grid { grid-template-columns: minmax(0, 1fr); } .campaign-hero { gap: 1.25rem; } .campaign-back { margin-bottom: 1.25rem; } .campaign-materials { position: static; } .campaign-section-heading { display: grid; } }
+.campaign-reminders { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 1rem 2rem; align-items: center; margin-bottom: 4rem; padding: 1.25rem; border: 1px solid var(--border-soft); border-left: 3px solid var(--accent); border-radius: var(--radius-lg); background: var(--surface-raised); }
+.campaign-reminders h2 { margin: .2rem 0 .35rem; color: var(--text-strong); font-size: var(--type-section); }
+.campaign-reminders button { display: inline-flex; align-items: center; gap: .5rem; min-height: var(--touch-target); padding: .6rem .9rem; border: 1px solid var(--border-strong); border-radius: var(--radius-md); color: var(--accent-vivid); }
+.campaign-reminders button svg { width: 1rem; }
+.campaign-reminders ul { grid-column: 1 / -1; display: grid; gap: .5rem; list-style: none; }
+.campaign-reminders li { display: flex; justify-content: space-between; gap: 1rem; padding-top: .6rem; border-top: 1px solid var(--divider); }
+@media (max-width: 767px) { .campaign-page { padding-inline: var(--mobile-pad); } .campaign-hero, .campaign-layout, .campaign-tracking-grid, .campaign-reminders { grid-template-columns: minmax(0, 1fr); } .campaign-hero { gap: 1.25rem; } .campaign-back { margin-bottom: 1.25rem; } .campaign-materials { position: static; } .campaign-section-heading { display: grid; } .campaign-reminders button { width: 100%; justify-content: center; } }
 @media (prefers-reduced-motion: reduce) { .campaign-page *, .campaign-page *::before, .campaign-page *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; } }

@@ -8,6 +8,7 @@ import { useSession } from '#/hooks/useSession'
 import { getCampaign, updateCampaignMaterials } from '#/lib/api/client'
 import type { CampaignMaterialSelection } from '#/lib/api/schemas'
 import { CampaignTracking } from './CampaignTracking'
+import { CampaignReminders } from './CampaignReminders'
 
 type SelectionKey = keyof CampaignMaterialSelection
 
@@ -62,6 +63,7 @@ export function CampaignPage({ campaignId }: { campaignId: string }) {
       </aside>
     </div>
     <CampaignTracking campaign={campaign} campaignId={campaignId} refresh={refresh} />
+    <CampaignReminders campaignId={campaignId} />
   </PageFrame>
 }
 
