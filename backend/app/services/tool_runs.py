@@ -33,8 +33,9 @@ def delete_all_user_data(db: Session, user_id: str) -> None:
     cv_document_ids = [
         row.id for row in db.query(CvDocument.id).filter(CvDocument.user_id == user_id)
     ]
+    cv_variants_deleted = 0
     if cv_document_ids:
-        db.query(CvVariant).filter(CvVariant.document_id.in_(cv_document_ids)).delete(
+        cv_variants_deleted = db.query(CvVariant).filter(CvVariant.document_id.in_(cv_document_ids)).delete(
             synchronize_session=False
         )
     cv_documents_deleted = db.query(CvDocument).filter(CvDocument.user_id == user_id).delete()
@@ -49,6 +50,7 @@ def delete_all_user_data(db: Session, user_id: str) -> None:
         workspaces_deleted=workspaces_deleted,
         evidence_items_deleted=evidence_deleted,
         cv_documents_deleted=cv_documents_deleted,
+        cv_variants_deleted=cv_variants_deleted,
         user_record_deleted=bool(users_deleted),
     )
 

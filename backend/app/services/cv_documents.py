@@ -13,6 +13,7 @@ from app.schemas.cv_documents import (
     CvTailoringApply,
 )
 from app.schemas.evidence_profile import EvidenceItemCreate
+from app.services.analytics import safe_record_activation_event
 from app.services.evidence_profile import (
     record_evidence_proposal_created,
     stage_evidence_proposal,
@@ -133,6 +134,7 @@ def create_document(db: Session, user_id: str, body: CvDocumentCreate) -> CvDocu
     document.variants.append(CvVariant(name="Base", sections=deepcopy(sections)))
     db.add(document)
     db.commit()
+    safe_record_activation_event(db, event_name="studio_document_created")
     return get_document(db, document.id, user_id)
 
 
@@ -187,6 +189,7 @@ def accept_import(db: Session, user_id: str, body: CvImportAccept) -> CvDocument
         document.variants.append(CvVariant(name="Base", sections=deepcopy(sections)))
         db.add(document)
         db.commit()
+        safe_record_activation_event(db, event_name="studio_document_created")
         for item in staged_items:
             record_evidence_proposal_created(db, item)
     except IntegrityError:
@@ -208,6 +211,7 @@ def update_document(db: Session, document: CvDocument, *, name=None, sections=No
         _validate_evidence(db, document.user_id, sections)
         document.sections = deepcopy(sections)
     db.commit()
+    safe_record_activation_event(db, event_name="studio_document_updated")
     return get_document(db, document.id, document.user_id)
 
 
@@ -303,10 +307,23 @@ def restore_variant(db: Session, document: CvDocument, variant_id: str) -> CvDoc
 def delete_document(db: Session, document: CvDocument) -> None:
     db.delete(document)
     db.commit()
+    safe_record_activation_event(db, event_name="studio_document_deleted")
+
+
+def delete_documents(db: Session, user_id: str) -> int:
+    documents = _query(db, user_id).all()
+    count = len(documents)
+    for document in documents:
+        db.delete(document)
+    db.commit()
+    safe_record_activation_event(db, event_name="studio_documents_deleted")
+    return count
 
 
 def export_documents(db: Session, user_id: str) -> CvDocumentsExport:
     documents = list_documents(db, user_id)
-    return CvDocumentsExport(
+    result = CvDocumentsExport(
         exported_at=datetime.now(UTC), document_count=len(documents), documents=documents
     )
+    safe_record_activation_event(db, event_name="studio_data_exported")
+    return result

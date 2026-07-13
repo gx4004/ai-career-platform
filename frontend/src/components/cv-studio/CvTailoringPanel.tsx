@@ -5,7 +5,7 @@ import type { CvTailoringProposal } from '#/lib/api/schemas'
 
 type Decision = { action: 'accept' | 'reject' | 'edit'; edited_after?: string }
 
-export function CvTailoringPanel({ documentId, disabled, onApplied }: { documentId: string; disabled: boolean; onApplied: () => void }) {
+export function CvTailoringPanel({ documentId, disabled, remainingRuns, onApplied, onGenerated }: { documentId: string; disabled: boolean; remainingRuns: number; onApplied: () => void; onGenerated: () => void }) {
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [proposal, setProposal] = useState<CvTailoringProposal | null>(null)
@@ -14,7 +14,7 @@ export function CvTailoringPanel({ documentId, disabled, onApplied }: { document
   const [error, setError] = useState('')
   async function generate() {
     setState('loading'); setError('')
-    try { setProposal(await tailorCvDocument(documentId, { job_title: title, job_description: description })); setDecisions({}); setState('idle') }
+    try { setProposal(await tailorCvDocument(documentId, { job_title: title, job_description: description })); setDecisions({}); setState('idle'); onGenerated() }
     catch (e) { setError(e instanceof Error ? e.message : 'Tailoring is unavailable.'); setState('error') }
   }
   async function apply() {
@@ -34,11 +34,12 @@ export function CvTailoringPanel({ documentId, disabled, onApplied }: { document
   }
   return <section className="studio-tailoring" aria-labelledby="studio-tailoring-title">
     <header><p className="eyebrow">Targeted application</p><h2 id="studio-tailoring-title">Evidence-grounded tailoring</h2><p>Attach a job, then review every proposed change before an immutable variant is created.</p></header>
+    <p>{proposal?.remaining_regenerations ?? remainingRuns} tailored generations remain for this document.</p>
     <label>Target job title<input value={title} maxLength={200} onChange={e => setTitle(e.target.value)} /></label>
     <label>Job description<textarea value={description} maxLength={50_000} rows={5} onChange={e => setDescription(e.target.value)} /></label>
     <Button type="button" disabled={disabled || title.trim().length < 1 || description.trim().length < 20 || state === 'loading'} onClick={() => void generate()}>{state === 'loading' ? 'Generating review…' : proposal ? 'Regenerate proposal' : 'Generate proposal'}</Button>
     {error ? <p role="alert" className="studio-inline-error">{error} Your document was not changed.</p> : null}
-    {proposal ? <div className="studio-diffs"><p>{proposal.remaining_regenerations} tailored generations remain for this document.</p>{proposal.changes.length === 0 ? <p>No supported material changes were found.</p> : proposal.changes.map(change => <article key={change.id} className={change.support === 'unsupported' ? 'is-blocked' : ''}>
+    {proposal ? <div className="studio-diffs">{proposal.changes.length === 0 ? <p>No supported material changes were found.</p> : proposal.changes.map(change => <article key={change.id} className={change.support === 'unsupported' ? 'is-blocked' : ''}>
       <h3>{change.job_requirement}</h3><dl><div><dt>Before</dt><dd>{change.before}</dd></div><div><dt>After</dt><dd>{change.after}</dd></div></dl>
       <p>{change.support === 'confirmed' ? `Confirmed evidence: ${change.evidence_item_ids.join(', ')}` : change.support === 'document' ? 'Provenance: existing document content' : 'Blocked: confirm supporting evidence in your Evidence Profile, then regenerate.'}</p>
       {change.support !== 'unsupported' ? <fieldset><legend>Decision</legend>{(['accept', 'reject', 'edit'] as const).map(action => <label key={action}><input type="radio" name={`decision-${change.id}`} checked={decisions[change.id]?.action === action} onChange={() => setDecisions(current => ({ ...current, [change.id]: { action, ...(action === 'edit' ? { edited_after: change.after } : {}) } }))} />{action}</label>)}{decisions[change.id]?.action === 'edit' ? <><textarea aria-label={`Edit proposed wording for ${change.job_requirement}`} value={decisions[change.id].edited_after} onChange={e => setDecisions(current => ({ ...current, [change.id]: { action: 'edit', edited_after: e.target.value } }))} /><small>New edited wording is saved as unconfirmed evidence. Confirm it in your Evidence Profile, then regenerate before it can enter a variant.</small></> : null}</fieldset> : null}
