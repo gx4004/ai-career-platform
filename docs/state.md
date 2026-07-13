@@ -171,6 +171,17 @@ older dark registry rows safe-but-ineligible; rollback is kill-switching/removin
 the adapter, while schema downgrade discards policy/rate state and is forward-fix
 only after use.
 
+R14 #173 adds a product-owned discovered-listings store that is structurally
+separate from owner campaign listings. Canonical title/company/description rows
+deduplicate through a normalized SHA-256 fingerprint while one-to-many attribution
+rows preserve every governed source key, canonicalized source URL, and retrieval
+date. A daily expiry job evaluates each attribution against its source's current
+retention rule, deletes expired provenance, and removes a canonical listing only
+after its final attribution expires. Synthetic duplicate and near-miss fixtures
+cover the boundary. The migration is additive; rollback can stop the scheduler,
+while schema downgrade destroys the product listing corpus and requires backup or
+a forward fix after ingestion begins.
+
 ## Session Handoff Snapshot (2026-07-11)
 
 - **Objective:** Ship the startable activation/quality/cleanup frontier — R6
