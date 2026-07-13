@@ -327,7 +327,7 @@ via `get_optional_current_user()`. Rate-limited at 10/min per endpoint.
 | `POST` | `/career/recommend` | 10/min |
 | `POST` | `/portfolio/recommend` | 10/min |
 
-### 6.3 Authentication or Session Credential Required (35 endpoints)
+### 6.3 Authentication or Session Credential Required (37 endpoints)
 
 | Method | Path | Rate Limit |
 |--------|------|------------|
@@ -346,6 +346,8 @@ via `get_optional_current_user()`. Rate-limited at 10/min per endpoint.
 | `DELETE` | `/history/workspaces/{id}/notes/{note_id}` | None |
 | `POST` | `/history/workspaces/{id}/contacts` | None |
 | `DELETE` | `/history/workspaces/{id}/contacts/{contact_id}` | None |
+| `GET` | `/history/workspaces/{id}/reminders` | 10/min |
+| `PATCH` | `/history/workspaces/{id}/reminders` | None (revocation must remain immediate) |
 | `GET` | `/history/{id}` | None |
 | `GET` | `/history/{run_id}/export/pdf` | 10/min |
 | `DELETE` | `/history/{id}` | None |
@@ -1171,8 +1173,8 @@ file inspection.
 | §3 | `grep -n "run_tool_pipeline" backend/app/services/tool_pipeline.py` | Primary pipeline function |
 | §4 | `grep -n "result_payload\|hashed_password\|google_id" backend/app/models/` | All model fields confirmed |
 | §5 | `grep -rn "localStorage\|sessionStorage" frontend/src/ --include="*.ts" --include="*.tsx" -l` | 14 files matched |
-| §6 | `grep -rn "@router\.\(get\|post\|patch\|put\|delete\)" backend/app/routers/` | 37 route decorators |
-| §6 | `grep -rn "limiter.limit" backend/app/routers/ --include="*.py"` | 24 rate-limit decorators |
+| §6 | `rg '@router\.(get|post|patch|put|delete)' backend/app/routers/` | 80 route decorators |
+| §6 | `rg 'limiter\.limit' backend/app/routers/ --glob='*.py'` | 38 rate-limit decorators |
 | §6 | `grep -n "include_router" backend/app/main.py` | Lines 128-147 |
 | §6.6 | `grep -n "_get_client_ip\|TRUST_PROXY_HEADERS" backend/app/limiter.py` | Lines 10-17 |
 | §7 | `grep -n "ALGORITHM\|SECRET_KEY" backend/app/config.py` | Lines 17-18 |
@@ -1191,3 +1193,10 @@ are deleted with the contact, campaign, or account. Contact values, note text,
 company names, and task titles are prohibited from telemetry and campaign-event
 details. Timeline events retain only opaque record identifiers and
 low-cardinality actions so deleting a contact removes its personal fields.
+
+Campaign reminder consent is owner-scoped and off by default. The application
+derives approaching deadlines only when the authenticated campaign page requests
+them, suppresses repeat surfacing for one hour, and stores no delivery queue.
+Revocation clears the last-surface timestamp immediately. No reminder code imports
+or calls the email service, and no push-notification integration exists; password
+reset remains the only transactional-email boundary.

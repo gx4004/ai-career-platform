@@ -122,7 +122,7 @@ export const careerDataExportSchema = z.strictObject({
       id: z.string(), label: z.string().nullable(), is_pinned: z.boolean(),
       company: z.string().nullable(), role: z.string().nullable(),
       status: campaignStatusSchema.nullable(),
-      deadline: z.iso.datetime({ offset: true }).nullable(), created_at: z.iso.datetime(), updated_at: z.iso.datetime(),
+      deadline: z.iso.datetime({ offset: true }).nullable(), reminders_enabled: z.boolean().default(false), created_at: z.iso.datetime(), updated_at: z.iso.datetime(),
       listing: campaignListingSchema.nullable().default(null),
       listing_revisions: z.array(campaignListingSchema).default([]),
       events: z.array(z.object({
@@ -388,6 +388,11 @@ export const campaignEventSchema = z.object({ id: z.string(), event_type: z.stri
 export const campaignTaskSchema = z.object({ id: z.string(), title: z.string(), deadline: z.iso.datetime({ offset: true }).nullable(), completed: z.boolean(), created_at: z.iso.datetime() })
 export const campaignNoteSchema = z.object({ id: z.string(), text: z.string(), created_at: z.iso.datetime() })
 export const campaignContactSchema = z.object({ id: z.string(), name: z.string(), role: z.string().nullable(), channel: z.string().nullable(), created_at: z.iso.datetime() })
+export const campaignReminderResponseSchema = z.object({
+  enabled: z.boolean(),
+  items: z.array(z.object({ kind: z.enum(['campaign_deadline', 'task_deadline']), task_id: z.string().nullable(), label: z.string(), deadline: z.iso.datetime({ offset: true }) })),
+  next_surface_at: z.iso.datetime({ offset: true }).nullable(),
+})
 export const campaignDetailSchema = workspaceSummarySchema.extend({
   selected_materials: z.object({
     cv_variant: campaignCvVariantReferenceSchema.nullable(),

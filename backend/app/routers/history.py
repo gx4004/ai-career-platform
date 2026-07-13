@@ -18,6 +18,8 @@ from app.schemas.history import (
     CampaignMaterialSelectionRequest,
     CampaignNoteCreate,
     CampaignNoteResponse,
+    CampaignReminderConsent,
+    CampaignReminderResponse,
     CampaignStatus,
     CampaignTaskCreate,
     CampaignTaskResponse,
@@ -37,6 +39,7 @@ from app.services.campaign_materials import (
     get_campaign_detail,
     update_material_selections,
 )
+from app.services.campaign_reminders import claim_due_reminders, set_reminder_consent
 from app.services.campaign_tracking import add_contact, add_note, add_task, record_event
 from app.services.tool_runs import build_workspace_summary, derive_saved_run_metadata
 
@@ -163,6 +166,28 @@ def update_campaign_materials(
 ):
     workspace = _get_workspace(db, workspace_id, current_user.id)
     return update_material_selections(db, workspace, current_user.id, body)
+
+
+@router.get("/workspaces/{workspace_id}/reminders", response_model=CampaignReminderResponse)
+@limiter.limit("10/minute")
+def get_campaign_reminders(
+    request: Request,
+    workspace_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    _get_workspace(db, workspace_id, current_user.id)
+    return claim_due_reminders(db, workspace_id, current_user.id)
+
+
+@router.patch("/workspaces/{workspace_id}/reminders", response_model=CampaignReminderResponse)
+def update_campaign_reminders(
+    workspace_id: str,
+    body: CampaignReminderConsent,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    return set_reminder_consent(db, _get_workspace(db, workspace_id, current_user.id), body.enabled)
 
 
 @router.post(

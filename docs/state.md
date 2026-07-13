@@ -124,6 +124,13 @@ telemetry. Records are owner-isolated, included in `career-data-export/v1`, and
 deleted with their record, campaign, or account. This does not introduce a
 generic CRM or close the provisional R13 parent.
 
+R13 #166 adds strictly in-product deadline reminders behind explicit,
+default-off consent on each campaign. Approaching application and incomplete-task
+deadlines are derived on demand, surfaced at most once per hour, and never enter
+a scheduler, email, or push path. Revocation clears the last-surface state
+immediately, while campaign/account deletion removes it with the campaign. This
+does not extend the password-reset-only transactional-email boundary or close R13.
+
 ## Session Handoff Snapshot (2026-07-11)
 
 - **Objective:** Ship the startable activation/quality/cleanup frontier — R6

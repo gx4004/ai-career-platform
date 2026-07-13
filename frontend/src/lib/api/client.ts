@@ -32,6 +32,7 @@ import {
   campaignDetailSchema,
   campaignMaterialSelectionSchema,
   campaignTaskSchema, campaignNoteSchema, campaignContactSchema,
+  campaignReminderResponseSchema,
   cvDocumentListSchema,
   cvDocumentSchema,
   cvDocumentUpdateSchema,
@@ -586,6 +587,8 @@ export function createCampaignNote(workspaceId: string, text: string) { return r
 export function deleteCampaignNote(workspaceId: string, noteId: string) { return request(`/history/workspaces/${workspaceId}/notes/${noteId}`, { method: 'DELETE', schema: deletedResponseSchema }) }
 export function createCampaignContact(workspaceId: string, payload: { name: string; role?: string | null; channel?: string | null }) { return request(`/history/workspaces/${workspaceId}/contacts`, { method: 'POST', body: payload, schema: campaignContactSchema }) }
 export function deleteCampaignContact(workspaceId: string, contactId: string) { return request(`/history/workspaces/${workspaceId}/contacts/${contactId}`, { method: 'DELETE', schema: deletedResponseSchema }) }
+export function getCampaignReminders(workspaceId: string) { return request(`/history/workspaces/${workspaceId}/reminders`, { method: 'GET', schema: campaignReminderResponseSchema }) }
+export function updateCampaignReminderConsent(workspaceId: string, enabled: boolean) { return request(`/history/workspaces/${workspaceId}/reminders`, { method: 'PATCH', body: { enabled }, schema: campaignReminderResponseSchema }) }
 
 export function requestPasswordReset(payload: { email: string }) {
   return request<{ message: string }>('/auth/password-reset/request', {

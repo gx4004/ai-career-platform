@@ -38,6 +38,7 @@ def export_career_data(db: Session, user_id: str) -> CareerDataExport:
                     role=workspace.role,
                     status=workspace.status,
                     deadline=_as_utc(workspace.deadline),
+                    reminders_enabled=workspace.reminders_enabled,
                     created_at=_as_utc(workspace.created_at),
                     updated_at=_as_utc(workspace.updated_at),
                     listing=(
