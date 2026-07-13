@@ -36,7 +36,10 @@ from app.routers import (
     telemetry,
 )
 from app.services.observability import configure_logging
-from app.services.retention import run_activation_prune_scheduler
+from app.services.retention import (
+    run_activation_prune_scheduler,
+    run_discovered_listing_expiry_scheduler,
+)
 
 configure_logging()
 
@@ -87,12 +90,16 @@ async def lifespan(app: FastAPI):
     mechanism. The task is cancelled cleanly on shutdown.
     """
     prune_task = asyncio.create_task(run_activation_prune_scheduler())
+    listing_expiry_task = asyncio.create_task(run_discovered_listing_expiry_scheduler())
     try:
         yield
     finally:
         prune_task.cancel()
+        listing_expiry_task.cancel()
         with suppress(asyncio.CancelledError):
             await prune_task
+        with suppress(asyncio.CancelledError):
+            await listing_expiry_task
 
 
 app = FastAPI(title="Career Workbench API", version="1.0.0", lifespan=lifespan)

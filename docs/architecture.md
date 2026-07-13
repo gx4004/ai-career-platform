@@ -350,9 +350,11 @@ errors remain forbidden.
 - Discovery operationalizes D-026: robots.txt honored, honest identifying user
   agent in every tier, no unauthorized scraping, circumvention, or credential or
   session use (D-086).
-- Discovered listings persist with attribution and retrieval date, deduplicated
-  and expired per source retention; the store is separate from campaign canonical
-  listings (D-087, D-078).
+- Discovered listings persist with attribution and retrieval date into product-
+  owned canonical rows plus one-to-many source attributions. A daily job expires
+  each attribution under its source's current retention rule and removes orphaned
+  canonical rows. These tables have no workspace/user foreign key and remain
+  separate from campaign canonical listings (D-087, D-078, #173).
 - Ranking uses confirmed Evidence Profile items and preferences via deterministic
   primitives first, with an explainable rationale and hide/correct/report controls
   (D-088).

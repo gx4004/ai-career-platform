@@ -1,0 +1,25 @@
+{
+  "known_duplicate": [
+    {
+      "source_listing_key": "feed-a-101",
+      "title": "Senior Platform Engineer",
+      "company": "Acme Systems",
+      "description": "Build reliable platform services, improve Kubernetes operations, and partner with product engineering teams.",
+      "source_url": "https://feed-a.example/jobs/101?tracking=remove"
+    },
+    {
+      "source_listing_key": "feed-b-9001",
+      "title": "senior platform engineer!",
+      "company": "ACME SYSTEMS",
+      "description": "Build reliable platform services; improve Kubernetes operations and partner with product engineering teams.",
+      "source_url": "https://feed-b.example/openings/9001"
+    }
+  ],
+  "near_miss": {
+    "source_listing_key": "feed-b-9002",
+    "title": "Senior Platform Engineer",
+    "company": "Acme Systems",
+    "description": "Lead the data platform group, own streaming infrastructure, and manage a team of analytics engineers.",
+    "source_url": "https://feed-b.example/openings/9002"
+  }
+}
