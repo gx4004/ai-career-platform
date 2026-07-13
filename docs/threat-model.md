@@ -1121,6 +1121,29 @@ blocked only by their listed dependencies — all other context is available her
 | #81 — Deployment-compatible security headers | §§1,13 — Topology, gap inventory (#3, #6) | Frontend response implementation locally verified; production compatibility remains blocked by D-UNK-1, D-UNK-3, D-UNK-5, D-UNK-9, D-UNK-10 |
 | #82 — Legal disclosure reconciliation | All sections + all prior issues | Blocked by #74–#81 |
 
+### 8.10 Campaign Canonical Listing
+
+R13 #163 adds one authoritative current listing row per owner campaign. Both attach
+paths require authentication and scope the target workspace by caller id. URL
+attachment calls the existing SSRF-resistant DNS-validation, IP-pinned, redirect-
+checked and response-bounded importer; no alternate network path exists. Paste
+attachment accepts bounded title/company/description fields only (20,000 characters
+maximum for description) and cannot claim a source URL or source family.
+
+The exact URL and listing content remain user-owned campaign data and may appear only
+in the owner-scoped response/export. Operational records carry closed-set source
+family and outcome values, while the append-only campaign event carries only source
+family and attached/replaced outcome—never URL, hostname, title, company, or
+description. `Workspace.current_listing_id` identifies one authoritative current
+revision while prior exact revisions remain owner-recoverable in export; replacement
+and its event commit together. Campaign deletion, account erasure, and
+PostgreSQL cascade all remove the listing, and `career-data-export/v1` includes it.
+
+— `backend/app/routers/job_posts.py`;
+`backend/app/services/campaign_listings.py`;
+`backend/app/models/campaign_listing.py`;
+`backend/tests/test_campaign_listings.py`
+
 ---
 
 ## Verification Record

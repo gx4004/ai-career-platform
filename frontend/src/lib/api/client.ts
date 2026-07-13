@@ -14,6 +14,8 @@ import {
   evidenceImportProposalsSchema,
   healthCheckSchema,
   importedJobSchema,
+  importJobTextSchema,
+  importJobUrlSchema,
   interviewPracticeFeedbackSchema,
   interviewResultSchema,
   jobMatchResultSchema,
@@ -391,11 +393,22 @@ export function parseCv(file: File) {
   })
 }
 
-export function importJobUrl(payload: { url: string }) {
+export function importJobUrl(payload: { url: string; campaign_id?: string }) {
   return request('/job-posts/import-url', {
     method: 'POST',
-    body: payload,
+    body: importJobUrlSchema.parse(payload),
     schema: importedJobSchema,
+  })
+}
+
+export function importJobText(payload: {
+  campaign_id: string
+  job_title: string
+  company_name: string
+  job_description: string
+}) {
+  return request('/job-posts/import-text', {
+    method: 'POST', body: importJobTextSchema.parse(payload), schema: importedJobSchema,
   })
 }
 

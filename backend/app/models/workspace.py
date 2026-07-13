@@ -17,9 +17,7 @@ class Workspace(Base):
         ),
     )
 
-    id: Mapped[str] = mapped_column(
-        String, primary_key=True, default=lambda: str(uuid.uuid4())
-    )
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     user_id: Mapped[str] = mapped_column(
         String,
         ForeignKey("users.id", ondelete="CASCADE"),
@@ -32,6 +30,11 @@ class Workspace(Base):
     role: Mapped[str | None] = mapped_column(String(200), nullable=True)
     status: Mapped[str | None] = mapped_column(String(32), nullable=True)
     deadline: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    current_listing_id: Mapped[str | None] = mapped_column(
+        String,
+        ForeignKey("campaign_listings.id", ondelete="SET NULL", use_alter=True),
+        nullable=True,
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC)
     )
@@ -53,4 +56,16 @@ class Workspace(Base):
         cascade="all, delete-orphan",
         passive_deletes=True,
         order_by="CampaignEvent.created_at.asc()",
+    )
+    listings = relationship(
+        "CampaignListing",
+        back_populates="workspace",
+        cascade="all, delete-orphan",
+        foreign_keys="CampaignListing.workspace_id",
+        order_by="CampaignListing.retrieved_at.asc()",
+    )
+    listing = relationship(
+        "CampaignListing",
+        foreign_keys=[current_listing_id],
+        post_update=True,
     )

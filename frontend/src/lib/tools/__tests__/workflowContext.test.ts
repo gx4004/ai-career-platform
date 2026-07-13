@@ -104,6 +104,7 @@ describe('deriveWorkflowUpdateFromHistoryItem', () => {
           role: null,
           status: null,
           deadline: null,
+          listing: null,
           linked_run_ids: [],
           updated_at: '2026-04-17T12:00:00Z',
         },

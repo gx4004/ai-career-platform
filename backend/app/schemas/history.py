@@ -24,6 +24,14 @@ class SavedRunMetadata(BaseModel):
     next_step_tool: str | None = None
 
 
+class CampaignListingResponse(BaseModel):
+    title: str
+    company: str
+    description: str
+    source_url: str | None = None
+    retrieved_at: datetime
+
+
 class WorkspaceSummary(BaseModel):
     id: str
     label: str | None = None
@@ -32,6 +40,7 @@ class WorkspaceSummary(BaseModel):
     role: str | None = None
     status: CampaignStatus | None = None
     deadline: datetime | None = None
+    listing: CampaignListingResponse | None = None
     linked_run_ids: list[str] = Field(default_factory=list)
     last_active_tool: str | None = None
     last_active_result_id: str | None = None
@@ -118,11 +127,13 @@ class CampaignExportItem(BaseModel):
     created_at: datetime
     updated_at: datetime
     events: list["CampaignEventExport"] = Field(default_factory=list)
+    listing: CampaignListingResponse | None = None
+    listing_revisions: list[CampaignListingResponse] = Field(default_factory=list)
 
 
 class CampaignEventExport(BaseModel):
     id: str
-    event_type: Literal["status_changed", "deadline_changed"]
+    event_type: Literal["status_changed", "deadline_changed", "listing_attached"]
     details: dict
     created_at: datetime
 

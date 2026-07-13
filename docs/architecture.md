@@ -303,9 +303,17 @@ errors remain forbidden.
   minimal append-only campaign events so the later #165 timeline can extend the
   event vocabulary without losing earlier history; product code exposes no event
   update or delete path.
-- The canonical listing will be persisted as owner-isolated user content including
-  source URL and retrieval date in the next R13 slice; #162 does not yet persist a
-  listing. Listing telemetry remains source-family only (D-078, D-059).
+- Each campaign now has at most one authoritative current canonical listing with
+  title, company, bounded description, optional source URL, and server-owned UTC
+  retrieval time. URL attachment reuses the existing SSRF-resistant pinned fetcher;
+  authenticated paste attachment accepts no URL or source-family field. Re-attachment
+  atomically advances `Workspace.current_listing_id` to a new immutable revision and
+  appends a content-free `listing_attached` event. Current and prior listing content
+  is owner-isolated, exported, and cascade-deleted; telemetry
+  remains allowlisted source-family/outcome only (D-078, D-059, D-079, D-083).
+  The existing import card keeps populate-only behavior by default and exposes an
+  explicit authenticated campaign picker for URL or pasted attachment; it never
+  auto-attaches tool input.
 - Campaign history is append-only events; material links reference immutable
   versions; the submitted snapshot is an immutable bundle (D-079, D-010).
 - Tracking is bounded to the job-search domain — fixed status lifecycle, tasks,
