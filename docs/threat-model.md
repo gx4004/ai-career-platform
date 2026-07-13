@@ -846,6 +846,17 @@ remain owner-authenticated and emit no content telemetry.
 `backend/app/services/cv_documents.py`;
 `backend/tests/test_cv_import.py`
 
+R12 #157 adds target-job tailoring at the same authenticated owner boundary.
+Generation passes only through `run_tool_pipeline()` and receives confirmed facts
+through the locked Evidence Profile seam. A separate durable ten-attempt document
+quota is consumed before provider work. Each transient proposal carries an HMAC
+over its owner, document, target, and diffs; apply rejects altered or cross-owner
+payloads. Accepted supported changes create an immutable variant under a durable
+owner/document request key and never mutate the draft. Unsupported changes require
+the ordinary R11 create-unconfirmed → explicit-confirm → regenerate lifecycle; no
+local override can confirm or launder a claim. No CV, job, diff, or evidence content
+is logged or emitted as telemetry.
+
 ---
 
 ## §9 External Integration Boundaries

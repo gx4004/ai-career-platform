@@ -6,7 +6,12 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.models.cv_document import CvDocument, CvVariant
 from app.models.evidence_item import EvidenceItem
-from app.schemas.cv_documents import CvDocumentCreate, CvDocumentsExport, CvImportAccept
+from app.schemas.cv_documents import (
+    CvDocumentCreate,
+    CvDocumentsExport,
+    CvImportAccept,
+    CvTailoringApply,
+)
 from app.schemas.evidence_profile import EvidenceItemCreate
 from app.services.evidence_profile import (
     record_evidence_proposal_created,
@@ -23,6 +28,10 @@ class InvalidEvidenceReferenceError(Exception):
 
 
 class DuplicateVariantNameError(Exception):
+    pass
+
+
+class InvalidTailoringProposalError(Exception):
     pass
 
 
@@ -182,9 +191,7 @@ def accept_import(db: Session, user_id: str, body: CvImportAccept) -> CvDocument
             record_evidence_proposal_created(db, item)
     except IntegrityError:
         db.rollback()
-        existing = _query(db, user_id).filter(
-            CvDocument.source_import_id == import_id
-        ).first()
+        existing = _query(db, user_id).filter(CvDocument.source_import_id == import_id).first()
         if existing is not None:
             return existing
         raise
@@ -217,6 +224,69 @@ def create_variant(
     )
     db.add(variant)
     db.commit()
+    db.refresh(variant)
+    return variant
+
+
+def apply_tailoring(db: Session, document: CvDocument, body: CvTailoringApply) -> CvVariant:
+    request_id = str(body.request_id)
+    existing = next((v for v in document.variants if v.tailoring_request_id == request_id), None)
+    if existing is not None:
+        return existing
+    if any(v.name == body.variant_name for v in document.variants):
+        raise DuplicateVariantNameError
+    entries = {
+        (section["id"], entry["id"]): entry
+        for section in document.sections
+        for entry in section["entries"]
+    }
+    if len({change.id for change in body.changes}) != len(body.changes):
+        raise InvalidTailoringProposalError
+    decisions = {decision.change_id: decision for decision in body.decisions}
+    sections = deepcopy(document.sections)
+    mutable = {
+        (section["id"], entry["id"]): entry for section in sections for entry in section["entries"]
+    }
+    accepted_evidence: set[str] = set()
+    for change in body.changes:
+        decision = decisions.get(change.id)
+        if decision is None or decision.action == "reject":
+            continue
+        key = (change.section_id, change.entry_id)
+        current = entries.get(key)
+        if current is None or current["body"] != change.before:
+            raise InvalidTailoringProposalError
+        if change.support == "unsupported":
+            raise InvalidTailoringProposalError
+        if decision.edited_after and decision.edited_after not in {change.before, change.after}:
+            raise InvalidTailoringProposalError
+        accepted_evidence.update(change.evidence_item_ids)
+        mutable[key]["body"] = decision.edited_after or change.after
+    if accepted_evidence:
+        _validate_evidence(
+            db,
+            document.user_id,
+            [{"entries": [{"evidence_item_id": i} for i in accepted_evidence]}],
+        )
+    variant = CvVariant(
+        document_id=document.id,
+        name=body.variant_name,
+        target_role=body.job_title,
+        tailoring_request_id=request_id,
+        sections=sections,
+    )
+    db.add(variant)
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        refreshed = get_document(db, document.id, document.user_id)
+        duplicate = next(
+            (v for v in refreshed.variants if v.tailoring_request_id == request_id), None
+        )
+        if duplicate is not None:
+            return duplicate
+        raise
     db.refresh(variant)
     return variant
 

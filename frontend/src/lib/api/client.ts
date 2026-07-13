@@ -1,4 +1,4 @@
-import type { z } from 'zod'
+import { z } from 'zod'
 import { ApiError } from '#/lib/api/errors'
 import {
   authProvidersSchema,
@@ -33,6 +33,8 @@ import {
   cvVariantSchema,
   cvQualityRequestSchema,
   cvQualityResponseSchema,
+  cvTailoringApplySchema,
+  cvTailoringProposalSchema,
 } from '#/lib/api/schemas'
 import type {
   EvidenceConfirmationAction,
@@ -77,6 +79,19 @@ export function scoreCvDocument(
   return request(`/cv-documents/${documentId}/quality`, {
     method: 'POST', body: cvQualityRequestSchema.parse(payload), schema: cvQualityResponseSchema,
   })
+}
+
+export function tailorCvDocument(documentId: string, payload: { job_title: string; job_description: string }) {
+  return request(`/cv-documents/${documentId}/tailoring`, { method: 'POST', body: payload, schema: cvTailoringProposalSchema })
+}
+
+export function applyCvTailoring(documentId: string, payload: unknown) {
+  return request(`/cv-documents/${documentId}/tailoring/apply`, { method: 'POST', body: cvTailoringApplySchema.parse(payload), schema: cvVariantSchema })
+}
+
+export function proposeCvTailoringEdit(documentId: string, payload: unknown) {
+  const parsed = cvTailoringApplySchema.pick({ request_id: true, job_title: true, proposal_token: true, changes: true }).extend({ change_id: z.string(), edited_after: z.string().min(1).max(5_000) }).parse(payload)
+  return request(`/cv-documents/${documentId}/tailoring/edit-proposals`, { method: 'POST', body: parsed, schema: evidenceItemSchema })
 }
 
 function trimTrailingSlash(value: string): string {

@@ -5,6 +5,11 @@
 
 ## Current Posture
 
+R12 #157 is implemented under the owner-authorized build-ahead exception: dormant
+CV Studio tailoring produces signed, evidence-grounded review diffs and immutable
+variants behind authenticated owner APIs. D-068 remains accepted/open; this does
+not declare the R12 roadmap outcome shipped.
+
 Career Workbench is feature-rich and appears closer to release hardening than initial
 MVP construction. All six tools, guest runs, authentication, history/workspaces,
 admin, exports, telemetry, and deployment configuration exist.

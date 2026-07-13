@@ -1,3 +1,5 @@
+from uuid import uuid4
+
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, UploadFile, status
 from sqlalchemy.orm import Session
 
@@ -16,14 +18,21 @@ from app.schemas.cv_documents import (
     CvImportProposal,
     CvQualityRequest,
     CvQualityResponse,
+    CvTailoringApply,
+    CvTailoringEditProposal,
+    CvTailoringProposal,
+    CvTailoringRequest,
     CvVariantCreate,
     CvVariantResponse,
 )
+from app.schemas.evidence_profile import EvidenceItemCreate, EvidenceItemResponse
 from app.services.cv_documents import (
     CvDocumentNotFoundError,
     DuplicateVariantNameError,
     InvalidEvidenceReferenceError,
+    InvalidTailoringProposalError,
     accept_import,
+    apply_tailoring,
     create_document,
     create_variant,
     delete_document,
@@ -35,11 +44,14 @@ from app.services.cv_documents import (
 )
 from app.services.cv_parser_process import CvParserProcessRejected, parse_cv_import_isolated
 from app.services.cv_quality import analyze_cv_quality, analyze_cv_quality_heuristic
+from app.services.cv_tailoring import generate_cv_tailoring, proposal_token, verify_proposal_token
 from app.services.cv_upload import CvUploadRejected, read_validated_cv_upload
+from app.services.evidence_profile import create_evidence_item
 from app.services.tool_pipeline import run_tool_pipeline
 
 router = APIRouter()
 CV_QUALITY_MODEL_RUN_LIMIT = 10
+CV_TAILORING_MODEL_RUN_LIMIT = 10
 
 _INVALID_IMPORT = (
     "Use an unencrypted PDF, a valid DOCX without unsafe archive content, or UTF-8 plain text."
@@ -206,6 +218,152 @@ def update(
         _not_found(error)
     except InvalidEvidenceReferenceError as error:
         _invalid_evidence(error)
+
+
+@router.post("/{document_id}/tailoring", response_model=CvTailoringProposal)
+@limiter.limit("20/minute")
+async def tailor(
+    request: Request,
+    document_id: str,
+    body: CvTailoringRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    try:
+        document = get_document(db, document_id, current_user.id)
+    except CvDocumentNotFoundError as error:
+        _not_found(error)
+    quota_document = (
+        db.query(CvDocument)
+        .filter(CvDocument.id == document.id, CvDocument.user_id == current_user.id)
+        .with_for_update()
+        .one()
+    )
+    if quota_document.tailoring_model_runs >= CV_TAILORING_MODEL_RUN_LIMIT:
+        raise HTTPException(
+            status_code=429, detail="This document has reached its tailoring limit."
+        )
+    quota_document.tailoring_model_runs += 1
+    db.commit()
+    text = "\n".join(str(e["body"]) for s in document.sections for e in s["entries"])
+    result = await run_tool_pipeline(
+        tool_name="cv-tailoring",
+        service_fn=generate_cv_tailoring,
+        service_kwargs={
+            "resume_text": text,
+            "sections": document.sections,
+            "job_description": body.job_description,
+            "job_title": body.job_title,
+        },
+        label_fn=lambda _: f"CV tailoring · {document.id}",
+        resume_text=text,
+        job_description=body.job_description,
+        current_user=current_user,
+        db=db,
+        cache_extra_keys={
+            "document_id": document.id,
+            "updated_at": document.updated_at.isoformat(),
+            "target": body.job_title,
+        },
+    )
+    result["remaining_regenerations"] = (
+        CV_TAILORING_MODEL_RUN_LIMIT - quota_document.tailoring_model_runs
+    )
+    result["request_id"] = uuid4()
+    result["proposal_token"] = proposal_token(
+        str(result["request_id"]), document.id, current_user.id, body.job_title, result["changes"]
+    )
+    return CvTailoringProposal(**result)
+
+
+@router.post(
+    "/{document_id}/tailoring/apply",
+    response_model=CvVariantResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def apply_tailoring_review(
+    document_id: str,
+    body: CvTailoringApply,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    try:
+        if not verify_proposal_token(
+            body.proposal_token,
+            str(body.request_id),
+            document_id,
+            current_user.id,
+            body.job_title,
+            [change.model_dump() for change in body.changes],
+        ):
+            raise InvalidTailoringProposalError
+        return apply_tailoring(db, get_document(db, document_id, current_user.id), body)
+    except CvDocumentNotFoundError as error:
+        _not_found(error)
+    except (InvalidEvidenceReferenceError, InvalidTailoringProposalError) as error:
+        raise HTTPException(
+            status_code=422,
+            detail="Unsupported or stale tailoring changes cannot be applied. Confirm evidence explicitly, then regenerate.",
+        ) from error
+    except DuplicateVariantNameError as error:
+        raise HTTPException(status_code=409, detail="Variant name already exists") from error
+
+
+@router.post(
+    "/{document_id}/tailoring/edit-proposals",
+    response_model=EvidenceItemResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def propose_tailoring_edit(
+    document_id: str,
+    body: CvTailoringEditProposal,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    changes = [change.model_dump() for change in body.changes]
+    if not verify_proposal_token(
+        body.proposal_token,
+        str(body.request_id),
+        document_id,
+        current_user.id,
+        body.job_title,
+        changes,
+    ):
+        raise HTTPException(status_code=422, detail="Tailoring proposal is invalid or stale")
+    document = get_document(db, document_id, current_user.id)
+    change = next((item for item in body.changes if item.id == body.change_id), None)
+    if (
+        change is None
+        or change.support == "unsupported"
+        or body.edited_after in {change.before, change.after}
+    ):
+        raise HTTPException(
+            status_code=422, detail="Only new edited wording requires evidence confirmation"
+        )
+    section = next((item for item in document.sections if item["id"] == change.section_id), None)
+    if section is None or not any(
+        entry["id"] == change.entry_id and entry["body"] == change.before
+        for entry in section["entries"]
+    ):
+        raise HTTPException(status_code=422, detail="Tailoring proposal is invalid or stale")
+    evidence_kind = {
+        "experience": "experience",
+        "achievements": "achievement",
+        "skills": "skill",
+        "education": "education",
+        "projects": "project",
+        "certifications": "certification",
+        "interview-evidence": "interview-evidence",
+        "summary": "achievement",
+        "custom": "achievement",
+    }[section["kind"]]
+    return create_evidence_item(
+        db,
+        current_user.id,
+        EvidenceItemCreate(
+            kind=evidence_kind, content={"statement": body.edited_after}, provenance="user-entered"
+        ),
+    )
 
 
 @router.delete("/{document_id}", status_code=status.HTTP_204_NO_CONTENT)
