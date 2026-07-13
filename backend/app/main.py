@@ -32,6 +32,7 @@ from app.routers import (
     interview,
     job_match,
     job_posts,
+    packets,
     portfolio,
     queue_rules,
     resume,
@@ -199,5 +200,6 @@ app.include_router(
 )
 app.include_router(discovery.router, prefix=f"{prefix}/discovery", tags=["discovery"])
 app.include_router(queue_rules.router, prefix=f"{prefix}/queue", tags=["queue"])
+app.include_router(packets.router, prefix=f"{prefix}/packets", tags=["packets"])
 app.include_router(telemetry.router, prefix=f"{prefix}/telemetry", tags=["telemetry"])
 app.include_router(admin.router, prefix=f"{prefix}/admin", tags=["admin"])
