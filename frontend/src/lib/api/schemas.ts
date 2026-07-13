@@ -126,9 +126,12 @@ export const careerDataExportSchema = z.strictObject({
       listing: campaignListingSchema.nullable().default(null),
       listing_revisions: z.array(campaignListingSchema).default([]),
       events: z.array(z.object({
-        id: z.string(), event_type: z.enum(['status_changed', 'deadline_changed', 'listing_attached', 'material_selection_changed']),
+        id: z.string(), event_type: z.enum(['status_changed', 'deadline_changed', 'listing_attached', 'material_selection_changed', 'task_created', 'task_completed', 'task_reopened', 'task_deleted', 'note_added', 'note_deleted', 'contact_added', 'contact_deleted']),
         details: z.record(z.string(), z.unknown()), created_at: z.iso.datetime(),
       })),
+      tasks: z.array(z.object({ id: z.string(), title: z.string(), deadline: z.iso.datetime({ offset: true }).nullable(), completed: z.boolean(), created_at: z.iso.datetime() })).default([]),
+      notes: z.array(z.object({ id: z.string(), text: z.string(), created_at: z.iso.datetime() })).default([]),
+      contacts: z.array(z.object({ id: z.string(), name: z.string(), role: z.string().nullable(), channel: z.string().nullable(), created_at: z.iso.datetime() })).default([]),
       selected_cv_variant_id: z.string().nullable().default(null),
       selected_cover_letter_run_id: z.string().nullable().default(null),
       selected_interview_run_id: z.string().nullable().default(null),
@@ -381,6 +384,10 @@ export const campaignRunReferenceSchema = z.object({
   id: z.string(), label: z.string().nullable().default(null),
   parent_run_id: z.string().nullable().default(null), created_at: z.iso.datetime(),
 })
+export const campaignEventSchema = z.object({ id: z.string(), event_type: z.string(), details: z.record(z.string(), z.unknown()), provenance: z.enum(['user', 'system']), created_at: z.iso.datetime() })
+export const campaignTaskSchema = z.object({ id: z.string(), title: z.string(), deadline: z.iso.datetime({ offset: true }).nullable(), completed: z.boolean(), created_at: z.iso.datetime() })
+export const campaignNoteSchema = z.object({ id: z.string(), text: z.string(), created_at: z.iso.datetime() })
+export const campaignContactSchema = z.object({ id: z.string(), name: z.string(), role: z.string().nullable(), channel: z.string().nullable(), created_at: z.iso.datetime() })
 export const campaignDetailSchema = workspaceSummarySchema.extend({
   selected_materials: z.object({
     cv_variant: campaignCvVariantReferenceSchema.nullable(),
@@ -392,6 +399,8 @@ export const campaignDetailSchema = workspaceSummarySchema.extend({
     cover_letters: z.array(campaignRunReferenceSchema),
     interviews: z.array(campaignRunReferenceSchema),
   }),
+  events: z.array(campaignEventSchema), tasks: z.array(campaignTaskSchema),
+  notes: z.array(campaignNoteSchema), contacts: z.array(campaignContactSchema),
 })
 export const campaignMaterialSelectionSchema = z.strictObject({
   cv_variant_id: z.string().nullable().optional(),
@@ -680,6 +689,7 @@ export type WorkspaceList = z.infer<typeof workspaceListSchema>
 export type WorkspaceUpdate = z.input<typeof workspaceUpdateSchema>
 export type CampaignDetail = z.infer<typeof campaignDetailSchema>
 export type CampaignMaterialSelection = z.input<typeof campaignMaterialSelectionSchema>
+export type CampaignTask = z.infer<typeof campaignTaskSchema>
 export type ResumeResult = z.infer<typeof resumeResultSchema>
 export type JobMatchResult = z.infer<typeof jobMatchResultSchema>
 export type CoverLetterResult = z.infer<typeof coverLetterResultSchema>

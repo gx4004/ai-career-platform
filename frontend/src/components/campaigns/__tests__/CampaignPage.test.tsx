@@ -3,7 +3,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { CampaignPage } from '../CampaignPage'
 
-const api = vi.hoisted(() => ({ getCampaign: vi.fn(), updateCampaignMaterials: vi.fn() }))
+const api = vi.hoisted(() => ({ getCampaign: vi.fn(), updateCampaignMaterials: vi.fn(), createCampaignTask: vi.fn(), updateCampaignTask: vi.fn(), deleteCampaignTask: vi.fn(), createCampaignNote: vi.fn(), deleteCampaignNote: vi.fn(), createCampaignContact: vi.fn(), deleteCampaignContact: vi.fn() }))
 vi.mock('#/lib/api/client', () => api)
 vi.mock('#/hooks/useSession', () => ({ useSession: () => ({ status: 'authenticated', openAuthDialog: vi.fn() }) }))
 vi.mock('@tanstack/react-router', () => ({ Link: ({ children }: { children: React.ReactNode }) => <a href="/history">{children}</a> }))
@@ -13,6 +13,10 @@ const campaign = {
   listing: { title: 'Platform Engineer', company: 'Northstar Labs', description: 'Own the service platform and improve reliability across product teams.', source_url: 'https://jobs.example/platform', retrieved_at: '2026-07-12T10:00:00Z' },
   selected_materials: { cv_variant: null, cover_letter: null, interview: null },
   available_materials: { cv_variants: [{ id: 'cv-1', document_id: 'doc-1', document_name: 'Engineering CV', name: 'Northstar', target_role: 'Platform Engineer', created_at: '2026-07-12T10:00:00Z' }], cover_letters: [{ id: 'cl-2', label: 'Northstar letter', parent_run_id: 'cl-1', created_at: '2026-07-12T11:00:00Z' }], interviews: [] },
+  events: [{ id: 'event-1', event_type: 'status_changed', details: { from: 'planning', to: 'preparing' }, provenance: 'user', created_at: '2026-07-13T10:00:00Z' }],
+  tasks: [{ id: 'task-1', title: 'Send application', deadline: null, completed: false, created_at: '2026-07-13T10:00:00Z' }],
+  notes: [{ id: 'note-1', text: 'Ask about team structure', created_at: '2026-07-13T10:00:00Z' }],
+  contacts: [{ id: 'contact-1', name: 'Alex', role: 'Recruiter', channel: 'Email', created_at: '2026-07-13T10:00:00Z' }],
 }
 
 function renderPage() { const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } }); return render(<QueryClientProvider client={client}><CampaignPage campaignId="ws-1" /></QueryClientProvider>) }
@@ -29,6 +33,9 @@ describe('CampaignPage', () => {
     await waitFor(() => expect(api.updateCampaignMaterials).toHaveBeenCalledWith('ws-1', { cv_variant_id: 'cv-1' }))
     expect(screen.getByRole('option', { name: /Northstar letter — revision.*cl-2/ })).toBeTruthy()
     expect((await screen.findByRole('status')).textContent).toBe('Selection saved.')
+    expect(screen.getByText('Send application')).toBeTruthy()
+    expect(screen.getByText('Ask about team structure')).toBeTruthy()
+    expect(screen.getByText(/Status changed/)).toBeTruthy()
   })
 
   it('renders an explicit empty state and disables unavailable material selection', async () => {

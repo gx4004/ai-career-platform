@@ -327,7 +327,7 @@ via `get_optional_current_user()`. Rate-limited at 10/min per endpoint.
 | `POST` | `/career/recommend` | 10/min |
 | `POST` | `/portfolio/recommend` | 10/min |
 
-### 6.3 Authentication or Session Credential Required (28 endpoints)
+### 6.3 Authentication or Session Credential Required (35 endpoints)
 
 | Method | Path | Rate Limit |
 |--------|------|------------|
@@ -339,6 +339,13 @@ via `get_optional_current_user()`. Rate-limited at 10/min per endpoint.
 | `GET` | `/history/workspaces/{id}` | None |
 | `PATCH` | `/history/workspaces/{id}` | None |
 | `PATCH` | `/history/workspaces/{id}/materials` | None |
+| `POST` | `/history/workspaces/{id}/tasks` | None |
+| `PATCH` | `/history/workspaces/{id}/tasks/{task_id}` | None |
+| `DELETE` | `/history/workspaces/{id}/tasks/{task_id}` | None |
+| `POST` | `/history/workspaces/{id}/notes` | None |
+| `DELETE` | `/history/workspaces/{id}/notes/{note_id}` | None |
+| `POST` | `/history/workspaces/{id}/contacts` | None |
+| `DELETE` | `/history/workspaces/{id}/contacts/{contact_id}` | None |
 | `GET` | `/history/{id}` | None |
 | `GET` | `/history/{run_id}/export/pdf` | 10/min |
 | `DELETE` | `/history/{id}` | None |
@@ -1175,3 +1182,12 @@ file inspection.
 | §10 | `grep -rn "Sentry.init\|beforeSend\|_scrub_sentry_event"` | Both frontend and backend scrubbing |
 | §13 | `grep "USER" backend/Dockerfile frontend/Dockerfile` | No USER instruction in either |
 | §13 | `grep "posthog" frontend/package.json` | No match (SDK not installed) |
+# R13 third-party campaign contacts
+
+Campaign contacts contain third-party personal data deliberately bounded to a
+name, role, and contact channel. They are stored only inside an authenticated,
+owner-isolated campaign; they are included in the owner's career-data export and
+are deleted with the contact, campaign, or account. Contact values, note text,
+company names, and task titles are prohibited from telemetry and campaign-event
+details. Timeline events retain only opaque record identifiers and
+low-cardinality actions so deleting a contact removes its personal fields.

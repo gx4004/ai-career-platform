@@ -89,6 +89,9 @@ def export_career_data(db: Session, user_id: str) -> CareerDataExport:
                         if workspace.selected_interview_run
                         else None
                     ),
+                    tasks=list(workspace.campaign_tasks),
+                    notes=list(workspace.campaign_notes),
+                    contacts=list(workspace.campaign_contacts),
                     events=[
                         CampaignEventExport(
                             id=event.id,

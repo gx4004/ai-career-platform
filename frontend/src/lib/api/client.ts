@@ -31,6 +31,7 @@ import {
   workspaceUpdateSchema,
   campaignDetailSchema,
   campaignMaterialSelectionSchema,
+  campaignTaskSchema, campaignNoteSchema, campaignContactSchema,
   cvDocumentListSchema,
   cvDocumentSchema,
   cvDocumentUpdateSchema,
@@ -577,6 +578,14 @@ export function updateCampaignMaterials(
     method: 'PATCH', body: campaignMaterialSelectionSchema.parse(payload), schema: campaignDetailSchema,
   })
 }
+
+export function createCampaignTask(workspaceId: string, payload: { title: string; deadline?: string | null }) { return request(`/history/workspaces/${workspaceId}/tasks`, { method: 'POST', body: payload, schema: campaignTaskSchema }) }
+export function updateCampaignTask(workspaceId: string, taskId: string, completed: boolean) { return request(`/history/workspaces/${workspaceId}/tasks/${taskId}`, { method: 'PATCH', body: { completed }, schema: campaignTaskSchema }) }
+export function deleteCampaignTask(workspaceId: string, taskId: string) { return request(`/history/workspaces/${workspaceId}/tasks/${taskId}`, { method: 'DELETE', schema: deletedResponseSchema }) }
+export function createCampaignNote(workspaceId: string, text: string) { return request(`/history/workspaces/${workspaceId}/notes`, { method: 'POST', body: { text }, schema: campaignNoteSchema }) }
+export function deleteCampaignNote(workspaceId: string, noteId: string) { return request(`/history/workspaces/${workspaceId}/notes/${noteId}`, { method: 'DELETE', schema: deletedResponseSchema }) }
+export function createCampaignContact(workspaceId: string, payload: { name: string; role?: string | null; channel?: string | null }) { return request(`/history/workspaces/${workspaceId}/contacts`, { method: 'POST', body: payload, schema: campaignContactSchema }) }
+export function deleteCampaignContact(workspaceId: string, contactId: string) { return request(`/history/workspaces/${workspaceId}/contacts/${contactId}`, { method: 'DELETE', schema: deletedResponseSchema }) }
 
 export function requestPasswordReset(payload: { email: string }) {
   return request<{ message: string }>('/auth/password-reset/request', {
