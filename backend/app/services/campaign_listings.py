@@ -18,6 +18,8 @@ def attach_listing(
     description: str,
     source_url: str | None,
     source_family: str,
+    retrieved_at: datetime | None = None,
+    event_type: str = "listing_attached",
 ) -> CampaignListing:
     normalized_title = title.strip()
     normalized_company = company.strip()
@@ -43,13 +45,17 @@ def attach_listing(
         raise HTTPException(status_code=404, detail="Campaign not found")
 
     outcome = "replaced" if workspace.listing is not None else "attached"
+    if retrieved_at is None:
+        retrieved_at = datetime.now(UTC)
+    elif retrieved_at.tzinfo is None:
+        retrieved_at = retrieved_at.replace(tzinfo=UTC)
     listing = CampaignListing(
         workspace_id=workspace.id,
         title=normalized_title,
         company=normalized_company,
         description=normalized_description,
         source_url=source_url,
-        retrieved_at=datetime.now(UTC),
+        retrieved_at=retrieved_at,
     )
     db.add(listing)
     db.flush()
@@ -57,7 +63,7 @@ def attach_listing(
     db.add(
         CampaignEvent(
             workspace_id=workspace.id,
-            event_type="listing_attached",
+            event_type=event_type,
             details={"source_family": source_family, "outcome": outcome},
         )
     )

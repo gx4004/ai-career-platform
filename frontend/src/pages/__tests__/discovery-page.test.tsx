@@ -11,6 +11,8 @@ const unhideSource = vi.hoisted(() => vi.fn())
 const dismissRecommendation = vi.hoisted(() => vi.fn())
 const undismissRecommendation = vi.hoisted(() => vi.fn())
 const reportRecommendation = vi.hoisted(() => vi.fn())
+const adoptRecommendation = vi.hoisted(() => vi.fn())
+const navigate = vi.hoisted(() => vi.fn())
 
 vi.mock('#/lib/api/client', () => ({
   listDiscoveryRecommendations: listRecommendations,
@@ -20,12 +22,14 @@ vi.mock('#/lib/api/client', () => ({
   dismissDiscoveryRecommendation: dismissRecommendation,
   undismissDiscoveryRecommendation: undismissRecommendation,
   reportDiscoveryRecommendation: reportRecommendation,
+  adoptDiscoveryRecommendation: adoptRecommendation,
 }))
 
 vi.mock('@tanstack/react-router', () => ({
   Link: ({ children, to }: { children: ReactNode; to: string }) => (
     <a href={to}>{children}</a>
   ),
+  useNavigate: () => navigate,
 }))
 
 const RECOMMENDATION = {
@@ -68,6 +72,8 @@ function renderPage(payload: unknown, personalization: unknown = { hidden_source
   unhideSource.mockResolvedValue(undefined)
   dismissRecommendation.mockResolvedValue({})
   reportRecommendation.mockResolvedValue({})
+  adoptRecommendation.mockResolvedValue({ id: 'campaign-9' })
+  navigate.mockReset()
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(
     <QueryClientProvider client={client}>
@@ -111,6 +117,23 @@ describe('DiscoveryPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /Dismiss/ }))
     await waitFor(() => expect(dismissRecommendation).toHaveBeenCalledWith('listing-1'))
+  })
+
+  it('adopts a recommendation into a new campaign and navigates to it', async () => {
+    renderPage({ confirmed_item_count: 1, preference_item_count: 1, items: [RECOMMENDATION] })
+    await screen.findByRole('heading', { name: 'Platform Engineer' })
+
+    const adoptButton = screen.getByRole('button', { name: /Adopt into campaign/ })
+    expect((adoptButton as HTMLButtonElement).disabled).toBeFalsy()
+    fireEvent.click(adoptButton)
+
+    await waitFor(() => expect(adoptRecommendation).toHaveBeenCalledWith('listing-1'))
+    await waitFor(() =>
+      expect(navigate).toHaveBeenCalledWith({
+        to: '/campaigns/$campaignId',
+        params: { campaignId: 'campaign-9' },
+      }),
+    )
   })
 
   it('hides a source from a card', async () => {

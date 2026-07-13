@@ -1,19 +1,21 @@
 import type { CSSProperties } from 'react'
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link } from '@tanstack/react-router'
+import { Link, useNavigate } from '@tanstack/react-router'
 import {
   ArrowUpRight,
   BadgeCheck,
   Compass,
   EyeOff,
   Flag,
+  FolderPlus,
   SlidersHorizontal,
   Undo2,
   X,
 } from 'lucide-react'
 import { PageFrame } from '#/components/app/PageFrame'
 import {
+  adoptDiscoveryRecommendation,
   dismissDiscoveryRecommendation,
   getDiscoveryPersonalization,
   hideDiscoverySource,
@@ -40,6 +42,7 @@ const REPORT_REASONS: { value: DiscoveryReportReasonCategory; label: string }[] 
 
 export function DiscoveryPage() {
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
   const query = useQuery({
     queryKey: RECOMMENDATIONS_KEY,
     queryFn: listDiscoveryRecommendations,
@@ -75,6 +78,13 @@ export function DiscoveryPage() {
       reason: string
     }) => reportDiscoveryRecommendation(payload),
     onSuccess: invalidateFeed,
+  })
+  const adopt = useMutation({
+    mutationFn: (listingId: string) => adoptDiscoveryRecommendation(listingId),
+    onSuccess: (campaign) => {
+      invalidateFeed()
+      navigate({ to: '/campaigns/$campaignId', params: { campaignId: campaign.id } })
+    },
   })
 
   const hiddenSources = personalization.data?.hidden_sources ?? []
@@ -168,6 +178,7 @@ export function DiscoveryPage() {
                 >
                   <RecommendationCard
                     recommendation={recommendation}
+                    onAdopt={() => adopt.mutate(recommendation.listing_id)}
                     onDismiss={() => dismiss.mutate(recommendation.listing_id)}
                     onHideSource={(sourceId) => hide.mutate(sourceId)}
                     onReport={(reasonCategory, reason) =>
@@ -176,6 +187,9 @@ export function DiscoveryPage() {
                         reasonCategory,
                         reason,
                       })
+                    }
+                    isAdopting={
+                      adopt.isPending && adopt.variables === recommendation.listing_id
                     }
                     isDismissing={dismiss.isPending}
                     isHiding={hide.isPending}
@@ -193,9 +207,11 @@ export function DiscoveryPage() {
 
 type RecommendationCardProps = {
   recommendation: DiscoveryRecommendation
+  onAdopt: () => void
   onDismiss: () => void
   onHideSource: (sourceId: string) => void
   onReport: (reasonCategory: DiscoveryReportReasonCategory, reason: string) => void
+  isAdopting: boolean
   isDismissing: boolean
   isHiding: boolean
   isReporting: boolean
@@ -203,9 +219,11 @@ type RecommendationCardProps = {
 
 function RecommendationCard({
   recommendation,
+  onAdopt,
   onDismiss,
   onHideSource,
   onReport,
+  isAdopting,
   isDismissing,
   isHiding,
   isReporting,
@@ -285,6 +303,15 @@ function RecommendationCard({
       </footer>
 
       <div className="discovery-controls" aria-label="Recommendation controls">
+        <button
+          type="button"
+          className="discovery-control discovery-control--adopt"
+          onClick={onAdopt}
+          disabled={isAdopting}
+        >
+          <FolderPlus size={14} aria-hidden="true" />
+          {isAdopting ? 'Adopting…' : 'Adopt into campaign'}
+        </button>
         <button
           type="button"
           className="discovery-control discovery-control--dismiss"

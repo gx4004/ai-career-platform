@@ -14,6 +14,12 @@ from app.schemas.discovery_personalization import (
     RecommendationReportCreate,
 )
 from app.schemas.discovery_recommendations import DiscoveryRecommendationList
+from app.schemas.history import CampaignDetailResponse
+from app.services.campaign_materials import get_campaign_detail
+from app.services.discovery_adoption import (
+    RecommendationNotAdoptableError,
+    adopt_recommendation,
+)
 from app.services.discovery_personalization import (
     DiscoveredListingNotFoundError,
     DiscoverySourceNotFoundError,
@@ -35,6 +41,33 @@ def list_recommendations(
     db: Session = Depends(get_db),
 ):
     return rank_discovery_recommendations(db, current_user.id)
+
+
+@router.post(
+    "/recommendations/{listing_id}/adopt",
+    response_model=CampaignDetailResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def adopt_recommendation_into_campaign(
+    listing_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """One explicit user action turns one visible recommendation into a campaign.
+
+    The listing content, its source attribution, and its retrieval date are
+    copied into the new campaign's canonical listing, and the adoption is the
+    campaign's first event (D-091, D-078). Dismissed, fully hidden, or expired
+    recommendations are absent from the feed and are refused here.
+    """
+    try:
+        workspace = adopt_recommendation(db, current_user.id, listing_id)
+    except RecommendationNotAdoptableError as error:
+        raise HTTPException(
+            status_code=404,
+            detail="Recommendation is not available to adopt",
+        ) from error
+    return get_campaign_detail(db, workspace, current_user.id)
 
 
 # ── Personalization / correction controls (R14, issue #175) ──
