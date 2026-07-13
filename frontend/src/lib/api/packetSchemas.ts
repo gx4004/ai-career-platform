@@ -10,12 +10,23 @@ const offsetDateTimeSchema = z.iso.datetime({ offset: true })
 export const packetStatusSchema = z.enum(['prepared', 'blocked'])
 export type PacketStatus = z.infer<typeof packetStatusSchema>
 
+// Mirrors app.services.stop_classifier.StopCategory + the non-stop
+// `missing_material` question (D-095, #182). One authoritative category set.
+export const stopCategorySchema = z.enum([
+  'work_authorization',
+  'salary',
+  'relocation',
+  'eligibility',
+  'demographic',
+  'legal',
+  'sensitive',
+  'uncertain',
+])
+export type StopCategory = z.infer<typeof stopCategorySchema>
+
 export const unresolvedQuestionCategorySchema = z.enum([
   'missing_material',
-  'work_authorization',
-  'compensation',
-  'relocation',
-  'demographic_or_eligibility',
+  ...stopCategorySchema.options,
 ])
 export type UnresolvedQuestionCategory = z.infer<typeof unresolvedQuestionCategorySchema>
 
@@ -94,3 +105,35 @@ export const applicationPacketsExportSchema = z.strictObject({
   packets: z.array(applicationPacketItemSchema),
 })
 export type ApplicationPacketsExport = z.infer<typeof applicationPacketsExportSchema>
+
+// Stop answers (R15 #182, D-095/D-099): the owner's typed answers to mandatory-stop
+// questions. Only the user can resolve a stop; the system never drafts these fields.
+export const stopAnswerRequestSchema = z.strictObject({
+  field: z.string().min(1).max(64),
+  answer: z.string().min(1).max(4000),
+})
+export type StopAnswerRequest = z.infer<typeof stopAnswerRequestSchema>
+
+export const stopAnswerResultSchema = z.strictObject({
+  packet_id: z.string(),
+  resolved_field: z.string(),
+  remaining_unresolved: z.number().int().min(0),
+  approvable: z.boolean(),
+  unresolved_questions: z.array(unresolvedQuestionSchema),
+})
+export type StopAnswerResult = z.infer<typeof stopAnswerResultSchema>
+
+export const stopAnswerExportItemSchema = z.strictObject({
+  packet_id: z.string(),
+  field: z.string(),
+  category: z.string(),
+  answer: z.string(),
+  created_at: offsetDateTimeSchema,
+  updated_at: offsetDateTimeSchema,
+})
+export type StopAnswerExportItem = z.infer<typeof stopAnswerExportItemSchema>
+
+export const packetStopAnswersExportSchema = z.strictObject({
+  stop_answers: z.array(stopAnswerExportItemSchema),
+})
+export type PacketStopAnswersExport = z.infer<typeof packetStopAnswersExportSchema>

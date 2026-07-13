@@ -39,43 +39,21 @@ from app.schemas.discovery_recommendations import DiscoveryRecommendation
 from app.services.ai_client import complete_structured
 from app.services.discovery_adoption import adopt_recommendation
 from app.services.evidence_injection import EvidencePayload, render_evidence_section
-from app.services.quality_signals import keyword_present
 from app.services.queue_rules import matched_keywords_for_rule, select_admitted_candidates
+from app.services.stop_classifier import (
+    classify_stop_category,
+    stop_categories_in,
+    stop_question_text,
+)
 
 PACKET_TOOL_NAME = "application-packet"
 PACKET_SCHEMA_VERSION = "application-packet/v1"
 
-# Topics that ADR 0009 makes mandatory stops: only explicit user input can answer
-# them, so whenever a listing raises one the packet attaches an unresolved
-# question rather than inferring an answer (D-073: no unverified claims by
-# default). The exhaustive classification lives in #182; this is the durable
-# attachment mechanism plus what this ticket can determine deterministically.
-_MANDATORY_STOP_TERMS: dict[str, tuple[str, ...]] = {
-    "work_authorization": (
-        "visa",
-        "sponsorship",
-        "work authorization",
-        "work authorisation",
-        "work permit",
-        "right to work",
-    ),
-    "compensation": ("salary", "compensation", "pay range", "expected pay", "wage"),
-    "relocation": ("relocation", "relocate", "willing to relocate"),
-    "demographic_or_eligibility": (
-        "citizenship",
-        "security clearance",
-        "clearance",
-        "eligibility to work",
-    ),
-}
-_STOP_QUESTION_TEXT: dict[str, str] = {
-    "work_authorization": "Confirm your work-authorization / visa status for this role.",
-    "compensation": "Provide your compensation expectation for this role.",
-    "relocation": "Confirm whether you are willing to relocate for this role.",
-    "demographic_or_eligibility": (
-        "Answer the eligibility question this listing requires (only you can)."
-    ),
-}
+# The exhaustive, authoritative mandatory-stop classification lives in one place —
+# ``app.services.stop_classifier`` (D-095, #182). This module no longer keeps its own
+# stop-topic list; the provisional #181 dict was absorbed there so there is a single
+# classifier. Both the listing scan below and the generator's screening-answer filter
+# route through it, so nothing the system produces can draft a stop field.
 
 
 # ── CV text projection (read-only; never copied into the packet) ──
@@ -177,14 +155,43 @@ def build_match_rationale(rec: DiscoveryRecommendation, rules: list) -> dict:
 # ── Unresolved questions (computed + attached, never silently dropped) ──
 
 
+def _stop_question(category: str) -> dict:
+    """A derived, listing-content-free unresolved question for a stop category."""
+    return {
+        "field": category,
+        "category": category,
+        "question": stop_question_text(category),  # type: ignore[arg-type]
+    }
+
+
+def merge_unresolved_questions(*groups: list[dict]) -> list[dict]:
+    """Merge unresolved-question lists, deduped by ``field`` in first-seen order.
+
+    A stop category surfaced by both the listing scan and the generator's
+    screening-answer filter is a single mandatory stop for the packet, so it appears
+    exactly once.
+    """
+    merged: list[dict] = []
+    seen: set[str] = set()
+    for group in groups:
+        for question in group:
+            field = question.get("field")
+            if field in seen:
+                continue
+            seen.add(field)
+            merged.append(question)
+    return merged
+
+
 def compute_unresolved_questions(
     *, listing_description: str, cv_variant_id: str | None
 ) -> list[dict]:
-    """Compute the mandatory stops this ticket can determine (ADR 0009).
+    """The mandatory stops determinable from the listing + material availability.
 
-    Deterministic: a missing CV variant, plus any mandatory-stop topic the listing
-    surfaces (work authorization, compensation, relocation, eligibility) that only
-    the user can answer. #182 refines the full classification.
+    Deterministic and server-authoritative (D-095): a missing CV variant, plus every
+    mandatory-stop topic the authoritative classifier finds in the listing. The
+    generator adds any further stops it detects in screening questions; the two are
+    merged in :func:`prepare_packets`.
     """
     questions: list[dict] = []
     if cv_variant_id is None:
@@ -195,16 +202,7 @@ def compute_unresolved_questions(
                 "question": "Select or tailor a CV variant before this packet can be approved.",
             }
         )
-    text = listing_description or ""
-    for category, terms in _MANDATORY_STOP_TERMS.items():
-        if any(keyword_present(term, text) for term in terms):
-            questions.append(
-                {
-                    "field": category,
-                    "category": category,
-                    "question": _STOP_QUESTION_TEXT[category],
-                }
-            )
+    questions.extend(_stop_question(category) for category in stop_categories_in(listing_description or ""))
     return questions
 
 
@@ -250,7 +248,12 @@ async def compose_packet_materials(
     raw = await complete_structured(system_prompt, user_prompt)
 
     cover_letter = _validate_cover_letter(raw.get("cover_letter"), confirmed_ids)
-    screening_answers = _validate_screening_answers(raw.get("screening_answers"), confirmed_ids)
+    # Never-draft guarantee (D-095, #182): any screening question the authoritative
+    # classifier marks as a mandatory stop is dropped from the drafts and emitted as
+    # an unresolved question instead — the system produces no content for it.
+    screening_answers, stop_questions = _draftable_screening_answers(
+        raw.get("screening_answers"), confirmed_ids
+    )
     return {
         "schema_version": PACKET_SCHEMA_VERSION,
         "summary": {
@@ -258,6 +261,10 @@ async def compose_packet_materials(
         },
         "cover_letter": cover_letter,
         "screening_answers": screening_answers,
+        # Mandatory stops detected among the screening questions. Carries only the
+        # derived, listing-content-free question (never the raw field/answer text),
+        # so nothing sensitive is persisted with the drafts.
+        "unresolved_questions": stop_questions,
         # Provenance record: exactly which confirmed items were available. Never
         # includes unconfirmed ids (D-073 confirmed-only enforcement).
         "confirmed_evidence_item_ids": sorted(confirmed_ids),
@@ -290,23 +297,50 @@ def _validate_cover_letter(raw: object, confirmed_ids: set[str]) -> dict | None:
     }
 
 
-def _validate_screening_answers(raw: object, confirmed_ids: set[str]) -> list[dict]:
+def _draftable_screening_answers(
+    raw: object, confirmed_ids: set[str]
+) -> tuple[list[dict], list[dict]]:
+    """Split the model's screening answers into draftable answers and stop questions.
+
+    Server-authoritative never-draft enforcement (D-095): a question the classifier
+    marks as any mandatory stop — or an answer the model could only leave
+    ``unsupported`` (an ungrounded/uncertain field) — is never drafted. It is dropped
+    from the answers and returned as a deduped unresolved stop question. Only genuinely
+    draftable, grounded answers survive, and they still pass the D-073 support check.
+    """
     if not isinstance(raw, list):
-        return []
+        return [], []
     answers: list[dict] = []
+    stop_questions: list[dict] = []
+    seen_stops: set[str] = set()
+
+    def _add_stop(category: str) -> None:
+        if category not in seen_stops:
+            seen_stops.add(category)
+            stop_questions.append(_stop_question(category))
+
     for item in raw:
         if not isinstance(item, dict):
+            continue
+        question = str(item.get("question", ""))
+        category = classify_stop_category(question)
+        if category is not None:
+            _add_stop(category)
+            continue
+        # An ungrounded answer is an uncertain/free-form field the user must own.
+        if item.get("support", "unsupported") == "unsupported":
+            _add_stop("uncertain")
             continue
         ids = _validate_support(item, confirmed_ids)
         answers.append(
             {
-                "question": str(item.get("question", "")),
+                "question": question,
                 "answer": str(item.get("answer", "")),
                 "support": item.get("support", "unsupported"),
                 "evidence_item_ids": ids,
             }
         )
-    return answers
+    return answers, stop_questions
 
 
 # ── Preparation orchestration ──
@@ -380,10 +414,15 @@ async def prepare_packets(
         drafts_run_id = response.get("history_id")
 
         rationale = build_match_rationale(rec, selection.rules)
-        unresolved = compute_unresolved_questions(
+        # Merge the two authoritative stop sources: what the classifier finds in the
+        # listing + missing material, and the stops the generator refused to draft
+        # among the screening questions. One classifier, deduped by field.
+        listing_questions = compute_unresolved_questions(
             listing_description=rec.description,
             cv_variant_id=cv_variant.id if cv_variant else None,
         )
+        generated_questions = response.get("unresolved_questions") or []
+        unresolved = merge_unresolved_questions(listing_questions, generated_questions)
         packet = ApplicationPacket(
             user_id=user_id,
             campaign_id=campaign.id,
