@@ -222,7 +222,7 @@ Browser → POST /auth/password-reset/confirm {token, new_password}
 | 8 | Evidence Profile career claims | High | `evidence_items.content` | Until item/account deletion | Career history, preferences, employer or institution exposure |
 | 9 | Structured CV drafts and variant snapshots | High | `cv_documents.sections`, `cv_variants.sections` | Until document/account deletion | Full career history, target-role intent, professional reputation exposure |
 | 10 | Tool metadata (scores, skill gaps, recommendations) | Medium | `tool_runs.result_payload` | Until deletion | Career profile inference |
-| 11 | Workspace labels and structure | Low | `workspaces.label`, `workspaces.is_pinned` | Until deletion | Organizational preference leakage |
+| 11 | Workspace/campaign target, schedule, and transition history | High | `workspaces.label`, `workspaces.is_pinned`, `workspaces.company`, `workspaces.role`, `workspaces.status`, `workspaces.deadline`, `campaign_events.details` | Until deletion | Job-search intent, target employer, application timing, and outcome-history exposure |
 | 12 | Behavioral telemetry (event names, routes, timestamps) | Low | Log stdout, Sentry (if enabled) | Undefined (no TTL) | Usage pattern inference |
 | 13 | Sidebar state, language preference | None | `sidebar_state` cookie, `app_language` localStorage | 7 days / forever | None |
 
@@ -612,8 +612,9 @@ not sent to the frontend server, access logs, or HTTP Referer headers. Legacy
 ### 7.9 Account Deletion
 
 `POST /auth/me/delete` requires email confirmation (case-insensitive match),
-clears auth cookies, deletes all owner-scoped `evidence_items`, `tool_runs`, and
-`workspaces`, then deletes the `users` row in a single transaction. PostgreSQL
+clears auth cookies, deletes all owner-scoped `evidence_items`, `cv_documents`,
+`cv_variants`, `tool_runs`, `campaign_events`, and `workspaces` (including campaign
+target/status/deadline fields), then deletes the `users` row in a single transaction. PostgreSQL
 also enforces `ON DELETE CASCADE` for evidence items.
 
 — `backend/app/routers/auth.py:me_delete`
@@ -801,8 +802,9 @@ The editable draft lives in `cv_documents.sections`. Creation also records an
 immutable `Base` snapshot and later named snapshots live in `cv_variants.sections`;
 restore copies a snapshot into the working draft and never updates the snapshot.
 Single-document and all-document deletion are immediate and owner-scoped. The R11
-machine-readable `career-data-export/v1` export now includes the full document store and every immutable
-variant under one Pydantic/Zod-mirrored schema; it remains owner-scoped and
+machine-readable `career-data-export/v1` export now includes the full document store,
+every immutable variant, and each owner's workspace campaign fields under one
+Pydantic/Zod-mirrored schema; it remains owner-scoped and
 rate-limited to 5/minute. Account deletion explicitly removes variants and documents
 in the existing single transaction, reports separate document and variant counts in
 the deletion audit, and retains PostgreSQL `ON DELETE CASCADE` as a second line of

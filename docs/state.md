@@ -83,6 +83,16 @@ and closed-name studio telemetry. CV, job, evidence, generated text, titles, and
 stable document/run identifiers remain outside analytics. This is still dormant
 build-ahead and does not close D-068.
 
+With R12 shipped, R13 #162 now evolves `Workspace` in place with optional company,
+role, fixed-lifecycle status, and deadline fields. Legacy rows remain label-only
+campaigns with all four fields null; implicit creation and run linking are unchanged.
+The existing authenticated owner-only workspace API reads and updates these fields,
+and `career-data-export/v1` plus account erasure include them. Status/deadline
+changes already write minimal append-only events for later timeline continuity.
+This additive foundation does not close the provisional R13 parent or ship listings,
+the activity-timeline API/UI, the broader #165 event vocabulary, tasks, notes,
+contacts, reminders, reviewer behavior, or frontend activation.
+
 ## Session Handoff Snapshot (2026-07-11)
 
 - **Objective:** Ship the startable activation/quality/cleanup frontier — R6
@@ -226,7 +236,7 @@ launch market.
 | Evidence Profile deferred | No persisted profile entity, provenance/confirmation primitive, or full-data export exists; resume text is ephemeral tab-scoped state re-supplied inline per run, and R12/R13 depend on the profile's shape. | Keep R11 contract-only (D-060–D-067, ADR 0005) until the R1–R4 gate closes; implement the profile entity, confirmation lifecycle, and export slices first. |
 | CV Studio deferred | Every studio layer is greenfield: parsing is text-only, no structured CV model, DOCX generation, template system, print/page-break handling, variant versioning, or editor surface exists, and per-route rate limits do not bound iterative editing loops. | Keep R12 contract-only (D-068–D-075, ADR 0006) until R11 lands; implement document entity and reviewed import first, exporters behind validation gates. |
 | R12 #154 built dark ahead of D-068 under owner override | The authenticated import API accepts PDF, DOCX, and UTF-8 text, produces a transient structured review proposal in the isolated parser worker, and persists only on explicit, idempotent accept. Imported claims remain `unconfirmed` with `imported` provenance; accepting an import may therefore create document entries that reference pending imported items, while the ordinary #153 create/update APIs continue requiring confirmed owner evidence. | Keep the API without frontend activation. Do not treat import review as Evidence Profile confirmation or D-068 as closed; later editor work must expose the separate confirmation lifecycle. |
-| Campaigns and reviewer deferred | Workspaces are bare label+pin containers, listings are never persisted (no source URL or retrieval date), no status/task/reminder/notification infra exists, and the D-043 fabrication tracer is unimplemented; contacts will be the first third-party personal data. | Keep R13 contract-only (D-076–D-083, ADR 0007) until R12 lands; implement the additive workspace migration and listing persistence first, reviewer after the tracer. |
+| Campaigns and reviewer incomplete | Workspaces now carry optional company, role, fixed-lifecycle status, and deadline fields under owner APIs, export, and erasure. Status/deadline mutations create minimal append-only events, but listings are still never persisted (no source URL or retrieval date), and no task/note/contact/reminder/reviewer infrastructure exists; contacts will be the first third-party personal data. | Keep the parent R13 outcome provisional. Build listing persistence next, then extend append-only tracking and add the reviewer in ticket order; do not activate later-roadmap behavior early. |
 | Job discovery deferred | No source registry, robots handling, listings store, dedup, ranking surface, or per-source governance exists; the only fetcher is the user-directed single-URL importer. | Keep R14 contract-only (D-084–D-091, ADR 0008) until R13 lands; no source activates without an accepted terms review; build registry enforcement before any ingestion. |
 | Approval queue deferred | No packet, rule, mandatory-stop, or queue-audit primitive exists, and packet-grade quality evidence (R8 evals, R13 reviewer) does not yet exist to justify prepared-application volume. | Keep R15 contract-only (D-092–D-099, ADR 0009) until R14 lands and quality evidence is accepted; the submission boundary stays structural — no submission code path in R15. |
 | Trusted autopilot deferred | No submission integration, authorization primitive, idempotency key, or incident rehearsal exists, and R15's quality/demand evidence is itself deferred; submission is an irreversible outward act on third-party infrastructure. | Keep R16 contract-only (D-100–D-107, ADR 0010); the four-gate conjunction (source terms, user authorization, resolved packet, safety envelope) is the activation condition, and D-026 prohibitions are permanent. |

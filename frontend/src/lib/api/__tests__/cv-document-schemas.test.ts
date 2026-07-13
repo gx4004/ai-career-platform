@@ -53,6 +53,7 @@ describe('CV document schema (R12, #153)', () => {
     const parsed = careerDataExportSchema.parse({
       schema_version: 'career-data-export/v1', exported_at: '2026-07-12T10:00:00Z',
       item_count: 0, items: [],
+      campaigns: { campaign_count: 0, campaigns: [] },
       cv_documents: { schema_version: 'cv-documents-export/v1', exported_at: '2026-07-12T10:00:00Z', document_count: 1, documents: [cv] },
     })
     expect(parsed.cv_documents.documents[0].variants[0].name).toBe('Base')

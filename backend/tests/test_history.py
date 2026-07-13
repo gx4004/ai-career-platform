@@ -1,5 +1,7 @@
+from app.models.campaign_event import CampaignEvent
 from app.models.tool_run import ToolRun
 from app.models.workspace import Workspace
+from app.schemas.history import CampaignStatus
 
 PREFIX = "/api/v1/history"
 
@@ -140,6 +142,29 @@ def test_delete_one_of_many_preserves_workspace(client, auth_headers, test_user,
     assert len(remaining.tool_runs) == 1
 
 
+def test_delete_last_run_preserves_workspace_with_campaign_data(
+    client, auth_headers, test_user, db
+):
+    workspace = Workspace(
+        user_id=test_user.id,
+        label="Campaign",
+        company="Example Corp",
+        role="Engineer",
+        status="planning",
+    )
+    db.add(workspace)
+    db.commit()
+    db.refresh(workspace)
+    only_run = _create_run(db, test_user.id, workspace_id=workspace.id)
+
+    assert client.delete(f"{PREFIX}/{only_run.id}", headers=auth_headers).status_code == 200
+
+    db.expire_all()
+    remaining = db.query(Workspace).filter(Workspace.id == workspace.id).one()
+    assert remaining.company == "Example Corp"
+    assert remaining.tool_runs == []
+
+
 def test_toggle_favorite(client, auth_headers, test_user, db):
     run = _create_run(db, test_user.id, is_favorite=False)
 
@@ -189,6 +214,148 @@ def test_list_workspaces_and_update_workspace(client, auth_headers, test_user, d
     payload = resp.json()
     assert payload["label"] == "Pinned workspace"
     assert payload["is_pinned"] is True
+
+
+def test_legacy_workspace_is_a_label_only_campaign(client, auth_headers, test_user, db):
+    workspace = Workspace(user_id=test_user.id, label="Existing search", is_pinned=True)
+    db.add(workspace)
+    db.commit()
+    db.refresh(workspace)
+
+    response = client.get(f"{PREFIX}/workspaces", headers=auth_headers)
+
+    assert response.status_code == 200
+    campaign = response.json()["items"][0]
+    assert campaign["id"] == workspace.id
+    assert campaign["label"] == "Existing search"
+    assert campaign["is_pinned"] is True
+    assert campaign["company"] is None
+    assert campaign["role"] is None
+    assert campaign["status"] is None
+    assert campaign["deadline"] is None
+
+
+def test_owner_can_update_and_read_campaign_fields(client, auth_headers, test_user, db):
+    workspace = Workspace(user_id=test_user.id, label="Target")
+    db.add(workspace)
+    db.commit()
+    db.refresh(workspace)
+
+    response = client.patch(
+        f"{PREFIX}/workspaces/{workspace.id}",
+        json={
+            "company": "Example Corp",
+            "role": "Platform Engineer",
+            "status": "planning",
+            "deadline": "2026-08-15T16:00:00Z",
+        },
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["company"] == "Example Corp"
+    assert payload["role"] == "Platform Engineer"
+    assert payload["status"] == "planning"
+    assert payload["deadline"] == "2026-08-15T16:00:00Z"
+    listed = client.get(f"{PREFIX}/workspaces", headers=auth_headers).json()["items"][0]
+    assert listed["company"] == "Example Corp"
+    assert listed["role"] == "Platform Engineer"
+    assert listed["status"] == "planning"
+
+
+def test_campaign_fields_are_owner_only(
+    client, auth_headers, test_user, db
+):
+    from app.auth.security import hash_password
+    from app.models.user import User
+
+    second_user = User(email="campaign-owner@example.com", hashed_password=hash_password("pass"))
+    db.add(second_user)
+    db.flush()
+    workspace = Workspace(user_id=second_user.id, label="Private target")
+    db.add(workspace)
+    db.commit()
+    db.refresh(workspace)
+
+    response = client.patch(
+        f"{PREFIX}/workspaces/{workspace.id}",
+        json={"company": "Not mine", "status": "planning"},
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 404
+
+
+def test_campaign_status_lifecycle_is_enforced_server_side(
+    client, auth_headers, test_user, db
+):
+    workspace = Workspace(user_id=test_user.id, label="Lifecycle")
+    db.add(workspace)
+    db.commit()
+    db.refresh(workspace)
+    endpoint = f"{PREFIX}/workspaces/{workspace.id}"
+
+    assert client.patch(
+        endpoint, json={"status": "applied"}, headers=auth_headers
+    ).status_code == 409
+    assert client.patch(
+        endpoint, json={"status": "planning"}, headers=auth_headers
+    ).status_code == 200
+    assert client.patch(
+        endpoint, json={"status": "preparing"}, headers=auth_headers
+    ).status_code == 200
+    assert client.patch(
+        endpoint, json={"status": "applied"}, headers=auth_headers
+    ).status_code == 200
+    assert client.patch(
+        endpoint, json={"status": "planning"}, headers=auth_headers
+    ).status_code == 409
+    assert client.patch(
+        endpoint, json={"status": "custom-stage"}, headers=auth_headers
+    ).status_code == 422
+    assert client.patch(
+        endpoint,
+        json={"deadline": "2026-08-15T16:00:00"},
+        headers=auth_headers,
+    ).status_code == 422
+
+    assert [status.value for status in CampaignStatus] == [
+        "planning",
+        "preparing",
+        "applied",
+        "interviewing",
+        "offer",
+        "accepted",
+        "rejected",
+        "withdrawn",
+    ]
+    events = db.query(CampaignEvent).filter_by(workspace_id=workspace.id).all()
+    assert [(event.event_type, event.details) for event in events] == [
+        ("status_changed", {"from": None, "to": "planning"}),
+        ("status_changed", {"from": "planning", "to": "preparing"}),
+        ("status_changed", {"from": "preparing", "to": "applied"}),
+    ]
+
+
+def test_campaign_deadline_changes_are_append_only(client, auth_headers, test_user, db):
+    workspace = Workspace(user_id=test_user.id)
+    db.add(workspace)
+    db.commit()
+    endpoint = f"{PREFIX}/workspaces/{workspace.id}"
+
+    for deadline in ("2026-08-15T16:00:00Z", "2026-08-20T16:00:00Z", None):
+        assert client.patch(
+            endpoint, json={"deadline": deadline}, headers=auth_headers
+        ).status_code == 200
+
+    events = db.query(CampaignEvent).filter_by(workspace_id=workspace.id).all()
+    assert [event.event_type for event in events] == [
+        "deadline_changed",
+        "deadline_changed",
+        "deadline_changed",
+    ]
+    assert events[-1].details["to"] is None
 
 
 def test_pagination(client, auth_headers, test_user, db):

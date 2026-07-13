@@ -1,5 +1,11 @@
 import { z } from 'zod'
 
+export const campaignStatusSchema = z.enum([
+  'planning', 'preparing', 'applied', 'interviewing',
+  'offer', 'accepted', 'rejected', 'withdrawn',
+])
+export type CampaignStatus = z.infer<typeof campaignStatusSchema>
+
 export const evidenceKindSchema = z.enum([
   'experience', 'achievement', 'skill', 'education', 'project',
   'certification', 'preference', 'interview-evidence',
@@ -106,6 +112,19 @@ export const careerDataExportSchema = z.strictObject({
   exported_at: z.iso.datetime(),
   item_count: z.number().int().nonnegative(), items: z.array(evidenceItemSchema),
   cv_documents: cvDocumentsExportSchema,
+  campaigns: z.strictObject({
+    campaign_count: z.number().int().nonnegative(),
+    campaigns: z.array(z.object({
+      id: z.string(), label: z.string().nullable(), is_pinned: z.boolean(),
+      company: z.string().nullable(), role: z.string().nullable(),
+      status: campaignStatusSchema.nullable(),
+      deadline: z.iso.datetime({ offset: true }).nullable(), created_at: z.iso.datetime(), updated_at: z.iso.datetime(),
+      events: z.array(z.object({
+        id: z.string(), event_type: z.enum(['status_changed', 'deadline_changed']),
+        details: z.record(z.string(), z.unknown()), created_at: z.iso.datetime(),
+      })),
+    })),
+  }).refine((value) => value.campaign_count === value.campaigns.length),
 }).refine((value) => value.item_count === value.items.length)
 export type CvEntry = z.infer<typeof cvEntrySchema>
 export type CvSection = z.infer<typeof cvSectionSchema>
@@ -273,6 +292,10 @@ export const toolRunSummarySchema = z.object({
       id: z.string(),
       label: z.string().nullable().optional(),
       is_pinned: z.boolean().default(false),
+      company: z.string().nullable().default(null),
+      role: z.string().nullable().default(null),
+      status: campaignStatusSchema.nullable().default(null),
+      deadline: z.iso.datetime({ offset: true }).nullable().default(null),
       linked_run_ids: z.array(z.string()).default([]),
       last_active_tool: z.string().nullable().optional(),
       last_active_result_id: z.string().nullable().optional(),
@@ -299,11 +322,24 @@ export const workspaceSummarySchema = z.object({
   id: z.string(),
   label: z.string().nullable().optional(),
   is_pinned: z.boolean().default(false),
+  company: z.string().nullable().default(null),
+  role: z.string().nullable().default(null),
+  status: campaignStatusSchema.nullable().default(null),
+  deadline: z.iso.datetime({ offset: true }).nullable().default(null),
   linked_run_ids: z.array(z.string()).default([]),
   last_active_tool: z.string().nullable().optional(),
   last_active_result_id: z.string().nullable().optional(),
   updated_at: z.string(),
 })
+
+export const workspaceUpdateSchema = z.strictObject({
+  label: z.string().max(200).nullable().optional(),
+  is_pinned: z.boolean().optional(),
+  company: z.string().max(200).nullable().optional(),
+  role: z.string().max(200).nullable().optional(),
+  status: campaignStatusSchema.nullable().optional(),
+  deadline: z.iso.datetime({ offset: true }).nullable().optional(),
+}).refine((value) => Object.keys(value).length > 0)
 
 export const workspaceListSchema = z.object({
   items: z.array(workspaceSummarySchema),
@@ -588,6 +624,7 @@ export type ToolRunDetail = z.infer<typeof toolRunDetailSchema>
 export type ToolRunList = z.infer<typeof toolRunListSchema>
 export type WorkspaceSummary = z.infer<typeof workspaceSummarySchema>
 export type WorkspaceList = z.infer<typeof workspaceListSchema>
+export type WorkspaceUpdate = z.input<typeof workspaceUpdateSchema>
 export type ResumeResult = z.infer<typeof resumeResultSchema>
 export type JobMatchResult = z.infer<typeof jobMatchResultSchema>
 export type CoverLetterResult = z.infer<typeof coverLetterResultSchema>

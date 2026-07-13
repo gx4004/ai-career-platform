@@ -26,6 +26,7 @@ import {
   userSchema,
   workspaceListSchema,
   workspaceSummarySchema,
+  workspaceUpdateSchema,
   cvDocumentListSchema,
   cvDocumentSchema,
   cvDocumentUpdateSchema,
@@ -46,6 +47,7 @@ import type {
   CvDocumentUpdate,
   CvAtsCheckKey,
   CvTemplateId,
+  WorkspaceUpdate,
 } from '#/lib/api/schemas'
 
 export function listCvDocuments() {
@@ -536,14 +538,11 @@ export function getHistoryWorkspaces() {
 
 export function updateHistoryWorkspace(
   workspaceId: string,
-  payload: {
-    label?: string | null
-    is_pinned?: boolean
-  },
+  payload: WorkspaceUpdate,
 ) {
   return request(`/history/workspaces/${workspaceId}`, {
     method: 'PATCH',
-    body: payload,
+    body: workspaceUpdateSchema.parse(payload),
     schema: workspaceSummarySchema,
   })
 }
