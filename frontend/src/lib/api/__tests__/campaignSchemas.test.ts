@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   campaignStatusSchema,
+  importJobTextSchema,
+  importJobUrlSchema,
   careerDataExportSchema,
   workspaceSummarySchema,
   workspaceUpdateSchema,
@@ -12,6 +14,7 @@ describe('campaign contracts', () => {
       id: 'ws-1', label: 'Existing', is_pinned: true, linked_run_ids: [],
       last_active_tool: null, last_active_result_id: null,
       company: null, role: null, status: null, deadline: null,
+      listing: null,
       updated_at: '2026-07-13T10:00:00Z',
     }).status).toBeNull()
 
@@ -33,8 +36,24 @@ describe('campaign contracts', () => {
         role: 'Engineer', status: 'planning', deadline: null,
         created_at: '2026-07-13T10:00:00Z', updated_at: '2026-07-13T10:00:00Z',
         events: [{ id: 'event-1', event_type: 'status_changed', details: { from: null, to: 'planning' }, created_at: '2026-07-13T10:00:00Z' }],
+        listing: { title: 'Engineer', company: 'Example Corp', description: 'Build APIs', source_url: null, retrieved_at: '2026-07-13T10:00:00Z' },
+        listing_revisions: [{ title: 'Engineer', company: 'Example Corp', description: 'Build APIs', source_url: null, retrieved_at: '2026-07-13T10:00:00Z' }],
       }] },
     })
     expect(parsed.campaigns.campaign_count).toBe(1)
+    expect(parsed.campaigns.campaigns[0].listing?.title).toBe('Engineer')
+  })
+
+  it('mirrors bounded strict pasted-listing inputs', () => {
+    expect(importJobTextSchema.parse({
+      campaign_id: 'ws-1', job_title: 'Engineer', company_name: 'Example Corp',
+      job_description: 'A sufficiently detailed pasted role description.',
+    }).campaign_id).toBe('ws-1')
+    expect(importJobTextSchema.safeParse({
+      campaign_id: 'ws-1', job_title: 'Engineer', company_name: 'Example Corp',
+      job_description: 'too short', source_url: 'https://example.com',
+    }).success).toBe(false)
+    expect(importJobUrlSchema.safeParse({ url: 'file:///private/job' }).success).toBe(false)
+    expect(importJobUrlSchema.safeParse({ url: `https://example.com/${'x'.repeat(2_100)}` }).success).toBe(false)
   })
 })

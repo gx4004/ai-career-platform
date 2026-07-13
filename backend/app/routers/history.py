@@ -173,6 +173,18 @@ def update_workspace(
     return build_workspace_summary(workspace, list(workspace.tool_runs))
 
 
+@router.delete("/workspaces/{workspace_id}", response_model=DeletedResponse)
+def delete_workspace(
+    workspace_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    workspace = _get_workspace(db, workspace_id, current_user.id)
+    db.delete(workspace)
+    db.commit()
+    return DeletedResponse(deleted=1)
+
+
 def _apply_campaign_status_transition(
     workspace: Workspace, requested: CampaignStatus | None
 ) -> tuple[CampaignStatus | None, CampaignStatus] | None:
@@ -227,10 +239,14 @@ def export_pdf(
 
     from app.services.pdf_export import generate_cover_letter_pdf, generate_interview_pdf
 
-    run = db.query(ToolRun).filter(
-        ToolRun.id == run_id,
-        ToolRun.user_id == current_user.id,
-    ).first()
+    run = (
+        db.query(ToolRun)
+        .filter(
+            ToolRun.id == run_id,
+            ToolRun.user_id == current_user.id,
+        )
+        .first()
+    )
     if not run:
         raise HTTPException(status_code=404, detail="Run not found")
 
@@ -332,6 +348,7 @@ def _has_campaign_data(workspace: Workspace) -> bool:
             workspace.role,
             workspace.status,
             workspace.deadline,
+            workspace.listing,
         )
     )
 

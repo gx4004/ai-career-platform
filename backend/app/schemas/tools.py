@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field, HttpUrl
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl
 
 # --- Requests ---
 
@@ -73,7 +74,19 @@ class PortfolioRequest(BaseModel):
 
 
 class ImportJobUrlRequest(BaseModel):
-    url: HttpUrl
+    model_config = ConfigDict(extra="forbid")
+
+    url: HttpUrl = Field(..., max_length=2_048)
+    campaign_id: str | None = None
+
+
+class ImportJobTextRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    campaign_id: str
+    job_title: str = Field(..., min_length=1, max_length=200)
+    company_name: str = Field(..., min_length=1, max_length=200)
+    job_description: str = Field(..., min_length=20, max_length=20_000)
 
 
 class WorkspaceContextInput(BaseModel):
@@ -371,3 +384,4 @@ class ImportedJobResponse(BaseModel):
     company_name: str | None = None
     job_description: str
     source_url: str | None = None
+    retrieved_at: datetime | None = None

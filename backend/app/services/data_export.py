@@ -1,10 +1,15 @@
-from datetime import UTC
+from datetime import UTC, datetime
 
 from sqlalchemy.orm import Session
 
 from app.models.workspace import Workspace
 from app.schemas.data_export import CareerDataExport
-from app.schemas.history import CampaignEventExport, CampaignExportItem, CampaignsExport
+from app.schemas.history import (
+    CampaignEventExport,
+    CampaignExportItem,
+    CampaignListingResponse,
+    CampaignsExport,
+)
 from app.services.cv_documents import export_documents
 from app.services.evidence_profile import export_evidence_profile
 
@@ -32,31 +37,36 @@ def export_career_data(db: Session, user_id: str) -> CareerDataExport:
                     company=workspace.company,
                     role=workspace.role,
                     status=workspace.status,
-                    deadline=(
-                        workspace.deadline.replace(tzinfo=UTC)
-                        if workspace.deadline and workspace.deadline.tzinfo is None
-                        else workspace.deadline
+                    deadline=_as_utc(workspace.deadline),
+                    created_at=_as_utc(workspace.created_at),
+                    updated_at=_as_utc(workspace.updated_at),
+                    listing=(
+                        CampaignListingResponse(
+                            title=workspace.listing.title,
+                            company=workspace.listing.company,
+                            description=workspace.listing.description,
+                            source_url=workspace.listing.source_url,
+                            retrieved_at=_as_utc(workspace.listing.retrieved_at),
+                        )
+                        if workspace.listing is not None
+                        else None
                     ),
-                    created_at=(
-                        workspace.created_at.replace(tzinfo=UTC)
-                        if workspace.created_at.tzinfo is None
-                        else workspace.created_at
-                    ),
-                    updated_at=(
-                        workspace.updated_at.replace(tzinfo=UTC)
-                        if workspace.updated_at.tzinfo is None
-                        else workspace.updated_at
-                    ),
+                    listing_revisions=[
+                        CampaignListingResponse(
+                            title=listing.title,
+                            company=listing.company,
+                            description=listing.description,
+                            source_url=listing.source_url,
+                            retrieved_at=_as_utc(listing.retrieved_at),
+                        )
+                        for listing in workspace.listings
+                    ],
                     events=[
                         CampaignEventExport(
                             id=event.id,
                             event_type=event.event_type,
                             details=event.details,
-                            created_at=(
-                                event.created_at.replace(tzinfo=UTC)
-                                if event.created_at.tzinfo is None
-                                else event.created_at
-                            ),
+                            created_at=_as_utc(event.created_at),
                         )
                         for event in workspace.campaign_events
                     ],
@@ -65,3 +75,9 @@ def export_career_data(db: Session, user_id: str) -> CareerDataExport:
             ],
         ),
     )
+
+
+def _as_utc(value: datetime | None) -> datetime | None:
+    if value is None:
+        return None
+    return value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
