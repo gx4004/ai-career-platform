@@ -19,6 +19,7 @@ from app.schemas.history import CampaignListingResponse, WorkspaceSummary
 from app.services.discovery_personalization import delete_personalization
 from app.services.observability import log_user_account_deleted
 from app.services.premium_outputs import attach_premium_outputs
+from app.services.queue_rules import delete_queue_rules
 from app.services.workspaces import resolve_workspace, touch_workspace
 
 logger = logging.getLogger(__name__)
@@ -50,6 +51,9 @@ def delete_all_user_data(db: Session, user_id: str) -> None:
     # Discovery personalization (hidden sources, dismissals, error reports) is
     # owner-scoped user data and joins the erasure cascade (D-090, R14 #175).
     delete_personalization(db, user_id)
+    # Application Approval Queue rules, caps, and cost ceiling are owner-scoped user
+    # data and join the erasure cascade (D-099, R15 #180).
+    delete_queue_rules(db, user_id)
     evidence_deleted = db.query(EvidenceItem).filter(EvidenceItem.user_id == user_id).delete()
     runs_deleted = db.query(ToolRun).filter(ToolRun.user_id == user_id).delete()
     workspace_ids = [row.id for row in db.query(Workspace.id).filter(Workspace.user_id == user_id)]
