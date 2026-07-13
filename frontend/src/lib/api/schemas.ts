@@ -129,7 +129,21 @@ export const cvAtsCheckKeySchema = z.enum([
 export const cvQualityRequestSchema = z.strictObject({
   use_model: z.boolean().default(false),
   checks: z.array(cvAtsCheckKeySchema).min(1).max(5).optional(),
+  artifact_template: z.enum(['ats-essential', 'professional-editorial', 'technical-portfolio']).optional(),
+  artifact_format: z.enum(['docx', 'pdf']).optional(),
+}).refine((value) => Boolean(value.artifact_template) === Boolean(value.artifact_format), {
+  message: 'artifact_template and artifact_format must be supplied together',
 })
+export const cvTemplateIdSchema = z.enum(['ats-essential', 'professional-editorial', 'technical-portfolio'])
+export const cvRenderModelSchema = z.object({
+  schema_version: z.literal('cv-render/v1'), document_id: z.string(), document_name: z.string(), template_id: cvTemplateIdSchema,
+  page: z.object({ width_mm: z.number().int(), height_mm: z.number().int(), margin_mm: z.number().int() }),
+  tokens: z.record(z.string(), z.union([z.string(), z.number()])),
+  sections: z.array(z.object({ id: z.string(), kind: cvSectionKindSchema, title: z.string(), entries: z.array(z.object({ id: z.string(), text: z.string(), links: z.array(z.string()) })) })),
+  canonical_hash: z.string().regex(/^[0-9a-f]{64}$/),
+})
+export type CvTemplateId = z.infer<typeof cvTemplateIdSchema>
+export type CvRenderModel = z.infer<typeof cvRenderModelSchema>
 export const cvQualityResponseSchema = z.object({
   schema_version: z.literal('cv-quality/v1'),
   dimensions: z.array(z.object({

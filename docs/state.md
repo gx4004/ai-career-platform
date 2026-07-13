@@ -71,6 +71,11 @@ account-only build-ahead surface; no public landing promotion, scoring, tailorin
 preview, or file-export activation is implied. This does not close or supersede
 D-068.
 
+The override now also covers #158's owner-only preview/export pipeline: one
+normalized render model drives three declarative templates and deterministic DOCX
+and PDF artifacts, with generated-artifact text, link, page-boundary, and own-parser
+validation. This remains dormant build-ahead work and does not close D-068.
+
 ## Session Handoff Snapshot (2026-07-11)
 
 - **Objective:** Ship the startable activation/quality/cleanup frontier — R6

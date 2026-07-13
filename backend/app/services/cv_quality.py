@@ -102,8 +102,6 @@ def score_cv_quality(sections: list[dict]) -> list[dict[str, Any]]:
 def run_ats_checks(sections: list[dict], selected: list[str] | None = None) -> list[dict[str, str]]:
     visible, bodies = _visible(sections), _bodies(sections)
     kinds = {str(s.get("kind")) for s in visible}
-    total_words = sum(len(re.findall(r"\w+", body)) for body in bodies)
-    urls = re.findall(r"https?://[^\s)]+", " ".join(bodies))
     checks = {
         "section_structure": (
             "Section structure",
@@ -119,16 +117,14 @@ def run_ats_checks(sections: list[dict], selected: list[str] | None = None) -> l
         ),
         "links": (
             "Links",
-            "pass"
-            if all(re.match(r"^https?://[^\s.]+(?:\.[^\s.]+)+", u) for u in urls)
-            else "fail",
-            f"Checked {len(urls)} web links; no links is also valid.",
-            "Use complete https:// links and verify every destination before export.",
+            "not_run",
+            "External-link relationships are validated only in a generated artifact.",
+            "Generate DOCX or PDF evidence and verify every link relationship before export.",
         ),
         "page_breaks": (
             "Page-break risk",
             "not_run",
-            f"The structured source contains about {total_words} words. Actual page breaks require a rendered artifact.",
+            "Actual page breaks require a rendered artifact.",
             "Run rendered-artifact validation, then shorten or move entries that split awkwardly.",
         ),
         "re_importability": (

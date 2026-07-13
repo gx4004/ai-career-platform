@@ -22,6 +22,8 @@ CvQualityDimensionKey = Literal["impact", "clarity", "completeness", "structure"
 CvAtsCheckKey = Literal[
     "section_structure", "text_layer", "links", "page_breaks", "re_importability"
 ]
+CvTemplateId = Literal["ats-essential", "professional-editorial", "technical-portfolio"]
+CvArtifactFormat = Literal["docx", "pdf"]
 
 
 class CvEntry(BaseModel):
@@ -94,10 +96,53 @@ class CvDocumentListResponse(BaseModel):
     items: list[CvDocumentResponse]
 
 
+class CvRenderEntry(BaseModel):
+    id: str
+    text: str
+    links: list[str] = Field(default_factory=list)
+
+
+class CvRenderSection(BaseModel):
+    id: str
+    kind: CvSectionKind
+    title: str
+    entries: list[CvRenderEntry]
+
+
+class CvRenderModel(BaseModel):
+    schema_version: Literal["cv-render/v1"] = "cv-render/v1"
+    document_id: str
+    document_name: str
+    template_id: CvTemplateId
+    page: dict[str, int]
+    tokens: dict[str, str | int]
+    sections: list[CvRenderSection]
+    canonical_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
+class CvArtifactEvidence(BaseModel):
+    schema_version: Literal["cv-artifact-evidence/v1"] = "cv-artifact-evidence/v1"
+    template_id: CvTemplateId
+    format: CvArtifactFormat
+    searchable_text: Literal["pass", "fail"]
+    links: Literal["pass", "fail"]
+    page_breaks: Literal["pass", "fail"]
+    re_importability: Literal["pass", "fail"]
+    canonical_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
 class CvQualityRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     use_model: bool = False
     checks: list[CvAtsCheckKey] | None = Field(default=None, min_length=1, max_length=5)
+    artifact_template: CvTemplateId | None = None
+    artifact_format: CvArtifactFormat | None = None
+
+    @model_validator(mode="after")
+    def complete_artifact_selection(self):
+        if (self.artifact_template is None) != (self.artifact_format is None):
+            raise ValueError("artifact_template and artifact_format must be supplied together")
+        return self
 
 
 class CvQualityDimension(BaseModel):

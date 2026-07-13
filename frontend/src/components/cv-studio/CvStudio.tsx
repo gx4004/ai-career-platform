@@ -7,9 +7,11 @@ import { Button } from '#/components/ui/button'
 import { useSession } from '#/hooks/useSession'
 import { getCvDocument, listCvDocuments, restoreCvVariant, snapshotCvVariant, updateCvDocument } from '#/lib/api/client'
 import type { CvDocument, CvSection } from '#/lib/api/schemas'
+import type { CvTemplateId } from '#/lib/api/schemas'
 import { addEntry, addSection, moveEntry, moveSection, sectionLabels } from '#/lib/cv-studio/editor'
 import { CvQualityPanel } from './CvQualityPanel'
 import { CvTailoringPanel } from './CvTailoringPanel'
+import { CvPreview } from './CvPreview'
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error'
 const LIST_KEY = ['cv-studio', 'documents'] as const
@@ -24,6 +26,7 @@ export function CvStudio() {
   const [saveState, setSaveState] = useState<SaveState>('idle')
   const [actionError, setActionError] = useState('')
   const [snapshotName, setSnapshotName] = useState('')
+  const [template, setTemplate] = useState<CvTemplateId>('ats-essential')
   const saveGeneration = useRef(0)
   const saveQueue = useRef<Promise<CvDocument | undefined>>(Promise.resolve(undefined))
 
@@ -112,7 +115,7 @@ export function CvStudio() {
       {actionError ? <div className="studio-error" role="alert">{actionError} <button type="button" onClick={() => setActionError('')}>Dismiss</button></div> : null}
       <div className="studio-layout">
         <section className="studio-editor" aria-label="CV sections">
-          <CvQualityPanel documentId={draft.id} revision={draft.updated_at} />
+          <CvQualityPanel documentId={draft.id} revision={draft.updated_at} artifactTemplate={template} />
           <CvTailoringPanel documentId={draft.id} disabled={dirty} onApplied={() => void documentQuery.refetch()} />
           <div className="studio-add-row">
             <label htmlFor="add-section">Add a typed section</label>
@@ -141,6 +144,7 @@ export function CvStudio() {
           </article>)}
         </section>
         <aside className="studio-versions" aria-label="Document versions">
+          <CvPreview documentId={draft.id} revision={draft.updated_at} dirty={dirty} template={template} onTemplateChange={setTemplate} />
           <div><p className="eyebrow">Recovery points</p><h2>Named variants</h2><p>Save the current draft as an immutable snapshot, then restore it whenever needed.</p></div>
           <label htmlFor="snapshot-name">Snapshot name</label><input id="snapshot-name" value={snapshotName} maxLength={120} onChange={(event) => setSnapshotName(event.target.value)} placeholder="e.g. Product design lead" />
           <Button type="button" onClick={() => void snapshot()} disabled={!snapshotName.trim() || dirty}><Save size={16} /> Save snapshot</Button>
