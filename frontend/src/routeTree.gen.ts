@@ -21,6 +21,7 @@ import { Route as JobMatchRouteImport } from './routes/job-match'
 import { Route as InterviewRouteImport } from './routes/interview'
 import { Route as ImprintRouteImport } from './routes/imprint'
 import { Route as HistoryRouteImport } from './routes/history'
+import { Route as DiscoveryRouteImport } from './routes/discovery'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as CvStudioRouteImport } from './routes/cv-studio'
 import { Route as CoverLetterRouteImport } from './routes/cover-letter'
@@ -102,6 +103,11 @@ const ImprintRoute = ImprintRouteImport.update({
 const HistoryRoute = HistoryRouteImport.update({
   id: '/history',
   path: '/history',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DiscoveryRoute = DiscoveryRouteImport.update({
+  id: '/discovery',
+  path: '/discovery',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DashboardRoute = DashboardRouteImport.update({
@@ -227,6 +233,7 @@ export interface FileRoutesByFullPath {
   '/cover-letter': typeof CoverLetterRoute
   '/cv-studio': typeof CvStudioRoute
   '/dashboard': typeof DashboardRoute
+  '/discovery': typeof DiscoveryRoute
   '/history': typeof HistoryRoute
   '/imprint': typeof ImprintRoute
   '/interview': typeof InterviewRoute
@@ -262,6 +269,7 @@ export interface FileRoutesByTo {
   '/cover-letter': typeof CoverLetterRoute
   '/cv-studio': typeof CvStudioRoute
   '/dashboard': typeof DashboardRoute
+  '/discovery': typeof DiscoveryRoute
   '/history': typeof HistoryRoute
   '/imprint': typeof ImprintRoute
   '/interview': typeof InterviewRoute
@@ -299,6 +307,7 @@ export interface FileRoutesById {
   '/cover-letter': typeof CoverLetterRoute
   '/cv-studio': typeof CvStudioRoute
   '/dashboard': typeof DashboardRoute
+  '/discovery': typeof DiscoveryRoute
   '/history': typeof HistoryRoute
   '/imprint': typeof ImprintRoute
   '/interview': typeof InterviewRoute
@@ -337,6 +346,7 @@ export interface FileRouteTypes {
     | '/cover-letter'
     | '/cv-studio'
     | '/dashboard'
+    | '/discovery'
     | '/history'
     | '/imprint'
     | '/interview'
@@ -372,6 +382,7 @@ export interface FileRouteTypes {
     | '/cover-letter'
     | '/cv-studio'
     | '/dashboard'
+    | '/discovery'
     | '/history'
     | '/imprint'
     | '/interview'
@@ -408,6 +419,7 @@ export interface FileRouteTypes {
     | '/cover-letter'
     | '/cv-studio'
     | '/dashboard'
+    | '/discovery'
     | '/history'
     | '/imprint'
     | '/interview'
@@ -445,6 +457,7 @@ export interface RootRouteChildren {
   CoverLetterRoute: typeof CoverLetterRoute
   CvStudioRoute: typeof CvStudioRoute
   DashboardRoute: typeof DashboardRoute
+  DiscoveryRoute: typeof DiscoveryRoute
   HistoryRoute: typeof HistoryRoute
   ImprintRoute: typeof ImprintRoute
   InterviewRoute: typeof InterviewRoute
@@ -550,6 +563,13 @@ declare module '@tanstack/react-router' {
       path: '/history'
       fullPath: '/history'
       preLoaderRoute: typeof HistoryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/discovery': {
+      id: '/discovery'
+      path: '/discovery'
+      fullPath: '/discovery'
+      preLoaderRoute: typeof DiscoveryRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/dashboard': {
@@ -740,6 +760,7 @@ const rootRouteChildren: RootRouteChildren = {
   CoverLetterRoute: CoverLetterRoute,
   CvStudioRoute: CvStudioRoute,
   DashboardRoute: DashboardRoute,
+  DiscoveryRoute: DiscoveryRoute,
   HistoryRoute: HistoryRoute,
   ImprintRoute: ImprintRoute,
   InterviewRoute: InterviewRoute,

@@ -1261,3 +1261,12 @@ separate. The daily retention job deletes an attribution once it exceeds that
 source registry row's current retention days and removes the canonical listing only
 when no attribution remains. Source deletion is restricted while attribution rows
 exist, preventing silent orphaning or loss of the rule that owns the data.
+
+The recommendation feed is an authenticated, owner-personalized transient read.
+Ranking runs server-side against confirmed owner Evidence Profile items; rejected
+and unconfirmed items are excluded, and no profile or preference content is sent to
+discovery sources. The response includes only the owner's own evidence-item ids,
+matched deterministic keywords and scores needed to audit the rank, plus governed
+listing attribution. It persists no recommendation or search-intent state in #174;
+the owner-isolated lifecycle for future hide, dismiss, correction, and report state
+remains governed by D-090 and #175.

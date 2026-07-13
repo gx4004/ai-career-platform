@@ -2,6 +2,7 @@ import { Link, useRouterState } from '@tanstack/react-router'
 import {
   ArrowLeft,
   BadgeCheck,
+  Compass,
   ChevronLeft,
   ChevronRight,
   History,
@@ -37,6 +38,10 @@ const accountNavItems = [
   { label: 'Evidence', icon: BadgeCheck, route: '/profile' },
   { label: 'Account', icon: UserRound, route: '/account' },
   { label: 'Settings', icon: Settings, route: '/settings' },
+] as const
+
+const authenticatedNavItems = [
+  { label: 'Discover', icon: Compass, route: '/discovery' },
 ] as const
 
 export function AppSidebar() {
@@ -135,6 +140,33 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+        {user ? (
+          <>
+            <SidebarSeparator />
+            <SidebarGroup>
+              <SidebarGroupLabel>Opportunities</SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {authenticatedNavItems.map((item) => (
+                    <SidebarMenuItem key={item.route}>
+                      <SidebarMenuButton
+                        asChild
+                        tooltip={item.label}
+                        isActive={pathname.startsWith(item.route)}
+                        className="app-sidebar-menu-button"
+                      >
+                        <Link to={item.route}>
+                          <item.icon className="app-sidebar-item-icon" />
+                          <span>{item.label}</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          </>
+        ) : null}
       </SidebarContent>
       <SidebarFooter className="app-sidebar-footer">
         <SidebarSeparator />
