@@ -8,6 +8,10 @@ logger = logging.getLogger("app.observability")
 
 
 def configure_logging() -> None:
+    # httpx's INFO request line contains the full query string. Discovery
+    # parameters are bounded but still reveal job-search intent.
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
     root_logger = logging.getLogger()
     if root_logger.handlers:
         return

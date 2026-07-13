@@ -1233,3 +1233,20 @@ or persistence work. No registry mutation HTTP endpoint or active source ships i
 #171. Operational events retain only the closed source-family and registry-outcome
 classes; source keys, display names, owners, attribution text, and review identities
 remain outside telemetry.
+
+The dark licensed-source adapter adds no route, scheduler, credential, or real
+source. A registry row must declare a credential-free HTTPS endpoint, allowed
+behavior, robots applicability, and a subset of the closed minimal query keys
+(`role`, `location`, `remote`, pagination, and freshness). The outbound query model
+forbids extra fields, so profile text, employer history, identity, and arbitrary
+parameter names cannot cross the boundary. Fetches reuse DNS-pinned public-IP
+resolution to block SSRF/rebinding, reject redirects and unsupported or oversized
+responses, carry `CareerWorkbenchDiscovery/1.0`, and consult robots when declared.
+The per-source request budget is claimed under a database row lock, and the kill
+switch is re-read immediately before the source request. Synthetic transports only
+exercise this behavior in tests; no third-party host is contacted. Telemetry stores
+only `licensed` plus `success`, `failure`, or `blocked`, never endpoints, queries,
+responses, source keys, or legal-review content.
+The process pins `httpx`/`httpcore` request logging at warning level because their
+INFO request line contains query strings; bounded search parameters therefore do
+not leak through ordinary outbound-library logs.
