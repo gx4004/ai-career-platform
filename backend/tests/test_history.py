@@ -522,3 +522,75 @@ def test_user_isolation(client, auth_headers, test_user, db):
     data = resp.json()
     assert data["total"] == 1
     assert data["items"][0]["label"] == "My run"
+
+
+def test_campaign_tracking_is_append_only_exportable_and_content_free(
+    client, auth_headers, test_user, db
+):
+    workspace = Workspace(user_id=test_user.id, label="Target")
+    db.add(workspace)
+    db.commit()
+    db.refresh(workspace)
+
+    task = client.post(
+        f"{PREFIX}/workspaces/{workspace.id}/tasks",
+        json={"title": "Send application", "deadline": "2026-08-15T16:00:00Z"},
+        headers=auth_headers,
+    )
+    note = client.post(
+        f"{PREFIX}/workspaces/{workspace.id}/notes",
+        json={"text": "Private hiring-manager observation"},
+        headers=auth_headers,
+    )
+    contact = client.post(
+        f"{PREFIX}/workspaces/{workspace.id}/contacts",
+        json={"name": "Alex Example", "role": "Recruiter", "channel": "alex@example.test"},
+        headers=auth_headers,
+    )
+    assert (task.status_code, note.status_code, contact.status_code) == (201, 201, 201)
+    assert (
+        client.patch(
+            f"{PREFIX}/workspaces/{workspace.id}/tasks/{task.json()['id']}",
+            json={"completed": True},
+            headers=auth_headers,
+        ).status_code
+        == 200
+    )
+
+    detail = client.get(f"{PREFIX}/workspaces/{workspace.id}", headers=auth_headers).json()
+    assert [event["event_type"] for event in detail["events"]] == [
+        "task_created",
+        "note_added",
+        "contact_added",
+        "task_completed",
+    ]
+    serialized_events = str(detail["events"])
+    assert "Private hiring-manager" not in serialized_events
+    assert "Alex Example" not in serialized_events
+    assert "Send application" not in serialized_events
+    exported = client.get("/api/v1/evidence-profile/export", headers=auth_headers).json()[
+        "campaigns"
+    ]["campaigns"][0]
+    assert exported["tasks"][0]["title"] == "Send application"
+    assert exported["notes"][0]["text"].startswith("Private")
+    assert exported["contacts"][0]["name"] == "Alex Example"
+
+
+def test_campaign_tracking_rejects_foreign_campaign(client, auth_headers, db):
+    from app.auth.security import hash_password
+    from app.models.user import User
+
+    other = User(email="tracking-owner@example.com", hashed_password=hash_password("pass"))
+    db.add(other)
+    db.flush()
+    workspace = Workspace(user_id=other.id, label="Private")
+    db.add(workspace)
+    db.commit()
+    assert (
+        client.post(
+            f"{PREFIX}/workspaces/{workspace.id}/contacts",
+            json={"name": "Hidden"},
+            headers=auth_headers,
+        ).status_code
+        == 404
+    )
