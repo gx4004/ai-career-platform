@@ -13,6 +13,7 @@ from app.auth.security import get_current_admin
 from app.database import get_db
 from app.evals.report_reader import ALL_TOOLS, REPORTS_DIR, latest_reports_by_tool
 from app.limiter import limiter
+from app.models.discovery_source import DiscoverySource
 from app.models.tool_run import ToolRun
 from app.models.user import User
 from app.schemas.admin import (
@@ -30,6 +31,7 @@ from app.schemas.admin import (
     AdminUserListResponse,
     EvalRunItem,
 )
+from app.schemas.discovery_sources import DiscoverySourceListResponse
 from app.services.analytics import (
     ACTIVATION_DEFAULT_WINDOW_DAYS,
     aggregate_activation_metrics,
@@ -45,7 +47,23 @@ router = APIRouter()
 _ADMIN_RATE = "60/minute"
 
 
+# ── Discovery source governance (R14, issue #171) ──
+
+
+@router.get("/discovery-sources", response_model=DiscoverySourceListResponse)
+@limiter.limit(_ADMIN_RATE)
+def list_discovery_sources(
+    request: Request,
+    admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """Read-only governance registry; source activation is never changed here."""
+    items = db.query(DiscoverySource).order_by(DiscoverySource.display_name).all()
+    return DiscoverySourceListResponse(items=items)
+
+
 # ── Users ──
+
 
 @router.get("/users", response_model=AdminUserListResponse)
 @limiter.limit(_ADMIN_RATE)
@@ -62,7 +80,9 @@ def list_users(
         query = query.filter(User.email.ilike(f"%{q}%"))
 
     total = query.count()
-    users = query.order_by(User.created_at.desc()).offset((page - 1) * page_size).limit(page_size).all()
+    users = (
+        query.order_by(User.created_at.desc()).offset((page - 1) * page_size).limit(page_size).all()
+    )
 
     user_ids = [u.id for u in users]
     run_counts: dict[str, int] = {}
@@ -76,15 +96,17 @@ def list_users(
 
     items = []
     for user in users:
-        items.append(AdminUserItem(
-            id=user.id,
-            email=user.email,
-            full_name=user.full_name,
-            is_active=user.is_active,
-            is_admin=getattr(user, "is_admin", False),
-            created_at=user.created_at.isoformat() if user.created_at else None,
-            run_count=run_counts.get(user.id, 0),
-        ))
+        items.append(
+            AdminUserItem(
+                id=user.id,
+                email=user.email,
+                full_name=user.full_name,
+                is_active=user.is_active,
+                is_admin=getattr(user, "is_admin", False),
+                created_at=user.created_at.isoformat() if user.created_at else None,
+                run_count=run_counts.get(user.id, 0),
+            )
+        )
 
     return AdminUserListResponse(items=items, total=total, page=page, page_size=page_size)
 
@@ -155,6 +177,7 @@ def set_admin(
 
 # ── Runs ──
 
+
 @router.get("/runs", response_model=AdminRunListResponse)
 @limiter.limit(_ADMIN_RATE)
 def list_runs(
@@ -173,7 +196,12 @@ def list_runs(
         query = query.filter(ToolRun.user_id == user_id)
 
     total = query.count()
-    runs = query.order_by(ToolRun.created_at.desc()).offset((page - 1) * page_size).limit(page_size).all()
+    runs = (
+        query.order_by(ToolRun.created_at.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+        .all()
+    )
 
     # Batch fetch user emails
     user_ids = list({r.user_id for r in runs})
@@ -228,6 +256,7 @@ def get_run(
 
 # ── Stats ──
 
+
 @router.get("/stats", response_model=AdminStatsResponse)
 @limiter.limit(_ADMIN_RATE)
 def get_stats(
@@ -242,20 +271,17 @@ def get_stats(
     total_users = db.query(func.count(User.id)).scalar() or 0
     total_runs = db.query(func.count(ToolRun.id)).scalar() or 0
     runs_today = (
-        db.query(func.count(ToolRun.id))
-        .filter(ToolRun.created_at >= today_start)
-        .scalar() or 0
+        db.query(func.count(ToolRun.id)).filter(ToolRun.created_at >= today_start).scalar() or 0
     )
     active_users_7d = (
         db.query(func.count(func.distinct(ToolRun.user_id)))
         .filter(ToolRun.created_at >= week_ago)
-        .scalar() or 0
+        .scalar()
+        or 0
     )
 
     tool_counts = (
-        db.query(ToolRun.tool_name, func.count(ToolRun.id))
-        .group_by(ToolRun.tool_name)
-        .all()
+        db.query(ToolRun.tool_name, func.count(ToolRun.id)).group_by(ToolRun.tool_name).all()
     )
     runs_by_tool = {name: count for name, count in tool_counts}
 
@@ -269,6 +295,7 @@ def get_stats(
 
 
 # ── Activation dashboard (R6, issue #108) ──
+
 
 @router.get("/activation", response_model=AdminActivationResponse)
 @limiter.limit(_ADMIN_RATE)
@@ -425,6 +452,7 @@ def get_eval_runs(
 
 
 # ── Health ──
+
 
 @router.get("/health")
 @limiter.limit(_ADMIN_RATE)

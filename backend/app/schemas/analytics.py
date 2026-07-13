@@ -72,13 +72,24 @@ ImportSourceFamily = Literal[
 # yielded a usable posting and the user gets the paste fallback.
 ImportOutcome = Literal["success", "fallback", "failure"]
 
+# R14 source-registry events never carry a source key/name. The family and
+# governance transition are the only bounded dimensions that cross telemetry.
+DiscoverySourceFamily = Literal["licensed", "employer_ats", "public_career_page", "user_provided"]
+DiscoveryRegistryOutcome = Literal[
+    "registered",
+    "terms_updated",
+    "governance_updated",
+    "kill_switch_enabled",
+    "kill_switch_disabled",
+]
+
 # The two reused generic operational columns. `operational_dimension` holds the
 # primary category/family for an event (provider incident category or import
 # source family); `operational_outcome` holds the outcome class (cache outcome
 # or import outcome). Which axis a value belongs to is unambiguous from
 # `event_name`, so aggregation never has to disambiguate a bare string.
-OperationalDimension = ProviderIncidentCategory | ImportSourceFamily
-OperationalOutcome = CacheOutcome | ImportOutcome
+OperationalDimension = ProviderIncidentCategory | ImportSourceFamily | DiscoverySourceFamily
+OperationalOutcome = CacheOutcome | ImportOutcome | DiscoveryRegistryOutcome
 
 # ── R11 profile-adoption allowlist (issue #150, parent #143, D-067) ──
 # The Evidence Profile extends the SAME first-party analytics path — no new
@@ -111,6 +122,8 @@ StudioEventName = Literal[
     "studio_tailoring_generated",
 ]
 
+DiscoveryEventName = Literal["discovery_source_registry_changed"]
+
 # Activation-event names accepted by the durable write seam. This is the union
 # of every event name already firing today: the frontend-telemetry taxonomy
 # (`TelemetryEventName`) plus the backend-only tool-run outcome event, which the
@@ -123,6 +136,7 @@ ActivationEventName = (
     | R10EventName
     | ProfileEventName
     | StudioEventName
+    | DiscoveryEventName
 )
 
 
