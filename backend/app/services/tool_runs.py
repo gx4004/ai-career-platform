@@ -7,12 +7,13 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.models.campaign_event import CampaignEvent
+from app.models.campaign_listing import CampaignListing
 from app.models.cv_document import CvDocument, CvVariant
 from app.models.evidence_item import EvidenceItem
 from app.models.tool_run import ToolRun
 from app.models.user import User
 from app.models.workspace import Workspace
-from app.schemas.history import WorkspaceSummary
+from app.schemas.history import CampaignListingResponse, WorkspaceSummary
 from app.services.observability import log_user_account_deleted
 from app.services.premium_outputs import attach_premium_outputs
 from app.services.workspaces import resolve_workspace, touch_workspace
@@ -47,6 +48,9 @@ def delete_all_user_data(db: Session, user_id: str) -> None:
         row.id for row in db.query(Workspace.id).filter(Workspace.user_id == user_id)
     ]
     if workspace_ids:
+        db.query(CampaignListing).filter(
+            CampaignListing.workspace_id.in_(workspace_ids)
+        ).delete(synchronize_session=False)
         db.query(CampaignEvent).filter(
             CampaignEvent.workspace_id.in_(workspace_ids)
         ).delete(synchronize_session=False)
@@ -205,6 +209,17 @@ def build_workspace_summary(
         role=workspace.role,
         status=workspace.status,
         deadline=_as_utc(workspace.deadline),
+        listing=(
+            CampaignListingResponse(
+                title=workspace.listing.title,
+                company=workspace.listing.company,
+                description=workspace.listing.description,
+                source_url=workspace.listing.source_url,
+                retrieved_at=_as_utc(workspace.listing.retrieved_at),
+            )
+            if workspace.listing is not None
+            else None
+        ),
         linked_run_ids=[run.id for run in ordered_runs],
         last_active_tool=last_run.tool_name if last_run else None,
         last_active_result_id=last_run.id if last_run else None,

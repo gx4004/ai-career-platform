@@ -5,6 +5,10 @@ export const campaignStatusSchema = z.enum([
   'offer', 'accepted', 'rejected', 'withdrawn',
 ])
 export type CampaignStatus = z.infer<typeof campaignStatusSchema>
+export const campaignListingSchema = z.strictObject({
+  title: z.string(), company: z.string(), description: z.string(),
+  source_url: z.string().url().nullable(), retrieved_at: z.iso.datetime({ offset: true }),
+})
 
 export const evidenceKindSchema = z.enum([
   'experience', 'achievement', 'skill', 'education', 'project',
@@ -119,8 +123,10 @@ export const careerDataExportSchema = z.strictObject({
       company: z.string().nullable(), role: z.string().nullable(),
       status: campaignStatusSchema.nullable(),
       deadline: z.iso.datetime({ offset: true }).nullable(), created_at: z.iso.datetime(), updated_at: z.iso.datetime(),
+      listing: campaignListingSchema.nullable().default(null),
+      listing_revisions: z.array(campaignListingSchema).default([]),
       events: z.array(z.object({
-        id: z.string(), event_type: z.enum(['status_changed', 'deadline_changed']),
+        id: z.string(), event_type: z.enum(['status_changed', 'deadline_changed', 'listing_attached']),
         details: z.record(z.string(), z.unknown()), created_at: z.iso.datetime(),
       })),
     })),
@@ -257,10 +263,24 @@ export const parsedCvSchema = z.object({
 })
 
 export const importedJobSchema = z.object({
-  job_title: z.string().optional(),
-  company_name: z.string().optional(),
+  job_title: z.string().nullable().optional(),
+  company_name: z.string().nullable().optional(),
   job_description: z.string(),
-  source_url: z.string().url().optional(),
+  source_url: z.string().url().nullable().optional(),
+  retrieved_at: z.iso.datetime({ offset: true }).nullable().optional(),
+})
+export const importJobUrlSchema = z.strictObject({
+  url: z.string().url().max(2_048).refine((value) => {
+    const protocol = new URL(value).protocol
+    return protocol === 'http:' || protocol === 'https:'
+  }, 'URL must use HTTP or HTTPS'),
+  campaign_id: z.string().optional(),
+})
+export const importJobTextSchema = z.strictObject({
+  campaign_id: z.string(),
+  job_title: z.string().min(1).max(200),
+  company_name: z.string().min(1).max(200),
+  job_description: z.string().min(20).max(20_000),
 })
 
 export const toolRunSummarySchema = z.object({
@@ -296,6 +316,7 @@ export const toolRunSummarySchema = z.object({
       role: z.string().nullable().default(null),
       status: campaignStatusSchema.nullable().default(null),
       deadline: z.iso.datetime({ offset: true }).nullable().default(null),
+      listing: campaignListingSchema.nullable().default(null),
       linked_run_ids: z.array(z.string()).default([]),
       last_active_tool: z.string().nullable().optional(),
       last_active_result_id: z.string().nullable().optional(),
@@ -326,6 +347,7 @@ export const workspaceSummarySchema = z.object({
   role: z.string().nullable().default(null),
   status: campaignStatusSchema.nullable().default(null),
   deadline: z.iso.datetime({ offset: true }).nullable().default(null),
+  listing: campaignListingSchema.nullable().default(null),
   linked_run_ids: z.array(z.string()).default([]),
   last_active_tool: z.string().nullable().optional(),
   last_active_result_id: z.string().nullable().optional(),
