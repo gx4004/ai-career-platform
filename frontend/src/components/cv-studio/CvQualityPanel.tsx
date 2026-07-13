@@ -3,9 +3,9 @@ import { useState } from 'react'
 import { Check, RefreshCw, TriangleAlert } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { scoreCvDocument } from '#/lib/api/client'
-import type { CvAtsCheckKey } from '#/lib/api/schemas'
+import type { CvAtsCheckKey, CvTemplateId } from '#/lib/api/schemas'
 
-export function CvQualityPanel({ documentId, revision }: { documentId: string; revision: string }) {
+export function CvQualityPanel({ documentId, revision, artifactTemplate }: { documentId: string; revision: string; artifactTemplate: CvTemplateId }) {
   const queryClient = useQueryClient()
   const [modelState, setModelState] = useState<'idle' | 'loading' | 'error'>('idle')
   const [checkState, setCheckState] = useState<{ key: CvAtsCheckKey; state: 'loading' | 'error' } | null>(null)
@@ -18,7 +18,9 @@ export function CvQualityPanel({ documentId, revision }: { documentId: string; r
   async function rerunCheck(key: CvAtsCheckKey) {
     setCheckState({ key, state: 'loading' })
     try {
-      const result = await scoreCvDocument(documentId, { use_model: false, checks: [key] })
+      const artifactOnly = key !== 'section_structure'
+      const result = await scoreCvDocument(documentId, { use_model: false, checks: [key],
+        ...(artifactOnly ? { artifact_template: artifactTemplate, artifact_format: 'pdf' as const } : {}) })
       queryClient.setQueryData<typeof result>(queryKey, (current) => current ? {
         ...current,
         ats_checks: current.ats_checks.map((check) => check.key === key ? result.ats_checks[0] : check),
@@ -54,7 +56,7 @@ export function CvQualityPanel({ documentId, revision }: { documentId: string; r
     <div className="studio-checks"><div><p className="eyebrow">Deterministic checks</p><h3>Named compatibility checks</h3></div>{data.ats_checks.map((check) => <article key={check.key}>
       <span className={`studio-check-status studio-check-status--${check.status}`}>{check.status === 'pass' ? <Check /> : <TriangleAlert />}{check.status === 'not_run' ? 'Not run' : check.status}</span>
       <div><h4>{check.label}</h4><p>{check.explanation}</p><p><b>Remediation:</b> {check.remediation}</p>{checkState?.key === check.key && checkState.state === 'error' ? <p className="studio-inline-error" role="alert">This check could not be rerun. The previous result remains visible.</p> : null}</div>
-      <Button type="button" variant="ghost" size="sm" disabled={checkState?.key === check.key && checkState.state === 'loading'} onClick={() => void rerunCheck(check.key)}>{checkState?.key === check.key && checkState.state === 'loading' ? 'Checking…' : `Rerun ${check.label}`}</Button>
+      <Button type="button" variant="ghost" size="sm" disabled={checkState?.key === check.key && checkState.state === 'loading'} onClick={() => void rerunCheck(check.key)}>{checkState?.key === check.key && checkState.state === 'loading' ? 'Checking…' : `${check.key === 'section_structure' ? 'Rerun' : 'Validate PDF'} ${check.label}`}</Button>
     </article>)}</div>
   </section>
 }

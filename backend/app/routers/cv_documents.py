@@ -1,3 +1,4 @@
+from typing import Literal
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, UploadFile, status
@@ -9,6 +10,8 @@ from app.limiter import limiter
 from app.models.cv_document import CvDocument
 from app.models.user import User
 from app.schemas.cv_documents import (
+    CvArtifactEvidence,
+    CvArtifactFormat,
     CvDocumentCreate,
     CvDocumentListResponse,
     CvDocumentResponse,
@@ -18,10 +21,12 @@ from app.schemas.cv_documents import (
     CvImportProposal,
     CvQualityRequest,
     CvQualityResponse,
+    CvRenderModel,
     CvTailoringApply,
     CvTailoringEditProposal,
     CvTailoringProposal,
     CvTailoringRequest,
+    CvTemplateId,
     CvVariantCreate,
     CvVariantResponse,
 )
@@ -44,6 +49,7 @@ from app.services.cv_documents import (
 )
 from app.services.cv_parser_process import CvParserProcessRejected, parse_cv_import_isolated
 from app.services.cv_quality import analyze_cv_quality, analyze_cv_quality_heuristic
+from app.services.cv_rendering import build_render_model, render_docx, render_pdf, validate_artifact
 from app.services.cv_tailoring import generate_cv_tailoring, proposal_token, verify_proposal_token
 from app.services.cv_upload import CvUploadRejected, read_validated_cv_upload
 from app.services.evidence_profile import create_evidence_item
@@ -147,6 +153,80 @@ def get_one(
         _not_found(error)
 
 
+@router.get("/{document_id}/render", response_model=CvRenderModel)
+def preview_render(
+    document_id: str,
+    template: CvTemplateId,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    try:
+        return build_render_model(get_document(db, document_id, current_user.id), template)
+    except CvDocumentNotFoundError as error:
+        _not_found(error)
+
+
+def _safe_filename(name: str, template: str, extension: str) -> str:
+    base = "".join(
+        character if character.isascii() and (character.isalnum() or character in "-_") else "-"
+        for character in name
+    )
+    base = "-".join(filter(None, base.split("-")))[:80] or "cv"
+    return f"{base}-{template}.{extension}"
+
+
+@router.get("/{document_id}/artifacts/{format}")
+@limiter.limit("10/minute")
+def export_artifact(
+    request: Request,
+    document_id: str,
+    format: CvArtifactFormat,
+    template: CvTemplateId,
+    disposition: Literal["attachment", "inline"] = "attachment",
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    try:
+        document = get_document(db, document_id, current_user.id)
+    except CvDocumentNotFoundError as error:
+        _not_found(error)
+    model = build_render_model(document, template)
+    artifact = render_pdf(model) if format == "pdf" else render_docx(model)
+    media_type = (
+        "application/pdf"
+        if format == "pdf"
+        else "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    )
+    return Response(
+        content=artifact,
+        media_type=media_type,
+        headers={
+            "Content-Disposition": f'{disposition}; filename="{_safe_filename(document.name, template, format)}"',
+            "X-Content-Type-Options": "nosniff",
+            "Cache-Control": "private, no-store",
+            "X-CV-Canonical-Hash": model.canonical_hash,
+        },
+    )
+
+
+@router.get("/{document_id}/artifacts/{format}/evidence", response_model=CvArtifactEvidence)
+@limiter.limit("10/minute")
+def artifact_evidence(
+    request: Request,
+    document_id: str,
+    format: CvArtifactFormat,
+    template: CvTemplateId,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    try:
+        model = build_render_model(get_document(db, document_id, current_user.id), template)
+    except CvDocumentNotFoundError as error:
+        _not_found(error)
+    artifact = render_pdf(model) if format == "pdf" else render_docx(model)
+    return validate_artifact(model, artifact, format)
+
+
 @router.post("/{document_id}/quality", response_model=CvQualityResponse)
 @limiter.limit("20/minute")
 async def quality(
@@ -200,6 +280,23 @@ async def quality(
             "checks": ",".join(body.checks or []),
         },
     )
+    if body.artifact_template is not None and body.artifact_format is not None:
+        model = build_render_model(document, body.artifact_template)
+        artifact = render_pdf(model) if body.artifact_format == "pdf" else render_docx(model)
+        evidence = validate_artifact(model, artifact, body.artifact_format)
+        statuses = {
+            "text_layer": evidence.searchable_text,
+            "links": evidence.links,
+            "page_breaks": evidence.page_breaks,
+            "re_importability": evidence.re_importability,
+        }
+        for check in result["ats_checks"]:
+            if check["key"] in statuses:
+                check["status"] = statuses[check["key"]]
+                check["explanation"] = (
+                    f"Validated against the generated {body.artifact_format.upper()} artifact."
+                )
+                check["remediation"] = "Regenerate after editing if this artifact validation fails."
     return CvQualityResponse(**result)
 
 

@@ -7,6 +7,7 @@ const api = vi.hoisted(() => ({
   listCvDocuments: vi.fn(), getCvDocument: vi.fn(), updateCvDocument: vi.fn(),
   snapshotCvVariant: vi.fn(), restoreCvVariant: vi.fn(),
   scoreCvDocument: vi.fn(),
+  fetchCvArtifactBlob: vi.fn(() => Promise.resolve(new Blob(['artifact']))),
 }))
 const session = vi.hoisted(() => ({ status: 'authenticated', openAuthDialog: vi.fn() }))
 vi.mock('#/lib/api/client', () => api)
@@ -21,6 +22,8 @@ function view() {
 
 beforeEach(() => {
   vi.clearAllMocks(); session.status = 'authenticated'
+  Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: vi.fn(() => 'blob:artifact') })
+  Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: vi.fn() })
   api.listCvDocuments.mockResolvedValue({ items: [document] })
   api.getCvDocument.mockResolvedValue(document)
   api.updateCvDocument.mockResolvedValue(document)
@@ -34,6 +37,14 @@ beforeEach(() => {
 })
 
 describe('CV Studio editor surface', () => {
+  it('previews the exact paginated PDF artifact and exposes both export formats', async () => {
+    view()
+    const preview = await screen.findByTitle('ATS Essential PDF preview')
+    expect(preview.getAttribute('src')).toContain('blob:artifact')
+    expect(screen.getByRole('link', { name: /DOCX/ }).getAttribute('download')).toContain('.docx')
+    expect(screen.getByRole('link', { name: /PDF/ }).getAttribute('download')).toContain('.pdf')
+  })
+
   it('gates document loading and sends guests through the auth intent', () => {
     session.status = 'guest'
     view()
