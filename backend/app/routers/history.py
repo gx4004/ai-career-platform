@@ -4,10 +4,12 @@ from sqlalchemy.orm import Session, selectinload
 from app.auth.security import get_current_user
 from app.database import get_db
 from app.limiter import limiter
+from app.models.campaign_event import CampaignEvent
 from app.models.tool_run import ToolRun
 from app.models.user import User
 from app.models.workspace import Workspace
 from app.schemas.history import (
+    CampaignStatus,
     DeletedResponse,
     FavoriteRequest,
     RunUpdateRequest,
@@ -21,6 +23,39 @@ from app.schemas.history import (
 from app.services.tool_runs import build_workspace_summary, derive_saved_run_metadata
 
 router = APIRouter()
+
+CAMPAIGN_STATUS_TRANSITIONS: dict[CampaignStatus | None, set[CampaignStatus]] = {
+    None: {CampaignStatus.PLANNING},
+    CampaignStatus.PLANNING: {
+        CampaignStatus.PREPARING,
+        CampaignStatus.REJECTED,
+        CampaignStatus.WITHDRAWN,
+    },
+    CampaignStatus.PREPARING: {
+        CampaignStatus.APPLIED,
+        CampaignStatus.REJECTED,
+        CampaignStatus.WITHDRAWN,
+    },
+    CampaignStatus.APPLIED: {
+        CampaignStatus.INTERVIEWING,
+        CampaignStatus.OFFER,
+        CampaignStatus.REJECTED,
+        CampaignStatus.WITHDRAWN,
+    },
+    CampaignStatus.INTERVIEWING: {
+        CampaignStatus.OFFER,
+        CampaignStatus.REJECTED,
+        CampaignStatus.WITHDRAWN,
+    },
+    CampaignStatus.OFFER: {
+        CampaignStatus.ACCEPTED,
+        CampaignStatus.REJECTED,
+        CampaignStatus.WITHDRAWN,
+    },
+    CampaignStatus.ACCEPTED: set(),
+    CampaignStatus.REJECTED: set(),
+    CampaignStatus.WITHDRAWN: set(),
+}
 
 
 @router.get("", response_model=ToolRunListResponse)
@@ -101,9 +136,57 @@ def update_workspace(
         workspace.label = body.label.strip() or None
     if body.is_pinned is not None:
         workspace.is_pinned = body.is_pinned
+    if "company" in body.model_fields_set:
+        workspace.company = body.company.strip() if body.company and body.company.strip() else None
+    if "role" in body.model_fields_set:
+        workspace.role = body.role.strip() if body.role and body.role.strip() else None
+    if "deadline" in body.model_fields_set:
+        previous_deadline = workspace.deadline
+        workspace.deadline = body.deadline
+        if previous_deadline != body.deadline:
+            db.add(
+                CampaignEvent(
+                    workspace_id=workspace.id,
+                    event_type="deadline_changed",
+                    details={
+                        "from": previous_deadline.isoformat() if previous_deadline else None,
+                        "to": body.deadline.isoformat() if body.deadline else None,
+                    },
+                )
+            )
+    if "status" in body.model_fields_set:
+        transition = _apply_campaign_status_transition(workspace, body.status)
+        if transition is not None:
+            previous, requested = transition
+            db.add(
+                CampaignEvent(
+                    workspace_id=workspace.id,
+                    event_type="status_changed",
+                    details={
+                        "from": previous.value if previous else None,
+                        "to": requested.value,
+                    },
+                )
+            )
     db.commit()
     db.refresh(workspace)
     return build_workspace_summary(workspace, list(workspace.tool_runs))
+
+
+def _apply_campaign_status_transition(
+    workspace: Workspace, requested: CampaignStatus | None
+) -> tuple[CampaignStatus | None, CampaignStatus] | None:
+    current = CampaignStatus(workspace.status) if workspace.status else None
+    if requested is None or requested == current:
+        return None
+    if requested not in CAMPAIGN_STATUS_TRANSITIONS[current]:
+        current_label = current.value if current else "legacy-null"
+        raise HTTPException(
+            status_code=409,
+            detail=f"Campaign status cannot transition from {current_label} to {requested.value}",
+        )
+    workspace.status = requested.value
+    return current, requested
 
 
 @router.get("/{history_id}", response_model=ToolRunDetail)
@@ -193,7 +276,7 @@ def delete_history_item(
             )
             .count()
         )
-        if remaining == 0:
+        if remaining == 0 and not _has_campaign_data(workspace):
             db.delete(workspace)
     db.commit()
     return DeletedResponse(deleted=1)
@@ -239,6 +322,18 @@ def _get_run(db: Session, history_id: str, user_id: str) -> ToolRun:
     if not run:
         raise HTTPException(status_code=404, detail="History item not found")
     return run
+
+
+def _has_campaign_data(workspace: Workspace) -> bool:
+    return any(
+        value is not None
+        for value in (
+            workspace.company,
+            workspace.role,
+            workspace.status,
+            workspace.deadline,
+        )
+    )
 
 
 def _get_workspace(db: Session, workspace_id: str, user_id: str) -> Workspace:

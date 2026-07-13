@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import logging
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy.orm import Session
 
+from app.models.campaign_event import CampaignEvent
 from app.models.cv_document import CvDocument, CvVariant
 from app.models.evidence_item import EvidenceItem
 from app.models.tool_run import ToolRun
@@ -41,6 +43,13 @@ def delete_all_user_data(db: Session, user_id: str) -> None:
     cv_documents_deleted = db.query(CvDocument).filter(CvDocument.user_id == user_id).delete()
     evidence_deleted = db.query(EvidenceItem).filter(EvidenceItem.user_id == user_id).delete()
     runs_deleted = db.query(ToolRun).filter(ToolRun.user_id == user_id).delete()
+    workspace_ids = [
+        row.id for row in db.query(Workspace.id).filter(Workspace.user_id == user_id)
+    ]
+    if workspace_ids:
+        db.query(CampaignEvent).filter(
+            CampaignEvent.workspace_id.in_(workspace_ids)
+        ).delete(synchronize_session=False)
     workspaces_deleted = db.query(Workspace).filter(Workspace.user_id == user_id).delete()
     users_deleted = db.query(User).filter(User.id == user_id).delete()
     db.commit()
@@ -192,11 +201,21 @@ def build_workspace_summary(
         id=workspace.id,
         label=workspace.label,
         is_pinned=workspace.is_pinned,
+        company=workspace.company,
+        role=workspace.role,
+        status=workspace.status,
+        deadline=_as_utc(workspace.deadline),
         linked_run_ids=[run.id for run in ordered_runs],
         last_active_tool=last_run.tool_name if last_run else None,
         last_active_result_id=last_run.id if last_run else None,
         updated_at=workspace.updated_at.isoformat(),
     )
+
+
+def _as_utc(value: datetime | None) -> datetime | None:
+    if value is None:
+        return None
+    return value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
 
 
 def _unique_strings(values: Any) -> list[str]:

@@ -2,9 +2,11 @@ import pytest
 
 from app.auth.security import hash_password
 from app.models.analytics_event import AnalyticsEvent
+from app.models.campaign_event import CampaignEvent
 from app.models.cv_document import CvDocument, CvVariant
 from app.models.evidence_item import EvidenceItem
 from app.models.user import User
+from app.models.workspace import Workspace
 from app.schemas.data_export import CareerDataExport
 
 PREFIX = "/api/v1/evidence-profile/items"
@@ -249,6 +251,70 @@ def test_export_is_owner_scoped(client, auth_headers, test_user, second_user, db
     )
     assert export.item_count == 0
     assert export.items == []
+
+
+def test_export_includes_owner_scoped_campaign_fields(
+    client, auth_headers, test_user, second_user, db
+):
+    db.add_all(
+        [
+            Workspace(
+                user_id=test_user.id,
+                label="My campaign",
+                company="Example Corp",
+                role="Platform Engineer",
+                status="planning",
+            ),
+            Workspace(
+                user_id=second_user.id,
+                label="Other campaign",
+                company="Private Corp",
+                role="Secret Role",
+                status="planning",
+            ),
+        ]
+    )
+    db.commit()
+
+    exported = CareerDataExport.model_validate(
+        client.get(EXPORT, headers=auth_headers).json()
+    )
+
+    assert exported.campaigns.campaign_count == 1
+    assert exported.campaigns.campaigns[0].company == "Example Corp"
+    assert "Private Corp" not in exported.model_dump_json()
+
+
+def test_account_deletion_removes_campaign_fields(
+    client, auth_headers, test_user, db
+):
+    workspace = Workspace(
+        user_id=test_user.id,
+        company="Delete Corp",
+        role="Delete Role",
+        status="planning",
+    )
+    db.add(workspace)
+    db.commit()
+    workspace_id = workspace.id
+    db.add(
+        CampaignEvent(
+            workspace_id=workspace_id,
+            event_type="status_changed",
+            details={"from": None, "to": "planning"},
+        )
+    )
+    db.commit()
+
+    response = client.post(
+        "/api/v1/auth/me/delete",
+        json={"confirmation": test_user.email},
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 204
+    assert db.query(Workspace).filter_by(id=workspace_id).count() == 0
+    assert db.query(CampaignEvent).filter_by(workspace_id=workspace_id).count() == 0
 
 
 # --- R11 profile-adoption telemetry emitted from the service seam (#150) ---

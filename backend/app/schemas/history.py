@@ -1,4 +1,19 @@
-from pydantic import BaseModel, Field
+from datetime import datetime
+from enum import StrEnum
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+
+class CampaignStatus(StrEnum):
+    PLANNING = "planning"
+    PREPARING = "preparing"
+    APPLIED = "applied"
+    INTERVIEWING = "interviewing"
+    OFFER = "offer"
+    ACCEPTED = "accepted"
+    REJECTED = "rejected"
+    WITHDRAWN = "withdrawn"
 
 
 class SavedRunMetadata(BaseModel):
@@ -13,6 +28,10 @@ class WorkspaceSummary(BaseModel):
     id: str
     label: str | None = None
     is_pinned: bool = False
+    company: str | None = None
+    role: str | None = None
+    status: CampaignStatus | None = None
+    deadline: datetime | None = None
     linked_run_ids: list[str] = Field(default_factory=list)
     last_active_tool: str | None = None
     last_active_result_id: str | None = None
@@ -65,5 +84,55 @@ class RunUpdateRequest(BaseModel):
 
 
 class WorkspaceUpdateRequest(BaseModel):
-    label: str | None = None
+    model_config = ConfigDict(extra="forbid")
+
+    label: str | None = Field(default=None, max_length=200)
     is_pinned: bool | None = None
+    company: str | None = Field(default=None, max_length=200)
+    role: str | None = Field(default=None, max_length=200)
+    status: CampaignStatus | None = None
+    deadline: datetime | None = None
+
+    @field_validator("deadline")
+    @classmethod
+    def deadline_requires_timezone(cls, value: datetime | None):
+        if value is not None and value.tzinfo is None:
+            raise ValueError("deadline must include a timezone offset")
+        return value
+
+    @model_validator(mode="after")
+    def at_least_one_field(self):
+        if not self.model_fields_set:
+            raise ValueError("At least one workspace field is required")
+        return self
+
+
+class CampaignExportItem(BaseModel):
+    id: str
+    label: str | None = None
+    is_pinned: bool
+    company: str | None = None
+    role: str | None = None
+    status: CampaignStatus | None = None
+    deadline: datetime | None = None
+    created_at: datetime
+    updated_at: datetime
+    events: list["CampaignEventExport"] = Field(default_factory=list)
+
+
+class CampaignEventExport(BaseModel):
+    id: str
+    event_type: Literal["status_changed", "deadline_changed"]
+    details: dict
+    created_at: datetime
+
+
+class CampaignsExport(BaseModel):
+    campaign_count: int = Field(ge=0)
+    campaigns: list[CampaignExportItem]
+
+    @model_validator(mode="after")
+    def campaign_count_matches(self):
+        if self.campaign_count != len(self.campaigns):
+            raise ValueError("campaign_count must equal the number of campaigns")
+        return self

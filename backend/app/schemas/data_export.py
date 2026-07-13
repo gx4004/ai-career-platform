@@ -5,6 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.schemas.cv_documents import CvDocumentsExport
 from app.schemas.evidence_profile import EvidenceItemResponse
+from app.schemas.history import CampaignsExport
 
 
 class CareerDataExport(BaseModel):
@@ -17,6 +18,7 @@ class CareerDataExport(BaseModel):
     item_count: int = Field(ge=0)
     items: list[EvidenceItemResponse]
     cv_documents: CvDocumentsExport
+    campaigns: CampaignsExport
 
     @model_validator(mode="after")
     def item_count_matches(self):

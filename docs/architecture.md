@@ -288,14 +288,24 @@ errors remain forbidden.
   variants separately in its existing transactional audit. Studio telemetry carries
   closed event names only and no content, titles, or stable document/run identifiers.
 
-## Campaign and Reviewer Boundaries (R13, deferred)
+## Campaign and Reviewer Boundaries (R13, foundation underway)
 
 - Campaigns are the `Workspace` entity evolved additively; existing workspaces stay
   valid label-only campaigns and the implicit creation path keeps working (D-077,
-  ADR 0007).
-- The canonical listing is persisted owner-isolated user content including source
-  URL and retrieval date; listing telemetry remains source-family only (D-078,
-  D-059).
+  ADR 0007). The shipped foundation adds nullable company, role, status, and
+  timezone-aware deadline fields. Status is server-enforced as
+  `planning → preparing → applied → interviewing → offer → accepted`, with
+  `rejected` and `withdrawn` terminal exits; legacy null rows may enter only at
+  `planning`. Deployment is expand-compatible: older application code ignores the
+  nullable columns. The migration downgrade removes only the new columns and
+  therefore discards campaign-field values; application rollback should normally
+  leave the additive schema in place. Status and deadline mutations atomically add
+  minimal append-only campaign events so the later #165 timeline can extend the
+  event vocabulary without losing earlier history; product code exposes no event
+  update or delete path.
+- The canonical listing will be persisted as owner-isolated user content including
+  source URL and retrieval date in the next R13 slice; #162 does not yet persist a
+  listing. Listing telemetry remains source-family only (D-078, D-059).
 - Campaign history is append-only events; material links reference immutable
   versions; the submitted snapshot is an immutable bundle (D-079, D-010).
 - Tracking is bounded to the job-search domain — fixed status lifecycle, tasks,
