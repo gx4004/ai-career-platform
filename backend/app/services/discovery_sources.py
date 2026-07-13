@@ -107,6 +107,39 @@ def update_source(
     return source
 
 
+def operate_source_kill_switch(
+    db: Session,
+    source: DiscoverySource,
+    *,
+    tripped: bool,
+    actor: User,
+) -> DiscoverySource:
+    """Trip or clear a source's kill switch as an immediate operator action.
+
+    Runtime-effective: this only flips the persisted ``kill_switch`` column that
+    every fetch/ingest read path re-reads via ``require_ingestion_allowed``, so a
+    trip halts the next fetch with no deploy or restart. Clearing is refused
+    unless the terms review is accepted (the same activation gate as
+    ``update_source``), so the kill switch can never be used to bypass D-084. The
+    change is recorded as a bounded operational event carrying only the source
+    family and the trip/clear outcome — never the source key, name, or URL.
+    """
+    if not actor.is_admin:
+        raise ValueError("Kill-switch operations require an authenticated admin operator")
+    if not tripped and source.terms_status != "accepted":
+        raise ValueError("A source cannot activate before its terms review is accepted")
+    source.kill_switch = tripped
+    db.commit()
+    db.refresh(source)
+    safe_record_activation_event(
+        db,
+        event_name="discovery_source_kill_switch",
+        operational_dimension=source.source_family,
+        operational_outcome="kill_switch_enabled" if tripped else "kill_switch_disabled",
+    )
+    return source
+
+
 def require_ingestion_allowed(
     db: Session,
     source_key: str,

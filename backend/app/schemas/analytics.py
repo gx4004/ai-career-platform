@@ -83,6 +83,11 @@ DiscoveryRegistryOutcome = Literal[
     "kill_switch_disabled",
 ]
 DiscoveryFetchOutcome = Literal["blocked"]
+# R14 #177 per-source health flow outcomes. Only the outcome class rides on the
+# event; the source family rides on `operational_dimension`. No listing content,
+# listing id, full URL, or user data is ever attached.
+DiscoveryIngestOutcome = Literal["ingested", "deduplicated"]
+DiscoveryExpiryOutcome = Literal["expired"]
 # R14 #175 personalization outcome classes. Only the outcome class rides on the
 # event; the source family (when known) rides on `operational_dimension`. No
 # listing content, listing id, run id, or reporter identity is ever attached.
@@ -109,6 +114,8 @@ OperationalOutcome = (
     | ImportOutcome
     | DiscoveryRegistryOutcome
     | DiscoveryFetchOutcome
+    | DiscoveryIngestOutcome
+    | DiscoveryExpiryOutcome
     | DiscoveryPersonalizationOutcome
     | DiscoveryAdoptionOutcome
 )
@@ -147,6 +154,9 @@ StudioEventName = Literal[
 DiscoveryEventName = Literal[
     "discovery_source_registry_changed",
     "discovery_source_fetch_outcome",
+    "discovery_source_ingest_outcome",
+    "discovery_source_expiry",
+    "discovery_source_kill_switch",
     "discovery_personalization_changed",
     "discovery_recommendation_adopted",
 ]

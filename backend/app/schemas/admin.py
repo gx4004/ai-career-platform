@@ -236,6 +236,49 @@ class AdminScorecardResponse(BaseModel):
     triggers: list[ScorecardTrigger] = []
 
 
+# ── R14 per-source health & kill switch (issue #177, parent #170, D-053/D-090) ──
+# Read-only aggregate over the same first-party operational path — no new vendor.
+# Every figure is a bounded per-source-family aggregate; no listing content, full
+# URL, source key/name, or user identifier is reachable from this view.
+
+
+class SourceFamilyHealth(BaseModel):
+    """Operational health for one source family (aggregate dimensions only, D-053).
+
+    Registry-posture counts (``source_count`` .. ``pending_terms_count``) and
+    listings-store stock (``listing_count``, ``stale_count``, and the oldest /
+    newest retrieval timestamps) are current-state figures; the flow counts
+    (``fetch_*``, ``ingested`` / ``deduplicated``, ``expired``) are windowed
+    allowlisted operational events. The retrieval timestamps are the store's own
+    retrieval dates, never a user timestamp.
+    """
+
+    source_family: str
+    source_count: int = 0
+    active_count: int = 0
+    killed_count: int = 0
+    pending_terms_count: int = 0
+    listing_count: int = 0
+    stale_count: int = 0
+    oldest_retrieved_at: str | None = None
+    newest_retrieved_at: str | None = None
+    fetch_success: int = 0
+    fetch_failure: int = 0
+    fetch_blocked: int = 0
+    ingested: int = 0
+    deduplicated: int = 0
+    expired: int = 0
+
+
+class AdminSourceHealthResponse(BaseModel):
+    """Per-source-family operational health for the admin Source Health view."""
+
+    window_start: str
+    window_end: str
+    staleness_threshold_days: int
+    families: list[SourceFamilyHealth] = []
+
+
 # Rebuild models that use forward references
 AdminUserDetailResponse.model_rebuild()
 AdminUserListResponse.model_rebuild()
