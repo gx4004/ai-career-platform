@@ -3,19 +3,19 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from app.services.stop_classifier import StopCategory
+
 # Mirrored by frontend/src/lib/api/packetSchemas.ts. A packet is a reference-only
 # composition (D-093, ADR 0009): the *_id fields are foreign keys, never inlined
 # content. ``match_rationale`` and ``unresolved_questions`` are the two derived,
 # non-material structures the packet owns.
 
 PacketStatus = Literal["prepared", "blocked"]
-UnresolvedQuestionCategory = Literal[
-    "missing_material",
-    "work_authorization",
-    "compensation",
-    "relocation",
-    "demographic_or_eligibility",
-]
+# One authoritative category set: the exhaustive stop categories owned by the
+# server-side classifier (D-095, #182), plus ``missing_material`` for the non-stop
+# "no CV variant selected" question. The classifier's ``StopCategory`` is imported
+# rather than re-listed, so the schema contract and the classifier never drift.
+UnresolvedQuestionCategory = StopCategory | Literal["missing_material"]
 
 
 def _as_utc(value: datetime) -> datetime:
@@ -142,6 +142,59 @@ class PacketPreparationResult(BaseModel):
     estimated_packet_cost_usd: float = Field(ge=0)
     estimated_total_cost_usd: float = Field(ge=0)
     packets: list[ApplicationPacketItem]
+
+
+# ── Stop answers (owner-scoped; the only way to resolve a stop, D-095) ──
+
+
+class StopAnswerRequest(BaseModel):
+    """The owner's typed answer to one mandatory-stop question on a packet.
+
+    ``field`` names the outstanding stop question (a stop-category name); ``answer``
+    is the user's own words. Only stop categories are answerable here — a non-stop
+    ``missing_material`` question is resolved by selecting a CV, not by an answer.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    field: str = Field(min_length=1, max_length=64)
+    answer: str = Field(min_length=1, max_length=4000)
+
+
+class StopAnswerResult(BaseModel):
+    """Outcome of storing a stop answer: what remains and whether approval is unlocked."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    packet_id: str
+    resolved_field: str
+    remaining_unresolved: int = Field(ge=0)
+    approvable: bool
+    unresolved_questions: list[UnresolvedQuestion]
+
+
+class StopAnswerExportItem(BaseModel):
+    """One stored stop answer in the owner's own data export (D-099 export path)."""
+
+    model_config = ConfigDict(from_attributes=True, extra="forbid")
+
+    packet_id: str
+    field: str
+    category: str
+    answer: str
+    created_at: datetime
+    updated_at: datetime
+
+    @field_validator("created_at", "updated_at")
+    @classmethod
+    def normalize_ts(cls, value: datetime) -> datetime:
+        return _as_utc(value)
+
+
+class PacketStopAnswersExport(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    stop_answers: list[StopAnswerExportItem]
 
 
 # ── Export (owner's own data, machine-readable) ──

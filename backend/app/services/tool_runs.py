@@ -19,6 +19,7 @@ from app.schemas.history import CampaignListingResponse, WorkspaceSummary
 from app.services.application_packets import delete_application_packets
 from app.services.discovery_personalization import delete_personalization
 from app.services.observability import log_user_account_deleted
+from app.services.packet_approval import delete_packet_stop_answers
 from app.services.premium_outputs import attach_premium_outputs
 from app.services.queue_rules import delete_queue_rules
 from app.services.workspaces import resolve_workspace, touch_workspace
@@ -55,6 +56,9 @@ def delete_all_user_data(db: Session, user_id: str) -> None:
     # Application Approval Queue rules, caps, and cost ceiling are owner-scoped user
     # data and join the erasure cascade (D-099, R15 #180).
     delete_queue_rules(db, user_id)
+    # Stop answers are owner-scoped sensitive content the user typed (D-099, R15 #182).
+    # Deleted before their packets so the FK to application_packets is removed first.
+    delete_packet_stop_answers(db, user_id)
     # Prepared application packets are owner-scoped sensitive content (they encode
     # application intent) and join the erasure cascade (D-099, R15 #181). Deleted
     # before campaigns so their FK to workspaces is removed first.

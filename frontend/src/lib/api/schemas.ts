@@ -1,5 +1,8 @@
 import { z } from 'zod'
-import { applicationPacketsExportSchema } from '#/lib/api/packetSchemas'
+import {
+  applicationPacketsExportSchema,
+  packetStopAnswersExportSchema,
+} from '#/lib/api/packetSchemas'
 import { queueRulesExportSchema } from '#/lib/api/queueSchemas'
 
 export const campaignStatusSchema = z.enum([
@@ -217,6 +220,7 @@ export const careerDataExportSchema = z.strictObject({
   personalization: discoveryPersonalizationExportSchema,
   queue_rules: queueRulesExportSchema,
   application_packets: applicationPacketsExportSchema,
+  packet_stop_answers: packetStopAnswersExportSchema,
   campaigns: z.strictObject({
     campaign_count: z.number().int().nonnegative(),
     campaigns: z.array(z.object({

@@ -4,6 +4,11 @@ import {
   applicationPacketListSchema,
   applicationPacketsExportSchema,
   packetPreparationResultSchema,
+  packetStopAnswersExportSchema,
+  stopAnswerRequestSchema,
+  stopAnswerResultSchema,
+  stopCategorySchema,
+  unresolvedQuestionCategorySchema,
 } from '#/lib/api/packetSchemas'
 
 const packet = {
@@ -100,6 +105,56 @@ describe('application packet contracts', () => {
     })
     expect(parsed.prepared_count).toBe(2)
     expect(parsed.skipped_existing_count).toBe(1)
+  })
+
+  it('mirrors the exhaustive stop-category set (D-095, #182)', () => {
+    for (const category of [
+      'work_authorization',
+      'salary',
+      'relocation',
+      'eligibility',
+      'demographic',
+      'legal',
+      'sensitive',
+      'uncertain',
+    ]) {
+      expect(stopCategorySchema.safeParse(category).success).toBe(true)
+      expect(unresolvedQuestionCategorySchema.safeParse(category).success).toBe(true)
+    }
+    expect(unresolvedQuestionCategorySchema.safeParse('missing_material').success).toBe(true)
+    // Provisional #181 category names are gone — one authoritative set.
+    expect(stopCategorySchema.safeParse('compensation').success).toBe(false)
+    expect(stopCategorySchema.safeParse('demographic_or_eligibility').success).toBe(false)
+  })
+
+  it('mirrors the stop-answer request/result + export contracts', () => {
+    expect(
+      stopAnswerRequestSchema.parse({ field: 'work_authorization', answer: 'EU citizen.' }).field,
+    ).toBe('work_authorization')
+    expect(stopAnswerRequestSchema.safeParse({ field: 'salary', answer: '' }).success).toBe(false)
+
+    const result = stopAnswerResultSchema.parse({
+      packet_id: 'p1',
+      resolved_field: 'salary',
+      remaining_unresolved: 0,
+      approvable: true,
+      unresolved_questions: [],
+    })
+    expect(result.approvable).toBe(true)
+
+    const exported = packetStopAnswersExportSchema.parse({
+      stop_answers: [
+        {
+          packet_id: 'p1',
+          field: 'salary',
+          category: 'salary',
+          answer: '100k EUR',
+          created_at: '2026-07-14T00:00:00Z',
+          updated_at: '2026-07-14T00:00:00Z',
+        },
+      ],
+    })
+    expect(exported.stop_answers).toHaveLength(1)
   })
 
   it('accepts the no-rules preparation result', () => {
