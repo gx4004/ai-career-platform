@@ -33,7 +33,9 @@ HTML_PAGE = """
 
 @pytest.mark.asyncio
 async def test_scrape_extracts_fields():
-    with patch("app.services.job_scraper._fetch_with_httpx", new_callable=AsyncMock, return_value=HTML_PAGE):
+    with patch(
+        "app.services.job_scraper._fetch_with_httpx", new_callable=AsyncMock, return_value=HTML_PAGE
+    ):
         result = await scrape_job_posting("https://example.com/job")
 
     assert result.job_title == "Backend Engineer"
@@ -45,9 +47,15 @@ async def test_scrape_extracts_fields():
 @pytest.mark.asyncio
 async def test_scrape_minimal_html():
     """Page with no structured selectors falls back to body text."""
-    minimal = "<html><body><p>Some job posting with enough text to pass the length check. " + "x " * 60 + "</p></body></html>"
+    minimal = (
+        "<html><body><p>Some job posting with enough text to pass the length check. "
+        + "x " * 60
+        + "</p></body></html>"
+    )
 
-    with patch("app.services.job_scraper._fetch_with_httpx", new_callable=AsyncMock, return_value=minimal):
+    with patch(
+        "app.services.job_scraper._fetch_with_httpx", new_callable=AsyncMock, return_value=minimal
+    ):
         result = await scrape_job_posting("https://example.com/plain")
 
     assert result.job_title is None
@@ -59,8 +67,16 @@ async def test_scrape_minimal_html():
 async def test_scrape_http_error_falls_back_gracefully():
     fake_response = httpx.Response(404, request=httpx.Request("GET", "https://example.com/404"))
 
-    with patch("app.services.job_scraper._fetch_with_httpx", side_effect=httpx.HTTPStatusError("404", request=httpx.Request("GET", "https://example.com/404"), response=fake_response)):
-        with patch("app.services.job_scraper._fetch_with_playwright", side_effect=Exception("Playwright failed")):
+    with patch(
+        "app.services.job_scraper._fetch_with_httpx",
+        side_effect=httpx.HTTPStatusError(
+            "404", request=httpx.Request("GET", "https://example.com/404"), response=fake_response
+        ),
+    ):
+        with patch(
+            "app.services.job_scraper._fetch_with_playwright",
+            side_effect=Exception("Playwright failed"),
+        ):
             result = await scrape_job_posting("https://example.com/404")
 
     assert result.job_title is None
@@ -70,8 +86,14 @@ async def test_scrape_http_error_falls_back_gracefully():
 
 @pytest.mark.asyncio
 async def test_scrape_connection_error_falls_back_gracefully():
-    with patch("app.services.job_scraper._fetch_with_httpx", side_effect=httpx.ConnectError("Connection refused")):
-        with patch("app.services.job_scraper._fetch_with_playwright", side_effect=Exception("Playwright failed")):
+    with patch(
+        "app.services.job_scraper._fetch_with_httpx",
+        side_effect=httpx.ConnectError("Connection refused"),
+    ):
+        with patch(
+            "app.services.job_scraper._fetch_with_playwright",
+            side_effect=Exception("Playwright failed"),
+        ):
             result = await scrape_job_posting("https://example.com/unreachable")
 
     assert result.job_title is None
@@ -133,7 +155,7 @@ def test_validate_url_blocks_hostname_resolving_to_private_ip(monkeypatch):
         # Family / proto / canonname / sockaddr — only sockaddr[0] is read.
         return [(0, 0, 0, "", ("10.0.0.42", 0))]
 
-    monkeypatch.setattr("app.services.job_scraper.socket.getaddrinfo", fake_getaddrinfo)
+    monkeypatch.setattr("app.services.outbound_target.socket.getaddrinfo", fake_getaddrinfo)
 
     with pytest.raises(ValueError, match="private/internal"):
         _validate_url("http://looks-public.example.com/")
@@ -145,7 +167,7 @@ def test_validate_url_rejects_unresolvable_hostname(monkeypatch):
     def fake_getaddrinfo(_host, _port, _family, _socktype):
         raise _socket.gaierror("nodename nor servname provided")
 
-    monkeypatch.setattr("app.services.job_scraper.socket.getaddrinfo", fake_getaddrinfo)
+    monkeypatch.setattr("app.services.outbound_target.socket.getaddrinfo", fake_getaddrinfo)
 
     with pytest.raises(ValueError, match="resolve"):
         _validate_url("http://this-does-not-resolve.invalid/")
@@ -197,7 +219,7 @@ def test_validate_url_rejects_when_any_dns_answer_is_private(monkeypatch):
             (0, 0, 0, "", ("169.254.169.254", 0)),
         ]
 
-    monkeypatch.setattr("app.services.job_scraper.socket.getaddrinfo", fake_getaddrinfo)
+    monkeypatch.setattr("app.services.outbound_target.socket.getaddrinfo", fake_getaddrinfo)
 
     with pytest.raises(ValueError, match="private/internal"):
         _validate_url("https://example.com/job")
@@ -207,7 +229,7 @@ def test_validate_url_rejects_metadata_hostname(monkeypatch):
     def fake_getaddrinfo(_host, _port, _family, _socktype):
         return [(0, 0, 0, "", ("169.254.169.254", 0))]
 
-    monkeypatch.setattr("app.services.job_scraper.socket.getaddrinfo", fake_getaddrinfo)
+    monkeypatch.setattr("app.services.outbound_target.socket.getaddrinfo", fake_getaddrinfo)
 
     with pytest.raises(ValueError, match="private/internal"):
         _validate_url("http://metadata.google.internal/computeMetadata/v1/")
@@ -228,7 +250,7 @@ async def test_http_fetch_connects_to_vetted_ip_and_preserves_host(monkeypatch):
             text="<html><body>job</body></html>",
         )
 
-    monkeypatch.setattr("app.services.job_scraper.socket.getaddrinfo", fake_getaddrinfo)
+    monkeypatch.setattr("app.services.outbound_target.socket.getaddrinfo", fake_getaddrinfo)
     monkeypatch.setattr(
         "app.services.job_scraper.httpx.AsyncHTTPTransport",
         lambda **_kwargs: httpx.MockTransport(handler),
@@ -250,7 +272,7 @@ async def test_http_fetch_revalidates_redirect_target(monkeypatch):
     async def handler(_request):
         return httpx.Response(302, headers={"location": "http://internal.example/secret"})
 
-    monkeypatch.setattr("app.services.job_scraper.socket.getaddrinfo", fake_getaddrinfo)
+    monkeypatch.setattr("app.services.outbound_target.socket.getaddrinfo", fake_getaddrinfo)
     monkeypatch.setattr(
         "app.services.job_scraper.httpx.AsyncHTTPTransport",
         lambda **_kwargs: httpx.MockTransport(handler),
@@ -279,7 +301,7 @@ async def test_http_fetch_rejects_non_html_and_oversized_responses(monkeypatch):
     async def handler(_request):
         return next(responses)
 
-    monkeypatch.setattr("app.services.job_scraper.socket.getaddrinfo", fake_getaddrinfo)
+    monkeypatch.setattr("app.services.outbound_target.socket.getaddrinfo", fake_getaddrinfo)
     monkeypatch.setattr(
         "app.services.job_scraper.httpx.AsyncHTTPTransport",
         lambda **_kwargs: httpx.MockTransport(handler),
@@ -303,7 +325,7 @@ async def test_http_fetch_rejects_streamed_overflow_without_content_length(monke
             content=b"x" * 2_000_001,
         )
 
-    monkeypatch.setattr("app.services.job_scraper.socket.getaddrinfo", fake_getaddrinfo)
+    monkeypatch.setattr("app.services.outbound_target.socket.getaddrinfo", fake_getaddrinfo)
     monkeypatch.setattr(
         "app.services.job_scraper.httpx.AsyncHTTPTransport",
         lambda **_kwargs: httpx.MockTransport(handler),
@@ -328,7 +350,7 @@ async def test_http_fetch_pins_first_resolution_against_dns_rebinding(monkeypatc
         requests.append(request)
         return httpx.Response(200, headers={"content-type": "text/html"}, text="safe")
 
-    monkeypatch.setattr("app.services.job_scraper.socket.getaddrinfo", fake_getaddrinfo)
+    monkeypatch.setattr("app.services.outbound_target.socket.getaddrinfo", fake_getaddrinfo)
     monkeypatch.setattr(
         "app.services.job_scraper.httpx.AsyncHTTPTransport",
         lambda **_kwargs: httpx.MockTransport(handler),
@@ -409,9 +431,7 @@ async def test_playwright_renders_pinned_html_without_direct_network(monkeypatch
             ValueError("private redirect"),
         ]
     )
-    monkeypatch.setattr(
-        "app.services.job_scraper._fetch_resource_with_httpx", fetch_resource
-    )
+    monkeypatch.setattr("app.services.job_scraper._fetch_resource_with_httpx", fetch_resource)
     playwright_module = ModuleType("playwright")
     async_api_module = ModuleType("playwright.async_api")
     async_api_module.async_playwright = lambda: FakeManager()
@@ -440,6 +460,4 @@ def test_import_endpoint_returns_safe_error_for_blocked_target(client):
     )
 
     assert response.status_code == 400
-    assert response.json() == {
-        "detail": "URLs resolving to private/internal IPs are not allowed"
-    }
+    assert response.json() == {"detail": "URLs resolving to private/internal IPs are not allowed"}

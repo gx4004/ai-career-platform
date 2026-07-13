@@ -56,6 +56,15 @@ export function AdminDiscoverySourcesPage() {
                   <td>
                     <div>{source.owner}</div>
                     <div className="admin-table-muted">{source.allowed_behavior}</div>
+                    <div className="admin-table-muted">
+                      {source.endpoint_url || 'Endpoint not configured'}
+                    </div>
+                    <div className="admin-table-muted">
+                      Query: {source.allowed_query_parameters?.join(', ') || 'none'}
+                    </div>
+                    <div className="admin-table-muted">
+                      Robots: {source.robots_policy || 'not configured'}
+                    </div>
                     <div className="admin-table-muted">{source.attribution_rule}</div>
                   </td>
                   <td>

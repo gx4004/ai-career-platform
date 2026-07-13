@@ -10,6 +10,8 @@ from app.models.discovery_source import DiscoverySource
 from app.models.user import User
 from app.schemas.discovery_sources import (
     DiscoveryAllowedBehavior,
+    DiscoveryQueryParameter,
+    DiscoveryRobotsPolicy,
     DiscoverySourceCreate,
     DiscoverySourceFamily,
     DiscoverySourceUpdate,
@@ -22,6 +24,7 @@ class IngestionRefusal(StrEnum):
     TERMS_NOT_ACCEPTED = "terms_not_accepted"
     KILL_SWITCHED = "kill_switched"
     BEHAVIOR_NOT_ALLOWED = "behavior_not_allowed"
+    CONFIG_INCOMPLETE = "config_incomplete"
 
 
 class SourceIngestionRefused(RuntimeError):
@@ -36,9 +39,25 @@ class SourceIngestionAuthorization:
     source_key: str
     source_family: DiscoverySourceFamily
     allowed_behavior: DiscoveryAllowedBehavior
+    endpoint_url: str
+    allowed_query_parameters: tuple[DiscoveryQueryParameter, ...]
+    robots_policy: DiscoveryRobotsPolicy
     rate_limit_per_minute: int
     attribution_rule: str
     retention_days: int
+
+    @property
+    def policy_fingerprint(self) -> tuple:
+        return (
+            self.source_family,
+            self.allowed_behavior,
+            self.endpoint_url,
+            self.allowed_query_parameters,
+            self.robots_policy,
+            self.rate_limit_per_minute,
+            self.attribution_rule,
+            self.retention_days,
+        )
 
 
 def register_source(db: Session, body: DiscoverySourceCreate) -> DiscoverySource:
@@ -94,7 +113,12 @@ def require_ingestion_allowed(
     behavior: DiscoveryAllowedBehavior,
 ) -> SourceIngestionAuthorization:
     """Return the governed source or refuse before any network or ingest work."""
-    source = db.query(DiscoverySource).filter(DiscoverySource.source_key == source_key).first()
+    source = (
+        db.query(DiscoverySource)
+        .populate_existing()
+        .filter(DiscoverySource.source_key == source_key)
+        .first()
+    )
     if source is None:
         raise SourceIngestionRefused(IngestionRefusal.UNREGISTERED)
     if source.terms_status != "accepted":
@@ -103,11 +127,20 @@ def require_ingestion_allowed(
         raise SourceIngestionRefused(IngestionRefusal.KILL_SWITCHED)
     if source.allowed_behavior != behavior:
         raise SourceIngestionRefused(IngestionRefusal.BEHAVIOR_NOT_ALLOWED)
+    if (
+        source.endpoint_url is None
+        or source.allowed_query_parameters is None
+        or source.robots_policy is None
+    ):
+        raise SourceIngestionRefused(IngestionRefusal.CONFIG_INCOMPLETE)
     return SourceIngestionAuthorization(
         source_id=source.id,
         source_key=source.source_key,
         source_family=source.source_family,
         allowed_behavior=source.allowed_behavior,
+        endpoint_url=source.endpoint_url,
+        allowed_query_parameters=tuple(source.allowed_query_parameters),
+        robots_policy=source.robots_policy,
         rate_limit_per_minute=source.rate_limit_per_minute,
         attribution_rule=source.attribution_rule,
         retention_days=source.retention_days,
