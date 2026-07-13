@@ -76,6 +76,13 @@ normalized render model drives three declarative templates and deterministic DOC
 and PDF artifacts, with generated-artifact text, link, page-boundary, and own-parser
 validation. This remains dormant build-ahead work and does not close D-068.
 
+The override also covers #159's lifecycle and cost closure: owner-scoped immediate
+single/all-document deletion, explicit document/variant account-erasure audit counts,
+an additive complete account-data export, durable visible scoring/tailoring quotas,
+and closed-name studio telemetry. CV, job, evidence, generated text, titles, and
+stable document/run identifiers remain outside analytics. This is still dormant
+build-ahead and does not close D-068.
+
 ## Session Handoff Snapshot (2026-07-11)
 
 - **Objective:** Ship the startable activation/quality/cleanup frontier — R6

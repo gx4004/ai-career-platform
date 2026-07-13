@@ -87,8 +87,10 @@
   .studio-shell { padding: 1rem var(--mobile-pad) 6rem; }
   .studio-header { align-items: stretch; flex-direction: column; }
   .studio-title-input { width: 100%; font-size: 1.65rem; }
-  .studio-header-actions { justify-content: space-between; }
-  .studio-save-state { text-align: left; }
+  .studio-header-actions { box-sizing: border-box; display: grid; grid-template-columns: minmax(0, 1fr); align-items: stretch; width: 100%; min-width: 0; max-width: 100%; gap: .75rem; }
+  .studio-header-actions > * { box-sizing: border-box; width: 100%; min-width: 0; max-width: 100%; }
+  .studio-header-actions > a, .studio-header-actions > button { min-height: var(--touch-target); height: auto; justify-content: center; white-space: normal; overflow-wrap: anywhere; text-align: center; }
+  .studio-save-state { min-width: 0; text-align: left; white-space: normal; overflow-wrap: anywhere; }
   .studio-layout { grid-template-columns: 1fr; gap: var(--mobile-section-gap); }
   .studio-dimensions { grid-template-columns: 1fr; }
   .studio-quality-head { box-sizing: border-box; width: 100%; min-width: 0; max-width: 100%; align-items: stretch; flex-direction: column; }

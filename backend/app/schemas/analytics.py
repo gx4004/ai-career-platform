@@ -101,6 +101,16 @@ ProfileEventName = Literal[
     "profile_item_deleted",
 ]
 
+StudioEventName = Literal[
+    "studio_document_created",
+    "studio_document_updated",
+    "studio_document_deleted",
+    "studio_documents_deleted",
+    "studio_data_exported",
+    "studio_quality_checked",
+    "studio_tailoring_generated",
+]
+
 # Activation-event names accepted by the durable write seam. This is the union
 # of every event name already firing today: the frontend-telemetry taxonomy
 # (`TelemetryEventName`) plus the backend-only tool-run outcome event, which the
@@ -108,7 +118,11 @@ ProfileEventName = Literal[
 # `tool_run_succeeded`), plus the backend-only R10 operational events (#136) and
 # the backend-only R11 profile-adoption events (#150).
 ActivationEventName = (
-    TelemetryEventName | Literal["tool_run_completed"] | R10EventName | ProfileEventName
+    TelemetryEventName
+    | Literal["tool_run_completed"]
+    | R10EventName
+    | ProfileEventName
+    | StudioEventName
 )
 
 

@@ -89,6 +89,10 @@ class CvDocumentResponse(BaseModel):
     sections: list[CvSection]
     created_at: datetime
     updated_at: datetime
+    quality_model_runs: int = Field(ge=0)
+    tailoring_model_runs: int = Field(ge=0)
+    quality_model_run_limit: Literal[10] = 10
+    tailoring_model_run_limit: Literal[10] = 10
     variants: list[CvVariantResponse]
 
 
@@ -167,6 +171,7 @@ class CvQualityResponse(BaseModel):
     ats_checks: list[CvAtsCheck]
     scoring_mode: Literal["heuristic", "blended"]
     advisory_note: str
+    remaining_model_runs: int = Field(ge=0)
     history_id: str | None = None
     access_mode: Literal["authenticated"] = "authenticated"
     saved: bool = True

@@ -31,6 +31,7 @@ from app.schemas.cv_documents import (
     CvVariantResponse,
 )
 from app.schemas.evidence_profile import EvidenceItemCreate, EvidenceItemResponse
+from app.services.analytics import safe_record_activation_event
 from app.services.cv_documents import (
     CvDocumentNotFoundError,
     DuplicateVariantNameError,
@@ -41,6 +42,7 @@ from app.services.cv_documents import (
     create_document,
     create_variant,
     delete_document,
+    delete_documents,
     export_documents,
     get_document,
     list_documents,
@@ -297,7 +299,11 @@ async def quality(
                     f"Validated against the generated {body.artifact_format.upper()} artifact."
                 )
                 check["remediation"] = "Regenerate after editing if this artifact validation fails."
-    return CvQualityResponse(**result)
+    remaining = CV_QUALITY_MODEL_RUN_LIMIT - (
+        quota_document.quality_model_runs if body.use_model else document.quality_model_runs
+    )
+    safe_record_activation_event(db, event_name="studio_quality_checked")
+    return CvQualityResponse(**result, remaining_model_runs=remaining)
 
 
 @router.patch("/{document_id}", response_model=CvDocumentResponse)
@@ -366,6 +372,7 @@ async def tailor(
     result["remaining_regenerations"] = (
         CV_TAILORING_MODEL_RUN_LIMIT - quota_document.tailoring_model_runs
     )
+    safe_record_activation_event(db, event_name="studio_tailoring_generated")
     result["request_id"] = uuid4()
     result["proposal_token"] = proposal_token(
         str(result["request_id"]), document.id, current_user.id, body.job_title, result["changes"]
@@ -473,6 +480,15 @@ def delete(
         delete_document(db, get_document(db, document_id, current_user.id))
     except CvDocumentNotFoundError as error:
         _not_found(error)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.delete("", status_code=status.HTTP_204_NO_CONTENT)
+def delete_all(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    delete_documents(db, current_user.id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

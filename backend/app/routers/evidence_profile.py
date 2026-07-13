@@ -5,6 +5,7 @@ from app.auth.security import get_current_user
 from app.database import get_db
 from app.limiter import limiter, model_abuse_limits
 from app.models.user import User
+from app.schemas.data_export import CareerDataExport
 from app.schemas.evidence_profile import (
     ConfirmationAction,
     EvidenceImportProposalsResponse,
@@ -13,14 +14,13 @@ from app.schemas.evidence_profile import (
     EvidenceItemListResponse,
     EvidenceItemResponse,
     EvidenceItemUpdate,
-    EvidenceProfileExport,
 )
+from app.services.data_export import export_career_data
 from app.services.evidence_import import generate_import_proposals
 from app.services.evidence_profile import (
     EvidenceItemNotFoundError,
     create_evidence_item,
     delete_evidence_item,
-    export_evidence_profile,
     get_evidence_item,
     list_evidence_items,
     set_evidence_confirmation,
@@ -39,21 +39,21 @@ def list_items(current_user: User = Depends(get_current_user), db: Session = Dep
     return EvidenceItemListResponse(items=list_evidence_items(db, current_user.id))
 
 
-@router.get("/export", response_model=EvidenceProfileExport)
+@router.get("/export", response_model=CareerDataExport)
 @limiter.limit("5/minute")
 def export_profile(
     request: Request,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Self-serve, machine-readable export of the owner's full Evidence Profile.
+    """Self-serve export of the owner's Evidence Profile and CV Studio data.
 
     Authenticated-owner-only (``get_current_user`` scopes every row to the caller)
     and rate-limited at the same 5/minute ceiling as the other sensitive
     account-data endpoint (``POST /auth/me/delete``), because a full-profile dump
     is a bulk read of the user's most sensitive stored content (D-065, D-064).
     """
-    return export_evidence_profile(db, current_user.id)
+    return export_career_data(db, current_user.id)
 
 
 @router.post("/import/proposals", response_model=EvidenceImportProposalsResponse)

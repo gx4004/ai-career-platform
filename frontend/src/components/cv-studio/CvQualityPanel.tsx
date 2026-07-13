@@ -7,7 +7,7 @@ import type { CvAtsCheckKey, CvTemplateId } from '#/lib/api/schemas'
 
 export function CvQualityPanel({ documentId, revision, artifactTemplate }: { documentId: string; revision: string; artifactTemplate: CvTemplateId }) {
   const queryClient = useQueryClient()
-  const [modelState, setModelState] = useState<'idle' | 'loading' | 'error'>('idle')
+  const [modelState, setModelState] = useState<'idle' | 'loading' | 'error' | 'limit'>('idle')
   const [checkState, setCheckState] = useState<{ key: CvAtsCheckKey; state: 'loading' | 'error' } | null>(null)
   const queryKey = ['cv-studio', 'quality', documentId, revision] as const
   const quality = useQuery({
@@ -37,7 +37,11 @@ export function CvQualityPanel({ documentId, revision, artifactTemplate }: { doc
       const result = await scoreCvDocument(documentId, { use_model: true })
       queryClient.setQueryData(queryKey, result)
       setModelState('idle')
-    } catch {
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('model scoring limit')) {
+        setModelState('limit')
+        return
+      }
       setModelState('error')
     }
   }
@@ -47,8 +51,9 @@ export function CvQualityPanel({ documentId, revision, artifactTemplate }: { doc
   const data = quality.data
   return <section className="studio-quality" aria-labelledby="studio-quality-title">
     <header className="studio-quality-head"><div><p className="eyebrow">Editing guidance</p><h2 id="studio-quality-title">Document quality</h2></div><div className="studio-quality-actions"><Button type="button" size="sm" variant="ghost" disabled={modelState === 'loading'} onClick={() => void addModelPerspective()}>{modelState === 'loading' ? 'Comparing…' : 'Add model perspective'}</Button><Button type="button" size="sm" variant="outline" disabled={quality.isFetching} onClick={() => void quality.refetch()}><RefreshCw size={15} /> Refresh</Button></div></header>
-    {modelState === 'error' ? <p className="studio-inline-error" role="alert">The model perspective is unavailable. Deterministic scores and checks remain available.</p> : null}
+    {modelState === 'limit' ? <p className="studio-inline-error" role="alert">This document has reached its model scoring limit. Deterministic scores and checks remain available.</p> : modelState === 'error' ? <p className="studio-inline-error" role="alert">The model perspective is unavailable. Deterministic scores and checks remain available.</p> : null}
     <p className="studio-quality-note">{data.advisory_note}</p>
+    <p className="studio-quality-note">{data.remaining_model_runs} model scoring runs remain for this document.</p>
     <div className="studio-dimensions">{data.dimensions.map((dimension) => <article key={dimension.key}>
       <div><h3>{dimension.label}</h3><strong aria-label={`${dimension.label}: ${dimension.score} out of 100`}>{dimension.score}<span>/100</span></strong></div>
       <ul>{dimension.reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul><p><b>Next edit:</b> {dimension.remediation}</p>

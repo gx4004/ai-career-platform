@@ -79,7 +79,8 @@ Scoring semantics:
 - No email verification; disposable email domains are blocked at registration.
 - Password reset via Resend is the only transactional email in V1 — no welcome or
   deletion-confirmation emails.
-- Account deletion is immediate and removes all runs, workspaces, and the user
+- Account deletion is immediate and removes all runs, workspaces, Evidence Profile
+  items, CV documents and immutable variants, and the user
   record (GDPR/RODO). Retention and backup policy beyond this is an open human
   decision (issue #74, D-NEXT-3).
 - Explicit logout, account deletion, and the manual local-data reset all clear

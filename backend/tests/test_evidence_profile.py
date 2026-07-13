@@ -2,12 +2,10 @@ import pytest
 
 from app.auth.security import hash_password
 from app.models.analytics_event import AnalyticsEvent
+from app.models.cv_document import CvDocument, CvVariant
 from app.models.evidence_item import EvidenceItem
 from app.models.user import User
-from app.schemas.evidence_profile import (
-    EVIDENCE_PROFILE_EXPORT_SCHEMA_VERSION,
-    EvidenceProfileExport,
-)
+from app.schemas.data_export import CareerDataExport
 
 PREFIX = "/api/v1/evidence-profile/items"
 EXPORT = "/api/v1/evidence-profile/export"
@@ -206,13 +204,32 @@ def test_export_returns_full_schema_valid_profile(client, auth_headers):
 
     # The documented published schema is the Pydantic model surfaced in OpenAPI;
     # the payload must validate against it, provenance + confirmation state included.
-    export = EvidenceProfileExport.model_validate(response.json())
-    assert export.schema_version == EVIDENCE_PROFILE_EXPORT_SCHEMA_VERSION
+    export = CareerDataExport.model_validate(response.json())
+    assert export.schema_version == "career-data-export/v1"
     assert export.item_count == 1
     item = export.items[0]
     assert item.id == created["id"]
     assert item.provenance == "user-entered"
     assert item.confirmation_state == "confirmed"
+
+
+def test_export_includes_schema_valid_documents_and_immutable_variants(
+    client, auth_headers, db, test_user
+):
+    document = CvDocument(user_id=test_user.id, name="Portable CV", sections=[])
+    document.variants.append(CvVariant(name="Base", sections=[]))
+    document.variants.append(CvVariant(name="Target role", target_role="Engineer", sections=[]))
+    db.add(document)
+    db.commit()
+    exported = CareerDataExport.model_validate(client.get(EXPORT, headers=auth_headers).json())
+    assert exported.cv_documents.document_count == 1
+    assert [variant.name for variant in exported.cv_documents.documents[0].variants] == [
+        "Base",
+        "Target role",
+    ]
+    assert exported.cv_documents.documents[0].quality_model_runs == 0
+    assert exported.cv_documents.documents[0].tailoring_model_runs == 0
+    assert "proposal_token" not in exported.model_dump_json()
 
 
 def test_export_is_owner_scoped(client, auth_headers, test_user, second_user, db):
@@ -227,7 +244,7 @@ def test_export_is_owner_scoped(client, auth_headers, test_user, second_user, db
     )
     db.commit()
 
-    export = EvidenceProfileExport.model_validate(
+    export = CareerDataExport.model_validate(
         client.get(EXPORT, headers=auth_headers).json()
     )
     assert export.item_count == 0

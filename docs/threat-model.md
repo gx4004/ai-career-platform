@@ -800,11 +800,15 @@ applied.
 The editable draft lives in `cv_documents.sections`. Creation also records an
 immutable `Base` snapshot and later named snapshots live in `cv_variants.sections`;
 restore copies a snapshot into the working draft and never updates the snapshot.
-The bulk machine-readable export is owner-scoped and rate-limited to 5/minute.
-Account deletion explicitly removes variants and documents in the existing single
-transaction, with PostgreSQL `ON DELETE CASCADE` as a second line of defense.
-Routes emit no CV content logs or telemetry; the existing request/Sentry scrubbing
-boundary still applies. R12 #155 adds an authenticated `/cv-studio` route over
+Single-document and all-document deletion are immediate and owner-scoped. The R11
+machine-readable `career-data-export/v1` export now includes the full document store and every immutable
+variant under one Pydantic/Zod-mirrored schema; it remains owner-scoped and
+rate-limited to 5/minute. Account deletion explicitly removes variants and documents
+in the existing single transaction, reports separate document and variant counts in
+the deletion audit, and retains PostgreSQL `ON DELETE CASCADE` as a second line of
+defense. Studio telemetry uses closed event names only: the write schema rejects CV
+content, job/evidence/generated text, titles, and document/run identifiers. The
+existing request/Sentry scrubbing boundary still applies. R12 #155 adds an authenticated `/cv-studio` route over
 these owner-scoped APIs. Guest and unresolved sessions never start document
 queries; a guest receives the existing sign-in intent instead. The editor keeps
 content in React/query memory only, serializes autosave writes to prevent stale
@@ -856,6 +860,19 @@ owner/document request key and never mutate the draft. Unsupported changes requi
 the ordinary R11 create-unconfirmed → explicit-confirm → regenerate lifecycle; no
 local override can confirm or launder a claim. No CV, job, diff, or evidence content
 is logged or emitted as telemetry.
+
+R12 #158 adds two sensitive bulk-read/export boundaries. Template rendering accepts
+only one of the three closed template ids and normalizes the owner-scoped structured
+document into `cv-render/v1`; template code never receives an upload or arbitrary
+markup. PDF/DOCX generators consume only that normalized render model, set private
+no-store responses, and validate text, links, page boundaries, and own-parser
+re-import before evidence is reported. The parser boundary remains subprocess-
+isolated and resource-capped for both user imports and generated-artifact validation;
+generated files do not bypass upload/container/text bounds. Artifact routes scope the
+document before rendering and never accept a filename, filesystem path, HTML, CSS, or
+template body from the caller. Rollback is additive: disabling the studio router and
+navigation removes the capability without changing the six tools; persisted rows stay
+available for export/deletion, and quota counters remain durable.
 
 ---
 
