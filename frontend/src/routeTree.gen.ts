@@ -30,6 +30,7 @@ import { Route as AdminRouteImport } from './routes/admin'
 import { Route as AccountRouteImport } from './routes/account'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminIndexRouteImport } from './routes/admin/index'
+import { Route as CampaignsCampaignIdRouteImport } from './routes/campaigns.$campaignId'
 import { Route as AdminUsersRouteImport } from './routes/admin/users'
 import { Route as AdminScorecardRouteImport } from './routes/admin/scorecard'
 import { Route as AdminRunsRouteImport } from './routes/admin/runs'
@@ -147,6 +148,11 @@ const AdminIndexRoute = AdminIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AdminRoute,
 } as any)
+const CampaignsCampaignIdRoute = CampaignsCampaignIdRouteImport.update({
+  id: '/campaigns/$campaignId',
+  path: '/campaigns/$campaignId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminUsersRoute = AdminUsersRouteImport.update({
   id: '/users',
   path: '/users',
@@ -232,6 +238,7 @@ export interface FileRoutesByFullPath {
   '/admin/runs': typeof AdminRunsRoute
   '/admin/scorecard': typeof AdminScorecardRoute
   '/admin/users': typeof AdminUsersRoute
+  '/campaigns/$campaignId': typeof CampaignsCampaignIdRoute
   '/admin/': typeof AdminIndexRoute
   '/career/result/$historyId': typeof CareerResultHistoryIdRoute
   '/cover-letter/result/$historyId': typeof CoverLetterResultHistoryIdRoute
@@ -265,6 +272,7 @@ export interface FileRoutesByTo {
   '/admin/runs': typeof AdminRunsRoute
   '/admin/scorecard': typeof AdminScorecardRoute
   '/admin/users': typeof AdminUsersRoute
+  '/campaigns/$campaignId': typeof CampaignsCampaignIdRoute
   '/admin': typeof AdminIndexRoute
   '/career/result/$historyId': typeof CareerResultHistoryIdRoute
   '/cover-letter/result/$historyId': typeof CoverLetterResultHistoryIdRoute
@@ -300,6 +308,7 @@ export interface FileRoutesById {
   '/admin/runs': typeof AdminRunsRoute
   '/admin/scorecard': typeof AdminScorecardRoute
   '/admin/users': typeof AdminUsersRoute
+  '/campaigns/$campaignId': typeof CampaignsCampaignIdRoute
   '/admin/': typeof AdminIndexRoute
   '/career_/result/$historyId': typeof CareerResultHistoryIdRoute
   '/cover-letter_/result/$historyId': typeof CoverLetterResultHistoryIdRoute
@@ -336,6 +345,7 @@ export interface FileRouteTypes {
     | '/admin/runs'
     | '/admin/scorecard'
     | '/admin/users'
+    | '/campaigns/$campaignId'
     | '/admin/'
     | '/career/result/$historyId'
     | '/cover-letter/result/$historyId'
@@ -369,6 +379,7 @@ export interface FileRouteTypes {
     | '/admin/runs'
     | '/admin/scorecard'
     | '/admin/users'
+    | '/campaigns/$campaignId'
     | '/admin'
     | '/career/result/$historyId'
     | '/cover-letter/result/$historyId'
@@ -403,6 +414,7 @@ export interface FileRouteTypes {
     | '/admin/runs'
     | '/admin/scorecard'
     | '/admin/users'
+    | '/campaigns/$campaignId'
     | '/admin/'
     | '/career_/result/$historyId'
     | '/cover-letter_/result/$historyId'
@@ -433,6 +445,7 @@ export interface RootRouteChildren {
   ResumeRoute: typeof ResumeRoute
   SettingsRoute: typeof SettingsRoute
   TermsRoute: typeof TermsRoute
+  CampaignsCampaignIdRoute: typeof CampaignsCampaignIdRoute
   CareerResultHistoryIdRoute: typeof CareerResultHistoryIdRoute
   CoverLetterResultHistoryIdRoute: typeof CoverLetterResultHistoryIdRoute
   InterviewResultHistoryIdRoute: typeof InterviewResultHistoryIdRoute
@@ -590,6 +603,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminIndexRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/campaigns/$campaignId': {
+      id: '/campaigns/$campaignId'
+      path: '/campaigns/$campaignId'
+      fullPath: '/campaigns/$campaignId'
+      preLoaderRoute: typeof CampaignsCampaignIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin/users': {
       id: '/admin/users'
       path: '/users'
@@ -711,6 +731,7 @@ const rootRouteChildren: RootRouteChildren = {
   ResumeRoute: ResumeRoute,
   SettingsRoute: SettingsRoute,
   TermsRoute: TermsRoute,
+  CampaignsCampaignIdRoute: CampaignsCampaignIdRoute,
   CareerResultHistoryIdRoute: CareerResultHistoryIdRoute,
   CoverLetterResultHistoryIdRoute: CoverLetterResultHistoryIdRoute,
   InterviewResultHistoryIdRoute: InterviewResultHistoryIdRoute,

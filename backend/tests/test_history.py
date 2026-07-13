@@ -1,4 +1,5 @@
 from app.models.campaign_event import CampaignEvent
+from app.models.cv_document import CvDocument, CvVariant
 from app.models.tool_run import ToolRun
 from app.models.workspace import Workspace
 from app.schemas.history import CampaignStatus
@@ -264,9 +265,7 @@ def test_owner_can_update_and_read_campaign_fields(client, auth_headers, test_us
     assert listed["status"] == "planning"
 
 
-def test_campaign_fields_are_owner_only(
-    client, auth_headers, test_user, db
-):
+def test_campaign_fields_are_owner_only(client, auth_headers, test_user, db):
     from app.auth.security import hash_password
     from app.models.user import User
 
@@ -287,38 +286,41 @@ def test_campaign_fields_are_owner_only(
     assert response.status_code == 404
 
 
-def test_campaign_status_lifecycle_is_enforced_server_side(
-    client, auth_headers, test_user, db
-):
+def test_campaign_status_lifecycle_is_enforced_server_side(client, auth_headers, test_user, db):
     workspace = Workspace(user_id=test_user.id, label="Lifecycle")
     db.add(workspace)
     db.commit()
     db.refresh(workspace)
     endpoint = f"{PREFIX}/workspaces/{workspace.id}"
 
-    assert client.patch(
-        endpoint, json={"status": "applied"}, headers=auth_headers
-    ).status_code == 409
-    assert client.patch(
-        endpoint, json={"status": "planning"}, headers=auth_headers
-    ).status_code == 200
-    assert client.patch(
-        endpoint, json={"status": "preparing"}, headers=auth_headers
-    ).status_code == 200
-    assert client.patch(
-        endpoint, json={"status": "applied"}, headers=auth_headers
-    ).status_code == 200
-    assert client.patch(
-        endpoint, json={"status": "planning"}, headers=auth_headers
-    ).status_code == 409
-    assert client.patch(
-        endpoint, json={"status": "custom-stage"}, headers=auth_headers
-    ).status_code == 422
-    assert client.patch(
-        endpoint,
-        json={"deadline": "2026-08-15T16:00:00"},
-        headers=auth_headers,
-    ).status_code == 422
+    assert (
+        client.patch(endpoint, json={"status": "applied"}, headers=auth_headers).status_code == 409
+    )
+    assert (
+        client.patch(endpoint, json={"status": "planning"}, headers=auth_headers).status_code == 200
+    )
+    assert (
+        client.patch(endpoint, json={"status": "preparing"}, headers=auth_headers).status_code
+        == 200
+    )
+    assert (
+        client.patch(endpoint, json={"status": "applied"}, headers=auth_headers).status_code == 200
+    )
+    assert (
+        client.patch(endpoint, json={"status": "planning"}, headers=auth_headers).status_code == 409
+    )
+    assert (
+        client.patch(endpoint, json={"status": "custom-stage"}, headers=auth_headers).status_code
+        == 422
+    )
+    assert (
+        client.patch(
+            endpoint,
+            json={"deadline": "2026-08-15T16:00:00"},
+            headers=auth_headers,
+        ).status_code
+        == 422
+    )
 
     assert [status.value for status in CampaignStatus] == [
         "planning",
@@ -345,9 +347,10 @@ def test_campaign_deadline_changes_are_append_only(client, auth_headers, test_us
     endpoint = f"{PREFIX}/workspaces/{workspace.id}"
 
     for deadline in ("2026-08-15T16:00:00Z", "2026-08-20T16:00:00Z", None):
-        assert client.patch(
-            endpoint, json={"deadline": deadline}, headers=auth_headers
-        ).status_code == 200
+        assert (
+            client.patch(endpoint, json={"deadline": deadline}, headers=auth_headers).status_code
+            == 200
+        )
 
     events = db.query(CampaignEvent).filter_by(workspace_id=workspace.id).all()
     assert [event.event_type for event in events] == [
@@ -356,6 +359,131 @@ def test_campaign_deadline_changes_are_append_only(client, auth_headers, test_us
         "deadline_changed",
     ]
     assert events[-1].details["to"] is None
+
+
+def test_campaign_detail_selects_exact_immutable_material_versions(
+    client, auth_headers, test_user, db
+):
+    workspace = Workspace(user_id=test_user.id, company="Northstar Labs", role="Platform Engineer")
+    document = CvDocument(user_id=test_user.id, name="Platform CV", sections=[])
+    db.add_all([workspace, document])
+    db.flush()
+    variant = CvVariant(document_id=document.id, name="Northstar variant", sections=[])
+    cover_parent = ToolRun(user_id=test_user.id, tool_name="cover-letter", label="Cover v1")
+    cover_revision = ToolRun(
+        user_id=test_user.id, tool_name="cover-letter", label="Cover v2", parent_run=cover_parent
+    )
+    interview = ToolRun(user_id=test_user.id, tool_name="interview", label="Interview prep")
+    db.add_all([variant, cover_parent, cover_revision, interview])
+    db.commit()
+
+    response = client.patch(
+        f"{PREFIX}/workspaces/{workspace.id}/materials",
+        json={
+            "cv_variant_id": variant.id,
+            "cover_letter_run_id": cover_revision.id,
+            "interview_run_id": interview.id,
+        },
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["selected_materials"]["cv_variant"]["id"] == variant.id
+    assert payload["selected_materials"]["cover_letter"]["id"] == cover_revision.id
+    assert payload["selected_materials"]["cover_letter"]["parent_run_id"] == cover_parent.id
+    assert payload["selected_materials"]["interview"]["id"] == interview.id
+    assert {item["id"] for item in payload["available_materials"]["cover_letters"]} == {
+        cover_parent.id,
+        cover_revision.id,
+    }
+    events = db.query(CampaignEvent).filter_by(workspace_id=workspace.id).all()
+    assert [(event.event_type, event.details) for event in events] == [
+        ("material_selection_changed", {"material_type": "cv_variant", "action": "selected"}),
+        ("material_selection_changed", {"material_type": "cover_letter", "action": "selected"}),
+        ("material_selection_changed", {"material_type": "interview", "action": "selected"}),
+    ]
+
+    detail = client.get(f"{PREFIX}/workspaces/{workspace.id}", headers=auth_headers)
+    assert detail.status_code == 200
+    assert detail.json()["selected_materials"] == payload["selected_materials"]
+    exported_campaign = client.get("/api/v1/evidence-profile/export", headers=auth_headers).json()[
+        "campaigns"
+    ]["campaigns"][0]
+    assert exported_campaign["selected_cover_letter"]["id"] == cover_revision.id
+    assert exported_campaign["selected_cover_letter"]["result_payload"] == {}
+    assert exported_campaign["selected_interview"]["id"] == interview.id
+
+
+def test_campaign_material_selection_rejects_foreign_and_wrong_type_refs(
+    client, auth_headers, test_user, db
+):
+    from app.auth.security import hash_password
+    from app.models.user import User
+
+    other = User(email="private-materials@example.com", hashed_password=hash_password("pass"))
+    workspace = Workspace(user_id=test_user.id)
+    wrong_type = ToolRun(user_id=test_user.id, tool_name="resume")
+    foreign_cover = ToolRun(user=other, tool_name="cover-letter")
+    db.add_all([other, workspace, wrong_type, foreign_cover])
+    db.commit()
+
+    endpoint = f"{PREFIX}/workspaces/{workspace.id}/materials"
+    assert (
+        client.patch(
+            endpoint, json={"cover_letter_run_id": wrong_type.id}, headers=auth_headers
+        ).status_code
+        == 422
+    )
+    assert (
+        client.patch(
+            endpoint, json={"cover_letter_run_id": foreign_cover.id}, headers=auth_headers
+        ).status_code
+        == 422
+    )
+    assert db.query(CampaignEvent).filter_by(workspace_id=workspace.id).count() == 0
+
+
+def test_campaign_material_selection_can_be_cleared_with_content_free_event(
+    client, auth_headers, test_user, db
+):
+    workspace = Workspace(user_id=test_user.id)
+    run = ToolRun(user_id=test_user.id, tool_name="interview", label="Private prep title")
+    db.add_all([workspace, run])
+    db.commit()
+    endpoint = f"{PREFIX}/workspaces/{workspace.id}/materials"
+    assert (
+        client.patch(endpoint, json={"interview_run_id": run.id}, headers=auth_headers).status_code
+        == 200
+    )
+    response = client.patch(endpoint, json={"interview_run_id": None}, headers=auth_headers)
+    assert response.status_code == 200
+    assert response.json()["selected_materials"]["interview"] is None
+    events = db.query(CampaignEvent).filter_by(workspace_id=workspace.id).all()
+    assert events[-1].details == {"material_type": "interview", "action": "cleared"}
+    assert "Private prep title" not in str(events[-1].details)
+
+
+def test_selected_material_deletion_clears_reference_without_deleting_campaign(
+    client, auth_headers, test_user, db
+):
+    workspace = Workspace(user_id=test_user.id, status="planning")
+    run = ToolRun(user_id=test_user.id, tool_name="cover-letter")
+    db.add_all([workspace, run])
+    db.commit()
+    assert (
+        client.patch(
+            f"{PREFIX}/workspaces/{workspace.id}/materials",
+            json={"cover_letter_run_id": run.id},
+            headers=auth_headers,
+        ).status_code
+        == 200
+    )
+
+    assert client.delete(f"{PREFIX}/{run.id}", headers=auth_headers).status_code == 200
+    db.expire_all()
+    remaining = db.query(Workspace).filter_by(id=workspace.id).one()
+    assert remaining.selected_cover_letter_run_id is None
 
 
 def test_pagination(client, auth_headers, test_user, db):

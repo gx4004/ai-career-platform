@@ -9,6 +9,8 @@ from app.models.tool_run import ToolRun
 from app.models.user import User
 from app.models.workspace import Workspace
 from app.schemas.history import (
+    CampaignDetailResponse,
+    CampaignMaterialSelectionRequest,
     CampaignStatus,
     DeletedResponse,
     FavoriteRequest,
@@ -19,6 +21,11 @@ from app.schemas.history import (
     WorkspaceListResponse,
     WorkspaceSummary,
     WorkspaceUpdateRequest,
+)
+from app.services.campaign_materials import (
+    clear_selected_run,
+    get_campaign_detail,
+    update_material_selections,
 )
 from app.services.tool_runs import build_workspace_summary, derive_saved_run_metadata
 
@@ -118,10 +125,28 @@ def list_workspaces(
         summary = build_workspace_summary(workspace, list(workspace.tool_runs))
         if summary is not None:
             items.append(summary)
-    return WorkspaceListResponse(
-        items=items,
-        total=len(items),
-    )
+    return WorkspaceListResponse(items=items, total=len(items))
+
+
+@router.get("/workspaces/{workspace_id}", response_model=CampaignDetailResponse)
+def get_campaign(
+    workspace_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    workspace = _get_workspace(db, workspace_id, current_user.id)
+    return get_campaign_detail(db, workspace, current_user.id)
+
+
+@router.patch("/workspaces/{workspace_id}/materials", response_model=CampaignDetailResponse)
+def update_campaign_materials(
+    workspace_id: str,
+    body: CampaignMaterialSelectionRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    workspace = _get_workspace(db, workspace_id, current_user.id)
+    return update_material_selections(db, workspace, current_user.id, body)
 
 
 @router.patch("/workspaces/{workspace_id}", response_model=WorkspaceSummary)
@@ -279,6 +304,7 @@ def delete_history_item(
 ):
     run = _get_run(db, history_id, current_user.id)
     workspace = run.workspace
+    clear_selected_run(db, current_user.id, run)
     db.delete(run)
     if workspace is not None:
         # Use a DB-level count rather than the in-memory relationship, which
@@ -349,6 +375,9 @@ def _has_campaign_data(workspace: Workspace) -> bool:
             workspace.status,
             workspace.deadline,
             workspace.listing,
+            workspace.selected_cv_variant_id,
+            workspace.selected_cover_letter_run_id,
+            workspace.selected_interview_run_id,
         )
     )
 

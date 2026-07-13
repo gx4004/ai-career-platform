@@ -10,9 +10,7 @@ from app.database import Base
 class ToolRun(Base):
     __tablename__ = "tool_runs"
 
-    id: Mapped[str] = mapped_column(
-        String, primary_key=True, default=lambda: str(uuid.uuid4())
-    )
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     user_id: Mapped[str] = mapped_column(
         String,
         ForeignKey("users.id", ondelete="CASCADE"),
@@ -38,5 +36,5 @@ class ToolRun(Base):
     )
 
     user = relationship("User", back_populates="tool_runs")
-    workspace = relationship("Workspace", back_populates="tool_runs")
+    workspace = relationship("Workspace", back_populates="tool_runs", foreign_keys=[workspace_id])
     parent_run = relationship("ToolRun", remote_side="ToolRun.id")

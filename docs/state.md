@@ -104,6 +104,17 @@ ingestion is introduced. The existing job-import card preserves populate-only
 behavior by default and offers an explicit campaign picker for URL or pasted
 attachment.
 
+R13 #164 adds an authenticated owner-only campaign surface at
+`/campaigns/:campaignId`. It presents the campaign facts and current canonical
+listing beside exact selected-material references. CV selections point to immutable
+`CvVariant` rows; cover-letter and interview selections point to exact immutable
+`ToolRun` revisions. Owner and tool-type checks run before each change, while every
+select or clear appends only a low-cardinality `material_selection_changed` event
+(`material_type` and `action`) without material titles or content. The three nullable
+references are additive, export with campaign data, and clear on referenced-material
+deletion. Existing history behavior remains intact and now provides an explicit link
+to the focused campaign view.
+
 ## Session Handoff Snapshot (2026-07-11)
 
 - **Objective:** Ship the startable activation/quality/cleanup frontier — R6
