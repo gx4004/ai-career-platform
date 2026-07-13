@@ -92,6 +92,13 @@ class Workspace(Base):
         passive_deletes=True,
         order_by="CampaignContact.created_at.asc()",
     )
+    submission_snapshots = relationship(
+        "CampaignSubmissionSnapshot",
+        back_populates="workspace",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        order_by="CampaignSubmissionSnapshot.created_at.asc()",
+    )
     listings = relationship(
         "CampaignListing",
         back_populates="workspace",

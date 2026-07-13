@@ -223,8 +223,9 @@ Browser → POST /auth/password-reset/confirm {token, new_password}
 | 9 | Structured CV drafts and variant snapshots | High | `cv_documents.sections`, `cv_variants.sections` | Until document/account deletion | Full career history, target-role intent, professional reputation exposure |
 | 10 | Tool metadata (scores, skill gaps, recommendations) | Medium | `tool_runs.result_payload` | Until deletion | Career profile inference |
 | 11 | Workspace/campaign target, schedule, and transition history | High | `workspaces.label`, `workspaces.is_pinned`, `workspaces.company`, `workspaces.role`, `workspaces.status`, `workspaces.deadline`, `campaign_events.details` | Until deletion | Job-search intent, target employer, application timing, and outcome-history exposure |
-| 12 | Behavioral telemetry (event names, routes, timestamps) | Low | Log stdout, Sentry (if enabled) | Undefined (no TTL) | Usage pattern inference |
-| 13 | Sidebar state, language preference | None | `sidebar_state` cookie, `app_language` localStorage | 7 days / forever | None |
+| 12 | Submitted-application frozen bundles | High | `campaign_submission_snapshots.content_json` | Until campaign/account deletion | Exact CV, cover letter, target listing, and application-history exposure |
+| 13 | Behavioral telemetry (event names, routes, timestamps) | Low | Log stdout, Sentry (if enabled) | Undefined (no TTL) | Usage pattern inference |
+| 14 | Sidebar state, language preference | None | `sidebar_state` cookie, `app_language` localStorage | 7 days / forever | None |
 
 ### 4.1 Guest-Specific Storage Note
 
@@ -1200,3 +1201,11 @@ them, suppresses repeat surfacing for one hour, and stores no delivery queue.
 Revocation clears the last-surface timestamp immediately. No reminder code imports
 or calls the email service, and no push-notification integration exists; password
 reset remains the only transactional-email boundary.
+
+Submitted-application snapshots intentionally duplicate sensitive listing and
+generated-material content to preserve what was sent. They are created only at
+the owner-authorized `applied` transition, remain reachable only through the
+owner-scoped campaign detail/export paths, and have no update endpoint. Campaign
+and account deletion remove snapshot rows explicitly and through database
+cascades. Timeline events contain only the opaque snapshot id; snapshot content,
+company names, and digest values never enter telemetry.
