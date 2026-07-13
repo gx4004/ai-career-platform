@@ -97,6 +97,7 @@
   .studio-quality-actions button { box-sizing: border-box; width: 100%; min-width: 0; max-width: 100%; height: auto; min-height: var(--touch-target); flex-shrink: 1; white-space: normal; overflow-wrap: anywhere; text-align: center; }
   .studio-diffs dl { grid-template-columns: 1fr; }
   .studio-checks article { grid-template-columns: minmax(0, 1fr); gap: .5rem; }
+  .studio-checks article > button { box-sizing: border-box; width: 100%; min-width: 0; max-width: 100%; height: auto; min-height: var(--touch-target); white-space: normal; overflow-wrap: anywhere; text-align: center; }
   .studio-versions { position: static; min-width: 0; max-width: 100%; order: -1; }
   .studio-add-row { align-items: stretch; flex-direction: column; }
   .studio-section-head { grid-template-columns: minmax(0, 1fr) auto; gap: .4rem; }
