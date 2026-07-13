@@ -6,6 +6,10 @@ async function gotoHydrated(page: Page, path: string) {
 }
 
 test('CV artifact preview fits 320/375px and has a clean print surface', async ({ page }) => {
+  // Initialize the application in its mobile shell. Resizing from Playwright's
+  // desktop default and measuring immediately can sample the outgoing desktop
+  // SidebarInset before React's breakpoint hook commits the mobile tree.
+  await page.setViewportSize({ width: 320, height: 812 })
   const email = `cv-preview-${Date.now()}@example.com`
   await gotoHydrated(page, '/login')
   await page.getByRole('tab', { name: 'Create Account' }).click()
@@ -26,6 +30,10 @@ test('CV artifact preview fits 320/375px and has a clean print surface', async (
     await expect(page.getByTitle(`${template} PDF preview`)).toBeVisible()
     for (const width of [320, 375]) {
       await page.setViewportSize({ width, height: 812 })
+      // AppShell selects its mobile structure through a reactive breakpoint
+      // hook. Wait for that structure before measuring; otherwise this can
+      // sample the transient desktop SidebarInset immediately after resize.
+      await expect(page.locator('.app-main--mobile')).toBeVisible()
       const metrics = await page.evaluate(() => ({
         viewport: innerWidth,
         document: document.documentElement.scrollWidth,
