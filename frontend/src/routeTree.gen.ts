@@ -33,6 +33,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminIndexRouteImport } from './routes/admin/index'
 import { Route as CampaignsCampaignIdRouteImport } from './routes/campaigns.$campaignId'
 import { Route as AdminUsersRouteImport } from './routes/admin/users'
+import { Route as AdminSourceHealthRouteImport } from './routes/admin/source-health'
 import { Route as AdminScorecardRouteImport } from './routes/admin/scorecard'
 import { Route as AdminRunsRouteImport } from './routes/admin/runs'
 import { Route as AdminProfileAdoptionRouteImport } from './routes/admin/profile-adoption'
@@ -166,6 +167,11 @@ const AdminUsersRoute = AdminUsersRouteImport.update({
   path: '/users',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminSourceHealthRoute = AdminSourceHealthRouteImport.update({
+  id: '/source-health',
+  path: '/source-health',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminScorecardRoute = AdminScorecardRouteImport.update({
   id: '/scorecard',
   path: '/scorecard',
@@ -258,6 +264,7 @@ export interface FileRoutesByFullPath {
   '/admin/profile-adoption': typeof AdminProfileAdoptionRoute
   '/admin/runs': typeof AdminRunsRoute
   '/admin/scorecard': typeof AdminScorecardRoute
+  '/admin/source-health': typeof AdminSourceHealthRoute
   '/admin/users': typeof AdminUsersRoute
   '/campaigns/$campaignId': typeof CampaignsCampaignIdRoute
   '/admin/': typeof AdminIndexRoute
@@ -295,6 +302,7 @@ export interface FileRoutesByTo {
   '/admin/profile-adoption': typeof AdminProfileAdoptionRoute
   '/admin/runs': typeof AdminRunsRoute
   '/admin/scorecard': typeof AdminScorecardRoute
+  '/admin/source-health': typeof AdminSourceHealthRoute
   '/admin/users': typeof AdminUsersRoute
   '/campaigns/$campaignId': typeof CampaignsCampaignIdRoute
   '/admin': typeof AdminIndexRoute
@@ -334,6 +342,7 @@ export interface FileRoutesById {
   '/admin/profile-adoption': typeof AdminProfileAdoptionRoute
   '/admin/runs': typeof AdminRunsRoute
   '/admin/scorecard': typeof AdminScorecardRoute
+  '/admin/source-health': typeof AdminSourceHealthRoute
   '/admin/users': typeof AdminUsersRoute
   '/campaigns/$campaignId': typeof CampaignsCampaignIdRoute
   '/admin/': typeof AdminIndexRoute
@@ -374,6 +383,7 @@ export interface FileRouteTypes {
     | '/admin/profile-adoption'
     | '/admin/runs'
     | '/admin/scorecard'
+    | '/admin/source-health'
     | '/admin/users'
     | '/campaigns/$campaignId'
     | '/admin/'
@@ -411,6 +421,7 @@ export interface FileRouteTypes {
     | '/admin/profile-adoption'
     | '/admin/runs'
     | '/admin/scorecard'
+    | '/admin/source-health'
     | '/admin/users'
     | '/campaigns/$campaignId'
     | '/admin'
@@ -449,6 +460,7 @@ export interface FileRouteTypes {
     | '/admin/profile-adoption'
     | '/admin/runs'
     | '/admin/scorecard'
+    | '/admin/source-health'
     | '/admin/users'
     | '/campaigns/$campaignId'
     | '/admin/'
@@ -661,6 +673,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminUsersRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/source-health': {
+      id: '/admin/source-health'
+      path: '/source-health'
+      fullPath: '/admin/source-health'
+      preLoaderRoute: typeof AdminSourceHealthRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/scorecard': {
       id: '/admin/scorecard'
       path: '/scorecard'
@@ -755,6 +774,7 @@ interface AdminRouteChildren {
   AdminProfileAdoptionRoute: typeof AdminProfileAdoptionRoute
   AdminRunsRoute: typeof AdminRunsRoute
   AdminScorecardRoute: typeof AdminScorecardRoute
+  AdminSourceHealthRoute: typeof AdminSourceHealthRoute
   AdminUsersRoute: typeof AdminUsersRoute
   AdminIndexRoute: typeof AdminIndexRoute
 }
@@ -766,6 +786,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminProfileAdoptionRoute: AdminProfileAdoptionRoute,
   AdminRunsRoute: AdminRunsRoute,
   AdminScorecardRoute: AdminScorecardRoute,
+  AdminSourceHealthRoute: AdminSourceHealthRoute,
   AdminUsersRoute: AdminUsersRoute,
   AdminIndexRoute: AdminIndexRoute,
 }

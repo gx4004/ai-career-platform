@@ -17,6 +17,7 @@ from app.models.discovered_listing import (
 )
 from app.models.discovery_source import DiscoverySource
 from app.schemas.discovered_listings import DiscoveredListingInput
+from app.services.analytics import safe_record_activation_event
 from app.services.discovery_sources import require_ingestion_allowed
 
 
@@ -47,6 +48,7 @@ def store_discovered_listing(
         .one()
     )
     require_ingestion_allowed(db, source_key, source.allowed_behavior)
+    source_family = source.source_family
     source_url = _canonical_source_url(body.source_url, source.endpoint_url or "")
     digest = listing_content_sha256(body.title, body.company, body.description)
     listing = db.query(DiscoveredListing).filter_by(content_sha256=digest).first()
@@ -125,6 +127,15 @@ def store_discovered_listing(
     db.commit()
     db.refresh(listing)
     db.refresh(attribution)
+    # Bounded per-source-family ingest outcome for the operator health view
+    # (#177). Recorded after the store commit so it never rides the ingestion
+    # transaction; carries only the family and the dedup outcome class.
+    safe_record_activation_event(
+        db,
+        event_name="discovery_source_ingest_outcome",
+        operational_dimension=source_family,
+        operational_outcome="deduplicated" if deduplicated else "ingested",
+    )
     return ListingStoreResult(listing, attribution, deduplicated)
 
 
@@ -162,6 +173,9 @@ def expire_discovered_listings(db: Session, *, now: datetime | None = None) -> L
         if retrieved_at < now - timedelta(days=source.retention_days):
             expired_attributions.append(attribution)
 
+    expired_families = [
+        sources_by_id[item.source_id].source_family for item in expired_attributions
+    ]
     affected_listing_ids = {item.listing_id for item in expired_attributions}
     locked_listings = []
     if affected_listing_ids:
@@ -189,6 +203,17 @@ def expire_discovered_listings(db: Session, *, now: datetime | None = None) -> L
             db.delete(candidate)
             listings_deleted += 1
     db.commit()
+    # Bounded per-source-family expiry outcomes for the operator health view
+    # (#177). Emitted after the expiry transaction commits so instrumentation
+    # never holds the row locks; one event per expired attribution carries only
+    # the family and the `expired` outcome class — no listing content or id.
+    for family in expired_families:
+        safe_record_activation_event(
+            db,
+            event_name="discovery_source_expiry",
+            operational_dimension=family,
+            operational_outcome="expired",
+        )
     return ListingExpiryResult(len(expired_attributions), listings_deleted)
 
 

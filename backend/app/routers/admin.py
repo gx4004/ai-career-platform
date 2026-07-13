@@ -25,6 +25,7 @@ from app.schemas.admin import (
     AdminRunListResponse,
     AdminScorecardResponse,
     AdminSetAdminRequest,
+    AdminSourceHealthResponse,
     AdminStatsResponse,
     AdminUserDetailResponse,
     AdminUserItem,
@@ -32,14 +33,19 @@ from app.schemas.admin import (
     EvalRunItem,
 )
 from app.schemas.discovery_personalization import AdminRecommendationReportList
-from app.schemas.discovery_sources import DiscoverySourceListResponse
+from app.schemas.discovery_sources import (
+    DiscoverySourceListResponse,
+    DiscoverySourceResponse,
+)
 from app.services.analytics import (
     ACTIVATION_DEFAULT_WINDOW_DAYS,
     aggregate_activation_metrics,
     aggregate_profile_adoption,
 )
 from app.services.discovery_personalization import list_admin_reports
+from app.services.discovery_sources import operate_source_kill_switch
 from app.services.scorecard import compute_scorecard
+from app.services.source_health import aggregate_source_health
 
 router = APIRouter()
 
@@ -78,6 +84,81 @@ def list_discovery_reports(
     identity or any Evidence Profile content (D-090).
     """
     return list_admin_reports(db)
+
+
+# ── Per-source health & kill switch (R14, issue #177) ──
+
+
+@router.get("/source-health", response_model=AdminSourceHealthResponse)
+@limiter.limit(_ADMIN_RATE)
+def get_source_health(
+    request: Request,
+    start: datetime | None = Query(None),
+    end: datetime | None = Query(None),
+    admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """Read-only per-source-family operational health (#177, D-053).
+
+    Admin-gated exactly like every other endpoint here (``get_current_admin``).
+    Extends the existing first-party operational path with source-family
+    aggregate dimensions only: registry posture, listings-store volume and
+    staleness, and windowed fetch/ingest/dedup/expiry outcomes. No listing
+    content, full URL, source key/name, or user identifier is reachable. The
+    date window defaults to a rolling two weeks; naive bounds are treated as UTC
+    so comparison against the timezone-aware ``created_at`` column is well
+    defined on Postgres.
+    """
+    now = datetime.now(UTC)
+    window_end = end or now
+    window_start = start or (window_end - timedelta(days=ACTIVATION_DEFAULT_WINDOW_DAYS))
+    if window_start.tzinfo is None:
+        window_start = window_start.replace(tzinfo=UTC)
+    if window_end.tzinfo is None:
+        window_end = window_end.replace(tzinfo=UTC)
+
+    return aggregate_source_health(
+        db,
+        window_start=window_start,
+        window_end=window_end,
+    )
+
+
+@router.post(
+    "/discovery-sources/{source_id}/kill-switch",
+    response_model=DiscoverySourceResponse,
+)
+@limiter.limit(_ADMIN_RATE)
+def operate_kill_switch(
+    request: Request,
+    source_id: str,
+    # ``tripped`` is a bool query param rather than a JSON body: under
+    # ``from __future__ import annotations`` the ``@limiter.limit`` wrapper leaves
+    # FastAPI unable to resolve a Pydantic body model from the stringized
+    # annotation (it evaluates against the wrapper's globals), so a body model
+    # here fails to build. A builtin-typed query param resolves cleanly and keeps
+    # the per-IP admin rate limit in place.
+    tripped: bool = Query(...),
+    admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """Operator kill-switch trip/clear — immediate, no deploy or restart (#177).
+
+    Flips the persisted ``kill_switch`` column that every fetch/ingest read path
+    re-reads on the next request, so a trip halts the source at once and a clear
+    re-enables it. Clearing is refused unless the terms review is accepted, so
+    the kill switch can never bypass the per-source terms gate (D-084). The
+    action is recorded as a bounded operational event (source family + trip/clear
+    outcome only).
+    """
+    source = db.query(DiscoverySource).filter(DiscoverySource.id == source_id).first()
+    if source is None:
+        raise HTTPException(status_code=404, detail="Discovery source not found")
+    try:
+        operate_source_kill_switch(db, source, tripped=tripped, actor=admin)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return source
 
 
 # ── Users ──

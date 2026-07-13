@@ -2,6 +2,8 @@ import { API_URL } from '#/lib/api/client'
 import { ApiError } from '#/lib/api/errors'
 import {
   discoverySourceListSchema,
+  discoverySourceSchema,
+  type DiscoverySource,
   type DiscoverySourceList,
 } from '#/lib/api/discoverySchemas'
 import {
@@ -246,6 +248,36 @@ export type AdminScorecard = {
   triggers: ScorecardTrigger[]
 }
 
+// R14 per-source health — mirrors backend/app/schemas/admin.py
+// (SourceFamilyHealth / AdminSourceHealthResponse). Read-only aggregate over the
+// same first-party operational path; every figure is a bounded per-source-family
+// count — no listing content, full URL, source key/name, or user data (D-053).
+
+export type SourceFamilyHealth = {
+  source_family: string
+  source_count: number
+  active_count: number
+  killed_count: number
+  pending_terms_count: number
+  listing_count: number
+  stale_count: number
+  oldest_retrieved_at: string | null
+  newest_retrieved_at: string | null
+  fetch_success: number
+  fetch_failure: number
+  fetch_blocked: number
+  ingested: number
+  deduplicated: number
+  expired: number
+}
+
+export type AdminSourceHealth = {
+  window_start: string
+  window_end: string
+  staleness_threshold_days: number
+  families: SourceFamilyHealth[]
+}
+
 // API functions
 
 export function getAdminStats() {
@@ -321,4 +353,24 @@ export async function getAdminDiscoverySources(): Promise<DiscoverySourceList> {
 export async function getAdminDiscoveryReports(): Promise<AdminDiscoveryReportList> {
   const response = await adminRequest<unknown>('/admin/discovery-reports')
   return adminDiscoveryReportListSchema.parse(response)
+}
+
+export function getAdminSourceHealth(params: { start?: string; end?: string } = {}) {
+  return adminRequest<AdminSourceHealth>(
+    `/admin/source-health${buildQs({ start: params.start, end: params.end })}`,
+  )
+}
+
+export async function setDiscoverySourceKillSwitch(
+  sourceId: string,
+  tripped: boolean,
+): Promise<DiscoverySource> {
+  // `tripped` is a bool query param (see backend operate_kill_switch): the admin
+  // router's rate-limited endpoints cannot resolve a Pydantic request body under
+  // `from __future__ import annotations`, so the action is carried on the query.
+  const response = await adminRequest<unknown>(
+    `/admin/discovery-sources/${sourceId}/kill-switch${buildQs({ tripped: String(tripped) })}`,
+    { method: 'POST' },
+  )
+  return discoverySourceSchema.parse(response)
 }
