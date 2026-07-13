@@ -1,13 +1,15 @@
 import { useState, useEffect } from 'react'
 import { Link, useRouterState } from '@tanstack/react-router'
-import { Grid2x2, History, LayoutDashboard, UserRound } from 'lucide-react'
+import { Compass, Grid2x2, History, LayoutDashboard, UserRound } from 'lucide-react'
 import { useBreakpoint } from '#/hooks/use-breakpoint'
 import { ToolGridSheet } from '#/components/mobile/ToolGridSheet'
 import { isPublicRoute } from '#/lib/navigation/publicRoutes'
 import { toolList } from '#/lib/tools/registry'
+import { useSession } from '#/hooks/useSession'
 
 export function MobileNav() {
   const [toolsOpen, setToolsOpen] = useState(false)
+  const { user } = useSession()
   const bp = useBreakpoint()
   const pathname = useRouterState({
     select: (state) => state.location.pathname,
@@ -52,6 +54,16 @@ export function MobileNav() {
           <History size={20} strokeWidth={isActive('/history') ? 2.2 : 1.8} />
           <span>History</span>
         </Link>
+
+        {user ? (
+          <Link
+            to="/discovery"
+            className={`mobile-tab-item${isActive('/discovery') ? ' is-active' : ''}`}
+          >
+            <Compass size={20} strokeWidth={isActive('/discovery') ? 2.2 : 1.8} />
+            <span>Discover</span>
+          </Link>
+        ) : null}
 
         <Link
           to="/account"
