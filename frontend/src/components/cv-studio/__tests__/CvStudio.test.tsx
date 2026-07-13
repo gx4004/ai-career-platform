@@ -6,6 +6,7 @@ import { CvStudio } from '#/components/cv-studio/CvStudio'
 const api = vi.hoisted(() => ({
   listCvDocuments: vi.fn(), getCvDocument: vi.fn(), updateCvDocument: vi.fn(),
   snapshotCvVariant: vi.fn(), restoreCvVariant: vi.fn(),
+  deleteCvDocument: vi.fn(), deleteAllCvDocuments: vi.fn(),
   scoreCvDocument: vi.fn(),
   fetchCvArtifactBlob: vi.fn(() => Promise.resolve(new Blob(['artifact']))),
 }))
@@ -14,7 +15,7 @@ vi.mock('#/lib/api/client', () => api)
 vi.mock('#/hooks/useSession', () => ({ useSession: () => session }))
 
 const section = { id: 's1', kind: 'experience' as const, title: 'Experience', visible: true, position: 0, entries: [{ id: 'e1', evidence_item_id: null, body: 'Built accessible systems.', position: 0 }] }
-const document = { id: 'd1', name: 'Principal CV', sections: [section], created_at: '2026-07-12T10:00:00Z', updated_at: '2026-07-12T10:00:00Z', variants: [{ id: 'v1', name: 'Base', target_role: null, sections: [section], created_at: '2026-07-12T10:00:00Z' }] }
+const document = { id: 'd1', name: 'Principal CV', sections: [section], created_at: '2026-07-12T10:00:00Z', updated_at: '2026-07-12T10:00:00Z', quality_model_runs: 0, tailoring_model_runs: 0, quality_model_run_limit: 10 as const, tailoring_model_run_limit: 10 as const, variants: [{ id: 'v1', name: 'Base', target_role: null, sections: [section], created_at: '2026-07-12T10:00:00Z' }] }
 
 function view() {
   return render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}><CvStudio /></QueryClientProvider>)
@@ -27,8 +28,11 @@ beforeEach(() => {
   api.listCvDocuments.mockResolvedValue({ items: [document] })
   api.getCvDocument.mockResolvedValue(document)
   api.updateCvDocument.mockResolvedValue(document)
+  api.deleteCvDocument.mockResolvedValue(undefined)
+  api.deleteAllCvDocuments.mockResolvedValue(undefined)
   api.scoreCvDocument.mockResolvedValue({
     schema_version: 'cv-quality/v1', scoring_mode: 'heuristic',
+    remaining_model_runs: 10,
     advisory_note: 'Quality scores are directional editing guidance. Compatibility checks report only named structural properties.',
     dimensions: [{ key: 'impact', label: 'Evidence of impact', score: 64, reasons: ['Two entries include outcomes.'], remediation: 'Add truthful measurements.' }],
     ats_checks: [{ key: 'section_structure', label: 'Section structure', status: 'pass', explanation: 'Found clear typed sections.', remediation: 'Add missing standard headings.' }],
@@ -37,6 +41,18 @@ beforeEach(() => {
 })
 
 describe('CV Studio editor surface', () => {
+  it('lets the owner delete one document or all documents after explicit confirmation', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    const firstView = view()
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete document' }))
+    await waitFor(() => expect(api.deleteCvDocument).toHaveBeenCalledWith('d1'))
+    firstView.unmount()
+
+    api.listCvDocuments.mockResolvedValue({ items: [document] })
+    view()
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete all documents' }))
+    await waitFor(() => expect(api.deleteAllCvDocuments).toHaveBeenCalled())
+  })
   it('previews the exact paginated PDF artifact and exposes both export formats', async () => {
     view()
     const preview = await screen.findByTitle('ATS Essential PDF preview')
@@ -109,5 +125,15 @@ describe('CV Studio editor surface', () => {
     await waitFor(() => expect(api.scoreCvDocument).toHaveBeenLastCalledWith('d1', {
       use_model: false, checks: ['section_structure'],
     }))
+  })
+
+  it('shows the durable model scoring limit while keeping deterministic checks available', async () => {
+    api.scoreCvDocument
+      .mockResolvedValueOnce({ ...(await api.scoreCvDocument()), remaining_model_runs: 0 })
+      .mockRejectedValueOnce(new Error('This document has reached its model scoring limit. Deterministic checks remain available.'))
+    view()
+    fireEvent.click(await screen.findByRole('button', { name: 'Add model perspective' }))
+    expect((await screen.findByRole('alert')).textContent).toContain('reached its model scoring limit')
+    expect(screen.getByText('0 model scoring runs remain for this document.')).toBeTruthy()
   })
 })

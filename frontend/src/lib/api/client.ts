@@ -56,6 +56,14 @@ export function getCvDocument(documentId: string) {
   return request(`/cv-documents/${documentId}`, { method: 'GET', schema: cvDocumentSchema })
 }
 
+export function deleteCvDocument(documentId: string) {
+  return request(`/cv-documents/${documentId}`, { method: 'DELETE' })
+}
+
+export function deleteAllCvDocuments() {
+  return request('/cv-documents', { method: 'DELETE' })
+}
+
 export function updateCvDocument(documentId: string, payload: CvDocumentUpdate) {
   return request(`/cv-documents/${documentId}`, {
     method: 'PATCH', body: cvDocumentUpdateSchema.parse(payload), schema: cvDocumentSchema,

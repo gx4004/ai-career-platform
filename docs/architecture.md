@@ -282,6 +282,11 @@ errors remain forbidden.
 - Model-backed studio calls run through the shared pipeline with bounded
   per-document regeneration quotas; CV content joins the sensitive-content
   lifecycle and allowlisted-telemetry boundaries (D-075).
+- One owner-scoped `career-data-export/v1` export now carries both Evidence Profile items and
+  complete CV documents/immutable variants under a mirrored Pydantic/Zod contract.
+  Individual and bulk CV erasure are immediate; account erasure counts documents and
+  variants separately in its existing transactional audit. Studio telemetry carries
+  closed event names only and no content, titles, or stable document/run identifiers.
 
 ## Campaign and Reviewer Boundaries (R13, deferred)
 

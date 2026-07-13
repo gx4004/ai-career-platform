@@ -5,6 +5,7 @@ from app.models.cv_document import CvDocument, CvVariant
 from app.models.evidence_item import EvidenceItem
 from app.models.user import User
 from app.routers.cv_documents import CV_QUALITY_MODEL_RUN_LIMIT, CV_TAILORING_MODEL_RUN_LIMIT
+from app.schemas.analytics import ActivationEventCreate
 from app.services.cv_tailoring import proposal_token
 
 PREFIX = "/api/v1/cv-documents"
@@ -184,6 +185,72 @@ def test_account_deletion_cascades_documents_and_variants(
     assert db.query(CvVariant).count() == 0
 
 
+def test_account_deletion_audit_counts_documents_and_variants_explicitly(
+    client, auth_headers, db, test_user, confirmed_evidence, monkeypatch
+):
+    captured = {}
+    monkeypatch.setattr(
+        "app.services.tool_runs.log_user_account_deleted",
+        lambda **fields: captured.update(fields),
+    )
+    document = client.post(
+        PREFIX,
+        json={"name": "Audited", "sections": [_section(confirmed_evidence.id)]},
+        headers=auth_headers,
+    ).json()
+    client.post(
+        f"{PREFIX}/{document['id']}/variants",
+        json={"name": "Second snapshot"},
+        headers=auth_headers,
+    )
+    response = client.post(
+        "/api/v1/auth/me/delete",
+        json={"confirmation": test_user.email},
+        headers=auth_headers,
+    )
+    assert response.status_code == 204
+    assert captured["cv_documents_deleted"] == 1
+    assert captured["cv_variants_deleted"] == 2
+
+
+def test_owner_can_delete_all_documents_without_deleting_another_owners(
+    client, auth_headers, db, second_user, confirmed_evidence
+):
+    client.post(
+        PREFIX, json={"name": "One", "sections": [_section(confirmed_evidence.id)]}, headers=auth_headers
+    )
+    client.post(
+        PREFIX, json={"name": "Two", "sections": [_section(confirmed_evidence.id)]}, headers=auth_headers
+    )
+    foreign = CvDocument(user_id=second_user.id, name="Foreign", sections=[])
+    foreign.variants.append(CvVariant(name="Base", sections=[]))
+    db.add(foreign)
+    db.commit()
+    response = client.delete(PREFIX, headers=auth_headers)
+    assert response.status_code == 204
+    assert db.query(CvDocument).filter(CvDocument.user_id == second_user.id).count() == 1
+    assert client.get(PREFIX, headers=auth_headers).json() == {"items": []}
+
+
+def test_owner_can_immediately_delete_one_document_and_its_variants(
+    client, auth_headers, db, confirmed_evidence
+):
+    keep = client.post(
+        PREFIX, json={"name": "Keep", "sections": [_section(confirmed_evidence.id)]}, headers=auth_headers
+    ).json()
+    remove = client.post(
+        PREFIX, json={"name": "Remove", "sections": [_section(confirmed_evidence.id)]}, headers=auth_headers
+    ).json()
+    client.post(
+        f"{PREFIX}/{remove['id']}/variants", json={"name": "Remove snapshot"}, headers=auth_headers
+    )
+    variant_ids = [variant.id for variant in db.query(CvVariant).filter_by(document_id=remove["id"])]
+    assert client.delete(f"{PREFIX}/{remove['id']}", headers=auth_headers).status_code == 204
+    assert client.get(f"{PREFIX}/{remove['id']}", headers=auth_headers).status_code == 404
+    assert client.get(f"{PREFIX}/{keep['id']}", headers=auth_headers).status_code == 200
+    assert db.query(CvVariant).filter(CvVariant.id.in_(variant_ids)).count() == 0
+
+
 def test_export_is_owner_scoped_and_contains_recoverable_snapshots(
     client, auth_headers, confirmed_evidence
 ):
@@ -321,6 +388,14 @@ def test_model_quality_delegates_to_shared_pipeline(
     assert captured["tool_name"] == "cv-quality"
     assert captured["current_user"].id
     assert captured["service_fn"].__name__ == "analyze_cv_quality"
+    assert response.json()["remaining_model_runs"] == CV_QUALITY_MODEL_RUN_LIMIT - 1
+
+
+def test_studio_telemetry_allowlist_rejects_content_and_stable_identifiers():
+    assert ActivationEventCreate(event_name="studio_document_deleted").event_name == "studio_document_deleted"
+    for field in ("cv_content", "job_description", "document_id", "run_id", "title"):
+        with pytest.raises(Exception):
+            ActivationEventCreate(event_name="studio_document_deleted", **{field: "private"})
 
 
 def test_failed_pipeline_still_consumes_document_model_allowance(

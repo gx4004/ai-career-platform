@@ -91,13 +91,22 @@ export const cvVariantSchema = z.object({
 })
 export const cvDocumentSchema = z.object({
   id: z.string(), name: z.string(), sections: z.array(cvSectionSchema),
-  created_at: z.iso.datetime(), updated_at: z.iso.datetime(), variants: z.array(cvVariantSchema),
+  created_at: z.iso.datetime(), updated_at: z.iso.datetime(),
+  quality_model_runs: z.number().int().nonnegative(), tailoring_model_runs: z.number().int().nonnegative(),
+  quality_model_run_limit: z.literal(10), tailoring_model_run_limit: z.literal(10),
+  variants: z.array(cvVariantSchema),
 })
 export const cvDocumentListSchema = z.object({ items: z.array(cvDocumentSchema) })
 export const cvDocumentsExportSchema = z.object({
   schema_version: z.literal('cv-documents-export/v1'), exported_at: z.iso.datetime(),
   document_count: z.number().int().nonnegative(), documents: z.array(cvDocumentSchema),
 }).refine((value) => value.document_count === value.documents.length)
+export const careerDataExportSchema = z.strictObject({
+  schema_version: z.literal('career-data-export/v1'),
+  exported_at: z.iso.datetime(),
+  item_count: z.number().int().nonnegative(), items: z.array(evidenceItemSchema),
+  cv_documents: cvDocumentsExportSchema,
+}).refine((value) => value.item_count === value.items.length)
 export type CvEntry = z.infer<typeof cvEntrySchema>
 export type CvSection = z.infer<typeof cvSectionSchema>
 export type CvDocument = z.infer<typeof cvDocumentSchema>
@@ -156,6 +165,7 @@ export const cvQualityResponseSchema = z.object({
     explanation: z.string(), remediation: z.string(),
   })),
   scoring_mode: z.enum(['heuristic', 'blended']), advisory_note: z.string(),
+  remaining_model_runs: z.number().int().nonnegative(),
   history_id: z.string().nullable().optional(), access_mode: z.literal('authenticated'),
   saved: z.boolean(), locked_actions: z.array(z.string()),
 })

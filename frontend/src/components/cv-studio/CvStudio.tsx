@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowDown, ArrowUp, Download, Eye, EyeOff, FilePlus2, Plus, RotateCcw, Save } from 'lucide-react'
+import { ArrowDown, ArrowUp, Download, Eye, EyeOff, FilePlus2, Plus, RotateCcw, Save, Trash2 } from 'lucide-react'
 import { AppStatePanel } from '#/components/app/AppStatePanel'
 import { PageFrame } from '#/components/app/PageFrame'
 import { Button } from '#/components/ui/button'
 import { useSession } from '#/hooks/useSession'
-import { getCvDocument, listCvDocuments, restoreCvVariant, snapshotCvVariant, updateCvDocument } from '#/lib/api/client'
+import { deleteAllCvDocuments, deleteCvDocument, getCvDocument, listCvDocuments, restoreCvVariant, snapshotCvVariant, updateCvDocument } from '#/lib/api/client'
 import type { CvDocument, CvSection } from '#/lib/api/schemas'
 import type { CvTemplateId } from '#/lib/api/schemas'
 import { addEntry, addSection, moveEntry, moveSection, sectionLabels } from '#/lib/cv-studio/editor'
@@ -94,6 +94,23 @@ export function CvStudio() {
       setDraft(restored); setSaveState('saved'); await documentQuery.refetch()
     } catch (error) { setActionError(error instanceof Error ? error.message : 'Restore failed.') }
   }
+  async function removeDocument(all: boolean) {
+    if (!draft || dirty) return
+    const message = all
+      ? 'Delete all CV documents and every immutable variant? This cannot be undone.'
+      : `Delete “${draft.name}” and every immutable variant? This cannot be undone.`
+    if (!window.confirm(message)) return
+    setActionError('')
+    try {
+      if (all) await deleteAllCvDocuments()
+      else await deleteCvDocument(draft.id)
+      setDraft(null)
+      setDocumentId(null)
+      await queryClient.invalidateQueries({ queryKey: LIST_KEY })
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Document deletion failed.')
+    }
+  }
 
   if (status === 'loading') return <PageFrame className="studio-shell"><div className="studio-skeleton" aria-label="Checking your session" /></PageFrame>
   if (!authenticated) return <AppStatePanel title="CV Studio" description="Sign in to edit your structured CV documents and recover named versions." actions={[{ label: 'Sign in', onClick: () => openAuthDialog({ to: '/cv-studio', reason: 'CV Studio is private to your account.' }) }]} />
@@ -110,13 +127,15 @@ export function CvStudio() {
         <div className="studio-header-actions">
           <span className={`studio-save-state studio-save-state--${saveState}`} role="status" aria-live="polite">{saveState === 'saving' ? 'Saving…' : saveState === 'error' ? 'Save failed' : saveState === 'saved' ? 'Saved' : 'All changes saved'}</span>
           <Button asChild variant="outline"><a href={exportUrl}><Download size={16} /> Export data</a></Button>
+          <Button type="button" variant="outline" disabled={dirty} onClick={() => void removeDocument(false)}><Trash2 size={16} /> Delete document</Button>
+          <Button type="button" variant="outline" disabled={dirty} onClick={() => void removeDocument(true)}>Delete all documents</Button>
         </div>
       </header>
       {actionError ? <div className="studio-error" role="alert">{actionError} <button type="button" onClick={() => setActionError('')}>Dismiss</button></div> : null}
       <div className="studio-layout">
         <section className="studio-editor" aria-label="CV sections">
           <CvQualityPanel documentId={draft.id} revision={draft.updated_at} artifactTemplate={template} />
-          <CvTailoringPanel documentId={draft.id} disabled={dirty} onApplied={() => void documentQuery.refetch()} />
+          <CvTailoringPanel documentId={draft.id} disabled={dirty} remainingRuns={draft.tailoring_model_run_limit - draft.tailoring_model_runs} onApplied={() => void documentQuery.refetch()} onGenerated={() => void documentQuery.refetch()} />
           <div className="studio-add-row">
             <label htmlFor="add-section">Add a typed section</label>
             <select id="add-section" defaultValue="" onChange={(event) => { if (event.target.value) edit((current) => ({ ...current, sections: addSection(current.sections, event.target.value as CvSection['kind']) })); event.target.value = '' }}>
