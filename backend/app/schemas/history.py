@@ -326,6 +326,7 @@ class CampaignEventExport(BaseModel):
         "status_changed",
         "deadline_changed",
         "listing_attached",
+        "listing_adopted",
         "material_selection_changed",
         "task_created",
         "task_completed",

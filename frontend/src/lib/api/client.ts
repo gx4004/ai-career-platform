@@ -359,6 +359,17 @@ export function listDiscoveryRecommendations() {
   })
 }
 
+// R14 #176 explicit adoption: one user action turns a visible recommendation
+// into a campaign whose canonical listing carries the listing content,
+// attribution, and retrieval date. Returns the new campaign detail.
+export function adoptDiscoveryRecommendation(listingId: string) {
+  return request(`/discovery/recommendations/${listingId}/adopt`, {
+    method: 'POST',
+    body: {},
+    schema: campaignDetailSchema,
+  })
+}
+
 // R14 #175 discovery correction controls. Every write is owner-scoped server-side.
 export function getDiscoveryPersonalization() {
   return request('/discovery/personalization', {
