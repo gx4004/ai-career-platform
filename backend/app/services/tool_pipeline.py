@@ -38,6 +38,7 @@ async def run_tool_pipeline(
     current_user: User | None = None,
     db: Session,
     cache_extra_keys: dict[str, str] | None = None,
+    require_evidence_profile: bool = False,
 ) -> dict[str, Any]:
     """Shared pipeline: sanitize -> cache -> service -> fallback -> persist -> respond."""
     access_mode = "authenticated" if current_user else "guest_demo"
@@ -88,7 +89,9 @@ async def run_tool_pipeline(
     # confirmed/unconfirmed items yields an empty payload, so tools behave
     # exactly as today until the user confirms evidence.
     profile_version: str | None = None
-    if settings.EVIDENCE_PROFILE_INJECTION_ENABLED and current_user is not None:
+    if (
+        settings.EVIDENCE_PROFILE_INJECTION_ENABLED or require_evidence_profile
+    ) and current_user is not None:
         evidence_payload, profile_version = load_profile_for_injection(db, current_user.id)
         if not evidence_payload.is_empty() and _accepts_evidence_profile(service_fn):
             service_kwargs["evidence_profile"] = evidence_payload

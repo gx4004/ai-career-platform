@@ -3,7 +3,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { CampaignPage } from '../CampaignPage'
 
-const api = vi.hoisted(() => ({ getCampaign: vi.fn(), updateCampaignMaterials: vi.fn(), createCampaignTask: vi.fn(), updateCampaignTask: vi.fn(), deleteCampaignTask: vi.fn(), createCampaignNote: vi.fn(), deleteCampaignNote: vi.fn(), createCampaignContact: vi.fn(), deleteCampaignContact: vi.fn(), getCampaignReminders: vi.fn(), updateCampaignReminderConsent: vi.fn() }))
+const api = vi.hoisted(() => ({ getCampaign: vi.fn(), updateCampaignMaterials: vi.fn(), createCampaignTask: vi.fn(), updateCampaignTask: vi.fn(), deleteCampaignTask: vi.fn(), createCampaignNote: vi.fn(), deleteCampaignNote: vi.fn(), createCampaignContact: vi.fn(), deleteCampaignContact: vi.fn(), getCampaignReminders: vi.fn(), updateCampaignReminderConsent: vi.fn(), reviewCampaign: vi.fn() }))
 vi.mock('#/lib/api/client', () => api)
 vi.mock('#/hooks/useSession', () => ({ useSession: () => ({ status: 'authenticated', openAuthDialog: vi.fn() }) }))
 vi.mock('@tanstack/react-router', () => ({ Link: ({ children }: { children: React.ReactNode }) => <a href="/history">{children}</a> }))
@@ -25,6 +25,7 @@ function renderPage() { api.getCampaignReminders.mockResolvedValue({ enabled: fa
 describe('CampaignPage', () => {
   it('shows campaign facts, canonical listing, and immutable material choices', async () => {
     api.getCampaign.mockResolvedValue(campaign)
+    api.reviewCampaign.mockResolvedValue({ history_id: 'review-1', schema_version: 'application-reviewer/v1', summary: { headline: '1 advisory finding', verdict: 'Review', confidence_note: 'Deterministic' }, top_actions: [], generated_at: '2026-07-13T10:00:00Z', download_title: 'Review', exportable_sections: [], editable_blocks: [], access_mode: 'authenticated', saved: true, locked_actions: [], findings: [{ id: 'finding-1', category: 'unsupported_claim', severity: 'high', message: 'Nimbus is not traceable.', locations: ['Cover letter'], trace: ['claim:Nimbus', 'result:no_match'] }] })
     api.updateCampaignMaterials.mockImplementation(async (_id, payload) => ({ ...campaign, selected_materials: { ...campaign.selected_materials, cv_variant: payload.cv_variant_id ? campaign.available_materials.cv_variants[0] : null } }))
     renderPage()
     expect(await screen.findByRole('heading', { name: 'Platform Engineer', level: 1 })).toBeTruthy()
@@ -42,6 +43,10 @@ describe('CampaignPage', () => {
     expect((screen.getByText(/Application sent/).closest('details') as HTMLDetailsElement).open).toBe(true)
     fireEvent.click(screen.getByText(/Application sent/))
     expect(screen.getByText('Frozen listing')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Run application review' }))
+    expect(await screen.findByText('Nimbus is not traceable.')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss finding' }))
+    expect(screen.queryByText('Nimbus is not traceable.')).toBeNull()
   })
 
   it('renders an explicit empty state and disables unavailable material selection', async () => {

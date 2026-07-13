@@ -470,6 +470,12 @@ export const sharedResultEnvelopeSchema = z.object({
   locked_actions: z.array(z.enum(['save', 'favorite', 'continue', 'history'])).default([]),
 })
 
+export const campaignReviewFindingSchema = z.object({
+  id: z.string(), category: z.enum(['unsupported_claim', 'missed_requirement', 'contradiction', 'generic_language', 'repetition', 'document_defect']),
+  severity: z.enum(['high', 'medium', 'low']), message: z.string(), locations: z.array(z.string()), trace: z.array(z.string()),
+})
+export const campaignReviewResponseSchema = sharedResultEnvelopeSchema.extend({ findings: z.array(campaignReviewFindingSchema) })
+
 export const resumeResultSchema = sharedResultEnvelopeSchema
   .extend({
     overall_score: z.number(),

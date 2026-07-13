@@ -33,6 +33,7 @@ import {
   campaignMaterialSelectionSchema,
   campaignTaskSchema, campaignNoteSchema, campaignContactSchema,
   campaignReminderResponseSchema,
+  campaignReviewResponseSchema,
   cvDocumentListSchema,
   cvDocumentSchema,
   cvDocumentUpdateSchema,
@@ -589,6 +590,7 @@ export function createCampaignContact(workspaceId: string, payload: { name: stri
 export function deleteCampaignContact(workspaceId: string, contactId: string) { return request(`/history/workspaces/${workspaceId}/contacts/${contactId}`, { method: 'DELETE', schema: deletedResponseSchema }) }
 export function getCampaignReminders(workspaceId: string) { return request(`/history/workspaces/${workspaceId}/reminders`, { method: 'GET', schema: campaignReminderResponseSchema }) }
 export function updateCampaignReminderConsent(workspaceId: string, enabled: boolean) { return request(`/history/workspaces/${workspaceId}/reminders`, { method: 'PATCH', body: { enabled }, schema: campaignReminderResponseSchema }) }
+export function reviewCampaign(workspaceId: string) { return request(`/history/workspaces/${workspaceId}/review`, { method: 'POST', body: {}, schema: campaignReviewResponseSchema }) }
 
 export function requestPasswordReset(payload: { email: string }) {
   return request<{ message: string }>('/auth/password-reset/request', {

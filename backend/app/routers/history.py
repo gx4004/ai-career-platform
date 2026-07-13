@@ -1,3 +1,4 @@
+import hashlib
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -20,6 +21,7 @@ from app.schemas.history import (
     CampaignNoteResponse,
     CampaignReminderConsent,
     CampaignReminderResponse,
+    CampaignReviewResponse,
     CampaignStatus,
     CampaignTaskCreate,
     CampaignTaskResponse,
@@ -40,8 +42,11 @@ from app.services.campaign_materials import (
     update_material_selections,
 )
 from app.services.campaign_reminders import claim_due_reminders, set_reminder_consent
+from app.services.campaign_reviewer import project_campaign_materials, review_campaign_materials
 from app.services.campaign_snapshots import capture_submission_snapshot
 from app.services.campaign_tracking import add_contact, add_note, add_task, record_event
+from app.services.input_sanitizer import sanitize_user_input
+from app.services.tool_pipeline import run_tool_pipeline
 from app.services.tool_runs import build_workspace_summary, derive_saved_run_metadata
 
 router = APIRouter()
@@ -189,6 +194,42 @@ def update_campaign_reminders(
     db: Session = Depends(get_db),
 ):
     return set_reminder_consent(db, _get_workspace(db, workspace_id, current_user.id), body.enabled)
+
+
+@router.post("/workspaces/{workspace_id}/review", response_model=CampaignReviewResponse)
+@limiter.limit("10/minute")
+async def review_campaign(
+    request: Request,
+    workspace_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    workspace = _get_workspace(db, workspace_id, current_user.id)
+    if workspace.listing is None:
+        raise HTTPException(status_code=409, detail="Attach a canonical listing before review")
+    cv_text, cover_text = project_campaign_materials(workspace)
+    clean_cover = sanitize_user_input(cover_text)
+    response = await run_tool_pipeline(
+        tool_name="application-reviewer",
+        service_fn=review_campaign_materials,
+        service_kwargs={
+            "resume_text": cv_text,
+            "job_description": workspace.listing.description,
+            "cover_text": clean_cover,
+        },
+        label_fn=lambda result: f"Application review ({len(result['findings'])} findings)",
+        resume_text=cv_text,
+        job_description=workspace.listing.description,
+        workspace_id=workspace.id,
+        current_user=current_user,
+        db=db,
+        cache_extra_keys={
+            "reviewer_version": "v1",
+            "cover_sha256": hashlib.sha256(clean_cover.encode()).hexdigest(),
+        },
+        require_evidence_profile=True,
+    )
+    return CampaignReviewResponse(**response)
 
 
 @router.post(
