@@ -16,6 +16,7 @@ from app.models.tool_run import ToolRun
 from app.models.user import User
 from app.models.workspace import Workspace
 from app.schemas.history import CampaignListingResponse, WorkspaceSummary
+from app.services.application_packets import delete_application_packets
 from app.services.discovery_personalization import delete_personalization
 from app.services.observability import log_user_account_deleted
 from app.services.premium_outputs import attach_premium_outputs
@@ -54,6 +55,10 @@ def delete_all_user_data(db: Session, user_id: str) -> None:
     # Application Approval Queue rules, caps, and cost ceiling are owner-scoped user
     # data and join the erasure cascade (D-099, R15 #180).
     delete_queue_rules(db, user_id)
+    # Prepared application packets are owner-scoped sensitive content (they encode
+    # application intent) and join the erasure cascade (D-099, R15 #181). Deleted
+    # before campaigns so their FK to workspaces is removed first.
+    delete_application_packets(db, user_id)
     evidence_deleted = db.query(EvidenceItem).filter(EvidenceItem.user_id == user_id).delete()
     runs_deleted = db.query(ToolRun).filter(ToolRun.user_id == user_id).delete()
     workspace_ids = [row.id for row in db.query(Workspace.id).filter(Workspace.user_id == user_id)]

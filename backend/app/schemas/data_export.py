@@ -3,6 +3,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from app.schemas.application_packets import ApplicationPacketsExport
 from app.schemas.cv_documents import CvDocumentsExport
 from app.schemas.discovery_personalization import PersonalizationExport
 from app.schemas.evidence_profile import EvidenceItemResponse
@@ -23,6 +24,7 @@ class CareerDataExport(BaseModel):
     campaigns: CampaignsExport
     personalization: PersonalizationExport
     queue_rules: QueueRulesExport
+    application_packets: ApplicationPacketsExport
 
     @model_validator(mode="after")
     def item_count_matches(self):

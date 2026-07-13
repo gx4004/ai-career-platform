@@ -1,4 +1,6 @@
 import { z } from 'zod'
+import { applicationPacketsExportSchema } from '#/lib/api/packetSchemas'
+import { queueRulesExportSchema } from '#/lib/api/queueSchemas'
 
 export const campaignStatusSchema = z.enum([
   'planning', 'preparing', 'applied', 'interviewing',
@@ -213,6 +215,8 @@ export const careerDataExportSchema = z.strictObject({
   item_count: z.number().int().nonnegative(), items: z.array(evidenceItemSchema),
   cv_documents: cvDocumentsExportSchema,
   personalization: discoveryPersonalizationExportSchema,
+  queue_rules: queueRulesExportSchema,
+  application_packets: applicationPacketsExportSchema,
   campaigns: z.strictObject({
     campaign_count: z.number().int().nonnegative(),
     campaigns: z.array(z.object({

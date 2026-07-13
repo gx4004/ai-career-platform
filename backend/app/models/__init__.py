@@ -1,4 +1,5 @@
 from app.models.analytics_event import AnalyticsEvent
+from app.models.application_packet import ApplicationPacket
 from app.models.campaign_event import CampaignEvent
 from app.models.campaign_listing import CampaignListing
 from app.models.campaign_snapshot import CampaignSubmissionSnapshot
@@ -33,6 +34,7 @@ __all__ = [
     "DiscoveryRecommendationReport",
     "QueueRule",
     "QueueSettings",
+    "ApplicationPacket",
     "CampaignEvent",
     "CampaignListing",
     "CampaignTask",

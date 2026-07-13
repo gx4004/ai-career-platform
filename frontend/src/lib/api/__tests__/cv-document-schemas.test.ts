@@ -55,6 +55,8 @@ describe('CV document schema (R12, #153)', () => {
       item_count: 0, items: [],
       campaigns: { campaign_count: 0, campaigns: [] },
       personalization: { hidden_sources: [], dismissals: [], reports: [] },
+      queue_rules: { rules: [], settings: null },
+      application_packets: { packets: [] },
       cv_documents: { schema_version: 'cv-documents-export/v1', exported_at: '2026-07-12T10:00:00Z', document_count: 1, documents: [cv] },
     })
     expect(parsed.cv_documents.documents[0].variants[0].name).toBe('Base')
