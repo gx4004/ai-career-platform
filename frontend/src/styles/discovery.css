@@ -323,6 +323,12 @@
   border-top: 1px solid var(--border);
 }
 .discovery-control:disabled { opacity: 0.55; cursor: not-allowed; }
+.discovery-control--adopt {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+.discovery-control--adopt:hover { color: var(--primary-foreground); opacity: 0.92; }
 .discovery-control--report { margin-left: auto; }
 
 .discovery-report-form {

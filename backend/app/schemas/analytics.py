@@ -93,6 +93,10 @@ DiscoveryPersonalizationOutcome = Literal[
     "recommendation_undismissed",
     "recommendation_reported",
 ]
+# R14 #176 adoption outcome class. Only the outcome class rides on the event; the
+# adopted listing's source family rides on `operational_dimension`. No listing
+# content, listing id, campaign id, or run id is ever attached.
+DiscoveryAdoptionOutcome = Literal["adopted"]
 
 # The two reused generic operational columns. `operational_dimension` holds the
 # primary category/family for an event (provider incident category or import
@@ -106,6 +110,7 @@ OperationalOutcome = (
     | DiscoveryRegistryOutcome
     | DiscoveryFetchOutcome
     | DiscoveryPersonalizationOutcome
+    | DiscoveryAdoptionOutcome
 )
 
 # ── R11 profile-adoption allowlist (issue #150, parent #143, D-067) ──
@@ -143,6 +148,7 @@ DiscoveryEventName = Literal[
     "discovery_source_registry_changed",
     "discovery_source_fetch_outcome",
     "discovery_personalization_changed",
+    "discovery_recommendation_adopted",
 ]
 
 # Activation-event names accepted by the durable write seam. This is the union
