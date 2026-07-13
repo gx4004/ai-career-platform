@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.models.campaign_event import CampaignEvent
 from app.models.campaign_listing import CampaignListing
+from app.models.campaign_snapshot import CampaignSubmissionSnapshot
 from app.models.campaign_tracking import CampaignContact, CampaignNote, CampaignTask
 from app.models.cv_document import CvDocument, CvVariant
 from app.models.evidence_item import EvidenceItem
@@ -39,26 +40,26 @@ def delete_all_user_data(db: Session, user_id: str) -> None:
     ]
     cv_variants_deleted = 0
     if cv_document_ids:
-        cv_variants_deleted = db.query(CvVariant).filter(CvVariant.document_id.in_(cv_document_ids)).delete(
-            synchronize_session=False
+        cv_variants_deleted = (
+            db.query(CvVariant)
+            .filter(CvVariant.document_id.in_(cv_document_ids))
+            .delete(synchronize_session=False)
         )
     cv_documents_deleted = db.query(CvDocument).filter(CvDocument.user_id == user_id).delete()
     evidence_deleted = db.query(EvidenceItem).filter(EvidenceItem.user_id == user_id).delete()
     runs_deleted = db.query(ToolRun).filter(ToolRun.user_id == user_id).delete()
-    workspace_ids = [
-        row.id for row in db.query(Workspace.id).filter(Workspace.user_id == user_id)
-    ]
+    workspace_ids = [row.id for row in db.query(Workspace.id).filter(Workspace.user_id == user_id)]
     if workspace_ids:
-        for model in (CampaignTask, CampaignNote, CampaignContact):
+        for model in (CampaignTask, CampaignNote, CampaignContact, CampaignSubmissionSnapshot):
             db.query(model).filter(model.workspace_id.in_(workspace_ids)).delete(
                 synchronize_session=False
             )
-        db.query(CampaignListing).filter(
-            CampaignListing.workspace_id.in_(workspace_ids)
-        ).delete(synchronize_session=False)
-        db.query(CampaignEvent).filter(
-            CampaignEvent.workspace_id.in_(workspace_ids)
-        ).delete(synchronize_session=False)
+        db.query(CampaignListing).filter(CampaignListing.workspace_id.in_(workspace_ids)).delete(
+            synchronize_session=False
+        )
+        db.query(CampaignEvent).filter(CampaignEvent.workspace_id.in_(workspace_ids)).delete(
+            synchronize_session=False
+        )
     workspaces_deleted = db.query(Workspace).filter(Workspace.user_id == user_id).delete()
     users_deleted = db.query(User).filter(User.id == user_id).delete()
     db.commit()
@@ -169,19 +170,13 @@ def derive_saved_run_metadata(
     source = payload or {}
     summary = source.get("summary") if isinstance(source.get("summary"), dict) else {}
     workspace_meta = (
-        source.get("_workspace_meta")
-        if isinstance(source.get("_workspace_meta"), dict)
-        else {}
+        source.get("_workspace_meta") if isinstance(source.get("_workspace_meta"), dict) else {}
     )
-    linked_ids = linked_context_ids or _string_list(
-        workspace_meta.get("linked_context_ids")
-    )
+    linked_ids = linked_context_ids or _string_list(workspace_meta.get("linked_context_ids"))
 
     return {
         "summary_headline": _string(summary.get("headline")),
-        "primary_recommendation_title": _primary_recommendation_title(
-            tool_name, source
-        ),
+        "primary_recommendation_title": _primary_recommendation_title(tool_name, source),
         "schema_version": _string(source.get("schema_version")),
         "linked_context_ids": linked_ids,
         "next_step_tool": _string(workspace_meta.get("next_step_tool"))

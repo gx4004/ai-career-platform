@@ -1,6 +1,7 @@
 from app.models.analytics_event import AnalyticsEvent
 from app.models.campaign_event import CampaignEvent
 from app.models.campaign_listing import CampaignListing
+from app.models.campaign_snapshot import CampaignSubmissionSnapshot
 from app.models.campaign_tracking import CampaignContact, CampaignNote, CampaignTask
 from app.models.cv_document import CvDocument, CvVariant
 from app.models.evidence_item import EvidenceItem
@@ -21,4 +22,5 @@ __all__ = [
     "CampaignTask",
     "CampaignNote",
     "CampaignContact",
+    "CampaignSubmissionSnapshot",
 ]

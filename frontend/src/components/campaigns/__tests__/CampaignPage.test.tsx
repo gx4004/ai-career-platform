@@ -13,10 +13,11 @@ const campaign = {
   listing: { title: 'Platform Engineer', company: 'Northstar Labs', description: 'Own the service platform and improve reliability across product teams.', source_url: 'https://jobs.example/platform', retrieved_at: '2026-07-12T10:00:00Z' },
   selected_materials: { cv_variant: null, cover_letter: null, interview: null },
   available_materials: { cv_variants: [{ id: 'cv-1', document_id: 'doc-1', document_name: 'Engineering CV', name: 'Northstar', target_role: 'Platform Engineer', created_at: '2026-07-12T10:00:00Z' }], cover_letters: [{ id: 'cl-2', label: 'Northstar letter', parent_run_id: 'cl-1', created_at: '2026-07-12T11:00:00Z' }], interviews: [] },
-  events: [{ id: 'event-1', event_type: 'status_changed', details: { from: 'planning', to: 'preparing' }, provenance: 'user', created_at: '2026-07-13T10:00:00Z' }],
+  events: [{ id: 'event-1', event_type: 'status_changed', details: { from: 'planning', to: 'preparing' }, provenance: 'user', created_at: '2026-07-13T10:00:00Z' }, { id: 'event-2', event_type: 'submission_snapshot_created', details: { snapshot_id: 'snapshot-1' }, provenance: 'user', created_at: '2026-07-13T10:00:00Z' }],
   tasks: [{ id: 'task-1', title: 'Send application', deadline: null, completed: false, created_at: '2026-07-13T10:00:00Z' }],
   notes: [{ id: 'note-1', text: 'Ask about team structure', created_at: '2026-07-13T10:00:00Z' }],
   contacts: [{ id: 'contact-1', name: 'Alex', role: 'Recruiter', channel: 'Email', created_at: '2026-07-13T10:00:00Z' }],
+  submission_snapshots: [{ id: 'snapshot-1', content: { listing: { title: 'Platform Engineer', company: 'Northstar Labs', description: 'Frozen listing' }, cv_variant: { name: 'Applied CV', sections: [] }, cover_letter: { label: 'Sent letter', result_payload: { body: 'Frozen letter' } } }, content_sha256: 'a'.repeat(64), created_at: '2026-07-13T10:00:00Z' }],
 }
 
 function renderPage() { api.getCampaignReminders.mockResolvedValue({ enabled: false, items: [], next_surface_at: null }); const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } }); return render(<QueryClientProvider client={client}><CampaignPage campaignId="ws-1" /></QueryClientProvider>) }
@@ -37,6 +38,10 @@ describe('CampaignPage', () => {
     expect(screen.getByText('Ask about team structure')).toBeTruthy()
     expect(screen.getByText(/Status changed/)).toBeTruthy()
     expect(await screen.findByRole('button', { name: 'Turn reminders on' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'View submitted application' }))
+    expect((screen.getByText(/Application sent/).closest('details') as HTMLDetailsElement).open).toBe(true)
+    fireEvent.click(screen.getByText(/Application sent/))
+    expect(screen.getByText('Frozen listing')).toBeTruthy()
   })
 
   it('renders an explicit empty state and disables unavailable material selection', async () => {

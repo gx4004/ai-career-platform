@@ -143,6 +143,13 @@ class CampaignContactResponse(BaseModel):
     created_at: datetime
 
 
+class CampaignSubmissionSnapshotResponse(BaseModel):
+    id: str
+    content: dict
+    content_sha256: str
+    created_at: datetime
+
+
 class CampaignDetailResponse(WorkspaceSummary):
     selected_materials: CampaignSelectedMaterials
     available_materials: CampaignAvailableMaterials
@@ -150,6 +157,7 @@ class CampaignDetailResponse(WorkspaceSummary):
     tasks: list[CampaignTaskResponse] = Field(default_factory=list)
     notes: list[CampaignNoteResponse] = Field(default_factory=list)
     contacts: list[CampaignContactResponse] = Field(default_factory=list)
+    submission_snapshots: list[CampaignSubmissionSnapshotResponse] = Field(default_factory=list)
 
 
 class CampaignReminderConsent(BaseModel):
@@ -287,6 +295,7 @@ class CampaignExportItem(BaseModel):
     tasks: list[CampaignTaskResponse] = Field(default_factory=list)
     notes: list[CampaignNoteResponse] = Field(default_factory=list)
     contacts: list[CampaignContactResponse] = Field(default_factory=list)
+    submission_snapshots: list[CampaignSubmissionSnapshotResponse] = Field(default_factory=list)
 
 
 class CampaignEventExport(BaseModel):
@@ -304,6 +313,7 @@ class CampaignEventExport(BaseModel):
         "note_deleted",
         "contact_added",
         "contact_deleted",
+        "submission_snapshot_created",
     ]
     details: dict
     created_at: datetime

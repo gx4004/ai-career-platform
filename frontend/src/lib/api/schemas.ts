@@ -126,12 +126,13 @@ export const careerDataExportSchema = z.strictObject({
       listing: campaignListingSchema.nullable().default(null),
       listing_revisions: z.array(campaignListingSchema).default([]),
       events: z.array(z.object({
-        id: z.string(), event_type: z.enum(['status_changed', 'deadline_changed', 'listing_attached', 'material_selection_changed', 'task_created', 'task_completed', 'task_reopened', 'task_deleted', 'note_added', 'note_deleted', 'contact_added', 'contact_deleted']),
+        id: z.string(), event_type: z.enum(['status_changed', 'deadline_changed', 'listing_attached', 'material_selection_changed', 'task_created', 'task_completed', 'task_reopened', 'task_deleted', 'note_added', 'note_deleted', 'contact_added', 'contact_deleted', 'submission_snapshot_created']),
         details: z.record(z.string(), z.unknown()), created_at: z.iso.datetime(),
       })),
       tasks: z.array(z.object({ id: z.string(), title: z.string(), deadline: z.iso.datetime({ offset: true }).nullable(), completed: z.boolean(), created_at: z.iso.datetime() })).default([]),
       notes: z.array(z.object({ id: z.string(), text: z.string(), created_at: z.iso.datetime() })).default([]),
       contacts: z.array(z.object({ id: z.string(), name: z.string(), role: z.string().nullable(), channel: z.string().nullable(), created_at: z.iso.datetime() })).default([]),
+      submission_snapshots: z.array(z.object({ id: z.string(), content: z.record(z.string(), z.unknown()), content_sha256: z.string(), created_at: z.iso.datetime() })).default([]),
       selected_cv_variant_id: z.string().nullable().default(null),
       selected_cover_letter_run_id: z.string().nullable().default(null),
       selected_interview_run_id: z.string().nullable().default(null),
@@ -393,6 +394,7 @@ export const campaignReminderResponseSchema = z.object({
   items: z.array(z.object({ kind: z.enum(['campaign_deadline', 'task_deadline']), task_id: z.string().nullable(), label: z.string(), deadline: z.iso.datetime({ offset: true }) })),
   next_surface_at: z.iso.datetime({ offset: true }).nullable(),
 })
+export const campaignSubmissionSnapshotSchema = z.object({ id: z.string(), content: z.record(z.string(), z.unknown()), content_sha256: z.string().length(64), created_at: z.iso.datetime() })
 export const campaignDetailSchema = workspaceSummarySchema.extend({
   selected_materials: z.object({
     cv_variant: campaignCvVariantReferenceSchema.nullable(),
@@ -406,6 +408,7 @@ export const campaignDetailSchema = workspaceSummarySchema.extend({
   }),
   events: z.array(campaignEventSchema), tasks: z.array(campaignTaskSchema),
   notes: z.array(campaignNoteSchema), contacts: z.array(campaignContactSchema),
+  submission_snapshots: z.array(campaignSubmissionSnapshotSchema),
 })
 export const campaignMaterialSelectionSchema = z.strictObject({
   cv_variant_id: z.string().nullable().optional(),

@@ -131,6 +131,13 @@ a scheduler, email, or push path. Revocation clears the last-surface state
 immediately, while campaign/account deletion removes it with the campaign. This
 does not extend the password-reset-only transactional-email boundary or close R13.
 
+R13 #167 captures one immutable canonical JSON bundle when a campaign enters
+`applied`, copying the exact current listing, selected CV variant, and selected
+cover-letter revision plus a SHA-256 digest. Source edits or deletion cannot
+change the stored bytes. A content-free campaign event links the expandable
+timeline view to each snapshot; snapshots export with campaign data and cascade
+on campaign/account deletion. This does not close the provisional R13 parent.
+
 ## Session Handoff Snapshot (2026-07-11)
 
 - **Objective:** Ship the startable activation/quality/cleanup frontier — R6
