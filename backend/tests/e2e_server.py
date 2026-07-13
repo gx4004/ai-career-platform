@@ -4,11 +4,12 @@ This module is launched directly by Playwright. It is not imported by the
 production application and exposes no runtime switch or HTTP control surface.
 """
 
-from importlib import import_module
 import os
+from importlib import import_module
 
 import uvicorn
 
+from app.limiter import limiter
 from app.services import (
     career_recommender,
     cover_letter_gen,
@@ -17,7 +18,6 @@ from app.services import (
     portfolio_planner,
     resume_analyzer,
 )
-from app.limiter import limiter
 
 
 async def deterministic_complete_structured(*_args, **_kwargs) -> dict:

@@ -31,6 +31,7 @@ describe('campaign contracts', () => {
       schema_version: 'career-data-export/v1', exported_at: '2026-07-13T10:00:00Z',
       item_count: 0, items: [],
       cv_documents: { schema_version: 'cv-documents-export/v1', exported_at: '2026-07-13T10:00:00Z', document_count: 0, documents: [] },
+      personalization: { hidden_sources: [], dismissals: [], reports: [] },
       campaigns: { campaign_count: 1, campaigns: [{
         id: 'ws-1', label: 'Target', is_pinned: false, company: 'Example Corp',
         role: 'Engineer', status: 'planning', deadline: null,

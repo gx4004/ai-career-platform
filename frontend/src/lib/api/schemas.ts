@@ -46,6 +46,7 @@ export const discoveryRecommendationSignalSchema = z.strictObject({
   score: z.number().int().min(0).max(100),
 })
 export const discoveryRecommendationAttributionSchema = z.strictObject({
+  source_id: z.string(),
   source_name: z.string(),
   source_family: z.enum([
     'licensed', 'employer_ats', 'public_career_page', 'user_provided',
@@ -69,6 +70,69 @@ export const discoveryRecommendationListSchema = z.strictObject({
 })
 export type DiscoveryRecommendation = z.infer<typeof discoveryRecommendationSchema>
 export type DiscoveryRecommendationList = z.infer<typeof discoveryRecommendationListSchema>
+
+// R14 #175 discovery correction controls. Mirrors
+// backend/app/schemas/discovery_personalization.py.
+export const discoverySourceFamilySchema = z.enum([
+  'licensed', 'employer_ats', 'public_career_page', 'user_provided',
+])
+export const discoveryReportReasonCategorySchema = z.enum([
+  'not_relevant', 'expired', 'duplicate', 'wrong_location', 'low_quality', 'other',
+])
+export const discoveryHiddenSourceSchema = z.strictObject({
+  source_id: z.string(),
+  source_key: z.string(),
+  display_name: z.string(),
+  source_family: discoverySourceFamilySchema,
+  created_at: z.iso.datetime({ offset: true }),
+})
+export const discoveryDismissalSchema = z.strictObject({
+  listing_id: z.string(),
+  created_at: z.iso.datetime({ offset: true }),
+})
+export const discoveryPersonalizationSchema = z.strictObject({
+  hidden_sources: z.array(discoveryHiddenSourceSchema),
+  dismissals: z.array(discoveryDismissalSchema),
+})
+export const discoveryReportAckSchema = z.strictObject({
+  id: z.string(),
+  listing_id: z.string(),
+  reason_category: discoveryReportReasonCategorySchema,
+  created_at: z.iso.datetime({ offset: true }),
+})
+export const discoveryPersonalizationReportExportSchema = z.strictObject({
+  listing_id: z.string(),
+  listing_title: z.string(),
+  listing_company: z.string(),
+  source_family: discoverySourceFamilySchema,
+  reason_category: discoveryReportReasonCategorySchema,
+  reason: z.string(),
+  created_at: z.iso.datetime({ offset: true }),
+})
+export const discoveryPersonalizationExportSchema = z.strictObject({
+  hidden_sources: z.array(discoveryHiddenSourceSchema),
+  dismissals: z.array(discoveryDismissalSchema),
+  reports: z.array(discoveryPersonalizationReportExportSchema),
+})
+export const adminDiscoveryReportSchema = z.strictObject({
+  id: z.string(),
+  listing_id: z.string(),
+  listing_title: z.string(),
+  listing_company: z.string(),
+  source_family: discoverySourceFamilySchema,
+  reason_category: discoveryReportReasonCategorySchema,
+  reason: z.string(),
+  created_at: z.iso.datetime({ offset: true }),
+})
+export const adminDiscoveryReportListSchema = z.strictObject({
+  items: z.array(adminDiscoveryReportSchema),
+})
+export type DiscoveryPersonalization = z.infer<typeof discoveryPersonalizationSchema>
+export type DiscoveryHiddenSource = z.infer<typeof discoveryHiddenSourceSchema>
+export type DiscoveryDismissal = z.infer<typeof discoveryDismissalSchema>
+export type DiscoveryReportReasonCategory = z.infer<typeof discoveryReportReasonCategorySchema>
+export type AdminDiscoveryReport = z.infer<typeof adminDiscoveryReportSchema>
+export type AdminDiscoveryReportList = z.infer<typeof adminDiscoveryReportListSchema>
 
 // R11 reviewable resume-import proposals (#146). A proposal is ephemeral — it is
 // never persisted server-side and carries no confirmation state. Resume-derived
@@ -148,6 +212,7 @@ export const careerDataExportSchema = z.strictObject({
   exported_at: z.iso.datetime(),
   item_count: z.number().int().nonnegative(), items: z.array(evidenceItemSchema),
   cv_documents: cvDocumentsExportSchema,
+  personalization: discoveryPersonalizationExportSchema,
   campaigns: z.strictObject({
     campaign_count: z.number().int().nonnegative(),
     campaigns: z.array(z.object({

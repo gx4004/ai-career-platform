@@ -282,6 +282,7 @@ def test_backend_recommendation_contract_rejects_url_and_extra_field_drift():
     with pytest.raises(ValidationError):
         RecommendationAttribution.model_validate(
             {
+                "source_id": "source-1",
                 "source_name": "Feed",
                 "source_family": "licensed",
                 "source_url": "https://not a valid host/jobs/1",

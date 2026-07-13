@@ -254,3 +254,116 @@
 
   .discovery-score { justify-items: start; }
 }
+
+/* R14 #175 — correction controls (hide, dismiss, correct, report) */
+.discovery-hero__correct {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0.75rem 0 0;
+  color: var(--muted-foreground);
+  font-size: 0.85rem;
+}
+.discovery-hero__correct a { color: var(--foreground); font-weight: 600; }
+
+.discovery-hidden-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: var(--card);
+}
+.discovery-hidden-bar strong { font-size: 0.8rem; }
+.discovery-hidden-bar ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.discovery-hidden-bar li {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.2rem 0.55rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 0.8rem;
+}
+.discovery-hidden-bar button,
+.discovery-source-hide,
+.discovery-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  padding: 0.25rem 0.55rem;
+  background: transparent;
+  color: var(--muted-foreground);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.discovery-hidden-bar button:hover,
+.discovery-source-hide:hover,
+.discovery-control:hover { color: var(--foreground); }
+.discovery-source-hide { margin-left: auto; }
+
+.discovery-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--border);
+}
+.discovery-control:disabled { opacity: 0.55; cursor: not-allowed; }
+.discovery-control--report { margin-left: auto; }
+
+.discovery-report-form {
+  display: grid;
+  gap: 0.65rem;
+  margin-top: 0.85rem;
+  padding: 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: var(--card);
+}
+.discovery-report-form label {
+  display: grid;
+  gap: 0.3rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--muted-foreground);
+}
+.discovery-report-form select,
+.discovery-report-form textarea {
+  width: 100%;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  background: var(--background);
+  color: var(--foreground);
+  font: inherit;
+}
+.discovery-report-form textarea { min-height: 4.5rem; resize: vertical; }
+.discovery-report-form__actions { display: flex; gap: 0.5rem; }
+.discovery-report-form__actions button {
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  padding: 0.4rem 0.85rem;
+  background: transparent;
+  color: var(--foreground);
+  font-weight: 600;
+  cursor: pointer;
+}
+.discovery-report-form__actions button[type='submit'] {
+  background: var(--foreground);
+  color: var(--background);
+}
+.discovery-report-form__actions button:disabled { opacity: 0.55; cursor: not-allowed; }

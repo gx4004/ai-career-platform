@@ -12,6 +12,7 @@ HttpsUrl = Annotated[
 class RecommendationAttribution(BaseModel):
     model_config = ConfigDict(from_attributes=True, extra="forbid")
 
+    source_id: str
     source_name: str
     source_family: Literal["licensed", "employer_ats", "public_career_page", "user_provided"]
     source_url: HttpsUrl

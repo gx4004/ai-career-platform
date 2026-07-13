@@ -83,6 +83,16 @@ DiscoveryRegistryOutcome = Literal[
     "kill_switch_disabled",
 ]
 DiscoveryFetchOutcome = Literal["blocked"]
+# R14 #175 personalization outcome classes. Only the outcome class rides on the
+# event; the source family (when known) rides on `operational_dimension`. No
+# listing content, listing id, run id, or reporter identity is ever attached.
+DiscoveryPersonalizationOutcome = Literal[
+    "source_hidden",
+    "source_unhidden",
+    "recommendation_dismissed",
+    "recommendation_undismissed",
+    "recommendation_reported",
+]
 
 # The two reused generic operational columns. `operational_dimension` holds the
 # primary category/family for an event (provider incident category or import
@@ -90,7 +100,13 @@ DiscoveryFetchOutcome = Literal["blocked"]
 # or import outcome). Which axis a value belongs to is unambiguous from
 # `event_name`, so aggregation never has to disambiguate a bare string.
 OperationalDimension = ProviderIncidentCategory | ImportSourceFamily | DiscoverySourceFamily
-OperationalOutcome = CacheOutcome | ImportOutcome | DiscoveryRegistryOutcome | DiscoveryFetchOutcome
+OperationalOutcome = (
+    CacheOutcome
+    | ImportOutcome
+    | DiscoveryRegistryOutcome
+    | DiscoveryFetchOutcome
+    | DiscoveryPersonalizationOutcome
+)
 
 # ── R11 profile-adoption allowlist (issue #150, parent #143, D-067) ──
 # The Evidence Profile extends the SAME first-party analytics path — no new
@@ -126,6 +142,7 @@ StudioEventName = Literal[
 DiscoveryEventName = Literal[
     "discovery_source_registry_changed",
     "discovery_source_fetch_outcome",
+    "discovery_personalization_changed",
 ]
 
 # Activation-event names accepted by the durable write seam. This is the union
