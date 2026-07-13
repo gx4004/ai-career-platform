@@ -20,7 +20,7 @@ export type TelemetryEventName =
 type TelemetryPayload = {
   event_name: TelemetryEventName
   level?: 'info' | 'error'
-  tool_id?: 'resume' | 'job-match' | 'career' | 'cover-letter' | 'interview' | 'portfolio'
+  tool_id?: 'resume' | 'job-match' | 'career' | 'cover-letter' | 'interview' | 'portfolio' | 'application-reviewer'
   access_mode?: 'authenticated' | 'guest_demo'
   saved?: boolean
   failure_category?: 'tool_request_failed' | 'render_error' | 'route_error' | 'chunk_load_error'

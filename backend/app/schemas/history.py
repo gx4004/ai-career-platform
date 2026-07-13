@@ -6,6 +6,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from app.schemas.tools import SharedResultEnvelope
+
 
 class CampaignStatus(StrEnum):
     PLANNING = "planning"
@@ -176,6 +178,26 @@ class CampaignReminderResponse(BaseModel):
     enabled: bool
     items: list[CampaignReminderItem] = Field(default_factory=list)
     next_surface_at: datetime | None = None
+
+
+class CampaignReviewFinding(BaseModel):
+    id: str
+    category: Literal[
+        "unsupported_claim",
+        "missed_requirement",
+        "contradiction",
+        "generic_language",
+        "repetition",
+        "document_defect",
+    ]
+    severity: Literal["high", "medium", "low"]
+    message: str
+    locations: list[str]
+    trace: list[str]
+
+
+class CampaignReviewResponse(SharedResultEnvelope):
+    findings: list[CampaignReviewFinding]
 
 
 class CampaignTaskCreate(BaseModel):
