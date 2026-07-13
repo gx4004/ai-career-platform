@@ -4,6 +4,10 @@ import {
   discoverySourceListSchema,
   type DiscoverySourceList,
 } from '#/lib/api/discoverySchemas'
+import {
+  adminDiscoveryReportListSchema,
+  type AdminDiscoveryReportList,
+} from '#/lib/api/schemas'
 
 export type { DiscoverySource, DiscoverySourceList } from '#/lib/api/discoverySchemas'
 
@@ -312,4 +316,9 @@ export function getAdminProfileAdoption(
 export async function getAdminDiscoverySources(): Promise<DiscoverySourceList> {
   const response = await adminRequest<unknown>('/admin/discovery-sources')
   return discoverySourceListSchema.parse(response)
+}
+
+export async function getAdminDiscoveryReports(): Promise<AdminDiscoveryReportList> {
+  const response = await adminRequest<unknown>('/admin/discovery-reports')
+  return adminDiscoveryReportListSchema.parse(response)
 }

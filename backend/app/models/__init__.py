@@ -5,6 +5,11 @@ from app.models.campaign_snapshot import CampaignSubmissionSnapshot
 from app.models.campaign_tracking import CampaignContact, CampaignNote, CampaignTask
 from app.models.cv_document import CvDocument, CvVariant
 from app.models.discovered_listing import DiscoveredListing, DiscoveredListingAttribution
+from app.models.discovery_personalization import (
+    DiscoveryDismissedListing,
+    DiscoveryHiddenSource,
+    DiscoveryRecommendationReport,
+)
 from app.models.discovery_source import DiscoverySource
 from app.models.evidence_item import EvidenceItem
 from app.models.tool_run import ToolRun
@@ -22,6 +27,9 @@ __all__ = [
     "DiscoverySource",
     "DiscoveredListing",
     "DiscoveredListingAttribution",
+    "DiscoveryHiddenSource",
+    "DiscoveryDismissedListing",
+    "DiscoveryRecommendationReport",
     "CampaignEvent",
     "CampaignListing",
     "CampaignTask",

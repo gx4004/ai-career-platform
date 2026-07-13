@@ -7,6 +7,7 @@ import {
   Gauge,
   ShieldCheck,
   Database,
+  Flag,
   ArrowLeft,
 } from 'lucide-react'
 
@@ -15,6 +16,7 @@ const NAV = [
   { to: '/admin/activation', label: 'Activation', icon: Activity },
   { to: '/admin/profile-adoption', label: 'Profile Adoption', icon: ShieldCheck },
   { to: '/admin/discovery-sources', label: 'Discovery Sources', icon: Database },
+  { to: '/admin/discovery-reports', label: 'Recommendation Reports', icon: Flag },
   { to: '/admin/scorecard', label: 'Scaling Triggers', icon: Gauge },
   { to: '/admin/users', label: 'Users', icon: Users },
   { to: '/admin/runs', label: 'Runs', icon: FileText },

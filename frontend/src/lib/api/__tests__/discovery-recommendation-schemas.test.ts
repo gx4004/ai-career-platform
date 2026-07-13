@@ -27,6 +27,7 @@ const payload = {
       ],
       attributions: [
         {
+          source_id: 'source-1',
           source_name: 'Licensed Feed',
           source_family: 'licensed',
           source_url: 'https://feed.example/jobs/1',

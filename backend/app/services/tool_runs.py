@@ -16,6 +16,7 @@ from app.models.tool_run import ToolRun
 from app.models.user import User
 from app.models.workspace import Workspace
 from app.schemas.history import CampaignListingResponse, WorkspaceSummary
+from app.services.discovery_personalization import delete_personalization
 from app.services.observability import log_user_account_deleted
 from app.services.premium_outputs import attach_premium_outputs
 from app.services.workspaces import resolve_workspace, touch_workspace
@@ -46,6 +47,9 @@ def delete_all_user_data(db: Session, user_id: str) -> None:
             .delete(synchronize_session=False)
         )
     cv_documents_deleted = db.query(CvDocument).filter(CvDocument.user_id == user_id).delete()
+    # Discovery personalization (hidden sources, dismissals, error reports) is
+    # owner-scoped user data and joins the erasure cascade (D-090, R14 #175).
+    delete_personalization(db, user_id)
     evidence_deleted = db.query(EvidenceItem).filter(EvidenceItem.user_id == user_id).delete()
     runs_deleted = db.query(ToolRun).filter(ToolRun.user_id == user_id).delete()
     workspace_ids = [row.id for row in db.query(Workspace.id).filter(Workspace.user_id == user_id)]

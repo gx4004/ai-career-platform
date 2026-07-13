@@ -37,6 +37,7 @@ import { Route as AdminScorecardRouteImport } from './routes/admin/scorecard'
 import { Route as AdminRunsRouteImport } from './routes/admin/runs'
 import { Route as AdminProfileAdoptionRouteImport } from './routes/admin/profile-adoption'
 import { Route as AdminDiscoverySourcesRouteImport } from './routes/admin/discovery-sources'
+import { Route as AdminDiscoveryReportsRouteImport } from './routes/admin/discovery-reports'
 import { Route as AdminActivationRouteImport } from './routes/admin/activation'
 import { Route as ResumeResultHistoryIdRouteImport } from './routes/resume_.result.$historyId'
 import { Route as PortfolioResultHistoryIdRouteImport } from './routes/portfolio_.result.$historyId'
@@ -185,6 +186,11 @@ const AdminDiscoverySourcesRoute = AdminDiscoverySourcesRouteImport.update({
   path: '/discovery-sources',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminDiscoveryReportsRoute = AdminDiscoveryReportsRouteImport.update({
+  id: '/discovery-reports',
+  path: '/discovery-reports',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminActivationRoute = AdminActivationRouteImport.update({
   id: '/activation',
   path: '/activation',
@@ -247,6 +253,7 @@ export interface FileRoutesByFullPath {
   '/settings': typeof SettingsRoute
   '/terms': typeof TermsRoute
   '/admin/activation': typeof AdminActivationRoute
+  '/admin/discovery-reports': typeof AdminDiscoveryReportsRoute
   '/admin/discovery-sources': typeof AdminDiscoverySourcesRoute
   '/admin/profile-adoption': typeof AdminProfileAdoptionRoute
   '/admin/runs': typeof AdminRunsRoute
@@ -283,6 +290,7 @@ export interface FileRoutesByTo {
   '/settings': typeof SettingsRoute
   '/terms': typeof TermsRoute
   '/admin/activation': typeof AdminActivationRoute
+  '/admin/discovery-reports': typeof AdminDiscoveryReportsRoute
   '/admin/discovery-sources': typeof AdminDiscoverySourcesRoute
   '/admin/profile-adoption': typeof AdminProfileAdoptionRoute
   '/admin/runs': typeof AdminRunsRoute
@@ -321,6 +329,7 @@ export interface FileRoutesById {
   '/settings': typeof SettingsRoute
   '/terms': typeof TermsRoute
   '/admin/activation': typeof AdminActivationRoute
+  '/admin/discovery-reports': typeof AdminDiscoveryReportsRoute
   '/admin/discovery-sources': typeof AdminDiscoverySourcesRoute
   '/admin/profile-adoption': typeof AdminProfileAdoptionRoute
   '/admin/runs': typeof AdminRunsRoute
@@ -360,6 +369,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/terms'
     | '/admin/activation'
+    | '/admin/discovery-reports'
     | '/admin/discovery-sources'
     | '/admin/profile-adoption'
     | '/admin/runs'
@@ -396,6 +406,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/terms'
     | '/admin/activation'
+    | '/admin/discovery-reports'
     | '/admin/discovery-sources'
     | '/admin/profile-adoption'
     | '/admin/runs'
@@ -433,6 +444,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/terms'
     | '/admin/activation'
+    | '/admin/discovery-reports'
     | '/admin/discovery-sources'
     | '/admin/profile-adoption'
     | '/admin/runs'
@@ -677,6 +689,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminDiscoverySourcesRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/discovery-reports': {
+      id: '/admin/discovery-reports'
+      path: '/discovery-reports'
+      fullPath: '/admin/discovery-reports'
+      preLoaderRoute: typeof AdminDiscoveryReportsRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/activation': {
       id: '/admin/activation'
       path: '/activation'
@@ -731,6 +750,7 @@ declare module '@tanstack/react-router' {
 
 interface AdminRouteChildren {
   AdminActivationRoute: typeof AdminActivationRoute
+  AdminDiscoveryReportsRoute: typeof AdminDiscoveryReportsRoute
   AdminDiscoverySourcesRoute: typeof AdminDiscoverySourcesRoute
   AdminProfileAdoptionRoute: typeof AdminProfileAdoptionRoute
   AdminRunsRoute: typeof AdminRunsRoute
@@ -741,6 +761,7 @@ interface AdminRouteChildren {
 
 const AdminRouteChildren: AdminRouteChildren = {
   AdminActivationRoute: AdminActivationRoute,
+  AdminDiscoveryReportsRoute: AdminDiscoveryReportsRoute,
   AdminDiscoverySourcesRoute: AdminDiscoverySourcesRoute,
   AdminProfileAdoptionRoute: AdminProfileAdoptionRoute,
   AdminRunsRoute: AdminRunsRoute,

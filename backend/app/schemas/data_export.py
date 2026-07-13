@@ -4,6 +4,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.schemas.cv_documents import CvDocumentsExport
+from app.schemas.discovery_personalization import PersonalizationExport
 from app.schemas.evidence_profile import EvidenceItemResponse
 from app.schemas.history import CampaignsExport
 
@@ -19,6 +20,7 @@ class CareerDataExport(BaseModel):
     items: list[EvidenceItemResponse]
     cv_documents: CvDocumentsExport
     campaigns: CampaignsExport
+    personalization: PersonalizationExport
 
     @model_validator(mode="after")
     def item_count_matches(self):
