@@ -146,6 +146,19 @@ and document-defect findings. Synthetic trigger/near-miss fixtures cover every
 category. Findings persist as immutable `ToolRun` output, are dismissible in the
 current campaign view, and never edit materials or create/confirm evidence.
 
+R14 #171 adds the discovery-source governance registry without activating any
+source. Entries persist owner, closed-set source family and allowed behavior,
+terms status plus reviewer/date, rate and retention bounds, attribution rule,
+and a default-on kill switch. The single server enforcement seam refuses
+unregistered, terms-unaccepted, or killed sources before ingestion; the admin
+panel exposes registry state read-only. Registry telemetry contains only source
+family and governance outcome classes, never source names or keys.
+The migration is additive and seeds no registry entries, so older application
+revisions ignore the table safely. Operational rollback is to keep all sources
+killed or remove the read-only admin route; after any legal-review records exist,
+schema downgrade is destructive and requires an explicit backup/restore decision,
+so production incidents should be forward-fixed instead.
+
 ## Session Handoff Snapshot (2026-07-11)
 
 - **Objective:** Ship the startable activation/quality/cleanup frontier — R6
@@ -290,7 +303,7 @@ launch market.
 | CV Studio deferred | Every studio layer is greenfield: parsing is text-only, no structured CV model, DOCX generation, template system, print/page-break handling, variant versioning, or editor surface exists, and per-route rate limits do not bound iterative editing loops. | Keep R12 contract-only (D-068–D-075, ADR 0006) until R11 lands; implement document entity and reviewed import first, exporters behind validation gates. |
 | R12 #154 built dark ahead of D-068 under owner override | The authenticated import API accepts PDF, DOCX, and UTF-8 text, produces a transient structured review proposal in the isolated parser worker, and persists only on explicit, idempotent accept. Imported claims remain `unconfirmed` with `imported` provenance; accepting an import may therefore create document entries that reference pending imported items, while the ordinary #153 create/update APIs continue requiring confirmed owner evidence. | Keep the API without frontend activation. Do not treat import review as Evidence Profile confirmation or D-068 as closed; later editor work must expose the separate confirmation lifecycle. |
 | Campaigns and reviewer incomplete | Workspaces now carry optional company, role, fixed-lifecycle status, deadline, and one owner-isolated canonical listing under export and erasure. Status/deadline/listing mutations create minimal append-only events, but no task/note/contact/reminder/reviewer infrastructure exists; contacts will be the first third-party personal data. | Keep the parent R13 outcome provisional. Extend append-only tracking and add the reviewer in ticket order; do not activate later-roadmap behavior early. |
-| Job discovery deferred | No source registry, robots handling, listings store, dedup, ranking surface, or per-source governance exists; the only fetcher is the user-directed single-URL importer. | Keep R14 contract-only (D-084–D-091, ADR 0008) until R13 lands; no source activates without an accepted terms review; build registry enforcement before any ingestion. |
+| R14 registry built dark under owner build-ahead | Source governance and refusal enforcement now exist, but no source entry, ingestion adapter, robots handling, listings store, dedup, ranking surface, or user recommendation path is active; the only live fetcher remains the user-directed single-URL importer. | Keep every source absent, pending, or kill-switched until its accepted terms review; #172 must call the registry enforcement seam before any network or ingest work. |
 | Approval queue deferred | No packet, rule, mandatory-stop, or queue-audit primitive exists, and packet-grade quality evidence (R8 evals, R13 reviewer) does not yet exist to justify prepared-application volume. | Keep R15 contract-only (D-092–D-099, ADR 0009) until R14 lands and quality evidence is accepted; the submission boundary stays structural — no submission code path in R15. |
 | Trusted autopilot deferred | No submission integration, authorization primitive, idempotency key, or incident rehearsal exists, and R15's quality/demand evidence is itself deferred; submission is an irreversible outward act on third-party infrastructure. | Keep R16 contract-only (D-100–D-107, ADR 0010); the four-gate conjunction (source terms, user authorization, resolved packet, safety envelope) is the activation condition, and D-026 prohibitions are permanent. |
 | Development loop deferred | No gap-classification, development-item, or recommendation primitive exists, and the campaign/reviewer evidence the loop consumes is itself deferred; gap records are highly sensitive. | Keep R17 contract-only (D-108–D-114) until campaign evidence is accepted; evidence entry stays exclusively through the R11 confirmation door. |
