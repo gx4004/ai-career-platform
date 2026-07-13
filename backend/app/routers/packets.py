@@ -8,6 +8,8 @@ from app.schemas.application_packets import (
     ApplicationPacketItem,
     ApplicationPacketList,
     PacketPreparationResult,
+    StopAnswerRequest,
+    StopAnswerResult,
 )
 from app.services.application_packets import (
     PacketNotFoundError,
@@ -15,6 +17,7 @@ from app.services.application_packets import (
     list_packets,
     prepare_packets,
 )
+from app.services.packet_approval import StopAnswerError, store_stop_answer
 
 router = APIRouter()
 
@@ -52,3 +55,24 @@ def get_one_packet(
         return get_packet(db, current_user.id, packet_id)
     except PacketNotFoundError as error:
         raise HTTPException(status_code=404, detail="Application packet not found") from error
+
+
+@router.post("/{packet_id}/stop-answers", response_model=StopAnswerResult)
+def answer_stop_question(
+    packet_id: str,
+    payload: StopAnswerRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Store the owner's typed answer to one mandatory-stop question (D-095, D-099).
+
+    The user's answer is the ONLY way to resolve a stop question — the system never
+    drafts these fields. Stored owner-scoped and excluded from telemetry entirely.
+    Returns what remains unresolved and whether approval is now unlocked.
+    """
+    try:
+        return store_stop_answer(
+            db, current_user.id, packet_id, field=payload.field, answer=payload.answer
+        )
+    except StopAnswerError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
