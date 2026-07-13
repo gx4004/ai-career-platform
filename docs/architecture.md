@@ -333,12 +333,13 @@ errors remain forbidden.
 - Campaign content, including contacts (third-party personal data), joins the
   sensitive-content lifecycle and allowlisted-telemetry boundaries (D-083).
 
-## Discovery Boundaries (R14, deferred)
+## Discovery Boundaries (R14, registry foundation built dark)
 
-- No ingestion outside a source registry entry documenting owner, terms status and
-  review date, allowed behavior, rate limit, attribution rule, retention rule, and
-  kill switch; sources activate only after accepted terms review (D-084, D-085,
-  ADR 0008).
+- The persisted discovery-source registry documents owner, terms status and review
+  record, allowed behavior, rate limit, attribution rule, retention rule, and kill
+  switch. Its single enforcement seam refuses unregistered, terms-unaccepted, or
+  killed sources before ingestion; no source entry or adapter is active yet
+  (D-084, D-085, ADR 0008).
 - Discovery operationalizes D-026: robots.txt honored, honest identifying user
   agent in every tier, no unauthorized scraping, circumvention, or credential or
   session use (D-086).

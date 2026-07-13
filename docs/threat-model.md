@@ -224,8 +224,9 @@ Browser → POST /auth/password-reset/confirm {token, new_password}
 | 10 | Tool metadata (scores, skill gaps, recommendations) | Medium | `tool_runs.result_payload` | Until deletion | Career profile inference |
 | 11 | Workspace/campaign target, schedule, and transition history | High | `workspaces.label`, `workspaces.is_pinned`, `workspaces.company`, `workspaces.role`, `workspaces.status`, `workspaces.deadline`, `campaign_events.details` | Until deletion | Job-search intent, target employer, application timing, and outcome-history exposure |
 | 12 | Submitted-application frozen bundles | High | `campaign_submission_snapshots.content_json` | Until campaign/account deletion | Exact CV, cover letter, target listing, and application-history exposure |
-| 13 | Behavioral telemetry (event names, routes, timestamps) | Low | Log stdout, Sentry (if enabled) | Undefined (no TTL) | Usage pattern inference |
-| 14 | Sidebar state, language preference | None | `sidebar_state` cookie, `app_language` localStorage | 7 days / forever | None |
+| 13 | Discovery source governance records | Medium | `discovery_sources` | Until registry deletion | Source contracts, operational ownership, and acquisition bounds exposed |
+| 14 | Behavioral telemetry (event names, routes, timestamps) | Low | Log stdout, Sentry (if enabled) | Undefined (no TTL) | Usage pattern inference |
+| 15 | Sidebar state, language preference | None | `sidebar_state` cookie, `app_language` localStorage | 7 days / forever | None |
 
 ### 4.1 Guest-Specific Storage Note
 
@@ -377,7 +378,7 @@ bulk `GET /evidence-profile/export` is rate-limited at the same 5/min ceiling as
 `POST /auth/me/delete` because it is a bulk read of the user's most sensitive
 stored content (#149, D-065); see §8.7.
 
-### 6.4 Admin Required (7 endpoints)
+### 6.4 Admin Required (12 endpoints)
 
 All require `get_current_admin` (chains: `get_current_user` → `is_admin` check).
 Rate-limited at 60/min.
@@ -390,6 +391,11 @@ Rate-limited at 60/min.
 | `GET` | `/admin/runs` | 60/min |
 | `GET` | `/admin/runs/{run_id}` | 60/min |
 | `GET` | `/admin/stats` | 60/min |
+| `GET` | `/admin/activation` | 60/min |
+| `GET` | `/admin/profile-adoption` | 60/min |
+| `GET` | `/admin/scorecard` | 60/min |
+| `GET` | `/admin/eval-runs` | 60/min |
+| `GET` | `/admin/discovery-sources` | 60/min |
 | `GET` | `/admin/health` | 60/min |
 
 ### 6.5 Unrate-Limited Endpoints (Risk Note)
@@ -1175,8 +1181,8 @@ file inspection.
 | §3 | `grep -n "run_tool_pipeline" backend/app/services/tool_pipeline.py` | Primary pipeline function |
 | §4 | `grep -n "result_payload\|hashed_password\|google_id" backend/app/models/` | All model fields confirmed |
 | §5 | `grep -rn "localStorage\|sessionStorage" frontend/src/ --include="*.ts" --include="*.tsx" -l` | 14 files matched |
-| §6 | `rg '@router\.(get|post|patch|put|delete)' backend/app/routers/` | 81 route decorators |
-| §6 | `rg 'limiter\.limit' backend/app/routers/ --glob='*.py'` | 39 rate-limit decorators |
+| §6 | `rg '@router\.(get|post|patch|put|delete)' backend/app/routers/` | 82 route decorators |
+| §6 | `rg 'limiter\.limit' backend/app/routers/ --glob='*.py'` | 40 rate-limit decorators |
 | §6 | `grep -n "include_router" backend/app/main.py` | Lines 128-147 |
 | §6.6 | `grep -n "_get_client_ip\|TRUST_PROXY_HEADERS" backend/app/limiter.py` | Lines 10-17 |
 | §7 | `grep -n "ALGORITHM\|SECRET_KEY" backend/app/config.py` | Lines 17-18 |
@@ -1218,3 +1224,12 @@ and exposes no mutation path into documents or Evidence Profile state. Durable
 analytics receives only the closed `application-reviewer` tool id and aggregate
 run outcome/latency; claims, traces, locations, listing text, and findings remain
 outside telemetry.
+
+The R14 discovery-source registry is an admin-only governance surface and contains
+no user profile or listing content. New entries start terms-pending with the kill
+switch on. The authoritative enforcement seam rejects unregistered,
+terms-unaccepted, and killed sources before any future adapter can perform network
+or persistence work. No registry mutation HTTP endpoint or active source ships in
+#171. Operational events retain only the closed source-family and registry-outcome
+classes; source keys, display names, owners, attribution text, and review identities
+remain outside telemetry.

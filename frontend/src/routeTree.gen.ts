@@ -35,6 +35,7 @@ import { Route as AdminUsersRouteImport } from './routes/admin/users'
 import { Route as AdminScorecardRouteImport } from './routes/admin/scorecard'
 import { Route as AdminRunsRouteImport } from './routes/admin/runs'
 import { Route as AdminProfileAdoptionRouteImport } from './routes/admin/profile-adoption'
+import { Route as AdminDiscoverySourcesRouteImport } from './routes/admin/discovery-sources'
 import { Route as AdminActivationRouteImport } from './routes/admin/activation'
 import { Route as ResumeResultHistoryIdRouteImport } from './routes/resume_.result.$historyId'
 import { Route as PortfolioResultHistoryIdRouteImport } from './routes/portfolio_.result.$historyId'
@@ -173,6 +174,11 @@ const AdminProfileAdoptionRoute = AdminProfileAdoptionRouteImport.update({
   path: '/profile-adoption',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminDiscoverySourcesRoute = AdminDiscoverySourcesRouteImport.update({
+  id: '/discovery-sources',
+  path: '/discovery-sources',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminActivationRoute = AdminActivationRouteImport.update({
   id: '/activation',
   path: '/activation',
@@ -234,6 +240,7 @@ export interface FileRoutesByFullPath {
   '/settings': typeof SettingsRoute
   '/terms': typeof TermsRoute
   '/admin/activation': typeof AdminActivationRoute
+  '/admin/discovery-sources': typeof AdminDiscoverySourcesRoute
   '/admin/profile-adoption': typeof AdminProfileAdoptionRoute
   '/admin/runs': typeof AdminRunsRoute
   '/admin/scorecard': typeof AdminScorecardRoute
@@ -268,6 +275,7 @@ export interface FileRoutesByTo {
   '/settings': typeof SettingsRoute
   '/terms': typeof TermsRoute
   '/admin/activation': typeof AdminActivationRoute
+  '/admin/discovery-sources': typeof AdminDiscoverySourcesRoute
   '/admin/profile-adoption': typeof AdminProfileAdoptionRoute
   '/admin/runs': typeof AdminRunsRoute
   '/admin/scorecard': typeof AdminScorecardRoute
@@ -304,6 +312,7 @@ export interface FileRoutesById {
   '/settings': typeof SettingsRoute
   '/terms': typeof TermsRoute
   '/admin/activation': typeof AdminActivationRoute
+  '/admin/discovery-sources': typeof AdminDiscoverySourcesRoute
   '/admin/profile-adoption': typeof AdminProfileAdoptionRoute
   '/admin/runs': typeof AdminRunsRoute
   '/admin/scorecard': typeof AdminScorecardRoute
@@ -341,6 +350,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/terms'
     | '/admin/activation'
+    | '/admin/discovery-sources'
     | '/admin/profile-adoption'
     | '/admin/runs'
     | '/admin/scorecard'
@@ -375,6 +385,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/terms'
     | '/admin/activation'
+    | '/admin/discovery-sources'
     | '/admin/profile-adoption'
     | '/admin/runs'
     | '/admin/scorecard'
@@ -410,6 +421,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/terms'
     | '/admin/activation'
+    | '/admin/discovery-sources'
     | '/admin/profile-adoption'
     | '/admin/runs'
     | '/admin/scorecard'
@@ -638,6 +650,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminProfileAdoptionRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/discovery-sources': {
+      id: '/admin/discovery-sources'
+      path: '/discovery-sources'
+      fullPath: '/admin/discovery-sources'
+      preLoaderRoute: typeof AdminDiscoverySourcesRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/activation': {
       id: '/admin/activation'
       path: '/activation'
@@ -692,6 +711,7 @@ declare module '@tanstack/react-router' {
 
 interface AdminRouteChildren {
   AdminActivationRoute: typeof AdminActivationRoute
+  AdminDiscoverySourcesRoute: typeof AdminDiscoverySourcesRoute
   AdminProfileAdoptionRoute: typeof AdminProfileAdoptionRoute
   AdminRunsRoute: typeof AdminRunsRoute
   AdminScorecardRoute: typeof AdminScorecardRoute
@@ -701,6 +721,7 @@ interface AdminRouteChildren {
 
 const AdminRouteChildren: AdminRouteChildren = {
   AdminActivationRoute: AdminActivationRoute,
+  AdminDiscoverySourcesRoute: AdminDiscoverySourcesRoute,
   AdminProfileAdoptionRoute: AdminProfileAdoptionRoute,
   AdminRunsRoute: AdminRunsRoute,
   AdminScorecardRoute: AdminScorecardRoute,

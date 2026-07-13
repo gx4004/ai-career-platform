@@ -1,5 +1,11 @@
 import { API_URL } from '#/lib/api/client'
 import { ApiError } from '#/lib/api/errors'
+import {
+  discoverySourceListSchema,
+  type DiscoverySourceList,
+} from '#/lib/api/discoverySchemas'
+
+export type { DiscoverySource, DiscoverySourceList } from '#/lib/api/discoverySchemas'
 
 async function adminFetch(path: string, options: RequestInit = {}) {
   const headers = new Headers(options.headers || {})
@@ -301,4 +307,9 @@ export function getAdminProfileAdoption(
   return adminRequest<AdminProfileAdoption>(
     `/admin/profile-adoption${buildQs({ start: params.start, end: params.end })}`,
   )
+}
+
+export async function getAdminDiscoverySources(): Promise<DiscoverySourceList> {
+  const response = await adminRequest<unknown>('/admin/discovery-sources')
+  return discoverySourceListSchema.parse(response)
 }
