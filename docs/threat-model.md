@@ -225,8 +225,9 @@ Browser → POST /auth/password-reset/confirm {token, new_password}
 | 11 | Workspace/campaign target, schedule, and transition history | High | `workspaces.label`, `workspaces.is_pinned`, `workspaces.company`, `workspaces.role`, `workspaces.status`, `workspaces.deadline`, `campaign_events.details` | Until deletion | Job-search intent, target employer, application timing, and outcome-history exposure |
 | 12 | Submitted-application frozen bundles | High | `campaign_submission_snapshots.content_json` | Until campaign/account deletion | Exact CV, cover letter, target listing, and application-history exposure |
 | 13 | Discovery source governance records | Medium | `discovery_sources` | Until registry deletion | Source contracts, operational ownership, and acquisition bounds exposed |
-| 14 | Behavioral telemetry (event names, routes, timestamps) | Low | Log stdout, Sentry (if enabled) | Undefined (no TTL) | Usage pattern inference |
-| 15 | Sidebar state, language preference | None | `sidebar_state` cookie, `app_language` localStorage | 7 days / forever | None |
+| 14 | Product-owned discovered listings | Medium-High | `discovered_listings`, `discovered_listing_attributions` | Per-source registry retention | Employer openings, acquisition sources, and stale corpus exposure |
+| 15 | Behavioral telemetry (event names, routes, timestamps) | Low | Log stdout, Sentry (if enabled) | Undefined (no TTL) | Usage pattern inference |
+| 16 | Sidebar state, language preference | None | `sidebar_state` cookie, `app_language` localStorage | 7 days / forever | None |
 
 ### 4.1 Guest-Specific Storage Note
 
@@ -1250,3 +1251,13 @@ responses, source keys, or legal-review content.
 The process pins `httpx`/`httpcore` request logging at warning level because their
 INFO request line contains query strings; bounded search parameters therefore do
 not leak through ordinary outbound-library logs.
+
+Discovered listings are non-user product data in dedicated canonical and source-
+attribution tables; neither table carries a user/workspace key or references
+`campaign_listings`. Source URLs are restricted to the governed endpoint host and
+stored without query or fragment. Conservative normalized-content hashing collapses
+known identical postings while preserving each source attribution; near misses stay
+separate. The daily retention job deletes an attribution once it exceeds that
+source registry row's current retention days and removes the canonical listing only
+when no attribution remains. Source deletion is restricted while attribution rows
+exist, preventing silent orphaning or loss of the rule that owns the data.
