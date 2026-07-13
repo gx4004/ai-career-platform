@@ -29,6 +29,8 @@ import {
   workspaceListSchema,
   workspaceSummarySchema,
   workspaceUpdateSchema,
+  campaignDetailSchema,
+  campaignMaterialSelectionSchema,
   cvDocumentListSchema,
   cvDocumentSchema,
   cvDocumentUpdateSchema,
@@ -50,6 +52,7 @@ import type {
   CvAtsCheckKey,
   CvTemplateId,
   WorkspaceUpdate,
+  CampaignMaterialSelection,
 } from '#/lib/api/schemas'
 
 export function listCvDocuments() {
@@ -557,6 +560,21 @@ export function updateHistoryWorkspace(
     method: 'PATCH',
     body: workspaceUpdateSchema.parse(payload),
     schema: workspaceSummarySchema,
+  })
+}
+
+export function getCampaign(workspaceId: string) {
+  return request(`/history/workspaces/${workspaceId}`, {
+    method: 'GET', schema: campaignDetailSchema,
+  })
+}
+
+export function updateCampaignMaterials(
+  workspaceId: string,
+  payload: CampaignMaterialSelection,
+) {
+  return request(`/history/workspaces/${workspaceId}/materials`, {
+    method: 'PATCH', body: campaignMaterialSelectionSchema.parse(payload), schema: campaignDetailSchema,
   })
 }
 

@@ -14,6 +14,7 @@ from app.schemas.cv_documents import (
 )
 from app.schemas.evidence_profile import EvidenceItemCreate
 from app.services.analytics import safe_record_activation_event
+from app.services.campaign_materials import clear_selected_variants
 from app.services.evidence_profile import (
     record_evidence_proposal_created,
     stage_evidence_proposal,
@@ -305,6 +306,7 @@ def restore_variant(db: Session, document: CvDocument, variant_id: str) -> CvDoc
 
 
 def delete_document(db: Session, document: CvDocument) -> None:
+    clear_selected_variants(db, document)
     db.delete(document)
     db.commit()
     safe_record_activation_event(db, event_name="studio_document_deleted")
@@ -314,6 +316,7 @@ def delete_documents(db: Session, user_id: str) -> int:
     documents = _query(db, user_id).all()
     count = len(documents)
     for document in documents:
+        clear_selected_variants(db, document)
         db.delete(document)
     db.commit()
     safe_record_activation_event(db, event_name="studio_documents_deleted")
