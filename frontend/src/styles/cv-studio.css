@@ -90,6 +90,10 @@
   .studio-header-actions { justify-content: space-between; }
   .studio-save-state { text-align: left; }
   .studio-layout { grid-template-columns: 1fr; gap: var(--mobile-section-gap); }
+  .studio-quality {
+    width: calc(100vw - var(--mobile-pad) - var(--mobile-pad));
+    max-width: calc(100vw - var(--mobile-pad) - var(--mobile-pad));
+  }
   .studio-dimensions { grid-template-columns: 1fr; }
   .studio-quality-head { box-sizing: border-box; width: 100%; min-width: 0; max-width: 100%; align-items: stretch; flex-direction: column; }
   .studio-quality-head > div { box-sizing: border-box; width: 100%; min-width: 0; max-width: 100%; }
