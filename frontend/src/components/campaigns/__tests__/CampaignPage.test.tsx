@@ -3,7 +3,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { CampaignPage } from '../CampaignPage'
 
-const api = vi.hoisted(() => ({ getCampaign: vi.fn(), updateCampaignMaterials: vi.fn(), createCampaignTask: vi.fn(), updateCampaignTask: vi.fn(), deleteCampaignTask: vi.fn(), createCampaignNote: vi.fn(), deleteCampaignNote: vi.fn(), createCampaignContact: vi.fn(), deleteCampaignContact: vi.fn() }))
+const api = vi.hoisted(() => ({ getCampaign: vi.fn(), updateCampaignMaterials: vi.fn(), createCampaignTask: vi.fn(), updateCampaignTask: vi.fn(), deleteCampaignTask: vi.fn(), createCampaignNote: vi.fn(), deleteCampaignNote: vi.fn(), createCampaignContact: vi.fn(), deleteCampaignContact: vi.fn(), getCampaignReminders: vi.fn(), updateCampaignReminderConsent: vi.fn() }))
 vi.mock('#/lib/api/client', () => api)
 vi.mock('#/hooks/useSession', () => ({ useSession: () => ({ status: 'authenticated', openAuthDialog: vi.fn() }) }))
 vi.mock('@tanstack/react-router', () => ({ Link: ({ children }: { children: React.ReactNode }) => <a href="/history">{children}</a> }))
@@ -19,7 +19,7 @@ const campaign = {
   contacts: [{ id: 'contact-1', name: 'Alex', role: 'Recruiter', channel: 'Email', created_at: '2026-07-13T10:00:00Z' }],
 }
 
-function renderPage() { const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } }); return render(<QueryClientProvider client={client}><CampaignPage campaignId="ws-1" /></QueryClientProvider>) }
+function renderPage() { api.getCampaignReminders.mockResolvedValue({ enabled: false, items: [], next_surface_at: null }); const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } }); return render(<QueryClientProvider client={client}><CampaignPage campaignId="ws-1" /></QueryClientProvider>) }
 
 describe('CampaignPage', () => {
   it('shows campaign facts, canonical listing, and immutable material choices', async () => {
@@ -36,6 +36,7 @@ describe('CampaignPage', () => {
     expect(screen.getByText('Send application')).toBeTruthy()
     expect(screen.getByText('Ask about team structure')).toBeTruthy()
     expect(screen.getByText(/Status changed/)).toBeTruthy()
+    expect(await screen.findByRole('button', { name: 'Turn reminders on' })).toBeTruthy()
   })
 
   it('renders an explicit empty state and disables unavailable material selection', async () => {

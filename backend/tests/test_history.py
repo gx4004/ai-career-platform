@@ -594,3 +594,63 @@ def test_campaign_tracking_rejects_foreign_campaign(client, auth_headers, db):
         ).status_code
         == 404
     )
+
+
+def test_campaign_reminders_are_default_off_consent_driven_and_revocable(
+    client, auth_headers, test_user, db
+):
+    from datetime import UTC, datetime, timedelta
+
+    from app.models.campaign_tracking import CampaignTask
+
+    workspace = Workspace(user_id=test_user.id, deadline=datetime.now(UTC) + timedelta(days=2))
+    db.add(workspace)
+    db.flush()
+    db.add(
+        CampaignTask(
+            workspace_id=workspace.id,
+            title="Follow up",
+            deadline=datetime.now(UTC) + timedelta(days=1),
+        )
+    )
+    db.commit()
+    endpoint = f"{PREFIX}/workspaces/{workspace.id}/reminders"
+    assert client.get(endpoint, headers=auth_headers).json() == {
+        "enabled": False,
+        "items": [],
+        "next_surface_at": None,
+    }
+    assert client.patch(endpoint, json={"enabled": True}, headers=auth_headers).status_code == 200
+    first = client.get(endpoint, headers=auth_headers).json()
+    assert [item["kind"] for item in first["items"]] == ["task_deadline", "campaign_deadline"]
+    second = client.get(endpoint, headers=auth_headers).json()
+    assert second["items"] == []
+    assert second["next_surface_at"] is not None
+    for _ in range(7):
+        assert client.get(endpoint, headers=auth_headers).status_code == 200
+    assert client.get(endpoint, headers=auth_headers).status_code == 429
+    revoked = client.patch(endpoint, json={"enabled": False}, headers=auth_headers)
+    assert revoked.json() == {"enabled": False, "items": [], "next_surface_at": None}
+    db.refresh(workspace)
+    assert workspace.reminders_enabled is False
+    assert workspace.reminders_last_surfaced_at is None
+
+
+def test_campaign_reminders_are_owner_isolated(client, auth_headers, db):
+    from app.auth.security import hash_password
+    from app.models.user import User
+
+    other = User(email="reminder-owner@example.com", hashed_password=hash_password("pass"))
+    db.add(other)
+    db.flush()
+    workspace = Workspace(user_id=other.id)
+    db.add(workspace)
+    db.commit()
+    assert (
+        client.patch(
+            f"{PREFIX}/workspaces/{workspace.id}/reminders",
+            json={"enabled": True},
+            headers=auth_headers,
+        ).status_code
+        == 404
+    )
