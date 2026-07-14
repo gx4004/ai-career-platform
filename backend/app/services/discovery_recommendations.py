@@ -82,10 +82,16 @@ def rank_discovery_recommendations(
             attribution
             for attribution in listing.attributions
             if attribution.source_id not in hidden_sources
+            and attribution.source.ingestion_allowed
             and _is_live(attribution.retrieved_at, attribution.source.retention_days, now)
         ]
-        # A hidden source is removed from the listing's attributions; a listing left
-        # with no visible, live source drops out of the feed entirely.
+        # A hidden source is removed from the listing's attributions; so is a source
+        # whose terms were revoked or kill switch was tripped after ingestion — that
+        # governance state is re-checked on every read, not just at ingest time, so a
+        # listing already sitting inside its retention window stops being
+        # recommended/adoptable the moment the source is no longer allowed (ADR 0008).
+        # A listing left with no visible, live, allowed source drops out of the feed
+        # entirely.
         if not live_attributions:
             continue
         recommendations.append(_rank_listing(listing, live_attributions, evidence, preferences))
