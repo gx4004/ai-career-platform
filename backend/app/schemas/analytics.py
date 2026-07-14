@@ -103,12 +103,32 @@ DiscoveryPersonalizationOutcome = Literal[
 # content, listing id, campaign id, or run id is ever attached.
 DiscoveryAdoptionOutcome = Literal["adopted"]
 
+# R15 #184 packet-queue trust-chain gate. Backend-generated at the preparation
+# seam. Only the bounded gate outcome class rides on `operational_outcome`; for a
+# pipeline halt the bounded regression reason rides on `operational_dimension`. No
+# packet content, listing text/id, campaign id, run id, finding text, or user
+# identifier is ever attached — `extra="forbid"` rejects any such field (D-097).
+#   - `running` — a preparation run started the gate.
+#   - `passed`  — a packet cleared the reviewer with zero unresolved fabrication
+#                 findings (the only queue-eligible outcome).
+#   - `blocked` — a packet carried an unresolved fabrication finding and is not queued.
+#   - `halted`  — preparation halted pipeline-wide on a failing regression eval.
+#   - `cleared` — a prior pipeline-wide halt was cleared and preparation resumes.
+PacketGateOutcome = Literal["running", "passed", "blocked", "halted", "cleared"]
+# The bounded regression category that triggers/annotates a pipeline halt.
+PacketGateHaltReason = Literal["fabrication_regression", "packet_quality_regression"]
+
 # The two reused generic operational columns. `operational_dimension` holds the
 # primary category/family for an event (provider incident category or import
 # source family); `operational_outcome` holds the outcome class (cache outcome
 # or import outcome). Which axis a value belongs to is unambiguous from
 # `event_name`, so aggregation never has to disambiguate a bare string.
-OperationalDimension = ProviderIncidentCategory | ImportSourceFamily | DiscoverySourceFamily
+OperationalDimension = (
+    ProviderIncidentCategory
+    | ImportSourceFamily
+    | DiscoverySourceFamily
+    | PacketGateHaltReason
+)
 OperationalOutcome = (
     CacheOutcome
     | ImportOutcome
@@ -118,6 +138,7 @@ OperationalOutcome = (
     | DiscoveryExpiryOutcome
     | DiscoveryPersonalizationOutcome
     | DiscoveryAdoptionOutcome
+    | PacketGateOutcome
 )
 
 # ── R11 profile-adoption allowlist (issue #150, parent #143, D-067) ──
@@ -161,6 +182,13 @@ DiscoveryEventName = Literal[
     "discovery_recommendation_adopted",
 ]
 
+# R15 #184 packet-queue trust-chain gate events (D-097). Backend-only, emitted at
+# the preparation seam; both carry only bounded operational dimensions.
+#   - `packet_queue_gate`       — per-packet + per-run gate outcome
+#     (running/passed/blocked).
+#   - `packet_preparation_halt` — pipeline-wide halt/clear on a regression eval.
+PacketGateEventName = Literal["packet_queue_gate", "packet_preparation_halt"]
+
 # Activation-event names accepted by the durable write seam. This is the union
 # of every event name already firing today: the frontend-telemetry taxonomy
 # (`TelemetryEventName`) plus the backend-only tool-run outcome event, which the
@@ -174,6 +202,7 @@ ActivationEventName = (
     | ProfileEventName
     | StudioEventName
     | DiscoveryEventName
+    | PacketGateEventName
 )
 
 

@@ -14,6 +14,7 @@ from app.models.discovery_personalization import (
 from app.models.discovery_source import DiscoverySource
 from app.models.evidence_item import EvidenceItem
 from app.models.packet_stop_answer import PacketStopAnswer
+from app.models.pipeline_halt import PipelineHalt
 from app.models.queue_rule import QueueRule, QueueSettings
 from app.models.tool_run import ToolRun
 from app.models.user import User
@@ -37,6 +38,7 @@ __all__ = [
     "QueueSettings",
     "ApplicationPacket",
     "PacketStopAnswer",
+    "PipelineHalt",
     "CampaignEvent",
     "CampaignListing",
     "CampaignTask",
