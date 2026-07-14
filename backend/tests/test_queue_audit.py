@@ -149,6 +149,17 @@ def test_audit_history_joins_machine_readable_export(db):
     assert export.queue_audit.events[0].details == {"rule_type": "location"}
 
 
+def test_reprepared_audit_action_does_not_break_export(db):
+    """D-099 regression: the ``packet_reprepared`` action (written by the #268
+    reprepare recovery path) must be in the export allowlist, or the entire
+    career-data export raises ValidationError and the user cannot download any data.
+    """
+    user = _user(db)
+    record_queue_audit_event(db, user_id=user.id, action="packet_reprepared", packet_id="pkt-1")
+    export = export_career_data(db, user.id)
+    assert [e.action for e in export.queue_audit.events] == ["packet_reprepared"]
+
+
 def test_delete_queue_audit_events_is_owner_scoped(db):
     keep = _user(db, email="keep@example.com")
     drop = _user(db, email="drop@example.com")
