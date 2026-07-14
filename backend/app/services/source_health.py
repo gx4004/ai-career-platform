@@ -107,8 +107,16 @@ def aggregate_source_health(
             func.count(AnalyticsEvent.id),
         )
         .filter(
-            AnalyticsEvent.created_at >= window_start,
-            AnalyticsEvent.created_at <= window_end,
+            # Window on the logical event time when known (occurred_at), falling
+            # back to server ingest time. In production occurred_at defaults to
+            # real-now so behaviour is unchanged; injected-clock callers (tests,
+            # backdated expiry runs) then window deterministically. Fixes a
+            # date-boundary flake where an expiry event stamped at wall-clock
+            # `created_at` fell outside a fixture window built from an earlier now.
+            func.coalesce(AnalyticsEvent.occurred_at, AnalyticsEvent.created_at)
+            >= window_start,
+            func.coalesce(AnalyticsEvent.occurred_at, AnalyticsEvent.created_at)
+            <= window_end,
             AnalyticsEvent.event_name.in_(
                 (
                     "discovery_source_fetch_outcome",
