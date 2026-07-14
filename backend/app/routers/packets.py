@@ -25,6 +25,7 @@ from app.services.packet_approval import (
 )
 from app.services.queue_review import (
     PacketDecisionLockedError,
+    PacketGateBlockedError,
     accept_packet,
     edit_packet,
     pause_queue,
@@ -149,6 +150,8 @@ def accept(
         return accept_packet(db, current_user.id, packet_id)
     except PacketDecisionNotFoundError as error:
         raise HTTPException(status_code=404, detail="Application packet not found") from error
+    except PacketGateBlockedError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
     except PacketNotApprovableError as error:
         raise HTTPException(
             status_code=409,

@@ -11,6 +11,7 @@ QueueAuditAction = Literal[
     "rule_deleted",
     "settings_updated",
     "packet_prepared",
+    "packet_reprepared",
     "packet_gate_evaluated",
     "stop_answer_recorded",
     "packet_accepted",

@@ -18,6 +18,7 @@ from app.services.packet_approval import (
 from app.services.packet_gate import is_queue_paused
 from app.services.queue_review import (
     PacketDecisionLockedError,
+    PacketGateBlockedError,
     PacketNotFoundError,
     accept_packet,
     edit_packet,
@@ -49,6 +50,7 @@ def _make_packet(
     unresolved: list[dict] | None = None,
     status: str = "prepared",
     decision: str = "pending",
+    gate_state: str = "passed",
 ) -> ApplicationPacket:
     packet = ApplicationPacket(
         user_id=user_id,
@@ -59,7 +61,7 @@ def _make_packet(
         match_rationale=VALID_RATIONALE,
         unresolved_questions=unresolved or [],
         status=status,
-        gate_state="passed",
+        gate_state=gate_state,
         decision=decision,
         estimated_cost_usd=0.02,
     )
@@ -105,6 +107,22 @@ def test_accept_succeeds_when_no_unresolved(db, test_user):
     db.refresh(packet)
     assert packet.decision == "accepted"
     assert _audit_actions(db, test_user.id) == ["packet_accepted"]
+
+
+def test_accept_blocked_by_reviewer_gate_even_without_unresolved(db, test_user):
+    """D-097: a fabrication-blocked packet is never accepted, independent of stops.
+
+    Regression guard for the gap where accept only checked the D-095 approval
+    predicate and never consulted ``gate_state``, so a packet the reviewer blocked
+    (no unresolved stop questions) could still be accepted.
+    """
+    packet = _make_packet(db, test_user.id, unresolved=[], gate_state="blocked")
+    with pytest.raises(PacketGateBlockedError):
+        accept_packet(db, test_user.id, packet.id)
+    db.refresh(packet)
+    # No transition and no ``packet_accepted`` audit event.
+    assert packet.decision == "pending"
+    assert "packet_accepted" not in _audit_actions(db, test_user.id)
 
 
 def test_accept_succeeds_after_answering_stop(db, test_user):

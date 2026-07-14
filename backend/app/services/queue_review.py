@@ -35,6 +35,7 @@ from app.services.packet_approval import (
 )
 from app.services.packet_gate import (
     is_preparation_halted,
+    is_queue_eligible,
     is_queue_paused,
     pause_preparation,
     resume_preparation,
@@ -45,6 +46,7 @@ __all__ = [
     "PacketNotApprovableError",
     "PacketNotFoundError",
     "PacketDecisionLockedError",
+    "PacketGateBlockedError",
     "accept_packet",
     "edit_packet",
     "skip_packet",
@@ -53,6 +55,16 @@ __all__ = [
     "resume_queue",
     "queue_review_state",
 ]
+
+
+class PacketGateBlockedError(Exception):
+    """Raised when accept targets a packet the reviewer gate has not passed (D-097).
+
+    The trust chain (#184) marks a packet ``gate_state="blocked"`` when the reviewer
+    found an unresolved fabrication finding. Such a packet is never queue-eligible and
+    must never be accepted, independent of whether mandatory-stop questions (D-095)
+    remain — the two guards are orthogonal.
+    """
 
 
 class PacketNotFoundError(Exception):
@@ -124,6 +136,13 @@ def accept_packet(db: Session, user_id: str, packet_id: str) -> ApplicationPacke
     ``packet_accepted`` audit event is recorded. Snapshot/handoff is #185.
     """
     packet = _load_owned_packet(db, user_id, packet_id)
+    # Reviewer-gate guard (#184, D-097): a packet the reviewer left blocked on an
+    # unresolved fabrication finding is never queue-eligible and must never be
+    # accepted — enforced independently of the mandatory-stop guard below.
+    if not is_queue_eligible(packet):
+        raise PacketGateBlockedError(
+            "This packet was blocked by the application quality reviewer and cannot be accepted."
+        )
     # Server-authoritative approval guard (#182): unresolved question → not approvable.
     assert_packet_approvable(db, user_id, packet_id)
     return _set_decision(db, packet, decision="accepted", action="packet_accepted")
