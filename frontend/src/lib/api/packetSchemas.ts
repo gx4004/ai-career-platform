@@ -10,6 +10,11 @@ const offsetDateTimeSchema = z.iso.datetime({ offset: true })
 export const packetStatusSchema = z.enum(['prepared', 'blocked'])
 export type PacketStatus = z.infer<typeof packetStatusSchema>
 
+// The trust-chain gate outcome (R15 #184, D-097). Only `passed` is queue-eligible;
+// a packet with an unresolved fabrication finding stays `blocked` and never queues.
+export const packetGateStateSchema = z.enum(['pending', 'passed', 'blocked'])
+export type PacketGateState = z.infer<typeof packetGateStateSchema>
+
 // Mirrors app.services.stop_classifier.StopCategory + the non-stop
 // `missing_material` question (D-095, #182). One authoritative category set.
 export const stopCategorySchema = z.enum([
@@ -72,7 +77,11 @@ export const applicationPacketItemSchema = z.strictObject({
   listing_id: z.string().nullable(),
   cv_variant_id: z.string().nullable(),
   drafts_run_id: z.string().nullable(),
+  // The reviewer pass whose findings the packet surfaces by-reference (D-093).
+  review_run_id: z.string().nullable(),
   status: packetStatusSchema,
+  // Trust-chain gate outcome (D-097). `passed` is the only queue-eligible state.
+  gate_state: packetGateStateSchema,
   match_rationale: packetMatchRationaleSchema,
   unresolved_questions: z.array(unresolvedQuestionSchema),
   estimated_cost_usd: z.number().min(0),
@@ -88,7 +97,7 @@ export type ApplicationPacketList = z.infer<typeof applicationPacketListSchema>
 
 export const packetPreparationResultSchema = z.strictObject({
   prepares: z.boolean(),
-  reason: z.enum(['no_rules_defined', 'ready']),
+  reason: z.enum(['no_rules_defined', 'ready', 'halted']),
   prepared_count: z.number().int().min(0),
   skipped_existing_count: z.number().int().min(0),
   excluded_by_volume_cap: z.number().int().min(0),

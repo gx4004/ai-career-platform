@@ -20,6 +20,7 @@ retried (ADR 0009).
 
 from __future__ import annotations
 
+import hashlib
 from collections.abc import Awaitable, Callable
 from datetime import datetime
 from typing import Any
@@ -37,8 +38,16 @@ from app.schemas.application_packets import (
 )
 from app.schemas.discovery_recommendations import DiscoveryRecommendation
 from app.services.ai_client import complete_structured
+from app.services.campaign_reviewer import review_campaign_materials
 from app.services.discovery_adoption import adopt_recommendation
 from app.services.evidence_injection import EvidencePayload, render_evidence_section
+from app.services.input_sanitizer import sanitize_user_input
+from app.services.packet_gate import (
+    emit_gate_outcome,
+    emit_gate_running,
+    gate_state_for,
+    is_preparation_halted,
+)
 from app.services.queue_rules import matched_keywords_for_rule, select_admitted_candidates
 from app.services.stop_classifier import (
     classify_stop_category,
@@ -343,6 +352,65 @@ def _draftable_screening_answers(
     return answers, stop_questions
 
 
+# ── Trust-chain reviewer gate (R15 #184, D-097) ──
+
+
+def _cover_text_from_drafts(response: dict[str, Any]) -> str:
+    """Project the generated cover-letter draft the reviewer should scan."""
+    cover = response.get("cover_letter")
+    if isinstance(cover, dict):
+        body = cover.get("body")
+        if isinstance(body, str):
+            return body
+    return ""
+
+
+async def _run_reviewer_gate(
+    db: Session,
+    user: User,
+    *,
+    campaign_id: str,
+    cv_text: str,
+    listing_description: str,
+    drafts_response: dict[str, Any],
+) -> tuple[str | None, str]:
+    """Run the R13 reviewer on the packet's materials; return (review_run_id, gate_state).
+
+    Runs the Application Quality Reviewer through the shared pipeline so its
+    findings persist in a referenceable ToolRun (D-093) — the packet points at it
+    by ``review_run_id`` and never copies finding text. A fabrication finding
+    (``unsupported_claim``) leaves ``gate_state == "blocked"`` so the packet is
+    never queue-eligible; otherwise the gate passes.
+    """
+    from app.services.tool_pipeline import run_tool_pipeline
+
+    clean_cover = sanitize_user_input(_cover_text_from_drafts(drafts_response))
+    review_response = await run_tool_pipeline(
+        tool_name="application-reviewer",
+        service_fn=review_campaign_materials,
+        service_kwargs={
+            "resume_text": cv_text,
+            "job_description": listing_description,
+            "cover_text": clean_cover,
+        },
+        label_fn=lambda result: f"Packet gate review ({len(result['findings'])} findings)",
+        resume_text=cv_text,
+        job_description=listing_description,
+        workspace_id=campaign_id,
+        current_user=user,
+        db=db,
+        cache_extra_keys={
+            "reviewer_version": "v1",
+            "cover_sha256": hashlib.sha256(clean_cover.encode()).hexdigest(),
+        },
+        require_evidence_profile=True,
+    )
+    findings = review_response.get("findings") or []
+    gate_state = gate_state_for(findings)
+    emit_gate_outcome(db, gate_state=gate_state)
+    return review_response.get("history_id"), gate_state
+
+
 # ── Preparation orchestration ──
 
 
@@ -364,12 +432,21 @@ async def prepare_packets(
     # Local import breaks the tool_runs <-> tool_pipeline import cycle.
     from app.services.tool_pipeline import run_tool_pipeline
 
+    # Pipeline-wide halt gate (D-097): a failing packet-quality / fabrication
+    # regression eval halts preparation for everyone until cleared. Consulted before
+    # any candidate work so a halted pipeline prepares — and spends — nothing.
+    if is_preparation_halted(db):
+        return _halted_result()
+
     compose = compose_fn or compose_packet_materials
     user = db.query(User).filter(User.id == user_id).one()
     selection = select_admitted_candidates(db, user_id, now=now)
 
     if not selection.prepares:
         return _empty_result(selection)
+
+    # A real preparation run is starting the trust-chain gate.
+    emit_gate_running(db)
 
     prepared: list[ApplicationPacket] = []
     skipped_existing = 0
@@ -413,6 +490,19 @@ async def prepare_packets(
         )
         drafts_run_id = response.get("history_id")
 
+        # Trust-chain gate (D-097): run the R13 reviewer on the just-composed
+        # materials. An unresolved fabrication finding keeps the packet out of the
+        # queue (gate_state="blocked"); its findings surface by-reference via
+        # review_run_id.
+        review_run_id, gate_state = await _run_reviewer_gate(
+            db,
+            user,
+            campaign_id=campaign.id,
+            cv_text=cv_text,
+            listing_description=rec.description,
+            drafts_response=response,
+        )
+
         rationale = build_match_rationale(rec, selection.rules)
         # Merge the two authoritative stop sources: what the classifier finds in the
         # listing + missing material, and the stops the generator refused to draft
@@ -429,9 +519,11 @@ async def prepare_packets(
             listing_id=rec.listing_id,
             cv_variant_id=cv_variant.id if cv_variant else None,
             drafts_run_id=drafts_run_id,
+            review_run_id=review_run_id,
             match_rationale=rationale,
             unresolved_questions=unresolved,
             status="blocked" if unresolved else "prepared",
+            gate_state=gate_state,
             estimated_cost_usd=selection.packet_cost,
         )
         db.add(packet)
@@ -451,6 +543,23 @@ async def prepare_packets(
         estimated_packet_cost_usd=round(float(selection.packet_cost), 4),
         estimated_total_cost_usd=round(float(selection.packet_cost) * len(prepared), 4),
         packets=[_packet_item(packet) for packet in prepared],
+    )
+
+
+def _halted_result() -> PacketPreparationResult:
+    """Preparation refused because the pipeline is halted on a regression eval (D-097)."""
+    return PacketPreparationResult(
+        prepares=False,
+        reason="halted",
+        prepared_count=0,
+        skipped_existing_count=0,
+        excluded_by_volume_cap=0,
+        excluded_by_cost_ceiling=0,
+        volume_cap=0,
+        cost_ceiling_usd=0.0,
+        estimated_packet_cost_usd=0.0,
+        estimated_total_cost_usd=0.0,
+        packets=[],
     )
 
 

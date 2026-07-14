@@ -17,7 +17,9 @@ const packet = {
   listing_id: 'listing-1',
   cv_variant_id: 'variant-1',
   drafts_run_id: 'run-1',
+  review_run_id: 'review-1',
   status: 'prepared',
+  gate_state: 'passed',
   match_rationale: {
     composite_score: 82,
     signals: [
@@ -48,6 +50,9 @@ describe('application packet contracts', () => {
     expect(parsed.listing_id).toBe('listing-1')
     expect(parsed.match_rationale.composite_score).toBe(82)
     expect(parsed.unresolved_questions[0].category).toBe('work_authorization')
+    // Trust-chain gate outcome + reviewer reference (R15 #184, D-097).
+    expect(parsed.gate_state).toBe('passed')
+    expect(parsed.review_run_id).toBe('review-1')
   })
 
   it('accepts nullable references (a blocked packet lacking a CV variant)', () => {
@@ -57,12 +62,22 @@ describe('application packet contracts', () => {
       cv_variant_id: null,
       listing_id: null,
       drafts_run_id: null,
+      review_run_id: null,
+      gate_state: 'blocked',
       unresolved_questions: [
         { field: 'cv_variant', category: 'missing_material', question: 'Select a CV.' },
       ],
     })
     expect(parsed.cv_variant_id).toBeNull()
+    expect(parsed.review_run_id).toBeNull()
     expect(parsed.status).toBe('blocked')
+    expect(parsed.gate_state).toBe('blocked')
+  })
+
+  it('rejects an out-of-set gate state (D-097)', () => {
+    expect(applicationPacketItemSchema.safeParse({ ...packet, gate_state: 'queued' }).success).toBe(
+      false,
+    )
   })
 
   it('rejects packet contract drift', () => {
@@ -155,6 +170,23 @@ describe('application packet contracts', () => {
       ],
     })
     expect(exported.stop_answers).toHaveLength(1)
+  })
+
+  it('accepts the halted preparation result (regression eval halt, D-097)', () => {
+    const parsed = packetPreparationResultSchema.parse({
+      prepares: false,
+      reason: 'halted',
+      prepared_count: 0,
+      skipped_existing_count: 0,
+      excluded_by_volume_cap: 0,
+      excluded_by_cost_ceiling: 0,
+      volume_cap: 0,
+      cost_ceiling_usd: 0,
+      estimated_packet_cost_usd: 0,
+      estimated_total_cost_usd: 0,
+      packets: [],
+    })
+    expect(parsed.reason).toBe('halted')
   })
 
   it('accepts the no-rules preparation result', () => {

@@ -19,6 +19,7 @@ from app.models.user import User
 from app.schemas.admin import (
     AdminActivationResponse,
     AdminEvalRunsResponse,
+    AdminPacketGateResponse,
     AdminProfileAdoptionResponse,
     AdminRunDetailResponse,
     AdminRunItem,
@@ -44,6 +45,7 @@ from app.services.analytics import (
 )
 from app.services.discovery_personalization import list_admin_reports
 from app.services.discovery_sources import operate_source_kill_switch
+from app.services.packet_gate import aggregate_packet_gate
 from app.services.scorecard import compute_scorecard
 from app.services.source_health import aggregate_source_health
 
@@ -464,6 +466,43 @@ def get_profile_adoption(
         window_end = window_end.replace(tzinfo=UTC)
 
     return aggregate_profile_adoption(
+        db,
+        window_start=window_start,
+        window_end=window_end,
+    )
+
+
+# ── Packet-queue trust-chain gate (R15, issue #184) ──
+
+
+@router.get("/packet-gate", response_model=AdminPacketGateResponse)
+@limiter.limit(_ADMIN_RATE)
+def get_packet_gate(
+    request: Request,
+    start: datetime | None = Query(None),
+    end: datetime | None = Query(None),
+    admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """Read-only trust-chain gate state (#184, D-097).
+
+    Admin-gated exactly like every other endpoint here (``get_current_admin``).
+    Surfaces the current pipeline-halt posture plus windowed counts of the
+    allowlisted gate events (running / passed / blocked, and halt / clear). No
+    packet content, listing text/id, run id, finding text, or user identifier is
+    reachable. The window defaults to a rolling two weeks; naive bounds are
+    treated as UTC so comparison against the timezone-aware ``created_at`` column
+    is well defined on Postgres.
+    """
+    now = datetime.now(UTC)
+    window_end = end or now
+    window_start = start or (window_end - timedelta(days=ACTIVATION_DEFAULT_WINDOW_DAYS))
+    if window_start.tzinfo is None:
+        window_start = window_start.replace(tzinfo=UTC)
+    if window_end.tzinfo is None:
+        window_end = window_end.replace(tzinfo=UTC)
+
+    return aggregate_packet_gate(
         db,
         window_start=window_start,
         window_end=window_end,

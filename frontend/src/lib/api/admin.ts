@@ -278,6 +278,23 @@ export type AdminSourceHealth = {
   families: SourceFamilyHealth[]
 }
 
+// R15 packet-queue trust-chain gate — mirrors backend/app/schemas/admin.py
+// (AdminPacketGateResponse). Read-only aggregate over the same first-party
+// operational path; only the current halt posture + bounded gate-event counts —
+// no packet content, listing text/id, run id, finding text, or user data (D-097).
+export type AdminPacketGate = {
+  window_start: string
+  window_end: string
+  halted: boolean
+  halt_reason: string | null
+  halted_since: string | null
+  gate_running: number
+  gate_passed: number
+  gate_blocked: number
+  pipeline_halted: number
+  pipeline_cleared: number
+}
+
 // API functions
 
 export function getAdminStats() {
@@ -358,6 +375,12 @@ export async function getAdminDiscoveryReports(): Promise<AdminDiscoveryReportLi
 export function getAdminSourceHealth(params: { start?: string; end?: string } = {}) {
   return adminRequest<AdminSourceHealth>(
     `/admin/source-health${buildQs({ start: params.start, end: params.end })}`,
+  )
+}
+
+export function getAdminPacketGate(params: { start?: string; end?: string } = {}) {
+  return adminRequest<AdminPacketGate>(
+    `/admin/packet-gate${buildQs({ start: params.start, end: params.end })}`,
   )
 }
 

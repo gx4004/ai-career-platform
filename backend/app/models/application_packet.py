@@ -20,6 +20,14 @@ from app.database import Base
 # attaches what it can determine.
 PACKET_STATUSES = ("prepared", "blocked")
 
+# The trust-chain gate outcome for the packet (R15 #184, D-097). ``pending`` before
+# the Application Quality Reviewer has run; ``passed`` when the reviewer completed
+# with zero unresolved fabrication findings (the ONLY state that is queue-eligible);
+# ``blocked`` when the reviewer surfaced an unresolved fabrication finding — such a
+# packet is never queued. Distinct from ``status`` (which tracks unresolved
+# mandatory-stop questions blocking approval, D-095).
+PACKET_GATE_STATES = ("pending", "passed", "blocked")
+
 
 class ApplicationPacket(Base):
     """A reference-only composition prepared for one candidate listing (R15 #181).
@@ -42,6 +50,10 @@ class ApplicationPacket(Base):
         CheckConstraint(
             "status IN ('prepared', 'blocked')",
             name="ck_application_packet_status",
+        ),
+        CheckConstraint(
+            "gate_state IN ('pending', 'passed', 'blocked')",
+            name="ck_application_packet_gate_state",
         ),
     )
 
@@ -74,9 +86,19 @@ class ApplicationPacket(Base):
     )
     # Derived, non-material structures the packet owns (D-093 lists these as part of
     # the packet, not as copies of CV/cover/listing content).
+    # The Application Quality Reviewer pass (R13, #168) run against this packet's
+    # projected materials. Findings live in that ToolRun's ``result_payload`` — the
+    # packet surfaces them BY REFERENCE (D-093), never copying finding text. Nullable
+    # + SET NULL so purging the run never orphans the packet.
+    review_run_id: Mapped[str | None] = mapped_column(
+        String, ForeignKey("tool_runs.id", ondelete="SET NULL"), nullable=True
+    )
     match_rationale: Mapped[dict] = mapped_column(JSON, nullable=False)
     unresolved_questions: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
     status: Mapped[str] = mapped_column(String(16), nullable=False, default="prepared")
+    # Trust-chain gate outcome (D-097). Only ``passed`` is queue-eligible; a packet
+    # with an unresolved fabrication finding stays ``blocked`` and never queues.
+    gate_state: Mapped[str] = mapped_column(String(16), nullable=False, default="pending")
     estimated_cost_usd: Mapped[float] = mapped_column(Numeric(10, 4), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
@@ -92,3 +114,4 @@ class ApplicationPacket(Base):
     listing = relationship("DiscoveredListing", foreign_keys=[listing_id])
     cv_variant = relationship("CvVariant", foreign_keys=[cv_variant_id])
     drafts_run = relationship("ToolRun", foreign_keys=[drafts_run_id])
+    review_run = relationship("ToolRun", foreign_keys=[review_run_id])

@@ -279,6 +279,33 @@ class AdminSourceHealthResponse(BaseModel):
     families: list[SourceFamilyHealth] = []
 
 
+# ── R15 packet-queue trust-chain gate (issue #184, parent #179, D-097) ──
+# Read-only aggregate over the same first-party operational path — no new vendor.
+# Reports the current pipeline-halt posture plus windowed counts of the allowlisted
+# gate events. No packet content, listing text/id, run id, finding text, or user
+# identifier is reachable from this view — only bounded outcome strings and counts.
+
+
+class AdminPacketGateResponse(BaseModel):
+    """Trust-chain gate state for the admin dashboard (D-097).
+
+    ``halted`` / ``halt_reason`` / ``halted_since`` describe the current
+    pipeline-wide preparation halt (if any); the ``gate_*`` and ``pipeline_*``
+    counts are windowed tallies of the allowlisted gate events.
+    """
+
+    window_start: str
+    window_end: str
+    halted: bool = False
+    halt_reason: str | None = None
+    halted_since: str | None = None
+    gate_running: int = 0
+    gate_passed: int = 0
+    gate_blocked: int = 0
+    pipeline_halted: int = 0
+    pipeline_cleared: int = 0
+
+
 # Rebuild models that use forward references
 AdminUserDetailResponse.model_rebuild()
 AdminUserListResponse.model_rebuild()

@@ -11,6 +11,8 @@ from app.services.stop_classifier import StopCategory
 # non-material structures the packet owns.
 
 PacketStatus = Literal["prepared", "blocked"]
+# The trust-chain gate outcome (R15 #184, D-097). Only ``passed`` is queue-eligible.
+PacketGateState = Literal["pending", "passed", "blocked"]
 # One authoritative category set: the exhaustive stop categories owned by the
 # server-side classifier (D-095, #182), plus ``missing_material`` for the non-stop
 # "no CV variant selected" question. The classifier's ``StopCategory`` is imported
@@ -97,7 +99,11 @@ class ApplicationPacketItem(BaseModel):
     listing_id: str | None
     cv_variant_id: str | None
     drafts_run_id: str | None
+    # The reviewer pass whose findings the packet surfaces by-reference (D-093).
+    review_run_id: str | None = None
     status: PacketStatus
+    # Trust-chain gate outcome (D-097). ``passed`` is the only queue-eligible state.
+    gate_state: PacketGateState = "pending"
     match_rationale: PacketMatchRationale
     unresolved_questions: list[UnresolvedQuestion]
     estimated_cost_usd: float = Field(ge=0)
@@ -132,7 +138,7 @@ class PacketPreparationResult(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     prepares: bool
-    reason: Literal["no_rules_defined", "ready"]
+    reason: Literal["no_rules_defined", "ready", "halted"]
     prepared_count: int = Field(ge=0)
     skipped_existing_count: int = Field(ge=0)
     excluded_by_volume_cap: int = Field(ge=0)

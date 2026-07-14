@@ -37,6 +37,7 @@ import { Route as AdminSourceHealthRouteImport } from './routes/admin/source-hea
 import { Route as AdminScorecardRouteImport } from './routes/admin/scorecard'
 import { Route as AdminRunsRouteImport } from './routes/admin/runs'
 import { Route as AdminProfileAdoptionRouteImport } from './routes/admin/profile-adoption'
+import { Route as AdminPacketGateRouteImport } from './routes/admin/packet-gate'
 import { Route as AdminDiscoverySourcesRouteImport } from './routes/admin/discovery-sources'
 import { Route as AdminDiscoveryReportsRouteImport } from './routes/admin/discovery-reports'
 import { Route as AdminActivationRouteImport } from './routes/admin/activation'
@@ -187,6 +188,11 @@ const AdminProfileAdoptionRoute = AdminProfileAdoptionRouteImport.update({
   path: '/profile-adoption',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminPacketGateRoute = AdminPacketGateRouteImport.update({
+  id: '/packet-gate',
+  path: '/packet-gate',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminDiscoverySourcesRoute = AdminDiscoverySourcesRouteImport.update({
   id: '/discovery-sources',
   path: '/discovery-sources',
@@ -261,6 +267,7 @@ export interface FileRoutesByFullPath {
   '/admin/activation': typeof AdminActivationRoute
   '/admin/discovery-reports': typeof AdminDiscoveryReportsRoute
   '/admin/discovery-sources': typeof AdminDiscoverySourcesRoute
+  '/admin/packet-gate': typeof AdminPacketGateRoute
   '/admin/profile-adoption': typeof AdminProfileAdoptionRoute
   '/admin/runs': typeof AdminRunsRoute
   '/admin/scorecard': typeof AdminScorecardRoute
@@ -299,6 +306,7 @@ export interface FileRoutesByTo {
   '/admin/activation': typeof AdminActivationRoute
   '/admin/discovery-reports': typeof AdminDiscoveryReportsRoute
   '/admin/discovery-sources': typeof AdminDiscoverySourcesRoute
+  '/admin/packet-gate': typeof AdminPacketGateRoute
   '/admin/profile-adoption': typeof AdminProfileAdoptionRoute
   '/admin/runs': typeof AdminRunsRoute
   '/admin/scorecard': typeof AdminScorecardRoute
@@ -339,6 +347,7 @@ export interface FileRoutesById {
   '/admin/activation': typeof AdminActivationRoute
   '/admin/discovery-reports': typeof AdminDiscoveryReportsRoute
   '/admin/discovery-sources': typeof AdminDiscoverySourcesRoute
+  '/admin/packet-gate': typeof AdminPacketGateRoute
   '/admin/profile-adoption': typeof AdminProfileAdoptionRoute
   '/admin/runs': typeof AdminRunsRoute
   '/admin/scorecard': typeof AdminScorecardRoute
@@ -380,6 +389,7 @@ export interface FileRouteTypes {
     | '/admin/activation'
     | '/admin/discovery-reports'
     | '/admin/discovery-sources'
+    | '/admin/packet-gate'
     | '/admin/profile-adoption'
     | '/admin/runs'
     | '/admin/scorecard'
@@ -418,6 +428,7 @@ export interface FileRouteTypes {
     | '/admin/activation'
     | '/admin/discovery-reports'
     | '/admin/discovery-sources'
+    | '/admin/packet-gate'
     | '/admin/profile-adoption'
     | '/admin/runs'
     | '/admin/scorecard'
@@ -457,6 +468,7 @@ export interface FileRouteTypes {
     | '/admin/activation'
     | '/admin/discovery-reports'
     | '/admin/discovery-sources'
+    | '/admin/packet-gate'
     | '/admin/profile-adoption'
     | '/admin/runs'
     | '/admin/scorecard'
@@ -701,6 +713,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminProfileAdoptionRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/packet-gate': {
+      id: '/admin/packet-gate'
+      path: '/packet-gate'
+      fullPath: '/admin/packet-gate'
+      preLoaderRoute: typeof AdminPacketGateRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/discovery-sources': {
       id: '/admin/discovery-sources'
       path: '/discovery-sources'
@@ -771,6 +790,7 @@ interface AdminRouteChildren {
   AdminActivationRoute: typeof AdminActivationRoute
   AdminDiscoveryReportsRoute: typeof AdminDiscoveryReportsRoute
   AdminDiscoverySourcesRoute: typeof AdminDiscoverySourcesRoute
+  AdminPacketGateRoute: typeof AdminPacketGateRoute
   AdminProfileAdoptionRoute: typeof AdminProfileAdoptionRoute
   AdminRunsRoute: typeof AdminRunsRoute
   AdminScorecardRoute: typeof AdminScorecardRoute
@@ -783,6 +803,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminActivationRoute: AdminActivationRoute,
   AdminDiscoveryReportsRoute: AdminDiscoveryReportsRoute,
   AdminDiscoverySourcesRoute: AdminDiscoverySourcesRoute,
+  AdminPacketGateRoute: AdminPacketGateRoute,
   AdminProfileAdoptionRoute: AdminProfileAdoptionRoute,
   AdminRunsRoute: AdminRunsRoute,
   AdminScorecardRoute: AdminScorecardRoute,
