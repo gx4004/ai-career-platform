@@ -28,6 +28,17 @@ PACKET_STATUSES = ("prepared", "blocked")
 # mandatory-stop questions blocking approval, D-095).
 PACKET_GATE_STATES = ("pending", "passed", "blocked")
 
+# The owner's review decision on the packet (R15 #183, the queue review surface).
+# ``pending`` is the initial, still-reviewable state; ``accepted`` is the guarded
+# transition (only permitted when the packet is approvable — every unresolved question
+# answered, D-095/ADR 0009); ``skipped`` and ``rejected`` are the two owner dismissals.
+# ``edit`` is NOT a decision — it reopens the packet's referenced materials under the
+# existing diff/confirmation rules (D-073) and returns the decision to ``pending``.
+# Distinct from ``status`` (preparedness) and ``gate_state`` (trust-chain outcome).
+# Accept here is a status transition + audit event only; freezing the immutable
+# approval snapshot and opening the submission destination is #185.
+PACKET_DECISIONS = ("pending", "accepted", "skipped", "rejected")
+
 
 class ApplicationPacket(Base):
     """A reference-only composition prepared for one candidate listing (R15 #181).
@@ -54,6 +65,10 @@ class ApplicationPacket(Base):
         CheckConstraint(
             "gate_state IN ('pending', 'passed', 'blocked')",
             name="ck_application_packet_gate_state",
+        ),
+        CheckConstraint(
+            "decision IN ('pending', 'accepted', 'skipped', 'rejected')",
+            name="ck_application_packet_decision",
         ),
     )
 
@@ -99,6 +114,11 @@ class ApplicationPacket(Base):
     # Trust-chain gate outcome (D-097). Only ``passed`` is queue-eligible; a packet
     # with an unresolved fabrication finding stays ``blocked`` and never queues.
     gate_state: Mapped[str] = mapped_column(String(16), nullable=False, default="pending")
+    # The owner's review decision (R15 #183). ``pending`` until the owner acts on the
+    # queue review surface; accept is guarded by the approval predicate (D-095).
+    decision: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="pending", server_default="pending"
+    )
     estimated_cost_usd: Mapped[float] = mapped_column(Numeric(10, 4), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)

@@ -8,6 +8,7 @@ from app.schemas.application_packets import (
     ApplicationPacketItem,
     ApplicationPacketList,
     PacketPreparationResult,
+    QueueReviewState,
     StopAnswerRequest,
     StopAnswerResult,
 )
@@ -17,7 +18,23 @@ from app.services.application_packets import (
     list_packets,
     prepare_packets,
 )
-from app.services.packet_approval import StopAnswerError, store_stop_answer
+from app.services.packet_approval import (
+    PacketNotApprovableError,
+    StopAnswerError,
+    store_stop_answer,
+)
+from app.services.queue_review import (
+    PacketNotFoundError as PacketDecisionNotFoundError,
+)
+from app.services.queue_review import (
+    accept_packet,
+    edit_packet,
+    pause_queue,
+    queue_review_state,
+    reject_packet,
+    resume_queue,
+    skip_packet,
+)
 
 router = APIRouter()
 
@@ -43,6 +60,41 @@ def get_packets(
 ):
     """The owner's prepared packets, each a set of references to existing entities."""
     return list_packets(db, current_user.id)
+
+
+# ── Global pause (R15 #183) ──
+# Declared before ``/{packet_id}`` so the static path wins the route match.
+
+
+@router.get("/queue-state", response_model=QueueReviewState)
+def get_queue_state(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """The queue's current preparation posture (paused / regression-halted).
+
+    The review surface reads this to reflect the pause toggle and to show that
+    preparation is halted while paused (ADR 0009).
+    """
+    return queue_review_state(db)
+
+
+@router.post("/pause", response_model=QueueReviewState)
+def pause(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Pause the whole queue: preparation refuses immediately (D-098 audit recorded)."""
+    return pause_queue(db, current_user.id)
+
+
+@router.post("/resume", response_model=QueueReviewState)
+def resume(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Resume the queue: clears the owner's pause (a regression halt still blocks)."""
+    return resume_queue(db, current_user.id)
 
 
 @router.get("/{packet_id}", response_model=ApplicationPacketItem)
@@ -76,3 +128,72 @@ def answer_stop_question(
         )
     except StopAnswerError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+# ── Per-packet review decisions (R15 #183) ──
+
+
+@router.post("/{packet_id}/accept", response_model=ApplicationPacketItem)
+def accept(
+    packet_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Accept a packet — refused (409) while any unresolved question remains (D-095).
+
+    Accept is a server-authoritative decision transition + audit event only; the
+    immutable approval snapshot and submission handoff are #185.
+    """
+    try:
+        return accept_packet(db, current_user.id, packet_id)
+    except PacketDecisionNotFoundError as error:
+        raise HTTPException(status_code=404, detail="Application packet not found") from error
+    except PacketNotApprovableError as error:
+        raise HTTPException(
+            status_code=409,
+            detail="Answer every unresolved question before accepting this packet.",
+        ) from error
+
+
+@router.post("/{packet_id}/skip", response_model=ApplicationPacketItem)
+def skip(
+    packet_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Skip a packet — an owner dismissal; records ``packet_skipped``."""
+    try:
+        return skip_packet(db, current_user.id, packet_id)
+    except PacketDecisionNotFoundError as error:
+        raise HTTPException(status_code=404, detail="Application packet not found") from error
+
+
+@router.post("/{packet_id}/reject", response_model=ApplicationPacketItem)
+def reject(
+    packet_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Reject a packet — an owner dismissal; records ``packet_rejected``."""
+    try:
+        return reject_packet(db, current_user.id, packet_id)
+    except PacketDecisionNotFoundError as error:
+        raise HTTPException(status_code=404, detail="Application packet not found") from error
+
+
+@router.post("/{packet_id}/edit", response_model=ApplicationPacketItem)
+def edit(
+    packet_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Reopen a packet's materials under the existing diff/confirmation rules (D-073).
+
+    Returns the packet to ``pending`` and records ``packet_edited``. No material
+    content is copied or mutated — the owner edits the referenced CV variant / drafts
+    through their existing guarded flows.
+    """
+    try:
+        return edit_packet(db, current_user.id, packet_id)
+    except PacketDecisionNotFoundError as error:
+        raise HTTPException(status_code=404, detail="Application packet not found") from error

@@ -49,6 +49,16 @@ export function getRouteMeta(pathname: string): RouteMeta {
     }
   }
 
+  if (pathname === '/queue') {
+    return {
+      title: 'Application Queue',
+      description: 'Review each prepared packet, then accept, edit, skip, or reject it — or pause all preparation.',
+      sectionLabel: 'Opportunities',
+      breadcrumbs: ['Dashboard', 'Application Queue'],
+      topbarVariant: 'compact',
+    }
+  }
+
   if (pathname === '/account') {
     return {
       title: 'Account',
