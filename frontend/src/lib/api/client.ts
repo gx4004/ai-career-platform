@@ -3,7 +3,6 @@ import { ApiError } from '#/lib/api/errors'
 import {
   applicationPacketItemSchema,
   applicationPacketListSchema,
-  packetApprovalResultSchema,
   queueReviewStateSchema,
   stopAnswerRequestSchema,
   stopAnswerResultSchema,
@@ -738,12 +737,10 @@ export function resumeQueue() {
 }
 
 export function acceptPacket(packetId: string) {
-  // Accepting is approving (R15 #185): freezes an immutable snapshot and returns the
-  // submission handoff. The product never submits — the caller opens destination_url.
   return request(`/packets/${packetId}/accept`, {
     method: 'POST',
     body: {},
-    schema: packetApprovalResultSchema,
+    schema: applicationPacketItemSchema,
   })
 }
 

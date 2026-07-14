@@ -5,7 +5,6 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.schemas.application_packets import (
     ApplicationPacketsExport,
-    PacketApprovalSnapshotsExport,
     PacketStopAnswersExport,
 )
 from app.schemas.cv_documents import CvDocumentsExport
@@ -31,7 +30,6 @@ class CareerDataExport(BaseModel):
     queue_rules: QueueRulesExport
     application_packets: ApplicationPacketsExport
     packet_stop_answers: PacketStopAnswersExport
-    packet_approval_snapshots: PacketApprovalSnapshotsExport
     queue_audit: QueueAuditExport
 
     @model_validator(mode="after")

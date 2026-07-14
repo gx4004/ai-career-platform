@@ -7,7 +7,6 @@ from app.models.user import User
 from app.schemas.application_packets import (
     ApplicationPacketItem,
     ApplicationPacketList,
-    PacketApprovalResult,
     PacketPreparationResult,
     QueueReviewState,
     StopAnswerRequest,
@@ -24,14 +23,11 @@ from app.services.packet_approval import (
     StopAnswerError,
     store_stop_answer,
 )
-from app.services.packet_approval_snapshot import (
-    DuplicatePacketApprovalError,
-    approve_packet,
-)
 from app.services.queue_review import (
     PacketNotFoundError as PacketDecisionNotFoundError,
 )
 from app.services.queue_review import (
+    accept_packet,
     edit_packet,
     pause_queue,
     queue_review_state,
@@ -137,22 +133,19 @@ def answer_stop_question(
 # ── Per-packet review decisions (R15 #183) ──
 
 
-@router.post("/{packet_id}/accept", response_model=PacketApprovalResult)
+@router.post("/{packet_id}/accept", response_model=ApplicationPacketItem)
 def accept(
     packet_id: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Approve a packet: freeze an immutable snapshot and hand off submission (#185).
+    """Accept a packet — refused (409) while any unresolved question remains (D-095).
 
-    Accepting is approving. The transition stays guarded (409 while any unresolved
-    question remains, D-095), then approval freezes a by-value snapshot (D-096), links
-    a campaign-timeline event, and refuses duplicates (409, D-098). The response
-    surfaces the official destination the owner opens themselves — the product never
-    submits (ADR 0009).
+    Accept is a server-authoritative decision transition + audit event only; the
+    immutable approval snapshot and submission handoff are #185.
     """
     try:
-        return approve_packet(db, current_user.id, packet_id)
+        return accept_packet(db, current_user.id, packet_id)
     except PacketDecisionNotFoundError as error:
         raise HTTPException(status_code=404, detail="Application packet not found") from error
     except PacketNotApprovableError as error:
@@ -160,8 +153,6 @@ def accept(
             status_code=409,
             detail="Answer every unresolved question before accepting this packet.",
         ) from error
-    except DuplicatePacketApprovalError as error:
-        raise HTTPException(status_code=409, detail=error.message) from error
 
 
 @router.post("/{packet_id}/skip", response_model=ApplicationPacketItem)
