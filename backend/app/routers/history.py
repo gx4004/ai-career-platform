@@ -42,7 +42,11 @@ from app.services.campaign_materials import (
     update_material_selections,
 )
 from app.services.campaign_reminders import claim_due_reminders, set_reminder_consent
-from app.services.campaign_reviewer import project_campaign_materials, review_campaign_materials
+from app.services.campaign_reviewer import (
+    project_campaign_materials,
+    project_cv_document_text,
+    review_campaign_materials,
+)
 from app.services.campaign_snapshots import capture_submission_snapshot
 from app.services.campaign_tracking import add_contact, add_note, add_task, record_event
 from app.services.input_sanitizer import sanitize_user_input
@@ -208,6 +212,7 @@ async def review_campaign(
     if workspace.listing is None:
         raise HTTPException(status_code=409, detail="Attach a canonical listing before review")
     cv_text, cover_text = project_campaign_materials(workspace)
+    cv_document_text = project_cv_document_text(workspace)
     clean_cover = sanitize_user_input(cover_text)
     response = await run_tool_pipeline(
         tool_name="application-reviewer",
@@ -216,6 +221,7 @@ async def review_campaign(
             "resume_text": cv_text,
             "job_description": workspace.listing.description,
             "cover_text": clean_cover,
+            "cv_document_text": cv_document_text,
         },
         label_fn=lambda result: f"Application review ({len(result['findings'])} findings)",
         resume_text=cv_text,
@@ -224,8 +230,9 @@ async def review_campaign(
         current_user=current_user,
         db=db,
         cache_extra_keys={
-            "reviewer_version": "v1",
+            "reviewer_version": "v2",
             "cover_sha256": hashlib.sha256(clean_cover.encode()).hexdigest(),
+            "cv_document_sha256": hashlib.sha256(cv_document_text.encode()).hexdigest(),
         },
         require_evidence_profile=True,
     )
