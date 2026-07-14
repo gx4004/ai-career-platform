@@ -224,7 +224,11 @@ def test_no_submission_endpoint_exists():
         assert "submit" not in name.lower(), f"unexpected submission route: {name}"
 
     # The packet router exposes accept/skip/reject/edit — but nothing that submits.
-    packet_paths = [r.path for r in app.routes if "/packets" in getattr(r, "path", "")]
+    # Read routes from the router module itself, not the shared `app` singleton, so
+    # this is deterministic regardless of test collection order / import effects.
+    from app.routers import packets
+
+    packet_paths = [getattr(r, "path", "") for r in packets.router.routes]
     assert any(p.endswith("/accept") for p in packet_paths)
     assert not any("submit" in p for p in packet_paths)
 
