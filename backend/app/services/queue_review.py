@@ -29,7 +29,9 @@ from app.models.application_packet import ApplicationPacket
 from app.schemas.application_packets import ApplicationPacketItem, QueueReviewState
 from app.services.packet_approval import (
     PacketNotApprovableError,
+    answered_fields_for_packet,
     assert_packet_approvable,
+    packet_item_with_true_unresolved,
 )
 from app.services.packet_gate import (
     is_preparation_halted,
@@ -42,6 +44,7 @@ from app.services.queue_audit import record_queue_audit_event
 __all__ = [
     "PacketNotApprovableError",
     "PacketNotFoundError",
+    "PacketDecisionLockedError",
     "accept_packet",
     "edit_packet",
     "skip_packet",
@@ -56,6 +59,19 @@ class PacketNotFoundError(Exception):
     """The referenced packet does not exist for this owner."""
 
 
+class PacketDecisionLockedError(Exception):
+    """Raised when skip/reject/edit targets a packet already ``accepted``.
+
+    An acceptance is the owner's considered decision to proceed with a packet; once
+    recorded, only a fresh decision path (not yet built — #185 was reverted) may
+    change it, never an ordinary dismissal/reopen action.
+    """
+
+    def __init__(self, packet_id: str) -> None:
+        self.packet_id = packet_id
+        super().__init__(f"Packet {packet_id} was already accepted")
+
+
 def _load_owned_packet(db: Session, user_id: str, packet_id: str) -> ApplicationPacket:
     packet = (
         db.query(ApplicationPacket)
@@ -65,6 +81,11 @@ def _load_owned_packet(db: Session, user_id: str, packet_id: str) -> Application
     if packet is None:
         raise PacketNotFoundError(packet_id)
     return packet
+
+
+def _require_unaccepted(packet: ApplicationPacket) -> None:
+    if packet.decision == "accepted":
+        raise PacketDecisionLockedError(packet.id)
 
 
 def _set_decision(
@@ -90,7 +111,8 @@ def _set_decision(
         packet_id=packet.id,
         details={"decision": decision, **(details or {})},
     )
-    return ApplicationPacketItem.model_validate(packet)
+    answered = answered_fields_for_packet(db, packet.user_id, packet.id)
+    return packet_item_with_true_unresolved(packet, answered)
 
 
 def accept_packet(db: Session, user_id: str, packet_id: str) -> ApplicationPacketItem:
@@ -108,14 +130,24 @@ def accept_packet(db: Session, user_id: str, packet_id: str) -> ApplicationPacke
 
 
 def skip_packet(db: Session, user_id: str, packet_id: str) -> ApplicationPacketItem:
-    """Skip a packet — an always-allowed owner dismissal; records ``packet_skipped``."""
+    """Skip a packet — an always-allowed owner dismissal; records ``packet_skipped``.
+
+    Refused (409) once the packet is already ``accepted`` (D-095 companion rule):
+    an accepted decision is the owner's considered call and is never silently
+    overwritten by a later dismissal.
+    """
     packet = _load_owned_packet(db, user_id, packet_id)
+    _require_unaccepted(packet)
     return _set_decision(db, packet, decision="skipped", action="packet_skipped")
 
 
 def reject_packet(db: Session, user_id: str, packet_id: str) -> ApplicationPacketItem:
-    """Reject a packet — an always-allowed owner dismissal; records ``packet_rejected``."""
+    """Reject a packet — an always-allowed owner dismissal; records ``packet_rejected``.
+
+    Refused (409) once the packet is already ``accepted``; see :func:`skip_packet`.
+    """
     packet = _load_owned_packet(db, user_id, packet_id)
+    _require_unaccepted(packet)
     return _set_decision(db, packet, decision="rejected", action="packet_rejected")
 
 
@@ -126,9 +158,11 @@ def edit_packet(db: Session, user_id: str, packet_id: str) -> ApplicationPacketI
     references its materials (CV variant, drafts run); this action never copies or
     mutates their content — the owner edits them through their existing D-073-guarded
     flows (CV Studio tailoring / draft regeneration), which is exactly why editing
-    "reopens materials under the existing diff/confirmation rules".
+    "reopens materials under the existing diff/confirmation rules". Refused (409)
+    once the packet is already ``accepted``; see :func:`skip_packet`.
     """
     packet = _load_owned_packet(db, user_id, packet_id)
+    _require_unaccepted(packet)
     return _set_decision(
         db, packet, decision="pending", action="packet_edited", details={"reopened": True}
     )

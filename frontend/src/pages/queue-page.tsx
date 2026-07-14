@@ -166,6 +166,7 @@ export function QueuePage() {
             const outstanding = outstandingFor(packet)
             const blocked = outstanding.length > 0
             const isPending = packet.decision === 'pending'
+            const accepted = packet.decision === 'accepted'
             const acting = decisionMutation.isPending && decisionMutation.variables?.id === packet.id
             return (
               <li key={packet.id}>
@@ -303,7 +304,8 @@ export function QueuePage() {
                     <button
                       type="button"
                       className="queue-btn queue-btn--edit"
-                      disabled={acting}
+                      disabled={acting || accepted}
+                      title={accepted ? 'This packet has already been accepted' : undefined}
                       onClick={() => decisionMutation.mutate({ id: packet.id, action: 'edit' })}
                     >
                       <Pencil size={16} aria-hidden="true" /> Edit
@@ -311,7 +313,8 @@ export function QueuePage() {
                     <button
                       type="button"
                       className="queue-btn queue-btn--skip"
-                      disabled={acting}
+                      disabled={acting || accepted}
+                      title={accepted ? 'This packet has already been accepted' : undefined}
                       onClick={() => decisionMutation.mutate({ id: packet.id, action: 'skip' })}
                     >
                       <SkipForward size={16} aria-hidden="true" /> Skip
@@ -319,7 +322,8 @@ export function QueuePage() {
                     <button
                       type="button"
                       className="queue-btn queue-btn--reject"
-                      disabled={acting}
+                      disabled={acting || accepted}
+                      title={accepted ? 'This packet has already been accepted' : undefined}
                       onClick={() => decisionMutation.mutate({ id: packet.id, action: 'reject' })}
                     >
                       <X size={16} aria-hidden="true" /> Reject

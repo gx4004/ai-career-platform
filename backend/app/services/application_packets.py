@@ -42,6 +42,11 @@ from app.services.campaign_reviewer import review_campaign_materials
 from app.services.discovery_adoption import adopt_recommendation
 from app.services.evidence_injection import EvidencePayload, render_evidence_section
 from app.services.input_sanitizer import sanitize_user_input
+from app.services.packet_approval import (
+    answered_fields_by_packet,
+    answered_fields_for_packet,
+    packet_item_with_true_unresolved,
+)
 from app.services.packet_gate import (
     emit_gate_outcome,
     emit_gate_running,
@@ -428,8 +433,11 @@ async def prepare_packets(
     Server-authoritative: candidate selection, the volume cap, and the cost
     ceiling are all enforced by :func:`select_admitted_candidates`, so preparation
     never exceeds the user's mandate (D-094). Re-preparing a listing that already
-    has a packet is a no-op (idempotent), so no duplicate campaign or drafts are
-    created.
+    has a packet is a no-op — no duplicate campaign, drafts, or packet row — with
+    one exception: a packet still ``pending`` and blocked only on ``missing_material``
+    (no CV variant existed at prep time) is re-composed in place once a CV variant
+    becomes available, matching the recovery path documented in
+    :mod:`app.services.packet_approval`.
     """
     # Local import breaks the tool_runs <-> tool_pipeline import cycle.
     from app.services.tool_pipeline import run_tool_pipeline
@@ -462,14 +470,34 @@ async def prepare_packets(
             )
             .one_or_none()
         )
-        if existing is not None:
+
+        # A packet blocked only on missing_material (no CV variant at the time it
+        # was prepared) and still undecided is re-composed once a CV becomes
+        # available, in place — this is the "clears only by re-preparing with a
+        # CV" recovery path `packet_approval` documents. Anything else with an
+        # existing row (already has a CV, or the owner already decided it) is a
+        # true no-op re-preparation.
+        redo_existing = (
+            existing is not None
+            and existing.cv_variant_id is None
+            and existing.decision == "pending"
+        )
+        if existing is not None and not redo_existing:
             skipped_existing += 1
             continue
 
-        # A recommendation becomes a campaign only through the adoption seam
-        # (D-091, ADR 0009) — this is an explicit user-initiated preparation run.
-        campaign = adopt_recommendation(db, user_id, rec.listing_id, now=now)
-        cv_variant = _resolve_cv_variant(db, user_id, campaign.id)
+        if redo_existing:
+            campaign_id = existing.campaign_id
+            cv_variant = _resolve_cv_variant(db, user_id, campaign_id)
+            if cv_variant is None:
+                skipped_existing += 1
+                continue
+        else:
+            # A recommendation becomes a campaign only through the adoption seam
+            # (D-091, ADR 0009) — this is an explicit user-initiated preparation run.
+            campaign_id = adopt_recommendation(db, user_id, rec.listing_id, now=now).id
+            cv_variant = _resolve_cv_variant(db, user_id, campaign_id)
+
         cv_text = _cv_variant_text(cv_variant)
 
         response = await run_tool_pipeline(
@@ -486,7 +514,7 @@ async def prepare_packets(
             ),
             resume_text=cv_text,
             job_description=rec.description,
-            workspace_id=campaign.id,
+            workspace_id=campaign_id,
             current_user=user,
             db=db,
             require_evidence_profile=True,
@@ -500,7 +528,7 @@ async def prepare_packets(
         review_run_id, gate_state = await _run_reviewer_gate(
             db,
             user,
-            campaign_id=campaign.id,
+            campaign_id=campaign_id,
             cv_text=cv_text,
             listing_description=rec.description,
             drafts_response=response,
@@ -516,20 +544,34 @@ async def prepare_packets(
         )
         generated_questions = response.get("unresolved_questions") or []
         unresolved = merge_unresolved_questions(listing_questions, generated_questions)
-        packet = ApplicationPacket(
-            user_id=user_id,
-            campaign_id=campaign.id,
-            listing_id=rec.listing_id,
-            cv_variant_id=cv_variant.id if cv_variant else None,
-            drafts_run_id=drafts_run_id,
-            review_run_id=review_run_id,
-            match_rationale=rationale,
-            unresolved_questions=unresolved,
-            status="blocked" if unresolved else "prepared",
-            gate_state=gate_state,
-            estimated_cost_usd=selection.packet_cost,
-        )
-        db.add(packet)
+
+        if redo_existing:
+            packet = existing
+            packet.cv_variant_id = cv_variant.id if cv_variant else None
+            packet.drafts_run_id = drafts_run_id
+            packet.review_run_id = review_run_id
+            packet.match_rationale = rationale
+            packet.unresolved_questions = unresolved
+            packet.status = "blocked" if unresolved else "prepared"
+            packet.gate_state = gate_state
+            packet.estimated_cost_usd = selection.packet_cost
+            prepared_action = "packet_reprepared"
+        else:
+            packet = ApplicationPacket(
+                user_id=user_id,
+                campaign_id=campaign_id,
+                listing_id=rec.listing_id,
+                cv_variant_id=cv_variant.id if cv_variant else None,
+                drafts_run_id=drafts_run_id,
+                review_run_id=review_run_id,
+                match_rationale=rationale,
+                unresolved_questions=unresolved,
+                status="blocked" if unresolved else "prepared",
+                gate_state=gate_state,
+                estimated_cost_usd=selection.packet_cost,
+            )
+            db.add(packet)
+            prepared_action = "packet_prepared"
         db.commit()
         db.refresh(packet)
         # Append-only audit of the queue action + its gate outcome (D-098, R15
@@ -538,7 +580,7 @@ async def prepare_packets(
         record_queue_audit_event(
             db,
             user_id=user_id,
-            action="packet_prepared",
+            action=prepared_action,
             packet_id=packet.id,
             details={"status": packet.status},
         )
@@ -562,7 +604,10 @@ async def prepare_packets(
         cost_ceiling_usd=round(float(selection.cost_ceiling_usd), 4),
         estimated_packet_cost_usd=round(float(selection.packet_cost), 4),
         estimated_total_cost_usd=round(float(selection.packet_cost) * len(prepared), 4),
-        packets=[_packet_item(packet) for packet in prepared],
+        packets=[
+            _packet_item(packet, answered_fields_for_packet(db, user_id, packet.id))
+            for packet in prepared
+        ],
     )
 
 
@@ -602,8 +647,13 @@ def _empty_result(selection) -> PacketPreparationResult:
 # ── Owner-facing reads ──
 
 
-def _packet_item(packet: ApplicationPacket) -> ApplicationPacketItem:
-    return ApplicationPacketItem.model_validate(packet)
+def _packet_item(packet: ApplicationPacket, answered_fields: set[str] | None = None) -> ApplicationPacketItem:
+    """Serialize a packet with its true outstanding questions (see packet_approval).
+
+    ``answered_fields`` defaults to empty — correct for a packet just created this
+    call, which by definition has no stop answers recorded against it yet.
+    """
+    return packet_item_with_true_unresolved(packet, answered_fields or set())
 
 
 def list_packets(db: Session, user_id: str) -> ApplicationPacketList:
@@ -613,7 +663,10 @@ def list_packets(db: Session, user_id: str) -> ApplicationPacketList:
         .order_by(ApplicationPacket.created_at.desc(), ApplicationPacket.id)
         .all()
     )
-    return ApplicationPacketList(items=[_packet_item(row) for row in rows])
+    answered_by_packet = answered_fields_by_packet(db, user_id)
+    return ApplicationPacketList(
+        items=[_packet_item(row, answered_by_packet.get(row.id)) for row in rows]
+    )
 
 
 class PacketNotFoundError(Exception):
@@ -628,7 +681,8 @@ def get_packet(db: Session, user_id: str, packet_id: str) -> ApplicationPacketIt
     )
     if row is None:
         raise PacketNotFoundError(packet_id)
-    return _packet_item(row)
+    answered = answered_fields_for_packet(db, user_id, packet_id)
+    return _packet_item(row, answered)
 
 
 # ── Export + deletion cascade (D-099) ──

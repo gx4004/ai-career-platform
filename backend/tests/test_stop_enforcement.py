@@ -20,6 +20,7 @@ from app.schemas.discovery_recommendations import (
 from app.services.analytics import record_activation_event
 from app.services.application_packets import (
     compose_packet_materials,
+    get_packet,
     list_packets,
     prepare_packets,
 )
@@ -231,6 +232,38 @@ async def test_approval_rejected_while_unresolved_then_unlocked(db, test_user, m
 
 
 @pytest.mark.asyncio
+async def test_resolved_stop_answer_does_not_reappear_on_reread(db, test_user, monkeypatch):
+    """A resolved stop question must not reappear as outstanding on a later read.
+
+    ``ApplicationPacket.unresolved_questions`` is computed once at preparation time
+    and never rewritten as answers come in — the answer lives in a separate table.
+    ``list_packets``/``get_packet`` (what a page reload or remount re-fetches from)
+    must join against stored answers rather than serializing that raw column, or a
+    resolved packet looks blocked again after every refresh.
+    """
+    desc = "Visa sponsorship available for this engineer role."
+    _add_listing(db, "l-reread", description=desc)
+    _add_cv_variant(db, test_user.id)
+    _patch_rank(monkeypatch, [_rec("l-reread", description=desc)])
+    _add_rule(db, test_user.id, "role", keywords=["engineer"])
+    await prepare_packets(db, test_user.id, compose_fn=_stub_compose)
+    packet = db.query(ApplicationPacket).one()
+
+    store_stop_answer(
+        db, test_user.id, packet.id, field="work_authorization", answer="EU passport."
+    )
+
+    # The raw column is untouched (this is expected — it's not the source of truth)...
+    assert any(q["field"] == "work_authorization" for q in packet.unresolved_questions)
+    # ...but every owner-facing read must reflect the true, resolved state.
+    fetched = get_packet(db, test_user.id, packet.id)
+    assert fetched.unresolved_questions == []
+    listed = list_packets(db, test_user.id).items
+    assert len(listed) == 1
+    assert listed[0].unresolved_questions == []
+
+
+@pytest.mark.asyncio
 async def test_missing_material_question_is_not_answerable_and_blocks(db, test_user, monkeypatch):
     _add_listing(db, "l-nocv")
     _patch_rank(monkeypatch, [_rec("l-nocv")])
@@ -242,6 +275,37 @@ async def test_missing_material_question_is_not_answerable_and_blocks(db, test_u
     with pytest.raises(StopAnswerError):
         store_stop_answer(db, test_user.id, packet.id, field="cv_variant", answer="whatever")
     assert is_packet_approvable(db, test_user.id, packet.id) is False
+
+
+@pytest.mark.asyncio
+async def test_missing_material_clears_by_re_preparing_with_a_cv(db, test_user, monkeypatch):
+    """The documented recovery path: adding a CV and re-preparing clears the block.
+
+    Before a CV exists, preparation creates a permanently-referenced packet row
+    blocked on ``missing_material`` — there is no other way to resolve that
+    question. Re-running ``prepare_packets`` after the owner adds a CV variant
+    must update that same packet in place rather than leaving it stuck forever.
+    """
+    _add_listing(db, "l-nocv-then-cv")
+    _patch_rank(monkeypatch, [_rec("l-nocv-then-cv")])
+    _add_rule(db, test_user.id, "role", keywords=["engineer"])
+    await prepare_packets(db, test_user.id, compose_fn=_stub_compose)
+    packet = db.query(ApplicationPacket).one()
+    original_id = packet.id
+    assert packet.cv_variant_id is None
+    assert packet.status == "blocked"
+    assert any(q["category"] == "missing_material" for q in packet.unresolved_questions)
+
+    _add_cv_variant(db, test_user.id)
+    result = await prepare_packets(db, test_user.id, compose_fn=_stub_compose)
+
+    assert result.prepared_count == 1
+    assert db.query(ApplicationPacket).count() == 1  # updated in place, not duplicated
+    db.refresh(packet)
+    assert packet.id == original_id
+    assert packet.cv_variant_id is not None
+    assert packet.status == "prepared"
+    assert not any(q["category"] == "missing_material" for q in packet.unresolved_questions)
 
 
 # ── Stop-answer storage: owner-scoped ──
