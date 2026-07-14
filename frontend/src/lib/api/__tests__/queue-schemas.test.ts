@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  queueAuditExportSchema,
   queuePreviewSchema,
   queueRuleItemSchema,
   queueRuleListSchema,
@@ -136,5 +137,30 @@ describe('queue preview + export contracts', () => {
       queueRulesExportSchema.parse({ rules: [ruleItem], settings }).settings?.max_packets_per_run,
     ).toBe(10)
     expect(queueRulesExportSchema.parse({ rules: [], settings: null }).settings).toBeNull()
+  })
+})
+
+describe('queue audit export contracts (R15 #186)', () => {
+  const auditEvent = {
+    id: 'evt-1',
+    action: 'rule_upserted',
+    packet_id: null,
+    details: { rule_type: 'role' },
+    created_at: '2026-07-14T00:00:00Z',
+  }
+
+  it('mirrors the append-only audit history export', () => {
+    const parsed = queueAuditExportSchema.parse({ events: [auditEvent] })
+    expect(parsed.events[0].action).toBe('rule_upserted')
+    expect(parsed.events[0].packet_id).toBeNull()
+  })
+
+  it('rejects an action outside the closed set and unknown fields', () => {
+    expect(
+      queueAuditExportSchema.safeParse({ events: [{ ...auditEvent, action: 'bogus' }] }).success,
+    ).toBe(false)
+    expect(
+      queueAuditExportSchema.safeParse({ events: [{ ...auditEvent, unexpected: true }] }).success,
+    ).toBe(false)
   })
 })
