@@ -18,16 +18,20 @@ GENERIC_PHRASES = (
 REQUIREMENT_STOPWORDS = {"seeking", "expertise", "experience", "required", "preferred"}
 
 
-def project_campaign_materials(campaign) -> tuple[str, str]:
-    """Project exactly the visible CV and submitted cover-letter document."""
-    sections = campaign.selected_cv_variant.sections if campaign.selected_cv_variant else []
-    cv = "\n".join(
+def _flatten_sections(sections: list[dict]) -> str:
+    return "\n".join(
         entry["body"]
         for section in sorted(sections, key=lambda item: item.get("position", 0))
         if section.get("visible", True)
         for entry in sorted(section.get("entries", []), key=lambda item: item.get("position", 0))
         if isinstance(entry.get("body"), str)
     )
+
+
+def project_campaign_materials(campaign) -> tuple[str, str]:
+    """Project exactly the visible CV and submitted cover-letter document."""
+    sections = campaign.selected_cv_variant.sections if campaign.selected_cv_variant else []
+    cv = _flatten_sections(sections)
     payload = (
         campaign.selected_cover_letter_run.result_payload
         if campaign.selected_cover_letter_run
@@ -35,6 +39,19 @@ def project_campaign_materials(campaign) -> tuple[str, str]:
     )
     cover = _cover_document_text(payload)
     return cv, cover
+
+
+def project_cv_document_text(campaign) -> str:
+    """The selected variant's parent CvDocument, flattened (D-073 grounding source).
+
+    This is the user's own self-authored/edited structured CV (R12 #153/#155) —
+    never LLM-tailored, unlike the variant itself, which #157's tailoring flow may
+    have rewritten. It is a legitimate fabrication-check grounding source for CV
+    content the user already had before any tailoring; see :func:`_unsupported`.
+    """
+    variant = campaign.selected_cv_variant
+    document = variant.document if variant is not None else None
+    return _flatten_sections(document.sections if document is not None else [])
 
 
 def _cover_document_text(payload: dict) -> str:
@@ -62,6 +79,7 @@ async def review_campaign_materials(
     job_description: str,
     cover_text: str,
     evidence_profile: EvidencePayload | None = None,
+    cv_document_text: str = "",
 ) -> dict:
     confirmed_sources = {
         f"confirmed_evidence:{item['evidence_item_id']}": json.dumps(
@@ -70,7 +88,7 @@ async def review_campaign_materials(
         for item in (evidence_profile.locked_facts if evidence_profile else [])
     }
     findings: list[dict] = []
-    findings.extend(_unsupported(resume_text, cover_text, confirmed_sources))
+    findings.extend(_unsupported(resume_text, cover_text, confirmed_sources, cv_document_text))
     findings.extend(_missed_requirements(job_description, resume_text, cover_text))
     findings.extend(_contradictions(resume_text, cover_text))
     findings.extend(_generic_and_repeated(resume_text, cover_text))
@@ -122,11 +140,27 @@ def _finding(
     }
 
 
-def _unsupported(cv: str, cover: str, confirmed_sources: dict[str, str]) -> list[dict]:
+def _unsupported(
+    cv: str,
+    cover: str,
+    confirmed_sources: dict[str, str],
+    cv_document_text: str = "",
+) -> list[dict]:
+    """Flag CV/cover-letter claims traceable to neither confirmed evidence nor
+    source material.
+
+    "Source material" for the CV location is its own pre-tailoring document
+    (D-073: content the user already had is legitimate grounding, not
+    fabrication) — without it, every proper noun and figure in a truthful CV
+    would be flagged the moment the owner has no confirmed Evidence Profile
+    items, which is the common case. The cover letter additionally grounds
+    against the selected CV, since a cover letter may legitimately restate CV
+    content.
+    """
     findings = []
     for location, output, extra_sources in (
-        ("CV", cv, {}),
-        ("Cover letter", cover, {"selected_cv": cv}),
+        ("CV", cv, {"cv_document": cv_document_text}),
+        ("Cover letter", cover, {"selected_cv": cv, "cv_document": cv_document_text}),
     ):
         sources = {**confirmed_sources, **extra_sources}
         for claim in extract_claims(output):

@@ -75,17 +75,12 @@ PACKET_SCHEMA_VERSION = "application-packet/v1"
 # ── CV text projection (read-only; never copied into the packet) ──
 
 
-def _cv_variant_text(variant: CvVariant | None) -> str:
-    """Flatten a CV variant's visible sections into plain text for generation.
-
-    This text is handed to the shared pipeline as input only; it is never stored
-    on the packet, which references the variant by id (D-093).
-    """
-    if variant is None or not isinstance(variant.sections, list):
+def _flatten_cv_sections(sections: object) -> str:
+    if not isinstance(sections, list):
         return ""
     lines: list[str] = []
     for section in sorted(
-        (s for s in variant.sections if isinstance(s, dict)),
+        (s for s in sections if isinstance(s, dict)),
         key=lambda s: s.get("position", 0),
     ):
         if section.get("visible", True) is False:
@@ -101,6 +96,28 @@ def _cv_variant_text(variant: CvVariant | None) -> str:
             elif isinstance(entry, str) and entry.strip():
                 lines.append(entry.strip())
     return "\n".join(lines)
+
+
+def _cv_variant_text(variant: CvVariant | None) -> str:
+    """Flatten a CV variant's visible sections into plain text for generation.
+
+    This text is handed to the shared pipeline as input only; it is never stored
+    on the packet, which references the variant by id (D-093).
+    """
+    return _flatten_cv_sections(variant.sections) if variant is not None else ""
+
+
+def _cv_document_text(variant: CvVariant | None) -> str:
+    """The variant's parent CvDocument, flattened (D-073 fabrication-check grounding).
+
+    The user's own self-authored/edited structured CV (R12 #153/#155) — never
+    LLM-tailored, unlike the variant itself. Passed to the reviewer gate as a
+    legitimate source for CV content the user already had before any tailoring;
+    see :func:`app.services.campaign_reviewer._unsupported`.
+    """
+    if variant is None or variant.document is None:
+        return ""
+    return _flatten_cv_sections(variant.document.sections)
 
 
 def _resolve_cv_variant(db: Session, user_id: str, campaign_id: str) -> CvVariant | None:
@@ -378,6 +395,7 @@ async def _run_reviewer_gate(
     *,
     campaign_id: str,
     cv_text: str,
+    cv_document_text: str,
     listing_description: str,
     drafts_response: dict[str, Any],
 ) -> tuple[str | None, str]:
@@ -399,6 +417,7 @@ async def _run_reviewer_gate(
             "resume_text": cv_text,
             "job_description": listing_description,
             "cover_text": clean_cover,
+            "cv_document_text": cv_document_text,
         },
         label_fn=lambda result: f"Packet gate review ({len(result['findings'])} findings)",
         resume_text=cv_text,
@@ -407,8 +426,9 @@ async def _run_reviewer_gate(
         current_user=user,
         db=db,
         cache_extra_keys={
-            "reviewer_version": "v1",
+            "reviewer_version": "v2",
             "cover_sha256": hashlib.sha256(clean_cover.encode()).hexdigest(),
+            "cv_document_sha256": hashlib.sha256(cv_document_text.encode()).hexdigest(),
         },
         require_evidence_profile=True,
     )
@@ -499,6 +519,7 @@ async def prepare_packets(
             cv_variant = _resolve_cv_variant(db, user_id, campaign_id)
 
         cv_text = _cv_variant_text(cv_variant)
+        cv_document_text = _cv_document_text(cv_variant)
 
         response = await run_tool_pipeline(
             tool_name=PACKET_TOOL_NAME,
@@ -530,6 +551,7 @@ async def prepare_packets(
             user,
             campaign_id=campaign_id,
             cv_text=cv_text,
+            cv_document_text=cv_document_text,
             listing_description=rec.description,
             drafts_response=response,
         )

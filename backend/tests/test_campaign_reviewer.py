@@ -57,6 +57,46 @@ def test_reviewer_near_miss_fixture_avoids_false_findings():
     assert result["findings"] == []
 
 
+def test_reviewer_grounds_cv_claims_in_original_document_without_evidence_profile():
+    """A truthful CV must not be flagged as fabrication just because its owner has
+    no confirmed Evidence Profile items — the common case for most users. D-073
+    accepts content already in the user's document as legitimate grounding, not
+    only confirmed evidence; without this, every real company/technology/metric
+    in a normal CV would be a "high severity" fabrication finding.
+    """
+    cv = "Led backend migration at Nimbus Freight using AWS and Kubernetes, cutting latency 35%."
+    result = asyncio.run(
+        review_campaign_materials(
+            resume_text=cv,
+            cover_text="",
+            job_description="We need a backend engineer.",
+            evidence_profile=None,
+            cv_document_text=cv,
+        )
+    )
+    assert not any(f["category"] == "unsupported_claim" for f in result["findings"])
+
+
+def test_reviewer_still_flags_cv_content_new_to_both_evidence_and_document():
+    """Content that is genuinely new — absent from the original document and from
+    confirmed evidence — must still be caught. The grounding fallback must not
+    turn the fabrication check into a no-op.
+    """
+    original_document = "Backend engineer with production experience."
+    tailored_cv = "Backend engineer who led systems work at Nimbus Freight."
+    result = asyncio.run(
+        review_campaign_materials(
+            resume_text=tailored_cv,
+            cover_text="",
+            job_description="We need a backend engineer.",
+            evidence_profile=None,
+            cv_document_text=original_document,
+        )
+    )
+    unsupported = [f for f in result["findings"] if f["category"] == "unsupported_claim"]
+    assert any("Nimbus Freight" in f["message"] for f in unsupported)
+
+
 def test_campaign_reviewer_runs_through_pipeline_without_mutating_sources(
     client, auth_headers, test_user, db
 ):

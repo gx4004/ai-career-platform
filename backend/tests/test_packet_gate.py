@@ -93,7 +93,7 @@ def _add_listing(db, listing_id, *, description=NEUTRAL_DESC):
     db.commit()
 
 
-def _add_cv_variant(db, user_id):
+def _add_cv_variant(db, user_id, *, body="Built backend systems."):
     doc = CvDocument(user_id=user_id, name="My CV", sections=[])
     db.add(doc)
     db.flush()
@@ -104,9 +104,7 @@ def _add_cv_variant(db, user_id):
             "title": "Experience",
             "visible": True,
             "position": 0,
-            "entries": [
-                {"id": "e1", "evidence_item_id": None, "body": "Built backend systems.", "position": 0}
-            ],
+            "entries": [{"id": "e1", "evidence_item_id": None, "body": body, "position": 0}],
         }
     ]
     doc.sections = sections
@@ -149,9 +147,9 @@ async def _compose_fabricated(*, resume_text, job_description, listing_title="",
     }
 
 
-def _prep_one(db, user_id, monkeypatch, *, listing_id, compose):
+def _prep_one(db, user_id, monkeypatch, *, listing_id, compose, cv_body="Built backend systems."):
     _add_listing(db, listing_id)
-    _add_cv_variant(db, user_id)
+    _add_cv_variant(db, user_id, body=cv_body)
     _patch_rank(monkeypatch, [_rec(listing_id)])
     _add_rule(db, user_id)
     return prepare_packets(db, user_id, compose_fn=compose)
@@ -181,6 +179,33 @@ async def test_clean_packet_passes_gate_and_is_queue_eligible(db, test_user, mon
         db, test_user.id, monkeypatch, listing_id="l-clean", compose=_compose_clean
     )
     packet = db.query(ApplicationPacket).one()
+    assert packet.gate_state == "passed"
+    assert is_queue_eligible(packet) is True
+
+
+@pytest.mark.asyncio
+async def test_realistic_cv_with_no_confirmed_evidence_still_passes_gate(db, test_user, monkeypatch):
+    """A normal CV mentioning a real employer/technology must not be gated as
+    fabrication just because its owner has no confirmed Evidence Profile items —
+    the common case. Without grounding CV claims in the CV's own source document
+    (D-073), every proper noun and figure in a truthful CV would trip the
+    fabrication gate and permanently block the packet (no other CV content is
+    ever added post-preparation to clear it).
+    """
+    await _prep_one(
+        db,
+        test_user.id,
+        monkeypatch,
+        listing_id="l-realistic",
+        compose=_compose_clean,
+        cv_body="Led backend migration at Nimbus Freight using AWS and Kubernetes, cutting latency 35%.",
+    )
+    packet = db.query(ApplicationPacket).one()
+    review = db.query(ToolRun).filter(ToolRun.id == packet.review_run_id).one()
+    unsupported = [
+        f for f in review.result_payload["findings"] if f["category"] == "unsupported_claim"
+    ]
+    assert unsupported == []
     assert packet.gate_state == "passed"
     assert is_queue_eligible(packet) is True
 
