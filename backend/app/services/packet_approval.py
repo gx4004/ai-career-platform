@@ -20,6 +20,7 @@ from sqlalchemy.orm import Session
 from app.models.application_packet import ApplicationPacket
 from app.models.packet_stop_answer import PacketStopAnswer
 from app.schemas.application_packets import (
+    ApplicationPacketItem,
     PacketStopAnswersExport,
     StopAnswerExportItem,
     StopAnswerResult,
@@ -58,6 +59,47 @@ def _answered_fields(db: Session, user_id: str, packet_id: str) -> set[str]:
             PacketStopAnswer.packet_id == packet_id,
         )
     }
+
+
+def answered_fields_for_packet(db: Session, user_id: str, packet_id: str) -> set[str]:
+    """Public single-packet form of :func:`_answered_fields`, for one-off reads."""
+    return _answered_fields(db, user_id, packet_id)
+
+
+def answered_fields_by_packet(db: Session, user_id: str) -> dict[str, set[str]]:
+    """All of this owner's stop-answer fields, grouped by packet id.
+
+    Batch form of :func:`_answered_fields` for serializing many packets at once
+    (e.g. ``list_packets``) without one query per packet.
+    """
+    grouped: dict[str, set[str]] = {}
+    for packet_id, field in db.query(
+        PacketStopAnswer.packet_id, PacketStopAnswer.field
+    ).filter(PacketStopAnswer.user_id == user_id):
+        grouped.setdefault(packet_id, set()).add(field)
+    return grouped
+
+
+def packet_item_with_true_unresolved(
+    packet: ApplicationPacket, answered_fields: set[str]
+) -> ApplicationPacketItem:
+    """Serialize a packet with its *actually* outstanding questions.
+
+    ``packet.unresolved_questions`` is computed once at preparation time and never
+    rewritten as stop answers come in (the answer lives in ``PacketStopAnswer``
+    instead), so serializing the raw column directly would keep showing resolved
+    questions as outstanding after every reload. Every read path must go through
+    this instead of a bare ``ApplicationPacketItem.model_validate(packet)``.
+    """
+    item = ApplicationPacketItem.model_validate(packet)
+    outstanding = outstanding_questions(packet, answered_fields)
+    return item.model_copy(
+        update={
+            "unresolved_questions": [
+                UnresolvedQuestion.model_validate(q) for q in outstanding
+            ]
+        }
+    )
 
 
 def outstanding_questions(packet: ApplicationPacket, answered_fields: set[str]) -> list[dict]:

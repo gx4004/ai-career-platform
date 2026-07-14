@@ -24,9 +24,7 @@ from app.services.packet_approval import (
     store_stop_answer,
 )
 from app.services.queue_review import (
-    PacketNotFoundError as PacketDecisionNotFoundError,
-)
-from app.services.queue_review import (
+    PacketDecisionLockedError,
     accept_packet,
     edit_packet,
     pause_queue,
@@ -34,6 +32,9 @@ from app.services.queue_review import (
     reject_packet,
     resume_queue,
     skip_packet,
+)
+from app.services.queue_review import (
+    PacketNotFoundError as PacketDecisionNotFoundError,
 )
 
 router = APIRouter()
@@ -161,11 +162,18 @@ def skip(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Skip a packet — an owner dismissal; records ``packet_skipped``."""
+    """Skip a packet — an owner dismissal; records ``packet_skipped``.
+
+    Refused (409) once the packet is already accepted.
+    """
     try:
         return skip_packet(db, current_user.id, packet_id)
     except PacketDecisionNotFoundError as error:
         raise HTTPException(status_code=404, detail="Application packet not found") from error
+    except PacketDecisionLockedError as error:
+        raise HTTPException(
+            status_code=409, detail="This packet has already been accepted."
+        ) from error
 
 
 @router.post("/{packet_id}/reject", response_model=ApplicationPacketItem)
@@ -174,11 +182,18 @@ def reject(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Reject a packet — an owner dismissal; records ``packet_rejected``."""
+    """Reject a packet — an owner dismissal; records ``packet_rejected``.
+
+    Refused (409) once the packet is already accepted.
+    """
     try:
         return reject_packet(db, current_user.id, packet_id)
     except PacketDecisionNotFoundError as error:
         raise HTTPException(status_code=404, detail="Application packet not found") from error
+    except PacketDecisionLockedError as error:
+        raise HTTPException(
+            status_code=409, detail="This packet has already been accepted."
+        ) from error
 
 
 @router.post("/{packet_id}/edit", response_model=ApplicationPacketItem)
@@ -197,3 +212,7 @@ def edit(
         return edit_packet(db, current_user.id, packet_id)
     except PacketDecisionNotFoundError as error:
         raise HTTPException(status_code=404, detail="Application packet not found") from error
+    except PacketDecisionLockedError as error:
+        raise HTTPException(
+            status_code=409, detail="This packet has already been accepted."
+        ) from error
