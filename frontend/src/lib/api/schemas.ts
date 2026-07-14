@@ -3,7 +3,7 @@ import {
   applicationPacketsExportSchema,
   packetStopAnswersExportSchema,
 } from '#/lib/api/packetSchemas'
-import { queueRulesExportSchema } from '#/lib/api/queueSchemas'
+import { queueAuditExportSchema, queueRulesExportSchema } from '#/lib/api/queueSchemas'
 
 export const campaignStatusSchema = z.enum([
   'planning', 'preparing', 'applied', 'interviewing',
@@ -221,6 +221,7 @@ export const careerDataExportSchema = z.strictObject({
   queue_rules: queueRulesExportSchema,
   application_packets: applicationPacketsExportSchema,
   packet_stop_answers: packetStopAnswersExportSchema,
+  queue_audit: queueAuditExportSchema,
   campaigns: z.strictObject({
     campaign_count: z.number().int().nonnegative(),
     campaigns: z.array(z.object({

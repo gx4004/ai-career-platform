@@ -20,6 +20,7 @@ from app.schemas.queue_rules import (
 )
 from app.services.discovery_recommendations import rank_discovery_recommendations
 from app.services.quality_signals import keyword_present
+from app.services.queue_audit import record_queue_audit_event
 
 # Applied when the user has not set a volume cap / cost ceiling of their own. The
 # queue still enforces a bound so caps and ceilings are never silently unlimited;
@@ -66,6 +67,14 @@ def upsert_rule(db: Session, user_id: str, body: QueueRuleUpsert) -> QueueRuleIt
     row.min_score = body.min_score
     db.commit()
     db.refresh(row)
+    # Audit records only the rule dimension (a low-cardinality class), never the
+    # keyword/score values (D-098/D-099, R15 #186).
+    record_queue_audit_event(
+        db,
+        user_id=user_id,
+        action="rule_upserted",
+        details={"rule_type": body.rule_type},
+    )
     return QueueRuleItem.model_validate(row)
 
 
@@ -79,6 +88,12 @@ def delete_rule(db: Session, user_id: str, rule_type: str) -> None:
         raise QueueRuleNotFoundError(rule_type)
     db.delete(row)
     db.commit()
+    record_queue_audit_event(
+        db,
+        user_id=user_id,
+        action="rule_deleted",
+        details={"rule_type": rule_type},
+    )
 
 
 # ── Settings (volume cap + cost ceiling) ──
@@ -121,6 +136,12 @@ def upsert_settings(
     row.cost_ceiling_usd = Decimal(str(body.cost_ceiling_usd))
     db.commit()
     db.refresh(row)
+    record_queue_audit_event(
+        db,
+        user_id=user_id,
+        action="settings_updated",
+        details={},
+    )
     return _settings_response(row)
 
 

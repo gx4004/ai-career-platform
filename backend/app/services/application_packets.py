@@ -48,6 +48,7 @@ from app.services.packet_gate import (
     gate_state_for,
     is_preparation_halted,
 )
+from app.services.queue_audit import record_queue_audit_event
 from app.services.queue_rules import matched_keywords_for_rule, select_admitted_candidates
 from app.services.stop_classifier import (
     classify_stop_category,
@@ -529,6 +530,23 @@ async def prepare_packets(
         db.add(packet)
         db.commit()
         db.refresh(packet)
+        # Append-only audit of the queue action + its gate outcome (D-098, R15
+        # #186). Records only outcome classes and the packet id by reference —
+        # no rationale, listing, or draft content.
+        record_queue_audit_event(
+            db,
+            user_id=user_id,
+            action="packet_prepared",
+            packet_id=packet.id,
+            details={"status": packet.status},
+        )
+        record_queue_audit_event(
+            db,
+            user_id=user_id,
+            action="packet_gate_evaluated",
+            packet_id=packet.id,
+            details={"gate_state": gate_state},
+        )
         prepared.append(packet)
 
     return PacketPreparationResult(

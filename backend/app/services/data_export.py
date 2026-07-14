@@ -16,6 +16,7 @@ from app.services.cv_documents import export_documents
 from app.services.discovery_personalization import export_personalization
 from app.services.evidence_profile import export_evidence_profile
 from app.services.packet_approval import export_packet_stop_answers
+from app.services.queue_audit import export_queue_audit_events
 from app.services.queue_rules import export_queue_rules
 
 
@@ -36,6 +37,7 @@ def export_career_data(db: Session, user_id: str) -> CareerDataExport:
         queue_rules=export_queue_rules(db, user_id),
         application_packets=export_application_packets(db, user_id),
         packet_stop_answers=export_packet_stop_answers(db, user_id),
+        queue_audit=export_queue_audit_events(db, user_id),
         campaigns=CampaignsExport(
             campaign_count=len(workspaces),
             campaigns=[

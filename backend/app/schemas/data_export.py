@@ -11,6 +11,7 @@ from app.schemas.cv_documents import CvDocumentsExport
 from app.schemas.discovery_personalization import PersonalizationExport
 from app.schemas.evidence_profile import EvidenceItemResponse
 from app.schemas.history import CampaignsExport
+from app.schemas.queue_audit import QueueAuditExport
 from app.schemas.queue_rules import QueueRulesExport
 
 
@@ -29,6 +30,7 @@ class CareerDataExport(BaseModel):
     queue_rules: QueueRulesExport
     application_packets: ApplicationPacketsExport
     packet_stop_answers: PacketStopAnswersExport
+    queue_audit: QueueAuditExport
 
     @model_validator(mode="after")
     def item_count_matches(self):
