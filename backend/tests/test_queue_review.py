@@ -17,6 +17,7 @@ from app.services.packet_approval import (
 )
 from app.services.packet_gate import is_queue_paused
 from app.services.queue_review import (
+    PacketDecisionLockedError,
     PacketNotFoundError,
     accept_packet,
     edit_packet,
@@ -152,6 +153,20 @@ def test_edit_reopens_to_pending_and_audits(db, test_user):
     assert result.cv_variant_id == "cv-1"
     assert result.drafts_run_id == "run-1"
     assert _audit_actions(db, test_user.id) == ["packet_edited"]
+
+
+# ── An accepted decision cannot be silently overwritten ──
+
+
+def test_skip_reject_edit_refused_once_accepted(db, test_user):
+    packet = _make_packet(db, test_user.id, decision="accepted")
+    for action in (skip_packet, reject_packet, edit_packet):
+        with pytest.raises(PacketDecisionLockedError):
+            action(db, test_user.id, packet.id)
+    db.refresh(packet)
+    # The decision stays exactly what it was — no action snuck through.
+    assert packet.decision == "accepted"
+    assert _audit_actions(db, test_user.id) == []
 
 
 def test_action_on_missing_packet_raises(db, test_user):
