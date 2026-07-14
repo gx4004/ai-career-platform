@@ -1,6 +1,13 @@
 import { z } from 'zod'
 import { ApiError } from '#/lib/api/errors'
 import {
+  applicationPacketItemSchema,
+  applicationPacketListSchema,
+  queueReviewStateSchema,
+  stopAnswerRequestSchema,
+  stopAnswerResultSchema,
+} from '#/lib/api/packetSchemas'
+import {
   authProvidersSchema,
   careerResultSchema,
   coverLetterResultSchema,
@@ -697,5 +704,77 @@ export async function deleteAccount(confirmation: string): Promise<void> {
   await request<unknown>('/auth/me/delete', {
     method: 'POST',
     body: { confirmation },
+  })
+}
+
+// ── Application Approval Queue review surface (R15 #183) ──
+// Every write is owner-scoped and audited server-side. Accept is refused (409) while
+// any unresolved question remains (D-095); edit reopens materials under the existing
+// diff/confirmation rules (D-073); pause halts preparation immediately (ADR 0009).
+
+export function listPackets() {
+  return request('/packets', { method: 'GET', schema: applicationPacketListSchema })
+}
+
+export function getQueueState() {
+  return request('/packets/queue-state', { method: 'GET', schema: queueReviewStateSchema })
+}
+
+export function pauseQueue() {
+  return request('/packets/pause', {
+    method: 'POST',
+    body: {},
+    schema: queueReviewStateSchema,
+  })
+}
+
+export function resumeQueue() {
+  return request('/packets/resume', {
+    method: 'POST',
+    body: {},
+    schema: queueReviewStateSchema,
+  })
+}
+
+export function acceptPacket(packetId: string) {
+  return request(`/packets/${packetId}/accept`, {
+    method: 'POST',
+    body: {},
+    schema: applicationPacketItemSchema,
+  })
+}
+
+export function skipPacket(packetId: string) {
+  return request(`/packets/${packetId}/skip`, {
+    method: 'POST',
+    body: {},
+    schema: applicationPacketItemSchema,
+  })
+}
+
+export function rejectPacket(packetId: string) {
+  return request(`/packets/${packetId}/reject`, {
+    method: 'POST',
+    body: {},
+    schema: applicationPacketItemSchema,
+  })
+}
+
+export function editPacket(packetId: string) {
+  return request(`/packets/${packetId}/edit`, {
+    method: 'POST',
+    body: {},
+    schema: applicationPacketItemSchema,
+  })
+}
+
+export function answerPacketStopQuestion(
+  packetId: string,
+  payload: { field: string; answer: string },
+) {
+  return request(`/packets/${packetId}/stop-answers`, {
+    method: 'POST',
+    body: stopAnswerRequestSchema.parse(payload),
+    schema: stopAnswerResultSchema,
   })
 }
