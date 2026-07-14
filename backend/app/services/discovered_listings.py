@@ -213,6 +213,7 @@ def expire_discovered_listings(db: Session, *, now: datetime | None = None) -> L
             event_name="discovery_source_expiry",
             operational_dimension=family,
             operational_outcome="expired",
+            occurred_at=now,
         )
     return ListingExpiryResult(len(expired_attributions), listings_deleted)
 
