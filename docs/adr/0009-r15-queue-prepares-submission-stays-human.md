@@ -1,6 +1,6 @@
 # 0009. The approval queue prepares packets; submission stays human
 
-**Status:** accepted
+**Status:** accepted (implementation reverted 2026-07-14, pending rescoped follow-up — see #185)
 **Date:** 2026-07-10
 
 ## Context
