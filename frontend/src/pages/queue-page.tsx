@@ -72,11 +72,14 @@ export function QueuePage() {
     onSuccess: () => invalidateAll(),
   })
   const decisionMutation = useMutation({
-    mutationFn: ({ id, action }: { id: string; action: 'accept' | 'skip' | 'reject' | 'edit' }) => {
-      if (action === 'accept') return acceptPacket(id)
-      if (action === 'skip') return skipPacket(id)
-      if (action === 'reject') return rejectPacket(id)
-      return editPacket(id)
+    mutationFn: async ({ id, action }: { id: string; action: 'accept' | 'skip' | 'reject' | 'edit' }) => {
+      // accept now approves — freezes a snapshot + returns a handoff (R15 #185); the
+      // other actions return the bare packet. onSuccess only invalidates, so the
+      // results are awaited and discarded to keep one mutation type.
+      if (action === 'accept') await acceptPacket(id)
+      else if (action === 'skip') await skipPacket(id)
+      else if (action === 'reject') await rejectPacket(id)
+      else await editPacket(id)
     },
     onSuccess: () => {
       setActionError(null)
