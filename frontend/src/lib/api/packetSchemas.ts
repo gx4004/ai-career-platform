@@ -122,6 +122,41 @@ export const applicationPacketsExportSchema = z.strictObject({
 })
 export type ApplicationPacketsExport = z.infer<typeof applicationPacketsExportSchema>
 
+// Approval snapshot + submission handoff (R15 #185, D-096/D-098/ADR 0009). Approval
+// freezes an immutable, by-value copy of the resolved materials (`content`) that
+// survives later edits to the referenced CV variant / drafts / listing. The product
+// never submits — `handoff.destination_url` is only the official page the owner opens.
+export const packetApprovalSnapshotResponseSchema = z.strictObject({
+  id: z.string(),
+  packet_id: z.string(),
+  campaign_id: z.string(),
+  listing_id: z.string().nullable(),
+  role_key: z.string(),
+  destination_url: z.string().nullable(),
+  content: z.record(z.string(), z.unknown()),
+  content_sha256: z.string(),
+  created_at: offsetDateTimeSchema,
+})
+export type PacketApprovalSnapshotResponse = z.infer<typeof packetApprovalSnapshotResponseSchema>
+
+export const packetSubmissionHandoffSchema = z.strictObject({
+  destination_url: z.string().nullable(),
+  instructions: z.string(),
+})
+export type PacketSubmissionHandoff = z.infer<typeof packetSubmissionHandoffSchema>
+
+export const packetApprovalResultSchema = z.strictObject({
+  packet: applicationPacketItemSchema,
+  snapshot: packetApprovalSnapshotResponseSchema,
+  handoff: packetSubmissionHandoffSchema,
+})
+export type PacketApprovalResult = z.infer<typeof packetApprovalResultSchema>
+
+export const packetApprovalSnapshotsExportSchema = z.strictObject({
+  snapshots: z.array(packetApprovalSnapshotResponseSchema),
+})
+export type PacketApprovalSnapshotsExport = z.infer<typeof packetApprovalSnapshotsExportSchema>
+
 // Stop answers (R15 #182, D-095/D-099): the owner's typed answers to mandatory-stop
 // questions. Only the user can resolve a stop; the system never drafts these fields.
 export const stopAnswerRequestSchema = z.strictObject({

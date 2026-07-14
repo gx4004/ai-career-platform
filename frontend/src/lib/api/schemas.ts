@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import {
   applicationPacketsExportSchema,
+  packetApprovalSnapshotsExportSchema,
   packetStopAnswersExportSchema,
 } from '#/lib/api/packetSchemas'
 import { queueAuditExportSchema, queueRulesExportSchema } from '#/lib/api/queueSchemas'
@@ -221,6 +222,7 @@ export const careerDataExportSchema = z.strictObject({
   queue_rules: queueRulesExportSchema,
   application_packets: applicationPacketsExportSchema,
   packet_stop_answers: packetStopAnswersExportSchema,
+  packet_approval_snapshots: packetApprovalSnapshotsExportSchema,
   queue_audit: queueAuditExportSchema,
   campaigns: z.strictObject({
     campaign_count: z.number().int().nonnegative(),
@@ -232,7 +234,7 @@ export const careerDataExportSchema = z.strictObject({
       listing: campaignListingSchema.nullable().default(null),
       listing_revisions: z.array(campaignListingSchema).default([]),
       events: z.array(z.object({
-        id: z.string(), event_type: z.enum(['status_changed', 'deadline_changed', 'listing_attached', 'listing_adopted', 'material_selection_changed', 'task_created', 'task_completed', 'task_reopened', 'task_deleted', 'note_added', 'note_deleted', 'contact_added', 'contact_deleted', 'submission_snapshot_created']),
+        id: z.string(), event_type: z.enum(['status_changed', 'deadline_changed', 'listing_attached', 'listing_adopted', 'material_selection_changed', 'task_created', 'task_completed', 'task_reopened', 'task_deleted', 'note_added', 'note_deleted', 'contact_added', 'contact_deleted', 'submission_snapshot_created', 'packet_approved']),
         details: z.record(z.string(), z.unknown()), created_at: z.iso.datetime(),
       })),
       tasks: z.array(z.object({ id: z.string(), title: z.string(), deadline: z.iso.datetime({ offset: true }).nullable(), completed: z.boolean(), created_at: z.iso.datetime() })).default([]),

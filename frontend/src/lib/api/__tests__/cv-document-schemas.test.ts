@@ -58,6 +58,7 @@ describe('CV document schema (R12, #153)', () => {
       queue_rules: { rules: [], settings: null },
       application_packets: { packets: [] },
       packet_stop_answers: { stop_answers: [] },
+      packet_approval_snapshots: { snapshots: [] },
       queue_audit: { events: [] },
       cv_documents: { schema_version: 'cv-documents-export/v1', exported_at: '2026-07-12T10:00:00Z', document_count: 1, documents: [cv] },
     })

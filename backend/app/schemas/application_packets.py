@@ -227,6 +227,64 @@ class PacketStopAnswersExport(BaseModel):
     stop_answers: list[StopAnswerExportItem]
 
 
+# ── Approval snapshot + submission handoff (R15 #185, D-096/D-098/ADR 0009) ──
+
+
+class PacketApprovalSnapshotResponse(BaseModel):
+    """The immutable, by-value freeze produced at approval (D-096).
+
+    ``content`` is a self-contained copy of the resolved materials at the instant of
+    approval, so it never changes when the referenced CV variant / drafts / listing
+    are edited later. There is no update path — this schema is read-only.
+    """
+
+    model_config = ConfigDict(from_attributes=True, extra="forbid")
+
+    id: str
+    packet_id: str
+    campaign_id: str
+    listing_id: str | None
+    role_key: str
+    destination_url: str | None
+    content: dict
+    content_sha256: str
+    created_at: datetime
+
+    @field_validator("created_at")
+    @classmethod
+    def normalize_created(cls, value: datetime) -> datetime:
+        return _as_utc(value)
+
+
+class PacketSubmissionHandoff(BaseModel):
+    """The official destination the owner opens themselves to submit (ADR 0009).
+
+    The product performs no submission — there is no submission endpoint anywhere.
+    This surfaces only the destination URL and a plain instruction so the client can
+    hand the owner off to the listing's official application page.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    destination_url: str | None
+    instructions: str
+
+
+class PacketApprovalResult(BaseModel):
+    """Outcome of approving a packet: the decision, the frozen snapshot, the handoff.
+
+    Approval is guarded (D-095) and deduplicated (D-098); on success it freezes an
+    immutable snapshot (D-096), links a campaign-timeline event, and hands the owner
+    to the official destination — the product never submits (ADR 0009).
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    packet: ApplicationPacketItem
+    snapshot: PacketApprovalSnapshotResponse
+    handoff: PacketSubmissionHandoff
+
+
 # ── Export (owner's own data, machine-readable) ──
 
 
@@ -234,3 +292,9 @@ class ApplicationPacketsExport(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     packets: list[ApplicationPacketItem]
+
+
+class PacketApprovalSnapshotsExport(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    snapshots: list[PacketApprovalSnapshotResponse]
