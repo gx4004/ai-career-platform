@@ -40,6 +40,13 @@ from app.services.analytics import safe_record_activation_event
 # means preparation is halted; no row means it is running.
 PREPARATION_HALT_SCOPE = "packet-preparation"
 
+# The owner-initiated global pause (R15 #183). A distinct ``pipeline_halts`` scope so a
+# user pause is never confused with a regression halt (``packet-preparation``): both
+# stop preparation through the same consultation seam, but they are set/cleared
+# independently and reported separately. Reason is the bounded ``user_paused`` marker.
+QUEUE_PAUSE_SCOPE = "queue-pause"
+QUEUE_PAUSE_REASON = "user_paused"
+
 # The reviewer category that represents a fabrication finding (D-097). It is the
 # reviewer's groundedness check — a claim not traceable to confirmed evidence or the
 # selected source material — and is the only finding category the queue gate blocks on.
@@ -162,6 +169,54 @@ def clear_pipeline_halt(
         event_name="packet_preparation_halt",
         operational_outcome="cleared",
     )
+    return HaltStatus(halted=False)
+
+
+# ── Owner-initiated global pause (R15 #183) ──
+
+
+def is_queue_paused(db: Session) -> bool:
+    """True when the owner has paused the queue (preparation must refuse).
+
+    Reuses the pipeline-halt consultation seam with a distinct scope, so
+    :func:`prepare_packets` genuinely stops preparing the moment a pause is set —
+    the pause is not merely cosmetic UI state.
+    """
+    return _halt_row(db, QUEUE_PAUSE_SCOPE) is not None
+
+
+def pause_preparation(db: Session, *, now: datetime | None = None) -> HaltStatus:
+    """Set the global pause halt row so preparation refuses immediately.
+
+    Idempotent: re-pausing refreshes the timestamp on the existing row. This does
+    NOT emit the regression ``packet_preparation_halt`` operational event — a user
+    pause is not a regression, so it never pollutes that telemetry. The owner-scoped
+    audit event (``queue_paused``) is recorded by the caller.
+    """
+    now = now or datetime.now(UTC)
+    row = _halt_row(db, QUEUE_PAUSE_SCOPE)
+    if row is None:
+        row = PipelineHalt(
+            scope=QUEUE_PAUSE_SCOPE, reason=QUEUE_PAUSE_REASON, halted_at=now, updated_at=now
+        )
+        db.add(row)
+    else:
+        row.halted_at = now
+        row.updated_at = now
+    db.commit()
+    return HaltStatus(halted=True, reason=QUEUE_PAUSE_REASON, halted_since=now)
+
+
+def resume_preparation(db: Session) -> HaltStatus:
+    """Clear the global pause halt row so preparation may resume.
+
+    Only clears the ``queue-pause`` scope; a concurrent regression halt
+    (``packet-preparation``) is untouched and still blocks preparation. Idempotent.
+    """
+    row = _halt_row(db, QUEUE_PAUSE_SCOPE)
+    if row is not None:
+        db.delete(row)
+        db.commit()
     return HaltStatus(halted=False)
 
 

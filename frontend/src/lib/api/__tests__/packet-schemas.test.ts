@@ -3,8 +3,10 @@ import {
   applicationPacketItemSchema,
   applicationPacketListSchema,
   applicationPacketsExportSchema,
+  packetDecisionSchema,
   packetPreparationResultSchema,
   packetStopAnswersExportSchema,
+  queueReviewStateSchema,
   stopAnswerRequestSchema,
   stopAnswerResultSchema,
   stopCategorySchema,
@@ -20,6 +22,7 @@ const packet = {
   review_run_id: 'review-1',
   status: 'prepared',
   gate_state: 'passed',
+  decision: 'pending',
   match_rationale: {
     composite_score: 82,
     signals: [
@@ -53,6 +56,30 @@ describe('application packet contracts', () => {
     // Trust-chain gate outcome + reviewer reference (R15 #184, D-097).
     expect(parsed.gate_state).toBe('passed')
     expect(parsed.review_run_id).toBe('review-1')
+    // The owner's review decision (R15 #183).
+    expect(parsed.decision).toBe('pending')
+  })
+
+  it('mirrors the review decision set + rejects drift (R15 #183)', () => {
+    for (const decision of ['pending', 'accepted', 'skipped', 'rejected']) {
+      expect(packetDecisionSchema.safeParse(decision).success).toBe(true)
+      expect(applicationPacketItemSchema.parse({ ...packet, decision }).decision).toBe(decision)
+    }
+    expect(packetDecisionSchema.safeParse('submitted').success).toBe(false)
+    // decision is required — a packet item without it is contract drift.
+    const { decision: _omitted, ...withoutDecision } = packet
+    expect(applicationPacketItemSchema.safeParse(withoutDecision).success).toBe(false)
+  })
+
+  it('mirrors the queue review state (pause + regression halt, R15 #183)', () => {
+    const parsed = queueReviewStateSchema.parse({ paused: true, preparation_halted: false })
+    expect(parsed.paused).toBe(true)
+    expect(parsed.preparation_halted).toBe(false)
+    expect(queueReviewStateSchema.safeParse({ paused: true }).success).toBe(false)
+    expect(
+      queueReviewStateSchema.safeParse({ paused: true, preparation_halted: false, extra: 1 })
+        .success,
+    ).toBe(false)
   })
 
   it('accepts nullable references (a blocked packet lacking a CV variant)', () => {

@@ -47,6 +47,7 @@ from app.services.packet_gate import (
     emit_gate_running,
     gate_state_for,
     is_preparation_halted,
+    is_queue_paused,
 )
 from app.services.queue_audit import record_queue_audit_event
 from app.services.queue_rules import matched_keywords_for_rule, select_admitted_candidates
@@ -434,9 +435,10 @@ async def prepare_packets(
     from app.services.tool_pipeline import run_tool_pipeline
 
     # Pipeline-wide halt gate (D-097): a failing packet-quality / fabrication
-    # regression eval halts preparation for everyone until cleared. Consulted before
-    # any candidate work so a halted pipeline prepares — and spends — nothing.
-    if is_preparation_halted(db):
+    # regression eval halts preparation for everyone until cleared. The owner's global
+    # pause (R15 #183) refuses through the same consultation seam. Consulted before any
+    # candidate work so a halted OR paused pipeline prepares — and spends — nothing.
+    if is_preparation_halted(db) or is_queue_paused(db):
         return _halted_result()
 
     compose = compose_fn or compose_packet_materials

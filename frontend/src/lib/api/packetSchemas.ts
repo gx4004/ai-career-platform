@@ -15,6 +15,11 @@ export type PacketStatus = z.infer<typeof packetStatusSchema>
 export const packetGateStateSchema = z.enum(['pending', 'passed', 'blocked'])
 export type PacketGateState = z.infer<typeof packetGateStateSchema>
 
+// The owner's review decision on the packet (R15 #183). `accepted` is guarded by the
+// approval predicate (D-095): a packet with any unresolved question is not approvable.
+export const packetDecisionSchema = z.enum(['pending', 'accepted', 'skipped', 'rejected'])
+export type PacketDecision = z.infer<typeof packetDecisionSchema>
+
 // Mirrors app.services.stop_classifier.StopCategory + the non-stop
 // `missing_material` question (D-095, #182). One authoritative category set.
 export const stopCategorySchema = z.enum([
@@ -82,6 +87,8 @@ export const applicationPacketItemSchema = z.strictObject({
   status: packetStatusSchema,
   // Trust-chain gate outcome (D-097). `passed` is the only queue-eligible state.
   gate_state: packetGateStateSchema,
+  // The owner's review decision (R15 #183). `accepted` requires the packet be approvable.
+  decision: packetDecisionSchema,
   match_rationale: packetMatchRationaleSchema,
   unresolved_questions: z.array(unresolvedQuestionSchema),
   estimated_cost_usd: z.number().min(0),
@@ -146,3 +153,12 @@ export const packetStopAnswersExportSchema = z.strictObject({
   stop_answers: z.array(stopAnswerExportItemSchema),
 })
 export type PacketStopAnswersExport = z.infer<typeof packetStopAnswersExportSchema>
+
+// Queue review controls (R15 #183). `paused` is the owner's global pause toggle —
+// while set, preparation refuses immediately (ADR 0009). `preparation_halted` reflects
+// a pipeline-wide regression halt (#184); either one halts preparation.
+export const queueReviewStateSchema = z.strictObject({
+  paused: z.boolean(),
+  preparation_halted: z.boolean(),
+})
+export type QueueReviewState = z.infer<typeof queueReviewStateSchema>

@@ -3,6 +3,7 @@ import {
   ArrowLeft,
   BadgeCheck,
   Compass,
+  ClipboardCheck,
   ChevronLeft,
   ChevronRight,
   History,
@@ -42,6 +43,7 @@ const accountNavItems = [
 
 const authenticatedNavItems = [
   { label: 'Discover', icon: Compass, route: '/discovery' },
+  { label: 'Queue', icon: ClipboardCheck, route: '/queue' },
 ] as const
 
 export function AppSidebar() {

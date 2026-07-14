@@ -13,6 +13,9 @@ from app.services.stop_classifier import StopCategory
 PacketStatus = Literal["prepared", "blocked"]
 # The trust-chain gate outcome (R15 #184, D-097). Only ``passed`` is queue-eligible.
 PacketGateState = Literal["pending", "passed", "blocked"]
+# The owner's review decision on the packet (R15 #183). ``accepted`` is guarded by the
+# approval predicate (D-095): a packet with any unresolved question is not approvable.
+PacketDecision = Literal["pending", "accepted", "skipped", "rejected"]
 # One authoritative category set: the exhaustive stop categories owned by the
 # server-side classifier (D-095, #182), plus ``missing_material`` for the non-stop
 # "no CV variant selected" question. The classifier's ``StopCategory`` is imported
@@ -104,6 +107,9 @@ class ApplicationPacketItem(BaseModel):
     status: PacketStatus
     # Trust-chain gate outcome (D-097). ``passed`` is the only queue-eligible state.
     gate_state: PacketGateState = "pending"
+    # The owner's review decision (R15 #183). ``pending`` until acted on; ``accepted``
+    # is only reachable when the packet is approvable (D-095).
+    decision: PacketDecision = "pending"
     match_rationale: PacketMatchRationale
     unresolved_questions: list[UnresolvedQuestion]
     estimated_cost_usd: float = Field(ge=0)
@@ -148,6 +154,24 @@ class PacketPreparationResult(BaseModel):
     estimated_packet_cost_usd: float = Field(ge=0)
     estimated_total_cost_usd: float = Field(ge=0)
     packets: list[ApplicationPacketItem]
+
+
+# ── Queue review controls (R15 #183) ──
+
+
+class QueueReviewState(BaseModel):
+    """Whether preparation is currently halted, and why (R15 #183).
+
+    ``paused`` is the owner-initiated global pause toggle — while set, preparation
+    refuses immediately (ADR 0009). ``preparation_halted`` reflects a pipeline-wide
+    regression halt (#184). Either one makes :func:`prepare_packets` refuse; the UI
+    surfaces the pause toggle from ``paused`` and can distinguish a regression halt.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    paused: bool
+    preparation_halted: bool
 
 
 # ── Stop answers (owner-scoped; the only way to resolve a stop, D-095) ──
