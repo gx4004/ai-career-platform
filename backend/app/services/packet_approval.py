@@ -25,6 +25,7 @@ from app.schemas.application_packets import (
     StopAnswerResult,
     UnresolvedQuestion,
 )
+from app.services.queue_audit import record_queue_audit_event
 from app.services.stop_classifier import is_stop_category
 
 
@@ -144,6 +145,17 @@ def store_stop_answer(
     else:
         existing.answer_text = answer
     db.commit()
+
+    # Append-only audit of the resolution (D-098, R15 #186). Records only the
+    # stop-category class and the packet id by reference — never the field value
+    # or the user's typed answer (D-095/D-099).
+    record_queue_audit_event(
+        db,
+        user_id=user_id,
+        action="stop_answer_recorded",
+        packet_id=packet_id,
+        details={"category": category},
+    )
 
     answered = _answered_fields(db, user_id, packet_id)
     outstanding = outstanding_questions(packet, answered)

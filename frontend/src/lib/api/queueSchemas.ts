@@ -106,3 +106,34 @@ export const queueRulesExportSchema = z.strictObject({
   settings: queueSettingsResponseSchema.nullable(),
 })
 export type QueueRulesExport = z.infer<typeof queueRulesExportSchema>
+
+// Mirrors backend/app/schemas/queue_audit.py (D-098/D-099). Append-only queue
+// audit history in the owner's own data export. `details` carries only
+// low-cardinality structured metadata — never raw draft text or stop answers.
+export const queueAuditActionSchema = z.enum([
+  'rule_upserted',
+  'rule_deleted',
+  'settings_updated',
+  'packet_prepared',
+  'packet_gate_evaluated',
+  'stop_answer_recorded',
+  'packet_accepted',
+  'packet_edited',
+  'packet_skipped',
+  'packet_rejected',
+  'queue_paused',
+  'queue_resumed',
+])
+export const queueAuditEventItemSchema = z.strictObject({
+  id: z.string(),
+  action: queueAuditActionSchema,
+  packet_id: z.string().nullable(),
+  details: z.record(z.string(), z.unknown()),
+  created_at: z.iso.datetime({ offset: true }),
+})
+export type QueueAuditEventItem = z.infer<typeof queueAuditEventItemSchema>
+
+export const queueAuditExportSchema = z.strictObject({
+  events: z.array(queueAuditEventItemSchema),
+})
+export type QueueAuditExport = z.infer<typeof queueAuditExportSchema>

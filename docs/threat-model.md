@@ -1270,3 +1270,46 @@ matched deterministic keywords and scores needed to audit the rank, plus governe
 listing attribution. It persists no recommendation or search-intent state in #174;
 the owner-isolated lifecycle for future hide, dismiss, correction, and report state
 remains governed by D-090 and #175.
+
+# R15 Application Approval Queue (queue data, D-094–D-099)
+
+The Application Approval Queue introduces three classes of sensitive owner data and
+one automation boundary, all owner-scoped and server-authoritative. **Queue rules**
+(`queue_rules`, `queue_settings`) hold the user's role/location/**compensation**/
+**work-authorization**/quality filters plus volume caps and a cost ceiling. Every
+rule is applied server-side before a listing can become a packet, so no client
+change can admit a candidate the rules exclude; with no rules defined the queue
+prepares nothing, and caps/ceilings default to bounded values so admission is never
+silently unlimited. **Application packets** (`application_packets`) encode
+**application intent** by reference only (D-093, ADR 0009): campaign, listing, CV
+variant, and draft `ToolRun` foreign keys — never copied material content. **Stop
+answers** (`packet_stop_answers`) store the user's typed responses to mandatory-stop
+questions (work authorization, compensation, relocation, eligibility, demographic,
+legal, and other sensitive fields); the system never drafts these, and only the
+user's input resolves them (D-095). A packet with any unresolved stop question is
+not approvable server-side.
+
+The trust chain gates queueing: the R13 reviewer runs on each prepared packet, and a
+packet carrying any unresolved fabrication finding is never queued (D-097); a
+regression-eval failure halts preparation pipeline-wide until cleared. No submission
+code path exists — the API surface has no submission endpoint (test-verified,
+ADR 0009); the queue prepares for review and hands the user to the official
+destination to submit themselves.
+
+Every queue action is an **append-only audit event** (`queue_audit_events`, D-098)
+written through a single seam that exposes no update or delete-by-id path; the only
+removal is the account-deletion cascade. Audit `details` carry only low-cardinality
+classes (rule dimension, gate/stop-category, packet id by reference) — never rule
+values, draft text, or stop answers. **Telemetry** stays inside the `extra="forbid"`
+allowlist: gate/halt operational events retain only closed outcome classes and the
+source of a halt; allowlist tests reject any event carrying rule values, draft text,
+or stop-answer content. **Erasure and portability**: account deletion cascades over
+every queue table — rules, settings, packets, stop answers, and audit history — and
+all of it joins `career-data-export/v1` (D-099).
+
+— `backend/app/models/queue_rule.py`, `application_packet.py`,
+`packet_stop_answer.py`, `queue_audit_event.py`, `pipeline_halt.py`;
+`backend/app/services/queue_rules.py`, `application_packets.py`, `packet_approval.py`,
+`packet_gate.py`, `queue_audit.py`; `backend/app/schemas/analytics.py` (allowlist);
+`backend/tests/test_queue_audit.py`, `test_queue_rules.py`, `test_stop_enforcement.py`,
+`test_packet_gate.py`
