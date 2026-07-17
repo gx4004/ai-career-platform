@@ -8,8 +8,10 @@ from __future__ import annotations
 
 import pytest
 
+from app.auth.security import hash_password
 from app.models.application_packet import ApplicationPacket
 from app.models.queue_audit_event import QueueAuditEvent
+from app.models.user import User
 from app.services.application_packets import prepare_packets
 from app.services.packet_approval import (
     PacketNotApprovableError,
@@ -218,8 +220,8 @@ async def test_pause_halts_prepare_and_resume_restores(db, test_user, monkeypatc
 
     # Paused: preparation refuses immediately and prepares nothing.
     pause_queue(db, test_user.id)
-    assert is_queue_paused(db) is True
-    assert queue_review_state(db).paused is True
+    assert is_queue_paused(db, test_user.id) is True
+    assert queue_review_state(db, test_user.id).paused is True
     halted = await prepare_packets(db, test_user.id, compose_fn=_stub_compose)
     assert halted.prepares is False
     assert halted.reason == "halted"
@@ -227,7 +229,7 @@ async def test_pause_halts_prepare_and_resume_restores(db, test_user, monkeypatc
 
     # Resumed: preparation runs again.
     resume_queue(db, test_user.id)
-    assert is_queue_paused(db) is False
+    assert is_queue_paused(db, test_user.id) is False
     ready = await prepare_packets(db, test_user.id, compose_fn=_stub_compose)
     assert ready.prepares is True
     assert ready.prepared_count == 1
@@ -238,8 +240,56 @@ async def test_pause_halts_prepare_and_resume_restores(db, test_user, monkeypatc
 
 
 def test_pause_state_reported_for_ui(db, test_user):
-    assert queue_review_state(db).paused is False
+    assert queue_review_state(db, test_user.id).paused is False
     pause_queue(db, test_user.id)
-    state = queue_review_state(db)
+    state = queue_review_state(db, test_user.id)
     assert state.paused is True
     assert state.preparation_halted is False
+
+
+@pytest.mark.asyncio
+async def test_pause_is_scoped_per_owner_and_never_affects_another_owner(
+    db, test_user, monkeypatch
+):
+    """A single shared pause scope previously meant any authenticated user could
+    pause or resume every other user's queue. It must be impossible for one
+    owner's pause to halt, or be cleared by, another owner's preparation.
+    """
+    other = User(email="queue-other@example.com", hashed_password=hash_password("password123"))
+    db.add(other)
+    db.commit()
+    db.refresh(other)
+    _add_listing(db, "listing-pause-isolated")
+    _add_cv_variant(db, other.id)
+    _patch_rank(monkeypatch, [_rec("listing-pause-isolated")])
+    _add_rule(db, other.id, "role", keywords=["engineer"])
+
+    pause_queue(db, test_user.id)
+
+    assert is_queue_paused(db, test_user.id) is True
+    assert is_queue_paused(db, other.id) is False
+    assert queue_review_state(db, other.id).paused is False
+    unaffected = await prepare_packets(db, other.id, compose_fn=_stub_compose)
+    assert unaffected.prepares is True
+    assert unaffected.prepared_count == 1
+
+    # The other owner resuming their own (never-paused) queue must not clear
+    # test_user's pause.
+    resume_queue(db, other.id)
+    assert is_queue_paused(db, test_user.id) is True
+
+
+def test_account_deletion_clears_only_that_owners_pause_state(db, test_user, monkeypatch):
+    from app.services.tool_runs import delete_all_user_data
+
+    other = User(email="queue-keep@example.com", hashed_password=hash_password("password123"))
+    db.add(other)
+    db.commit()
+    db.refresh(other)
+
+    pause_queue(db, test_user.id)
+    pause_queue(db, other.id)
+
+    delete_all_user_data(db, test_user.id)
+
+    assert is_queue_paused(db, other.id) is True
