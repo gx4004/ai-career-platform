@@ -1,6 +1,7 @@
 import pytest
 
 from app.auth.security import hash_password
+from app.limiter import limiter
 from app.models.cv_document import CvDocument, CvVariant
 from app.models.evidence_item import EvidenceItem
 from app.models.user import User
@@ -389,6 +390,91 @@ def test_model_quality_delegates_to_shared_pipeline(
     assert captured["current_user"].id
     assert captured["service_fn"].__name__ == "analyze_cv_quality"
     assert response.json()["remaining_model_runs"] == CV_QUALITY_MODEL_RUN_LIMIT - 1
+
+
+def test_model_quality_enforces_the_shared_account_cost_limit_across_documents(
+    client, auth_headers, confirmed_evidence, monkeypatch
+):
+    """The per-document quota is a separate, unrelated cap. CV Studio's model
+    calls must also count against the same shared per-account/per-source LLM
+    cost budget every other tool enforces, or a user can bypass it entirely by
+    spreading calls across many documents.
+    """
+    monkeypatch.setattr("app.limiter.settings.MODEL_COST_LIMIT", "1/minute")
+    limiter._storage.reset()
+
+    async def pipeline(**_):
+        return {
+            "schema_version": "cv-quality/v1",
+            "dimensions": [],
+            "ats_checks": [],
+            "scoring_mode": "blended",
+            "advisory_note": "Directional guidance only.",
+            "history_id": "run-one",
+            "access_mode": "authenticated",
+            "saved": True,
+            "locked_actions": [],
+        }
+
+    monkeypatch.setattr("app.routers.cv_documents.run_tool_pipeline", pipeline)
+    first_document = client.post(
+        PREFIX,
+        json={"name": "First", "sections": [_section(confirmed_evidence.id)]},
+        headers=auth_headers,
+    ).json()
+    second_document = client.post(
+        PREFIX,
+        json={"name": "Second", "sections": [_section(confirmed_evidence.id)]},
+        headers=auth_headers,
+    ).json()
+
+    first = client.post(
+        f"{PREFIX}/{first_document['id']}/quality", json={"use_model": True}, headers=auth_headers
+    )
+    second = client.post(
+        f"{PREFIX}/{second_document['id']}/quality", json={"use_model": True}, headers=auth_headers
+    )
+
+    assert first.status_code == 200
+    assert second.status_code == 429
+
+
+def test_tailoring_enforces_the_shared_account_cost_limit_across_documents(
+    client, auth_headers, confirmed_evidence, monkeypatch
+):
+    monkeypatch.setattr("app.limiter.settings.MODEL_COST_LIMIT", "1/minute")
+    limiter._storage.reset()
+
+    async def pipeline(**_):
+        return {
+            "schema_version": "cv-tailoring/v1",
+            "changes": [],
+            "request_id": "req-one",
+            "job_title": "Engineer",
+        }
+
+    monkeypatch.setattr("app.routers.cv_documents.run_tool_pipeline", pipeline)
+    first_document = client.post(
+        PREFIX,
+        json={"name": "First", "sections": [_section(confirmed_evidence.id)]},
+        headers=auth_headers,
+    ).json()
+    second_document = client.post(
+        PREFIX,
+        json={"name": "Second", "sections": [_section(confirmed_evidence.id)]},
+        headers=auth_headers,
+    ).json()
+    payload = {"job_description": "We need a synthetic engineer.", "job_title": "Engineer"}
+
+    first = client.post(
+        f"{PREFIX}/{first_document['id']}/tailoring", json=payload, headers=auth_headers
+    )
+    second = client.post(
+        f"{PREFIX}/{second_document['id']}/tailoring", json=payload, headers=auth_headers
+    )
+
+    assert first.status_code == 200
+    assert second.status_code == 429
 
 
 def test_studio_telemetry_allowlist_rejects_content_and_stable_identifiers():

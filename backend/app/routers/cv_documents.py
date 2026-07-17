@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.auth.security import get_current_user
 from app.database import get_db
-from app.limiter import limiter
+from app.limiter import limiter, model_abuse_limits
 from app.models.cv_document import CvDocument
 from app.models.user import User
 from app.schemas.cv_documents import (
@@ -231,6 +231,7 @@ def artifact_evidence(
 
 @router.post("/{document_id}/quality", response_model=CvQualityResponse)
 @limiter.limit("20/minute")
+@model_abuse_limits
 async def quality(
     request: Request,
     document_id: str,
@@ -325,6 +326,7 @@ def update(
 
 @router.post("/{document_id}/tailoring", response_model=CvTailoringProposal)
 @limiter.limit("20/minute")
+@model_abuse_limits
 async def tailor(
     request: Request,
     document_id: str,
