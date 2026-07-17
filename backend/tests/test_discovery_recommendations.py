@@ -159,6 +159,43 @@ def test_expired_listing_is_excluded_and_duplicate_attributions_render_once(db, 
     ]
 
 
+@pytest.mark.parametrize(
+    "make_ungoverned",
+    [
+        lambda source: setattr(source, "kill_switch", True),
+        lambda source: setattr(source, "terms_status", "failed"),
+    ],
+    ids=["kill_switch_tripped", "terms_revoked"],
+)
+def test_ranking_drops_a_listing_whose_only_source_is_no_longer_allowed(
+    db, test_user, make_ungoverned
+):
+    """Kill-switching a source (or revoking its terms) must take effect immediately
+    on the already-ingested listings it produced, not only on future ingestion —
+    otherwise a listing pulled from a source under legal/terms dispute keeps being
+    recommended and adopted for the rest of its retention window (ADR 0008).
+    """
+    now = datetime(2026, 7, 13, tzinfo=UTC)
+    source = _source("feed-revoked")
+    db.add(source)
+    db.commit()
+    listing, _ = _listing(
+        db,
+        source,
+        title="Platform Engineer",
+        description="Build reliable platform services.",
+        retrieved_at=now,
+    )
+    _evidence(db, test_user.id, kind="skill", content={"name": "platform"})
+
+    make_ungoverned(source)
+    db.commit()
+
+    result = rank_discovery_recommendations(db, test_user.id, now=now)
+
+    assert result.items == []
+
+
 def test_recommendations_endpoint_is_authenticated(client, auth_headers, db, test_user):
     source = _source("feed-a")
     db.add(source)
