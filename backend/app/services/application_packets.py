@@ -304,28 +304,34 @@ async def compose_packet_materials(
     }
 
 
-def _validate_support(item: dict, confirmed_ids: set[str]) -> list[str]:
-    """Enforce the D-073 support contract on one draft; return its evidence ids."""
+def _validate_support(item: dict, confirmed_ids: set[str]) -> tuple[str, list[str]]:
+    """Enforce the D-073 support contract on one draft.
+
+    A model output that hallucinates a ``"confirmed"``/``"document"`` claim it
+    cannot back — or an unrecognized label — is downgraded to ``"unsupported"``
+    with no evidence ids, the same graceful degradation already applied to a
+    genuinely unsupported claim, rather than raising. One malformed candidate
+    must never abort the whole ``prepare_packets`` batch (the LLM call for every
+    other admitted candidate in the loop is otherwise wasted alongside it).
+    """
     support = item.get("support", "unsupported")
     ids = [str(i) for i in (item.get("evidence_item_ids") or [])]
-    if support == "confirmed":
-        if not ids or not set(ids).issubset(confirmed_ids):
-            raise ValueError("Packet drafts claimed unavailable confirmed evidence")
-    elif support == "document":
-        if ids:
-            raise ValueError("Document-grounded drafts cannot claim profile provenance")
-    elif support != "unsupported":
-        raise ValueError("Packet draft carried an unknown support label")
-    return ids
+    if support == "confirmed" and ids and set(ids).issubset(confirmed_ids):
+        return support, ids
+    if support == "document" and not ids:
+        return support, ids
+    if support == "unsupported":
+        return support, []
+    return "unsupported", []
 
 
 def _validate_cover_letter(raw: object, confirmed_ids: set[str]) -> dict | None:
     if not isinstance(raw, dict):
         return None
-    ids = _validate_support(raw, confirmed_ids)
+    support, ids = _validate_support(raw, confirmed_ids)
     return {
         "body": str(raw.get("body", "")),
-        "support": raw.get("support", "unsupported"),
+        "support": support,
         "evidence_item_ids": ids,
     }
 
@@ -364,12 +370,18 @@ def _draftable_screening_answers(
         if item.get("support", "unsupported") == "unsupported":
             _add_stop("uncertain")
             continue
-        ids = _validate_support(item, confirmed_ids)
+        support, ids = _validate_support(item, confirmed_ids)
+        if support == "unsupported":
+            # A hallucinated/malformed confirmed-or-document claim degrades to the
+            # same uncertain-field stop as a genuinely unsupported answer, rather
+            # than aborting the whole batch over one bad candidate.
+            _add_stop("uncertain")
+            continue
         answers.append(
             {
                 "question": question,
                 "answer": str(item.get("answer", "")),
-                "support": item.get("support", "unsupported"),
+                "support": support,
                 "evidence_item_ids": ids,
             }
         )
