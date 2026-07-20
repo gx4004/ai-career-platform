@@ -1,7 +1,14 @@
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, String
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    String,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -15,6 +22,11 @@ class Workspace(Base):
             "'interviewing', 'offer', 'accepted', 'rejected', 'withdrawn')",
             name="ck_workspaces_campaign_status",
         ),
+        # At most one campaign per owner per adopted discovery listing (R14 #176):
+        # NULL (manually-created campaigns) is exempt by standard SQL NULL semantics.
+        UniqueConstraint(
+            "user_id", "discovery_listing_id", name="uq_workspace_owner_discovery_listing"
+        ),
     )
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
@@ -25,6 +37,11 @@ class Workspace(Base):
         index=True,
     )
     label: Mapped[str | None] = mapped_column(String, nullable=True)
+    # The discovery listing this campaign was adopted from (R14 #176), if any.
+    # NULL for manually-created campaigns. Lets adopt_recommendation detect and
+    # reuse an existing campaign instead of creating a duplicate for the same
+    # (owner, listing) pair.
+    discovery_listing_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
     is_pinned: Mapped[bool] = mapped_column(Boolean, default=False)
     company: Mapped[str | None] = mapped_column(String(200), nullable=True)
     role: Mapped[str | None] = mapped_column(String(200), nullable=True)

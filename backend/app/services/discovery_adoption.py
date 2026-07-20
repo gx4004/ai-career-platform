@@ -18,6 +18,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models.workspace import Workspace
@@ -49,6 +50,17 @@ def adopt_recommendation(
     attribution and retrieval date into the new campaign's canonical listing, and
     records the adoption as the campaign's first (and only) event.
     """
+    # Idempotent by (owner, listing): a double-click, retry, or a listing that
+    # stays visible in the feed after its first adoption must never create a
+    # second campaign for it (R14 #176 dedup gap).
+    existing = (
+        db.query(Workspace)
+        .filter(Workspace.user_id == user_id, Workspace.discovery_listing_id == listing_id)
+        .one_or_none()
+    )
+    if existing is not None:
+        return existing
+
     feed = rank_discovery_recommendations(db, user_id, now=now)
     recommendation = next(
         (item for item in feed.items if item.listing_id == listing_id),
@@ -61,14 +73,26 @@ def adopt_recommendation(
     # campaign listing carries exactly one source, so the freshest one is copied.
     primary = recommendation.attributions[0]
 
-    workspace = Workspace(
-        user_id=user_id,
-        label=_campaign_label(recommendation),
-        company=recommendation.company,
-        role=recommendation.title,
-    )
-    db.add(workspace)
-    db.flush()
+    try:
+        with db.begin_nested():
+            workspace = Workspace(
+                user_id=user_id,
+                label=_campaign_label(recommendation),
+                company=recommendation.company,
+                role=recommendation.title,
+                discovery_listing_id=listing_id,
+            )
+            db.add(workspace)
+            db.flush()
+    except IntegrityError:
+        # A concurrent adoption of the same listing won the race between our
+        # existence check and this insert; reuse its campaign rather than
+        # creating a duplicate.
+        return (
+            db.query(Workspace)
+            .filter(Workspace.user_id == user_id, Workspace.discovery_listing_id == listing_id)
+            .one()
+        )
 
     attach_listing(
         db,

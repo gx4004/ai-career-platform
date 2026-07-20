@@ -147,6 +147,32 @@ def test_adoption_copies_content_attribution_and_retrieval_date_and_records_firs
     assert analytics[0].operational_dimension == "licensed"
 
 
+def test_adopting_the_same_listing_twice_reuses_the_same_campaign(db, test_user):
+    """A double-click, retry, or a listing that stays visible in the feed after
+    its first adoption must never create a second campaign for it — that would
+    silently fragment one application into two unrelated campaigns.
+    """
+    source = _source("feed-a")
+    db.add(source)
+    db.commit()
+    listing, _ = _listing(
+        db,
+        source,
+        title="Senior Platform Engineer",
+        description="Build Kubernetes platform services with Python.",
+        retrieved_at=NOW - timedelta(days=1),
+    )
+    _confirmed_skill(db, test_user.id)
+
+    first = adopt_recommendation(db, test_user.id, listing.id, now=NOW)
+    second = adopt_recommendation(db, test_user.id, listing.id, now=NOW)
+
+    assert second.id == first.id
+    assert db.query(Workspace).filter_by(user_id=test_user.id).count() == 1
+    assert db.query(CampaignListing).filter_by(workspace_id=first.id).count() == 1
+    assert db.query(CampaignEvent).filter_by(workspace_id=first.id).count() == 1
+
+
 def test_adoption_copies_the_freshest_visible_source_when_deduped(db, test_user):
     stale = _source("feed-stale")
     fresh = _source("feed-fresh")
