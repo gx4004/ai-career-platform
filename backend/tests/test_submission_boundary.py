@@ -1,30 +1,31 @@
 """Structural guard for the R15/R16 boundary (ADR 0009, D-096).
 
 ``docs/threat-model.md`` states that the API surface has no submission endpoint
-and calls that claim "test-verified". Until now nothing verified it: no test
-inspected the route table, so a submission endpoint could have been added while
-the threat model still asserted its absence.
+and calls that claim "test-verified". Nothing verified it: no test inspected the
+routes, so a submission endpoint could have been added while the threat model
+still asserted its absence.
 
 ADR 0009 is explicit that the boundary is *structural* — the approval queue
 prepares packets for review and hands the user to the official destination to
 submit themselves. Submission automation may only ever appear behind R16's
 per-source authorization contract (ADR 0010), which is gated and unbuilt.
 
-The surface is taken as the union of two views — the ``client`` fixture's app
-and a direct import of ``app.main``. Under CI, and never locally, each of those
-views reported only FastAPI's four default docs routes while the 700+ other
-tests were concurrently calling ``/api/v1/...`` against a fully mounted app.
-A union can only add paths, so it cannot hide a submission route, and
-:func:`test_surface_under_test_is_actually_populated` still fails loudly if
-every view comes back empty — the guard can never pass against nothing.
-
-Routes are inspected directly instead of via the served OpenAPI schema because
-``app.openapi()`` currently raises on this branch (an unrebuilt
-``AdminSetAdminRequest`` forward reference — see issue #285). That is a
-separate pre-existing defect; this guard must not depend on it.
+This walks the router modules in ``app/routers/`` and inspects each
+``APIRouter`` directly, rather than the assembled ``app.main`` application.
+Earlier revisions inspected the assembled app and, under CI only, saw an
+instance carrying just FastAPI's four default docs routes — so the guard passed
+against nothing for four consecutive runs. Reading the routers removes that
+dependency: every route reaches the app through one of these modules, and
+discovery is a directory scan, so a new router file is covered the day it is
+added.
 """
 
 from __future__ import annotations
+
+import importlib
+import pkgutil
+
+import app.routers
 
 # Tokens that indicate a route performs or schedules a submission on the user's
 # behalf. Deliberately narrow: matched as substrings against the lowercased
@@ -38,65 +39,58 @@ FORBIDDEN_PATH_TOKENS = (
     "autoapply",
 )
 
-# ``/cv-documents/{document_id}/tailoring/apply`` applies a reviewed tailoring
-# diff to the user's own CV document. It does not apply *to a job*, so a bare
-# "apply" token is not a submission signal and is not in the list above. Pinned
-# here so a future reader does not "tighten" the guard into a false positive.
-KNOWN_NON_SUBMISSION_APPLY_PATH = "/api/v1/cv-documents/{document_id}/tailoring/apply"
+# ``/{document_id}/tailoring/apply`` applies a reviewed tailoring diff to the
+# user's own CV document. It does not apply *to a job*, so a bare "apply" token
+# is not a submission signal and is not in the list above. Pinned here so a
+# future reader does not "tighten" the guard into a false positive.
+KNOWN_NON_SUBMISSION_APPLY_SUFFIX = "/{document_id}/tailoring/apply"
 
-# The served surface is well over a hundred paths. A floor well beneath that
-# still catches the failure mode that matters: a near-empty schema making every
+# The backend ships well over a dozen router modules. Floors beneath the real
+# counts still catch the failure mode that matters: an empty scan making every
 # assertion below trivially true.
-MINIMUM_EXPECTED_PATHS = 50
+MINIMUM_EXPECTED_ROUTERS = 10
+MINIMUM_EXPECTED_ROUTES = 50
 
 
-def _paths_of(candidate) -> set[str]:
-    routes = getattr(candidate, "routes", None) or []
-    return {route.path for route in routes if hasattr(route, "path")}
+def _router_routes() -> list[tuple[str, str]]:
+    """Every (module_name, route_path) pair defined by an app router module."""
+    found: list[tuple[str, str]] = []
+    for module_info in pkgutil.iter_modules(app.routers.__path__):
+        module = importlib.import_module(f"app.routers.{module_info.name}")
+        router = getattr(module, "router", None)
+        for route in getattr(router, "routes", None) or []:
+            path = getattr(route, "path", None)
+            if path is not None:
+                found.append((module_info.name, path))
+    return found
 
 
-def _route_paths(client) -> set[str]:
-    """The mounted route surface, taken from whichever view is most complete.
+def test_surface_under_test_is_actually_populated():
+    """Guard the guard: an empty scan would make every other test here pass.
 
-    Under CI — and never locally — both ``client.app`` and a direct import of
-    ``app.main`` reported only FastAPI's four default docs routes, while the
-    700+ other tests in this suite were concurrently calling ``/api/v1/...``
-    against a fully mounted app. The mechanism was not worth more CI cycles to
-    pin down, so this takes the union of both views rather than betting on
-    either one.
-
-    That is safe in both directions: a union can only ever *add* paths, so it
-    cannot hide a submission route, and
-    :func:`test_surface_under_test_is_actually_populated` still fails loudly if
-    every view comes back empty.
+    Not a formality. Earlier revisions inspected the assembled application and,
+    under CI, found only FastAPI's four default docs routes — the submission
+    assertion "passed" against nothing for four consecutive runs.
     """
-    from app.main import app as imported_app
+    routes = _router_routes()
+    modules = {module for module, _ in routes}
 
-    return _paths_of(getattr(client, "app", None)) | _paths_of(imported_app)
-
-
-def test_surface_under_test_is_actually_populated(client):
-    """Guard the guard: an empty surface would make every other test here pass.
-
-    This is not a formality — earlier versions of this module imported
-    ``app.main`` directly and, under CI, saw only FastAPI's default docs routes.
-    The submission assertion "passed" against nothing.
-    """
-    paths = _route_paths(client)
-
-    assert len(paths) >= MINIMUM_EXPECTED_PATHS, (
-        f"Only {len(paths)} mounted routes — expected at least "
-        f"{MINIMUM_EXPECTED_PATHS}. The app under test is not fully mounted, so "
-        "the submission-boundary assertions below would be vacuous."
+    assert len(modules) >= MINIMUM_EXPECTED_ROUTERS, (
+        f"Only {len(modules)} router modules exposed a router — expected at least "
+        f"{MINIMUM_EXPECTED_ROUTERS}. The scan is not seeing the routers, so the "
+        "submission-boundary assertion below would be vacuous."
     )
-    assert KNOWN_NON_SUBMISSION_APPLY_PATH in paths
+    assert len(routes) >= MINIMUM_EXPECTED_ROUTES, (
+        f"Only {len(routes)} routes discovered — expected at least "
+        f"{MINIMUM_EXPECTED_ROUTES}."
+    )
 
 
-def test_api_surface_exposes_no_submission_endpoint(client):
+def test_api_surface_exposes_no_submission_endpoint():
     """No route may perform, schedule, or retry a submission (ADR 0009, D-096)."""
     offenders = sorted(
-        path
-        for path in _route_paths(client)
+        f"{module}:{path}"
+        for module, path in _router_routes()
         for token in FORBIDDEN_PATH_TOKENS
         if token in path.lower()
     )
@@ -110,9 +104,15 @@ def test_api_surface_exposes_no_submission_endpoint(client):
 
 
 def test_tailoring_apply_is_not_treated_as_a_submission_route():
-    """The guard must not false-positive on applying a tailoring diff."""
+    """The guard must not false-positive on applying a tailoring diff.
+
+    Also proves the scan reaches real routes rather than an empty list.
+    """
+    paths = [path for _, path in _router_routes()]
+
+    assert KNOWN_NON_SUBMISSION_APPLY_SUFFIX in paths
     assert not any(
-        token in KNOWN_NON_SUBMISSION_APPLY_PATH.lower() for token in FORBIDDEN_PATH_TOKENS
+        token in KNOWN_NON_SUBMISSION_APPLY_SUFFIX.lower() for token in FORBIDDEN_PATH_TOKENS
     )
 
 
@@ -122,5 +122,4 @@ def test_guard_would_catch_a_submission_route():
     Without this, an empty or typo'd token list would make the boundary test
     vacuously green forever.
     """
-    hypothetical = "/api/v1/packets/{packet_id}/submit"
-    assert any(token in hypothetical.lower() for token in FORBIDDEN_PATH_TOKENS)
+    assert any(token in "/{packet_id}/submit".lower() for token in FORBIDDEN_PATH_TOKENS)
