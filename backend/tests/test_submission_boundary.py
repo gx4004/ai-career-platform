@@ -10,20 +10,20 @@ prepares packets for review and hands the user to the official destination to
 submit themselves. Submission automation may only ever appear behind R16's
 per-source authorization contract (ADR 0010), which is gated and unbuilt.
 
-``app.main`` is imported *inside* each test rather than at module scope. A
-module-scope import bound a partially initialised ``app.main`` under CI —
-``conftest.py`` imports the same module, and when this module was pulled into
-that import chain ``sys.modules`` handed back the half-built module, with the
-``app`` object created but its ``include_router`` calls not yet executed. The
-guard then scanned only FastAPI's four default docs routes and passed against
-nothing. Importing lazily guarantees a fully initialised module, and
-:func:`test_surface_under_test_is_actually_populated` fails loudly if the
-surface is ever empty again.
+The surface is read off the ``client`` fixture rather than by importing
+``app.main`` in this module. Under CI — and only under CI — both a module-scope
+and a lazy import of that module resolved to an instance carrying just
+FastAPI's four default docs routes, while the 700+ other tests were
+concurrently calling ``/api/v1/...`` against a fully mounted app. Rather than
+guess at those import mechanics, this reads whatever app the suite actually
+exercises. :func:`test_surface_under_test_is_actually_populated` then fails
+loudly if that surface is ever empty, so the guard cannot silently pass against
+nothing.
 
-The surface is read from ``app.routes`` rather than the served OpenAPI schema
-because ``app.openapi()`` currently raises on this branch (an unrebuilt
-``AdminSetAdminRequest`` forward reference). That is a separate pre-existing
-defect; this guard must not depend on it.
+Routes are inspected directly instead of via the served OpenAPI schema because
+``app.openapi()`` currently raises on this branch (an unrebuilt
+``AdminSetAdminRequest`` forward reference — see issue #285). That is a
+separate pre-existing defect; this guard must not depend on it.
 """
 
 from __future__ import annotations
@@ -52,20 +52,26 @@ KNOWN_NON_SUBMISSION_APPLY_PATH = "/api/v1/cv-documents/{document_id}/tailoring/
 MINIMUM_EXPECTED_PATHS = 50
 
 
-def _route_paths() -> set[str]:
-    from app.main import app  # imported lazily — see module docstring
+def _route_paths(client) -> set[str]:
+    """The routes of the exact app the rest of the suite exercises.
 
-    return {route.path for route in app.routes if hasattr(route, "path")}
+    Read off the test client rather than by importing ``app.main`` here. Both a
+    module-scope and a lazy import of that module resolved, under CI only, to an
+    instance carrying just FastAPI's four default docs routes — while the 700+
+    other tests were happily calling ``/api/v1/...`` on a fully mounted app. The
+    client fixture is the single source of truth for what is under test.
+    """
+    return {route.path for route in client.app.routes if hasattr(route, "path")}
 
 
-def test_surface_under_test_is_actually_populated():
+def test_surface_under_test_is_actually_populated(client):
     """Guard the guard: an empty surface would make every other test here pass.
 
-    This is not a formality — the first version of this module bound ``app`` at
-    module scope and, under CI, saw only FastAPI's default docs routes. The
-    submission assertion "passed" against nothing.
+    This is not a formality — earlier versions of this module imported
+    ``app.main`` directly and, under CI, saw only FastAPI's default docs routes.
+    The submission assertion "passed" against nothing.
     """
-    paths = _route_paths()
+    paths = _route_paths(client)
 
     assert len(paths) >= MINIMUM_EXPECTED_PATHS, (
         f"Only {len(paths)} mounted routes — expected at least "
@@ -75,11 +81,11 @@ def test_surface_under_test_is_actually_populated():
     assert KNOWN_NON_SUBMISSION_APPLY_PATH in paths
 
 
-def test_api_surface_exposes_no_submission_endpoint():
+def test_api_surface_exposes_no_submission_endpoint(client):
     """No route may perform, schedule, or retry a submission (ADR 0009, D-096)."""
     offenders = sorted(
         path
-        for path in _route_paths()
+        for path in _route_paths(client)
         for token in FORBIDDEN_PATH_TOKENS
         if token in path.lower()
     )
