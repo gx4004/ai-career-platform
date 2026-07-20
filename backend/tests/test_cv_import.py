@@ -77,6 +77,70 @@ def test_accept_reviewed_proposal_atomically_creates_document_and_unconfirmed_cl
     )
 
 
+def test_autosave_right_after_import_succeeds_despite_unconfirmed_linked_evidence(
+    client, auth_headers, db
+):
+    """accept_import legitimately persists entries linked to still-unconfirmed
+    evidence (D-073's documented exception). The very next autosave — which
+    resends those same, untouched entries — must not 422 just because that
+    evidence hasn't been confirmed yet; only a genuinely NEW unconfirmed link
+    should be rejected.
+    """
+    proposal = client.post(
+        f"{PREFIX}/proposals",
+        files={"file": ("resume.txt", io.BytesIO(_text_resume()), "text/plain")},
+        headers=auth_headers,
+    ).json()
+    accepted = client.post(f"{PREFIX}/accept", json=proposal, headers=auth_headers).json()
+    evidence_id = accepted["sections"][1]["entries"][1]["evidence_item_id"]
+    assert (
+        db.query(EvidenceItem).filter(EvidenceItem.id == evidence_id).one().confirmation_state
+        == "unconfirmed"
+    )
+
+    autosave = client.patch(
+        f"/api/v1/cv-documents/{accepted['id']}",
+        json={"name": "Reviewed CV (renamed)", "sections": accepted["sections"]},
+        headers=auth_headers,
+    )
+
+    assert autosave.status_code == 200
+    assert autosave.json()["name"] == "Reviewed CV (renamed)"
+
+
+def test_autosave_still_rejects_a_brand_new_unconfirmed_evidence_link(client, auth_headers, db):
+    """The exemption only covers links the document already had — it must not
+    become a general bypass of the confirmed-evidence requirement.
+    """
+    proposal = client.post(
+        f"{PREFIX}/proposals",
+        files={"file": ("resume.txt", io.BytesIO(_text_resume()), "text/plain")},
+        headers=auth_headers,
+    ).json()
+    accepted = client.post(f"{PREFIX}/accept", json=proposal, headers=auth_headers).json()
+
+    other_unconfirmed = EvidenceItem(
+        user_id=db.query(EvidenceItem).first().user_id,
+        kind="skill",
+        content={"name": "Never linked before"},
+        provenance="user-entered",
+        confirmation_state="unconfirmed",
+    )
+    db.add(other_unconfirmed)
+    db.commit()
+
+    sections = accepted["sections"]
+    sections[0]["entries"][0]["evidence_item_id"] = other_unconfirmed.id
+
+    response = client.patch(
+        f"/api/v1/cv-documents/{accepted['id']}",
+        json={"sections": sections},
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 422
+
+
 def test_discarding_proposal_requires_no_server_call_and_leaves_no_content(
     client, auth_headers, db
 ):

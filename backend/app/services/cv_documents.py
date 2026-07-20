@@ -56,24 +56,36 @@ def get_document(db: Session, document_id: str, user_id: str) -> CvDocument:
     return document
 
 
-def _validate_evidence(db: Session, user_id: str, sections: list[dict]) -> None:
+def _validate_evidence(
+    db: Session, user_id: str, sections: list[dict], *, already_linked: set[str] | None = None
+) -> None:
+    """Every NEW evidence link must reference a confirmed, owned item.
+
+    ``already_linked`` (ids the document already referenced before this save,
+    e.g. unconfirmed claims ``accept_import`` staged, D-073's documented
+    exception) is exempt — re-saving an entry the user hasn't touched must not
+    retroactively fail just because its evidence is still awaiting
+    confirmation. A genuinely new reference to unconfirmed evidence still
+    fails.
+    """
     ids = {
         entry["evidence_item_id"]
         for section in sections
         for entry in section["entries"]
         if entry["evidence_item_id"] is not None
     }
-    if not ids:
+    new_ids = ids - (already_linked or set())
+    if not new_ids:
         return
     confirmed = {
         item.id
         for item in db.query(EvidenceItem.id).filter(
             EvidenceItem.user_id == user_id,
             EvidenceItem.confirmation_state == "confirmed",
-            EvidenceItem.id.in_(ids),
+            EvidenceItem.id.in_(new_ids),
         )
     }
-    if confirmed != ids:
+    if confirmed != new_ids:
         raise InvalidEvidenceReferenceError
 
 
@@ -209,7 +221,13 @@ def update_document(db: Session, document: CvDocument, *, name=None, sections=No
     if name is not None:
         document.name = name
     if sections is not None:
-        _validate_evidence(db, document.user_id, sections)
+        already_linked = {
+            entry["evidence_item_id"]
+            for section in document.sections
+            for entry in section["entries"]
+            if entry["evidence_item_id"] is not None
+        }
+        _validate_evidence(db, document.user_id, sections, already_linked=already_linked)
         document.sections = deepcopy(sections)
     db.commit()
     safe_record_activation_event(db, event_name="studio_document_updated")
