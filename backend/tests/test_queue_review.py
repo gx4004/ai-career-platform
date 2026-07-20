@@ -292,4 +292,8 @@ def test_account_deletion_clears_only_that_owners_pause_state(db, test_user, mon
 
     delete_all_user_data(db, test_user.id)
 
+    # The erased owner's pause row must not outlive their account (D-099). Without
+    # this assertion the test passes even when the cascade never deletes anything,
+    # since ``PipelineHalt.scope`` is a plain string with no FK to ``users``.
+    assert is_queue_paused(db, test_user.id) is False
     assert is_queue_paused(db, other.id) is True
