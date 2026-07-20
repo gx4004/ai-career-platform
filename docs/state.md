@@ -3,6 +3,39 @@
 **Snapshot date:** 2026-07-11
 **Confidence:** code-informed, release environment not re-verified
 
+> **Checkpoint 2026-07-20.** The narrative below this banner is stale from R11
+> onward and is being corrected separately. What is verified as of this date:
+>
+> - **Integration branch is `chapter2`** (D-027, `CONTEXT.md:276-279`). `main` and
+>   `deploy` both sit at `6a00a612` (2026-04-29), **140 commits behind**. The
+>   documented `chapter2 → main → deploy` promotion has never been run for any
+>   R0–R15 work.
+> - **All five open fix PRs were opened against `main` by mistake** and were
+>   retargeted to `chapter2`. Merging one as-is would have promoted the entire
+>   R11–R15 body into `main`, one step from Railway-watched `deploy`.
+> - **Shipped this session:** #277/#276 (per-owner queue pause, cross-tenant
+>   authorization fix), #283/#282 (CV import autosave 422), #279/#278
+>   (hallucinated support no longer aborts the batch), #281/#280 (adoption dedup
+>   + packet-prep race).
+> - **Open:** #275 (cost cap over-applied to the free deterministic path —
+>   finding on the PR), #284 (submission-boundary test), #285 (OpenAPI schema
+>   generation broken: `/docs`, `/redoc`, `/openapi.json` all fail), #286 (#281
+>   follow-up: governance bypass + missing backfill).
+> - **Backlog reality:** no unblocked *feature* work exists. R16 (#188–#195) and
+>   R17 (#197–#202) contain zero implementation lines and are gated on evidence
+>   that cannot exist in demo mode (D-100, D-108). R10 triggers have not fired.
+>   R3/R9 need deployed-environment evidence or owner decisions. #51 and #208
+>   need credentials/console access.
+> - **Unresolved governance contradiction:** R11–R15 shipped with *unguarded*
+>   user-facing navigation (`/profile`, `/queue`, `/discovery`, `cvStudioEntry`
+>   in `registry.ts:229`) while gates D-060/D-068/D-076/D-084/D-092 still
+>   require them dark. The build-ahead override covered one dark ticket each
+>   (#144, #153), not five UI-activated cycles. Owner decision required; the
+>   append-only decision log has deliberately not been rewritten.
+> - **Baseline:** backend 717 passed, frontend 76 files / 396 tests, ruff and
+>   typecheck clean. GitHub Actions failed to assign runners 2026-07-17→20 and
+>   has since recovered.
+
 ## Current Posture
 
 R12 #157 is implemented under the owner-authorized build-ahead exception: dormant
