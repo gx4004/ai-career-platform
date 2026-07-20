@@ -10,14 +10,23 @@ prepares packets for review and hands the user to the official destination to
 submit themselves. Submission automation may only ever appear behind R16's
 per-source authorization contract (ADR 0010), which is gated and unbuilt.
 
-This test fails loudly if a submission-shaped route lands on the app, so that
-crossing the boundary has to be a deliberate, reviewed act rather than a quiet
-side effect.
+``app.main`` is imported *inside* each test rather than at module scope. A
+module-scope import bound a partially initialised ``app.main`` under CI —
+``conftest.py`` imports the same module, and when this module was pulled into
+that import chain ``sys.modules`` handed back the half-built module, with the
+``app`` object created but its ``include_router`` calls not yet executed. The
+guard then scanned only FastAPI's four default docs routes and passed against
+nothing. Importing lazily guarantees a fully initialised module, and
+:func:`test_surface_under_test_is_actually_populated` fails loudly if the
+surface is ever empty again.
+
+The surface is read from ``app.routes`` rather than the served OpenAPI schema
+because ``app.openapi()`` currently raises on this branch (an unrebuilt
+``AdminSetAdminRequest`` forward reference). That is a separate pre-existing
+defect; this guard must not depend on it.
 """
 
 from __future__ import annotations
-
-from app.main import app
 
 # Tokens that indicate a route performs or schedules a submission on the user's
 # behalf. Deliberately narrow: matched as substrings against the lowercased
@@ -37,9 +46,33 @@ FORBIDDEN_PATH_TOKENS = (
 # here so a future reader does not "tighten" the guard into a false positive.
 KNOWN_NON_SUBMISSION_APPLY_PATH = "/api/v1/cv-documents/{document_id}/tailoring/apply"
 
+# The served surface is well over a hundred paths. A floor well beneath that
+# still catches the failure mode that matters: a near-empty schema making every
+# assertion below trivially true.
+MINIMUM_EXPECTED_PATHS = 50
+
 
 def _route_paths() -> set[str]:
+    from app.main import app  # imported lazily — see module docstring
+
     return {route.path for route in app.routes if hasattr(route, "path")}
+
+
+def test_surface_under_test_is_actually_populated():
+    """Guard the guard: an empty surface would make every other test here pass.
+
+    This is not a formality — the first version of this module bound ``app`` at
+    module scope and, under CI, saw only FastAPI's default docs routes. The
+    submission assertion "passed" against nothing.
+    """
+    paths = _route_paths()
+
+    assert len(paths) >= MINIMUM_EXPECTED_PATHS, (
+        f"Only {len(paths)} mounted routes — expected at least "
+        f"{MINIMUM_EXPECTED_PATHS}. The app under test is not fully mounted, so "
+        "the submission-boundary assertions below would be vacuous."
+    )
+    assert KNOWN_NON_SUBMISSION_APPLY_PATH in paths
 
 
 def test_api_surface_exposes_no_submission_endpoint():
@@ -60,13 +93,7 @@ def test_api_surface_exposes_no_submission_endpoint():
 
 
 def test_tailoring_apply_is_not_treated_as_a_submission_route():
-    """The guard must not false-positive on applying a tailoring diff.
-
-    Keeps the boundary test honest: it proves the assertion above passes because
-    no submission route exists, not because the token list is too narrow to
-    match anything real.
-    """
-    assert KNOWN_NON_SUBMISSION_APPLY_PATH in _route_paths()
+    """The guard must not false-positive on applying a tailoring diff."""
     assert not any(
         token in KNOWN_NON_SUBMISSION_APPLY_PATH.lower() for token in FORBIDDEN_PATH_TOKENS
     )
