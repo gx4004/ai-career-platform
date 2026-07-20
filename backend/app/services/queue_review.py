@@ -190,26 +190,26 @@ def edit_packet(db: Session, user_id: str, packet_id: str) -> ApplicationPacketI
 # ── Global pause (R15 #183) ──
 
 
-def queue_review_state(db: Session) -> QueueReviewState:
-    """The queue's current preparation posture the UI reads to reflect pause/halt."""
+def queue_review_state(db: Session, user_id: str) -> QueueReviewState:
+    """This owner's current preparation posture the UI reads to reflect pause/halt."""
     return QueueReviewState(
-        paused=is_queue_paused(db),
+        paused=is_queue_paused(db, user_id),
         preparation_halted=is_preparation_halted(db),
     )
 
 
 def pause_queue(db: Session, user_id: str) -> QueueReviewState:
-    """Pause the queue: halt preparation immediately, then record ``queue_paused``."""
-    pause_preparation(db)
+    """Pause this owner's queue: halt their preparation, then record ``queue_paused``."""
+    pause_preparation(db, user_id)
     record_queue_audit_event(db, user_id=user_id, action="queue_paused")
-    return queue_review_state(db)
+    return queue_review_state(db, user_id)
 
 
 def resume_queue(db: Session, user_id: str) -> QueueReviewState:
-    """Resume the queue: clear the pause, then record ``queue_resumed``.
+    """Resume this owner's queue: clear their pause, then record ``queue_resumed``.
 
     A concurrent regression halt (#184) is untouched and still blocks preparation.
     """
-    resume_preparation(db)
+    resume_preparation(db, user_id)
     record_queue_audit_event(db, user_id=user_id, action="queue_resumed")
-    return queue_review_state(db)
+    return queue_review_state(db, user_id)

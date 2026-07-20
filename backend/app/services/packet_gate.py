@@ -40,11 +40,16 @@ from app.services.analytics import safe_record_activation_event
 # means preparation is halted; no row means it is running.
 PREPARATION_HALT_SCOPE = "packet-preparation"
 
-# The owner-initiated global pause (R15 #183). A distinct ``pipeline_halts`` scope so a
-# user pause is never confused with a regression halt (``packet-preparation``): both
-# stop preparation through the same consultation seam, but they are set/cleared
-# independently and reported separately. Reason is the bounded ``user_paused`` marker.
-QUEUE_PAUSE_SCOPE = "queue-pause"
+# The owner-initiated pause (R15 #183). Scoped per user — embedding the user id in
+# the ``pipeline_halts`` scope string keeps it on the same halt/consultation seam as
+# the pipeline-wide regression halt (``packet-preparation``) while ensuring one
+# owner's pause can never halt, or be cleared by, another owner's queue (a single
+# shared "queue-pause" scope previously meant any authenticated user could pause or
+# resume every other user's queue). Reason is the bounded ``user_paused`` marker.
+def _queue_pause_scope(user_id: str) -> str:
+    return f"queue-pause:{user_id}"
+
+
 QUEUE_PAUSE_REASON = "user_paused"
 
 # The reviewer category that represents a fabrication finding (D-097). It is the
@@ -175,18 +180,29 @@ def clear_pipeline_halt(
 # ── Owner-initiated global pause (R15 #183) ──
 
 
-def is_queue_paused(db: Session) -> bool:
-    """True when the owner has paused the queue (preparation must refuse).
+def delete_queue_pause_state(db: Session, user_id: str) -> None:
+    """Delete this owner's pause row, if any, as part of account erasure (D-099).
 
-    Reuses the pipeline-halt consultation seam with a distinct scope, so
-    :func:`prepare_packets` genuinely stops preparing the moment a pause is set —
-    the pause is not merely cosmetic UI state.
+    Unlike the pipeline-wide regression halt (``packet-preparation``, deliberately
+    excluded from the erasure cascade since it is operational, not owner data), a
+    per-user pause row IS this owner's data and must not outlive their account. No
+    commit here — the caller commits once as part of the larger erasure transaction.
     """
-    return _halt_row(db, QUEUE_PAUSE_SCOPE) is not None
+    db.query(PipelineHalt).filter(PipelineHalt.scope == _queue_pause_scope(user_id)).delete()
 
 
-def pause_preparation(db: Session, *, now: datetime | None = None) -> HaltStatus:
-    """Set the global pause halt row so preparation refuses immediately.
+def is_queue_paused(db: Session, user_id: str) -> bool:
+    """True when this owner has paused their own queue (preparation must refuse).
+
+    Reuses the pipeline-halt consultation seam with a per-user scope, so
+    :func:`prepare_packets` genuinely stops preparing the moment a pause is set —
+    the pause is not merely cosmetic UI state — without affecting other owners.
+    """
+    return _halt_row(db, _queue_pause_scope(user_id)) is not None
+
+
+def pause_preparation(db: Session, user_id: str, *, now: datetime | None = None) -> HaltStatus:
+    """Set this owner's pause halt row so their preparation refuses immediately.
 
     Idempotent: re-pausing refreshes the timestamp on the existing row. This does
     NOT emit the regression ``packet_preparation_halt`` operational event — a user
@@ -194,11 +210,10 @@ def pause_preparation(db: Session, *, now: datetime | None = None) -> HaltStatus
     audit event (``queue_paused``) is recorded by the caller.
     """
     now = now or datetime.now(UTC)
-    row = _halt_row(db, QUEUE_PAUSE_SCOPE)
+    scope = _queue_pause_scope(user_id)
+    row = _halt_row(db, scope)
     if row is None:
-        row = PipelineHalt(
-            scope=QUEUE_PAUSE_SCOPE, reason=QUEUE_PAUSE_REASON, halted_at=now, updated_at=now
-        )
+        row = PipelineHalt(scope=scope, reason=QUEUE_PAUSE_REASON, halted_at=now, updated_at=now)
         db.add(row)
     else:
         row.halted_at = now
@@ -207,13 +222,14 @@ def pause_preparation(db: Session, *, now: datetime | None = None) -> HaltStatus
     return HaltStatus(halted=True, reason=QUEUE_PAUSE_REASON, halted_since=now)
 
 
-def resume_preparation(db: Session) -> HaltStatus:
-    """Clear the global pause halt row so preparation may resume.
+def resume_preparation(db: Session, user_id: str) -> HaltStatus:
+    """Clear this owner's pause halt row so their preparation may resume.
 
-    Only clears the ``queue-pause`` scope; a concurrent regression halt
-    (``packet-preparation``) is untouched and still blocks preparation. Idempotent.
+    Only clears this owner's ``queue-pause:<user_id>`` scope; a concurrent
+    regression halt (``packet-preparation``) is untouched and still blocks
+    preparation, and other owners' pauses are untouched. Idempotent.
     """
-    row = _halt_row(db, QUEUE_PAUSE_SCOPE)
+    row = _halt_row(db, _queue_pause_scope(user_id))
     if row is not None:
         db.delete(row)
         db.commit()

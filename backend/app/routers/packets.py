@@ -73,12 +73,12 @@ def get_queue_state(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """The queue's current preparation posture (paused / regression-halted).
+    """This owner's current preparation posture (paused / regression-halted).
 
     The review surface reads this to reflect the pause toggle and to show that
     preparation is halted while paused (ADR 0009).
     """
-    return queue_review_state(db)
+    return queue_review_state(db, current_user.id)
 
 
 @router.post("/pause", response_model=QueueReviewState)
@@ -86,7 +86,7 @@ def pause(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Pause the whole queue: preparation refuses immediately (D-098 audit recorded)."""
+    """Pause this owner's queue: their preparation refuses immediately (D-098 audit recorded)."""
     return pause_queue(db, current_user.id)
 
 
@@ -95,7 +95,7 @@ def resume(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Resume the queue: clears the owner's pause (a regression halt still blocks)."""
+    """Resume this owner's queue: clears their pause (a regression halt still blocks)."""
     return resume_queue(db, current_user.id)
 
 
