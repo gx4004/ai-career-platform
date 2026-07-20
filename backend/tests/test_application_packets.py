@@ -241,7 +241,13 @@ async def test_match_rationale_traceable_to_signals(db, test_user, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_compose_rejects_unconfirmed_evidence_claim(monkeypatch):
+async def test_compose_downgrades_a_hallucinated_confirmed_claim_instead_of_raising(monkeypatch):
+    """A single candidate whose LLM output hallucinates 'confirmed' support for
+    evidence that isn't actually confirmed must degrade gracefully — the same
+    way a genuinely unsupported claim already does — not raise. Raising here
+    would abort the entire prepare_packets batch over one bad classification,
+    wasting every other admitted candidate's LLM call in the same run.
+    """
     payload = EvidencePayload(
         locked_facts=[{"evidence_item_id": "c1", "kind": "skill", "content": {"t": "Python"}}],
         gaps=[{"evidence_item_id": "u1", "kind": "skill", "content": {"t": "Rust"}}],
@@ -258,10 +264,31 @@ async def test_compose_rejects_unconfirmed_evidence_claim(monkeypatch):
         }
 
     monkeypatch.setattr("app.services.application_packets.complete_structured", fake_llm)
-    with pytest.raises(ValueError, match="unavailable confirmed evidence"):
-        await compose_packet_materials(
-            resume_text="cv", job_description="jd", evidence_profile=payload
-        )
+    result = await compose_packet_materials(
+        resume_text="cv", job_description="jd", evidence_profile=payload
+    )
+    assert result["screening_answers"] == []
+    assert [q["category"] for q in result["unresolved_questions"]] == ["uncertain"]
+    # The hallucinated, unconfirmed id is never surfaced anywhere in the result.
+    assert "u1" not in json.dumps(result)
+
+
+@pytest.mark.asyncio
+async def test_compose_downgrades_an_unknown_support_label_instead_of_raising(monkeypatch):
+    payload = EvidencePayload(locked_facts=[], gaps=[])
+
+    async def fake_llm(system_prompt, user_prompt, schema=None, model_override=None):
+        return {
+            "cover_letter": {"body": "Hello.", "support": "definitely-true", "evidence_item_ids": []},
+            "screening_answers": [],
+        }
+
+    monkeypatch.setattr("app.services.application_packets.complete_structured", fake_llm)
+    result = await compose_packet_materials(
+        resume_text="cv", job_description="jd", evidence_profile=payload
+    )
+    assert result["cover_letter"]["support"] == "unsupported"
+    assert result["cover_letter"]["evidence_item_ids"] == []
 
 
 @pytest.mark.asyncio
@@ -325,6 +352,49 @@ async def test_prep_injects_only_confirmed_evidence(db, test_user, monkeypatch):
     run = db.query(ToolRun).filter(ToolRun.tool_name == "application-packet").one()
     payload = run.result_payload
     assert payload["confirmed_evidence_item_ids"] == [confirmed_id]
+
+
+@pytest.mark.asyncio
+async def test_one_candidates_hallucinated_support_does_not_abort_the_whole_batch(
+    db, test_user, monkeypatch
+):
+    """One admitted candidate whose LLM output hallucinates 'confirmed' support
+    must not raise past the prepare_packets loop and abort every other admitted
+    candidate in the same run — each of the LLM calls already made for them
+    would otherwise be wasted on top of the non-refundable tailoring quota.
+    """
+    _add_listing(db, "listing-bad", description="We need a backend engineer with Rust.")
+    _add_listing(db, "listing-good", description="We need a backend engineer with Python.")
+    _add_cv_variant(db, test_user.id)
+    _patch_rank(
+        monkeypatch,
+        [_rec("listing-bad", description="We need a backend engineer with Rust."),
+         _rec("listing-good", description="We need a backend engineer with Python.")],
+    )
+    _add_rule(db, test_user.id, "role", keywords=["engineer"])
+
+    async def fake_llm(system_prompt, user_prompt, schema=None, model_override=None):
+        if "Rust" in user_prompt:
+            return {
+                "cover_letter": None,
+                "screening_answers": [
+                    {"question": "Rust?", "answer": "Expert.", "support": "confirmed",
+                     "evidence_item_ids": ["nonexistent-id"]}
+                ],
+            }
+        return {
+            "cover_letter": {"body": "Grounded in the CV.", "support": "document",
+                              "evidence_item_ids": []},
+            "screening_answers": [],
+        }
+
+    monkeypatch.setattr("app.services.application_packets.complete_structured", fake_llm)
+
+    result = await prepare_packets(db, test_user.id)
+
+    assert result.prepares is True
+    assert result.prepared_count == 2
+    assert db.query(ApplicationPacket).count() == 2
 
 
 # ── Cap + ceiling enforced during preparation (D-094) ──
