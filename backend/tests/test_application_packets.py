@@ -22,6 +22,7 @@ from app.services.application_packets import (
     prepare_packets,
 )
 from app.services.data_export import export_career_data
+from app.services.discovery_adoption import adopt_recommendation
 from app.services.evidence_injection import EvidencePayload
 from app.services.tool_runs import delete_all_user_data
 
@@ -481,6 +482,53 @@ async def test_reprepare_is_idempotent(db, test_user, monkeypatch):
     assert second.prepared_count == 0
     assert second.skipped_existing_count == 1
     assert db.query(ApplicationPacket).count() == 1
+
+
+@pytest.mark.asyncio
+async def test_a_concurrent_winner_is_absorbed_as_a_skip_not_a_crash(db, test_user, monkeypatch):
+    """Simulates the TOCTOU race: something else commits a packet for this exact
+    (user, listing) pair in the window between our existence check and our own
+    insert (e.g. a concurrent prepare_packets run winning the race). The unique
+    constraint (uq_packet_owner_listing) must turn our losing insert into a
+    graceful skip, never an unhandled IntegrityError that aborts the batch.
+    """
+    _add_listing(db, "listing-race")
+    _add_cv_variant(db, test_user.id)
+    _patch_rank(monkeypatch, [_rec("listing-race")])
+    _add_rule(db, test_user.id, "role", keywords=["engineer"])
+    # The same campaign our own run will also adopt via the now-idempotent seam.
+    campaign_id = adopt_recommendation(db, test_user.id, "listing-race").id
+
+    async def racing_compose(*, resume_text, job_description, listing_title="", company="", **kwargs):
+        # Simulate another worker committing the winning packet for this exact
+        # (user, listing) pair while our own composition was in flight.
+        db.add(
+            ApplicationPacket(
+                user_id=test_user.id,
+                campaign_id=campaign_id,
+                listing_id="listing-race",
+                match_rationale={"composite_score": 1, "signals": [], "matched_rules": []},
+                unresolved_questions=[],
+                status="prepared",
+                gate_state="passed",
+                estimated_cost_usd=0.01,
+            )
+        )
+        db.commit()
+        return await _stub_compose(
+            resume_text=resume_text,
+            job_description=job_description,
+            listing_title=listing_title,
+            company=company,
+            **kwargs,
+        )
+
+    result = await prepare_packets(db, test_user.id, compose_fn=racing_compose)
+
+    assert result.prepared_count == 0
+    assert result.skipped_existing_count == 1
+    # Exactly the concurrent winner's row survives — our own insert never landed.
+    assert db.query(ApplicationPacket).filter_by(listing_id="listing-race").count() == 1
 
 
 # ── Owner scoping ──

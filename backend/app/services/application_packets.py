@@ -25,6 +25,7 @@ from collections.abc import Awaitable, Callable
 from datetime import datetime
 from typing import Any
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models.application_packet import ApplicationPacket
@@ -591,6 +592,7 @@ async def prepare_packets(
             packet.gate_state = gate_state
             packet.estimated_cost_usd = selection.packet_cost
             prepared_action = "packet_reprepared"
+            db.commit()
         else:
             packet = ApplicationPacket(
                 user_id=user_id,
@@ -605,9 +607,21 @@ async def prepare_packets(
                 gate_state=gate_state,
                 estimated_cost_usd=selection.packet_cost,
             )
-            db.add(packet)
+            try:
+                with db.begin_nested():
+                    db.add(packet)
+                    db.flush()
+            except IntegrityError:
+                # A concurrent prepare_packets run for this owner already
+                # claimed this (user, listing) pair between our existence
+                # check and this insert (uq_packet_owner_listing) — this
+                # candidate's freshly composed drafts are discarded and it is
+                # treated exactly like the pre-existing-packet skip above,
+                # rather than crashing the rest of this batch.
+                skipped_existing += 1
+                continue
             prepared_action = "packet_prepared"
-        db.commit()
+            db.commit()
         db.refresh(packet)
         # Append-only audit of the queue action + its gate outcome (D-098, R15
         # #186). Records only outcome classes and the packet id by reference —
