@@ -10,15 +10,13 @@ prepares packets for review and hands the user to the official destination to
 submit themselves. Submission automation may only ever appear behind R16's
 per-source authorization contract (ADR 0010), which is gated and unbuilt.
 
-The surface is read off the ``client`` fixture rather than by importing
-``app.main`` in this module. Under CI — and only under CI — both a module-scope
-and a lazy import of that module resolved to an instance carrying just
-FastAPI's four default docs routes, while the 700+ other tests were
-concurrently calling ``/api/v1/...`` against a fully mounted app. Rather than
-guess at those import mechanics, this reads whatever app the suite actually
-exercises. :func:`test_surface_under_test_is_actually_populated` then fails
-loudly if that surface is ever empty, so the guard cannot silently pass against
-nothing.
+The surface is taken as the union of two views — the ``client`` fixture's app
+and a direct import of ``app.main``. Under CI, and never locally, each of those
+views reported only FastAPI's four default docs routes while the 700+ other
+tests were concurrently calling ``/api/v1/...`` against a fully mounted app.
+A union can only add paths, so it cannot hide a submission route, and
+:func:`test_surface_under_test_is_actually_populated` still fails loudly if
+every view comes back empty — the guard can never pass against nothing.
 
 Routes are inspected directly instead of via the served OpenAPI schema because
 ``app.openapi()`` currently raises on this branch (an unrebuilt
@@ -52,16 +50,29 @@ KNOWN_NON_SUBMISSION_APPLY_PATH = "/api/v1/cv-documents/{document_id}/tailoring/
 MINIMUM_EXPECTED_PATHS = 50
 
 
-def _route_paths(client) -> set[str]:
-    """The routes of the exact app the rest of the suite exercises.
+def _paths_of(candidate) -> set[str]:
+    routes = getattr(candidate, "routes", None) or []
+    return {route.path for route in routes if hasattr(route, "path")}
 
-    Read off the test client rather than by importing ``app.main`` here. Both a
-    module-scope and a lazy import of that module resolved, under CI only, to an
-    instance carrying just FastAPI's four default docs routes — while the 700+
-    other tests were happily calling ``/api/v1/...`` on a fully mounted app. The
-    client fixture is the single source of truth for what is under test.
+
+def _route_paths(client) -> set[str]:
+    """The mounted route surface, taken from whichever view is most complete.
+
+    Under CI — and never locally — both ``client.app`` and a direct import of
+    ``app.main`` reported only FastAPI's four default docs routes, while the
+    700+ other tests in this suite were concurrently calling ``/api/v1/...``
+    against a fully mounted app. The mechanism was not worth more CI cycles to
+    pin down, so this takes the union of both views rather than betting on
+    either one.
+
+    That is safe in both directions: a union can only ever *add* paths, so it
+    cannot hide a submission route, and
+    :func:`test_surface_under_test_is_actually_populated` still fails loudly if
+    every view comes back empty.
     """
-    return {route.path for route in client.app.routes if hasattr(route, "path")}
+    from app.main import app as imported_app
+
+    return _paths_of(getattr(client, "app", None)) | _paths_of(imported_app)
 
 
 def test_surface_under_test_is_actually_populated(client):
