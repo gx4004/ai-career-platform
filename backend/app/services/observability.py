@@ -4,7 +4,13 @@ import json
 import logging
 from typing import Any
 
+from app.schemas.telemetry import TelemetryEventRequest
+
 logger = logging.getLogger("app.observability")
+
+# Derived from the ingestion schema, never hand-maintained: a field added there
+# is loggable here automatically, and one removed stops being logged.
+_TELEMETRY_FIELDS = frozenset(TelemetryEventRequest.model_fields)
 
 
 def configure_logging() -> None:
@@ -69,7 +75,27 @@ def log_tool_run_failed(
 
 
 def log_frontend_telemetry(payload: dict[str, Any]) -> None:
-    _log("frontend_telemetry", **payload)
+    """Log an allowlisted frontend telemetry event.
+
+    The ingestion route already validates against ``TelemetryEventRequest``,
+    which forbids extra fields — but that made this seam safe only by caller
+    discipline, and it splats whatever dict it is handed straight into a log
+    line. A second caller, or a route refactor that skipped validation, would
+    silently write user content to stdout.
+
+    So the allowlist is re-applied here, derived from the same schema rather
+    than a second hand-maintained list. Unknown fields are dropped rather than
+    raising: telemetry must never break a user action, and dropping fails
+    closed. The offending *names* are logged so the mistake stays discoverable —
+    field names are developer-authored, unlike their values.
+    """
+    unexpected = sorted(set(payload) - _TELEMETRY_FIELDS)
+    if unexpected:
+        _log("frontend_telemetry_fields_dropped", level="error", fields=",".join(unexpected))
+    _log(
+        "frontend_telemetry",
+        **{key: value for key, value in payload.items() if key in _TELEMETRY_FIELDS},
+    )
 
 
 def log_user_account_deleted(
