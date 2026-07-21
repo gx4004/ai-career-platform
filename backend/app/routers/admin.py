@@ -1,5 +1,10 @@
-from __future__ import annotations
-
+# Deliberately NOT `from __future__ import annotations`. Routes here are wrapped
+# by slowapi's @limiter.limit, whose wrapper is defined inside slowapi's own
+# module — so the wrapped function's __globals__ are slowapi's, not ours. With
+# string annotations FastAPI cannot resolve a schema name against those globals,
+# silently reclassifies the request body as a query parameter, and OpenAPI
+# generation then fails for the whole app (#285). Real annotation objects
+# sidestep the lookup entirely. Covered by tests/test_openapi_schema.py.
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Literal
@@ -134,12 +139,11 @@ def get_source_health(
 def operate_kill_switch(
     request: Request,
     source_id: str,
-    # ``tripped`` is a bool query param rather than a JSON body: under
-    # ``from __future__ import annotations`` the ``@limiter.limit`` wrapper leaves
-    # FastAPI unable to resolve a Pydantic body model from the stringized
-    # annotation (it evaluates against the wrapper's globals), so a body model
-    # here fails to build. A builtin-typed query param resolves cleanly and keeps
-    # the per-IP admin rate limit in place.
+    # ``tripped`` is a bool query param rather than a JSON body. This began as a
+    # workaround for the stringized-annotation bug described at the top of this
+    # module, which is now fixed (#285) — a body model would resolve fine here
+    # today. Kept as a query param only to avoid changing a shipped admin API
+    # contract for no user-visible gain; it is no longer a constraint.
     tripped: bool = Query(...),
     admin: User = Depends(get_current_admin),
     db: Session = Depends(get_db),
