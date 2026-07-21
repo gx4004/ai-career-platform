@@ -278,6 +278,65 @@ def test_expired_recommendation_is_never_adopted(db, test_user):
     assert db.query(Workspace).count() == 0
 
 
+def test_re_adopting_a_listing_governance_now_refuses_is_rejected(db, test_user):
+    """A prior adoption must not grant standing access to a revoked listing.
+
+    Ranking re-checks source governance on every read (#273). If the idempotent
+    return fired first, re-adopting a listing whose source has since been
+    revoked would hand back the campaign — idempotency outranking governance,
+    inverting that decision.
+    """
+    source = _source("feed-a")
+    db.add(source)
+    db.commit()
+    listing, _ = _listing(
+        db,
+        source,
+        title="Senior Platform Engineer",
+        description="Build Kubernetes platform services with Python.",
+        retrieved_at=NOW - timedelta(days=1),
+    )
+    _confirmed_skill(db, test_user.id)
+    adopted = adopt_recommendation(db, test_user.id, listing.id, now=NOW)
+
+    # Governance revokes the source after the campaign already exists.
+    source.kill_switch = True
+    db.commit()
+
+    with pytest.raises(RecommendationNotAdoptableError):
+        adopt_recommendation(db, test_user.id, listing.id, now=NOW)
+
+    # The refusal must not retroactively destroy the campaign already adopted
+    # under valid governance — it refuses the new action only.
+    assert db.query(Workspace).filter_by(id=adopted.id).count() == 1
+
+
+def test_re_adopting_a_still_governed_listing_stays_idempotent(db, test_user):
+    """The governance re-check must not break dedup for listings still allowed.
+
+    Paired with the test above: together they pin both directions, so neither
+    the check nor the idempotent return can be dropped without a failure.
+    """
+    source = _source("feed-a")
+    db.add(source)
+    db.commit()
+    listing, _ = _listing(
+        db,
+        source,
+        title="Senior Platform Engineer",
+        description="Build Kubernetes platform services with Python.",
+        retrieved_at=NOW - timedelta(days=1),
+    )
+    _confirmed_skill(db, test_user.id)
+
+    first = adopt_recommendation(db, test_user.id, listing.id, now=NOW)
+    second = adopt_recommendation(db, test_user.id, listing.id, now=NOW)
+
+    assert second.id == first.id
+    assert db.query(Workspace).filter_by(user_id=test_user.id).count() == 1
+    assert db.query(CampaignEvent).filter_by(workspace_id=first.id).count() == 1
+
+
 def test_unknown_listing_is_refused(db, test_user):
     _confirmed_skill(db, test_user.id)
     with pytest.raises(RecommendationNotAdoptableError):

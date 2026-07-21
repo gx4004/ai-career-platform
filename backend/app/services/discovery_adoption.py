@@ -12,6 +12,10 @@ owner's live recommendations and adopts only a listing the user can currently
 see. A dismissed listing, a listing left with no visible source (every source
 hidden), and an expired listing are all absent from that feed, so they can never
 be adopted implicitly (respects the #175 personalization store, D-090).
+
+That refusal is evaluated on every call, including re-adoption of a listing this
+owner already holds a campaign for. Adoption is idempotent, but idempotency
+never outranks governance.
 """
 
 from __future__ import annotations
@@ -50,6 +54,20 @@ def adopt_recommendation(
     attribution and retrieval date into the new campaign's canonical listing, and
     records the adoption as the campaign's first (and only) event.
     """
+    # Governance is checked BEFORE the idempotent return, not after. Ranking
+    # re-checks source governance on every read (#273), so a listing whose
+    # source has since been revoked, expired, or been hidden or dismissed is
+    # refused even when this owner adopted it earlier. Ordering these the other
+    # way would let a prior adoption grant standing access to a listing
+    # governance now refuses — idempotency outranking governance.
+    feed = rank_discovery_recommendations(db, user_id, now=now)
+    recommendation = next(
+        (item for item in feed.items if item.listing_id == listing_id),
+        None,
+    )
+    if recommendation is None:
+        raise RecommendationNotAdoptableError(listing_id)
+
     # Idempotent by (owner, listing): a double-click, retry, or a listing that
     # stays visible in the feed after its first adoption must never create a
     # second campaign for it (R14 #176 dedup gap).
@@ -60,14 +78,6 @@ def adopt_recommendation(
     )
     if existing is not None:
         return existing
-
-    feed = rank_discovery_recommendations(db, user_id, now=now)
-    recommendation = next(
-        (item for item in feed.items if item.listing_id == listing_id),
-        None,
-    )
-    if recommendation is None:
-        raise RecommendationNotAdoptableError(listing_id)
 
     # Attributions are ranked freshest-visible-first by the ranker; the canonical
     # campaign listing carries exactly one source, so the freshest one is copied.
