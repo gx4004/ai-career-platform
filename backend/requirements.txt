@@ -1,24 +1,105 @@
-fastapi>=0.115.0
-uvicorn[standard]>=0.34.0
-sqlalchemy>=2.0.0
-psycopg2-binary>=2.9.0
-alembic>=1.14.0
-pydantic[email]>=2.0.0
-pydantic-settings>=2.0.0
-python-jose[cryptography]>=3.3.0
-bcrypt>=4.0.0,<5.0.0
-python-multipart>=0.0.20
-slowapi>=0.1.9
-redis>=5.0.0
-PyMuPDF==1.27.2
+# Locked backend dependencies — generated, do not hand-edit.
+#
+# Declared intent lives in requirements.in. This file pins the fully resolved
+# set, including transitive dependencies, so CI, local development and deploy
+# install byte-identical versions.
+#
+# Why this exists (#288): every line here previously used a >= lower bound, so
+# each environment resolved independently at install time. CI was running
+# fastapi 0.139.2 / starlette 1.3.1 while local development ran 0.120.0 / 0.48.0
+# — a nineteen-minor gap plus a Starlette major version, arriving with no commit
+# in this repository. FastAPI 0.139 changed how include_router populates
+# app.routes, which is how the divergence was noticed at all.
+#
+# Regenerate after editing requirements.in:
+#
+#   pip install --dry-run --ignore-installed --report /tmp/r.json -r requirements.in
+#   python scripts/lock_requirements.py /tmp/r.json
+#
+# Upgrades are deliberate: change requirements.in, regenerate, review the diff.
+alembic==1.18.5
+annotated-doc==0.0.4
+annotated-types==0.7.0
+anyio==4.14.2
+authlib==1.7.2
+bcrypt==4.3.0
+beautifulsoup4==4.15.0
+certifi==2026.6.17
+cffi==2.1.0
+charset-normalizer==3.4.9
+click==8.4.2
+cryptography==49.0.0
+deprecated==1.3.1
+distro==1.9.0
+dnspython==2.8.0
+docstring-parser==0.18.0
+ecdsa==0.19.2
+email-validator==2.3.0
+fastapi==0.139.2
+google-api-core==2.32.0
+google-auth==2.56.2
+google-cloud-aiplatform==1.161.0
+google-cloud-bigquery==3.42.2
+google-cloud-core==2.6.0
+google-cloud-resource-manager==1.18.0
+google-cloud-storage==3.13.0
+google-crc32c==1.8.0
+google-genai==2.13.0
+google-resumable-media==2.10.0
+googleapis-common-protos==1.75.0
+greenlet==3.5.3
+grpc-google-iam-v1==0.14.4
+grpcio==1.82.1
+grpcio-status==1.81.1
+h11==0.16.0
+httpcore==1.0.9
+httptools==0.8.0
+httpx==0.28.1
+idna==3.18
+itsdangerous==2.2.0
+joserfc==1.7.4
+limits==5.8.0
+lxml==6.1.1
+mako==1.3.12
+markupsafe==3.0.3
+packaging==26.2
+pillow==12.3.0
+playwright==1.61.0
+proto-plus==1.28.1
+protobuf==6.33.6
+psycopg2-binary==2.9.12
+pyasn1==0.6.4
+pyasn1-modules==0.4.2
+pycparser==3.0
+pydantic[email]==2.13.4
+pydantic-core==2.46.4
+pydantic-settings==2.14.2
+pyee==13.0.1
+pymupdf==1.27.2
+python-dateutil==2.9.0.post0
 python-docx==1.2.0
-httpx>=0.28.0
-beautifulsoup4>=4.13.0
-google-cloud-aiplatform>=1.71.0
-google-genai>=1.0.0
+python-dotenv==1.2.2
+python-jose[cryptography]==3.5.0
+python-multipart==0.0.32
+pyyaml==6.0.3
+redis==8.0.1
 reportlab==4.4.10
-authlib>=1.3.0
-resend>=2.0.0
-itsdangerous>=2.0.0
-playwright>=1.40.0
-sentry-sdk[fastapi]>=2.0.0
+requests==2.34.2
+resend==2.34.0
+rsa==4.9.1
+sentry-sdk[fastapi]==2.66.0
+six==1.17.0
+slowapi==0.1.10
+sniffio==1.3.1
+soupsieve==2.9.1
+sqlalchemy==2.0.51
+starlette==1.3.1
+tenacity==9.1.4
+typing-extensions==4.16.0
+typing-inspection==0.4.2
+urllib3==2.7.0
+uvicorn[standard]==0.51.0
+uvloop==0.22.1
+watchfiles==1.2.0
+websockets==16.1.1
+wrapt==2.2.2
