@@ -1,6 +1,7 @@
 import hashlib
 import hmac
 import ipaddress
+from contextvars import ContextVar
 
 import anyio
 from limits.storage import storage_from_string
@@ -126,6 +127,55 @@ _resource_source_limit = limiter.shared_limit(
 
 def model_abuse_limits(func):
     return _model_identity_limit(_model_source_limit(func))
+
+
+# Some endpoints serve both a model-backed and a purely deterministic mode from
+# one route. Only the model-backed mode spends provider budget, so charging the
+# shared cost limit for every request would let cheap local computation be
+# rate-limited away by an unrelated LLM spend — and would let an exhausted
+# budget take a free feature offline with it.
+#
+# The waiver is request-scoped and defaults to *charged*: a route that forgets
+# to waive still pays, so a mistake over-charges rather than opening a hole.
+_model_budget_charged: ContextVar[bool] = ContextVar("model_budget_charged", default=True)
+
+
+def waive_model_budget() -> None:
+    """Exempt the current request from the shared model-cost budget.
+
+    Call only from a dependency, before the limited handler runs — the limits
+    are evaluated on entry to the handler, so a later call has no effect.
+    """
+    _model_budget_charged.set(False)
+
+
+def _model_budget_waived() -> bool:
+    return not _model_budget_charged.get()
+
+
+# Same scopes as the unconditional limits above, so waivable and unconditional
+# endpoints draw down one shared budget rather than two parallel ones.
+_waivable_model_identity_limit = limiter.shared_limit(
+    lambda: settings.MODEL_COST_LIMIT,
+    scope="model-identity",
+    key_func=_get_abuse_identity,
+    exempt_when=_model_budget_waived,
+)
+_waivable_model_source_limit = limiter.shared_limit(
+    lambda: settings.MODEL_SOURCE_COST_LIMIT,
+    scope="model-source",
+    key_func=_get_source_identity,
+    exempt_when=_model_budget_waived,
+)
+
+
+def waivable_model_abuse_limits(func):
+    """Shared model-cost limits that a dependency may waive per request.
+
+    Skips the counter entirely when waived rather than charging zero, so a
+    deterministic request stays served even after the budget is exhausted.
+    """
+    return _waivable_model_identity_limit(_waivable_model_source_limit(func))
 
 
 def resource_abuse_limits(func):
