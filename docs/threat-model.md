@@ -100,7 +100,7 @@ Browser ──────► Frontend SSR (serve.mjs, :3000) ──────
 | Boundary | Crosses Via | Enforcement | Assumptions |
 |----------|-------------|-------------|-------------|
 | Browser → SSR | HTTPS (Railway TLS) | `x-forwarded-proto` redirect in `serve.mjs` | Railway terminates TLS correctly |
-| Browser → API | Browser fetch over development HTTP or Railway HTTPS | CORS `allow_origins` whitelist (defaults: `localhost:5173,localhost:3000` + `FRONTEND_URL`; `backend/app/config.py:19`, `backend/app/main.py:100-106`), `allow_credentials=True` | Production frontend/backend origins and site relationship are unknown pending D-UNK-10 |
+| Browser → API | Browser fetch over development HTTP or Railway HTTPS | CORS `allow_origins` whitelist (defaults: `localhost:5173,localhost:3000` + `FRONTEND_URL`; `backend/app/config.py:19`, `backend/app/main.py:144-154`), `allow_credentials=True` | Production frontend/backend origins and site relationship are unknown pending D-UNK-10 |
 | API → DB | TCP (psycopg2/sqlite) | Connection pool, `pool_pre_ping=True` | PostgreSQL credentials in env vars |
 | API → Vertex AI | HTTPS | Google Cloud IAM (vertexai.init) or API key (`GOOGLE_API_KEY`) | Credential scope limits which projects/models are accessible |
 | API → Internet (scraper) | HTTPS (httpx), TCP (Playwright) | `_validate_url()` with DNS-level IP checks, redirect re-validation | DNS resolver is trustworthy; no DNS-over-HTTPS |
@@ -306,7 +306,7 @@ artifact and are deleted on every app mount.
 
 ## §6 API Surface & Authorization Matrix
 
-All routes are mounted under `/api/v1` in `backend/app/main.py:128-147`.
+All routes are mounted under `/api/v1` in `backend/app/main.py:175-205`.
 
 ### 6.1 No Authentication Required (12 endpoints)
 
@@ -495,7 +495,7 @@ remains unverified. This is characterization of the code/default-development
 posture, not a new accepted decision in `docs/decisions.md`. Current evidence does
 not justify adding a double-submit token or origin middleware
 (`backend/app/auth/security.py:set_auth_cookies`,
-`backend/app/main.py:99-109`):
+`backend/app/main.py:144-154`):
 
 - credentialed JSON requests from the configured default frontend origin preflight
   successfully and receive an exact `Access-Control-Allow-Origin` response
@@ -556,7 +556,7 @@ behavior are equivalent.
 | Bearer clients | `Authorization` header (`backend/app/auth/security.py:get_current_user`) | Preflight required in browsers; non-browser API clients remain compatible |
 
 CORS is not treated as authentication or as a complete CSRF defense
-(`backend/app/main.py:99-109`,
+(`backend/app/main.py:144-154`,
 `backend/tests/test_auth_posture.py:test_allowed_origin_never_replaces_endpoint_authorization`).
 SameSite does not isolate sibling origins on the same registrable site, so
 production domain ownership and TLS remain trust assumptions under D-UNK-10. A
@@ -564,7 +564,7 @@ compromised allowed frontend origin or XSS can act with the user's ambient cooki
 neither a double-submit token nor this posture protects against XSS. This is the
 threat-model inference from the configured ambient-cookie and origin boundary
 (`backend/app/auth/security.py:set_auth_cookies`,
-`backend/app/main.py:99-109`).
+`backend/app/main.py:144-154`).
 
 Default-origin preflights, authorization independence, one representative JSON
 mutation, cookie attributes, production-mode `Secure`, and forced logout are
@@ -1194,7 +1194,7 @@ file inspection.
 | §5 | `grep -rn "localStorage\|sessionStorage" frontend/src/ --include="*.ts" --include="*.tsx" -l` | 14 files matched |
 | §6 | `rg '@router\.(get|post|patch|put|delete)' backend/app/routers/` | 82 route decorators |
 | §6 | `rg 'limiter\.limit' backend/app/routers/ --glob='*.py'` | 40 rate-limit decorators |
-| §6 | `grep -n "include_router" backend/app/main.py` | Lines 128-147 |
+| §6 | `grep -n "include_router" backend/app/main.py` | Lines 175-205 |
 | §6.6 | `grep -n "_get_client_ip\|TRUST_PROXY_HEADERS" backend/app/limiter.py` | Lines 10-17 |
 | §7 | `grep -n "ALGORITHM\|SECRET_KEY" backend/app/config.py` | Lines 17-18 |
 | §7 | `grep -n "set_cookie\|delete_cookie\|set_auth_cookies\|clear_auth_cookies" backend/app/auth/security.py` | Lines 95-119 |
