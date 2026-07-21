@@ -21,3 +21,7 @@ def test_diag_app_identity(client):
     print("main-ish modules:", sorted(k for k in sys.modules if k.endswith("main")))
     print("app.routers path:", sys.modules["app.routers"].__path__)
     print("=== END DIAG ===")
+
+    # Deliberate failure: pytest only surfaces captured stdout for failing tests,
+    # and this branch exists solely to read that output. Never merged.
+    raise AssertionError("diagnostic output above (#288)")
