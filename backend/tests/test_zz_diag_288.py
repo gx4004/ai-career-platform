@@ -1,27 +1,33 @@
-"""TEMPORARY diagnostic for #288 — must not be merged.
+"""TEMPORARY diagnostic for #288 — must not be merged."""
 
-Prints how app.main resolves under CI, from a direct import and from the
-`client` fixture, to confirm or kill the duplicate-module theory.
-"""
-
+import importlib
+import pkgutil
 import sys
 
 
-def test_diag_app_identity(client):
+def test_diag_router_population(client):
     import app.main as direct
+    import app.routers
 
-    print("\n=== #288 DIAG ===")
-    print("sys.path:", sys.path)
-    print("direct __file__:", direct.__file__)
-    print("direct id(app):", id(direct.app))
-    print("direct route count:", len(direct.app.routes))
-    print("client.app id:", id(client.app))
-    print("client.app route count:", len(client.app.routes))
+    print("\n=== #288 DIAG 2 ===")
+    print("app.main file:", direct.__file__)
+    print("app route count:", len(direct.app.routes))
     print("same object:", direct.app is client.app)
-    print("main-ish modules:", sorted(k for k in sys.modules if k.endswith("main")))
-    print("app.routers path:", sys.modules["app.routers"].__path__)
-    print("=== END DIAG ===")
 
-    # Deliberate failure: pytest only surfaces captured stdout for failing tests,
-    # and this branch exists solely to read that output. Never merged.
+    total = 0
+    for info in sorted(pkgutil.iter_modules(app.routers.__path__), key=lambda m: m.name):
+        name = f"app.routers.{info.name}"
+        mod = sys.modules.get(name)
+        state = "already-imported" if mod else "not-imported"
+        if mod is None:
+            mod = importlib.import_module(name)
+        count = len(getattr(getattr(mod, "router", None), "routes", []) or [])
+        total += count
+        print(f"  {info.name}: {count} routes ({state})")
+    print("sum of router routes:", total)
+
+    mounted = sorted({getattr(r, "path", "?") for r in direct.app.routes})
+    print("mounted paths:", mounted)
+    print("=== END DIAG 2 ===")
+
     raise AssertionError("diagnostic output above (#288)")
