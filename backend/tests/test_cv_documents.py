@@ -477,6 +477,84 @@ def test_tailoring_enforces_the_shared_account_cost_limit_across_documents(
     assert second.status_code == 429
 
 
+def _quality_pipeline_stub(calls: list):
+    async def pipeline(**kwargs):
+        calls.append(kwargs)
+        return {
+            "schema_version": "cv-quality/v1",
+            "dimensions": [],
+            "ats_checks": [],
+            "scoring_mode": "blended",
+            "advisory_note": "Directional guidance only.",
+            "history_id": "run-one",
+            "access_mode": "authenticated",
+            "saved": True,
+            "locked_actions": [],
+        }
+
+    return pipeline
+
+
+def test_deterministic_quality_survives_an_exhausted_model_budget(
+    client, auth_headers, confirmed_evidence, monkeypatch
+):
+    """A spent LLM budget must not take the free heuristic checks offline.
+
+    The shared cost cap exists to bound provider spend. Deterministic scoring
+    reaches no provider, so gating it behind that cap would let one expensive
+    mode disable an unrelated free one.
+    """
+    monkeypatch.setattr("app.limiter.settings.MODEL_COST_LIMIT", "1/minute")
+    limiter._storage.reset()
+    monkeypatch.setattr(
+        "app.routers.cv_documents.run_tool_pipeline", _quality_pipeline_stub([])
+    )
+    document = client.post(
+        PREFIX,
+        json={"name": "First", "sections": [_section(confirmed_evidence.id)]},
+        headers=auth_headers,
+    ).json()
+    url = f"{PREFIX}/{document['id']}/quality"
+
+    spend = client.post(url, json={"use_model": True}, headers=auth_headers)
+    exhausted = client.post(url, json={"use_model": True}, headers=auth_headers)
+    deterministic = client.post(url, json={"use_model": False}, headers=auth_headers)
+
+    assert spend.status_code == 200
+    assert exhausted.status_code == 429, "the model budget should be spent by now"
+    assert deterministic.status_code == 200, (
+        "deterministic scoring spends no provider budget and must remain "
+        "available after the model budget is exhausted"
+    )
+
+
+def test_deterministic_quality_does_not_consume_the_model_budget(
+    client, auth_headers, confirmed_evidence, monkeypatch
+):
+    """Heuristic runs must not draw down the allowance reserved for model runs."""
+    monkeypatch.setattr("app.limiter.settings.MODEL_COST_LIMIT", "1/minute")
+    limiter._storage.reset()
+    monkeypatch.setattr(
+        "app.routers.cv_documents.run_tool_pipeline", _quality_pipeline_stub([])
+    )
+    document = client.post(
+        PREFIX,
+        json={"name": "First", "sections": [_section(confirmed_evidence.id)]},
+        headers=auth_headers,
+    ).json()
+    url = f"{PREFIX}/{document['id']}/quality"
+
+    deterministic = [
+        client.post(url, json={"use_model": False}, headers=auth_headers) for _ in range(3)
+    ]
+    model = client.post(url, json={"use_model": True}, headers=auth_headers)
+
+    assert [response.status_code for response in deterministic] == [200, 200, 200]
+    assert model.status_code == 200, (
+        "three deterministic runs must leave the single model allowance intact"
+    )
+
+
 def test_studio_telemetry_allowlist_rejects_content_and_stable_identifiers():
     assert ActivationEventCreate(event_name="studio_document_deleted").event_name == "studio_document_deleted"
     for field in ("cv_content", "job_description", "document_id", "run_id", "title"):

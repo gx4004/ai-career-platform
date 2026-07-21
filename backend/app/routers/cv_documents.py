@@ -6,7 +6,12 @@ from sqlalchemy.orm import Session
 
 from app.auth.security import get_current_user
 from app.database import get_db
-from app.limiter import limiter, model_abuse_limits
+from app.limiter import (
+    limiter,
+    model_abuse_limits,
+    waivable_model_abuse_limits,
+    waive_model_budget,
+)
 from app.models.cv_document import CvDocument
 from app.models.user import User
 from app.schemas.cv_documents import (
@@ -229,9 +234,25 @@ def artifact_evidence(
     return validate_artifact(model, artifact, format)
 
 
-@router.post("/{document_id}/quality", response_model=CvQualityResponse)
+async def _waive_model_budget_for_deterministic_quality(body: CvQualityRequest) -> None:
+    """Keep deterministic quality checks off the shared LLM cost budget.
+
+    ``/quality`` serves two modes from one route. Only ``use_model`` reaches a
+    provider; the heuristic mode is local computation and must stay available
+    even once the account's model budget is spent. Runs as a dependency because
+    the limits are evaluated on entry to the handler, before its body executes.
+    """
+    if not body.use_model:
+        waive_model_budget()
+
+
+@router.post(
+    "/{document_id}/quality",
+    response_model=CvQualityResponse,
+    dependencies=[Depends(_waive_model_budget_for_deterministic_quality)],
+)
 @limiter.limit("20/minute")
-@model_abuse_limits
+@waivable_model_abuse_limits
 async def quality(
     request: Request,
     document_id: str,
