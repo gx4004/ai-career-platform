@@ -243,27 +243,37 @@ the same data persists indefinitely in the `tool_runs` table.
 
 ### 5.1 localStorage (Origin-Scoped, Survives Tab Close)
 
-| Key | Owner | Data | Sensitivity | TTL | Cleared By |
-|-----|-------|------|-------------|-----|------------|
-| `cw-cookie-consent` | `src/lib/consent.ts:9,20` | `"accepted"` \| `"rejected"` | None | Forever | Manual (no UI to revoke) |
-| `career-workbench:pending-intent` | `src/lib/auth/pendingIntent.ts:21,28` | `{to, reason, toolId, label, createdAt}` | Low (URL paths) | 10 min | Consumption or TTL expiry |
-| `cw:onboarding` | `src/hooks/useOnboarding.ts:14,24` | `{completed, completedAt, skippedAt}` | None | Forever | `clearOnboarding()` |
-| `app_language` | `src/lib/i18n/index.ts:8,25` | `"en"` \| `"tr"` | None | Forever | Manual |
-| `auth_token`, `refresh_token` | `src/lib/auth/session.tsx:79-80` | Legacy — deleted on mount | Critical | Deleted once | One-shot cleanup effect |
+| Key | Owner | Data | Sensitivity | TTL | Cleared By | Cross-Tab |
+|-----|-------|------|-------------|-----|------------|-----------|
+| `cw-cookie-consent` | `src/lib/consent.ts:9,20` | `"accepted"` \| `"rejected"` | None | Forever | Manual (no UI to revoke) | Shared, no live sync |
+| `career-workbench:pending-intent` | `src/lib/auth/pendingIntent.ts:21,28` | `{to, reason, toolId, label, createdAt}` | Low (URL paths) | 10 min | Consumption or TTL expiry | Shared, no live sync — first tab to consume it wins |
+| `cw:onboarding` | `src/hooks/useOnboarding.ts:14,24` | `{completed, completedAt, skippedAt}` | None | Forever | `clearOnboarding()` | Shared, no live sync |
+| `app_language` | `src/lib/i18n/index.ts:8,25` | `"en"` \| `"tr"` | None | Forever | Manual | Shared, no live sync — open tabs keep the old language until reload |
+| `auth_token`, `refresh_token` | `src/lib/auth/session.tsx:79-80` | Legacy — deleted on mount | Critical | Deleted once | One-shot cleanup effect | Shared; deleted independently by each tab on mount |
+
+"No live sync" is a property of the app, not of the platform: nothing registers a
+`storage` event listener or a `BroadcastChannel`, so another tab observes a
+change only on its next read (typically a remount or reload).
 
 ### 5.2 sessionStorage (Tab-Scoped, Dies on Tab Close)
 
-| Key | Owner | Data | Sensitivity | TTL | Cleared By |
-|-----|-------|------|-------------|-----|------------|
-| `career-workbench:draft:{toolId}` | `src/lib/tools/drafts.ts` | `{resumeText, jobDescription, ...}` | **High** — full resume + JD text | Tab close | Manual clear, explicit logout, account deletion, or tab close |
-| `career-workbench:workflow-context` | `src/lib/tools/drafts.ts` | `{resumeText, jobDescription, resumeAnalysis, jobMatch, ...}` | **High** — full analysis results | 4 hours / tab close | Manual clear, explicit logout, account deletion, TTL, or tab close |
-| `cw:demo-result:{id}` | `src/lib/tools/demoRuns.ts` | Full `ToolRunDetail` (all LLM output) | **High** — complete tool result | Tab close | Manual clear, explicit logout, account deletion, or tab close |
-| `cw:resume-carry` | `src/lib/tools/resumeCarryStore.ts` | Raw resume text (plain string) | **High** — unstructured resume | Tab close | Manual clear, explicit logout, account deletion, or tab close |
-| `cw:resume-carry-filename` | `src/lib/tools/resumeCarryStore.ts` | Filename string | Low | Tab close | Manual clear, explicit logout, account deletion, or tab close |
-| `cw:practice-attempts` | `src/components/tooling/InterviewPracticeMode.tsx:31,65` | `Record<number,number>` | None | Tab close | Tab close |
-| `cw:consecutive-crashes` | `src/components/app/ErrorBoundary.tsx:34-38` | String number | None | On success/redirect | 2+ crashes → redirect + clear |
-| `cw:guest-banner-dismissed` | `src/components/tooling/GuestSaveBanner.tsx:17,27` | `"1"` flag | None | Tab close | Tab close |
-| `cw:sw-reload-pending` | `src/routes/__root.tsx:145-157` | `"1"` flag | None | On reload | On reload |
+Every key here is tab-scoped by construction: `sessionStorage` is per browsing
+context, so no value below is ever readable by another tab, and clearing one tab
+leaves another tab's copy untouched. That isolation is the D-011 workflow
+contract, asserted end-to-end in `e2e/workflow-context.spec.ts`. The column is
+kept per key so the guarantee is stated rather than inferred from the heading.
+
+| Key | Owner | Data | Sensitivity | TTL | Cleared By | Cross-Tab |
+|-----|-------|------|-------------|-----|------------|-----------|
+| `career-workbench:draft:{toolId}` | `src/lib/tools/drafts.ts` | `{resumeText, jobDescription, ...}` | **High** — full resume + JD text | Tab close | Manual clear, explicit logout, account deletion, or tab close | Isolated per tab |
+| `career-workbench:workflow-context` | `src/lib/tools/drafts.ts` | `{resumeText, jobDescription, resumeAnalysis, jobMatch, ...}` | **High** — full analysis results | 4 hours / tab close | Manual clear, explicit logout, account deletion, TTL, or tab close | Isolated per tab (D-011) |
+| `cw:demo-result:{id}` | `src/lib/tools/demoRuns.ts` | Full `ToolRunDetail` (all LLM output) | **High** — complete tool result | Tab close | Manual clear, explicit logout, account deletion, or tab close | Isolated per tab |
+| `cw:resume-carry` | `src/lib/tools/resumeCarryStore.ts` | Raw resume text (plain string) | **High** — unstructured resume | Tab close | Manual clear, explicit logout, account deletion, or tab close | Isolated per tab |
+| `cw:resume-carry-filename` | `src/lib/tools/resumeCarryStore.ts` | Filename string | Low | Tab close | Manual clear, explicit logout, account deletion, or tab close | Isolated per tab |
+| `cw:practice-attempts` | `src/components/tooling/InterviewPracticeMode.tsx:31,65` | `Record<number,number>` | None | Tab close | Tab close | Isolated per tab |
+| `cw:consecutive-crashes` | `src/components/app/ErrorBoundary.tsx:34-38` | String number | None | On success/redirect | 2+ crashes → redirect + clear | Isolated per tab — a crash loop in one tab never trips another |
+| `cw:guest-banner-dismissed` | `src/components/tooling/GuestSaveBanner.tsx:17,27` | `"1"` flag | None | Tab close | Tab close | Isolated per tab — dismissing re-prompts in a new tab |
+| `cw:sw-reload-pending` | `src/routes/__root.tsx:145-157` | `"1"` flag | None | On reload | On reload | Isolated per tab |
 
 ### 5.3 Cookies
 
