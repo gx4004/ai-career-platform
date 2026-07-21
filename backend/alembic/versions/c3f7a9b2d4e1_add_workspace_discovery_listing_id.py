@@ -2,6 +2,26 @@
 
 Revision ID: c3f7a9b2d4e1
 Revises: b8c4e2f19d63
+
+Dedup is deliberately NOT retroactive. ``discovery_listing_id`` is NULL for
+every row written before this migration, and the unique constraint binds only
+non-null values, so a campaign adopted before deploy will not dedup against a
+later re-adoption of the same listing.
+
+No backfill is applied, for two reasons:
+
+  * There is nothing to backfill. Discovery (R14) has never been deployed — it
+    does not exist on the promotion branches — so no deployed database holds a
+    discovery-adopted campaign predating this column.
+  * The only available join key is ``campaign_listings.source_url`` against
+    ``discovered_listing_attributions.source_url``, which cannot distinguish a
+    manually-created campaign that happens to reference the same URL. A false
+    match would bind that campaign to a listing and then permanently block the
+    owner from genuinely adopting it, since the unique constraint would refuse
+    the second row. Guessing wrong is worse than not guessing.
+
+If discovery is ever deployed and this column later needs populating, derive it
+from recorded adoption events rather than URL equality.
 """
 
 import sqlalchemy as sa
