@@ -21,6 +21,43 @@
 >   finding on the PR), #284 (submission-boundary test), #285 (OpenAPI schema
 >   generation broken: `/docs`, `/redoc`, `/openapi.json` all fail), #286 (#281
 >   follow-up: governance bypass + missing backfill).
+
+> **Checkpoint 2026-07-21.** Continues the 2026-07-20 entry above; the branch
+> posture, backlog reality, and governance contradiction recorded there all still
+> hold unchanged. Every PR below merged into `chapter2` with all three CI jobs
+> green. `main` and `deploy` remain at `6a00a612` — still never promoted.
+>
+> - **All four items listed as open above are now closed.** #275 landed after the
+>   over-application defect was fixed (#274 closed); #284 landed after being
+>   redesigned to scan `app/routers/` rather than the assembled app; #285 and
+>   #286 both shipped.
+> - **Also shipped:** #290 (governance re-checked before the idempotent adoption
+>   return, and the dedup migration's no-backfill rationale recorded), #291
+>   (OpenAPI generation unbroken), #292 (telemetry and erasure-audit log seams
+>   enforce their own allowlists), #293 (real-browser test that sensitive
+>   `sessionStorage` is actually empty after sign-out, plus the per-key cross-tab
+>   column in the storage inventory).
+> - **`PATCH /admin/users/{user_id}/admin` shipped with no request body in its
+>   schema.** FastAPI silently reclassified the body as a query parameter, which
+>   also broke OpenAPI generation app-wide (#285). The endpoint had no test
+>   coverage at all, which is why it went unnoticed.
+> - **CI and local run different library versions (#288).** `requirements.txt`
+>   uses `>=` bounds throughout; `fastapi>=0.115.0` resolves to **0.139.2** in CI
+>   against **0.120.0** locally, and Starlette crosses a major version (0.48 →
+>   1.3). FastAPI 0.139 stopped flattening included routers into `app.routes`,
+>   which is why route-table inspection looked empty while routing worked. Root
+>   cause is confirmed; **pinning is recommended and not yet done** — it changes
+>   dependency resolution for the whole project and needs its own reviewed PR.
+>   Until then, `app.routes` is unreliable for assertions, and any code iterating
+>   it expecting `.path` is version-dependent.
+> - **Still open, needing an owner decision:** #77's minimization requirement.
+>   Four `sessionStorage` keys still hold full resume text, job descriptions, and
+>   LLM output; each serves a shipped feature (drafts, resume carry, the D-011
+>   tab-scoped workflow), so existing behaviour was preserved rather than guessed
+>   at. #78 retains two partials: no runtime allowlist on the frontend telemetry
+>   client (TypeScript-only, enforced server-side), and Sentry/log retention
+>   documented rather than configured.
+> - **Baseline:** backend 729 passed, ruff and typecheck clean, E2E green.
 > - **Backlog reality:** no unblocked *feature* work exists. R16 (#188–#195) and
 >   R17 (#197–#202) contain zero implementation lines and are gated on evidence
 >   that cannot exist in demo mode (D-100, D-108). R10 triggers have not fired.
