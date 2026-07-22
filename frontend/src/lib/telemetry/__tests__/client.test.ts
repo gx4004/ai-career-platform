@@ -77,6 +77,35 @@ describe('telemetry client', () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
+  it('strips fields outside the allowlist before anything leaves the browser', async () => {
+    // Simulates a call site that bypasses the type with a cast, or a future
+    // untyped caller. The backend would reject the extra field, but by then the
+    // content has already left the device — so the client must drop it first.
+    sendBeaconMock.mockReturnValue(true)
+
+    trackTelemetry({
+      event_name: 'tool_run_failed',
+      tool_id: 'resume',
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      resume_text: 'private resume for user@example.com',
+      job_description: 'confidential posting',
+    } as any)
+
+    expect(sendBeaconMock).toHaveBeenCalledTimes(1)
+    const blob = sendBeaconMock.mock.calls[0]?.[1] as Blob
+    const sent = await blob.text()
+    expect(sent).not.toContain('resume_text')
+    expect(sent).not.toContain('user@example.com')
+    expect(sent).not.toContain('confidential posting')
+
+    // The allowlisted fields still get through — this drops content, it does not
+    // disable telemetry.
+    const payload = JSON.parse(sent)
+    expect(payload.event_name).toBe('tool_run_failed')
+    expect(payload.tool_id).toBe('resume')
+    expect(payload.occurred_at).toEqual(expect.any(String))
+  })
+
   it('reports frontend errors without serializing messages or arbitrary context', async () => {
     sendBeaconMock.mockReturnValue(true)
 
