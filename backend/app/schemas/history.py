@@ -58,7 +58,11 @@ class ToolRunSummary(BaseModel):
     is_favorite: bool
     created_at: str
     saved: bool = True
-    access_mode: str = "authenticated"
+    # Mirror the frontend Zod enum (schemas.ts `toolRunSummarySchema.access_mode`)
+    # and the sibling SharedResultEnvelope (tools.py). A plain `str` here is wider
+    # than the frontend accepts, so a third value on a history response would
+    # break the frontend parse; the Literal makes the contract exact.
+    access_mode: Literal["authenticated", "guest_demo"] = "authenticated"
     locked_actions: list[str] = Field(default_factory=list)
     metadata: SavedRunMetadata = Field(default_factory=SavedRunMetadata)
     workspace: WorkspaceSummary | None = None
