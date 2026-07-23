@@ -1,8 +1,11 @@
+import pytest
+from pydantic import ValidationError
+
 from app.models.campaign_event import CampaignEvent
 from app.models.cv_document import CvDocument, CvVariant
 from app.models.tool_run import ToolRun
 from app.models.workspace import Workspace
-from app.schemas.history import CampaignStatus
+from app.schemas.history import CampaignStatus, ToolRunSummary
 
 PREFIX = "/api/v1/history"
 
@@ -735,3 +738,21 @@ def test_applied_transition_captures_immutable_submission_snapshot(
     assert exported["submission_snapshots"][0]["content_sha256"] == original_digest
     assert client.delete(endpoint, headers=auth_headers).status_code == 200
     assert db.query(CampaignSubmissionSnapshot).filter_by(id=snapshot.id).count() == 0
+
+
+def test_tool_run_summary_access_mode_is_constrained_to_the_frontend_enum():
+    """access_mode must mirror the frontend Zod enum, not accept any string.
+
+    The frontend parses history responses with
+    z.enum(['authenticated', 'guest_demo']); a third value on the backend would
+    break that parse. Pinning the backend Literal keeps the contract exact and
+    catches an out-of-set value at the schema boundary instead of in the browser.
+    """
+    base = dict(id="r1", tool_name="resume", is_favorite=False, created_at="2026-07-24T00:00:00Z")
+
+    assert ToolRunSummary(**base, access_mode="authenticated").access_mode == "authenticated"
+    assert ToolRunSummary(**base, access_mode="guest_demo").access_mode == "guest_demo"
+    assert ToolRunSummary(**base).access_mode == "authenticated"
+
+    with pytest.raises(ValidationError):
+        ToolRunSummary(**base, access_mode="something_else")
