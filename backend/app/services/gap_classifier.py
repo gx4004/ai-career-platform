@@ -15,11 +15,19 @@ Kind mapping (each maps to a single truthful response in #200/D-110):
   problem, so a diff-reviewed rewording is the honest fix (D-073).
 - uncaptured evidence     ← unsupported_claim (the claim is already in the user's
   own materials, just not confirmed in the profile), or a missed requirement the
-  profile *does* cover — the honest fix is an R11 capture proposal.
-- missing skill           ← a missed requirement absent from both materials and
-  profile whose keyword matches the known-skill lexicon — a learning gap.
-- evidence not yet produced ← a missed requirement absent from both materials and
-  profile that is not a known learnable skill — a portfolio-project gap.
+  profile already *demonstrates* through an experience / achievement / project /
+  certification item — the honest fix is an R11 capture proposal that surfaces it.
+- evidence not yet produced ← a missed requirement the profile mentions only as a
+  bare skill or preference claim, with no demonstrated experience behind it — the
+  honest fix is to produce a deliverable that demonstrates it.
+- missing skill           ← a missed requirement the profile does not mention at
+  all — nothing shows the user has it, so the honest fix is to develop it (a
+  learning gap), never to assume an un-showcased capability.
+
+The substance split (uncaptured vs. not-yet-produced vs. missing) is decided by
+the profile item's own structured ``kind`` (D-062), never by a keyword lexicon:
+a narrow app-specific skill list would misroute any real skill it omits (Rust,
+Java, Kafka, …) and hand it the wrong honest response.
 
 An unrecognized reviewer category is left unclassified (returns nothing) rather
 than forced into a kind: mislabeling a substance gap as presentation would let
@@ -34,7 +42,7 @@ from sqlalchemy.orm import Session
 
 from app.models.gap_classification import GapClassification
 from app.services.evidence_injection import EvidencePayload
-from app.services.quality_signals import extract_detected_skills, keyword_present
+from app.services.quality_signals import keyword_present
 
 GAP_PRESENTATION_WEAKNESS = "presentation_weakness"
 GAP_UNCAPTURED_EVIDENCE = "uncaptured_evidence"
@@ -45,6 +53,14 @@ GAP_MISSING_SKILL = "missing_skill"
 #: underlying substance is present, only the wording/document needs work.
 _PRESENTATION_CATEGORIES = frozenset(
     {"generic_language", "repetition", "document_defect", "contradiction"}
+)
+
+#: Evidence Profile kinds (R11, D-062) that *demonstrate* a requirement, as
+#: opposed to a bare skill/preference claim with nothing behind it. When one of
+#: these mentions the requirement, the user already has the evidence; it is just
+#: not in the selected materials (uncaptured), not a substance gap.
+_DEMONSTRATED_KINDS = frozenset(
+    {"experience", "achievement", "project", "certification", "education", "interview-evidence"}
 )
 
 _REQUIREMENT_TRACE_PREFIX = "listing_requirement:"
@@ -97,22 +113,26 @@ def _decide(
 
     if category == "missed_requirement":
         keyword = _requirement_keyword(trace)
-        if keyword and _profile_mentions(keyword, payload):
+        kinds = _profile_kinds_mentioning(keyword, payload) if keyword else []
+        demonstrated = next((kind for kind in kinds if kind in _DEMONSTRATED_KINDS), None)
+        if demonstrated is not None:
+            # The profile already demonstrates this through real evidence — it is
+            # simply absent from the selected materials.
             return GAP_UNCAPTURED_EVIDENCE, [
-                f"profile_lookup:{keyword}:related_item_present",
+                f"profile_lookup:{keyword}:demonstrated_in:{demonstrated}",
                 "classified:uncaptured_evidence",
             ]
-        skills = extract_detected_skills(keyword) if keyword else []
-        if skills:
-            return GAP_MISSING_SKILL, [
-                f"profile_lookup:{keyword}:no_related_item",
-                f"skill_lexicon:matched:{skills[0]}",
-                "classified:missing_skill",
+        if kinds:
+            # Claimed only as a bare skill/preference, with nothing demonstrating it.
+            return GAP_EVIDENCE_NOT_YET_PRODUCED, [
+                f"profile_lookup:{keyword}:skill_claimed_undemonstrated",
+                "classified:evidence_not_yet_produced",
             ]
-        return GAP_EVIDENCE_NOT_YET_PRODUCED, [
-            f"profile_lookup:{keyword}:no_related_item",
-            "skill_lexicon:no_match",
-            "classified:evidence_not_yet_produced",
+        # No profile evidence at all: nothing shows the user has this, so the
+        # honest response is to develop it, not to assume an un-showcased skill.
+        return GAP_MISSING_SKILL, [
+            f"profile_lookup:{keyword}:absent",
+            "classified:missing_skill",
         ]
 
     # Unrecognized category: do not fabricate a classification.
@@ -126,19 +146,22 @@ def _requirement_keyword(trace: list[str]) -> str:
     return ""
 
 
-def _profile_mentions(keyword: str, payload: EvidencePayload | None) -> bool:
-    """True when any confirmed or unconfirmed profile item mentions the keyword.
+def _profile_kinds_mentioning(keyword: str, payload: EvidencePayload | None) -> list[str]:
+    """Kinds of the confirmed/unconfirmed profile items that mention the keyword.
 
-    A rejected item is already excluded from :class:`EvidencePayload`, so a gap
-    the user explicitly rejected never counts as uncaptured evidence.
+    A rejected item is already excluded from :class:`EvidencePayload`, so a gap the
+    user explicitly rejected never counts. The item ``kind`` — not a keyword
+    lexicon — is what distinguishes a *demonstrated* requirement from a bare skill
+    claim, so the substance split stays honest for skills no lexicon would list.
     """
     if payload is None:
-        return False
+        return []
+    kinds: list[str] = []
     for item in (*payload.locked_facts, *payload.gaps):
         content = json.dumps(item.get("content", {}), sort_keys=True)
         if keyword_present(keyword, content):
-            return True
-    return False
+            kinds.append(item.get("kind", ""))
+    return kinds
 
 
 def persist_gap_classifications(

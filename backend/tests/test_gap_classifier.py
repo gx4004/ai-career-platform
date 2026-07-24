@@ -70,20 +70,22 @@ def test_unsupported_claim_classifies_as_uncaptured_evidence():
     assert classified["gap_kind"] == GAP_UNCAPTURED_EVIDENCE
 
 
-def test_missed_requirement_present_in_profile_is_uncaptured_evidence():
+def test_missed_requirement_demonstrated_in_profile_is_uncaptured_evidence():
+    # An experience/achievement/project/certification item that mentions the
+    # requirement means the user has already demonstrated it — surface it.
     payload = EvidencePayload(
         locked_facts=[
             {
                 "evidence_item_id": "e1",
-                "kind": "skill",
-                "content": {"statement": "Expert operating Kubernetes clusters in production"},
+                "kind": "experience",
+                "content": {"statement": "Operated Kubernetes clusters in production for 3 years"},
             }
         ],
         gaps=[],
     )
     classified = _kind(_finding("missed_requirement", ["listing_requirement:Kubernetes"]), payload)
     assert classified["gap_kind"] == GAP_UNCAPTURED_EVIDENCE
-    assert "profile_lookup:Kubernetes:related_item_present" in classified["cited_trace"]
+    assert "profile_lookup:Kubernetes:demonstrated_in:experience" in classified["cited_trace"]
 
 
 def test_uncaptured_near_miss_absent_from_profile_is_not_uncaptured():
@@ -91,16 +93,23 @@ def test_uncaptured_near_miss_absent_from_profile_is_not_uncaptured():
     assert classified["gap_kind"] != GAP_UNCAPTURED_EVIDENCE
 
 
-def test_missed_requirement_known_skill_absent_is_missing_skill():
-    classified = _kind(_finding("missed_requirement", ["listing_requirement:Python"]), None)
+def test_missed_requirement_absent_from_profile_is_missing_skill():
+    # A real learnable skill no keyword lexicon would list: absent from the profile
+    # means no evidence the user has it, so the honest kind is missing_skill — never
+    # evidence_not_yet_produced (which would presume an un-showcased capability).
+    classified = _kind(_finding("missed_requirement", ["listing_requirement:Rust"]), None)
     assert classified["gap_kind"] == GAP_MISSING_SKILL
-    assert any(item.startswith("skill_lexicon:matched:") for item in classified["cited_trace"])
+    assert "profile_lookup:Rust:absent" in classified["cited_trace"]
 
 
-def test_missing_skill_near_miss_when_profile_covers_it():
+def test_missing_skill_near_miss_when_profile_demonstrates_it():
     payload = EvidencePayload(
         locked_facts=[
-            {"evidence_item_id": "e1", "kind": "skill", "content": {"statement": "5 years of Python"}}
+            {
+                "evidence_item_id": "e1",
+                "kind": "experience",
+                "content": {"statement": "5 years shipping Python services"},
+            }
         ],
         gaps=[],
     )
@@ -108,16 +117,20 @@ def test_missing_skill_near_miss_when_profile_covers_it():
     assert classified["gap_kind"] == GAP_UNCAPTURED_EVIDENCE
 
 
-def test_missed_requirement_non_skill_absent_is_evidence_not_yet_produced():
-    classified = _kind(
-        _finding("missed_requirement", ["listing_requirement:regulatory reporting"]), None
+def test_missed_requirement_skill_claimed_but_undemonstrated_is_evidence_not_yet_produced():
+    # The profile claims the skill (as a bare skill item, here unconfirmed) but has
+    # no experience/project/certification demonstrating it -> produce a deliverable.
+    payload = EvidencePayload(
+        locked_facts=[],
+        gaps=[{"evidence_item_id": "e1", "kind": "skill", "content": {"statement": "Familiar with Rust"}}],
     )
+    classified = _kind(_finding("missed_requirement", ["listing_requirement:Rust"]), payload)
     assert classified["gap_kind"] == GAP_EVIDENCE_NOT_YET_PRODUCED
-    assert "skill_lexicon:no_match" in classified["cited_trace"]
+    assert "profile_lookup:Rust:skill_claimed_undemonstrated" in classified["cited_trace"]
 
 
-def test_evidence_not_yet_produced_near_miss_a_known_skill_is_missing_skill():
-    classified = _kind(_finding("missed_requirement", ["listing_requirement:Docker"]), None)
+def test_evidence_not_yet_produced_near_miss_absent_from_profile_is_missing_skill():
+    classified = _kind(_finding("missed_requirement", ["listing_requirement:Rust"]), None)
     assert classified["gap_kind"] == GAP_MISSING_SKILL
 
 
@@ -129,11 +142,12 @@ def test_unrecognized_category_is_left_unclassified():
     assert classify_findings([_finding("brand_new_category", ["x:y"])], None) == []
 
 
-def test_missed_requirement_without_a_keyword_trace_is_evidence_not_yet_produced():
+def test_missed_requirement_without_a_keyword_trace_is_missing_skill():
     # Defensive: a missed_requirement whose trace lacks a listing_requirement entry
-    # must still classify deterministically without crashing.
+    # must still classify deterministically without crashing (no profile lookup
+    # possible -> absent -> missing_skill).
     classified = _kind(_finding("missed_requirement", ["result:not_found"]), None)
-    assert classified["gap_kind"] == GAP_EVIDENCE_NOT_YET_PRODUCED
+    assert classified["gap_kind"] == GAP_MISSING_SKILL
 
 
 def test_cited_trace_preserves_the_reviewer_trace_as_a_prefix():
