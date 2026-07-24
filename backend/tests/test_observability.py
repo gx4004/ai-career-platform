@@ -183,6 +183,7 @@ def test_account_deletion_audit_logs_counts_and_no_user_content(caplog):
         evidence_items_deleted=7,
         cv_documents_deleted=1,
         cv_variants_deleted=3,
+        development_items_deleted=5,
         user_record_deleted=True,
     )
 
@@ -198,5 +199,6 @@ def test_account_deletion_audit_logs_counts_and_no_user_content(caplog):
         "evidence_items_deleted": 7,
         "cv_documents_deleted": 1,
         "cv_variants_deleted": 3,
+        "development_items_deleted": 5,
         "user_record_deleted": True,
     }

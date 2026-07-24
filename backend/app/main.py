@@ -23,6 +23,7 @@ from app.routers import (
     career,
     cover_letter,
     cv_documents,
+    development,
     discovery,
     evidence_profile,
     files,
@@ -197,6 +198,9 @@ app.include_router(
 )
 app.include_router(
     cv_documents.router, prefix=f"{prefix}/cv-documents", tags=["cv-documents"]
+)
+app.include_router(
+    development.router, prefix=f"{prefix}/development-plan", tags=["development"]
 )
 app.include_router(discovery.router, prefix=f"{prefix}/discovery", tags=["discovery"])
 app.include_router(queue_rules.router, prefix=f"{prefix}/queue", tags=["queue"])

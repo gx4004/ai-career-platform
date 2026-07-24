@@ -5,6 +5,7 @@ from app.models.campaign_listing import CampaignListing
 from app.models.campaign_snapshot import CampaignSubmissionSnapshot
 from app.models.campaign_tracking import CampaignContact, CampaignNote, CampaignTask
 from app.models.cv_document import CvDocument, CvVariant
+from app.models.development_item import DevelopmentItem
 from app.models.discovered_listing import DiscoveredListing, DiscoveredListingAttribution
 from app.models.discovery_personalization import (
     DiscoveryDismissedListing,
@@ -29,6 +30,7 @@ __all__ = [
     "AnalyticsEvent",
     "EvidenceItem",
     "GapClassification",
+    "DevelopmentItem",
     "CvDocument",
     "CvVariant",
     "DiscoverySource",

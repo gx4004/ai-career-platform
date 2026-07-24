@@ -8,6 +8,7 @@ from app.schemas.application_packets import (
     PacketStopAnswersExport,
 )
 from app.schemas.cv_documents import CvDocumentsExport
+from app.schemas.development import DevelopmentPlanExport
 from app.schemas.discovery_personalization import PersonalizationExport
 from app.schemas.evidence_profile import EvidenceItemResponse
 from app.schemas.history import CampaignsExport
@@ -31,6 +32,7 @@ class CareerDataExport(BaseModel):
     application_packets: ApplicationPacketsExport
     packet_stop_answers: PacketStopAnswersExport
     queue_audit: QueueAuditExport
+    development: DevelopmentPlanExport
 
     @model_validator(mode="after")
     def item_count_matches(self):

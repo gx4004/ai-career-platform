@@ -40,3 +40,6 @@ class User(Base):
     gap_classifications = relationship(
         "GapClassification", back_populates="user", cascade="all, delete-orphan"
     )
+    development_items = relationship(
+        "DevelopmentItem", back_populates="user", cascade="all, delete-orphan"
+    )
