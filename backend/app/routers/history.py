@@ -9,6 +9,7 @@ from app.database import get_db
 from app.limiter import limiter
 from app.models.campaign_event import CampaignEvent
 from app.models.campaign_tracking import CampaignContact, CampaignNote, CampaignTask
+from app.models.gap_classification import GapClassification
 from app.models.tool_run import ToolRun
 from app.models.user import User
 from app.models.workspace import Workspace
@@ -16,6 +17,7 @@ from app.schemas.gap_classification import (
     GapClassificationListResponse,
     GapClassificationRead,
 )
+from app.schemas.gap_response import GapResponseOffer
 from app.schemas.history import (
     CampaignContactCreate,
     CampaignContactResponse,
@@ -59,6 +61,7 @@ from app.services.gap_classifier import (
     list_gap_classifications,
     persist_gap_classifications,
 )
+from app.services.gap_response import map_gap_to_response
 from app.services.input_sanitizer import sanitize_user_input
 from app.services.tool_pipeline import run_tool_pipeline
 from app.services.tool_runs import build_workspace_summary, derive_saved_run_metadata
@@ -305,6 +308,37 @@ def get_campaign_gaps(
     _get_workspace(db, workspace_id, current_user.id)
     rows = list_gap_classifications(db, current_user.id, workspace_id)
     return _serialize_gap_classifications(rows)
+
+
+@router.get(
+    "/workspaces/{workspace_id}/gap-classifications/{classification_id}/response",
+    response_model=GapResponseOffer,
+)
+def get_gap_response(
+    workspace_id: str,
+    classification_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """The single honest response for one classified gap (R17 #200, D-110).
+
+    Read-only: it names the truthful next action and, for uncaptured evidence, the
+    proposal body the user would submit to the R11 create path — it never writes
+    to the Evidence Profile.
+    """
+    _get_workspace(db, workspace_id, current_user.id)
+    classification = (
+        db.query(GapClassification)
+        .filter(
+            GapClassification.id == classification_id,
+            GapClassification.workspace_id == workspace_id,
+            GapClassification.user_id == current_user.id,
+        )
+        .first()
+    )
+    if classification is None:
+        raise HTTPException(status_code=404, detail="Gap classification not found")
+    return map_gap_to_response(classification)
 
 
 @router.post(
