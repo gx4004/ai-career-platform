@@ -7,6 +7,8 @@ import { DevelopmentPlanPage } from '#/components/development/DevelopmentPlanPag
 const getPlanMock = vi.hoisted(() => vi.fn())
 const updateItemMock = vi.hoisted(() => vi.fn())
 const deleteItemMock = vi.hoisted(() => vi.fn())
+const confirmEvidenceMock = vi.hoisted(() => vi.fn())
+const declineEvidenceMock = vi.hoisted(() => vi.fn())
 const openAuthDialogMock = vi.hoisted(() => vi.fn())
 const sessionState = vi.hoisted(() => ({ status: 'authenticated' as string }))
 
@@ -14,6 +16,8 @@ vi.mock('#/lib/api/development', () => ({
   getDevelopmentPlan: getPlanMock,
   updateDevelopmentItem: updateItemMock,
   deleteDevelopmentItem: deleteItemMock,
+  confirmDevelopmentEvidence: confirmEvidenceMock,
+  declineDevelopmentEvidence: declineEvidenceMock,
 }))
 
 vi.mock('#/hooks/useSession', () => ({
@@ -50,6 +54,8 @@ function makeItem(overrides: Partial<DevelopmentItem>): DevelopmentItem {
     notes: null,
     source_finding_id: null,
     timeline: [],
+    evidence_item_id: null,
+    evidence_confirmation_state: null,
     created_at: '2026-07-20T00:00:00Z',
     updated_at: '2026-07-20T00:00:00Z',
     ...overrides,
@@ -90,6 +96,17 @@ describe('DevelopmentPlanPage', () => {
       .mockResolvedValue({ schema_version: 'development-plan/v1', items })
     updateItemMock.mockReset().mockImplementation((id: string) => Promise.resolve(makeItem({ id })))
     deleteItemMock.mockReset().mockResolvedValue(undefined)
+    confirmEvidenceMock.mockReset().mockResolvedValue(
+      makeItem({
+        id: 'd3',
+        state: 'completed',
+        evidence_item_id: 'e1',
+        evidence_confirmation_state: 'confirmed',
+      }),
+    )
+    declineEvidenceMock.mockReset().mockResolvedValue(
+      makeItem({ id: 'd3', state: 'completed' }),
+    )
     openAuthDialogMock.mockReset()
   })
 
@@ -155,6 +172,48 @@ describe('DevelopmentPlanPage', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: /Delete item/i }))
 
     await waitFor(() => expect(deleteItemMock).toHaveBeenCalledWith('d1'))
+  })
+
+  it('offers reachable confirm and decline actions for a completion proposal', async () => {
+    getPlanMock.mockResolvedValue({
+      schema_version: 'development-plan/v1',
+      items: [
+        makeItem({
+          id: 'd3',
+          state: 'completed',
+          evidence_item_id: 'e1',
+          evidence_confirmation_state: 'unconfirmed',
+        }),
+      ],
+    })
+    renderPage()
+
+    const group = await screen.findByRole('region', { name: 'Reword existing content' })
+    expect(within(group).getByText(/ready to become reusable evidence/i)).toBeTruthy()
+    fireEvent.click(within(group).getByRole('button', { name: 'Confirm evidence' }))
+    await waitFor(() => expect(confirmEvidenceMock).toHaveBeenCalledWith('d3'))
+
+    fireEvent.click(within(group).getByRole('button', { name: 'Decline proposal' }))
+    await waitFor(() => expect(declineEvidenceMock).toHaveBeenCalledWith('d3'))
+  })
+
+  it('shows confirmed evidence without offering proposal actions again', async () => {
+    getPlanMock.mockResolvedValue({
+      schema_version: 'development-plan/v1',
+      items: [
+        makeItem({
+          id: 'd3',
+          state: 'completed',
+          evidence_item_id: 'e1',
+          evidence_confirmation_state: 'confirmed',
+        }),
+      ],
+    })
+    renderPage()
+
+    const group = await screen.findByRole('region', { name: 'Reword existing content' })
+    expect(within(group).getByText('Evidence confirmed')).toBeTruthy()
+    expect(within(group).queryByRole('button', { name: 'Decline proposal' })).toBeNull()
   })
 
   it('shows a sign-in prompt when unauthenticated and does not fetch', () => {

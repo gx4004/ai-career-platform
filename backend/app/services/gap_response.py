@@ -94,11 +94,17 @@ def _capture_seed(classification: GapClassification) -> str:
     Prefers the reviewer's own captured claim, then the unmet listing requirement,
     then the finding message — never invented text.
     """
-    trace = classification.cited_trace or []
-    for entry in trace:
+    return trace_seed(classification.cited_trace, classification.message)
+
+
+def trace_seed(trace: list[str] | None, fallback: str) -> str:
+    """Shared with R17 #201 (completion proposals): the most specific statement a
+    cited trace supports, never invented text.
+    """
+    for entry in trace or []:
         if entry.startswith(_CLAIM_PREFIX):
             return entry[len(_CLAIM_PREFIX) :]
-    for entry in trace:
+    for entry in trace or []:
         if entry.startswith(_REQUIREMENT_PREFIX):
             return entry[len(_REQUIREMENT_PREFIX) :]
-    return classification.message
+    return fallback

@@ -11,10 +11,10 @@ The gap-kind -> response-kind mapping is the single honest response per kind
 build its richer response offer.
 """
 
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.schemas.gap_classification import GapKind
 
@@ -77,8 +77,22 @@ class DevelopmentItemResponse(BaseModel):
     notes: str | None
     source_finding_id: str | None
     timeline: list[dict[str, Any]]
+    # R17 #201: NULL until completion stages an unconfirmed proposal (D-113).
+    evidence_item_id: str | None = None
+    # The linked proposal's own confirmation state, read-only and populated by the
+    # service (never a raw ORM attribute — EvidenceItem is a separate table).
+    # Always None while evidence_item_id is None; never 'rejected' — declining
+    # hard-deletes the proposal rather than leaving a rejected trace (D-113).
+    evidence_confirmation_state: Literal["unconfirmed", "confirmed"] | None = None
     created_at: datetime
     updated_at: datetime
+
+    @field_validator("created_at", "updated_at")
+    @classmethod
+    def normalize_database_timestamps(cls, value: datetime) -> datetime:
+        # SQLite drops timezone metadata even for timezone=True columns. Normalize
+        # that development/test representation to the UTC contract Postgres keeps.
+        return value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
 
 
 class DevelopmentPlanResponse(BaseModel):

@@ -15,6 +15,8 @@ import { PageFrame } from '#/components/app/PageFrame'
 import { AppStatePanel } from '#/components/app/AppStatePanel'
 import { useSession } from '#/hooks/useSession'
 import {
+  confirmDevelopmentEvidence,
+  declineDevelopmentEvidence,
   deleteDevelopmentItem,
   getDevelopmentPlan,
   updateDevelopmentItem,
@@ -91,6 +93,16 @@ export function DevelopmentPlanPage() {
     onSettled: () => setPendingItemId(null),
   })
 
+  const evidenceMutation = useMutation({
+    mutationFn: ({ id, action }: { id: string; action: 'confirm' | 'decline' }) =>
+      action === 'confirm'
+        ? confirmDevelopmentEvidence(id)
+        : declineDevelopmentEvidence(id),
+    onSuccess: invalidate,
+    onError: (error) => reportError(error, 'Could not update the evidence proposal.'),
+    onSettled: () => setPendingItemId(null),
+  })
+
   const items = itemsQuery.data ?? []
   const groups = useMemo(() => groupItemsByResponseKind(items), [items])
   const counts = useMemo(() => countByState(items), [items])
@@ -108,6 +120,10 @@ export function DevelopmentPlanPage() {
     if (!deleteTarget) return
     setPendingItemId(deleteTarget.id)
     deleteMutation.mutate(deleteTarget.id)
+  }
+  function handleEvidenceAction(item: DevelopmentItem, action: 'confirm' | 'decline') {
+    setPendingItemId(item.id)
+    evidenceMutation.mutate({ id: item.id, action })
   }
 
   if (!isAuthenticated) {
@@ -216,6 +232,12 @@ export function DevelopmentPlanPage() {
                         setEditTarget(target)
                       }}
                       onDelete={setDeleteTarget}
+                      onConfirmEvidence={(target) =>
+                        handleEvidenceAction(target, 'confirm')
+                      }
+                      onDeclineEvidence={(target) =>
+                        handleEvidenceAction(target, 'decline')
+                      }
                     />
                   ))}
                 </ul>
