@@ -36,7 +36,14 @@ describe('campaign contracts', () => {
       application_packets: { packets: [] },
       packet_stop_answers: { stop_answers: [] },
       queue_audit: { events: [] },
-      development: { item_count: 0, items: [] },
+      development: {
+        item_count: 0,
+        items: [],
+        classification_count: 0,
+        classifications: [],
+        recommendation_count: 0,
+        recommendations: [],
+      },
       campaigns: { campaign_count: 1, campaigns: [{
         id: 'ws-1', label: 'Target', is_pinned: false, company: 'Example Corp',
         role: 'Engineer', status: 'planning', deadline: null,

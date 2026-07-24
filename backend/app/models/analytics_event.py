@@ -58,6 +58,17 @@ class AnalyticsEvent(Base):
     confirmation_transition: Mapped[str | None] = mapped_column(
         String, nullable=True, index=True
     )
+    # R17 development-loop adoption dimensions (#202, D-114). All four are
+    # closed enums at the write seam; no gap message, note, recommendation
+    # content, stable item identifier, or user identifier has a storage column.
+    development_gap_kind: Mapped[str | None] = mapped_column(
+        String, nullable=True, index=True
+    )
+    development_response_kind: Mapped[str | None] = mapped_column(
+        String, nullable=True, index=True
+    )
+    development_state_from: Mapped[str | None] = mapped_column(String, nullable=True)
+    development_state_to: Mapped[str | None] = mapped_column(String, nullable=True)
     # occurred_at: event-reported time (may be null); created_at: server ingest
     # time, indexed to drive the 180-day retention prune.
     occurred_at: Mapped[datetime | None] = mapped_column(

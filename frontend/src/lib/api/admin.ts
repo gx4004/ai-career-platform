@@ -1,5 +1,11 @@
+import { z } from 'zod'
 import { API_URL } from '#/lib/api/client'
+import {
+  developmentResponseKindSchema,
+  developmentStateSchema,
+} from '#/lib/api/developmentSchemas'
 import { ApiError } from '#/lib/api/errors'
+import { gapKindSchema } from '#/lib/api/gapClassificationSchemas'
 import {
   discoverySourceListSchema,
   discoverySourceSchema,
@@ -214,6 +220,34 @@ export type AdminProfileAdoption = {
   confirmation_transitions: ProfileTransitionCount[]
 }
 
+export const adminDevelopmentLoopSchema = z.strictObject({
+  window_start: z.iso.datetime({ offset: true }),
+  window_end: z.iso.datetime({ offset: true }),
+  total_items_created: z.number().int().nonnegative(),
+  total_items_deleted: z.number().int().nonnegative(),
+  total_state_transitions: z.number().int().nonnegative(),
+  created_by_gap_kind: z.array(
+    z.strictObject({
+      gap_kind: gapKindSchema,
+      count: z.number().int().nonnegative(),
+    }),
+  ),
+  created_by_response_kind: z.array(
+    z.strictObject({
+      response_kind: developmentResponseKindSchema,
+      count: z.number().int().nonnegative(),
+    }),
+  ),
+  state_transitions: z.array(
+    z.strictObject({
+      from_state: developmentStateSchema,
+      to_state: developmentStateSchema,
+      count: z.number().int().nonnegative(),
+    }),
+  ),
+})
+export type AdminDevelopmentLoop = z.infer<typeof adminDevelopmentLoopSchema>
+
 // R10 scaling-trigger scorecard — mirrors backend/app/schemas/admin.py
 // (ScorecardTrigger / AdminScorecardResponse). Read-only aggregate over the
 // same first-party operational store; a fired trigger sets review_required and
@@ -360,6 +394,15 @@ export function getAdminProfileAdoption(
   return adminRequest<AdminProfileAdoption>(
     `/admin/profile-adoption${buildQs({ start: params.start, end: params.end })}`,
   )
+}
+
+export async function getAdminDevelopmentLoop(
+  params: { start?: string; end?: string } = {},
+) {
+  const response = await adminRequest<unknown>(
+    `/admin/development-loop${buildQs({ start: params.start, end: params.end })}`,
+  )
+  return adminDevelopmentLoopSchema.parse(response)
 }
 
 export async function getAdminDiscoverySources(): Promise<DiscoverySourceList> {

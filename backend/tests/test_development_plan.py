@@ -305,6 +305,44 @@ def test_export_includes_the_development_plan(db, test_user):
 
     full = export_career_data(db, test_user.id)
     assert full.development.item_count == 1
+    assert full.development.classification_count == 1
+    assert full.development.classifications[0].id == classification.id
+    assert full.development.recommendation_count == 1
+    assert full.development.recommendations[0].gap_classification_id == classification.id
+    assert full.development.recommendations[0].response_kind == "learn_skill"
+
+
+def test_account_deletion_removes_classifications_items_and_derived_recommendations(
+    db, test_user
+):
+    user_id = test_user.id
+    classification = _classification(db, user_id, gap_kind="missing_skill")
+    create_development_item(
+        db,
+        user_id,
+        DevelopmentItemCreate(gap_classification_id=classification.id),
+    )
+    before = export_career_data(db, user_id).development
+    assert (
+        before.classification_count,
+        before.item_count,
+        before.recommendation_count,
+    ) == (1, 1, 1)
+
+    delete_all_user_data(db, user_id)
+
+    # Recommendations are exact, read-only response offers derived from
+    # classifications (#200), not a redundant content store. Removing the
+    # classification therefore removes the recommendation without a ghost row.
+    after = export_career_data(db, user_id).development
+    assert (
+        after.classification_count,
+        after.item_count,
+        after.recommendation_count,
+    ) == (0, 0, 0)
+    assert after.classifications == []
+    assert after.items == []
+    assert after.recommendations == []
 
 
 # --- endpoint integration -----------------------------------------------------
