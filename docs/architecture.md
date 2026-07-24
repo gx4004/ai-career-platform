@@ -130,9 +130,12 @@ Core entities:
   idempotent per-source submission with the exact packet snapshot and per-field
   record. Contract defined; nothing ships until R15 demonstrates quality and
   demand and each source passes legal review (D-100).
-- Development item (planned, R17; D-112) — one tracked response to a classified
-  gap, with completion feeding the R11 proposal path only. Contract defined;
-  nothing ships until campaign evidence supports the loop (D-108).
+- Classified gap and development item (R17 foundation built ahead under explicit
+  current-task authorization; D-108–D-114) — deterministic reviewer-gap records
+  and bounded tracked responses are persisted owner-scoped. Completion feeds the
+  R11 unconfirmed-proposal path only; lifecycle export/erasure and content-free
+  aggregate telemetry are implemented. Production activation remains closed
+  until campaign evidence supports the loop (D-108).
 
 Persistence invariants:
 
@@ -412,7 +415,7 @@ errors remain forbidden.
 - Submission records follow the standard lifecycle for product copies, with the
   employer-copy limitation stated honestly (D-107).
 
-## Development Loop Boundaries (R17, deferred)
+## Development Loop Boundaries (R17 built ahead; activation deferred)
 
 - Gaps classify into exactly four explainable kinds built on the reviewer's
   requirement and evidence traces (D-109, D-082).
@@ -425,6 +428,9 @@ errors remain forbidden.
   confirmation creates reusable evidence (D-113, D-062).
 - Development data (a record of the user's gaps) is owner-isolated sensitive
   content in the standard lifecycle and telemetry boundaries (D-114).
+- The implementation foundation is present on `chapter2`, including authenticated
+  lifecycle routes and aggregate-only admin reporting; that build-ahead does not
+  satisfy the evidence gate or authorize production activation (D-108).
 
 ## Abuse Controls
 

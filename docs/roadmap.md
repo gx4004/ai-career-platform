@@ -331,9 +331,10 @@ Acceptance gate:
 
 ### R17. Career Development Loop
 
-**Status:** PROVISIONAL spec published (#197; tracer issues #198–#202), still
-deferred until recurring reviewer findings and campaign outcomes at volume show
-repeated, classifiable gaps (D-108–D-114)
+**Status:** PROVISIONAL implementation built ahead through #198–#202 under
+explicit current-task authorization; production activation remains deferred
+until recurring reviewer findings and campaign outcomes at volume show repeated,
+classifiable gaps (D-108–D-114)
 **Outcome:** repeated application gaps become actionable learning and portfolio work
 that produces newly verified evidence.
 

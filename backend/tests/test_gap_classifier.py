@@ -4,11 +4,14 @@ from pathlib import Path
 from app.auth.security import create_access_token, hash_password
 from app.models.campaign_listing import CampaignListing
 from app.models.cv_document import CvDocument, CvVariant
+from app.models.development_item import DevelopmentItem
 from app.models.evidence_item import EvidenceItem
 from app.models.gap_classification import GapClassification
 from app.models.tool_run import ToolRun
 from app.models.user import User
 from app.models.workspace import Workspace
+from app.schemas.development import DevelopmentItemCreate
+from app.services.development import create_development_item
 from app.services.evidence_injection import EvidencePayload
 from app.services.gap_classifier import (
     GAP_EVIDENCE_NOT_YET_PRODUCED,
@@ -296,6 +299,57 @@ def _build_campaign(db, user_id, case):
     workspace.selected_cover_letter_run_id = cover.id
     db.commit()
     return workspace
+
+
+def test_owner_can_immediately_delete_a_gap_and_its_derived_response(
+    client, auth_headers, test_user, db
+):
+    workspace = _workspace(db, test_user.id)
+    classification = _persist_two_kinds(db, test_user.id, workspace.id)[0]
+    item = create_development_item(
+        db,
+        test_user.id,
+        DevelopmentItemCreate(gap_classification_id=classification.id),
+    )
+    response_url = (
+        f"{PREFIX}/workspaces/{workspace.id}/gap-classifications/"
+        f"{classification.id}/response"
+    )
+    assert client.get(response_url, headers=auth_headers).status_code == 200
+
+    deleted = client.delete(
+        f"{PREFIX}/workspaces/{workspace.id}/gap-classifications/{classification.id}",
+        headers=auth_headers,
+    )
+
+    assert deleted.status_code == 204
+    assert db.query(GapClassification).filter_by(id=classification.id).count() == 0
+    survivor = db.query(DevelopmentItem).filter_by(id=item.id).one()
+    assert survivor.gap_classification_id is None
+    assert survivor.gap_kind == classification.gap_kind
+    # The recommendation is a derived response, so no source row means no
+    # recommendation can remain reachable.
+    assert client.get(response_url, headers=auth_headers).status_code == 404
+
+
+def test_gap_delete_is_owner_scoped(client, test_user, db):
+    workspace = _workspace(db, test_user.id)
+    classification = _persist_two_kinds(db, test_user.id, workspace.id)[0]
+    other = User(
+        email="gap-delete-intruder@example.com",
+        hashed_password=hash_password("password123"),
+    )
+    db.add(other)
+    db.commit()
+    intruder = {"Authorization": f"Bearer {create_access_token(other.id)}"}
+
+    response = client.delete(
+        f"{PREFIX}/workspaces/{workspace.id}/gap-classifications/{classification.id}",
+        headers=intruder,
+    )
+
+    assert response.status_code == 404
+    assert db.query(GapClassification).filter_by(id=classification.id).count() == 1
 
 
 def test_classify_endpoint_persists_and_lists_honest_gap_kinds(client, auth_headers, test_user, db):

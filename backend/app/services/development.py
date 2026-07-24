@@ -30,6 +30,7 @@ from app.schemas.development import (
     DevelopmentPlanExport,
 )
 from app.schemas.evidence_profile import EvidenceItemCreate
+from app.services.analytics import safe_record_activation_event
 from app.services.evidence_profile import (
     record_evidence_proposal_created,
     set_evidence_confirmation,
@@ -59,6 +60,25 @@ class GapClassificationNotFoundError(Exception):
 class NoEvidenceProposalError(Exception):
     """The item has no linked proposal to confirm or decline (not completed, or
     already resolved)."""
+
+
+def _record_item_event(
+    db: Session,
+    *,
+    event_name: str,
+    item: DevelopmentItem,
+    state_from: str | None = None,
+    state_to: str | None = None,
+) -> None:
+    """Emit one content-free, bounded development lifecycle event (D-114)."""
+    safe_record_activation_event(
+        db,
+        event_name=event_name,
+        development_gap_kind=item.gap_kind,
+        development_response_kind=item.response_kind,
+        development_state_from=state_from,
+        development_state_to=state_to,
+    )
 
 
 def _event(name: str, **fields) -> dict:
@@ -142,6 +162,12 @@ def create_development_item(
     db.add(item)
     db.commit()
     db.refresh(item)
+    _record_item_event(
+        db,
+        event_name="development_item_created",
+        item=item,
+        state_to=item.state,
+    )
     return _hydrate_evidence_proposal(db, [item])[0]
 
 
@@ -194,6 +220,7 @@ def update_development_item(
     item = get_development_item(db, item_id, user_id)
     changes = body.model_dump(exclude_unset=True)
     staged_proposal: EvidenceItem | None = None
+    state_from: str | None = None
     # Apply user-authored proposal material before processing completion so one
     # combined PATCH stages exactly the text the user just submitted.
     if "target_date" in changes:
@@ -201,6 +228,7 @@ def update_development_item(
     if "notes" in changes:
         item.notes = changes["notes"]
     if "state" in changes and changes["state"] != item.state:
+        state_from = item.state
         item.timeline = [
             *item.timeline,
             _event("state_changed", from_state=item.state, to_state=changes["state"]),
@@ -214,6 +242,14 @@ def update_development_item(
     db.refresh(item)
     if staged_proposal is not None:
         record_evidence_proposal_created(db, staged_proposal)
+    if state_from is not None:
+        _record_item_event(
+            db,
+            event_name="development_item_state_changed",
+            item=item,
+            state_from=state_from,
+            state_to=item.state,
+        )
     return _hydrate_evidence_proposal(db, [item])[0]
 
 
@@ -260,8 +296,18 @@ def decline_development_evidence(db: Session, item_id: str, user_id: str) -> Dev
 
 def delete_development_item(db: Session, item_id: str, user_id: str) -> None:
     item = get_development_item(db, item_id, user_id)
+    gap_kind = item.gap_kind
+    response_kind = item.response_kind
+    state = item.state
     db.delete(item)
     db.commit()
+    safe_record_activation_event(
+        db,
+        event_name="development_item_deleted",
+        development_gap_kind=gap_kind,
+        development_response_kind=response_kind,
+        development_state_from=state,
+    )
 
 
 def delete_development_items(db: Session, user_id: str) -> int:

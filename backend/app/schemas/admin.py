@@ -3,7 +3,10 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
+
+from app.schemas.development import DevelopmentResponseKind, DevelopmentState
+from app.schemas.gap_classification import GapKind
 
 
 class AdminUserItem(BaseModel):
@@ -70,14 +73,14 @@ class FunnelStepCount(BaseModel):
 
     step: str
     label: str
-    count: int = 0
+    count: int = Field(default=0, ge=0)
 
 
 class FailureCategoryCount(BaseModel):
     """Failure events grouped by allowlisted failure category."""
 
     failure_category: str
-    count: int = 0
+    count: int = Field(default=0, ge=0)
 
 
 class ToolLatencyCost(BaseModel):
@@ -155,7 +158,7 @@ class ProfileKindCount(BaseModel):
     """Count of created evidence items grouped by their typed kind."""
 
     kind: str
-    count: int = 0
+    count: int = Field(default=0, ge=0)
 
 
 class ProfileProvenanceCount(BaseModel):
@@ -188,6 +191,46 @@ class AdminProfileAdoptionResponse(BaseModel):
     created_by_kind: list[ProfileKindCount] = []
     created_by_provenance: list[ProfileProvenanceCount] = []
     confirmation_transitions: list[ProfileTransitionCount] = []
+
+
+# ── R17 development-loop aggregate (#202, D-114) ──
+
+
+class DevelopmentGapKindCount(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    gap_kind: GapKind
+    count: int = 0
+
+
+class DevelopmentResponseKindCount(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    response_kind: DevelopmentResponseKind
+    count: int = 0
+
+
+class DevelopmentStateTransitionCount(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    from_state: DevelopmentState
+    to_state: DevelopmentState
+    count: int = 0
+
+
+class AdminDevelopmentLoopResponse(BaseModel):
+    """Aggregate-only view over content-free development lifecycle events."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    window_start: str
+    window_end: str
+    total_items_created: int = Field(default=0, ge=0)
+    total_items_deleted: int = Field(default=0, ge=0)
+    total_state_transitions: int = Field(default=0, ge=0)
+    created_by_gap_kind: list[DevelopmentGapKindCount] = []
+    created_by_response_kind: list[DevelopmentResponseKindCount] = []
+    state_transitions: list[DevelopmentStateTransitionCount] = []
 
 
 # ── R10 scaling-trigger scorecard (issue #136, parent #135, D-052/D-053) ──

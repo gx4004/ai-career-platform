@@ -23,6 +23,7 @@ from app.models.tool_run import ToolRun
 from app.models.user import User
 from app.schemas.admin import (
     AdminActivationResponse,
+    AdminDevelopmentLoopResponse,
     AdminEvalRunsResponse,
     AdminPacketGateResponse,
     AdminProfileAdoptionResponse,
@@ -46,6 +47,7 @@ from app.schemas.discovery_sources import (
 from app.services.analytics import (
     ACTIVATION_DEFAULT_WINDOW_DAYS,
     aggregate_activation_metrics,
+    aggregate_development_loop,
     aggregate_profile_adoption,
 )
 from app.services.discovery_personalization import list_admin_reports
@@ -470,6 +472,46 @@ def get_profile_adoption(
         window_end = window_end.replace(tzinfo=UTC)
 
     return aggregate_profile_adoption(
+        db,
+        window_start=window_start,
+        window_end=window_end,
+    )
+
+
+# ── Development-loop adoption view (R17, issue #202) ──
+
+
+@router.get("/development-loop", response_model=AdminDevelopmentLoopResponse)
+@limiter.limit(_ADMIN_RATE)
+def get_development_loop(
+    request: Request,
+    start: datetime | None = Query(None),
+    end: datetime | None = Query(None),
+    admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """Aggregate-only R17 adoption view over content-free lifecycle events.
+
+    No gap message, note, recommendation content, stable item identifier, or
+    user identifier is stored by the event model, so none is reachable here
+    (D-114). Naive bounds are interpreted as UTC, matching sibling admin views.
+    """
+    now = datetime.now(UTC)
+    window_end = end or now
+    window_start = start or (
+        window_end - timedelta(days=ACTIVATION_DEFAULT_WINDOW_DAYS)
+    )
+    if window_start.tzinfo is None:
+        window_start = window_start.replace(tzinfo=UTC)
+    if window_end.tzinfo is None:
+        window_end = window_end.replace(tzinfo=UTC)
+    if window_start > window_end:
+        raise HTTPException(
+            status_code=422,
+            detail="start must be before or equal to end",
+        )
+
+    return aggregate_development_loop(
         db,
         window_start=window_start,
         window_end=window_end,

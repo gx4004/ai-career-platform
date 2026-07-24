@@ -4,13 +4,15 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, model_validator
 
+from app.schemas.development import DevelopmentResponseKind, DevelopmentState
 from app.schemas.evidence_profile import (
     ConfirmationState,
     EvidenceKind,
     EvidenceProvenance,
 )
+from app.schemas.gap_classification import GapKind
 from app.schemas.telemetry import (
     AccessMode,
     ExportFormat,
@@ -189,6 +191,22 @@ DiscoveryEventName = Literal[
 #   - `packet_preparation_halt` — pipeline-wide halt/clear on a regression eval.
 PacketGateEventName = Literal["packet_queue_gate", "packet_preparation_halt"]
 
+# R17 #202 development-loop lifecycle events. Backend-generated at the bounded
+# development-item write seams; the only allowed dimensions are the four gap
+# kinds, four honest response kinds, and three states (D-114).
+DevelopmentLoopEventName = Literal[
+    "development_item_created",
+    "development_item_state_changed",
+    "development_item_deleted",
+]
+_DEVELOPMENT_LOOP_EVENT_NAMES = frozenset(
+    {
+        "development_item_created",
+        "development_item_state_changed",
+        "development_item_deleted",
+    }
+)
+
 # Activation-event names accepted by the durable write seam. This is the union
 # of every event name already firing today: the frontend-telemetry taxonomy
 # (`TelemetryEventName`) plus the backend-only tool-run outcome event, which the
@@ -203,6 +221,7 @@ ActivationEventName = (
     | StudioEventName
     | DiscoveryEventName
     | PacketGateEventName
+    | DevelopmentLoopEventName
 )
 
 
@@ -239,4 +258,82 @@ class ActivationEventCreate(BaseModel):
     evidence_kind: EvidenceKind | None = None
     evidence_provenance: EvidenceProvenance | None = None
     confirmation_transition: ConfirmationState | None = None
+    # R17 loop-adoption dimensions (#202, D-114). The model has no field for
+    # gap descriptions, notes, recommendation content, user IDs, or item IDs;
+    # `extra="forbid"` rejects any attempt to attach them.
+    development_gap_kind: GapKind | None = None
+    development_response_kind: DevelopmentResponseKind | None = None
+    development_state_from: DevelopmentState | None = None
+    development_state_to: DevelopmentState | None = None
     occurred_at: datetime | None = None
+
+    @model_validator(mode="after")
+    def validate_development_event_shape(self):
+        """Keep R17 dimensions on authoritative, well-formed R17 events only."""
+        development_values = (
+            self.development_gap_kind,
+            self.development_response_kind,
+            self.development_state_from,
+            self.development_state_to,
+        )
+        if self.event_name not in _DEVELOPMENT_LOOP_EVENT_NAMES:
+            if any(value is not None for value in development_values):
+                raise ValueError(
+                    "development dimensions are valid only for development-loop events"
+                )
+            return self
+
+        unrelated_values = (
+            self.tool_id,
+            self.access_mode,
+            self.saved,
+            self.failure_category,
+            self.export_format,
+            self.has_feedback,
+            self.session_status,
+            self.duration_ms,
+            self.cost_estimate,
+            self.operational_dimension,
+            self.operational_outcome,
+            self.evidence_kind,
+            self.evidence_provenance,
+            self.confirmation_transition,
+            self.occurred_at,
+        )
+        if any(value is not None for value in unrelated_values) or self.level != "info":
+            raise ValueError(
+                "development-loop events accept only gap, response, and state dimensions"
+            )
+        if (
+            self.development_gap_kind is None
+            or self.development_response_kind is None
+        ):
+            raise ValueError(
+                "development-loop events require gap and response dimensions"
+            )
+
+        if self.event_name == "development_item_created":
+            if (
+                self.development_state_from is not None
+                or self.development_state_to != "planned"
+            ):
+                raise ValueError(
+                    "development_item_created requires only state_to=planned"
+                )
+        elif self.event_name == "development_item_state_changed":
+            if (
+                self.development_state_from is None
+                or self.development_state_to is None
+                or self.development_state_from == self.development_state_to
+            ):
+                raise ValueError(
+                    "development_item_state_changed requires distinct from/to states"
+                )
+        elif (
+            self.development_state_from is None
+            or self.development_state_to is not None
+        ):
+            raise ValueError(
+                "development_item_deleted requires only the prior state"
+            )
+        return self

@@ -221,13 +221,14 @@ Browser → POST /auth/password-reset/confirm {token, new_password}
 | 7 | Google identity (`google_id`, `email_verified`) | Medium | `users.google_id` | Until account deletion | Cross-service correlation |
 | 8 | Evidence Profile career claims | High | `evidence_items.content` | Until item/account deletion | Career history, preferences, employer or institution exposure |
 | 9 | Structured CV drafts and variant snapshots | High | `cv_documents.sections`, `cv_variants.sections` | Until document/account deletion | Full career history, target-role intent, professional reputation exposure |
-| 10 | Tool metadata (scores, skill gaps, recommendations) | Medium | `tool_runs.result_payload` | Until deletion | Career profile inference |
-| 11 | Workspace/campaign target, schedule, and transition history | High | `workspaces.label`, `workspaces.is_pinned`, `workspaces.company`, `workspaces.role`, `workspaces.status`, `workspaces.deadline`, `campaign_events.details` | Until deletion | Job-search intent, target employer, application timing, and outcome-history exposure |
-| 12 | Submitted-application frozen bundles | High | `campaign_submission_snapshots.content_json` | Until campaign/account deletion | Exact CV, cover letter, target listing, and application-history exposure |
-| 13 | Discovery source governance records | Medium | `discovery_sources` | Until registry deletion | Source contracts, operational ownership, and acquisition bounds exposed |
-| 14 | Product-owned discovered listings | Medium-High | `discovered_listings`, `discovered_listing_attributions` | Per-source registry retention | Employer openings, acquisition sources, and stale corpus exposure |
-| 15 | Behavioral telemetry (event names, routes, timestamps) | Low | Log stdout, Sentry (if enabled) | Undefined (no TTL) | Usage pattern inference |
-| 16 | Sidebar state, language preference | None | `sidebar_state` cookie, `app_language` localStorage | 7 days / forever | None |
+| 10 | Classified career gaps and development plans | High | `gap_classifications.message/locations/cited_trace`, `development_items.notes/timeline` | Until item/classification/account deletion | Skill-deficit inference, professional vulnerability, learning intent, and target-role exposure |
+| 11 | Tool metadata (scores, skill gaps, recommendations) | Medium | `tool_runs.result_payload` | Until deletion | Career profile inference |
+| 12 | Workspace/campaign target, schedule, and transition history | High | `workspaces.label`, `workspaces.is_pinned`, `workspaces.company`, `workspaces.role`, `workspaces.status`, `workspaces.deadline`, `campaign_events.details` | Until deletion | Job-search intent, target employer, application timing, and outcome-history exposure |
+| 13 | Submitted-application frozen bundles | High | `campaign_submission_snapshots.content_json` | Until campaign/account deletion | Exact CV, cover letter, target listing, and application-history exposure |
+| 14 | Discovery source governance records | Medium | `discovery_sources` | Until registry deletion | Source contracts, operational ownership, and acquisition bounds exposed |
+| 15 | Product-owned discovered listings | Medium-High | `discovered_listings`, `discovered_listing_attributions` | Per-source registry retention | Employer openings, acquisition sources, and stale corpus exposure |
+| 16 | Behavioral telemetry (event names, routes, timestamps) | Low | Log stdout, Sentry (if enabled) | 180-day durable-event window; processor retention otherwise deployment-defined | Usage pattern inference |
+| 17 | Sidebar state, language preference | None | `sidebar_state` cookie, `app_language` localStorage | 7 days / forever | None |
 
 ### 4.1 Guest-Specific Storage Note
 
@@ -362,6 +363,10 @@ via `get_optional_current_user()`. Rate-limited at 10/min per endpoint.
 | `GET` | `/history/workspaces/{id}/reminders` | 10/min |
 | `PATCH` | `/history/workspaces/{id}/reminders` | None (revocation must remain immediate) |
 | `POST` | `/history/workspaces/{id}/review` | 10/min |
+| `POST` | `/history/workspaces/{id}/gap-classifications` | 10/min |
+| `GET` | `/history/workspaces/{id}/gap-classifications` | None |
+| `GET` | `/history/workspaces/{id}/gap-classifications/{classification_id}/response` | None |
+| `DELETE` | `/history/workspaces/{id}/gap-classifications/{classification_id}` | None (owner-scoped erasure must remain immediate) |
 | `GET` | `/history/{id}` | None |
 | `GET` | `/history/{run_id}/export/pdf` | 10/min |
 | `DELETE` | `/history/{id}` | None |
@@ -374,6 +379,10 @@ via `get_optional_current_user()`. Rate-limited at 10/min per endpoint.
 | `POST` | `/evidence-profile/items/{id}/confirmation` | None |
 | `DELETE` | `/evidence-profile/items/{id}` | None |
 | `GET` | `/evidence-profile/export` | 5/min |
+| `GET` | `/development-plan` | None |
+| `POST` | `/development-plan` | None |
+| `PATCH` | `/development-plan/{id}` | None |
+| `DELETE` | `/development-plan/{id}` | None |
 | `GET` | `/cv-documents` | None |
 | `POST` | `/cv-documents` | None |
 | `GET` | `/cv-documents/{id}` | None |
@@ -404,6 +413,7 @@ Rate-limited at 60/min.
 | `GET` | `/admin/stats` | 60/min |
 | `GET` | `/admin/activation` | 60/min |
 | `GET` | `/admin/profile-adoption` | 60/min |
+| `GET` | `/admin/development-loop` | 60/min |
 | `GET` | `/admin/scorecard` | 60/min |
 | `GET` | `/admin/eval-runs` | 60/min |
 | `GET` | `/admin/discovery-sources` | 60/min |
@@ -642,10 +652,14 @@ not sent to the frontend server, access logs, or HTTP Referer headers. Legacy
 ### 7.9 Account Deletion
 
 `POST /auth/me/delete` requires email confirmation (case-insensitive match),
-clears auth cookies, deletes all owner-scoped `evidence_items`, `cv_documents`,
-`cv_variants`, `tool_runs`, `campaign_events`, and `workspaces` (including campaign
+clears auth cookies, deletes all owner-scoped `gap_classifications`,
+`development_items`, `evidence_items`, `cv_documents`, `cv_variants`, `tool_runs`,
+`campaign_events`, and `workspaces` (including campaign
 target/status/deadline fields), then deletes the `users` row in a single transaction. PostgreSQL
-also enforces `ON DELETE CASCADE` for evidence items.
+also enforces `ON DELETE CASCADE` for the owner-scoped rows. Development
+recommendations are pure response offers derived from classifications, not a
+separate store, so removing classifications removes those offers without a
+residual recommendation row.
 
 — `backend/app/routers/auth.py:me_delete`
 — `backend/app/services/tool_runs.py:delete_all_user_data:20-32`
@@ -1072,6 +1086,7 @@ authoritative access seam (D-048, ADR 0003); it may not reuse a client-only gate
 | 6 | **Malicious file upload** | Browser → API | Medium — DoS, parser exploitation | 10MB limit, magic byte validation, PDF/DOCX only | No page count limit; no ZIP bomb protection for DOCX; PyMuPDF processes arbitrary PDFs |
 | 7 | **Prompt injection to extract system prompts or influence outputs** | API → Vertex AI | Low-Medium — output manipulation | 17 regex patterns in `input_sanitizer.py` | Regex cannot block all injection vectors; no system prompt hardening / delimiters |
 | 8 | **Account enumeration** | API → Auth | Low — privacy | Login/register return distinct errors; password reset always returns 200 | Login says "Invalid email or password" (ambiguous), but registration says "Email already registered" (distinct) |
+| 9 | **Career-gap inference through telemetry/admin access** | API → analytics store → admin | High — a weakness profile could harm the user professionally | Development events have only closed gap/response/state enums, no user/item identifiers or free text; the admin endpoint returns grouped counts only and remains admin-gated | An administrator can still infer population-level product patterns; admin credential security remains a trust assumption |
 
 ---
 
@@ -1084,7 +1099,7 @@ authoritative access seam (D-048, ADR 0003); it may not reuse a client-only gate
 | 3 | **Browser storage persistence after logout** | sessionStorage data | Tab-scoped sessionStorage clears on tab close; localStorage consent stays | Logout clears pending intent, invalidates query cache, but does not clear tool drafts, workflow context, demo results, or resume-carry from current tab's sessionStorage |
 | 4 | **Password reset link exposure** | Reset token | New links use a fragment that is scrubbed after hydration; single-use password-hash-derived signing invalidates the token on password change | Legacy query-token links remain accepted temporarily for rollout compatibility and are scrubbed client-side |
 | 5 | **Account deletion — data reappears from backup** | All user data | Cascading delete in single transaction; structured log emitted; no backups exist during thesis-demo phase, so no restore-reappearance risk currently | Before R5/beta launch, the accepted backup + restore procedure (D-032) must document how deletions are honored across a restore |
-| 6 | **Incomplete account deletion** | User data | `delete_all_user_data()` deletes `evidence_items`, `tool_runs`, `workspaces`, and `users`; PostgreSQL independently cascades profile rows | No verification query after deletion; no audit trail beyond structured log event; if Sentry is active, previously-captured events remain in Sentry's retention window |
+| 6 | **Incomplete account deletion** | User data | `delete_all_user_data()` explicitly deletes development items, gap classifications, evidence, documents, tool runs, campaigns, and the user; PostgreSQL independently cascades owner rows; derived development recommendations disappear with their classifications | No post-delete verification query; content-free aggregate analytics remain until their 180-day retention boundary, by design; if Sentry is active, previously-captured events remain in Sentry's retention window |
 
 ---
 
@@ -1323,3 +1338,42 @@ all of it joins `career-data-export/v1` (D-099).
 `packet_gate.py`, `queue_audit.py`; `backend/app/schemas/analytics.py` (allowlist);
 `backend/tests/test_queue_audit.py`, `test_queue_rules.py`, `test_stop_enforcement.py`,
 `test_packet_gate.py`
+
+### 8.11 Development-Loop Sensitive Data
+
+R17 stores two owner-scoped forms of highly sensitive career data (asset #10):
+`gap_classifications` preserves the reviewer message, locations, and cited
+evidence trace behind a diagnosed weakness; `development_items` preserves the
+chosen response, progress timeline, target date, and private notes. Every plan
+mutation and classification query is scoped by the authenticated user's id.
+Development recommendations are the exact, deterministic `GapResponseOffer`
+derived from an owned classification; no recommendation-content table or
+parallel retention boundary exists.
+
+**Erasure and portability.** Single gap classifications and development items
+delete immediately through owner-scoped endpoints. Because recommendations are
+derived from classifications rather than stored separately, deleting a
+classification makes its recommendation unreachable in the same operation.
+Account deletion removes items before classifications inside the existing
+single transaction, with owner foreign-key cascades as defense in depth.
+`career-data-export/v1` includes full classifications, items, and the response
+offers derived from them, with count/length invariants in both Pydantic and Zod.
+After classification erasure, its recommendation can no longer be derived and
+no ghost recommendation row remains (D-114).
+
+**Telemetry and admin boundary.** Create, state-transition, and delete seams
+emit backend-only events with only four closed dimensions: gap kind, response
+kind, prior state, and next state. `ActivationEventCreate(extra="forbid")`
+rejects gap descriptions, notes, recommendation content, classification/item
+ids, and user ids; the `analytics_events` model has no columns for them. The
+admin-only `/admin/development-loop` view groups these events into lifecycle,
+gap-kind, response-kind, and state-transition counts over a bounded time
+window. It exposes no row-level or user-level drill-down.
+
+— `backend/app/models/gap_classification.py`,
+`backend/app/models/development_item.py`,
+`backend/app/models/analytics_event.py`;
+`backend/app/services/development.py`, `data_export.py`, `analytics.py`;
+`backend/app/schemas/analytics.py`, `data_export.py`;
+`backend/tests/test_development_loop_analytics.py`,
+`test_development_plan.py`
