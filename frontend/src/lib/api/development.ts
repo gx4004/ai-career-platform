@@ -101,3 +101,21 @@ export async function updateDevelopmentItem(
 export async function deleteDevelopmentItem(itemId: string): Promise<void> {
   await developmentRequest(`/development-plan/${itemId}`, { method: 'DELETE' })
 }
+
+// R17 #201: act on the proposal completion staged (D-113). Confirming makes it
+// available to future tailoring/recommendations; declining hard-deletes it,
+// leaving no trace in the Evidence Profile, while the item itself stays intact.
+
+export async function confirmDevelopmentEvidence(itemId: string): Promise<DevelopmentItem> {
+  const data = await developmentRequest(`/development-plan/${itemId}/confirm-evidence`, {
+    method: 'POST',
+  })
+  return developmentItemSchema.parse(data)
+}
+
+export async function declineDevelopmentEvidence(itemId: string): Promise<DevelopmentItem> {
+  const data = await developmentRequest(`/development-plan/${itemId}/decline-evidence`, {
+    method: 'POST',
+  })
+  return developmentItemSchema.parse(data)
+}

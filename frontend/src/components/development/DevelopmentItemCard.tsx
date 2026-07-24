@@ -1,5 +1,12 @@
 import { useId } from 'react'
-import { CalendarClock, Pencil, StickyNote, Trash2 } from 'lucide-react'
+import {
+  BadgeCheck,
+  CalendarClock,
+  Pencil,
+  StickyNote,
+  Trash2,
+  X,
+} from 'lucide-react'
 import { Badge } from '#/components/ui/badge'
 import { Button } from '#/components/ui/button'
 import { cn } from '#/lib/utils'
@@ -13,6 +20,7 @@ import {
   STATE_ORDER,
   formatTargetDate,
 } from '#/lib/development/plan'
+import { contentEntries } from '#/lib/profile/evidence'
 
 export function DevelopmentItemCard({
   item,
@@ -20,16 +28,23 @@ export function DevelopmentItemCard({
   onStateChange,
   onEdit,
   onDelete,
+  onConfirmEvidence,
+  onDeclineEvidence,
 }: {
   item: DevelopmentItem
   busy: boolean
   onStateChange: (item: DevelopmentItem, state: DevelopmentState) => void
   onEdit: (item: DevelopmentItem) => void
   onDelete: (item: DevelopmentItem) => void
+  onConfirmEvidence: (item: DevelopmentItem) => void
+  onDeclineEvidence: (item: DevelopmentItem) => void
 }) {
   const stateSelectId = useId()
   const state = item.state
   const targetDate = formatTargetDate(item.target_date)
+  const proposalEntries = item.evidence_proposal
+    ? contentEntries(item.evidence_proposal.content)
+    : []
 
   return (
     <li
@@ -72,6 +87,59 @@ export function DevelopmentItemCard({
           </dd>
         </div>
       </dl>
+
+      {item.evidence_proposal?.confirmation_state === 'unconfirmed' ? (
+        <section
+          className="development-card__evidence"
+          aria-label="Evidence proposal"
+        >
+          <div className="development-card__evidence-copy">
+            <BadgeCheck size={16} aria-hidden="true" />
+            <div>
+              <strong>Ready to become reusable evidence</strong>
+              <p>
+                Confirm this proposal to use it in future CV tailoring and job
+                recommendations, or decline it without changing the completed item.
+              </p>
+            </div>
+          </div>
+          <dl
+            className="development-card__evidence-content"
+            aria-label="Proposed evidence claim"
+          >
+            {proposalEntries.map(({ key, value }) => (
+              <div key={key}>
+                <dt>{key}</dt>
+                <dd>{value || '—'}</dd>
+              </div>
+            ))}
+          </dl>
+          <div className="development-card__evidence-actions">
+            <Button
+              size="sm"
+              disabled={busy}
+              onClick={() => onConfirmEvidence(item)}
+            >
+              <BadgeCheck size={14} />
+              Confirm evidence
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={busy}
+              onClick={() => onDeclineEvidence(item)}
+            >
+              <X size={14} />
+              Decline proposal
+            </Button>
+          </div>
+        </section>
+      ) : item.evidence_proposal?.confirmation_state === 'confirmed' ? (
+        <p className="development-card__evidence-confirmed" role="status">
+          <BadgeCheck size={15} aria-hidden="true" />
+          Evidence confirmed
+        </p>
+      ) : null}
 
       <div className="development-card__control">
         <label className="development-card__control-label" htmlFor={stateSelectId}>

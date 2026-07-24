@@ -11,10 +11,10 @@ The gap-kind -> response-kind mapping is the single honest response per kind
 build its richer response offer.
 """
 
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.schemas.gap_classification import GapKind
 
@@ -65,6 +65,21 @@ class DevelopmentItemUpdate(BaseModel):
         return self
 
 
+class DevelopmentEvidenceProposalResponse(BaseModel):
+    """The exact claim a completed item asks its owner to review (D-113).
+
+    Keeping the identifier, content, and trust state together makes the
+    nullable-link invariant explicit in both API contracts: either there is one
+    complete, inspectable proposal or there is none.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: str
+    content: dict[str, Any]
+    confirmation_state: Literal["unconfirmed", "confirmed"]
+
+
 class DevelopmentItemResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True, extra="forbid")
 
@@ -77,8 +92,19 @@ class DevelopmentItemResponse(BaseModel):
     notes: str | None
     source_finding_id: str | None
     timeline: list[dict[str, Any]]
+    # R17 #201: a complete, inspectable value after completion stages a proposal;
+    # NULL before completion or after decline. Never `rejected`: declining
+    # hard-deletes the profile row rather than leaving a trace (D-113).
+    evidence_proposal: DevelopmentEvidenceProposalResponse | None
     created_at: datetime
     updated_at: datetime
+
+    @field_validator("created_at", "updated_at")
+    @classmethod
+    def normalize_database_timestamps(cls, value: datetime) -> datetime:
+        # SQLite drops timezone metadata even for timezone=True columns. Normalize
+        # that development/test representation to the UTC contract Postgres keeps.
+        return value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
 
 
 class DevelopmentPlanResponse(BaseModel):
