@@ -17,6 +17,7 @@ from app.models.user import User
 from app.models.workspace import Workspace
 from app.schemas.history import CampaignListingResponse, WorkspaceSummary
 from app.services.application_packets import delete_application_packets
+from app.services.development import delete_development_items
 from app.services.discovery_personalization import delete_personalization
 from app.services.gap_classifier import delete_gap_classifications
 from app.services.observability import log_user_account_deleted
@@ -73,6 +74,10 @@ def delete_all_user_data(db: Session, user_id: str) -> None:
     # application intent) and join the erasure cascade (D-099, R15 #181). Deleted
     # before campaigns so their FK to workspaces is removed first.
     delete_application_packets(db, user_id)
+    # R17 development items are the user's own owner-scoped development plan and
+    # join the erasure cascade (D-114). Deleted before their gap classifications so
+    # the SET NULL FK is resolved first.
+    development_items_deleted = delete_development_items(db, user_id)
     # R17 gap classifications label the user's own reviewer findings and are
     # owner-scoped sensitive career data; they join the erasure cascade (D-114).
     delete_gap_classifications(db, user_id)
@@ -100,6 +105,7 @@ def delete_all_user_data(db: Session, user_id: str) -> None:
         evidence_items_deleted=evidence_deleted,
         cv_documents_deleted=cv_documents_deleted,
         cv_variants_deleted=cv_variants_deleted,
+        development_items_deleted=development_items_deleted,
         user_record_deleted=bool(users_deleted),
     )
 
