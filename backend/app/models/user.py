@@ -37,3 +37,6 @@ class User(Base):
     cv_documents = relationship(
         "CvDocument", back_populates="user", cascade="all, delete-orphan"
     )
+    gap_classifications = relationship(
+        "GapClassification", back_populates="user", cascade="all, delete-orphan"
+    )
