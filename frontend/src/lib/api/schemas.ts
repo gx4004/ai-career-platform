@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { developmentPlanExportSchema } from '#/lib/api/developmentSchemas'
 import {
   applicationPacketsExportSchema,
   packetStopAnswersExportSchema,
@@ -222,6 +223,7 @@ export const careerDataExportSchema = z.strictObject({
   application_packets: applicationPacketsExportSchema,
   packet_stop_answers: packetStopAnswersExportSchema,
   queue_audit: queueAuditExportSchema,
+  development: developmentPlanExportSchema,
   campaigns: z.strictObject({
     campaign_count: z.number().int().nonnegative(),
     campaigns: z.array(z.object({

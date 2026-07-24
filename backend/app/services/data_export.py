@@ -13,6 +13,7 @@ from app.schemas.history import (
 from app.services.application_packets import export_application_packets
 from app.services.campaign_snapshots import snapshot_response
 from app.services.cv_documents import export_documents
+from app.services.development import export_development_plan
 from app.services.discovery_personalization import export_personalization
 from app.services.evidence_profile import export_evidence_profile
 from app.services.packet_approval import export_packet_stop_answers
@@ -38,6 +39,7 @@ def export_career_data(db: Session, user_id: str) -> CareerDataExport:
         application_packets=export_application_packets(db, user_id),
         packet_stop_answers=export_packet_stop_answers(db, user_id),
         queue_audit=export_queue_audit_events(db, user_id),
+        development=export_development_plan(db, user_id),
         campaigns=CampaignsExport(
             campaign_count=len(workspaces),
             campaigns=[
