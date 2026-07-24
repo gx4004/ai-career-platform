@@ -395,7 +395,7 @@ errors remain forbidden.
 - Rules, packets, drafts, and audit events are owner-isolated sensitive content in
   the standard lifecycle and telemetry boundaries (D-099).
 
-## Trusted Submission Boundaries (R16, deferred)
+## Trusted Submission Boundaries (R16, dark #189 foundation; activation deferred)
 
 - Submission exists only behind four independent gates: source (terms approval +
   compatibility contract), user (granular revocable authorization), packet
@@ -410,6 +410,20 @@ errors remain forbidden.
   per-field reconstructability and user-inspectable confirmation (D-103).
 - Contract breakage trips the source kill switch and degrades to human handoff
   (D-105).
+- The built-ahead #189 source gate extends each R14 registry row with at most one
+  submission-governance record. It persists a separate submission legal/terms
+  review, a strictly validated compatibility contract (fields, formats, error
+  semantics), explicit promotion provenance, and a default-on submission kill
+  switch. The authoritative `require_submission_allowed()` seam re-reads all
+  source facts and refuses unless R14 terms are accepted, both discovery and
+  submission kill switches are clear, the submission review is accepted, the
+  contract is verified, and the source is promoted. No real registry entry,
+  credentials, network adapter, user authorization, or submission route ships in
+  #189; local synthetic fixtures are contract tests, never legal approval.
+- Promotion and submission-kill telemetry reuses the first-party operational
+  store with source-family plus closed transition classes only. Source keys,
+  contract bodies, endpoints, and reviewer identities remain outside analytics.
+  This build-ahead is not evidence for D-100 and does not authorize activation.
 - Quality and user outcomes govern operation; raw volume never loosens controls
   (D-106).
 - Submission records follow the standard lifecycle for product copies, with the
