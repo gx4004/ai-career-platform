@@ -57,6 +57,15 @@ class DevelopmentItem(Base):
         nullable=True,
         index=True,
     )
+    # NULL until completion produces an unconfirmed Evidence Profile proposal
+    # (R17 #201, D-113). Declining hard-deletes that item and clears this back to
+    # NULL, so a declined proposal leaves no trace in the profile.
+    evidence_item_id: Mapped[str | None] = mapped_column(
+        String,
+        ForeignKey("evidence_items.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     gap_kind: Mapped[str] = mapped_column(String, nullable=False)
     response_kind: Mapped[str] = mapped_column(String, nullable=False)
     state: Mapped[str] = mapped_column(

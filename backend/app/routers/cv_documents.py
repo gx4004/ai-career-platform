@@ -386,6 +386,10 @@ async def tailor(
         job_description=body.job_description,
         current_user=current_user,
         db=db,
+        # Tailoring is an explicit consumer of confirmed profile evidence. This
+        # path must remain useful even while optional injection into legacy
+        # one-shot tools is dark by default (D-063, D-113).
+        require_evidence_profile=True,
         cache_extra_keys={
             "document_id": document.id,
             "updated_at": document.updated_at.isoformat(),

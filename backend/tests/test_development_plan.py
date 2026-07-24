@@ -1,8 +1,16 @@
+from datetime import UTC, datetime
+
 import pytest
 from pydantic import ValidationError
 
 from app.auth.security import create_access_token, hash_password
 from app.models.development_item import DevelopmentItem
+from app.models.discovered_listing import (
+    DiscoveredListing,
+    DiscoveredListingAttribution,
+)
+from app.models.discovery_source import DiscoverySource
+from app.models.evidence_item import EvidenceItem
 from app.models.gap_classification import GapClassification
 from app.models.user import User
 from app.models.workspace import Workspace
@@ -22,6 +30,8 @@ from app.services.development import (
     list_development_items,
     update_development_item,
 )
+from app.services.discovery_recommendations import rank_discovery_recommendations
+from app.services.evidence_injection import load_profile_for_injection
 from app.services.tool_runs import delete_all_user_data
 
 PREFIX = "/api/v1/development-plan"
@@ -44,6 +54,47 @@ def _classification(db, user_id, *, gap_kind="missing_skill", finding_id="f1", l
     db.add(row)
     db.commit()
     return row
+
+
+def _governed_listing(db, *, title: str, description: str):
+    source = DiscoverySource(
+        source_key="r17-completion-feed",
+        display_name="R17 Completion Feed",
+        source_family="licensed",
+        owner="Discovery Operations",
+        terms_status="accepted",
+        terms_reviewed_at=datetime(2026, 7, 1, tzinfo=UTC),
+        terms_reviewed_by="reviewer@example.com",
+        allowed_behavior="feed",
+        endpoint_url="https://r17.example/jobs",
+        allowed_query_parameters=["role"],
+        robots_policy="not_applicable",
+        rate_limit_per_minute=10,
+        attribution_rule="Show source and link",
+        retention_days=30,
+        kill_switch=False,
+    )
+    db.add(source)
+    db.flush()
+    listing = DiscoveredListing(
+        content_sha256="2" * 64,
+        title=title,
+        company="Synthetic Systems",
+        description=description,
+    )
+    db.add(listing)
+    db.flush()
+    db.add(
+        DiscoveredListingAttribution(
+            listing_id=listing.id,
+            source_id=source.id,
+            source_listing_key="r17-completion-1",
+            source_url="https://r17.example/jobs/1",
+            retrieved_at=datetime.now(UTC),
+        )
+    )
+    db.commit()
+    return listing
 
 
 # --- service: creation snapshots the honest response and gap kind --------------
@@ -105,6 +156,59 @@ def test_state_transition_appends_timeline_and_updates_state(db, test_user):
     assert transition["event"] == "state_changed"
     assert transition["from_state"] == "planned"
     assert transition["to_state"] == "in_progress"
+
+
+def test_completion_stages_one_unconfirmed_proposal_from_the_completed_update(
+    client, auth_headers, test_user, db
+):
+    classification = _classification(
+        db,
+        test_user.id,
+        gap_kind="evidence_not_yet_produced",
+    )
+    item = create_development_item(
+        db, test_user.id, DevelopmentItemCreate(gap_classification_id=classification.id)
+    )
+
+    response = client.patch(
+        f"{PREFIX}/{item.id}",
+        headers=auth_headers,
+        json={
+            "state": "completed",
+            "notes": "Built a Kubernetes deployment controller.",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["created_at"].endswith("Z")
+    assert body["updated_at"].endswith("Z")
+    assert body["evidence_proposal"]["confirmation_state"] == "unconfirmed"
+    assert body["evidence_proposal"]["content"] == {
+        "statement": "Built a Kubernetes deployment controller."
+    }
+    proposal = (
+        db.query(EvidenceItem)
+        .filter_by(id=body["evidence_proposal"]["id"])
+        .one()
+    )
+    assert proposal.user_id == test_user.id
+    assert proposal.provenance == "inferred"
+    assert proposal.confirmation_state == "unconfirmed"
+    assert proposal.content == {"statement": "Built a Kubernetes deployment controller."}
+    assert [event["event"] for event in body["timeline"]][-2:] == [
+        "state_changed",
+        "evidence_proposal_created",
+    ]
+
+    # A repeated completed update cannot mint a second profile item.
+    repeated = client.patch(
+        f"{PREFIX}/{item.id}",
+        headers=auth_headers,
+        json={"notes": "Built and documented a Kubernetes deployment controller."},
+    )
+    assert repeated.status_code == 200
+    assert db.query(EvidenceItem).filter_by(user_id=test_user.id).count() == 1
 
 
 def test_update_can_clear_notes_with_null_but_leaves_omitted_fields(db, test_user):
@@ -236,6 +340,231 @@ def test_endpoint_full_lifecycle(client, auth_headers, test_user, db):
     assert client.get(PREFIX, headers=auth_headers).json()["items"] == []
 
 
+def test_confirmed_completion_reaches_tailoring_and_recommendation_grounding(
+    client, auth_headers, test_user, db, monkeypatch
+):
+    listing = _governed_listing(
+        db,
+        title="Platform Engineer",
+        description="Build Kubernetes services and deployment automation.",
+    )
+    classification = _classification(
+        db,
+        test_user.id,
+        gap_kind="evidence_not_yet_produced",
+        finding_id="kubernetes-gap",
+    )
+    item = create_development_item(
+        db,
+        test_user.id,
+        DevelopmentItemCreate(
+            gap_classification_id=classification.id,
+            notes="Built a Kubernetes deployment controller.",
+        ),
+    )
+    completed = client.patch(
+        f"{PREFIX}/{item.id}",
+        headers=auth_headers,
+        json={"state": "completed"},
+    )
+    assert completed.status_code == 200
+    evidence_id = completed.json()["evidence_proposal"]["id"]
+
+    before_payload, _ = load_profile_for_injection(db, test_user.id)
+    assert before_payload.locked_facts == []
+    assert rank_discovery_recommendations(db, test_user.id).items == []
+
+    confirmed = client.post(
+        f"{PREFIX}/{item.id}/confirm-evidence",
+        headers=auth_headers,
+    )
+
+    assert confirmed.status_code == 200
+    body = confirmed.json()
+    assert body["evidence_proposal"]["confirmation_state"] == "confirmed"
+    assert body["timeline"][-1]["event"] == "evidence_confirmed"
+    after_payload, _ = load_profile_for_injection(db, test_user.id)
+    assert after_payload.locked_facts == [
+        {
+            "evidence_item_id": evidence_id,
+            "kind": "achievement",
+            "content": {"statement": "Built a Kubernetes deployment controller."},
+        }
+    ]
+    recommendations = rank_discovery_recommendations(db, test_user.id)
+    assert [recommendation.listing_id for recommendation in recommendations.items] == [
+        listing.id
+    ]
+    assert recommendations.items[0].rationale[0].evidence_item_ids == [evidence_id]
+
+    # Exercise the actual CV-tailoring endpoint and shared tool pipeline, not
+    # only the profile loader. The generated change is accepted as confirmed
+    # support only if the newly confirmed completion reaches that pipeline seam.
+    document = client.post(
+        "/api/v1/cv-documents",
+        headers=auth_headers,
+        json={
+            "name": "Completion-grounded CV",
+            "sections": [
+                {
+                    "id": "section-achievements",
+                    "kind": "achievements",
+                    "title": "Achievements",
+                    "visible": True,
+                    "position": 0,
+                    "entries": [
+                        {
+                            "id": "entry-one",
+                            "evidence_item_id": None,
+                            "body": "Built deployment automation.",
+                            "position": 0,
+                        }
+                    ],
+                }
+            ],
+        },
+    )
+    assert document.status_code == 201
+
+    async def completion_grounded_tailoring(*_args, **_kwargs):
+        return {
+            "changes": [
+                {
+                    "id": "change-one",
+                    "section_id": "section-achievements",
+                    "entry_id": "entry-one",
+                    "before": "Built deployment automation.",
+                    "after": "Built Kubernetes deployment automation.",
+                    "job_requirement": "Kubernetes services",
+                    "evidence_item_ids": [evidence_id],
+                    "support": "confirmed",
+                }
+            ]
+        }
+
+    monkeypatch.setattr(
+        "app.services.cv_tailoring.complete_structured",
+        completion_grounded_tailoring,
+    )
+    tailored = client.post(
+        f"/api/v1/cv-documents/{document.json()['id']}/tailoring",
+        headers=auth_headers,
+        json={
+            "job_title": "Platform Engineer",
+            "job_description": "Build Kubernetes services and deployment automation.",
+        },
+    )
+    assert tailored.status_code == 200
+    assert tailored.json()["changes"][0]["evidence_item_ids"] == [evidence_id]
+
+
+def test_declining_completion_removes_only_the_proposal(
+    client, auth_headers, test_user, db
+):
+    classification = _classification(db, test_user.id, gap_kind="missing_skill")
+    item = create_development_item(
+        db,
+        test_user.id,
+        DevelopmentItemCreate(
+            gap_classification_id=classification.id,
+            notes="Completed a supervised Rust learning project.",
+        ),
+    )
+    completed = client.patch(
+        f"{PREFIX}/{item.id}",
+        headers=auth_headers,
+        json={"state": "completed"},
+    )
+    proposal_id = completed.json()["evidence_proposal"]["id"]
+
+    declined = client.post(
+        f"{PREFIX}/{item.id}/decline-evidence",
+        headers=auth_headers,
+    )
+
+    assert declined.status_code == 200
+    body = declined.json()
+    assert body["state"] == "completed"
+    assert body["evidence_proposal"] is None
+    assert body["timeline"][-1] == pytest.approx(
+        {
+            "event": "evidence_declined",
+            "at": body["timeline"][-1]["at"],
+            "evidence_item_id": proposal_id,
+        }
+    )
+    assert db.query(DevelopmentItem).filter_by(id=item.id).one().state == "completed"
+    assert db.query(EvidenceItem).filter_by(id=proposal_id).count() == 0
+
+
+def test_confirmed_evidence_cannot_be_declined_as_if_it_were_still_a_proposal(
+    client, auth_headers, test_user, db
+):
+    classification = _classification(db, test_user.id)
+    item = create_development_item(
+        db, test_user.id, DevelopmentItemCreate(gap_classification_id=classification.id)
+    )
+    completed = client.patch(
+        f"{PREFIX}/{item.id}", headers=auth_headers, json={"state": "completed"}
+    )
+    proposal_id = completed.json()["evidence_proposal"]["id"]
+    assert (
+        client.post(f"{PREFIX}/{item.id}/confirm-evidence", headers=auth_headers).status_code
+        == 200
+    )
+
+    decline = client.post(
+        f"{PREFIX}/{item.id}/decline-evidence",
+        headers=auth_headers,
+    )
+
+    assert decline.status_code == 409
+    assert db.query(EvidenceItem).filter_by(id=proposal_id).one().confirmation_state == "confirmed"
+
+
+@pytest.mark.parametrize("action", ["confirm", "reject"])
+def test_evidence_profile_confirmation_preserves_linked_development_lifecycle(
+    client, auth_headers, test_user, db, action
+):
+    classification = _classification(db, test_user.id)
+    item = create_development_item(
+        db,
+        test_user.id,
+        DevelopmentItemCreate(
+            gap_classification_id=classification.id,
+            notes="Completed a supervised Rust learning project.",
+        ),
+    )
+    completed = client.patch(
+        f"{PREFIX}/{item.id}",
+        headers=auth_headers,
+        json={"state": "completed"},
+    )
+    proposal_id = completed.json()["evidence_proposal"]["id"]
+
+    response = client.post(
+        f"/api/v1/evidence-profile/items/{proposal_id}/confirmation",
+        headers=auth_headers,
+        json={"action": action},
+    )
+
+    assert response.status_code == 200
+    db.expire_all()
+    stored_item = db.query(DevelopmentItem).filter_by(id=item.id).one()
+    if action == "confirm":
+        assert response.json()["confirmation_state"] == "confirmed"
+        assert stored_item.evidence_item_id == proposal_id
+        assert stored_item.timeline[-1]["event"] == "evidence_confirmed"
+        assert db.query(EvidenceItem).filter_by(id=proposal_id).one().confirmation_state == "confirmed"
+    else:
+        # The response acknowledges the user's rejection, while persistence
+        # obeys D-113: no rejected profile row or dangling link remains.
+        assert response.json()["confirmation_state"] == "rejected"
+        assert stored_item.evidence_item_id is None
+        assert stored_item.timeline[-1]["event"] == "evidence_declined"
+        assert db.query(EvidenceItem).filter_by(id=proposal_id).count() == 0
+
+
 def test_endpoint_rejects_explicit_null_state_with_422_not_500(client, auth_headers, test_user, db):
     classification = _classification(db, test_user.id)
     item = create_development_item(
@@ -255,7 +584,7 @@ def test_endpoint_create_with_unknown_classification_is_404(client, auth_headers
     assert response.status_code == 404
 
 
-def test_endpoint_is_owner_scoped(client, test_user, db):
+def test_endpoint_is_owner_scoped(client, auth_headers, test_user, db):
     classification = _classification(db, test_user.id)
     item = create_development_item(
         db, test_user.id, DevelopmentItemCreate(gap_classification_id=classification.id)
@@ -269,3 +598,21 @@ def test_endpoint_is_owner_scoped(client, test_user, db):
     assert client.get(PREFIX, headers=intruder).json()["items"] == []
     assert client.patch(f"{PREFIX}/{item.id}", headers=intruder, json={"state": "completed"}).status_code == 404
     assert client.delete(f"{PREFIX}/{item.id}", headers=intruder).status_code == 404
+
+    # The completion proposal actions share the same owner boundary.
+    assert (
+        client.patch(
+            f"{PREFIX}/{item.id}",
+            headers=auth_headers,
+            json={"state": "completed"},
+        ).status_code
+        == 200
+    )
+    assert (
+        client.post(f"{PREFIX}/{item.id}/confirm-evidence", headers=intruder).status_code
+        == 404
+    )
+    assert (
+        client.post(f"{PREFIX}/{item.id}/decline-evidence", headers=intruder).status_code
+        == 404
+    )
