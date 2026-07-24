@@ -127,6 +127,13 @@ def test_update_with_no_fields_is_rejected():
         DevelopmentItemUpdate()
 
 
+def test_update_rejects_an_explicit_null_state():
+    # `state` is a required enum with no clear semantics; an explicit null must be
+    # a 422, never applied (which would violate the NOT NULL column and 500).
+    with pytest.raises(ValidationError):
+        DevelopmentItemUpdate(state=None)
+
+
 def test_create_rejects_unknown_fields_bounded_model():
     with pytest.raises(ValidationError):
         DevelopmentItemCreate(gap_classification_id="c1", priority="high")
@@ -227,6 +234,18 @@ def test_endpoint_full_lifecycle(client, auth_headers, test_user, db):
     deleted = client.delete(f"{PREFIX}/{item_id}", headers=auth_headers)
     assert deleted.status_code == 204
     assert client.get(PREFIX, headers=auth_headers).json()["items"] == []
+
+
+def test_endpoint_rejects_explicit_null_state_with_422_not_500(client, auth_headers, test_user, db):
+    classification = _classification(db, test_user.id)
+    item = create_development_item(
+        db, test_user.id, DevelopmentItemCreate(gap_classification_id=classification.id)
+    )
+    response = client.patch(f"{PREFIX}/{item.id}", headers=auth_headers, json={"state": None})
+    assert response.status_code == 422
+    # The item is untouched — no corrupting null state was applied.
+    db.refresh(item)
+    assert item.state == "planned"
 
 
 def test_endpoint_create_with_unknown_classification_is_404(client, auth_headers):

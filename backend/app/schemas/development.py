@@ -57,6 +57,11 @@ class DevelopmentItemUpdate(BaseModel):
         # real change (clear the field), so key off which fields were set.
         if not self.model_fields_set:
             raise ValueError("At least one field is required")
+        # `state` has no "clear" semantics — it is a required NOT NULL enum. An
+        # explicit null must be rejected here as a 422, never applied (which would
+        # violate the column constraint and surface as a 500).
+        if "state" in self.model_fields_set and self.state is None:
+            raise ValueError("state cannot be null")
         return self
 
 
