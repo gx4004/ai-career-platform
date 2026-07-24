@@ -1,5 +1,9 @@
 import { z } from 'zod'
-import { developmentPlanExportSchema } from '#/lib/api/developmentSchemas'
+import {
+  developmentItemSchema,
+  developmentResponseKindSchema,
+} from '#/lib/api/developmentSchemas'
+import { gapClassificationSchema, gapKindSchema } from '#/lib/api/gapClassificationSchemas'
 import {
   applicationPacketsExportSchema,
   packetStopAnswersExportSchema,
@@ -213,6 +217,46 @@ export const cvDocumentsExportSchema = z.object({
   schema_version: z.literal('cv-documents-export/v1'), exported_at: z.iso.datetime(),
   document_count: z.number().int().nonnegative(), documents: z.array(cvDocumentSchema),
 }).refine((value) => value.document_count === value.documents.length)
+
+// R17 #200/#202: the canonical mirrored honest-response shape also appears in
+// the complete career-data export. It lives here to avoid a schema import cycle
+// (`gapResponseSchemas.ts` re-exports it for the endpoint client).
+export const gapActionPathSchema = z.enum([
+  'reviewer_reword',
+  'evidence_profile_create',
+  'advisory',
+])
+export const gapRecommendationSourceSchema = z.strictObject({
+  label: z.string(),
+  url: z.string().url().nullish(),
+})
+export const gapResponseOfferSchema = z.strictObject({
+  gap_classification_id: z.string(),
+  gap_kind: gapKindSchema,
+  response_kind: developmentResponseKindSchema,
+  action_path: gapActionPathSchema,
+  headline: z.string(),
+  detail: z.string(),
+  capture_proposal: evidenceItemCreateSchema.nullish(),
+  sources: z.array(gapRecommendationSourceSchema),
+  commercial_relationship: z.literal('none'),
+})
+export const developmentLoopExportSchema = z
+  .strictObject({
+    classification_count: z.number().int().nonnegative(),
+    classifications: z.array(gapClassificationSchema),
+    item_count: z.number().int().nonnegative(),
+    items: z.array(developmentItemSchema),
+    recommendation_count: z.number().int().nonnegative(),
+    recommendations: z.array(gapResponseOfferSchema),
+  })
+  .refine(
+    (value) =>
+      value.classification_count === value.classifications.length &&
+      value.item_count === value.items.length &&
+      value.recommendation_count === value.recommendations.length,
+  )
+
 export const careerDataExportSchema = z.strictObject({
   schema_version: z.literal('career-data-export/v1'),
   exported_at: z.iso.datetime(),
@@ -223,7 +267,7 @@ export const careerDataExportSchema = z.strictObject({
   application_packets: applicationPacketsExportSchema,
   packet_stop_answers: packetStopAnswersExportSchema,
   queue_audit: queueAuditExportSchema,
-  development: developmentPlanExportSchema,
+  development: developmentLoopExportSchema,
   campaigns: z.strictObject({
     campaign_count: z.number().int().nonnegative(),
     campaigns: z.array(z.object({

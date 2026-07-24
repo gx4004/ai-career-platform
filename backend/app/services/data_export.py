@@ -2,8 +2,10 @@ from datetime import UTC, datetime
 
 from sqlalchemy.orm import Session
 
+from app.models.gap_classification import GapClassification
 from app.models.workspace import Workspace
-from app.schemas.data_export import CareerDataExport
+from app.schemas.data_export import CareerDataExport, DevelopmentLoopExport
+from app.schemas.gap_classification import GapClassificationRead
 from app.schemas.history import (
     CampaignEventExport,
     CampaignExportItem,
@@ -16,6 +18,7 @@ from app.services.cv_documents import export_documents
 from app.services.development import export_development_plan
 from app.services.discovery_personalization import export_personalization
 from app.services.evidence_profile import export_evidence_profile
+from app.services.gap_response import map_gap_to_response
 from app.services.packet_approval import export_packet_stop_answers
 from app.services.queue_audit import export_queue_audit_events
 from app.services.queue_rules import export_queue_rules
@@ -23,6 +26,13 @@ from app.services.queue_rules import export_queue_rules
 
 def export_career_data(db: Session, user_id: str) -> CareerDataExport:
     profile = export_evidence_profile(db, user_id)
+    development_plan = export_development_plan(db, user_id)
+    classifications = (
+        db.query(GapClassification)
+        .filter(GapClassification.user_id == user_id)
+        .order_by(GapClassification.created_at.asc(), GapClassification.id.asc())
+        .all()
+    )
     workspaces = (
         db.query(Workspace)
         .filter(Workspace.user_id == user_id)
@@ -39,7 +49,20 @@ def export_career_data(db: Session, user_id: str) -> CareerDataExport:
         application_packets=export_application_packets(db, user_id),
         packet_stop_answers=export_packet_stop_answers(db, user_id),
         queue_audit=export_queue_audit_events(db, user_id),
-        development=export_development_plan(db, user_id),
+        development=DevelopmentLoopExport(
+            classification_count=len(classifications),
+            classifications=[
+                GapClassificationRead.model_validate(item)
+                for item in classifications
+            ],
+            item_count=development_plan.item_count,
+            items=development_plan.items,
+            recommendation_count=len(classifications),
+            recommendations=[
+                map_gap_to_response(classification)
+                for classification in classifications
+            ],
+        ),
         campaigns=CampaignsExport(
             campaign_count=len(workspaces),
             campaigns=[

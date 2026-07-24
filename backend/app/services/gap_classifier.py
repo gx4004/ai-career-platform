@@ -40,6 +40,7 @@ import json
 
 from sqlalchemy.orm import Session
 
+from app.models.development_item import DevelopmentItem
 from app.models.gap_classification import GapClassification
 from app.services.evidence_injection import EvidencePayload
 from app.services.quality_signals import keyword_present
@@ -64,6 +65,10 @@ _DEMONSTRATED_KINDS = frozenset(
 )
 
 _REQUIREMENT_TRACE_PREFIX = "listing_requirement:"
+
+
+class GapClassificationNotFoundError(Exception):
+    """The requested owner-scoped gap classification does not exist."""
 
 
 def classify_findings(
@@ -185,6 +190,7 @@ def persist_gap_classifications(
     }
     for finding_id, row in existing.items():
         if finding_id not in new_ids:
+            _detach_development_items(db, user_id, row.id)
             db.delete(row)
 
     result: list[GapClassification] = []
@@ -230,12 +236,49 @@ def list_gap_classifications(
     return _ordered(rows)
 
 
+def delete_gap_classification(
+    db: Session, user_id: str, workspace_id: str, classification_id: str
+) -> None:
+    """Immediately erase one owner-scoped gap and its derived recommendation."""
+    row = (
+        db.query(GapClassification)
+        .filter(
+            GapClassification.id == classification_id,
+            GapClassification.workspace_id == workspace_id,
+            GapClassification.user_id == user_id,
+        )
+        .first()
+    )
+    if row is None:
+        raise GapClassificationNotFoundError
+    _detach_development_items(db, user_id, row.id)
+    db.delete(row)
+    db.commit()
+
+
 def delete_gap_classifications(db: Session, user_id: str) -> int:
     """Remove all of a user's gap classifications (erasure cascade, D-114)."""
     return (
         db.query(GapClassification)
         .filter(GapClassification.user_id == user_id)
         .delete(synchronize_session=False)
+    )
+
+
+def _detach_development_items(
+    db: Session, user_id: str, classification_id: str
+) -> None:
+    """Preserve snapshotted plan items even where test/dev FK actions are off."""
+    (
+        db.query(DevelopmentItem)
+        .filter(
+            DevelopmentItem.user_id == user_id,
+            DevelopmentItem.gap_classification_id == classification_id,
+        )
+        .update(
+            {DevelopmentItem.gap_classification_id: None},
+            synchronize_session=False,
+        )
     )
 
 

@@ -42,6 +42,7 @@ import { Route as AdminProfileAdoptionRouteImport } from './routes/admin/profile
 import { Route as AdminPacketGateRouteImport } from './routes/admin/packet-gate'
 import { Route as AdminDiscoverySourcesRouteImport } from './routes/admin/discovery-sources'
 import { Route as AdminDiscoveryReportsRouteImport } from './routes/admin/discovery-reports'
+import { Route as AdminDevelopmentLoopRouteImport } from './routes/admin/development-loop'
 import { Route as AdminActivationRouteImport } from './routes/admin/activation'
 import { Route as ResumeResultHistoryIdRouteImport } from './routes/resume_.result.$historyId'
 import { Route as PortfolioResultHistoryIdRouteImport } from './routes/portfolio_.result.$historyId'
@@ -215,6 +216,11 @@ const AdminDiscoveryReportsRoute = AdminDiscoveryReportsRouteImport.update({
   path: '/discovery-reports',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminDevelopmentLoopRoute = AdminDevelopmentLoopRouteImport.update({
+  id: '/development-loop',
+  path: '/development-loop',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminActivationRoute = AdminActivationRouteImport.update({
   id: '/activation',
   path: '/activation',
@@ -279,6 +285,7 @@ export interface FileRoutesByFullPath {
   '/settings': typeof SettingsRoute
   '/terms': typeof TermsRoute
   '/admin/activation': typeof AdminActivationRoute
+  '/admin/development-loop': typeof AdminDevelopmentLoopRoute
   '/admin/discovery-reports': typeof AdminDiscoveryReportsRoute
   '/admin/discovery-sources': typeof AdminDiscoverySourcesRoute
   '/admin/packet-gate': typeof AdminPacketGateRoute
@@ -320,6 +327,7 @@ export interface FileRoutesByTo {
   '/settings': typeof SettingsRoute
   '/terms': typeof TermsRoute
   '/admin/activation': typeof AdminActivationRoute
+  '/admin/development-loop': typeof AdminDevelopmentLoopRoute
   '/admin/discovery-reports': typeof AdminDiscoveryReportsRoute
   '/admin/discovery-sources': typeof AdminDiscoverySourcesRoute
   '/admin/packet-gate': typeof AdminPacketGateRoute
@@ -363,6 +371,7 @@ export interface FileRoutesById {
   '/settings': typeof SettingsRoute
   '/terms': typeof TermsRoute
   '/admin/activation': typeof AdminActivationRoute
+  '/admin/development-loop': typeof AdminDevelopmentLoopRoute
   '/admin/discovery-reports': typeof AdminDiscoveryReportsRoute
   '/admin/discovery-sources': typeof AdminDiscoverySourcesRoute
   '/admin/packet-gate': typeof AdminPacketGateRoute
@@ -407,6 +416,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/terms'
     | '/admin/activation'
+    | '/admin/development-loop'
     | '/admin/discovery-reports'
     | '/admin/discovery-sources'
     | '/admin/packet-gate'
@@ -448,6 +458,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/terms'
     | '/admin/activation'
+    | '/admin/development-loop'
     | '/admin/discovery-reports'
     | '/admin/discovery-sources'
     | '/admin/packet-gate'
@@ -490,6 +501,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/terms'
     | '/admin/activation'
+    | '/admin/development-loop'
     | '/admin/discovery-reports'
     | '/admin/discovery-sources'
     | '/admin/packet-gate'
@@ -774,6 +786,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminDiscoveryReportsRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/development-loop': {
+      id: '/admin/development-loop'
+      path: '/development-loop'
+      fullPath: '/admin/development-loop'
+      preLoaderRoute: typeof AdminDevelopmentLoopRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/activation': {
       id: '/admin/activation'
       path: '/activation'
@@ -828,6 +847,7 @@ declare module '@tanstack/react-router' {
 
 interface AdminRouteChildren {
   AdminActivationRoute: typeof AdminActivationRoute
+  AdminDevelopmentLoopRoute: typeof AdminDevelopmentLoopRoute
   AdminDiscoveryReportsRoute: typeof AdminDiscoveryReportsRoute
   AdminDiscoverySourcesRoute: typeof AdminDiscoverySourcesRoute
   AdminPacketGateRoute: typeof AdminPacketGateRoute
@@ -841,6 +861,7 @@ interface AdminRouteChildren {
 
 const AdminRouteChildren: AdminRouteChildren = {
   AdminActivationRoute: AdminActivationRoute,
+  AdminDevelopmentLoopRoute: AdminDevelopmentLoopRoute,
   AdminDiscoveryReportsRoute: AdminDiscoveryReportsRoute,
   AdminDiscoverySourcesRoute: AdminDiscoverySourcesRoute,
   AdminPacketGateRoute: AdminPacketGateRoute,

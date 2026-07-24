@@ -11,7 +11,11 @@ from sqlalchemy.orm import Session
 from app.models.analytics_event import AnalyticsEvent
 from app.schemas.admin import (
     AdminActivationResponse,
+    AdminDevelopmentLoopResponse,
     AdminProfileAdoptionResponse,
+    DevelopmentGapKindCount,
+    DevelopmentResponseKindCount,
+    DevelopmentStateTransitionCount,
     FailureCategoryCount,
     FunnelStepCount,
     ProfileKindCount,
@@ -231,6 +235,117 @@ def aggregate_profile_adoption(
         confirmation_transitions=[
             ProfileTransitionCount(transition=transition, count=count)
             for transition, count in transition_rows
+        ],
+    )
+
+
+def aggregate_development_loop(
+    db: Session,
+    *,
+    window_start: datetime,
+    window_end: datetime,
+) -> AdminDevelopmentLoopResponse:
+    """Aggregate R17 lifecycle events without exposing a person or claim (D-114)."""
+
+    def scoped(query):
+        return query.filter(
+            AnalyticsEvent.created_at >= window_start,
+            AnalyticsEvent.created_at <= window_end,
+        )
+
+    counts_by_name = dict(
+        scoped(db.query(AnalyticsEvent.event_name, func.count(AnalyticsEvent.id)))
+        .filter(AnalyticsEvent.event_name.like("development_item_%"))
+        .group_by(AnalyticsEvent.event_name)
+        .all()
+    )
+    gap_rows = (
+        scoped(
+            db.query(
+                AnalyticsEvent.development_gap_kind,
+                func.count(AnalyticsEvent.id),
+            )
+        )
+        .filter(
+            AnalyticsEvent.event_name == "development_item_created",
+            AnalyticsEvent.development_gap_kind.isnot(None),
+        )
+        .group_by(AnalyticsEvent.development_gap_kind)
+        .order_by(
+            func.count(AnalyticsEvent.id).desc(),
+            AnalyticsEvent.development_gap_kind,
+        )
+        .all()
+    )
+    response_rows = (
+        scoped(
+            db.query(
+                AnalyticsEvent.development_response_kind,
+                func.count(AnalyticsEvent.id),
+            )
+        )
+        .filter(
+            AnalyticsEvent.event_name == "development_item_created",
+            AnalyticsEvent.development_response_kind.isnot(None),
+        )
+        .group_by(AnalyticsEvent.development_response_kind)
+        .order_by(
+            func.count(AnalyticsEvent.id).desc(),
+            AnalyticsEvent.development_response_kind,
+        )
+        .all()
+    )
+    transition_rows = (
+        scoped(
+            db.query(
+                AnalyticsEvent.development_state_from,
+                AnalyticsEvent.development_state_to,
+                func.count(AnalyticsEvent.id),
+            )
+        )
+        .filter(
+            AnalyticsEvent.event_name == "development_item_state_changed",
+            AnalyticsEvent.development_state_from.isnot(None),
+            AnalyticsEvent.development_state_to.isnot(None),
+        )
+        .group_by(
+            AnalyticsEvent.development_state_from,
+            AnalyticsEvent.development_state_to,
+        )
+        .order_by(
+            func.count(AnalyticsEvent.id).desc(),
+            AnalyticsEvent.development_state_from,
+            AnalyticsEvent.development_state_to,
+        )
+        .all()
+    )
+
+    return AdminDevelopmentLoopResponse(
+        window_start=window_start.isoformat(),
+        window_end=window_end.isoformat(),
+        total_items_created=counts_by_name.get("development_item_created", 0),
+        total_items_deleted=counts_by_name.get("development_item_deleted", 0),
+        total_state_transitions=counts_by_name.get(
+            "development_item_state_changed", 0
+        ),
+        created_by_gap_kind=[
+            DevelopmentGapKindCount(gap_kind=gap_kind, count=count)
+            for gap_kind, count in gap_rows
+        ],
+        created_by_response_kind=[
+            DevelopmentResponseKindCount(
+                response_kind=response_kind,
+                count=count,
+            )
+            for response_kind, count in response_rows
+        ],
+        state_transitions=[
+            DevelopmentStateTransitionCount(
+                from_state=state_from,
+                to_state=state_to,
+                count=count,
+            )
+            for state_from, state_to, count in transition_rows
         ],
     )
 

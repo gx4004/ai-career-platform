@@ -1,7 +1,7 @@
 import hashlib
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from sqlalchemy.orm import Session, selectinload
 
 from app.auth.security import get_current_user
@@ -57,7 +57,9 @@ from app.services.campaign_snapshots import capture_submission_snapshot
 from app.services.campaign_tracking import add_contact, add_note, add_task, record_event
 from app.services.evidence_injection import load_profile_for_injection
 from app.services.gap_classifier import (
+    GapClassificationNotFoundError,
     classify_findings,
+    delete_gap_classification,
     list_gap_classifications,
     persist_gap_classifications,
 )
@@ -308,6 +310,24 @@ def get_campaign_gaps(
     _get_workspace(db, workspace_id, current_user.id)
     rows = list_gap_classifications(db, current_user.id, workspace_id)
     return _serialize_gap_classifications(rows)
+
+
+@router.delete(
+    "/workspaces/{workspace_id}/gap-classifications/{classification_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def delete_campaign_gap(
+    workspace_id: str,
+    classification_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Response:
+    _get_workspace(db, workspace_id, current_user.id)
+    try:
+        delete_gap_classification(db, current_user.id, workspace_id, classification_id)
+    except GapClassificationNotFoundError:
+        raise HTTPException(status_code=404, detail="Gap classification not found") from None
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get(
