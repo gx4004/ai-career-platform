@@ -14,10 +14,14 @@ export type DevelopmentResponseKind = z.infer<typeof developmentResponseKindSche
 export const developmentStateSchema = z.enum(['planned', 'in_progress', 'completed'])
 export type DevelopmentState = z.infer<typeof developmentStateSchema>
 
-// R17 #201: NULL until completion stages an unconfirmed proposal (D-113).
-// evidence_confirmation_state is read-only, populated by the backend service —
-// never 'rejected'; declining hard-deletes the proposal instead (D-113).
+// R17 #201: the linked proposal is one complete, inspectable value or null.
+// It is never 'rejected'; declining hard-deletes the proposal instead (D-113).
 export const developmentEvidenceStateSchema = z.enum(['unconfirmed', 'confirmed'])
+export const developmentEvidenceProposalSchema = z.strictObject({
+  id: z.string(),
+  content: z.record(z.string(), z.unknown()),
+  confirmation_state: developmentEvidenceStateSchema,
+})
 
 export const developmentItemSchema = z.strictObject({
   id: z.string(),
@@ -29,8 +33,7 @@ export const developmentItemSchema = z.strictObject({
   notes: z.string().nullable(),
   source_finding_id: z.string().nullable(),
   timeline: z.array(z.record(z.string(), z.unknown())),
-  evidence_item_id: z.string().nullable(),
-  evidence_confirmation_state: developmentEvidenceStateSchema.nullable(),
+  evidence_proposal: developmentEvidenceProposalSchema.nullable(),
   created_at: z.iso.datetime({ offset: true }),
   updated_at: z.iso.datetime({ offset: true }),
 })

@@ -20,6 +20,7 @@ import {
   STATE_ORDER,
   formatTargetDate,
 } from '#/lib/development/plan'
+import { contentEntries } from '#/lib/profile/evidence'
 
 export function DevelopmentItemCard({
   item,
@@ -41,6 +42,9 @@ export function DevelopmentItemCard({
   const stateSelectId = useId()
   const state = item.state
   const targetDate = formatTargetDate(item.target_date)
+  const proposalEntries = item.evidence_proposal
+    ? contentEntries(item.evidence_proposal.content)
+    : []
 
   return (
     <li
@@ -84,7 +88,7 @@ export function DevelopmentItemCard({
         </div>
       </dl>
 
-      {item.evidence_confirmation_state === 'unconfirmed' ? (
+      {item.evidence_proposal?.confirmation_state === 'unconfirmed' ? (
         <section
           className="development-card__evidence"
           aria-label="Evidence proposal"
@@ -99,6 +103,17 @@ export function DevelopmentItemCard({
               </p>
             </div>
           </div>
+          <dl
+            className="development-card__evidence-content"
+            aria-label="Proposed evidence claim"
+          >
+            {proposalEntries.map(({ key, value }) => (
+              <div key={key}>
+                <dt>{key}</dt>
+                <dd>{value || '—'}</dd>
+              </div>
+            ))}
+          </dl>
           <div className="development-card__evidence-actions">
             <Button
               size="sm"
@@ -119,7 +134,7 @@ export function DevelopmentItemCard({
             </Button>
           </div>
         </section>
-      ) : item.evidence_confirmation_state === 'confirmed' ? (
+      ) : item.evidence_proposal?.confirmation_state === 'confirmed' ? (
         <p className="development-card__evidence-confirmed" role="status">
           <BadgeCheck size={15} aria-hidden="true" />
           Evidence confirmed

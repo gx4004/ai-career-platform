@@ -65,6 +65,21 @@ class DevelopmentItemUpdate(BaseModel):
         return self
 
 
+class DevelopmentEvidenceProposalResponse(BaseModel):
+    """The exact claim a completed item asks its owner to review (D-113).
+
+    Keeping the identifier, content, and trust state together makes the
+    nullable-link invariant explicit in both API contracts: either there is one
+    complete, inspectable proposal or there is none.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: str
+    content: dict[str, Any]
+    confirmation_state: Literal["unconfirmed", "confirmed"]
+
+
 class DevelopmentItemResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True, extra="forbid")
 
@@ -77,13 +92,10 @@ class DevelopmentItemResponse(BaseModel):
     notes: str | None
     source_finding_id: str | None
     timeline: list[dict[str, Any]]
-    # R17 #201: NULL until completion stages an unconfirmed proposal (D-113).
-    evidence_item_id: str | None = None
-    # The linked proposal's own confirmation state, read-only and populated by the
-    # service (never a raw ORM attribute — EvidenceItem is a separate table).
-    # Always None while evidence_item_id is None; never 'rejected' — declining
-    # hard-deletes the proposal rather than leaving a rejected trace (D-113).
-    evidence_confirmation_state: Literal["unconfirmed", "confirmed"] | None = None
+    # R17 #201: a complete, inspectable value after completion stages a proposal;
+    # NULL before completion or after decline. Never `rejected`: declining
+    # hard-deletes the profile row rather than leaving a trace (D-113).
+    evidence_proposal: DevelopmentEvidenceProposalResponse | None
     created_at: datetime
     updated_at: datetime
 

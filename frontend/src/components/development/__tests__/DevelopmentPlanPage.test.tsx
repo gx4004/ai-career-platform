@@ -54,8 +54,7 @@ function makeItem(overrides: Partial<DevelopmentItem>): DevelopmentItem {
     notes: null,
     source_finding_id: null,
     timeline: [],
-    evidence_item_id: null,
-    evidence_confirmation_state: null,
+    evidence_proposal: null,
     created_at: '2026-07-20T00:00:00Z',
     updated_at: '2026-07-20T00:00:00Z',
     ...overrides,
@@ -100,8 +99,11 @@ describe('DevelopmentPlanPage', () => {
       makeItem({
         id: 'd3',
         state: 'completed',
-        evidence_item_id: 'e1',
-        evidence_confirmation_state: 'confirmed',
+        evidence_proposal: {
+          id: 'e1',
+          content: { statement: 'Completed the planned work.' },
+          confirmation_state: 'confirmed',
+        },
       }),
     )
     declineEvidenceMock.mockReset().mockResolvedValue(
@@ -181,8 +183,11 @@ describe('DevelopmentPlanPage', () => {
         makeItem({
           id: 'd3',
           state: 'completed',
-          evidence_item_id: 'e1',
-          evidence_confirmation_state: 'unconfirmed',
+          evidence_proposal: {
+            id: 'e1',
+            content: { statement: 'Rewrote the CV summary around measured outcomes.' },
+            confirmation_state: 'unconfirmed',
+          },
         }),
       ],
     })
@@ -190,6 +195,9 @@ describe('DevelopmentPlanPage', () => {
 
     const group = await screen.findByRole('region', { name: 'Reword existing content' })
     expect(within(group).getByText(/ready to become reusable evidence/i)).toBeTruthy()
+    expect(
+      within(group).getByText('Rewrote the CV summary around measured outcomes.'),
+    ).toBeTruthy()
     fireEvent.click(within(group).getByRole('button', { name: 'Confirm evidence' }))
     await waitFor(() => expect(confirmEvidenceMock).toHaveBeenCalledWith('d3'))
 
@@ -204,8 +212,11 @@ describe('DevelopmentPlanPage', () => {
         makeItem({
           id: 'd3',
           state: 'completed',
-          evidence_item_id: 'e1',
-          evidence_confirmation_state: 'confirmed',
+          evidence_proposal: {
+            id: 'e1',
+            content: { statement: 'Rewrote the CV summary around measured outcomes.' },
+            confirmation_state: 'confirmed',
+          },
         }),
       ],
     })

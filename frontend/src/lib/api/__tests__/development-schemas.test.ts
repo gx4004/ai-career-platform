@@ -16,8 +16,11 @@ const item = {
   timeline: [
     { event: 'evidence_proposal_created', at: '2026-07-24T12:00:00Z' },
   ],
-  evidence_item_id: 'evidence-1',
-  evidence_confirmation_state: 'unconfirmed',
+  evidence_proposal: {
+    id: 'evidence-1',
+    content: { statement: 'Completed a supervised Rust learning project.' },
+    confirmation_state: 'unconfirmed',
+  },
   created_at: '2026-07-24T10:00:00Z',
   updated_at: '2026-07-24T12:00:00Z',
 }
@@ -35,8 +38,8 @@ describe('development plan schemas', () => {
 
   it('rejects missing proposal state, invalid timestamps, and unknown fields', () => {
     expect(() => {
-      const { evidence_confirmation_state: _, ...missingState } = item
-      developmentItemSchema.parse(missingState)
+      const { evidence_proposal: _, ...missingProposal } = item
+      developmentItemSchema.parse(missingProposal)
     }).toThrow()
     expect(() =>
       developmentItemSchema.parse({ ...item, created_at: '2026-07-24T10:00:00' }),

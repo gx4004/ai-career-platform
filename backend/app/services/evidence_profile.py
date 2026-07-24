@@ -2,6 +2,7 @@ from datetime import UTC, datetime
 
 from sqlalchemy.orm import Session
 
+from app.models.development_item import DevelopmentItem
 from app.models.evidence_item import EvidenceItem
 from app.schemas.evidence_profile import (
     EvidenceItemCreate,
@@ -14,6 +15,28 @@ from app.services.analytics import safe_record_activation_event
 
 class EvidenceItemNotFoundError(Exception):
     pass
+
+
+def _development_event(name: str, evidence_item_id: str) -> dict:
+    return {
+        "event": name,
+        "at": datetime.now(UTC).isoformat(),
+        "evidence_item_id": evidence_item_id,
+    }
+
+
+def _linked_development_item(
+    db: Session, item: EvidenceItem
+) -> DevelopmentItem | None:
+    """Resolve the owner-scoped R17 item that produced this R11 proposal."""
+    return (
+        db.query(DevelopmentItem)
+        .filter(
+            DevelopmentItem.evidence_item_id == item.id,
+            DevelopmentItem.user_id == item.user_id,
+        )
+        .first()
+    )
 
 
 def _record_profile_event(
@@ -121,8 +144,48 @@ def update_evidence_item(
 
 def set_evidence_confirmation(
     db: Session, item_id: str, user_id: str, *, confirmed: bool
-) -> EvidenceItem:
+) -> EvidenceItem | EvidenceItemResponse:
     item = get_evidence_item(db, item_id, user_id)
+    development_item = _linked_development_item(db, item)
+
+    if development_item is not None and not confirmed:
+        # A completed-work proposal has a stronger lifecycle than a general R11
+        # item: declining it must leave no profile trace (D-113). Return a
+        # rejected snapshot as the action acknowledgement, but atomically clear
+        # the link and delete the persisted row. Retraction after confirmation
+        # follows the same no-dangling-link rule with a distinct timeline event.
+        response = EvidenceItemResponse.model_validate(item).model_copy(
+            update={"confirmation_state": "rejected"}
+        )
+        event_name = (
+            "evidence_declined"
+            if item.confirmation_state == "unconfirmed"
+            else "evidence_retracted"
+        )
+        development_item.evidence_item_id = None
+        development_item.timeline = [
+            *development_item.timeline,
+            _development_event(event_name, item.id),
+        ]
+        db.delete(item)
+        db.commit()
+        _record_profile_event(
+            db,
+            event_name="profile_item_rejected",
+            item=item,
+            confirmation_transition="rejected",
+        )
+        return response
+
+    if (
+        development_item is not None
+        and confirmed
+        and item.confirmation_state != "confirmed"
+    ):
+        development_item.timeline = [
+            *development_item.timeline,
+            _development_event("evidence_confirmed", item.id),
+        ]
     item.confirmation_state = "confirmed" if confirmed else "rejected"
     db.commit()
     db.refresh(item)
@@ -137,6 +200,18 @@ def set_evidence_confirmation(
 
 def delete_evidence_item(db: Session, item_id: str, user_id: str) -> None:
     item = get_evidence_item(db, item_id, user_id)
+    development_item = _linked_development_item(db, item)
+    if development_item is not None:
+        development_item.evidence_item_id = None
+        development_item.timeline = [
+            *development_item.timeline,
+            _development_event(
+                "evidence_declined"
+                if item.confirmation_state == "unconfirmed"
+                else "evidence_deleted",
+                item.id,
+            ),
+        ]
     # Capture the low-cardinality dimensions before the row is gone; deletion has
     # no resulting confirmation state, so the transition dimension stays null.
     kind, provenance = item.kind, item.provenance

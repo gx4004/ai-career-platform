@@ -23,6 +23,7 @@ from app.models.evidence_item import EvidenceItem
 from app.models.gap_classification import GapClassification
 from app.schemas.development import (
     RESPONSE_FOR_GAP,
+    DevelopmentEvidenceProposalResponse,
     DevelopmentItemCreate,
     DevelopmentItemResponse,
     DevelopmentItemUpdate,
@@ -30,7 +31,6 @@ from app.schemas.development import (
 )
 from app.schemas.evidence_profile import EvidenceItemCreate
 from app.services.evidence_profile import (
-    delete_evidence_item,
     record_evidence_proposal_created,
     set_evidence_confirmation,
     stage_evidence_proposal,
@@ -65,26 +65,32 @@ def _event(name: str, **fields) -> dict:
     return {"event": name, "at": datetime.now(UTC).isoformat(), **fields}
 
 
-def _hydrate_evidence_state(db: Session, items: list[DevelopmentItem]) -> list[DevelopmentItem]:
-    """Attach each item's linked proposal confirmation state as a transient,
-    non-persisted attribute so :class:`DevelopmentItemResponse` can read it.
+def _hydrate_evidence_proposal(
+    db: Session, items: list[DevelopmentItem]
+) -> list[DevelopmentItem]:
+    """Attach each item's linked proposal as a transient, non-persisted value.
 
     Batched into a single query regardless of list size (D-112 bounded model).
     """
     ids = [item.evidence_item_id for item in items if item.evidence_item_id]
-    states: dict[str, str] = {}
+    proposals: dict[str, EvidenceItem] = {}
     if ids:
-        rows = (
-            db.query(EvidenceItem.id, EvidenceItem.confirmation_state)
-            .filter(EvidenceItem.id.in_(ids))
-            .all()
-        )
-        states = {row.id: row.confirmation_state for row in rows}
+        rows = db.query(EvidenceItem).filter(EvidenceItem.id.in_(ids)).all()
+        proposals = {row.id: row for row in rows}
     for item in items:
-        state = states.get(item.evidence_item_id) if item.evidence_item_id else None
-        # Only 'unconfirmed'/'confirmed' are ever surfaced; a hard-deleted (or
-        # otherwise absent) proposal reads as no linked evidence at all.
-        item.evidence_confirmation_state = state if state in ("unconfirmed", "confirmed") else None
+        proposal = proposals.get(item.evidence_item_id) if item.evidence_item_id else None
+        # A hard-deleted/absent proposal reads as no linked evidence. Linked
+        # development evidence is never persisted as rejected (D-113).
+        item.evidence_proposal = (
+            DevelopmentEvidenceProposalResponse(
+                id=proposal.id,
+                content=proposal.content,
+                confirmation_state=proposal.confirmation_state,
+            )
+            if proposal is not None
+            and proposal.confirmation_state in ("unconfirmed", "confirmed")
+            else None
+        )
     return items
 
 
@@ -95,7 +101,7 @@ def list_development_items(db: Session, user_id: str) -> list[DevelopmentItem]:
         .order_by(DevelopmentItem.created_at.asc())
         .all()
     )
-    return _hydrate_evidence_state(db, items)
+    return _hydrate_evidence_proposal(db, items)
 
 
 def get_development_item(db: Session, item_id: str, user_id: str) -> DevelopmentItem:
@@ -136,7 +142,7 @@ def create_development_item(
     db.add(item)
     db.commit()
     db.refresh(item)
-    return _hydrate_evidence_state(db, [item])[0]
+    return _hydrate_evidence_proposal(db, [item])[0]
 
 
 def _completion_seed(db: Session, item: DevelopmentItem) -> str:
@@ -208,7 +214,7 @@ def update_development_item(
     db.refresh(item)
     if staged_proposal is not None:
         record_evidence_proposal_created(db, staged_proposal)
-    return _hydrate_evidence_state(db, [item])[0]
+    return _hydrate_evidence_proposal(db, [item])[0]
 
 
 def _pending_evidence_proposal(db: Session, item: DevelopmentItem) -> EvidenceItem:
@@ -233,15 +239,11 @@ def confirm_development_evidence(db: Session, item_id: str, user_id: str) -> Dev
     """Confirm the item's linked proposal (D-113: confirmation is user-only, D-062)."""
     item = get_development_item(db, item_id, user_id)
     proposal = _pending_evidence_proposal(db, item)
-    item.timeline = [
-        *item.timeline,
-        _event("evidence_confirmed", evidence_item_id=proposal.id),
-    ]
-    # The existing R11 confirmation seam commits every pending session change,
-    # so the evidence transition and item timeline land atomically.
+    # The canonical R11 seam also records the linked development lifecycle, so
+    # confirmation from either UI has identical semantics.
     set_evidence_confirmation(db, proposal.id, user_id, confirmed=True)
     db.refresh(item)
-    return _hydrate_evidence_state(db, [item])[0]
+    return _hydrate_evidence_proposal(db, [item])[0]
 
 
 def decline_development_evidence(db: Session, item_id: str, user_id: str) -> DevelopmentItem:
@@ -249,17 +251,11 @@ def decline_development_evidence(db: Session, item_id: str, user_id: str) -> Dev
     remains in the profile, but leave the completed item itself intact (D-113)."""
     item = get_development_item(db, item_id, user_id)
     proposal = _pending_evidence_proposal(db, item)
-    declined_id = proposal.id
-    item.evidence_item_id = None
-    item.timeline = [
-        *item.timeline,
-        _event("evidence_declined", evidence_item_id=declined_id),
-    ]
-    # The R11 delete seam commits the unlink, timeline, and proposal removal in
-    # one transaction; the completed development item itself remains.
-    delete_evidence_item(db, declined_id, user_id)
+    # The canonical R11 seam hard-deletes linked unconfirmed proposals, clears
+    # the link, and records the timeline atomically.
+    set_evidence_confirmation(db, proposal.id, user_id, confirmed=False)
     db.refresh(item)
-    return _hydrate_evidence_state(db, [item])[0]
+    return _hydrate_evidence_proposal(db, [item])[0]
 
 
 def delete_development_item(db: Session, item_id: str, user_id: str) -> None:

@@ -261,7 +261,7 @@
 .development-card__evidence-copy strong {
   color: var(--text-strong);
   font-size: 0.875rem;
-  font-weight: 650;
+  font-weight: 600;
 }
 
 .development-card__evidence-copy p {
@@ -269,6 +269,33 @@
   color: var(--text-body);
   font-size: var(--type-small);
   line-height: 1.45;
+}
+
+.development-card__evidence-content {
+  margin: 0;
+  padding: 0.7rem;
+  border: 1px solid color-mix(in srgb, var(--success) 28%, var(--border-soft));
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.development-card__evidence-content > div {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.development-card__evidence-content dt {
+  color: var(--text-muted);
+  font-size: var(--type-caption);
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.development-card__evidence-content dd {
+  color: var(--text-strong);
+  font-size: var(--type-small);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
 }
 
 .development-card__evidence-actions {

@@ -183,8 +183,15 @@ def test_completion_stages_one_unconfirmed_proposal_from_the_completed_update(
     body = response.json()
     assert body["created_at"].endswith("Z")
     assert body["updated_at"].endswith("Z")
-    assert body["evidence_confirmation_state"] == "unconfirmed"
-    proposal = db.query(EvidenceItem).filter_by(id=body["evidence_item_id"]).one()
+    assert body["evidence_proposal"]["confirmation_state"] == "unconfirmed"
+    assert body["evidence_proposal"]["content"] == {
+        "statement": "Built a Kubernetes deployment controller."
+    }
+    proposal = (
+        db.query(EvidenceItem)
+        .filter_by(id=body["evidence_proposal"]["id"])
+        .one()
+    )
     assert proposal.user_id == test_user.id
     assert proposal.provenance == "inferred"
     assert proposal.confirmation_state == "unconfirmed"
@@ -334,7 +341,7 @@ def test_endpoint_full_lifecycle(client, auth_headers, test_user, db):
 
 
 def test_confirmed_completion_reaches_tailoring_and_recommendation_grounding(
-    client, auth_headers, test_user, db
+    client, auth_headers, test_user, db, monkeypatch
 ):
     listing = _governed_listing(
         db,
@@ -361,7 +368,7 @@ def test_confirmed_completion_reaches_tailoring_and_recommendation_grounding(
         json={"state": "completed"},
     )
     assert completed.status_code == 200
-    evidence_id = completed.json()["evidence_item_id"]
+    evidence_id = completed.json()["evidence_proposal"]["id"]
 
     before_payload, _ = load_profile_for_injection(db, test_user.id)
     assert before_payload.locked_facts == []
@@ -374,7 +381,7 @@ def test_confirmed_completion_reaches_tailoring_and_recommendation_grounding(
 
     assert confirmed.status_code == 200
     body = confirmed.json()
-    assert body["evidence_confirmation_state"] == "confirmed"
+    assert body["evidence_proposal"]["confirmation_state"] == "confirmed"
     assert body["timeline"][-1]["event"] == "evidence_confirmed"
     after_payload, _ = load_profile_for_injection(db, test_user.id)
     assert after_payload.locked_facts == [
@@ -389,6 +396,66 @@ def test_confirmed_completion_reaches_tailoring_and_recommendation_grounding(
         listing.id
     ]
     assert recommendations.items[0].rationale[0].evidence_item_ids == [evidence_id]
+
+    # Exercise the actual CV-tailoring endpoint and shared tool pipeline, not
+    # only the profile loader. The generated change is accepted as confirmed
+    # support only if the newly confirmed completion reaches that pipeline seam.
+    document = client.post(
+        "/api/v1/cv-documents",
+        headers=auth_headers,
+        json={
+            "name": "Completion-grounded CV",
+            "sections": [
+                {
+                    "id": "section-achievements",
+                    "kind": "achievements",
+                    "title": "Achievements",
+                    "visible": True,
+                    "position": 0,
+                    "entries": [
+                        {
+                            "id": "entry-one",
+                            "evidence_item_id": None,
+                            "body": "Built deployment automation.",
+                            "position": 0,
+                        }
+                    ],
+                }
+            ],
+        },
+    )
+    assert document.status_code == 201
+
+    async def completion_grounded_tailoring(*_args, **_kwargs):
+        return {
+            "changes": [
+                {
+                    "id": "change-one",
+                    "section_id": "section-achievements",
+                    "entry_id": "entry-one",
+                    "before": "Built deployment automation.",
+                    "after": "Built Kubernetes deployment automation.",
+                    "job_requirement": "Kubernetes services",
+                    "evidence_item_ids": [evidence_id],
+                    "support": "confirmed",
+                }
+            ]
+        }
+
+    monkeypatch.setattr(
+        "app.services.cv_tailoring.complete_structured",
+        completion_grounded_tailoring,
+    )
+    tailored = client.post(
+        f"/api/v1/cv-documents/{document.json()['id']}/tailoring",
+        headers=auth_headers,
+        json={
+            "job_title": "Platform Engineer",
+            "job_description": "Build Kubernetes services and deployment automation.",
+        },
+    )
+    assert tailored.status_code == 200
+    assert tailored.json()["changes"][0]["evidence_item_ids"] == [evidence_id]
 
 
 def test_declining_completion_removes_only_the_proposal(
@@ -408,7 +475,7 @@ def test_declining_completion_removes_only_the_proposal(
         headers=auth_headers,
         json={"state": "completed"},
     )
-    proposal_id = completed.json()["evidence_item_id"]
+    proposal_id = completed.json()["evidence_proposal"]["id"]
 
     declined = client.post(
         f"{PREFIX}/{item.id}/decline-evidence",
@@ -418,8 +485,7 @@ def test_declining_completion_removes_only_the_proposal(
     assert declined.status_code == 200
     body = declined.json()
     assert body["state"] == "completed"
-    assert body["evidence_item_id"] is None
-    assert body["evidence_confirmation_state"] is None
+    assert body["evidence_proposal"] is None
     assert body["timeline"][-1] == pytest.approx(
         {
             "event": "evidence_declined",
@@ -441,7 +507,7 @@ def test_confirmed_evidence_cannot_be_declined_as_if_it_were_still_a_proposal(
     completed = client.patch(
         f"{PREFIX}/{item.id}", headers=auth_headers, json={"state": "completed"}
     )
-    proposal_id = completed.json()["evidence_item_id"]
+    proposal_id = completed.json()["evidence_proposal"]["id"]
     assert (
         client.post(f"{PREFIX}/{item.id}/confirm-evidence", headers=auth_headers).status_code
         == 200
@@ -454,6 +520,49 @@ def test_confirmed_evidence_cannot_be_declined_as_if_it_were_still_a_proposal(
 
     assert decline.status_code == 409
     assert db.query(EvidenceItem).filter_by(id=proposal_id).one().confirmation_state == "confirmed"
+
+
+@pytest.mark.parametrize("action", ["confirm", "reject"])
+def test_evidence_profile_confirmation_preserves_linked_development_lifecycle(
+    client, auth_headers, test_user, db, action
+):
+    classification = _classification(db, test_user.id)
+    item = create_development_item(
+        db,
+        test_user.id,
+        DevelopmentItemCreate(
+            gap_classification_id=classification.id,
+            notes="Completed a supervised Rust learning project.",
+        ),
+    )
+    completed = client.patch(
+        f"{PREFIX}/{item.id}",
+        headers=auth_headers,
+        json={"state": "completed"},
+    )
+    proposal_id = completed.json()["evidence_proposal"]["id"]
+
+    response = client.post(
+        f"/api/v1/evidence-profile/items/{proposal_id}/confirmation",
+        headers=auth_headers,
+        json={"action": action},
+    )
+
+    assert response.status_code == 200
+    db.expire_all()
+    stored_item = db.query(DevelopmentItem).filter_by(id=item.id).one()
+    if action == "confirm":
+        assert response.json()["confirmation_state"] == "confirmed"
+        assert stored_item.evidence_item_id == proposal_id
+        assert stored_item.timeline[-1]["event"] == "evidence_confirmed"
+        assert db.query(EvidenceItem).filter_by(id=proposal_id).one().confirmation_state == "confirmed"
+    else:
+        # The response acknowledges the user's rejection, while persistence
+        # obeys D-113: no rejected profile row or dangling link remains.
+        assert response.json()["confirmation_state"] == "rejected"
+        assert stored_item.evidence_item_id is None
+        assert stored_item.timeline[-1]["event"] == "evidence_declined"
+        assert db.query(EvidenceItem).filter_by(id=proposal_id).count() == 0
 
 
 def test_endpoint_rejects_explicit_null_state_with_422_not_500(client, auth_headers, test_user, db):
