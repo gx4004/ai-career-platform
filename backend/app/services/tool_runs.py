@@ -18,6 +18,7 @@ from app.models.workspace import Workspace
 from app.schemas.history import CampaignListingResponse, WorkspaceSummary
 from app.services.application_packets import delete_application_packets
 from app.services.discovery_personalization import delete_personalization
+from app.services.gap_classifier import delete_gap_classifications
 from app.services.observability import log_user_account_deleted
 from app.services.packet_approval import delete_packet_stop_answers
 from app.services.packet_gate import delete_queue_pause_state
@@ -72,6 +73,9 @@ def delete_all_user_data(db: Session, user_id: str) -> None:
     # application intent) and join the erasure cascade (D-099, R15 #181). Deleted
     # before campaigns so their FK to workspaces is removed first.
     delete_application_packets(db, user_id)
+    # R17 gap classifications label the user's own reviewer findings and are
+    # owner-scoped sensitive career data; they join the erasure cascade (D-114).
+    delete_gap_classifications(db, user_id)
     evidence_deleted = db.query(EvidenceItem).filter(EvidenceItem.user_id == user_id).delete()
     runs_deleted = db.query(ToolRun).filter(ToolRun.user_id == user_id).delete()
     workspace_ids = [row.id for row in db.query(Workspace.id).filter(Workspace.user_id == user_id)]

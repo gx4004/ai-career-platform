@@ -12,6 +12,10 @@ from app.models.campaign_tracking import CampaignContact, CampaignNote, Campaign
 from app.models.tool_run import ToolRun
 from app.models.user import User
 from app.models.workspace import Workspace
+from app.schemas.gap_classification import (
+    GapClassificationListResponse,
+    GapClassificationRead,
+)
 from app.schemas.history import (
     CampaignContactCreate,
     CampaignContactResponse,
@@ -49,6 +53,12 @@ from app.services.campaign_reviewer import (
 )
 from app.services.campaign_snapshots import capture_submission_snapshot
 from app.services.campaign_tracking import add_contact, add_note, add_task, record_event
+from app.services.evidence_injection import load_profile_for_injection
+from app.services.gap_classifier import (
+    classify_findings,
+    list_gap_classifications,
+    persist_gap_classifications,
+)
 from app.services.input_sanitizer import sanitize_user_input
 from app.services.tool_pipeline import run_tool_pipeline
 from app.services.tool_runs import build_workspace_summary, derive_saved_run_metadata
@@ -237,6 +247,64 @@ async def review_campaign(
         require_evidence_profile=True,
     )
     return CampaignReviewResponse(**response)
+
+
+def _serialize_gap_classifications(rows) -> GapClassificationListResponse:
+    return GapClassificationListResponse(
+        classifications=[GapClassificationRead.model_validate(row) for row in rows]
+    )
+
+
+@router.post(
+    "/workspaces/{workspace_id}/gap-classifications",
+    response_model=GapClassificationListResponse,
+)
+@limiter.limit("10/minute")
+async def classify_campaign_gaps(
+    request: Request,
+    workspace_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Classify the campaign's advisory reviewer findings into honest gap kinds.
+
+    Deterministic and idempotent: it runs the reviewer, labels each recognized
+    finding (R17 #198, D-109), and reconciles the persisted set to match. No LLM
+    call and no second judgment path over the materials.
+    """
+    workspace = _get_workspace(db, workspace_id, current_user.id)
+    if workspace.listing is None:
+        raise HTTPException(
+            status_code=409, detail="Attach a canonical listing before classifying gaps"
+        )
+    cv_text, cover_text = project_campaign_materials(workspace)
+    cv_document_text = project_cv_document_text(workspace)
+    clean_cover = sanitize_user_input(cover_text)
+    payload, _ = load_profile_for_injection(db, current_user.id)
+    review = await review_campaign_materials(
+        resume_text=cv_text,
+        job_description=workspace.listing.description,
+        cover_text=clean_cover,
+        evidence_profile=payload,
+        cv_document_text=cv_document_text,
+    )
+    classifications = classify_findings(review["findings"], payload)
+    rows = persist_gap_classifications(db, current_user.id, workspace_id, classifications)
+    return _serialize_gap_classifications(rows)
+
+
+@router.get(
+    "/workspaces/{workspace_id}/gap-classifications",
+    response_model=GapClassificationListResponse,
+)
+def get_campaign_gaps(
+    workspace_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    _get_workspace(db, workspace_id, current_user.id)
+    rows = list_gap_classifications(db, current_user.id, workspace_id)
+    return _serialize_gap_classifications(rows)
 
 
 @router.post(
