@@ -1,0 +1,56 @@
+{
+  "version": "synthetic-ats/v1",
+  "fields": [
+    {
+      "source_field": "candidate_name",
+      "packet_field": "candidate.full_name",
+      "required": true
+    },
+    {
+      "source_field": "candidate_email",
+      "packet_field": "candidate.email",
+      "required": true
+    },
+    {
+      "source_field": "resume",
+      "packet_field": "documents.resume",
+      "required": true
+    }
+  ],
+  "formats": [
+    {
+      "source_field": "candidate_name",
+      "kind": "utf8_text"
+    },
+    {
+      "source_field": "candidate_email",
+      "kind": "email"
+    },
+    {
+      "source_field": "resume",
+      "kind": "pdf"
+    }
+  ],
+  "error_semantics": [
+    {
+      "source_code": "accepted",
+      "meaning": "accepted",
+      "handling": "confirm_success"
+    },
+    {
+      "source_code": "invalid_field",
+      "meaning": "validation_error",
+      "handling": "stop_and_return"
+    },
+    {
+      "source_code": "challenge_required",
+      "meaning": "challenge",
+      "handling": "stop_and_return"
+    },
+    {
+      "source_code": "temporarily_unavailable",
+      "meaning": "transient_failure",
+      "handling": "retry_with_source_idempotency"
+    }
+  ]
+}

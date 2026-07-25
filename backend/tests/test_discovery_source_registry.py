@@ -184,6 +184,7 @@ def test_admin_registry_view_is_read_only_and_complete(client, db, admin_headers
         "retention_days": 30,
         "kill_switch": True,
         "ingestion_allowed": False,
+        "submission_governance": None,
         "created_at": source.created_at.replace(tzinfo=UTC).isoformat().replace("+00:00", "Z"),
         "updated_at": source.updated_at.replace(tzinfo=UTC).isoformat().replace("+00:00", "Z"),
     }

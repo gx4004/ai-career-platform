@@ -1,10 +1,14 @@
 import uuid
 from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import JSON, Boolean, CheckConstraint, DateTime, Integer, String, Text
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
+
+if TYPE_CHECKING:
+    from app.models.submission_source import SubmissionSourceGovernance
 
 
 class DiscoverySource(Base):
@@ -85,6 +89,12 @@ class DiscoverySource(Base):
         nullable=False,
         default=lambda: datetime.now(UTC),
         onupdate=lambda: datetime.now(UTC),
+    )
+    submission_governance: Mapped["SubmissionSourceGovernance | None"] = relationship(
+        back_populates="discovery_source",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        uselist=False,
     )
 
     @property

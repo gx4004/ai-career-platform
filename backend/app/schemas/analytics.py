@@ -104,6 +104,15 @@ DiscoveryPersonalizationOutcome = Literal[
 # adopted listing's source family rides on `operational_dimension`. No listing
 # content, listing id, campaign id, or run id is ever attached.
 DiscoveryAdoptionOutcome = Literal["adopted"]
+# R16 #189 submission-source governance reuses the source-family dimension and
+# exposes only the promotion/kill transition. No source key, contract fields,
+# reviewer identity, endpoint, or legal-review content enters telemetry.
+SubmissionSourceGovernanceOutcome = Literal[
+    "promoted",
+    "demoted",
+    "kill_switch_enabled",
+    "kill_switch_disabled",
+]
 
 # R15 #184 packet-queue trust-chain gate. Backend-generated at the preparation
 # seam. Only the bounded gate outcome class rides on `operational_outcome`; for a
@@ -140,6 +149,7 @@ OperationalOutcome = (
     | DiscoveryExpiryOutcome
     | DiscoveryPersonalizationOutcome
     | DiscoveryAdoptionOutcome
+    | SubmissionSourceGovernanceOutcome
     | PacketGateOutcome
 )
 
@@ -184,6 +194,18 @@ DiscoveryEventName = Literal[
     "discovery_recommendation_adopted",
 ]
 
+SubmissionSourceGovernanceEventName = Literal[
+    "submission_source_promotion_changed",
+    "submission_source_kill_switch",
+]
+_SUBMISSION_SOURCE_EVENT_OUTCOMES = {
+    "submission_source_promotion_changed": frozenset({"promoted", "demoted"}),
+    "submission_source_kill_switch": frozenset(
+        {"kill_switch_enabled", "kill_switch_disabled"}
+    ),
+}
+_SUBMISSION_SOURCE_EXCLUSIVE_OUTCOMES = frozenset({"promoted", "demoted"})
+
 # R15 #184 packet-queue trust-chain gate events (D-097). Backend-only, emitted at
 # the preparation seam; both carry only bounded operational dimensions.
 #   - `packet_queue_gate`       — per-packet + per-run gate outcome
@@ -220,6 +242,7 @@ ActivationEventName = (
     | ProfileEventName
     | StudioEventName
     | DiscoveryEventName
+    | SubmissionSourceGovernanceEventName
     | PacketGateEventName
     | DevelopmentLoopEventName
 )
@@ -335,5 +358,50 @@ class ActivationEventCreate(BaseModel):
         ):
             raise ValueError(
                 "development_item_deleted requires only the prior state"
+            )
+        return self
+
+    @model_validator(mode="after")
+    def validate_submission_source_event_shape(self):
+        """Bind #189 promotion/kill outcomes to their authoritative event names."""
+        allowed_outcomes = _SUBMISSION_SOURCE_EVENT_OUTCOMES.get(self.event_name)
+        if allowed_outcomes is None:
+            # Kill-switch outcomes predate R16 and are intentionally shared with
+            # the R14 source-kill event; promotion outcomes are R16-exclusive.
+            if self.operational_outcome in _SUBMISSION_SOURCE_EXCLUSIVE_OUTCOMES:
+                raise ValueError(
+                    "submission-source outcomes are valid only for submission-source events"
+                )
+            return self
+        if (
+            self.operational_dimension
+            not in {"licensed", "employer_ats", "public_career_page", "user_provided"}
+            or self.operational_outcome not in allowed_outcomes
+        ):
+            raise ValueError(
+                "submission-source events require a source family and matching outcome"
+            )
+        unrelated_values = (
+            self.tool_id,
+            self.access_mode,
+            self.saved,
+            self.failure_category,
+            self.export_format,
+            self.has_feedback,
+            self.session_status,
+            self.duration_ms,
+            self.cost_estimate,
+            self.evidence_kind,
+            self.evidence_provenance,
+            self.confirmation_transition,
+            self.development_gap_kind,
+            self.development_response_kind,
+            self.development_state_from,
+            self.development_state_to,
+            self.occurred_at,
+        )
+        if any(value is not None for value in unrelated_values) or self.level != "info":
+            raise ValueError(
+                "submission-source events accept only source family and outcome"
             )
         return self
