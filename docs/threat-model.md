@@ -226,9 +226,10 @@ Browser → POST /auth/password-reset/confirm {token, new_password}
 | 12 | Workspace/campaign target, schedule, and transition history | High | `workspaces.label`, `workspaces.is_pinned`, `workspaces.company`, `workspaces.role`, `workspaces.status`, `workspaces.deadline`, `campaign_events.details` | Until deletion | Job-search intent, target employer, application timing, and outcome-history exposure |
 | 13 | Submitted-application frozen bundles | High | `campaign_submission_snapshots.content_json` | Until campaign/account deletion | Exact CV, cover letter, target listing, and application-history exposure |
 | 14 | Discovery and submission source governance records | Medium | `discovery_sources`, `submission_source_governance` | Until registry deletion | Source contracts, legal-review posture, operational ownership, and acquisition/submission bounds exposed |
-| 15 | Product-owned discovered listings | Medium-High | `discovered_listings`, `discovered_listing_attributions` | Per-source registry retention | Employer openings, acquisition sources, and stale corpus exposure |
-| 16 | Behavioral telemetry (event names, routes, timestamps) | Low | Log stdout, Sentry (if enabled) | 180-day durable-event window; processor retention otherwise deployment-defined | Usage pattern inference |
-| 17 | Sidebar state, language preference | None | `sidebar_state` cookie, `app_language` localStorage | 7 days / forever | None |
+| 15 | Per-source user submission authorization | High | `submission_authorization_grants` | Until revocation, source deletion, or account deletion | Job-search automation intent and authorized employer-system relationship exposed |
+| 16 | Product-owned discovered listings | Medium-High | `discovered_listings`, `discovered_listing_attributions` | Per-source registry retention | Employer openings, acquisition sources, and stale corpus exposure |
+| 17 | Behavioral telemetry (event names, routes, timestamps) | Low | Log stdout, Sentry (if enabled) | 180-day durable-event window; processor retention otherwise deployment-defined | Usage pattern inference |
+| 18 | Sidebar state, language preference | None | `sidebar_state` cookie, `app_language` localStorage | 7 days / forever | None |
 
 ### 4.1 Guest-Specific Storage Note
 
@@ -1298,6 +1299,32 @@ reviewer identities, and free text have no analytics field. The current-task
 build-ahead authorization permits this dark enforcement foundation only: D-100,
 the remaining user/packet/envelope gates, and every D-026 prohibition still govern
 production activation.
+
+The dark R16 #190 user gate stores only non-secret evidence that a future trusted
+source adapter completed one of two explicitly allowlisted OAuth flows with the
+user's consent for the fixed submission scope. There is no source adapter,
+callback route, public grant-creation route, credential vault, token/session
+column, provider account identifier, submission worker, or network act in #190.
+Recording a grant first re-runs the complete #189 source gate; arbitrary queue use
+cannot infer authorization. The account surface lists only the caller's active
+records and revocation filters by both caller and grant id, returning the same
+idempotent response for absent or other-owner ids to avoid existence disclosure.
+
+Revocation physically deletes the grant. Every future queued/in-flight attempt
+must pin the exact grant id and re-read it at dispatch plus immediately before each
+outward act and retry. Re-authorizing creates a new id, so an old queued attempt
+cannot pass via an ABA revoke/re-grant sequence. This is the only honest
+"immediate" guarantee available before #191 builds an engine: #190 supplies and
+tests the mandatory database checkpoint but does not claim to interrupt an HTTP
+request already accepted by a third party. Grants join the machine-readable owner
+export and explicit account-erasure transaction, with FK cascade as defense in
+depth. No authorization transition enters telemetry or logs.
+
+A future source callback remains a new security boundary: it must independently
+validate source identity, redirect binding, state/PKCE, replay prevention, and the
+provider's explicit submission scope before it may call the internal recording
+seam. #190's bounded callback-result type is not proof of those checks and cannot
+be exposed directly as an HTTP request body.
 
 Discovered listings are non-user product data in dedicated canonical and source-
 attribution tables; neither table carries a user/workspace key or references

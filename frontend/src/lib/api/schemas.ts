@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { submissionAuthorizationsExportSchema } from '#/lib/api/submissionAuthorizationSchemas'
 import {
   developmentItemSchema,
   developmentResponseKindSchema,
@@ -267,6 +268,7 @@ export const careerDataExportSchema = z.strictObject({
   application_packets: applicationPacketsExportSchema,
   packet_stop_answers: packetStopAnswersExportSchema,
   queue_audit: queueAuditExportSchema,
+  submission_authorizations: submissionAuthorizationsExportSchema,
   development: developmentLoopExportSchema,
   campaigns: z.strictObject({
     campaign_count: z.number().int().nonnegative(),

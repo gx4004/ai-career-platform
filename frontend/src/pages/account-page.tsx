@@ -4,6 +4,7 @@ import { Badge } from '#/components/ui/badge'
 import { Button } from '#/components/ui/button'
 import { AppStatePanel } from '#/components/app/AppStatePanel'
 import { PageFrame } from '#/components/app/PageFrame'
+import { SubmissionAuthorizationsCard } from '#/components/account/SubmissionAuthorizationsCard'
 import { useSession } from '#/hooks/useSession'
 
 export function AccountPage() {
@@ -141,6 +142,8 @@ export function AccountPage() {
             )}
           </div>
         </div>
+
+        <SubmissionAuthorizationsCard userId={user.id} />
 
         {/* Session */}
         <div className="account-card account-card--session">

@@ -81,10 +81,11 @@ Scoring semantics:
   deletion-confirmation emails.
 - Account deletion is immediate and removes all owner-scoped product data,
   including runs, workspaces, Evidence Profile items, CV documents and immutable
-  variants, classified career gaps, development items, and the user record
-  (GDPR/RODO). Derived development recommendations disappear with their source
-  classifications. Retention and backup policy beyond this is an open human
-  decision (issue #74, D-NEXT-3).
+  variants, classified career gaps, development items, active per-source
+  submission authorization records, and the user record (GDPR/RODO). Derived
+  development recommendations disappear with their source classifications.
+  Retention and backup policy beyond this is an open human decision (issue #74,
+  D-NEXT-3).
 - Explicit logout, account deletion, and the manual local-data reset all clear
   sensitive browser state (drafts, workflow context, guest results, resume carry).
 

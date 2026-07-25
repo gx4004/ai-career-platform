@@ -8,6 +8,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database import Base
 
 if TYPE_CHECKING:
+    from app.models.submission_authorization import SubmissionAuthorizationGrant
     from app.models.submission_source import SubmissionSourceGovernance
 
 
@@ -95,6 +96,13 @@ class DiscoverySource(Base):
         cascade="all, delete-orphan",
         passive_deletes=True,
         uselist=False,
+    )
+    user_submission_authorizations: Mapped[list["SubmissionAuthorizationGrant"]] = (
+        relationship(
+            back_populates="discovery_source",
+            cascade="all, delete-orphan",
+            passive_deletes=True,
+        )
     )
 
     @property

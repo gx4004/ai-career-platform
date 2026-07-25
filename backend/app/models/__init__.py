@@ -19,6 +19,7 @@ from app.models.packet_stop_answer import PacketStopAnswer
 from app.models.pipeline_halt import PipelineHalt
 from app.models.queue_audit_event import QueueAuditEvent
 from app.models.queue_rule import QueueRule, QueueSettings
+from app.models.submission_authorization import SubmissionAuthorizationGrant
 from app.models.submission_source import SubmissionSourceGovernance
 from app.models.tool_run import ToolRun
 from app.models.user import User
@@ -42,6 +43,7 @@ __all__ = [
     "DiscoveryRecommendationReport",
     "QueueRule",
     "QueueSettings",
+    "SubmissionAuthorizationGrant",
     "SubmissionSourceGovernance",
     "QueueAuditEvent",
     "ApplicationPacket",
