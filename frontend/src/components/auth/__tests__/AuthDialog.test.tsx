@@ -100,7 +100,7 @@ function renderAuthFlow() {
     },
   })
 
-  return render(
+  const view = render(
     <QueryClientProvider client={queryClient}>
       <SessionProvider>
         <LandingSignInButton />
@@ -109,6 +109,7 @@ function renderAuthFlow() {
       </SessionProvider>
     </QueryClientProvider>,
   )
+  return { queryClient, ...view }
 }
 
 describe('AuthDialog', () => {
@@ -174,6 +175,21 @@ describe('AuthDialog', () => {
     })
   })
 
+  it('purges the prior owner submission grants before another user can sign in', async () => {
+    const { queryClient } = renderAuthFlow()
+    queryClient.setQueryData(['submission-authorizations', 'u1'], {
+      items: [{ id: 'owner-a-sensitive-grant' }],
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Log out' }))
+
+    await waitFor(() => {
+      expect(
+        queryClient.getQueriesData({ queryKey: ['submission-authorizations'] }),
+      ).toEqual([])
+    })
+  })
+
   it('does NOT open the dialog on cw:session-expired for a never-authed visitor', async () => {
     // Regression guard: Phase 1 security migration removed the `if (token)`
     // gate on session-expired dispatch; the only remaining guard is inside
@@ -195,13 +211,16 @@ describe('AuthDialog', () => {
   })
 
   it('writes a pendingIntent with the current path when cw:session-expired fires for a previously authed user', async () => {
-    renderAuthFlow()
+    const { queryClient } = renderAuthFlow()
 
     await waitFor(() => {
       expect(getCurrentUserMock).toHaveBeenCalled()
     })
 
     await new Promise((resolve) => setTimeout(resolve, 0))
+    queryClient.setQueryData(['submission-authorizations', 'u1'], {
+      items: [{ id: 'expired-sensitive-grant' }],
+    })
 
     const originalPathname = window.location.pathname
     const originalSearch = window.location.search
@@ -221,6 +240,9 @@ describe('AuthDialog', () => {
     })
 
     expect(screen.queryByRole('dialog')).not.toBeNull()
+    expect(
+      queryClient.getQueriesData({ queryKey: ['submission-authorizations'] }),
+    ).toEqual([])
 
     Object.defineProperty(window, 'location', {
       value: { ...window.location, pathname: originalPathname, search: originalSearch },
