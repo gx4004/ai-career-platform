@@ -37,6 +37,7 @@ from app.routers import (
     portfolio,
     queue_rules,
     resume,
+    submission_authorizations,
     telemetry,
 )
 from app.services.observability import configure_logging
@@ -205,5 +206,10 @@ app.include_router(
 app.include_router(discovery.router, prefix=f"{prefix}/discovery", tags=["discovery"])
 app.include_router(queue_rules.router, prefix=f"{prefix}/queue", tags=["queue"])
 app.include_router(packets.router, prefix=f"{prefix}/packets", tags=["packets"])
+app.include_router(
+    submission_authorizations.router,
+    prefix=f"{prefix}/submission-authorizations",
+    tags=["submission-authorizations"],
+)
 app.include_router(telemetry.router, prefix=f"{prefix}/telemetry", tags=["telemetry"])
 app.include_router(admin.router, prefix=f"{prefix}/admin", tags=["admin"])

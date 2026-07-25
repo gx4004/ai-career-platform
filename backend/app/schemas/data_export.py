@@ -16,6 +16,7 @@ from app.schemas.gap_response import GapResponseOffer
 from app.schemas.history import CampaignsExport
 from app.schemas.queue_audit import QueueAuditExport
 from app.schemas.queue_rules import QueueRulesExport
+from app.schemas.submission_authorizations import SubmissionAuthorizationsExport
 
 
 class DevelopmentLoopExport(BaseModel):
@@ -62,6 +63,7 @@ class CareerDataExport(BaseModel):
     application_packets: ApplicationPacketsExport
     packet_stop_answers: PacketStopAnswersExport
     queue_audit: QueueAuditExport
+    submission_authorizations: SubmissionAuthorizationsExport
     development: DevelopmentLoopExport
 
     @model_validator(mode="after")

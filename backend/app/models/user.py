@@ -43,3 +43,9 @@ class User(Base):
     development_items = relationship(
         "DevelopmentItem", back_populates="user", cascade="all, delete-orphan"
     )
+    submission_authorizations = relationship(
+        "SubmissionAuthorizationGrant",
+        back_populates="user",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )

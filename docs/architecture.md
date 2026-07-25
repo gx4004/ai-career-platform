@@ -130,6 +130,12 @@ Core entities:
   idempotent per-source submission with the exact packet snapshot and per-field
   record. Contract defined; nothing ships until R15 demonstrates quality and
   demand and each source passes legal review (D-100).
+- Submission authorization grant (dark R16 #190 foundation; D-101, D-107,
+  ADR 0010) — one owner/source record proving a future trusted adapter completed
+  a source-provided OAuth flow with explicit consent. The row contains only a
+  closed mechanism, fixed submission scope, and timestamp: no provider credential,
+  token, session, subject identifier, or callback payload. Active grants are
+  owner-visible, exportable, immediately revocable, and account-deletion scoped.
 - Classified gap and development item (R17 foundation built ahead under explicit
   current-task authorization; D-108–D-114) — deterministic reviewer-gap records
   and bounded tracked responses are persisted owner-scoped. Completion feeds the
@@ -424,6 +430,19 @@ errors remain forbidden.
   store with source-family plus closed transition classes only. Source keys,
   contract bodies, endpoints, and reviewer identities remain outside analytics.
   This build-ahead is not evidence for D-100 and does not authorize activation.
+- The built-ahead #190 user gate is one active grant per owner and governed source.
+  Only the internal `record_submission_authorization()` seam exists; there is no
+  HTTP grant-creation route or source OAuth adapter. The seam first re-evaluates
+  #189 and accepts a strict callback result containing only one of two
+  source-provided OAuth mechanism classes, the fixed `submit_applications` scope,
+  and literal consent. The database has no credential, token, session, provider
+  subject, or arbitrary metadata column.
+- Listing and revocation are authenticated and owner-scoped. Revocation physically
+  removes the exact grant. Future queued/in-flight work must pin that grant id and
+  call `require_active_submission_authorization()` at dispatch and immediately
+  before every outward act or retry; a later re-grant creates a different id and
+  cannot revive stale work. #190 supplies this dark user-gate checkpoint, not a
+  scheduler, integration, callback endpoint, queue, or submission engine.
 - Quality and user outcomes govern operation; raw volume never loosens controls
   (D-106).
 - Submission records follow the standard lifecycle for product copies, with the

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import {
   Activity,
@@ -29,8 +30,10 @@ import { useSession } from '#/hooks/useSession'
 import { deleteAccount } from '#/lib/api/client'
 import { changeLanguage } from '#/lib/i18n'
 import { clearSensitiveBrowserData } from '#/lib/privacy/browserData'
+import { SUBMISSION_AUTHORIZATIONS_QUERY_ROOT } from '#/lib/api/submissionAuthorizations'
 
 export function SettingsPage() {
+  const queryClient = useQueryClient()
   const onboarding = useOnboarding()
   const { health, status, user } = useSession()
   const [cleared, setCleared] = useState(false)
@@ -78,6 +81,9 @@ export function SettingsPage() {
       // sessionStorage state so a stale tab doesn't think the user is
       // still signed in, then exit to the landing page.
       clearSensitiveBrowserData()
+      queryClient.removeQueries({
+        queryKey: SUBMISSION_AUTHORIZATIONS_QUERY_ROOT,
+      })
       window.location.assign('/')
     } catch (error) {
       setDeleteError(

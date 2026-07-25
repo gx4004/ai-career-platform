@@ -26,6 +26,7 @@ import {
 } from '#/lib/auth/pendingIntent'
 import { navigateToPath } from '#/lib/navigation/redirect'
 import { clearSensitiveBrowserData } from '#/lib/privacy/browserData'
+import { SUBMISSION_AUTHORIZATIONS_QUERY_ROOT } from '#/lib/api/submissionAuthorizations'
 import type { ToolId } from '#/lib/tools/registry'
 
 export type SessionState = {
@@ -116,6 +117,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       queryClient.removeQueries({ queryKey: ['history-page'] })
       queryClient.removeQueries({ queryKey: ['history-workspaces'] })
       queryClient.removeQueries({ queryKey: ['tool-run'] })
+      queryClient.removeQueries({
+        queryKey: SUBMISSION_AUTHORIZATIONS_QUERY_ROOT,
+      })
       queryClient.setQueryData(['current-user'], null)
 
       if (typeof window !== 'undefined') {
@@ -235,6 +239,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       queryClient.removeQueries({ queryKey: ['history-page'] })
       queryClient.removeQueries({ queryKey: ['history-workspaces'] })
       queryClient.removeQueries({ queryKey: ['tool-run'] })
+      queryClient.removeQueries({
+        queryKey: SUBMISSION_AUTHORIZATIONS_QUERY_ROOT,
+      })
       queryClient.setQueryData(['current-user'], null)
       await queryClient.invalidateQueries({ queryKey: ['current-user'] })
     }
