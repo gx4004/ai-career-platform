@@ -309,10 +309,13 @@ Acceptance gate:
 
 ### R16. Source-Specific Trusted Autopilot
 
-**Status:** PROVISIONAL spec published (#188; tracer issues #189–#195), still
-deferred until R15 demonstrates quality and demand, with every submission source
-additionally gated behind accepted legal/terms approval and a maintained
-compatibility contract; D-026 prohibitions are permanent (D-100–D-107, ADR 0010)
+**Status:** PROVISIONAL spec published (#188; tracer issues #189–#195). The dark
+#189 source-governance foundation is built ahead under explicit current-task
+authorization, while the outcome and production activation remain deferred until
+R15 demonstrates quality and demand. No real source is registered or promoted;
+every future submission source remains gated behind accepted legal/terms approval
+and a maintained compatibility contract, and D-026 prohibitions are permanent
+(D-100–D-107, ADR 0010)
 **Outcome:** explicitly authorized applications can be submitted through supported
 integrations without sacrificing truth, user control, or platform compliance.
 

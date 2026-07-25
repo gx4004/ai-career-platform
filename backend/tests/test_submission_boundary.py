@@ -7,8 +7,9 @@ still asserted its absence.
 
 ADR 0009 is explicit that the boundary is *structural* — the approval queue
 prepares packets for review and hands the user to the official destination to
-submit themselves. Submission automation may only ever appear behind R16's
-per-source authorization contract (ADR 0010), which is gated and unbuilt.
+submit themselves. R16 #189 builds only the dark per-source governance gate;
+user authorization, submission automation, and every outward-act route remain
+unbuilt and may appear only behind all four ADR 0010 gates.
 
 This walks the router modules in ``app/routers/`` and inspects each
 ``APIRouter`` directly, rather than the assembled ``app.main`` application.

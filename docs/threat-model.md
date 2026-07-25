@@ -225,7 +225,7 @@ Browser → POST /auth/password-reset/confirm {token, new_password}
 | 11 | Tool metadata (scores, skill gaps, recommendations) | Medium | `tool_runs.result_payload` | Until deletion | Career profile inference |
 | 12 | Workspace/campaign target, schedule, and transition history | High | `workspaces.label`, `workspaces.is_pinned`, `workspaces.company`, `workspaces.role`, `workspaces.status`, `workspaces.deadline`, `campaign_events.details` | Until deletion | Job-search intent, target employer, application timing, and outcome-history exposure |
 | 13 | Submitted-application frozen bundles | High | `campaign_submission_snapshots.content_json` | Until campaign/account deletion | Exact CV, cover letter, target listing, and application-history exposure |
-| 14 | Discovery source governance records | Medium | `discovery_sources` | Until registry deletion | Source contracts, operational ownership, and acquisition bounds exposed |
+| 14 | Discovery and submission source governance records | Medium | `discovery_sources`, `submission_source_governance` | Until registry deletion | Source contracts, legal-review posture, operational ownership, and acquisition/submission bounds exposed |
 | 15 | Product-owned discovered listings | Medium-High | `discovered_listings`, `discovered_listing_attributions` | Per-source registry retention | Employer openings, acquisition sources, and stale corpus exposure |
 | 16 | Behavioral telemetry (event names, routes, timestamps) | Low | Log stdout, Sentry (if enabled) | 180-day durable-event window; processor retention otherwise deployment-defined | Usage pattern inference |
 | 17 | Sidebar state, language preference | None | `sidebar_state` cookie, `app_language` localStorage | 7 days / forever | None |
@@ -1276,6 +1276,28 @@ responses, source keys, or legal-review content.
 The process pins `httpx`/`httpcore` request logging at warning level because their
 INFO request line contains query strings; bounded search parameters therefore do
 not leak through ordinary outbound-library logs.
+
+The dark R16 #189 submission-source gate adds no outward-act route, credentials,
+authorization grant, scheduler, or real source. A one-to-one governance row can
+extend an R14 registry entry with a separate legal/terms review, a documented
+compatibility contract (bounded field mappings, closed formats, and closed error
+semantics), explicit promotion provenance, and a default-on submission kill
+switch. Promotion is refused unless both the existing discovery terms review and
+the submission legal/terms review are accepted and the compatibility contract is
+verified. Clearing the submission kill switch additionally requires the R14
+discovery kill switch to be clear. The authoritative server seam re-reads the
+source plus its governance row and refuses unregistered, terms-failed,
+discovery-killed, non-promoted, legal-unaccepted, contract-unverified, and
+submission-killed sources before any future submission integration can act.
+
+All #189 integration evidence is a hand-authored synthetic local JSON fixture; it
+contacts no employer system and confers no legal approval. The admin registry is
+read-only for these fields. Promotion and kill events retain only the closed
+source-family and transition outcome; source keys, endpoints, contract contents,
+reviewer identities, and free text have no analytics field. The current-task
+build-ahead authorization permits this dark enforcement foundation only: D-100,
+the remaining user/packet/envelope gates, and every D-026 prohibition still govern
+production activation.
 
 Discovered listings are non-user product data in dedicated canonical and source-
 attribution tables; neither table carries a user/workspace key or references

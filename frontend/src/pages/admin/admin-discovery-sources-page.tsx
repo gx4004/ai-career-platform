@@ -31,7 +31,9 @@ export function AdminDiscoverySourcesPage() {
       <p className="admin-table-muted">
         Governance registry plus the operator kill switch. A source can ingest only
         after an accepted terms review and while its kill switch is off. Tripping the
-        kill switch halts a source immediately — no deploy or restart.
+        kill switch halts a source immediately — no deploy or restart. Submission is
+        a separate, default-off gate requiring its own legal review, verified contract,
+        promotion, and kill switch.
       </p>
 
       <div className="admin-data-table-wrap" style={{ marginTop: '1.5rem' }}>
@@ -60,13 +62,14 @@ export function AdminDiscoverySourcesPage() {
                 <th>Terms review</th>
                 <th>Bounds</th>
                 <th>Ingestion</th>
+                <th>Submission</th>
                 <th>Kill switch</th>
               </tr>
             </thead>
             <tbody>
               {data.items.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="admin-table-muted">
+                  <td colSpan={7} className="admin-table-muted">
                     No discovery sources are registered. Ingestion remains disabled.
                   </td>
                 </tr>
@@ -120,6 +123,9 @@ export function AdminDiscoverySourcesPage() {
                     </div>
                   </td>
                   <td>
+                    <SubmissionGovernance source={source} />
+                  </td>
+                  <td>
                     <KillSwitchControl
                       source={source}
                       busy={pendingId === source.id}
@@ -136,6 +142,36 @@ export function AdminDiscoverySourcesPage() {
             </tbody>
           </table>
         )}
+      </div>
+    </div>
+  )
+}
+
+function SubmissionGovernance({ source }: { source: DiscoverySource }) {
+  const governance = source.submission_governance
+  if (!governance) {
+    return (
+      <div>
+        <strong>Not registered</strong>
+        <div className="admin-table-muted">Submission remains refused.</div>
+      </div>
+    )
+  }
+  return (
+    <div>
+      <strong>{governance.submission_allowed ? 'Allowed' : 'Refused'}</strong>
+      <div className="admin-table-muted">
+        {governance.promoted ? 'Promoted' : 'Not promoted'}
+      </div>
+      <div className="admin-table-muted">
+        Legal: {governance.legal_terms_status}
+      </div>
+      <div className="admin-table-muted">
+        Contract: {governance.contract_status}
+        {governance.contract_version ? ` (${governance.contract_version})` : ''}
+      </div>
+      <div className="admin-table-muted">
+        Submission kill switch {governance.kill_switch ? 'on' : 'off'}
       </div>
     </div>
   )

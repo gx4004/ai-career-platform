@@ -30,6 +30,40 @@ function source(overrides: Record<string, unknown> = {}) {
     retention_days: 30,
     kill_switch: false,
     ingestion_allowed: true,
+    submission_governance: {
+      id: 'submission-source-1',
+      legal_terms_status: 'accepted',
+      legal_terms_reviewed_at: '2026-07-13T00:00:00Z',
+      legal_terms_reviewed_by: 'Legal Reviewer',
+      contract_status: 'verified',
+      contract_version: 'synthetic-ats/v1',
+      contract_fields: [
+        {
+          source_field: 'candidate_email',
+          packet_field: 'candidate.email',
+          required: true,
+        },
+      ],
+      contract_formats: [
+        { source_field: 'candidate_email', kind: 'email' },
+      ],
+      contract_error_semantics: [
+        {
+          source_code: 'accepted',
+          meaning: 'accepted',
+          handling: 'confirm_success',
+        },
+      ],
+      contract_reviewed_at: '2026-07-13T00:00:00Z',
+      contract_reviewed_by: 'Integration Reviewer',
+      promoted: false,
+      promoted_at: null,
+      promoted_by: null,
+      kill_switch: true,
+      submission_allowed: false,
+      created_at: '2026-07-13T00:00:00Z',
+      updated_at: '2026-07-13T00:00:00Z',
+    },
     created_at: '2026-07-13T00:00:00Z',
     updated_at: '2026-07-13T00:00:00Z',
     ...overrides,
@@ -60,6 +94,18 @@ describe('AdminDiscoverySourcesPage', () => {
     expect(screen.getByText('12/minute')).toBeTruthy()
     expect(screen.getByText('Retain 30 days')).toBeTruthy()
     expect(screen.getByText('Allowed')).toBeTruthy()
+    expect(screen.getByText('Not promoted')).toBeTruthy()
+    expect(screen.getByText('Legal: accepted')).toBeTruthy()
+    expect(
+      screen.getByText('Contract: verified (synthetic-ats/v1)'),
+    ).toBeTruthy()
+    expect(screen.getByText('Submission kill switch on')).toBeTruthy()
+  })
+
+  it('makes an unregistered submission gate explicitly refused', async () => {
+    renderPage([source({ submission_governance: null })])
+    expect(await screen.findByText('Not registered')).toBeTruthy()
+    expect(screen.getByText('Submission remains refused.')).toBeTruthy()
   })
 
   it('makes the all-disabled empty state explicit', async () => {
