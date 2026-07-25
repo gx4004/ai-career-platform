@@ -3,6 +3,8 @@ import {
   applicationPacketItemSchema,
   applicationPacketListSchema,
   applicationPacketsExportSchema,
+  packetApprovalResultSchema,
+  packetApprovalSnapshotsExportSchema,
   packetDecisionSchema,
   packetPreparationResultSchema,
   packetStopAnswersExportSchema,
@@ -129,6 +131,70 @@ describe('application packet contracts', () => {
   it('mirrors the list and export wrappers', () => {
     expect(applicationPacketListSchema.parse({ items: [packet] }).items).toHaveLength(1)
     expect(applicationPacketsExportSchema.parse({ packets: [packet] }).packets).toHaveLength(1)
+  })
+
+  it('mirrors the immutable approval snapshot and manual handoff', () => {
+    const snapshot = {
+      id: 'snapshot-1',
+      packet_id: 'packet-1',
+      campaign_id: 'ws-1',
+      listing_id: 'listing-1',
+      role_key: 'acme|backend engineer',
+      destination_url: 'https://jobs.example/apply/1',
+      content: {
+        schema_version: 'packet-approval/v1',
+        drafts: { cover_letter: { body: 'Exact approved copy.' } },
+      },
+      content_sha256: 'a'.repeat(64),
+      created_at: '2026-07-25T12:00:00Z',
+    }
+    const result = packetApprovalResultSchema.parse({
+      packet: { ...packet, decision: 'accepted', unresolved_questions: [] },
+      snapshot,
+      handoff: {
+        destination_url: 'https://jobs.example/apply/1',
+        instructions: 'Open the official listing and submit it yourself.',
+      },
+    })
+
+    expect(result.snapshot.content).toEqual(snapshot.content)
+    expect(result.handoff.destination_url).toBe('https://jobs.example/apply/1')
+    expect(
+      packetApprovalSnapshotsExportSchema.parse({ snapshots: [snapshot] }).snapshots,
+    ).toHaveLength(1)
+  })
+
+  it('rejects approval snapshot contract drift', () => {
+    const snapshot = {
+      id: 'snapshot-1',
+      packet_id: 'packet-1',
+      campaign_id: 'ws-1',
+      listing_id: null,
+      role_key: 'acme|backend engineer',
+      destination_url: null,
+      content: { schema_version: 'packet-approval/v1' },
+      content_sha256: 'not-a-sha256',
+      created_at: '2026-07-25T12:00:00Z',
+    }
+    expect(packetApprovalSnapshotsExportSchema.safeParse({ snapshots: [snapshot] }).success).toBe(
+      false,
+    )
+    expect(
+      packetApprovalSnapshotsExportSchema.safeParse({
+        snapshots: [{ ...snapshot, content_sha256: 'a'.repeat(64), mutable: true }],
+      }).success,
+    ).toBe(false)
+    expect(
+      packetApprovalSnapshotsExportSchema.safeParse({
+        snapshots: [
+          {
+            ...snapshot,
+            destination_url: 'https://user:secret@jobs.example/apply',
+            content_sha256: 'a'.repeat(64),
+          },
+        ],
+      }).success,
+    ).toBe(false)
   })
 
   it('mirrors the preparation result (cap/ceiling counters visible)', () => {

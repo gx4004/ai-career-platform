@@ -25,11 +25,14 @@ def record_queue_audit_event(
     action: str,
     packet_id: str | None = None,
     details: dict | None = None,
+    commit: bool = True,
 ) -> QueueAuditEvent:
-    """Append one immutable audit row and commit it.
+    """Append one immutable audit row.
 
-    Committing independently keeps the audit trail durable even though it is the
-    only write path — there is no corresponding update or single-row delete.
+    Ordinary queue actions commit independently. A larger atomic state transition
+    may pass ``commit=False`` so its decision, immutable artifact, and audit row
+    either all persist or all roll back together; this remains the single audit
+    write seam.
     """
     event = QueueAuditEvent(
         user_id=user_id,
@@ -38,8 +41,11 @@ def record_queue_audit_event(
         details=details or {},
     )
     db.add(event)
-    db.commit()
-    db.refresh(event)
+    if commit:
+        db.commit()
+        db.refresh(event)
+    else:
+        db.flush()
     return event
 
 

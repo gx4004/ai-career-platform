@@ -116,6 +116,16 @@ class Workspace(Base):
         passive_deletes=True,
         order_by="CampaignSubmissionSnapshot.created_at.asc()",
     )
+    packet_approval_snapshots = relationship(
+        "PacketApprovalSnapshot",
+        back_populates="campaign",
+        cascade="all, delete-orphan",
+        # Keep the lifecycle correct in SQLite/test environments where database
+        # cascades are disabled; PostgreSQL's ON DELETE CASCADE remains defense in
+        # depth.
+        passive_deletes=False,
+        order_by="PacketApprovalSnapshot.created_at.asc()",
+    )
     listings = relationship(
         "CampaignListing",
         back_populates="workspace",

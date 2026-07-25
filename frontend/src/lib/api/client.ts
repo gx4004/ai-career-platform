@@ -3,6 +3,7 @@ import { ApiError } from '#/lib/api/errors'
 import {
   applicationPacketItemSchema,
   applicationPacketListSchema,
+  packetApprovalResultSchema,
   queueReviewStateSchema,
   stopAnswerRequestSchema,
   stopAnswerResultSchema,
@@ -737,10 +738,11 @@ export function resumeQueue() {
 }
 
 export function acceptPacket(packetId: string) {
+  // Accepting freezes the immutable R15 snapshot and returns only a manual handoff.
   return request(`/packets/${packetId}/accept`, {
     method: 'POST',
     body: {},
-    schema: applicationPacketItemSchema,
+    schema: packetApprovalResultSchema,
   })
 }
 

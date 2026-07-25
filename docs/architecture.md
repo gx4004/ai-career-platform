@@ -122,10 +122,12 @@ Core entities:
   listings with source attribution, retrieval date, dedup, and per-source
   retention; distinct from campaign canonical listings. Contract defined; nothing
   ships until R13 lands and each source passes terms review (D-084).
-- Application packet (planned, R15; D-093, ADR 0009) — a composition referencing
-  campaign, listing, CV variant, drafts, rationale, and unresolved questions, with
-  an immutable snapshot on approval. Contract defined; nothing ships until R14
-  lands and quality evidence is accepted (D-092).
+- Application packet and approval snapshot (dark R15 build-ahead; D-093–D-099,
+  ADR 0009) — a reference-only composition plus a write-once by-value freeze at
+  guarded acceptance. The snapshot stores the packet-referenced discovered listing
+  and its attributions, resolved stop-answer values, CV variant, drafts, rationale,
+  separate campaign-handoff provenance, and authoritative empty unresolved set with
+  a canonical SHA-256; production activation remains behind D-092.
 - Submission record (planned, R16; D-103, ADR 0010) — append-only audit of one
   idempotent per-source submission with the exact packet snapshot and per-field
   record. Contract defined; nothing ships until R15 demonstrates quality and
@@ -382,24 +384,49 @@ errors remain forbidden.
 - Recommendations become campaigns only by explicit user adoption; discovery never
   auto-creates campaigns, tasks, or reminders (D-091).
 
-## Approval Queue Boundaries (R15, deferred)
+## Approval Queue Boundaries (R15, built ahead; activation deferred)
 
 - Packets are compositions referencing existing entities; approval freezes an
-  immutable snapshot (D-093, ADR 0009).
+  immutable by-value snapshot with a canonical SHA-256. Snapshot, decision,
+  queue-audit row, and campaign-timeline link commit atomically (D-093, D-096,
+  ADR 0009); PostgreSQL rejects snapshot-row updates while account/campaign
+  erasure may still delete them.
+- Approval is available only from `pending` and revalidates the packet's live
+  discovered-listing and CV-variant references under a row lock. A missing
+  required reference becomes a non-answerable `missing_material` stop and the UI
+  directs the owner to re-prepare; concurrent edit/skip/reject actions lock the
+  same packet row, so no terminal decision can split from its snapshot.
+- Upgrade from the pre-snapshot queue fails closed: legacy `accepted` decisions are
+  reset to `pending` because their historical material values cannot be truthfully
+  reconstructed. Downgrade likewise resets snapshot-backed decisions before
+  dropping the snapshot table, so no accepted-without-evidence state is stranded.
 - Preparation runs only inside user-defined rules, volume caps, and cost ceilings
   (D-094).
 - Sensitive, legal, eligibility, relocation, demographic, salary,
   work-authorization, and uncertain fields are server-enforced mandatory stops;
   unresolved questions block approval (D-095).
-- No R15 code path performs, schedules, or retries a submission; the user submits
-  on the official destination. Submission automation exists only behind R16's
-  per-source authorization contract (D-096).
+- No R15 code path performs, schedules, or retries a submission; acceptance returns
+  an HTTPS-only, user-driven link to the official destination, and unsafe or absent
+  URLs produce instructions without a link. Submission automation exists only
+  behind R16's per-source authorization contract (D-096).
 - Every packet passes the D-082 reviewer with zero unresolved fabrication findings
   before queueing; regression evals gate continued operation (D-097).
-- Queue actions are append-only audit events with duplicate prevention and
-  verified rate limits (D-098).
+- Queue actions are append-only audit events. Approval is terminal and structurally
+  unique per packet and per normalized owner/company/role, with the existing
+  submitted-campaign check as the second duplicate axis. Campaign submission
+  snapshots freeze that normalized role identity at capture, while packet approval
+  derives it from the packet's discovered listing. Submission capture likewise
+  prefers its canonical campaign listing; editable campaign labels are used only
+  for listing-less campaigns. Both immutable-record paths serialize their
+  cross-table duplicate check on the owner row. Approval and erasure use
+  packet→campaign→owner ordering; individual campaign deletion locks its packet rows
+  before the campaign, so neither campaign nor account erasure can invert those
+  foreign-key locks (D-098).
 - Rules, packets, drafts, and audit events are owner-isolated sensitive content in
   the standard lifecycle and telemetry boundaries (D-099).
+- Browser queue queries are owner-keyed; logout, session expiry, and account deletion
+  purge the whole queue cache, while a mounted queue clears answer drafts and manual
+  handoff state on owner change or expiry.
 
 ## Trusted Submission Boundaries (R16, dark #189 foundation; activation deferred)
 

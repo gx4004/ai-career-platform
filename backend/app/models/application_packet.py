@@ -35,8 +35,8 @@ PACKET_GATE_STATES = ("pending", "passed", "blocked")
 # ``edit`` is NOT a decision — it reopens the packet's referenced materials under the
 # existing diff/confirmation rules (D-073) and returns the decision to ``pending``.
 # Distinct from ``status`` (preparedness) and ``gate_state`` (trust-chain outcome).
-# Accept here is a status transition + audit event only; freezing the immutable
-# approval snapshot and opening the submission destination is #185.
+# The sole accepted transition freezes the immutable approval snapshot and returns
+# the user-driven destination handoff atomically (#185).
 PACKET_DECISIONS = ("pending", "accepted", "skipped", "rejected")
 
 
@@ -115,7 +115,7 @@ class ApplicationPacket(Base):
     # with an unresolved fabrication finding stays ``blocked`` and never queues.
     gate_state: Mapped[str] = mapped_column(String(16), nullable=False, default="pending")
     # The owner's review decision (R15 #183). ``pending`` until the owner acts on the
-    # queue review surface; accept is guarded by the approval predicate (D-095).
+    # queue review surface; accept is guarded and snapshot-backed (D-095/D-096).
     decision: Mapped[str] = mapped_column(
         String(16), nullable=False, default="pending", server_default="pending"
     )

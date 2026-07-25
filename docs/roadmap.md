@@ -288,10 +288,17 @@ Acceptance gate:
 
 ### R15. Application Approval Queue
 
-**Status:** PROVISIONAL spec published (#179; tracer issues #180–#186), still
-deferred until R14 ships and packet-grade quality evidence is accepted — no
-packet preparation ships earlier, and R15 contains no submission code path
-(D-092–D-099, ADR 0009)
+**Status:** PROVISIONAL implementation built ahead through #180–#186 under
+explicit current-task authorization. #185 freezes each accepted packet into a
+write-once by-value snapshot, prevents duplicate role approvals, links the
+campaign timeline, and returns only a manual official-destination handoff. This
+approval is pending-only, revalidates required listing/CV material, and serializes
+terminal queue actions plus campaign/account erasure on a consistent packet-first
+lock order. Duplicate identity comes from the packet's immutable listing target.
+This
+does not satisfy or reverse D-092: production activation remains deferred until
+R14 and packet-grade quality evidence are accepted, and R15 contains no
+submission endpoint or outward act (D-092–D-099, ADR 0009)
 **Outcome:** the system prepares high-quality application packets for explicit user
 review and approval.
 

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   AlertTriangle,
@@ -12,6 +12,7 @@ import {
   X,
 } from 'lucide-react'
 import { PageFrame } from '#/components/app/PageFrame'
+import { useSession } from '#/hooks/useSession'
 import {
   acceptPacket,
   answerPacketStopQuestion,
@@ -23,13 +24,15 @@ import {
   resumeQueue,
   skipPacket,
 } from '#/lib/api/client'
+import {
+  queuePacketsQueryKey,
+  queueStateQueryKey,
+} from '#/lib/api/queueCache'
 import type {
   ApplicationPacketItem,
+  PacketSubmissionHandoff,
   UnresolvedQuestion,
 } from '#/lib/api/packetSchemas'
-
-const PACKETS_KEY = ['queue', 'packets']
-const QUEUE_STATE_KEY = ['queue', 'state']
 
 // A stop question the owner can answer inline vs. the non-stop "no CV selected"
 // question, which is resolved by selecting a CV (D-095), not by typing an answer.
@@ -39,15 +42,21 @@ function isAnswerable(question: UnresolvedQuestion): boolean {
 
 export function QueuePage() {
   const queryClient = useQueryClient()
+  const { user } = useSession()
+  const userId = user?.id ?? null
+  const packetsKey = queuePacketsQueryKey(userId ?? 'guest')
+  const queueStateKey = queueStateQueryKey(userId ?? 'guest')
 
   const packetsQuery = useQuery({
-    queryKey: PACKETS_KEY,
+    queryKey: packetsKey,
     queryFn: listPackets,
+    enabled: userId !== null,
     staleTime: 30_000,
   })
   const stateQuery = useQuery({
-    queryKey: QUEUE_STATE_KEY,
+    queryKey: queueStateKey,
     queryFn: getQueueState,
+    enabled: userId !== null,
     staleTime: 30_000,
   })
 
@@ -57,10 +66,35 @@ export function QueuePage() {
   const [remaining, setRemaining] = useState<Record<string, UnresolvedQuestion[]>>({})
   const [draftAnswers, setDraftAnswers] = useState<Record<string, string>>({})
   const [actionError, setActionError] = useState<string | null>(null)
+  const [handoff, setHandoff] = useState<{
+    ownerId: string
+    value: PacketSubmissionHandoff
+  } | null>(null)
+
+  // Local queue state is owner-sensitive too. Keying the server cache prevents
+  // cross-owner reads; clearing these values prevents a mounted route from showing
+  // the previous owner's answer drafts or outbound handoff during auth changes.
+  useEffect(() => {
+    setRemaining({})
+    setDraftAnswers({})
+    setActionError(null)
+    setHandoff(null)
+  }, [userId])
+
+  useEffect(() => {
+    const clearOwnerState = () => {
+      setRemaining({})
+      setDraftAnswers({})
+      setActionError(null)
+      setHandoff(null)
+    }
+    window.addEventListener('cw:session-expired', clearOwnerState)
+    return () => window.removeEventListener('cw:session-expired', clearOwnerState)
+  }, [])
 
   const invalidateAll = () => {
-    queryClient.invalidateQueries({ queryKey: PACKETS_KEY })
-    queryClient.invalidateQueries({ queryKey: QUEUE_STATE_KEY })
+    queryClient.invalidateQueries({ queryKey: packetsKey })
+    queryClient.invalidateQueries({ queryKey: queueStateKey })
   }
 
   const pauseMutation = useMutation({
@@ -72,14 +106,26 @@ export function QueuePage() {
     onSuccess: () => invalidateAll(),
   })
   const decisionMutation = useMutation({
-    mutationFn: ({ id, action }: { id: string; action: 'accept' | 'skip' | 'reject' | 'edit' }) => {
-      if (action === 'accept') return acceptPacket(id)
-      if (action === 'skip') return skipPacket(id)
-      if (action === 'reject') return rejectPacket(id)
-      return editPacket(id)
+    mutationFn: async ({
+      id,
+      action,
+    }: {
+      id: string
+      action: 'accept' | 'skip' | 'reject' | 'edit'
+      ownerId: string
+    }) => {
+      if (action === 'accept') {
+        const approval = await acceptPacket(id)
+        return approval.handoff
+      }
+      if (action === 'skip') await skipPacket(id)
+      else if (action === 'reject') await rejectPacket(id)
+      else await editPacket(id)
+      return null
     },
-    onSuccess: () => {
+    onSuccess: (result, variables) => {
       setActionError(null)
+      if (result) setHandoff({ ownerId: variables.ownerId, value: result })
       invalidateAll()
     },
     onError: (error: unknown) => {
@@ -105,6 +151,8 @@ export function QueuePage() {
   const paused = stateQuery.data?.paused ?? false
   const regressionHalted = stateQuery.data?.preparation_halted ?? false
   const packets = packetsQuery.data?.items ?? []
+  const visibleHandoff =
+    handoff !== null && handoff.ownerId === userId ? handoff.value : null
 
   return (
     <PageFrame className="queue-page">
@@ -151,6 +199,27 @@ export function QueuePage() {
         <div className="queue-banner queue-banner--error" role="alert">
           <AlertTriangle size={18} aria-hidden="true" />
           <span>{actionError}</span>
+        </div>
+      ) : null}
+
+      {visibleHandoff ? (
+        <div className="queue-banner" role="status" aria-live="polite">
+          <Check size={18} aria-hidden="true" />
+          <span>
+            <strong>Packet approved and frozen.</strong> {visibleHandoff.instructions}
+            {visibleHandoff.destination_url ? (
+              <>
+                {' '}
+                <a
+                  href={visibleHandoff.destination_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Open official application destination
+                </a>
+              </>
+            ) : null}
+          </span>
         </div>
       ) : null}
 
@@ -275,8 +344,10 @@ export function QueuePage() {
                                 </form>
                               ) : (
                                 <p className="queue-question__hint">
-                                  <CircleSlash size={14} aria-hidden="true" /> Select or tailor a
-                                  CV variant to resolve this — it cannot be answered here.
+                                  <CircleSlash size={14} aria-hidden="true" />{' '}
+                                  {question.field === 'cv_variant'
+                                    ? 'Select or tailor a CV variant to resolve this — it cannot be answered here.'
+                                    : 'Re-prepare this packet to restore the missing required material.'}
                                 </p>
                               )}
                             </li>
@@ -297,7 +368,15 @@ export function QueuePage() {
                           ? 'Answer every unresolved question before accepting'
                           : 'Accept this packet'
                       }
-                      onClick={() => decisionMutation.mutate({ id: packet.id, action: 'accept' })}
+                      onClick={() => {
+                        if (userId) {
+                          decisionMutation.mutate({
+                            id: packet.id,
+                            action: 'accept',
+                            ownerId: userId,
+                          })
+                        }
+                      }}
                     >
                       <Check size={16} aria-hidden="true" /> Accept
                     </button>
@@ -306,7 +385,15 @@ export function QueuePage() {
                       className="queue-btn queue-btn--edit"
                       disabled={acting || accepted}
                       title={accepted ? 'This packet has already been accepted' : undefined}
-                      onClick={() => decisionMutation.mutate({ id: packet.id, action: 'edit' })}
+                      onClick={() => {
+                        if (userId) {
+                          decisionMutation.mutate({
+                            id: packet.id,
+                            action: 'edit',
+                            ownerId: userId,
+                          })
+                        }
+                      }}
                     >
                       <Pencil size={16} aria-hidden="true" /> Edit
                     </button>
@@ -315,7 +402,15 @@ export function QueuePage() {
                       className="queue-btn queue-btn--skip"
                       disabled={acting || accepted}
                       title={accepted ? 'This packet has already been accepted' : undefined}
-                      onClick={() => decisionMutation.mutate({ id: packet.id, action: 'skip' })}
+                      onClick={() => {
+                        if (userId) {
+                          decisionMutation.mutate({
+                            id: packet.id,
+                            action: 'skip',
+                            ownerId: userId,
+                          })
+                        }
+                      }}
                     >
                       <SkipForward size={16} aria-hidden="true" /> Skip
                     </button>
@@ -324,7 +419,15 @@ export function QueuePage() {
                       className="queue-btn queue-btn--reject"
                       disabled={acting || accepted}
                       title={accepted ? 'This packet has already been accepted' : undefined}
-                      onClick={() => decisionMutation.mutate({ id: packet.id, action: 'reject' })}
+                      onClick={() => {
+                        if (userId) {
+                          decisionMutation.mutate({
+                            id: packet.id,
+                            action: 'reject',
+                            ownerId: userId,
+                          })
+                        }
+                      }}
                     >
                       <X size={16} aria-hidden="true" /> Reject
                     </button>

@@ -81,9 +81,10 @@ Scoring semantics:
   deletion-confirmation emails.
 - Account deletion is immediate and removes all owner-scoped product data,
   including runs, workspaces, Evidence Profile items, CV documents and immutable
-  variants, classified career gaps, development items, active per-source
-  submission authorization records, and the user record (GDPR/RODO). Derived
-  development recommendations disappear with their source classifications.
+  variants, application packets and immutable approval snapshots, classified
+  career gaps, development items, active per-source submission authorization
+  records, and the user record (GDPR/RODO). Derived development recommendations
+  disappear with their source classifications.
   Retention and backup policy beyond this is an open human decision (issue #74,
   D-NEXT-3).
 - Explicit logout, account deletion, and the manual local-data reset all clear
@@ -97,6 +98,14 @@ Scoring semantics:
 - Exports: TXT and Markdown for everyone on all tools; PDF export for Cover Letter
   and Interview Q&A requires authentication. Exports use the user's last edited
   version, without an AI disclaimer.
+- The built-ahead approval queue remains roadmap-gated. Where present, accepting a
+  pending packet revalidates its required listing and CV references, then freezes
+  the exact owner-visible materials and resolved stop answers into an immutable
+  hashed snapshot. Missing required material must be re-prepared. Approval prevents
+  a duplicate for the same
+  owner/company/role or an already-submitted campaign, and offers a user-driven HTTPS
+  link to the official destination. It never submits, schedules, or retries an
+  application. Deleting the campaign or account removes the product's snapshot copy.
 
 ## 7. Admin
 

@@ -1,7 +1,15 @@
 from datetime import UTC, datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import (
+    AnyHttpUrl,
+    BaseModel,
+    ConfigDict,
+    Field,
+    TypeAdapter,
+    ValidationError,
+    field_validator,
+)
 
 from app.services.stop_classifier import StopCategory
 
@@ -26,6 +34,27 @@ UnresolvedQuestionCategory = StopCategory | Literal["missing_material"]
 def _as_utc(value: datetime) -> datetime:
     if value.tzinfo is None:
         return value.replace(tzinfo=UTC)
+    return value
+
+
+_HTTP_URL_ADAPTER = TypeAdapter(AnyHttpUrl)
+
+
+def safe_https_destination(value: str | None) -> str | None:
+    """Mirror the frontend handoff contract: HTTPS origin, never URL credentials."""
+    if value is None:
+        return None
+    try:
+        parsed = _HTTP_URL_ADAPTER.validate_python(value)
+    except ValidationError as exc:
+        raise ValueError("destination_url must be a valid HTTPS URL") from exc
+    if (
+        parsed.scheme != "https"
+        or not parsed.host
+        or parsed.username
+        or parsed.password
+    ):
+        raise ValueError("destination_url must be an HTTPS URL without credentials")
     return value
 
 
@@ -225,6 +254,65 @@ class PacketStopAnswersExport(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     stop_answers: list[StopAnswerExportItem]
+
+
+# ── Immutable approval snapshot + manual destination handoff (R15 #185) ──
+
+
+class PacketApprovalSnapshotResponse(BaseModel):
+    """The exact by-value packet content frozen at owner approval (D-096)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: str
+    packet_id: str
+    campaign_id: str
+    listing_id: str | None
+    role_key: str
+    destination_url: str | None
+    content: dict
+    content_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    created_at: datetime
+
+    @field_validator("created_at")
+    @classmethod
+    def normalize_created_at(cls, value: datetime) -> datetime:
+        return _as_utc(value)
+
+    @field_validator("destination_url")
+    @classmethod
+    def validate_destination_url(cls, value: str | None) -> str | None:
+        return safe_https_destination(value)
+
+
+class PacketSubmissionHandoff(BaseModel):
+    """The official page the owner opens; the product performs no submission."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    destination_url: str | None
+    instructions: str
+
+    @field_validator("destination_url")
+    @classmethod
+    def validate_destination_url(cls, value: str | None) -> str | None:
+        return safe_https_destination(value)
+
+
+class PacketApprovalResult(BaseModel):
+    """Guarded approval result: decision, immutable snapshot, and manual handoff."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    packet: ApplicationPacketItem
+    snapshot: PacketApprovalSnapshotResponse
+    handoff: PacketSubmissionHandoff
+
+
+class PacketApprovalSnapshotsExport(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    snapshots: list[PacketApprovalSnapshotResponse]
 
 
 # ── Export (owner's own data, machine-readable) ──

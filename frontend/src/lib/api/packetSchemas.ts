@@ -122,6 +122,54 @@ export const applicationPacketsExportSchema = z.strictObject({
 })
 export type ApplicationPacketsExport = z.infer<typeof applicationPacketsExportSchema>
 
+// Approval freezes a by-value copy of the exact packet materials (D-096). Handoff
+// is a manual link to the official destination; this contract never represents a
+// submission operation.
+const safeHttpsDestinationSchema = z.url().refine((value) => {
+  const parsed = new URL(value)
+  return (
+    parsed.protocol === 'https:' &&
+    parsed.hostname.length > 0 &&
+    parsed.username.length === 0 &&
+    parsed.password.length === 0
+  )
+})
+
+export const packetApprovalSnapshotResponseSchema = z.strictObject({
+  id: z.string(),
+  packet_id: z.string(),
+  campaign_id: z.string(),
+  listing_id: z.string().nullable(),
+  role_key: z.string(),
+  destination_url: safeHttpsDestinationSchema.nullable(),
+  content: z.record(z.string(), z.unknown()),
+  content_sha256: z.string().regex(/^[0-9a-f]{64}$/),
+  created_at: offsetDateTimeSchema,
+})
+export type PacketApprovalSnapshotResponse = z.infer<
+  typeof packetApprovalSnapshotResponseSchema
+>
+
+export const packetSubmissionHandoffSchema = z.strictObject({
+  destination_url: safeHttpsDestinationSchema.nullable(),
+  instructions: z.string(),
+})
+export type PacketSubmissionHandoff = z.infer<typeof packetSubmissionHandoffSchema>
+
+export const packetApprovalResultSchema = z.strictObject({
+  packet: applicationPacketItemSchema,
+  snapshot: packetApprovalSnapshotResponseSchema,
+  handoff: packetSubmissionHandoffSchema,
+})
+export type PacketApprovalResult = z.infer<typeof packetApprovalResultSchema>
+
+export const packetApprovalSnapshotsExportSchema = z.strictObject({
+  snapshots: z.array(packetApprovalSnapshotResponseSchema),
+})
+export type PacketApprovalSnapshotsExport = z.infer<
+  typeof packetApprovalSnapshotsExportSchema
+>
+
 // Stop answers (R15 #182, D-095/D-099): the owner's typed answers to mandatory-stop
 // questions. Only the user can resolve a stop; the system never drafts these fields.
 export const stopAnswerRequestSchema = z.strictObject({

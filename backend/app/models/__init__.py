@@ -15,6 +15,7 @@ from app.models.discovery_personalization import (
 from app.models.discovery_source import DiscoverySource
 from app.models.evidence_item import EvidenceItem
 from app.models.gap_classification import GapClassification
+from app.models.packet_approval_snapshot import PacketApprovalSnapshot
 from app.models.packet_stop_answer import PacketStopAnswer
 from app.models.pipeline_halt import PipelineHalt
 from app.models.queue_audit_event import QueueAuditEvent
@@ -47,6 +48,7 @@ __all__ = [
     "SubmissionSourceGovernance",
     "QueueAuditEvent",
     "ApplicationPacket",
+    "PacketApprovalSnapshot",
     "PacketStopAnswer",
     "PipelineHalt",
     "CampaignEvent",

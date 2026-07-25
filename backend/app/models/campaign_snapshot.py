@@ -17,6 +17,9 @@ class CampaignSubmissionSnapshot(Base):
     workspace_id: Mapped[str] = mapped_column(
         String, ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False, index=True
     )
+    # Immutable owner/company/role identity captured with the submission. Duplicate
+    # checks never recompute it from the later-editable Workspace.
+    role_key: Mapped[str] = mapped_column(String(512), nullable=False, index=True)
     content_json: Mapped[str] = mapped_column(Text, nullable=False)
     content_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
