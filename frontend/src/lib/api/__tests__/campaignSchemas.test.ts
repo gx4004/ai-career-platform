@@ -35,6 +35,7 @@ describe('campaign contracts', () => {
       queue_rules: { rules: [], settings: null },
       application_packets: { packets: [] },
       packet_stop_answers: { stop_answers: [] },
+      packet_approval_snapshots: { snapshots: [] },
       queue_audit: { events: [] },
       submission_authorizations: {
         schema_version: 'submission-authorizations-export/v1',
@@ -53,7 +54,10 @@ describe('campaign contracts', () => {
         id: 'ws-1', label: 'Target', is_pinned: false, company: 'Example Corp',
         role: 'Engineer', status: 'planning', deadline: null,
         created_at: '2026-07-13T10:00:00Z', updated_at: '2026-07-13T10:00:00Z',
-        events: [{ id: 'event-1', event_type: 'status_changed', details: { from: null, to: 'planning' }, created_at: '2026-07-13T10:00:00Z' }],
+        events: [
+          { id: 'event-1', event_type: 'status_changed', details: { from: null, to: 'planning' }, created_at: '2026-07-13T10:00:00Z' },
+          { id: 'event-2', event_type: 'packet_approved', details: { packet_id: 'packet-1', snapshot_id: 'snapshot-1', content_sha256: 'a'.repeat(64) }, created_at: '2026-07-25T10:00:00Z' },
+        ],
         listing: { title: 'Engineer', company: 'Example Corp', description: 'Build APIs', source_url: null, retrieved_at: '2026-07-13T10:00:00Z' },
         listing_revisions: [{ title: 'Engineer', company: 'Example Corp', description: 'Build APIs', source_url: null, retrieved_at: '2026-07-13T10:00:00Z' }],
       }] },

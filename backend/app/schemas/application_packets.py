@@ -1,7 +1,15 @@
 from datetime import UTC, datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import (
+    AnyHttpUrl,
+    BaseModel,
+    ConfigDict,
+    Field,
+    TypeAdapter,
+    ValidationError,
+    field_validator,
+)
 
 from app.services.stop_classifier import StopCategory
 
@@ -26,6 +34,27 @@ UnresolvedQuestionCategory = StopCategory | Literal["missing_material"]
 def _as_utc(value: datetime) -> datetime:
     if value.tzinfo is None:
         return value.replace(tzinfo=UTC)
+    return value
+
+
+_HTTP_URL_ADAPTER = TypeAdapter(AnyHttpUrl)
+
+
+def safe_https_destination(value: str | None) -> str | None:
+    """Mirror the frontend handoff contract: HTTPS origin, never URL credentials."""
+    if value is None:
+        return None
+    try:
+        parsed = _HTTP_URL_ADAPTER.validate_python(value)
+    except ValidationError as exc:
+        raise ValueError("destination_url must be a valid HTTPS URL") from exc
+    if (
+        parsed.scheme != "https"
+        or not parsed.host
+        or parsed.username
+        or parsed.password
+    ):
+        raise ValueError("destination_url must be an HTTPS URL without credentials")
     return value
 
 
@@ -100,6 +129,7 @@ class ApplicationPacketItem(BaseModel):
     # References only — dereference these to reach material content (D-093).
     campaign_id: str
     listing_id: str | None
+    listing_attribution_id: str | None = None
     cv_variant_id: str | None
     drafts_run_id: str | None
     # The reviewer pass whose findings the packet surfaces by-reference (D-093).
@@ -225,6 +255,173 @@ class PacketStopAnswersExport(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     stop_answers: list[StopAnswerExportItem]
+
+
+# ── Immutable approval snapshot + manual destination handoff (R15 #185) ──
+
+
+class FrozenListingAttribution(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: str
+    source_id: str
+    source_listing_key: str
+    source_url: str
+    retrieved_at: datetime
+
+
+class FrozenManualHandoff(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    listing_id: str | None
+    attribution_id: str
+    source_id: str
+    source_listing_key: str
+    source_url: str
+    retrieved_at: datetime
+
+
+class FrozenPacketListing(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: str
+    content_sha256: str
+    title: str
+    company: str
+    description: str
+    attributions: list[FrozenListingAttribution]
+
+
+class FrozenPacketCvVariant(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: str
+    document_id: str
+    name: str
+    target_role: str | None
+    sections: list[dict]
+
+
+class FrozenStopAnswer(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    field: str
+    category: str
+    answer: str
+
+
+class PacketApprovalSnapshotContent(BaseModel):
+    """Strictly versioned by-value content frozen at the approval boundary."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: Literal["packet-approval/v1"]
+    packet_id: str
+    campaign_id: str
+    listing_id: str | None
+    frozen_at: datetime
+    match_rationale: PacketMatchRationale
+    unresolved_questions: list[UnresolvedQuestion]
+    resolved_stop_answers: list[FrozenStopAnswer]
+    listing: FrozenPacketListing | None
+    manual_handoff: FrozenManualHandoff | None
+    cv_variant: FrozenPacketCvVariant | None
+    drafts: dict | None
+
+
+class PacketApprovalSnapshotResponse(BaseModel):
+    """The exact by-value packet content frozen at owner approval (D-096)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: str
+    packet_id: str
+    campaign_id: str
+    listing_id: str | None
+    role_key: str
+    destination_url: str | None
+    content: dict
+    content_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    created_at: datetime
+
+    @field_validator("created_at")
+    @classmethod
+    def normalize_created_at(cls, value: datetime) -> datetime:
+        return _as_utc(value)
+
+    @field_validator("destination_url")
+    @classmethod
+    def validate_destination_url(cls, value: str | None) -> str | None:
+        return safe_https_destination(value)
+
+    @field_validator("content", mode="before")
+    @classmethod
+    def validate_content(cls, value: object) -> dict:
+        PacketApprovalSnapshotContent.model_validate(value)
+        if not isinstance(value, dict):
+            raise ValueError("content must be an object")
+        # Validation must not reserialize the signed bytes (for example +00:00 to
+        # Z); callers receive the exact JSON object whose canonical hash is stored.
+        return value
+
+
+class PacketSubmissionHandoff(BaseModel):
+    """The official page the owner opens; the product performs no submission."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    destination_url: str | None
+    instructions: str
+
+    @field_validator("destination_url")
+    @classmethod
+    def validate_destination_url(cls, value: str | None) -> str | None:
+        return safe_https_destination(value)
+
+
+class PacketApprovalPreview(BaseModel):
+    """Exact current materials the owner must inspect before approval."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    content: dict
+    destination_url: str | None
+    material_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+    @field_validator("content", mode="before")
+    @classmethod
+    def validate_content(cls, value: object) -> dict:
+        PacketApprovalSnapshotContent.model_validate(value)
+        if not isinstance(value, dict):
+            raise ValueError("content must be an object")
+        return value
+
+    @field_validator("destination_url")
+    @classmethod
+    def validate_destination_url(cls, value: str | None) -> str | None:
+        return safe_https_destination(value)
+
+
+class PacketApprovalRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    expected_material_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
+class PacketApprovalResult(BaseModel):
+    """Guarded approval result: decision, immutable snapshot, and manual handoff."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    packet: ApplicationPacketItem
+    snapshot: PacketApprovalSnapshotResponse
+    handoff: PacketSubmissionHandoff
+
+
+class PacketApprovalSnapshotsExport(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    snapshots: list[PacketApprovalSnapshotResponse]
 
 
 # ── Export (owner's own data, machine-readable) ──

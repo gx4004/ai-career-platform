@@ -224,7 +224,7 @@ Browser → POST /auth/password-reset/confirm {token, new_password}
 | 10 | Classified career gaps and development plans | High | `gap_classifications.message/locations/cited_trace`, `development_items.notes/timeline` | Until item/classification/account deletion | Skill-deficit inference, professional vulnerability, learning intent, and target-role exposure |
 | 11 | Tool metadata (scores, skill gaps, recommendations) | Medium | `tool_runs.result_payload` | Until deletion | Career profile inference |
 | 12 | Workspace/campaign target, schedule, and transition history | High | `workspaces.label`, `workspaces.is_pinned`, `workspaces.company`, `workspaces.role`, `workspaces.status`, `workspaces.deadline`, `campaign_events.details` | Until deletion | Job-search intent, target employer, application timing, and outcome-history exposure |
-| 13 | Submitted-application frozen bundles | High | `campaign_submission_snapshots.content_json` | Until campaign/account deletion | Exact CV, cover letter, target listing, and application-history exposure |
+| 13 | Submission and packet-approval frozen bundles | High | `campaign_submission_snapshots.content_json`, `packet_approval_snapshots.content_json` | Until campaign/account deletion | Exact CV, cover letter, target listing, owner approval, and application-history exposure |
 | 14 | Discovery and submission source governance records | Medium | `discovery_sources`, `submission_source_governance` | Until registry deletion | Source contracts, legal-review posture, operational ownership, and acquisition/submission bounds exposed |
 | 15 | Per-source user submission authorization | High | `submission_authorization_grants` | Until revocation, source deletion, or account deletion | Job-search automation intent and authorized employer-system relationship exposed |
 | 16 | Product-owned discovered listings | Medium-High | `discovered_listings`, `discovered_listing_attributions` | Per-source registry retention | Employer openings, acquisition sources, and stale corpus exposure |
@@ -1361,14 +1361,64 @@ answers** (`packet_stop_answers`) store the user's typed responses to mandatory-
 questions (work authorization, compensation, relocation, eligibility, demographic,
 legal, and other sensitive fields); the system never drafts these, and only the
 user's input resolves them (D-095). A packet with any unresolved stop question is
-not approvable server-side.
+not approvable server-side. Approval is allowed only while its decision is
+`pending` and, under the packet row lock, revalidates that the required discovered
+listing and CV variant still exist. A deleted reference becomes a non-answerable
+`missing_material` stop that requires packet re-preparation.
+
+At guarded acceptance, **packet approval snapshots**
+(`packet_approval_snapshots`) deliberately cross the reference-only boundary once:
+they copy the exact resolved listing, CV variant, drafts, deterministic rationale,
+the exact resolved stop-answer values, and authoritative empty unresolved set into
+canonical JSON with a SHA-256 digest (D-096). The listing object is the packet's
+product-owned discovered listing plus source attributions; the manual handoff uses
+only the exact discovered-listing attribution pinned when the packet was prepared,
+so later campaign edits or newly deduplicated sources cannot redirect it. The
+owner/packet and owner/normalized-role uniqueness constraints make
+the once-only and same-role duplicate rules structural; the packet role comes from
+its discovered listing rather than mutable campaign labels. Submission capture
+likewise uses its canonical listing when one exists and editable labels only for a
+listing-less campaign. Any campaign for the same role that already reached
+submission is checked as the second duplicate axis. Approval and campaign
+submission-snapshot capture serialize their cross-table
+checks on the same owner row, preventing concurrent same-role records from bypassing
+the rule. Terminal queue actions lock the packet row too. Approval/account erasure
+use packet→campaign→owner ordering, and campaign deletion locks dependent packets
+before its workspace row, preventing FK lock inversion. Decision, snapshot,
+append-only queue audit, and `packet_approved`
+campaign event commit in one transaction. Those audit/timeline rows carry entity
+references and low-cardinality decision state only; the stable content digest stays
+inside the sensitive approval snapshot rather than becoming a high-cardinality
+audit attribute. Campaign submission snapshots freeze their role key at capture;
+later workspace edits cannot rewrite the duplicate identity, and pre-#185 rows are
+backfilled only from their immutable listing bytes using the runtime's exact
+whitespace-collapse plus Unicode `casefold` normalization (listing-less, malformed,
+or non-object legacy rows receive a campaign-specific fallback rather than a
+guess). Product code exposes no snapshot update
+or per-row deletion seam, and PostgreSQL rejects `UPDATE` on the table; account
+erasure or deletion of the owning campaign may remove the row, and the full snapshot
+joins the owner's machine-readable export.
+
+Because no by-value historical evidence exists for the queue's older decision-only
+accept path, the snapshot migration resets those legacy `accepted` rows to `pending`
+instead of fabricating a backfill. Downgrade resets snapshot-backed decisions before
+dropping the immutable records. This intentionally fails closed and requires the
+owner to approve again after either transition.
 
 The trust chain gates queueing: the R13 reviewer runs on each prepared packet, and a
 packet carrying any unresolved fabrication finding is never queued (D-097); a
 regression-eval failure halts preparation pipeline-wide until cleared. No submission
 code path exists — the API surface has no submission endpoint (test-verified,
-ADR 0009); the queue prepares for review and hands the user to the official
-destination to submit themselves.
+ADR 0009). Approval returns a manual handoff only. The client renders an external
+link only for a credential-free HTTPS destination and requires the user's click;
+unsafe or missing stored URLs are retained inside the immutable audit content but
+never become a clickable handoff.
+
+The queue's React Query entries include the authenticated owner id. Logout, session
+expiry, and account deletion purge the queue query root, and the mounted queue clears
+answer drafts, errors, and manual-handoff state when the owner changes or the session
+expires, preventing one account's application intent or destination from appearing
+to the next account in the same browser.
 
 Every queue action is an **append-only audit event** (`queue_audit_events`, D-098)
 written through a single seam that exposes no update or delete-by-id path; the only
@@ -1382,11 +1432,13 @@ every queue table — rules, settings, packets, stop answers, and audit history 
 all of it joins `career-data-export/v1` (D-099).
 
 — `backend/app/models/queue_rule.py`, `application_packet.py`,
-`packet_stop_answer.py`, `queue_audit_event.py`, `pipeline_halt.py`;
+`packet_stop_answer.py`, `packet_approval_snapshot.py`, `queue_audit_event.py`,
+`pipeline_halt.py`;
 `backend/app/services/queue_rules.py`, `application_packets.py`, `packet_approval.py`,
-`packet_gate.py`, `queue_audit.py`; `backend/app/schemas/analytics.py` (allowlist);
+`packet_approval_snapshot.py`, `packet_gate.py`, `queue_audit.py`;
+`backend/app/schemas/analytics.py` (allowlist);
 `backend/tests/test_queue_audit.py`, `test_queue_rules.py`, `test_stop_enforcement.py`,
-`test_packet_gate.py`
+`test_packet_gate.py`, `test_packet_approval_snapshot.py`
 
 ### 8.11 Development-Loop Sensitive Data
 

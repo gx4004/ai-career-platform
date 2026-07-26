@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   AlertTriangle,
@@ -12,10 +12,12 @@ import {
   X,
 } from 'lucide-react'
 import { PageFrame } from '#/components/app/PageFrame'
+import { useSession } from '#/hooks/useSession'
 import {
   acceptPacket,
   answerPacketStopQuestion,
   editPacket,
+  getPacketApprovalPreview,
   getQueueState,
   listPackets,
   pauseQueue,
@@ -23,13 +25,16 @@ import {
   resumeQueue,
   skipPacket,
 } from '#/lib/api/client'
+import {
+  QUEUE_QUERY_ROOT,
+  queuePacketsQueryKey,
+  queueStateQueryKey,
+} from '#/lib/api/queueCache'
 import type {
   ApplicationPacketItem,
+  PacketSubmissionHandoff,
   UnresolvedQuestion,
 } from '#/lib/api/packetSchemas'
-
-const PACKETS_KEY = ['queue', 'packets']
-const QUEUE_STATE_KEY = ['queue', 'state']
 
 // A stop question the owner can answer inline vs. the non-stop "no CV selected"
 // question, which is resolved by selecting a CV (D-095), not by typing an answer.
@@ -37,17 +42,102 @@ function isAnswerable(question: UnresolvedQuestion): boolean {
   return question.category !== 'missing_material'
 }
 
+function PacketMaterialReview({
+  packet,
+  userId,
+  acknowledged,
+  onAcknowledged,
+}: {
+  packet: ApplicationPacketItem
+  userId: string
+  acknowledged: boolean
+  onAcknowledged: (value: string | null) => void
+}) {
+  const preview = useQuery({
+    queryKey: [...QUEUE_QUERY_ROOT, userId, 'approval-preview', packet.id],
+    queryFn: () => getPacketApprovalPreview(packet.id),
+    staleTime: 0,
+  })
+  const content = preview.data?.content
+
+  return (
+    <section className="queue-materials" aria-label="Exact materials for approval">
+      <h3 className="queue-section-title">
+        <FileText size={15} aria-hidden="true" /> Exact materials to approve
+      </h3>
+      {preview.isLoading ? (
+        <p role="status">Loading the exact packet materials…</p>
+      ) : preview.isError || !content ? (
+        <div role="alert">
+          <p>The packet materials could not be loaded. Approval stays disabled.</p>
+          <button type="button" className="queue-btn" onClick={() => preview.refetch()}>
+            Retry material review
+          </button>
+        </div>
+      ) : (
+        <div className="queue-material-review">
+          {content.listing ? (
+            <div>
+              <h4>{content.listing.title} · {content.listing.company}</h4>
+              <p>{content.listing.description}</p>
+            </div>
+          ) : <p>No listing is attached.</p>}
+          <details>
+            <summary>Review CV variant</summary>
+            <pre>{JSON.stringify(content.cv_variant, null, 2)}</pre>
+          </details>
+          <details>
+            <summary>Review resolved stop answers</summary>
+            <pre>{JSON.stringify(content.resolved_stop_answers, null, 2)}</pre>
+          </details>
+          <div>
+            <h4>Manual destination provenance</h4>
+            <p>{content.manual_handoff?.source_url ?? 'No pinned destination available.'}</p>
+            {content.manual_handoff ? (
+              <p>
+                Source {content.manual_handoff.source_id} · retrieved{' '}
+                {content.manual_handoff.retrieved_at}
+              </p>
+            ) : null}
+          </div>
+          <details>
+            <summary>Review application drafts</summary>
+            <pre>{JSON.stringify(content.drafts, null, 2)}</pre>
+          </details>
+          <label className="queue-review-confirmation">
+            <input
+              type="checkbox"
+              checked={acknowledged}
+              onChange={(event) =>
+                onAcknowledged(
+                  event.target.checked ? (preview.data?.material_sha256 ?? null) : null,
+                )}
+            />
+            I reviewed these exact materials and want to freeze them for manual submission.
+          </label>
+        </div>
+      )}
+    </section>
+  )
+}
+
 export function QueuePage() {
   const queryClient = useQueryClient()
+  const { user } = useSession()
+  const userId = user?.id ?? null
+  const packetsKey = queuePacketsQueryKey(userId ?? 'guest')
+  const queueStateKey = queueStateQueryKey(userId ?? 'guest')
 
   const packetsQuery = useQuery({
-    queryKey: PACKETS_KEY,
+    queryKey: packetsKey,
     queryFn: listPackets,
+    enabled: userId !== null,
     staleTime: 30_000,
   })
   const stateQuery = useQuery({
-    queryKey: QUEUE_STATE_KEY,
+    queryKey: queueStateKey,
     queryFn: getQueueState,
+    enabled: userId !== null,
     staleTime: 30_000,
   })
 
@@ -57,10 +147,38 @@ export function QueuePage() {
   const [remaining, setRemaining] = useState<Record<string, UnresolvedQuestion[]>>({})
   const [draftAnswers, setDraftAnswers] = useState<Record<string, string>>({})
   const [actionError, setActionError] = useState<string | null>(null)
+  const [reviewed, setReviewed] = useState<Record<string, string | null>>({})
+  const [handoff, setHandoff] = useState<{
+    ownerId: string
+    value: PacketSubmissionHandoff
+  } | null>(null)
+
+  // Local queue state is owner-sensitive too. Keying the server cache prevents
+  // cross-owner reads; clearing these values prevents a mounted route from showing
+  // the previous owner's answer drafts or outbound handoff during auth changes.
+  useEffect(() => {
+    setRemaining({})
+    setDraftAnswers({})
+    setActionError(null)
+    setReviewed({})
+    setHandoff(null)
+  }, [userId])
+
+  useEffect(() => {
+    const clearOwnerState = () => {
+      setRemaining({})
+      setDraftAnswers({})
+      setActionError(null)
+      setReviewed({})
+      setHandoff(null)
+    }
+    window.addEventListener('cw:session-expired', clearOwnerState)
+    return () => window.removeEventListener('cw:session-expired', clearOwnerState)
+  }, [])
 
   const invalidateAll = () => {
-    queryClient.invalidateQueries({ queryKey: PACKETS_KEY })
-    queryClient.invalidateQueries({ queryKey: QUEUE_STATE_KEY })
+    queryClient.invalidateQueries({ queryKey: packetsKey })
+    queryClient.invalidateQueries({ queryKey: queueStateKey })
   }
 
   const pauseMutation = useMutation({
@@ -72,14 +190,28 @@ export function QueuePage() {
     onSuccess: () => invalidateAll(),
   })
   const decisionMutation = useMutation({
-    mutationFn: ({ id, action }: { id: string; action: 'accept' | 'skip' | 'reject' | 'edit' }) => {
-      if (action === 'accept') return acceptPacket(id)
-      if (action === 'skip') return skipPacket(id)
-      if (action === 'reject') return rejectPacket(id)
-      return editPacket(id)
+    mutationFn: async ({
+      id,
+      action,
+    }: {
+      id: string
+      action: 'accept' | 'skip' | 'reject' | 'edit'
+      ownerId: string
+    }) => {
+      if (action === 'accept') {
+        const materialSha256 = reviewed[id]
+        if (!materialSha256) throw new Error('Review the exact packet materials first')
+        const approval = await acceptPacket(id, materialSha256)
+        return approval.handoff
+      }
+      if (action === 'skip') await skipPacket(id)
+      else if (action === 'reject') await rejectPacket(id)
+      else await editPacket(id)
+      return null
     },
-    onSuccess: () => {
+    onSuccess: (result, variables) => {
       setActionError(null)
+      if (result) setHandoff({ ownerId: variables.ownerId, value: result })
       invalidateAll()
     },
     onError: (error: unknown) => {
@@ -95,6 +227,10 @@ export function QueuePage() {
       answerPacketStopQuestion(id, { field, answer }),
     onSuccess: (result) => {
       setRemaining((prev) => ({ ...prev, [result.packet_id]: result.unresolved_questions }))
+      setReviewed((prev) => ({ ...prev, [result.packet_id]: null }))
+      queryClient.invalidateQueries({
+        queryKey: [...QUEUE_QUERY_ROOT, userId, 'approval-preview', result.packet_id],
+      })
       setDraftAnswers((prev) => ({ ...prev, [`${result.packet_id}:${result.resolved_field}`]: '' }))
     },
   })
@@ -105,6 +241,8 @@ export function QueuePage() {
   const paused = stateQuery.data?.paused ?? false
   const regressionHalted = stateQuery.data?.preparation_halted ?? false
   const packets = packetsQuery.data?.items ?? []
+  const visibleHandoff =
+    handoff !== null && handoff.ownerId === userId ? handoff.value : null
 
   return (
     <PageFrame className="queue-page">
@@ -151,6 +289,27 @@ export function QueuePage() {
         <div className="queue-banner queue-banner--error" role="alert">
           <AlertTriangle size={18} aria-hidden="true" />
           <span>{actionError}</span>
+        </div>
+      ) : null}
+
+      {visibleHandoff ? (
+        <div className="queue-banner" role="status" aria-live="polite">
+          <Check size={18} aria-hidden="true" />
+          <span>
+            <strong>Packet approved and frozen.</strong> {visibleHandoff.instructions}
+            {visibleHandoff.destination_url ? (
+              <>
+                {' '}
+                <a
+                  href={visibleHandoff.destination_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Open official application destination
+                </a>
+              </>
+            ) : null}
+          </span>
         </div>
       ) : null}
 
@@ -205,17 +364,14 @@ export function QueuePage() {
                     ) : null}
                   </section>
 
-                  <section className="queue-materials" aria-label="Referenced materials">
-                    <h3 className="queue-section-title">
-                      <FileText size={15} aria-hidden="true" /> Materials (by reference)
-                    </h3>
-                    <ul className="queue-refs">
-                      <li>Campaign: {packet.campaign_id}</li>
-                      <li>CV variant: {packet.cv_variant_id ?? 'not selected'}</li>
-                      <li>Drafts: {packet.drafts_run_id ?? 'none'}</li>
-                      {packet.review_run_id ? <li>Quality review: {packet.review_run_id}</li> : null}
-                    </ul>
-                  </section>
+                  <PacketMaterialReview
+                    packet={packet}
+                    userId={userId ?? 'guest'}
+                    acknowledged={Boolean(reviewed[packet.id])}
+                    onAcknowledged={(value) =>
+                      setReviewed((prev) => ({ ...prev, [packet.id]: value }))
+                    }
+                  />
 
                   {blocked ? (
                     <section
@@ -275,8 +431,10 @@ export function QueuePage() {
                                 </form>
                               ) : (
                                 <p className="queue-question__hint">
-                                  <CircleSlash size={14} aria-hidden="true" /> Select or tailor a
-                                  CV variant to resolve this — it cannot be answered here.
+                                  <CircleSlash size={14} aria-hidden="true" />{' '}
+                                  {question.field === 'cv_variant'
+                                    ? 'Select or tailor a CV variant to resolve this — it cannot be answered here.'
+                                    : 'Re-prepare this packet to restore the missing required material.'}
                                 </p>
                               )}
                             </li>
@@ -290,14 +448,24 @@ export function QueuePage() {
                     <button
                       type="button"
                       className="queue-btn queue-btn--accept"
-                      disabled={blocked || acting || !isPending}
-                      aria-disabled={blocked}
+                      disabled={blocked || acting || !isPending || !reviewed[packet.id]}
+                      aria-disabled={blocked || !reviewed[packet.id]}
                       title={
                         blocked
                           ? 'Answer every unresolved question before accepting'
-                          : 'Accept this packet'
+                          : !reviewed[packet.id]
+                            ? 'Review and confirm the exact materials before accepting'
+                            : 'Accept this packet'
                       }
-                      onClick={() => decisionMutation.mutate({ id: packet.id, action: 'accept' })}
+                      onClick={() => {
+                        if (userId) {
+                          decisionMutation.mutate({
+                            id: packet.id,
+                            action: 'accept',
+                            ownerId: userId,
+                          })
+                        }
+                      }}
                     >
                       <Check size={16} aria-hidden="true" /> Accept
                     </button>
@@ -306,7 +474,15 @@ export function QueuePage() {
                       className="queue-btn queue-btn--edit"
                       disabled={acting || accepted}
                       title={accepted ? 'This packet has already been accepted' : undefined}
-                      onClick={() => decisionMutation.mutate({ id: packet.id, action: 'edit' })}
+                      onClick={() => {
+                        if (userId) {
+                          decisionMutation.mutate({
+                            id: packet.id,
+                            action: 'edit',
+                            ownerId: userId,
+                          })
+                        }
+                      }}
                     >
                       <Pencil size={16} aria-hidden="true" /> Edit
                     </button>
@@ -315,7 +491,15 @@ export function QueuePage() {
                       className="queue-btn queue-btn--skip"
                       disabled={acting || accepted}
                       title={accepted ? 'This packet has already been accepted' : undefined}
-                      onClick={() => decisionMutation.mutate({ id: packet.id, action: 'skip' })}
+                      onClick={() => {
+                        if (userId) {
+                          decisionMutation.mutate({
+                            id: packet.id,
+                            action: 'skip',
+                            ownerId: userId,
+                          })
+                        }
+                      }}
                     >
                       <SkipForward size={16} aria-hidden="true" /> Skip
                     </button>
@@ -324,7 +508,15 @@ export function QueuePage() {
                       className="queue-btn queue-btn--reject"
                       disabled={acting || accepted}
                       title={accepted ? 'This packet has already been accepted' : undefined}
-                      onClick={() => decisionMutation.mutate({ id: packet.id, action: 'reject' })}
+                      onClick={() => {
+                        if (userId) {
+                          decisionMutation.mutate({
+                            id: packet.id,
+                            action: 'reject',
+                            ownerId: userId,
+                          })
+                        }
+                      }}
                     >
                       <X size={16} aria-hidden="true" /> Reject
                     </button>

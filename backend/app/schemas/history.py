@@ -341,6 +341,7 @@ class CampaignEventExport(BaseModel):
         "contact_added",
         "contact_deleted",
         "submission_snapshot_created",
+        "packet_approved",
     ]
     details: dict
     created_at: datetime

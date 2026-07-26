@@ -22,6 +22,7 @@ from app.services.discovery_personalization import delete_personalization
 from app.services.gap_classifier import delete_gap_classifications
 from app.services.observability import log_user_account_deleted
 from app.services.packet_approval import delete_packet_stop_answers
+from app.services.packet_approval_snapshot import delete_packet_approval_snapshots
 from app.services.packet_gate import delete_queue_pause_state
 from app.services.premium_outputs import attach_premium_outputs
 from app.services.queue_audit import delete_queue_audit_events
@@ -65,6 +66,11 @@ def delete_all_user_data(db: Session, user_id: str) -> None:
     # its ONLY deletion path, preserving the append-only guarantee (D-098/D-099,
     # R15 #186).
     delete_queue_audit_events(db, user_id)
+    # Approval snapshots are immutable by-value records (D-096/D-099). Account
+    # erasure explicitly removes them before their packet/campaign foreign keys,
+    # including in SQLite tests where FK cascades are disabled. Deleting an
+    # individual campaign is their other bounded removal path.
+    delete_packet_approval_snapshots(db, user_id)
     # Stop answers are owner-scoped sensitive content the user typed (D-099, R15 #182).
     # Deleted before their packets so the FK to application_packets is removed first.
     delete_packet_stop_answers(db, user_id)

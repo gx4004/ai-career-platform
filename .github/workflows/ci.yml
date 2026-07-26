@@ -91,6 +91,11 @@ jobs:
       - name: Ruff check
         run: ruff check app
 
+      - name: Populated packet-approval migration round trip
+        env:
+          DATABASE_URL: postgresql+psycopg2://cw:cw@localhost:5432/cw_ci
+        run: python tests/migration_packet_approval_roundtrip.py
+
       - name: Alembic upgrade smoke
         env:
           DATABASE_URL: postgresql+psycopg2://cw:cw@localhost:5432/cw_ci

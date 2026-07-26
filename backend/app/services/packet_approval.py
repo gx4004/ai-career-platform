@@ -43,12 +43,20 @@ class StopAnswerError(Exception):
     """Raised when a stop answer targets a field that is not an answerable stop."""
 
 
-def _packet_for_owner(db: Session, user_id: str, packet_id: str) -> ApplicationPacket | None:
-    return (
+def _packet_for_owner(
+    db: Session,
+    user_id: str,
+    packet_id: str,
+    *,
+    for_update: bool = False,
+) -> ApplicationPacket | None:
+    query = (
         db.query(ApplicationPacket)
         .filter(ApplicationPacket.user_id == user_id, ApplicationPacket.id == packet_id)
-        .one_or_none()
     )
+    if for_update:
+        query = query.with_for_update()
+    return query.one_or_none()
 
 
 def _answered_fields(db: Session, user_id: str, packet_id: str) -> set[str]:
@@ -104,11 +112,38 @@ def packet_item_with_true_unresolved(
 
 def outstanding_questions(packet: ApplicationPacket, answered_fields: set[str]) -> list[dict]:
     """The packet's unresolved questions that no stored answer has resolved yet."""
-    return [
+    outstanding = [
         question
         for question in (packet.unresolved_questions or [])
         if question.get("field") not in answered_fields
     ]
+    existing_fields = {str(question.get("field")) for question in outstanding}
+    for field, reference, question in (
+        (
+            "listing",
+            packet.listing_id,
+            "The target listing is no longer available. Re-prepare this packet.",
+        ),
+        (
+            "cv_variant",
+            packet.cv_variant_id,
+            "The selected CV variant is no longer available. Re-prepare this packet.",
+        ),
+        (
+            "listing_attribution",
+            packet.listing_attribution_id,
+            "The official destination provenance expired. Re-prepare this packet.",
+        ),
+    ):
+        if reference is None and field not in existing_fields:
+            outstanding.append(
+                {
+                    "field": field,
+                    "category": "missing_material",
+                    "question": question,
+                }
+            )
+    return outstanding
 
 
 def is_packet_approvable(db: Session, user_id: str, packet_id: str) -> bool:
@@ -151,9 +186,13 @@ def store_stop_answer(
     resolved by selecting a CV, not by typing an answer). Re-answering the same field
     updates the stored answer in place.
     """
-    packet = _packet_for_owner(db, user_id, packet_id)
+    packet = _packet_for_owner(db, user_id, packet_id, for_update=True)
     if packet is None:
         raise StopAnswerError("Application packet not found")
+    if packet.decision == "accepted":
+        raise StopAnswerError(
+            "This packet is already approved; its frozen stop answers cannot be changed."
+        )
 
     question = next(
         (q for q in (packet.unresolved_questions or []) if q.get("field") == field),

@@ -1,7 +1,7 @@
-"""Queue review surface actions + global pause (R15 #183).
+"""Queue review dismiss/reopen actions + global pause (R15 #183).
 
-Covers the per-packet decisions (accept guarded by the approval predicate, plus
-skip / reject / edit), their audit trail, and the global pause halting preparation.
+Guarded acceptance belongs exclusively to the immutable approval service (#185);
+this module covers skip / reject / edit, their audit trail, and global pause.
 """
 
 from __future__ import annotations
@@ -13,16 +13,10 @@ from app.models.application_packet import ApplicationPacket
 from app.models.queue_audit_event import QueueAuditEvent
 from app.models.user import User
 from app.services.application_packets import prepare_packets
-from app.services.packet_approval import (
-    PacketNotApprovableError,
-    store_stop_answer,
-)
 from app.services.packet_gate import is_queue_paused
 from app.services.queue_review import (
     PacketDecisionLockedError,
-    PacketGateBlockedError,
     PacketNotFoundError,
-    accept_packet,
     edit_packet,
     pause_queue,
     queue_review_state,
@@ -82,71 +76,6 @@ def _audit_actions(db, user_id: str) -> list[str]:
     ]
 
 
-# ── Accept is guarded by the approval predicate (D-095) ──
-
-
-def test_accept_blocked_while_unresolved(db, test_user):
-    packet = _make_packet(
-        db,
-        test_user.id,
-        status="blocked",
-        unresolved=[
-            {"field": "salary", "category": "salary", "question": "Desired salary?"}
-        ],
-    )
-    with pytest.raises(PacketNotApprovableError):
-        accept_packet(db, test_user.id, packet.id)
-    db.refresh(packet)
-    # No transition, and no ``packet_accepted`` audit event was written.
-    assert packet.decision == "pending"
-    assert "packet_accepted" not in _audit_actions(db, test_user.id)
-
-
-def test_accept_succeeds_when_no_unresolved(db, test_user):
-    packet = _make_packet(db, test_user.id, unresolved=[])
-    result = accept_packet(db, test_user.id, packet.id)
-    assert result.decision == "accepted"
-    db.refresh(packet)
-    assert packet.decision == "accepted"
-    assert _audit_actions(db, test_user.id) == ["packet_accepted"]
-
-
-def test_accept_blocked_by_reviewer_gate_even_without_unresolved(db, test_user):
-    """D-097: a fabrication-blocked packet is never accepted, independent of stops.
-
-    Regression guard for the gap where accept only checked the D-095 approval
-    predicate and never consulted ``gate_state``, so a packet the reviewer blocked
-    (no unresolved stop questions) could still be accepted.
-    """
-    packet = _make_packet(db, test_user.id, unresolved=[], gate_state="blocked")
-    with pytest.raises(PacketGateBlockedError):
-        accept_packet(db, test_user.id, packet.id)
-    db.refresh(packet)
-    # No transition and no ``packet_accepted`` audit event.
-    assert packet.decision == "pending"
-    assert "packet_accepted" not in _audit_actions(db, test_user.id)
-
-
-def test_accept_succeeds_after_answering_stop(db, test_user):
-    packet = _make_packet(
-        db,
-        test_user.id,
-        status="blocked",
-        unresolved=[
-            {"field": "salary", "category": "salary", "question": "Desired salary?"}
-        ],
-    )
-    # Blocked until the owner answers the mandatory stop (the only way to resolve it).
-    with pytest.raises(PacketNotApprovableError):
-        accept_packet(db, test_user.id, packet.id)
-    store_stop_answer(db, test_user.id, packet.id, field="salary", answer="Market rate")
-    result = accept_packet(db, test_user.id, packet.id)
-    assert result.decision == "accepted"
-    actions = _audit_actions(db, test_user.id)
-    assert "stop_answer_recorded" in actions
-    assert "packet_accepted" in actions
-
-
 # ── Skip / reject / edit transitions each record their audit event ──
 
 
@@ -190,7 +119,7 @@ def test_skip_reject_edit_refused_once_accepted(db, test_user):
 
 
 def test_action_on_missing_packet_raises(db, test_user):
-    for action in (accept_packet, skip_packet, reject_packet, edit_packet):
+    for action in (skip_packet, reject_packet, edit_packet):
         with pytest.raises(PacketNotFoundError):
             action(db, test_user.id, "does-not-exist")
 
@@ -204,8 +133,9 @@ def test_actions_are_owner_scoped(db, test_user):
     db.commit()
     packet = _make_packet(db, other.id)
     # The owner cannot act on another user's packet.
-    with pytest.raises(PacketNotFoundError):
-        accept_packet(db, test_user.id, packet.id)
+    for action in (skip_packet, reject_packet, edit_packet):
+        with pytest.raises(PacketNotFoundError):
+            action(db, test_user.id, packet.id)
 
 
 # ── Global pause halts preparation; resume restores it ──
