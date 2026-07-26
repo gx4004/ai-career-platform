@@ -1,0 +1,630 @@
+"""Dark, source-adapter-neutral R16 submission engine (#191).
+
+There is intentionally no router, scheduler, credential store, or real adapter.
+Every caller must supply the source-specific adapter and the authoritative safety
+envelope checkpoint; #193 owns the production envelope implementation.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import re
+from dataclasses import dataclass
+from datetime import date
+from enum import StrEnum
+from typing import Protocol
+
+from pydantic import AnyHttpUrl, EmailStr, TypeAdapter, ValidationError
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
+
+from app.models.application_packet import ApplicationPacket
+from app.models.discovery_source import DiscoverySource
+from app.models.packet_approval_snapshot import PacketApprovalSnapshot
+from app.models.submission_authorization import SubmissionAuthorizationGrant
+from app.models.submission_record import SubmissionDispatchClaim, SubmissionRecord
+from app.models.submission_source import SubmissionSourceGovernance
+from app.schemas.application_packets import PacketApprovalSnapshotContent
+from app.schemas.submission_sources import SubmissionCompatibilityContract
+from app.schemas.submissions import (
+    SubmissionDispatchClaimResponse,
+    SubmissionRecordResponse,
+    SubmissionRecordsExport,
+)
+from app.services.submission_authorizations import (
+    require_active_submission_authorization,
+)
+from app.services.submission_sources import require_submission_allowed
+
+
+class PacketSubmissionRefusal(StrEnum):
+    SNAPSHOT_NOT_APPROVED = "snapshot_not_approved"
+    SNAPSHOT_INTEGRITY_FAILED = "snapshot_integrity_failed"
+    UNRESOLVED_QUESTIONS = "unresolved_questions"
+    UNSUPPORTED_CLAIMS = "unsupported_claims"
+    CONTRACT_MISMATCH = "contract_mismatch"
+    ADAPTER_SOURCE_MISMATCH = "adapter_source_mismatch"
+
+
+class PacketSubmissionRefused(RuntimeError):
+    def __init__(self, reason: PacketSubmissionRefusal):
+        self.reason = reason
+        super().__init__(reason.value)
+
+
+@dataclass(frozen=True)
+class SubmissionAdapterRequest:
+    source_key: str
+    contract_version: str
+    idempotency_key: str
+    snapshot_content_sha256: str
+    fields: dict[str, object]
+
+
+@dataclass(frozen=True)
+class SubmissionAdapterReceipt:
+    source_confirmation_id: str
+    source_code: str
+
+
+class SubmissionAdapter(Protocol):
+    """A source adapter whose submit operation honors the supplied key.
+
+    Implementations MUST send ``request.idempotency_key`` through the source's
+    reviewed native idempotency mechanism and return the same logical result for
+    that key after a timeout or process restart. Adapters without that source
+    capability cannot implement this protocol.
+    """
+
+    source_key: str
+
+    def submit_idempotently(
+        self, request: SubmissionAdapterRequest
+    ) -> SubmissionAdapterReceipt: ...
+
+
+class SubmissionEnvelopeGate(Protocol):
+    def require_healthy(
+        self,
+        db: Session,
+        *,
+        user_id: str,
+        source_id: str,
+    ) -> None: ...
+
+
+def _canonical(value: object) -> str:
+    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+
+
+def _sha256(value: str) -> str:
+    return hashlib.sha256(value.encode()).hexdigest()
+
+
+def _idempotency_key(snapshot_id: str, source_id: str) -> str:
+    return f"submission:v1:{_sha256(_canonical([snapshot_id, source_id]))}"
+
+
+def _contract_sha256(contract: SubmissionCompatibilityContract) -> str:
+    return _sha256(_canonical(contract.model_dump(mode="json")))
+
+
+def _approved_snapshot(
+    db: Session,
+    *,
+    user_id: str,
+    snapshot_id: str,
+    for_update: bool = False,
+) -> tuple[PacketApprovalSnapshot, dict]:
+    snapshot_query = db.query(PacketApprovalSnapshot).filter(
+        PacketApprovalSnapshot.id == snapshot_id,
+        PacketApprovalSnapshot.user_id == user_id,
+    )
+    snapshot = snapshot_query.one_or_none()
+    if snapshot is None:
+        raise PacketSubmissionRefused(PacketSubmissionRefusal.SNAPSHOT_NOT_APPROVED)
+    packet_query = db.query(ApplicationPacket).filter(
+        ApplicationPacket.id == snapshot.packet_id,
+        ApplicationPacket.user_id == user_id,
+    )
+    if for_update:
+        packet_query = packet_query.with_for_update()
+    packet = packet_query.one_or_none()
+    # Campaign deletion owns packet -> workspace -> snapshot order. Lock the
+    # packet first, then refresh+lock the snapshot to preserve that order.
+    if for_update:
+        snapshot = snapshot_query.populate_existing().with_for_update().one_or_none()
+    if (
+        snapshot is None
+        or packet is None
+        or packet.decision != "accepted"
+        or packet.gate_state != "passed"
+    ):
+        raise PacketSubmissionRefused(PacketSubmissionRefusal.SNAPSHOT_NOT_APPROVED)
+    if _sha256(snapshot.content_json) != snapshot.content_sha256:
+        raise PacketSubmissionRefused(PacketSubmissionRefusal.SNAPSHOT_INTEGRITY_FAILED)
+    try:
+        raw = json.loads(snapshot.content_json)
+        content = PacketApprovalSnapshotContent.model_validate(raw)
+    except (json.JSONDecodeError, ValidationError, TypeError) as error:
+        raise PacketSubmissionRefused(PacketSubmissionRefusal.SNAPSHOT_INTEGRITY_FAILED) from error
+    if (
+        content.packet_id != snapshot.packet_id
+        or content.campaign_id != snapshot.campaign_id
+        or content.listing_id != snapshot.listing_id
+        or packet.campaign_id != snapshot.campaign_id
+    ):
+        raise PacketSubmissionRefused(PacketSubmissionRefusal.SNAPSHOT_INTEGRITY_FAILED)
+    if content.unresolved_questions:
+        raise PacketSubmissionRefused(PacketSubmissionRefusal.UNRESOLVED_QUESTIONS)
+    # The immutable row is created only after the server-side R15 reviewer gate
+    # passes. Re-check the frozen authoritative set so later mutable packet state
+    # cannot weaken this boundary.
+    if content.unsupported_claims:
+        raise PacketSubmissionRefused(PacketSubmissionRefusal.UNSUPPORTED_CLAIMS)
+    return snapshot, raw
+
+
+def _resolve_path(content: dict, path: str) -> object | None:
+    value: object = content
+    for segment in path.split("."):
+        if not isinstance(value, dict) or segment not in value:
+            return None
+        value = value[segment]
+    if value is None or isinstance(value, (dict, list)):
+        raise PacketSubmissionRefused(PacketSubmissionRefusal.CONTRACT_MISMATCH)
+    return value
+
+
+def _contract_fields(
+    content: dict,
+    contract: SubmissionCompatibilityContract,
+) -> dict[str, object]:
+    values: dict[str, object] = {}
+    for field in contract.fields:
+        value = _resolve_path(content, field.packet_field)
+        if value is None:
+            if field.required:
+                raise PacketSubmissionRefused(PacketSubmissionRefusal.CONTRACT_MISMATCH)
+            continue
+        field_format = next(
+            item.kind for item in contract.formats if item.source_field == field.source_field
+        )
+        if not _matches_format(value, field_format):
+            raise PacketSubmissionRefused(PacketSubmissionRefusal.CONTRACT_MISMATCH)
+        values[field.source_field] = value
+    return values
+
+
+def _matches_format(value: object, kind: str) -> bool:
+    if kind == "utf8_text":
+        return isinstance(value, str)
+    if kind == "email":
+        try:
+            TypeAdapter(EmailStr).validate_python(value)
+        except ValidationError:
+            return False
+        return True
+    if kind == "phone_e164":
+        return isinstance(value, str) and re.fullmatch(r"\+[1-9]\d{7,14}", value) is not None
+    if kind == "iso_date":
+        if not isinstance(value, str):
+            return False
+        try:
+            date.fromisoformat(value)
+        except ValueError:
+            return False
+        return True
+    if kind == "https_url":
+        try:
+            parsed = TypeAdapter(AnyHttpUrl).validate_python(value)
+        except ValidationError:
+            return False
+        return parsed.scheme == "https" and not parsed.username and not parsed.password
+    if kind == "boolean":
+        return isinstance(value, bool)
+    if kind == "integer":
+        return isinstance(value, int) and not isinstance(value, bool)
+    if kind == "decimal":
+        return isinstance(value, (int, float)) and not isinstance(value, bool)
+    if kind == "enum":
+        return isinstance(value, str)
+    # Binary artifact transport is not implemented by #191. Fail closed rather
+    # than treating a path or URL string as submitted PDF/DOCX bytes.
+    return False
+
+
+def _ensure_dispatch_claim(
+    db: Session,
+    *,
+    key: str,
+    user_id: str,
+    snapshot_id: str,
+    source_id: str,
+    grant_id: str,
+    snapshot_content_sha256: str,
+    contract_version: str,
+    contract_sha256: str,
+    fields_json: str,
+    fields_sha256: str,
+    accepted_source_codes_json: str,
+) -> SubmissionDispatchClaim:
+    claim = db.query(SubmissionDispatchClaim).filter_by(idempotency_key=key).one_or_none()
+    if claim is None:
+        db.add(
+            SubmissionDispatchClaim(
+                idempotency_key=key,
+                user_id=user_id,
+                packet_approval_snapshot_id=snapshot_id,
+                discovery_source_id=source_id,
+                authorization_grant_id=grant_id,
+                snapshot_content_sha256=snapshot_content_sha256,
+                contract_version=contract_version,
+                contract_sha256=contract_sha256,
+                submitted_fields_json=fields_json,
+                submitted_fields_sha256=fields_sha256,
+                accepted_source_codes_json=accepted_source_codes_json,
+            )
+        )
+        try:
+            db.commit()
+        except IntegrityError:
+            db.rollback()
+    claim = db.query(SubmissionDispatchClaim).filter_by(idempotency_key=key).one_or_none()
+    if claim is None:
+        db.rollback()
+        raise PacketSubmissionRefused(PacketSubmissionRefusal.SNAPSHOT_NOT_APPROVED)
+    if (
+        claim.user_id != user_id
+        or claim.packet_approval_snapshot_id != snapshot_id
+        or claim.discovery_source_id != source_id
+        or claim.authorization_grant_id != grant_id
+        or claim.snapshot_content_sha256 != snapshot_content_sha256
+    ):
+        db.rollback()
+        raise PacketSubmissionRefused(PacketSubmissionRefusal.SNAPSHOT_INTEGRITY_FAILED)
+    return claim
+
+
+def _lock_dispatch_claim(
+    db: Session,
+    *,
+    key: str,
+    user_id: str,
+    snapshot_id: str,
+    source_id: str,
+    grant_id: str,
+    snapshot_content_sha256: str,
+) -> SubmissionDispatchClaim:
+    claim = (
+        db.query(SubmissionDispatchClaim)
+        .filter(SubmissionDispatchClaim.idempotency_key == key)
+        .with_for_update()
+        .one_or_none()
+    )
+    if claim is None:
+        raise PacketSubmissionRefused(PacketSubmissionRefusal.SNAPSHOT_NOT_APPROVED)
+    if (
+        claim.user_id != user_id
+        or claim.packet_approval_snapshot_id != snapshot_id
+        or claim.discovery_source_id != source_id
+        or claim.authorization_grant_id != grant_id
+        or claim.snapshot_content_sha256 != snapshot_content_sha256
+    ):
+        raise PacketSubmissionRefused(PacketSubmissionRefusal.SNAPSHOT_INTEGRITY_FAILED)
+    return claim
+
+
+def _validated_claim_request(
+    claim: SubmissionDispatchClaim,
+) -> tuple[dict[str, object], set[str]]:
+    if _sha256(claim.submitted_fields_json) != claim.submitted_fields_sha256:
+        raise PacketSubmissionRefused(PacketSubmissionRefusal.SNAPSHOT_INTEGRITY_FAILED)
+    try:
+        fields = json.loads(claim.submitted_fields_json)
+        accepted_codes = json.loads(claim.accepted_source_codes_json)
+    except (json.JSONDecodeError, TypeError) as error:
+        raise PacketSubmissionRefused(PacketSubmissionRefusal.SNAPSHOT_INTEGRITY_FAILED) from error
+    if (
+        not isinstance(fields, dict)
+        or _canonical(fields) != claim.submitted_fields_json
+        or not isinstance(accepted_codes, list)
+        or not accepted_codes
+        or any(not isinstance(code, str) for code in accepted_codes)
+        or _canonical(sorted(set(accepted_codes))) != claim.accepted_source_codes_json
+    ):
+        raise PacketSubmissionRefused(PacketSubmissionRefusal.SNAPSHOT_INTEGRITY_FAILED)
+    return fields, set(accepted_codes)
+
+
+def _lock_and_recheck_mutable_gates(
+    db: Session,
+    *,
+    user_id: str,
+    source_id: str,
+    source_key: str,
+    grant_id: str,
+):
+    # Match governance-writer order: governance -> discovery source -> grant.
+    db.query(SubmissionSourceGovernance).filter(
+        SubmissionSourceGovernance.discovery_source_id == source_id
+    ).with_for_update().one_or_none()
+    db.query(DiscoverySource).filter(
+        DiscoverySource.id == source_id
+    ).with_for_update().one_or_none()
+    db.query(SubmissionAuthorizationGrant).filter(
+        SubmissionAuthorizationGrant.id == grant_id
+    ).with_for_update().one_or_none()
+    source = require_submission_allowed(db, source_key)
+    if source.discovery_source_id != source_id:
+        raise PacketSubmissionRefused(PacketSubmissionRefusal.CONTRACT_MISMATCH)
+    require_active_submission_authorization(
+        db,
+        user_id=user_id,
+        source_id=source_id,
+        grant_id=grant_id,
+    )
+    return source
+
+
+def _response(record: SubmissionRecord) -> SubmissionRecordResponse:
+    return SubmissionRecordResponse(
+        id=record.id,
+        packet_approval_snapshot_id=record.packet_approval_snapshot_id,
+        discovery_source_id=record.discovery_source_id,
+        authorization_grant_id=record.authorization_grant_id,
+        idempotency_key=record.idempotency_key,
+        snapshot_content_sha256=record.snapshot_content_sha256,
+        contract_version=record.contract_version,
+        contract_sha256=record.contract_sha256,
+        submitted_fields=json.loads(record.submitted_fields_json),
+        submitted_fields_sha256=record.submitted_fields_sha256,
+        source_confirmation_id=record.source_confirmation_id,
+        submitted_at=record.submitted_at,
+    )
+
+
+def submit_approved_snapshot(
+    db: Session,
+    *,
+    user_id: str,
+    snapshot_id: str,
+    source_key: str,
+    grant_id: str,
+    envelope_gate: SubmissionEnvelopeGate,
+    adapter: SubmissionAdapter,
+) -> SubmissionRecordResponse:
+    """Submit once after independently checking all four R16 gates."""
+    snapshot, content = _approved_snapshot(db, user_id=user_id, snapshot_id=snapshot_id)
+    source = require_submission_allowed(db, source_key)
+    if adapter.source_key != source.source_key:
+        raise PacketSubmissionRefused(PacketSubmissionRefusal.ADAPTER_SOURCE_MISMATCH)
+    require_active_submission_authorization(
+        db,
+        user_id=user_id,
+        source_id=source.discovery_source_id,
+        grant_id=grant_id,
+    )
+    envelope_gate.require_healthy(db, user_id=user_id, source_id=source.discovery_source_id)
+    key = _idempotency_key(snapshot.id, source.discovery_source_id)
+    prior_claim = (
+        db.query(SubmissionDispatchClaim)
+        .filter(SubmissionDispatchClaim.idempotency_key == key)
+        .one_or_none()
+    )
+    if prior_claim is None:
+        initial_fields = _contract_fields(content, source.contract)
+        initial_fields_json = _canonical(initial_fields)
+        initial_fields_sha256 = _sha256(initial_fields_json)
+        accepted_codes_json = _canonical(
+            sorted(
+                item.source_code
+                for item in source.contract.error_semantics
+                if item.meaning == "accepted" and item.handling == "confirm_success"
+            )
+        )
+        claim_contract_version = source.contract.version
+        claim_contract_sha256 = _contract_sha256(source.contract)
+    else:
+        # An ambiguous prior act must retry the exact frozen request, regardless
+        # of later compatibility-contract edits.
+        initial_fields_json = prior_claim.submitted_fields_json
+        initial_fields_sha256 = prior_claim.submitted_fields_sha256
+        accepted_codes_json = prior_claim.accepted_source_codes_json
+        claim_contract_version = prior_claim.contract_version
+        claim_contract_sha256 = prior_claim.contract_sha256
+    claim = _ensure_dispatch_claim(
+        db,
+        key=key,
+        user_id=user_id,
+        snapshot_id=snapshot.id,
+        source_id=source.discovery_source_id,
+        grant_id=grant_id,
+        snapshot_content_sha256=snapshot.content_sha256,
+        contract_version=claim_contract_version,
+        contract_sha256=claim_contract_sha256,
+        fields_json=initial_fields_json,
+        fields_sha256=initial_fields_sha256,
+        accepted_source_codes_json=accepted_codes_json,
+    )
+    try:
+        # Match campaign deletion's packet -> snapshot -> claim lock order.
+        locked_snapshot, content = _approved_snapshot(
+            db,
+            user_id=user_id,
+            snapshot_id=snapshot_id,
+            for_update=True,
+        )
+        if locked_snapshot.content_sha256 != snapshot.content_sha256:
+            raise PacketSubmissionRefused(PacketSubmissionRefusal.SNAPSHOT_INTEGRITY_FAILED)
+        claim = _lock_dispatch_claim(
+            db,
+            key=key,
+            user_id=user_id,
+            snapshot_id=snapshot.id,
+            source_id=source.discovery_source_id,
+            grant_id=grant_id,
+            snapshot_content_sha256=snapshot.content_sha256,
+        )
+        existing = (
+            db.query(SubmissionRecord)
+            .filter(
+                SubmissionRecord.user_id == user_id,
+                SubmissionRecord.packet_approval_snapshot_id == snapshot.id,
+                SubmissionRecord.discovery_source_id == source.discovery_source_id,
+            )
+            .one_or_none()
+        )
+        if existing is not None:
+            db.commit()
+            return _response(existing)
+        # Re-read every mutable gate while holding all submission/deletion locks
+        # immediately before the irreversible outward act.
+        source = _lock_and_recheck_mutable_gates(
+            db,
+            user_id=user_id,
+            source_id=claim.discovery_source_id,
+            source_key=source_key,
+            grant_id=claim.authorization_grant_id,
+        )
+        envelope_gate.require_healthy(db, user_id=user_id, source_id=source.discovery_source_id)
+        current_fields_json = _canonical(_contract_fields(content, source.contract))
+        current_codes_json = _canonical(
+            sorted(
+                item.source_code
+                for item in source.contract.error_semantics
+                if item.meaning == "accepted" and item.handling == "confirm_success"
+            )
+        )
+        if (
+            source.contract.version != claim.contract_version
+            or _contract_sha256(source.contract) != claim.contract_sha256
+            or current_fields_json != claim.submitted_fields_json
+            or current_codes_json != claim.accepted_source_codes_json
+        ):
+            raise PacketSubmissionRefused(PacketSubmissionRefusal.CONTRACT_MISMATCH)
+        fields, accepted_codes = _validated_claim_request(claim)
+        fields_json = claim.submitted_fields_json
+        receipt = adapter.submit_idempotently(
+            SubmissionAdapterRequest(
+                source_key=source.source_key,
+                contract_version=claim.contract_version,
+                idempotency_key=key,
+                snapshot_content_sha256=claim.snapshot_content_sha256,
+                fields=fields,
+            )
+        )
+        if not receipt.source_confirmation_id or len(receipt.source_confirmation_id) > 200:
+            raise PacketSubmissionRefused(PacketSubmissionRefusal.CONTRACT_MISMATCH)
+        if receipt.source_code not in accepted_codes:
+            raise PacketSubmissionRefused(PacketSubmissionRefusal.CONTRACT_MISMATCH)
+    except Exception:
+        # A committed claim may already be shared by another worker that made an
+        # ambiguous outward act. Never infer global non-invocation from this
+        # caller's local control flow; preserve the frozen retry bytes.
+        db.rollback()
+        raise
+    record = SubmissionRecord(
+        user_id=user_id,
+        packet_approval_snapshot_id=snapshot.id,
+        discovery_source_id=source.discovery_source_id,
+        authorization_grant_id=claim.authorization_grant_id,
+        idempotency_key=key,
+        snapshot_content_sha256=claim.snapshot_content_sha256,
+        contract_version=claim.contract_version,
+        contract_sha256=claim.contract_sha256,
+        submitted_fields_json=fields_json,
+        submitted_fields_sha256=claim.submitted_fields_sha256,
+        source_confirmation_id=receipt.source_confirmation_id,
+    )
+    db.add(record)
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        winner = (
+            db.query(SubmissionRecord)
+            .filter(
+                SubmissionRecord.packet_approval_snapshot_id == snapshot.id,
+                SubmissionRecord.discovery_source_id == source.discovery_source_id,
+            )
+            .one()
+        )
+        return _response(winner)
+    db.refresh(record)
+    return _response(record)
+
+
+def export_submission_records(db: Session, user_id: str) -> SubmissionRecordsExport:
+    rows = (
+        db.query(SubmissionRecord)
+        .filter(SubmissionRecord.user_id == user_id)
+        .order_by(SubmissionRecord.submitted_at.asc(), SubmissionRecord.id.asc())
+        .all()
+    )
+    claims = (
+        db.query(SubmissionDispatchClaim)
+        .filter(SubmissionDispatchClaim.user_id == user_id)
+        .order_by(
+            SubmissionDispatchClaim.created_at.asc(),
+            SubmissionDispatchClaim.idempotency_key.asc(),
+        )
+        .all()
+    )
+    return SubmissionRecordsExport(
+        record_count=len(rows),
+        records=[_response(row) for row in rows],
+        dispatch_claim_count=len(claims),
+        dispatch_claims=[
+            SubmissionDispatchClaimResponse(
+                idempotency_key=claim.idempotency_key,
+                packet_approval_snapshot_id=claim.packet_approval_snapshot_id,
+                discovery_source_id=claim.discovery_source_id,
+                authorization_grant_id=claim.authorization_grant_id,
+                snapshot_content_sha256=claim.snapshot_content_sha256,
+                contract_version=claim.contract_version,
+                contract_sha256=claim.contract_sha256,
+                submitted_fields=json.loads(claim.submitted_fields_json),
+                submitted_fields_sha256=claim.submitted_fields_sha256,
+                created_at=claim.created_at,
+            )
+            for claim in claims
+        ],
+    )
+
+
+def delete_submission_records(db: Session, user_id: str) -> int:
+    # Match submission and campaign deletion order before deleting any shared
+    # row: packet -> approval snapshot -> dispatch claim. Deterministic ordering
+    # also prevents two broad erasure operations from taking these locks apart.
+    (
+        db.query(ApplicationPacket)
+        .filter(ApplicationPacket.user_id == user_id)
+        .order_by(ApplicationPacket.id.asc())
+        .with_for_update()
+        .all()
+    )
+    (
+        db.query(PacketApprovalSnapshot)
+        .filter(PacketApprovalSnapshot.user_id == user_id)
+        .order_by(PacketApprovalSnapshot.id.asc())
+        .with_for_update()
+        .all()
+    )
+    (
+        db.query(SubmissionDispatchClaim)
+        .filter(SubmissionDispatchClaim.user_id == user_id)
+        .order_by(SubmissionDispatchClaim.idempotency_key.asc())
+        .with_for_update()
+        .all()
+    )
+    deleted = (
+        db.query(SubmissionRecord)
+        .filter(SubmissionRecord.user_id == user_id)
+        .delete(synchronize_session=False)
+    )
+    db.query(SubmissionDispatchClaim).filter(SubmissionDispatchClaim.user_id == user_id).delete(
+        synchronize_session=False
+    )
+    return deleted

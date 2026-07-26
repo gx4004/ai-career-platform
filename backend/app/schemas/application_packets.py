@@ -322,6 +322,9 @@ class PacketApprovalSnapshotContent(BaseModel):
     frozen_at: datetime
     match_rationale: PacketMatchRationale
     unresolved_questions: list[UnresolvedQuestion]
+    # Early packet-approval/v1 rows predate the explicit field but could only be
+    # created after the same server gate passed; absence therefore means empty.
+    unsupported_claims: list[dict] = Field(default_factory=list)
     resolved_stop_answers: list[FrozenStopAnswer]
     listing: FrozenPacketListing | None
     manual_handoff: FrozenManualHandoff | None

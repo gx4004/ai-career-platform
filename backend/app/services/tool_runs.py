@@ -28,6 +28,7 @@ from app.services.premium_outputs import attach_premium_outputs
 from app.services.queue_audit import delete_queue_audit_events
 from app.services.queue_rules import delete_queue_rules
 from app.services.submission_authorizations import delete_submission_authorizations
+from app.services.submissions import delete_submission_records
 from app.services.workspaces import resolve_workspace, touch_workspace
 
 logger = logging.getLogger(__name__)
@@ -66,6 +67,10 @@ def delete_all_user_data(db: Session, user_id: str) -> None:
     # its ONLY deletion path, preserving the append-only guarantee (D-098/D-099,
     # R15 #186).
     delete_queue_audit_events(db, user_id)
+    # Submission lifecycle deletion first locks packet -> snapshot -> claim in
+    # dispatch-compatible order, then removes records and claims before their
+    # referenced snapshots (also preserving SQLite behavior; D-107).
+    delete_submission_records(db, user_id)
     # Approval snapshots are immutable by-value records (D-096/D-099). Account
     # erasure explicitly removes them before their packet/campaign foreign keys,
     # including in SQLite tests where FK cascades are disabled. Deleting an
