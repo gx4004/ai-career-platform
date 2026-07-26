@@ -27,6 +27,7 @@ import {
 import { navigateToPath } from '#/lib/navigation/redirect'
 import { clearSensitiveBrowserData } from '#/lib/privacy/browserData'
 import { SUBMISSION_AUTHORIZATIONS_QUERY_ROOT } from '#/lib/api/submissionAuthorizations'
+import { QUEUE_QUERY_ROOT } from '#/lib/api/queueCache'
 import type { ToolId } from '#/lib/tools/registry'
 
 export type SessionState = {
@@ -120,6 +121,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       queryClient.removeQueries({
         queryKey: SUBMISSION_AUTHORIZATIONS_QUERY_ROOT,
       })
+      queryClient.removeQueries({ queryKey: QUEUE_QUERY_ROOT })
       queryClient.setQueryData(['current-user'], null)
 
       if (typeof window !== 'undefined') {
@@ -242,6 +244,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       queryClient.removeQueries({
         queryKey: SUBMISSION_AUTHORIZATIONS_QUERY_ROOT,
       })
+      queryClient.removeQueries({ queryKey: QUEUE_QUERY_ROOT })
       queryClient.setQueryData(['current-user'], null)
       await queryClient.invalidateQueries({ queryKey: ['current-user'] })
     }

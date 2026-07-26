@@ -121,7 +121,10 @@ def test_delete_account_requires_email_confirmation_in_body(client, auth_headers
             CampaignNote(workspace_id=workspace.id, text="Private note"),
             CampaignContact(workspace_id=workspace.id, name="Private contact"),
             CampaignSubmissionSnapshot(
-                workspace_id=workspace.id, content_json="{}", content_sha256="0" * 64
+                workspace_id=workspace.id,
+                role_key=f"campaign:{workspace.id}",
+                content_json="{}",
+                content_sha256="0" * 64,
             ),
         ]
     )

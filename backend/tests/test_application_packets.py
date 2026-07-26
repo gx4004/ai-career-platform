@@ -6,7 +6,11 @@ import pytest
 from app.auth.security import create_access_token, hash_password
 from app.models.application_packet import ApplicationPacket
 from app.models.cv_document import CvDocument, CvVariant
-from app.models.discovered_listing import DiscoveredListing
+from app.models.discovered_listing import (
+    DiscoveredListing,
+    DiscoveredListingAttribution,
+)
+from app.models.discovery_source import DiscoverySource
 from app.models.evidence_item import EvidenceItem
 from app.models.queue_rule import QueueRule, QueueSettings
 from app.models.tool_run import ToolRun
@@ -109,6 +113,30 @@ def _add_listing(db, listing_id: str, *, description: str = NEUTRAL_DESC) -> Dis
         description=description,
     )
     db.add(row)
+    source = db.get(DiscoverySource, "source-1")
+    if source is None:
+        source = DiscoverySource(
+            id="source-1",
+            source_key="packet-test-source",
+            display_name="Licensed Feed",
+            source_family="licensed",
+            owner="Discovery Operations",
+            allowed_behavior="feed",
+            rate_limit_per_minute=10,
+            attribution_rule="Show source and original link",
+            retention_days=30,
+        )
+        db.add(source)
+    db.flush()
+    db.add(
+        DiscoveredListingAttribution(
+            listing_id=listing_id,
+            source_id=source.id,
+            source_listing_key=listing_id,
+            source_url="https://feed.example/jobs/1",
+            retrieved_at=datetime(2026, 7, 13, tzinfo=UTC),
+        )
+    )
     db.commit()
     return row
 
@@ -171,6 +199,7 @@ async def test_prepares_packet_by_reference(db, test_user, monkeypatch):
     packet = db.query(ApplicationPacket).one()
     # References, not copies.
     assert packet.listing_id == "listing-ref"
+    assert packet.listing_attribution_id == packet.listing.attributions[0].id
     assert packet.cv_variant_id == variant.id
     assert packet.campaign_id is not None
     assert packet.drafts_run_id is not None

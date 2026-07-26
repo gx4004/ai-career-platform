@@ -180,6 +180,9 @@ describe('AuthDialog', () => {
     queryClient.setQueryData(['submission-authorizations', 'u1'], {
       items: [{ id: 'owner-a-sensitive-grant' }],
     })
+    queryClient.setQueryData(['queue', 'u1', 'packets'], {
+      items: [{ id: 'owner-a-sensitive-packet' }],
+    })
 
     fireEvent.click(screen.getByRole('button', { name: 'Log out' }))
 
@@ -187,6 +190,7 @@ describe('AuthDialog', () => {
       expect(
         queryClient.getQueriesData({ queryKey: ['submission-authorizations'] }),
       ).toEqual([])
+      expect(queryClient.getQueriesData({ queryKey: ['queue'] })).toEqual([])
     })
   })
 
@@ -221,6 +225,9 @@ describe('AuthDialog', () => {
     queryClient.setQueryData(['submission-authorizations', 'u1'], {
       items: [{ id: 'expired-sensitive-grant' }],
     })
+    queryClient.setQueryData(['queue', 'u1', 'packets'], {
+      items: [{ id: 'expired-sensitive-packet' }],
+    })
 
     const originalPathname = window.location.pathname
     const originalSearch = window.location.search
@@ -243,6 +250,7 @@ describe('AuthDialog', () => {
     expect(
       queryClient.getQueriesData({ queryKey: ['submission-authorizations'] }),
     ).toEqual([])
+    expect(queryClient.getQueriesData({ queryKey: ['queue'] })).toEqual([])
 
     Object.defineProperty(window, 'location', {
       value: { ...window.location, pathname: originalPathname, search: originalSearch },

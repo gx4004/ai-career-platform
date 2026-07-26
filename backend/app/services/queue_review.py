@@ -1,13 +1,11 @@
-"""Queue review surface actions: per-packet decisions + global pause (R15 #183).
+"""Queue review dismiss/reopen actions + global pause (R15 #183).
 
-The owner reviews prepared packets and acts on each — accept / edit / skip / reject —
-or pauses the entire queue instantly. Every action is server-authoritative and records
+The owner reviews prepared packets and acts on each — edit / skip / reject — or
+pauses the entire queue instantly. Guarded acceptance is owned exclusively by
+``packet_approval_snapshot.approve_packet`` so no accepted decision can exist
+without its immutable snapshot. Every action here is server-authoritative and records
 an append-only audit event through the single write seam (D-098, #186):
 
-- **accept** is guarded by the approval predicate (D-095, ADR 0009): a packet with any
-  unresolved question is not approvable and accept is refused server-side. This ticket
-  makes accept a decision transition + audit event ONLY; freezing the immutable approval
-  snapshot, preventing duplicates, and opening the submission destination is #185.
 - **edit** reopens the packet's referenced materials under the existing diff/confirmation
   rules (D-073). A packet is a reference-only composition (D-093): its materials are the
   CV variant (edited through CV Studio's D-073 tailoring flow, where new wording requires
@@ -30,12 +28,10 @@ from app.schemas.application_packets import ApplicationPacketItem, QueueReviewSt
 from app.services.packet_approval import (
     PacketNotApprovableError,
     answered_fields_for_packet,
-    assert_packet_approvable,
     packet_item_with_true_unresolved,
 )
 from app.services.packet_gate import (
     is_preparation_halted,
-    is_queue_eligible,
     is_queue_paused,
     pause_preparation,
     resume_preparation,
@@ -47,7 +43,6 @@ __all__ = [
     "PacketNotFoundError",
     "PacketDecisionLockedError",
     "PacketGateBlockedError",
-    "accept_packet",
     "edit_packet",
     "skip_packet",
     "reject_packet",
@@ -75,8 +70,8 @@ class PacketDecisionLockedError(Exception):
     """Raised when skip/reject/edit targets a packet already ``accepted``.
 
     An acceptance is the owner's considered decision to proceed with a packet; once
-    recorded, only a fresh decision path (not yet built — #185 was reverted) may
-    change it, never an ordinary dismissal/reopen action.
+    recorded with its immutable #185 snapshot, no ordinary dismissal/reopen action
+    may change it.
     """
 
     def __init__(self, packet_id: str) -> None:
@@ -88,6 +83,7 @@ def _load_owned_packet(db: Session, user_id: str, packet_id: str) -> Application
     packet = (
         db.query(ApplicationPacket)
         .filter(ApplicationPacket.user_id == user_id, ApplicationPacket.id == packet_id)
+        .with_for_update()
         .one_or_none()
     )
     if packet is None:
@@ -125,27 +121,6 @@ def _set_decision(
     )
     answered = answered_fields_for_packet(db, packet.user_id, packet.id)
     return packet_item_with_true_unresolved(packet, answered)
-
-
-def accept_packet(db: Session, user_id: str, packet_id: str) -> ApplicationPacketItem:
-    """Accept a packet — refused server-side unless it is approvable (D-095).
-
-    ``assert_packet_approvable`` raises :class:`PacketNotApprovableError` (carrying the
-    outstanding questions) when any unresolved question remains, so accept can never
-    slip past a mandatory stop. On success the decision becomes ``accepted`` and a
-    ``packet_accepted`` audit event is recorded. Snapshot/handoff is #185.
-    """
-    packet = _load_owned_packet(db, user_id, packet_id)
-    # Reviewer-gate guard (#184, D-097): a packet the reviewer left blocked on an
-    # unresolved fabrication finding is never queue-eligible and must never be
-    # accepted — enforced independently of the mandatory-stop guard below.
-    if not is_queue_eligible(packet):
-        raise PacketGateBlockedError(
-            "This packet was blocked by the application quality reviewer and cannot be accepted."
-        )
-    # Server-authoritative approval guard (#182): unresolved question → not approvable.
-    assert_packet_approvable(db, user_id, packet_id)
-    return _set_decision(db, packet, decision="accepted", action="packet_accepted")
 
 
 def skip_packet(db: Session, user_id: str, packet_id: str) -> ApplicationPacketItem:

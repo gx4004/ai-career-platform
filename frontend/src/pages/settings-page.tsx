@@ -31,6 +31,7 @@ import { deleteAccount } from '#/lib/api/client'
 import { changeLanguage } from '#/lib/i18n'
 import { clearSensitiveBrowserData } from '#/lib/privacy/browserData'
 import { SUBMISSION_AUTHORIZATIONS_QUERY_ROOT } from '#/lib/api/submissionAuthorizations'
+import { QUEUE_QUERY_ROOT } from '#/lib/api/queueCache'
 
 export function SettingsPage() {
   const queryClient = useQueryClient()
@@ -84,6 +85,7 @@ export function SettingsPage() {
       queryClient.removeQueries({
         queryKey: SUBMISSION_AUTHORIZATIONS_QUERY_ROOT,
       })
+      queryClient.removeQueries({ queryKey: QUEUE_QUERY_ROOT })
       window.location.assign('/')
     } catch (error) {
       setDeleteError(

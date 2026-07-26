@@ -35,8 +35,8 @@ PACKET_GATE_STATES = ("pending", "passed", "blocked")
 # ``edit`` is NOT a decision — it reopens the packet's referenced materials under the
 # existing diff/confirmation rules (D-073) and returns the decision to ``pending``.
 # Distinct from ``status`` (preparedness) and ``gate_state`` (trust-chain outcome).
-# Accept here is a status transition + audit event only; freezing the immutable
-# approval snapshot and opening the submission destination is #185.
+# The sole accepted transition freezes the immutable approval snapshot and returns
+# the user-driven destination handoff atomically (#185).
 PACKET_DECISIONS = ("pending", "accepted", "skipped", "rejected")
 
 
@@ -87,6 +87,15 @@ class ApplicationPacket(Base):
     listing_id: Mapped[str | None] = mapped_column(
         String, ForeignKey("discovered_listings.id", ondelete="SET NULL"), nullable=True, index=True
     )
+    # The exact source attribution selected when the packet was prepared. Listings
+    # may gain later attributions as discovery deduplicates sources; approval must
+    # never let that mutable set redirect the user's manual handoff.
+    listing_attribution_id: Mapped[str | None] = mapped_column(
+        String,
+        ForeignKey("discovered_listing_attributions.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     # The tailored CV variant (R12 CV Studio) the packet references. Its diffs were
     # already accepted under D-073 when the variant was created; the packet only
     # references it. NULL surfaces as an unresolved question rather than a copy.
@@ -115,7 +124,7 @@ class ApplicationPacket(Base):
     # with an unresolved fabrication finding stays ``blocked`` and never queues.
     gate_state: Mapped[str] = mapped_column(String(16), nullable=False, default="pending")
     # The owner's review decision (R15 #183). ``pending`` until the owner acts on the
-    # queue review surface; accept is guarded by the approval predicate (D-095).
+    # queue review surface; accept is guarded and snapshot-backed (D-095/D-096).
     decision: Mapped[str] = mapped_column(
         String(16), nullable=False, default="pending", server_default="pending"
     )
@@ -132,6 +141,9 @@ class ApplicationPacket(Base):
 
     campaign = relationship("Workspace", foreign_keys=[campaign_id])
     listing = relationship("DiscoveredListing", foreign_keys=[listing_id])
+    listing_attribution = relationship(
+        "DiscoveredListingAttribution", foreign_keys=[listing_attribution_id]
+    )
     cv_variant = relationship("CvVariant", foreign_keys=[cv_variant_id])
     drafts_run = relationship("ToolRun", foreign_keys=[drafts_run_id])
     review_run = relationship("ToolRun", foreign_keys=[review_run_id])

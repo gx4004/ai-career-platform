@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session, selectinload
 from app.auth.security import get_current_user
 from app.database import get_db
 from app.limiter import limiter
+from app.models.application_packet import ApplicationPacket
 from app.models.campaign_event import CampaignEvent
 from app.models.campaign_tracking import CampaignContact, CampaignNote, CampaignTask
 from app.models.gap_classification import GapClassification
@@ -53,7 +54,10 @@ from app.services.campaign_reviewer import (
     project_cv_document_text,
     review_campaign_materials,
 )
-from app.services.campaign_snapshots import capture_submission_snapshot
+from app.services.campaign_snapshots import (
+    DuplicateRoleSubmissionError,
+    capture_submission_snapshot,
+)
 from app.services.campaign_tracking import add_contact, add_note, add_task, record_event
 from app.services.evidence_injection import load_profile_for_injection
 from app.services.gap_classifier import (
@@ -519,7 +523,10 @@ def update_workspace(
         if transition is not None:
             previous, requested = transition
             if requested == CampaignStatus.APPLIED:
-                capture_submission_snapshot(db, workspace)
+                try:
+                    capture_submission_snapshot(db, workspace)
+                except DuplicateRoleSubmissionError as exc:
+                    raise HTTPException(status_code=409, detail=str(exc)) from None
             db.add(
                 CampaignEvent(
                     workspace_id=workspace.id,
@@ -541,7 +548,31 @@ def delete_workspace(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    workspace = _get_workspace(db, workspace_id, current_user.id)
+    _get_workspace(db, workspace_id, current_user.id)
+    # Approval and account erasure lock/delete packets before their campaign.
+    # Match that order so PostgreSQL cannot deadlock approval against this
+    # campaign cascade (approval holds packet while requesting workspace).
+    (
+        db.query(ApplicationPacket)
+        .filter(
+            ApplicationPacket.user_id == current_user.id,
+            ApplicationPacket.campaign_id == workspace_id,
+        )
+        .order_by(ApplicationPacket.id.asc())
+        .with_for_update()
+        .all()
+    )
+    workspace = (
+        db.query(Workspace)
+        .filter(
+            Workspace.id == workspace_id,
+            Workspace.user_id == current_user.id,
+        )
+        .with_for_update()
+        .one_or_none()
+    )
+    if workspace is None:
+        raise HTTPException(status_code=404, detail="Workspace not found")
     db.delete(workspace)
     db.commit()
     return DeletedResponse(deleted=1)
