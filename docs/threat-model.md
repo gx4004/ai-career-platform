@@ -1349,8 +1349,8 @@ forbidden until #193 supplies the authoritative envelope; the only implementatio
 used by #191 tests is a local in-memory fixture that contacts no employer system.
 
 The dark #192 stop boundary treats only an adapter-proven pre-commit CAPTCHA,
-authentication request, uncertainty, source rejection, changed form, or reviewed
-stop-and-return response as a terminal outcome for that
+authentication request, uncertainty, source rejection, changed form, or other
+explicit pre-commit stop observation as a terminal outcome for that
 owner/snapshot/source key. The event is created while the packet, immutable snapshot,
 and dispatch claim remain locked; every concurrent worker and later restart returns
 the same fixed explanation and the snapshot's frozen official Level B destination
@@ -1363,8 +1363,10 @@ commit, and its non-null official destination and source identity exactly match 
 frozen approval snapshot. A timeout, unknown response, or invalid confirmation after
 a possible outward act remains on frozen source-native idempotent reconciliation and
 never invites a potentially duplicate manual submission.
-Only compatibility-mismatch events feed #195's content-free breakage seam; #195,
-not #192, owns detection thresholds and automatic kill-switch action.
+The complete content-free terminal-stop stream feeds #195's breakage seam so
+repeated challenges, authentication requests, uncertainty, validation rejection,
+and compatibility mismatches can be classified without exposing source content.
+#195, not #192, owns detection thresholds and automatic kill-switch action.
 
 Discovered listings are non-user product data in dedicated canonical and source-
 attribution tables; neither table carries a user/workspace key or references
