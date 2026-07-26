@@ -86,3 +86,9 @@ class PacketApprovalSnapshot(Base):
         cascade="all, delete-orphan",
         passive_deletes=False,
     )
+    submission_stop_events = relationship(
+        "SubmissionStopEvent",
+        back_populates="packet_approval_snapshot",
+        cascade="all, delete-orphan",
+        passive_deletes=False,
+    )

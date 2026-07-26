@@ -7,6 +7,16 @@ import { z } from 'zod'
 
 const offsetDateTimeSchema = z.iso.datetime({ offset: true })
 
+const safeHttpsDestinationSchema = z.url().refine((value) => {
+  const parsed = new URL(value)
+  return (
+    parsed.protocol === 'https:' &&
+    parsed.hostname.length > 0 &&
+    parsed.username.length === 0 &&
+    parsed.password.length === 0
+  )
+})
+
 export const packetStatusSchema = z.enum(['prepared', 'blocked'])
 export type PacketStatus = z.infer<typeof packetStatusSchema>
 
@@ -76,6 +86,21 @@ export const unresolvedQuestionSchema = z.strictObject({
 })
 export type UnresolvedQuestion = z.infer<typeof unresolvedQuestionSchema>
 
+export const packetSubmissionStopNoticeSchema = z.strictObject({
+  stop_event_id: z.string(),
+  reason: z.enum([
+    'challenge',
+    'authentication_required',
+    'uncertainty',
+    'compatibility_mismatch',
+    'source_validation_rejected',
+  ]),
+  explanation: z.string(),
+  destination_url: safeHttpsDestinationSchema,
+  instructions: z.string(),
+  stopped_at: offsetDateTimeSchema,
+})
+
 export const applicationPacketItemSchema = z.strictObject({
   id: z.string(),
   campaign_id: z.string(),
@@ -92,6 +117,7 @@ export const applicationPacketItemSchema = z.strictObject({
   decision: packetDecisionSchema,
   match_rationale: packetMatchRationaleSchema,
   unresolved_questions: z.array(unresolvedQuestionSchema),
+  submission_stop: packetSubmissionStopNoticeSchema.nullable().default(null),
   estimated_cost_usd: z.number().min(0),
   created_at: offsetDateTimeSchema,
   updated_at: offsetDateTimeSchema,
@@ -126,16 +152,6 @@ export type ApplicationPacketsExport = z.infer<typeof applicationPacketsExportSc
 // Approval freezes a by-value copy of the exact packet materials (D-096). Handoff
 // is a manual link to the official destination; this contract never represents a
 // submission operation.
-const safeHttpsDestinationSchema = z.url().refine((value) => {
-  const parsed = new URL(value)
-  return (
-    parsed.protocol === 'https:' &&
-    parsed.hostname.length > 0 &&
-    parsed.username.length === 0 &&
-    parsed.password.length === 0
-  )
-})
-
 export const frozenListingAttributionSchema = z.strictObject({
   id: z.string(),
   source_id: z.string(),

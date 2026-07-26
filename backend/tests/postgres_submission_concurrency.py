@@ -15,6 +15,7 @@ from sqlalchemy.orm import sessionmaker
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+import app.services.submissions as submissions_service
 from app.models.application_packet import ApplicationPacket
 from app.models.discovery_source import DiscoverySource
 from app.models.packet_approval_snapshot import PacketApprovalSnapshot
@@ -23,7 +24,10 @@ from app.models.submission_source import SubmissionSourceGovernance
 from app.models.user import User
 from app.models.workspace import Workspace
 from app.services.submissions import (
+    PacketSubmissionRefusal,
+    PacketSubmissionRefused,
     SubmissionAdapterReceipt,
+    SubmissionAdapterStop,
     delete_submission_records,
     submit_approved_snapshot,
 )
@@ -52,6 +56,24 @@ class CountingAdapter:
             source_confirmation_id="concurrent-confirmation",
             source_code="accepted",
         )
+
+
+class StoppingAdapter(CountingAdapter):
+    def submit_idempotently(self, request):
+        with self.lock:
+            self.calls += 1
+        self.entered.set()
+        assert self.release.wait(timeout=5)
+        return SubmissionAdapterStop(reason="challenge", source_code="captcha_required")
+
+
+class AmbiguousAdapter(CountingAdapter):
+    def submit_idempotently(self, request):
+        with self.lock:
+            self.calls += 1
+        self.entered.set()
+        assert self.release.wait(timeout=5)
+        raise TimeoutError("source completion is ambiguous")
 
 
 def _seed(session) -> tuple[str, str, str]:
@@ -144,7 +166,14 @@ def _seed(session) -> tuple[str, str, str]:
             "description": "Test",
             "attributions": [],
         },
-        "manual_handoff": None,
+        "manual_handoff": {
+            "listing_id": None,
+            "attribution_id": "concurrency-attribution",
+            "source_id": source.id,
+            "source_listing_key": "concurrency-listing",
+            "source_url": "https://concurrency-fixture.invalid/applications",
+            "retrieved_at": now.isoformat(),
+        },
         "cv_variant": None,
         "drafts": None,
     }
@@ -155,6 +184,7 @@ def _seed(session) -> tuple[str, str, str]:
         packet_id=packet.id,
         campaign_id=campaign.id,
         role_key="role:v1:" + "e" * 64,
+        destination_url="https://concurrency-fixture.invalid/applications",
         content_json=canonical,
         content_sha256=hashlib.sha256(canonical.encode()).hexdigest(),
     )
@@ -292,6 +322,191 @@ def main() -> None:
         assert (
             session.execute(text("SELECT count(*) FROM submission_dispatch_claims")).scalar_one()
             == 0
+        )
+
+    # A terminal pre-commit stop must preserve the same packet -> snapshot ->
+    # claim order while lifecycle erasure waits, then erase the stop evidence
+    # without a lock cycle.
+    stop_erasure_adapter = StoppingAdapter()
+    stop_erasure_results = []
+    stop_erasure_errors = []
+
+    def stop_during_erasure() -> None:
+        try:
+            with Session() as session:
+                stop_erasure_results.append(
+                    submit_approved_snapshot(
+                        session,
+                        user_id=user_id,
+                        snapshot_id=snapshot_id,
+                        source_key=stop_erasure_adapter.source_key,
+                        grant_id=grant_id,
+                        envelope_gate=HealthyEnvelope(),
+                        adapter=stop_erasure_adapter,
+                    )
+                )
+        except Exception as error:  # pragma: no cover - surfaced below
+            stop_erasure_errors.append(error)
+
+    stop_erasure_finished = threading.Event()
+
+    def erase_stopped_lifecycle() -> None:
+        try:
+            with Session() as session:
+                delete_submission_records(session, user_id)
+                session.commit()
+        except Exception as error:  # pragma: no cover - surfaced below
+            stop_erasure_errors.append(error)
+        finally:
+            stop_erasure_finished.set()
+
+    stopping_submitter = threading.Thread(target=stop_during_erasure)
+    stopping_submitter.start()
+    assert stop_erasure_adapter.entered.wait(timeout=5)
+    stopping_eraser = threading.Thread(target=erase_stopped_lifecycle)
+    stopping_eraser.start()
+    assert not stop_erasure_finished.wait(timeout=0.3)
+    stop_erasure_adapter.release.set()
+    stopping_submitter.join(timeout=10)
+    stopping_eraser.join(timeout=10)
+
+    assert not stop_erasure_errors, stop_erasure_errors
+    assert not stopping_submitter.is_alive()
+    assert not stopping_eraser.is_alive()
+    assert len(stop_erasure_results) == 1
+    assert stop_erasure_results[0].status == "stopped"
+    assert stop_erasure_finished.is_set()
+    with Session() as session:
+        assert (
+            session.execute(text("SELECT count(*) FROM submission_stop_events")).scalar_one()
+            == 0
+        )
+        assert (
+            session.execute(text("SELECT count(*) FROM submission_dispatch_claims")).scalar_one()
+            == 0
+        )
+
+    stop_adapter = StoppingAdapter()
+    stop_barrier = threading.Barrier(2)
+    stop_results = []
+    stop_errors = []
+
+    def stopping_worker() -> None:
+        try:
+            stop_barrier.wait()
+            with Session() as session:
+                stop_results.append(
+                    submit_approved_snapshot(
+                        session,
+                        user_id=user_id,
+                        snapshot_id=snapshot_id,
+                        source_key=stop_adapter.source_key,
+                        grant_id=grant_id,
+                        envelope_gate=HealthyEnvelope(),
+                        adapter=stop_adapter,
+                    )
+                )
+        except Exception as error:  # pragma: no cover - surfaced below
+            stop_errors.append(error)
+
+    stoppers = [threading.Thread(target=stopping_worker) for _ in range(2)]
+    for stopper in stoppers:
+        stopper.start()
+    assert stop_adapter.entered.wait(timeout=5)
+    stop_adapter.release.set()
+    for stopper in stoppers:
+        stopper.join(timeout=10)
+
+    assert not stop_errors, stop_errors
+    assert all(not stopper.is_alive() for stopper in stoppers)
+    assert len(stop_results) == 2
+    assert stop_results[0] == stop_results[1]
+    assert stop_results[0].status == "stopped"
+    assert stop_adapter.calls == 1
+    with Session() as session:
+        assert (
+            session.execute(text("SELECT count(*) FROM submission_stop_events")).scalar_one() == 1
+        )
+        assert session.execute(text("SELECT count(*) FROM submission_records")).scalar_one() == 0
+
+    # A stale preflight observation must not terminalize another worker's
+    # ambiguous outward act. Force worker B to observe no claim and pause inside
+    # contract resolution while worker A creates the claim and reaches the adapter.
+    with engine.begin() as connection:
+        connection.execute(text("DELETE FROM users WHERE id='concurrent-user'"))
+        connection.execute(text("DELETE FROM discovery_sources WHERE id='concurrent-source'"))
+    with Session() as session:
+        user_id, snapshot_id, grant_id = _seed(session)
+
+    mismatch_entered = threading.Event()
+    release_mismatch = threading.Event()
+    original_contract_fields = submissions_service._contract_fields
+
+    def raced_contract_fields(content, contract):
+        if threading.current_thread().name == "mismatch-worker":
+            mismatch_entered.set()
+            assert release_mismatch.wait(timeout=5)
+            raise PacketSubmissionRefused(PacketSubmissionRefusal.CONTRACT_MISMATCH)
+        return original_contract_fields(content, contract)
+
+    submissions_service._contract_fields = raced_contract_fields
+    race_errors = []
+    ambiguous_adapter = AmbiguousAdapter()
+
+    def raced_submission(adapter) -> None:
+        try:
+            with Session() as session:
+                submit_approved_snapshot(
+                    session,
+                    user_id=user_id,
+                    snapshot_id=snapshot_id,
+                    source_key=adapter.source_key,
+                    grant_id=grant_id,
+                    envelope_gate=HealthyEnvelope(),
+                    adapter=adapter,
+                )
+        except Exception as error:  # pragma: no cover - asserted below
+            race_errors.append(error)
+
+    mismatch_thread = threading.Thread(
+        target=raced_submission,
+        args=(CountingAdapter(),),
+        name="mismatch-worker",
+    )
+    ambiguous_thread = threading.Thread(
+        target=raced_submission,
+        args=(ambiguous_adapter,),
+        name="ambiguous-worker",
+    )
+    try:
+        mismatch_thread.start()
+        assert mismatch_entered.wait(timeout=5)
+        ambiguous_thread.start()
+        assert ambiguous_adapter.entered.wait(timeout=5)
+        ambiguous_adapter.release.set()
+        ambiguous_thread.join(timeout=10)
+        release_mismatch.set()
+        mismatch_thread.join(timeout=10)
+    finally:
+        submissions_service._contract_fields = original_contract_fields
+        ambiguous_adapter.release.set()
+        release_mismatch.set()
+
+    assert not mismatch_thread.is_alive()
+    assert not ambiguous_thread.is_alive()
+    assert any(isinstance(error, TimeoutError) for error in race_errors)
+    assert any(
+        isinstance(error, PacketSubmissionRefused)
+        and error.reason == PacketSubmissionRefusal.CONTRACT_MISMATCH
+        for error in race_errors
+    )
+    with Session() as session:
+        assert (
+            session.execute(text("SELECT count(*) FROM submission_dispatch_claims")).scalar_one()
+            == 1
+        )
+        assert (
+            session.execute(text("SELECT count(*) FROM submission_stop_events")).scalar_one() == 0
         )
     engine.dispose()
 

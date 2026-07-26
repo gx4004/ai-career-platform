@@ -32,6 +32,21 @@
       "source_code": "invalid_field",
       "meaning": "validation_error",
       "handling": "stop_and_return"
+    },
+    {
+      "source_code": "captcha_required",
+      "meaning": "challenge",
+      "handling": "stop_and_return"
+    },
+    {
+      "source_code": "login_required",
+      "meaning": "authentication_required",
+      "handling": "stop_and_return"
+    },
+    {
+      "source_code": "form_changed",
+      "meaning": "validation_error",
+      "handling": "stop_and_return"
     }
   ]
 }

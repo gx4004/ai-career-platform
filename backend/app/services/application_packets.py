@@ -261,7 +261,9 @@ def compute_unresolved_questions(
                 "question": "Select or tailor a CV variant before this packet can be approved.",
             }
         )
-    questions.extend(_stop_question(category) for category in stop_categories_in(listing_description or ""))
+    questions.extend(
+        _stop_question(category) for category in stop_categories_in(listing_description or "")
+    )
     return questions
 
 
@@ -285,7 +287,8 @@ async def compose_packet_materials(
     subset of the confirmed evidence ids, or the composition is rejected.
     """
     confirmed_ids = {
-        fact["evidence_item_id"] for fact in (evidence_profile.locked_facts if evidence_profile else [])
+        fact["evidence_item_id"]
+        for fact in (evidence_profile.locked_facts if evidence_profile else [])
     }
     evidence_section = render_evidence_section(evidence_profile) or "No confirmed profile evidence."
     system_prompt = (
@@ -538,10 +541,7 @@ async def prepare_packets(
         # true no-op re-preparation.
         redo_existing = (
             existing is not None
-            and (
-                existing.cv_variant_id is None
-                or existing.listing_attribution_id is None
-            )
+            and (existing.cv_variant_id is None or existing.listing_attribution_id is None)
             and existing.decision == "pending"
         )
         if existing is not None and not redo_existing:
@@ -727,16 +727,23 @@ def _empty_result(selection) -> PacketPreparationResult:
 # ── Owner-facing reads ──
 
 
-def _packet_item(packet: ApplicationPacket, answered_fields: set[str] | None = None) -> ApplicationPacketItem:
+def _packet_item(
+    packet: ApplicationPacket,
+    answered_fields: set[str] | None = None,
+    submission_stop=None,
+) -> ApplicationPacketItem:
     """Serialize a packet with its true outstanding questions (see packet_approval).
 
     ``answered_fields`` defaults to empty — correct for a packet just created this
     call, which by definition has no stop answers recorded against it yet.
     """
-    return packet_item_with_true_unresolved(packet, answered_fields or set())
+    item = packet_item_with_true_unresolved(packet, answered_fields or set())
+    return item.model_copy(update={"submission_stop": submission_stop})
 
 
 def list_packets(db: Session, user_id: str) -> ApplicationPacketList:
+    from app.services.submissions import stop_notices_by_packet
+
     rows = (
         db.query(ApplicationPacket)
         .filter(ApplicationPacket.user_id == user_id)
@@ -744,8 +751,16 @@ def list_packets(db: Session, user_id: str) -> ApplicationPacketList:
         .all()
     )
     answered_by_packet = answered_fields_by_packet(db, user_id)
+    stop_by_packet = stop_notices_by_packet(db, user_id)
     return ApplicationPacketList(
-        items=[_packet_item(row, answered_by_packet.get(row.id)) for row in rows]
+        items=[
+            _packet_item(
+                row,
+                answered_by_packet.get(row.id),
+                stop_by_packet.get(row.id),
+            )
+            for row in rows
+        ]
     )
 
 
@@ -754,6 +769,8 @@ class PacketNotFoundError(Exception):
 
 
 def get_packet(db: Session, user_id: str, packet_id: str) -> ApplicationPacketItem:
+    from app.services.submissions import stop_notices_by_packet
+
     row = (
         db.query(ApplicationPacket)
         .filter(ApplicationPacket.user_id == user_id, ApplicationPacket.id == packet_id)
@@ -762,7 +779,11 @@ def get_packet(db: Session, user_id: str, packet_id: str) -> ApplicationPacketIt
     if row is None:
         raise PacketNotFoundError(packet_id)
     answered = answered_fields_for_packet(db, user_id, packet_id)
-    return _packet_item(row, answered)
+    return _packet_item(
+        row,
+        answered,
+        stop_notices_by_packet(db, user_id).get(packet_id),
+    )
 
 
 # ── Export + deletion cascade (D-099) ──

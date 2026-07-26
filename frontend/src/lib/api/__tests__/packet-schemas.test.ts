@@ -104,6 +104,26 @@ describe('application packet contracts', () => {
     expect(parsed.gate_state).toBe('blocked')
   })
 
+  it('requires every terminal stop to expose a safe official destination', () => {
+    const stop = {
+      stop_event_id: 'stop-1',
+      reason: 'challenge',
+      explanation: 'The source requested a challenge, so automation stopped.',
+      destination_url: 'https://jobs.example/apply/1',
+      instructions: 'Open the official destination and submit it yourself.',
+      stopped_at: '2026-07-26T16:00:00Z',
+    }
+
+    expect(applicationPacketItemSchema.parse({ ...packet, submission_stop: stop }).submission_stop)
+      .toMatchObject(stop)
+    expect(
+      applicationPacketItemSchema.safeParse({
+        ...packet,
+        submission_stop: { ...stop, destination_url: null },
+      }).success,
+    ).toBe(false)
+  })
+
   it('rejects an out-of-set gate state (D-097)', () => {
     expect(applicationPacketItemSchema.safeParse({ ...packet, gate_state: 'queued' }).success).toBe(
       false,

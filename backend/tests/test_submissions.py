@@ -7,8 +7,10 @@ import pytest
 
 from app.auth.security import hash_password
 from app.models.application_packet import ApplicationPacket
+from app.models.discovery_source import DiscoverySource
 from app.models.packet_approval_snapshot import PacketApprovalSnapshot
 from app.models.submission_record import SubmissionDispatchClaim, SubmissionRecord
+from app.models.submission_stop_event import SubmissionStopEvent
 from app.models.user import User
 from app.models.workspace import Workspace
 from app.schemas.discovery_sources import DiscoverySourceCreate, DiscoverySourceUpdate
@@ -17,6 +19,7 @@ from app.schemas.submission_sources import (
     SubmissionCompatibilityContract,
     SubmissionLegalTermsReview,
 )
+from app.services.application_packets import list_packets
 from app.services.data_export import export_career_data
 from app.services.discovery_sources import (
     operate_source_kill_switch,
@@ -40,6 +43,8 @@ from app.services.submissions import (
     PacketSubmissionRefusal,
     PacketSubmissionRefused,
     SubmissionAdapterReceipt,
+    SubmissionAdapterStop,
+    list_contract_breakage_signals,
     submit_approved_snapshot,
 )
 from app.services.tool_runs import delete_all_user_data
@@ -77,12 +82,14 @@ class FixtureAdapter:
     def __init__(self):
         self.requests = []
         self.accepted: dict[str, str] = {}
+        self.committed_applications: dict[str, dict[str, object]] = {}
 
     def submit_idempotently(self, request):
         self.requests.append(request)
         confirmation = self.accepted.setdefault(
             request.idempotency_key, f"fixture-{len(self.accepted) + 1}"
         )
+        self.committed_applications.setdefault(request.idempotency_key, request.fields)
         return SubmissionAdapterReceipt(
             source_confirmation_id=confirmation,
             source_code="accepted",
@@ -94,7 +101,7 @@ class ChallengeAdapter(FixtureAdapter):
         self.requests.append(request)
         return SubmissionAdapterReceipt(
             source_confirmation_id="not-a-confirmation",
-            source_code="challenge_required",
+            source_code="captcha_required",
         )
 
 
@@ -102,6 +109,26 @@ class AmbiguousAdapter(FixtureAdapter):
     def submit_idempotently(self, request):
         self.requests.append(request)
         raise TimeoutError("source may have accepted the idempotency key")
+
+
+class StopAdapter(FixtureAdapter):
+    def __init__(self, source_code: str):
+        super().__init__()
+        self.source_code = source_code
+
+    def submit_idempotently(self, request):
+        self.requests.append(request)
+        reasons = {
+            "captcha_required": "challenge",
+            "login_required": "authentication_required",
+            "form_changed": "compatibility_mismatch",
+            "uncertain_precommit": "uncertainty",
+            "unreviewed_new_form_response": "compatibility_mismatch",
+        }
+        return SubmissionAdapterStop(
+            reason=reasons[self.source_code],
+            source_code=self.source_code,
+        )
 
 
 def _admin(db) -> User:
@@ -164,7 +191,19 @@ def _source_and_grant(db, test_user):
     return source, governance, grant
 
 
-def _snapshot(db, test_user, *, unresolved=None, unsupported=None):
+def _snapshot(
+    db,
+    test_user,
+    *,
+    unresolved=None,
+    unsupported=None,
+    destination_url: str | None = "https://synthetic-engine.invalid/applications",
+    handoff_source_id: str | None = None,
+):
+    if handoff_source_id is None:
+        handoff_source_id = (
+            db.query(DiscoverySource.id).filter_by(source_key="synthetic-engine").scalar()
+        )
     campaign = Workspace(user_id=test_user.id, label="Engine test")
     db.add(campaign)
     db.flush()
@@ -198,7 +237,18 @@ def _snapshot(db, test_user, *, unresolved=None, unsupported=None):
             "description": "Build reliable systems",
             "attributions": [],
         },
-        "manual_handoff": None,
+        "manual_handoff": (
+            {
+                "listing_id": None,
+                "attribution_id": "synthetic-attribution",
+                "source_id": handoff_source_id,
+                "source_listing_key": "synthetic-listing",
+                "source_url": destination_url,
+                "retrieved_at": datetime.now(UTC).isoformat(),
+            }
+            if destination_url is not None
+            else None
+        ),
         "cv_variant": None,
         "drafts": {"cover_letter": "Exact approved cover letter"},
     }
@@ -209,7 +259,7 @@ def _snapshot(db, test_user, *, unresolved=None, unsupported=None):
         campaign_id=campaign.id,
         listing_id=None,
         role_key="role:v1:" + "b" * 64,
-        destination_url=None,
+        destination_url=destination_url,
         content_json=canonical,
         content_sha256=hashlib.sha256(canonical.encode()).hexdigest(),
     )
@@ -356,6 +406,29 @@ def test_source_user_packet_and_envelope_gates_refuse_independently(db, test_use
 
 
 @pytest.mark.parametrize(
+    "snapshot_kwargs",
+    [
+        {"destination_url": None},
+        {"handoff_source_id": "different-reviewed-source"},
+    ],
+)
+def test_submission_requires_frozen_destination_bound_to_selected_source(
+    db, test_user, snapshot_kwargs
+):
+    source, _, grant = _source_and_grant(db, test_user)
+    snapshot = _snapshot(db, test_user, **snapshot_kwargs)
+    adapter = FixtureAdapter()
+
+    with pytest.raises(PacketSubmissionRefused) as refused:
+        _submit(db, test_user, snapshot, source, grant, FixtureEnvelope(), adapter)
+
+    assert refused.value.reason == PacketSubmissionRefusal.CONTRACT_MISMATCH
+    assert adapter.requests == []
+    assert adapter.committed_applications == {}
+    assert db.query(SubmissionDispatchClaim).count() == 0
+
+
+@pytest.mark.parametrize(
     ("unresolved", "unsupported", "reason"),
     [
         (
@@ -413,10 +486,15 @@ def test_tampered_snapshot_and_contract_path_fail_before_adapter(db, test_user):
         SubmissionCompatibilityContract.model_validate(contract),
         actor=_admin(db),
     )
-    with pytest.raises(PacketSubmissionRefused) as mismatch:
-        _submit(db, test_user, snapshot, source, grant, FixtureEnvelope(), adapter)
-    assert mismatch.value.reason == PacketSubmissionRefusal.CONTRACT_MISMATCH
+    stopped = _submit(db, test_user, snapshot, source, grant, FixtureEnvelope(), adapter)
+    assert stopped.status == "stopped"
+    assert stopped.reason == "compatibility_mismatch"
+    assert list_packets(db, test_user.id).items[0].submission_stop is not None
+    assert [event.id for event in list_contract_breakage_signals(db, source.id)] == [
+        stopped.stop_event_id
+    ]
     assert adapter.requests == []
+    assert adapter.committed_applications == {}
 
 
 def test_snapshot_row_must_still_match_an_accepted_passed_owner_packet(db, test_user):
@@ -452,18 +530,23 @@ def test_contract_format_mismatch_stops_before_adapter(db, test_user):
     )
     adapter = FixtureAdapter()
 
-    with pytest.raises(PacketSubmissionRefused) as refusal:
-        _submit(
-            db,
-            test_user,
-            snapshot,
-            source,
-            grant,
-            FixtureEnvelope(),
-            adapter,
-        )
-    assert refusal.value.reason == PacketSubmissionRefusal.CONTRACT_MISMATCH
+    stopped = _submit(
+        db,
+        test_user,
+        snapshot,
+        source,
+        grant,
+        FixtureEnvelope(),
+        adapter,
+    )
+    assert stopped.status == "stopped"
+    assert stopped.reason == "compatibility_mismatch"
+    assert list_packets(db, test_user.id).items[0].submission_stop is not None
+    assert [event.id for event in list_contract_breakage_signals(db, source.id)] == [
+        stopped.stop_event_id
+    ]
     assert adapter.requests == []
+    assert adapter.committed_applications == {}
 
 
 def test_pre_act_failure_preserves_the_globally_shared_frozen_claim(db, test_user):
@@ -487,7 +570,9 @@ def test_pre_act_failure_preserves_the_globally_shared_frozen_claim(db, test_use
     )
 
 
-def test_non_accepted_source_code_never_creates_a_submission_record(db, test_user):
+def test_non_accepted_receipt_stays_on_frozen_reconciliation_without_manual_handoff(
+    db, test_user
+):
     source, _, grant = _source_and_grant(db, test_user)
     snapshot = _snapshot(db, test_user)
 
@@ -501,8 +586,11 @@ def test_non_accepted_source_code_never_creates_a_submission_record(db, test_use
             FixtureEnvelope(),
             ChallengeAdapter(),
         )
+
     assert refusal.value.reason == PacketSubmissionRefusal.CONTRACT_MISMATCH
     assert db.query(SubmissionRecord).count() == 0
+    assert db.query(SubmissionStopEvent).count() == 0
+    assert db.query(SubmissionDispatchClaim).count() == 1
 
 
 def test_ambiguous_retry_stops_on_contract_change_then_reuses_frozen_request(db, test_user):
@@ -584,3 +672,86 @@ def test_same_version_contract_drift_stops_before_adapter(db, test_user):
 
     assert mismatch.value.reason == PacketSubmissionRefusal.CONTRACT_MISMATCH
     assert retry.requests == []
+
+
+@pytest.mark.parametrize(
+    ("source_code", "reason"),
+    [
+        ("captcha_required", "challenge"),
+        ("login_required", "authentication_required"),
+        ("form_changed", "compatibility_mismatch"),
+        ("uncertain_precommit", "uncertainty"),
+    ],
+)
+def test_source_stop_returns_packet_with_plain_handoff_and_never_retries(
+    db, test_user, source_code, reason
+):
+    source, _, grant = _source_and_grant(db, test_user)
+    snapshot = _snapshot(
+        db,
+        test_user,
+        destination_url="https://synthetic-engine.invalid/applications",
+    )
+    adapter = StopAdapter(source_code)
+
+    first = _submit(db, test_user, snapshot, source, grant, FixtureEnvelope(), adapter)
+    second = _submit(db, test_user, snapshot, source, grant, FixtureEnvelope(), adapter)
+
+    assert first == second
+    assert first.status == "stopped"
+    assert first.reason == reason
+    assert first.automatic_retry_scheduled is False
+    assert first.explanation
+    assert first.handoff.destination_url == snapshot.destination_url
+    assert "submit" in first.handoff.instructions.lower()
+    assert len(adapter.requests) == 1
+    assert adapter.committed_applications == {}
+    assert snapshot.packet.decision == "accepted"
+    assert db.query(SubmissionRecord).count() == 0
+    assert db.query(SubmissionStopEvent).count() == 1
+    assert [event.id for event in list_contract_breakage_signals(db, source.id)] == [
+        first.stop_event_id
+    ]
+
+
+def test_stops_are_owner_exported_and_erased_with_their_snapshot(db, test_user):
+    source, _, grant = _source_and_grant(db, test_user)
+    snapshot = _snapshot(db, test_user)
+    result = _submit(
+        db,
+        test_user,
+        snapshot,
+        source,
+        grant,
+        FixtureEnvelope(),
+        StopAdapter("captcha_required"),
+    )
+
+    exported = export_career_data(db, test_user.id)
+    assert exported.submission_records.stop_count == 1
+    assert exported.submission_records.stops[0].id == result.stop_event_id
+    assert exported.submission_records.stops[0].reason == "challenge"
+    notice = list_packets(db, test_user.id).items[0].submission_stop
+    assert notice is not None
+    assert notice.stop_event_id == result.stop_event_id
+    assert notice.reason == "challenge"
+    assert notice.explanation
+
+    delete_all_user_data(db, test_user.id)
+
+    assert db.query(SubmissionStopEvent).count() == 0
+
+
+def test_unknown_source_response_stops_and_feeds_contract_breakage_detection(db, test_user):
+    source, _, grant = _source_and_grant(db, test_user)
+    snapshot = _snapshot(db, test_user)
+    adapter = StopAdapter("unreviewed_new_form_response")
+
+    result = _submit(db, test_user, snapshot, source, grant, FixtureEnvelope(), adapter)
+
+    assert result.status == "stopped"
+    assert result.reason == "compatibility_mismatch"
+    signals = list_contract_breakage_signals(db, source.id)
+    assert [signal.id for signal in signals] == [result.stop_event_id]
+    assert signals[0].source_code == "unreviewed_new_form_response"
+    assert db.query(SubmissionRecord).count() == 0

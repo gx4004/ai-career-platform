@@ -272,6 +272,29 @@ describe('QueuePage', () => {
     expect(screen.getByRole('button', { name: /Resume queue/ })).toBeTruthy()
   })
 
+  it('shows a terminal stop explanation and the frozen official handoff', async () => {
+    renderPage([
+      makePacket({
+        decision: 'accepted',
+        submission_stop: {
+          stop_event_id: 'stop-1',
+          reason: 'challenge',
+          explanation: 'The source requested a challenge, so automation stopped.',
+          destination_url: 'https://jobs.example/apply/1',
+          instructions: 'Open the official destination and submit it yourself.',
+          stopped_at: '2026-07-26T16:00:00Z',
+        },
+      }),
+    ])
+
+    expect(await screen.findByText(/^Automation stopped\.$/i)).toBeTruthy()
+    expect(screen.getByText(/source requested a challenge/i)).toBeTruthy()
+    const link = screen.getByRole('link', {
+      name: /Open official application destination/i,
+    })
+    expect(link.getAttribute('href')).toBe('https://jobs.example/apply/1')
+  })
+
   it('never shows owner A packets or handoff after owner B replaces the session', async () => {
     const ownerAPacket = makePacket({
       id: 'alpha-owner-a',

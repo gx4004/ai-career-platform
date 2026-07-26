@@ -373,6 +373,29 @@ export function QueuePage() {
                     }
                   />
 
+                  {packet.submission_stop ? (
+                    <section
+                      className="queue-banner queue-banner--halted"
+                      role="status"
+                      aria-live="polite"
+                    >
+                      <AlertTriangle size={18} aria-hidden="true" />
+                      <span>
+                        <strong>Automation stopped.</strong>{' '}
+                        {packet.submission_stop.explanation}{' '}
+                        {packet.submission_stop.instructions}
+                        {' '}
+                        <a
+                          href={packet.submission_stop.destination_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          Open official application destination
+                        </a>
+                      </span>
+                    </section>
+                  ) : null}
+
                   {blocked ? (
                     <section
                       className="queue-unresolved"
