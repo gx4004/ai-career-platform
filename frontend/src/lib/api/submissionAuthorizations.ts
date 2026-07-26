@@ -4,6 +4,10 @@ import {
   submissionAuthorizationListSchema,
   type SubmissionAuthorizationList,
 } from '#/lib/api/submissionAuthorizationSchemas'
+import {
+  submissionSafetyStatusSchema,
+  type SubmissionSafetyStatus,
+} from '#/lib/api/submissionSafetySchemas'
 
 export const SUBMISSION_AUTHORIZATIONS_QUERY_ROOT = [
   'submission-authorizations',
@@ -65,5 +69,16 @@ export async function revokeSubmissionAuthorization(grantId: string): Promise<vo
   await authorizationRequest(
     `/submission-authorizations/${encodeURIComponent(grantId)}`,
     { method: 'DELETE' },
+  )
+}
+
+export async function getSubmissionSafetyStatus(
+  grantId: string,
+): Promise<SubmissionSafetyStatus> {
+  return submissionSafetyStatusSchema.parse(
+    await authorizationRequest(
+      `/submission-authorizations/${encodeURIComponent(grantId)}/safety`,
+      { method: 'GET' },
+    ),
   )
 }

@@ -20,9 +20,11 @@ from app.models.application_packet import ApplicationPacket
 from app.models.discovery_source import DiscoverySource
 from app.models.packet_approval_snapshot import PacketApprovalSnapshot
 from app.models.submission_authorization import SubmissionAuthorizationGrant
+from app.models.submission_safety import SubmissionSafetyControl, SubmissionSafetyPolicy
 from app.models.submission_source import SubmissionSourceGovernance
 from app.models.user import User
 from app.models.workspace import Workspace
+from app.services.submission_safety import SubmissionSafetyBlocked, SubmissionSafetyEnvelope
 from app.services.submissions import (
     PacketSubmissionRefusal,
     PacketSubmissionRefused,
@@ -34,7 +36,7 @@ from app.services.submissions import (
 
 
 class HealthyEnvelope:
-    def require_healthy(self, db, *, user_id: str, source_id: str) -> None:
+    def require_healthy(self, db, *, user_id: str, source_id: str, snapshot_id: str) -> None:
         return None
 
 
@@ -191,6 +193,64 @@ def _seed(session) -> tuple[str, str, str]:
     session.add_all([user, source, governance, grant, campaign, packet, snapshot])
     session.commit()
     return user.id, snapshot.id, grant.id
+
+
+def _seed_second_snapshot(session, *, user_id: str) -> str:
+    now = datetime.now(UTC)
+    packet = ApplicationPacket(
+        id="concurrent-packet-2",
+        user_id=user_id,
+        campaign_id="concurrent-campaign",
+        match_rationale={"composite_score": 91, "signals": [], "matched_rules": []},
+        unresolved_questions=[],
+        status="prepared",
+        gate_state="passed",
+        decision="accepted",
+        estimated_cost_usd=0,
+    )
+    content = {
+        "schema_version": "packet-approval/v1",
+        "packet_id": packet.id,
+        "campaign_id": packet.campaign_id,
+        "listing_id": None,
+        "frozen_at": now.isoformat(),
+        "match_rationale": packet.match_rationale,
+        "unresolved_questions": [],
+        "unsupported_claims": [],
+        "resolved_stop_answers": [],
+        "listing": {
+            "id": "concurrent-listing-2",
+            "content_sha256": "d" * 64,
+            "title": "Concurrency Engineer II",
+            "company": "Fixture",
+            "description": "Test",
+            "attributions": [],
+        },
+        "manual_handoff": {
+            "listing_id": None,
+            "attribution_id": "concurrency-attribution-2",
+            "source_id": "concurrent-source",
+            "source_listing_key": "concurrency-listing-2",
+            "source_url": "https://concurrency-fixture.invalid/applications",
+            "retrieved_at": now.isoformat(),
+        },
+        "cv_variant": None,
+        "drafts": None,
+    }
+    canonical = json.dumps(content, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    snapshot = PacketApprovalSnapshot(
+        id="concurrent-snapshot-2",
+        user_id=user_id,
+        packet_id=packet.id,
+        campaign_id=packet.campaign_id,
+        role_key="role:v1:" + "f" * 64,
+        destination_url="https://concurrency-fixture.invalid/applications",
+        content_json=canonical,
+        content_sha256=hashlib.sha256(canonical.encode()).hexdigest(),
+    )
+    session.add_all([packet, snapshot])
+    session.commit()
+    return snapshot.id
 
 
 def main() -> None:
@@ -378,8 +438,7 @@ def main() -> None:
     assert stop_erasure_finished.is_set()
     with Session() as session:
         assert (
-            session.execute(text("SELECT count(*) FROM submission_stop_events")).scalar_one()
-            == 0
+            session.execute(text("SELECT count(*) FROM submission_stop_events")).scalar_one() == 0
         )
         assert (
             session.execute(text("SELECT count(*) FROM submission_dispatch_claims")).scalar_one()
@@ -508,6 +567,81 @@ def main() -> None:
         assert (
             session.execute(text("SELECT count(*) FROM submission_stop_events")).scalar_one() == 0
         )
+
+    # The real #193 gate must serialize two distinct snapshots at the same source
+    # without the "both lose" race. With a source limit of one, exactly the first
+    # durable claim reaches the adapter and the other fails closed.
+    with engine.begin() as connection:
+        connection.execute(text("DELETE FROM users WHERE id='concurrent-user'"))
+        connection.execute(text("DELETE FROM discovery_sources WHERE id='concurrent-source'"))
+        connection.execute(text("DELETE FROM submission_safety_controls"))
+    with Session() as session:
+        user_id, snapshot_id, grant_id = _seed(session)
+        second_snapshot_id = _seed_second_snapshot(session, user_id=user_id)
+        now = datetime.now(UTC)
+        session.add_all(
+            [
+                SubmissionSafetyControl(
+                    id="global",
+                    global_kill_switch=False,
+                    incident_playbook_version="submission-v1",
+                    incident_rehearsed_at=now,
+                    incident_rehearsed_by="postgres-proof",
+                ),
+                SubmissionSafetyPolicy(
+                    discovery_source_id="concurrent-source",
+                    user_rate_limit_per_minute=10,
+                    user_daily_volume_limit=100,
+                    source_rate_limit_per_minute=1,
+                    source_daily_volume_limit=100,
+                    anomaly_user_attempts_per_hour=100,
+                    configured_by="postgres-proof",
+                    configured_at=now,
+                ),
+            ]
+        )
+        session.commit()
+
+    safety_adapter = CountingAdapter()
+    safety_barrier = threading.Barrier(2)
+    safety_results = []
+    safety_errors = []
+
+    def safety_worker(current_snapshot_id: str) -> None:
+        try:
+            safety_barrier.wait()
+            with Session() as session:
+                safety_results.append(
+                    submit_approved_snapshot(
+                        session,
+                        user_id=user_id,
+                        snapshot_id=current_snapshot_id,
+                        source_key=safety_adapter.source_key,
+                        grant_id=grant_id,
+                        envelope_gate=SubmissionSafetyEnvelope(),
+                        adapter=safety_adapter,
+                    )
+                )
+        except Exception as error:  # pragma: no cover - asserted below
+            safety_errors.append(error)
+
+    safety_threads = [
+        threading.Thread(target=safety_worker, args=(current_snapshot_id,))
+        for current_snapshot_id in (snapshot_id, second_snapshot_id)
+    ]
+    for thread in safety_threads:
+        thread.start()
+    assert safety_adapter.entered.wait(timeout=5)
+    safety_adapter.release.set()
+    for thread in safety_threads:
+        thread.join(timeout=10)
+
+    assert all(not thread.is_alive() for thread in safety_threads)
+    assert len(safety_results) == 1
+    assert safety_adapter.calls == 1
+    assert len(safety_errors) == 1
+    assert isinstance(safety_errors[0], SubmissionSafetyBlocked)
+    assert safety_errors[0].reason == "source_rate_limit"
     engine.dispose()
 
 

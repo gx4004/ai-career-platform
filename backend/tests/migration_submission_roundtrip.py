@@ -1,4 +1,4 @@
-"""Populated PostgreSQL round-trip for the #191 submission migration."""
+"""Populated PostgreSQL round-trip for the #191–#193 submission migrations."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from sqlalchemy.exc import DBAPIError
 from alembic import command
 
 PARENT = "e8b4d6c1f3a9"
-REVISION = "a1d6f8b3c5e7"
+REVISION = "b2e7a9c4d6f1"
 
 
 def main() -> None:
@@ -64,6 +64,23 @@ def main() -> None:
                 "reason,source_code,created_at) VALUES "
                 "('ss1','u1','pa191','s1','grant-1','submission:v1:stopped',"
                 "'fixture/v1',repeat('e',64),'challenge','captcha_required',now())"
+            )
+        )
+        connection.execute(
+            text(
+                "INSERT INTO submission_safety_controls "
+                "(id,global_kill_switch,incident_playbook_version,incident_rehearsed_at,"
+                "incident_rehearsed_by,created_at,updated_at) VALUES "
+                "('global',false,'submission-v1',now(),'admin-1',now(),now())"
+            )
+        )
+        connection.execute(
+            text(
+                "INSERT INTO submission_safety_policies "
+                "(id,discovery_source_id,user_rate_limit_per_minute,user_daily_volume_limit,"
+                "source_rate_limit_per_minute,source_daily_volume_limit,"
+                "anomaly_user_attempts_per_hour,configured_by,configured_at,updated_at) VALUES "
+                "('sp1','s1',2,20,10,100,8,'admin-1',now(),now())"
             )
         )
 
@@ -132,12 +149,23 @@ def main() -> None:
             connection.execute(text("SELECT count(*) FROM submission_stop_events")).scalar_one()
             == 0
         )
+        assert (
+            connection.execute(text("SELECT count(*) FROM submission_safety_policies")).scalar_one()
+            == 1
+        )
+        connection.execute(text("DELETE FROM discovery_sources WHERE id='s1'"))
+        assert (
+            connection.execute(text("SELECT count(*) FROM submission_safety_policies")).scalar_one()
+            == 0
+        )
 
     command.downgrade(config, PARENT)
     tables = set(inspect(engine).get_table_names())
     assert "submission_records" not in tables
     assert "submission_dispatch_claims" not in tables
     assert "submission_stop_events" not in tables
+    assert "submission_safety_controls" not in tables
+    assert "submission_safety_policies" not in tables
     with engine.begin() as connection:
         assert (
             connection.execute(

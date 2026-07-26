@@ -1368,6 +1368,20 @@ repeated challenges, authentication requests, uncertainty, validation rejection,
 and compatibility mismatches can be classified without exposing source content.
 #195, not #192, owns detection thresholds and automatic kill-switch action.
 
+The dark #193 envelope closes the otherwise-injected fourth gate. Its singleton
+global kill switch fails closed when absent and cannot be cleared until a bounded
+playbook version, rehearsal timestamp, and operator identity are recorded. Each
+source has strict per-owner/per-source minute and rolling-24-hour durable-claim
+limits plus an hourly anomaly threshold. The engine checks the owner pause, global
+control, and source policy at dispatch and again under policy locks immediately
+before the adapter boundary; concurrent source attempts therefore serialize on the
+same policy row. Anomaly telemetry contains only source family, the closed anomaly
+outcome, and server time—never user/packet/source ids, URLs, claims, provider prose,
+or submitted fields. Operators can trip global and per-source controls without a
+deploy, owners see fixed block reasons and their own bounded usage, and every
+environment starts globally killed. The documented rehearsal is dark implementation
+evidence only; it does not satisfy D-100 or authorize a real source.
+
 Discovered listings are non-user product data in dedicated canonical and source-
 attribution tables; neither table carries a user/workspace key or references
 `campaign_listings`. Source URLs are restricted to the governed endpoint host and

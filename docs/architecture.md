@@ -510,6 +510,16 @@ errors remain forbidden.
   destination and its source identity are frozen to the selected governed source.
   Ambiguous post-act timeouts or invalid/unknown confirmations do not become terminal
   handoffs; they retain the exact durable claim for source-native reconciliation.
+- The dark #193 envelope is the engine's authoritative fourth checkpoint. A singleton
+  global kill switch defaults on; clearing it requires a recorded incident-playbook
+  rehearsal. Strict per-source policies bound each owner and each source by rolling
+  minute and 24-hour durable-claim counts, with a separate hourly anomaly threshold.
+  The engine consults the owner queue pause plus global control and source policy at
+  dispatch and again under policy locks immediately before its adapter boundary.
+  Anomalies emit only source family and a closed outcome. Owners can inspect their
+  exact bounded usage/block reason, while admins can configure limits, record a
+  rehearsal, and trip global/source controls without a deploy. No public submit route,
+  scheduler, credential flow, real adapter, or activation is added.
 - Quality and user outcomes govern operation; raw volume never loosens controls
   (D-106).
 - Submission records follow the standard lifecycle for product copies, with the

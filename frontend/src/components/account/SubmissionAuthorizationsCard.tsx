@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { KeyRound } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import {
+  getSubmissionSafetyStatus,
   listSubmissionAuthorizations,
   revokeSubmissionAuthorization,
   submissionAuthorizationQueryKey,
@@ -19,6 +20,18 @@ const FAMILY_LABELS: Record<SubmissionAuthorization['source_family'], string> = 
   public_career_page: 'Public career page',
   user_provided: 'User-provided source',
 }
+
+const SAFETY_LABELS = {
+  user_paused: 'Paused by you',
+  global_kill_switch: 'Paused globally by operators',
+  policy_missing: 'Safety limits are not configured',
+  incident_rehearsal_missing: 'Incident rehearsal is incomplete',
+  user_rate_limit: 'Your per-minute limit is reached',
+  user_volume_limit: 'Your 24-hour limit is reached',
+  source_rate_limit: 'The source per-minute limit is reached',
+  source_volume_limit: 'The source 24-hour limit is reached',
+  anomaly_detected: 'An unusual submission pattern was stopped',
+} as const
 
 export function SubmissionAuthorizationsCard({ userId }: { userId: string }) {
   const queryClient = useQueryClient()
@@ -82,6 +95,7 @@ export function SubmissionAuthorizationsCard({ userId }: { userId: string }) {
                     <span aria-hidden="true"> · </span>
                     <span>{MECHANISM_LABELS[grant.mechanism]}</span>
                   </p>
+                  <AuthorizationSafety grant={grant} userId={userId} />
                   <p className="small-copy muted-copy">
                     <span>Submit applications</span>
                     <span aria-hidden="true"> · </span>
@@ -107,5 +121,37 @@ export function SubmissionAuthorizationsCard({ userId }: { userId: string }) {
         </div>
       )}
     </div>
+  )
+}
+
+function AuthorizationSafety({
+  grant,
+  userId,
+}: {
+  grant: SubmissionAuthorization
+  userId: string
+}) {
+  const safety = useQuery({
+    queryKey: ['submission-safety', userId, grant.id],
+    queryFn: () => getSubmissionSafetyStatus(grant.id),
+    staleTime: 15_000,
+  })
+  if (safety.isLoading) {
+    return <p className="small-copy muted-copy" role="status">Loading safety limits…</p>
+  }
+  if (safety.isError || !safety.data) {
+    return <p className="small-copy text-destructive" role="alert">Safety limits could not be loaded.</p>
+  }
+  const status = safety.data
+  return (
+    <p className="small-copy muted-copy" role="status" aria-live="polite">
+      <strong>{status.allowed ? 'Submission safety ready' : SAFETY_LABELS[status.reason!]}</strong>
+      {status.user_rate_limit !== null && (
+        <span>
+          {' '}· You {status.user_rate_used}/{status.user_rate_limit} this minute,
+          {' '}{status.user_daily_used}/{status.user_daily_limit} in 24 hours
+        </span>
+      )}
+    </p>
   )
 }

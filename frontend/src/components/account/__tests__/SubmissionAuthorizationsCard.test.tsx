@@ -5,10 +5,12 @@ import { SubmissionAuthorizationsCard } from '#/components/account/SubmissionAut
 
 const listSubmissionAuthorizationsMock = vi.hoisted(() => vi.fn())
 const revokeSubmissionAuthorizationMock = vi.hoisted(() => vi.fn())
+const getSubmissionSafetyStatusMock = vi.hoisted(() => vi.fn())
 
 vi.mock('#/lib/api/submissionAuthorizations', () => ({
   listSubmissionAuthorizations: listSubmissionAuthorizationsMock,
   revokeSubmissionAuthorization: revokeSubmissionAuthorizationMock,
+  getSubmissionSafetyStatus: getSubmissionSafetyStatusMock,
   submissionAuthorizationQueryKey: (userId: string) => [
     'submission-authorizations',
     userId,
@@ -16,6 +18,18 @@ vi.mock('#/lib/api/submissionAuthorizations', () => ({
 }))
 
 function renderCard(userId = 'user-a', existingClient?: QueryClient) {
+  getSubmissionSafetyStatusMock.mockResolvedValue({
+    allowed: false,
+    reason: 'global_kill_switch',
+    user_rate_used: 0,
+    user_rate_limit: 2,
+    user_daily_used: 0,
+    user_daily_limit: 20,
+    source_rate_used: 0,
+    source_rate_limit: 10,
+    source_daily_used: 0,
+    source_daily_limit: 100,
+  })
   const client = existingClient ?? new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   })
@@ -51,6 +65,7 @@ describe('SubmissionAuthorizationsCard', () => {
     expect(screen.getByText('OAuth 2 authorization code')).toBeTruthy()
     expect(screen.getByText('Submit applications')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Revoke Synthetic ATS' })).toBeTruthy()
+    expect(await screen.findByText(/Paused globally by operators/)).toBeTruthy()
     expect(screen.queryByText(/token|password|cookie/i)).toBeNull()
   })
 

@@ -107,6 +107,7 @@ class SubmissionEnvelopeGate(Protocol):
         *,
         user_id: str,
         source_id: str,
+        snapshot_id: str,
     ) -> None: ...
 
 
@@ -592,7 +593,12 @@ def submit_approved_snapshot(
         source_id=source.discovery_source_id,
         grant_id=grant_id,
     )
-    envelope_gate.require_healthy(db, user_id=user_id, source_id=source.discovery_source_id)
+    envelope_gate.require_healthy(
+        db,
+        user_id=user_id,
+        source_id=source.discovery_source_id,
+        snapshot_id=snapshot.id,
+    )
     key = _idempotency_key(snapshot.id, source.discovery_source_id)
     prior_claim = (
         db.query(SubmissionDispatchClaim)
@@ -715,7 +721,12 @@ def submit_approved_snapshot(
             source_key=source_key,
             grant_id=claim.authorization_grant_id,
         )
-        envelope_gate.require_healthy(db, user_id=user_id, source_id=source.discovery_source_id)
+        envelope_gate.require_healthy(
+            db,
+            user_id=user_id,
+            source_id=source.discovery_source_id,
+            snapshot_id=snapshot.id,
+        )
         current_fields_json = _canonical(_contract_fields(content, source.contract))
         current_codes_json = _canonical(
             sorted(

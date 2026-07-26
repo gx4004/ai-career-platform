@@ -113,6 +113,12 @@ SubmissionSourceGovernanceOutcome = Literal[
     "kill_switch_enabled",
     "kill_switch_disabled",
 ]
+SubmissionSafetyOutcome = Literal[
+    "anomaly_detected",
+    "kill_switch_enabled",
+    "kill_switch_disabled",
+    "rehearsal_recorded",
+]
 
 # R15 #184 packet-queue trust-chain gate. Backend-generated at the preparation
 # seam. Only the bounded gate outcome class rides on `operational_outcome`; for a
@@ -135,10 +141,7 @@ PacketGateHaltReason = Literal["fabrication_regression", "packet_quality_regress
 # or import outcome). Which axis a value belongs to is unambiguous from
 # `event_name`, so aggregation never has to disambiguate a bare string.
 OperationalDimension = (
-    ProviderIncidentCategory
-    | ImportSourceFamily
-    | DiscoverySourceFamily
-    | PacketGateHaltReason
+    ProviderIncidentCategory | ImportSourceFamily | DiscoverySourceFamily | PacketGateHaltReason
 )
 OperationalOutcome = (
     CacheOutcome
@@ -150,6 +153,7 @@ OperationalOutcome = (
     | DiscoveryPersonalizationOutcome
     | DiscoveryAdoptionOutcome
     | SubmissionSourceGovernanceOutcome
+    | SubmissionSafetyOutcome
     | PacketGateOutcome
 )
 
@@ -200,11 +204,21 @@ SubmissionSourceGovernanceEventName = Literal[
 ]
 _SUBMISSION_SOURCE_EVENT_OUTCOMES = {
     "submission_source_promotion_changed": frozenset({"promoted", "demoted"}),
-    "submission_source_kill_switch": frozenset(
-        {"kill_switch_enabled", "kill_switch_disabled"}
-    ),
+    "submission_source_kill_switch": frozenset({"kill_switch_enabled", "kill_switch_disabled"}),
 }
 _SUBMISSION_SOURCE_EXCLUSIVE_OUTCOMES = frozenset({"promoted", "demoted"})
+
+SubmissionSafetyEventName = Literal[
+    "submission_safety_anomaly",
+    "submission_global_kill_switch",
+    "submission_incident_rehearsal",
+]
+_SUBMISSION_SAFETY_EVENT_OUTCOMES = {
+    "submission_safety_anomaly": frozenset({"anomaly_detected"}),
+    "submission_global_kill_switch": frozenset({"kill_switch_enabled", "kill_switch_disabled"}),
+    "submission_incident_rehearsal": frozenset({"rehearsal_recorded"}),
+}
+_SUBMISSION_SAFETY_EXCLUSIVE_OUTCOMES = frozenset({"anomaly_detected", "rehearsal_recorded"})
 
 # R15 #184 packet-queue trust-chain gate events (D-097). Backend-only, emitted at
 # the preparation seam; both carry only bounded operational dimensions.
@@ -243,6 +257,7 @@ ActivationEventName = (
     | StudioEventName
     | DiscoveryEventName
     | SubmissionSourceGovernanceEventName
+    | SubmissionSafetyEventName
     | PacketGateEventName
     | DevelopmentLoopEventName
 )
@@ -327,38 +342,21 @@ class ActivationEventCreate(BaseModel):
             raise ValueError(
                 "development-loop events accept only gap, response, and state dimensions"
             )
-        if (
-            self.development_gap_kind is None
-            or self.development_response_kind is None
-        ):
-            raise ValueError(
-                "development-loop events require gap and response dimensions"
-            )
+        if self.development_gap_kind is None or self.development_response_kind is None:
+            raise ValueError("development-loop events require gap and response dimensions")
 
         if self.event_name == "development_item_created":
-            if (
-                self.development_state_from is not None
-                or self.development_state_to != "planned"
-            ):
-                raise ValueError(
-                    "development_item_created requires only state_to=planned"
-                )
+            if self.development_state_from is not None or self.development_state_to != "planned":
+                raise ValueError("development_item_created requires only state_to=planned")
         elif self.event_name == "development_item_state_changed":
             if (
                 self.development_state_from is None
                 or self.development_state_to is None
                 or self.development_state_from == self.development_state_to
             ):
-                raise ValueError(
-                    "development_item_state_changed requires distinct from/to states"
-                )
-        elif (
-            self.development_state_from is None
-            or self.development_state_to is not None
-        ):
-            raise ValueError(
-                "development_item_deleted requires only the prior state"
-            )
+                raise ValueError("development_item_state_changed requires distinct from/to states")
+        elif self.development_state_from is None or self.development_state_to is not None:
+            raise ValueError("development_item_deleted requires only the prior state")
         return self
 
     @model_validator(mode="after")
@@ -401,7 +399,51 @@ class ActivationEventCreate(BaseModel):
             self.occurred_at,
         )
         if any(value is not None for value in unrelated_values) or self.level != "info":
-            raise ValueError(
-                "submission-source events accept only source family and outcome"
-            )
+            raise ValueError("submission-source events accept only source family and outcome")
+        return self
+
+    @model_validator(mode="after")
+    def validate_submission_safety_event_shape(self):
+        allowed_outcomes = _SUBMISSION_SAFETY_EVENT_OUTCOMES.get(self.event_name)
+        if allowed_outcomes is None:
+            if self.operational_outcome in _SUBMISSION_SAFETY_EXCLUSIVE_OUTCOMES:
+                raise ValueError("submission-safety outcomes are valid only for safety events")
+            return self
+        if self.operational_outcome not in allowed_outcomes:
+            raise ValueError("submission-safety event has the wrong outcome")
+        if self.event_name == "submission_safety_anomaly":
+            if (
+                self.operational_dimension
+                not in {
+                    "licensed",
+                    "employer_ats",
+                    "public_career_page",
+                    "user_provided",
+                }
+                or self.level != "error"
+            ):
+                raise ValueError("anomaly events require source family and error level")
+        elif self.operational_dimension is not None or self.level != "info":
+            raise ValueError("global safety events accept only their bounded outcome")
+        unrelated_values = (
+            self.tool_id,
+            self.access_mode,
+            self.saved,
+            self.failure_category,
+            self.export_format,
+            self.has_feedback,
+            self.session_status,
+            self.duration_ms,
+            self.cost_estimate,
+            self.evidence_kind,
+            self.evidence_provenance,
+            self.confirmation_transition,
+            self.development_gap_kind,
+            self.development_response_kind,
+            self.development_state_from,
+            self.development_state_to,
+            self.occurred_at,
+        )
+        if any(value is not None for value in unrelated_values):
+            raise ValueError("submission-safety events accept no content dimensions")
         return self

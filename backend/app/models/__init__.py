@@ -22,6 +22,7 @@ from app.models.queue_audit_event import QueueAuditEvent
 from app.models.queue_rule import QueueRule, QueueSettings
 from app.models.submission_authorization import SubmissionAuthorizationGrant
 from app.models.submission_record import SubmissionDispatchClaim, SubmissionRecord
+from app.models.submission_safety import SubmissionSafetyControl, SubmissionSafetyPolicy
 from app.models.submission_source import SubmissionSourceGovernance
 from app.models.submission_stop_event import SubmissionStopEvent
 from app.models.tool_run import ToolRun
@@ -51,6 +52,8 @@ __all__ = [
     "SubmissionRecord",
     "SubmissionDispatchClaim",
     "SubmissionStopEvent",
+    "SubmissionSafetyControl",
+    "SubmissionSafetyPolicy",
     "QueueAuditEvent",
     "ApplicationPacket",
     "PacketApprovalSnapshot",

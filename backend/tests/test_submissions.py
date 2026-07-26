@@ -63,15 +63,15 @@ class FixtureEnvelope:
         self.healthy = healthy
         self.checks: list[tuple[str, str]] = []
 
-    def require_healthy(self, db, *, user_id: str, source_id: str) -> None:
+    def require_healthy(self, db, *, user_id: str, source_id: str, snapshot_id: str) -> None:
         self.checks.append((user_id, source_id))
         if not self.healthy:
             raise EnvelopeBlocked("submission envelope is not healthy")
 
 
 class FlipEnvelope(FixtureEnvelope):
-    def require_healthy(self, db, *, user_id: str, source_id: str) -> None:
-        super().require_healthy(db, user_id=user_id, source_id=source_id)
+    def require_healthy(self, db, *, user_id: str, source_id: str, snapshot_id: str) -> None:
+        super().require_healthy(db, user_id=user_id, source_id=source_id, snapshot_id=snapshot_id)
         if len(self.checks) == 1:
             self.healthy = False
 
@@ -570,9 +570,7 @@ def test_pre_act_failure_preserves_the_globally_shared_frozen_claim(db, test_use
     )
 
 
-def test_non_accepted_receipt_stays_on_frozen_reconciliation_without_manual_handoff(
-    db, test_user
-):
+def test_non_accepted_receipt_stays_on_frozen_reconciliation_without_manual_handoff(db, test_user):
     source, _, grant = _source_and_grant(db, test_user)
     snapshot = _snapshot(db, test_user)
 

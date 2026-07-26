@@ -5,10 +5,20 @@ import { AdminDiscoverySourcesPage } from '#/pages/admin/admin-discovery-sources
 
 const getAdminDiscoverySourcesMock = vi.hoisted(() => vi.fn())
 const setDiscoverySourceKillSwitchMock = vi.hoisted(() => vi.fn())
+const getAdminSubmissionSafetyMock = vi.hoisted(() => vi.fn())
+const setGlobalSubmissionKillSwitchMock = vi.hoisted(() => vi.fn())
+const recordSubmissionIncidentRehearsalMock = vi.hoisted(() => vi.fn())
+const configureSourceSubmissionSafetyMock = vi.hoisted(() => vi.fn())
+const setSubmissionSourceKillSwitchMock = vi.hoisted(() => vi.fn())
 
 vi.mock('#/lib/api/admin', () => ({
   getAdminDiscoverySources: getAdminDiscoverySourcesMock,
   setDiscoverySourceKillSwitch: setDiscoverySourceKillSwitchMock,
+  getAdminSubmissionSafety: getAdminSubmissionSafetyMock,
+  setGlobalSubmissionKillSwitch: setGlobalSubmissionKillSwitchMock,
+  recordSubmissionIncidentRehearsal: recordSubmissionIncidentRehearsalMock,
+  configureSourceSubmissionSafety: configureSourceSubmissionSafetyMock,
+  setSubmissionSourceKillSwitch: setSubmissionSourceKillSwitchMock,
 }))
 
 function source(overrides: Record<string, unknown> = {}) {
@@ -72,6 +82,15 @@ function source(overrides: Record<string, unknown> = {}) {
 
 function renderPage(items: Array<Record<string, unknown>>) {
   getAdminDiscoverySourcesMock.mockResolvedValue({ items })
+  getAdminSubmissionSafetyMock.mockResolvedValue({
+    control: {
+      global_kill_switch: true,
+      incident_playbook_version: null,
+      incident_rehearsed_at: null,
+      updated_at: '2026-07-26T12:00:00Z',
+    },
+    policies: [],
+  })
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(
     <QueryClientProvider client={client}>
@@ -148,5 +167,52 @@ describe('AdminDiscoverySourcesPage', () => {
     const clear = (await screen.findByText('Clear kill switch')) as HTMLButtonElement
     expect(clear.disabled).toBeTruthy()
     expect(screen.getByText('Accept terms review to clear.')).toBeTruthy()
+  })
+
+  it('keeps global submission killed until a reachable rehearsal action runs', async () => {
+    renderPage([source()])
+    const clear = (await screen.findByRole('button', {
+      name: 'Clear global submission kill switch',
+    })) as HTMLButtonElement
+    expect(clear.disabled).toBeTruthy()
+
+    fireEvent.change(screen.getByLabelText('Completed playbook version'), {
+      target: { value: 'submission-v1' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Record completed rehearsal' }))
+    await waitFor(() =>
+      expect(recordSubmissionIncidentRehearsalMock).toHaveBeenCalledWith(
+        'submission-v1',
+        expect.anything(),
+      ),
+    )
+  })
+
+  it('wires source limits and the submission kill switch to real actions', async () => {
+    renderPage([source()])
+    await screen.findByLabelText('User / minute')
+    for (const [label, value] of [
+      ['User / minute', '2'],
+      ['User / 24 hours', '20'],
+      ['Source / minute', '10'],
+      ['Source / 24 hours', '100'],
+      ['Anomaly attempts / hour', '8'],
+    ]) {
+      fireEvent.change(screen.getByLabelText(label), { target: { value } })
+    }
+    fireEvent.click(screen.getByRole('button', { name: 'Configure submission limits' }))
+    await waitFor(() =>
+      expect(configureSourceSubmissionSafetyMock).toHaveBeenCalledWith(
+        'source-1',
+        expect.objectContaining({ user_rate_limit_per_minute: 2 }),
+      ),
+    )
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Clear source submission kill switch' }),
+    )
+    await waitFor(() =>
+      expect(setSubmissionSourceKillSwitchMock).toHaveBeenCalledWith('source-1', false),
+    )
   })
 })
