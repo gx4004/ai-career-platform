@@ -135,6 +135,14 @@ Core entities:
   confirmation UI, complete audit/timeline lifecycle, production envelope, and real
   adapters remain in #193–#194 and activation remains behind D-100. Records export
   owner-scoped and records/claims erase explicitly before approval snapshots.
+- Submission stop event (dark R16 #192 foundation; D-102, D-105, ADR 0010) —
+  terminal owner/snapshot/source proof that a challenge, authentication request,
+  uncertainty, source rejection, or compatibility mismatch returned control to
+  the owner. The display-ready result uses fixed copy and the frozen approval
+  snapshot's official Level B destination; a second worker or restart returns the
+  same stop without calling the adapter. Events contain only closed categories and
+  an optional bounded source code, join export/erasure, and provide #195's
+  content-free contract-breakage input.
 - Submission authorization grant (dark R16 #190 foundation; D-101, D-107,
   ADR 0010) — one owner/source record proving a future trusted adapter completed
   a source-provided OAuth flow with explicit consent. The row contains only a
@@ -431,7 +439,7 @@ errors remain forbidden.
   purge the whole queue cache, while a mounted queue clears answer drafts and manual
   handoff state on owner change or expiry.
 
-## Trusted Submission Boundaries (R16, dark #189–#191 foundation; activation deferred)
+## Trusted Submission Boundaries (R16, dark #189–#192 foundation; activation deferred)
 
 - Submission exists only behind four independent gates: source (terms approval +
   compatibility contract), user (granular revocable authorization), packet
@@ -441,7 +449,10 @@ errors remain forbidden.
 - No stored third-party passwords, copied session state, or inferred
   authorization; only source-provided authentication mechanisms (D-101, D-026).
 - Challenges, CAPTCHAs, uncertainty, or contract mismatches stop the attempt and
-  return the packet via the Level B handoff — never a workaround (D-102).
+  return the accepted packet via its frozen Level B handoff — never a workaround
+  or automatic retry. The approved decision and immutable snapshot remain intact;
+  “return to queue” means control returns to the owner on that accepted packet,
+  not that approval history is rewritten (D-102).
 - Submissions are idempotent with duplicate prevention; audit is append-only with
   per-field reconstructability and user-inspectable confirmation (D-103).
 - Contract breakage trips the source kill switch and degrades to human handoff
@@ -488,6 +499,17 @@ errors remain forbidden.
   snapshot digest, contract version, submitted-field digest, and fixture
   confirmation. Only a local synthetic adapter exists; #193 must supply the real
   envelope before any adapter can be registered.
+- The dark #192 stop boundary adds a typed adapter stop result and an immutable
+  terminal event unique per snapshot/source. It is rechecked under the #191 claim
+  lock, preventing a concurrent worker or restart from invoking the adapter after
+  a stop. User-facing explanations come only from a closed engine mapping and the
+  handoff URL only from the frozen snapshot; provider prose, CAPTCHA material,
+  auth details, and submitted fields are never copied into a stop event. #195 owns
+  thresholds, operational events, and automatic kill-switch actuation.
+  Submission is refused before an adapter call unless that non-null HTTPS handoff
+  destination and its source identity are frozen to the selected governed source.
+  Ambiguous post-act timeouts or invalid/unknown confirmations do not become terminal
+  handoffs; they retain the exact durable claim for source-native reconciliation.
 - Quality and user outcomes govern operation; raw volume never loosens controls
   (D-106).
 - Submission records follow the standard lifecycle for product copies, with the

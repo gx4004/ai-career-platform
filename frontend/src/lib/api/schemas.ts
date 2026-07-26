@@ -274,24 +274,50 @@ const submissionRecordSchema = z.strictObject({
   submitted_at: z.iso.datetime({ offset: true }),
 })
 
-const submissionRecordsExportSchema = z.strictObject({
-  schema_version: z.literal('submission-records-export/v1'),
-  record_count: z.number().int().nonnegative(),
-  records: z.array(submissionRecordSchema),
-  dispatch_claim_count: z.number().int().nonnegative(),
-  dispatch_claims: z.array(z.strictObject({
-    idempotency_key: z.string(),
-    packet_approval_snapshot_id: z.string(),
-    discovery_source_id: z.string(),
-    authorization_grant_id: z.string(),
-    snapshot_content_sha256: z.string().regex(/^[0-9a-f]{64}$/),
-    contract_version: z.string(),
-    contract_sha256: z.string().regex(/^[0-9a-f]{64}$/),
-    submitted_fields: z.record(z.string(), z.unknown()),
-    submitted_fields_sha256: z.string().regex(/^[0-9a-f]{64}$/),
-    created_at: z.iso.datetime({ offset: true }),
-  })),
-})
+const submissionRecordsExportSchema = z
+  .strictObject({
+    schema_version: z.literal('submission-records-export/v1'),
+    record_count: z.number().int().nonnegative(),
+    records: z.array(submissionRecordSchema),
+    dispatch_claim_count: z.number().int().nonnegative(),
+    dispatch_claims: z.array(z.strictObject({
+      idempotency_key: z.string(),
+      packet_approval_snapshot_id: z.string(),
+      discovery_source_id: z.string(),
+      authorization_grant_id: z.string(),
+      snapshot_content_sha256: z.string().regex(/^[0-9a-f]{64}$/),
+      contract_version: z.string(),
+      contract_sha256: z.string().regex(/^[0-9a-f]{64}$/),
+      submitted_fields: z.record(z.string(), z.unknown()),
+      submitted_fields_sha256: z.string().regex(/^[0-9a-f]{64}$/),
+      created_at: z.iso.datetime({ offset: true }),
+    })),
+    stop_count: z.number().int().nonnegative(),
+    stops: z.array(z.strictObject({
+      id: z.string(),
+      packet_approval_snapshot_id: z.string(),
+      discovery_source_id: z.string(),
+      authorization_grant_id: z.string(),
+      idempotency_key: z.string(),
+      contract_version: z.string(),
+      contract_sha256: z.string().regex(/^[0-9a-f]{64}$/),
+      reason: z.enum([
+        'challenge',
+        'authentication_required',
+        'uncertainty',
+        'compatibility_mismatch',
+        'source_validation_rejected',
+      ]),
+      source_code: z.string().nullable(),
+      created_at: z.iso.datetime({ offset: true }),
+    })),
+  })
+  .refine(
+    (value) =>
+      value.record_count === value.records.length &&
+      value.dispatch_claim_count === value.dispatch_claims.length &&
+      value.stop_count === value.stops.length,
+  )
 
 export const careerDataExportSchema = z.strictObject({
   schema_version: z.literal('career-data-export/v1'),

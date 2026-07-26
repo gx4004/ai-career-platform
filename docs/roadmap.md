@@ -319,8 +319,8 @@ Acceptance gate:
 ### R16. Source-Specific Trusted Autopilot
 
 **Status:** PROVISIONAL spec published (#188; tracer issues #189–#195). The dark
-#189 source-governance, #190 owner/source authorization, and #191 idempotent-engine
-foundations are built
+#189 source-governance, #190 owner/source authorization, #191 idempotent-engine,
+and #192 terminal stop-and-return foundations are built
 ahead under explicit current-task authorization, while the outcome and production
 activation remain deferred until R15 demonstrates quality and demand. No real
 source is registered or promoted, no source OAuth or real submission adapter exists,

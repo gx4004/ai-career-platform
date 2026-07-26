@@ -11,7 +11,7 @@ from sqlalchemy.exc import DBAPIError
 from alembic import command
 
 PARENT = "e8b4d6c1f3a9"
-REVISION = "f9c5e7d2a4b8"
+REVISION = "a1d6f8b3c5e7"
 
 
 def main() -> None:
@@ -54,6 +54,16 @@ def main() -> None:
                 "('sr1','u1','pa191','s1','grant-1','submission:v1:test',"
                 "repeat('c',64),'fixture/v1',repeat('e',64),'{}',repeat('d',64),"
                 "'confirmation-1',now())"
+            )
+        )
+        connection.execute(
+            text(
+                "INSERT INTO submission_stop_events "
+                "(id,user_id,packet_approval_snapshot_id,discovery_source_id,"
+                "authorization_grant_id,idempotency_key,contract_version,contract_sha256,"
+                "reason,source_code,created_at) VALUES "
+                "('ss1','u1','pa191','s1','grant-1','submission:v1:stopped',"
+                "'fixture/v1',repeat('e',64),'challenge','captcha_required',now())"
             )
         )
 
@@ -101,6 +111,16 @@ def main() -> None:
     else:
         raise AssertionError("immutable dispatch claim allowed an update")
 
+    try:
+        with engine.begin() as connection:
+            connection.execute(
+                text("UPDATE submission_stop_events SET reason='uncertainty' WHERE id='ss1'")
+            )
+    except DBAPIError as error:
+        assert "immutable" in str(error).lower()
+    else:
+        raise AssertionError("immutable submission stop event allowed an update")
+
     with engine.begin() as connection:
         connection.execute(text("DELETE FROM users WHERE id='u1'"))
         assert connection.execute(text("SELECT count(*) FROM submission_records")).scalar_one() == 0
@@ -108,16 +128,30 @@ def main() -> None:
             connection.execute(text("SELECT count(*) FROM submission_dispatch_claims")).scalar_one()
             == 0
         )
+        assert (
+            connection.execute(text("SELECT count(*) FROM submission_stop_events")).scalar_one()
+            == 0
+        )
 
     command.downgrade(config, PARENT)
     tables = set(inspect(engine).get_table_names())
     assert "submission_records" not in tables
     assert "submission_dispatch_claims" not in tables
+    assert "submission_stop_events" not in tables
     with engine.begin() as connection:
         assert (
             connection.execute(
                 text(
                     "SELECT count(*) FROM pg_proc WHERE proname='prevent_submission_record_update'"
+                )
+            ).scalar_one()
+            == 0
+        )
+        assert (
+            connection.execute(
+                text(
+                    "SELECT count(*) FROM pg_proc "
+                    "WHERE proname='prevent_submission_stop_event_update'"
                 )
             ).scalar_one()
             == 0
