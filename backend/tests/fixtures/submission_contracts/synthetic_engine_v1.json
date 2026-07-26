@@ -1,0 +1,37 @@
+{
+  "version": "synthetic-engine/v1",
+  "fields": [
+    {
+      "source_field": "job_title",
+      "packet_field": "listing.title",
+      "required": true
+    },
+    {
+      "source_field": "company_name",
+      "packet_field": "listing.company",
+      "required": true
+    },
+    {
+      "source_field": "cover_letter",
+      "packet_field": "drafts.cover_letter",
+      "required": true
+    }
+  ],
+  "formats": [
+    {"source_field": "job_title", "kind": "utf8_text"},
+    {"source_field": "company_name", "kind": "utf8_text"},
+    {"source_field": "cover_letter", "kind": "utf8_text"}
+  ],
+  "error_semantics": [
+    {
+      "source_code": "accepted",
+      "meaning": "accepted",
+      "handling": "confirm_success"
+    },
+    {
+      "source_code": "invalid_field",
+      "meaning": "validation_error",
+      "handling": "stop_and_return"
+    }
+  ]
+}

@@ -161,6 +161,8 @@ export const packetApprovalSnapshotContentSchema = z.strictObject({
   frozen_at: offsetDateTimeSchema,
   match_rationale: packetMatchRationaleSchema,
   unresolved_questions: z.array(unresolvedQuestionSchema),
+  // Legacy v1 bytes omit this field; optional preserves signed-content fidelity.
+  unsupported_claims: z.array(z.record(z.string(), z.unknown())).optional(),
   resolved_stop_answers: z.array(z.strictObject({
     field: z.string(),
     category: z.string(),

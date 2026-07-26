@@ -24,6 +24,7 @@ from app.services.packet_approval_snapshot import export_packet_approval_snapsho
 from app.services.queue_audit import export_queue_audit_events
 from app.services.queue_rules import export_queue_rules
 from app.services.submission_authorizations import export_submission_authorizations
+from app.services.submissions import export_submission_records
 
 
 def export_career_data(db: Session, user_id: str) -> CareerDataExport:
@@ -53,6 +54,7 @@ def export_career_data(db: Session, user_id: str) -> CareerDataExport:
         packet_approval_snapshots=export_packet_approval_snapshots(db, user_id),
         queue_audit=export_queue_audit_events(db, user_id),
         submission_authorizations=export_submission_authorizations(db, user_id),
+        submission_records=export_submission_records(db, user_id),
         development=DevelopmentLoopExport(
             classification_count=len(classifications),
             classifications=[

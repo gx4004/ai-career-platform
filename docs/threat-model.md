@@ -226,7 +226,7 @@ Browser → POST /auth/password-reset/confirm {token, new_password}
 | 12 | Workspace/campaign target, schedule, and transition history | High | `workspaces.label`, `workspaces.is_pinned`, `workspaces.company`, `workspaces.role`, `workspaces.status`, `workspaces.deadline`, `campaign_events.details` | Until deletion | Job-search intent, target employer, application timing, and outcome-history exposure |
 | 13 | Submission and packet-approval frozen bundles | High | `campaign_submission_snapshots.content_json`, `packet_approval_snapshots.content_json` | Until campaign/account deletion | Exact CV, cover letter, target listing, owner approval, and application-history exposure |
 | 14 | Discovery and submission source governance records | Medium | `discovery_sources`, `submission_source_governance` | Until registry deletion | Source contracts, legal-review posture, operational ownership, and acquisition/submission bounds exposed |
-| 15 | Per-source user submission authorization | High | `submission_authorization_grants` | Until revocation, source deletion, or account deletion | Job-search automation intent and authorized employer-system relationship exposed |
+| 15 | Per-source user submission authorization, frozen dispatch claim, and immutable submission proof | High | `submission_authorization_grants`, `submission_dispatch_claims`, `submission_records` | Grant until revocation; claim/record until packet/source/account deletion | Job-search automation intent, submitted fields, confirmation, and authorized employer-system relationship exposed |
 | 16 | Product-owned discovered listings | Medium-High | `discovered_listings`, `discovered_listing_attributions` | Per-source registry retention | Employer openings, acquisition sources, and stale corpus exposure |
 | 17 | Behavioral telemetry (event names, routes, timestamps) | Low | Log stdout, Sentry (if enabled) | 180-day durable-event window; processor retention otherwise deployment-defined | Usage pattern inference |
 | 18 | Sidebar state, language preference | None | `sidebar_state` cookie, `app_language` localStorage | 7 days / forever | None |
@@ -1325,6 +1325,28 @@ validate source identity, redirect binding, state/PKCE, replay prevention, and t
 provider's explicit submission scope before it may call the internal recording
 seam. #190's bounded callback-result type is not proof of those checks and cannot
 be exposed directly as an HTTP request body.
+
+The dark #191 engine is an internal boundary with no HTTP route or real adapter.
+It re-reads source governance, the exact pinned grant, and an injected envelope
+checkpoint at dispatch and immediately before the outward adapter call. Packet
+content is accepted only from an owner-scoped immutable approval row whose exact
+stored bytes match its SHA-256, with empty frozen unresolved-question and
+unsupported-claim sets. Compatibility paths can only select scalar values already
+inside those frozen bytes; missing required paths and declared format mismatches
+fail closed. A durable unique dispatch claim is row-locked across the adapter act
+to serialize concurrent workers. The deterministic snapshot/source idempotency key
+also crosses the adapter's required source-native idempotency boundary, so a process
+restart after an ambiguous response still converges on one logical submission. The
+claim freezes the exact grant, complete contract digest, contract version, canonical
+fields and their digest, snapshot digest, and accepted response-code set before the
+first act. Retry keeps those request bytes frozen, but fails closed until the current
+maintained contract exactly matches the frozen digest and every mutable governance
+gate passes again. Final governance, source, and grant rows are locked in
+writer-compatible order through the adapter boundary.
+Records retain submitted values as
+sensitive owner data and never enter telemetry. A production adapter remains
+forbidden until #193 supplies the authoritative envelope; the only implementation
+used by #191 tests is a local in-memory fixture that contacts no employer system.
 
 Discovered listings are non-user product data in dedicated canonical and source-
 attribution tables; neither table carries a user/workspace key or references

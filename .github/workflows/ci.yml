@@ -96,10 +96,20 @@ jobs:
           DATABASE_URL: postgresql+psycopg2://cw:cw@localhost:5432/cw_ci
         run: python tests/migration_packet_approval_roundtrip.py
 
+      - name: Populated submission migration round trip
+        env:
+          DATABASE_URL: postgresql+psycopg2://cw:cw@localhost:5432/cw_ci
+        run: python tests/migration_submission_roundtrip.py
+
       - name: Alembic upgrade smoke
         env:
           DATABASE_URL: postgresql+psycopg2://cw:cw@localhost:5432/cw_ci
         run: alembic upgrade head
+
+      - name: Concurrent submission retry proof
+        env:
+          DATABASE_URL: postgresql+psycopg2://cw:cw@localhost:5432/cw_ci
+        run: python tests/postgres_submission_concurrency.py
 
       - name: Pytest
         run: pytest -q

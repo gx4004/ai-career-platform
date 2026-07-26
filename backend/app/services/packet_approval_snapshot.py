@@ -207,6 +207,8 @@ def _snapshot_content(
         "match_rationale": packet.match_rationale,
         # This is the authoritative outstanding set, not the preparation-time JSON.
         "unresolved_questions": unresolved_questions,
+        # Freeze proof that the server-side fabrication gate passed at approval.
+        "unsupported_claims": [],
         "resolved_stop_answers": resolved_stop_answers,
         "listing": (
             {

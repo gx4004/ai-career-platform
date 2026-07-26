@@ -129,10 +129,12 @@ Core entities:
   the exact source attribution pinned when the packet was prepared for its manual
   handoff, and authoritative empty unresolved set with
   a canonical SHA-256; production activation remains behind D-092.
-- Submission record (planned, R16; D-103, ADR 0010) — append-only audit of one
-  idempotent per-source submission with the exact packet snapshot and per-field
-  record. Contract defined; nothing ships until R15 demonstrates quality and
-  demand and each source passes legal review (D-100).
+- Submission record (dark R16 #191 foundation; D-103, ADR 0010) — immutable proof
+  of one idempotent packet-snapshot/source submission with exact frozen-content and
+  submitted-field digests. Only the internal fixture-driven engine exists; the
+  confirmation UI, complete audit/timeline lifecycle, production envelope, and real
+  adapters remain in #193–#194 and activation remains behind D-100. Records export
+  owner-scoped and records/claims erase explicitly before approval snapshots.
 - Submission authorization grant (dark R16 #190 foundation; D-101, D-107,
   ADR 0010) — one owner/source record proving a future trusted adapter completed
   a source-provided OAuth flow with explicit consent. The row contains only a
@@ -429,7 +431,7 @@ errors remain forbidden.
   purge the whole queue cache, while a mounted queue clears answer drafts and manual
   handoff state on owner change or expiry.
 
-## Trusted Submission Boundaries (R16, dark #189 foundation; activation deferred)
+## Trusted Submission Boundaries (R16, dark #189–#191 foundation; activation deferred)
 
 - Submission exists only behind four independent gates: source (terms approval +
   compatibility contract), user (granular revocable authorization), packet
@@ -471,6 +473,21 @@ errors remain forbidden.
   before every outward act or retry; a later re-grant creates a different id and
   cannot revive stale work. #190 supplies this dark user-gate checkpoint, not a
   scheduler, integration, callback endpoint, queue, or submission engine.
+- The dark #191 engine has no router, scheduler, credential exchange, or real
+  adapter. Its internal orchestration accepts only an approved immutable snapshot
+  and requires the source, exact grant id, packet, and injected authoritative
+  envelope checkpoints both at dispatch and immediately before the adapter act.
+  Submitted fields are resolved only from compatibility-contract paths into the
+  frozen snapshot and checked against declared formats. A durable unique dispatch
+  claim serializes concurrent workers; a deterministic packet-snapshot/source key
+  also crosses the adapter's required source-native idempotency boundary so retries
+  and process restarts remain one logical submission. The claim freezes the grant,
+  canonical fields, digests, contract version, and accepted response codes before
+  the first act, so an ambiguous retry cannot be rewritten by later governance.
+  The immutable record pins the exact
+  snapshot digest, contract version, submitted-field digest, and fixture
+  confirmation. Only a local synthetic adapter exists; #193 must supply the real
+  envelope before any adapter can be registered.
 - Quality and user outcomes govern operation; raw volume never loosens controls
   (D-106).
 - Submission records follow the standard lifecycle for product copies, with the
