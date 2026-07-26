@@ -87,6 +87,15 @@ class ApplicationPacket(Base):
     listing_id: Mapped[str | None] = mapped_column(
         String, ForeignKey("discovered_listings.id", ondelete="SET NULL"), nullable=True, index=True
     )
+    # The exact source attribution selected when the packet was prepared. Listings
+    # may gain later attributions as discovery deduplicates sources; approval must
+    # never let that mutable set redirect the user's manual handoff.
+    listing_attribution_id: Mapped[str | None] = mapped_column(
+        String,
+        ForeignKey("discovered_listing_attributions.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     # The tailored CV variant (R12 CV Studio) the packet references. Its diffs were
     # already accepted under D-073 when the variant was created; the packet only
     # references it. NULL surfaces as an unresolved question rather than a copy.
@@ -132,6 +141,9 @@ class ApplicationPacket(Base):
 
     campaign = relationship("Workspace", foreign_keys=[campaign_id])
     listing = relationship("DiscoveredListing", foreign_keys=[listing_id])
+    listing_attribution = relationship(
+        "DiscoveredListingAttribution", foreign_keys=[listing_attribution_id]
+    )
     cv_variant = relationship("CvVariant", foreign_keys=[cv_variant_id])
     drafts_run = relationship("ToolRun", foreign_keys=[drafts_run_id])
     review_run = relationship("ToolRun", foreign_keys=[review_run_id])

@@ -1371,9 +1371,10 @@ At guarded acceptance, **packet approval snapshots**
 they copy the exact resolved listing, CV variant, drafts, deterministic rationale,
 the exact resolved stop-answer values, and authoritative empty unresolved set into
 canonical JSON with a SHA-256 digest (D-096). The listing object is the packet's
-product-owned discovered listing plus source attributions; campaign-listing URL
-provenance is stored separately for the manual handoff so the two identities cannot
-be confused. The owner/packet and owner/normalized-role uniqueness constraints make
+product-owned discovered listing plus source attributions; the manual handoff uses
+only the exact discovered-listing attribution pinned when the packet was prepared,
+so later campaign edits or newly deduplicated sources cannot redirect it. The
+owner/packet and owner/normalized-role uniqueness constraints make
 the once-only and same-role duplicate rules structural; the packet role comes from
 its discovered listing rather than mutable campaign labels. Submission capture
 likewise uses its canonical listing when one exists and editable labels only for a

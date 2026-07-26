@@ -80,6 +80,7 @@ export const applicationPacketItemSchema = z.strictObject({
   id: z.string(),
   campaign_id: z.string(),
   listing_id: z.string().nullable(),
+  listing_attribution_id: z.string().nullable(),
   cv_variant_id: z.string().nullable(),
   drafts_run_id: z.string().nullable(),
   // The reviewer pass whose findings the packet surfaces by-reference (D-093).
@@ -135,6 +136,55 @@ const safeHttpsDestinationSchema = z.url().refine((value) => {
   )
 })
 
+export const frozenListingAttributionSchema = z.strictObject({
+  id: z.string(),
+  source_id: z.string(),
+  source_listing_key: z.string(),
+  source_url: z.string(),
+  retrieved_at: offsetDateTimeSchema,
+})
+
+export const frozenManualHandoffSchema = z.strictObject({
+  listing_id: z.string().nullable(),
+  attribution_id: z.string(),
+  source_id: z.string(),
+  source_listing_key: z.string(),
+  source_url: z.string(),
+  retrieved_at: offsetDateTimeSchema,
+})
+
+export const packetApprovalSnapshotContentSchema = z.strictObject({
+  schema_version: z.literal('packet-approval/v1'),
+  packet_id: z.string(),
+  campaign_id: z.string(),
+  listing_id: z.string().nullable(),
+  frozen_at: offsetDateTimeSchema,
+  match_rationale: packetMatchRationaleSchema,
+  unresolved_questions: z.array(unresolvedQuestionSchema),
+  resolved_stop_answers: z.array(z.strictObject({
+    field: z.string(),
+    category: z.string(),
+    answer: z.string(),
+  })),
+  listing: z.strictObject({
+    id: z.string(),
+    content_sha256: z.string(),
+    title: z.string(),
+    company: z.string(),
+    description: z.string(),
+    attributions: z.array(frozenListingAttributionSchema),
+  }).nullable(),
+  manual_handoff: frozenManualHandoffSchema.nullable(),
+  cv_variant: z.strictObject({
+    id: z.string(),
+    document_id: z.string(),
+    name: z.string(),
+    target_role: z.string().nullable(),
+    sections: z.array(z.record(z.string(), z.unknown())),
+  }).nullable(),
+  drafts: z.record(z.string(), z.unknown()).nullable(),
+})
+
 export const packetApprovalSnapshotResponseSchema = z.strictObject({
   id: z.string(),
   packet_id: z.string(),
@@ -142,13 +192,24 @@ export const packetApprovalSnapshotResponseSchema = z.strictObject({
   listing_id: z.string().nullable(),
   role_key: z.string(),
   destination_url: safeHttpsDestinationSchema.nullable(),
-  content: z.record(z.string(), z.unknown()),
+  content: packetApprovalSnapshotContentSchema,
   content_sha256: z.string().regex(/^[0-9a-f]{64}$/),
   created_at: offsetDateTimeSchema,
 })
 export type PacketApprovalSnapshotResponse = z.infer<
   typeof packetApprovalSnapshotResponseSchema
 >
+
+export const packetApprovalPreviewSchema = z.strictObject({
+  content: packetApprovalSnapshotContentSchema,
+  destination_url: safeHttpsDestinationSchema.nullable(),
+  material_sha256: z.string().regex(/^[0-9a-f]{64}$/),
+})
+export type PacketApprovalPreview = z.infer<typeof packetApprovalPreviewSchema>
+
+export const packetApprovalRequestSchema = z.strictObject({
+  expected_material_sha256: z.string().regex(/^[0-9a-f]{64}$/),
+})
 
 export const packetSubmissionHandoffSchema = z.strictObject({
   destination_url: safeHttpsDestinationSchema.nullable(),

@@ -129,6 +129,11 @@ def outstanding_questions(packet: ApplicationPacket, answered_fields: set[str]) 
             packet.cv_variant_id,
             "The selected CV variant is no longer available. Re-prepare this packet.",
         ),
+        (
+            "listing_attribution",
+            packet.listing_attribution_id,
+            "The official destination provenance expired. Re-prepare this packet.",
+        ),
     ):
         if reference is None and field not in existing_fields:
             outstanding.append(

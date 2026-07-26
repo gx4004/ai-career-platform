@@ -78,7 +78,9 @@
 >   HTTPS destination. Approval is pending-only, revalidates its required
 >   discovered-listing and CV references, derives duplicate identity from the
 >   packet target, and shares packet-first row locking with terminal queue actions
->   and erasure. This does not satisfy D-092 or add a submission path.
+>   and erasure. The queue dereferences the exact materials for review before
+>   enabling approval, and the handoff is pinned to the packet's preparation-time
+>   source attribution. This does not satisfy D-092 or add a submission path.
 >   R3/R9 need deployed-environment evidence or owner decisions. #51 and #208
 >   need credentials/console access.
 > - **Unresolved governance contradiction:** R11–R15 shipped with *unguarded*

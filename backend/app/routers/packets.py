@@ -7,6 +7,8 @@ from app.models.user import User
 from app.schemas.application_packets import (
     ApplicationPacketItem,
     ApplicationPacketList,
+    PacketApprovalPreview,
+    PacketApprovalRequest,
     PacketApprovalResult,
     PacketPreparationResult,
     QueueReviewState,
@@ -26,7 +28,9 @@ from app.services.packet_approval import (
 )
 from app.services.packet_approval_snapshot import (
     DuplicatePacketApprovalError,
+    PacketApprovalChangedError,
     approve_packet,
+    preview_packet_approval,
 )
 from app.services.queue_review import (
     PacketDecisionLockedError,
@@ -115,6 +119,19 @@ def get_one_packet(
         raise HTTPException(status_code=404, detail="Application packet not found") from error
 
 
+@router.get("/{packet_id}/approval-preview", response_model=PacketApprovalPreview)
+def get_approval_preview(
+    packet_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Dereference the exact materials the owner is being asked to approve."""
+    try:
+        return preview_packet_approval(db, current_user.id, packet_id)
+    except PacketDecisionNotFoundError as error:
+        raise HTTPException(status_code=404, detail="Application packet not found") from error
+
+
 @router.post("/{packet_id}/stop-answers", response_model=StopAnswerResult)
 def answer_stop_question(
     packet_id: str,
@@ -142,6 +159,7 @@ def answer_stop_question(
 @router.post("/{packet_id}/accept", response_model=PacketApprovalResult)
 def accept(
     packet_id: str,
+    payload: PacketApprovalRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -151,7 +169,12 @@ def accept(
     official destination and submit the immutable approved content themselves.
     """
     try:
-        return approve_packet(db, current_user.id, packet_id)
+        return approve_packet(
+            db,
+            current_user.id,
+            packet_id,
+            expected_material_sha256=payload.expected_material_sha256,
+        )
     except PacketDecisionNotFoundError as error:
         raise HTTPException(status_code=404, detail="Application packet not found") from error
     except PacketGateBlockedError as error:
@@ -163,6 +186,8 @@ def accept(
         ) from error
     except DuplicatePacketApprovalError as error:
         raise HTTPException(status_code=409, detail=error.message) from error
+    except PacketApprovalChangedError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
 
 
 @router.post("/{packet_id}/skip", response_model=ApplicationPacketItem)

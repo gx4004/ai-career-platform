@@ -20,6 +20,7 @@ from app.models.packet_approval_snapshot import PacketApprovalSnapshot
 from app.models.packet_stop_answer import PacketStopAnswer
 from app.models.workspace import Workspace
 from app.schemas.application_packets import (
+    PacketApprovalPreview,
     PacketApprovalResult,
     PacketApprovalSnapshotResponse,
     PacketApprovalSnapshotsExport,
@@ -49,6 +50,7 @@ HANDOFF_INSTRUCTIONS = (
 __all__ = [
     "DuplicatePacketApprovalError",
     "approve_packet",
+    "preview_packet_approval",
     "delete_packet_approval_snapshots",
     "export_packet_approval_snapshots",
 ]
@@ -62,27 +64,138 @@ class DuplicatePacketApprovalError(Exception):
         super().__init__(message)
 
 
-def _destination_url(campaign: Workspace) -> str | None:
-    if campaign.listing is None or not campaign.listing.source_url:
+class PacketApprovalChangedError(Exception):
+    """The materials changed after the owner reviewed the preview."""
+
+
+def _material_sha256(content: dict) -> str:
+    review_content = {key: value for key, value in content.items() if key != "frozen_at"}
+    canonical = json.dumps(
+        review_content,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+    )
+    return hashlib.sha256(canonical.encode()).hexdigest()
+
+
+def preview_packet_approval(
+    db: Session,
+    user_id: str,
+    packet_id: str,
+) -> PacketApprovalPreview:
+    """Return the exact current references by value without approving or mutating."""
+    packet = (
+        db.query(ApplicationPacket)
+        .filter(
+            ApplicationPacket.user_id == user_id,
+            ApplicationPacket.id == packet_id,
+        )
+        .one_or_none()
+    )
+    if packet is None:
+        raise PacketNotFoundError(packet_id)
+    answered_fields = answered_fields_for_packet(db, user_id, packet_id)
+    packet_item = packet_item_with_true_unresolved(packet, answered_fields)
+    answers = (
+        db.query(PacketStopAnswer)
+        .filter(
+            PacketStopAnswer.user_id == user_id,
+            PacketStopAnswer.packet_id == packet_id,
+        )
+        .order_by(PacketStopAnswer.field.asc(), PacketStopAnswer.id.asc())
+        .all()
+    )
+    attributions = _frozen_listing_attributions(packet)
+    handoff = _manual_handoff(packet, attributions)
+    content = _snapshot_content(
+        packet,
+        listing_attributions=attributions,
+        manual_handoff=handoff,
+        unresolved_questions=[
+            item.model_dump(mode="json") for item in packet_item.unresolved_questions
+        ],
+        resolved_stop_answers=[
+            {"field": row.field, "category": row.category, "answer": row.answer_text}
+            for row in answers
+        ],
+        frozen_at=datetime.now(UTC),
+    )
+    return PacketApprovalPreview(
+        content=content,
+        destination_url=_destination_url(handoff),
+        material_sha256=_material_sha256(content),
+    )
+
+
+def _destination_url(manual_handoff: dict | None) -> str | None:
+    if manual_handoff is None or not manual_handoff.get("source_url"):
         return None
-    destination = campaign.listing.source_url.strip()
+    destination = str(manual_handoff["source_url"]).strip()
     try:
         return safe_https_destination(destination)
     except ValueError:
         return None
 
 
+def _frozen_listing_attributions(packet: ApplicationPacket) -> list[dict]:
+    listing = packet.listing
+    if listing is None:
+        return []
+    frozen: list[dict] = []
+    for attribution in sorted(
+        listing.attributions,
+        key=lambda row: (row.retrieved_at, row.id),
+    ):
+        retrieved_at = attribution.retrieved_at
+        if retrieved_at.tzinfo is None:
+            retrieved_at = retrieved_at.replace(tzinfo=UTC)
+        frozen.append({
+            "id": attribution.id,
+            "source_id": attribution.source_id,
+            "source_listing_key": attribution.source_listing_key,
+            "source_url": attribution.source_url,
+            "retrieved_at": retrieved_at.isoformat(),
+        }
+        )
+    return frozen
+
+
+def _manual_handoff(packet: ApplicationPacket, attributions: list[dict]) -> dict | None:
+    """Bind the outbound destination to the attribution pinned at preparation."""
+    if packet.listing_attribution_id is None:
+        return None
+    primary = next(
+        (
+            attribution
+            for attribution in attributions
+            if attribution["id"] == packet.listing_attribution_id
+        ),
+        None,
+    )
+    if primary is None:
+        return None
+    return {
+        "listing_id": packet.listing_id,
+        "attribution_id": primary["id"],
+        "source_id": primary["source_id"],
+        "source_listing_key": primary["source_listing_key"],
+        "source_url": primary["source_url"],
+        "retrieved_at": primary["retrieved_at"],
+    }
+
+
 def _snapshot_content(
     packet: ApplicationPacket,
-    campaign: Workspace,
     *,
+    listing_attributions: list[dict],
+    manual_handoff: dict | None,
     unresolved_questions: list[dict],
     resolved_stop_answers: list[dict],
     frozen_at: datetime,
 ) -> dict:
     """Resolve and copy every owner-visible material at the approval boundary."""
     listing = packet.listing
-    handoff_listing = campaign.listing
     variant = packet.cv_variant
     drafts = packet.drafts_run
     return {
@@ -102,33 +215,14 @@ def _snapshot_content(
                 "title": listing.title,
                 "company": listing.company,
                 "description": listing.description,
-                "attributions": [
-                    {
-                        "source_id": attribution.source_id,
-                        "source_listing_key": attribution.source_listing_key,
-                        "source_url": attribution.source_url,
-                        "retrieved_at": attribution.retrieved_at.isoformat(),
-                    }
-                    for attribution in sorted(
-                        listing.attributions,
-                        key=lambda row: (row.retrieved_at, row.id),
-                    )
-                ],
+                "attributions": listing_attributions,
             }
             if listing is not None
             else None
         ),
-        # The campaign copy is separate provenance for the user-driven outbound
-        # handoff. It must never be confused with the packet's canonical listing.
-        "manual_handoff": (
-            {
-                "campaign_listing_id": handoff_listing.id,
-                "source_url": handoff_listing.source_url,
-                "retrieved_at": handoff_listing.retrieved_at.isoformat(),
-            }
-            if handoff_listing is not None
-            else None
-        ),
+        # Handoff provenance is one attribution of this exact packet listing.
+        # Mutable campaign listing replacements never influence the destination.
+        "manual_handoff": manual_handoff,
         "cv_variant": (
             {
                 "id": variant.id,
@@ -242,7 +336,13 @@ def _raise_structural_duplicate(
     )
 
 
-def approve_packet(db: Session, user_id: str, packet_id: str) -> PacketApprovalResult:
+def approve_packet(
+    db: Session,
+    user_id: str,
+    packet_id: str,
+    *,
+    expected_material_sha256: str,
+) -> PacketApprovalResult:
     """Atomically guard, deduplicate, freeze, audit, and hand off one packet."""
     packet = (
         db.query(ApplicationPacket)
@@ -262,7 +362,7 @@ def approve_packet(db: Session, user_id: str, packet_id: str) -> PacketApprovalR
         )
 
     assert_packet_approvable(db, user_id, packet_id)
-    campaign = (
+    (
         db.query(Workspace)
         .filter(
             Workspace.user_id == user_id,
@@ -301,9 +401,12 @@ def approve_packet(db: Session, user_id: str, packet_id: str) -> PacketApprovalR
     ]
     packet_item = packet_item_with_true_unresolved(packet, answered_fields)
     frozen_at = datetime.now(UTC)
+    listing_attributions = _frozen_listing_attributions(packet)
+    manual_handoff = _manual_handoff(packet, listing_attributions)
     content = _snapshot_content(
         packet,
-        campaign,
+        listing_attributions=listing_attributions,
+        manual_handoff=manual_handoff,
         unresolved_questions=[
             item.model_dump(mode="json")
             for item in packet_item.unresolved_questions
@@ -311,6 +414,10 @@ def approve_packet(db: Session, user_id: str, packet_id: str) -> PacketApprovalR
         resolved_stop_answers=resolved_stop_answers,
         frozen_at=frozen_at,
     )
+    if _material_sha256(content) != expected_material_sha256:
+        raise PacketApprovalChangedError(
+            "Packet materials changed after review. Review the refreshed packet before approving."
+        )
     content_json = json.dumps(
         content,
         sort_keys=True,
@@ -324,7 +431,7 @@ def approve_packet(db: Session, user_id: str, packet_id: str) -> PacketApprovalR
         campaign_id=packet.campaign_id,
         listing_id=packet.listing_id,
         role_key=role_key,
-        destination_url=_destination_url(campaign),
+        destination_url=_destination_url(manual_handoff),
         content_json=content_json,
         content_sha256=content_sha256,
         created_at=frozen_at,

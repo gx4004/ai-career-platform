@@ -29,7 +29,10 @@ from app.schemas.application_packets import (
     PacketApprovalSnapshotResponse,
     PacketSubmissionHandoff,
 )
-from app.services.application_role_identity import application_role_key
+from app.services.application_role_identity import (
+    application_role_key,
+    normalized_role_key,
+)
 from app.services.campaign_snapshots import (
     DuplicateRoleSubmissionError,
     capture_submission_snapshot,
@@ -42,7 +45,10 @@ from app.services.packet_approval import (
 )
 from app.services.packet_approval_snapshot import (
     DuplicatePacketApprovalError,
-    approve_packet,
+    preview_packet_approval,
+)
+from app.services.packet_approval_snapshot import (
+    approve_packet as approve_packet_service,
 )
 from app.services.queue_review import (
     PacketGateBlockedError,
@@ -55,6 +61,17 @@ from app.services.tool_runs import delete_all_user_data
 
 PREFIX = "/api/v1"
 VALID_RATIONALE = {"composite_score": 80, "signals": [], "matched_rules": []}
+
+
+def approve_packet(db, user_id: str, packet_id: str):
+    """Exercise the mandatory service-level review checkpoint in focused tests."""
+    preview = preview_packet_approval(db, user_id, packet_id)
+    return approve_packet_service(
+        db,
+        user_id,
+        packet_id,
+        expected_material_sha256=preview.material_sha256,
+    )
 
 
 def _approvable_packet(
@@ -79,6 +96,32 @@ def _approvable_packet(
         )
         db.add(discovered_listing)
         db.flush()
+    selected_attribution_id = None
+    if source_url is not None and not discovered_listing.attributions:
+        source = DiscoverySource(
+            source_key=f"packet-source-{discovery_listing_id}",
+            display_name="Packet fixture source",
+            source_family="licensed",
+            owner="Discovery Operations",
+            allowed_behavior="feed",
+            rate_limit_per_minute=10,
+            attribution_rule="Show source and original link",
+            retention_days=30,
+        )
+        db.add(source)
+        db.flush()
+        attribution = DiscoveredListingAttribution(
+                listing_id=discovered_listing.id,
+                source_id=source.id,
+                source_listing_key=discovery_listing_id,
+                source_url=source_url,
+                retrieved_at=datetime(2026, 7, 13, tzinfo=UTC),
+            )
+        db.add(attribution)
+        db.flush()
+        selected_attribution_id = attribution.id
+    elif discovered_listing.attributions:
+        selected_attribution_id = discovered_listing.attributions[-1].id
     campaign = Workspace(
         user_id=user_id,
         label=f"{role} — {company}",
@@ -143,6 +186,7 @@ def _approvable_packet(
         user_id=user_id,
         campaign_id=campaign.id,
         listing_id=discovery_listing_id,
+        listing_attribution_id=selected_attribution_id,
         cv_variant_id=variant.id,
         drafts_run_id=drafts.id,
         match_rationale=VALID_RATIONALE,
@@ -166,7 +210,8 @@ def test_approval_freezes_exact_materials_hands_off_and_links_timeline(db, test_
     assert result.packet.decision == "accepted"
     assert result.snapshot.packet_id == packet.id
     assert result.snapshot.listing_id == "discovered-listing-1"
-    assert result.snapshot.content["listing"] == {
+    frozen_listing = result.snapshot.content["listing"]
+    assert frozen_listing | {"attributions": []} == {
         "id": "discovered-listing-1",
         "content_sha256": hashlib.sha256(b"discovered-listing-1").hexdigest(),
         "title": "Senior Backend Engineer",
@@ -174,7 +219,8 @@ def test_approval_freezes_exact_materials_hands_off_and_links_timeline(db, test_
         "description": "Exact canonical listing content selected for this packet.",
         "attributions": [],
     }
-    assert result.snapshot.content["manual_handoff"]["campaign_listing_id"] is not None
+    assert len(frozen_listing["attributions"]) == 1
+    assert result.snapshot.content["manual_handoff"]["listing_id"] == packet.listing_id
     assert (
         result.snapshot.content["manual_handoff"]["source_url"]
         == "https://jobs.example/apply/1"
@@ -303,6 +349,23 @@ def test_handoff_refuses_an_unsafe_destination(db, test_user, source_url):
     )
 
 
+def test_approval_blocks_when_packet_listing_attribution_expired(db, test_user):
+    packet = _approvable_packet(db, test_user.id, source_url=None)
+
+    preview = preview_packet_approval(db, test_user.id, packet.id)
+    assert preview.content["manual_handoff"] is None
+    assert preview.destination_url is None
+
+    with pytest.raises(PacketNotApprovableError) as exc_info:
+        approve_packet(db, test_user.id, packet.id)
+
+    assert any(
+        item["field"] == "listing_attribution"
+        for item in exc_info.value.outstanding
+    )
+    assert db.query(PacketApprovalSnapshot).count() == 0
+
+
 @pytest.mark.parametrize(
     ("unresolved", "gate_state", "error"),
     [
@@ -380,6 +443,7 @@ def test_snapshot_listing_matches_packet_reference_not_mutable_campaign_copy(
     campaign_listing = campaign.listing
     campaign_listing.title = "Revised campaign-facing title"
     campaign_listing.description = "Revised campaign-facing description"
+    campaign_listing.source_url = "https://jobs.example/wrong-mutable-copy"
     db.commit()
     assert campaign_listing.id != packet.listing_id
     assert campaign_listing.title != packet.listing.title
@@ -389,17 +453,14 @@ def test_snapshot_listing_matches_packet_reference_not_mutable_campaign_copy(
     assert result.snapshot.listing_id == packet.listing_id
     assert result.snapshot.content["listing"]["id"] == packet.listing_id
     assert result.snapshot.content["listing"]["title"] == packet.listing.title
-    assert (
-        result.snapshot.content["manual_handoff"]["campaign_listing_id"]
-        == campaign_listing.id
-    )
+    assert result.snapshot.content["manual_handoff"]["listing_id"] == packet.listing_id
     assert (
         result.snapshot.content["manual_handoff"]["source_url"]
-        == campaign_listing.source_url
+        == "https://jobs.example/apply/1"
     )
 
 
-def test_snapshot_freezes_discovered_listing_source_attribution(db, test_user):
+def test_snapshot_freezes_attributions_without_redirecting_pinned_handoff(db, test_user):
     packet = _approvable_packet(db, test_user.id)
     source = DiscoverySource(
         source_key="approval-attribution-source",
@@ -419,21 +480,34 @@ def test_snapshot_freezes_discovered_listing_source_attribution(db, test_user):
             source_id=source.id,
             source_listing_key="role-123",
             source_url="https://source.example/jobs/role-123",
-            retrieved_at=datetime(2026, 7, 12, tzinfo=UTC),
+            retrieved_at=datetime(2026, 7, 14, tzinfo=UTC),
         )
     )
     db.commit()
 
     result = approve_packet(db, test_user.id, packet.id)
 
-    assert result.snapshot.content["listing"]["attributions"] == [
-        {
-            "source_id": source.id,
-            "source_listing_key": "role-123",
-            "source_url": "https://source.example/jobs/role-123",
-            "retrieved_at": "2026-07-12T00:00:00",
-        }
-    ]
+    late_attribution = packet.listing.attributions[-1]
+    assert result.snapshot.content["listing"]["attributions"][-1] == {
+        "id": late_attribution.id,
+        "source_id": source.id,
+        "source_listing_key": "role-123",
+        "source_url": "https://source.example/jobs/role-123",
+        "retrieved_at": "2026-07-14T00:00:00+00:00",
+    }
+    pinned_attribution = next(
+        row
+        for row in packet.listing.attributions
+        if row.id == packet.listing_attribution_id
+    )
+    assert result.snapshot.content["manual_handoff"] == {
+        "listing_id": packet.listing_id,
+        "attribution_id": pinned_attribution.id,
+        "source_id": pinned_attribution.source_id,
+        "source_listing_key": "discovered-listing-1",
+        "source_url": "https://jobs.example/apply/1",
+        "retrieved_at": "2026-07-13T00:00:00+00:00",
+    }
 
 
 def test_same_packet_and_same_normalized_role_are_both_duplicates(db, test_user):
@@ -477,7 +551,11 @@ def test_dismissed_packet_must_be_reopened_before_approval(db, test_user, dismis
 
 @pytest.mark.parametrize(
     ("reference", "field"),
-    [("listing_id", "listing"), ("cv_variant_id", "cv_variant")],
+    [
+        ("listing_id", "listing"),
+        ("cv_variant_id", "cv_variant"),
+        ("listing_attribution_id", "listing_attribution"),
+    ],
 )
 def test_approval_rechecks_required_live_references(
     db, test_user, reference, field
@@ -512,7 +590,12 @@ def test_packet_role_identity_comes_from_target_listing_not_mutable_campaign_lab
     first_campaign.role = "Unrelated changed role"
     db.commit()
     first_approval = approve_packet(db, test_user.id, first.id)
-    assert first_approval.snapshot.role_key == "acme|senior backend engineer"
+    expected_role_key = normalized_role_key(
+        "Acme",
+        "Senior Backend Engineer",
+        fallback_campaign_id=first.campaign_id,
+    )
+    assert first_approval.snapshot.role_key == expected_role_key
 
     second = _approvable_packet(
         db,
@@ -534,7 +617,11 @@ def test_prior_campaign_submission_for_same_role_blocks_approval(db, test_user):
     db.add(
         CampaignSubmissionSnapshot(
             workspace_id=prior_campaign.id,
-            role_key="acme|senior backend engineer",
+            role_key=normalized_role_key(
+                "Acme",
+                "Senior Backend Engineer",
+                fallback_campaign_id=prior_campaign.id,
+            ),
             content_json="{}",
             content_sha256="x",
         )
@@ -553,7 +640,11 @@ def test_current_campaign_submission_for_same_role_blocks_late_approval(db, test
     db.add(
         CampaignSubmissionSnapshot(
             workspace_id=packet.campaign_id,
-            role_key="acme|senior backend engineer",
+            role_key=normalized_role_key(
+                "Acme",
+                "Senior Backend Engineer",
+                fallback_campaign_id=packet.campaign_id,
+            ),
             content_json="{}",
             content_sha256="x",
         )
@@ -578,7 +669,11 @@ def test_submission_role_identity_survives_later_campaign_edits(db, test_user):
     db.flush()
     snapshot = capture_submission_snapshot(db, submitted)
     db.commit()
-    assert snapshot.role_key == "acme|senior backend engineer"
+    assert snapshot.role_key == normalized_role_key(
+        "Acme",
+        "Senior Backend Engineer",
+        fallback_campaign_id=submitted.id,
+    )
 
     submitted.company = "Changed Company"
     submitted.role = "Changed Role"
@@ -605,7 +700,11 @@ def test_submission_role_identity_ignores_workspace_edits_before_capture(
     snapshot = capture_submission_snapshot(db, submitted)
     db.commit()
 
-    assert snapshot.role_key == "acme|senior backend engineer"
+    assert snapshot.role_key == normalized_role_key(
+        "Acme",
+        "Senior Backend Engineer",
+        fallback_campaign_id=submitted.id,
+    )
     later_packet = _approvable_packet(
         db,
         test_user.id,
@@ -664,10 +763,23 @@ def test_canonical_listing_identity_distinguishes_partial_campaign_labels(
         campaign.current_listing_id = listing.id
     db.commit()
 
-    assert application_role_key(company_only_a) == "acme|backend engineer"
-    assert application_role_key(company_only_b) == "acme|frontend engineer"
-    assert application_role_key(role_only_a) == "acme|engineer"
-    assert application_role_key(role_only_b) == "globex|engineer"
+    keys = {
+        application_role_key(company_only_a),
+        application_role_key(company_only_b),
+        application_role_key(role_only_a),
+        application_role_key(role_only_b),
+    }
+    assert len(keys) == 4
+    assert all(key.startswith("role:v1:") for key in keys)
+
+
+def test_role_identity_collapses_unicode_equivalent_text(db, test_user):
+    composed = Workspace(user_id=test_user.id, company="Café", role="Engineer")
+    decomposed = Workspace(user_id=test_user.id, company="Cafe\u0301", role="Engineer")
+    db.add_all([composed, decomposed])
+    db.flush()
+
+    assert application_role_key(composed) == application_role_key(decomposed)
 
 
 def test_submission_snapshot_rejects_a_different_campaign_after_role_approval(
@@ -820,9 +932,14 @@ def test_accept_endpoint_returns_snapshot_and_manual_handoff(
     client, auth_headers, db, test_user
 ):
     packet = _approvable_packet(db, test_user.id)
+    material_sha256 = client.get(
+        f"{PREFIX}/packets/{packet.id}/approval-preview",
+        headers=auth_headers,
+    ).json()["material_sha256"]
 
     response = client.post(
         f"{PREFIX}/packets/{packet.id}/accept",
+        json={"expected_material_sha256": material_sha256},
         headers=auth_headers,
     )
 
@@ -833,19 +950,84 @@ def test_accept_endpoint_returns_snapshot_and_manual_handoff(
     assert body["handoff"]["destination_url"] == "https://jobs.example/apply/1"
 
 
+def test_approval_preview_dereferences_exact_materials_without_accepting(
+    client, auth_headers, db, test_user
+):
+    packet = _approvable_packet(db, test_user.id)
+
+    response = client.get(
+        f"{PREFIX}/packets/{packet.id}/approval-preview",
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["content"]["listing"]["id"] == packet.listing_id
+    assert body["content"]["cv_variant"]["id"] == packet.cv_variant_id
+    assert body["content"]["drafts"]["cover_letter"]["body"] == (
+        "Original cover letter."
+    )
+    assert body["destination_url"] == "https://jobs.example/apply/1"
+    db.refresh(packet)
+    assert packet.decision == "pending"
+    assert db.query(PacketApprovalSnapshot).count() == 0
+
+
+def test_accept_rejects_materials_changed_after_preview(
+    client, auth_headers, db, test_user
+):
+    packet = _approvable_packet(db, test_user.id)
+    preview = client.get(
+        f"{PREFIX}/packets/{packet.id}/approval-preview",
+        headers=auth_headers,
+    ).json()
+    replacement = ToolRun(
+        user_id=test_user.id,
+        workspace_id=packet.campaign_id,
+        tool_name="application-packet",
+        result_payload={"cover_letter": {"body": "Changed after review."}},
+    )
+    db.add(replacement)
+    db.flush()
+    packet.drafts_run_id = replacement.id
+    db.commit()
+
+    response = client.post(
+        f"{PREFIX}/packets/{packet.id}/accept",
+        json={"expected_material_sha256": preview["material_sha256"]},
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 409
+    assert "changed after review" in response.json()["detail"].lower()
+    db.refresh(packet)
+    assert packet.decision == "pending"
+    assert db.query(PacketApprovalSnapshot).count() == 0
+
+
 def test_duplicate_endpoint_is_409(client, auth_headers, db, test_user):
     first = _approvable_packet(db, test_user.id, discovery_listing_id="listing-a")
+    first_sha = client.get(
+        f"{PREFIX}/packets/{first.id}/approval-preview",
+        headers=auth_headers,
+    ).json()["material_sha256"]
     assert (
         client.post(
             f"{PREFIX}/packets/{first.id}/accept",
+            json={"expected_material_sha256": first_sha},
             headers=auth_headers,
         ).status_code
         == 200
     )
     second = _approvable_packet(db, test_user.id, discovery_listing_id="listing-b")
+    second_sha = client.get(
+        f"{PREFIX}/packets/{second.id}/approval-preview",
+        headers=auth_headers,
+    ).json()["material_sha256"]
 
     response = client.post(
         f"{PREFIX}/packets/{second.id}/accept",
+        json={"expected_material_sha256": second_sha},
         headers=auth_headers,
     )
 

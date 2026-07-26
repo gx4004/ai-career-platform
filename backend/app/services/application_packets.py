@@ -30,6 +30,7 @@ from sqlalchemy.orm import Session
 
 from app.models.application_packet import ApplicationPacket
 from app.models.cv_document import CvDocument, CvVariant
+from app.models.discovered_listing import DiscoveredListingAttribution
 from app.models.user import User
 from app.schemas.application_packets import (
     ApplicationPacketItem,
@@ -184,6 +185,30 @@ def build_match_rationale(rec: DiscoveryRecommendation, rules: list) -> dict:
         "signals": signals,
         "matched_rules": matched_rules,
     }
+
+
+def _selected_attribution_id(
+    db: Session,
+    rec: DiscoveryRecommendation,
+) -> str | None:
+    """Resolve the exact recommendation source shown when preparation begins."""
+    if not rec.attributions:
+        return None
+    selected = rec.attributions[0]
+    row = (
+        db.query(DiscoveredListingAttribution)
+        .filter(
+            DiscoveredListingAttribution.listing_id == rec.listing_id,
+            DiscoveredListingAttribution.source_id == selected.source_id,
+            DiscoveredListingAttribution.source_url == str(selected.source_url),
+        )
+        .order_by(
+            DiscoveredListingAttribution.retrieved_at.desc(),
+            DiscoveredListingAttribution.id.desc(),
+        )
+        .first()
+    )
+    return row.id if row is not None else None
 
 
 # ── Unresolved questions (computed + attached, never silently dropped) ──
@@ -513,7 +538,10 @@ async def prepare_packets(
         # true no-op re-preparation.
         redo_existing = (
             existing is not None
-            and existing.cv_variant_id is None
+            and (
+                existing.cv_variant_id is None
+                or existing.listing_attribution_id is None
+            )
             and existing.decision == "pending"
         )
         if existing is not None and not redo_existing:
@@ -571,6 +599,7 @@ async def prepare_packets(
         )
 
         rationale = build_match_rationale(rec, selection.rules)
+        listing_attribution_id = _selected_attribution_id(db, rec)
         # Merge the two authoritative stop sources: what the classifier finds in the
         # listing + missing material, and the stops the generator refused to draft
         # among the screening questions. One classifier, deduped by field.
@@ -586,6 +615,7 @@ async def prepare_packets(
             packet.cv_variant_id = cv_variant.id if cv_variant else None
             packet.drafts_run_id = drafts_run_id
             packet.review_run_id = review_run_id
+            packet.listing_attribution_id = listing_attribution_id
             packet.match_rationale = rationale
             packet.unresolved_questions = unresolved
             packet.status = "blocked" if unresolved else "prepared"
@@ -598,6 +628,7 @@ async def prepare_packets(
                 user_id=user_id,
                 campaign_id=campaign_id,
                 listing_id=rec.listing_id,
+                listing_attribution_id=listing_attribution_id,
                 cv_variant_id=cv_variant.id if cv_variant else None,
                 drafts_run_id=drafts_run_id,
                 review_run_id=review_run_id,

@@ -4,7 +4,9 @@ Revision ID: e8b4d6c1f3a9
 Revises: d7a2c4f9e6b1
 """
 
+import hashlib
 import json
+import unicodedata
 
 import sqlalchemy as sa
 
@@ -18,7 +20,28 @@ depends_on = None
 
 def _normalize_role_component(value: str | None) -> str:
     """Exact local copy of the runtime split/casefold identity contract."""
-    return " ".join((value or "").split()).casefold()
+    return " ".join(unicodedata.normalize("NFC", value or "").split()).casefold()
+
+
+def _normalized_role_key(
+    company: str | None,
+    role: str | None,
+    *,
+    fallback_campaign_id: str,
+) -> str:
+    """Exact local copy of the runtime injective fixed-size key contract."""
+    normalized = [
+        _normalize_role_component(company),
+        _normalize_role_component(role),
+    ]
+    if not any(normalized):
+        return f"campaign:{fallback_campaign_id}"
+    encoded = json.dumps(
+        normalized,
+        ensure_ascii=False,
+        separators=(",", ":"),
+    ).encode()
+    return f"role:v1:{hashlib.sha256(encoded).hexdigest()}"
 
 
 def _backfill_submission_role_keys() -> None:
@@ -37,16 +60,12 @@ def _backfill_submission_role_keys() -> None:
         content = content if isinstance(content, dict) else {}
         listing = content.get("listing")
         listing = listing if isinstance(listing, dict) else {}
-        company = _normalize_role_component(
-            listing.get("company") if isinstance(listing.get("company"), str) else None
-        )
-        role = _normalize_role_component(
-            listing.get("title") if isinstance(listing.get("title"), str) else None
-        )
-        role_key = (
-            f"{company}|{role}"
-            if company or role
-            else f"campaign:{row['workspace_id']}"
+        role_key = _normalized_role_key(
+            listing.get("company")
+            if isinstance(listing.get("company"), str)
+            else None,
+            listing.get("title") if isinstance(listing.get("title"), str) else None,
+            fallback_campaign_id=row["workspace_id"],
         )
         bind.execute(
             sa.text(
@@ -64,6 +83,23 @@ def upgrade():
     op.execute(
         "UPDATE application_packets SET decision = 'pending' "
         "WHERE decision = 'accepted'"
+    )
+    op.add_column(
+        "application_packets",
+        sa.Column("listing_attribution_id", sa.String(), nullable=True),
+    )
+    op.create_foreign_key(
+        "fk_application_packets_listing_attribution_id",
+        "application_packets",
+        "discovered_listing_attributions",
+        ["listing_attribution_id"],
+        ["id"],
+        ondelete="SET NULL",
+    )
+    op.create_index(
+        "ix_application_packets_listing_attribution_id",
+        "application_packets",
+        ["listing_attribution_id"],
     )
     op.add_column(
         "campaign_submission_snapshots",
@@ -177,6 +213,16 @@ def downgrade():
     )
     op.execute("DROP FUNCTION prevent_packet_approval_snapshot_update()")
     op.drop_table("packet_approval_snapshots")
+    op.drop_index(
+        "ix_application_packets_listing_attribution_id",
+        table_name="application_packets",
+    )
+    op.drop_constraint(
+        "fk_application_packets_listing_attribution_id",
+        "application_packets",
+        type_="foreignkey",
+    )
+    op.drop_column("application_packets", "listing_attribution_id")
     op.drop_index(
         "ix_campaign_submission_snapshots_role_key",
         table_name="campaign_submission_snapshots",

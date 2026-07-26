@@ -17,6 +17,7 @@ import {
   acceptPacket,
   answerPacketStopQuestion,
   editPacket,
+  getPacketApprovalPreview,
   getQueueState,
   listPackets,
   pauseQueue,
@@ -25,6 +26,7 @@ import {
   skipPacket,
 } from '#/lib/api/client'
 import {
+  QUEUE_QUERY_ROOT,
   queuePacketsQueryKey,
   queueStateQueryKey,
 } from '#/lib/api/queueCache'
@@ -38,6 +40,85 @@ import type {
 // question, which is resolved by selecting a CV (D-095), not by typing an answer.
 function isAnswerable(question: UnresolvedQuestion): boolean {
   return question.category !== 'missing_material'
+}
+
+function PacketMaterialReview({
+  packet,
+  userId,
+  acknowledged,
+  onAcknowledged,
+}: {
+  packet: ApplicationPacketItem
+  userId: string
+  acknowledged: boolean
+  onAcknowledged: (value: string | null) => void
+}) {
+  const preview = useQuery({
+    queryKey: [...QUEUE_QUERY_ROOT, userId, 'approval-preview', packet.id],
+    queryFn: () => getPacketApprovalPreview(packet.id),
+    staleTime: 0,
+  })
+  const content = preview.data?.content
+
+  return (
+    <section className="queue-materials" aria-label="Exact materials for approval">
+      <h3 className="queue-section-title">
+        <FileText size={15} aria-hidden="true" /> Exact materials to approve
+      </h3>
+      {preview.isLoading ? (
+        <p role="status">Loading the exact packet materials…</p>
+      ) : preview.isError || !content ? (
+        <div role="alert">
+          <p>The packet materials could not be loaded. Approval stays disabled.</p>
+          <button type="button" className="queue-btn" onClick={() => preview.refetch()}>
+            Retry material review
+          </button>
+        </div>
+      ) : (
+        <div className="queue-material-review">
+          {content.listing ? (
+            <div>
+              <h4>{content.listing.title} · {content.listing.company}</h4>
+              <p>{content.listing.description}</p>
+            </div>
+          ) : <p>No listing is attached.</p>}
+          <details>
+            <summary>Review CV variant</summary>
+            <pre>{JSON.stringify(content.cv_variant, null, 2)}</pre>
+          </details>
+          <details>
+            <summary>Review resolved stop answers</summary>
+            <pre>{JSON.stringify(content.resolved_stop_answers, null, 2)}</pre>
+          </details>
+          <div>
+            <h4>Manual destination provenance</h4>
+            <p>{content.manual_handoff?.source_url ?? 'No pinned destination available.'}</p>
+            {content.manual_handoff ? (
+              <p>
+                Source {content.manual_handoff.source_id} · retrieved{' '}
+                {content.manual_handoff.retrieved_at}
+              </p>
+            ) : null}
+          </div>
+          <details>
+            <summary>Review application drafts</summary>
+            <pre>{JSON.stringify(content.drafts, null, 2)}</pre>
+          </details>
+          <label className="queue-review-confirmation">
+            <input
+              type="checkbox"
+              checked={acknowledged}
+              onChange={(event) =>
+                onAcknowledged(
+                  event.target.checked ? (preview.data?.material_sha256 ?? null) : null,
+                )}
+            />
+            I reviewed these exact materials and want to freeze them for manual submission.
+          </label>
+        </div>
+      )}
+    </section>
+  )
 }
 
 export function QueuePage() {
@@ -66,6 +147,7 @@ export function QueuePage() {
   const [remaining, setRemaining] = useState<Record<string, UnresolvedQuestion[]>>({})
   const [draftAnswers, setDraftAnswers] = useState<Record<string, string>>({})
   const [actionError, setActionError] = useState<string | null>(null)
+  const [reviewed, setReviewed] = useState<Record<string, string | null>>({})
   const [handoff, setHandoff] = useState<{
     ownerId: string
     value: PacketSubmissionHandoff
@@ -78,6 +160,7 @@ export function QueuePage() {
     setRemaining({})
     setDraftAnswers({})
     setActionError(null)
+    setReviewed({})
     setHandoff(null)
   }, [userId])
 
@@ -86,6 +169,7 @@ export function QueuePage() {
       setRemaining({})
       setDraftAnswers({})
       setActionError(null)
+      setReviewed({})
       setHandoff(null)
     }
     window.addEventListener('cw:session-expired', clearOwnerState)
@@ -115,7 +199,9 @@ export function QueuePage() {
       ownerId: string
     }) => {
       if (action === 'accept') {
-        const approval = await acceptPacket(id)
+        const materialSha256 = reviewed[id]
+        if (!materialSha256) throw new Error('Review the exact packet materials first')
+        const approval = await acceptPacket(id, materialSha256)
         return approval.handoff
       }
       if (action === 'skip') await skipPacket(id)
@@ -141,6 +227,10 @@ export function QueuePage() {
       answerPacketStopQuestion(id, { field, answer }),
     onSuccess: (result) => {
       setRemaining((prev) => ({ ...prev, [result.packet_id]: result.unresolved_questions }))
+      setReviewed((prev) => ({ ...prev, [result.packet_id]: null }))
+      queryClient.invalidateQueries({
+        queryKey: [...QUEUE_QUERY_ROOT, userId, 'approval-preview', result.packet_id],
+      })
       setDraftAnswers((prev) => ({ ...prev, [`${result.packet_id}:${result.resolved_field}`]: '' }))
     },
   })
@@ -274,17 +364,14 @@ export function QueuePage() {
                     ) : null}
                   </section>
 
-                  <section className="queue-materials" aria-label="Referenced materials">
-                    <h3 className="queue-section-title">
-                      <FileText size={15} aria-hidden="true" /> Materials (by reference)
-                    </h3>
-                    <ul className="queue-refs">
-                      <li>Campaign: {packet.campaign_id}</li>
-                      <li>CV variant: {packet.cv_variant_id ?? 'not selected'}</li>
-                      <li>Drafts: {packet.drafts_run_id ?? 'none'}</li>
-                      {packet.review_run_id ? <li>Quality review: {packet.review_run_id}</li> : null}
-                    </ul>
-                  </section>
+                  <PacketMaterialReview
+                    packet={packet}
+                    userId={userId ?? 'guest'}
+                    acknowledged={Boolean(reviewed[packet.id])}
+                    onAcknowledged={(value) =>
+                      setReviewed((prev) => ({ ...prev, [packet.id]: value }))
+                    }
+                  />
 
                   {blocked ? (
                     <section
@@ -361,12 +448,14 @@ export function QueuePage() {
                     <button
                       type="button"
                       className="queue-btn queue-btn--accept"
-                      disabled={blocked || acting || !isPending}
-                      aria-disabled={blocked}
+                      disabled={blocked || acting || !isPending || !reviewed[packet.id]}
+                      aria-disabled={blocked || !reviewed[packet.id]}
                       title={
                         blocked
                           ? 'Answer every unresolved question before accepting'
-                          : 'Accept this packet'
+                          : !reviewed[packet.id]
+                            ? 'Review and confirm the exact materials before accepting'
+                            : 'Accept this packet'
                       }
                       onClick={() => {
                         if (userId) {

@@ -126,7 +126,8 @@ Core entities:
   ADR 0009) — a reference-only composition plus a write-once by-value freeze at
   guarded acceptance. The snapshot stores the packet-referenced discovered listing
   and its attributions, resolved stop-answer values, CV variant, drafts, rationale,
-  separate campaign-handoff provenance, and authoritative empty unresolved set with
+  the exact source attribution pinned when the packet was prepared for its manual
+  handoff, and authoritative empty unresolved set with
   a canonical SHA-256; production activation remains behind D-092.
 - Submission record (planned, R16; D-103, ADR 0010) — append-only audit of one
   idempotent per-source submission with the exact packet snapshot and per-field

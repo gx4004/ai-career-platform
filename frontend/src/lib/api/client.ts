@@ -4,6 +4,8 @@ import {
   applicationPacketItemSchema,
   applicationPacketListSchema,
   packetApprovalResultSchema,
+  packetApprovalPreviewSchema,
+  packetApprovalRequestSchema,
   queueReviewStateSchema,
   stopAnswerRequestSchema,
   stopAnswerResultSchema,
@@ -737,12 +739,21 @@ export function resumeQueue() {
   })
 }
 
-export function acceptPacket(packetId: string) {
+export function acceptPacket(packetId: string, expectedMaterialSha256: string) {
   // Accepting freezes the immutable R15 snapshot and returns only a manual handoff.
   return request(`/packets/${packetId}/accept`, {
     method: 'POST',
-    body: {},
+    body: packetApprovalRequestSchema.parse({
+      expected_material_sha256: expectedMaterialSha256,
+    }),
     schema: packetApprovalResultSchema,
+  })
+}
+
+export function getPacketApprovalPreview(packetId: string) {
+  return request(`/packets/${packetId}/approval-preview`, {
+    method: 'GET',
+    schema: packetApprovalPreviewSchema,
   })
 }
 

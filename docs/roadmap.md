@@ -294,7 +294,9 @@ write-once by-value snapshot, prevents duplicate role approvals, links the
 campaign timeline, and returns only a manual official-destination handoff. This
 approval is pending-only, revalidates required listing/CV material, and serializes
 terminal queue actions plus campaign/account erasure on a consistent packet-first
-lock order. Duplicate identity comes from the packet's immutable listing target.
+lock order. Duplicate identity comes from the packet's immutable listing target;
+the owner reviews dereferenced materials before approval, and handoff provenance is
+pinned to the preparation-time listing attribution.
 This
 does not satisfy or reverse D-092: production activation remains deferred until
 R14 and packet-grade quality evidence are accepted, and R15 contains no

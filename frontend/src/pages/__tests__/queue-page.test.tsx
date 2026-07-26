@@ -5,6 +5,7 @@ import { QueuePage } from '#/pages/queue-page'
 
 const listPackets = vi.hoisted(() => vi.fn())
 const getQueueState = vi.hoisted(() => vi.fn())
+const getPacketApprovalPreview = vi.hoisted(() => vi.fn())
 const pauseQueue = vi.hoisted(() => vi.fn())
 const resumeQueue = vi.hoisted(() => vi.fn())
 const acceptPacket = vi.hoisted(() => vi.fn())
@@ -22,6 +23,7 @@ const sessionState = vi.hoisted(() => ({
 vi.mock('#/lib/api/client', () => ({
   listPackets,
   getQueueState,
+  getPacketApprovalPreview,
   pauseQueue,
   resumeQueue,
   acceptPacket,
@@ -47,6 +49,7 @@ function makePacket(overrides: Record<string, unknown> = {}) {
     id: 'packet-abcdef12',
     campaign_id: 'ws-1',
     listing_id: 'listing-1',
+    listing_attribution_id: 'attribution-1',
     cv_variant_id: 'variant-1',
     drafts_run_id: 'run-1',
     review_run_id: 'review-1',
@@ -68,6 +71,19 @@ function renderPage(
 ) {
   listPackets.mockResolvedValue({ items: packets })
   getQueueState.mockResolvedValue(state)
+  getPacketApprovalPreview.mockResolvedValue({
+    destination_url: 'https://jobs.example/apply/1',
+    material_sha256: 'd'.repeat(64),
+    content: {
+      listing: {
+        title: 'Senior Backend Engineer',
+        company: 'Acme',
+        description: 'Build reliable backend systems.',
+      },
+      cv_variant: { id: 'variant-1', sections: [{ title: 'Experience' }] },
+      drafts: { cover_letter: { body: 'Exact approved draft.' } },
+    },
+  })
   pauseQueue.mockResolvedValue({ paused: true, preparation_halted: false })
   resumeQueue.mockResolvedValue({ paused: false, preparation_halted: false })
   acceptPacket.mockResolvedValue({
@@ -125,14 +141,20 @@ describe('QueuePage', () => {
   it('accepts a prepared packet with no unresolved questions', async () => {
     renderPage([makePacket()])
     const accept = await screen.findByRole('button', { name: /Accept/ })
+    expect((accept as HTMLButtonElement).disabled).toBe(true)
+    expect(await screen.findByText(/Build reliable backend systems/)).toBeTruthy()
+    fireEvent.click(screen.getByRole('checkbox', { name: /I reviewed these exact materials/i }))
     expect((accept as HTMLButtonElement).disabled).toBe(false)
     fireEvent.click(accept)
-    await waitFor(() => expect(acceptPacket).toHaveBeenCalledWith('packet-abcdef12'))
+    await waitFor(() =>
+      expect(acceptPacket).toHaveBeenCalledWith('packet-abcdef12', 'd'.repeat(64)),
+    )
   })
 
   it('shows a safe user-driven link to the official destination after approval', async () => {
     renderPage([makePacket()])
 
+    fireEvent.click(await screen.findByRole('checkbox', { name: /I reviewed these exact materials/i }))
     fireEvent.click(await screen.findByRole('button', { name: /Accept/ }))
 
     const link = await screen.findByRole('link', {
@@ -183,10 +205,9 @@ describe('QueuePage', () => {
         answer: 'Market rate',
       }),
     )
+    fireEvent.click(await screen.findByRole('checkbox', { name: /I reviewed these exact materials/i }))
     await waitFor(() =>
-      expect((screen.getByRole('button', { name: /Accept/ }) as HTMLButtonElement).disabled).toBe(
-        false,
-      ),
+      expect((screen.getByRole('button', { name: /Accept/ }) as HTMLButtonElement).disabled).toBe(false),
     )
   })
 
@@ -262,6 +283,7 @@ describe('QueuePage', () => {
     })
     const view = renderPage([ownerAPacket])
 
+    fireEvent.click(await screen.findByRole('checkbox', { name: /I reviewed these exact materials/i }))
     fireEvent.click(await screen.findByRole('button', { name: /Accept/ }))
     expect(
       await screen.findByRole('link', {

@@ -129,6 +129,7 @@ class ApplicationPacketItem(BaseModel):
     # References only — dereference these to reach material content (D-093).
     campaign_id: str
     listing_id: str | None
+    listing_attribution_id: str | None = None
     cv_variant_id: str | None
     drafts_run_id: str | None
     # The reviewer pass whose findings the packet surfaces by-reference (D-093).
@@ -259,6 +260,75 @@ class PacketStopAnswersExport(BaseModel):
 # ── Immutable approval snapshot + manual destination handoff (R15 #185) ──
 
 
+class FrozenListingAttribution(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: str
+    source_id: str
+    source_listing_key: str
+    source_url: str
+    retrieved_at: datetime
+
+
+class FrozenManualHandoff(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    listing_id: str | None
+    attribution_id: str
+    source_id: str
+    source_listing_key: str
+    source_url: str
+    retrieved_at: datetime
+
+
+class FrozenPacketListing(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: str
+    content_sha256: str
+    title: str
+    company: str
+    description: str
+    attributions: list[FrozenListingAttribution]
+
+
+class FrozenPacketCvVariant(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: str
+    document_id: str
+    name: str
+    target_role: str | None
+    sections: list[dict]
+
+
+class FrozenStopAnswer(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    field: str
+    category: str
+    answer: str
+
+
+class PacketApprovalSnapshotContent(BaseModel):
+    """Strictly versioned by-value content frozen at the approval boundary."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: Literal["packet-approval/v1"]
+    packet_id: str
+    campaign_id: str
+    listing_id: str | None
+    frozen_at: datetime
+    match_rationale: PacketMatchRationale
+    unresolved_questions: list[UnresolvedQuestion]
+    resolved_stop_answers: list[FrozenStopAnswer]
+    listing: FrozenPacketListing | None
+    manual_handoff: FrozenManualHandoff | None
+    cv_variant: FrozenPacketCvVariant | None
+    drafts: dict | None
+
+
 class PacketApprovalSnapshotResponse(BaseModel):
     """The exact by-value packet content frozen at owner approval (D-096)."""
 
@@ -284,6 +354,16 @@ class PacketApprovalSnapshotResponse(BaseModel):
     def validate_destination_url(cls, value: str | None) -> str | None:
         return safe_https_destination(value)
 
+    @field_validator("content", mode="before")
+    @classmethod
+    def validate_content(cls, value: object) -> dict:
+        PacketApprovalSnapshotContent.model_validate(value)
+        if not isinstance(value, dict):
+            raise ValueError("content must be an object")
+        # Validation must not reserialize the signed bytes (for example +00:00 to
+        # Z); callers receive the exact JSON object whose canonical hash is stored.
+        return value
+
 
 class PacketSubmissionHandoff(BaseModel):
     """The official page the owner opens; the product performs no submission."""
@@ -297,6 +377,35 @@ class PacketSubmissionHandoff(BaseModel):
     @classmethod
     def validate_destination_url(cls, value: str | None) -> str | None:
         return safe_https_destination(value)
+
+
+class PacketApprovalPreview(BaseModel):
+    """Exact current materials the owner must inspect before approval."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    content: dict
+    destination_url: str | None
+    material_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+    @field_validator("content", mode="before")
+    @classmethod
+    def validate_content(cls, value: object) -> dict:
+        PacketApprovalSnapshotContent.model_validate(value)
+        if not isinstance(value, dict):
+            raise ValueError("content must be an object")
+        return value
+
+    @field_validator("destination_url")
+    @classmethod
+    def validate_destination_url(cls, value: str | None) -> str | None:
+        return safe_https_destination(value)
+
+
+class PacketApprovalRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    expected_material_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
 
 
 class PacketApprovalResult(BaseModel):
