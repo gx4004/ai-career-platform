@@ -259,6 +259,40 @@ export const developmentLoopExportSchema = z
       value.recommendation_count === value.recommendations.length,
   )
 
+const submissionRecordSchema = z.strictObject({
+  id: z.string(),
+  packet_approval_snapshot_id: z.string(),
+  discovery_source_id: z.string(),
+  authorization_grant_id: z.string(),
+  idempotency_key: z.string(),
+  snapshot_content_sha256: z.string().regex(/^[0-9a-f]{64}$/),
+  contract_version: z.string(),
+  contract_sha256: z.string().regex(/^[0-9a-f]{64}$/),
+  submitted_fields: z.record(z.string(), z.unknown()),
+  submitted_fields_sha256: z.string().regex(/^[0-9a-f]{64}$/),
+  source_confirmation_id: z.string(),
+  submitted_at: z.iso.datetime({ offset: true }),
+})
+
+const submissionRecordsExportSchema = z.strictObject({
+  schema_version: z.literal('submission-records-export/v1'),
+  record_count: z.number().int().nonnegative(),
+  records: z.array(submissionRecordSchema),
+  dispatch_claim_count: z.number().int().nonnegative(),
+  dispatch_claims: z.array(z.strictObject({
+    idempotency_key: z.string(),
+    packet_approval_snapshot_id: z.string(),
+    discovery_source_id: z.string(),
+    authorization_grant_id: z.string(),
+    snapshot_content_sha256: z.string().regex(/^[0-9a-f]{64}$/),
+    contract_version: z.string(),
+    contract_sha256: z.string().regex(/^[0-9a-f]{64}$/),
+    submitted_fields: z.record(z.string(), z.unknown()),
+    submitted_fields_sha256: z.string().regex(/^[0-9a-f]{64}$/),
+    created_at: z.iso.datetime({ offset: true }),
+  })),
+})
+
 export const careerDataExportSchema = z.strictObject({
   schema_version: z.literal('career-data-export/v1'),
   exported_at: z.iso.datetime(),
@@ -271,6 +305,7 @@ export const careerDataExportSchema = z.strictObject({
   packet_approval_snapshots: packetApprovalSnapshotsExportSchema,
   queue_audit: queueAuditExportSchema,
   submission_authorizations: submissionAuthorizationsExportSchema,
+  submission_records: submissionRecordsExportSchema,
   development: developmentLoopExportSchema,
   campaigns: z.strictObject({
     campaign_count: z.number().int().nonnegative(),

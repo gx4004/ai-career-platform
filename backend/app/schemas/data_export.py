@@ -18,6 +18,7 @@ from app.schemas.history import CampaignsExport
 from app.schemas.queue_audit import QueueAuditExport
 from app.schemas.queue_rules import QueueRulesExport
 from app.schemas.submission_authorizations import SubmissionAuthorizationsExport
+from app.schemas.submissions import SubmissionRecordsExport
 
 
 class DevelopmentLoopExport(BaseModel):
@@ -66,6 +67,7 @@ class CareerDataExport(BaseModel):
     packet_approval_snapshots: PacketApprovalSnapshotsExport
     queue_audit: QueueAuditExport
     submission_authorizations: SubmissionAuthorizationsExport
+    submission_records: SubmissionRecordsExport
     development: DevelopmentLoopExport
 
     @model_validator(mode="after")

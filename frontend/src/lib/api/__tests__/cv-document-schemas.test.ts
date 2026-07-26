@@ -65,6 +65,10 @@ describe('CV document schema (R12, #153)', () => {
         grant_count: 0,
         grants: [],
       },
+      submission_records: {
+        schema_version: 'submission-records-export/v1', record_count: 0, records: [],
+        dispatch_claim_count: 0, dispatch_claims: [],
+      },
       development: {
         item_count: 0,
         items: [],

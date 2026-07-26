@@ -150,6 +150,7 @@ describe('application packet contracts', () => {
         frozen_at: '2026-07-25T12:00:00Z',
         match_rationale: packet.match_rationale,
         unresolved_questions: [],
+        unsupported_claims: [],
         resolved_stop_answers: [],
         listing: {
           id: 'listing-1',
@@ -193,6 +194,12 @@ describe('application packet contracts', () => {
     expect(
       packetApprovalSnapshotsExportSchema.parse({ snapshots: [snapshot] }).snapshots,
     ).toHaveLength(1)
+    const legacyContent = { ...snapshot.content }
+    delete (legacyContent as { unsupported_claims?: unknown }).unsupported_claims
+    const legacy = packetApprovalSnapshotsExportSchema.parse({
+      snapshots: [{ ...snapshot, content: legacyContent }],
+    })
+    expect('unsupported_claims' in legacy.snapshots[0].content).toBe(false)
   })
 
   it('rejects approval snapshot contract drift', () => {
