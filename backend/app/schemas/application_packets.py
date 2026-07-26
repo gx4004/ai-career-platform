@@ -48,12 +48,7 @@ def safe_https_destination(value: str | None) -> str | None:
         parsed = _HTTP_URL_ADAPTER.validate_python(value)
     except ValidationError as exc:
         raise ValueError("destination_url must be a valid HTTPS URL") from exc
-    if (
-        parsed.scheme != "https"
-        or not parsed.host
-        or parsed.username
-        or parsed.password
-    ):
+    if parsed.scheme != "https" or not parsed.host or parsed.username or parsed.password:
         raise ValueError("destination_url must be an HTTPS URL without credentials")
     return value
 
@@ -119,6 +114,38 @@ class UnresolvedQuestion(BaseModel):
     question: str
 
 
+class PacketSubmissionStopNotice(BaseModel):
+    """Display-ready terminal handoff attached to an owner queue packet."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    stop_event_id: str
+    reason: Literal[
+        "challenge",
+        "authentication_required",
+        "uncertainty",
+        "compatibility_mismatch",
+        "source_validation_rejected",
+    ]
+    explanation: str
+    destination_url: str
+    instructions: str
+    stopped_at: datetime
+
+    @field_validator("destination_url")
+    @classmethod
+    def validate_destination_url(cls, value: str) -> str:
+        validated = safe_https_destination(value)
+        if validated is None:
+            raise ValueError("destination_url is required")
+        return validated
+
+    @field_validator("stopped_at")
+    @classmethod
+    def normalize_stopped_at(cls, value: datetime) -> datetime:
+        return _as_utc(value)
+
+
 # ── Owner-facing packet state ──
 
 
@@ -142,6 +169,7 @@ class ApplicationPacketItem(BaseModel):
     decision: PacketDecision = "pending"
     match_rationale: PacketMatchRationale
     unresolved_questions: list[UnresolvedQuestion]
+    submission_stop: PacketSubmissionStopNotice | None = None
     estimated_cost_usd: float = Field(ge=0)
     created_at: datetime
     updated_at: datetime

@@ -25,12 +25,20 @@ from app.models.packet_approval_snapshot import PacketApprovalSnapshot
 from app.models.submission_authorization import SubmissionAuthorizationGrant
 from app.models.submission_record import SubmissionDispatchClaim, SubmissionRecord
 from app.models.submission_source import SubmissionSourceGovernance
-from app.schemas.application_packets import PacketApprovalSnapshotContent
+from app.models.submission_stop_event import SubmissionStopEvent
+from app.schemas.application_packets import (
+    PacketApprovalSnapshotContent,
+    PacketSubmissionHandoff,
+    PacketSubmissionStopNotice,
+)
 from app.schemas.submission_sources import SubmissionCompatibilityContract
 from app.schemas.submissions import (
     SubmissionDispatchClaimResponse,
     SubmissionRecordResponse,
     SubmissionRecordsExport,
+    SubmissionStopEventResponse,
+    SubmissionStoppedResponse,
+    SubmissionStopReason,
 )
 from app.services.submission_authorizations import (
     require_active_submission_authorization,
@@ -68,6 +76,14 @@ class SubmissionAdapterReceipt:
     source_code: str
 
 
+@dataclass(frozen=True)
+class SubmissionAdapterStop:
+    """A source observation made before any application was committed."""
+
+    reason: SubmissionStopReason
+    source_code: str | None = None
+
+
 class SubmissionAdapter(Protocol):
     """A source adapter whose submit operation honors the supplied key.
 
@@ -81,7 +97,7 @@ class SubmissionAdapter(Protocol):
 
     def submit_idempotently(
         self, request: SubmissionAdapterRequest
-    ) -> SubmissionAdapterReceipt: ...
+    ) -> SubmissionAdapterReceipt | SubmissionAdapterStop: ...
 
 
 class SubmissionEnvelopeGate(Protocol):
@@ -108,6 +124,20 @@ def _idempotency_key(snapshot_id: str, source_id: str) -> str:
 
 def _contract_sha256(contract: SubmissionCompatibilityContract) -> str:
     return _sha256(_canonical(contract.model_dump(mode="json")))
+
+
+STOP_HANDOFF_INSTRUCTIONS = (
+    "Automation stopped without completing an application. Open the official "
+    "destination and submit the approved packet yourself."
+)
+
+STOP_EXPLANATIONS: dict[SubmissionStopReason, str] = {
+    "challenge": "The source requested a challenge such as a CAPTCHA, so automation stopped.",
+    "authentication_required": "The source requested authentication, so automation stopped.",
+    "uncertainty": "The source did not provide a certain completion result, so automation stopped.",
+    "compatibility_mismatch": "The source no longer matched its reviewed submission contract, so automation stopped.",
+    "source_validation_rejected": "The source rejected one or more submitted fields, so automation stopped.",
+}
 
 
 def _approved_snapshot(
@@ -164,6 +194,23 @@ def _approved_snapshot(
     if content.unsupported_claims:
         raise PacketSubmissionRefused(PacketSubmissionRefusal.UNSUPPORTED_CLAIMS)
     return snapshot, raw
+
+
+def _require_frozen_handoff(
+    snapshot: PacketApprovalSnapshot,
+    content: dict,
+    *,
+    source_id: str,
+) -> None:
+    """Bind the outward act and any later handoff to one frozen source."""
+    handoff = content.get("manual_handoff")
+    if (
+        snapshot.destination_url is None
+        or not isinstance(handoff, dict)
+        or handoff.get("source_id") != source_id
+        or handoff.get("source_url") != snapshot.destination_url
+    ):
+        raise PacketSubmissionRefused(PacketSubmissionRefusal.CONTRACT_MISMATCH)
 
 
 def _resolve_path(content: dict, path: str) -> object | None:
@@ -385,6 +432,131 @@ def _response(record: SubmissionRecord) -> SubmissionRecordResponse:
     )
 
 
+def _stop_event_response(event: SubmissionStopEvent) -> SubmissionStopEventResponse:
+    return SubmissionStopEventResponse.model_validate(event)
+
+
+def _stopped_response(
+    event: SubmissionStopEvent,
+    snapshot: PacketApprovalSnapshot,
+) -> SubmissionStoppedResponse:
+    return SubmissionStoppedResponse(
+        stop_event_id=event.id,
+        packet_id=snapshot.packet_id,
+        packet_approval_snapshot_id=snapshot.id,
+        discovery_source_id=event.discovery_source_id,
+        reason=event.reason,
+        explanation=STOP_EXPLANATIONS[event.reason],
+        handoff=PacketSubmissionHandoff(
+            destination_url=snapshot.destination_url,
+            instructions=STOP_HANDOFF_INSTRUCTIONS,
+        ),
+    )
+
+
+def _existing_stop(
+    db: Session,
+    *,
+    user_id: str,
+    snapshot_id: str,
+    source_key: str,
+) -> tuple[SubmissionStopEvent, PacketApprovalSnapshot] | None:
+    row = (
+        db.query(SubmissionStopEvent, PacketApprovalSnapshot)
+        .join(
+            PacketApprovalSnapshot,
+            PacketApprovalSnapshot.id == SubmissionStopEvent.packet_approval_snapshot_id,
+        )
+        .join(
+            DiscoverySource,
+            DiscoverySource.id == SubmissionStopEvent.discovery_source_id,
+        )
+        .filter(
+            SubmissionStopEvent.user_id == user_id,
+            SubmissionStopEvent.packet_approval_snapshot_id == snapshot_id,
+            DiscoverySource.source_key == source_key,
+        )
+        .one_or_none()
+    )
+    return row
+
+
+def _bounded_source_code(source_code: str | None) -> str | None:
+    if source_code is None or re.fullmatch(r"[a-zA-Z0-9_.-]{1,100}", source_code) is None:
+        return None
+    return source_code
+
+
+def _stop_and_return(
+    db: Session,
+    *,
+    snapshot: PacketApprovalSnapshot,
+    source_id: str,
+    grant_id: str,
+    idempotency_key: str,
+    contract_version: str,
+    contract_sha256: str,
+    reason: SubmissionStopReason,
+    source_code: str | None = None,
+    require_absent_claim: bool = False,
+) -> SubmissionStoppedResponse:
+    # Every caller already owns the packet -> snapshot locks established by
+    # _approved_snapshot(for_update=True). Acquire only the later claim lock
+    # here; reacquiring packet after snapshot/claim would obscure the global
+    # deletion order and make future call sites capable of inverting it.
+    locked_snapshot = snapshot
+    locked_claim = (
+        db.query(SubmissionDispatchClaim)
+        .filter(SubmissionDispatchClaim.idempotency_key == idempotency_key)
+        .with_for_update()
+        .one_or_none()
+    )
+    if require_absent_claim and locked_claim is not None:
+        # The earlier unlocked observation became stale: another worker may
+        # already have made an ambiguous outward act. Preserve its frozen claim
+        # and never turn this worker's preflight mismatch into a manual retry.
+        db.rollback()
+        raise PacketSubmissionRefused(PacketSubmissionRefusal.CONTRACT_MISMATCH)
+    existing = (
+        db.query(SubmissionStopEvent)
+        .filter(
+            SubmissionStopEvent.packet_approval_snapshot_id == snapshot.id,
+            SubmissionStopEvent.discovery_source_id == source_id,
+        )
+        .one_or_none()
+    )
+    if existing is not None:
+        db.commit()
+        return _stopped_response(existing, locked_snapshot)
+    event = SubmissionStopEvent(
+        user_id=snapshot.user_id,
+        packet_approval_snapshot_id=snapshot.id,
+        discovery_source_id=source_id,
+        authorization_grant_id=grant_id,
+        idempotency_key=idempotency_key,
+        contract_version=contract_version,
+        contract_sha256=contract_sha256,
+        reason=reason,
+        source_code=_bounded_source_code(source_code),
+    )
+    db.add(event)
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        event = (
+            db.query(SubmissionStopEvent)
+            .filter(
+                SubmissionStopEvent.packet_approval_snapshot_id == snapshot.id,
+                SubmissionStopEvent.discovery_source_id == source_id,
+            )
+            .one()
+        )
+    else:
+        db.refresh(event)
+    return _stopped_response(event, locked_snapshot)
+
+
 def submit_approved_snapshot(
     db: Session,
     *,
@@ -394,10 +566,24 @@ def submit_approved_snapshot(
     grant_id: str,
     envelope_gate: SubmissionEnvelopeGate,
     adapter: SubmissionAdapter,
-) -> SubmissionRecordResponse:
+) -> SubmissionRecordResponse | SubmissionStoppedResponse:
     """Submit once after independently checking all four R16 gates."""
+    prior_stop = _existing_stop(
+        db,
+        user_id=user_id,
+        snapshot_id=snapshot_id,
+        source_key=source_key,
+    )
+    if prior_stop is not None:
+        event, stopped_snapshot = prior_stop
+        return _stopped_response(event, stopped_snapshot)
     snapshot, content = _approved_snapshot(db, user_id=user_id, snapshot_id=snapshot_id)
     source = require_submission_allowed(db, source_key)
+    _require_frozen_handoff(
+        snapshot,
+        content,
+        source_id=source.discovery_source_id,
+    )
     if adapter.source_key != source.source_key:
         raise PacketSubmissionRefused(PacketSubmissionRefusal.ADAPTER_SOURCE_MISMATCH)
     require_active_submission_authorization(
@@ -414,7 +600,34 @@ def submit_approved_snapshot(
         .one_or_none()
     )
     if prior_claim is None:
-        initial_fields = _contract_fields(content, source.contract)
+        claim_contract_version = source.contract.version
+        claim_contract_sha256 = _contract_sha256(source.contract)
+        try:
+            initial_fields = _contract_fields(content, source.contract)
+        except PacketSubmissionRefused as error:
+            if error.reason != PacketSubmissionRefusal.CONTRACT_MISMATCH:
+                raise
+            # With no durable claim there cannot have been an earlier outward
+            # act. This is therefore a proven pre-commit compatibility stop,
+            # safe for an official manual handoff and #195 breakage evidence.
+            locked_snapshot, _ = _approved_snapshot(
+                db,
+                user_id=user_id,
+                snapshot_id=snapshot_id,
+                for_update=True,
+            )
+            return _stop_and_return(
+                db,
+                snapshot=locked_snapshot,
+                source_id=source.discovery_source_id,
+                grant_id=grant_id,
+                idempotency_key=key,
+                contract_version=claim_contract_version,
+                contract_sha256=claim_contract_sha256,
+                reason="compatibility_mismatch",
+                source_code="packet_contract_mismatch",
+                require_absent_claim=True,
+            )
         initial_fields_json = _canonical(initial_fields)
         initial_fields_sha256 = _sha256(initial_fields_json)
         accepted_codes_json = _canonical(
@@ -424,8 +637,6 @@ def submit_approved_snapshot(
                 if item.meaning == "accepted" and item.handling == "confirm_success"
             )
         )
-        claim_contract_version = source.contract.version
-        claim_contract_sha256 = _contract_sha256(source.contract)
     else:
         # An ambiguous prior act must retry the exact frozen request, regardless
         # of later compatibility-contract edits.
@@ -458,6 +669,11 @@ def submit_approved_snapshot(
         )
         if locked_snapshot.content_sha256 != snapshot.content_sha256:
             raise PacketSubmissionRefused(PacketSubmissionRefusal.SNAPSHOT_INTEGRITY_FAILED)
+        _require_frozen_handoff(
+            locked_snapshot,
+            content,
+            source_id=source.discovery_source_id,
+        )
         claim = _lock_dispatch_claim(
             db,
             key=key,
@@ -467,6 +683,17 @@ def submit_approved_snapshot(
             grant_id=grant_id,
             snapshot_content_sha256=snapshot.content_sha256,
         )
+        terminal_stop = (
+            db.query(SubmissionStopEvent)
+            .filter(
+                SubmissionStopEvent.packet_approval_snapshot_id == snapshot.id,
+                SubmissionStopEvent.discovery_source_id == source.discovery_source_id,
+            )
+            .one_or_none()
+        )
+        if terminal_stop is not None:
+            db.commit()
+            return _stopped_response(terminal_stop, locked_snapshot)
         existing = (
             db.query(SubmissionRecord)
             .filter(
@@ -503,10 +730,13 @@ def submit_approved_snapshot(
             or current_fields_json != claim.submitted_fields_json
             or current_codes_json != claim.accepted_source_codes_json
         ):
+            # A shared durable claim may represent an earlier ambiguous outward
+            # act. Never offer a manual handoff when completion could be unknown;
+            # preserve #191's frozen native-idempotent reconciliation boundary.
             raise PacketSubmissionRefused(PacketSubmissionRefusal.CONTRACT_MISMATCH)
         fields, accepted_codes = _validated_claim_request(claim)
         fields_json = claim.submitted_fields_json
-        receipt = adapter.submit_idempotently(
+        adapter_result = adapter.submit_idempotently(
             SubmissionAdapterRequest(
                 source_key=source.source_key,
                 contract_version=claim.contract_version,
@@ -515,9 +745,41 @@ def submit_approved_snapshot(
                 fields=fields,
             )
         )
-        if not receipt.source_confirmation_id or len(receipt.source_confirmation_id) > 200:
+        if isinstance(adapter_result, SubmissionAdapterStop):
+            reason = (
+                adapter_result.reason
+                if adapter_result.reason in STOP_EXPLANATIONS
+                else "compatibility_mismatch"
+            )
+            return _stop_and_return(
+                db,
+                snapshot=locked_snapshot,
+                source_id=source.discovery_source_id,
+                grant_id=claim.authorization_grant_id,
+                idempotency_key=key,
+                contract_version=claim.contract_version,
+                contract_sha256=claim.contract_sha256,
+                reason=reason,
+                source_code=adapter_result.source_code,
+            )
+        receipt = adapter_result
+        semantic = next(
+            (
+                item
+                for item in source.contract.error_semantics
+                if item.source_code == receipt.source_code
+            ),
+            None,
+        )
+        if semantic is None:
             raise PacketSubmissionRefused(PacketSubmissionRefusal.CONTRACT_MISMATCH)
         if receipt.source_code not in accepted_codes:
+            # A receipt is a post-invocation observation, not proof that the
+            # adapter stopped before commit. Preserve the frozen claim for
+            # source-native idempotent reconciliation and never offer a manual
+            # handoff that could create a duplicate outward application.
+            raise PacketSubmissionRefused(PacketSubmissionRefusal.CONTRACT_MISMATCH)
+        if not receipt.source_confirmation_id or len(receipt.source_confirmation_id) > 200:
             raise PacketSubmissionRefused(PacketSubmissionRefusal.CONTRACT_MISMATCH)
     except Exception:
         # A committed claim may already be shared by another worker that made an
@@ -572,6 +834,12 @@ def export_submission_records(db: Session, user_id: str) -> SubmissionRecordsExp
         )
         .all()
     )
+    stops = (
+        db.query(SubmissionStopEvent)
+        .filter(SubmissionStopEvent.user_id == user_id)
+        .order_by(SubmissionStopEvent.created_at.asc(), SubmissionStopEvent.id.asc())
+        .all()
+    )
     return SubmissionRecordsExport(
         record_count=len(rows),
         records=[_response(row) for row in rows],
@@ -591,7 +859,48 @@ def export_submission_records(db: Session, user_id: str) -> SubmissionRecordsExp
             )
             for claim in claims
         ],
+        stop_count=len(stops),
+        stops=[_stop_event_response(event) for event in stops],
     )
+
+
+def list_contract_breakage_signals(
+    db: Session,
+    source_id: str,
+) -> list[SubmissionStopEvent]:
+    """Stable, content-free input seam for #195 compatibility monitoring."""
+    return (
+        db.query(SubmissionStopEvent)
+        .filter(SubmissionStopEvent.discovery_source_id == source_id)
+        .order_by(SubmissionStopEvent.created_at.asc(), SubmissionStopEvent.id.asc())
+        .all()
+    )
+
+
+def stop_notices_by_packet(
+    db: Session,
+    user_id: str,
+) -> dict[str, PacketSubmissionStopNotice]:
+    rows = (
+        db.query(SubmissionStopEvent, PacketApprovalSnapshot)
+        .join(
+            PacketApprovalSnapshot,
+            PacketApprovalSnapshot.id == SubmissionStopEvent.packet_approval_snapshot_id,
+        )
+        .filter(SubmissionStopEvent.user_id == user_id)
+        .all()
+    )
+    return {
+        snapshot.packet_id: PacketSubmissionStopNotice(
+            stop_event_id=event.id,
+            reason=event.reason,
+            explanation=STOP_EXPLANATIONS[event.reason],
+            destination_url=snapshot.destination_url,
+            instructions=STOP_HANDOFF_INSTRUCTIONS,
+            stopped_at=event.created_at,
+        )
+        for event, snapshot in rows
+    }
 
 
 def delete_submission_records(db: Session, user_id: str) -> int:
@@ -619,12 +928,22 @@ def delete_submission_records(db: Session, user_id: str) -> int:
         .with_for_update()
         .all()
     )
+    (
+        db.query(SubmissionStopEvent)
+        .filter(SubmissionStopEvent.user_id == user_id)
+        .order_by(SubmissionStopEvent.id.asc())
+        .with_for_update()
+        .all()
+    )
     deleted = (
         db.query(SubmissionRecord)
         .filter(SubmissionRecord.user_id == user_id)
         .delete(synchronize_session=False)
     )
     db.query(SubmissionDispatchClaim).filter(SubmissionDispatchClaim.user_id == user_id).delete(
+        synchronize_session=False
+    )
+    db.query(SubmissionStopEvent).filter(SubmissionStopEvent.user_id == user_id).delete(
         synchronize_session=False
     )
     return deleted

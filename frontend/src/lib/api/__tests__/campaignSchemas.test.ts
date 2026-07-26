@@ -44,7 +44,7 @@ describe('campaign contracts', () => {
       },
       submission_records: {
         schema_version: 'submission-records-export/v1', record_count: 0, records: [],
-        dispatch_claim_count: 0, dispatch_claims: [],
+        dispatch_claim_count: 0, dispatch_claims: [], stop_count: 0, stops: [],
       },
       development: {
         item_count: 0,
