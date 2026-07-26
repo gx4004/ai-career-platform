@@ -324,6 +324,68 @@ def main() -> None:
             == 0
         )
 
+    # A terminal pre-commit stop must preserve the same packet -> snapshot ->
+    # claim order while lifecycle erasure waits, then erase the stop evidence
+    # without a lock cycle.
+    stop_erasure_adapter = StoppingAdapter()
+    stop_erasure_results = []
+    stop_erasure_errors = []
+
+    def stop_during_erasure() -> None:
+        try:
+            with Session() as session:
+                stop_erasure_results.append(
+                    submit_approved_snapshot(
+                        session,
+                        user_id=user_id,
+                        snapshot_id=snapshot_id,
+                        source_key=stop_erasure_adapter.source_key,
+                        grant_id=grant_id,
+                        envelope_gate=HealthyEnvelope(),
+                        adapter=stop_erasure_adapter,
+                    )
+                )
+        except Exception as error:  # pragma: no cover - surfaced below
+            stop_erasure_errors.append(error)
+
+    stop_erasure_finished = threading.Event()
+
+    def erase_stopped_lifecycle() -> None:
+        try:
+            with Session() as session:
+                delete_submission_records(session, user_id)
+                session.commit()
+        except Exception as error:  # pragma: no cover - surfaced below
+            stop_erasure_errors.append(error)
+        finally:
+            stop_erasure_finished.set()
+
+    stopping_submitter = threading.Thread(target=stop_during_erasure)
+    stopping_submitter.start()
+    assert stop_erasure_adapter.entered.wait(timeout=5)
+    stopping_eraser = threading.Thread(target=erase_stopped_lifecycle)
+    stopping_eraser.start()
+    assert not stop_erasure_finished.wait(timeout=0.3)
+    stop_erasure_adapter.release.set()
+    stopping_submitter.join(timeout=10)
+    stopping_eraser.join(timeout=10)
+
+    assert not stop_erasure_errors, stop_erasure_errors
+    assert not stopping_submitter.is_alive()
+    assert not stopping_eraser.is_alive()
+    assert len(stop_erasure_results) == 1
+    assert stop_erasure_results[0].status == "stopped"
+    assert stop_erasure_finished.is_set()
+    with Session() as session:
+        assert (
+            session.execute(text("SELECT count(*) FROM submission_stop_events")).scalar_one()
+            == 0
+        )
+        assert (
+            session.execute(text("SELECT count(*) FROM submission_dispatch_claims")).scalar_one()
+            == 0
+        )
+
     stop_adapter = StoppingAdapter()
     stop_barrier = threading.Barrier(2)
     stop_results = []

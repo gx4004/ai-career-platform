@@ -570,21 +570,27 @@ def test_pre_act_failure_preserves_the_globally_shared_frozen_claim(db, test_use
     )
 
 
-def test_non_accepted_source_code_stops_without_a_submission_record(db, test_user):
+def test_non_accepted_receipt_stays_on_frozen_reconciliation_without_manual_handoff(
+    db, test_user
+):
     source, _, grant = _source_and_grant(db, test_user)
     snapshot = _snapshot(db, test_user)
 
-    result = _submit(
-        db,
-        test_user,
-        snapshot,
-        source,
-        grant,
-        FixtureEnvelope(),
-        ChallengeAdapter(),
-    )
-    assert result.status == "stopped"
+    with pytest.raises(PacketSubmissionRefused) as refusal:
+        _submit(
+            db,
+            test_user,
+            snapshot,
+            source,
+            grant,
+            FixtureEnvelope(),
+            ChallengeAdapter(),
+        )
+
+    assert refusal.value.reason == PacketSubmissionRefusal.CONTRACT_MISMATCH
     assert db.query(SubmissionRecord).count() == 0
+    assert db.query(SubmissionStopEvent).count() == 0
+    assert db.query(SubmissionDispatchClaim).count() == 1
 
 
 def test_ambiguous_retry_stops_on_contract_change_then_reuses_frozen_request(db, test_user):
@@ -703,6 +709,9 @@ def test_source_stop_returns_packet_with_plain_handoff_and_never_retries(
     assert snapshot.packet.decision == "accepted"
     assert db.query(SubmissionRecord).count() == 0
     assert db.query(SubmissionStopEvent).count() == 1
+    assert [event.id for event in list_contract_breakage_signals(db, source.id)] == [
+        first.stop_event_id
+    ]
 
 
 def test_stops_are_owner_exported_and_erased_with_their_snapshot(db, test_user):

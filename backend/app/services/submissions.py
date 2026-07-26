@@ -500,31 +500,11 @@ def _stop_and_return(
     source_code: str | None = None,
     require_absent_claim: bool = False,
 ) -> SubmissionStoppedResponse:
-    # Share the engine's packet -> snapshot -> claim order. A terminal stop is
-    # checked under these locks before it is made durable, so another worker or
-    # process restart cannot invoke the adapter again for this pair.
-    packet = (
-        db.query(ApplicationPacket)
-        .filter(
-            ApplicationPacket.id == snapshot.packet_id,
-            ApplicationPacket.user_id == snapshot.user_id,
-        )
-        .with_for_update()
-        .one_or_none()
-    )
-    locked_snapshot = (
-        db.query(PacketApprovalSnapshot)
-        .populate_existing()
-        .filter(
-            PacketApprovalSnapshot.id == snapshot.id,
-            PacketApprovalSnapshot.user_id == snapshot.user_id,
-        )
-        .with_for_update()
-        .one_or_none()
-    )
-    if packet is None or locked_snapshot is None:
-        db.rollback()
-        raise PacketSubmissionRefused(PacketSubmissionRefusal.SNAPSHOT_NOT_APPROVED)
+    # Every caller already owns the packet -> snapshot locks established by
+    # _approved_snapshot(for_update=True). Acquire only the later claim lock
+    # here; reacquiring packet after snapshot/claim would obscure the global
+    # deletion order and make future call sites capable of inverting it.
+    locked_snapshot = snapshot
     locked_claim = (
         db.query(SubmissionDispatchClaim)
         .filter(SubmissionDispatchClaim.idempotency_key == idempotency_key)
@@ -630,9 +610,15 @@ def submit_approved_snapshot(
             # With no durable claim there cannot have been an earlier outward
             # act. This is therefore a proven pre-commit compatibility stop,
             # safe for an official manual handoff and #195 breakage evidence.
+            locked_snapshot, _ = _approved_snapshot(
+                db,
+                user_id=user_id,
+                snapshot_id=snapshot_id,
+                for_update=True,
+            )
             return _stop_and_return(
                 db,
-                snapshot=snapshot,
+                snapshot=locked_snapshot,
                 source_id=source.discovery_source_id,
                 grant_id=grant_id,
                 idempotency_key=key,
@@ -788,27 +774,11 @@ def submit_approved_snapshot(
         if semantic is None:
             raise PacketSubmissionRefused(PacketSubmissionRefusal.CONTRACT_MISMATCH)
         if receipt.source_code not in accepted_codes:
-            if semantic.handling != "stop_and_return" or semantic.meaning == "duplicate":
-                raise PacketSubmissionRefused(PacketSubmissionRefusal.CONTRACT_MISMATCH)
-            if semantic.meaning in {"authentication_required", "authorization_denied"}:
-                stop_reason = "authentication_required"
-            elif semantic.meaning == "challenge":
-                stop_reason = "challenge"
-            elif semantic.meaning == "validation_error":
-                stop_reason = "source_validation_rejected"
-            else:
-                stop_reason = "uncertainty"
-            return _stop_and_return(
-                db,
-                snapshot=locked_snapshot,
-                source_id=source.discovery_source_id,
-                grant_id=claim.authorization_grant_id,
-                idempotency_key=key,
-                contract_version=claim.contract_version,
-                contract_sha256=claim.contract_sha256,
-                reason=stop_reason,
-                source_code=receipt.source_code,
-            )
+            # A receipt is a post-invocation observation, not proof that the
+            # adapter stopped before commit. Preserve the frozen claim for
+            # source-native idempotent reconciliation and never offer a manual
+            # handoff that could create a duplicate outward application.
+            raise PacketSubmissionRefused(PacketSubmissionRefusal.CONTRACT_MISMATCH)
         if not receipt.source_confirmation_id or len(receipt.source_confirmation_id) > 200:
             raise PacketSubmissionRefused(PacketSubmissionRefusal.CONTRACT_MISMATCH)
     except Exception:
@@ -901,10 +871,7 @@ def list_contract_breakage_signals(
     """Stable, content-free input seam for #195 compatibility monitoring."""
     return (
         db.query(SubmissionStopEvent)
-        .filter(
-            SubmissionStopEvent.discovery_source_id == source_id,
-            SubmissionStopEvent.reason == "compatibility_mismatch",
-        )
+        .filter(SubmissionStopEvent.discovery_source_id == source_id)
         .order_by(SubmissionStopEvent.created_at.asc(), SubmissionStopEvent.id.asc())
         .all()
     )
