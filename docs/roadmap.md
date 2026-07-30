@@ -1,7 +1,7 @@
 # Career Workbench — Product Roadmap
 
 **Planning horizon:** release candidate through premium application automation
-**Last reviewed:** 2026-07-05
+**Last reviewed:** 2026-07-30
 **Roadmap rule:** outcomes live here; implementation tasks live in issues/PRs.
 
 ## North Star
@@ -119,7 +119,8 @@ Acceptance gate:
 
 ### R6. Activation Instrumentation
 
-**Status:** PRD published (#103; tracer issues #104–#108)
+**Status:** implementation complete through #104–#108; the outcome gate remains
+open until a production-like environment supplies the required two-week baseline
 **Outcome:** the team can see where users receive value or abandon the workflow without
 collecting raw sensitive content.
 
@@ -135,7 +136,9 @@ Acceptance gate:
 
 ### R7. First-Run and Continuity Improvements
 
-**Status:** PROVISIONAL PRD published (#109; tracer issues #110–#115), still evidence-driven — no candidate ships live until R6's baseline exists
+**Status:** PROVISIONAL dark implementation complete through #110–#115. Every
+candidate remains default-off; no candidate ships live until R6's baseline identifies
+the drop-off it addresses and the exit metric is accepted
 **Outcome:** more users finish a first useful result and continue to the next relevant
 tool.
 
@@ -153,7 +156,9 @@ increase in failure, cost, or privacy risk.
 
 ### R8. Output Quality Program
 
-**Status:** PRD published (#118; tracer issues #119–#124)
+**Status:** implementation complete through #119–#124; the evaluation corpus,
+checks, runner, and admin evidence view exist, while release changes must still pass
+the program's quality/latency/cost gate
 **Outcome:** changes to prompts, heuristics, and models can be evaluated consistently.
 
 Acceptance gate:
@@ -186,9 +191,8 @@ entitlement system.
 
 ### R10. Reliability and Cost Scaling
 
-**Status:** PROVISIONAL spec published (#135; tracer issues #136–#142), still
-deferred until the R10 scorecard records a sustained trigger for an independent
-response
+**Status:** PROVISIONAL scorecard implementation complete in #136; #137–#142 remain
+deferred until the scorecard records the corresponding sustained trigger
 **Outcome:** maintain service quality as concurrency and spend grow.
 
 Candidate triggers and responses:
@@ -208,10 +212,11 @@ foundation is verified.
 
 ### R11. Evidence Profile
 
-**Status:** PROVISIONAL spec published (#143; tracer issues #144–#150). Under an
-explicit owner build-ahead override, #144's persistence/API foundation is built
-dark; profile injection, import/export, UI activation, and production activation
-remain deferred behind the D-060 gate (D-060–D-067, ADR 0005).
+**Status:** PROVISIONAL build-ahead implementation complete through #144–#150 under an
+explicit owner build-ahead override. Persistence, inspection, reviewed import,
+confirmed-evidence injection, explicit promotion, lifecycle/export, telemetry, and
+threat-model foundations exist; production activation remains behind D-060
+(D-060–D-067, ADR 0005).
 **Outcome:** users have one inspectable, correctable source of verified career
 evidence that all tools can reuse.
 
@@ -227,11 +232,11 @@ Acceptance gate:
 
 ### R12. Premium CV Studio
 
-**Status:** PROVISIONAL spec published (#152; tracer issues #153–#159), still
-deferred until R11 ships behind the closed R1–R4 gate. Under an explicit owner
-build-ahead override, #153's owner-only document/variant persistence and API
-foundation is built dark; editor registration and all user-facing activation remain
-deferred (D-068–D-075, ADR 0006).
+**Status:** PROVISIONAL build-ahead implementation complete through #153–#159 under an
+explicit owner build-ahead override. Document/variant persistence, reviewed import,
+structured editing, scoring, evidence-grounded tailoring, templates, validated
+DOCX/PDF export, lifecycle, quotas, and telemetry exist; production activation
+remains behind D-068 (D-068–D-075, ADR 0006).
 **Outcome:** a user can import, create, edit, score, tailor, version, preview, and
 export a professional ATS-aware CV in the browser.
 
@@ -250,9 +255,11 @@ Acceptance gate:
 
 ### R13. Application Campaigns and Reviewer
 
-**Status:** PROVISIONAL spec published (#161; tracer issues #162–#168), still
-deferred until R12 ships — no migration, endpoint, reminder channel, or reviewer
-ships earlier (D-076–D-083, ADR 0007)
+**Status:** PROVISIONAL implementation complete through #162–#168 under the
+build-ahead authorization. Campaign migration, listings, material selection,
+timeline/tasks/notes/contacts, consented in-product reminders, immutable snapshots,
+and the advisory reviewer exist; production activation remains behind D-076
+(D-076–D-083, ADR 0007)
 **Outcome:** each target role has a coherent campaign containing its listing,
 materials, preparation, tracking, and quality review.
 
@@ -270,9 +277,11 @@ Acceptance gate:
 
 ### R14. Lawful Job Discovery
 
-**Status:** PROVISIONAL spec published (#170; tracer issues #171–#177), still
-deferred until R13 ships, with every individual source additionally gated behind
-an accepted terms review (D-084–D-091, ADR 0008)
+**Status:** PROVISIONAL build-ahead implementation complete through #171–#177. Registry
+enforcement, fixture-only ingestion, listing lifecycle, ranking, user controls,
+campaign adoption, and source-health controls exist; no real source is registered
+or activated, and every source remains gated behind an accepted terms review
+(D-084–D-091, ADR 0008)
 **Outcome:** users receive deduplicated, explainable job recommendations from sources
 that explicitly permit the implemented behavior.
 
@@ -297,8 +306,7 @@ terminal queue actions plus campaign/account erasure on a consistent packet-firs
 lock order. Duplicate identity comes from the packet's immutable listing target;
 the owner reviews dereferenced materials before approval, and handoff provenance is
 pinned to the preparation-time listing attribution.
-This
-does not satisfy or reverse D-092: production activation remains deferred until
+This does not satisfy or reverse D-092: production activation remains deferred until
 R14 and packet-grade quality evidence are accepted, and R15 contains no
 submission endpoint or outward act (D-092–D-099, ADR 0009)
 **Outcome:** the system prepares high-quality application packets for explicit user
@@ -318,7 +326,7 @@ Acceptance gate:
 
 ### R16. Source-Specific Trusted Autopilot
 
-**Status:** PROVISIONAL spec published (#188; tracer issues #189–#195). The dark
+**Status:** PROVISIONAL spec published (#188; tracer issues #189–#195). The
 #189 source-governance, #190 owner/source authorization, #191 idempotent-engine,
 #192 terminal stop-and-return, #193 safety-envelope, #194 confirmation/audit, and
 #195 compatibility/quality-governance foundations are built
