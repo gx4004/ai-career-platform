@@ -35,6 +35,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminIndexRouteImport } from './routes/admin/index'
 import { Route as CampaignsCampaignIdRouteImport } from './routes/campaigns.$campaignId'
 import { Route as AdminUsersRouteImport } from './routes/admin/users'
+import { Route as AdminSubmissionQualityRouteImport } from './routes/admin/submission-quality'
 import { Route as AdminSourceHealthRouteImport } from './routes/admin/source-health'
 import { Route as AdminScorecardRouteImport } from './routes/admin/scorecard'
 import { Route as AdminRunsRouteImport } from './routes/admin/runs'
@@ -181,6 +182,11 @@ const AdminUsersRoute = AdminUsersRouteImport.update({
   path: '/users',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminSubmissionQualityRoute = AdminSubmissionQualityRouteImport.update({
+  id: '/submission-quality',
+  path: '/submission-quality',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminSourceHealthRoute = AdminSourceHealthRouteImport.update({
   id: '/source-health',
   path: '/source-health',
@@ -293,6 +299,7 @@ export interface FileRoutesByFullPath {
   '/admin/runs': typeof AdminRunsRoute
   '/admin/scorecard': typeof AdminScorecardRoute
   '/admin/source-health': typeof AdminSourceHealthRoute
+  '/admin/submission-quality': typeof AdminSubmissionQualityRoute
   '/admin/users': typeof AdminUsersRoute
   '/campaigns/$campaignId': typeof CampaignsCampaignIdRoute
   '/admin/': typeof AdminIndexRoute
@@ -335,6 +342,7 @@ export interface FileRoutesByTo {
   '/admin/runs': typeof AdminRunsRoute
   '/admin/scorecard': typeof AdminScorecardRoute
   '/admin/source-health': typeof AdminSourceHealthRoute
+  '/admin/submission-quality': typeof AdminSubmissionQualityRoute
   '/admin/users': typeof AdminUsersRoute
   '/campaigns/$campaignId': typeof CampaignsCampaignIdRoute
   '/admin': typeof AdminIndexRoute
@@ -379,6 +387,7 @@ export interface FileRoutesById {
   '/admin/runs': typeof AdminRunsRoute
   '/admin/scorecard': typeof AdminScorecardRoute
   '/admin/source-health': typeof AdminSourceHealthRoute
+  '/admin/submission-quality': typeof AdminSubmissionQualityRoute
   '/admin/users': typeof AdminUsersRoute
   '/campaigns/$campaignId': typeof CampaignsCampaignIdRoute
   '/admin/': typeof AdminIndexRoute
@@ -424,6 +433,7 @@ export interface FileRouteTypes {
     | '/admin/runs'
     | '/admin/scorecard'
     | '/admin/source-health'
+    | '/admin/submission-quality'
     | '/admin/users'
     | '/campaigns/$campaignId'
     | '/admin/'
@@ -466,6 +476,7 @@ export interface FileRouteTypes {
     | '/admin/runs'
     | '/admin/scorecard'
     | '/admin/source-health'
+    | '/admin/submission-quality'
     | '/admin/users'
     | '/campaigns/$campaignId'
     | '/admin'
@@ -509,6 +520,7 @@ export interface FileRouteTypes {
     | '/admin/runs'
     | '/admin/scorecard'
     | '/admin/source-health'
+    | '/admin/submission-quality'
     | '/admin/users'
     | '/campaigns/$campaignId'
     | '/admin/'
@@ -737,6 +749,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminUsersRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/submission-quality': {
+      id: '/admin/submission-quality'
+      path: '/submission-quality'
+      fullPath: '/admin/submission-quality'
+      preLoaderRoute: typeof AdminSubmissionQualityRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/source-health': {
       id: '/admin/source-health'
       path: '/source-health'
@@ -855,6 +874,7 @@ interface AdminRouteChildren {
   AdminRunsRoute: typeof AdminRunsRoute
   AdminScorecardRoute: typeof AdminScorecardRoute
   AdminSourceHealthRoute: typeof AdminSourceHealthRoute
+  AdminSubmissionQualityRoute: typeof AdminSubmissionQualityRoute
   AdminUsersRoute: typeof AdminUsersRoute
   AdminIndexRoute: typeof AdminIndexRoute
 }
@@ -869,6 +889,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminRunsRoute: AdminRunsRoute,
   AdminScorecardRoute: AdminScorecardRoute,
   AdminSourceHealthRoute: AdminSourceHealthRoute,
+  AdminSubmissionQualityRoute: AdminSubmissionQualityRoute,
   AdminUsersRoute: AdminUsersRoute,
   AdminIndexRoute: AdminIndexRoute,
 }

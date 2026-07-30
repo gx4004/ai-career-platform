@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from app.auth.security import hash_password
+from app.models.analytics_event import AnalyticsEvent
 from app.models.application_packet import ApplicationPacket
 from app.models.campaign_event import CampaignEvent
 from app.models.discovery_source import DiscoverySource
@@ -340,6 +341,13 @@ def test_submits_exact_frozen_fields_once_and_persists_proof(
     assert first.submitted_fields == adapter.requests[0].fields
     assert first.idempotency_key == adapter.requests[0].idempotency_key
     assert db.query(SubmissionRecord).count() == 1
+    quality = (
+        db.query(AnalyticsEvent.operational_outcome)
+        .filter(AnalyticsEvent.event_name == "submission_quality_outcome")
+        .order_by(AnalyticsEvent.created_at)
+        .all()
+    )
+    assert quality == [("confirmed",), ("duplicate_prevented",)]
     events = db.query(CampaignEvent).filter_by(workspace_id=snapshot.campaign_id).all()
     assert [(event.event_type, event.details) for event in events] == [
         (
@@ -726,6 +734,12 @@ def test_ambiguous_retry_stops_on_contract_change_then_reuses_frozen_request(db,
         SubmissionCompatibilityContract.model_validate_json(FIXTURE_PATH.read_text()),
         actor=_admin(db),
     )
+    # Breakage containment is sticky: restoring the reviewed bytes is not an
+    # implicit reactivation. An operator must deliberately re-promote and clear
+    # the kill switch before the frozen idempotent retry may continue.
+    actor = _admin(db)
+    promote_submission_source(db, governance, promoted=True, actor=actor)
+    operate_submission_kill_switch(db, governance, tripped=False, actor=actor)
     result = _submit(db, test_user, snapshot, source, grant, FixtureEnvelope(), retry)
 
     assert retry.requests[0] == ambiguous.requests[0]
@@ -783,7 +797,7 @@ def test_same_version_contract_drift_stops_before_adapter(db, test_user):
 def test_source_stop_returns_packet_with_plain_handoff_and_never_retries(
     db, test_user, source_code, reason
 ):
-    source, _, grant = _source_and_grant(db, test_user)
+    source, governance, grant = _source_and_grant(db, test_user)
     snapshot = _snapshot(
         db,
         test_user,
@@ -809,6 +823,14 @@ def test_source_stop_returns_packet_with_plain_handoff_and_never_retries(
     assert [event.id for event in list_contract_breakage_signals(db, source.id)] == [
         first.stop_event_id
     ]
+    db.refresh(governance)
+    if reason == "compatibility_mismatch":
+        assert governance.contract_status == "broken"
+        assert governance.promoted is False
+        assert governance.kill_switch is True
+    else:
+        assert governance.contract_status == "verified"
+        assert governance.kill_switch is False
 
 
 def test_stops_are_owner_exported_and_erased_with_their_snapshot(db, test_user):

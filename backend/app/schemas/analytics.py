@@ -112,12 +112,21 @@ SubmissionSourceGovernanceOutcome = Literal[
     "demoted",
     "kill_switch_enabled",
     "kill_switch_disabled",
+    "compatible",
+    "broken",
 ]
 SubmissionSafetyOutcome = Literal[
     "anomaly_detected",
     "kill_switch_enabled",
     "kill_switch_disabled",
     "rehearsal_recorded",
+]
+SubmissionQualityOutcome = Literal[
+    "confirmed",
+    "response_received",
+    "packet_edited",
+    "duplicate_prevented",
+    "complaint_reported",
 ]
 
 # R15 #184 packet-queue trust-chain gate. Backend-generated at the preparation
@@ -154,6 +163,7 @@ OperationalOutcome = (
     | DiscoveryAdoptionOutcome
     | SubmissionSourceGovernanceOutcome
     | SubmissionSafetyOutcome
+    | SubmissionQualityOutcome
     | PacketGateOutcome
 )
 
@@ -201,12 +211,16 @@ DiscoveryEventName = Literal[
 SubmissionSourceGovernanceEventName = Literal[
     "submission_source_promotion_changed",
     "submission_source_kill_switch",
+    "submission_contract_checked",
 ]
 _SUBMISSION_SOURCE_EVENT_OUTCOMES = {
     "submission_source_promotion_changed": frozenset({"promoted", "demoted"}),
     "submission_source_kill_switch": frozenset({"kill_switch_enabled", "kill_switch_disabled"}),
+    "submission_contract_checked": frozenset({"compatible", "broken"}),
 }
-_SUBMISSION_SOURCE_EXCLUSIVE_OUTCOMES = frozenset({"promoted", "demoted"})
+_SUBMISSION_SOURCE_EXCLUSIVE_OUTCOMES = frozenset(
+    {"promoted", "demoted", "compatible", "broken"}
+)
 
 SubmissionSafetyEventName = Literal[
     "submission_safety_anomaly",
@@ -219,6 +233,17 @@ _SUBMISSION_SAFETY_EVENT_OUTCOMES = {
     "submission_incident_rehearsal": frozenset({"rehearsal_recorded"}),
 }
 _SUBMISSION_SAFETY_EXCLUSIVE_OUTCOMES = frozenset({"anomaly_detected", "rehearsal_recorded"})
+
+SubmissionQualityEventName = Literal["submission_quality_outcome"]
+_SUBMISSION_QUALITY_OUTCOMES = frozenset(
+    {
+        "confirmed",
+        "response_received",
+        "packet_edited",
+        "duplicate_prevented",
+        "complaint_reported",
+    }
+)
 
 # R15 #184 packet-queue trust-chain gate events (D-097). Backend-only, emitted at
 # the preparation seam; both carry only bounded operational dimensions.
@@ -258,6 +283,7 @@ ActivationEventName = (
     | DiscoveryEventName
     | SubmissionSourceGovernanceEventName
     | SubmissionSafetyEventName
+    | SubmissionQualityEventName
     | PacketGateEventName
     | DevelopmentLoopEventName
 )
@@ -446,4 +472,43 @@ class ActivationEventCreate(BaseModel):
         )
         if any(value is not None for value in unrelated_values):
             raise ValueError("submission-safety events accept no content dimensions")
+        return self
+
+    @model_validator(mode="after")
+    def validate_submission_quality_event_shape(self):
+        if self.event_name != "submission_quality_outcome":
+            if self.operational_outcome in _SUBMISSION_QUALITY_OUTCOMES:
+                raise ValueError(
+                    "submission-quality outcomes are valid only for quality events"
+                )
+            return self
+        if (
+            self.operational_dimension
+            not in {"licensed", "employer_ats", "public_career_page", "user_provided"}
+            or self.operational_outcome not in _SUBMISSION_QUALITY_OUTCOMES
+        ):
+            raise ValueError(
+                "submission-quality events require a source family and quality outcome"
+            )
+        unrelated_values = (
+            self.tool_id,
+            self.access_mode,
+            self.saved,
+            self.failure_category,
+            self.export_format,
+            self.has_feedback,
+            self.session_status,
+            self.duration_ms,
+            self.cost_estimate,
+            self.evidence_kind,
+            self.evidence_provenance,
+            self.confirmation_transition,
+            self.development_gap_kind,
+            self.development_response_kind,
+            self.development_state_from,
+            self.development_state_to,
+            self.occurred_at,
+        )
+        if any(value is not None for value in unrelated_values) or self.level != "info":
+            raise ValueError("submission-quality events accept only family and outcome")
         return self

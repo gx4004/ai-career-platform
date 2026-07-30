@@ -31,6 +31,7 @@ from app.models.submission_source import SubmissionSourceGovernance
 from app.models.user import User
 from app.models.workspace import Workspace
 from app.services.submission_safety import SubmissionSafetyBlocked, SubmissionSafetyEnvelope
+from app.services.submission_sources import SourceSubmissionRefused
 from app.services.submissions import (
     PacketSubmissionRefusal,
     PacketSubmissionRefused,
@@ -86,6 +87,18 @@ class StoppingAdapter(CountingAdapter):
         self.entered.set()
         assert self.release.wait(timeout=5)
         return SubmissionAdapterStop(reason="challenge", source_code="captcha_required")
+
+
+class CompatibilityStoppingAdapter(CountingAdapter):
+    def submit_idempotently(self, request):
+        with self.lock:
+            self.calls += 1
+        self.entered.set()
+        assert self.release.wait(timeout=5)
+        return SubmissionAdapterStop(
+            reason="compatibility_mismatch",
+            source_code="contract_changed",
+        )
 
 
 class AmbiguousAdapter(CountingAdapter):
@@ -889,6 +902,111 @@ def main() -> None:
                 {"scope": f"queue-pause:{user_id}"},
             ).scalar_one()
             == 0
+        )
+
+    # A detected compatibility break must commit containment before releasing
+    # the source-policy locks. Hold the production trip call exactly at that
+    # boundary and prove a second snapshot cannot reach its adapter in between.
+    with Session() as session:
+        break_event_count_before = session.execute(
+            text(
+                "SELECT count(*) FROM analytics_events "
+                "WHERE event_name='submission_contract_checked' "
+                "AND operational_outcome='broken'"
+            )
+        ).scalar_one()
+    with engine.begin() as connection:
+        connection.execute(text("DELETE FROM discovery_sources WHERE id='concurrent-source'"))
+    with Session() as session:
+        user_id, snapshot_id, grant_id = _seed(session)
+        second_snapshot_id = _seed_second_snapshot(session, user_id=user_id)
+
+    compatibility_adapter = CompatibilityStoppingAdapter()
+    competing_adapter = CountingAdapter()
+    break_results = []
+    break_errors = []
+    competing_errors = []
+    trip_entered = threading.Event()
+    release_trip = threading.Event()
+    original_trip = submissions_service.trip_submission_contract_breakage
+
+    def held_trip(db, discovery_source_id: str) -> None:
+        trip_entered.set()
+        assert release_trip.wait(timeout=5)
+        original_trip(db, discovery_source_id)
+
+    submissions_service.trip_submission_contract_breakage = held_trip
+
+    def detect_breakage() -> None:
+        try:
+            with Session() as session:
+                break_results.append(
+                    submit_approved_snapshot(
+                        session,
+                        user_id=user_id,
+                        snapshot_id=snapshot_id,
+                        source_key=compatibility_adapter.source_key,
+                        grant_id=grant_id,
+                        envelope_gate=HealthyEnvelope(),
+                        adapter=compatibility_adapter,
+                    )
+                )
+        except Exception as error:  # pragma: no cover - asserted below
+            break_errors.append(error)
+
+    def submit_competing_snapshot() -> None:
+        try:
+            with Session() as session:
+                submit_approved_snapshot(
+                    session,
+                    user_id=user_id,
+                    snapshot_id=second_snapshot_id,
+                    source_key=competing_adapter.source_key,
+                    grant_id=grant_id,
+                    envelope_gate=HealthyEnvelope(),
+                    adapter=competing_adapter,
+                )
+        except Exception as error:  # pragma: no cover - asserted below
+            competing_errors.append(error)
+
+    detector = threading.Thread(target=detect_breakage, name="contract-break-detector")
+    detector.start()
+    assert compatibility_adapter.entered.wait(timeout=5)
+    compatibility_adapter.release.set()
+    assert trip_entered.wait(timeout=5)
+
+    competitor = threading.Thread(
+        target=submit_competing_snapshot,
+        name="post-break-competitor",
+    )
+    competitor.start()
+    assert not competing_adapter.entered.wait(timeout=0.3)
+    release_trip.set()
+    detector.join(timeout=10)
+    competitor.join(timeout=10)
+    submissions_service.trip_submission_contract_breakage = original_trip
+
+    assert not detector.is_alive()
+    assert not competitor.is_alive()
+    assert not break_errors, break_errors
+    assert len(break_results) == 1
+    assert break_results[0].reason == "compatibility_mismatch"
+    assert competing_adapter.calls == 0
+    assert len(competing_errors) == 1
+    assert isinstance(competing_errors[0], SourceSubmissionRefused)
+    with Session() as session:
+        governance = session.query(SubmissionSourceGovernance).one()
+        assert governance.contract_status == "broken"
+        assert governance.kill_switch is True
+        assert (
+            session.execute(
+                text(
+                    "SELECT count(*) FROM analytics_events "
+                    "WHERE event_name='submission_contract_checked' "
+                    "AND operational_outcome='broken'"
+                )
+            ).scalar_one()
+            == break_event_count_before + 1
         )
     engine.dispose()
 

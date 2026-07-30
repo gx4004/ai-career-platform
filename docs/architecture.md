@@ -441,7 +441,7 @@ errors remain forbidden.
   purge the whole queue cache, while a mounted queue clears answer drafts and manual
   handoff state on owner change or expiry.
 
-## Trusted Submission Boundaries (R16, dark #189–#194 foundation; activation deferred)
+## Trusted Submission Boundaries (R16, dark #189–#195 foundation; activation deferred)
 
 - Submission exists only behind four independent gates: source (terms approval +
   compatibility contract), user (granular revocable authorization), packet
@@ -457,8 +457,11 @@ errors remain forbidden.
   not that approval history is rewritten (D-102).
 - Submissions are idempotent with duplicate prevention; audit is append-only with
   per-field reconstructability and user-inspectable confirmation (D-103).
-- Contract breakage trips the source kill switch and degrades to human handoff
-  (D-105).
+- Contract observations are compared exactly with the reviewed compatibility
+  contract. A mismatch marks the contract broken, demotes the source, trips its
+  kill switch, and degrades to human handoff. Restoring contract bytes does not
+  reactivate the source: an admin must explicitly re-promote and clear the switch
+  after review (D-105).
 - The built-ahead #189 source gate extends each R14 registry row with at most one
   submission-governance record. It persists a separate submission legal/terms
   review, a strictly validated compatibility contract (fields, formats, error
@@ -543,8 +546,20 @@ errors remain forbidden.
   ordered lifecycle; the UI explicitly states that this cannot recall the employer-held application.
   The machine-readable export includes the audit record, timeline link, and the
   content-free attempt ledger.
-- Quality and user outcomes govern operation; raw volume never loosens controls
-  (D-106).
+- The dark #195 monitor accepts only strict local/adapter contract observations;
+  it has no network fetcher or generic browser seam. Contract-check telemetry is
+  source family plus `compatible`/`broken` only. Successful and idempotently
+  prevented fixture submissions emit only source family plus a closed quality
+  outcome. The admin quality view aggregates response, packet-edit, duplicate,
+  and complaint rates per allowlisted family. Duplicate prevention uses prevented
+  attempts over confirmed-plus-prevented logical attempts, so repeated safe retries
+  remain bounded instead of breaking the response contract. Other outcome rates
+  saturate at 100% because the privacy-safe event stream intentionally carries no
+  submission identifier for entity deduplication. Confirmation count is labeled only
+  as sample context, and the response shape exposes no control mutation, source
+  key, user/packet id, contract body, or submitted value. Quality and user
+  outcomes govern review; neither this dashboard nor raw volume can activate a
+  source or loosen a control (D-105–D-107).
 - Submission records follow the standard lifecycle for product copies, with the
   employer-copy limitation stated honestly (D-107).
 
