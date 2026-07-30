@@ -653,6 +653,12 @@ export function getCampaign(workspaceId: string) {
   })
 }
 
+export function deleteCampaign(workspaceId: string) {
+  return request(`/history/workspaces/${workspaceId}`, {
+    method: 'DELETE', schema: deletedResponseSchema,
+  })
+}
+
 export function updateCampaignMaterials(
   workspaceId: string,
   payload: CampaignMaterialSelection,

@@ -42,6 +42,7 @@ from app.schemas.submissions import (
     SubmissionStoppedResponse,
     SubmissionStopReason,
 )
+from app.services.campaign_tracking import record_event
 from app.services.submission_authorizations import (
     require_active_submission_authorization,
 )
@@ -898,6 +899,17 @@ def submit_approved_snapshot(
     )
     db.add(record)
     try:
+        db.flush()
+        record_event(
+            db,
+            snapshot.campaign_id,
+            "submission_confirmed",
+            {
+                "submission_record_id": record.id,
+                "packet_approval_snapshot_id": snapshot.id,
+            },
+            provenance="system",
+        )
         db.commit()
     except IntegrityError:
         db.rollback()

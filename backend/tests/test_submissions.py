@@ -7,6 +7,7 @@ import pytest
 
 from app.auth.security import hash_password
 from app.models.application_packet import ApplicationPacket
+from app.models.campaign_event import CampaignEvent
 from app.models.discovery_source import DiscoverySource
 from app.models.packet_approval_snapshot import PacketApprovalSnapshot
 from app.models.submission_record import SubmissionDispatchClaim, SubmissionRecord
@@ -317,7 +318,9 @@ def _submit(db, test_user, snapshot, source, grant, envelope, adapter):
     )
 
 
-def test_submits_exact_frozen_fields_once_and_persists_proof(db, test_user):
+def test_submits_exact_frozen_fields_once_and_persists_proof(
+    client, auth_headers, db, test_user
+):
     source, _, grant = _source_and_grant(db, test_user)
     snapshot = _snapshot(db, test_user)
     envelope = FixtureEnvelope()
@@ -337,6 +340,34 @@ def test_submits_exact_frozen_fields_once_and_persists_proof(db, test_user):
     assert first.submitted_fields == adapter.requests[0].fields
     assert first.idempotency_key == adapter.requests[0].idempotency_key
     assert db.query(SubmissionRecord).count() == 1
+    events = db.query(CampaignEvent).filter_by(workspace_id=snapshot.campaign_id).all()
+    assert [(event.event_type, event.details) for event in events] == [
+        (
+            "submission_confirmed",
+            {
+                "submission_record_id": first.id,
+                "packet_approval_snapshot_id": snapshot.id,
+                "provenance": "system",
+            },
+        )
+    ]
+    campaign = client.get(
+        f"/api/v1/history/workspaces/{snapshot.campaign_id}", headers=auth_headers
+    ).json()
+    assert campaign["events"][0]["created_at"].endswith("Z")
+    assert len(campaign["submission_confirmations"]) == 1
+    confirmation = campaign["submission_confirmations"][0]
+    assert confirmation["submitted_at"].endswith("Z")
+    assert confirmation["record_id"] == first.id
+    assert confirmation["submitted_fields"] == adapter.requests[0].fields
+    assert confirmation["source_confirmation_id"] == "fixture-1"
+    assert confirmation["snapshot"]["id"] == snapshot.id
+    assert confirmation["snapshot"]["content"] == json.loads(snapshot.content_json)
+    assert confirmation["snapshot"]["content_sha256"] == snapshot.content_sha256
+    assert confirmation["product_copy_deletion_notice"] == (
+        "Deleting this campaign removes its product-held submission records but does not "
+        "withdraw the application from the employer."
+    )
     # Source, grant, and envelope are checked at dispatch and immediately pre-act.
     assert envelope.checks == [
         (test_user.id, source.id),
@@ -373,11 +404,27 @@ def test_submission_records_export_and_erase_with_dispatch_claims(db, test_user)
     assert exported.submission_records.dispatch_claims[0].submitted_fields == (
         submitted.submitted_fields
     )
+    campaign_export = next(
+        item
+        for item in exported.campaigns.campaigns
+        if item.id == snapshot.campaign_id
+    )
+    assert [(event.event_type, event.details) for event in campaign_export.events] == [
+        (
+            "submission_confirmed",
+            {
+                "submission_record_id": submitted.id,
+                "packet_approval_snapshot_id": snapshot.id,
+                "provenance": "system",
+            },
+        )
+    ]
 
     delete_all_user_data(db, test_user.id)
 
     assert db.query(SubmissionRecord).count() == 0
     assert db.query(SubmissionDispatchClaim).count() == 0
+    assert db.query(CampaignEvent).count() == 0
 
 
 def test_campaign_deletion_erases_submission_records_without_fk_cascades(db, test_user):

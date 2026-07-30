@@ -129,12 +129,14 @@ Core entities:
   the exact source attribution pinned when the packet was prepared for its manual
   handoff, and authoritative empty unresolved set with
   a canonical SHA-256; production activation remains behind D-092.
-- Submission record (dark R16 #191 foundation; D-103, ADR 0010) — immutable proof
+- Submission record (dark R16 #191/#194 foundation; D-103, D-107, ADR 0010) — immutable proof
   of one idempotent packet-snapshot/source submission with exact frozen-content and
-  submitted-field digests. Only the internal fixture-driven engine exists; the
-  confirmation UI, complete audit/timeline lifecycle, production envelope, and real
-  adapters remain in #193–#194 and activation remains behind D-100. Records export
-  owner-scoped and records/claims erase explicitly before approval snapshots.
+  submitted-field digests. The owner-scoped campaign view reconstructs every field
+  beside the exact retained approval snapshot; its system timeline event contains
+  only record/snapshot identifiers and commits atomically with the record. Product
+  copies export and erase through confirmed campaign/account deletion, while the UI
+  states that deletion cannot withdraw the employer's copy. Only the internal fixture-driven
+  engine exists; real adapters and activation remain behind D-100.
 - Submission stop event (dark R16 #192 foundation; D-102, D-105, ADR 0010) —
   terminal owner/snapshot/source proof that a challenge, authentication request,
   uncertainty, source rejection, or compatibility mismatch returned control to
@@ -439,7 +441,7 @@ errors remain forbidden.
   purge the whole queue cache, while a mounted queue clears answer drafts and manual
   handoff state on owner change or expiry.
 
-## Trusted Submission Boundaries (R16, dark #189–#192 foundation; activation deferred)
+## Trusted Submission Boundaries (R16, dark #189–#194 foundation; activation deferred)
 
 - Submission exists only behind four independent gates: source (terms approval +
   compatibility contract), user (granular revocable authorization), packet
@@ -531,6 +533,16 @@ errors remain forbidden.
   rehearsal before admins can clear it again. Admins can configure
   limits and trip global/source controls without a deploy. No public submit route,
   scheduler, credential flow, real adapter, or activation is added.
+- The dark #194 confirmation surface commits one append-only system campaign event
+  in the same transaction as each immutable submission record. Event details carry
+  only the record and approval-snapshot identifiers; submitted values remain solely
+  in the owner-scoped record. Authenticated campaign detail reconstructs every
+  submitted field beside the exact immutable approval bytes and digest, without
+  exposing grant or idempotency internals. The owner can confirm campaign deletion
+  to remove the product record, event, claims, and snapshot through the existing
+  ordered lifecycle; the UI explicitly states that this cannot recall the employer-held application.
+  The machine-readable export includes the audit record, timeline link, and the
+  content-free attempt ledger.
 - Quality and user outcomes govern operation; raw volume never loosens controls
   (D-106).
 - Submission records follow the standard lifecycle for product copies, with the
