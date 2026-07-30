@@ -89,7 +89,6 @@ class AdminSubmissionSafetyResponse(BaseModel):
     control: SubmissionSafetyControlResponse
     policies: list[SubmissionSafetyPolicyResponse]
     rehearsals: list[SubmissionIncidentRehearsalResponse]
-    rehearsals: list[SubmissionIncidentRehearsalResponse]
 
 
 class SubmissionSafetyStatus(BaseModel):

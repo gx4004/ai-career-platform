@@ -208,6 +208,7 @@ class SubmissionSafetyEnvelope:
         source_id: str,
         snapshot_id: str,
         lock: bool = False,
+        attempt_reserved: bool = False,
     ) -> SubmissionSafetyStatus:
         now = self._clock()
         control_query = db.query(SubmissionSafetyControl).filter(
@@ -233,6 +234,7 @@ class SubmissionSafetyEnvelope:
             snapshot_id=snapshot_id,
             now=now,
         )
+        next_attempt = 0 if attempt_reserved else 1
         reason: SubmissionSafetyBlockReason | None = None
         if is_queue_paused(db, user_id):
             reason = "user_paused"
@@ -242,15 +244,15 @@ class SubmissionSafetyEnvelope:
             reason = "incident_rehearsal_missing"
         elif policy is None:
             reason = "policy_missing"
-        elif counts["user_rate"] + 1 > policy.user_rate_limit_per_minute:
+        elif counts["user_rate"] + next_attempt > policy.user_rate_limit_per_minute:
             reason = "user_rate_limit"
         elif counts["user_daily_position"] > policy.user_daily_volume_limit:
             reason = "user_volume_limit"
-        elif counts["source_rate"] + 1 > policy.source_rate_limit_per_minute:
+        elif counts["source_rate"] + next_attempt > policy.source_rate_limit_per_minute:
             reason = "source_rate_limit"
         elif counts["source_daily_position"] > policy.source_daily_volume_limit:
             reason = "source_volume_limit"
-        elif counts["user_hour"] + 1 >= policy.anomaly_user_attempts_per_hour:
+        elif counts["user_hour"] + next_attempt >= policy.anomaly_user_attempts_per_hour:
             reason = "anomaly_detected"
 
         return SubmissionSafetyStatus(
@@ -274,6 +276,7 @@ class SubmissionSafetyEnvelope:
         source_id: str,
         snapshot_id: str,
         serialize: bool = False,
+        attempt_reserved: bool = False,
     ) -> None:
         status = self.status(
             db,
@@ -281,6 +284,7 @@ class SubmissionSafetyEnvelope:
             source_id=source_id,
             snapshot_id=snapshot_id,
             lock=serialize,
+            attempt_reserved=attempt_reserved,
         )
         if status.reason == "anomaly_detected":
             source_family = (
@@ -305,17 +309,17 @@ class SubmissionSafetyEnvelope:
         user_id: str,
         source_id: str,
         idempotency_key: str,
-    ) -> None:
-        """Flush content-free evidence immediately before the adapter call."""
+    ) -> str:
+        """Durably reserve content-free evidence before the adapter boundary."""
 
-        db.add(
-            SubmissionDispatchAttempt(
-                user_id=user_id,
-                discovery_source_id=source_id,
-                idempotency_key=idempotency_key,
-            )
+        attempt = SubmissionDispatchAttempt(
+            user_id=user_id,
+            discovery_source_id=source_id,
+            idempotency_key=idempotency_key,
         )
-        db.flush()
+        db.add(attempt)
+        db.commit()
+        return attempt.id
 
     @staticmethod
     def _counts(

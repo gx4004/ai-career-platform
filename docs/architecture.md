@@ -517,7 +517,10 @@ errors remain forbidden.
   volume, with a separate hourly attempt anomaly threshold. Retries of one frozen
   idempotency claim are separate rate/anomaly attempts but one logical volume unit.
   The engine consults the owner queue pause plus global control and source policy at
-  dispatch and again under policy locks immediately before its adapter boundary.
+  dispatch, durably commits a conservative attempt reservation, then reacquires the
+  complete lock chain and rechecks every mutable gate immediately before its adapter
+  boundary. A process crash can therefore over-count an attempt but cannot erase an
+  outward-call reservation or bypass retry throttling.
   Anomalies emit only source family and a closed outcome. Owners can inspect their
   exact owner-only bounded usage and a closed block reason; shared-source counts stay
   internal. Rehearsals append immutable evidence references plus explicit roles,

@@ -1376,8 +1376,10 @@ history. Each source has strict per-owner/per-source minute attempt limits,
 rolling-24-hour logical-claim volume limits, and an hourly attempt anomaly threshold;
 retrying one ambiguous idempotency claim records another content-free attempt but
 does not inflate logical volume. The engine checks the owner pause, global
-control, and source policy at dispatch and again under policy locks immediately
-before the adapter boundary; concurrent source attempts therefore serialize on the
+control, and source policy at dispatch, durably commits a conservative attempt
+reservation, then reacquires the complete lock chain and rechecks every mutable gate
+immediately before the adapter boundary. A process crash may conservatively consume
+budget but cannot erase a possible outward attempt; concurrent source attempts serialize on the
 same policy row. Anomaly telemetry contains only source family, the closed anomaly
 outcome, and server time—never user/packet/source ids, URLs, claims, provider prose,
 or submitted fields. Operators can trip global and per-source controls without a

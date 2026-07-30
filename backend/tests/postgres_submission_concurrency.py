@@ -50,6 +50,7 @@ class HealthyEnvelope:
         source_id: str,
         snapshot_id: str,
         serialize: bool = False,
+        attempt_reserved: bool = False,
     ) -> None:
         return None
 
@@ -660,6 +661,11 @@ def main() -> None:
     for thread in safety_threads:
         thread.start()
     assert safety_adapter.entered.wait(timeout=5)
+    with Session() as session:
+        assert (
+            session.execute(text("SELECT count(*) FROM submission_dispatch_attempts")).scalar_one()
+            == 1
+        ), "attempt reservation was not durable before the adapter boundary"
     safety_adapter.release.set()
     for thread in safety_threads:
         thread.join(timeout=10)
