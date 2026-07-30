@@ -38,6 +38,17 @@ describe('submission safety contracts', () => {
             updated_at: '2026-07-26T12:00:00Z',
           },
         ],
+        rehearsals: [
+          {
+            id: 'rehearsal-1',
+            playbook_version: 'submission-v1',
+            evidence_reference: 'ops/rehearsals/submission-v1',
+            roles_confirmed: true,
+            rollback_rehearsed: true,
+            communication_reviewed: true,
+            recorded_at: '2026-07-26T12:00:00Z',
+          },
+        ],
       }).policies,
     ).toHaveLength(1)
   })
@@ -50,10 +61,6 @@ describe('submission safety contracts', () => {
       user_rate_limit: 2,
       user_daily_used: 3,
       user_daily_limit: 20,
-      source_rate_used: 4,
-      source_rate_limit: 10,
-      source_daily_used: 5,
-      source_daily_limit: 100,
     }
     expect(submissionSafetyStatusSchema.parse(status).reason).toBe('user_paused')
     expect(

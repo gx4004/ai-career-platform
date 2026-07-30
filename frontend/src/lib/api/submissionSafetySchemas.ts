@@ -43,10 +43,28 @@ export const submissionSafetyControlSchema = z
   })
   .strict()
 
+export const submissionIncidentRehearsalSchema = z
+  .object({
+    id: z.string(),
+    playbook_version: z.string(),
+    evidence_reference: z.string(),
+    roles_confirmed: z.literal(true),
+    rollback_rehearsed: z.literal(true),
+    communication_reviewed: z.literal(true),
+    recorded_at: offsetDateTimeSchema,
+  })
+  .strict()
+
+export type SubmissionIncidentRehearsalInput = Omit<
+  z.infer<typeof submissionIncidentRehearsalSchema>,
+  'id' | 'recorded_at'
+>
+
 export const adminSubmissionSafetySchema = z
   .object({
     control: submissionSafetyControlSchema,
     policies: z.array(submissionSafetyPolicySchema),
+    rehearsals: z.array(submissionIncidentRehearsalSchema),
   })
   .strict()
 

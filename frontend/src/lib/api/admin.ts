@@ -23,6 +23,7 @@ import {
   submissionSafetyPolicyConfigSchema,
   submissionSafetyPolicySchema,
   type AdminSubmissionSafety,
+  type SubmissionIncidentRehearsalInput,
   type SubmissionSafetyControl,
   type SubmissionSafetyPolicy,
   type SubmissionSafetyPolicyConfig,
@@ -469,11 +470,11 @@ export async function setGlobalSubmissionKillSwitch(
 }
 
 export async function recordSubmissionIncidentRehearsal(
-  playbookVersion: string,
+  rehearsal: SubmissionIncidentRehearsalInput,
 ): Promise<SubmissionSafetyControl> {
   const response = await adminRequest<unknown>('/admin/submission-safety/rehearsal', {
     method: 'POST',
-    body: JSON.stringify({ playbook_version: playbookVersion }),
+    body: JSON.stringify(rehearsal),
   })
   return submissionSafetyControlSchema.parse(response)
 }

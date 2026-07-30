@@ -63,15 +63,40 @@ class FixtureEnvelope:
         self.healthy = healthy
         self.checks: list[tuple[str, str]] = []
 
-    def require_healthy(self, db, *, user_id: str, source_id: str, snapshot_id: str) -> None:
+    def require_healthy(
+        self,
+        db,
+        *,
+        user_id: str,
+        source_id: str,
+        snapshot_id: str,
+        serialize: bool = False,
+    ) -> None:
         self.checks.append((user_id, source_id))
         if not self.healthy:
             raise EnvelopeBlocked("submission envelope is not healthy")
 
+    def record_attempt(self, db, *, user_id: str, source_id: str, idempotency_key: str) -> None:
+        return None
+
 
 class FlipEnvelope(FixtureEnvelope):
-    def require_healthy(self, db, *, user_id: str, source_id: str, snapshot_id: str) -> None:
-        super().require_healthy(db, user_id=user_id, source_id=source_id, snapshot_id=snapshot_id)
+    def require_healthy(
+        self,
+        db,
+        *,
+        user_id: str,
+        source_id: str,
+        snapshot_id: str,
+        serialize: bool = False,
+    ) -> None:
+        super().require_healthy(
+            db,
+            user_id=user_id,
+            source_id=source_id,
+            snapshot_id=snapshot_id,
+            serialize=serialize,
+        )
         if len(self.checks) == 1:
             self.healthy = False
 

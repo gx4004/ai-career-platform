@@ -36,6 +36,22 @@ class SubmissionIncidentRehearsalRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     playbook_version: str = Field(pattern=r"^[a-zA-Z0-9][a-zA-Z0-9._/-]{0,99}$")
+    evidence_reference: str = Field(pattern=r"^[a-zA-Z0-9][a-zA-Z0-9._:/#-]{0,199}$")
+    roles_confirmed: Literal[True]
+    rollback_rehearsed: Literal[True]
+    communication_reviewed: Literal[True]
+
+
+class SubmissionIncidentRehearsalResponse(SubmissionIncidentRehearsalRequest):
+    model_config = ConfigDict(from_attributes=True, extra="forbid")
+
+    id: str
+    recorded_at: datetime
+
+    @field_validator("recorded_at")
+    @classmethod
+    def require_offset(cls, value: datetime) -> datetime:
+        return value.replace(tzinfo=UTC) if value.tzinfo is None else value
 
 
 class SubmissionSafetyPolicyResponse(SubmissionSafetyPolicyConfig):
@@ -72,6 +88,8 @@ class AdminSubmissionSafetyResponse(BaseModel):
 
     control: SubmissionSafetyControlResponse
     policies: list[SubmissionSafetyPolicyResponse]
+    rehearsals: list[SubmissionIncidentRehearsalResponse]
+    rehearsals: list[SubmissionIncidentRehearsalResponse]
 
 
 class SubmissionSafetyStatus(BaseModel):

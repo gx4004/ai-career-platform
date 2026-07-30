@@ -68,10 +68,19 @@ def main() -> None:
         )
         connection.execute(
             text(
-                "INSERT INTO submission_safety_controls "
-                "(id,global_kill_switch,incident_playbook_version,incident_rehearsed_at,"
-                "incident_rehearsed_by,created_at,updated_at) VALUES "
-                "('global',false,'submission-v1',now(),'admin-1',now(),now())"
+                "INSERT INTO submission_incident_rehearsals "
+                "(id,playbook_version,evidence_reference,roles_confirmed,rollback_rehearsed,"
+                "communication_reviewed,recorded_by,recorded_at) VALUES "
+                "('rehearsal-1','submission-v1','ops/rehearsals/1',true,true,true,"
+                "'admin-1',now())"
+            )
+        )
+        connection.execute(
+            text(
+                "UPDATE submission_safety_controls SET global_kill_switch=false,"
+                "incident_playbook_version='submission-v1',incident_rehearsed_at=now(),"
+                "incident_rehearsed_by='admin-1',incident_rehearsal_id='rehearsal-1',"
+                "updated_at=now() WHERE id='global'"
             )
         )
         connection.execute(
@@ -81,6 +90,13 @@ def main() -> None:
                 "source_rate_limit_per_minute,source_daily_volume_limit,"
                 "anomaly_user_attempts_per_hour,configured_by,configured_at,updated_at) VALUES "
                 "('sp1','s1',2,20,10,100,8,'admin-1',now(),now())"
+            )
+        )
+        connection.execute(
+            text(
+                "INSERT INTO submission_dispatch_attempts "
+                "(id,user_id,discovery_source_id,idempotency_key,created_at) VALUES "
+                "('attempt-1','u1','s1','submission:v1:test',now())"
             )
         )
 
@@ -131,6 +147,31 @@ def main() -> None:
     try:
         with engine.begin() as connection:
             connection.execute(
+                text(
+                    "UPDATE submission_dispatch_attempts SET created_at=now() WHERE id='attempt-1'"
+                )
+            )
+    except DBAPIError as error:
+        assert "immutable" in str(error).lower()
+    else:
+        raise AssertionError("immutable dispatch attempt allowed an update")
+
+    try:
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "UPDATE submission_incident_rehearsals "
+                    "SET evidence_reference='changed' WHERE id='rehearsal-1'"
+                )
+            )
+    except DBAPIError as error:
+        assert "immutable" in str(error).lower()
+    else:
+        raise AssertionError("immutable incident rehearsal allowed an update")
+
+    try:
+        with engine.begin() as connection:
+            connection.execute(
                 text("UPDATE submission_stop_events SET reason='uncertainty' WHERE id='ss1'")
             )
     except DBAPIError as error:
@@ -143,6 +184,12 @@ def main() -> None:
         assert connection.execute(text("SELECT count(*) FROM submission_records")).scalar_one() == 0
         assert (
             connection.execute(text("SELECT count(*) FROM submission_dispatch_claims")).scalar_one()
+            == 0
+        )
+        assert (
+            connection.execute(
+                text("SELECT count(*) FROM submission_dispatch_attempts")
+            ).scalar_one()
             == 0
         )
         assert (
@@ -166,11 +213,22 @@ def main() -> None:
     assert "submission_stop_events" not in tables
     assert "submission_safety_controls" not in tables
     assert "submission_safety_policies" not in tables
+    assert "submission_dispatch_attempts" not in tables
+    assert "submission_incident_rehearsals" not in tables
     with engine.begin() as connection:
         assert (
             connection.execute(
                 text(
                     "SELECT count(*) FROM pg_proc WHERE proname='prevent_submission_record_update'"
+                )
+            ).scalar_one()
+            == 0
+        )
+        assert (
+            connection.execute(
+                text(
+                    "SELECT count(*) FROM pg_proc "
+                    "WHERE proname='prevent_submission_incident_rehearsal_update'"
                 )
             ).scalar_one()
             == 0
@@ -189,6 +247,15 @@ def main() -> None:
                 text(
                     "SELECT count(*) FROM pg_proc "
                     "WHERE proname='prevent_submission_dispatch_claim_update'"
+                )
+            ).scalar_one()
+            == 0
+        )
+        assert (
+            connection.execute(
+                text(
+                    "SELECT count(*) FROM pg_proc "
+                    "WHERE proname='prevent_submission_dispatch_attempt_update'"
                 )
             ).scalar_one()
             == 0

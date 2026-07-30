@@ -8,7 +8,11 @@ from app.auth.security import create_access_token, hash_password
 from app.models.analytics_event import AnalyticsEvent
 from app.models.submission_authorization import SubmissionAuthorizationGrant
 from app.models.submission_record import SubmissionDispatchClaim
-from app.models.submission_safety import SubmissionSafetyPolicy
+from app.models.submission_safety import (
+    SubmissionDispatchAttempt,
+    SubmissionIncidentRehearsal,
+    SubmissionSafetyPolicy,
+)
 from app.models.user import User
 from app.schemas.discovery_sources import DiscoverySourceCreate
 from app.schemas.submission_safety import (
@@ -26,6 +30,7 @@ from app.services.submission_safety import (
     source_safety_policy,
     submission_safety_control,
 )
+from app.services.submissions import export_submission_records
 
 NOW = datetime(2026, 7, 26, 12, 0, tzinfo=UTC)
 
@@ -74,6 +79,16 @@ def _policy(**changes) -> SubmissionSafetyPolicyConfig:
     return SubmissionSafetyPolicyConfig(**values)
 
 
+def _rehearsal(version: str = "submission-v1") -> SubmissionIncidentRehearsalRequest:
+    return SubmissionIncidentRehearsalRequest(
+        playbook_version=version,
+        evidence_reference=f"ops/rehearsals/{version}",
+        roles_confirmed=True,
+        rollback_rehearsed=True,
+        communication_reviewed=True,
+    )
+
+
 def _ready(db, source, actor, **policy_changes) -> None:
     configure_submission_safety_policy(
         db,
@@ -83,28 +98,37 @@ def _ready(db, source, actor, **policy_changes) -> None:
     )
     record_submission_incident_rehearsal(
         db,
-        rehearsal=SubmissionIncidentRehearsalRequest(playbook_version="submission-v1"),
+        rehearsal=_rehearsal(),
         actor=actor,
     )
     operate_global_submission_kill_switch(db, tripped=False, actor=actor)
 
 
 def _claim(db, *, user_id: str, source_id: str, number: int, created_at: datetime) -> None:
-    db.add(
-        SubmissionDispatchClaim(
-            idempotency_key=f"safety:{user_id}:{source_id}:{number}",
-            user_id=user_id,
-            packet_approval_snapshot_id=f"snapshot-{number}",
-            discovery_source_id=source_id,
-            authorization_grant_id="grant",
-            snapshot_content_sha256="a" * 64,
-            contract_version="fixture/v1",
-            contract_sha256="b" * 64,
-            submitted_fields_json="{}",
-            submitted_fields_sha256="c" * 64,
-            accepted_source_codes_json='["accepted"]',
-            created_at=created_at,
-        )
+    claim = SubmissionDispatchClaim(
+        idempotency_key=f"safety:{user_id}:{source_id}:{number}",
+        user_id=user_id,
+        packet_approval_snapshot_id=f"snapshot-{number}",
+        discovery_source_id=source_id,
+        authorization_grant_id="grant",
+        snapshot_content_sha256="a" * 64,
+        contract_version="fixture/v1",
+        contract_sha256="b" * 64,
+        submitted_fields_json="{}",
+        submitted_fields_sha256="c" * 64,
+        accepted_source_codes_json='["accepted"]',
+        created_at=created_at,
+    )
+    db.add_all(
+        [
+            claim,
+            SubmissionDispatchAttempt(
+                user_id=user_id,
+                discovery_source_id=source_id,
+                idempotency_key=claim.idempotency_key,
+                created_at=created_at,
+            ),
+        ]
     )
     db.commit()
 
@@ -129,7 +153,7 @@ def test_global_control_defaults_killed_and_requires_rehearsal_to_clear(db):
 
     rehearsed = record_submission_incident_rehearsal(
         db,
-        rehearsal=SubmissionIncidentRehearsalRequest(playbook_version="submission-v1"),
+        rehearsal=_rehearsal(),
         actor=actor,
     )
     assert rehearsed.incident_rehearsed_at is not None
@@ -137,6 +161,25 @@ def test_global_control_defaults_killed_and_requires_rehearsal_to_clear(db):
         operate_global_submission_kill_switch(db, tripped=False, actor=actor).global_kill_switch
         is False
     )
+    tripped = operate_global_submission_kill_switch(db, tripped=True, actor=actor)
+    assert tripped.incident_rehearsed_at is None
+    assert db.query(SubmissionIncidentRehearsal).count() == 1
+    with pytest.raises(ValueError, match="rehearsal"):
+        operate_global_submission_kill_switch(db, tripped=False, actor=actor)
+
+    record_submission_incident_rehearsal(db, rehearsal=_rehearsal("submission-v2"), actor=actor)
+    assert db.query(SubmissionIncidentRehearsal).count() == 2
+
+
+def test_rehearsal_requires_explicit_complete_evidence():
+    with pytest.raises(ValidationError):
+        SubmissionIncidentRehearsalRequest(
+            playbook_version="submission-v1",
+            evidence_reference="ops/rehearsals/submission-v1",
+            roles_confirmed=True,
+            rollback_rehearsed=False,
+            communication_reviewed=True,
+        )
 
 
 def test_policy_is_strict_bounded_and_admin_only(db, test_user):
@@ -226,7 +269,7 @@ def test_rate_and_volume_limits_count_durable_claims(db, test_user, policy_chang
     assert status.reason == reason
 
 
-def test_concurrent_claims_have_a_stable_limit_position(db, test_user):
+def test_repeated_attempts_for_one_claim_each_consume_the_limit(db, test_user):
     actor = _admin(db)
     source = _source(db)
     _ready(
@@ -234,7 +277,7 @@ def test_concurrent_claims_have_a_stable_limit_position(db, test_user):
         source,
         actor,
         user_rate_limit_per_minute=10,
-        source_rate_limit_per_minute=1,
+        source_rate_limit_per_minute=2,
     )
     _claim(
         db,
@@ -243,20 +286,49 @@ def test_concurrent_claims_have_a_stable_limit_position(db, test_user):
         number=1,
         created_at=NOW,
     )
-    _claim(
-        db,
-        user_id=test_user.id,
-        source_id=source.id,
-        number=2,
-        created_at=NOW,
+    first_claim = (
+        db.query(SubmissionDispatchClaim).filter_by(packet_approval_snapshot_id="snapshot-1").one()
     )
+    db.add(
+        SubmissionDispatchAttempt(
+            user_id=test_user.id,
+            discovery_source_id=source.id,
+            idempotency_key=first_claim.idempotency_key,
+            created_at=NOW,
+        )
+    )
+    db.commit()
     gate = SubmissionSafetyEnvelope(clock=lambda: NOW)
 
-    first = _status(gate, db, test_user.id, source.id, "snapshot-1")
-    second = _status(gate, db, test_user.id, source.id, "snapshot-2")
+    status = _status(gate, db, test_user.id, source.id, "snapshot-1")
 
-    assert first.allowed is True
-    assert second.reason == "source_rate_limit"
+    assert status.source_rate_used == 2
+    assert status.reason == "source_rate_limit"
+    exported = export_submission_records(db, test_user.id)
+    assert exported.dispatch_attempt_count == 2
+    assert {attempt.idempotency_key for attempt in exported.dispatch_attempts} == {
+        first_claim.idempotency_key
+    }
+
+
+def test_owner_limits_are_scoped_to_the_configured_source(db, test_user):
+    actor = _admin(db)
+    source_a = _source(db, "safety-source-a")
+    source_b = _source(db, "safety-source-b")
+    _ready(db, source_a, actor, user_rate_limit_per_minute=1)
+    configure_submission_safety_policy(
+        db,
+        source_id=source_b.id,
+        config=_policy(user_rate_limit_per_minute=1),
+        actor=actor,
+    )
+    _claim(db, user_id=test_user.id, source_id=source_a.id, number=1, created_at=NOW)
+
+    status = _status(SubmissionSafetyEnvelope(clock=lambda: NOW), db, test_user.id, source_b.id)
+
+    assert status.allowed is True
+    assert status.user_rate_used == 0
+    assert status.user_daily_used == 0
 
 
 def test_anomaly_event_is_content_free_and_blocks_before_an_outward_act(db, test_user):
@@ -315,9 +387,11 @@ def test_admin_safety_endpoints_are_reachable_and_admin_scoped(db, client, auth_
     rehearsed = client.post(
         "/api/v1/admin/submission-safety/rehearsal",
         headers=admin_headers,
-        json={"playbook_version": "submission-v1"},
+        json=_rehearsal().model_dump(),
     )
     assert rehearsed.status_code == 200
+    safety = client.get("/api/v1/admin/submission-safety", headers=admin_headers).json()
+    assert safety["rehearsals"][0]["evidence_reference"] == "ops/rehearsals/submission-v1"
     cleared = client.post(
         "/api/v1/admin/submission-safety/global-kill-switch?tripped=false",
         headers=admin_headers,
@@ -346,6 +420,7 @@ def test_owner_can_read_only_their_grants_clear_safety_state(db, client, test_us
     assert response.json()["allowed"] is False
     assert response.json()["reason"] == "global_kill_switch"
     assert response.json()["user_rate_used"] == 0
+    assert "source_rate_used" not in response.json()
     assert (
         client.get(
             "/api/v1/submission-authorizations/not-owned/safety",
@@ -353,3 +428,34 @@ def test_owner_can_read_only_their_grants_clear_safety_state(db, client, test_us
         ).status_code
         == 404
     )
+
+
+def test_owner_status_does_not_reveal_another_owners_source_activity(
+    db, client, test_user, auth_headers
+):
+    actor = _admin(db)
+    source = _source(db)
+    _ready(db, source, actor)
+    other = User(email="other-owner@example.com", hashed_password=hash_password("password123"))
+    db.add(other)
+    db.commit()
+    db.refresh(other)
+    _claim(db, user_id=other.id, source_id=source.id, number=99, created_at=NOW)
+    grant = SubmissionAuthorizationGrant(
+        user_id=test_user.id,
+        discovery_source_id=source.id,
+        mechanism="oauth2_authorization_code",
+        scope="submit_applications",
+    )
+    db.add(grant)
+    db.commit()
+    db.refresh(grant)
+
+    payload = client.get(
+        f"/api/v1/submission-authorizations/{grant.id}/safety",
+        headers=auth_headers,
+    ).json()
+
+    assert payload["user_rate_used"] == 0
+    assert payload["user_daily_used"] == 0
+    assert not any(name.startswith("source_") for name in payload)

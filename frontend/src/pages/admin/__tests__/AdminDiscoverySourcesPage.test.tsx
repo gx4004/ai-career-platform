@@ -80,7 +80,10 @@ function source(overrides: Record<string, unknown> = {}) {
   }
 }
 
-function renderPage(items: Array<Record<string, unknown>>) {
+function renderPage(
+  items: Array<Record<string, unknown>>,
+  policies: Array<Record<string, unknown>> = [],
+) {
   getAdminDiscoverySourcesMock.mockResolvedValue({ items })
   getAdminSubmissionSafetyMock.mockResolvedValue({
     control: {
@@ -89,7 +92,8 @@ function renderPage(items: Array<Record<string, unknown>>) {
       incident_rehearsed_at: null,
       updated_at: '2026-07-26T12:00:00Z',
     },
-    policies: [],
+    policies,
+    rehearsals: [],
   })
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(
@@ -179,10 +183,22 @@ describe('AdminDiscoverySourcesPage', () => {
     fireEvent.change(screen.getByLabelText('Completed playbook version'), {
       target: { value: 'submission-v1' },
     })
+    fireEvent.change(screen.getByLabelText('Evidence reference'), {
+      target: { value: 'ops/rehearsals/submission-v1' },
+    })
+    fireEvent.click(screen.getByLabelText('Roles and ownership confirmed'))
+    fireEvent.click(screen.getByLabelText('Rollback rehearsed'))
+    fireEvent.click(screen.getByLabelText('Incident communications reviewed'))
     fireEvent.click(screen.getByRole('button', { name: 'Record completed rehearsal' }))
     await waitFor(() =>
       expect(recordSubmissionIncidentRehearsalMock).toHaveBeenCalledWith(
-        'submission-v1',
+        {
+          playbook_version: 'submission-v1',
+          evidence_reference: 'ops/rehearsals/submission-v1',
+          roles_confirmed: true,
+          rollback_rehearsed: true,
+          communication_reviewed: true,
+        },
         expect.anything(),
       ),
     )
@@ -213,6 +229,38 @@ describe('AdminDiscoverySourcesPage', () => {
     )
     await waitFor(() =>
       expect(setSubmissionSourceKillSwitchMock).toHaveBeenCalledWith('source-1', false),
+    )
+  })
+
+  it('updates an existing policy using only the five writable fields', async () => {
+    renderPage([source()], [{
+      discovery_source_id: 'source-1',
+      user_rate_limit_per_minute: 2,
+      user_daily_volume_limit: 20,
+      source_rate_limit_per_minute: 10,
+      source_daily_volume_limit: 100,
+      anomaly_user_attempts_per_hour: 8,
+      configured_at: '2026-07-26T12:00:00Z',
+      updated_at: '2026-07-26T12:00:00Z',
+    }])
+
+    const update = await screen.findByRole('button', {
+      name: 'Update submission limits',
+    }) as HTMLButtonElement
+    expect(update.disabled).toBeFalsy()
+    fireEvent.click(update)
+
+    await waitFor(() =>
+      expect(configureSourceSubmissionSafetyMock).toHaveBeenCalledWith(
+        'source-1',
+        {
+          user_rate_limit_per_minute: 2,
+          user_daily_volume_limit: 20,
+          source_rate_limit_per_minute: 10,
+          source_daily_volume_limit: 100,
+          anomaly_user_attempts_per_hour: 8,
+        },
+      ),
     )
   })
 })

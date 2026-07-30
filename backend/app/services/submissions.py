@@ -24,6 +24,7 @@ from app.models.discovery_source import DiscoverySource
 from app.models.packet_approval_snapshot import PacketApprovalSnapshot
 from app.models.submission_authorization import SubmissionAuthorizationGrant
 from app.models.submission_record import SubmissionDispatchClaim, SubmissionRecord
+from app.models.submission_safety import SubmissionDispatchAttempt
 from app.models.submission_source import SubmissionSourceGovernance
 from app.models.submission_stop_event import SubmissionStopEvent
 from app.schemas.application_packets import (
@@ -33,6 +34,7 @@ from app.schemas.application_packets import (
 )
 from app.schemas.submission_sources import SubmissionCompatibilityContract
 from app.schemas.submissions import (
+    SubmissionDispatchAttemptResponse,
     SubmissionDispatchClaimResponse,
     SubmissionRecordResponse,
     SubmissionRecordsExport,
@@ -108,6 +110,16 @@ class SubmissionEnvelopeGate(Protocol):
         user_id: str,
         source_id: str,
         snapshot_id: str,
+        serialize: bool = False,
+    ) -> None: ...
+
+    def record_attempt(
+        self,
+        db: Session,
+        *,
+        user_id: str,
+        source_id: str,
+        idempotency_key: str,
     ) -> None: ...
 
 
@@ -665,6 +677,7 @@ def submit_approved_snapshot(
         fields_sha256=initial_fields_sha256,
         accepted_source_codes_json=accepted_codes_json,
     )
+    attempt_recorded = False
     try:
         # Match campaign deletion's packet -> snapshot -> claim lock order.
         locked_snapshot, content = _approved_snapshot(
@@ -726,6 +739,7 @@ def submit_approved_snapshot(
             user_id=user_id,
             source_id=source.discovery_source_id,
             snapshot_id=snapshot.id,
+            serialize=True,
         )
         current_fields_json = _canonical(_contract_fields(content, source.contract))
         current_codes_json = _canonical(
@@ -747,6 +761,13 @@ def submit_approved_snapshot(
             raise PacketSubmissionRefused(PacketSubmissionRefusal.CONTRACT_MISMATCH)
         fields, accepted_codes = _validated_claim_request(claim)
         fields_json = claim.submitted_fields_json
+        envelope_gate.record_attempt(
+            db,
+            user_id=user_id,
+            source_id=source.discovery_source_id,
+            idempotency_key=key,
+        )
+        attempt_recorded = True
         adapter_result = adapter.submit_idempotently(
             SubmissionAdapterRequest(
                 source_key=source.source_key,
@@ -796,7 +817,12 @@ def submit_approved_snapshot(
         # A committed claim may already be shared by another worker that made an
         # ambiguous outward act. Never infer global non-invocation from this
         # caller's local control flow; preserve the frozen retry bytes.
-        db.rollback()
+        if attempt_recorded:
+            # Crossing the adapter boundary is itself durable safety evidence,
+            # even when the result is ambiguous or malformed.
+            db.commit()
+        else:
+            db.rollback()
         raise
     record = SubmissionRecord(
         user_id=user_id,
@@ -851,6 +877,15 @@ def export_submission_records(db: Session, user_id: str) -> SubmissionRecordsExp
         .order_by(SubmissionStopEvent.created_at.asc(), SubmissionStopEvent.id.asc())
         .all()
     )
+    attempts = (
+        db.query(SubmissionDispatchAttempt)
+        .filter(SubmissionDispatchAttempt.user_id == user_id)
+        .order_by(
+            SubmissionDispatchAttempt.created_at.asc(),
+            SubmissionDispatchAttempt.id.asc(),
+        )
+        .all()
+    )
     return SubmissionRecordsExport(
         record_count=len(rows),
         records=[_response(row) for row in rows],
@@ -869,6 +904,10 @@ def export_submission_records(db: Session, user_id: str) -> SubmissionRecordsExp
                 created_at=claim.created_at,
             )
             for claim in claims
+        ],
+        dispatch_attempt_count=len(attempts),
+        dispatch_attempts=[
+            SubmissionDispatchAttemptResponse.model_validate(attempt) for attempt in attempts
         ],
         stop_count=len(stops),
         stops=[_stop_event_response(event) for event in stops],

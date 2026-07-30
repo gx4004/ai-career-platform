@@ -33,6 +33,7 @@ from sqlalchemy.orm import Session
 
 from app.models.analytics_event import AnalyticsEvent
 from app.models.pipeline_halt import PipelineHalt
+from app.models.submission_safety import SubmissionSafetyControl
 from app.models.user import User
 from app.schemas.admin import AdminPacketGateResponse
 from app.services.analytics import safe_record_activation_event
@@ -53,6 +54,24 @@ def _queue_pause_scope(user_id: str) -> str:
 
 
 QUEUE_PAUSE_REASON = "user_paused"
+
+
+def _lock_submission_control(db: Session) -> None:
+    """Acquire the shared operational lock before owner pause-state mutation."""
+
+    control = (
+        db.query(SubmissionSafetyControl)
+        .filter(SubmissionSafetyControl.id == "global")
+        .with_for_update()
+        .one_or_none()
+    )
+    if control is None:
+        # Production migrations seed the singleton. create_all-based tests still
+        # need the same fail-closed row without importing the safety service and
+        # creating a packet_gate <-> submission_safety cycle.
+        db.add(SubmissionSafetyControl(id="global", global_kill_switch=True))
+        db.flush()
+
 
 # The reviewer category that represents a fabrication finding (D-097). It is the
 # reviewer's groundedness check — a claim not traceable to confirmed evidence or the
@@ -190,6 +209,7 @@ def delete_queue_pause_state(db: Session, user_id: str) -> None:
     per-user pause row IS this owner's data and must not outlive their account. No
     commit here — the caller commits once as part of the larger erasure transaction.
     """
+    _lock_submission_control(db)
     db.query(PipelineHalt).filter(PipelineHalt.scope == _queue_pause_scope(user_id)).delete()
 
 
@@ -216,6 +236,7 @@ def pause_preparation(db: Session, user_id: str, *, now: datetime | None = None)
     # makes a pause concurrent with dispatch take effect on one side of a single
     # row lock: either the already-authorized act finishes first, or the pause is
     # visible before the adapter can be called.
+    _lock_submission_control(db)
     db.query(User.id).filter(User.id == user_id).with_for_update().one()
     scope = _queue_pause_scope(user_id)
     row = _halt_row(db, scope)
@@ -236,6 +257,7 @@ def resume_preparation(db: Session, user_id: str) -> HaltStatus:
     regression halt (``packet-preparation``) is untouched and still blocks
     preparation, and other owners' pauses are untouched. Idempotent.
     """
+    _lock_submission_control(db)
     db.query(User.id).filter(User.id == user_id).with_for_update().one()
     row = _halt_row(db, _queue_pause_scope(user_id))
     if row is not None:

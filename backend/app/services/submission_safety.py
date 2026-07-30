@@ -9,12 +9,18 @@ from sqlalchemy.orm import Session
 from app.models.discovery_source import DiscoverySource
 from app.models.submission_authorization import SubmissionAuthorizationGrant
 from app.models.submission_record import SubmissionDispatchClaim
-from app.models.submission_safety import SubmissionSafetyControl, SubmissionSafetyPolicy
+from app.models.submission_safety import (
+    SubmissionDispatchAttempt,
+    SubmissionIncidentRehearsal,
+    SubmissionSafetyControl,
+    SubmissionSafetyPolicy,
+)
 from app.models.user import User
 from app.schemas.submission_safety import (
     AdminSubmissionSafetyResponse,
     OwnerSubmissionSafetyStatus,
     SubmissionIncidentRehearsalRequest,
+    SubmissionIncidentRehearsalResponse,
     SubmissionSafetyBlockReason,
     SubmissionSafetyControlResponse,
     SubmissionSafetyPolicyConfig,
@@ -98,9 +104,15 @@ def record_submission_incident_rehearsal(
     _require_admin(actor)
     control = _ensure_control(db, for_update=True)
     now = datetime.now(UTC)
+    evidence = SubmissionIncidentRehearsal(
+        **rehearsal.model_dump(), recorded_by=actor.id, recorded_at=now
+    )
+    db.add(evidence)
+    db.flush()
     control.incident_playbook_version = rehearsal.playbook_version
     control.incident_rehearsed_at = now
     control.incident_rehearsed_by = actor.id
+    control.incident_rehearsal_id = evidence.id
     control.updated_at = now
     db.commit()
     db.refresh(control)
@@ -130,6 +142,7 @@ def operate_global_submission_kill_switch(
         control.incident_playbook_version = None
         control.incident_rehearsed_at = None
         control.incident_rehearsed_by = None
+        control.incident_rehearsal_id = None
     control.updated_at = datetime.now(UTC)
     db.commit()
     db.refresh(control)
@@ -164,9 +177,20 @@ def admin_submission_safety(db: Session) -> AdminSubmissionSafetyResponse:
     policies = (
         db.query(SubmissionSafetyPolicy).order_by(SubmissionSafetyPolicy.discovery_source_id).all()
     )
+    rehearsals = (
+        db.query(SubmissionIncidentRehearsal)
+        .order_by(
+            SubmissionIncidentRehearsal.recorded_at.desc(),
+            SubmissionIncidentRehearsal.id.desc(),
+        )
+        .all()
+    )
     return AdminSubmissionSafetyResponse(
         control=SubmissionSafetyControlResponse.model_validate(control),
         policies=[SubmissionSafetyPolicyResponse.model_validate(item) for item in policies],
+        rehearsals=[
+            SubmissionIncidentRehearsalResponse.model_validate(item) for item in rehearsals
+        ],
     )
 
 
@@ -186,10 +210,6 @@ class SubmissionSafetyEnvelope:
         lock: bool = False,
     ) -> SubmissionSafetyStatus:
         now = self._clock()
-        if lock:
-            # Shares the owner row lock with pause/resume so the last pre-adapter
-            # check cannot race an owner kill-switch write.
-            db.query(User.id).filter(User.id == user_id).with_for_update().one()
         control_query = db.query(SubmissionSafetyControl).filter(
             SubmissionSafetyControl.id == "global"
         )
@@ -200,6 +220,10 @@ class SubmissionSafetyEnvelope:
             control_query = control_query.with_for_update()
             policy_query = policy_query.with_for_update()
         control = control_query.one_or_none()
+        if lock:
+            # Global control is the shared first lock for submission, pause/resume,
+            # and account erasure. The owner lock follows it, preventing cycles.
+            db.query(User.id).filter(User.id == user_id).with_for_update().one()
         policy = policy_query.one_or_none()
 
         counts = self._counts(
@@ -218,15 +242,15 @@ class SubmissionSafetyEnvelope:
             reason = "incident_rehearsal_missing"
         elif policy is None:
             reason = "policy_missing"
-        elif counts["user_rate_position"] > policy.user_rate_limit_per_minute:
+        elif counts["user_rate"] + 1 > policy.user_rate_limit_per_minute:
             reason = "user_rate_limit"
         elif counts["user_daily_position"] > policy.user_daily_volume_limit:
             reason = "user_volume_limit"
-        elif counts["source_rate_position"] > policy.source_rate_limit_per_minute:
+        elif counts["source_rate"] + 1 > policy.source_rate_limit_per_minute:
             reason = "source_rate_limit"
         elif counts["source_daily_position"] > policy.source_daily_volume_limit:
             reason = "source_volume_limit"
-        elif counts["user_hour_position"] >= policy.anomaly_user_attempts_per_hour:
+        elif counts["user_hour"] + 1 >= policy.anomaly_user_attempts_per_hour:
             reason = "anomaly_detected"
 
         return SubmissionSafetyStatus(
@@ -249,13 +273,14 @@ class SubmissionSafetyEnvelope:
         user_id: str,
         source_id: str,
         snapshot_id: str,
+        serialize: bool = False,
     ) -> None:
         status = self.status(
             db,
             user_id=user_id,
             source_id=source_id,
             snapshot_id=snapshot_id,
-            lock=True,
+            lock=serialize,
         )
         if status.reason == "anomaly_detected":
             source_family = (
@@ -274,6 +299,25 @@ class SubmissionSafetyEnvelope:
             raise SubmissionSafetyBlocked(status.reason, status)
 
     @staticmethod
+    def record_attempt(
+        db: Session,
+        *,
+        user_id: str,
+        source_id: str,
+        idempotency_key: str,
+    ) -> None:
+        """Flush content-free evidence immediately before the adapter call."""
+
+        db.add(
+            SubmissionDispatchAttempt(
+                user_id=user_id,
+                discovery_source_id=source_id,
+                idempotency_key=idempotency_key,
+            )
+        )
+        db.flush()
+
+    @staticmethod
     def _counts(
         db: Session,
         *,
@@ -282,7 +326,34 @@ class SubmissionSafetyEnvelope:
         snapshot_id: str,
         now: datetime,
     ) -> dict[str, int]:
-        def count(*filters) -> int:
+        def attempt_count(*filters) -> int:
+            return int(
+                db.query(func.count(SubmissionDispatchAttempt.id)).filter(*filters).scalar() or 0
+            )
+
+        minute = now - timedelta(minutes=1)
+        hour = now - timedelta(hours=1)
+        day = now - timedelta(hours=24)
+        user_filter = and_(
+            SubmissionDispatchAttempt.user_id == user_id,
+            SubmissionDispatchAttempt.discovery_source_id == source_id,
+        )
+        source_filter = SubmissionDispatchAttempt.discovery_source_id == source_id
+        claim_user_filter = and_(
+            SubmissionDispatchClaim.user_id == user_id,
+            SubmissionDispatchClaim.discovery_source_id == source_id,
+        )
+        claim_source_filter = SubmissionDispatchClaim.discovery_source_id == source_id
+        current = (
+            db.query(SubmissionDispatchClaim)
+            .filter(
+                SubmissionDispatchClaim.packet_approval_snapshot_id == snapshot_id,
+                claim_source_filter,
+            )
+            .one_or_none()
+        )
+
+        def claim_count(*filters) -> int:
             return int(
                 db.query(func.count(SubmissionDispatchClaim.idempotency_key))
                 .filter(*filters)
@@ -290,62 +361,33 @@ class SubmissionSafetyEnvelope:
                 or 0
             )
 
-        minute = now - timedelta(minutes=1)
-        hour = now - timedelta(hours=1)
-        day = now - timedelta(hours=24)
-        user_filter = SubmissionDispatchClaim.user_id == user_id
-        source_filter = SubmissionDispatchClaim.discovery_source_id == source_id
-        current = (
-            db.query(SubmissionDispatchClaim)
-            .filter(
-                SubmissionDispatchClaim.packet_approval_snapshot_id == snapshot_id,
-                source_filter,
-            )
-            .one_or_none()
-        )
-
-        def position(scope_filter, since: datetime) -> int:
-            """Return this attempt's stable 1-based place within a limit window.
-
-            A preflight without a claim is placed after all committed claims. Once
-            the engine has durably claimed the attempt, created_at plus the primary
-            key breaks concurrent ties so a limit of one admits exactly one worker
-            instead of rejecting both.
-            """
-
+        def claim_position(scope_filter, since: datetime) -> int:
             if current is None:
-                return count(scope_filter, SubmissionDispatchClaim.created_at >= since) + 1
-            if not count(
-                SubmissionDispatchClaim.idempotency_key == current.idempotency_key,
+                return claim_count(scope_filter, SubmissionDispatchClaim.created_at >= since) + 1
+            return claim_count(
+                scope_filter,
                 SubmissionDispatchClaim.created_at >= since,
-            ):
-                return 0
-            return (
-                count(
-                    scope_filter,
-                    SubmissionDispatchClaim.created_at >= since,
-                    or_(
-                        SubmissionDispatchClaim.created_at < current.created_at,
-                        and_(
-                            SubmissionDispatchClaim.created_at == current.created_at,
-                            SubmissionDispatchClaim.idempotency_key < current.idempotency_key,
-                        ),
+                or_(
+                    SubmissionDispatchClaim.created_at < current.created_at,
+                    and_(
+                        SubmissionDispatchClaim.created_at == current.created_at,
+                        SubmissionDispatchClaim.idempotency_key <= current.idempotency_key,
                     ),
-                )
-                + 1
+                ),
             )
 
         return {
-            "user_rate": count(user_filter, SubmissionDispatchClaim.created_at >= minute),
-            "user_rate_position": position(user_filter, minute),
-            "user_hour": count(user_filter, SubmissionDispatchClaim.created_at >= hour),
-            "user_hour_position": position(user_filter, hour),
-            "user_daily": count(user_filter, SubmissionDispatchClaim.created_at >= day),
-            "user_daily_position": position(user_filter, day),
-            "source_rate": count(source_filter, SubmissionDispatchClaim.created_at >= minute),
-            "source_rate_position": position(source_filter, minute),
-            "source_daily": count(source_filter, SubmissionDispatchClaim.created_at >= day),
-            "source_daily_position": position(source_filter, day),
+            "user_rate": attempt_count(user_filter, SubmissionDispatchAttempt.created_at >= minute),
+            "user_hour": attempt_count(user_filter, SubmissionDispatchAttempt.created_at >= hour),
+            "user_daily": claim_count(claim_user_filter, SubmissionDispatchClaim.created_at >= day),
+            "user_daily_position": claim_position(claim_user_filter, day),
+            "source_rate": attempt_count(
+                source_filter, SubmissionDispatchAttempt.created_at >= minute
+            ),
+            "source_daily": claim_count(
+                claim_source_filter, SubmissionDispatchClaim.created_at >= day
+            ),
+            "source_daily_position": claim_position(claim_source_filter, day),
         }
 
 

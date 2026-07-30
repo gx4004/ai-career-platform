@@ -25,7 +25,8 @@ recorded through the admin safety control.
 4. Record only bounded operational facts: source family, control transition, limit or
    anomaly class, timestamps, and aggregate counts. Never copy packet fields, URLs,
    provider responses, auth material, user IDs, or submitted values into telemetry.
-5. Preserve append-only submission claims, records, and stop events. A product-side
+5. Preserve append-only submission claims, adapter-attempt evidence, records, and
+   stop events. A product-side
    deletion cannot recall an employer's copy; communications must state that plainly.
 
 ## Investigation and rollback
@@ -49,10 +50,14 @@ user copy approved; rollback verified; and a fresh rehearsal recorded against th
 playbook version. Clear the source switch before the global switch, monitor bounded
 events, and re-trip globally on any unexplained signal.
 
-## Dark rehearsal record — 2026-07-26
+## Dark rehearsal record — 2026-07-30
 
 Development fixtures exercised the no-deploy global and source kills, owner pause,
-per-user/per-source minute and 24-hour limits, content-free anomaly stop, migration
-upgrade/downgrade, and concurrent dispatch serialization. This is implementation
-evidence only, not production activation evidence. Every deployed environment still
-starts globally killed and must record its own completed rehearsal before clearing.
+per-user/per-source minute attempt and 24-hour logical-volume limits, retry-aware
+content-free anomaly stop, migration upgrade/downgrade, concurrent dispatch
+serialization, and pause-versus-erasure lock order. Before clearing, the admin record
+requires a bounded evidence reference and explicit confirmation that roles, rollback,
+and communications were exercised. Those records are immutable; a global trip
+consumes only the active proof and preserves history. This is implementation evidence
+only, not production activation evidence. Every deployed environment still starts
+globally killed and must append its own completed rehearsal before clearing.

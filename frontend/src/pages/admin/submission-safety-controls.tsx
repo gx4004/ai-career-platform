@@ -19,6 +19,10 @@ const safetyKey = ['admin-submission-safety'] as const
 export function SubmissionSafetyControls({ sources }: { sources: DiscoverySource[] }) {
   const queryClient = useQueryClient()
   const [playbook, setPlaybook] = useState('')
+  const [evidenceReference, setEvidenceReference] = useState('')
+  const [rolesConfirmed, setRolesConfirmed] = useState(false)
+  const [rollbackRehearsed, setRollbackRehearsed] = useState(false)
+  const [communicationReviewed, setCommunicationReviewed] = useState(false)
   const safety = useQuery({ queryKey: safetyKey, queryFn: getAdminSubmissionSafety })
   const refresh = () => {
     queryClient.invalidateQueries({ queryKey: safetyKey })
@@ -41,7 +45,7 @@ export function SubmissionSafetyControls({ sources }: { sources: DiscoverySource
   return (
     <section aria-labelledby="submission-safety-title" style={{ marginTop: '1.5rem' }}>
       <h2 id="submission-safety-title" className="admin-section-title">Submission safety envelope</h2>
-      <p className="admin-table-muted">Submission stays globally killed until operators record a completed incident rehearsal. Durable claims enforce every configured limit.</p>
+      <p className="admin-table-muted">Submission stays globally killed until operators record a completed incident rehearsal. Immutable attempts enforce rate and anomaly limits; durable claims enforce volume limits.</p>
       {safety.isLoading && <p role="status">Loading submission safety…</p>}
       {safety.isError && <p role="alert" className="admin-error-text">Submission safety could not be loaded.</p>}
       {failed && <p role="alert" className="admin-error-text">The safety change was refused. Check rehearsal and source gates.</p>}
@@ -63,13 +67,32 @@ export function SubmissionSafetyControls({ sources }: { sources: DiscoverySource
               {safety.data.control.global_kill_switch ? 'Clear global submission kill switch' : 'Trip global submission kill switch'}
             </button>
             {!safety.data.control.incident_rehearsed_at && (
-              <form style={{ marginTop: '1rem' }} onSubmit={(event) => { event.preventDefault(); if (playbook.trim()) rehearsal.mutate(playbook.trim()) }}>
+              <form style={{ marginTop: '1rem' }} onSubmit={(event) => {
+                event.preventDefault()
+                if (playbook.trim() && evidenceReference.trim() && rolesConfirmed && rollbackRehearsed && communicationReviewed) {
+                  rehearsal.mutate({
+                    playbook_version: playbook.trim(),
+                    evidence_reference: evidenceReference.trim(),
+                    roles_confirmed: true,
+                    rollback_rehearsed: true,
+                    communication_reviewed: true,
+                  })
+                }
+              }}>
                 <label htmlFor="submission-playbook-version">Completed playbook version</label>
-                <div className="flex gap-2">
-                  <input id="submission-playbook-version" value={playbook} maxLength={100} onChange={(event) => setPlaybook(event.target.value)} />
-                  <button className="admin-button" type="submit" disabled={!playbook.trim() || rehearsal.isPending}>Record completed rehearsal</button>
-                </div>
+                <input id="submission-playbook-version" value={playbook} maxLength={100} onChange={(event) => setPlaybook(event.target.value)} />
+                <label htmlFor="submission-rehearsal-evidence">Evidence reference</label>
+                <input id="submission-rehearsal-evidence" value={evidenceReference} maxLength={200} onChange={(event) => setEvidenceReference(event.target.value)} />
+                <label><input type="checkbox" checked={rolesConfirmed} onChange={(event) => setRolesConfirmed(event.target.checked)} /> Roles and ownership confirmed</label>
+                <label><input type="checkbox" checked={rollbackRehearsed} onChange={(event) => setRollbackRehearsed(event.target.checked)} /> Rollback rehearsed</label>
+                <label><input type="checkbox" checked={communicationReviewed} onChange={(event) => setCommunicationReviewed(event.target.checked)} /> Incident communications reviewed</label>
+                <button className="admin-button" type="submit" disabled={!playbook.trim() || !evidenceReference.trim() || !rolesConfirmed || !rollbackRehearsed || !communicationReviewed || rehearsal.isPending}>Record completed rehearsal</button>
               </form>
+            )}
+            {safety.data.rehearsals.length > 0 && (
+              <p className="admin-table-muted">
+                {safety.data.rehearsals.length} immutable rehearsal record{safety.data.rehearsals.length === 1 ? '' : 's'} retained. Latest evidence: {safety.data.rehearsals[0].evidence_reference}
+              </p>
             )}
           </div>
           {sources.filter((source) => source.submission_governance).map((source) => (

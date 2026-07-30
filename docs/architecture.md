@@ -513,12 +513,18 @@ errors remain forbidden.
 - The dark #193 envelope is the engine's authoritative fourth checkpoint. A singleton
   global kill switch defaults on; clearing it requires a recorded incident-playbook
   rehearsal. Strict per-source policies bound each owner and each source by rolling
-  minute and 24-hour durable-claim counts, with a separate hourly anomaly threshold.
+  minute append-only adapter-attempt counts and rolling 24-hour logical-claim
+  volume, with a separate hourly attempt anomaly threshold. Retries of one frozen
+  idempotency claim are separate rate/anomaly attempts but one logical volume unit.
   The engine consults the owner queue pause plus global control and source policy at
   dispatch and again under policy locks immediately before its adapter boundary.
   Anomalies emit only source family and a closed outcome. Owners can inspect their
-  exact bounded usage/block reason, while admins can configure limits, record a
-  rehearsal, and trip global/source controls without a deploy. No public submit route,
+  exact owner-only bounded usage and a closed block reason; shared-source counts stay
+  internal. Rehearsals append immutable evidence references plus explicit roles,
+  rollback, and communication confirmations. Tripping the global control consumes
+  the active proof without deleting its history, so recovery requires a fresh
+  rehearsal before admins can clear it again. Admins can configure
+  limits and trip global/source controls without a deploy. No public submit route,
   scheduler, credential flow, real adapter, or activation is added.
 - Quality and user outcomes govern operation; raw volume never loosens controls
   (D-106).
