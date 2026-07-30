@@ -350,7 +350,12 @@ def aggregate_development_loop(
     )
 
 
-def record_activation_event(db: Session, **fields: Any) -> AnalyticsEvent:
+def record_activation_event(
+    db: Session,
+    *,
+    commit: bool = True,
+    **fields: Any,
+) -> AnalyticsEvent:
     """The single shared write seam for the durable activation-event store (D-037).
 
     This is the only path that writes a row to `analytics_events`. It routes
@@ -360,24 +365,31 @@ def record_activation_event(db: Session, **fields: Any) -> AnalyticsEvent:
     the way the frontend-telemetry ingestion endpoint already rejects unknown
     fields (`extra="forbid"`).
 
-    Writes on the caller's request-scoped session and commits it, so the event
+    Writes on the caller's request-scoped session and normally commits it, so the event
     survives even if the surrounding request later fails and rolls back (e.g. a
     backend tool-run that records its started/failed event and then raises).
     Because it commits the whole session, callers must invoke it only at a point
     where committing is safe — i.e. no unrelated half-written row is pending. All
-    current call sites satisfy this: the frontend-telemetry endpoint holds only
+    current committing call sites satisfy this: the frontend-telemetry endpoint holds only
     the event, and the tool pipeline records after `persist_tool_run` has already
     committed (or, on the failure/started paths, before any tool-run row exists).
 
-    Callers treat the write as best-effort and must not let an operational
-    failure here break the user-facing flow; use `safe_record_activation_event`
-    for that.
+    Ordinary operational callers treat the write as best-effort and must not let
+    a failure break the user-facing flow; they use `safe_record_activation_event`.
+    Security/audit transitions may instead pass ``commit=False`` and deliberately
+    propagate failure so the governed state and its required evidence commit or
+    roll back together.
     """
     event = ActivationEventCreate(**fields)
     row = AnalyticsEvent(**event.model_dump(exclude_none=True))
     db.add(row)
-    db.commit()
-    db.refresh(row)
+    if commit:
+        db.commit()
+        db.refresh(row)
+    else:
+        # Security/audit transitions may need the allowlisted event and the
+        # governed state change to share one atomic transaction.
+        db.flush()
     return row
 
 

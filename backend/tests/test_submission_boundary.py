@@ -11,11 +11,12 @@ submit themselves. R16 #189 builds only the dark per-source governance gate;
 user authorization, submission automation, and every outward-act route remain
 unbuilt and may appear only behind all four ADR 0010 gates.
 
-R16 #193 adds an exact, closed set of admin-only safety-control routes. They can
-configure/read limits, attest a rehearsal, and trip kill switches; none accepts a
-packet, invokes an adapter, schedules work, or retries an outward act. The guard
+R16 #193 adds an exact, closed set of admin-only safety-control routes. R16 #195
+adds one read-only, content-free quality aggregate. None accepts a packet,
+invokes an adapter, schedules work, or retries an outward act. The guard
 allowlists those paths exactly while remaining default-deny for every other path
-containing a submission-shaped token.
+containing a submission-shaped token, and separately pins the quality route to
+GET-only.
 
 This walks the router modules in ``app/routers/`` and inspects each
 ``APIRouter`` directly, rather than the assembled ``app.main`` application.
@@ -46,7 +47,8 @@ FORBIDDEN_PATH_TOKENS = (
     "autoapply",
 )
 
-ALLOWED_SUBMISSION_CONTROL_ROUTES = {
+ALLOWED_SUBMISSION_NAMED_ROUTES = {
+    ("admin", "/submission-quality"),
     ("admin", "/submission-safety"),
     ("admin", "/submission-safety/global-kill-switch"),
     ("admin", "/submission-safety/rehearsal"),
@@ -108,7 +110,7 @@ def test_api_surface_exposes_no_submission_endpoint():
         for module, path in _router_routes()
         for token in FORBIDDEN_PATH_TOKENS
         if token in path.lower()
-        and (module, path) not in ALLOWED_SUBMISSION_CONTROL_ROUTES
+            and (module, path) not in ALLOWED_SUBMISSION_NAMED_ROUTES
     )
 
     assert offenders == [], (
@@ -119,7 +121,7 @@ def test_api_surface_exposes_no_submission_endpoint():
     )
 
 
-def test_submission_named_routes_are_only_the_exact_safety_control_set():
+def test_submission_named_routes_are_only_the_exact_reviewed_set():
     routes = set(_router_routes())
     named_routes = {
         (module, path)
@@ -127,7 +129,20 @@ def test_submission_named_routes_are_only_the_exact_safety_control_set():
         if any(token in path.lower() for token in FORBIDDEN_PATH_TOKENS)
     }
 
-    assert named_routes == ALLOWED_SUBMISSION_CONTROL_ROUTES
+    assert named_routes == ALLOWED_SUBMISSION_NAMED_ROUTES
+
+
+def test_submission_quality_route_is_read_only():
+    methods = set()
+    for module_info in pkgutil.iter_modules(app.routers.__path__):
+        if module_info.name != "admin":
+            continue
+        module = importlib.import_module("app.routers.admin")
+        for route in module.router.routes:
+            if route.path == "/submission-quality":
+                methods.update(route.methods or set())
+
+    assert methods == {"GET"}
 
 
 def test_tailoring_apply_is_not_treated_as_a_submission_route():

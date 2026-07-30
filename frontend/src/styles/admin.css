@@ -619,6 +619,113 @@
   gap: 0.15rem 0.9rem;
 }
 
+/* ─── R16 quality-first submission governance ─────────────── */
+.admin-quality-intro {
+  max-width: 72ch;
+  line-height: 1.65;
+}
+
+.admin-quality-state {
+  margin-top: 1.5rem;
+  padding: 1rem 1.1rem;
+  background: var(--surface-raised, #fff);
+  border: 1px solid var(--border-soft, #d7e5f1);
+  border-radius: var(--radius-lg, 12px);
+}
+
+.admin-quality-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+.admin-quality-family {
+  background: linear-gradient(180deg, #fff 0%, var(--surface-subtle, #f7fbff) 100%);
+  border: 1px solid var(--border-soft, #d7e5f1);
+  border-radius: var(--radius-xl, 16px);
+  padding: 1.25rem;
+  box-shadow: var(--shadow-soft, 0 10px 28px rgba(19, 44, 72, 0.05));
+}
+
+.admin-quality-family-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--divider, #e8f0f7);
+}
+
+.admin-quality-kicker {
+  display: block;
+  color: var(--text-muted, #617b95);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.admin-quality-family h2 {
+  margin: 0.25rem 0 0;
+  color: var(--text-strong, #16324b);
+  font-size: 1.05rem;
+  letter-spacing: -0.015em;
+}
+
+.admin-quality-evidence {
+  flex: 0 0 auto;
+  padding: 0.25rem 0.6rem;
+  color: var(--text-muted, #617b95);
+  background: var(--surface-blue, #eef5fc);
+  border-radius: var(--radius-pill, 9999px);
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-quality-rate-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  padding-top: 1rem;
+}
+
+.admin-quality-rate {
+  min-height: 5.1rem;
+  padding: 0.8rem;
+  background: var(--surface-raised, #fff);
+  border: 1px solid var(--divider, #e8f0f7);
+  border-radius: var(--radius-lg, 12px);
+}
+
+.admin-quality-rate-label {
+  display: block;
+  color: var(--text-muted, #617b95);
+  font-size: 0.75rem;
+  line-height: 1.25;
+}
+
+.admin-quality-rate-value {
+  display: block;
+  margin-top: 0.55rem;
+  color: var(--text-strong, #16324b);
+  font-size: 1.35rem;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.025em;
+}
+
+@media (max-width: 960px) {
+  .admin-quality-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 520px) {
+  .admin-quality-rate-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .admin-health-metric {
   white-space: nowrap;
 }
