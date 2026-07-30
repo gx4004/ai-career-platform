@@ -4,6 +4,7 @@ import {
   setDiscoverySourceKillSwitch,
 } from '#/lib/api/admin'
 import type { DiscoverySource } from '#/lib/api/discoverySchemas'
+import { SubmissionSafetyControls } from '#/pages/admin/submission-safety-controls'
 
 export function AdminDiscoverySourcesPage() {
   const queryClient = useQueryClient()
@@ -35,6 +36,8 @@ export function AdminDiscoverySourcesPage() {
         a separate, default-off gate requiring its own legal review, verified contract,
         promotion, and kill switch.
       </p>
+
+      {data && <SubmissionSafetyControls sources={data.items} />}
 
       <div className="admin-data-table-wrap" style={{ marginTop: '1.5rem' }}>
         {isError && (

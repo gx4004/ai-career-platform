@@ -44,6 +44,14 @@ from app.schemas.discovery_sources import (
     DiscoverySourceListResponse,
     DiscoverySourceResponse,
 )
+from app.schemas.submission_safety import (
+    AdminSubmissionSafetyResponse,
+    SubmissionIncidentRehearsalRequest,
+    SubmissionSafetyControlResponse,
+    SubmissionSafetyPolicyConfig,
+    SubmissionSafetyPolicyResponse,
+)
+from app.schemas.submission_sources import SubmissionSourceGovernanceResponse
 from app.services.analytics import (
     ACTIVATION_DEFAULT_WINDOW_DAYS,
     aggregate_activation_metrics,
@@ -55,6 +63,13 @@ from app.services.discovery_sources import operate_source_kill_switch
 from app.services.packet_gate import aggregate_packet_gate
 from app.services.scorecard import compute_scorecard
 from app.services.source_health import aggregate_source_health
+from app.services.submission_safety import (
+    admin_submission_safety,
+    configure_submission_safety_policy,
+    operate_global_submission_kill_switch,
+    record_submission_incident_rehearsal,
+)
+from app.services.submission_sources import operate_submission_kill_switch
 
 router = APIRouter()
 
@@ -167,6 +182,93 @@ def operate_kill_switch(
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     return source
+
+
+# ── Submission safety envelope (R16, issue #193) ──
+
+
+@router.get("/submission-safety", response_model=AdminSubmissionSafetyResponse)
+@limiter.limit(_ADMIN_RATE)
+def get_submission_safety(
+    request: Request,
+    admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    return admin_submission_safety(db)
+
+
+@router.post(
+    "/submission-safety/global-kill-switch",
+    response_model=SubmissionSafetyControlResponse,
+)
+@limiter.limit(_ADMIN_RATE)
+def operate_submission_global_kill_switch(
+    request: Request,
+    tripped: bool = Query(...),
+    admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    try:
+        return operate_global_submission_kill_switch(db, tripped=tripped, actor=admin)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.post(
+    "/submission-safety/rehearsal",
+    response_model=SubmissionSafetyControlResponse,
+)
+@limiter.limit(_ADMIN_RATE)
+def record_submission_rehearsal(
+    request: Request,
+    payload: SubmissionIncidentRehearsalRequest,
+    admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    return record_submission_incident_rehearsal(db, rehearsal=payload, actor=admin)
+
+
+@router.put(
+    "/discovery-sources/{source_id}/submission-safety",
+    response_model=SubmissionSafetyPolicyResponse,
+)
+@limiter.limit(_ADMIN_RATE)
+def configure_source_submission_safety(
+    source_id: str,
+    request: Request,
+    payload: SubmissionSafetyPolicyConfig,
+    admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    try:
+        return configure_submission_safety_policy(
+            db, source_id=source_id, config=payload, actor=admin
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.post(
+    "/discovery-sources/{source_id}/submission-kill-switch",
+    response_model=SubmissionSourceGovernanceResponse,
+)
+@limiter.limit(_ADMIN_RATE)
+def operate_source_submission_kill_switch(
+    source_id: str,
+    request: Request,
+    tripped: bool = Query(...),
+    admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    source = db.query(DiscoverySource).filter(DiscoverySource.id == source_id).one_or_none()
+    if source is None or source.submission_governance is None:
+        raise HTTPException(status_code=404, detail="Submission source not found")
+    try:
+        return operate_submission_kill_switch(
+            db, source.submission_governance, tripped=tripped, actor=admin
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 # ── Users ──
@@ -498,9 +600,7 @@ def get_development_loop(
     """
     now = datetime.now(UTC)
     window_end = end or now
-    window_start = start or (
-        window_end - timedelta(days=ACTIVATION_DEFAULT_WINDOW_DAYS)
-    )
+    window_start = start or (window_end - timedelta(days=ACTIVATION_DEFAULT_WINDOW_DAYS))
     if window_start.tzinfo is None:
         window_start = window_start.replace(tzinfo=UTC)
     if window_end.tzinfo is None:

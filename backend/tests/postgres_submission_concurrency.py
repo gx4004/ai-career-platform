@@ -7,7 +7,7 @@ import json
 import os
 import sys
 import threading
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from sqlalchemy import create_engine, text
@@ -15,14 +15,22 @@ from sqlalchemy.orm import sessionmaker
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+import app.services.packet_gate as packet_gate_service
 import app.services.submissions as submissions_service
 from app.models.application_packet import ApplicationPacket
 from app.models.discovery_source import DiscoverySource
 from app.models.packet_approval_snapshot import PacketApprovalSnapshot
 from app.models.submission_authorization import SubmissionAuthorizationGrant
+from app.models.submission_safety import (
+    SubmissionDispatchAttempt,
+    SubmissionIncidentRehearsal,
+    SubmissionSafetyControl,
+    SubmissionSafetyPolicy,
+)
 from app.models.submission_source import SubmissionSourceGovernance
 from app.models.user import User
 from app.models.workspace import Workspace
+from app.services.submission_safety import SubmissionSafetyBlocked, SubmissionSafetyEnvelope
 from app.services.submissions import (
     PacketSubmissionRefusal,
     PacketSubmissionRefused,
@@ -31,11 +39,24 @@ from app.services.submissions import (
     delete_submission_records,
     submit_approved_snapshot,
 )
+from app.services.tool_runs import delete_all_user_data
 
 
 class HealthyEnvelope:
-    def require_healthy(self, db, *, user_id: str, source_id: str) -> None:
+    def require_healthy(
+        self,
+        db,
+        *,
+        user_id: str,
+        source_id: str,
+        snapshot_id: str,
+        serialize: bool = False,
+        attempt_reservation_id: str | None = None,
+    ) -> None:
         return None
+
+    def record_attempt(self, db, *, user_id: str, source_id: str, idempotency_key: str) -> str:
+        return "healthy-attempt"
 
 
 class CountingAdapter:
@@ -191,6 +212,64 @@ def _seed(session) -> tuple[str, str, str]:
     session.add_all([user, source, governance, grant, campaign, packet, snapshot])
     session.commit()
     return user.id, snapshot.id, grant.id
+
+
+def _seed_second_snapshot(session, *, user_id: str) -> str:
+    now = datetime.now(UTC)
+    packet = ApplicationPacket(
+        id="concurrent-packet-2",
+        user_id=user_id,
+        campaign_id="concurrent-campaign",
+        match_rationale={"composite_score": 91, "signals": [], "matched_rules": []},
+        unresolved_questions=[],
+        status="prepared",
+        gate_state="passed",
+        decision="accepted",
+        estimated_cost_usd=0,
+    )
+    content = {
+        "schema_version": "packet-approval/v1",
+        "packet_id": packet.id,
+        "campaign_id": packet.campaign_id,
+        "listing_id": None,
+        "frozen_at": now.isoformat(),
+        "match_rationale": packet.match_rationale,
+        "unresolved_questions": [],
+        "unsupported_claims": [],
+        "resolved_stop_answers": [],
+        "listing": {
+            "id": "concurrent-listing-2",
+            "content_sha256": "d" * 64,
+            "title": "Concurrency Engineer II",
+            "company": "Fixture",
+            "description": "Test",
+            "attributions": [],
+        },
+        "manual_handoff": {
+            "listing_id": None,
+            "attribution_id": "concurrency-attribution-2",
+            "source_id": "concurrent-source",
+            "source_listing_key": "concurrency-listing-2",
+            "source_url": "https://concurrency-fixture.invalid/applications",
+            "retrieved_at": now.isoformat(),
+        },
+        "cv_variant": None,
+        "drafts": None,
+    }
+    canonical = json.dumps(content, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    snapshot = PacketApprovalSnapshot(
+        id="concurrent-snapshot-2",
+        user_id=user_id,
+        packet_id=packet.id,
+        campaign_id=packet.campaign_id,
+        role_key="role:v1:" + "f" * 64,
+        destination_url="https://concurrency-fixture.invalid/applications",
+        content_json=canonical,
+        content_sha256=hashlib.sha256(canonical.encode()).hexdigest(),
+    )
+    session.add_all([packet, snapshot])
+    session.commit()
+    return snapshot.id
 
 
 def main() -> None:
@@ -378,8 +457,7 @@ def main() -> None:
     assert stop_erasure_finished.is_set()
     with Session() as session:
         assert (
-            session.execute(text("SELECT count(*) FROM submission_stop_events")).scalar_one()
-            == 0
+            session.execute(text("SELECT count(*) FROM submission_stop_events")).scalar_one() == 0
         )
         assert (
             session.execute(text("SELECT count(*) FROM submission_dispatch_claims")).scalar_one()
@@ -507,6 +585,310 @@ def main() -> None:
         )
         assert (
             session.execute(text("SELECT count(*) FROM submission_stop_events")).scalar_one() == 0
+        )
+
+    # The real #193 gate must serialize two distinct snapshots at the same source
+    # without the "both lose" race. With a source limit of one, exactly the first
+    # durable claim reaches the adapter and the other fails closed.
+    with engine.begin() as connection:
+        connection.execute(text("DELETE FROM users WHERE id='concurrent-user'"))
+        connection.execute(text("DELETE FROM discovery_sources WHERE id='concurrent-source'"))
+        connection.execute(text("DELETE FROM submission_safety_controls"))
+    with Session() as session:
+        user_id, snapshot_id, grant_id = _seed(session)
+        second_snapshot_id = _seed_second_snapshot(session, user_id=user_id)
+        now = datetime.now(UTC)
+        session.add_all(
+            [
+                SubmissionIncidentRehearsal(
+                    id="concurrent-rehearsal-1",
+                    playbook_version="submission-v1",
+                    evidence_reference="ops/rehearsals/concurrent-1",
+                    roles_confirmed=True,
+                    rollback_rehearsed=True,
+                    communication_reviewed=True,
+                    recorded_by="postgres-proof",
+                    recorded_at=now,
+                ),
+                SubmissionSafetyControl(
+                    id="global",
+                    global_kill_switch=False,
+                    incident_playbook_version="submission-v1",
+                    incident_rehearsed_at=now,
+                    incident_rehearsed_by="postgres-proof",
+                    incident_rehearsal_id="concurrent-rehearsal-1",
+                ),
+                SubmissionSafetyPolicy(
+                    discovery_source_id="concurrent-source",
+                    user_rate_limit_per_minute=10,
+                    user_daily_volume_limit=100,
+                    source_rate_limit_per_minute=1,
+                    source_daily_volume_limit=100,
+                    anomaly_user_attempts_per_hour=100,
+                    configured_by="postgres-proof",
+                    configured_at=now,
+                ),
+            ]
+        )
+        session.commit()
+
+    safety_adapter = CountingAdapter()
+    safety_barrier = threading.Barrier(2)
+    safety_results = []
+    safety_errors = []
+
+    def safety_worker(current_snapshot_id: str) -> None:
+        try:
+            safety_barrier.wait()
+            with Session() as session:
+                safety_results.append(
+                    submit_approved_snapshot(
+                        session,
+                        user_id=user_id,
+                        snapshot_id=current_snapshot_id,
+                        source_key=safety_adapter.source_key,
+                        grant_id=grant_id,
+                        envelope_gate=SubmissionSafetyEnvelope(),
+                        adapter=safety_adapter,
+                    )
+                )
+        except Exception as error:  # pragma: no cover - asserted below
+            safety_errors.append(error)
+
+    safety_threads = [
+        threading.Thread(target=safety_worker, args=(current_snapshot_id,))
+        for current_snapshot_id in (snapshot_id, second_snapshot_id)
+    ]
+    for thread in safety_threads:
+        thread.start()
+    assert safety_adapter.entered.wait(timeout=5)
+    with Session() as session:
+        assert (
+            session.execute(text("SELECT count(*) FROM submission_dispatch_attempts")).scalar_one()
+            == 1
+        ), "attempt reservation was not durable before the adapter boundary"
+    safety_adapter.release.set()
+    for thread in safety_threads:
+        thread.join(timeout=10)
+
+    assert all(not thread.is_alive() for thread in safety_threads)
+    assert len(safety_results) == 1
+    assert safety_adapter.calls == 1
+    assert len(safety_errors) == 1
+    assert isinstance(safety_errors[0], SubmissionSafetyBlocked), safety_errors
+    assert safety_errors[0].reason == "source_rate_limit"
+    with Session() as session:
+        assert (
+            session.execute(text("SELECT count(*) FROM submission_dispatch_attempts")).scalar_one()
+            == 1
+        )
+
+    # Retrying one ambiguous native-idempotent claim is still a new adapter
+    # invocation attempt. The append-only ledger must make a limit of one stop
+    # the retry rather than letting one claim bypass the envelope forever.
+    with engine.begin() as connection:
+        connection.execute(text("DELETE FROM users WHERE id='concurrent-user'"))
+        connection.execute(text("DELETE FROM discovery_sources WHERE id='concurrent-source'"))
+        connection.execute(text("DELETE FROM submission_safety_controls"))
+    with Session() as session:
+        user_id, snapshot_id, grant_id = _seed(session)
+        now = datetime.now(UTC)
+        session.add_all(
+            [
+                SubmissionIncidentRehearsal(
+                    id="concurrent-rehearsal-2",
+                    playbook_version="submission-v1",
+                    evidence_reference="ops/rehearsals/concurrent-2",
+                    roles_confirmed=True,
+                    rollback_rehearsed=True,
+                    communication_reviewed=True,
+                    recorded_by="postgres-proof",
+                    recorded_at=now,
+                ),
+                SubmissionSafetyControl(
+                    id="global",
+                    global_kill_switch=False,
+                    incident_playbook_version="submission-v1",
+                    incident_rehearsed_at=now,
+                    incident_rehearsed_by="postgres-proof",
+                    incident_rehearsal_id="concurrent-rehearsal-2",
+                ),
+                SubmissionSafetyPolicy(
+                    discovery_source_id="concurrent-source",
+                    user_rate_limit_per_minute=1,
+                    user_daily_volume_limit=100,
+                    source_rate_limit_per_minute=1,
+                    source_daily_volume_limit=100,
+                    anomaly_user_attempts_per_hour=100,
+                    configured_by="postgres-proof",
+                    configured_at=now,
+                ),
+            ]
+        )
+        session.commit()
+
+    ambiguous_retry_adapter = AmbiguousAdapter()
+    ambiguous_retry_adapter.release.set()
+    with Session() as session:
+        try:
+            submit_approved_snapshot(
+                session,
+                user_id=user_id,
+                snapshot_id=snapshot_id,
+                source_key=ambiguous_retry_adapter.source_key,
+                grant_id=grant_id,
+                envelope_gate=SubmissionSafetyEnvelope(),
+                adapter=ambiguous_retry_adapter,
+            )
+        except TimeoutError:
+            pass
+        else:
+            raise AssertionError("ambiguous fixture did not raise")
+    with Session() as session:
+        try:
+            submit_approved_snapshot(
+                session,
+                user_id=user_id,
+                snapshot_id=snapshot_id,
+                source_key=ambiguous_retry_adapter.source_key,
+                grant_id=grant_id,
+                envelope_gate=SubmissionSafetyEnvelope(),
+                adapter=ambiguous_retry_adapter,
+            )
+        except SubmissionSafetyBlocked as error:
+            assert error.reason == "user_rate_limit"
+        else:
+            raise AssertionError("ambiguous retry bypassed the safety limit")
+        assert (
+            session.execute(text("SELECT count(*) FROM submission_dispatch_attempts")).scalar_one()
+            == 1
+        )
+    assert ambiguous_retry_adapter.calls == 1
+
+    # Reservation freshness must be evaluated after waiting for serialization
+    # locks, not before. Hold the global control lock, begin a real validating
+    # check, advance its injected clock past the minute window while it waits,
+    # and prove the adapter-boundary status fails closed after lock acquisition.
+    with Session() as session:
+        reservation = session.query(SubmissionDispatchAttempt).one()
+        reservation_id = reservation.id
+        reservation_created_at = reservation.created_at
+
+    validation_entered = threading.Event()
+    clock_sampled = threading.Event()
+    validation_results = []
+    validation_errors = []
+    clock_now = [reservation_created_at + timedelta(seconds=30)]
+
+    def boundary_clock() -> datetime:
+        clock_sampled.set()
+        return clock_now[0]
+
+    def validate_waiting_reservation() -> None:
+        try:
+            with Session() as session:
+                validation_entered.set()
+                validation_results.append(
+                    SubmissionSafetyEnvelope(clock=boundary_clock).status(
+                        session,
+                        user_id=user_id,
+                        source_id="concurrent-source",
+                        snapshot_id=snapshot_id,
+                        lock=True,
+                        attempt_reservation_id=reservation_id,
+                    )
+                )
+        except Exception as error:  # pragma: no cover - asserted below
+            validation_errors.append(error)
+
+    with Session() as locking_session:
+        (
+            locking_session.query(SubmissionSafetyControl)
+            .filter(SubmissionSafetyControl.id == "global")
+            .with_for_update()
+            .one()
+        )
+        validator = threading.Thread(
+            target=validate_waiting_reservation,
+            name="aged-reservation-validator",
+        )
+        validator.start()
+        assert validation_entered.wait(timeout=5)
+        assert not clock_sampled.wait(timeout=0.3), "clock sampled before lock acquisition"
+        clock_now[0] = reservation_created_at + timedelta(minutes=1, seconds=1)
+        locking_session.commit()
+
+    validator.join(timeout=10)
+    assert not validator.is_alive()
+    assert not validation_errors, validation_errors
+    assert len(validation_results) == 1
+    assert validation_results[0].allowed is False
+    assert validation_results[0].reason == "attempt_reservation_expired"
+
+    # Pause/resume and full account erasure share the fail-closed control row as
+    # their first owner-control lock. Hold a real pause transaction after it has
+    # acquired control + owner locks, start the production erasure cascade, then
+    # release it. Both operations must complete without a lock-order cycle and no
+    # owner pause row may survive erasure.
+    pause_entered = threading.Event()
+    release_pause = threading.Event()
+    erasure_finished = threading.Event()
+    pause_errors = []
+    erasure_errors = []
+    original_halt_row = packet_gate_service._halt_row
+
+    def held_halt_row(db, scope=packet_gate_service.PREPARATION_HALT_SCOPE):
+        if threading.current_thread().name == "pause-versus-erasure":
+            pause_entered.set()
+            assert release_pause.wait(timeout=5)
+        return original_halt_row(db, scope)
+
+    packet_gate_service._halt_row = held_halt_row
+
+    def concurrent_pause() -> None:
+        try:
+            with Session() as session:
+                packet_gate_service.pause_preparation(session, user_id)
+        except Exception as error:  # pragma: no cover - asserted below
+            pause_errors.append(error)
+
+    def concurrent_erasure() -> None:
+        try:
+            with Session() as session:
+                delete_all_user_data(session, user_id)
+        except Exception as error:  # pragma: no cover - asserted below
+            erasure_errors.append(error)
+        finally:
+            erasure_finished.set()
+
+    pauser = threading.Thread(target=concurrent_pause, name="pause-versus-erasure")
+    pauser.start()
+    assert pause_entered.wait(timeout=5)
+    eraser = threading.Thread(target=concurrent_erasure, name="account-erasure")
+    eraser.start()
+    assert not erasure_finished.wait(timeout=0.3)
+    release_pause.set()
+    pauser.join(timeout=10)
+    eraser.join(timeout=10)
+    packet_gate_service._halt_row = original_halt_row
+
+    assert not pauser.is_alive()
+    assert not eraser.is_alive()
+    assert not pause_errors, pause_errors
+    assert not erasure_errors, erasure_errors
+    with Session() as session:
+        assert (
+            session.execute(
+                text("SELECT count(*) FROM users WHERE id=:id"), {"id": user_id}
+            ).scalar_one()
+            == 0
+        )
+        assert (
+            session.execute(
+                text("SELECT count(*) FROM pipeline_halts WHERE scope=:scope"),
+                {"scope": f"queue-pause:{user_id}"},
+            ).scalar_one()
+            == 0
         )
     engine.dispose()
 

@@ -60,6 +60,22 @@ class SubmissionDispatchClaimResponse(BaseModel):
         return value
 
 
+class SubmissionDispatchAttemptResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True, extra="forbid")
+
+    id: str
+    discovery_source_id: str
+    idempotency_key: str
+    created_at: datetime
+
+    @field_validator("created_at")
+    @classmethod
+    def normalize_created_at(cls, value: datetime) -> datetime:
+        if value.tzinfo is None:
+            return value.replace(tzinfo=UTC)
+        return value
+
+
 class SubmissionStopEventResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True, extra="forbid")
 
@@ -110,6 +126,8 @@ class SubmissionRecordsExport(BaseModel):
     records: list[SubmissionRecordResponse]
     dispatch_claim_count: int = Field(ge=0)
     dispatch_claims: list[SubmissionDispatchClaimResponse]
+    dispatch_attempt_count: int = Field(ge=0)
+    dispatch_attempts: list[SubmissionDispatchAttemptResponse]
     stop_count: int = Field(ge=0)
     stops: list[SubmissionStopEventResponse]
 
@@ -119,6 +137,8 @@ class SubmissionRecordsExport(BaseModel):
             raise ValueError("record_count must equal records length")
         if self.dispatch_claim_count != len(self.dispatch_claims):
             raise ValueError("dispatch_claim_count must equal dispatch_claims length")
+        if self.dispatch_attempt_count != len(self.dispatch_attempts):
+            raise ValueError("dispatch_attempt_count must equal dispatch_attempts length")
         if self.stop_count != len(self.stops):
             raise ValueError("stop_count must equal stops length")
         return self

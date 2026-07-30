@@ -225,6 +225,16 @@ After rollback, repeat:
 - one saved history run load
 - one guest tool run
 
+## Trusted Submission Incident Drill (R16)
+
+Before any real submission source activates, execute
+[`docs/runbooks/submission-incident.md`](runbooks/submission-incident.md) in isolated
+staging against the maintained synthetic source. Name every role, capture the
+candidate/database/contract evidence, exercise all limits and controls, rehearse the
+rollback and communication paths, and record the resulting playbook version in the
+admin surface. An admin rehearsal timestamp without the runbook evidence does not
+satisfy the R16 activation gate.
+
 ## Incident Contacts
 
 Fill these before private beta:
