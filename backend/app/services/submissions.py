@@ -985,10 +985,20 @@ def delete_submission_records(db: Session, user_id: str) -> int:
         .with_for_update()
         .all()
     )
+    (
+        db.query(SubmissionDispatchAttempt)
+        .filter(SubmissionDispatchAttempt.user_id == user_id)
+        .order_by(SubmissionDispatchAttempt.id.asc())
+        .with_for_update()
+        .all()
+    )
     deleted = (
         db.query(SubmissionRecord)
         .filter(SubmissionRecord.user_id == user_id)
         .delete(synchronize_session=False)
+    )
+    db.query(SubmissionDispatchAttempt).filter(SubmissionDispatchAttempt.user_id == user_id).delete(
+        synchronize_session=False
     )
     db.query(SubmissionDispatchClaim).filter(SubmissionDispatchClaim.user_id == user_id).delete(
         synchronize_session=False

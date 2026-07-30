@@ -30,7 +30,7 @@ from app.services.submission_safety import (
     source_safety_policy,
     submission_safety_control,
 )
-from app.services.submissions import export_submission_records
+from app.services.submissions import delete_submission_records, export_submission_records
 
 NOW = datetime(2026, 7, 26, 12, 0, tzinfo=UTC)
 
@@ -309,6 +309,9 @@ def test_repeated_attempts_for_one_claim_each_consume_the_limit(db, test_user):
     assert {attempt.idempotency_key for attempt in exported.dispatch_attempts} == {
         first_claim.idempotency_key
     }
+    delete_submission_records(db, test_user.id)
+    db.commit()
+    assert db.query(SubmissionDispatchAttempt).filter_by(user_id=test_user.id).count() == 0
 
 
 def test_owner_limits_are_scoped_to_the_configured_source(db, test_user):
