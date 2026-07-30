@@ -77,6 +77,7 @@ export const submissionSafetyStatusSchema = z
         'global_kill_switch',
         'policy_missing',
         'incident_rehearsal_missing',
+        'attempt_reservation_expired',
         'user_rate_limit',
         'user_volume_limit',
         'source_rate_limit',

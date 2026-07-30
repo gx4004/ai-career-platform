@@ -114,7 +114,7 @@ class SubmissionEnvelopeGate(Protocol):
         source_id: str,
         snapshot_id: str,
         serialize: bool = False,
-        attempt_reserved: bool = False,
+        attempt_reservation_id: str | None = None,
     ) -> None: ...
 
     def record_attempt(
@@ -594,7 +594,7 @@ def _lock_and_validate_dispatch(
     grant_id: str,
     idempotency_key: str,
     envelope_gate: SubmissionEnvelopeGate,
-    attempt_reserved: bool,
+    attempt_reservation_id: str | None,
 ) -> _LockedDispatchReady | SubmissionRecordResponse | SubmissionStoppedResponse:
     """Acquire the complete final lock chain and revalidate every mutable gate."""
 
@@ -652,7 +652,7 @@ def _lock_and_validate_dispatch(
         source_id=source.discovery_source_id,
         snapshot_id=snapshot_id,
         serialize=True,
-        attempt_reserved=attempt_reserved,
+        attempt_reservation_id=attempt_reservation_id,
     )
     current_fields_json = _canonical(_contract_fields(content, source.contract))
     current_codes_json = _canonical(
@@ -797,7 +797,7 @@ def submit_approved_snapshot(
             grant_id=grant_id,
             idempotency_key=key,
             envelope_gate=envelope_gate,
-            attempt_reserved=False,
+            attempt_reservation_id=None,
         )
         if not isinstance(ready, _LockedDispatchReady):
             return ready
@@ -806,7 +806,7 @@ def submit_approved_snapshot(
         # boundary. A crash after the source receives bytes can no longer erase
         # the rate/anomaly evidence. The commit releases all locks, so the entire
         # chain is acquired and checked again below before any outward call.
-        envelope_gate.record_attempt(
+        attempt_reservation_id = envelope_gate.record_attempt(
             db,
             user_id=user_id,
             source_id=source.discovery_source_id,
@@ -822,7 +822,7 @@ def submit_approved_snapshot(
             grant_id=grant_id,
             idempotency_key=key,
             envelope_gate=envelope_gate,
-            attempt_reserved=True,
+            attempt_reservation_id=attempt_reservation_id,
         )
         if not isinstance(ready, _LockedDispatchReady):
             return ready

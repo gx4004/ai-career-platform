@@ -26,6 +26,7 @@ const SAFETY_LABELS = {
   global_kill_switch: 'Paused globally by operators',
   policy_missing: 'Safety limits are not configured',
   incident_rehearsal_missing: 'Incident rehearsal is incomplete',
+  attempt_reservation_expired: 'Submission window expired; retry safely',
   user_rate_limit: 'Your per-minute limit is reached',
   user_volume_limit: 'Your 24-hour limit is reached',
   source_rate_limit: 'The source per-minute limit is reached',

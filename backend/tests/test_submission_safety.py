@@ -314,6 +314,24 @@ def test_repeated_attempts_for_one_claim_each_consume_the_limit(db, test_user):
     assert db.query(SubmissionDispatchAttempt).filter_by(user_id=test_user.id).count() == 0
 
 
+def test_expired_attempt_reservation_fails_closed_before_outward_act(db, test_user):
+    actor = _admin(db)
+    source = _source(db)
+    _ready(db, source, actor)
+    _claim(db, user_id=test_user.id, source_id=source.id, number=1, created_at=NOW)
+    attempt = db.query(SubmissionDispatchAttempt).one()
+
+    status = SubmissionSafetyEnvelope(clock=lambda: NOW + timedelta(minutes=2)).status(
+        db,
+        user_id=test_user.id,
+        source_id=source.id,
+        snapshot_id="snapshot-1",
+        attempt_reservation_id=attempt.id,
+    )
+
+    assert status.reason == "attempt_reservation_expired"
+
+
 def test_owner_limits_are_scoped_to_the_configured_source(db, test_user):
     actor = _admin(db)
     source_a = _source(db, "safety-source-a")

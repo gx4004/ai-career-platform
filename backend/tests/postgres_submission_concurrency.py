@@ -50,12 +50,12 @@ class HealthyEnvelope:
         source_id: str,
         snapshot_id: str,
         serialize: bool = False,
-        attempt_reserved: bool = False,
+        attempt_reservation_id: str | None = None,
     ) -> None:
         return None
 
-    def record_attempt(self, db, *, user_id: str, source_id: str, idempotency_key: str) -> None:
-        return None
+    def record_attempt(self, db, *, user_id: str, source_id: str, idempotency_key: str) -> str:
+        return "healthy-attempt"
 
 
 class CountingAdapter:

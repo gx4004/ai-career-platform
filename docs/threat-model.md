@@ -1379,7 +1379,9 @@ does not inflate logical volume. The engine checks the owner pause, global
 control, and source policy at dispatch, durably commits a conservative attempt
 reservation, then reacquires the complete lock chain and rechecks every mutable gate
 immediately before the adapter boundary. A process crash may conservatively consume
-budget but cannot erase a possible outward attempt; concurrent source attempts serialize on the
+budget but cannot erase a possible outward attempt. Revalidation binds the exact
+reservation to owner/source and the active minute window; an aged reservation stops
+before the adapter and must be replaced on retry. Concurrent source attempts serialize on the
 same policy row. Anomaly telemetry contains only source family, the closed anomaly
 outcome, and server time—never user/packet/source ids, URLs, claims, provider prose,
 or submitted fields. Operators can trip global and per-source controls without a

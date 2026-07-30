@@ -208,7 +208,7 @@ class SubmissionSafetyEnvelope:
         source_id: str,
         snapshot_id: str,
         lock: bool = False,
-        attempt_reserved: bool = False,
+        attempt_reservation_id: str | None = None,
     ) -> SubmissionSafetyStatus:
         now = self._clock()
         control_query = db.query(SubmissionSafetyControl).filter(
@@ -234,7 +234,20 @@ class SubmissionSafetyEnvelope:
             snapshot_id=snapshot_id,
             now=now,
         )
-        next_attempt = 0 if attempt_reserved else 1
+        reservation_current = False
+        if attempt_reservation_id is not None:
+            reservation_current = (
+                db.query(SubmissionDispatchAttempt.id)
+                .filter(
+                    SubmissionDispatchAttempt.id == attempt_reservation_id,
+                    SubmissionDispatchAttempt.user_id == user_id,
+                    SubmissionDispatchAttempt.discovery_source_id == source_id,
+                    SubmissionDispatchAttempt.created_at >= now - timedelta(minutes=1),
+                )
+                .one_or_none()
+                is not None
+            )
+        next_attempt = 0 if reservation_current else 1
         reason: SubmissionSafetyBlockReason | None = None
         if is_queue_paused(db, user_id):
             reason = "user_paused"
@@ -244,6 +257,8 @@ class SubmissionSafetyEnvelope:
             reason = "incident_rehearsal_missing"
         elif policy is None:
             reason = "policy_missing"
+        elif attempt_reservation_id is not None and not reservation_current:
+            reason = "attempt_reservation_expired"
         elif counts["user_rate"] + next_attempt > policy.user_rate_limit_per_minute:
             reason = "user_rate_limit"
         elif counts["user_daily_position"] > policy.user_daily_volume_limit:
@@ -276,7 +291,7 @@ class SubmissionSafetyEnvelope:
         source_id: str,
         snapshot_id: str,
         serialize: bool = False,
-        attempt_reserved: bool = False,
+        attempt_reservation_id: str | None = None,
     ) -> None:
         status = self.status(
             db,
@@ -284,7 +299,7 @@ class SubmissionSafetyEnvelope:
             source_id=source_id,
             snapshot_id=snapshot_id,
             lock=serialize,
-            attempt_reserved=attempt_reserved,
+            attempt_reservation_id=attempt_reservation_id,
         )
         if status.reason == "anomaly_detected":
             source_family = (

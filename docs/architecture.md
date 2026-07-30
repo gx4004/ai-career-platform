@@ -520,7 +520,9 @@ errors remain forbidden.
   dispatch, durably commits a conservative attempt reservation, then reacquires the
   complete lock chain and rechecks every mutable gate immediately before its adapter
   boundary. A process crash can therefore over-count an attempt but cannot erase an
-  outward-call reservation or bypass retry throttling.
+  outward-call reservation or bypass retry throttling. The second check binds the
+  exact reservation ID to owner/source and the active minute window; an aged
+  reservation fails closed and a later retry must reserve again.
   Anomalies emit only source family and a closed outcome. Owners can inspect their
   exact owner-only bounded usage and a closed block reason; shared-source counts stay
   internal. Rehearsals append immutable evidence references plus explicit roles,
