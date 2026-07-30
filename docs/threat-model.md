@@ -1363,10 +1363,11 @@ commit, and its non-null official destination and source identity exactly match 
 frozen approval snapshot. A timeout, unknown response, or invalid confirmation after
 a possible outward act remains on frozen source-native idempotent reconciliation and
 never invites a potentially duplicate manual submission.
-The complete content-free terminal-stop stream feeds #195's breakage seam so
-repeated challenges, authentication requests, uncertainty, validation rejection,
-and compatibility mismatches can be classified without exposing source content.
-#195, not #192, owns detection thresholds and automatic kill-switch action.
+The complete content-free terminal-stop stream feeds #195's breakage seam without
+exposing source content. Only an explicit compatibility-mismatch observation trips
+the source automatically; challenges, authentication requests, uncertainty, and
+validation rejection still stop and hand back but do not falsely invalidate the
+reviewed contract.
 
 The dark #193 envelope closes the otherwise-injected fourth gate. Its singleton
 global kill switch fails closed when absent and cannot be cleared until a bounded
@@ -1405,6 +1406,21 @@ deletion cannot withdraw the copy
 already held by an employer. This prevents the product from becoming an opaque
 submission proxy while avoiding the false promise that a local erasure can reverse
 an external act.
+
+The dark #195 compatibility monitor compares a strict observed contract with the
+reviewed stored contract; it never fetches a form or accepts arbitrary provider
+content. Mismatch containment is sticky and fail closed: the contract becomes
+`broken`, promotion is removed, and the submission kill switch is tripped before
+another act. Recovery requires a new reviewed contract plus explicit re-promotion
+and kill-switch clearance. Events contain only the allowlisted source family and
+closed compatibility/quality outcome. Backend validation rejects packet content,
+submitted fields, source keys, user ids, and provider prose; the frontend strict
+aggregate schema rejects the same drift. The admin page reports rates with sample
+context but has no mutation control, so neither raw volume nor a favorable metric
+can weaken the four gates. This limits abuse of the product as a submission proxy:
+contract drift stops the source, authorization remains non-secret and per-source,
+and immutable audit/confirmation evidence cannot be rewritten to hide an outward
+act.
 
 Discovered listings are non-user product data in dedicated canonical and source-
 attribution tables; neither table carries a user/workspace key or references

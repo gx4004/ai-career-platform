@@ -11,6 +11,7 @@ import {
   ListChecks,
   Flag,
   HeartPulse,
+  TrendingUp,
   ArrowLeft,
 } from 'lucide-react'
 
@@ -21,6 +22,7 @@ const NAV = [
   { to: '/admin/development-loop', label: 'Development Loop', icon: ListChecks },
   { to: '/admin/discovery-sources', label: 'Discovery Sources', icon: Database },
   { to: '/admin/source-health', label: 'Source Health', icon: HeartPulse },
+  { to: '/admin/submission-quality', label: 'Submission Quality', icon: TrendingUp },
   { to: '/admin/packet-gate', label: 'Packet Gate', icon: ShieldAlert },
   { to: '/admin/discovery-reports', label: 'Recommendation Reports', icon: Flag },
   { to: '/admin/scorecard', label: 'Scaling Triggers', icon: Gauge },

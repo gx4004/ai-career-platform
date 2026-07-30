@@ -46,9 +46,11 @@ from app.services.campaign_tracking import record_event
 from app.services.submission_authorizations import (
     require_active_submission_authorization,
 )
+from app.services.submission_quality import safe_record_submission_quality_outcome
 from app.services.submission_sources import (
     SourceSubmissionAuthorization,
     require_submission_allowed,
+    trip_submission_contract_breakage,
 )
 
 
@@ -472,6 +474,20 @@ def _stopped_response(
     )
 
 
+def _record_quality_outcome(db: Session, source_id: str, outcome: str) -> None:
+    source_family = (
+        db.query(DiscoverySource.source_family)
+        .filter(DiscoverySource.id == source_id)
+        .scalar()
+    )
+    if source_family is not None:
+        safe_record_submission_quality_outcome(
+            db,
+            source_family=source_family,
+            outcome=outcome,
+        )
+
+
 def _existing_stop(
     db: Session,
     *,
@@ -639,7 +655,9 @@ def _lock_and_validate_dispatch(
     )
     if existing is not None:
         db.commit()
-        return _response(existing)
+        response = _response(existing)
+        _record_quality_outcome(db, source_id, "duplicate_prevented")
+        return response
     source = _lock_and_recheck_mutable_gates(
         db,
         user_id=user_id,
@@ -744,7 +762,7 @@ def submit_approved_snapshot(
                 snapshot_id=snapshot_id,
                 for_update=True,
             )
-            return _stop_and_return(
+            stopped = _stop_and_return(
                 db,
                 snapshot=locked_snapshot,
                 source_id=source.discovery_source_id,
@@ -756,6 +774,8 @@ def submit_approved_snapshot(
                 source_code="packet_contract_mismatch",
                 require_absent_claim=True,
             )
+            trip_submission_contract_breakage(db, source.discovery_source_id)
+            return stopped
         initial_fields_json = _canonical(initial_fields)
         initial_fields_sha256 = _sha256(initial_fields_json)
         accepted_codes_json = _canonical(
@@ -848,7 +868,7 @@ def submit_approved_snapshot(
                 if adapter_result.reason in STOP_EXPLANATIONS
                 else "compatibility_mismatch"
             )
-            return _stop_and_return(
+            stopped = _stop_and_return(
                 db,
                 snapshot=locked_snapshot,
                 source_id=source.discovery_source_id,
@@ -859,6 +879,9 @@ def submit_approved_snapshot(
                 reason=reason,
                 source_code=adapter_result.source_code,
             )
+            if reason == "compatibility_mismatch":
+                trip_submission_contract_breakage(db, source.discovery_source_id)
+            return stopped
         receipt = adapter_result
         semantic = next(
             (
@@ -878,11 +901,16 @@ def submit_approved_snapshot(
             raise PacketSubmissionRefused(PacketSubmissionRefusal.CONTRACT_MISMATCH)
         if not receipt.source_confirmation_id or len(receipt.source_confirmation_id) > 200:
             raise PacketSubmissionRefused(PacketSubmissionRefusal.CONTRACT_MISMATCH)
-    except Exception:
+    except Exception as error:
         # A committed claim may already be shared by another worker that made an
         # ambiguous outward act. Never infer global non-invocation from this
         # caller's local control flow; preserve the frozen retry bytes.
         db.rollback()
+        if (
+            isinstance(error, PacketSubmissionRefused)
+            and error.reason == PacketSubmissionRefusal.CONTRACT_MISMATCH
+        ):
+            trip_submission_contract_breakage(db, source.discovery_source_id)
         raise
     record = SubmissionRecord(
         user_id=user_id,
@@ -921,9 +949,13 @@ def submit_approved_snapshot(
             )
             .one()
         )
-        return _response(winner)
+        response = _response(winner)
+        _record_quality_outcome(db, source.discovery_source_id, "duplicate_prevented")
+        return response
     db.refresh(record)
-    return _response(record)
+    response = _response(record)
+    _record_quality_outcome(db, source.discovery_source_id, "confirmed")
+    return response
 
 
 def export_submission_records(db: Session, user_id: str) -> SubmissionRecordsExport:

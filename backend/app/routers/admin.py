@@ -34,6 +34,7 @@ from app.schemas.admin import (
     AdminSetAdminRequest,
     AdminSourceHealthResponse,
     AdminStatsResponse,
+    AdminSubmissionQualityResponse,
     AdminUserDetailResponse,
     AdminUserItem,
     AdminUserListResponse,
@@ -63,6 +64,7 @@ from app.services.discovery_sources import operate_source_kill_switch
 from app.services.packet_gate import aggregate_packet_gate
 from app.services.scorecard import compute_scorecard
 from app.services.source_health import aggregate_source_health
+from app.services.submission_quality import aggregate_submission_quality
 from app.services.submission_safety import (
     admin_submission_safety,
     configure_submission_safety_policy,
@@ -269,6 +271,30 @@ def operate_source_submission_kill_switch(
         )
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.get("/submission-quality", response_model=AdminSubmissionQualityResponse)
+@limiter.limit(_ADMIN_RATE)
+def get_submission_quality(
+    request: Request,
+    start: datetime | None = Query(None),
+    end: datetime | None = Query(None),
+    admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """Quality-first, content-free R16 outcome rates; never a control plane."""
+    now = datetime.now(UTC)
+    window_end = end or now
+    window_start = start or (window_end - timedelta(days=ACTIVATION_DEFAULT_WINDOW_DAYS))
+    if window_start.tzinfo is None:
+        window_start = window_start.replace(tzinfo=UTC)
+    if window_end.tzinfo is None:
+        window_end = window_end.replace(tzinfo=UTC)
+    return aggregate_submission_quality(
+        db,
+        window_start=window_start,
+        window_end=window_end,
+    )
 
 
 # ── Users ──

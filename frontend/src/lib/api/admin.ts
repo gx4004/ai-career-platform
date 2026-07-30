@@ -324,6 +324,29 @@ export type AdminSourceHealth = {
   families: SourceFamilyHealth[]
 }
 
+export const submissionFamilyQualitySchema = z.strictObject({
+  source_family: z.enum([
+    'licensed',
+    'employer_ats',
+    'public_career_page',
+    'user_provided',
+  ]),
+  evidence_base: z.number().int().nonnegative(),
+  response_rate: z.number().min(0).max(1).nullable(),
+  packet_edit_rate: z.number().min(0).max(1).nullable(),
+  duplicate_prevention_rate: z.number().min(0).max(1).nullable(),
+  complaint_rate: z.number().min(0).max(1).nullable(),
+})
+
+export const adminSubmissionQualitySchema = z.strictObject({
+  window_start: z.iso.datetime({ offset: true }),
+  window_end: z.iso.datetime({ offset: true }),
+  families: z.array(submissionFamilyQualitySchema),
+})
+
+export type SubmissionFamilyQuality = z.infer<typeof submissionFamilyQualitySchema>
+export type AdminSubmissionQuality = z.infer<typeof adminSubmissionQualitySchema>
+
 // R15 packet-queue trust-chain gate — mirrors backend/app/schemas/admin.py
 // (AdminPacketGateResponse). Read-only aggregate over the same first-party
 // operational path; only the current halt posture + bounded gate-event counts —
@@ -431,6 +454,15 @@ export function getAdminSourceHealth(params: { start?: string; end?: string } = 
   return adminRequest<AdminSourceHealth>(
     `/admin/source-health${buildQs({ start: params.start, end: params.end })}`,
   )
+}
+
+export async function getAdminSubmissionQuality(
+  params: { start?: string; end?: string } = {},
+) {
+  const response = await adminRequest<unknown>(
+    `/admin/submission-quality${buildQs({ start: params.start, end: params.end })}`,
+  )
+  return adminSubmissionQualitySchema.parse(response)
 }
 
 export function getAdminPacketGate(params: { start?: string; end?: string } = {}) {

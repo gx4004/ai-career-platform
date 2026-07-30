@@ -255,6 +255,119 @@ def require_submission_allowed(
     )
 
 
+def evaluate_submission_contract(
+    db: Session,
+    source_key: str,
+    observed: SubmissionCompatibilityContract,
+) -> bool:
+    """Compare a synthetic/adapter observation with the reviewed source contract.
+
+    A mismatch is an operational break, not a best-effort parsing opportunity.
+    The transition is deliberately conservative: retain the reviewed contract as
+    evidence, mark it broken, demote it, and trip the source kill switch before
+    recording only the closed source-family/outcome class (D-105, D-107).
+    """
+    source = (
+        db.query(DiscoverySource)
+        .options(joinedload(DiscoverySource.submission_governance))
+        .populate_existing()
+        .filter(DiscoverySource.source_key == source_key)
+        .one_or_none()
+    )
+    if source is None:
+        raise SourceSubmissionRefused(SubmissionRefusal.UNREGISTERED)
+    governance = source.submission_governance
+    if governance is None or governance.contract_status not in {"verified", "broken"}:
+        raise SourceSubmissionRefused(SubmissionRefusal.CONTRACT_NOT_VERIFIED)
+
+    governance = _governance_for_update(db, governance.id)
+    source = _source_for_update(db, source.id)
+    try:
+        reviewed = SubmissionCompatibilityContract(
+            version=governance.contract_version,
+            fields=governance.contract_fields,
+            formats=governance.contract_formats,
+            error_semantics=governance.contract_error_semantics,
+        )
+    except (TypeError, ValueError) as error:
+        db.rollback()
+        raise SourceSubmissionRefused(SubmissionRefusal.CONTRACT_NOT_VERIFIED) from error
+
+    compatible = reviewed.model_dump(mode="json") == observed.model_dump(mode="json")
+    if not compatible:
+        _break_locked_contract(db, governance, source)
+    else:
+        # Release row locks before the best-effort analytics write commits its
+        # own transaction. An exact check never mutates governance state.
+        db.commit()
+
+    _record_governance_event(
+        db,
+        governance,
+        event_name="submission_contract_checked",
+        outcome="compatible" if compatible else "broken",
+    )
+    return compatible
+
+
+def trip_submission_contract_breakage(db: Session, discovery_source_id: str) -> None:
+    """Contain an adapter-observed contract break before another outward act."""
+    governance = (
+        db.query(SubmissionSourceGovernance)
+        .populate_existing()
+        .filter(SubmissionSourceGovernance.discovery_source_id == discovery_source_id)
+        .with_for_update()
+        .one_or_none()
+    )
+    source = (
+        db.query(DiscoverySource)
+        .populate_existing()
+        .filter(DiscoverySource.id == discovery_source_id)
+        .with_for_update()
+        .one_or_none()
+    )
+    if governance is None or source is None:
+        db.rollback()
+        raise SourceSubmissionRefused(SubmissionRefusal.UNREGISTERED)
+    _break_locked_contract(db, governance, source)
+    _record_governance_event(
+        db,
+        governance,
+        event_name="submission_contract_checked",
+        outcome="broken",
+    )
+
+
+def _break_locked_contract(
+    db: Session,
+    governance: SubmissionSourceGovernance,
+    source: DiscoverySource,
+) -> None:
+    was_promoted = governance.promoted
+    kill_was_clear = not governance.kill_switch
+    governance.contract_status = "broken"
+    governance.promoted = False
+    governance.promoted_at = None
+    governance.promoted_by = None
+    governance.kill_switch = True
+    db.commit()
+    db.refresh(governance)
+    if kill_was_clear:
+        _record_governance_event(
+            db,
+            governance,
+            event_name="submission_source_kill_switch",
+            outcome="kill_switch_enabled",
+        )
+    if was_promoted:
+        _record_governance_event(
+            db,
+            governance,
+            event_name="submission_source_promotion_changed",
+            outcome="demoted",
+        )
+
+
 def _governance_for_update(
     db: Session,
     governance_id: str,

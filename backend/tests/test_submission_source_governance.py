@@ -25,6 +25,7 @@ from app.services.discovery_sources import (
 from app.services.submission_sources import (
     SourceSubmissionRefused,
     SubmissionRefusal,
+    evaluate_submission_contract,
     operate_submission_kill_switch,
     promote_submission_source,
     record_submission_contract,
@@ -132,6 +133,55 @@ def test_local_contract_fixture_encodes_fields_formats_and_error_semantics():
         "challenge",
         "transient_failure",
     }
+
+
+def test_contract_monitor_trips_source_and_records_only_bounded_breakage(db):
+    actor = _admin(db)
+    source, governance = _authorized_source(db, actor)
+    observed = _contract().model_copy(update={"version": "synthetic-ats/v2"})
+
+    compatible = evaluate_submission_contract(db, source.source_key, observed)
+
+    assert compatible is False
+    db.refresh(governance)
+    assert governance.contract_status == "broken"
+    assert governance.promoted is False
+    assert governance.kill_switch is True
+    with pytest.raises(SourceSubmissionRefused):
+        require_submission_allowed(db, source.source_key)
+
+    events = (
+        db.query(AnalyticsEvent)
+        .filter(AnalyticsEvent.event_name == "submission_contract_checked")
+        .all()
+    )
+    assert len(events) == 1
+    assert events[0].operational_dimension == "employer_ats"
+    assert events[0].operational_outcome == "broken"
+    serialized = str(events[0].__dict__)
+    assert source.source_key not in serialized
+    assert source.display_name not in serialized
+    assert "candidate_name" not in serialized
+
+
+def test_contract_monitor_keeps_an_exact_contract_live(db):
+    actor = _admin(db)
+    source, governance = _authorized_source(db, actor)
+
+    compatible = evaluate_submission_contract(db, source.source_key, _contract())
+
+    assert compatible is True
+    db.refresh(governance)
+    assert governance.contract_status == "verified"
+    assert governance.promoted is True
+    assert governance.kill_switch is False
+    event = (
+        db.query(AnalyticsEvent)
+        .filter(AnalyticsEvent.event_name == "submission_contract_checked")
+        .one()
+    )
+    assert event.operational_dimension == "employer_ats"
+    assert event.operational_outcome == "compatible"
 
 
 def test_contract_rejects_missing_formats_duplicate_fields_and_unknown_content():

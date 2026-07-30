@@ -349,6 +349,36 @@ class AdminPacketGateResponse(BaseModel):
     pipeline_cleared: int = 0
 
 
+# ── R16 quality-first submission governance (#195, D-106/D-107) ──
+
+
+class SubmissionFamilyQuality(BaseModel):
+    """Content-free quality rates for one allowlisted source family.
+
+    ``evidence_base`` is supporting sample context, never a target or control
+    input. A rate is null when no confirmed submission exists in the window.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    source_family: str
+    evidence_base: int = Field(default=0, ge=0)
+    response_rate: float | None = Field(default=None, ge=0, le=1)
+    packet_edit_rate: float | None = Field(default=None, ge=0, le=1)
+    duplicate_prevention_rate: float | None = Field(default=None, ge=0, le=1)
+    complaint_rate: float | None = Field(default=None, ge=0, le=1)
+
+
+class AdminSubmissionQualityResponse(BaseModel):
+    """Read-only rates; this shape deliberately exposes no control mutation."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    window_start: str
+    window_end: str
+    families: list[SubmissionFamilyQuality] = []
+
+
 # Rebuild models that use forward references
 AdminUserDetailResponse.model_rebuild()
 AdminUserListResponse.model_rebuild()
