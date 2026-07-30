@@ -27,6 +27,7 @@ from app.models.submission_record import SubmissionDispatchClaim, SubmissionReco
 from app.models.submission_safety import SubmissionDispatchAttempt
 from app.models.submission_source import SubmissionSourceGovernance
 from app.models.submission_stop_event import SubmissionStopEvent
+from app.schemas.analytics import SubmissionQualityOutcome
 from app.schemas.application_packets import (
     PacketApprovalSnapshotContent,
     PacketSubmissionHandoff,
@@ -474,7 +475,11 @@ def _stopped_response(
     )
 
 
-def _record_quality_outcome(db: Session, source_id: str, outcome: str) -> None:
+def _record_quality_outcome(
+    db: Session,
+    source_id: str,
+    outcome: SubmissionQualityOutcome,
+) -> None:
     source_family = (
         db.query(DiscoverySource.source_family)
         .filter(DiscoverySource.id == source_id)
@@ -762,6 +767,11 @@ def submit_approved_snapshot(
                 snapshot_id=snapshot_id,
                 for_update=True,
             )
+            # Containment and its durable breakage audit commit while the
+            # packet/snapshot locks are still held. Only then may the stop
+            # record release the transaction; another worker can never observe
+            # the source as live after this mismatch was detected.
+            trip_submission_contract_breakage(db, source.discovery_source_id)
             stopped = _stop_and_return(
                 db,
                 snapshot=locked_snapshot,
@@ -774,7 +784,6 @@ def submit_approved_snapshot(
                 source_code="packet_contract_mismatch",
                 require_absent_claim=True,
             )
-            trip_submission_contract_breakage(db, source.discovery_source_id)
             return stopped
         initial_fields_json = _canonical(initial_fields)
         initial_fields_sha256 = _sha256(initial_fields_json)
@@ -868,6 +877,8 @@ def submit_approved_snapshot(
                 if adapter_result.reason in STOP_EXPLANATIONS
                 else "compatibility_mismatch"
             )
+            if reason == "compatibility_mismatch":
+                trip_submission_contract_breakage(db, source.discovery_source_id)
             stopped = _stop_and_return(
                 db,
                 snapshot=locked_snapshot,
@@ -879,8 +890,6 @@ def submit_approved_snapshot(
                 reason=reason,
                 source_code=adapter_result.source_code,
             )
-            if reason == "compatibility_mismatch":
-                trip_submission_contract_breakage(db, source.discovery_source_id)
             return stopped
         receipt = adapter_result
         semantic = next(
@@ -905,12 +914,16 @@ def submit_approved_snapshot(
         # A committed claim may already be shared by another worker that made an
         # ambiguous outward act. Never infer global non-invocation from this
         # caller's local control flow; preserve the frozen retry bytes.
-        db.rollback()
         if (
             isinstance(error, PacketSubmissionRefused)
             and error.reason == PacketSubmissionRefusal.CONTRACT_MISMATCH
         ):
+            # The final gate transaction still owns governance/source locks.
+            # Commit containment before releasing them; the frozen dispatch
+            # claim remains the only allowed retry evidence.
             trip_submission_contract_breakage(db, source.discovery_source_id)
+        else:
+            db.rollback()
         raise
     record = SubmissionRecord(
         user_id=user_id,

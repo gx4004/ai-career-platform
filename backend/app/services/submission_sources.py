@@ -14,7 +14,7 @@ from app.schemas.submission_sources import (
     SubmissionCompatibilityContract,
     SubmissionLegalTermsReview,
 )
-from app.services.analytics import safe_record_activation_event
+from app.services.analytics import record_activation_event, safe_record_activation_event
 
 
 class SubmissionRefusal(StrEnum):
@@ -301,12 +301,12 @@ def evaluate_submission_contract(
         # own transaction. An exact check never mutates governance state.
         db.commit()
 
-    _record_governance_event(
-        db,
-        governance,
-        event_name="submission_contract_checked",
-        outcome="compatible" if compatible else "broken",
-    )
+        _record_governance_event(
+            db,
+            governance,
+            event_name="submission_contract_checked",
+            outcome="compatible",
+        )
     return compatible
 
 
@@ -330,12 +330,6 @@ def trip_submission_contract_breakage(db: Session, discovery_source_id: str) -> 
         db.rollback()
         raise SourceSubmissionRefused(SubmissionRefusal.UNREGISTERED)
     _break_locked_contract(db, governance, source)
-    _record_governance_event(
-        db,
-        governance,
-        event_name="submission_contract_checked",
-        outcome="broken",
-    )
 
 
 def _break_locked_contract(
@@ -350,22 +344,34 @@ def _break_locked_contract(
     governance.promoted_at = None
     governance.promoted_by = None
     governance.kill_switch = True
-    db.commit()
-    db.refresh(governance)
+    # D-105's breakage record is audit evidence, not optional telemetry. Add
+    # every transition event through the strict allowlist seam and commit them
+    # atomically with containment so neither state nor evidence can exist alone.
+    record_activation_event(
+        db,
+        commit=False,
+        event_name="submission_contract_checked",
+        operational_dimension=source.source_family,
+        operational_outcome="broken",
+    )
     if kill_was_clear:
-        _record_governance_event(
+        record_activation_event(
             db,
-            governance,
+            commit=False,
             event_name="submission_source_kill_switch",
-            outcome="kill_switch_enabled",
+            operational_dimension=source.source_family,
+            operational_outcome="kill_switch_enabled",
         )
     if was_promoted:
-        _record_governance_event(
+        record_activation_event(
             db,
-            governance,
+            commit=False,
             event_name="submission_source_promotion_changed",
-            outcome="demoted",
+            operational_dimension=source.source_family,
+            operational_outcome="demoted",
         )
+    db.commit()
+    db.refresh(governance)
 
 
 def _governance_for_update(

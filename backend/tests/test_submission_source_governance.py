@@ -6,6 +6,7 @@ import pytest
 from pydantic import ValidationError
 from sqlalchemy.orm import sessionmaker
 
+import app.services.submission_sources as submission_sources_service
 from app.auth.security import create_access_token, hash_password
 from app.models.analytics_event import AnalyticsEvent
 from app.models.discovery_source import DiscoverySource
@@ -162,6 +163,35 @@ def test_contract_monitor_trips_source_and_records_only_bounded_breakage(db):
     assert source.source_key not in serialized
     assert source.display_name not in serialized
     assert "candidate_name" not in serialized
+
+
+def test_contract_breakage_state_and_audit_are_atomic(db, monkeypatch):
+    actor = _admin(db)
+    source, governance = _authorized_source(db, actor)
+    observed = _contract().model_copy(update={"version": "synthetic-ats/v2"})
+
+    def reject_audit(*args, **kwargs):
+        raise RuntimeError("audit unavailable")
+
+    monkeypatch.setattr(
+        submission_sources_service,
+        "record_activation_event",
+        reject_audit,
+    )
+    with pytest.raises(RuntimeError, match="audit unavailable"):
+        evaluate_submission_contract(db, source.source_key, observed)
+    db.rollback()
+    db.refresh(governance)
+
+    assert governance.contract_status == "verified"
+    assert governance.promoted is True
+    assert governance.kill_switch is False
+    assert (
+        db.query(AnalyticsEvent)
+        .filter(AnalyticsEvent.event_name == "submission_contract_checked")
+        .count()
+        == 0
+    )
 
 
 def test_contract_monitor_keeps_an_exact_contract_live(db):

@@ -5,6 +5,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.schemas.analytics import DiscoverySourceFamily
 from app.schemas.development import DevelopmentResponseKind, DevelopmentState
 from app.schemas.gap_classification import GapKind
 
@@ -361,7 +362,7 @@ class SubmissionFamilyQuality(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    source_family: str
+    source_family: DiscoverySourceFamily
     evidence_base: int = Field(default=0, ge=0)
     response_rate: float | None = Field(default=None, ge=0, le=1)
     packet_edit_rate: float | None = Field(default=None, ge=0, le=1)

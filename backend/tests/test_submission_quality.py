@@ -5,6 +5,7 @@ from pydantic import ValidationError
 
 from app.auth.security import create_access_token, hash_password
 from app.models.user import User
+from app.schemas.admin import SubmissionFamilyQuality
 from app.services.analytics import record_activation_event
 from app.services.submission_quality import (
     SOURCE_FAMILIES,
@@ -61,7 +62,7 @@ def test_quality_view_reports_rates_by_family_without_control_authority(db):
     assert ats.evidence_base == 4
     assert ats.response_rate == 0.5
     assert ats.packet_edit_rate == 0.25
-    assert ats.duplicate_prevention_rate == 0.25
+    assert ats.duplicate_prevention_rate == 0.2
     assert ats.complaint_rate == 0.0
     assert "kill" not in result.model_dump_json()
     assert "activate" not in result.model_dump_json()
@@ -70,6 +71,31 @@ def test_quality_view_reports_rates_by_family_without_control_authority(db):
     assert empty.evidence_base == 0
     assert empty.response_rate is None
     assert empty.packet_edit_rate is None
+
+
+def test_duplicate_prevention_rate_stays_bounded_across_repeated_retries(db):
+    for outcome in ("confirmed", "duplicate_prevented", "duplicate_prevented"):
+        record_submission_quality_outcome(
+            db,
+            source_family="employer_ats",
+            outcome=outcome,
+        )
+
+    now = datetime.now(UTC)
+    result = aggregate_submission_quality(
+        db,
+        window_start=now - timedelta(days=1),
+        window_end=now + timedelta(days=1),
+    )
+
+    ats = next(row for row in result.families if row.source_family == "employer_ats")
+    assert ats.duplicate_prevention_rate == 0.6667
+    assert 0 <= ats.duplicate_prevention_rate <= 1
+
+
+def test_quality_response_rejects_unknown_source_families():
+    with pytest.raises(ValidationError):
+        SubmissionFamilyQuality(source_family="arbitrary", evidence_base=0)
 
 
 def test_submission_quality_events_reject_packet_content_and_field_values(db):

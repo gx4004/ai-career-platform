@@ -1411,7 +1411,8 @@ The dark #195 compatibility monitor compares a strict observed contract with the
 reviewed stored contract; it never fetches a form or accepts arbitrary provider
 content. Mismatch containment is sticky and fail closed: the contract becomes
 `broken`, promotion is removed, and the submission kill switch is tripped before
-another act. Recovery requires a new reviewed contract plus explicit re-promotion
+another act; the bounded breakage audit commits atomically with that containment.
+Recovery requires a new reviewed contract plus explicit re-promotion
 and kill-switch clearance. Events contain only the allowlisted source family and
 closed compatibility/quality outcome. Backend validation rejects packet content,
 submitted fields, source keys, user ids, and provider prose; the frontend strict
@@ -1420,7 +1421,8 @@ context but has no mutation control, so neither raw volume nor a favorable metri
 can weaken the four gates. This limits abuse of the product as a submission proxy:
 contract drift stops the source, authorization remains non-secret and per-source,
 and immutable audit/confirmation evidence cannot be rewritten to hide an outward
-act.
+act. Duplicate prevention is bounded by confirmed-plus-prevented logical attempts,
+so retry traffic cannot overflow or disable the read-only quality view.
 
 Discovered listings are non-user product data in dedicated canonical and source-
 attribution tables; neither table carries a user/workspace key or references

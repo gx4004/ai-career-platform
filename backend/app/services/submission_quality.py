@@ -25,6 +25,14 @@ def _rate(counts: dict[str, int], outcome: str) -> float | None:
     return round(counts.get(outcome, 0) / confirmed, 4)
 
 
+def _duplicate_prevention_rate(counts: dict[str, int]) -> float | None:
+    confirmed = counts.get("confirmed", 0)
+    if confirmed == 0:
+        return None
+    prevented = counts.get("duplicate_prevented", 0)
+    return round(prevented / (confirmed + prevented), 4)
+
+
 def record_submission_quality_outcome(
     db: Session,
     *,
@@ -94,7 +102,7 @@ def aggregate_submission_quality(
                 evidence_base=confirmed,
                 response_rate=_rate(family_counts, "response_received"),
                 packet_edit_rate=_rate(family_counts, "packet_edited"),
-                duplicate_prevention_rate=_rate(family_counts, "duplicate_prevented"),
+                duplicate_prevention_rate=_duplicate_prevention_rate(family_counts),
                 complaint_rate=_rate(family_counts, "complaint_reported"),
             )
         )

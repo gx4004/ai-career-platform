@@ -19,7 +19,7 @@ function renderPage() {
         evidence_base: 8,
         response_rate: 0.5,
         packet_edit_rate: 0.25,
-        duplicate_prevention_rate: 0.125,
+        duplicate_prevention_rate: 0.2,
         complaint_rate: 0,
       },
       {
@@ -48,7 +48,7 @@ describe('AdminSubmissionQualityPage', () => {
     expect(await screen.findByText('employer_ats')).toBeTruthy()
     expect(screen.getByText('50%')).toBeTruthy()
     expect(screen.getByText('25%')).toBeTruthy()
-    expect(screen.getByText('12.5%')).toBeTruthy()
+    expect(screen.getByText('20%')).toBeTruthy()
     expect(screen.getByText('8 confirmations')).toBeTruthy()
     expect(screen.getAllByText('Not enough evidence').length).toBeGreaterThan(0)
     expect(screen.queryByRole('button')).toBeNull()
