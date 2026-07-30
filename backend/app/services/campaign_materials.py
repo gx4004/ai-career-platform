@@ -1,9 +1,12 @@
+import json
 from typing import Literal
 
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from app.models.cv_document import CvDocument, CvVariant
+from app.models.packet_approval_snapshot import PacketApprovalSnapshot
+from app.models.submission_record import SubmissionRecord
 from app.models.tool_run import ToolRun
 from app.models.workspace import Workspace
 from app.schemas.history import (
@@ -13,9 +16,13 @@ from app.schemas.history import (
     CampaignMaterialSelectionRequest,
     CampaignRunReference,
     CampaignSelectedMaterials,
+    CampaignSubmissionConfirmationResponse,
 )
 from app.services.campaign_snapshots import snapshot_response
 from app.services.campaign_tracking import record_event
+from app.services.packet_approval_snapshot import (
+    snapshot_response as approval_snapshot_response,
+)
 from app.services.tool_runs import build_workspace_summary
 
 
@@ -34,6 +41,19 @@ def get_campaign_detail(db: Session, workspace: Workspace, user_id: str) -> Camp
         .all()
     )
     summary = build_workspace_summary(workspace, list(workspace.tool_runs))
+    submission_records = (
+        db.query(SubmissionRecord)
+        .join(
+            PacketApprovalSnapshot,
+            PacketApprovalSnapshot.id == SubmissionRecord.packet_approval_snapshot_id,
+        )
+        .filter(
+            SubmissionRecord.user_id == user_id,
+            PacketApprovalSnapshot.campaign_id == workspace.id,
+        )
+        .order_by(SubmissionRecord.submitted_at.asc(), SubmissionRecord.id.asc())
+        .all()
+    )
     return CampaignDetailResponse(
         **summary.model_dump(),
         selected_materials=CampaignSelectedMaterials(
@@ -60,6 +80,25 @@ def get_campaign_detail(db: Session, workspace: Workspace, user_id: str) -> Camp
         notes=list(workspace.campaign_notes),
         contacts=list(workspace.campaign_contacts),
         submission_snapshots=[snapshot_response(item) for item in workspace.submission_snapshots],
+        submission_confirmations=[
+            _submission_confirmation(record) for record in submission_records
+        ],
+    )
+
+
+def _submission_confirmation(
+    record: SubmissionRecord,
+) -> CampaignSubmissionConfirmationResponse:
+    snapshot = record.packet_approval_snapshot
+    return CampaignSubmissionConfirmationResponse(
+        record_id=record.id,
+        discovery_source_id=record.discovery_source_id,
+        contract_version=record.contract_version,
+        submitted_fields=json.loads(record.submitted_fields_json),
+        submitted_fields_sha256=record.submitted_fields_sha256,
+        source_confirmation_id=record.source_confirmation_id,
+        submitted_at=record.submitted_at,
+        snapshot=approval_snapshot_response(snapshot),
     )
 
 

@@ -1,11 +1,14 @@
+import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link } from '@tanstack/react-router'
-import { CalendarDays, ExternalLink, FileText, LockKeyhole } from 'lucide-react'
+import { Link, useNavigate } from '@tanstack/react-router'
+import { CalendarDays, ExternalLink, FileText, LockKeyhole, Trash2 } from 'lucide-react'
 import { AppStatePanel } from '#/components/app/AppStatePanel'
 import { PageFrame } from '#/components/app/PageFrame'
+import { Button } from '#/components/ui/button'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '#/components/ui/dialog'
 import { Skeleton } from '#/components/ui/skeleton'
 import { useSession } from '#/hooks/useSession'
-import { getCampaign, updateCampaignMaterials } from '#/lib/api/client'
+import { deleteCampaign, getCampaign, updateCampaignMaterials } from '#/lib/api/client'
 import type { CampaignMaterialSelection } from '#/lib/api/schemas'
 import { CampaignTracking } from './CampaignTracking'
 import { CampaignReminders } from './CampaignReminders'
@@ -16,6 +19,8 @@ type SelectionKey = keyof CampaignMaterialSelection
 export function CampaignPage({ campaignId }: { campaignId: string }) {
   const { status, openAuthDialog } = useSession()
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
+  const [deleteOpen, setDeleteOpen] = useState(false)
   const authenticated = status === 'authenticated'
   const query = useQuery({
     queryKey: ['campaign', campaignId], queryFn: () => getCampaign(campaignId), enabled: authenticated,
@@ -28,6 +33,14 @@ export function CampaignPage({ campaignId }: { campaignId: string }) {
     },
   })
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['campaign', campaignId] })
+  const deleteMutation = useMutation({
+    mutationFn: () => deleteCampaign(campaignId),
+    onSuccess: () => {
+      queryClient.removeQueries({ queryKey: ['campaign', campaignId] })
+      void queryClient.invalidateQueries({ queryKey: ['history-workspaces'] })
+      void navigate({ to: '/history' })
+    },
+  })
 
   if (status === 'loading') return <CampaignSkeleton />
   if (!authenticated) return <PageFrame><AppStatePanel badge="Account only" title="Sign in to open this campaign" description="Campaign listings and selected materials stay private to their owner." icon={<LockKeyhole aria-hidden="true" />} actions={[{ label: 'Sign in', onClick: () => openAuthDialog({ to: `/campaigns/${campaignId}`, reason: 'campaign' }) }]} /></PageFrame>
@@ -63,9 +76,22 @@ export function CampaignPage({ campaignId }: { campaignId: string }) {
         {mutation.isError ? <p className="campaign-error" role="alert">The selection could not be saved. Try again.</p> : null}
       </aside>
     </div>
-    <CampaignTracking campaign={campaign} campaignId={campaignId} refresh={refresh} />
+    <CampaignTracking campaign={campaign} campaignId={campaignId} refresh={refresh} onRequestDelete={() => setDeleteOpen(true)} />
     <CampaignReminders campaignId={campaignId} />
     <CampaignReviewer campaignId={campaignId} />
+    <Dialog open={deleteOpen} onOpenChange={(open) => { if (!deleteMutation.isPending) setDeleteOpen(open) }}>
+      <DialogContent showCloseButton={!deleteMutation.isPending}>
+        <DialogHeader>
+          <DialogTitle>Delete this campaign?</DialogTitle>
+          <DialogDescription>This permanently removes the campaign, its product-held submission confirmations, timeline, and retained snapshots. It cannot withdraw or recall the employer-held application.</DialogDescription>
+        </DialogHeader>
+        {deleteMutation.isError ? <p role="alert" className="campaign-error">The campaign could not be deleted. Try again.</p> : null}
+        <DialogFooter>
+          <Button variant="outline" disabled={deleteMutation.isPending} onClick={() => setDeleteOpen(false)}>Cancel</Button>
+          <Button variant="outline" className="button-destructive-soft" loading={deleteMutation.isPending} disabled={deleteMutation.isPending} onClick={() => deleteMutation.mutate()}><Trash2 size={14} className="mr-1.5" />{deleteMutation.isPending ? 'Deleting…' : 'Delete campaign'}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   </PageFrame>
 }
 
