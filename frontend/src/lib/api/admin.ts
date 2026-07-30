@@ -9,6 +9,7 @@ import { gapKindSchema } from '#/lib/api/gapClassificationSchemas'
 import {
   discoverySourceListSchema,
   discoverySourceSchema,
+  submissionSourceGovernanceSchema,
   type DiscoverySource,
   type DiscoverySourceList,
 } from '#/lib/api/discoverySchemas'
@@ -16,6 +17,17 @@ import {
   adminDiscoveryReportListSchema,
   type AdminDiscoveryReportList,
 } from '#/lib/api/schemas'
+import {
+  adminSubmissionSafetySchema,
+  submissionSafetyControlSchema,
+  submissionSafetyPolicyConfigSchema,
+  submissionSafetyPolicySchema,
+  type AdminSubmissionSafety,
+  type SubmissionIncidentRehearsalInput,
+  type SubmissionSafetyControl,
+  type SubmissionSafetyPolicy,
+  type SubmissionSafetyPolicyConfig,
+} from '#/lib/api/submissionSafetySchemas'
 
 export type { DiscoverySource, DiscoverySourceList } from '#/lib/api/discoverySchemas'
 
@@ -439,4 +451,55 @@ export async function setDiscoverySourceKillSwitch(
     { method: 'POST' },
   )
   return discoverySourceSchema.parse(response)
+}
+
+export async function getAdminSubmissionSafety(): Promise<AdminSubmissionSafety> {
+  return adminSubmissionSafetySchema.parse(
+    await adminRequest<unknown>('/admin/submission-safety'),
+  )
+}
+
+export async function setGlobalSubmissionKillSwitch(
+  tripped: boolean,
+): Promise<SubmissionSafetyControl> {
+  const response = await adminRequest<unknown>(
+    `/admin/submission-safety/global-kill-switch${buildQs({ tripped: String(tripped) })}`,
+    { method: 'POST' },
+  )
+  return submissionSafetyControlSchema.parse(response)
+}
+
+export async function recordSubmissionIncidentRehearsal(
+  rehearsal: SubmissionIncidentRehearsalInput,
+): Promise<SubmissionSafetyControl> {
+  const response = await adminRequest<unknown>('/admin/submission-safety/rehearsal', {
+    method: 'POST',
+    body: JSON.stringify(rehearsal),
+  })
+  return submissionSafetyControlSchema.parse(response)
+}
+
+export async function configureSourceSubmissionSafety(
+  sourceId: string,
+  config: SubmissionSafetyPolicyConfig,
+): Promise<SubmissionSafetyPolicy> {
+  const response = await adminRequest<unknown>(
+    `/admin/discovery-sources/${sourceId}/submission-safety`,
+    {
+      method: 'PUT',
+      body: JSON.stringify(submissionSafetyPolicyConfigSchema.parse(config)),
+    },
+  )
+  return submissionSafetyPolicySchema.parse(response)
+}
+
+export async function setSubmissionSourceKillSwitch(
+  sourceId: string,
+  tripped: boolean,
+) {
+  const response = await adminRequest<unknown>(
+    `/admin/discovery-sources/${sourceId}/submission-kill-switch${buildQs({ tripped: String(tripped) })}`,
+    { method: 'POST' },
+  )
+  return submissionSourceGovernanceSchema.parse(response)
 }

@@ -226,7 +226,7 @@ Browser → POST /auth/password-reset/confirm {token, new_password}
 | 12 | Workspace/campaign target, schedule, and transition history | High | `workspaces.label`, `workspaces.is_pinned`, `workspaces.company`, `workspaces.role`, `workspaces.status`, `workspaces.deadline`, `campaign_events.details` | Until deletion | Job-search intent, target employer, application timing, and outcome-history exposure |
 | 13 | Submission and packet-approval frozen bundles | High | `campaign_submission_snapshots.content_json`, `packet_approval_snapshots.content_json` | Until campaign/account deletion | Exact CV, cover letter, target listing, owner approval, and application-history exposure |
 | 14 | Discovery and submission source governance records | Medium | `discovery_sources`, `submission_source_governance` | Until registry deletion | Source contracts, legal-review posture, operational ownership, and acquisition/submission bounds exposed |
-| 15 | Per-source user submission authorization, frozen dispatch claim, and immutable submission proof | High | `submission_authorization_grants`, `submission_dispatch_claims`, `submission_records` | Grant until revocation; claim/record until packet/source/account deletion | Job-search automation intent, submitted fields, confirmation, and authorized employer-system relationship exposed |
+| 15 | Per-source user submission authorization, frozen dispatch claim, content-free attempt ledger, and immutable submission proof | High | `submission_authorization_grants`, `submission_dispatch_claims`, `submission_dispatch_attempts`, `submission_records` | Grant until revocation; claim/attempt/record until packet/source/account deletion | Job-search automation intent, submitted fields, timing, confirmation, and authorized employer-system relationship exposed |
 | 16 | Product-owned discovered listings | Medium-High | `discovered_listings`, `discovered_listing_attributions` | Per-source registry retention | Employer openings, acquisition sources, and stale corpus exposure |
 | 17 | Behavioral telemetry (event names, routes, timestamps) | Low | Log stdout, Sentry (if enabled) | 180-day durable-event window; processor retention otherwise deployment-defined | Usage pattern inference |
 | 18 | Sidebar state, language preference | None | `sidebar_state` cookie, `app_language` localStorage | 7 days / forever | None |
@@ -1367,6 +1367,29 @@ The complete content-free terminal-stop stream feeds #195's breakage seam so
 repeated challenges, authentication requests, uncertainty, validation rejection,
 and compatibility mismatches can be classified without exposing source content.
 #195, not #192, owns detection thresholds and automatic kill-switch action.
+
+The dark #193 envelope closes the otherwise-injected fourth gate. Its singleton
+global kill switch fails closed when absent and cannot be cleared until a bounded
+playbook version, evidence reference, operator identity, and explicit roles,
+rollback, and communication confirmations are appended to immutable rehearsal
+history. Each source has strict per-owner/per-source minute attempt limits,
+rolling-24-hour logical-claim volume limits, and an hourly attempt anomaly threshold;
+retrying one ambiguous idempotency claim records another content-free attempt but
+does not inflate logical volume. The engine checks the owner pause, global
+control, and source policy at dispatch, durably commits a conservative attempt
+reservation, then reacquires the complete lock chain and rechecks every mutable gate
+immediately before the adapter boundary. A process crash may conservatively consume
+budget but cannot erase a possible outward attempt. Revalidation binds the exact
+reservation to owner/source and the active minute window; an aged reservation stops
+before the adapter and must be replaced on retry. Concurrent source attempts serialize on the
+same policy row. Anomaly telemetry contains only source family, the closed anomaly
+outcome, and server time—never user/packet/source ids, URLs, claims, provider prose,
+or submitted fields. Operators can trip global and per-source controls without a
+deploy, owners see fixed block reasons and only their own bounded usage (never exact
+shared-source totals), and every environment starts globally killed. Tripping the
+global control invalidates the active rehearsal proof without deleting history, so
+recovery must append a fresh rehearsal before clearing. The documented rehearsal is dark implementation
+evidence only; it does not satisfy D-100 or authorize a real source.
 
 Discovered listings are non-user product data in dedicated canonical and source-
 attribution tables; neither table carries a user/workspace key or references

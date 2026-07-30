@@ -11,6 +11,12 @@ submit themselves. R16 #189 builds only the dark per-source governance gate;
 user authorization, submission automation, and every outward-act route remain
 unbuilt and may appear only behind all four ADR 0010 gates.
 
+R16 #193 adds an exact, closed set of admin-only safety-control routes. They can
+configure/read limits, attest a rehearsal, and trip kill switches; none accepts a
+packet, invokes an adapter, schedules work, or retries an outward act. The guard
+allowlists those paths exactly while remaining default-deny for every other path
+containing a submission-shaped token.
+
 This walks the router modules in ``app/routers/`` and inspects each
 ``APIRouter`` directly, rather than the assembled ``app.main`` application.
 Earlier revisions inspected the assembled app and, under CI only, saw an
@@ -39,6 +45,14 @@ FORBIDDEN_PATH_TOKENS = (
     "auto_apply",
     "autoapply",
 )
+
+ALLOWED_SUBMISSION_CONTROL_ROUTES = {
+    ("admin", "/submission-safety"),
+    ("admin", "/submission-safety/global-kill-switch"),
+    ("admin", "/submission-safety/rehearsal"),
+    ("admin", "/discovery-sources/{source_id}/submission-safety"),
+    ("admin", "/discovery-sources/{source_id}/submission-kill-switch"),
+}
 
 # ``/{document_id}/tailoring/apply`` applies a reviewed tailoring diff to the
 # user's own CV document. It does not apply *to a job*, so a bare "apply" token
@@ -94,6 +108,7 @@ def test_api_surface_exposes_no_submission_endpoint():
         for module, path in _router_routes()
         for token in FORBIDDEN_PATH_TOKENS
         if token in path.lower()
+        and (module, path) not in ALLOWED_SUBMISSION_CONTROL_ROUTES
     )
 
     assert offenders == [], (
@@ -102,6 +117,17 @@ def test_api_surface_exposes_no_submission_endpoint():
         f"{offenders}. Submission automation belongs behind R16's per-source "
         "authorization contract (ADR 0010) and requires that gate to be open."
     )
+
+
+def test_submission_named_routes_are_only_the_exact_safety_control_set():
+    routes = set(_router_routes())
+    named_routes = {
+        (module, path)
+        for module, path in routes
+        if any(token in path.lower() for token in FORBIDDEN_PATH_TOKENS)
+    }
+
+    assert named_routes == ALLOWED_SUBMISSION_CONTROL_ROUTES
 
 
 def test_tailoring_apply_is_not_treated_as_a_submission_route():

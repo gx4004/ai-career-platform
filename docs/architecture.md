@@ -510,6 +510,27 @@ errors remain forbidden.
   destination and its source identity are frozen to the selected governed source.
   Ambiguous post-act timeouts or invalid/unknown confirmations do not become terminal
   handoffs; they retain the exact durable claim for source-native reconciliation.
+- The dark #193 envelope is the engine's authoritative fourth checkpoint. A singleton
+  global kill switch defaults on; clearing it requires a recorded incident-playbook
+  rehearsal. Strict per-source policies bound each owner and each source by rolling
+  minute append-only adapter-attempt counts and rolling 24-hour logical-claim
+  volume, with a separate hourly attempt anomaly threshold. Retries of one frozen
+  idempotency claim are separate rate/anomaly attempts but one logical volume unit.
+  The engine consults the owner queue pause plus global control and source policy at
+  dispatch, durably commits a conservative attempt reservation, then reacquires the
+  complete lock chain and rechecks every mutable gate immediately before its adapter
+  boundary. A process crash can therefore over-count an attempt but cannot erase an
+  outward-call reservation or bypass retry throttling. The second check binds the
+  exact reservation ID to owner/source and the active minute window; an aged
+  reservation fails closed and a later retry must reserve again.
+  Anomalies emit only source family and a closed outcome. Owners can inspect their
+  exact owner-only bounded usage and a closed block reason; shared-source counts stay
+  internal. Rehearsals append immutable evidence references plus explicit roles,
+  rollback, and communication confirmations. Tripping the global control consumes
+  the active proof without deleting its history, so recovery requires a fresh
+  rehearsal before admins can clear it again. Admins can configure
+  limits and trip global/source controls without a deploy. No public submit route,
+  scheduler, credential flow, real adapter, or activation is added.
 - Quality and user outcomes govern operation; raw volume never loosens controls
   (D-106).
 - Submission records follow the standard lifecycle for product copies, with the

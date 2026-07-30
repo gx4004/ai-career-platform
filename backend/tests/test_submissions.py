@@ -62,18 +62,54 @@ class FixtureEnvelope:
     def __init__(self, *, healthy: bool = True):
         self.healthy = healthy
         self.checks: list[tuple[str, str]] = []
+        self.reservation_checks: list[str | None] = []
 
-    def require_healthy(self, db, *, user_id: str, source_id: str) -> None:
+    def require_healthy(
+        self,
+        db,
+        *,
+        user_id: str,
+        source_id: str,
+        snapshot_id: str,
+        serialize: bool = False,
+        attempt_reservation_id: str | None = None,
+    ) -> None:
         self.checks.append((user_id, source_id))
+        self.reservation_checks.append(attempt_reservation_id)
         if not self.healthy:
             raise EnvelopeBlocked("submission envelope is not healthy")
 
+    def record_attempt(self, db, *, user_id: str, source_id: str, idempotency_key: str) -> str:
+        return "fixture-attempt"
+
 
 class FlipEnvelope(FixtureEnvelope):
-    def require_healthy(self, db, *, user_id: str, source_id: str) -> None:
-        super().require_healthy(db, user_id=user_id, source_id=source_id)
+    def require_healthy(
+        self,
+        db,
+        *,
+        user_id: str,
+        source_id: str,
+        snapshot_id: str,
+        serialize: bool = False,
+        attempt_reservation_id: str | None = None,
+    ) -> None:
+        super().require_healthy(
+            db,
+            user_id=user_id,
+            source_id=source_id,
+            snapshot_id=snapshot_id,
+            serialize=serialize,
+            attempt_reservation_id=attempt_reservation_id,
+        )
         if len(self.checks) == 1:
             self.healthy = False
+
+
+class FlipAfterReservationEnvelope(FixtureEnvelope):
+    def record_attempt(self, db, *, user_id: str, source_id: str, idempotency_key: str) -> str:
+        self.healthy = False
+        return "fixture-attempt"
 
 
 class FixtureAdapter:
@@ -306,7 +342,9 @@ def test_submits_exact_frozen_fields_once_and_persists_proof(db, test_user):
         (test_user.id, source.id),
         (test_user.id, source.id),
         (test_user.id, source.id),
+        (test_user.id, source.id),
     ]
+    assert envelope.reservation_checks == [None, None, "fixture-attempt", None]
 
 
 def test_process_restart_uses_durable_record_not_in_memory_state(db, test_user):
@@ -570,9 +608,21 @@ def test_pre_act_failure_preserves_the_globally_shared_frozen_claim(db, test_use
     )
 
 
-def test_non_accepted_receipt_stays_on_frozen_reconciliation_without_manual_handoff(
-    db, test_user
-):
+def test_mutable_gates_are_rechecked_after_durable_attempt_reservation(db, test_user):
+    source, _, grant = _source_and_grant(db, test_user)
+    snapshot = _snapshot(db, test_user)
+    envelope = FlipAfterReservationEnvelope()
+    adapter = FixtureAdapter()
+
+    with pytest.raises(EnvelopeBlocked):
+        _submit(db, test_user, snapshot, source, grant, envelope, adapter)
+
+    assert envelope.reservation_checks == [None, None, "fixture-attempt"]
+    assert adapter.requests == []
+    assert db.query(SubmissionDispatchClaim).count() == 1
+
+
+def test_non_accepted_receipt_stays_on_frozen_reconciliation_without_manual_handoff(db, test_user):
     source, _, grant = _source_and_grant(db, test_user)
     snapshot = _snapshot(db, test_user)
 

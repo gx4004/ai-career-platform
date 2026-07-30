@@ -33,12 +33,15 @@ from sqlalchemy.orm import Session
 
 from app.models.analytics_event import AnalyticsEvent
 from app.models.pipeline_halt import PipelineHalt
+from app.models.submission_safety import SubmissionSafetyControl
+from app.models.user import User
 from app.schemas.admin import AdminPacketGateResponse
 from app.services.analytics import safe_record_activation_event
 
 # The one scope this ticket governs. A single ``pipeline_halts`` row for this scope
 # means preparation is halted; no row means it is running.
 PREPARATION_HALT_SCOPE = "packet-preparation"
+
 
 # The owner-initiated pause (R15 #183). Scoped per user — embedding the user id in
 # the ``pipeline_halts`` scope string keeps it on the same halt/consultation seam as
@@ -51,6 +54,24 @@ def _queue_pause_scope(user_id: str) -> str:
 
 
 QUEUE_PAUSE_REASON = "user_paused"
+
+
+def _lock_submission_control(db: Session) -> None:
+    """Acquire the shared operational lock before owner pause-state mutation."""
+
+    control = (
+        db.query(SubmissionSafetyControl)
+        .filter(SubmissionSafetyControl.id == "global")
+        .with_for_update()
+        .one_or_none()
+    )
+    if control is None:
+        # Production migrations seed the singleton. create_all-based tests still
+        # need the same fail-closed row without importing the safety service and
+        # creating a packet_gate <-> submission_safety cycle.
+        db.add(SubmissionSafetyControl(id="global", global_kill_switch=True))
+        db.flush()
+
 
 # The reviewer category that represents a fabrication finding (D-097). It is the
 # reviewer's groundedness check — a claim not traceable to confirmed evidence or the
@@ -188,6 +209,7 @@ def delete_queue_pause_state(db: Session, user_id: str) -> None:
     per-user pause row IS this owner's data and must not outlive their account. No
     commit here — the caller commits once as part of the larger erasure transaction.
     """
+    _lock_submission_control(db)
     db.query(PipelineHalt).filter(PipelineHalt.scope == _queue_pause_scope(user_id)).delete()
 
 
@@ -210,6 +232,12 @@ def pause_preparation(db: Session, user_id: str, *, now: datetime | None = None)
     audit event (``queue_paused``) is recorded by the caller.
     """
     now = now or datetime.now(UTC)
+    # Serialize the owner control with submission's final safety boundary. This
+    # makes a pause concurrent with dispatch take effect on one side of a single
+    # row lock: either the already-authorized act finishes first, or the pause is
+    # visible before the adapter can be called.
+    _lock_submission_control(db)
+    db.query(User.id).filter(User.id == user_id).with_for_update().one()
     scope = _queue_pause_scope(user_id)
     row = _halt_row(db, scope)
     if row is None:
@@ -229,6 +257,8 @@ def resume_preparation(db: Session, user_id: str) -> HaltStatus:
     regression halt (``packet-preparation``) is untouched and still blocks
     preparation, and other owners' pauses are untouched. Idempotent.
     """
+    _lock_submission_control(db)
+    db.query(User.id).filter(User.id == user_id).with_for_update().one()
     row = _halt_row(db, _queue_pause_scope(user_id))
     if row is not None:
         db.delete(row)
@@ -255,9 +285,7 @@ def evaluate_regression(
     regression is never masked by a concurrent quality regression.
     """
     if fabrication_report is not None:
-        candidates = sum(
-            tool.candidate_count for tool in fabrication_report.per_tool.values()
-        )
+        candidates = sum(tool.candidate_count for tool in fabrication_report.per_tool.values())
         if candidates > fabrication_max_candidates:
             return True, "fabrication_regression"
     if calibration_report is not None:
@@ -296,9 +324,7 @@ def apply_regression_gate(
 
 def emit_gate_running(db: Session) -> None:
     """A preparation run started the trust-chain gate (pipeline-wide ``running``)."""
-    safe_record_activation_event(
-        db, event_name="packet_queue_gate", operational_outcome="running"
-    )
+    safe_record_activation_event(db, event_name="packet_queue_gate", operational_outcome="running")
 
 
 def emit_gate_outcome(db: Session, *, gate_state: str) -> None:
@@ -341,9 +367,7 @@ def aggregate_packet_gate(
         .filter(
             AnalyticsEvent.created_at >= window_start,
             AnalyticsEvent.created_at <= window_end,
-            AnalyticsEvent.event_name.in_(
-                ("packet_queue_gate", "packet_preparation_halt")
-            ),
+            AnalyticsEvent.event_name.in_(("packet_queue_gate", "packet_preparation_halt")),
         )
         .group_by(AnalyticsEvent.event_name, AnalyticsEvent.operational_outcome)
         .all()

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Request, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy.orm import Session
 
 from app.auth.security import get_current_user
@@ -6,10 +6,12 @@ from app.database import get_db
 from app.limiter import limiter
 from app.models.user import User
 from app.schemas.submission_authorizations import SubmissionAuthorizationListResponse
+from app.schemas.submission_safety import OwnerSubmissionSafetyStatus
 from app.services.submission_authorizations import (
     revoke_submission_authorization,
     submission_authorization_list,
 )
+from app.services.submission_safety import owner_submission_safety_status
 
 router = APIRouter()
 
@@ -23,6 +25,20 @@ def list_active_grants(
 ):
     """List every active source-specific grant owned by the caller."""
     return submission_authorization_list(db, current_user.id)
+
+
+@router.get("/{grant_id}/safety", response_model=OwnerSubmissionSafetyStatus)
+@limiter.limit("30/minute")
+def get_grant_safety(
+    grant_id: str,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    safety = owner_submission_safety_status(db, user_id=current_user.id, grant_id=grant_id)
+    if safety is None:
+        raise HTTPException(status_code=404, detail="Submission authorization not found")
+    return safety
 
 
 @router.delete("/{grant_id}", status_code=status.HTTP_204_NO_CONTENT)

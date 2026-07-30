@@ -24,6 +24,7 @@ from app.models.discovery_source import DiscoverySource
 from app.models.packet_approval_snapshot import PacketApprovalSnapshot
 from app.models.submission_authorization import SubmissionAuthorizationGrant
 from app.models.submission_record import SubmissionDispatchClaim, SubmissionRecord
+from app.models.submission_safety import SubmissionDispatchAttempt
 from app.models.submission_source import SubmissionSourceGovernance
 from app.models.submission_stop_event import SubmissionStopEvent
 from app.schemas.application_packets import (
@@ -33,6 +34,7 @@ from app.schemas.application_packets import (
 )
 from app.schemas.submission_sources import SubmissionCompatibilityContract
 from app.schemas.submissions import (
+    SubmissionDispatchAttemptResponse,
     SubmissionDispatchClaimResponse,
     SubmissionRecordResponse,
     SubmissionRecordsExport,
@@ -43,7 +45,10 @@ from app.schemas.submissions import (
 from app.services.submission_authorizations import (
     require_active_submission_authorization,
 )
-from app.services.submission_sources import require_submission_allowed
+from app.services.submission_sources import (
+    SourceSubmissionAuthorization,
+    require_submission_allowed,
+)
 
 
 class PacketSubmissionRefusal(StrEnum):
@@ -107,7 +112,19 @@ class SubmissionEnvelopeGate(Protocol):
         *,
         user_id: str,
         source_id: str,
+        snapshot_id: str,
+        serialize: bool = False,
+        attempt_reservation_id: str | None = None,
     ) -> None: ...
+
+    def record_attempt(
+        self,
+        db: Session,
+        *,
+        user_id: str,
+        source_id: str,
+        idempotency_key: str,
+    ) -> str | None: ...
 
 
 def _canonical(value: object) -> str:
@@ -557,6 +574,111 @@ def _stop_and_return(
     return _stopped_response(event, locked_snapshot)
 
 
+@dataclass(frozen=True)
+class _LockedDispatchReady:
+    snapshot: PacketApprovalSnapshot
+    source: SourceSubmissionAuthorization
+    claim: SubmissionDispatchClaim
+    fields: dict[str, object]
+    accepted_codes: set[str]
+
+
+def _lock_and_validate_dispatch(
+    db: Session,
+    *,
+    user_id: str,
+    snapshot_id: str,
+    expected_snapshot_sha256: str,
+    source_id: str,
+    source_key: str,
+    grant_id: str,
+    idempotency_key: str,
+    envelope_gate: SubmissionEnvelopeGate,
+    attempt_reservation_id: str | None,
+) -> _LockedDispatchReady | SubmissionRecordResponse | SubmissionStoppedResponse:
+    """Acquire the complete final lock chain and revalidate every mutable gate."""
+
+    locked_snapshot, content = _approved_snapshot(
+        db,
+        user_id=user_id,
+        snapshot_id=snapshot_id,
+        for_update=True,
+    )
+    if locked_snapshot.content_sha256 != expected_snapshot_sha256:
+        raise PacketSubmissionRefused(PacketSubmissionRefusal.SNAPSHOT_INTEGRITY_FAILED)
+    _require_frozen_handoff(locked_snapshot, content, source_id=source_id)
+    claim = _lock_dispatch_claim(
+        db,
+        key=idempotency_key,
+        user_id=user_id,
+        snapshot_id=snapshot_id,
+        source_id=source_id,
+        grant_id=grant_id,
+        snapshot_content_sha256=expected_snapshot_sha256,
+    )
+    terminal_stop = (
+        db.query(SubmissionStopEvent)
+        .filter(
+            SubmissionStopEvent.packet_approval_snapshot_id == snapshot_id,
+            SubmissionStopEvent.discovery_source_id == source_id,
+        )
+        .one_or_none()
+    )
+    if terminal_stop is not None:
+        db.commit()
+        return _stopped_response(terminal_stop, locked_snapshot)
+    existing = (
+        db.query(SubmissionRecord)
+        .filter(
+            SubmissionRecord.user_id == user_id,
+            SubmissionRecord.packet_approval_snapshot_id == snapshot_id,
+            SubmissionRecord.discovery_source_id == source_id,
+        )
+        .one_or_none()
+    )
+    if existing is not None:
+        db.commit()
+        return _response(existing)
+    source = _lock_and_recheck_mutable_gates(
+        db,
+        user_id=user_id,
+        source_id=claim.discovery_source_id,
+        source_key=source_key,
+        grant_id=claim.authorization_grant_id,
+    )
+    envelope_gate.require_healthy(
+        db,
+        user_id=user_id,
+        source_id=source.discovery_source_id,
+        snapshot_id=snapshot_id,
+        serialize=True,
+        attempt_reservation_id=attempt_reservation_id,
+    )
+    current_fields_json = _canonical(_contract_fields(content, source.contract))
+    current_codes_json = _canonical(
+        sorted(
+            item.source_code
+            for item in source.contract.error_semantics
+            if item.meaning == "accepted" and item.handling == "confirm_success"
+        )
+    )
+    if (
+        source.contract.version != claim.contract_version
+        or _contract_sha256(source.contract) != claim.contract_sha256
+        or current_fields_json != claim.submitted_fields_json
+        or current_codes_json != claim.accepted_source_codes_json
+    ):
+        raise PacketSubmissionRefused(PacketSubmissionRefusal.CONTRACT_MISMATCH)
+    fields, accepted_codes = _validated_claim_request(claim)
+    return _LockedDispatchReady(
+        snapshot=locked_snapshot,
+        source=source,
+        claim=claim,
+        fields=fields,
+        accepted_codes=accepted_codes,
+    )
+
+
 def submit_approved_snapshot(
     db: Session,
     *,
@@ -592,7 +714,12 @@ def submit_approved_snapshot(
         source_id=source.discovery_source_id,
         grant_id=grant_id,
     )
-    envelope_gate.require_healthy(db, user_id=user_id, source_id=source.discovery_source_id)
+    envelope_gate.require_healthy(
+        db,
+        user_id=user_id,
+        source_id=source.discovery_source_id,
+        snapshot_id=snapshot.id,
+    )
     key = _idempotency_key(snapshot.id, source.discovery_source_id)
     prior_claim = (
         db.query(SubmissionDispatchClaim)
@@ -660,81 +787,50 @@ def submit_approved_snapshot(
         accepted_source_codes_json=accepted_codes_json,
     )
     try:
-        # Match campaign deletion's packet -> snapshot -> claim lock order.
-        locked_snapshot, content = _approved_snapshot(
+        ready = _lock_and_validate_dispatch(
             db,
             user_id=user_id,
             snapshot_id=snapshot_id,
-            for_update=True,
-        )
-        if locked_snapshot.content_sha256 != snapshot.content_sha256:
-            raise PacketSubmissionRefused(PacketSubmissionRefusal.SNAPSHOT_INTEGRITY_FAILED)
-        _require_frozen_handoff(
-            locked_snapshot,
-            content,
+            expected_snapshot_sha256=snapshot.content_sha256,
             source_id=source.discovery_source_id,
-        )
-        claim = _lock_dispatch_claim(
-            db,
-            key=key,
-            user_id=user_id,
-            snapshot_id=snapshot.id,
-            source_id=source.discovery_source_id,
-            grant_id=grant_id,
-            snapshot_content_sha256=snapshot.content_sha256,
-        )
-        terminal_stop = (
-            db.query(SubmissionStopEvent)
-            .filter(
-                SubmissionStopEvent.packet_approval_snapshot_id == snapshot.id,
-                SubmissionStopEvent.discovery_source_id == source.discovery_source_id,
-            )
-            .one_or_none()
-        )
-        if terminal_stop is not None:
-            db.commit()
-            return _stopped_response(terminal_stop, locked_snapshot)
-        existing = (
-            db.query(SubmissionRecord)
-            .filter(
-                SubmissionRecord.user_id == user_id,
-                SubmissionRecord.packet_approval_snapshot_id == snapshot.id,
-                SubmissionRecord.discovery_source_id == source.discovery_source_id,
-            )
-            .one_or_none()
-        )
-        if existing is not None:
-            db.commit()
-            return _response(existing)
-        # Re-read every mutable gate while holding all submission/deletion locks
-        # immediately before the irreversible outward act.
-        source = _lock_and_recheck_mutable_gates(
-            db,
-            user_id=user_id,
-            source_id=claim.discovery_source_id,
             source_key=source_key,
-            grant_id=claim.authorization_grant_id,
+            grant_id=grant_id,
+            idempotency_key=key,
+            envelope_gate=envelope_gate,
+            attempt_reservation_id=None,
         )
-        envelope_gate.require_healthy(db, user_id=user_id, source_id=source.discovery_source_id)
-        current_fields_json = _canonical(_contract_fields(content, source.contract))
-        current_codes_json = _canonical(
-            sorted(
-                item.source_code
-                for item in source.contract.error_semantics
-                if item.meaning == "accepted" and item.handling == "confirm_success"
-            )
+        if not isinstance(ready, _LockedDispatchReady):
+            return ready
+
+        # Commit the conservative reservation before crossing the process/network
+        # boundary. A crash after the source receives bytes can no longer erase
+        # the rate/anomaly evidence. The commit releases all locks, so the entire
+        # chain is acquired and checked again below before any outward call.
+        attempt_reservation_id = envelope_gate.record_attempt(
+            db,
+            user_id=user_id,
+            source_id=source.discovery_source_id,
+            idempotency_key=key,
         )
-        if (
-            source.contract.version != claim.contract_version
-            or _contract_sha256(source.contract) != claim.contract_sha256
-            or current_fields_json != claim.submitted_fields_json
-            or current_codes_json != claim.accepted_source_codes_json
-        ):
-            # A shared durable claim may represent an earlier ambiguous outward
-            # act. Never offer a manual handoff when completion could be unknown;
-            # preserve #191's frozen native-idempotent reconciliation boundary.
-            raise PacketSubmissionRefused(PacketSubmissionRefusal.CONTRACT_MISMATCH)
-        fields, accepted_codes = _validated_claim_request(claim)
+        ready = _lock_and_validate_dispatch(
+            db,
+            user_id=user_id,
+            snapshot_id=snapshot_id,
+            expected_snapshot_sha256=snapshot.content_sha256,
+            source_id=source.discovery_source_id,
+            source_key=source_key,
+            grant_id=grant_id,
+            idempotency_key=key,
+            envelope_gate=envelope_gate,
+            attempt_reservation_id=attempt_reservation_id,
+        )
+        if not isinstance(ready, _LockedDispatchReady):
+            return ready
+        locked_snapshot = ready.snapshot
+        source = ready.source
+        claim = ready.claim
+        fields = ready.fields
+        accepted_codes = ready.accepted_codes
         fields_json = claim.submitted_fields_json
         adapter_result = adapter.submit_idempotently(
             SubmissionAdapterRequest(
@@ -840,6 +936,15 @@ def export_submission_records(db: Session, user_id: str) -> SubmissionRecordsExp
         .order_by(SubmissionStopEvent.created_at.asc(), SubmissionStopEvent.id.asc())
         .all()
     )
+    attempts = (
+        db.query(SubmissionDispatchAttempt)
+        .filter(SubmissionDispatchAttempt.user_id == user_id)
+        .order_by(
+            SubmissionDispatchAttempt.created_at.asc(),
+            SubmissionDispatchAttempt.id.asc(),
+        )
+        .all()
+    )
     return SubmissionRecordsExport(
         record_count=len(rows),
         records=[_response(row) for row in rows],
@@ -858,6 +963,10 @@ def export_submission_records(db: Session, user_id: str) -> SubmissionRecordsExp
                 created_at=claim.created_at,
             )
             for claim in claims
+        ],
+        dispatch_attempt_count=len(attempts),
+        dispatch_attempts=[
+            SubmissionDispatchAttemptResponse.model_validate(attempt) for attempt in attempts
         ],
         stop_count=len(stops),
         stops=[_stop_event_response(event) for event in stops],
@@ -935,10 +1044,20 @@ def delete_submission_records(db: Session, user_id: str) -> int:
         .with_for_update()
         .all()
     )
+    (
+        db.query(SubmissionDispatchAttempt)
+        .filter(SubmissionDispatchAttempt.user_id == user_id)
+        .order_by(SubmissionDispatchAttempt.id.asc())
+        .with_for_update()
+        .all()
+    )
     deleted = (
         db.query(SubmissionRecord)
         .filter(SubmissionRecord.user_id == user_id)
         .delete(synchronize_session=False)
+    )
+    db.query(SubmissionDispatchAttempt).filter(SubmissionDispatchAttempt.user_id == user_id).delete(
+        synchronize_session=False
     )
     db.query(SubmissionDispatchClaim).filter(SubmissionDispatchClaim.user_id == user_id).delete(
         synchronize_session=False
