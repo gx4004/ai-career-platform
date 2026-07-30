@@ -7,7 +7,7 @@ import json
 import os
 import sys
 import threading
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from sqlalchemy import create_engine, text
@@ -22,6 +22,7 @@ from app.models.discovery_source import DiscoverySource
 from app.models.packet_approval_snapshot import PacketApprovalSnapshot
 from app.models.submission_authorization import SubmissionAuthorizationGrant
 from app.models.submission_safety import (
+    SubmissionDispatchAttempt,
     SubmissionIncidentRehearsal,
     SubmissionSafetyControl,
     SubmissionSafetyPolicy,
@@ -763,6 +764,66 @@ def main() -> None:
             == 1
         )
     assert ambiguous_retry_adapter.calls == 1
+
+    # Reservation freshness must be evaluated after waiting for serialization
+    # locks, not before. Hold the global control lock, begin a real validating
+    # check, advance its injected clock past the minute window while it waits,
+    # and prove the adapter-boundary status fails closed after lock acquisition.
+    with Session() as session:
+        reservation = session.query(SubmissionDispatchAttempt).one()
+        reservation_id = reservation.id
+        reservation_created_at = reservation.created_at
+
+    validation_entered = threading.Event()
+    clock_sampled = threading.Event()
+    validation_results = []
+    validation_errors = []
+    clock_now = [reservation_created_at + timedelta(seconds=30)]
+
+    def boundary_clock() -> datetime:
+        clock_sampled.set()
+        return clock_now[0]
+
+    def validate_waiting_reservation() -> None:
+        try:
+            with Session() as session:
+                validation_entered.set()
+                validation_results.append(
+                    SubmissionSafetyEnvelope(clock=boundary_clock).status(
+                        session,
+                        user_id=user_id,
+                        source_id="concurrent-source",
+                        snapshot_id=snapshot_id,
+                        lock=True,
+                        attempt_reservation_id=reservation_id,
+                    )
+                )
+        except Exception as error:  # pragma: no cover - asserted below
+            validation_errors.append(error)
+
+    with Session() as locking_session:
+        (
+            locking_session.query(SubmissionSafetyControl)
+            .filter(SubmissionSafetyControl.id == "global")
+            .with_for_update()
+            .one()
+        )
+        validator = threading.Thread(
+            target=validate_waiting_reservation,
+            name="aged-reservation-validator",
+        )
+        validator.start()
+        assert validation_entered.wait(timeout=5)
+        assert not clock_sampled.wait(timeout=0.3), "clock sampled before lock acquisition"
+        clock_now[0] = reservation_created_at + timedelta(minutes=1, seconds=1)
+        locking_session.commit()
+
+    validator.join(timeout=10)
+    assert not validator.is_alive()
+    assert not validation_errors, validation_errors
+    assert len(validation_results) == 1
+    assert validation_results[0].allowed is False
+    assert validation_results[0].reason == "attempt_reservation_expired"
 
     # Pause/resume and full account erasure share the fail-closed control row as
     # their first owner-control lock. Hold a real pause transaction after it has

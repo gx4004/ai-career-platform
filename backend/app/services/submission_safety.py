@@ -210,7 +210,6 @@ class SubmissionSafetyEnvelope:
         lock: bool = False,
         attempt_reservation_id: str | None = None,
     ) -> SubmissionSafetyStatus:
-        now = self._clock()
         control_query = db.query(SubmissionSafetyControl).filter(
             SubmissionSafetyControl.id == "global"
         )
@@ -226,6 +225,10 @@ class SubmissionSafetyEnvelope:
             # and account erasure. The owner lock follows it, preventing cycles.
             db.query(User.id).filter(User.id == user_id).with_for_update().one()
         policy = policy_query.one_or_none()
+        # A serializing check can wait behind an in-flight outward act. Sample
+        # time only after every policy lock is held so rolling windows and the
+        # reservation expiry test reflect the actual adapter-boundary instant.
+        now = self._clock()
 
         counts = self._counts(
             db,
