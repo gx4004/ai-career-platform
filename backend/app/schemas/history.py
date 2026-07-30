@@ -1,12 +1,19 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from app.schemas.application_packets import PacketApprovalSnapshotResponse
 from app.schemas.tools import SharedResultEnvelope
+
+
+def _as_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
 
 
 class CampaignStatus(StrEnum):
@@ -123,6 +130,11 @@ class CampaignEventResponse(BaseModel):
     provenance: Literal["user", "system"] = "user"
     created_at: datetime
 
+    @field_validator("created_at")
+    @classmethod
+    def normalize_created_at_to_utc(cls, value: datetime) -> datetime:
+        return _as_utc(value)
+
 
 class CampaignTaskResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -156,6 +168,33 @@ class CampaignSubmissionSnapshotResponse(BaseModel):
     created_at: datetime
 
 
+class CampaignSubmissionConfirmationResponse(BaseModel):
+    """Owner-safe reconstruction of one completed outward submission (D-103/D-107)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    record_id: str
+    discovery_source_id: str
+    contract_version: str
+    submitted_fields: dict[str, object]
+    submitted_fields_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    source_confirmation_id: str
+    submitted_at: datetime
+    snapshot: PacketApprovalSnapshotResponse
+    product_copy_deletion_notice: Literal[
+        "Deleting this campaign removes its product-held submission records but does not "
+        "withdraw the application from the employer."
+    ] = (
+        "Deleting this campaign removes its product-held submission records but does not "
+        "withdraw the application from the employer."
+    )
+
+    @field_validator("submitted_at")
+    @classmethod
+    def normalize_submitted_at_to_utc(cls, value: datetime) -> datetime:
+        return _as_utc(value)
+
+
 class CampaignDetailResponse(WorkspaceSummary):
     selected_materials: CampaignSelectedMaterials
     available_materials: CampaignAvailableMaterials
@@ -164,6 +203,9 @@ class CampaignDetailResponse(WorkspaceSummary):
     notes: list[CampaignNoteResponse] = Field(default_factory=list)
     contacts: list[CampaignContactResponse] = Field(default_factory=list)
     submission_snapshots: list[CampaignSubmissionSnapshotResponse] = Field(default_factory=list)
+    submission_confirmations: list[CampaignSubmissionConfirmationResponse] = Field(
+        default_factory=list
+    )
 
 
 class CampaignReminderConsent(BaseModel):
@@ -342,6 +384,7 @@ class CampaignEventExport(BaseModel):
         "contact_deleted",
         "submission_snapshot_created",
         "packet_approved",
+        "submission_confirmed",
     ]
     details: dict
     created_at: datetime

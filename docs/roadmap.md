@@ -320,7 +320,8 @@ Acceptance gate:
 
 **Status:** PROVISIONAL spec published (#188; tracer issues #189–#195). The dark
 #189 source-governance, #190 owner/source authorization, #191 idempotent-engine,
-#192 terminal stop-and-return, and #193 safety-envelope foundations are built
+#192 terminal stop-and-return, #193 safety-envelope, and #194 confirmation/audit
+foundations are built
 ahead under explicit current-task authorization, while the outcome and production
 activation remain deferred until R15 demonstrates quality and demand. No real
 source is registered or promoted, no source OAuth or real submission adapter exists,

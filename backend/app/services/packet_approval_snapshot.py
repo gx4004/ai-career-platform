@@ -240,7 +240,7 @@ def _snapshot_content(
     }
 
 
-def _snapshot_response(
+def snapshot_response(
     snapshot: PacketApprovalSnapshot,
 ) -> PacketApprovalSnapshotResponse:
     return PacketApprovalSnapshotResponse(
@@ -481,7 +481,7 @@ def approve_packet(
     )
     return PacketApprovalResult(
         packet=final_packet,
-        snapshot=_snapshot_response(snapshot),
+        snapshot=snapshot_response(snapshot),
         handoff=PacketSubmissionHandoff(
             destination_url=snapshot.destination_url,
             instructions=HANDOFF_INSTRUCTIONS,
@@ -503,7 +503,7 @@ def export_packet_approval_snapshots(
         .all()
     )
     return PacketApprovalSnapshotsExport(
-        snapshots=[_snapshot_response(row) for row in rows]
+        snapshots=[snapshot_response(row) for row in rows]
     )
 
 

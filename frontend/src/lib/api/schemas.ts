@@ -7,6 +7,7 @@ import {
 import { gapClassificationSchema, gapKindSchema } from '#/lib/api/gapClassificationSchemas'
 import {
   applicationPacketsExportSchema,
+  packetApprovalSnapshotResponseSchema,
   packetApprovalSnapshotsExportSchema,
   packetStopAnswersExportSchema,
 } from '#/lib/api/packetSchemas'
@@ -292,6 +293,13 @@ const submissionRecordsExportSchema = z
       submitted_fields_sha256: z.string().regex(/^[0-9a-f]{64}$/),
       created_at: z.iso.datetime({ offset: true }),
     })),
+    dispatch_attempt_count: z.number().int().nonnegative(),
+    dispatch_attempts: z.array(z.strictObject({
+      id: z.string(),
+      discovery_source_id: z.string(),
+      idempotency_key: z.string(),
+      created_at: z.iso.datetime({ offset: true }),
+    })),
     stop_count: z.number().int().nonnegative(),
     stops: z.array(z.strictObject({
       id: z.string(),
@@ -316,6 +324,7 @@ const submissionRecordsExportSchema = z
     (value) =>
       value.record_count === value.records.length &&
       value.dispatch_claim_count === value.dispatch_claims.length &&
+      value.dispatch_attempt_count === value.dispatch_attempts.length &&
       value.stop_count === value.stops.length,
   )
 
@@ -343,7 +352,7 @@ export const careerDataExportSchema = z.strictObject({
       listing: campaignListingSchema.nullable().default(null),
       listing_revisions: z.array(campaignListingSchema).default([]),
       events: z.array(z.object({
-        id: z.string(), event_type: z.enum(['status_changed', 'deadline_changed', 'listing_attached', 'listing_adopted', 'material_selection_changed', 'task_created', 'task_completed', 'task_reopened', 'task_deleted', 'note_added', 'note_deleted', 'contact_added', 'contact_deleted', 'submission_snapshot_created', 'packet_approved']),
+        id: z.string(), event_type: z.enum(['status_changed', 'deadline_changed', 'listing_attached', 'listing_adopted', 'material_selection_changed', 'task_created', 'task_completed', 'task_reopened', 'task_deleted', 'note_added', 'note_deleted', 'contact_added', 'contact_deleted', 'submission_snapshot_created', 'packet_approved', 'submission_confirmed']),
         details: z.record(z.string(), z.unknown()), created_at: z.iso.datetime(),
       })),
       tasks: z.array(z.object({ id: z.string(), title: z.string(), deadline: z.iso.datetime({ offset: true }).nullable(), completed: z.boolean(), created_at: z.iso.datetime() })).default([]),
@@ -612,6 +621,17 @@ export const campaignReminderResponseSchema = z.object({
   next_surface_at: z.iso.datetime({ offset: true }).nullable(),
 })
 export const campaignSubmissionSnapshotSchema = z.object({ id: z.string(), content: z.record(z.string(), z.unknown()), content_sha256: z.string().length(64), created_at: z.iso.datetime() })
+export const campaignSubmissionConfirmationSchema = z.strictObject({
+  record_id: z.string(),
+  discovery_source_id: z.string(),
+  contract_version: z.string(),
+  submitted_fields: z.record(z.string(), z.unknown()),
+  submitted_fields_sha256: z.string().regex(/^[0-9a-f]{64}$/),
+  source_confirmation_id: z.string(),
+  submitted_at: z.iso.datetime({ offset: true }),
+  snapshot: packetApprovalSnapshotResponseSchema,
+  product_copy_deletion_notice: z.literal('Deleting this campaign removes its product-held submission records but does not withdraw the application from the employer.'),
+})
 export const campaignDetailSchema = workspaceSummarySchema.extend({
   selected_materials: z.object({
     cv_variant: campaignCvVariantReferenceSchema.nullable(),
@@ -626,6 +646,7 @@ export const campaignDetailSchema = workspaceSummarySchema.extend({
   events: z.array(campaignEventSchema), tasks: z.array(campaignTaskSchema),
   notes: z.array(campaignNoteSchema), contacts: z.array(campaignContactSchema),
   submission_snapshots: z.array(campaignSubmissionSnapshotSchema),
+  submission_confirmations: z.array(campaignSubmissionConfirmationSchema).default([]),
 })
 export const campaignMaterialSelectionSchema = z.strictObject({
   cv_variant_id: z.string().nullable().optional(),

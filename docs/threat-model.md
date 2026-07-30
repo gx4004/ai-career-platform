@@ -1391,6 +1391,21 @@ global control invalidates the active rehearsal proof without deleting history, 
 recovery must append a fresh rehearsal before clearing. The documented rehearsal is dark implementation
 evidence only; it does not satisfy D-100 or authorize a real source.
 
+The dark #194 audit surface does not create a submission endpoint. A successful
+fixture-driven act appends its immutable submission record and a campaign timeline
+link in one transaction, so neither proof can exist without the other. Timeline
+metadata is content-free: only the record and exact approval-snapshot identifiers
+are present. The authenticated campaign response filters by both owner and campaign,
+then exposes the submitted values only beside the immutable approval snapshot and
+its digest; authorization-grant and idempotency internals are omitted from that UI
+contract. The complete record remains in the owner's machine-readable export.
+Confirmed owner-facing campaign deletion or account deletion removes product-held
+records, claims, attempts, events, and snapshots, but the UI states plainly that
+deletion cannot withdraw the copy
+already held by an employer. This prevents the product from becoming an opaque
+submission proxy while avoiding the false promise that a local erasure can reverse
+an external act.
+
 Discovered listings are non-user product data in dedicated canonical and source-
 attribution tables; neither table carries a user/workspace key or references
 `campaign_listings`. Source URLs are restricted to the governed endpoint host and
