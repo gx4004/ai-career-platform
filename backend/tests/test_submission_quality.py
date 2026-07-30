@@ -73,8 +73,18 @@ def test_quality_view_reports_rates_by_family_without_control_authority(db):
     assert empty.packet_edit_rate is None
 
 
-def test_duplicate_prevention_rate_stays_bounded_across_repeated_retries(db):
-    for outcome in ("confirmed", "duplicate_prevented", "duplicate_prevented"):
+def test_quality_rates_stay_bounded_across_repeated_observations(db):
+    for outcome in (
+        "confirmed",
+        "response_received",
+        "response_received",
+        "packet_edited",
+        "packet_edited",
+        "duplicate_prevented",
+        "duplicate_prevented",
+        "complaint_reported",
+        "complaint_reported",
+    ):
         record_submission_quality_outcome(
             db,
             source_family="employer_ats",
@@ -89,8 +99,19 @@ def test_duplicate_prevention_rate_stays_bounded_across_repeated_retries(db):
     )
 
     ats = next(row for row in result.families if row.source_family == "employer_ats")
+    assert ats.response_rate == 1.0
+    assert ats.packet_edit_rate == 1.0
     assert ats.duplicate_prevention_rate == 0.6667
-    assert 0 <= ats.duplicate_prevention_rate <= 1
+    assert ats.complaint_rate == 1.0
+    assert all(
+        rate is not None and 0 <= rate <= 1
+        for rate in (
+            ats.response_rate,
+            ats.packet_edit_rate,
+            ats.duplicate_prevention_rate,
+            ats.complaint_rate,
+        )
+    )
 
 
 def test_quality_response_rejects_unknown_source_families():

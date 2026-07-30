@@ -553,7 +553,9 @@ errors remain forbidden.
   outcome. The admin quality view aggregates response, packet-edit, duplicate,
   and complaint rates per allowlisted family. Duplicate prevention uses prevented
   attempts over confirmed-plus-prevented logical attempts, so repeated safe retries
-  remain bounded instead of breaking the response contract. Confirmation count is labeled only
+  remain bounded instead of breaking the response contract. Other outcome rates
+  saturate at 100% because the privacy-safe event stream intentionally carries no
+  submission identifier for entity deduplication. Confirmation count is labeled only
   as sample context, and the response shape exposes no control mutation, source
   key, user/packet id, contract body, or submitted value. Quality and user
   outcomes govern review; neither this dashboard nor raw volume can activate a

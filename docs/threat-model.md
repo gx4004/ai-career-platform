@@ -1422,7 +1422,8 @@ can weaken the four gates. This limits abuse of the product as a submission prox
 contract drift stops the source, authorization remains non-secret and per-source,
 and immutable audit/confirmation evidence cannot be rewritten to hide an outward
 act. Duplicate prevention is bounded by confirmed-plus-prevented logical attempts,
-so retry traffic cannot overflow or disable the read-only quality view.
+while identifier-free repeated outcome observations saturate at 100%, so duplicate
+traffic cannot overflow or disable the read-only quality view.
 
 Discovered listings are non-user product data in dedicated canonical and source-
 attribution tables; neither table carries a user/workspace key or references

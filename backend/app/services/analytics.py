@@ -374,9 +374,11 @@ def record_activation_event(
     the event, and the tool pipeline records after `persist_tool_run` has already
     committed (or, on the failure/started paths, before any tool-run row exists).
 
-    Callers treat the write as best-effort and must not let an operational
-    failure here break the user-facing flow; use `safe_record_activation_event`
-    for that.
+    Ordinary operational callers treat the write as best-effort and must not let
+    a failure break the user-facing flow; they use `safe_record_activation_event`.
+    Security/audit transitions may instead pass ``commit=False`` and deliberately
+    propagate failure so the governed state and its required evidence commit or
+    roll back together.
     """
     event = ActivationEventCreate(**fields)
     row = AnalyticsEvent(**event.model_dump(exclude_none=True))

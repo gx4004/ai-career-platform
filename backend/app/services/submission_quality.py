@@ -22,7 +22,11 @@ def _rate(counts: dict[str, int], outcome: str) -> float | None:
     confirmed = counts.get("confirmed", 0)
     if confirmed == 0:
         return None
-    return round(counts.get(outcome, 0) / confirmed, 4)
+    # The privacy contract intentionally excludes submission identifiers from
+    # telemetry, so aggregation cannot entity-deduplicate repeated authoritative
+    # observations. Saturate at one instead of allowing duplicated observations
+    # to violate the response schema and disable the governance dashboard.
+    return min(round(counts.get(outcome, 0) / confirmed, 4), 1.0)
 
 
 def _duplicate_prevention_rate(counts: dict[str, int]) -> float | None:
