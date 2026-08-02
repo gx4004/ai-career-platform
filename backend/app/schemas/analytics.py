@@ -41,6 +41,7 @@ R10EventName = Literal[
     "r10_import_outcome",
     "r10_rate_limit_event",
     "r10_generation_phase",
+    "r10_database_query",
 ]
 
 # Cache lookup/write outcome at the shared tool-pipeline seam (ADR 0004). No
@@ -96,6 +97,7 @@ RateLimitRouteFamily = Literal[
 ]
 RateLimitIdentityType = Literal["account", "guest"]
 GenerationPhase = Literal["preparation", "generation", "persistence"]
+DatabaseQueryFamily = Literal["history_list", "workspace_list", "admin_runs"]
 
 # R14 source-registry events never carry a source key/name. The family and
 # governance transition are the only bounded dimensions that cross telemetry.
@@ -177,6 +179,7 @@ OperationalDimension = (
     | ImportSourceFamily
     | RateLimitRouteFamily
     | GenerationPhase
+    | DatabaseQueryFamily
     | DiscoverySourceFamily
     | PacketGateHaltReason
 )
@@ -430,6 +433,39 @@ class ActivationEventCreate(BaseModel):
         )
         if any(value is not None for value in unrelated_values) or self.level != "info":
             raise ValueError("generation phases accept only bounded phase timing fields")
+        return self
+
+    @model_validator(mode="after")
+    def validate_database_query_shape(self):
+        query_families = {"history_list", "workspace_list", "admin_runs"}
+        if self.event_name != "r10_database_query":
+            return self
+        if (
+            self.operational_dimension not in query_families
+            or self.operational_outcome is not None
+            or self.duration_ms is None
+        ):
+            raise ValueError("database query events require family and duration")
+        unrelated_values = (
+            self.tool_id,
+            self.access_mode,
+            self.saved,
+            self.failure_category,
+            self.export_format,
+            self.has_feedback,
+            self.session_status,
+            self.cost_estimate,
+            self.evidence_kind,
+            self.evidence_provenance,
+            self.confirmation_transition,
+            self.development_gap_kind,
+            self.development_response_kind,
+            self.development_state_from,
+            self.development_state_to,
+            self.occurred_at,
+        )
+        if any(value is not None for value in unrelated_values) or self.level != "info":
+            raise ValueError("database query events accept only family and duration")
         return self
 
     @model_validator(mode="after")
