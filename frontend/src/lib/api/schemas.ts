@@ -505,6 +505,14 @@ export const importedJobSchema = z.object({
   source_url: z.string().url().nullable().optional(),
   retrieved_at: z.iso.datetime({ offset: true }).nullable().optional(),
 })
+
+export const resultAccessDecisionSchema = z.object({
+  state: z.literal('full'),
+  treatment: z.literal('control'),
+  reason: z.enum(['policy_disabled', 'no_candidate_selected']),
+  can_export: z.literal(true),
+  policy_version: z.literal('control-v1'),
+})
 export const importJobUrlSchema = z.strictObject({
   url: z.string().url().max(2_048).refine((value) => {
     const protocol = new URL(value).protocol
@@ -528,6 +536,7 @@ export const toolRunSummarySchema = z.object({
   saved: z.boolean().default(true),
   access_mode: z.enum(['authenticated', 'guest_demo']).default('authenticated'),
   locked_actions: z.array(z.string()).default([]),
+  access_decision: resultAccessDecisionSchema.nullable().optional(),
   metadata: z
     .object({
       summary_headline: z.string().nullable().optional(),
@@ -707,6 +716,13 @@ export const sharedResultEnvelopeSchema = z.object({
   access_mode: z.enum(['authenticated', 'guest_demo']).default('authenticated'),
   saved: z.boolean().default(true),
   locked_actions: z.array(z.enum(['save', 'favorite', 'continue', 'history'])).default([]),
+  access_decision: resultAccessDecisionSchema.default({
+    state: 'full',
+    treatment: 'control',
+    reason: 'policy_disabled',
+    can_export: true,
+    policy_version: 'control-v1',
+  }),
 })
 
 export const campaignReviewFindingSchema = z.object({

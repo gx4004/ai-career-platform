@@ -5,6 +5,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl
 
+from app.schemas.access_policy import ResultAccessDecision
+
 # --- Requests ---
 
 class ResumeAnalyzeRequest(BaseModel):
@@ -136,6 +138,7 @@ class SharedResultEnvelope(BaseModel):
     locked_actions: list[Literal["save", "favorite", "continue", "history"]] = Field(
         default_factory=list
     )
+    access_decision: ResultAccessDecision = Field(default_factory=ResultAccessDecision)
 
 
 class ScoreBreakdownItem(BaseModel):
