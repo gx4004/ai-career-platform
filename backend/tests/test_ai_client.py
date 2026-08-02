@@ -1,7 +1,7 @@
 """Unit tests for the LLM provider routing in ai_client.py."""
 
 import json
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 
@@ -9,15 +9,6 @@ from app.services.ai_client import complete_structured
 
 SYSTEM = "You are a helpful assistant."
 USER = "Return JSON."
-
-
-@pytest.fixture(autouse=True)
-def _reset_vertex_singleton():
-    """Reset the lazy-init flag between tests."""
-    import app.services.ai_client as mod
-    mod._vertex_initialised = False
-    yield
-    mod._vertex_initialised = False
 
 
 @pytest.fixture(autouse=True)
@@ -108,33 +99,117 @@ async def test_with_retry_recovers_from_transient_json_decode_error(monkeypatch)
     assert call_count == 2
 
 
-# ---------- vertex lazy init ----------
+@pytest.mark.asyncio
+async def test_vertex_configuration_failure_is_not_retried(monkeypatch):
+    import app.services.ai_client as mod
 
-def test_ensure_vertex_init_calls_vertexai_init_only_once(monkeypatch):
-    """The lazy-init guard in `_ensure_vertex_init` must skip the second call.
+    monkeypatch.setattr(mod.settings, "LLM_PROVIDER", "vertex")
+    call_count = 0
 
-    The previous test in this slot manually toggled the `_vertex_initialised`
-    flag and asserted the toggle worked, which passed for the wrong reason.
-    This version mocks `vertexai.init` itself and counts how many times the
-    real codepath invokes it across two consecutive calls.
-    """
+    async def _misconfigured(*_args, **_kwargs):
+        nonlocal call_count
+        call_count += 1
+        raise mod.ProviderConfigurationError("AI service configuration error.")
+
+    monkeypatch.setattr(mod, "_call_vertex", _misconfigured)
+
+    with pytest.raises(mod.ProviderConfigurationError):
+        await complete_structured(SYSTEM, USER)
+
+    assert call_count == 1
+
+
+# ---------- Vertex Google Gen AI SDK integration ----------
+
+@pytest.mark.asyncio
+async def test_vertex_uses_google_genai_sdk_and_closes_clients(monkeypatch):
+    """Vertex generation must avoid the removed ``vertexai.generative_models`` API."""
+    from google import genai
+
     import app.services.ai_client as mod
 
     monkeypatch.setattr(mod.settings, "VERTEX_PROJECT_ID", "test-project")
     monkeypatch.setattr(mod.settings, "VERTEX_LOCATION", "us-central1")
 
-    call_count = 0
+    calls = []
 
-    def fake_init(**_kwargs):
-        nonlocal call_count
-        call_count += 1
+    class FakeModels:
+        async def generate_content(self, **kwargs):
+            calls.append(("generate", kwargs))
+            return type("Response", (), {"text": '{"ok": true}', "usage_metadata": None})()
 
-    fake_vertexai = type("FakeVertexAI", (), {"init": staticmethod(fake_init)})
-    monkeypatch.setitem(__import__("sys").modules, "vertexai", fake_vertexai)
+    class FakeAsyncClient:
+        models = FakeModels()
 
-    mod._vertex_initialised = False
-    mod._ensure_vertex_init()
-    mod._ensure_vertex_init()
+        async def aclose(self):
+            calls.append(("async-close", None))
 
-    assert call_count == 1, "vertexai.init must be called exactly once"
-    assert mod._vertex_initialised is True
+    class FakeClient:
+        aio = FakeAsyncClient()
+
+        def close(self):
+            calls.append(("close", None))
+
+    def fake_client(**kwargs):
+        calls.append(("client", kwargs))
+        return FakeClient()
+
+    monkeypatch.setattr(genai, "Client", fake_client)
+
+    result = await mod._call_vertex(SYSTEM, USER, "gemini-2.5-flash")
+
+    assert result == {"ok": True}
+    assert calls[0] == (
+        "client",
+        {
+            "vertexai": True,
+            "project": "test-project",
+            "location": "us-central1",
+            "http_options": {"api_version": "v1"},
+        },
+    )
+    assert calls[1][0] == "generate"
+    assert calls[1][1]["model"] == "gemini-2.5-flash"
+    assert calls[1][1]["contents"] == USER
+    assert calls[1][1]["config"]["system_instruction"] == SYSTEM
+    assert [call[0] for call in calls[-2:]] == ["async-close", "close"]
+
+
+@pytest.mark.asyncio
+async def test_vertex_maps_permission_failure_without_exposing_provider_detail(monkeypatch):
+    from google import genai
+    from google.genai import errors as genai_errors
+
+    import app.services.ai_client as mod
+
+    calls = []
+
+    class FakeModels:
+        async def generate_content(self, **_kwargs):
+            raise genai_errors.ClientError(
+                403,
+                {"error": {"message": "billing disabled for private-project"}},
+            )
+
+    class FakeAsyncClient:
+        models = FakeModels()
+
+        async def aclose(self):
+            calls.append("async-close")
+
+    class FakeClient:
+        aio = FakeAsyncClient()
+
+        def close(self):
+            calls.append("close")
+
+    monkeypatch.setattr(genai, "Client", lambda **_kwargs: FakeClient())
+    incident = Mock()
+    monkeypatch.setattr(mod, "set_provider_incident", incident)
+
+    with pytest.raises(mod.ProviderConfigurationError, match="AI service configuration error") as error:
+        await mod._call_vertex(SYSTEM, USER)
+
+    assert "private-project" not in str(error.value)
+    incident.assert_called_once_with("permission")
+    assert calls == ["async-close", "close"]
