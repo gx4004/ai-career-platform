@@ -81,6 +81,55 @@ def test_items_are_owner_isolated(client, auth_headers, test_user, second_user, 
     assert client.delete(f"{PREFIX}/{foreign.id}", headers=auth_headers).status_code == 404
 
 
+def test_owner_can_delete_whole_profile_without_deleting_another_owners_items(
+    client, auth_headers, test_user, second_user, db, monkeypatch
+):
+    mine = [
+        EvidenceItem(
+            user_id=test_user.id,
+            kind="skill",
+            content={"name": f"Synthetic skill {index}"},
+            provenance="user-entered",
+            confirmation_state="unconfirmed",
+        )
+        for index in range(2)
+    ]
+    foreign = EvidenceItem(
+        user_id=second_user.id,
+        kind="skill",
+        content={"name": "Foreign synthetic skill"},
+        provenance="user-entered",
+        confirmation_state="unconfirmed",
+    )
+    db.add_all([*mine, foreign])
+    db.commit()
+
+    commits = 0
+    original_commit = db.commit
+
+    def counted_commit():
+        nonlocal commits
+        commits += 1
+        original_commit()
+
+    monkeypatch.setattr(db, "commit", counted_commit)
+    monkeypatch.setattr(
+        "app.services.evidence_profile._record_evidence_item_deleted",
+        lambda *args, **kwargs: None,
+    )
+
+    response = client.delete(PREFIX, headers=auth_headers)
+
+    assert response.status_code == 204
+    assert commits == 1
+    assert db.query(EvidenceItem).filter_by(user_id=test_user.id).count() == 0
+    assert db.query(EvidenceItem).filter_by(user_id=second_user.id).one().id == foreign.id
+
+
+def test_guest_cannot_delete_whole_profile(client):
+    assert client.delete(PREFIX).status_code in (401, 403)
+
+
 def test_guests_have_no_profile_surface(client):
     assert client.get(PREFIX).status_code in (401, 403)
     assert client.post(PREFIX, json=_payload()).status_code in (401, 403)
