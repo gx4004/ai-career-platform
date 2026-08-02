@@ -1,4 +1,5 @@
 import hashlib
+from time import perf_counter
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
@@ -44,6 +45,7 @@ from app.schemas.history import (
     WorkspaceSummary,
     WorkspaceUpdateRequest,
 )
+from app.services.analytics import record_database_query_timing
 from app.services.campaign_materials import (
     clear_selected_run,
     get_campaign_detail,
@@ -124,6 +126,7 @@ def list_history(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    query_started = perf_counter()
     query = (
         db.query(ToolRun)
         .options(selectinload(ToolRun.workspace))
@@ -146,13 +149,17 @@ def list_history(
     )
     workspace_runs = _workspace_runs_map(db, current_user.id, items)
 
-    return ToolRunListResponse(
+    response = ToolRunListResponse(
         items=[_summary(r, workspace_runs.get(r.workspace_id, [])) for r in items],
         total=total,
         page=page,
         page_size=page_size,
         has_more=(page * page_size) < total,
     )
+    record_database_query_timing(
+        db, query_family="history_list", started_at=query_started
+    )
+    return response
 
 
 @router.get("/workspaces", response_model=WorkspaceListResponse)
@@ -161,6 +168,7 @@ def list_workspaces(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    query_started = perf_counter()
     workspaces = (
         db.query(Workspace)
         .options(selectinload(Workspace.tool_runs))
@@ -174,7 +182,11 @@ def list_workspaces(
         summary = build_workspace_summary(workspace, list(workspace.tool_runs))
         if summary is not None:
             items.append(summary)
-    return WorkspaceListResponse(items=items, total=len(items))
+    response = WorkspaceListResponse(items=items, total=len(items))
+    record_database_query_timing(
+        db, query_family="workspace_list", started_at=query_started
+    )
+    return response
 
 
 @router.get("/workspaces/{workspace_id}", response_model=CampaignDetailResponse)

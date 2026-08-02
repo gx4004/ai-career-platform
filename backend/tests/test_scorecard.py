@@ -61,6 +61,11 @@ def test_allowlist_accepts_r10_operational_shapes():
         event_name="r10_provider_incident", operational_dimension="timeout"
     )
     ActivationEventCreate(
+        event_name="r10_database_query",
+        operational_dimension="history_list",
+        duration_ms=25,
+    )
+    ActivationEventCreate(
         event_name="r10_generation_phase",
         tool_id="resume",
         access_mode="guest_demo",
@@ -303,6 +308,22 @@ def test_database_trigger_insufficient_on_sqlite(db):
     # No configured capacity + SQLite pool without introspection → unknown.
     trig = _trigger(compute_scorecard(db, now=FIXED_NOW), "database_growth")
     assert trig.state == "insufficient_sample"
+
+
+def test_database_trigger_reports_bounded_query_family_p95_without_firing(db):
+    for duration in (10, 20, 30, 40):
+        _event(
+            db,
+            event_name="r10_database_query",
+            operational_dimension="history_list",
+            duration_ms=duration,
+            created_at=FIXED_NOW - timedelta(days=1),
+        )
+    trig = _trigger(compute_scorecard(db, now=FIXED_NOW), "database_growth")
+    assert trig.state == "insufficient_sample"
+    assert trig.evidence_detail["query_samples_7d"] == 4
+    assert trig.evidence_detail["query_p95_ms"] == "history_list:40.0"
+    assert trig.evidence_detail["query_budget"] == "not accepted"
 
 
 # ── Import concentration (AC per D-059) ────────────────────────────────────

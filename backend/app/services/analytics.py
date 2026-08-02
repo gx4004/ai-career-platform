@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from time import perf_counter
 from typing import Any
 
 from sqlalchemy import func
@@ -60,6 +61,18 @@ def _quantize_cost(value: Any) -> Decimal | None:
     if value is None:
         return None
     return Decimal(str(value)).quantize(Decimal("0.000001"))
+
+
+def record_database_query_timing(
+    db: Session, *, query_family: str, started_at: float
+) -> None:
+    """Persist one bounded representative-query duration (#141, D-053)."""
+    safe_record_activation_event(
+        db,
+        event_name="r10_database_query",
+        operational_dimension=query_family,
+        duration_ms=max(0, int((perf_counter() - started_at) * 1000)),
+    )
 
 
 def aggregate_activation_metrics(

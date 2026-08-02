@@ -247,6 +247,10 @@ errors remain forbidden. The shared pipeline records actual preparation, generat
 and persistence durations; the browser records a bounded loader-abandonment duration
 only when a pending loader is left. These are evidence inputs, not a progress
 transport, and no material-elevation threshold has been accepted for #139.
+Representative history, workspace, and admin-run reads likewise persist only a
+closed query-family name and duration. The scorecard reports their seven-day p95 but
+cannot fire the query branch until an explicit p95 budget is accepted; SQL text,
+parameters, user content, and identifiers never enter telemetry.
 
 ## Scaling Response Boundaries
 

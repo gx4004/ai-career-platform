@@ -7,6 +7,7 @@
 # sidestep the lookup entirely. Covered by tests/test_openapi_schema.py.
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from time import perf_counter
 from typing import Literal
 
 import sqlalchemy as sa
@@ -59,6 +60,7 @@ from app.services.analytics import (
     aggregate_activation_metrics,
     aggregate_development_loop,
     aggregate_profile_adoption,
+    record_database_query_timing,
 )
 from app.services.discovery_personalization import list_admin_reports
 from app.services.discovery_sources import operate_source_kill_switch
@@ -425,6 +427,7 @@ def list_runs(
     admin: User = Depends(get_current_admin),
     db: Session = Depends(get_db),
 ):
+    query_started = perf_counter()
     query = db.query(ToolRun)
     if tool:
         query = query.filter(ToolRun.tool_name == tool)
@@ -459,7 +462,13 @@ def list_runs(
         for r in runs
     ]
 
-    return AdminRunListResponse(items=items, total=total, page=page, page_size=page_size)
+    response = AdminRunListResponse(
+        items=items, total=total, page=page, page_size=page_size
+    )
+    record_database_query_timing(
+        db, query_family="admin_runs", started_at=query_started
+    )
+    return response
 
 
 @router.get("/runs/{run_id}", response_model=AdminRunDetailResponse)

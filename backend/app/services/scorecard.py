@@ -558,11 +558,40 @@ def evaluate_database_growth(storage_pct: float | None) -> tuple[TriggerState, s
 def _evaluate_database(db: Session, now: datetime) -> dict[str, object]:
     storage_pct, pool_ratio = gather_database_evidence(db)
     state, evidence = evaluate_database_growth(storage_pct)
+    query_rows = (
+        db.query(
+            AnalyticsEvent.operational_dimension,
+            AnalyticsEvent.duration_ms,
+        )
+        .filter(
+            AnalyticsEvent.event_name == "r10_database_query",
+            AnalyticsEvent.duration_ms.isnot(None),
+            AnalyticsEvent.created_at >= now - timedelta(days=7),
+        )
+        .all()
+    )
+    query_durations: dict[str, list[float]] = {}
+    for family, duration in query_rows:
+        query_durations.setdefault(family, []).append(float(duration))
+    query_p95 = {
+        family: round(_p95(durations) or 0.0, 1)
+        for family, durations in query_durations.items()
+    }
     detail: dict[str, float | int | str] = {
         "storage_pct": storage_pct if storage_pct is not None else "unknown",
         "pool_checkout_ratio": pool_ratio if pool_ratio is not None else "unknown",
         "storage_trigger_pct": DB_STORAGE_TRIGGER_PCT,
+        "query_samples_7d": len(query_rows),
+        "query_p95_ms": ", ".join(
+            f"{family}:{value:.1f}" for family, value in sorted(query_p95.items())
+        ) or "none",
+        "query_budget": "not accepted",
     }
+    if query_rows:
+        evidence += (
+            f" Representative query p95 observed for {len(query_p95)} families, "
+            "but no accepted p95 budget exists; query timing alone cannot fire #141."
+        )
     return {
         "state": state,
         "evidence": evidence,
