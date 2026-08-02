@@ -10,6 +10,7 @@ from __future__ import annotations
 import pytest
 
 from app.models.analytics_event import AnalyticsEvent
+from app.schemas.analytics import ActivationEventCreate
 from app.schemas.tools import ImportedJobResponse
 from app.services.import_source import set_import_outcome
 from app.services.provider_incident import set_provider_incident
@@ -28,6 +29,22 @@ def _outcomes(db, event_name: str):
         .all()
     )
     return rows
+
+
+@pytest.mark.parametrize(
+    "tool_name",
+    ["cv-quality", "cv-tailoring", "application-reviewer", "application-packet"],
+)
+def test_build_ahead_pipeline_tools_have_bounded_operational_ids(tool_name):
+    event = ActivationEventCreate(
+        event_name="r10_generation_phase",
+        tool_id=tool_name,
+        access_mode="authenticated",
+        duration_ms=1,
+        operational_dimension="provider",
+    )
+
+    assert event.tool_id == tool_name
 
 
 @pytest.mark.asyncio

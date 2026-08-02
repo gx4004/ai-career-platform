@@ -42,8 +42,8 @@ type GuestTool = {
 }
 
 async function gotoHydrated(page: Page, path: string) {
-  await page.goto(path)
-  await page.locator('html[data-hydrated="true"]').waitFor()
+  await page.goto(path, { waitUntil: 'domcontentloaded' })
+  await page.locator('html[data-hydrated="true"]').waitFor({ timeout: 15_000 })
 }
 
 async function openPasteForm(page: Page, formSelector: string) {
