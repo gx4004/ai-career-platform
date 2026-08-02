@@ -39,6 +39,7 @@ class Settings(BaseSettings):
     RESULT_CACHE_TTL_SECONDS: int = 3600
     RESULT_CACHE_ENABLED: bool = True
     BLENDED_SCORING_ENABLED: bool = True
+    RESULT_ACCESS_POLICY_ENABLED: bool = False
 
     # ── R11 Evidence Profile injection (issue #147, D-063, ADR 0005) ──
     # Master switch for injecting confirmed profile evidence through the shared

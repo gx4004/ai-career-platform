@@ -22,10 +22,12 @@ Career Workbench has a mature local and CI-verified product body on `chapter2`:
   needs a production-like two-week baseline.
 - R7's six experiments are implemented default-off behind independent flags; none
   is authorized for live enablement before the R6 evidence gate.
-- R9 removed the historical client-side ad gate. No monetization candidate,
+- R9 removed the historical client-side ad gate and now has a default-off,
+  candidate-neutral server result/export access seam. No monetization candidate,
   entitlement, vendor, or experiment is selected.
-- R10 has an aggregate trigger scorecard. No response ticket is authorized until
-  its corresponding sustained trigger fires.
+- R10 has an aggregate trigger scorecard fed by bounded rate-limit, generation-phase,
+  abandonment, database-query, and capacity samples. No response ticket is authorized
+  until its corresponding sustained trigger and owner-defined threshold fire.
 - Every R11–R17 tracer issue is implemented ahead of its outcome gate. This is
   build completion, not production activation or acceptance of the roadmap
   outcome.
@@ -113,8 +115,8 @@ R9/R10 responses are `needs-info`.
 | R6 | allowlisted event store, funnel/failure/cost views, retention | production-like two-week baseline |
 | R7 | six independently flagged, default-off candidates | evidence-selected candidate and accepted success metric |
 | R8 | synthetic corpus, calibration/fabrication/usefulness checks, runner, admin evidence | every release change must pass quality, latency, and cost review |
-| R9 | unsafe dormant ad path removed | baseline, activation target, launch market, legal/vendor, candidate, rehearsal |
-| R10 | trigger scorecard | one sustained trigger for one proportional response |
+| R9 | unsafe dormant ad path removed; candidate-neutral access seam default-off | baseline, activation target, launch market, legal/vendor, candidate, treatment contract, rehearsal |
+| R10 | measured trigger scorecard and bounded operational samples | accepted missing thresholds and one sustained trigger for one proportional response |
 | R11 | full build-ahead tracer set | D-060 and upstream release-quality evidence |
 | R12 | full build-ahead tracer set | D-068 and accepted R11 activation |
 | R13 | full build-ahead tracer set | D-076 and accepted R12 activation |
@@ -145,6 +147,10 @@ R9/R10 responses are `needs-info`.
 - **Activation evidence absent.** Code and synthetic fixtures cannot establish
   demand, retention, packet quality, recurring gap classes, provider reliability,
   or a scaling trigger.
+- **R10 thresholds remain incomplete.** Rate-limit pressure has an encoded sustained
+  threshold, while perceived-generation elevation and representative database query/
+  pool pressure remain evidence-only until owners accept material-elevation and p95/
+  capacity budgets. Railway storage evidence is deployment-dependent.
 - **Telemetry naming debt.** Backend stdout/Sentry still uses raw exception class
   names under `failure_category`; durable analytics independently enforces the
   closed allowlist. Any future analytics granularity must add an explicit enum,

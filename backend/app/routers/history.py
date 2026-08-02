@@ -72,6 +72,7 @@ from app.services.gap_classifier import (
 )
 from app.services.gap_response import map_gap_to_response
 from app.services.input_sanitizer import sanitize_user_input
+from app.services.result_access import evaluate_result_access
 from app.services.tool_pipeline import run_tool_pipeline
 from app.services.tool_runs import build_workspace_summary, derive_saved_run_metadata
 
@@ -631,6 +632,11 @@ def get_history_item(
 ):
     run = _get_run(db, history_id, current_user.id)
     workspace_runs = _workspace_runs_map(db, current_user.id, [run])
+    access_decision = evaluate_result_access(
+        surface="saved_result",
+        tool_name=run.tool_name,
+        access_mode="authenticated",
+    )
     return ToolRunDetail(
         id=run.id,
         tool_name=run.tool_name,
@@ -640,6 +646,7 @@ def get_history_item(
         saved=True,
         access_mode="authenticated",
         locked_actions=[],
+        access_decision=access_decision,
         metadata=derive_saved_run_metadata(run.tool_name, run.result_payload or {}),
         workspace=build_workspace_summary(run.workspace, workspace_runs.get(run.workspace_id, [])),
         parent_run_id=run.parent_run_id,
@@ -671,6 +678,14 @@ def export_pdf(
     )
     if not run:
         raise HTTPException(status_code=404, detail="Run not found")
+
+    access_decision = evaluate_result_access(
+        surface="export",
+        tool_name=run.tool_name,
+        access_mode="authenticated",
+    )
+    if not access_decision.can_export:
+        raise HTTPException(status_code=403, detail="Export is not available")
 
     result = run.result_payload or {}
 

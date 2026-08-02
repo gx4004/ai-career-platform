@@ -74,6 +74,13 @@ def test_get_detail(client, auth_headers, test_user, db):
     assert data["metadata"]["summary_headline"] == "Saved summary headline"
     assert data["saved"] is True
     assert data["workspace"] is None
+    assert data["access_decision"] == {
+        "state": "full",
+        "treatment": "control",
+        "reason": "policy_disabled",
+        "can_export": True,
+        "policy_version": "control-v1",
+    }
 
 
 def test_get_detail_includes_parent_run_id(client, auth_headers, test_user, db):

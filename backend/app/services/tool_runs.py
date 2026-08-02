@@ -27,6 +27,7 @@ from app.services.packet_gate import delete_queue_pause_state
 from app.services.premium_outputs import attach_premium_outputs
 from app.services.queue_audit import delete_queue_audit_events
 from app.services.queue_rules import delete_queue_rules
+from app.services.result_access import evaluate_result_access
 from app.services.submission_authorizations import delete_submission_authorizations
 from app.services.submissions import delete_submission_records
 from app.services.workspaces import resolve_workspace, touch_workspace
@@ -144,12 +145,18 @@ def build_tool_response(
     access_mode: str,
 ) -> dict[str, Any]:
     enriched = attach_premium_outputs(tool_name, result)
+    access_decision = evaluate_result_access(
+        surface="live_result",
+        tool_name=tool_name,
+        access_mode=access_mode,
+    )
     return {
         **enriched,
         "history_id": history_id,
         "access_mode": access_mode,
         "saved": history_id is not None,
         "locked_actions": [] if history_id else GUEST_LOCKED_ACTIONS,
+        "access_decision": access_decision.model_dump(),
     }
 
 

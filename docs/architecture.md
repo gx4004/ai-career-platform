@@ -207,6 +207,15 @@ for routes and navigation, but it is never the security boundary. Core six-tool 
 history routes remain independent. Account-wide export and deletion continue to own
 recovery and erasure if build-ahead data exists while an outcome is dark.
 
+R9 has one candidate-neutral, server-authoritative result-access seam shared by live
+tool responses, saved-result delivery, and server-generated exports. Its default-off
+contract can express only the complete control experience; enabling the seam before a
+candidate is selected still grants full access. Existing persisted result payloads are
+not rewritten: the decision is evaluated at delivery time, and the frontend schema
+defaults legacy payloads to the same full-control state. Candidate eligibility,
+treatments, withheld fields, lifetime, expiry, and revocation remain deliberately
+unimplemented until #128 and #129 supply an accepted product and legal contract.
+
 Provider fallback is not active. It may be introduced only after sustained provider-
 incident evidence and after the alternative passes R8 quality evaluation plus privacy,
 processor, cost, latency, and tool-specific failure review (D-055). Requests are not
