@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { CvStudio } from '#/components/cv-studio/CvStudio'
 
 const api = vi.hoisted(() => ({
-  listCvDocuments: vi.fn(), getCvDocument: vi.fn(), updateCvDocument: vi.fn(),
+  listCvDocuments: vi.fn(), createCvDocument: vi.fn(), getCvDocument: vi.fn(), updateCvDocument: vi.fn(),
   snapshotCvVariant: vi.fn(), restoreCvVariant: vi.fn(),
   deleteCvDocument: vi.fn(), deleteAllCvDocuments: vi.fn(),
   scoreCvDocument: vi.fn(),
@@ -26,6 +26,7 @@ beforeEach(() => {
   Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: vi.fn(() => 'blob:artifact') })
   Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: vi.fn() })
   api.listCvDocuments.mockResolvedValue({ items: [document] })
+  api.createCvDocument.mockResolvedValue(document)
   api.getCvDocument.mockResolvedValue(document)
   api.updateCvDocument.mockResolvedValue(document)
   api.deleteCvDocument.mockResolvedValue(undefined)
@@ -41,6 +42,36 @@ beforeEach(() => {
 })
 
 describe('CV Studio editor surface', () => {
+  it('creates a blank document from the empty state and opens it', async () => {
+    let resolveCreate!: (value: typeof document) => void
+    api.listCvDocuments.mockResolvedValue({ items: [] })
+    api.createCvDocument.mockImplementation(() => new Promise((resolve) => { resolveCreate = resolve }))
+    view()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Create a blank CV' }))
+
+    await waitFor(() => expect(api.createCvDocument).toHaveBeenCalledWith({ name: 'My CV' }))
+    const pendingButton = screen.getByRole('button', { name: 'Creating…' }) as HTMLButtonElement
+    expect(pendingButton.disabled).toBe(true)
+    fireEvent.click(pendingButton)
+    expect(api.createCvDocument).toHaveBeenCalledTimes(1)
+    await act(async () => resolveCreate(document))
+    expect((await screen.findByLabelText('Document name') as HTMLInputElement).value).toBe('Principal CV')
+    expect(api.getCvDocument).toHaveBeenCalledWith('d1')
+    expect(api.listCvDocuments).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps the empty state actionable when blank document creation fails', async () => {
+    api.listCvDocuments.mockResolvedValue({ items: [] })
+    api.createCvDocument.mockRejectedValue(new Error('Creation unavailable'))
+    view()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Create a blank CV' }))
+
+    expect(await screen.findByText('Creation unavailable')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Create a blank CV' })).toBeTruthy()
+  })
+
   it('lets the owner delete one document or all documents after explicit confirmation', async () => {
     vi.spyOn(window, 'confirm').mockReturnValue(true)
     const firstView = view()

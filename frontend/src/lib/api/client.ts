@@ -49,6 +49,7 @@ import {
   campaignTaskSchema, campaignNoteSchema, campaignContactSchema,
   campaignReminderResponseSchema,
   campaignReviewResponseSchema,
+  cvDocumentCreateSchema,
   cvDocumentListSchema,
   cvDocumentSchema,
   cvDocumentUpdateSchema,
@@ -75,6 +76,12 @@ import type {
 
 export function listCvDocuments() {
   return request('/cv-documents', { method: 'GET', schema: cvDocumentListSchema })
+}
+
+export function createCvDocument(payload: { name: string }) {
+  return request('/cv-documents', {
+    method: 'POST', body: cvDocumentCreateSchema.parse(payload), schema: cvDocumentSchema,
+  })
 }
 
 export function getCvDocument(documentId: string) {
