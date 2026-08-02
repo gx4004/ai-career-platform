@@ -8,6 +8,7 @@ type PanelAction = {
   label: string
   to?: string
   onClick?: () => void
+  disabled?: boolean
   variant?: 'default' | 'outline' | 'ghost'
 }
 
@@ -64,6 +65,7 @@ export function AppStatePanel({
                     key={action.label}
                     variant={action.variant || 'default'}
                     className={i === 0 ? 'button-hero-primary' : undefined}
+                    disabled={action.disabled}
                     onClick={action.onClick}
                   >
                     {action.label}
