@@ -14,9 +14,7 @@ import { Input } from '#/components/ui/input'
 import { Label } from '#/components/ui/label'
 import { createCvDocument, listEvidenceItems } from '#/lib/api/client'
 import type { CvDocument, EvidenceItem } from '#/lib/api/schemas'
-import { KIND_LABELS, contentEntries } from '#/lib/profile/evidence'
-
-const EVIDENCE_QUERY_KEY = ['evidence-profile', 'items'] as const
+import { EVIDENCE_QUERY_KEY, KIND_LABELS, contentEntries } from '#/lib/profile/evidence'
 
 function evidenceSummary(item: EvidenceItem) {
   const content = contentEntries(item.content)
@@ -36,7 +34,6 @@ export function CreateCvDocumentDialog({
   onCreated: (document: CvDocument) => void
 }) {
   const nameId = useId()
-  const errorId = useId()
   const [name, setName] = useState('My CV')
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [submitting, setSubmitting] = useState(false)
@@ -97,8 +94,6 @@ export function CreateCvDocumentDialog({
               required
               autoFocus
               disabled={submitting}
-              aria-invalid={error ? true : undefined}
-              aria-describedby={error ? errorId : undefined}
               onChange={(event) => setName(event.target.value)}
             />
           </div>
@@ -144,7 +139,7 @@ export function CreateCvDocumentDialog({
           </fieldset>
 
           {error ? (
-            <p id={errorId} role="alert" className="small-copy text-destructive">{error}</p>
+            <p role="alert" className="small-copy text-destructive">{error}</p>
           ) : null}
 
           <DialogFooter>

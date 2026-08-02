@@ -22,15 +22,13 @@ import {
   updateEvidenceItem,
 } from '#/lib/api/client'
 import type { EvidenceItem } from '#/lib/api/schemas'
-import { countByState, groupItemsByKind } from '#/lib/profile/evidence'
+import { EVIDENCE_QUERY_KEY, countByState, groupItemsByKind } from '#/lib/profile/evidence'
 import { EvidenceItemCard } from '#/components/profile/EvidenceItemCard'
 import {
   CorrectEvidenceDialog,
   type CorrectionSubmit,
 } from '#/components/profile/CorrectEvidenceDialog'
 import { ResumeImportDialog } from '#/components/profile/ResumeImportDialog'
-
-const EVIDENCE_QUERY_KEY = ['evidence-profile', 'items'] as const
 
 export function EvidenceProfilePage() {
   const { status, openAuthDialog } = useSession()

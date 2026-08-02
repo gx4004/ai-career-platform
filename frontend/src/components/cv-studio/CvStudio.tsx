@@ -122,11 +122,12 @@ export function CvStudio() {
     }
   }
 
-  if (status === 'loading') return <PageFrame className="studio-shell"><div className="studio-skeleton" aria-label="Checking your session" /></PageFrame>
+  if (status === 'loading') return <PageFrame className="studio-shell"><div className="studio-skeleton" role="status" aria-label="Checking your session" /></PageFrame>
   if (!authenticated) return <AppStatePanel title="CV Studio" description="Sign in to edit your structured CV documents and recover named versions." actions={[{ label: 'Sign in', onClick: () => openAuthDialog({ to: '/cv-studio', reason: 'CV Studio is private to your account.' }) }]} />
-  if (listQuery.isPending || (documentId && documentQuery.isPending)) return <PageFrame className="studio-shell" ><div className="studio-skeleton" aria-label="Loading CV Studio" /></PageFrame>
+  if (listQuery.isPending || (documentId && documentQuery.isPending)) return <PageFrame className="studio-shell" ><div className="studio-skeleton" role="status" aria-label="Loading CV Studio" /></PageFrame>
   if (listQuery.isError || documentQuery.isError) return <AppStatePanel title="CV Studio is unavailable" description="Your document content was not changed." detail="Try loading the studio again." actions={[{ label: 'Try again', onClick: () => { void listQuery.refetch(); void documentQuery.refetch() } }]} />
-  if (!listQuery.data?.items.length) return <><AppStatePanel title="Start your CV Studio" description="Import or create a structured CV document first. The editor never turns your document into freeform rich text." icon={<FilePlus2 />} actions={[{ label: 'Create a CV', onClick: () => setCreateOpen(true) }]} /><CreateCvDocumentDialog open={createOpen} onOpenChange={setCreateOpen} onCreated={handleCreatedDocument} /></>
+  const createDialog = <CreateCvDocumentDialog open={createOpen} onOpenChange={setCreateOpen} onCreated={handleCreatedDocument} />
+  if (!listQuery.data?.items.length) return <><AppStatePanel title="Start your CV Studio" description="Import or create a structured CV document first. The editor never turns your document into freeform rich text." icon={<FilePlus2 />} actions={[{ label: 'Create a CV', onClick: () => setCreateOpen(true) }]} />{createDialog}</>
   if (!draft) return null
 
   const exportUrl = `/api/v1/cv-documents/export`
@@ -142,7 +143,7 @@ export function CvStudio() {
           <Button type="button" variant="outline" disabled={dirty} onClick={() => void removeDocument(true)}>Delete all documents</Button>
         </div>
       </header>
-      <CreateCvDocumentDialog open={createOpen} onOpenChange={setCreateOpen} onCreated={handleCreatedDocument} />
+      {createDialog}
       {actionError ? <div className="studio-error" role="alert">{actionError} <button type="button" onClick={() => setActionError('')}>Dismiss</button></div> : null}
       <div className="studio-layout">
         <section className="studio-editor" aria-label="CV sections">
