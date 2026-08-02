@@ -12,8 +12,9 @@ environment.
 
 Do not promote or invite users when any of these are true:
 
-- R3 retention and backup decisions in `docs/threat-model.md` D-UNK-6 or D-UNK-7
-  are unresolved.
+- The accepted retention and backup controls in D-031 through D-035 are not
+  satisfied, including the R5 managed-backup and restore rehearsal required by
+  D-032. (`docs/threat-model.md` records D-UNK-6 and D-UNK-7 as resolved.)
 - Production/staging frontend and backend domains, TLS, credentialed CORS,
   OAuth redirect values, or HSTS compatibility are unverified.
 - `RATE_LIMIT_STORAGE_URI` is missing outside development or shared limiter
