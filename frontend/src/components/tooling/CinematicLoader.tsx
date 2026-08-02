@@ -6,6 +6,7 @@ import {
   ClipboardList, Lightbulb, Briefcase, Map, Layers,
 } from 'lucide-react'
 import type { ToolId } from '#/lib/tools/registry'
+import { trackTelemetry } from '#/lib/telemetry/client'
 
 type Stage = {
   icon: typeof FileSearch
@@ -74,6 +75,7 @@ export function CinematicLoader({
   stages: customStages,
   mutationDone,
   onReady,
+  accessMode,
 }: {
   accent?: string
   toolId?: ToolId
@@ -82,6 +84,7 @@ export function CinematicLoader({
   mutationDone?: boolean
   /** Called when minimum display time has elapsed and the loader is safe to dismiss */
   onReady?: () => void
+  accessMode?: 'authenticated' | 'guest_demo'
 }) {
   const displayStages = useMemo(() => {
     if (customStages) {
@@ -98,6 +101,31 @@ export function CinematicLoader({
 
   const [stageIndex, setStageIndex] = useState(0)
   const startTimeRef = useRef(Date.now())
+  const doneRef = useRef(Boolean(mutationDone))
+  const abandonmentReportedRef = useRef(false)
+
+  useEffect(() => {
+    doneRef.current = Boolean(mutationDone)
+  }, [mutationDone])
+
+  useEffect(() => {
+    const reportAbandonment = () => {
+      const durationMs = Date.now() - startTimeRef.current
+      if (doneRef.current || abandonmentReportedRef.current || durationMs < 1000 || !toolId) return
+      abandonmentReportedRef.current = true
+      trackTelemetry({
+        event_name: 'generation_loader_abandoned',
+        tool_id: toolId,
+        access_mode: accessMode,
+        duration_ms: Math.min(durationMs, 86_400_000),
+      })
+    }
+    window.addEventListener('pagehide', reportAbandonment)
+    return () => {
+      window.removeEventListener('pagehide', reportAbandonment)
+      reportAbandonment()
+    }
+  }, [accessMode, toolId])
 
   // Prevent accidental navigation while loading
   useEffect(() => {

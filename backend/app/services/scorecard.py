@@ -365,21 +365,36 @@ def _evaluate_latency(db: Session, now: datetime) -> dict[str, object]:
         for tool_id, breaches in per_tool_breaches.items()
         if len(breaches) == LATENCY_WINDOW_DAYS and all(breaches)
     ]
+    abandonment_rows = (
+        db.query(AnalyticsEvent.tool_id, func.count(AnalyticsEvent.id))
+        .filter(
+            AnalyticsEvent.event_name == "generation_loader_abandoned",
+            AnalyticsEvent.created_at >= today_start - timedelta(days=LATENCY_WINDOW_DAYS),
+            AnalyticsEvent.tool_id.isnot(None),
+        )
+        .group_by(AnalyticsEvent.tool_id)
+        .all()
+    )
+    abandonment_counts = {tool_id: count for tool_id, count in abandonment_rows}
     detail: dict[str, float | int | str] = {
         "budget_ms": budget,
         "worst_p95_ms": round(worst_p95, 1),
         "days_with_sample": evaluated_days,
         "sustained_breach_tools": ", ".join(sorted(sustained)) or "none",
+        "loader_abandonments": sum(abandonment_counts.values()),
+        "loader_abandonments_by_tool": ", ".join(
+            f"{tool}:{count}" for tool, count in sorted(abandonment_counts.items())
+        ) or "none",
     }
     if sustained:
-        # Latency clearly sustains a breach, but the trigger also requires
-        # materially elevated loader abandonment, which is not yet instrumented
-        # — so the honest state is "review the abandonment signal", never fired.
+        # The abandonment signal now exists, but no material-elevation comparison
+        # threshold was accepted in #139. Do not invent one and auto-authorize UI.
         state: TriggerState = "insufficient_sample"
         evidence = (
             f"p95 breach sustained {LATENCY_WINDOW_DAYS}d for {', '.join(sorted(sustained))} "
-            f"(worst {worst_p95:.0f} ms > {budget} ms); loader-abandonment signal not "
-            "instrumented (see #139) so elevation cannot be confirmed."
+            f"(worst {worst_p95:.0f} ms > {budget} ms); observed "
+            f"{sum(abandonment_counts.values())} loader abandonments, but #139 has no "
+            "accepted material-elevation threshold."
         )
     elif evaluated_days == 0:
         state = "insufficient_sample"

@@ -243,7 +243,10 @@ Operational questions should be answerable without reconstructing sensitive cont
 R10 scaling evidence extends this boundary with allowlisted aggregate dimensions for
 topology, cache outcome, provider incident category, phase latency, database health,
 abuse/cost pressure, and job-import source family (D-053). Full URLs and raw provider
-errors remain forbidden.
+errors remain forbidden. The shared pipeline records actual preparation, generation,
+and persistence durations; the browser records a bounded loader-abandonment duration
+only when a pending loader is left. These are evidence inputs, not a progress
+transport, and no material-elevation threshold has been accepted for #139.
 
 ## Scaling Response Boundaries
 

@@ -15,6 +15,7 @@ export type TelemetryEventName =
   | 'tool_regenerate'
   | 'auth_signup_source'
   | 'workflow_continued'
+  | 'generation_loader_abandoned'
   | 'result_page_cache_miss'
 
 type TelemetryPayload = {
@@ -27,6 +28,7 @@ type TelemetryPayload = {
   export_format?: 'txt' | 'md'
   has_feedback?: boolean
   session_status?: 'loading' | 'guest' | 'authenticated'
+  duration_ms?: number
 }
 
 // Runtime allowlist of the fields that may leave the browser. TypeScript stops
@@ -49,6 +51,7 @@ const ALLOWED_TELEMETRY_FIELDS = [
   'export_format',
   'has_feedback',
   'session_status',
+  'duration_ms',
 ] as const satisfies readonly (keyof TelemetryPayload)[]
 
 function buildTelemetryBody(payload: TelemetryPayload): string {

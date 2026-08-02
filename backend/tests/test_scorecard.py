@@ -61,6 +61,13 @@ def test_allowlist_accepts_r10_operational_shapes():
         event_name="r10_provider_incident", operational_dimension="timeout"
     )
     ActivationEventCreate(
+        event_name="r10_generation_phase",
+        tool_id="resume",
+        access_mode="guest_demo",
+        operational_dimension="generation",
+        duration_ms=123,
+    )
+    ActivationEventCreate(
         event_name="r10_rate_limit_event",
         operational_dimension="auth",
         operational_outcome="guest",
@@ -193,10 +200,18 @@ def test_latency_sustained_breach_reports_insufficient_for_abandonment(db):
     # p95 > 60s on each of the last 3 days, sufficient sample each day.
     for day in (1, 2, 3):
         _insert_latency_day(db, days_ago=day, count=25, duration_ms=90000)
+    _event(
+        db,
+        event_name="generation_loader_abandoned",
+        tool_id="resume",
+        duration_ms=45000,
+        created_at=FIXED_NOW - timedelta(days=1),
+    )
     trig = _trigger(compute_scorecard(db, now=FIXED_NOW), "latency_abandonment")
-    # Sustained latency breach, but abandonment is not instrumented → cannot fire.
+    # Sustained latency breach, but no accepted material-elevation threshold → cannot fire.
     assert trig.state == "insufficient_sample"
     assert "resume" in str(trig.evidence_detail["sustained_breach_tools"])
+    assert trig.evidence_detail["loader_abandonments"] == 1
 
 
 def test_latency_false_positive_reset_when_a_day_recovers(db):

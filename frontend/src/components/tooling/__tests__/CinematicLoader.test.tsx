@@ -3,6 +3,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { CinematicLoader } from '#/components/tooling/CinematicLoader'
 
+const trackTelemetryMock = vi.hoisted(() => vi.fn())
+vi.mock('#/lib/telemetry/client', () => ({ trackTelemetry: trackTelemetryMock }))
+
 function progressValue(container: HTMLElement) {
   const root = container.querySelector('.cinematic-loader') as HTMLElement | null
   if (!root) return null
@@ -13,6 +16,32 @@ function progressValue(container: HTMLElement) {
 describe('CinematicLoader', () => {
   beforeEach(() => {
     vi.useFakeTimers()
+    trackTelemetryMock.mockReset()
+  })
+
+  it('reports one bounded abandonment when a pending loader leaves after one second', () => {
+    const { unmount } = render(
+      <CinematicLoader toolId="resume" accessMode="guest_demo" mutationDone={false} />,
+    )
+    act(() => vi.advanceTimersByTime(1500))
+    unmount()
+
+    expect(trackTelemetryMock).toHaveBeenCalledWith({
+      event_name: 'generation_loader_abandoned',
+      tool_id: 'resume',
+      access_mode: 'guest_demo',
+      duration_ms: 1500,
+    })
+  })
+
+  it('does not report abandonment after real completion', () => {
+    const { rerender, unmount } = render(
+      <CinematicLoader toolId="resume" mutationDone={false} />,
+    )
+    act(() => vi.advanceTimersByTime(1500))
+    rerender(<CinematicLoader toolId="resume" mutationDone />)
+    unmount()
+    expect(trackTelemetryMock).not.toHaveBeenCalled()
   })
 
   afterEach(() => {

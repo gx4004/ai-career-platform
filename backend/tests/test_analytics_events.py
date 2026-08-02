@@ -197,6 +197,31 @@ def test_ingestion_endpoint_persists_accepted_event(client, db):
     assert stored.export_format == "md"
 
 
+def test_ingestion_persists_bounded_loader_abandonment(client, db):
+    response = client.post(
+        f"{PREFIX}/telemetry/events",
+        json={
+            "event_name": "generation_loader_abandoned",
+            "tool_id": "resume",
+            "access_mode": "guest_demo",
+            "duration_ms": 45000,
+        },
+    )
+    assert response.status_code == 200
+    stored = db.query(AnalyticsEvent).one()
+    assert stored.duration_ms == 45000
+    assert stored.tool_id == "resume"
+
+
+def test_ingestion_rejects_client_duration_on_unrelated_event(client, db):
+    response = client.post(
+        f"{PREFIX}/telemetry/events",
+        json={"event_name": "landing_page_viewed", "duration_ms": 123},
+    )
+    assert response.status_code == 422
+    assert db.query(AnalyticsEvent).count() == 0
+
+
 @pytest.mark.parametrize(
     "payload, expected_tool_id",
     [
