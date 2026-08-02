@@ -67,6 +67,7 @@ import type {
   EvidenceItemUpdate,
   JobMatchResult,
   ResumeResult,
+  CvDocumentCreate,
   CvDocumentUpdate,
   CvAtsCheckKey,
   CvTemplateId,
@@ -78,7 +79,7 @@ export function listCvDocuments() {
   return request('/cv-documents', { method: 'GET', schema: cvDocumentListSchema })
 }
 
-export function createCvDocument(payload: { name: string }) {
+export function createCvDocument(payload: CvDocumentCreate) {
   return request('/cv-documents', {
     method: 'POST', body: cvDocumentCreateSchema.parse(payload), schema: cvDocumentSchema,
   })

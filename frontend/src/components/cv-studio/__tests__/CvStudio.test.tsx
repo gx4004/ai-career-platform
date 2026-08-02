@@ -1,10 +1,11 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { CvStudio } from '#/components/cv-studio/CvStudio'
 
 const api = vi.hoisted(() => ({
   listCvDocuments: vi.fn(), createCvDocument: vi.fn(), getCvDocument: vi.fn(), updateCvDocument: vi.fn(),
+  listEvidenceItems: vi.fn(),
   snapshotCvVariant: vi.fn(), restoreCvVariant: vi.fn(),
   deleteCvDocument: vi.fn(), deleteAllCvDocuments: vi.fn(),
   scoreCvDocument: vi.fn(),
@@ -16,6 +17,7 @@ vi.mock('#/hooks/useSession', () => ({ useSession: () => session }))
 
 const section = { id: 's1', kind: 'experience' as const, title: 'Experience', visible: true, position: 0, entries: [{ id: 'e1', evidence_item_id: null, body: 'Built accessible systems.', position: 0 }] }
 const document = { id: 'd1', name: 'Principal CV', sections: [section], created_at: '2026-07-12T10:00:00Z', updated_at: '2026-07-12T10:00:00Z', quality_model_runs: 0, tailoring_model_runs: 0, quality_model_run_limit: 10 as const, tailoring_model_run_limit: 10 as const, variants: [{ id: 'v1', name: 'Base', target_role: null, sections: [section], created_at: '2026-07-12T10:00:00Z' }] }
+const confirmedEvidence = { id: 'ev-1', kind: 'achievement' as const, content: { statement: 'Reduced review time by 23%.' }, provenance: 'user-entered' as const, confirmation_state: 'confirmed' as const, created_at: '2026-07-12T10:00:00Z', updated_at: '2026-07-12T10:00:00Z' }
 
 function view() {
   return render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}><CvStudio /></QueryClientProvider>)
@@ -27,6 +29,7 @@ beforeEach(() => {
   Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: vi.fn() })
   api.listCvDocuments.mockResolvedValue({ items: [document] })
   api.createCvDocument.mockResolvedValue(document)
+  api.listEvidenceItems.mockResolvedValue({ items: [] })
   api.getCvDocument.mockResolvedValue(document)
   api.updateCvDocument.mockResolvedValue(document)
   api.deleteCvDocument.mockResolvedValue(undefined)
@@ -48,10 +51,12 @@ describe('CV Studio editor surface', () => {
     api.createCvDocument.mockImplementation(() => new Promise((resolve) => { resolveCreate = resolve }))
     view()
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Create a blank CV' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Create a CV' }))
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Create CV' }))
 
-    await waitFor(() => expect(api.createCvDocument).toHaveBeenCalledWith({ name: 'My CV' }))
-    const pendingButton = screen.getByRole('button', { name: 'Creating…' }) as HTMLButtonElement
+    await waitFor(() => expect(api.createCvDocument).toHaveBeenCalledWith({ name: 'My CV', seed_evidence_item_ids: [] }))
+    const pendingButton = within(dialog).getByRole('button', { name: 'Creating CV…' }) as HTMLButtonElement
     expect(pendingButton.disabled).toBe(true)
     fireEvent.click(pendingButton)
     expect(api.createCvDocument).toHaveBeenCalledTimes(1)
@@ -61,15 +66,40 @@ describe('CV Studio editor surface', () => {
     expect(api.listCvDocuments).toHaveBeenCalledTimes(1)
   })
 
-  it('keeps the empty state actionable when blank document creation fails', async () => {
+  it('keeps the creation dialog actionable and announces a failure', async () => {
     api.listCvDocuments.mockResolvedValue({ items: [] })
     api.createCvDocument.mockRejectedValue(new Error('Creation unavailable'))
     view()
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Create a blank CV' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Create a CV' }))
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Create CV' }))
 
-    expect(await screen.findByText('Creation unavailable')).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Create a blank CV' })).toBeTruthy()
+    expect((await within(dialog).findByRole('alert')).textContent).toContain('Creation unavailable')
+    expect(within(dialog).getByRole('button', { name: 'Create CV' })).toBeTruthy()
+  })
+
+  it('creates another document from selected confirmed evidence', async () => {
+    const created = { ...document, id: 'd2', name: 'Role CV' }
+    api.listEvidenceItems.mockResolvedValue({ items: [
+      confirmedEvidence,
+      { ...confirmedEvidence, id: 'ev-2', content: { name: 'Unreviewed skill' }, confirmation_state: 'unconfirmed' },
+    ] })
+    api.createCvDocument.mockResolvedValue(created)
+    api.getCvDocument.mockImplementation((id: string) => Promise.resolve(id === 'd2' ? created : document))
+    view()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'New CV' }))
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.change(within(dialog).getByLabelText('Document name'), { target: { value: 'Role CV' } })
+    fireEvent.click(await within(dialog).findByRole('checkbox', { name: /Reduced review time by 23%/ }))
+    expect(within(dialog).queryByText('Unreviewed skill')).toBeNull()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Create CV' }))
+
+    await waitFor(() => expect(api.createCvDocument).toHaveBeenCalledWith({
+      name: 'Role CV', seed_evidence_item_ids: ['ev-1'],
+    }))
+    expect((await screen.findByLabelText('Document name') as HTMLInputElement).value).toBe('Role CV')
   })
 
   it('lets the owner delete one document or all documents after explicit confirmation', async () => {

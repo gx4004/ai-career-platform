@@ -196,6 +196,7 @@ export const cvDocumentCreateSchema = z.strictObject({
   sections: z.array(cvSectionSchema).max(50).default([]),
   seed_evidence_item_ids: z.array(z.string()).max(200).default([]),
 })
+export type CvDocumentCreate = z.input<typeof cvDocumentCreateSchema>
 export const cvDocumentUpdateSchema = z.strictObject({
   name: z.string().min(1).max(120).optional(),
   sections: z.array(cvSectionSchema).max(50).optional(),
