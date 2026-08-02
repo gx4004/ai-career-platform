@@ -250,7 +250,11 @@ transport, and no material-elevation threshold has been accepted for #139.
 Representative history, workspace, and admin-run reads likewise persist only a
 closed query-family name and duration. The scorecard reports their seven-day p95 but
 cannot fire the query branch until an explicit p95 budget is accepted; SQL text,
-parameters, user content, and identifiers never enter telemetry.
+parameters, user content, and identifiers never enter telemetry. A fail-safe
+15-minute scheduler samples only storage percentage (when provisioned capacity is
+configured) and pool checkout ratio into the same 180-day store. Seven or more days
+of storage evidence can drive the predeclared 90-day capacity forecast; pool samples
+remain evidence-only until a sustained-pressure threshold is accepted.
 
 ## Scaling Response Boundaries
 

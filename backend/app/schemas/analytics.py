@@ -42,6 +42,7 @@ R10EventName = Literal[
     "r10_rate_limit_event",
     "r10_generation_phase",
     "r10_database_query",
+    "r10_database_snapshot",
 ]
 
 # Cache lookup/write outcome at the shared tool-pipeline seam (ADR 0004). No
@@ -98,6 +99,7 @@ RateLimitRouteFamily = Literal[
 RateLimitIdentityType = Literal["account", "guest"]
 GenerationPhase = Literal["preparation", "generation", "persistence"]
 DatabaseQueryFamily = Literal["history_list", "workspace_list", "admin_runs"]
+DatabaseMetric = Literal["storage_pct", "pool_checkout_ratio"]
 
 # R14 source-registry events never carry a source key/name. The family and
 # governance transition are the only bounded dimensions that cross telemetry.
@@ -180,6 +182,7 @@ OperationalDimension = (
     | RateLimitRouteFamily
     | GenerationPhase
     | DatabaseQueryFamily
+    | DatabaseMetric
     | DiscoverySourceFamily
     | PacketGateHaltReason
 )
@@ -346,6 +349,7 @@ class ActivationEventCreate(BaseModel):
     session_status: SessionStatus | None = None
     duration_ms: int | None = None
     cost_estimate: Decimal | None = None
+    metric_value: Decimal | None = None
     operational_dimension: OperationalDimension | None = None
     operational_outcome: OperationalOutcome | None = None
     # R11 profile-adoption dimensions (#150, D-067). Null for every non-profile
@@ -466,6 +470,47 @@ class ActivationEventCreate(BaseModel):
         )
         if any(value is not None for value in unrelated_values) or self.level != "info":
             raise ValueError("database query events accept only family and duration")
+        return self
+
+    @model_validator(mode="after")
+    def validate_database_snapshot_shape(self):
+        metrics = {"storage_pct", "pool_checkout_ratio"}
+        if self.event_name != "r10_database_snapshot":
+            if self.metric_value is not None:
+                raise ValueError("metric value is valid only for database snapshots")
+            return self
+        if (
+            self.operational_dimension not in metrics
+            or self.operational_outcome is not None
+            or self.metric_value is None
+            or self.metric_value < 0
+        ):
+            raise ValueError("database snapshots require metric name and non-negative value")
+        unrelated_values = (
+            self.tool_id,
+            self.access_mode,
+            self.saved,
+            self.failure_category,
+            self.export_format,
+            self.has_feedback,
+            self.session_status,
+            self.duration_ms,
+            self.cost_estimate,
+            self.evidence_kind,
+            self.evidence_provenance,
+            self.confirmation_transition,
+            self.development_gap_kind,
+            self.development_response_kind,
+            self.development_state_from,
+            self.development_state_to,
+            self.occurred_at,
+        )
+        if any(value is not None for value in unrelated_values) or self.level != "info":
+            raise ValueError("database snapshots accept only metric name and value")
+        if self.operational_dimension == "storage_pct" and self.metric_value > 100:
+            raise ValueError("storage percentage cannot exceed 100")
+        if self.operational_dimension == "pool_checkout_ratio" and self.metric_value > 1:
+            raise ValueError("pool checkout ratio cannot exceed 1")
         return self
 
     @model_validator(mode="after")

@@ -19,8 +19,10 @@ from app.models.analytics_event import AnalyticsEvent
 from app.models.user import User
 from app.schemas.analytics import ActivationEventCreate
 from app.services.scorecard import (
+    capture_database_snapshot,
     compute_scorecard,
     evaluate_database_growth,
+    forecast_storage_pct,
     group_provider_incidents,
 )
 
@@ -59,6 +61,11 @@ def test_allowlist_accepts_r10_operational_shapes():
     ActivationEventCreate(event_name="r10_cache_outcome", operational_outcome="hit")
     ActivationEventCreate(
         event_name="r10_provider_incident", operational_dimension="timeout"
+    )
+    ActivationEventCreate(
+        event_name="r10_database_snapshot",
+        operational_dimension="storage_pct",
+        metric_value=42.5,
     )
     ActivationEventCreate(
         event_name="r10_database_query",
@@ -324,6 +331,51 @@ def test_database_trigger_reports_bounded_query_family_p95_without_firing(db):
     assert trig.evidence_detail["query_samples_7d"] == 4
     assert trig.evidence_detail["query_p95_ms"] == "history_list:40.0"
     assert trig.evidence_detail["query_budget"] == "not accepted"
+
+
+def test_database_snapshot_records_only_available_bounded_metrics(db, monkeypatch):
+    monkeypatch.setattr(
+        "app.services.scorecard.gather_database_evidence", lambda _db: (42.5, 0.25)
+    )
+    assert capture_database_snapshot(db) == 2
+    rows = db.query(AnalyticsEvent).order_by(AnalyticsEvent.created_at).all()
+    assert [(row.operational_dimension, float(row.metric_value)) for row in rows] == [
+        ("storage_pct", 42.5),
+        ("pool_checkout_ratio", 0.25),
+    ]
+
+
+def test_storage_forecast_requires_seven_days_and_projects_ninety_days():
+    assert forecast_storage_pct([(FIXED_NOW, 50.0)]) is None
+    assert forecast_storage_pct(
+        [(FIXED_NOW - timedelta(days=6), 50.0), (FIXED_NOW, 56.0)]
+    ) is None
+    assert forecast_storage_pct(
+        [(FIXED_NOW - timedelta(days=10), 50.0), (FIXED_NOW, 60.0)]
+    ) == 150.0
+
+
+def test_database_trigger_fires_when_capacity_forecast_reaches_limit(db, monkeypatch):
+    monkeypatch.setattr(
+        "app.services.scorecard.gather_database_evidence", lambda _db: (60.0, 0.1)
+    )
+    _event(
+        db,
+        event_name="r10_database_snapshot",
+        operational_dimension="storage_pct",
+        metric_value=50,
+        created_at=FIXED_NOW - timedelta(days=10),
+    )
+    _event(
+        db,
+        event_name="r10_database_snapshot",
+        operational_dimension="storage_pct",
+        metric_value=60,
+        created_at=FIXED_NOW,
+    )
+    trig = _trigger(compute_scorecard(db, now=FIXED_NOW), "database_growth")
+    assert trig.state == "fired"
+    assert trig.evidence_detail["storage_forecast_90d_pct"] == 150.0
 
 
 # ── Import concentration (AC per D-059) ────────────────────────────────────

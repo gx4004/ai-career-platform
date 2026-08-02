@@ -14,6 +14,7 @@ import logging
 from app.database import SessionLocal
 from app.services.analytics import prune_activation_events
 from app.services.discovered_listings import expire_discovered_listings
+from app.services.scorecard import capture_database_snapshot
 
 logger = logging.getLogger("app.retention")
 
@@ -22,6 +23,7 @@ logger = logging.getLogger("app.retention")
 # meaningful load.
 ACTIVATION_PRUNE_INTERVAL_SECONDS = 24 * 60 * 60
 DISCOVERED_LISTING_EXPIRY_INTERVAL_SECONDS = 24 * 60 * 60
+DATABASE_SAMPLE_INTERVAL_SECONDS = 15 * 60
 
 
 def _prune_activation_events_once() -> int:
@@ -89,4 +91,30 @@ async def run_discovered_listing_expiry_scheduler(
 ) -> None:
     while True:
         await asyncio.to_thread(_expire_discovered_listings_once)
+        await asyncio.sleep(interval_seconds)
+
+
+def _capture_database_snapshot_once() -> int:
+    db = SessionLocal()
+    try:
+        return capture_database_snapshot(db)
+    except Exception as exc:  # noqa: BLE001 — monitoring must never stop the app
+        try:
+            db.rollback()
+        except Exception:  # noqa: BLE001
+            pass
+        logger.warning(
+            "database snapshot failed error_type=%s",
+            type(exc).__name__,
+        )
+        return 0
+    finally:
+        db.close()
+
+
+async def run_database_sample_scheduler(
+    interval_seconds: int = DATABASE_SAMPLE_INTERVAL_SECONDS,
+) -> None:
+    while True:
+        await asyncio.to_thread(_capture_database_snapshot_once)
         await asyncio.sleep(interval_seconds)

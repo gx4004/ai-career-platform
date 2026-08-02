@@ -28,6 +28,7 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.models.analytics_event import AnalyticsEvent
 from app.schemas.admin import AdminScorecardResponse, ScorecardTrigger, TriggerState
+from app.services.analytics import safe_record_activation_event
 
 logger = logging.getLogger("app.scorecard")
 
@@ -530,14 +531,50 @@ def gather_database_evidence(db: Session) -> tuple[float | None, float | None]:
     return storage_pct, pool_ratio
 
 
+def capture_database_snapshot(db: Session) -> int:
+    """Persist available bounded storage/pool measurements for sustained evidence."""
+    storage_pct, pool_ratio = gather_database_evidence(db)
+    samples = (
+        ("storage_pct", storage_pct),
+        ("pool_checkout_ratio", pool_ratio),
+    )
+    recorded = 0
+    for metric, value in samples:
+        if value is None:
+            continue
+        safe_record_activation_event(
+            db,
+            event_name="r10_database_snapshot",
+            operational_dimension=metric,
+            metric_value=value,
+        )
+        recorded += 1
+    return recorded
+
+
+def forecast_storage_pct(
+    samples: Sequence[tuple[datetime, float]], *, horizon_days: int = 90
+) -> float | None:
+    """Linear percentage forecast after at least seven days of sampled evidence."""
+    if len(samples) < 2:
+        return None
+    ordered = sorted((_as_utc(at), value) for at, value in samples)
+    span_days = (ordered[-1][0] - ordered[0][0]).total_seconds() / 86_400
+    if span_days < 7:
+        return None
+    slope_per_day = (ordered[-1][1] - ordered[0][1]) / span_days
+    return round(max(0.0, ordered[-1][1] + slope_per_day * horizon_days), 2)
+
+
 def evaluate_database_growth(storage_pct: float | None) -> tuple[TriggerState, str]:
     """Pure threshold logic for the database-growth trigger (D-058).
 
     Fires only on a hard, measured storage-headroom breach. Pool checkout
     pressure is shown as supporting evidence but not fired on, because a single
     live reading cannot establish that it is *sustained*; query-plan p95 and the
-    90-day capacity forecast are not yet instrumented either, so with no storage
-    signal the trigger reports insufficient evidence rather than guessing.
+    90-day capacity forecast requires at least seven days of bounded samples, so
+    with no storage signal the trigger reports insufficient evidence rather than
+    guessing.
     """
     if storage_pct is not None and storage_pct >= DB_STORAGE_TRIGGER_PCT:
         return "fired", (
@@ -547,17 +584,16 @@ def evaluate_database_growth(storage_pct: float | None) -> tuple[TriggerState, s
     if storage_pct is not None:
         return "not_fired", (
             f"Storage at {storage_pct:.1f}% of capacity (< {DB_STORAGE_TRIGGER_PCT:.0f}%); "
-            "query-plan and 90-day forecast signals not yet instrumented (see #141)."
+            "query-plan evidence and a mature 90-day forecast remain required."
         )
     return "insufficient_sample", (
         "No provisioned-capacity/storage signal available (set DB_CAPACITY_BYTES on "
-        "Postgres); query-plan and forecast signals not yet instrumented (see #141)."
+        "Postgres); query-plan evidence and a mature forecast remain required."
     )
 
 
 def _evaluate_database(db: Session, now: datetime) -> dict[str, object]:
     storage_pct, pool_ratio = gather_database_evidence(db)
-    state, evidence = evaluate_database_growth(storage_pct)
     query_rows = (
         db.query(
             AnalyticsEvent.operational_dimension,
@@ -577,8 +613,41 @@ def _evaluate_database(db: Session, now: datetime) -> dict[str, object]:
         family: round(_p95(durations) or 0.0, 1)
         for family, durations in query_durations.items()
     }
+    snapshot_rows = (
+        db.query(
+            AnalyticsEvent.operational_dimension,
+            AnalyticsEvent.metric_value,
+            AnalyticsEvent.created_at,
+        )
+        .filter(
+            AnalyticsEvent.event_name == "r10_database_snapshot",
+            AnalyticsEvent.metric_value.isnot(None),
+            AnalyticsEvent.created_at >= now - timedelta(days=30),
+        )
+        .order_by(AnalyticsEvent.created_at)
+        .all()
+    )
+    storage_samples = [
+        (_as_utc(created_at), float(value))
+        for metric, value, created_at in snapshot_rows
+        if metric == "storage_pct"
+    ]
+    pool_samples = [
+        float(value)
+        for metric, value, _ in snapshot_rows
+        if metric == "pool_checkout_ratio"
+    ]
+    storage_forecast = forecast_storage_pct(storage_samples)
+    latest_sampled_storage = storage_samples[-1][1] if storage_samples else None
+    effective_storage = storage_pct if storage_pct is not None else latest_sampled_storage
+    state, evidence = evaluate_database_growth(effective_storage)
+    if storage_forecast is not None and storage_forecast >= 100:
+        state = "fired"
+        evidence = (
+            f"90-day storage forecast reaches {storage_forecast:.1f}% of provisioned capacity."
+        )
     detail: dict[str, float | int | str] = {
-        "storage_pct": storage_pct if storage_pct is not None else "unknown",
+        "storage_pct": effective_storage if effective_storage is not None else "unknown",
         "pool_checkout_ratio": pool_ratio if pool_ratio is not None else "unknown",
         "storage_trigger_pct": DB_STORAGE_TRIGGER_PCT,
         "query_samples_7d": len(query_rows),
@@ -586,6 +655,9 @@ def _evaluate_database(db: Session, now: datetime) -> dict[str, object]:
             f"{family}:{value:.1f}" for family, value in sorted(query_p95.items())
         ) or "none",
         "query_budget": "not accepted",
+        "snapshot_samples_30d": len(snapshot_rows),
+        "pool_checkout_max_30d": round(max(pool_samples), 4) if pool_samples else "unknown",
+        "storage_forecast_90d_pct": storage_forecast if storage_forecast is not None else "unknown",
     }
     if query_rows:
         evidence += (
@@ -597,7 +669,7 @@ def _evaluate_database(db: Session, now: datetime) -> dict[str, object]:
         "evidence": evidence,
         "evidence_detail": detail,
         "last_evidence_at": _iso(now),
-        "evidence_fresh": storage_pct is not None or pool_ratio is not None,
+        "evidence_fresh": bool(snapshot_rows) or storage_pct is not None or pool_ratio is not None,
     }
 
 
