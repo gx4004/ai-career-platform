@@ -20,14 +20,15 @@ describe('CV document schema (R12, #153)', () => {
   it('matches the typed backend document and immutable variant contract', () => {
     const parsed = cvDocumentSchema.parse({
       id: 'document-1', name: 'Primary CV', sections: [section],
-      created_at: '2026-07-12T10:00:00Z', updated_at: '2026-07-12T10:00:00Z',
+      created_at: '2026-07-12T12:00:00+02:00', updated_at: '2026-07-12T12:00:00+02:00',
       quality_model_runs: 0, tailoring_model_runs: 0, quality_model_run_limit: 10, tailoring_model_run_limit: 10,
       variants: [{
         id: 'variant-1', name: 'Base', target_role: null, sections: [section],
-        created_at: '2026-07-12T10:00:00Z',
+        created_at: '2026-07-12T12:00:00+02:00',
       }],
     })
     expect(parsed.variants[0].name).toBe('Base')
+    expect(parsed.created_at).toBe('2026-07-12T12:00:00+02:00')
   })
 
   it('requires each factual entry to reference an Evidence Profile item', () => {

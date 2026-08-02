@@ -207,11 +207,11 @@ export const cvVariantCreateSchema = z.strictObject({
 })
 export const cvVariantSchema = z.object({
   id: z.string(), name: z.string(), target_role: z.string().nullable(),
-  sections: z.array(cvSectionSchema), created_at: z.iso.datetime(),
+  sections: z.array(cvSectionSchema), created_at: z.iso.datetime({ offset: true }),
 })
 export const cvDocumentSchema = z.object({
   id: z.string(), name: z.string(), sections: z.array(cvSectionSchema),
-  created_at: z.iso.datetime(), updated_at: z.iso.datetime(),
+  created_at: z.iso.datetime({ offset: true }), updated_at: z.iso.datetime({ offset: true }),
   quality_model_runs: z.number().int().nonnegative(), tailoring_model_runs: z.number().int().nonnegative(),
   quality_model_run_limit: z.literal(10), tailoring_model_run_limit: z.literal(10),
   variants: z.array(cvVariantSchema),
