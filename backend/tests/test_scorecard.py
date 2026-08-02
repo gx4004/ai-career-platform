@@ -60,7 +60,11 @@ def _trigger(card, trigger_id: str):
 def test_allowlist_accepts_r10_operational_shapes():
     ActivationEventCreate(event_name="r10_cache_outcome", operational_outcome="hit")
     ActivationEventCreate(
-        event_name="r10_provider_incident", operational_dimension="timeout"
+        event_name="r10_provider_incident",
+        level="error",
+        tool_id="resume",
+        access_mode="guest_demo",
+        operational_dimension="timeout",
     )
     ActivationEventCreate(
         event_name="r10_database_snapshot",
@@ -76,7 +80,7 @@ def test_allowlist_accepts_r10_operational_shapes():
         event_name="r10_generation_phase",
         tool_id="resume",
         access_mode="guest_demo",
-        operational_dimension="generation",
+        operational_dimension="provider",
         duration_ms=123,
     )
     ActivationEventCreate(
@@ -88,7 +92,19 @@ def test_allowlist_accepts_r10_operational_shapes():
         event_name="r10_import_outcome",
         operational_dimension="greenhouse",
         operational_outcome="success",
+        duration_ms=25,
     )
+
+
+@pytest.mark.parametrize("outcome", ["success", "failure"])
+def test_r10_import_outcome_values_remain_compatible_with_source_health(outcome):
+    event = ActivationEventCreate(
+        event_name="discovery_source_fetch_outcome",
+        operational_dimension="licensed",
+        operational_outcome=outcome,
+    )
+
+    assert event.operational_outcome == outcome
 
 
 @pytest.mark.parametrize(
@@ -109,6 +125,19 @@ def test_allowlist_accepts_r10_operational_shapes():
             "operational_dimension": "auth",
             "operational_outcome": "guest",
             "user_id": "u_123",
+        },
+        # R10 dimensions are exclusive to their authoritative event shapes.
+        {"event_name": "landing_page_viewed", "operational_dimension": "provider"},
+        {"event_name": "landing_page_viewed", "operational_dimension": "storage_pct"},
+        {
+            "event_name": "r10_database_query",
+            "operational_dimension": "provider",
+            "duration_ms": 5,
+        },
+        {
+            "event_name": "r10_import_outcome",
+            "operational_dimension": "greenhouse",
+            "operational_outcome": "success",
         },
     ],
 )
@@ -273,7 +302,9 @@ def test_abuse_cost_not_fired_under_budget(db, monkeypatch):
     assert trig.state == "not_fired"
 
 
-def _insert_rate_limit_window(db, *, window: int, family: str, count: int):
+def _insert_rate_limit_window(
+    db, *, window: int, family: str, count: int, identity_type: str = "guest"
+):
     boundary = FIXED_NOW.replace(minute=0, second=0, microsecond=0)
     created_at = boundary - timedelta(minutes=window * 15 - 1)
     for _ in range(count):
@@ -281,7 +312,7 @@ def _insert_rate_limit_window(db, *, window: int, family: str, count: int):
             db,
             event_name="r10_rate_limit_event",
             operational_dimension=family,
-            operational_outcome="guest",
+            operational_outcome=identity_type,
             created_at=created_at,
         )
 
@@ -291,7 +322,22 @@ def test_abuse_cost_fires_for_one_family_across_three_completed_windows(db):
         _insert_rate_limit_window(db, window=window, family="auth", count=50)
     trig = _trigger(compute_scorecard(db, now=FIXED_NOW), "abuse_cost")
     assert trig.state == "fired"
-    assert trig.evidence_detail["rate_limit_sustained_families"] == "auth"
+    assert trig.evidence_detail["rate_limit_sustained_flows"] == "auth/guest"
+
+
+def test_abuse_cost_does_not_combine_account_and_guest_pressure(db):
+    for window in (1, 2, 3):
+        _insert_rate_limit_window(
+            db, window=window, family="auth", count=25, identity_type="guest"
+        )
+        _insert_rate_limit_window(
+            db, window=window, family="auth", count=25, identity_type="account"
+        )
+
+    trig = _trigger(compute_scorecard(db, now=FIXED_NOW), "abuse_cost")
+
+    assert trig.state == "not_fired"
+    assert trig.evidence_detail["rate_limit_sustained_flows"] == "none"
 
 
 def test_abuse_cost_resets_when_rate_pressure_is_not_consecutive(db):
