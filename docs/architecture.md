@@ -198,6 +198,15 @@ and resume carry while preserving consent, onboarding, and non-sensitive UI stat
 Each integration must fail with an actionable product state. Optional integrations
 must not make unrelated core flows unavailable.
 
+## Build-Ahead Activation Boundary
+
+R11–R17 implementation is provisional code, not a production entitlement. Dedicated
+user API families are protected by server-authoritative, default-off outcome flags;
+downstream flags also require every upstream flag. The frontend mirrors that chain
+for routes and navigation, but it is never the security boundary. Core six-tool and
+history routes remain independent. Account-wide export and deletion continue to own
+recovery and erasure if build-ahead data exists while an outcome is dark.
+
 Provider fallback is not active. It may be introduced only after sustained provider-
 incident evidence and after the alternative passes R8 quality evaluation plus privacy,
 processor, cost, latency, and tool-specific failure review (D-055). Requests are not

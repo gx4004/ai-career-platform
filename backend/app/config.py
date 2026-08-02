@@ -49,6 +49,18 @@ class Settings(BaseSettings):
     # Even when True it is a no-op for guests and users with no profile items.
     EVIDENCE_PROFILE_INJECTION_ENABLED: bool = False
 
+    # Build-ahead outcomes are code-complete but not production-authorized.
+    # These server-side switches are the authoritative exposure boundary; the
+    # frontend mirrors them only for navigation. Each defaults off and must be
+    # activated deliberately after its accepted roadmap gate closes.
+    R11_EVIDENCE_PROFILE_ENABLED: bool = False
+    R12_CV_STUDIO_ENABLED: bool = False
+    R13_CAMPAIGNS_ENABLED: bool = False
+    R14_DISCOVERY_ENABLED: bool = False
+    R15_QUEUE_ENABLED: bool = False
+    R16_SUBMISSION_FOUNDATION_ENABLED: bool = False
+    R17_DEVELOPMENT_LOOP_ENABLED: bool = False
+
     # ── R10 scaling-trigger scorecard inputs (issue #136, parent #135) ──
     # Operator-declared deployment topology class. The intended backend starts
     # one Uvicorn process, so `single` is the accurate default; declare `multi`

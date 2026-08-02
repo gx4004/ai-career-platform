@@ -109,6 +109,13 @@ function getBrandRowTrigger(container: HTMLElement) {
 
 describe('AppSidebar', () => {
   beforeEach(() => {
+    for (const flag of [
+      'VITE_R11_EVIDENCE_PROFILE_ENABLED',
+      'VITE_R12_CV_STUDIO_ENABLED',
+      'VITE_R13_CAMPAIGNS_ENABLED',
+      'VITE_R14_DISCOVERY_ENABLED',
+      'VITE_R15_QUEUE_ENABLED',
+    ]) vi.stubEnv(flag, 'true')
     mockPathname.current = '/dashboard'
     mockUseIsMobile.mockReturnValue(false)
     mockSessionUser.current = { id: 'u1', email: 'test@example.com', name: 'Test User' }

@@ -1,5 +1,6 @@
 import { getPromotableClaims } from '#/lib/tools/promotableClaims'
 import type { ToolId } from '#/lib/tools/registry'
+import { isR11EvidenceProfileEnabled } from '#/lib/flags/featureFlags'
 import { PromoteClaimButton } from './PromoteClaimButton'
 
 /**
@@ -19,7 +20,7 @@ export function ClaimPromotionSection({
   payload: Record<string, unknown>
   authenticated: boolean
 }) {
-  if (!authenticated) return null
+  if (!authenticated || !isR11EvidenceProfileEnabled()) return null
   const claims = getPromotableClaims(toolId, payload)
   if (claims.length === 0) return null
 
