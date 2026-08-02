@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.auth.security import get_current_user
 from app.database import get_db
+from app.feature_gates import require_r11_enabled
 from app.limiter import limiter, model_abuse_limits
 from app.models.user import User
 from app.schemas.data_export import CareerDataExport
@@ -35,7 +36,11 @@ def _not_found_as_http(error: EvidenceItemNotFoundError):
     raise HTTPException(status_code=404, detail="Evidence item not found") from error
 
 
-@router.get("/items", response_model=EvidenceItemListResponse)
+@router.get(
+    "/items",
+    response_model=EvidenceItemListResponse,
+    dependencies=[Depends(require_r11_enabled)],
+)
 def list_items(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     return EvidenceItemListResponse(items=list_evidence_items(db, current_user.id))
 
@@ -57,7 +62,11 @@ def export_profile(
     return export_career_data(db, current_user.id)
 
 
-@router.post("/import/proposals", response_model=EvidenceImportProposalsResponse)
+@router.post(
+    "/import/proposals",
+    response_model=EvidenceImportProposalsResponse,
+    dependencies=[Depends(require_r11_enabled)],
+)
 @limiter.limit("10/minute")
 @model_abuse_limits
 async def propose_import(
@@ -80,7 +89,12 @@ async def propose_import(
     return EvidenceImportProposalsResponse(proposals=proposals)
 
 
-@router.post("/items", response_model=EvidenceItemResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/items",
+    response_model=EvidenceItemResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_r11_enabled)],
+)
 def create_item(
     body: EvidenceItemCreate,
     current_user: User = Depends(get_current_user),
@@ -104,7 +118,11 @@ def delete_profile(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.get("/items/{item_id}", response_model=EvidenceItemResponse)
+@router.get(
+    "/items/{item_id}",
+    response_model=EvidenceItemResponse,
+    dependencies=[Depends(require_r11_enabled)],
+)
 def get_item(
     item_id: str,
     current_user: User = Depends(get_current_user),
@@ -116,7 +134,11 @@ def get_item(
         _not_found_as_http(error)
 
 
-@router.patch("/items/{item_id}", response_model=EvidenceItemResponse)
+@router.patch(
+    "/items/{item_id}",
+    response_model=EvidenceItemResponse,
+    dependencies=[Depends(require_r11_enabled)],
+)
 def update_item(
     item_id: str,
     body: EvidenceItemUpdate,
@@ -129,7 +151,11 @@ def update_item(
         _not_found_as_http(error)
 
 
-@router.post("/items/{item_id}/confirmation", response_model=EvidenceItemResponse)
+@router.post(
+    "/items/{item_id}/confirmation",
+    response_model=EvidenceItemResponse,
+    dependencies=[Depends(require_r11_enabled)],
+)
 def set_confirmation(
     item_id: str,
     body: ConfirmationAction,
@@ -144,7 +170,11 @@ def set_confirmation(
         _not_found_as_http(error)
 
 
-@router.delete("/items/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/items/{item_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(require_r11_enabled)],
+)
 def delete_item(
     item_id: str,
     current_user: User = Depends(get_current_user),

@@ -13,7 +13,6 @@ from starlette.responses import Response
 
 from app.config import settings
 from app.feature_gates import (
-    require_r11_enabled,
     require_r12_enabled,
     require_r14_enabled,
     require_r15_enabled,
@@ -215,7 +214,6 @@ app.include_router(
     evidence_profile.router,
     prefix=f"{prefix}/evidence-profile",
     tags=["evidence-profile"],
-    dependencies=[Depends(require_r11_enabled)],
 )
 app.include_router(
     cv_documents.router,
