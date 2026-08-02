@@ -103,8 +103,9 @@ export function CookiePolicyPage() {
 
       <h2>4. Error monitoring (Sentry)</h2>
       <p>
-        When something crashes in the app, we send a diagnostic event to Sentry to help us fix the bug. Sentry does
-        not set tracking cookies for this; it is triggered only on errors and uses a minimal payload. See Sentry’s{' '}
+        Sentry error monitoring is inactive by default. If we enable it after completing privacy-scrubbing checks,
+        crashes may send a minimal diagnostic event to Sentry to help us fix the bug. Sentry does not set tracking
+        cookies for this processing. See Sentry’s{' '}
         <a href="https://sentry.io/privacy/" target="_blank" rel="noreferrer" className="legal-page__link">
           privacy policy
         </a>{' '}
