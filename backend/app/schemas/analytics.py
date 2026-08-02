@@ -45,6 +45,14 @@ R10EventName = Literal[
     "r10_database_snapshot",
 ]
 
+# The shared pipeline also serves CV Studio operations that are not accepted by
+# browser telemetry. Their backend telemetry still needs a bounded identifier;
+# widening the browser ToolId contract would expose server-only operation names.
+OperationalToolId = ToolId | Literal[
+    "cv-quality",
+    "cv-tailoring",
+]
+
 # Cache lookup/write outcome at the shared tool-pipeline seam (ADR 0004). No
 # cache key or payload ever crosses the boundary — only the outcome class.
 CacheOutcome = Literal["hit", "miss", "write", "failure"]
@@ -359,7 +367,7 @@ class ActivationEventCreate(BaseModel):
 
     event_name: ActivationEventName
     level: TelemetryLevel = "info"
-    tool_id: ToolId | None = None
+    tool_id: OperationalToolId | None = None
     access_mode: AccessMode | None = None
     saved: bool | None = None
     failure_category: FailureCategory | None = None

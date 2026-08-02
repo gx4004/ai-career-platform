@@ -47,6 +47,10 @@ export default defineConfig({
         CORS_ORIGINS: frontendUrl,
         FRONTEND_URL: frontendUrl,
         RESULT_CACHE_ENABLED: 'false',
+        // The product defaults build-ahead rounds off. This suite deliberately
+        // exercises the R12 CV Studio surface, so opt its dependency chain in.
+        R11_EVIDENCE_PROFILE_ENABLED: 'true',
+        R12_CV_STUDIO_ENABLED: 'true',
         E2E_BACKEND_PORT: backendPort,
       },
     },
@@ -62,6 +66,8 @@ export default defineConfig({
         // only the interactive app server needs normal development semantics.
         CI: '',
         VITE_API_URL: `${backendUrl}/api/v1`,
+        VITE_R11_EVIDENCE_PROFILE_ENABLED: 'true',
+        VITE_R12_CV_STUDIO_ENABLED: 'true',
       },
     },
   ],
