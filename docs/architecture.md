@@ -192,7 +192,7 @@ and resume carry while preserving consent, onboarding, and non-sensitive UI stat
 - BeautifulSoup with Playwright fallback for supported job imports.
 - Resend for password-reset email.
 - Google OAuth for sign-in.
-- Sentry for scrubbed error monitoring.
+- Sentry for scrubbed error monitoring when explicitly enabled after staging verification.
 - Railway for intended hosting and database.
 
 Each integration must fail with an actionable product state. Optional integrations
@@ -206,8 +206,8 @@ hedged across providers by default.
 ## Frontend Response Security
 
 The production frontend server, not the API, owns browser document and static-asset
-security headers. It emits a CSP derived from the configured API, Sentry, and
-PostHog origins, denies framing and object embedding, and restricts fonts to the
+security headers. It emits a CSP derived from the configured API and optional Sentry
+origin, denies framing and object embedding, and restricts fonts to the
 bundled files plus the Google Fonts hosts currently referenced by the root route.
 The policy retains inline script/style compatibility because the SSR wrapper and
 current UI emit inline content.

@@ -35,8 +35,6 @@ function securityHeaders(req) {
   for (const value of [
     process.env.VITE_API_URL,
     process.env.VITE_SENTRY_DSN,
-    process.env.VITE_PUBLIC_POSTHOG_HOST,
-    process.env.VITE_PUBLIC_POSTHOG_INGESTION_HOST,
   ]) {
     const origin = configuredOrigin(value)
     if (origin) connectOrigins.add(origin)

@@ -39,7 +39,7 @@ named human decisions (historical PostHog data disposition; D-NEXT-2 launch mark
 - [ ] #76: `RATE_LIMIT_STORAGE_URI` configured and capacity-tested on staging.
 - [ ] #81: security headers verified on staging (CSP against real origins, fonts, downloads, OAuth); Docker builds verified.
 - [ ] D-117: confirm `SENTRY_DSN` is unset in production (or staging scrub verification exists before it is ever set).
-- [ ] D-118: remnant PostHog proxy/configuration removed; disclosures reference PostHog only historically.
+- [x] D-118: remnant PostHog proxy/configuration removed; disclosures reference PostHog only historically.
 
 ## Preflight Inventory
 
@@ -87,7 +87,7 @@ Frontend settings to verify:
 
 - `VITE_API_URL` points at the deployed API route.
 - `SECURITY_HSTS_ENABLED` remains off until TLS/domain evidence is accepted.
-- Sentry/PostHog settings match the legal disclosure decision.
+- Sentry settings match the legal disclosure decision; no PostHog variables are present.
 - No ad, payment, subscription, or affiliate integration is enabled without a
   new roadmap decision.
 

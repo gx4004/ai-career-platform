@@ -1034,21 +1034,16 @@ Deletion-audit `user_id` necessity and retention remain owned by #74.
 
 ### 10.3 PostHog — NOT Active
 
-PostHog environment variables exist in `/frontend/.env`:
-```
-VITE_PUBLIC_POSTHOG_PROJECT_TOKEN=...
-VITE_PUBLIC_POSTHOG_HOST=https://us.i.posthog.com
-VITE_PUBLIC_POSTHOG_INGESTION_HOST=/ingest
-```
+PostHog was evaluated historically but is not a current processor (D-118):
 
-And the frontend Dockerfile declares them as build args. However:
-- `posthog-js` is not in `package.json`
-- No `posthog` imports exist in `src/`
-- The Vite proxy to PostHog is present in `vite.config.ts:22-27` but unused
-- `CookiePolicyPage.tsx` explicitly states: *"Right now, Career Workbench does
-  not load any analytics or advertising cookies."*
+- `posthog-js` is not in `package.json` and no PostHog imports exist in `src/`.
+- PostHog build arguments, runtime variables, CSP origins, and the unused Vite
+  ingestion proxy have been removed.
+- `CookiePolicyPage.tsx` explicitly states that Career Workbench does not load
+  analytics or advertising cookies.
 
-**Status:** Infrastructure present but SDK is not activated. See D-UNK-4.
+Historical cloud-project deletion is an owner-only console action tracked by #208
+(D-119); it does not change the application's current processor posture.
 
 ### 10.4 Google AdSense — Client Ad/Unlock Path Removed
 
@@ -1113,7 +1108,7 @@ authoritative access seam (D-048, ADR 0003); it may not reuse a client-only gate
 | 3 | Docker runtime users | Frontend runs as the base image's `node` user; backend runs as dedicated UID 10001 with owned application and Playwright files | Non-root user with minimal capabilities | Image-build verification remains required where Docker is available | #81 |
 | 4 | No dormant-account TTL cleanup | Data persists indefinitely while an account exists; deletion is user-initiated only | Accepted as final posture (D-031) — no automated cleanup planned | None; user-initiated erasure satisfies GDPR right-to-erasure | #74 (resolved) |
 | 5 | No automated backups | No backup scripts, no cron jobs | Railway managed automated backups + rehearsed restore procedure, required before beta launch | Data loss on Railway incident until R5 lands the backup + restore rehearsal | #74 (resolved) / R5 |
-| 6 | PostHog infrastructure present, SDK inactive | Build args + env vars + proxy config exist | Decision: activate PostHog OR remove dead config | Confusion about active processors; CookiePolicyPage claims no analytics but proxy exists | #82 |
+| 6 | PostHog removal | SDK, build args, runtime variables, CSP origins, and proxy are absent | Resolved by D-118; retain historical references only where needed for #208 | Historical cloud-project data remains until the owner completes #208 | #82 / #208 |
 | 7 | No email verification on password registration | Account immediately usable | Email verification before first tool use | Spam accounts, wrong-email lockouts | #75 |
 | 8 | Low-cost endpoints remain unlimited | `GET /auth/me`, `POST /auth/logout`, `GET /auth/providers`, history GET/PATCH/DELETE | Add limits only if availability evidence shows abuse | Broad limiting can degrade normal authenticated navigation | R10 |
 | 9 | Password reset URL exposure | New links use `#token=...`; the page consumes and scrubs fragment and legacy query tokens | Remove legacy query compatibility after the reset-token lifetime and rollout window | Old links can retain tokens in pre-existing browser history | #75 |
