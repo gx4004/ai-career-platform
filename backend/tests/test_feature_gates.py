@@ -19,6 +19,31 @@ def test_dark_shipped_route_is_absent(client, auth_headers, monkeypatch):
     assert response.json() == {"detail": "Feature not available"}
 
 
+def test_dark_profile_keeps_owner_export_and_erasure_available(
+    client, auth_headers, monkeypatch
+):
+    created = client.post(
+        "/api/v1/evidence-profile/items",
+        headers=auth_headers,
+        json={
+            "kind": "skill",
+            "content": {"name": "Synthetic recovery fixture"},
+            "provenance": "user-entered",
+        },
+    )
+    assert created.status_code == 201
+
+    monkeypatch.setattr(settings, "R11_EVIDENCE_PROFILE_ENABLED", False)
+
+    exported = client.get("/api/v1/evidence-profile/export", headers=auth_headers)
+    assert exported.status_code == 200
+    assert exported.json()["item_count"] == 1
+    assert (
+        client.delete("/api/v1/evidence-profile/items", headers=auth_headers).status_code
+        == 204
+    )
+
+
 def test_downstream_route_requires_every_upstream_gate(
     client, auth_headers, monkeypatch
 ):
