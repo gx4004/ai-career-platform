@@ -104,6 +104,7 @@ class AdminActivationResponse(BaseModel):
     window_start: str
     window_end: str
     access_mode: str | None = None
+    tool_id: str | None = None
     funnel: list[FunnelStepCount] = []
     failures: list[FailureCategoryCount] = []
     tools: list[ToolLatencyCost] = []

@@ -174,6 +174,7 @@ export type AdminActivation = {
   window_start: string
   window_end: string
   access_mode: AdminAccessMode | null
+  tool_id: string | null
   funnel: FunnelStepCount[]
   failures: FailureCategoryCount[]
   tools: ToolLatencyCost[]
@@ -404,11 +405,12 @@ export function getAdminRun(runId: string) {
 }
 
 export function getAdminActivation(
-  params: { access_mode?: AdminAccessMode; start?: string; end?: string } = {},
+  params: { access_mode?: AdminAccessMode; tool_id?: string; start?: string; end?: string } = {},
 ) {
   return adminRequest<AdminActivation>(
     `/admin/activation${buildQs({
       access_mode: params.access_mode,
+      tool_id: params.tool_id,
       start: params.start,
       end: params.end,
     })}`,

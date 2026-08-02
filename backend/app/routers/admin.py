@@ -53,6 +53,7 @@ from app.schemas.submission_safety import (
     SubmissionSafetyPolicyResponse,
 )
 from app.schemas.submission_sources import SubmissionSourceGovernanceResponse
+from app.schemas.telemetry import ToolId
 from app.services.analytics import (
     ACTIVATION_DEFAULT_WINDOW_DAYS,
     aggregate_activation_metrics,
@@ -540,6 +541,7 @@ def get_activation(
     # resolve the aliased Literal as a query-param forward ref under
     # `from __future__ import annotations`.
     access_mode: Literal["authenticated", "guest_demo"] | None = Query(None),
+    tool_id: ToolId | None = Query(None),
     start: datetime | None = Query(None),
     end: datetime | None = Query(None),
     admin: User = Depends(get_current_admin),
@@ -548,8 +550,8 @@ def get_activation(
     """Read-only activation funnel / failure / cost aggregate (D-039).
 
     Admin-gated exactly like every other endpoint here (`get_current_admin`).
-    Filterable by access mode (guest vs. authenticated) and by a date window
-    that defaults to a rolling two weeks. Naive window bounds are treated as
+    Filterable by tool, access mode (guest vs. authenticated), and by a date
+    window that defaults to a rolling two weeks. Naive window bounds are treated as
     UTC so comparison against the timezone-aware `created_at` column is well
     defined on Postgres.
     """
@@ -566,6 +568,7 @@ def get_activation(
         window_start=window_start,
         window_end=window_end,
         access_mode=access_mode,
+        tool_id=tool_id,
     )
 
 
