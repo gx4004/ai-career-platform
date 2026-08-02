@@ -1007,6 +1007,7 @@ All log lines are single-line JSON objects emitted to stdout. Key events:
 | `user_account_deleted` | user_id, runs_deleted, workspaces_deleted, user_record_deleted | info |
 | `frontend_telemetry` | Allowlisted event/category enums, tool/access mode, booleans, timestamp, and explicit low-cardinality dimensions | info |
 | `profile_item_*` (adoption) | Backend-only; item kind, provenance class, confirmation-state transition, bounded counts — never evidence content, employer/institution names, or content ids (D-067) | info |
+| `r10_rate_limit_event` | Backend-only durable event; bounded route family and account/guest class — never raw path, account/IP, limiter key, or exception detail (D-053, D-057) | info |
 
 **Deliberately NOT logged:** Resume text, job descriptions, generated content,
 passwords, tokens, cookies, email addresses, IP addresses, provider exception

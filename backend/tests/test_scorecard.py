@@ -61,6 +61,11 @@ def test_allowlist_accepts_r10_operational_shapes():
         event_name="r10_provider_incident", operational_dimension="timeout"
     )
     ActivationEventCreate(
+        event_name="r10_rate_limit_event",
+        operational_dimension="auth",
+        operational_outcome="guest",
+    )
+    ActivationEventCreate(
         event_name="r10_import_outcome",
         operational_dimension="greenhouse",
         operational_outcome="success",
@@ -79,6 +84,13 @@ def test_allowlist_accepts_r10_operational_shapes():
         {"event_name": "r10_cache_outcome", "user_id": "u_123"},
         # An unknown event name is forbidden.
         {"event_name": "r10_totally_made_up"},
+        {"event_name": "r10_rate_limit_event", "operational_dimension": "auth"},
+        {
+            "event_name": "r10_rate_limit_event",
+            "operational_dimension": "auth",
+            "operational_outcome": "guest",
+            "user_id": "u_123",
+        },
     ],
 )
 def test_allowlist_rejects_disallowed_shapes(fields):
@@ -230,6 +242,35 @@ def test_abuse_cost_not_fired_under_budget(db, monkeypatch):
         cost_estimate=Decimal("1.000000"),
         created_at=FIXED_NOW - timedelta(hours=1),
     )
+    trig = _trigger(compute_scorecard(db, now=FIXED_NOW), "abuse_cost")
+    assert trig.state == "not_fired"
+
+
+def _insert_rate_limit_window(db, *, window: int, family: str, count: int):
+    boundary = FIXED_NOW.replace(minute=0, second=0, microsecond=0)
+    created_at = boundary - timedelta(minutes=window * 15 - 1)
+    for _ in range(count):
+        _event(
+            db,
+            event_name="r10_rate_limit_event",
+            operational_dimension=family,
+            operational_outcome="guest",
+            created_at=created_at,
+        )
+
+
+def test_abuse_cost_fires_for_one_family_across_three_completed_windows(db):
+    for window in (1, 2, 3):
+        _insert_rate_limit_window(db, window=window, family="auth", count=50)
+    trig = _trigger(compute_scorecard(db, now=FIXED_NOW), "abuse_cost")
+    assert trig.state == "fired"
+    assert trig.evidence_detail["rate_limit_sustained_families"] == "auth"
+
+
+def test_abuse_cost_resets_when_rate_pressure_is_not_consecutive(db):
+    _insert_rate_limit_window(db, window=1, family="auth", count=50)
+    _insert_rate_limit_window(db, window=2, family="auth", count=49)
+    _insert_rate_limit_window(db, window=3, family="auth", count=50)
     trig = _trigger(compute_scorecard(db, now=FIXED_NOW), "abuse_cost")
     assert trig.state == "not_fired"
 

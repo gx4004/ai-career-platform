@@ -39,6 +39,7 @@ R10EventName = Literal[
     "r10_cache_outcome",
     "r10_provider_incident",
     "r10_import_outcome",
+    "r10_rate_limit_event",
 ]
 
 # Cache lookup/write outcome at the shared tool-pipeline seam (ADR 0004). No
@@ -73,6 +74,26 @@ ImportSourceFamily = Literal[
 # the bounded Playwright fallback produced the result, `failure` = neither tier
 # yielded a usable posting and the user gets the paste fallback.
 ImportOutcome = Literal["success", "fallback", "failure"]
+
+# A rate-limit event retains only a stable route family and whether the limited
+# identity was an authenticated account or a guest. Raw paths, IPs, account IDs,
+# tokens, limiter keys, and exception details have no accepted field.
+RateLimitRouteFamily = Literal[
+    "auth",
+    "tools",
+    "imports",
+    "history",
+    "profile",
+    "cv_studio",
+    "campaigns",
+    "discovery",
+    "queue",
+    "submission",
+    "admin",
+    "telemetry",
+    "other",
+]
+RateLimitIdentityType = Literal["account", "guest"]
 
 # R14 source-registry events never carry a source key/name. The family and
 # governance transition are the only bounded dimensions that cross telemetry.
@@ -150,7 +171,11 @@ PacketGateHaltReason = Literal["fabrication_regression", "packet_quality_regress
 # or import outcome). Which axis a value belongs to is unambiguous from
 # `event_name`, so aggregation never has to disambiguate a bare string.
 OperationalDimension = (
-    ProviderIncidentCategory | ImportSourceFamily | DiscoverySourceFamily | PacketGateHaltReason
+    ProviderIncidentCategory
+    | ImportSourceFamily
+    | RateLimitRouteFamily
+    | DiscoverySourceFamily
+    | PacketGateHaltReason
 )
 OperationalOutcome = (
     CacheOutcome
@@ -165,6 +190,7 @@ OperationalOutcome = (
     | SubmissionSafetyOutcome
     | SubmissionQualityOutcome
     | PacketGateOutcome
+    | RateLimitIdentityType
 )
 
 # ── R11 profile-adoption allowlist (issue #150, parent #143, D-067) ──
@@ -330,6 +356,45 @@ class ActivationEventCreate(BaseModel):
     development_state_from: DevelopmentState | None = None
     development_state_to: DevelopmentState | None = None
     occurred_at: datetime | None = None
+
+    @model_validator(mode="after")
+    def validate_rate_limit_event_shape(self):
+        route_families = {
+            "auth", "tools", "imports", "history", "profile", "cv_studio",
+            "campaigns", "discovery", "queue", "submission", "admin",
+            "telemetry", "other",
+        }
+        if self.event_name != "r10_rate_limit_event":
+            if self.operational_outcome in {"account", "guest"}:
+                raise ValueError("rate-limit dimensions are valid only for rate-limit events")
+            return self
+        if (
+            self.operational_dimension not in route_families
+            or self.operational_outcome not in {"account", "guest"}
+        ):
+            raise ValueError("rate-limit events require route family and identity type")
+        unrelated_values = (
+            self.tool_id,
+            self.access_mode,
+            self.saved,
+            self.failure_category,
+            self.export_format,
+            self.has_feedback,
+            self.session_status,
+            self.duration_ms,
+            self.cost_estimate,
+            self.evidence_kind,
+            self.evidence_provenance,
+            self.confirmation_transition,
+            self.development_gap_kind,
+            self.development_response_kind,
+            self.development_state_from,
+            self.development_state_to,
+            self.occurred_at,
+        )
+        if any(value is not None for value in unrelated_values) or self.level != "info":
+            raise ValueError("rate-limit events accept only route family and identity type")
+        return self
 
     @model_validator(mode="after")
     def validate_development_event_shape(self):
