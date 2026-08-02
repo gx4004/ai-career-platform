@@ -116,15 +116,16 @@ async def _call_vertex(system_prompt: str, user_prompt: str, model_name: str | N
     # ``vertexai.generative_models`` was removed after 2026-06-24. Use the
     # supported Google Gen AI SDK against the stable Vertex API while preserving
     # Application Default Credentials and the existing project/location config.
-    client = genai.Client(
-        vertexai=True,
-        project=settings.VERTEX_PROJECT_ID,
-        location=settings.VERTEX_LOCATION,
-        http_options={"api_version": "v1"},
-    )
-    async_client = client.aio
-
+    client = None
+    async_client = None
     try:
+        client = genai.Client(
+            vertexai=True,
+            project=settings.VERTEX_PROJECT_ID,
+            location=settings.VERTEX_LOCATION,
+            http_options={"api_version": "v1"},
+        )
+        async_client = client.aio
         response = await asyncio.wait_for(
             async_client.models.generate_content(
                 model=model_name or settings.LLM_MODEL,
@@ -163,15 +164,23 @@ async def _call_vertex(system_prompt: str, user_prompt: str, model_name: str | N
         logger.error("Vertex AI call failed status=%d", exc.code)
         set_provider_incident("unavailable")
         raise RuntimeError("AI service temporarily unavailable. Please try again.") from exc
-    except (genai_errors.ServerError, auth_exceptions.GoogleAuthError) as exc:
+    except auth_exceptions.GoogleAuthError as exc:
+        logger.error("Vertex AI credentials unavailable error_type=%s", type(exc).__name__)
+        set_provider_incident("permission")
+        raise ProviderConfigurationError(
+            "AI service configuration error. Please contact support."
+        ) from exc
+    except genai_errors.ServerError as exc:
         logger.error("Vertex AI call failed error_type=%s", type(exc).__name__)
         set_provider_incident("unavailable")
         raise RuntimeError("AI service temporarily unavailable. Please try again.") from exc
     finally:
-        with suppress(Exception):
-            await async_client.aclose()
-        with suppress(Exception):
-            client.close()
+        if async_client is not None:
+            with suppress(Exception):
+                await async_client.aclose()
+        if client is not None:
+            with suppress(Exception):
+                client.close()
 
     # Record actual token usage before parsing: the tokens were consumed even if
     # the JSON body later fails to parse (R6 cost estimate, issue #106).
