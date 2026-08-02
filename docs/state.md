@@ -129,10 +129,10 @@ R9/R10 responses are `needs-info`.
 - **Release environment unverified.** Railway topology, variables, migrations,
   domain, backup posture, OAuth, email, provider, and monitoring facts may have
   changed. `docs/launch-checklist.md` owns verification.
-- **Unguarded build-ahead navigation.** R11–R15 have user-reachable navigation even
-  though D-060/D-068/D-076/D-084/D-092 remain open. This contradicts the original
-  dark-only authorization and requires an owner decision; do not silently reinterpret
-  the append-only decision log or promote these surfaces.
+- **Build-ahead activation remains unaccepted.** R11–R17 user API families and
+  frontend routes/navigation are now protected by matching default-off,
+  dependency-ordered flags. This closes accidental exposure but does not accept any
+  outcome gate; activation still requires the recorded evidence and owner decision.
 - **Sensitive browser state.** Four `sessionStorage` keys retain resume text, job
   descriptions, or generated output for shipped tab-scoped workflows. #77 requires
   owner judgement on further minimization; logout/deletion/manual reset cleanup is

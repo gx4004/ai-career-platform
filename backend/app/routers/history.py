@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.auth.security import get_current_user
 from app.database import get_db
+from app.feature_gates import require_r13_enabled, require_r17_enabled
 from app.limiter import limiter
 from app.models.application_packet import ApplicationPacket
 from app.models.campaign_event import CampaignEvent
@@ -179,6 +180,7 @@ def list_workspaces(
 @router.get("/workspaces/{workspace_id}", response_model=CampaignDetailResponse)
 def get_campaign(
     workspace_id: str,
+    _gate: None = Depends(require_r13_enabled),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -190,6 +192,7 @@ def get_campaign(
 def update_campaign_materials(
     workspace_id: str,
     body: CampaignMaterialSelectionRequest,
+    _gate: None = Depends(require_r13_enabled),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -202,6 +205,7 @@ def update_campaign_materials(
 def get_campaign_reminders(
     request: Request,
     workspace_id: str,
+    _gate: None = Depends(require_r13_enabled),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -213,6 +217,7 @@ def get_campaign_reminders(
 def update_campaign_reminders(
     workspace_id: str,
     body: CampaignReminderConsent,
+    _gate: None = Depends(require_r13_enabled),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -224,6 +229,7 @@ def update_campaign_reminders(
 async def review_campaign(
     request: Request,
     workspace_id: str,
+    _gate: None = Depends(require_r13_enabled),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -272,6 +278,7 @@ def _serialize_gap_classifications(rows) -> GapClassificationListResponse:
 async def classify_campaign_gaps(
     request: Request,
     workspace_id: str,
+    _gate: None = Depends(require_r17_enabled),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -308,6 +315,7 @@ async def classify_campaign_gaps(
 )
 def get_campaign_gaps(
     workspace_id: str,
+    _gate: None = Depends(require_r17_enabled),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -323,6 +331,7 @@ def get_campaign_gaps(
 def delete_campaign_gap(
     workspace_id: str,
     classification_id: str,
+    _gate: None = Depends(require_r17_enabled),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> Response:
@@ -341,6 +350,7 @@ def delete_campaign_gap(
 def get_gap_response(
     workspace_id: str,
     classification_id: str,
+    _gate: None = Depends(require_r17_enabled),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -371,6 +381,7 @@ def get_gap_response(
 def create_campaign_task(
     workspace_id: str,
     body: CampaignTaskCreate,
+    _gate: None = Depends(require_r13_enabled),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -382,6 +393,7 @@ def update_campaign_task(
     workspace_id: str,
     item_id: str,
     body: CampaignTaskUpdate,
+    _gate: None = Depends(require_r13_enabled),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -410,6 +422,7 @@ def update_campaign_task(
 def delete_campaign_task(
     workspace_id: str,
     item_id: str,
+    _gate: None = Depends(require_r13_enabled),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -422,6 +435,7 @@ def delete_campaign_task(
 def create_campaign_note(
     workspace_id: str,
     body: CampaignNoteCreate,
+    _gate: None = Depends(require_r13_enabled),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -432,6 +446,7 @@ def create_campaign_note(
 def delete_campaign_note(
     workspace_id: str,
     item_id: str,
+    _gate: None = Depends(require_r13_enabled),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -444,6 +459,7 @@ def delete_campaign_note(
 def create_campaign_contact(
     workspace_id: str,
     body: CampaignContactCreate,
+    _gate: None = Depends(require_r13_enabled),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -454,6 +470,7 @@ def create_campaign_contact(
 def delete_campaign_contact(
     workspace_id: str,
     item_id: str,
+    _gate: None = Depends(require_r13_enabled),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
