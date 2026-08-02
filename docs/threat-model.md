@@ -1028,7 +1028,7 @@ Deletion-audit `user_id` necessity and retention remain owned by #74.
 - **Event names:** `landing_page_viewed`, `tool_run_started`, `tool_run_succeeded`,
   `tool_run_failed`, `result_page_loaded`, `result_page_cache_miss`,
   `export_action_used`, `workspace_resumed`, `frontend_error`, `tool_regenerate`,
-  `auth_signup_source`, `workflow_continued`
+  `auth_signup_source`, `workflow_continued`, `generation_loader_abandoned`
 - **Deliberately excluded:** Resume text, job descriptions, user emails, PII
 
 — `frontend/src/lib/telemetry/client.ts`

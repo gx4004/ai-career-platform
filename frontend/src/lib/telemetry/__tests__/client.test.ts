@@ -62,6 +62,25 @@ describe('telemetry client', () => {
     expect(sendBeaconMock).toHaveBeenCalledTimes(1)
   })
 
+  it('sends only the bounded loader-abandonment duration', async () => {
+    sendBeaconMock.mockReturnValue(true)
+    trackTelemetry({
+      event_name: 'generation_loader_abandoned',
+      tool_id: 'resume',
+      access_mode: 'guest_demo',
+      duration_ms: 45000,
+    })
+
+    const blob = sendBeaconMock.mock.calls[0]?.[1] as Blob
+    const payload = JSON.parse(await blob.text())
+    expect(payload).toMatchObject({
+      event_name: 'generation_loader_abandoned',
+      tool_id: 'resume',
+      access_mode: 'guest_demo',
+      duration_ms: 45000,
+    })
+  })
+
   it('skips landing_page_viewed entirely when cookie consent is declined', () => {
     vi.stubGlobal('localStorage', {
       getItem: vi.fn().mockReturnValue('rejected'),

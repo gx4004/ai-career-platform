@@ -51,6 +51,8 @@ async def test_pipeline_emits_cache_miss_then_write_then_hit(db):
     outcomes = [o for _, o in _outcomes(db, "r10_cache_outcome")]
     assert "miss" in outcomes
     assert "write" in outcomes
+    phases = [dimension for dimension, _ in _outcomes(db, "r10_generation_phase")]
+    assert phases == ["preparation", "generation", "persistence"]
 
     # Identical inputs → cache hit on the second run.
     await run_tool_pipeline(**kwargs)
@@ -83,6 +85,8 @@ async def test_pipeline_emits_one_provider_incident_per_failure(db):
     # Exactly one incident event, carrying the category (not the raw message).
     assert len(incidents) == 1
     assert incidents[0][0] == "timeout"
+    phases = [dimension for dimension, _ in _outcomes(db, "r10_generation_phase")]
+    assert phases == ["preparation", "generation"]
 
 
 @pytest.mark.asyncio

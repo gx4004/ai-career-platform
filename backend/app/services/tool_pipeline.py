@@ -123,12 +123,28 @@ async def run_tool_pipeline(
         else:
             _record_cache_outcome(db, "hit" if cached is not None else "miss")
 
+    _record_generation_phase(
+        db,
+        tool_name=tool_name,
+        access_mode=access_mode,
+        phase="preparation",
+        started_at=start,
+    )
+
     if cached is not None:
         result = {**cached}
     else:
+        generation_start = perf_counter()
         try:
             result = await service_fn(**service_kwargs)
         except Exception as exc:
+            _record_generation_phase(
+                db,
+                tool_name=tool_name,
+                access_mode=access_mode,
+                phase="generation",
+                started_at=generation_start,
+            )
             failed_duration_ms = int((perf_counter() - start) * 1000)
             log_tool_run_failed(
                 tool_name=tool_name,
@@ -167,6 +183,14 @@ async def run_tool_pipeline(
                 )
             raise
 
+        _record_generation_phase(
+            db,
+            tool_name=tool_name,
+            access_mode=access_mode,
+            phase="generation",
+            started_at=generation_start,
+        )
+
         if content_hash is not None:
             try:
                 set_cached_result(content_hash, result)
@@ -175,6 +199,7 @@ async def run_tool_pipeline(
             else:
                 _record_cache_outcome(db, "write")
 
+    persistence_start = perf_counter()
     run = persist_tool_run(
         db,
         current_user=current_user,
@@ -192,6 +217,13 @@ async def run_tool_pipeline(
         tool_name=tool_name,
         history_id=run.id if run else None,
         access_mode=access_mode,
+    )
+    _record_generation_phase(
+        db,
+        tool_name=tool_name,
+        access_mode=access_mode,
+        phase="persistence",
+        started_at=persistence_start,
     )
 
     completed_duration_ms = int((perf_counter() - start) * 1000)
@@ -238,4 +270,23 @@ def _record_cache_outcome(db: Session, outcome: str) -> None:
         db,
         event_name="r10_cache_outcome",
         operational_outcome=outcome,
+    )
+
+
+def _record_generation_phase(
+    db: Session,
+    *,
+    tool_name: str,
+    access_mode: str,
+    phase: str,
+    started_at: float,
+) -> None:
+    """Persist timing from a real shared-pipeline boundary, never fake progress."""
+    safe_record_activation_event(
+        db,
+        event_name="r10_generation_phase",
+        tool_id=tool_name,
+        access_mode=access_mode,
+        operational_dimension=phase,
+        duration_ms=max(0, int((perf_counter() - started_at) * 1000)),
     )

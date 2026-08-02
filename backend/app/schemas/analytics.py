@@ -40,6 +40,7 @@ R10EventName = Literal[
     "r10_provider_incident",
     "r10_import_outcome",
     "r10_rate_limit_event",
+    "r10_generation_phase",
 ]
 
 # Cache lookup/write outcome at the shared tool-pipeline seam (ADR 0004). No
@@ -94,6 +95,7 @@ RateLimitRouteFamily = Literal[
     "other",
 ]
 RateLimitIdentityType = Literal["account", "guest"]
+GenerationPhase = Literal["preparation", "generation", "persistence"]
 
 # R14 source-registry events never carry a source key/name. The family and
 # governance transition are the only bounded dimensions that cross telemetry.
@@ -174,6 +176,7 @@ OperationalDimension = (
     ProviderIncidentCategory
     | ImportSourceFamily
     | RateLimitRouteFamily
+    | GenerationPhase
     | DiscoverySourceFamily
     | PacketGateHaltReason
 )
@@ -394,6 +397,39 @@ class ActivationEventCreate(BaseModel):
         )
         if any(value is not None for value in unrelated_values) or self.level != "info":
             raise ValueError("rate-limit events accept only route family and identity type")
+        return self
+
+    @model_validator(mode="after")
+    def validate_generation_phase_shape(self):
+        phases = {"preparation", "generation", "persistence"}
+        if self.event_name != "r10_generation_phase":
+            return self
+        if (
+            self.operational_dimension not in phases
+            or self.operational_outcome is not None
+            or self.tool_id is None
+            or self.access_mode is None
+            or self.duration_ms is None
+        ):
+            raise ValueError("generation phases require phase, tool, access mode, and duration")
+        unrelated_values = (
+            self.saved,
+            self.failure_category,
+            self.export_format,
+            self.has_feedback,
+            self.session_status,
+            self.cost_estimate,
+            self.evidence_kind,
+            self.evidence_provenance,
+            self.confirmation_transition,
+            self.development_gap_kind,
+            self.development_response_kind,
+            self.development_state_from,
+            self.development_state_to,
+            self.occurred_at,
+        )
+        if any(value is not None for value in unrelated_values) or self.level != "info":
+            raise ValueError("generation phases accept only bounded phase timing fields")
         return self
 
     @model_validator(mode="after")

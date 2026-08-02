@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 # Allowlisted dimensions shared by the frontend-telemetry ingestion contract and
 # the durable activation-event write seam (see app/schemas/analytics.py). These
@@ -22,6 +22,7 @@ TelemetryEventName = Literal[
     "tool_regenerate",
     "auth_signup_source",
     "workflow_continued",
+    "generation_loader_abandoned",
 ]
 TelemetryLevel = Literal["info", "error"]
 ToolId = Literal[
@@ -57,7 +58,17 @@ class TelemetryEventRequest(BaseModel):
     export_format: ExportFormat | None = None
     has_feedback: bool | None = None
     session_status: SessionStatus | None = None
+    duration_ms: int | None = Field(default=None, ge=0, le=86_400_000)
     occurred_at: datetime | None = None
+
+    @model_validator(mode="after")
+    def validate_loader_abandonment(self):
+        if self.event_name == "generation_loader_abandoned":
+            if self.tool_id is None or self.duration_ms is None or self.level != "info":
+                raise ValueError("loader abandonment requires tool and duration")
+        elif self.duration_ms is not None:
+            raise ValueError("client duration is valid only for loader abandonment")
+        return self
 
 
 class TelemetryAcceptedResponse(BaseModel):
