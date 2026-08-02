@@ -52,6 +52,7 @@ from app.services.observability import configure_logging
 from app.services.rate_limit_events import rate_limit_route_family, record_rate_limit_event
 from app.services.retention import (
     run_activation_prune_scheduler,
+    run_database_sample_scheduler,
     run_discovered_listing_expiry_scheduler,
 )
 
@@ -105,15 +106,19 @@ async def lifespan(app: FastAPI):
     """
     prune_task = asyncio.create_task(run_activation_prune_scheduler())
     listing_expiry_task = asyncio.create_task(run_discovered_listing_expiry_scheduler())
+    database_sample_task = asyncio.create_task(run_database_sample_scheduler())
     try:
         yield
     finally:
         prune_task.cancel()
         listing_expiry_task.cancel()
+        database_sample_task.cancel()
         with suppress(asyncio.CancelledError):
             await prune_task
         with suppress(asyncio.CancelledError):
             await listing_expiry_task
+        with suppress(asyncio.CancelledError):
+            await database_sample_task
 
 
 app = FastAPI(title="Career Workbench API", version="1.0.0", lifespan=lifespan)
