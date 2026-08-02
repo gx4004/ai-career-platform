@@ -613,11 +613,13 @@ also delays but never suppresses the action. For an incident-wide reset, operato
 rotate `RATE_LIMIT_KEY_PREFIX`; abandoned keys expire naturally. Production code
 does not issue a datastore-global reset, and no relational migration exists.
 
-Rate-limit events log only the route and verified account/guest class. The release
-operator investigates when one route emits at least 50 limit events in 15 minutes
-for three consecutive windows, or when provider cost alerts fire. CAPTCHA is not
-enabled automatically. The existing flag protects registration only; challenging a
-different attacked flow requires a reviewed frontend/backend contract for that flow
+Rate-limit events persist through the first-party operational seam using only a
+bounded route family and verified account/guest class—never raw paths, identities,
+IPs, or limiter keys. The scorecard fires review when one family emits at least 50
+limit events in 15 minutes for three consecutive completed windows, or when provider
+cost alerts fire. CAPTCHA is not enabled automatically. The existing flag protects
+registration only; challenging a different attacked flow requires a reviewed
+frontend/backend contract for that flow
 before activation. This keeps CAPTCHA evidence-triggered rather than unconditional.
 
 Rollback is configuration-first: raise bounded limits or disable the shared

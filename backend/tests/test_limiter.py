@@ -199,6 +199,11 @@ def test_resource_import_limit_is_shared_and_returns_429(client, monkeypatch):
         )
     )
     monkeypatch.setattr("app.routers.job_posts.scrape_job_posting", scrape)
+    recorded = []
+    monkeypatch.setattr(
+        "app.main.record_rate_limit_event",
+        lambda **fields: recorded.append(fields),
+    )
 
     responses = [
         client.post(
@@ -210,6 +215,7 @@ def test_resource_import_limit_is_shared_and_returns_429(client, monkeypatch):
 
     assert [response.status_code for response in responses] == [200, 200, 429]
     assert scrape.await_count == 2
+    assert recorded == [{"route_family": "imports", "identity_type": "guest"}]
 
 
 def test_model_cost_limit_returns_429_before_second_tool_run(

@@ -49,6 +49,7 @@ from app.routers import (
     telemetry,
 )
 from app.services.observability import configure_logging
+from app.services.rate_limit_events import rate_limit_route_family, record_rate_limit_event
 from app.services.retention import (
     run_activation_prune_scheduler,
     run_discovered_listing_expiry_scheduler,
@@ -121,10 +122,15 @@ app.state.limiter = limiter
 
 async def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded):
     identity_type = get_abuse_identity_type(request)
+    route_family = rate_limit_route_family(request.url.path)
     logger.warning(
         "abuse_limit_exceeded route=%s identity_type=%s",
         request.url.path,
         identity_type,
+    )
+    record_rate_limit_event(
+        route_family=route_family,
+        identity_type=identity_type,
     )
     return _rate_limit_exceeded_handler(request, exc)
 

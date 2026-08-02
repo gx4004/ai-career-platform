@@ -47,6 +47,9 @@ LATENCY_WINDOW_DAYS = 3
 LATENCY_MIN_DAILY_SAMPLE = 20
 
 ABUSE_COST_WINDOW_HOURS = 24
+RATE_LIMIT_WINDOW_MINUTES = 15
+RATE_LIMIT_WINDOW_THRESHOLD = 50
+RATE_LIMIT_CONSECUTIVE_WINDOWS = 3
 
 DB_STORAGE_TRIGGER_PCT = 70.0
 
@@ -408,12 +411,56 @@ def _evaluate_abuse_cost(db: Session, now: datetime) -> dict[str, object]:
     )
     total_cost_f = float(total_cost or 0)
     budget = settings.COST_ALERT_USD_24H
+    current_boundary = now.replace(
+        minute=(now.minute // RATE_LIMIT_WINDOW_MINUTES) * RATE_LIMIT_WINDOW_MINUTES,
+        second=0,
+        microsecond=0,
+    )
+    rate_rows = (
+        db.query(AnalyticsEvent.operational_dimension, AnalyticsEvent.created_at)
+        .filter(
+            AnalyticsEvent.event_name == "r10_rate_limit_event",
+            AnalyticsEvent.created_at
+            >= current_boundary
+            - timedelta(
+                minutes=RATE_LIMIT_WINDOW_MINUTES * RATE_LIMIT_CONSECUTIVE_WINDOWS
+            ),
+            AnalyticsEvent.created_at < current_boundary,
+        )
+        .all()
+    )
+    counts_by_family: dict[str, list[int]] = {}
+    for family, created_at in rate_rows:
+        event_at = _as_utc(created_at)
+        minutes_before_boundary = (current_boundary - event_at).total_seconds() / 60
+        window_index = int((minutes_before_boundary - 0.000001) // RATE_LIMIT_WINDOW_MINUTES)
+        if 0 <= window_index < RATE_LIMIT_CONSECUTIVE_WINDOWS:
+            counts_by_family.setdefault(family or "other", [0] * RATE_LIMIT_CONSECUTIVE_WINDOWS)[
+                window_index
+            ] += 1
+    sustained_families = [
+        family
+        for family, counts in counts_by_family.items()
+        if all(count >= RATE_LIMIT_WINDOW_THRESHOLD for count in counts)
+    ]
+    max_rate_events = max(
+        (max(counts) for counts in counts_by_family.values()), default=0
+    )
     detail: dict[str, float | int | str] = {
         "cost_24h_usd": round(total_cost_f, 6),
         "cost_alert_budget_usd": budget,
-        "rate_limit_events": "not instrumented (see #140)",
+        "rate_limit_max_15m": max_rate_events,
+        "rate_limit_sustained_families": ", ".join(sorted(sustained_families)) or "none",
+        "rate_limit_windows": RATE_LIMIT_CONSECUTIVE_WINDOWS,
     }
-    if total_cost_f > budget:
+    if sustained_families:
+        state: TriggerState = "fired"
+        evidence = (
+            f"Rate-limit pressure sustained for {', '.join(sorted(sustained_families))}: "
+            f"≥{RATE_LIMIT_WINDOW_THRESHOLD} events in each of "
+            f"{RATE_LIMIT_CONSECUTIVE_WINDOWS} consecutive {RATE_LIMIT_WINDOW_MINUTES}-min windows."
+        )
+    elif total_cost_f > budget:
         state: TriggerState = "fired"
         evidence = (
             f"Provider cost ${total_cost_f:.4f} over {ABUSE_COST_WINDOW_HOURS}h exceeds "
@@ -423,13 +470,15 @@ def _evaluate_abuse_cost(db: Session, now: datetime) -> dict[str, object]:
         state = "not_fired"
         evidence = (
             f"Provider cost ${total_cost_f:.4f} over {ABUSE_COST_WINDOW_HOURS}h within the "
-            f"${budget:.2f} budget; route rate-limit-event branch not yet instrumented."
+            f"${budget:.2f} budget; no route family sustained rate-limit pressure."
         )
     return {
         "state": state,
         "evidence": evidence,
         "evidence_detail": detail,
-        "last_evidence_at": None,
+        "last_evidence_at": _iso(
+            max((_as_utc(created_at) for _, created_at in rate_rows), default=None)
+        ),
         "evidence_fresh": True,
     }
 
