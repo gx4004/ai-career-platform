@@ -213,3 +213,72 @@ async def test_vertex_maps_permission_failure_without_exposing_provider_detail(m
     assert "private-project" not in str(error.value)
     incident.assert_called_once_with("permission")
     assert calls == ["async-close", "close"]
+
+
+@pytest.mark.asyncio
+async def test_vertex_constructor_auth_failure_is_safe_and_not_retried(monkeypatch):
+    from google import genai
+    from google.auth import exceptions as auth_exceptions
+
+    import app.services.ai_client as mod
+
+    monkeypatch.setattr(mod.settings, "LLM_PROVIDER", "vertex")
+    attempts = 0
+    incident = Mock()
+
+    def missing_credentials(**_kwargs):
+        nonlocal attempts
+        attempts += 1
+        raise auth_exceptions.DefaultCredentialsError("private credential detail")
+
+    monkeypatch.setattr(genai, "Client", missing_credentials)
+    monkeypatch.setattr(mod, "set_provider_incident", incident)
+
+    with pytest.raises(mod.ProviderConfigurationError) as error:
+        await complete_structured(SYSTEM, USER)
+
+    assert attempts == 1
+    assert "private credential detail" not in str(error.value)
+    incident.assert_called_once_with("permission")
+
+
+@pytest.mark.asyncio
+async def test_vertex_refresh_auth_failure_is_safe_and_not_retried(monkeypatch):
+    from google import genai
+    from google.auth import exceptions as auth_exceptions
+
+    import app.services.ai_client as mod
+
+    monkeypatch.setattr(mod.settings, "LLM_PROVIDER", "vertex")
+    attempts = 0
+    closed = []
+
+    class FakeModels:
+        async def generate_content(self, **_kwargs):
+            raise auth_exceptions.RefreshError("private refresh detail")
+
+    class FakeAsyncClient:
+        models = FakeModels()
+
+        async def aclose(self):
+            closed.append("async")
+
+    class FakeClient:
+        aio = FakeAsyncClient()
+
+        def close(self):
+            closed.append("sync")
+
+    def fake_client(**_kwargs):
+        nonlocal attempts
+        attempts += 1
+        return FakeClient()
+
+    monkeypatch.setattr(genai, "Client", fake_client)
+
+    with pytest.raises(mod.ProviderConfigurationError) as error:
+        await complete_structured(SYSTEM, USER)
+
+    assert attempts == 1
+    assert "private refresh detail" not in str(error.value)
+    assert closed == ["async", "sync"]
