@@ -52,12 +52,14 @@ async def test_pipeline_emits_cache_miss_then_write_then_hit(db):
     assert "miss" in outcomes
     assert "write" in outcomes
     phases = [dimension for dimension, _ in _outcomes(db, "r10_generation_phase")]
-    assert phases == ["preparation", "generation", "persistence"]
+    assert phases == ["sanitize", "cache", "provider", "persist", "finalize"]
 
     # Identical inputs → cache hit on the second run.
     await run_tool_pipeline(**kwargs)
     outcomes = [o for _, o in _outcomes(db, "r10_cache_outcome")]
     assert "hit" in outcomes
+    phases = [dimension for dimension, _ in _outcomes(db, "r10_generation_phase")]
+    assert phases[-4:] == ["sanitize", "cache", "persist", "finalize"]
 
 
 @pytest.mark.asyncio
@@ -86,7 +88,7 @@ async def test_pipeline_emits_one_provider_incident_per_failure(db):
     assert len(incidents) == 1
     assert incidents[0][0] == "timeout"
     phases = [dimension for dimension, _ in _outcomes(db, "r10_generation_phase")]
-    assert phases == ["preparation", "generation"]
+    assert phases == ["sanitize", "cache", "provider"]
 
 
 @pytest.mark.asyncio
@@ -112,6 +114,13 @@ async def test_import_endpoint_records_family_not_url(client, db, monkeypatch):
     dimension, outcome = rows[0]
     assert dimension == "greenhouse"
     assert outcome == "success"
+    assert (
+        db.query(AnalyticsEvent)
+        .filter(AnalyticsEvent.event_name == "r10_import_outcome")
+        .one()
+        .duration_ms
+        >= 0
+    )
 
     # No stored analytics row may contain any fragment of the raw URL.
     all_values = [

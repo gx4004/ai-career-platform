@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from decimal import Decimal
-from typing import Literal
+from typing import Literal, get_args
 
 from pydantic import BaseModel, ConfigDict, model_validator
 
@@ -97,9 +97,28 @@ RateLimitRouteFamily = Literal[
     "other",
 ]
 RateLimitIdentityType = Literal["account", "guest"]
-GenerationPhase = Literal["preparation", "generation", "persistence"]
+GenerationPhase = Literal["sanitize", "cache", "provider", "persist", "finalize"]
 DatabaseQueryFamily = Literal["history_list", "workspace_list", "admin_runs"]
 DatabaseMetric = Literal["storage_pct", "pool_checkout_ratio"]
+
+_R10_EVENT_NAMES = frozenset(get_args(R10EventName))
+_R10_ROUTE_FAMILIES = frozenset(get_args(RateLimitRouteFamily))
+_R10_IDENTITY_TYPES = frozenset(get_args(RateLimitIdentityType))
+_R10_PHASES = frozenset(get_args(GenerationPhase))
+_R10_QUERY_FAMILIES = frozenset(get_args(DatabaseQueryFamily))
+_R10_DATABASE_METRICS = frozenset(get_args(DatabaseMetric))
+_R10_PROVIDER_CATEGORIES = frozenset(get_args(ProviderIncidentCategory))
+_R10_IMPORT_FAMILIES = frozenset(get_args(ImportSourceFamily))
+_R10_CACHE_OUTCOMES = frozenset(get_args(CacheOutcome))
+_R10_IMPORT_OUTCOMES = frozenset(get_args(ImportOutcome))
+_R10_DIMENSIONS = frozenset().union(
+    _R10_ROUTE_FAMILIES,
+    _R10_PHASES,
+    _R10_QUERY_FAMILIES,
+    _R10_DATABASE_METRICS,
+    _R10_PROVIDER_CATEGORIES,
+    _R10_IMPORT_FAMILIES,
+)
 
 # R14 source-registry events never carry a source key/name. The family and
 # governance transition are the only bounded dimensions that cross telemetry.
@@ -368,145 +387,122 @@ class ActivationEventCreate(BaseModel):
     occurred_at: datetime | None = None
 
     @model_validator(mode="after")
-    def validate_rate_limit_event_shape(self):
-        route_families = {
-            "auth", "tools", "imports", "history", "profile", "cv_studio",
-            "campaigns", "discovery", "queue", "submission", "admin",
-            "telemetry", "other",
+    def validate_r10_event_shape(self):
+        """Bind every R10 dimension to its one authoritative event shape."""
+        if (
+            self.event_name not in _SUBMISSION_SOURCE_EVENT_OUTCOMES
+            and self.operational_outcome in _SUBMISSION_SOURCE_EXCLUSIVE_OUTCOMES
+        ):
+            raise ValueError(
+                "submission-source outcomes are valid only for submission-source events"
+            )
+        if self.event_name not in _R10_EVENT_NAMES:
+            if (
+                self.operational_dimension in _R10_DIMENSIONS
+                or self.operational_outcome in _R10_IDENTITY_TYPES
+                or self.metric_value is not None
+            ):
+                raise ValueError("R10 dimensions are valid only for matching R10 events")
+            return self
+
+        allowed_fields = {
+            "r10_cache_outcome": {"operational_outcome"},
+            "r10_provider_incident": {
+                "tool_id",
+                "access_mode",
+                "operational_dimension",
+            },
+            "r10_import_outcome": {
+                "duration_ms",
+                "operational_dimension",
+                "operational_outcome",
+            },
+            "r10_rate_limit_event": {
+                "operational_dimension",
+                "operational_outcome",
+            },
+            "r10_generation_phase": {
+                "tool_id",
+                "access_mode",
+                "duration_ms",
+                "operational_dimension",
+            },
+            "r10_database_query": {"duration_ms", "operational_dimension"},
+            "r10_database_snapshot": {"metric_value", "operational_dimension"},
+        }[self.event_name]
+        field_values = {
+            "tool_id": self.tool_id,
+            "access_mode": self.access_mode,
+            "saved": self.saved,
+            "failure_category": self.failure_category,
+            "export_format": self.export_format,
+            "has_feedback": self.has_feedback,
+            "session_status": self.session_status,
+            "duration_ms": self.duration_ms,
+            "cost_estimate": self.cost_estimate,
+            "metric_value": self.metric_value,
+            "operational_dimension": self.operational_dimension,
+            "operational_outcome": self.operational_outcome,
+            "evidence_kind": self.evidence_kind,
+            "evidence_provenance": self.evidence_provenance,
+            "confirmation_transition": self.confirmation_transition,
+            "development_gap_kind": self.development_gap_kind,
+            "development_response_kind": self.development_response_kind,
+            "development_state_from": self.development_state_from,
+            "development_state_to": self.development_state_to,
+            "occurred_at": self.occurred_at,
         }
-        if self.event_name != "r10_rate_limit_event":
-            if self.operational_outcome in {"account", "guest"}:
-                raise ValueError("rate-limit dimensions are valid only for rate-limit events")
-            return self
-        if (
-            self.operational_dimension not in route_families
-            or self.operational_outcome not in {"account", "guest"}
-        ):
-            raise ValueError("rate-limit events require route family and identity type")
-        unrelated_values = (
-            self.tool_id,
-            self.access_mode,
-            self.saved,
-            self.failure_category,
-            self.export_format,
-            self.has_feedback,
-            self.session_status,
-            self.duration_ms,
-            self.cost_estimate,
-            self.evidence_kind,
-            self.evidence_provenance,
-            self.confirmation_transition,
-            self.development_gap_kind,
-            self.development_response_kind,
-            self.development_state_from,
-            self.development_state_to,
-            self.occurred_at,
+        unexpected = sorted(
+            name
+            for name, value in field_values.items()
+            if value is not None and name not in allowed_fields
         )
-        if any(value is not None for value in unrelated_values) or self.level != "info":
-            raise ValueError("rate-limit events accept only route family and identity type")
-        return self
+        expected_level = "error" if self.event_name == "r10_provider_incident" else "info"
+        if unexpected or self.level != expected_level:
+            raise ValueError(
+                f"{self.event_name} contains fields outside its bounded event shape"
+            )
 
-    @model_validator(mode="after")
-    def validate_generation_phase_shape(self):
-        phases = {"preparation", "generation", "persistence"}
-        if self.event_name != "r10_generation_phase":
-            return self
-        if (
-            self.operational_dimension not in phases
-            or self.operational_outcome is not None
-            or self.tool_id is None
-            or self.access_mode is None
-            or self.duration_ms is None
-        ):
-            raise ValueError("generation phases require phase, tool, access mode, and duration")
-        unrelated_values = (
-            self.saved,
-            self.failure_category,
-            self.export_format,
-            self.has_feedback,
-            self.session_status,
-            self.cost_estimate,
-            self.evidence_kind,
-            self.evidence_provenance,
-            self.confirmation_transition,
-            self.development_gap_kind,
-            self.development_response_kind,
-            self.development_state_from,
-            self.development_state_to,
-            self.occurred_at,
-        )
-        if any(value is not None for value in unrelated_values) or self.level != "info":
-            raise ValueError("generation phases accept only bounded phase timing fields")
-        return self
+        if self.event_name == "r10_cache_outcome":
+            valid = self.operational_outcome in _R10_CACHE_OUTCOMES
+        elif self.event_name == "r10_provider_incident":
+            valid = (
+                self.tool_id is not None
+                and self.access_mode is not None
+                and self.operational_dimension in _R10_PROVIDER_CATEGORIES
+            )
+        elif self.event_name == "r10_import_outcome":
+            valid = (
+                self.operational_dimension in _R10_IMPORT_FAMILIES
+                and self.operational_outcome in _R10_IMPORT_OUTCOMES
+                and self.duration_ms is not None
+            )
+        elif self.event_name == "r10_rate_limit_event":
+            valid = (
+                self.operational_dimension in _R10_ROUTE_FAMILIES
+                and self.operational_outcome in _R10_IDENTITY_TYPES
+            )
+        elif self.event_name == "r10_generation_phase":
+            valid = (
+                self.tool_id is not None
+                and self.access_mode is not None
+                and self.operational_dimension in _R10_PHASES
+                and self.duration_ms is not None
+            )
+        elif self.event_name == "r10_database_query":
+            valid = (
+                self.operational_dimension in _R10_QUERY_FAMILIES
+                and self.duration_ms is not None
+            )
+        else:
+            valid = (
+                self.operational_dimension in _R10_DATABASE_METRICS
+                and self.metric_value is not None
+                and self.metric_value >= 0
+            )
+        if not valid:
+            raise ValueError(f"{self.event_name} is missing its required bounded fields")
 
-    @model_validator(mode="after")
-    def validate_database_query_shape(self):
-        query_families = {"history_list", "workspace_list", "admin_runs"}
-        if self.event_name != "r10_database_query":
-            return self
-        if (
-            self.operational_dimension not in query_families
-            or self.operational_outcome is not None
-            or self.duration_ms is None
-        ):
-            raise ValueError("database query events require family and duration")
-        unrelated_values = (
-            self.tool_id,
-            self.access_mode,
-            self.saved,
-            self.failure_category,
-            self.export_format,
-            self.has_feedback,
-            self.session_status,
-            self.cost_estimate,
-            self.evidence_kind,
-            self.evidence_provenance,
-            self.confirmation_transition,
-            self.development_gap_kind,
-            self.development_response_kind,
-            self.development_state_from,
-            self.development_state_to,
-            self.occurred_at,
-        )
-        if any(value is not None for value in unrelated_values) or self.level != "info":
-            raise ValueError("database query events accept only family and duration")
-        return self
-
-    @model_validator(mode="after")
-    def validate_database_snapshot_shape(self):
-        metrics = {"storage_pct", "pool_checkout_ratio"}
-        if self.event_name != "r10_database_snapshot":
-            if self.metric_value is not None:
-                raise ValueError("metric value is valid only for database snapshots")
-            return self
-        if (
-            self.operational_dimension not in metrics
-            or self.operational_outcome is not None
-            or self.metric_value is None
-            or self.metric_value < 0
-        ):
-            raise ValueError("database snapshots require metric name and non-negative value")
-        unrelated_values = (
-            self.tool_id,
-            self.access_mode,
-            self.saved,
-            self.failure_category,
-            self.export_format,
-            self.has_feedback,
-            self.session_status,
-            self.duration_ms,
-            self.cost_estimate,
-            self.evidence_kind,
-            self.evidence_provenance,
-            self.confirmation_transition,
-            self.development_gap_kind,
-            self.development_response_kind,
-            self.development_state_from,
-            self.development_state_to,
-            self.occurred_at,
-        )
-        if any(value is not None for value in unrelated_values) or self.level != "info":
-            raise ValueError("database snapshots accept only metric name and value")
         if self.operational_dimension == "storage_pct" and self.metric_value > 100:
             raise ValueError("storage percentage cannot exceed 100")
         if self.operational_dimension == "pool_checkout_ratio" and self.metric_value > 1:

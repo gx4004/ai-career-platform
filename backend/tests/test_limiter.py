@@ -187,7 +187,7 @@ def test_development_allows_in_memory_rate_limit_storage(monkeypatch):
     validate_abuse_control_config()
 
 
-def test_resource_import_limit_is_shared_and_returns_429(client, monkeypatch):
+def test_resource_import_limit_is_shared_and_returns_429(client, monkeypatch, caplog):
     monkeypatch.setattr("app.limiter.settings.RESOURCE_IMPORT_LIMIT", "2/minute")
     limiter._storage.reset()
     scrape = AsyncMock(
@@ -216,6 +216,8 @@ def test_resource_import_limit_is_shared_and_returns_429(client, monkeypatch):
     assert [response.status_code for response in responses] == [200, 200, 429]
     assert scrape.await_count == 2
     assert recorded == [{"route_family": "imports", "identity_type": "guest"}]
+    assert "abuse_limit_exceeded route=imports identity_type=guest" in caplog.text
+    assert "/api/v1/job-posts/import-url" not in caplog.text
 
 
 def test_model_cost_limit_returns_429_before_second_tool_run(

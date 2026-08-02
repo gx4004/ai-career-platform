@@ -1,4 +1,5 @@
 import logging
+from time import perf_counter
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
@@ -38,20 +39,36 @@ async def import_job_url(
     # mapping and is never handed to analytics.
     source_family = map_source_family(str(body.url))
     reset_import_outcome()
+    import_started = perf_counter()
     try:
         result = await scrape_job_posting(str(body.url))
     except ValueError as e:
-        _record_import_outcome(db, source_family, forced_outcome="failure")
+        _record_import_outcome(
+            db,
+            source_family,
+            duration_ms=max(0, int((perf_counter() - import_started) * 1000)),
+            forced_outcome="failure",
+        )
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as exc:
         logger.error("Job import failed error_type=%s", type(exc).__name__)
-        _record_import_outcome(db, source_family, forced_outcome="failure")
+        _record_import_outcome(
+            db,
+            source_family,
+            duration_ms=max(0, int((perf_counter() - import_started) * 1000)),
+            forced_outcome="failure",
+        )
         raise HTTPException(
             status_code=502,
             detail="Could not fetch or parse the job posting. Please check the URL and try again.",
         )
     import_outcome: ImportOutcome = get_import_outcome() or "failure"
-    _record_import_outcome(db, source_family, forced_outcome=import_outcome)
+    _record_import_outcome(
+        db,
+        source_family,
+        duration_ms=max(0, int((perf_counter() - import_started) * 1000)),
+        forced_outcome=import_outcome,
+    )
     if body.campaign_id is not None:
         if current_user is None:
             raise HTTPException(
@@ -109,13 +126,15 @@ def _record_import_outcome(
     db: Session,
     source_family: ImportSourceFamily,
     *,
+    duration_ms: int,
     forced_outcome: ImportOutcome | None = None,
 ) -> None:
-    """Emit one allowlisted `r10_import_outcome` event (family + outcome only)."""
+    """Emit one bounded import family/outcome/duration event."""
     outcome: ImportOutcome = forced_outcome or get_import_outcome() or "failure"
     safe_record_activation_event(
         db,
         event_name="r10_import_outcome",
         operational_dimension=source_family,
         operational_outcome=outcome,
+        duration_ms=duration_ms,
     )

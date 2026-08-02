@@ -69,6 +69,7 @@ async def run_tool_pipeline(
     )
 
     # Sanitize
+    sanitize_start = perf_counter()
     clean_resume = sanitize_user_input(resume_text)
     clean_jd = sanitize_user_input(job_description) if job_description else None
     clean_feedback = sanitize_user_input(feedback) if feedback else None
@@ -81,6 +82,14 @@ async def run_tool_pipeline(
     if "feedback" in service_kwargs:
         service_kwargs["feedback"] = clean_feedback
 
+    _record_generation_phase(
+        db,
+        tool_name=tool_name,
+        access_mode=access_mode,
+        phase="sanitize",
+        started_at=sanitize_start,
+    )
+
     # Evidence Profile injection (R11, D-063 / ADR 0005). The shared pipeline is
     # the only seam that reads the profile — no tool router gains its own access
     # path. Authenticated-only; guests keep inline inputs and tab-scoped carry
@@ -88,6 +97,7 @@ async def run_tool_pipeline(
     # today's inline-input behavior with no data loss (ADR 0005). A user with no
     # confirmed/unconfirmed items yields an empty payload, so tools behave
     # exactly as today until the user confirms evidence.
+    cache_start = perf_counter()
     profile_version: str | None = None
     if (
         settings.EVIDENCE_PROFILE_INJECTION_ENABLED or require_evidence_profile
@@ -127,14 +137,14 @@ async def run_tool_pipeline(
         db,
         tool_name=tool_name,
         access_mode=access_mode,
-        phase="preparation",
-        started_at=start,
+        phase="cache",
+        started_at=cache_start,
     )
 
     if cached is not None:
         result = {**cached}
     else:
-        generation_start = perf_counter()
+        provider_start = perf_counter()
         try:
             result = await service_fn(**service_kwargs)
         except Exception as exc:
@@ -142,8 +152,8 @@ async def run_tool_pipeline(
                 db,
                 tool_name=tool_name,
                 access_mode=access_mode,
-                phase="generation",
-                started_at=generation_start,
+                phase="provider",
+                started_at=provider_start,
             )
             failed_duration_ms = int((perf_counter() - start) * 1000)
             log_tool_run_failed(
@@ -187,8 +197,8 @@ async def run_tool_pipeline(
             db,
             tool_name=tool_name,
             access_mode=access_mode,
-            phase="generation",
-            started_at=generation_start,
+            phase="provider",
+            started_at=provider_start,
         )
 
         if content_hash is not None:
@@ -212,20 +222,21 @@ async def run_tool_pipeline(
         feedback_text=clean_feedback,
     )
 
+    _record_generation_phase(
+        db,
+        tool_name=tool_name,
+        access_mode=access_mode,
+        phase="persist",
+        started_at=persistence_start,
+    )
+
+    finalize_start = perf_counter()
     response = build_tool_response(
         result,
         tool_name=tool_name,
         history_id=run.id if run else None,
         access_mode=access_mode,
     )
-    _record_generation_phase(
-        db,
-        tool_name=tool_name,
-        access_mode=access_mode,
-        phase="persistence",
-        started_at=persistence_start,
-    )
-
     completed_duration_ms = int((perf_counter() - start) * 1000)
     log_tool_run_completed(
         tool_name=tool_name,
@@ -241,6 +252,13 @@ async def run_tool_pipeline(
         duration_ms=completed_duration_ms,
         cost_estimate=get_llm_cost(),
         saved=run is not None,
+    )
+    _record_generation_phase(
+        db,
+        tool_name=tool_name,
+        access_mode=access_mode,
+        phase="finalize",
+        started_at=finalize_start,
     )
 
     return response

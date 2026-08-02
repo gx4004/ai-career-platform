@@ -129,7 +129,7 @@ async def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded):
     route_family = rate_limit_route_family(request.url.path)
     logger.warning(
         "abuse_limit_exceeded route=%s identity_type=%s",
-        request.url.path,
+        route_family,
         identity_type,
     )
     record_rate_limit_event(

@@ -433,7 +433,11 @@ def _evaluate_abuse_cost(db: Session, now: datetime) -> dict[str, object]:
         microsecond=0,
     )
     rate_rows = (
-        db.query(AnalyticsEvent.operational_dimension, AnalyticsEvent.created_at)
+        db.query(
+            AnalyticsEvent.operational_dimension,
+            AnalyticsEvent.operational_outcome,
+            AnalyticsEvent.created_at,
+        )
         .filter(
             AnalyticsEvent.event_name == "r10_rate_limit_event",
             AnalyticsEvent.created_at
@@ -445,34 +449,38 @@ def _evaluate_abuse_cost(db: Session, now: datetime) -> dict[str, object]:
         )
         .all()
     )
-    counts_by_family: dict[str, list[int]] = {}
-    for family, created_at in rate_rows:
+    counts_by_flow: dict[tuple[str, str], list[int]] = {}
+    for family, identity_type, created_at in rate_rows:
         event_at = _as_utc(created_at)
         minutes_before_boundary = (current_boundary - event_at).total_seconds() / 60
         window_index = int((minutes_before_boundary - 0.000001) // RATE_LIMIT_WINDOW_MINUTES)
         if 0 <= window_index < RATE_LIMIT_CONSECUTIVE_WINDOWS:
-            counts_by_family.setdefault(family or "other", [0] * RATE_LIMIT_CONSECUTIVE_WINDOWS)[
+            flow = (family or "other", identity_type or "unknown")
+            counts_by_flow.setdefault(flow, [0] * RATE_LIMIT_CONSECUTIVE_WINDOWS)[
                 window_index
             ] += 1
-    sustained_families = [
-        family
-        for family, counts in counts_by_family.items()
+    sustained_flows = [
+        flow
+        for flow, counts in counts_by_flow.items()
         if all(count >= RATE_LIMIT_WINDOW_THRESHOLD for count in counts)
     ]
     max_rate_events = max(
-        (max(counts) for counts in counts_by_family.values()), default=0
+        (max(counts) for counts in counts_by_flow.values()), default=0
     )
+    sustained_flow_labels = [
+        f"{family}/{identity_type}" for family, identity_type in sorted(sustained_flows)
+    ]
     detail: dict[str, float | int | str] = {
         "cost_24h_usd": round(total_cost_f, 6),
         "cost_alert_budget_usd": budget,
         "rate_limit_max_15m": max_rate_events,
-        "rate_limit_sustained_families": ", ".join(sorted(sustained_families)) or "none",
+        "rate_limit_sustained_flows": ", ".join(sustained_flow_labels) or "none",
         "rate_limit_windows": RATE_LIMIT_CONSECUTIVE_WINDOWS,
     }
-    if sustained_families:
+    if sustained_flows:
         state: TriggerState = "fired"
         evidence = (
-            f"Rate-limit pressure sustained for {', '.join(sorted(sustained_families))}: "
+            f"Rate-limit pressure sustained for {', '.join(sustained_flow_labels)}: "
             f"≥{RATE_LIMIT_WINDOW_THRESHOLD} events in each of "
             f"{RATE_LIMIT_CONSECUTIVE_WINDOWS} consecutive {RATE_LIMIT_WINDOW_MINUTES}-min windows."
         )
@@ -493,7 +501,7 @@ def _evaluate_abuse_cost(db: Session, now: datetime) -> dict[str, object]:
         "evidence": evidence,
         "evidence_detail": detail,
         "last_evidence_at": _iso(
-            max((_as_utc(created_at) for _, created_at in rate_rows), default=None)
+            max((_as_utc(created_at) for _, _, created_at in rate_rows), default=None)
         ),
         "evidence_fresh": True,
     }
