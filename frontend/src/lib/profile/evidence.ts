@@ -5,6 +5,8 @@ import type {
   EvidenceProvenance,
 } from '#/lib/api/schemas'
 
+export const EVIDENCE_QUERY_KEY = ['evidence-profile', 'items'] as const
+
 // Canonical display order for the eight evidence kinds (ADR 0005, D-061).
 export const KIND_ORDER: readonly EvidenceKind[] = [
   'experience',
