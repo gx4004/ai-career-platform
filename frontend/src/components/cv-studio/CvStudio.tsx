@@ -5,13 +5,14 @@ import { AppStatePanel } from '#/components/app/AppStatePanel'
 import { PageFrame } from '#/components/app/PageFrame'
 import { Button } from '#/components/ui/button'
 import { useSession } from '#/hooks/useSession'
-import { createCvDocument, deleteAllCvDocuments, deleteCvDocument, getCvDocument, listCvDocuments, restoreCvVariant, snapshotCvVariant, updateCvDocument } from '#/lib/api/client'
+import { deleteAllCvDocuments, deleteCvDocument, getCvDocument, listCvDocuments, restoreCvVariant, snapshotCvVariant, updateCvDocument } from '#/lib/api/client'
 import type { CvDocument, CvSection } from '#/lib/api/schemas'
 import type { CvTemplateId } from '#/lib/api/schemas'
 import { addEntry, addSection, moveEntry, moveSection, sectionLabels } from '#/lib/cv-studio/editor'
 import { CvQualityPanel } from './CvQualityPanel'
 import { CvTailoringPanel } from './CvTailoringPanel'
 import { CvPreview } from './CvPreview'
+import { CreateCvDocumentDialog } from './CreateCvDocumentDialog'
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error'
 const LIST_KEY = ['cv-studio', 'documents'] as const
@@ -25,7 +26,7 @@ export function CvStudio() {
   const [dirty, setDirty] = useState(false)
   const [saveState, setSaveState] = useState<SaveState>('idle')
   const [actionError, setActionError] = useState('')
-  const [creating, setCreating] = useState(false)
+  const [createOpen, setCreateOpen] = useState(false)
   const [snapshotName, setSnapshotName] = useState('')
   const [template, setTemplate] = useState<CvTemplateId>('ats-essential')
   const saveGeneration = useRef(0)
@@ -95,19 +96,13 @@ export function CvStudio() {
       setDraft(restored); setSaveState('saved'); await documentQuery.refetch()
     } catch (error) { setActionError(error instanceof Error ? error.message : 'Restore failed.') }
   }
-  async function createBlankDocument() {
-    if (creating) return
-    setCreating(true)
-    setActionError('')
-    try {
-      const created = await createCvDocument({ name: 'My CV' })
-      queryClient.setQueryData(LIST_KEY, { items: [created] })
-      setDocumentId(created.id)
-    } catch (error) {
-      setActionError(error instanceof Error ? error.message : 'Could not create a CV document.')
-    } finally {
-      setCreating(false)
-    }
+  function handleCreatedDocument(created: CvDocument) {
+    queryClient.setQueryData<{ items: CvDocument[] }>(LIST_KEY, (current) => ({
+      items: [created, ...(current?.items ?? []).filter((item) => item.id !== created.id)],
+    }))
+    setDraft(null)
+    setDocumentId(created.id)
+    setSaveState('idle')
   }
   async function removeDocument(all: boolean) {
     if (!draft || dirty) return
@@ -131,7 +126,7 @@ export function CvStudio() {
   if (!authenticated) return <AppStatePanel title="CV Studio" description="Sign in to edit your structured CV documents and recover named versions." actions={[{ label: 'Sign in', onClick: () => openAuthDialog({ to: '/cv-studio', reason: 'CV Studio is private to your account.' }) }]} />
   if (listQuery.isPending || (documentId && documentQuery.isPending)) return <PageFrame className="studio-shell" ><div className="studio-skeleton" aria-label="Loading CV Studio" /></PageFrame>
   if (listQuery.isError || documentQuery.isError) return <AppStatePanel title="CV Studio is unavailable" description="Your document content was not changed." detail="Try loading the studio again." actions={[{ label: 'Try again', onClick: () => { void listQuery.refetch(); void documentQuery.refetch() } }]} />
-  if (!listQuery.data?.items.length) return <AppStatePanel title="Start your CV Studio" description="Import or create a structured CV document first. The editor never turns your document into freeform rich text." detail={actionError || undefined} icon={<FilePlus2 />} actions={[{ label: creating ? 'Creating…' : 'Create a blank CV', disabled: creating, onClick: () => void createBlankDocument() }]} />
+  if (!listQuery.data?.items.length) return <><AppStatePanel title="Start your CV Studio" description="Import or create a structured CV document first. The editor never turns your document into freeform rich text." icon={<FilePlus2 />} actions={[{ label: 'Create a CV', onClick: () => setCreateOpen(true) }]} /><CreateCvDocumentDialog open={createOpen} onOpenChange={setCreateOpen} onCreated={handleCreatedDocument} /></>
   if (!draft) return null
 
   const exportUrl = `/api/v1/cv-documents/export`
@@ -141,11 +136,13 @@ export function CvStudio() {
         <div>{listQuery.data.items.length > 1 ? <><label className="eyebrow" htmlFor="studio-document-picker">Structured document</label><select id="studio-document-picker" className="studio-document-picker" value={draft.id} disabled={dirty} onChange={(event) => { setDirty(false); setDraft(null); setDocumentId(event.target.value); setSaveState('idle') }}>{listQuery.data.items.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></> : <p className="eyebrow">Structured document</p>}<input className="studio-title-input" aria-label="Document name" value={draft.name} maxLength={120} onChange={(event) => edit((current) => ({ ...current, name: event.target.value }))} /></div>
         <div className="studio-header-actions">
           <span className={`studio-save-state studio-save-state--${saveState}`} role="status" aria-live="polite">{saveState === 'saving' ? 'Saving…' : saveState === 'error' ? 'Save failed' : saveState === 'saved' ? 'Saved' : 'All changes saved'}</span>
+          <Button type="button" variant="outline" disabled={dirty} onClick={() => setCreateOpen(true)}><FilePlus2 size={16} /> New CV</Button>
           <Button asChild variant="outline"><a href={exportUrl}><Download size={16} /> Export data</a></Button>
           <Button type="button" variant="outline" disabled={dirty} onClick={() => void removeDocument(false)}><Trash2 size={16} /> Delete document</Button>
           <Button type="button" variant="outline" disabled={dirty} onClick={() => void removeDocument(true)}>Delete all documents</Button>
         </div>
       </header>
+      <CreateCvDocumentDialog open={createOpen} onOpenChange={setCreateOpen} onCreated={handleCreatedDocument} />
       {actionError ? <div className="studio-error" role="alert">{actionError} <button type="button" onClick={() => setActionError('')}>Dismiss</button></div> : null}
       <div className="studio-layout">
         <section className="studio-editor" aria-label="CV sections">
