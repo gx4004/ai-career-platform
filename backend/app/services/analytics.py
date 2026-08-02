@@ -68,13 +68,15 @@ def aggregate_activation_metrics(
     window_start: datetime,
     window_end: datetime,
     access_mode: AccessMode | None = None,
+    tool_id: str | None = None,
 ) -> AdminActivationResponse:
     """Aggregate the activation-event store into the admin dashboard shape (D-039).
 
     Read-only. Returns the six-step funnel counts, failure counts by allowlisted
     category, and per-tool latency/cost (over completed runs), all restricted to
     ``[window_start, window_end]`` (by server ingest time) and, when
-    ``access_mode`` is given, to events tagged with that access mode. Plain
+    ``access_mode`` is given, to events tagged with that access mode. When
+    ``tool_id`` is given, every aggregate is restricted to that tool. Plain
     aggregate counts only — the dashboard renders them as tables, with no
     charting library (ADR 0001).
     """
@@ -86,6 +88,8 @@ def aggregate_activation_metrics(
         )
         if access_mode is not None:
             query = query.filter(AnalyticsEvent.access_mode == access_mode)
+        if tool_id is not None:
+            query = query.filter(AnalyticsEvent.tool_id == tool_id)
         return query
 
     counts_by_name = dict(
@@ -147,6 +151,7 @@ def aggregate_activation_metrics(
         window_start=window_start.isoformat(),
         window_end=window_end.isoformat(),
         access_mode=access_mode,
+        tool_id=tool_id,
         funnel=funnel,
         failures=failures,
         tools=tools,
