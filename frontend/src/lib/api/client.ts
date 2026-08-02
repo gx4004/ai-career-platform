@@ -466,6 +466,10 @@ export function deleteEvidenceItem(itemId: string) {
   return request<void>(`/evidence-profile/items/${itemId}`, { method: 'DELETE' })
 }
 
+export function deleteEvidenceProfile() {
+  return request<void>('/evidence-profile/items', { method: 'DELETE' })
+}
+
 // R11 (#146): derive reviewable evidence proposals from parsed resume text.
 // Authenticated-only server-side (guests get 401/403). Proposals are ephemeral —
 // nothing is stored until the user accepts one via createEvidenceItem.

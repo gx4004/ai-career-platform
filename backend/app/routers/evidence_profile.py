@@ -21,6 +21,7 @@ from app.services.evidence_profile import (
     EvidenceItemNotFoundError,
     create_evidence_item,
     delete_evidence_item,
+    delete_evidence_profile,
     get_evidence_item,
     list_evidence_items,
     set_evidence_confirmation,
@@ -89,6 +90,18 @@ def create_item(
     # separate, authenticated user actions, so automated callers cannot smuggle a
     # confirmed item through this write contract (D-062).
     return create_evidence_item(db, current_user.id, body)
+
+
+@router.delete("/items", status_code=status.HTTP_204_NO_CONTENT)
+@limiter.limit("5/minute")
+def delete_profile(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Immediately erase the owner's whole Evidence Profile atomically (D-065)."""
+    delete_evidence_profile(db, current_user.id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get("/items/{item_id}", response_model=EvidenceItemResponse)
