@@ -34,9 +34,9 @@ export function PrivacyPolicyPage() {
           with your account so you can revisit past runs.
         </li>
         <li>
-          <strong>Technical data:</strong> operational request information and low-cardinality diagnostics collected
-          by our own service. Sentry error monitoring is inactive by default; if enabled after privacy-scrubbing
-          checks, it may receive minimal error diagnostics.
+          <strong>Technical data:</strong> your IP address, which our own service processes to apply rate limits and
+          prevent abuse, plus low-cardinality operational diagnostics. Sentry error monitoring is inactive by
+          default; if enabled after privacy-scrubbing checks, it may receive minimal error diagnostics.
         </li>
         <li>
           <strong>Cookies and similar storage:</strong> strictly-necessary authentication cookies and a local
