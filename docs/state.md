@@ -1,6 +1,6 @@
 # Career Workbench — Current State
 
-**Snapshot date:** 2026-07-30
+**Snapshot date:** 2026-08-02
 **Confidence:** code- and CI-informed; release environment not re-verified
 
 This file records current posture, blockers, and risks. GitHub Issues, pull
@@ -10,7 +10,8 @@ requests, and Git history own implementation detail. Accepted decisions remain i
 
 ## Current Posture
 
-Career Workbench has a mature local and CI-verified product body on `chapter2`:
+Career Workbench has a mature local and CI-verified product body on `chapter2`,
+with a cumulative local release candidate on `codex/autonomous-20260802`:
 
 - R0–R2 engineering and end-to-end audit gates are complete.
 - R3 is specification-complete; deployed-environment evidence and named human
@@ -32,24 +33,26 @@ Career Workbench has a mature local and CI-verified product body on `chapter2`:
   build completion, not production activation or acceptance of the roadmap
   outcome.
 
-The latest slice, R16 #195, merged as PR #313 after green backend, frontend, and
-PostgreSQL/Playwright CI. It adds strict compatibility-break containment and
-quality-first aggregate governance. No real submission source, source OAuth flow,
-third-party credential store, production adapter, scheduler, public submission
-route, or unattended outward-act endpoint exists.
+The local candidate also completes the safe preparatory portions of R9/R10,
+hardens R1/R3/R6/R11 boundaries, and corrects CV Studio recovery. This work is
+committed locally but is not pushed, merged, deployed, or accepted as activation
+evidence. No real submission source, source OAuth flow, third-party credential
+store, production adapter, scheduler, public submission route, or unattended
+outward-act endpoint exists.
 
 ## Branch and Release Posture
 
-- `chapter2` is the integration branch (D-027) and was at `69430f32` when this
-  snapshot was verified.
+- `chapter2` is the integration branch (D-027) and is at `8d47223e`; the local
+  `codex/autonomous-20260802` candidate is 19 commits ahead with the same merge base.
 - `main` and `deploy` both remain at `6a00a612`, 170 commits behind `chapter2`.
 - The documented `chapter2 → main → deploy` promotion has not been run for
   this product body. Promotion remains an owner-controlled release action.
 - Backend dependency resolution is locked: intent lives in `requirements.in`, and
   generated `requirements.txt` pins the complete graph so CI, local development,
   and deployment resolve the same versions (#288).
-- The primary checkout contains unrelated owner work. Agents must continue using
-  isolated worktrees and stage only ticket-scoped paths.
+- The checkout contains an explicit owner-only `ai_client.py` demo-delay tweak,
+  untracked `.commandcode/` and `.scratch/` state, and unrelated stashes. They must
+  remain preserved and only task-scoped paths may be staged.
 
 ## Known Working Product Shape
 
@@ -84,9 +87,9 @@ route, or unattended outward-act endpoint exists.
 
 ## Immediate Objective
 
-After documentation ticket #314, GitHub has no decision-complete implementation
-issue. The next valid work requires external evidence, credentials, or human
-judgement:
+After completing the remaining safe R9/R10 preparatory slices, GitHub still has no
+decision-complete implementation issue. The next valid work requires external
+evidence, credentials, an irreversible provider action, or human judgement:
 
 1. Run the R3/R5 staging and release checklist against the actual Railway topology,
    including migration, backup/restore or forward-fix, OAuth, email, LLM, telemetry,
@@ -158,17 +161,17 @@ R9/R10 responses are `needs-info`.
 
 ## Verification Baseline
 
-PR #313 is the latest product verification point on this snapshot:
+The unpushed `codex/autonomous-20260802` candidate is the latest local verification
+point on this snapshot:
 
-- backend: ruff clean; 919 tests passed;
-- frontend: typecheck clean; 446 Vitest tests plus 5 Node tests passed; production
-  build passed;
-- PostgreSQL: populated migration round trips, Alembic head, and concurrent
-  submission/breakage containment proof passed;
-- browser: desktop and 390 px quality-governance verification passed with no
-  horizontal overflow or console errors;
-- independent Standards and Spec reviews: clean;
-- GitHub CI: Backend, Frontend, and E2E/PostgreSQL jobs passed before merge.
+- backend: ruff clean; 959 tests passed;
+- frontend: typecheck clean; 457 Vitest tests plus 5 Node tests passed; client and
+  SSR production builds passed;
+- PostgreSQL: fresh full migration, new-migration downgrade/forward round trip,
+  full downgrade to base, and numeric metric-column verification passed;
+- browser: the fresh-database Playwright gate passed 52/52 after focused checks
+  verified the three harness/telemetry gaps its first pass exposed;
+- independent cumulative Standards and Spec reviews: clean after all corrections.
 
 This evidence does not verify the deployed environment or close an activation gate.
 
