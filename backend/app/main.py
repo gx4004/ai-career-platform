@@ -7,6 +7,7 @@ from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
+from starlette.concurrency import run_in_threadpool
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.responses import Response
@@ -132,7 +133,13 @@ async def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded):
         route_family,
         identity_type,
     )
-    record_rate_limit_event(
+    # Evidence collection must not become the outage it measures (D-054). The
+    # recorder does blocking psycopg2 I/O, and this handler runs on the event loop
+    # under exactly the sustained-abuse traffic #140 exists to detect, so it is
+    # offloaded. Events are still recorded one-for-one: the scorecard counts them
+    # per window, so sampling here would corrupt the accepted threshold.
+    await run_in_threadpool(
+        record_rate_limit_event,
         route_family=route_family,
         identity_type=identity_type,
     )
