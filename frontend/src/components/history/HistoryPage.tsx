@@ -28,6 +28,7 @@ import {
   updateHistoryItem,
   updateHistoryWorkspace,
 } from '#/lib/api/client'
+import { isR13CampaignsEnabled } from '#/lib/flags/featureFlags'
 import { writeWorkflowContext } from '#/lib/tools/drafts'
 import { getNextStepToolId } from '#/lib/tools/runMetadata'
 import { deriveWorkflowUpdateFromHistoryItem } from '#/lib/tools/workflowContext'
@@ -421,11 +422,13 @@ export function HistoryPage({
                         ))}
                       </div>
                       <div className="flex flex-wrap gap-2">
-                        <Button variant="outline" asChild>
-                          <Link to="/campaigns/$campaignId" params={{ campaignId: workspace.id }}>
-                            Open campaign
-                          </Link>
-                        </Button>
+                        {isR13CampaignsEnabled() ? (
+                          <Button variant="outline" asChild>
+                            <Link to="/campaigns/$campaignId" params={{ campaignId: workspace.id }}>
+                              Open campaign
+                            </Link>
+                          </Button>
+                        ) : null}
                         <Button
                           variant="outline"
                           disabled={workspaceMutation.isPending}
