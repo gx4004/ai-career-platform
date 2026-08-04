@@ -136,3 +136,61 @@ def test_core_tool_route_remains_available_when_build_ahead_is_dark(
     ):
         monkeypatch.setattr(settings, flag, False)
     assert client.get("/api/v1/history", headers=auth_headers).status_code == 200
+
+
+# Prefix -> the gate every route under it must carry. `conftest` force-enables all
+# seven flags for the rest of the suite, so an ungated build-ahead route would
+# otherwise pass CI unnoticed — which is exactly how the campaign write path above
+# stayed open. This check is structural and does not depend on flag state.
+_GATED_PREFIXES = {
+    "/api/v1/cv-documents": "require_r12_enabled",
+    "/api/v1/development-plan": "require_r17_enabled",
+    "/api/v1/discovery": "require_r14_enabled",
+    "/api/v1/queue": "require_r15_enabled",
+    "/api/v1/packets": "require_r15_enabled",
+    "/api/v1/submission-authorizations": "require_r16_enabled",
+}
+
+# Deliberate exceptions: portability and erasure must survive a dark outcome so a
+# user is never left with data they cannot export or delete (D-065).
+_RECOVERY_ROUTES = {
+    ("/api/v1/evidence-profile/export", "GET"),
+    ("/api/v1/evidence-profile/items", "DELETE"),
+}
+
+
+def test_every_build_ahead_route_carries_its_activation_gate():
+    from app.main import app
+
+    ungated = []
+    for route in app.routes:
+        path = getattr(route, "path", "")
+        prefix = next((p for p in _GATED_PREFIXES if path.startswith(p)), None)
+        if prefix is None:
+            continue
+        methods = getattr(route, "methods", set()) - {"HEAD", "OPTIONS"}
+        if {(path, m) for m in methods} & _RECOVERY_ROUTES:
+            continue
+        names = {
+            getattr(dep.call, "__name__", "") for dep in route.dependant.dependencies
+        }
+        if _GATED_PREFIXES[prefix] not in names:
+            ungated.append(f"{sorted(methods)} {path}")
+
+    assert ungated == [], f"build-ahead routes missing an activation gate: {ungated}"
+
+
+def test_evidence_profile_recovery_routes_stay_ungated_by_design():
+    """Pin the two intentional exceptions so neither is gated by accident."""
+    from app.main import app
+
+    for route in app.routes:
+        methods = getattr(route, "methods", set())
+        for method in methods:
+            if (getattr(route, "path", ""), method) in _RECOVERY_ROUTES:
+                names = {
+                    getattr(dep.call, "__name__", "")
+                    for dep in route.dependant.dependencies
+                }
+                assert "require_r11_enabled" not in names
+                assert "get_current_user" in names
