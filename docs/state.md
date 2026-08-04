@@ -164,14 +164,22 @@ R9/R10 responses are `needs-info`.
 The unpushed `codex/autonomous-20260802` candidate is the latest local verification
 point on this snapshot:
 
-- backend: ruff clean; 959 tests passed;
-- frontend: typecheck clean; 457 Vitest tests plus 5 Node tests passed; client and
+- backend: ruff clean; 961 tests passed;
+- frontend: typecheck clean; 460 Vitest tests plus 5 Node tests passed; client and
   SSR production builds passed;
 - PostgreSQL: fresh full migration, new-migration downgrade/forward round trip,
   full downgrade to base, and numeric metric-column verification passed;
-- browser: the fresh-database Playwright gate passed 52/52 after focused checks
-  verified the three harness/telemetry gaps its first pass exposed;
-- independent cumulative Standards and Spec reviews: clean after all corrections.
+- browser: the fresh-database Playwright gate passed 52/52, and passed 52/52 again
+  after the review corrections below;
+- independent cumulative Standards and Spec reviews: a second review over the same
+  range found six actionable defects that the first pass missed — an ungated
+  campaign write path that could persist campaign and submission-snapshot rows
+  while R13 was dark, loader-abandonment telemetry that fired on every completed
+  run, an orphaned campaign link on `/history`, a privacy disclosure narrower than
+  the IP processing the limiter performs, a synchronous database write on the
+  rate-limited request path, and provider transport failures that were neither
+  retried nor recorded as incidents. All six are fixed with regression tests that
+  fail without the fix; the reviews are clean after those corrections.
 
 This evidence does not verify the deployed environment or close an activation gate.
 
