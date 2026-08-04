@@ -174,6 +174,15 @@ async def _call_vertex(system_prompt: str, user_prompt: str, model_name: str | N
         logger.error("Vertex AI call failed error_type=%s", type(exc).__name__)
         set_provider_incident("unavailable")
         raise RuntimeError("AI service temporarily unavailable. Please try again.") from exc
+    except Exception as exc:  # noqa: BLE001 — transport failures have no SDK type
+        # The Gen AI SDK does not wrap httpx transport failures (DNS, TLS, refused
+        # connection, reset) into an APIError, so an unreachable provider escaped
+        # as a raw httpx error: no retry, and no `r10_provider_incident` evidence
+        # for the D-055 fallback trigger. The removed `GoogleAPICallError` base
+        # class used to cover these. Only the error type is logged.
+        logger.error("Vertex AI transport failure error_type=%s", type(exc).__name__)
+        set_provider_incident("unavailable")
+        raise RuntimeError("AI service temporarily unavailable. Please try again.") from exc
     finally:
         if async_client is not None:
             with suppress(Exception):
