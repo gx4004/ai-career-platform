@@ -19,12 +19,14 @@ describe('CinematicLoader', () => {
     trackTelemetryMock.mockReset()
   })
 
-  it('reports one bounded abandonment when a pending loader leaves after one second', () => {
-    const { unmount } = render(
+  it('reports one bounded abandonment when a pending loader leaves the page', () => {
+    render(
       <CinematicLoader toolId="resume" accessMode="guest_demo" mutationDone={false} />,
     )
     act(() => vi.advanceTimersByTime(1500))
-    unmount()
+    act(() => {
+      window.dispatchEvent(new Event('pagehide'))
+    })
 
     expect(trackTelemetryMock).toHaveBeenCalledWith({
       event_name: 'generation_loader_abandoned',
@@ -32,15 +34,27 @@ describe('CinematicLoader', () => {
       access_mode: 'guest_demo',
       duration_ms: 1500,
     })
+    expect(trackTelemetryMock).toHaveBeenCalledTimes(1)
   })
 
-  it('does not report abandonment after real completion', () => {
-    const { rerender, unmount } = render(
+  it('does not report abandonment when a completed run unmounts the loader', () => {
+    // Every tool page renders `{mutation.isPending ? <loader/> : <result/>}`, so
+    // `mutationDone` is structurally false for the loader's whole lifetime and the
+    // success path is an unmount. Reporting here would mark every run abandoned.
+    const { unmount } = render(
       <CinematicLoader toolId="resume" mutationDone={false} />,
     )
-    act(() => vi.advanceTimersByTime(1500))
-    rerender(<CinematicLoader toolId="resume" mutationDone />)
+    act(() => vi.advanceTimersByTime(12_000))
     unmount()
+    expect(trackTelemetryMock).not.toHaveBeenCalled()
+  })
+
+  it('does not report abandonment for a leave under one second', () => {
+    render(<CinematicLoader toolId="resume" mutationDone={false} />)
+    act(() => vi.advanceTimersByTime(400))
+    act(() => {
+      window.dispatchEvent(new Event('pagehide'))
+    })
     expect(trackTelemetryMock).not.toHaveBeenCalled()
   })
 

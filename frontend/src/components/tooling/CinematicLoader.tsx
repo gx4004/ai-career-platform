@@ -120,10 +120,14 @@ export function CinematicLoader({
         duration_ms: Math.min(durationMs, 86_400_000),
       })
     }
+    // Only a real page-leave counts as abandonment. Every tool page renders this
+    // loader as `{mutation.isPending ? <loader/> : <result/>}`, so unmount is the
+    // normal success path — reporting from cleanup fired on every completed run
+    // and would have shown the operator ~100% abandonment (#139). Under-reporting
+    // an in-app navigation is safe; a false trigger is not.
     window.addEventListener('pagehide', reportAbandonment)
     return () => {
       window.removeEventListener('pagehide', reportAbandonment)
-      reportAbandonment()
     }
   }, [accessMode, toolId])
 
