@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.auth.security import get_current_user
 from app.database import get_db
-from app.feature_gates import require_r13_enabled, require_r17_enabled
+from app.feature_gates import outcome_enabled, require_r13_enabled, require_r17_enabled
 from app.limiter import limiter
 from app.models.application_packet import ApplicationPacket
 from app.models.campaign_event import CampaignEvent
@@ -508,6 +508,14 @@ def _delete_campaign_record(
     return DeletedResponse(deleted=1)
 
 
+# `label` and `is_pinned` are core history controls that predate R13 and must keep
+# working while campaigns are dark. The remaining fields drive campaign state,
+# `CampaignEvent` rows, and R15/R16 submission snapshots, so this endpoint is gated
+# per field instead of wholesale — a route-level dependency would break pinning and
+# renaming for every user.
+_R13_WORKSPACE_FIELDS = frozenset({"company", "role", "status", "deadline"})
+
+
 @router.patch("/workspaces/{workspace_id}", response_model=WorkspaceSummary)
 def update_workspace(
     workspace_id: str,
@@ -515,6 +523,9 @@ def update_workspace(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    if body.model_fields_set & _R13_WORKSPACE_FIELDS and not outcome_enabled("r13"):
+        # Match the gate dependencies: a dark outcome is absent, not forbidden.
+        raise HTTPException(status_code=404, detail="Feature not available")
     if "status" in body.model_fields_set:
         workspace = (
             db.query(Workspace)

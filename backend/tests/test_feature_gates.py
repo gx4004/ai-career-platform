@@ -1,4 +1,6 @@
 from app.config import Settings, settings
+from app.models.campaign_event import CampaignEvent
+from app.models.workspace import Workspace
 
 
 def test_build_ahead_outcomes_default_off():
@@ -73,6 +75,51 @@ def test_campaign_and_gap_routes_are_dark_while_core_workspaces_remain_available
         ).status_code
         == 404
     )
+
+
+def test_dark_campaigns_reject_campaign_writes_but_keep_core_workspace_edits(
+    client, auth_headers, test_user, db, monkeypatch
+):
+    """A dark R13 must not accept campaign state, events, or submission snapshots.
+
+    The endpoint is gated per field: renaming and pinning are core history controls
+    that predate campaigns, so they must keep working while the outcome is dark.
+    """
+    workspace = Workspace(user_id=test_user.id, label="Core workspace")
+    db.add(workspace)
+    db.commit()
+    db.refresh(workspace)
+    url = f"/api/v1/history/workspaces/{workspace.id}"
+
+    monkeypatch.setattr(settings, "R13_CAMPAIGNS_ENABLED", False)
+
+    for payload in (
+        {"company": "ProbeCo"},
+        {"role": "Backend Engineer"},
+        {"status": "applied"},
+        {"deadline": "2026-09-01T00:00:00+00:00"},
+    ):
+        response = client.patch(url, headers=auth_headers, json=payload)
+        assert response.status_code == 404, payload
+        assert response.json() == {"detail": "Feature not available"}
+
+    # Core controls stay usable, and nothing campaign-shaped was persisted.
+    renamed = client.patch(url, headers=auth_headers, json={"label": "Renamed"})
+    assert renamed.status_code == 200
+    pinned = client.patch(url, headers=auth_headers, json={"is_pinned": True})
+    assert pinned.status_code == 200
+
+    db.refresh(workspace)
+    assert workspace.label == "Renamed"
+    assert workspace.company is None and workspace.role is None
+    assert workspace.deadline is None
+    assert db.query(CampaignEvent).filter(
+        CampaignEvent.workspace_id == workspace.id
+    ).count() == 0
+
+    # The same writes succeed once the outcome is explicitly activated.
+    monkeypatch.setattr(settings, "R13_CAMPAIGNS_ENABLED", True)
+    assert client.patch(url, headers=auth_headers, json={"company": "ProbeCo"}).status_code == 200
 
 
 def test_core_tool_route_remains_available_when_build_ahead_is_dark(
