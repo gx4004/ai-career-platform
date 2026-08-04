@@ -282,3 +282,55 @@ async def test_vertex_refresh_auth_failure_is_safe_and_not_retried(monkeypatch):
     assert attempts == 1
     assert "private refresh detail" not in str(error.value)
     assert closed == ["async", "sync"]
+
+
+@pytest.mark.asyncio
+async def test_vertex_transport_failure_retries_and_records_an_incident(monkeypatch):
+    """A network-level provider outage must retry and leave #138 evidence.
+
+    ``google-genai`` does not wrap httpx transport failures into ``APIError``, so
+    without an explicit catch an unreachable provider escaped as a raw
+    ``httpx.ConnectError``: never retried and never recorded as a provider
+    incident, leaving the D-055 fallback trigger blind to real outages.
+    """
+    import httpx
+    from google import genai
+
+    import app.services.ai_client as mod
+
+    monkeypatch.setattr(mod.settings, "LLM_PROVIDER", "vertex")
+    monkeypatch.setattr(mod.settings, "VERTEX_PROJECT_ID", "test-project")
+
+    attempts = 0
+    incidents = []
+    monkeypatch.setattr(mod, "set_provider_incident", incidents.append)
+
+    class FakeModels:
+        async def generate_content(self, **_kwargs):
+            nonlocal attempts
+            attempts += 1
+            raise httpx.ConnectError("connection refused to 10.0.0.1")
+
+    class FakeAsyncClient:
+        models = FakeModels()
+
+        async def aclose(self):
+            return None
+
+    class FakeClient:
+        aio = FakeAsyncClient()
+
+        def close(self):
+            return None
+
+    monkeypatch.setattr(genai, "Client", lambda **_kwargs: FakeClient())
+
+    with pytest.raises(RuntimeError) as error:
+        await complete_structured(SYSTEM, USER)
+
+    # Retried like any other transient provider failure, then surfaced safely.
+    assert attempts == 5
+    assert incidents == ["unavailable"] * 5
+    assert "AI service temporarily unavailable" in str(error.value)
+    # The raw transport detail never reaches the user-facing message.
+    assert "10.0.0.1" not in str(error.value)
