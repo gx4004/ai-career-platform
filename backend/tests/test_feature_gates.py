@@ -1,6 +1,8 @@
 from app.config import Settings, settings
 from app.models.campaign_event import CampaignEvent
+from app.models.campaign_listing import CampaignListing
 from app.models.workspace import Workspace
+from app.schemas.tools import ImportedJobResponse
 
 
 def test_build_ahead_outcomes_default_off():
@@ -120,6 +122,88 @@ def test_dark_campaigns_reject_campaign_writes_but_keep_core_workspace_edits(
     # The same writes succeed once the outcome is explicitly activated.
     monkeypatch.setattr(settings, "R13_CAMPAIGNS_ENABLED", True)
     assert client.patch(url, headers=auth_headers, json={"company": "ProbeCo"}).status_code == 200
+
+
+def test_dark_campaigns_reject_pasted_listing_attachment(
+    client, auth_headers, test_user, db, monkeypatch
+):
+    workspace = Workspace(user_id=test_user.id, label="Core workspace")
+    db.add(workspace)
+    db.commit()
+    monkeypatch.setattr(settings, "R13_CAMPAIGNS_ENABLED", False)
+
+    response = client.post(
+        "/api/v1/job-posts/import-text",
+        headers=auth_headers,
+        json={
+            "campaign_id": workspace.id,
+            "job_title": "Platform Engineer",
+            "company_name": "Example Corp",
+            "job_description": "Build reliable Python services for customers.",
+        },
+    )
+
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Feature not available"}
+    assert db.query(CampaignListing).count() == 0
+    assert db.query(CampaignEvent).count() == 0
+
+
+def test_dark_campaigns_reject_url_attachment_before_scraping(
+    client, auth_headers, test_user, db, monkeypatch
+):
+    workspace = Workspace(user_id=test_user.id, label="Core workspace")
+    db.add(workspace)
+    db.commit()
+    called: list[str] = []
+
+    async def fake_scrape(url: str) -> ImportedJobResponse:
+        called.append(url)
+        return ImportedJobResponse(
+            job_title="Platform Engineer",
+            company_name="Example Corp",
+            job_description="Build reliable Python services for customers.",
+            source_url=url,
+        )
+
+    monkeypatch.setattr(settings, "R13_CAMPAIGNS_ENABLED", False)
+    monkeypatch.setattr("app.routers.job_posts.scrape_job_posting", fake_scrape)
+
+    response = client.post(
+        "/api/v1/job-posts/import-url",
+        headers=auth_headers,
+        json={"url": "https://example.com/jobs/1", "campaign_id": workspace.id},
+    )
+
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Feature not available"}
+    assert called == []
+    assert db.query(CampaignListing).count() == 0
+    assert db.query(CampaignEvent).count() == 0
+
+
+def test_dark_campaigns_keep_standalone_url_import_available(client, monkeypatch):
+    called: list[str] = []
+
+    async def fake_scrape(url: str) -> ImportedJobResponse:
+        called.append(url)
+        return ImportedJobResponse(
+            job_title="Platform Engineer",
+            company_name="Example Corp",
+            job_description="Build reliable Python services for customers.",
+            source_url=url,
+        )
+
+    monkeypatch.setattr(settings, "R13_CAMPAIGNS_ENABLED", False)
+    monkeypatch.setattr("app.routers.job_posts.scrape_job_posting", fake_scrape)
+
+    response = client.post(
+        "/api/v1/job-posts/import-url",
+        json={"url": "https://example.com/jobs/1"},
+    )
+
+    assert response.status_code == 200
+    assert called == ["https://example.com/jobs/1"]
 
 
 def test_core_tool_route_remains_available_when_build_ahead_is_dark(

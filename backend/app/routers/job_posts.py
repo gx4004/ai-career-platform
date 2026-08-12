@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.auth.security import get_current_user, get_optional_current_user
 from app.database import get_db
+from app.feature_gates import require_r13_enabled
 from app.limiter import limiter, resource_abuse_limits
 from app.models.user import User
 from app.schemas.analytics import ImportOutcome, ImportSourceFamily
@@ -33,6 +34,10 @@ async def import_job_url(
     current_user: User | None = Depends(get_optional_current_user),
     db: Session = Depends(get_db),
 ):
+    if body.campaign_id is not None:
+        # Standalone URL parsing predates R13, but attaching its result mutates
+        # campaign state and must remain absent while that outcome is dark.
+        require_r13_enabled()
     # R10 import-concentration evidence (#136, D-059): map the URL to an
     # allowlisted source family *here*, then let the scraper run and record only
     # the family + outcome class. The raw URL is used solely for the local
@@ -102,6 +107,7 @@ def import_job_text(
     body: ImportJobTextRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    _gate: None = Depends(require_r13_enabled),
 ):
     listing = attach_listing(
         db,
