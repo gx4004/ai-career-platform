@@ -13,6 +13,40 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  containers:
+    name: Container (${{ matrix.name }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: frontend
+            dockerfile: frontend/Dockerfile
+            context: frontend
+            runtime_user: node
+          - name: backend
+            dockerfile: backend/Dockerfile
+            context: backend
+            runtime_user: appuser
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build deployment image
+        run: >-
+          docker build
+          --file "${{ matrix.dockerfile }}"
+          --tag "career-workbench-${{ matrix.name }}:${{ github.sha }}"
+          "${{ matrix.context }}"
+
+      - name: Verify non-root runtime user
+        env:
+          IMAGE: career-workbench-${{ matrix.name }}:${{ github.sha }}
+          EXPECTED_USER: ${{ matrix.runtime_user }}
+        run: |
+          test "$(docker image inspect --format '{{.Config.User}}' "$IMAGE")" = "$EXPECTED_USER"
+          test "$(docker run --rm "$IMAGE" id -u)" != "0"
+
   frontend:
     name: Frontend (typecheck / test / build)
     runs-on: ubuntu-latest
