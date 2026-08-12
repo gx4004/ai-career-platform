@@ -56,7 +56,7 @@ Both Dockerfiles run the application as a dedicated non-root user.
 
 - Backend: `backend/Dockerfile` — based on `python:3.12-slim`, includes
   Playwright + Chromium for PDF rendering, runs as UID 10001 (`appuser`)
-- Frontend: `frontend/Dockerfile` — multi-stage build from `node:20-slim`,
+- Frontend: `frontend/Dockerfile` — multi-stage build from `node:22-slim`,
   runs custom `serve.mjs` as the base image's `node` user
 
 ### 1.5 Multi-Instance Readiness

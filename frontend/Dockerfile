@@ -1,4 +1,4 @@
-FROM node:20-slim AS build
+FROM node:22-slim AS build
 RUN corepack enable && corepack prepare pnpm@10.30.3 --activate
 WORKDIR /app
 COPY package.json pnpm-lock.yaml ./
@@ -22,7 +22,7 @@ ENV VITE_R16_SUBMISSION_FOUNDATION_ENABLED=$VITE_R16_SUBMISSION_FOUNDATION_ENABL
 ENV VITE_R17_DEVELOPMENT_LOOP_ENABLED=$VITE_R17_DEVELOPMENT_LOOP_ENABLED
 RUN pnpm build
 
-FROM node:20-slim
+FROM node:22-slim
 WORKDIR /app
 ARG VITE_API_URL
 ENV VITE_API_URL=$VITE_API_URL
