@@ -11,7 +11,7 @@ async def verify_captcha(token: str) -> bool:
         return True
 
     if not settings.CAPTCHA_SECRET_KEY:
-        return True
+        return False
 
     if not token:
         return False
