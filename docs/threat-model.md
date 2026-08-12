@@ -170,7 +170,7 @@ Browser                    Backend API                       Database
   │  {email, password}       ├─ bcrypt.checkpw()              │
   │                          ├─ SELECT user BY email ────────►│
   │                          ├─ set_auth_cookies()            │
-  │  ◄── User + cookies ────┤                                 │
+  │  ◄── {ok: true} + cookies                                 │
   │  (cw_access, cw_refresh HttpOnly)                         │
 ```
 
