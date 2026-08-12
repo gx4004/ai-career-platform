@@ -1,9 +1,20 @@
 from pydantic import BaseModel, EmailStr, field_validator
 
 
+def _validate_bcrypt_password(value: str) -> str:
+    if len(value.encode("utf-8")) > 72:
+        raise ValueError("Password must be at most 72 UTF-8 bytes")
+    return value
+
+
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
+
+    @field_validator("password")
+    @classmethod
+    def password_fits_bcrypt(cls, v: str) -> str:
+        return _validate_bcrypt_password(v)
 
 
 class RegisterRequest(BaseModel):
@@ -18,7 +29,7 @@ class RegisterRequest(BaseModel):
     def password_strength(cls, v: str) -> str:
         if len(v) < 8:
             raise ValueError("Password must be at least 8 characters")
-        return v
+        return _validate_bcrypt_password(v)
 
     @field_validator("tos_accepted")
     @classmethod
@@ -41,7 +52,7 @@ class PasswordResetConfirm(BaseModel):
     def password_strength(cls, v: str) -> str:
         if len(v) < 8:
             raise ValueError("Password must be at least 8 characters")
-        return v
+        return _validate_bcrypt_password(v)
 
 
 class AuthSessionResponse(BaseModel):

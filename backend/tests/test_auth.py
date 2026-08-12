@@ -30,6 +30,53 @@ def test_register_duplicate(client, test_user):
     assert "already registered" in resp.json()["detail"]
 
 
+def test_password_inputs_reject_values_over_bcrypt_byte_limit(client):
+    too_long_ascii = "a" * 73
+    too_long_multibyte = "🔒" * 19
+
+    for password in (too_long_ascii, too_long_multibyte):
+        register = client.post(
+            f"{PREFIX}/register",
+            json={
+                "email": "long-password@example.com",
+                "password": password,
+                "tos_accepted": True,
+            },
+        )
+        login = client.post(
+            f"{PREFIX}/login",
+            json={"email": "nobody@example.com", "password": password},
+        )
+        reset = client.post(
+            f"{PREFIX}/password-reset/confirm",
+            json={"token": "invalid", "new_password": password},
+        )
+
+        assert register.status_code == 422
+        assert login.status_code == 422
+        assert reset.status_code == 422
+
+
+def test_registration_fails_closed_when_captcha_secret_is_missing(client, monkeypatch):
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "CAPTCHA_ENABLED", True)
+    monkeypatch.setattr(settings, "CAPTCHA_SECRET_KEY", "")
+
+    response = client.post(
+        f"{PREFIX}/register",
+        json={
+            "email": "captcha@example.com",
+            "password": "secret123",
+            "tos_accepted": True,
+            "captcha_token": "browser-token",
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {"detail": "CAPTCHA verification failed"}
+
+
 def test_login(client, test_user):
     resp = client.post(
         f"{PREFIX}/login",
