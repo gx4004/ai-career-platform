@@ -1,7 +1,7 @@
 # Career Workbench — Product Roadmap
 
 **Planning horizon:** release candidate through premium application automation
-**Last reviewed:** 2026-07-30
+**Last reviewed:** 2026-08-12
 **Roadmap rule:** outcomes live here; implementation tasks live in issues/PRs.
 
 ## North Star
@@ -68,8 +68,8 @@ Acceptance gate:
 
 **Status:** specification complete (re-grill closed 2026-07-10, D-116–D-118); the
 gate closes on the R3 Evidence Checklist in `docs/launch-checklist.md` (collected
-by the R5 staging rehearsal) plus two named human decisions — historical PostHog
-data disposition and D-NEXT-2
+by the R5 staging rehearsal), evidence that the already accepted D-119 PostHog
+deletion was completed, and the D-NEXT-2 launch-market decision
 **Outcome:** sensitive career data has a documented lifecycle and defensible controls.
 
 Acceptance gate:

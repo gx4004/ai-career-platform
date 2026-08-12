@@ -1,7 +1,8 @@
 # Career Workbench - Staging and Launch Runbook
 
-**Status:** R5 prep document; staging execution is blocked until the remaining R3
-production decisions and evidence are available.
+**Status:** R5 rehearsal is unblocked by D-116. The rehearsal collects the R3
+deployment evidence; promotion remains blocked until every stop condition and
+remaining owner decision is closed.
 
 This runbook is the release-operations checklist for a private beta candidate.
 It records what to verify, what evidence to capture, and when to stop. Do not use
@@ -26,8 +27,9 @@ Do not promote or invite users when any of these are true:
 ## R3 Evidence Checklist (closes the R3 gate; D-116)
 
 Record each answer in `docs/threat-model.md` §14 and the affected R3 issue
-(#75, #76, #81, #82). The R3 gate closes when every row has evidence plus the two
-named human decisions (historical PostHog data disposition; D-NEXT-2 launch market).
+(#75, #76, #81, #82). The R3 gate closes when every row has evidence, the accepted
+D-119 historical PostHog deletion is completed without export, and D-NEXT-2 names
+the launch market.
 
 - [ ] D-UNK-1: production `TRUST_PROXY_HEADERS` / `TRUSTED_PROXY_CIDRS` values match Railway's actual proxy chain (verify with a logged forwarded-header sample).
 - [ ] D-UNK-2: Railway PostgreSQL connection ceiling recorded; `pool_size=20, max_overflow=10` confirmed or adjusted.

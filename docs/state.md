@@ -1,6 +1,6 @@
 # Career Workbench — Current State
 
-**Snapshot date:** 2026-08-02
+**Snapshot date:** 2026-08-12
 **Confidence:** code- and CI-informed; release environment not re-verified
 
 This file records current posture, blockers, and risks. GitHub Issues, pull
@@ -33,17 +33,18 @@ with a cumulative local release candidate on `codex/autonomous-20260802`:
   build completion, not production activation or acceptance of the roadmap
   outcome.
 
-The local candidate also completes the safe preparatory portions of R9/R10,
-hardens R1/R3/R6/R11 boundaries, and corrects CV Studio recovery. This work is
-committed locally but is not pushed, merged, deployed, or accepted as activation
-evidence. No real submission source, source OAuth flow, third-party credential
-store, production adapter, scheduler, public submission route, or unattended
-outward-act endpoint exists.
+The candidate also completes the safe preparatory portions of R9/R10, hardens
+R1/R3/R6/R11 boundaries, and corrects CV Studio recovery. It is tracked in draft
+PR #316 but remains unmerged, undeployed, and unaccepted as activation evidence.
+No real submission source, source OAuth flow, third-party credential store,
+production adapter, scheduler, public submission route, or unattended outward-act
+endpoint exists.
 
 ## Branch and Release Posture
 
-- `chapter2` is the integration branch (D-027) and is at `8d47223e`; the local
-  `codex/autonomous-20260802` candidate is 19 commits ahead with the same merge base.
+- `chapter2` is the integration branch (D-027) and is at `8d47223e`; the
+  `codex/autonomous-20260802` candidate has the same merge base and is published
+  through draft PR #316.
 - `main` and `deploy` both remain at `6a00a612`, 170 commits behind `chapter2`.
 - The documented `chapter2 → main → deploy` promotion has not been run for
   this product body. Promotion remains an owner-controlled release action.
@@ -96,8 +97,8 @@ evidence, credentials, an irreversible provider action, or human judgement:
    security-header, and rollback evidence.
 2. Restore live Vertex authorization for #51 and perform the credential-dependent
    smoke journey.
-3. Delete the historical PostHog cloud project data for #208 and retain provider
-   evidence required by D-119.
+3. Complete the already accepted D-119 deletion of historical PostHog cloud data
+   for #208 without export, and retain provider evidence.
 4. Collect and accept the two-week R6 baseline; then choose the R7 experiment and
    D-NEXT-6 activation target from evidence.
 5. Decide D-NEXT-2 (launch market), then perform the R9 legal/vendor/candidate
@@ -134,6 +135,14 @@ R9/R10 responses are `needs-info`.
 - **Release environment unverified.** Railway topology, variables, migrations,
   domain, backup posture, OAuth, email, provider, and monitoring facts may have
   changed. `docs/launch-checklist.md` owns verification.
+- **Container build unverified locally.** The frontend image is aligned to Node 22,
+  but Docker is unavailable in this checkout environment. CI now builds both
+  deployment images and verifies their non-root runtime users; remote CI and
+  staging still own the actual construction/startup evidence.
+- **Repository security settings require owner action.** Dependabot configuration
+  and a high-severity production audit gate now live in the repository, while
+  secret scanning, push protection, and code scanning still require GitHub
+  repository settings or an accepted workflow decision.
 - **Build-ahead activation remains unaccepted.** R11–R17 user API families and
   frontend routes/navigation are now protected by matching default-off,
   dependency-ordered flags. This closes accidental exposure but does not accept any
@@ -161,14 +170,16 @@ R9/R10 responses are `needs-info`.
 
 ## Verification Baseline
 
-The unpushed `codex/autonomous-20260802` candidate is the latest local verification
-point on this snapshot:
+The `codex/autonomous-20260802` candidate is the latest local verification point
+on this snapshot:
 
-- backend: ruff clean; 961 tests passed;
+- backend: ruff clean; 984 tests passed;
 - frontend: typecheck clean; 460 Vitest tests plus 5 Node tests passed; client and
   SSR production builds passed;
-- PostgreSQL: fresh full migration, new-migration downgrade/forward round trip,
-  full downgrade to base, and numeric metric-column verification passed;
+- frontend production dependencies: `pnpm audit --prod` reports no known
+  vulnerabilities after the TanStack/Vite/Tailwind patch refresh and bounded
+  transitive overrides;
+- PostgreSQL: a fresh database migrated from base to head (`c4a8e2f6b1d9`);
 - browser: the fresh-database Playwright gate passed 52/52, and passed 52/52 again
   after the review corrections below;
 - independent cumulative Standards and Spec reviews: a second review over the same
