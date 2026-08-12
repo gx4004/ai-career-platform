@@ -173,15 +173,14 @@ R9/R10 responses are `needs-info`.
 The `codex/autonomous-20260802` candidate is the latest local verification point
 on this snapshot:
 
-- backend: ruff clean; 984 tests passed;
-- frontend: typecheck clean; 460 Vitest tests plus 5 Node tests passed; client and
+- backend: ruff clean; 989 tests passed;
+- frontend: typecheck clean; 463 Vitest tests plus 5 Node tests passed; client and
   SSR production builds passed;
 - frontend production dependencies: `pnpm audit --prod` reports no known
   vulnerabilities after the TanStack/Vite/Tailwind patch refresh and bounded
   transitive overrides;
 - PostgreSQL: a fresh database migrated from base to head (`c4a8e2f6b1d9`);
-- browser: the fresh-database Playwright gate passed 52/52, and passed 52/52 again
-  after the review corrections below;
+- browser: the fresh-database Playwright gate passed 52/52 on this candidate;
 - independent cumulative Standards and Spec reviews: a second review over the same
   range found six actionable defects that the first pass missed — an ungated
   campaign write path that could persist campaign and submission-snapshot rows
