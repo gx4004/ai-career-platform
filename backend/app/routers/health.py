@@ -1,6 +1,7 @@
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends
+from fastapi.responses import JSONResponse
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -17,12 +18,15 @@ def health_check(db: Session = Depends(get_db)):
         checks["database"] = "ok"
     except Exception as exc:
         checks["database"] = f"error: {type(exc).__name__}"
-        return {
-            "status": "degraded",
-            "service": "ai-career-platform",
-            "time": datetime.now(UTC).isoformat(),
-            "checks": checks,
-        }
+        return JSONResponse(
+            status_code=503,
+            content={
+                "status": "degraded",
+                "service": "ai-career-platform",
+                "time": datetime.now(UTC).isoformat(),
+                "checks": checks,
+            },
+        )
 
     return {
         "status": "ok",

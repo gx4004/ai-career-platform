@@ -44,25 +44,28 @@ uvicorn process without `--workers`. The frontend is a single Node process.
 ### 1.3 Health Checks
 
 - Backend: `GET /api/v1/health` — unauthenticated, checks database connectivity
-  via `SELECT 1`. Returns `{"status": "ok"}` or `{"status": "degraded"}`.
+  via `SELECT 1`. Returns HTTP 200 with `{"status": "ok"}` when ready and HTTP
+  503 with `{"status": "degraded"}` when the database check fails.
   — `backend/app/routers/health.py:health_check`
 - Frontend: `GET /` — serves the homepage.
   — `frontend/railway.toml:10` — `healthcheckPath = "/"`
 
 ### 1.4 Container Posture
 
-Both Dockerfiles run as root — no `USER` instruction exists.
+Both Dockerfiles run the application as a dedicated non-root user.
 
 - Backend: `backend/Dockerfile` — based on `python:3.12-slim`, includes
-  Playwright + Chromium for PDF rendering
+  Playwright + Chromium for PDF rendering, runs as UID 10001 (`appuser`)
 - Frontend: `frontend/Dockerfile` — multi-stage build from `node:20-slim`,
-  runs custom `serve.mjs`
+  runs custom `serve.mjs` as the base image's `node` user
 
 ### 1.5 Multi-Instance Readiness
 
-The `start.sh` script is explicitly multi-instance aware — it uses a `RUN_MIGRATIONS`
-env var and relies on Alembic locking for migration safety. Rate-limit and abuse
-counter storage is shared outside development; the result cache remains local:
+The `start.sh` script uses `RUN_MIGRATIONS` to choose which instance applies
+migrations and fails startup if that migration command fails. It does not provide
+cross-instance migration locking; deployment orchestration must ensure only one
+instance migrates. Rate-limit and abuse counter storage is shared outside
+development; the result cache remains local:
 
 | Subsystem | Current | Multi-Instance Impact |
 |-----------|---------|-----------------------|
@@ -986,7 +989,9 @@ available for export/deletion, and quota counters remain durable.
 
 Access via `DATABASE_URL` env var. Connection pooling: `pool_size=20` in
 production + `max_overflow=10`, with `pool_pre_ping=True`. Migrations run via
-Alembic on deploy.
+Alembic on deploy, and a migration error prevents the application server from
+starting. Multi-replica activation still requires a single-migrator deployment
+procedure because the repository does not implement an advisory lock.
 
 — `backend/app/database.py:9-29`
 — `backend/alembic/env.py`
