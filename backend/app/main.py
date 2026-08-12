@@ -3,14 +3,15 @@ import logging
 from contextlib import asynccontextmanager, suppress
 
 import sentry_sdk
-from fastapi import Depends, FastAPI, Request
+from fastapi import Depends, FastAPI, Request, status
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from starlette.concurrency import run_in_threadpool
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
-from starlette.responses import Response
+from starlette.responses import JSONResponse, Response
 
 from app.config import settings
 from app.feature_gates import (
@@ -123,6 +124,26 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Career Workbench API", version="1.0.0", lifespan=lifespan)
 app.state.limiter = limiter
+
+
+async def request_validation_error_handler(
+    _request: Request, exc: RequestValidationError
+) -> JSONResponse:
+    # FastAPI's default handler echoes the invalid input. Besides reflecting
+    # passwords, that response cannot itself be UTF-8 encoded when JSON contains
+    # an escaped lone surrogate. Keep the useful location/type/message contract
+    # without returning user-provided values or exception contexts.
+    errors = [
+        {key: value for key, value in error.items() if key not in {"input", "ctx", "url"}}
+        for error in exc.errors()
+    ]
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+        content={"detail": errors},
+    )
+
+
+app.add_exception_handler(RequestValidationError, request_validation_error_handler)
 
 
 async def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded):
