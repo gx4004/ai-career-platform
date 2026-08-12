@@ -2,6 +2,7 @@ import { useCallback, useRef } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { getHistory } from '#/lib/api/client'
+import { boundedIdentifierSchema } from '#/lib/api/schemas'
 import { useSession } from '#/hooks/useSession'
 import { readWorkflowContext, writeWorkflowContext } from '#/lib/tools/drafts'
 import type { ToolDraftState } from '#/lib/tools/drafts'
@@ -69,19 +70,22 @@ export function useToolMutation(tool: ToolDefinition) {
         access_mode: accessMode,
       })
 
-      const workflowContext = readWorkflowContext()
-      const handoffPayload =
-        tool.id === 'cover-letter' || tool.id === 'interview'
-          ? getApplicationHandoffPayload(workflowContext)
-          : {}
       let result: Record<string, unknown>
 
       try {
+        const workflowContext = readWorkflowContext()
+        const handoffPayload =
+          tool.id === 'cover-letter' || tool.id === 'interview'
+            ? getApplicationHandoffPayload(workflowContext)
+            : {}
+        const validatedParentRunId = parentRunId
+          ? boundedIdentifierSchema.parse(parentRunId)
+          : undefined
         result = await tool.submit({
           ...payload,
           ...handoffPayload,
           ...buildWorkspaceRequestContext(workflowContext),
-          ...(parentRunId ? { parent_run_id: parentRunId } : {}),
+          ...(validatedParentRunId ? { parent_run_id: validatedParentRunId } : {}),
           ...(feedback ? { feedback } : {}),
         })
       } catch (error) {

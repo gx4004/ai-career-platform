@@ -13,7 +13,9 @@ import {
 import {
   authProvidersSchema,
   authSessionResponseSchema,
+  careerRequestSchema,
   careerResultSchema,
+  coverLetterRequestSchema,
   coverLetterResultSchema,
   deletedResponseSchema,
   evidenceItemListSchema,
@@ -33,10 +35,14 @@ import {
   importJobTextSchema,
   importJobUrlSchema,
   interviewPracticeFeedbackSchema,
+  interviewRequestSchema,
   interviewResultSchema,
+  jobMatchRequestSchema,
   jobMatchResultSchema,
   parsedCvSchema,
+  portfolioRequestSchema,
   portfolioResultSchema,
+  resumeAnalyzeRequestSchema,
   resumeResultSchema,
   toolRunDetailSchema,
   toolRunListSchema,
@@ -66,8 +72,6 @@ import type {
   EvidenceConfirmationAction,
   EvidenceItemCreate,
   EvidenceItemUpdate,
-  JobMatchResult,
-  ResumeResult,
   CvDocumentCreate,
   CvDocumentUpdate,
   CvAtsCheckKey,
@@ -511,52 +515,34 @@ export function importJobText(payload: {
   })
 }
 
-export function runResumeAnalysis(payload: {
-  resume_text: string
-  job_description?: string
-}) {
+export function runResumeAnalysis(payload: z.input<typeof resumeAnalyzeRequestSchema>) {
   return request('/resume/analyze', {
     method: 'POST',
-    body: payload,
+    body: resumeAnalyzeRequestSchema.parse(payload),
     schema: resumeResultSchema,
   })
 }
 
-export function runJobMatch(payload: {
-  resume_text: string
-  job_description: string
-}) {
+export function runJobMatch(payload: z.input<typeof jobMatchRequestSchema>) {
   return request('/job-match/match', {
     method: 'POST',
-    body: payload,
+    body: jobMatchRequestSchema.parse(payload),
     schema: jobMatchResultSchema,
   })
 }
 
-export function runCoverLetter(payload: {
-  resume_text: string
-  job_description: string
-  tone?: string
-  resume_analysis?: ResumeResult
-  job_match?: JobMatchResult
-}) {
+export function runCoverLetter(payload: z.input<typeof coverLetterRequestSchema>) {
   return request('/cover-letter/generate', {
     method: 'POST',
-    body: payload,
+    body: coverLetterRequestSchema.parse(payload),
     schema: coverLetterResultSchema,
   })
 }
 
-export function runInterview(payload: {
-  resume_text: string
-  job_description: string
-  num_questions?: number
-  resume_analysis?: ResumeResult
-  job_match?: JobMatchResult
-}) {
+export function runInterview(payload: z.input<typeof interviewRequestSchema>) {
   return request('/interview/questions', {
     method: 'POST',
-    body: payload,
+    body: interviewRequestSchema.parse(payload),
     schema: interviewResultSchema,
   })
 }
@@ -573,24 +559,18 @@ export function runInterviewPracticeFeedback(payload: {
   })
 }
 
-export function runCareer(payload: {
-  resume_text: string
-  target_role?: string
-}) {
+export function runCareer(payload: z.input<typeof careerRequestSchema>) {
   return request('/career/recommend', {
     method: 'POST',
-    body: payload,
+    body: careerRequestSchema.parse(payload),
     schema: careerResultSchema,
   })
 }
 
-export function runPortfolio(payload: {
-  resume_text: string
-  target_role: string
-}) {
+export function runPortfolio(payload: z.input<typeof portfolioRequestSchema>) {
   return request('/portfolio/recommend', {
     method: 'POST',
-    body: payload,
+    body: portfolioRequestSchema.parse(payload),
     schema: portfolioResultSchema,
   })
 }

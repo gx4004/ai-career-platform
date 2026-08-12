@@ -192,6 +192,9 @@ describe('API client', () => {
   })
 
   describe('tool endpoints', () => {
+    const validResume = 'Professional resume with enough detail for request validation.'
+    const validJob = 'Backend role requiring Python and reliable API delivery.'
+
     it('runResumeAnalysis sends to /resume/analyze', async () => {
       mockFetch.mockResolvedValueOnce(mockJsonResponse({
         history_id: 'r1',
@@ -226,7 +229,7 @@ describe('API client', () => {
         role_fit: null,
       }))
 
-      await runResumeAnalysis({ resume_text: 'my resume' })
+      await runResumeAnalysis({ resume_text: validResume })
 
       const [url, options] = mockFetch.mock.calls[0]
       expect(url).toBe(`${API_URL}/resume/analyze`)
@@ -257,7 +260,7 @@ describe('API client', () => {
         recruiter_summary: '',
       }))
 
-      await runJobMatch({ resume_text: 'resume', job_description: 'job' })
+      await runJobMatch({ resume_text: validResume, job_description: validJob })
 
       const [url] = mockFetch.mock.calls[0]
       expect(url).toBe(`${API_URL}/job-match/match`)
@@ -295,7 +298,7 @@ describe('API client', () => {
         customization_notes: [],
       }))
 
-      await runCoverLetter({ resume_text: 'resume', job_description: 'job' })
+      await runCoverLetter({ resume_text: validResume, job_description: validJob })
 
       const [url] = mockFetch.mock.calls[0]
       expect(url).toBe(`${API_URL}/cover-letter/generate`)
@@ -321,7 +324,7 @@ describe('API client', () => {
         interviewer_notes: [],
       }))
 
-      await runInterview({ resume_text: 'resume', job_description: 'job' })
+      await runInterview({ resume_text: validResume, job_description: validJob })
 
       const [url] = mockFetch.mock.calls[0]
       expect(url).toBe(`${API_URL}/interview/questions`)
@@ -355,7 +358,7 @@ describe('API client', () => {
         next_steps: [],
       }))
 
-      await runCareer({ resume_text: 'resume' })
+      await runCareer({ resume_text: validResume })
 
       const [url] = mockFetch.mock.calls[0]
       expect(url).toBe(`${API_URL}/career/recommend`)
@@ -387,10 +390,21 @@ describe('API client', () => {
         presentation_tips: [],
       }))
 
-      await runPortfolio({ resume_text: 'resume', target_role: 'engineer' })
+      await runPortfolio({ resume_text: validResume, target_role: 'engineer' })
 
       const [url] = mockFetch.mock.calls[0]
       expect(url).toBe(`${API_URL}/portfolio/recommend`)
+    })
+
+    it('rejects bounded workflow identifiers before making a request', () => {
+      expect(() =>
+        runResumeAnalysis({
+          resume_text: validResume,
+          parent_run_id: 'x'.repeat(101),
+        }),
+      ).toThrow()
+
+      expect(mockFetch).not.toHaveBeenCalled()
     })
   })
 
