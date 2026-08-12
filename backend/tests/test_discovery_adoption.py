@@ -353,7 +353,10 @@ def test_adopt_endpoint_creates_campaign_and_returns_detail(db, client, auth_hea
         source,
         title="Senior Platform Engineer",
         description="Build Kubernetes platform services with Python.",
-        retrieved_at=NOW - timedelta(days=1),
+        # The router intentionally uses the real clock. Keep this success fixture
+        # live relative to the test run instead of letting the fixed service-test
+        # clock silently expire it after 30 days.
+        retrieved_at=datetime.now(UTC) - timedelta(days=1),
     )
     _confirmed_skill(db, test_user.id)
 
@@ -381,7 +384,9 @@ def test_adopt_endpoint_refuses_dismissed_recommendation(db, client, auth_header
         source,
         title="Senior Platform Engineer",
         description="Build Kubernetes platform services with Python.",
-        retrieved_at=NOW,
+        # Keep expiry from becoming an alternative reason for the uniform 404;
+        # this endpoint case is meant to exercise the dismissal boundary.
+        retrieved_at=datetime.now(UTC),
     )
     _confirmed_skill(db, test_user.id)
     client.post(
