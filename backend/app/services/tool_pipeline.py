@@ -20,7 +20,12 @@ from app.services.observability import (
 )
 from app.services.provider_incident import get_provider_incident, reset_provider_incident
 from app.services.result_cache import compute_content_hash, get_cached_result, set_cached_result
-from app.services.tool_runs import build_tool_response, extract_linked_context_ids, persist_tool_run
+from app.services.tool_runs import (
+    build_tool_response,
+    extract_linked_context_ids,
+    persist_tool_run,
+    require_valid_parent_run,
+)
 
 
 async def run_tool_pipeline(
@@ -41,6 +46,15 @@ async def run_tool_pipeline(
     require_evidence_profile: bool = False,
 ) -> dict[str, Any]:
     """Shared pipeline: sanitize -> cache -> service -> fallback -> persist -> respond."""
+    if current_user is not None:
+        # Validate revision lineage before cache/provider work so an invalid or
+        # cross-owner parent cannot consume model quota or create side effects.
+        require_valid_parent_run(
+            db,
+            current_user=current_user,
+            tool_name=tool_name,
+            parent_run_id=parent_run_id,
+        )
     access_mode = "authenticated" if current_user else "guest_demo"
     linked_ids = linked_context_ids or []
     start = perf_counter()

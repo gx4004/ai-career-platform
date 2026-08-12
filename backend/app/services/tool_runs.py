@@ -4,6 +4,7 @@ import logging
 from datetime import UTC, datetime
 from typing import Any
 
+from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from app.models.campaign_event import CampaignEvent
@@ -175,6 +176,12 @@ def persist_tool_run(
     if current_user is None:
         return None
 
+    require_valid_parent_run(
+        db,
+        current_user=current_user,
+        tool_name=tool_name,
+        parent_run_id=parent_run_id,
+    )
     linked_ids = _unique_strings(linked_context_ids)
     workspace = resolve_workspace(
         db,
@@ -202,6 +209,31 @@ def persist_tool_run(
     db.commit()
     db.refresh(run)
     return run
+
+
+def require_valid_parent_run(
+    db: Session,
+    *,
+    current_user: User,
+    tool_name: str,
+    parent_run_id: str | None,
+) -> ToolRun | None:
+    """Resolve an append-only revision parent without revealing another owner."""
+    if parent_run_id is None:
+        return None
+
+    parent = (
+        db.query(ToolRun)
+        .filter(
+            ToolRun.id == parent_run_id,
+            ToolRun.user_id == current_user.id,
+            ToolRun.tool_name == tool_name,
+        )
+        .first()
+    )
+    if parent is None:
+        raise HTTPException(status_code=404, detail="Parent run not found")
+    return parent
 
 
 def attach_workspace_meta(
