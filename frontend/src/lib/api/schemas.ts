@@ -464,10 +464,8 @@ export const userSchema = z.object({
   created_at: z.string().optional(),
 })
 
-export const tokenSchema = z.object({
-  access_token: z.string(),
-  refresh_token: z.string().optional(),
-  token_type: z.string().default('bearer'),
+export const authSessionResponseSchema = z.strictObject({
+  ok: z.boolean(),
 })
 
 // The backend returns an array of provider name strings (e.g. ["google"]);
@@ -946,7 +944,7 @@ export const portfolioResultSchema = sharedResultEnvelopeSchema
   .passthrough()
 
 export type User = z.infer<typeof userSchema>
-export type Token = z.infer<typeof tokenSchema>
+export type AuthSessionResponse = z.infer<typeof authSessionResponseSchema>
 export type HealthCheck = z.infer<typeof healthCheckSchema>
 export type ParsedCvResult = z.infer<typeof parsedCvSchema>
 export type ImportedJobPost = z.infer<typeof importedJobSchema>
