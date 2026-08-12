@@ -11,6 +11,9 @@ cannot drift back to "string with no min/max" in a future refactor.
 from __future__ import annotations
 
 import pytest
+from pydantic import ValidationError
+
+from app.schemas.tools import ResumeAnalysisHandoff
 
 PREFIX = "/api/v1"
 
@@ -109,6 +112,23 @@ def test_nested_handoff_complexity_is_bounded(client, auth_headers, path):
 
     assert excessive_list.status_code == 422
     assert excessive_string.status_code == 422
+
+
+def test_deep_unknown_handoff_data_hits_complexity_guard_without_recursion_error():
+    nested: dict = {}
+    cursor = nested
+    for _ in range(1_100):
+        child: dict = {}
+        cursor["child"] = child
+        cursor = child
+
+    with pytest.raises(ValidationError, match="too complex"):
+        ResumeAnalysisHandoff.model_validate({"unknown": nested})
+
+
+def test_invalid_unicode_handoff_is_a_validation_error():
+    with pytest.raises(ValidationError, match="valid UTF-8"):
+        ResumeAnalysisHandoff.model_validate({"strengths": ["\ud800"]})
 
 
 @pytest.fixture

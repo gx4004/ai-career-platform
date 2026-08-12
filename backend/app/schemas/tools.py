@@ -7,6 +7,7 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, StringConstraints, model_validator
 
 from app.schemas.access_policy import ResultAccessDecision
+from app.schemas.validation import utf8_size
 
 # --- Requests ---
 
@@ -210,25 +211,38 @@ class _BoundedHandoff(BaseModel):
         if not isinstance(value, dict):
             return value
 
-        encoded = json.dumps(value, ensure_ascii=False, separators=(",", ":")).encode()
-        if len(encoded) > 100_000:
-            raise ValueError("Handoff payload must be at most 100000 UTF-8 bytes")
-
         pending = [value]
         nodes = 0
+        encoded_size = 0
         while pending:
             item = pending.pop()
             nodes += 1
             if nodes > 1_000:
                 raise ValueError("Handoff payload is too complex")
-            if isinstance(item, str) and len(item.encode()) > 20_000:
-                raise ValueError("Handoff strings must be at most 20000 UTF-8 bytes")
-            if isinstance(item, list):
+            if isinstance(item, str):
+                string_size = utf8_size(item)
+                if string_size > 20_000:
+                    raise ValueError("Handoff strings must be at most 20000 UTF-8 bytes")
+                encoded_size += utf8_size(json.dumps(item, ensure_ascii=False))
+            elif isinstance(item, list):
                 if len(item) > 100:
                     raise ValueError("Handoff lists must contain at most 100 items")
+                encoded_size += max(0, len(item) - 1) + 2
                 pending.extend(item)
             elif isinstance(item, dict):
+                encoded_size += max(0, len(item) - 1) + 2
+                for key in item:
+                    key_json = json.dumps(str(key), ensure_ascii=False)
+                    encoded_size += utf8_size(key_json) + 1
                 pending.extend(item.values())
+            else:
+                try:
+                    scalar_json = json.dumps(item, ensure_ascii=False, separators=(",", ":"))
+                except (TypeError, ValueError):
+                    scalar_json = json.dumps(str(item), ensure_ascii=False)
+                encoded_size += utf8_size(scalar_json)
+            if encoded_size > 100_000:
+                raise ValueError("Handoff payload must be at most 100000 UTF-8 bytes")
         return value
 
 
