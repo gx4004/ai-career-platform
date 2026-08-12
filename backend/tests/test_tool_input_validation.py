@@ -42,6 +42,75 @@ def _target_role_too_long():
     return "x" * 201
 
 
+@pytest.mark.parametrize(
+    "path,base_payload",
+    [
+        ("/resume/analyze", {"resume_text": VALID_RESUME}),
+        ("/job-match/match", {"resume_text": VALID_RESUME, "job_description": VALID_JD}),
+        ("/cover-letter/generate", {"resume_text": VALID_RESUME, "job_description": VALID_JD}),
+        ("/interview/questions", {"resume_text": VALID_RESUME, "job_description": VALID_JD}),
+        ("/career/recommend", {"resume_text": VALID_RESUME}),
+        ("/portfolio/recommend", {"resume_text": VALID_RESUME, "target_role": "Backend Engineer"}),
+    ],
+)
+def test_revision_parent_id_is_bounded(client, auth_headers, path, base_payload):
+    response = client.post(
+        f"{PREFIX}{path}",
+        headers=auth_headers,
+        json={**base_payload, "parent_run_id": "x" * 101},
+    )
+
+    assert response.status_code == 422
+
+
+def test_workspace_context_ids_and_count_are_bounded(client, auth_headers):
+    oversized_id = client.post(
+        f"{PREFIX}/resume/analyze",
+        headers=auth_headers,
+        json={
+            "resume_text": VALID_RESUME,
+            "workspace_context": {"workspace_id": "x" * 101},
+        },
+    )
+    excessive_links = client.post(
+        f"{PREFIX}/resume/analyze",
+        headers=auth_headers,
+        json={
+            "resume_text": VALID_RESUME,
+            "workspace_context": {
+                "linked_history_ids": [f"run-{index}" for index in range(51)]
+            },
+        },
+    )
+
+    assert oversized_id.status_code == 422
+    assert excessive_links.status_code == 422
+
+
+@pytest.mark.parametrize("path", ["/cover-letter/generate", "/interview/questions"])
+def test_nested_handoff_complexity_is_bounded(client, auth_headers, path):
+    base_payload = {"resume_text": VALID_RESUME, "job_description": VALID_JD}
+    excessive_list = client.post(
+        f"{PREFIX}{path}",
+        headers=auth_headers,
+        json={
+            **base_payload,
+            "resume_analysis": {"strengths": ["signal"] * 101},
+        },
+    )
+    excessive_string = client.post(
+        f"{PREFIX}{path}",
+        headers=auth_headers,
+        json={
+            **base_payload,
+            "job_match": {"recruiter_summary": "x" * 20_001},
+        },
+    )
+
+    assert excessive_list.status_code == 422
+    assert excessive_string.status_code == 422
+
+
 @pytest.fixture
 def _patch_ai(mock_ai_result):
     """Default AI mock so successful submissions in the table return 200."""

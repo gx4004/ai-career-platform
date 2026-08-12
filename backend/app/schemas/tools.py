@@ -1,19 +1,22 @@
 from __future__ import annotations
 
+import json
 from datetime import datetime
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, HttpUrl
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl, StringConstraints, model_validator
 
 from app.schemas.access_policy import ResultAccessDecision
 
 # --- Requests ---
 
+BoundedIdentifier = Annotated[str, StringConstraints(min_length=1, max_length=100)]
+
 class ResumeAnalyzeRequest(BaseModel):
     resume_text: str = Field(..., min_length=50, max_length=50_000)
     job_description: str | None = Field(None, max_length=20_000)
     workspace_context: WorkspaceContextInput | None = None
-    parent_run_id: str | None = None
+    parent_run_id: BoundedIdentifier | None = None
     feedback: str | None = Field(None, max_length=2_000)
 
 
@@ -24,7 +27,7 @@ class JobMatchRequest(BaseModel):
     # "0 of 0 requirements met" UI strip — visibly broken, not informative.
     job_description: str = Field(..., min_length=20, max_length=20_000)
     workspace_context: WorkspaceContextInput | None = None
-    parent_run_id: str | None = None
+    parent_run_id: BoundedIdentifier | None = None
     feedback: str | None = Field(None, max_length=2_000)
 
 
@@ -38,7 +41,7 @@ class CoverLetterRequest(BaseModel):
     resume_analysis: ResumeAnalysisHandoff | None = None
     job_match: JobMatchHandoff | None = None
     workspace_context: WorkspaceContextInput | None = None
-    parent_run_id: str | None = None
+    parent_run_id: BoundedIdentifier | None = None
     feedback: str | None = Field(None, max_length=2_000)
 
 
@@ -55,7 +58,7 @@ class InterviewRequest(BaseModel):
     resume_analysis: ResumeAnalysisHandoff | None = None
     job_match: JobMatchHandoff | None = None
     workspace_context: WorkspaceContextInput | None = None
-    parent_run_id: str | None = None
+    parent_run_id: BoundedIdentifier | None = None
     feedback: str | None = Field(None, max_length=2_000)
 
 
@@ -63,7 +66,7 @@ class CareerRequest(BaseModel):
     resume_text: str = Field(..., min_length=50, max_length=50_000)
     target_role: str | None = Field(None, max_length=200)
     workspace_context: WorkspaceContextInput | None = None
-    parent_run_id: str | None = None
+    parent_run_id: BoundedIdentifier | None = None
     feedback: str | None = Field(None, max_length=2_000)
 
 
@@ -71,7 +74,7 @@ class PortfolioRequest(BaseModel):
     resume_text: str = Field(..., min_length=50, max_length=50_000)
     target_role: str = Field(..., max_length=200)
     workspace_context: WorkspaceContextInput | None = None
-    parent_run_id: str | None = None
+    parent_run_id: BoundedIdentifier | None = None
     feedback: str | None = Field(None, max_length=2_000)
 
 
@@ -92,8 +95,8 @@ class ImportJobTextRequest(BaseModel):
 
 
 class WorkspaceContextInput(BaseModel):
-    workspace_id: str | None = None
-    linked_history_ids: list[str] = Field(default_factory=list)
+    workspace_id: BoundedIdentifier | None = None
+    linked_history_ids: list[BoundedIdentifier] = Field(default_factory=list, max_length=50)
 
 
 # --- Responses ---
@@ -200,8 +203,37 @@ class TailoringAction(BaseModel):
     action: str
 
 
-class ResumeAnalysisHandoff(BaseModel):
-    history_id: str | None = None
+class _BoundedHandoff(BaseModel):
+    @model_validator(mode="before")
+    @classmethod
+    def bound_nested_input(cls, value):
+        if not isinstance(value, dict):
+            return value
+
+        encoded = json.dumps(value, ensure_ascii=False, separators=(",", ":")).encode()
+        if len(encoded) > 100_000:
+            raise ValueError("Handoff payload must be at most 100000 UTF-8 bytes")
+
+        pending = [value]
+        nodes = 0
+        while pending:
+            item = pending.pop()
+            nodes += 1
+            if nodes > 1_000:
+                raise ValueError("Handoff payload is too complex")
+            if isinstance(item, str) and len(item.encode()) > 20_000:
+                raise ValueError("Handoff strings must be at most 20000 UTF-8 bytes")
+            if isinstance(item, list):
+                if len(item) > 100:
+                    raise ValueError("Handoff lists must contain at most 100 items")
+                pending.extend(item)
+            elif isinstance(item, dict):
+                pending.extend(item.values())
+        return value
+
+
+class ResumeAnalysisHandoff(_BoundedHandoff):
+    history_id: BoundedIdentifier | None = None
     summary: ResultSummary | None = None
     top_actions: list[TopAction] = []
     strengths: list[str] = []
@@ -210,8 +242,8 @@ class ResumeAnalysisHandoff(BaseModel):
     role_fit: ResumeRoleFit | None = None
 
 
-class JobMatchHandoff(BaseModel):
-    history_id: str | None = None
+class JobMatchHandoff(_BoundedHandoff):
+    history_id: BoundedIdentifier | None = None
     summary: ResultSummary | None = None
     top_actions: list[TopAction] = []
     match_score: int | None = None
