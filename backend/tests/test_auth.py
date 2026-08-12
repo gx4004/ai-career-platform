@@ -1,4 +1,5 @@
 from app.auth.security import hash_password, verify_password
+from app.models.user import User
 
 PREFIX = "/api/v1/auth"
 
@@ -43,18 +44,51 @@ def test_password_inputs_reject_values_over_bcrypt_byte_limit(client):
                 "tos_accepted": True,
             },
         )
-        login = client.post(
-            f"{PREFIX}/login",
-            json={"email": "nobody@example.com", "password": password},
-        )
         reset = client.post(
             f"{PREFIX}/password-reset/confirm",
             json={"token": "invalid", "new_password": password},
         )
 
         assert register.status_code == 422
-        assert login.status_code == 422
         assert reset.status_code == 422
+
+
+def test_login_accepts_legacy_password_over_current_bcrypt_limit(client, db):
+    legacy_password = "a" * 73
+    db.add(
+        User(
+            email="legacy-password@example.com",
+            hashed_password=hash_password(legacy_password),
+        )
+    )
+    db.commit()
+
+    response = client.post(
+        f"{PREFIX}/login",
+        json={"email": "legacy-password@example.com", "password": legacy_password},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"ok": True}
+
+
+def test_password_inputs_reject_invalid_unicode_as_validation_errors(client):
+    payloads = [
+        ("/register", '{"email":"unicode@example.com","password":"\\ud800","tos_accepted":true}'),
+        ("/login", '{"email":"unicode@example.com","password":"\\ud800"}'),
+        ("/password-reset/confirm", '{"token":"invalid","new_password":"\\ud800"}'),
+    ]
+
+    for path, body in payloads:
+        response = client.post(
+            f"{PREFIX}{path}",
+            content=body,
+            headers={"content-type": "application/json"},
+        )
+
+        assert response.status_code == 422
+        assert "unicode@example.com" not in response.text
+        assert "\\ud800" not in response.text
 
 
 def test_registration_fails_closed_when_captcha_secret_is_missing(client, monkeypatch):
