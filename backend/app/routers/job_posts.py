@@ -100,14 +100,17 @@ async def import_job_url(
     return result
 
 
-@router.post("/import-text", response_model=ImportedJobResponse)
+@router.post(
+    "/import-text",
+    response_model=ImportedJobResponse,
+    dependencies=[Depends(require_r13_enabled)],
+)
 @limiter.limit("10/minute")
 def import_job_text(
     request: Request,
     body: ImportJobTextRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
-    _gate: None = Depends(require_r13_enabled),
 ):
     listing = attach_listing(
         db,

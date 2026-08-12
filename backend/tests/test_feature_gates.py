@@ -149,6 +149,25 @@ def test_dark_campaigns_reject_pasted_listing_attachment(
     assert db.query(CampaignEvent).count() == 0
 
 
+def test_dark_campaigns_hide_pasted_listing_route_before_auth(client, db, monkeypatch):
+    monkeypatch.setattr(settings, "R13_CAMPAIGNS_ENABLED", False)
+
+    response = client.post(
+        "/api/v1/job-posts/import-text",
+        json={
+            "campaign_id": "hidden-workspace",
+            "job_title": "Platform Engineer",
+            "company_name": "Example Corp",
+            "job_description": "Build reliable Python services for customers.",
+        },
+    )
+
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Feature not available"}
+    assert db.query(CampaignListing).count() == 0
+    assert db.query(CampaignEvent).count() == 0
+
+
 def test_dark_campaigns_reject_url_attachment_before_scraping(
     client, auth_headers, test_user, db, monkeypatch
 ):
