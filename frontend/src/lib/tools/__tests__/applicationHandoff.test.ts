@@ -115,6 +115,21 @@ describe('applicationHandoff', () => {
 
     expect(payload.resume_analysis?.history_id).toBe('r1')
     expect(payload.job_match?.history_id).toBe('j1')
+    expect(payload.resume_analysis).not.toHaveProperty('overall_score')
+    expect(payload.resume_analysis).not.toHaveProperty('schema_version')
+    expect(payload.job_match).not.toHaveProperty('schema_version')
+  })
+
+  it('rejects a handoff that exceeds the backend list bound', () => {
+    const oversized = {
+      ...workflowContext,
+      resumeAnalysis: {
+        ...workflowContext.resumeAnalysis,
+        strengths: Array.from({ length: 101 }, () => 'signal'),
+      },
+    } as WorkflowContextState
+
+    expect(() => getApplicationHandoffPayload(oversized)).toThrow()
   })
 
   it('extracts cover letter handoff seeds from job match', () => {

@@ -680,6 +680,181 @@ export const topActionSchema = z.object({
   priority: z.enum(['high', 'medium', 'low']),
 })
 
+export const boundedIdentifierSchema = z.string().min(1).max(100)
+export const workspaceContextInputSchema = z.object({
+  workspace_id: boundedIdentifierSchema.nullable().optional(),
+  linked_history_ids: z.array(boundedIdentifierSchema).max(50).default([]),
+})
+
+export const resumeIssueSchema = z.object({
+  id: z.string(),
+  severity: z.enum(['high', 'medium', 'low']),
+  category: z.enum(['keywords', 'impact', 'structure', 'clarity', 'completeness']),
+  title: z.string(),
+  why_it_matters: z.string(),
+  evidence: z.string(),
+  fix: z.string(),
+})
+export const resumeEvidenceSchema = z.object({
+  detected_sections: z.array(z.string()),
+  detected_skills: z.array(z.string()),
+  matched_keywords: z.array(z.string()),
+  missing_keywords: z.array(z.string()),
+  quantified_bullets: z.number(),
+})
+export const resumeRoleFitSchema = z.object({
+  target_role_label: z.string(),
+  fit_score: z.number(),
+  rationale: z.string(),
+})
+export const jobRequirementSchema = z.object({
+  requirement: z.string(),
+  importance: z.enum(['must', 'preferred']),
+  status: z.enum(['matched', 'partial', 'missing']),
+  resume_evidence: z.string(),
+  suggested_fix: z.string(),
+})
+export const missingKeywordSchema = z.object({
+  keyword: z.string(),
+  contextual_guidance: z.string().default(''),
+  anti_stuffing_note: z.string().default(''),
+})
+export const tailoringActionSchema = z.object({
+  section: z.enum(['summary', 'experience', 'skills', 'projects']),
+  keyword: z.string(),
+  action: z.string(),
+})
+
+function utf8Size(value: string): number | null {
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index)
+    if (code >= 0xd800 && code <= 0xdbff) {
+      const next = value.charCodeAt(index + 1)
+      if (next < 0xdc00 || next > 0xdfff) return null
+      index += 1
+    } else if (code >= 0xdc00 && code <= 0xdfff) {
+      return null
+    }
+  }
+  return new TextEncoder().encode(value).length
+}
+
+function validateBoundedHandoff(value: unknown, ctx: z.RefinementCtx): void {
+  const pending = [value]
+  let nodes = 0
+  let encodedSize = 0
+
+  while (pending.length > 0) {
+    const item = pending.pop()
+    nodes += 1
+    if (nodes > 1_000) {
+      ctx.addIssue({ code: 'custom', message: 'Handoff payload is too complex' })
+      return
+    }
+
+    if (typeof item === 'string') {
+      const stringSize = utf8Size(item)
+      if (stringSize === null) {
+        ctx.addIssue({ code: 'custom', message: 'Handoff values must be valid UTF-8' })
+        return
+      }
+      if (stringSize > 20_000) {
+        ctx.addIssue({ code: 'custom', message: 'Handoff strings must be at most 20000 UTF-8 bytes' })
+        return
+      }
+      encodedSize += new TextEncoder().encode(JSON.stringify(item)).length
+    } else if (Array.isArray(item)) {
+      if (item.length > 100) {
+        ctx.addIssue({ code: 'custom', message: 'Handoff lists must contain at most 100 items' })
+        return
+      }
+      encodedSize += Math.max(0, item.length - 1) + 2
+      pending.push(...item)
+    } else if (item !== null && typeof item === 'object') {
+      const entries = Object.entries(item)
+      encodedSize += Math.max(0, entries.length - 1) + 2
+      for (const [key, child] of entries) {
+        encodedSize += new TextEncoder().encode(JSON.stringify(key)).length + 1
+        pending.push(child)
+      }
+    } else {
+      encodedSize += new TextEncoder().encode(JSON.stringify(item) ?? 'null').length
+    }
+
+    if (encodedSize > 100_000) {
+      ctx.addIssue({ code: 'custom', message: 'Handoff payload must be at most 100000 UTF-8 bytes' })
+      return
+    }
+  }
+}
+
+export const resumeAnalysisHandoffSchema = z.object({
+  history_id: boundedIdentifierSchema.nullable().optional(),
+  summary: resultSummarySchema.nullable().optional(),
+  top_actions: z.array(topActionSchema).max(100).optional(),
+  strengths: z.array(z.string()).max(100).optional(),
+  issues: z.array(resumeIssueSchema).max(100).optional(),
+  evidence: resumeEvidenceSchema.nullable().optional(),
+  role_fit: resumeRoleFitSchema.nullable().optional(),
+}).superRefine(validateBoundedHandoff)
+
+export const jobMatchHandoffSchema = z.object({
+  history_id: boundedIdentifierSchema.nullable().optional(),
+  summary: resultSummarySchema.nullable().optional(),
+  top_actions: z.array(topActionSchema).max(100).optional(),
+  match_score: z.number().int().nullable().optional(),
+  verdict: z.enum(['strong', 'borderline', 'stretch']).nullable().optional(),
+  requirements: z.array(jobRequirementSchema).max(100).optional(),
+  matched_keywords: z.array(z.string()).max(100).optional(),
+  missing_keywords: z.array(missingKeywordSchema).max(100).optional(),
+  tailoring_actions: z.array(tailoringActionSchema).max(100).optional(),
+  interview_focus: z.array(z.string()).max(100).optional(),
+  recruiter_summary: z.string().nullable().optional(),
+}).superRefine(validateBoundedHandoff)
+
+const toolRequestContextShape = {
+  workspace_context: workspaceContextInputSchema.nullable().optional(),
+  parent_run_id: boundedIdentifierSchema.nullable().optional(),
+  feedback: z.string().max(2_000).nullable().optional(),
+}
+
+export const resumeAnalyzeRequestSchema = z.object({
+  resume_text: z.string().min(50).max(50_000),
+  job_description: z.string().max(20_000).nullable().optional(),
+  ...toolRequestContextShape,
+})
+export const jobMatchRequestSchema = z.object({
+  resume_text: z.string().min(50).max(50_000),
+  job_description: z.string().min(20).max(20_000),
+  ...toolRequestContextShape,
+})
+export const coverLetterRequestSchema = z.object({
+  resume_text: z.string().min(50).max(50_000),
+  job_description: z.string().min(20).max(20_000),
+  tone: z.string().max(50).nullable().optional(),
+  resume_analysis: resumeAnalysisHandoffSchema.nullable().optional(),
+  job_match: jobMatchHandoffSchema.nullable().optional(),
+  ...toolRequestContextShape,
+})
+export const interviewRequestSchema = z.object({
+  resume_text: z.string().min(50).max(50_000),
+  job_description: z.string().min(20).max(20_000),
+  num_questions: z.number().int().min(3).max(12).nullable().optional(),
+  resume_analysis: resumeAnalysisHandoffSchema.nullable().optional(),
+  job_match: jobMatchHandoffSchema.nullable().optional(),
+  ...toolRequestContextShape,
+})
+export const careerRequestSchema = z.object({
+  resume_text: z.string().min(50).max(50_000),
+  target_role: z.string().max(200).nullable().optional(),
+  ...toolRequestContextShape,
+})
+export const portfolioRequestSchema = z.object({
+  resume_text: z.string().min(50).max(50_000),
+  target_role: z.string().max(200),
+  ...toolRequestContextShape,
+})
+
 export const riskLevelSchema = z.enum(['low', 'medium', 'high'])
 export const urgencySchema = z.enum(['high', 'medium', 'low'])
 export const complexitySchema = z.enum(['foundational', 'intermediate', 'advanced'])
@@ -740,32 +915,9 @@ export const resumeResultSchema = sharedResultEnvelopeSchema
       }),
     ),
     strengths: z.array(z.string()),
-    issues: z.array(
-      z.object({
-        id: z.string(),
-        severity: z.enum(['high', 'medium', 'low']),
-        category: z.enum(['keywords', 'impact', 'structure', 'clarity', 'completeness']),
-        title: z.string(),
-        why_it_matters: z.string(),
-        evidence: z.string(),
-        fix: z.string(),
-      }),
-    ),
-    evidence: z.object({
-      detected_sections: z.array(z.string()),
-      detected_skills: z.array(z.string()),
-      matched_keywords: z.array(z.string()),
-      missing_keywords: z.array(z.string()),
-      quantified_bullets: z.number(),
-    }),
-    role_fit: z
-      .object({
-        target_role_label: z.string(),
-        fit_score: z.number(),
-        rationale: z.string(),
-      })
-      .nullable()
-      .optional(),
+    issues: z.array(resumeIssueSchema),
+    evidence: resumeEvidenceSchema,
+    role_fit: resumeRoleFitSchema.nullable().optional(),
   })
   .passthrough()
 
@@ -773,30 +925,10 @@ export const jobMatchResultSchema = sharedResultEnvelopeSchema
   .extend({
     match_score: z.number(),
     verdict: z.enum(['strong', 'borderline', 'stretch']),
-    requirements: z.array(
-      z.object({
-        requirement: z.string(),
-        importance: z.enum(['must', 'preferred']),
-        status: z.enum(['matched', 'partial', 'missing']),
-        resume_evidence: z.string(),
-        suggested_fix: z.string(),
-      }),
-    ),
+    requirements: z.array(jobRequirementSchema),
     matched_keywords: z.array(z.string()),
-    missing_keywords: z.array(
-      z.object({
-        keyword: z.string(),
-        contextual_guidance: z.string().default(''),
-        anti_stuffing_note: z.string().default(''),
-      }),
-    ),
-    tailoring_actions: z.array(
-      z.object({
-        section: z.enum(['summary', 'experience', 'skills', 'projects']),
-        keyword: z.string(),
-        action: z.string(),
-      }),
-    ),
+    missing_keywords: z.array(missingKeywordSchema),
+    tailoring_actions: z.array(tailoringActionSchema),
     interview_focus: z.array(z.string()),
     recruiter_summary: z.string(),
   })
