@@ -12,6 +12,7 @@ import {
 } from '#/lib/api/packetSchemas'
 import {
   authProvidersSchema,
+  authSessionResponseSchema,
   careerResultSchema,
   coverLetterResultSchema,
   deletedResponseSchema,
@@ -317,14 +318,13 @@ export type HistoryQueryParams = {
   page_size?: number
 }
 
-// Auth endpoints don't parse response bodies — HttpOnly cookies set by the
-// backend are the sole source of session truth. Any `access_token` the
-// backend still returns in JSON is explicitly discarded by the frontend
-// (Codex-flagged cleanup: backend-side body removal is a follow-up).
+// Auth endpoints don't parse response bodies. HttpOnly cookies set by the
+// backend are the sole source of session truth.
 export async function login(payload: { email: string; password: string }): Promise<void> {
-  await request<unknown>('/auth/login', {
+  await request('/auth/login', {
     method: 'POST',
     body: payload,
+    schema: authSessionResponseSchema,
   })
 }
 
@@ -706,9 +706,10 @@ export function confirmPasswordReset(payload: { token: string; new_password: str
 }
 
 export async function refreshToken(): Promise<void> {
-  await request<unknown>('/auth/refresh', {
+  await request('/auth/refresh', {
     method: 'POST',
     body: {},
+    schema: authSessionResponseSchema,
   })
 }
 

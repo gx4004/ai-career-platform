@@ -48,12 +48,8 @@ afterEach(() => {
 
 describe('API client', () => {
   describe('login', () => {
-    it('sends POST to /auth/login and ignores any token in the response body', async () => {
-      // Backend may still return tokens in the body for legacy reasons; the
-      // frontend must not parse or leak them — cookies are the sole source.
-      mockFetch.mockResolvedValueOnce(
-        mockJsonResponse({ access_token: 'leaked-token', token_type: 'bearer' }),
-      )
+    it('sends POST to /auth/login and relies on the cookie session', async () => {
+      mockFetch.mockResolvedValueOnce(mockJsonResponse({ ok: true }))
 
       const result = await login({ email: 'test@example.com', password: 'pass123' })
 
@@ -62,7 +58,7 @@ describe('API client', () => {
       expect(url).toBe(`${API_URL}/auth/login`)
       expect(options.method).toBe('POST')
       expect(options.credentials).toBe('include')
-      // Callers must not receive tokens — return type is void.
+      // Callers receive no session material — the return type is void.
       expect(result).toBeUndefined()
     })
   })
@@ -167,7 +163,7 @@ describe('API client', () => {
         mockJsonResponse({ detail: 'Unauthorized' }, 401),
       )
       mockFetch.mockResolvedValueOnce(
-        mockJsonResponse({ access_token: 'cookie-refresh-token', token_type: 'bearer' }),
+        mockJsonResponse({ ok: true }),
       )
       mockFetch.mockResolvedValueOnce(mockJsonResponse(userData))
 

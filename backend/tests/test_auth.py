@@ -36,9 +36,39 @@ def test_login(client, test_user):
         json={"email": "test@example.com", "password": "password123"},
     )
     assert resp.status_code == 200
-    data = resp.json()
-    assert "access_token" in data
-    assert data["token_type"] == "bearer"
+    assert resp.json() == {"ok": True}
+    assert resp.cookies.get("cw_access")
+    assert resp.cookies.get("cw_refresh")
+
+
+def test_refresh_rotates_cookie_session_without_exposing_tokens(client, test_user):
+    login_resp = client.post(
+        f"{PREFIX}/login",
+        json={"email": "test@example.com", "password": "password123"},
+    )
+    assert login_resp.status_code == 200
+
+    resp = client.post(f"{PREFIX}/refresh", json={})
+
+    assert resp.status_code == 200
+    assert resp.json() == {"ok": True}
+    assert resp.cookies.get("cw_access")
+    assert resp.cookies.get("cw_refresh")
+
+
+def test_refresh_requires_http_only_cookie_not_body_token(client, test_user):
+    login_resp = client.post(
+        f"{PREFIX}/login",
+        json={"email": "test@example.com", "password": "password123"},
+    )
+    body_token = login_resp.cookies.get("cw_refresh")
+    assert body_token
+    client.cookies.clear()
+
+    resp = client.post(f"{PREFIX}/refresh", json={"refresh_token": body_token})
+
+    assert resp.status_code == 401
+    assert resp.json()["detail"] == "No refresh token provided"
 
 
 def test_login_invalid_password(client, test_user):

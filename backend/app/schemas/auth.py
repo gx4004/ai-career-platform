@@ -28,10 +28,6 @@ class RegisterRequest(BaseModel):
         return v
 
 
-class RefreshTokenRequest(BaseModel):
-    refresh_token: str = ""
-
-
 class PasswordResetRequest(BaseModel):
     email: EmailStr
 
@@ -48,10 +44,8 @@ class PasswordResetConfirm(BaseModel):
         return v
 
 
-class TokenResponse(BaseModel):
-    access_token: str
-    refresh_token: str
-    token_type: str = "bearer"
+class AuthSessionResponse(BaseModel):
+    ok: bool = True
 
 
 class UserResponse(BaseModel):
