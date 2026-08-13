@@ -113,6 +113,23 @@ Before handing off:
 - Do not dispatch or rerun GitHub Actions yourself. Preserve the checked-in jobs
   for an owner-triggered hosted gate when the owner decides it is needed.
 
+The root runner is the canonical local release gate. It verifies Node 22, pnpm
+10.30.3, Python 3.12 in an active virtual environment, Docker, and required
+document tools before it installs or tests anything. Full mode requires fresh,
+explicitly named `cw_local_release*` and
+`codex_submission_authorization_concurrency_*` PostgreSQL databases and never
+reads ambient database URLs:
+
+```bash
+./scripts/local-release.sh --preflight
+./scripts/local-release.sh --database-url \
+  postgresql+psycopg2://<user>:<password>@<host>/cw_local_release_<id> \
+  --authorization-database-url \
+  postgresql+psycopg2://<user>:<password>@<host>/codex_submission_authorization_concurrency_<id>
+```
+
+Use focused commands while iterating:
+
 ```bash
 # Frontend
 cd frontend
