@@ -72,5 +72,5 @@ test('authenticated resume result persists and can be revisited', async ({ page 
   await expect(page.getByText(/Resume Analysis/).first()).toBeVisible()
 
   await page.goto(resultUrl)
-  await expect(page.getByText('Resume Analyzer', { exact: false }).first()).toBeVisible()
+  await expect(page.getByRole('img', { name: /Resume score:/ })).toBeVisible()
 })

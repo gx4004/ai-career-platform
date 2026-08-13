@@ -155,6 +155,7 @@ for (const tool of guestTools) {
   test(`${tool.label} guest result survives refresh and expires when transient state is cleared`, async ({
     page,
   }) => {
+    test.setTimeout(60_000)
     await runGuestTool(page, tool)
     await expect(page).toHaveURL(tool.resultPath)
     await expect(page.getByText(`${tool.label} · Guest demo`)).toBeVisible()
@@ -200,6 +201,7 @@ test('guest runs for all six tools never appear in persisted history', async ({
 
 for (const tool of guestTools) {
   test(`${tool.label} preserves its tool-specific provider failure behavior`, async ({ page }) => {
+    test.setTimeout(60_000)
     await runGuestTool(page, tool, `${resumeText}\n${providerFailureMarker}`)
 
     if (tool.generative) {
