@@ -14,11 +14,51 @@ can never take down the admin view.
 from __future__ import annotations
 
 import json
+from datetime import datetime
 from pathlib import Path
+from typing import Literal
 
-from app.evals.run_eval import ALL_TOOLS, REPORTS_DIR
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
+
+from app.evals.run_eval import ALL_TOOLS, REPORT_SCHEMA_VERSION, REPORTS_DIR
 
 __all__ = ["ALL_TOOLS", "REPORTS_DIR", "latest_reports_by_tool"]
+
+
+class _EvalReportArtifact(BaseModel):
+    """Strict trust boundary for generated on-disk eval artifacts."""
+
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    report_schema_version: Literal[REPORT_SCHEMA_VERSION]
+    tool: str
+    prompt_version: str = Field(min_length=1)
+    judge_prompt_version: str | None
+    generated_at: str
+    mode: Literal["deterministic", "live"]
+    fixtures_evaluated: int = Field(ge=0)
+    calibration_miss_rate: float | None = Field(default=None, ge=0, le=1)
+    fabrication_candidate_count: int | None = Field(default=None, ge=0)
+    usefulness_score: float | None = Field(default=None, ge=1, le=5)
+
+    @field_validator("tool")
+    @classmethod
+    def validate_tool(cls, value: str) -> str:
+        if value not in ALL_TOOLS:
+            raise ValueError("unknown eval tool")
+        return value
+
+    @field_validator("generated_at")
+    @classmethod
+    def validate_generated_at(cls, value: str) -> str:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        if parsed.tzinfo is None:
+            raise ValueError("generated_at must include a timezone")
+        return value
+
+
+def _generated_at(report: dict[str, object]) -> datetime:
+    return datetime.fromisoformat(str(report["generated_at"]).replace("Z", "+00:00"))
 
 
 def latest_reports_by_tool(reports_dir: Path | None = None) -> dict[str, dict]:
@@ -47,13 +87,12 @@ def latest_reports_by_tool(reports_dir: Path | None = None) -> dict[str, dict]:
             data = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             continue
-        if not isinstance(data, dict):
+        try:
+            report = _EvalReportArtifact.model_validate(data).model_dump()
+        except ValidationError:
             continue
-        tool = data.get("tool")
-        generated_at = data.get("generated_at")
-        if not isinstance(tool, str) or not isinstance(generated_at, str):
-            continue
+        tool = report["tool"]
         existing = latest.get(tool)
-        if existing is None or generated_at > str(existing.get("generated_at", "")):
-            latest[tool] = data
+        if existing is None or _generated_at(report) > _generated_at(existing):
+            latest[tool] = report
     return latest

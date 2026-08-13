@@ -163,3 +163,33 @@ def test_eval_runs_skips_malformed_report_file(client, admin_headers, tmp_path):
     assert resp.status_code == 200
     tools = {t["tool_id"]: t for t in resp.json()["tools"]}
     assert tools["resume"]["has_report"] is False
+
+
+def test_eval_runs_skips_newer_off_shape_report_and_keeps_latest_valid_one(
+    client, admin_headers, tmp_path
+):
+    _write_report(
+        tmp_path,
+        "resume-valid.json",
+        _calibration_report(
+            "resume", generated_at="2026-07-09T12:00:00+00:00", miss_rate=0.09
+        ),
+    )
+    _write_report(
+        tmp_path,
+        "resume-off-shape.json",
+        {
+            **_calibration_report(
+                "resume", generated_at="9999-07-09T12:00:00+00:00", miss_rate=0.09
+            ),
+            "fixtures_evaluated": "all of them",
+        },
+    )
+    app.dependency_overrides[get_reports_dir] = lambda: tmp_path
+
+    response = client.get(f"{PREFIX}/admin/eval-runs", headers=admin_headers)
+
+    assert response.status_code == 200
+    tools = {item["tool_id"]: item for item in response.json()["tools"]}
+    assert tools["resume"]["generated_at"] == "2026-07-09T12:00:00+00:00"
+    assert tools["resume"]["fixtures_evaluated"] == 11
