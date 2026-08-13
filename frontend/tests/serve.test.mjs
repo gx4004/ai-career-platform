@@ -1,23 +1,13 @@
 import assert from 'node:assert/strict'
 import { mkdtemp, mkdir, copyFile, writeFile, rm } from 'node:fs/promises'
-import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { spawn } from 'node:child_process'
 import test from 'node:test'
 
-const projectDir = new URL('..', import.meta.url)
+import { stopChild, waitForListeningPort } from './server-process.mjs'
 
-async function availablePort() {
-  const server = createServer()
-  await new Promise((resolve, reject) => {
-    server.once('error', reject)
-    server.listen(0, '127.0.0.1', resolve)
-  })
-  const { port } = server.address()
-  await new Promise((resolve) => server.close(resolve))
-  return port
-}
+const projectDir = new URL('..', import.meta.url)
 
 async function startFixture(t, env = {}) {
   const fixtureDir = await mkdtemp(join(tmpdir(), 'career-workbench-serve-'))
@@ -33,12 +23,11 @@ async function startFixture(t, env = {}) {
     ) }`,
   )
 
-  const port = await availablePort()
   const child = spawn(process.execPath, ['serve.mjs'], {
     cwd: fixtureDir,
     env: {
       ...process.env,
-      PORT: String(port),
+      PORT: '0',
       VITE_API_URL: 'https://api.example.test/api/v1',
       VITE_SENTRY_DSN: 'https://public@example.ingest.sentry.io/1',
       ...env,
@@ -47,20 +36,11 @@ async function startFixture(t, env = {}) {
   })
 
   t.after(async () => {
-    child.kill()
+    await stopChild(child)
     await rm(fixtureDir, { recursive: true, force: true })
   })
 
-  await new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => reject(new Error('fixture server did not start')), 5_000)
-    child.once('exit', (code) => reject(new Error(`fixture server exited with ${code}`)))
-    child.stdout.on('data', (chunk) => {
-      if (chunk.toString().includes('Frontend server listening')) {
-        clearTimeout(timeout)
-        resolve()
-      }
-    })
-  })
+  const port = await waitForListeningPort(child, { timeoutMs: 5_000 })
 
   return `http://127.0.0.1:${port}`
 }
