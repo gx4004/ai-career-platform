@@ -164,5 +164,7 @@ const httpServer = createServer(async (req, res) => {
 
 const port = process.env.PORT || 3000
 httpServer.listen(port, '0.0.0.0', () => {
-  console.log(`Frontend server listening on http://0.0.0.0:${port}`)
+  const address = httpServer.address()
+  const listeningPort = typeof address === 'object' && address ? address.port : port
+  console.log(`Frontend server listening on http://0.0.0.0:${listeningPort}`)
 })
