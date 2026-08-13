@@ -5,7 +5,7 @@ import { AppStatePanel } from '#/components/app/AppStatePanel'
 import { PageFrame } from '#/components/app/PageFrame'
 import { Button } from '#/components/ui/button'
 import { useSession } from '#/hooks/useSession'
-import { deleteAllCvDocuments, deleteCvDocument, getCvDocument, listCvDocuments, restoreCvVariant, snapshotCvVariant, updateCvDocument } from '#/lib/api/client'
+import { deleteAllCvDocuments, deleteCvDocument, exportCvDocuments, getCvDocument, listCvDocuments, restoreCvVariant, snapshotCvVariant, updateCvDocument } from '#/lib/api/client'
 import type { CvDocument, CvSection } from '#/lib/api/schemas'
 import type { CvTemplateId } from '#/lib/api/schemas'
 import { addEntry, addSection, moveEntry, moveSection, sectionLabels } from '#/lib/cv-studio/editor'
@@ -26,6 +26,7 @@ export function CvStudio() {
   const [dirty, setDirty] = useState(false)
   const [saveState, setSaveState] = useState<SaveState>('idle')
   const [actionError, setActionError] = useState('')
+  const [exporting, setExporting] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
   const [snapshotName, setSnapshotName] = useState('')
   const [template, setTemplate] = useState<CvTemplateId>('ats-essential')
@@ -96,6 +97,27 @@ export function CvStudio() {
       setDraft(restored); setSaveState('saved'); await documentQuery.refetch()
     } catch (error) { setActionError(error instanceof Error ? error.message : 'Restore failed.') }
   }
+  async function exportData() {
+    if (exporting) return
+    setExporting(true)
+    setActionError('')
+    try {
+      const payload = await exportCvDocuments()
+      const blob = new Blob([JSON.stringify(payload, null, 2)], {
+        type: 'application/json;charset=utf-8',
+      })
+      const url = URL.createObjectURL(blob)
+      const anchor = document.createElement('a')
+      anchor.href = url
+      anchor.download = 'career-workbench-cv-data.json'
+      anchor.click()
+      URL.revokeObjectURL(url)
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'CV data export failed.')
+    } finally {
+      setExporting(false)
+    }
+  }
   function handleCreatedDocument(created: CvDocument) {
     queryClient.setQueryData<{ items: CvDocument[] }>(LIST_KEY, (current) => ({
       items: [created, ...(current?.items ?? []).filter((item) => item.id !== created.id)],
@@ -130,7 +152,6 @@ export function CvStudio() {
   if (!listQuery.data?.items.length) return <><AppStatePanel title="Start your CV Studio" description="Import or create a structured CV document first. The editor never turns your document into freeform rich text." icon={<FilePlus2 />} actions={[{ label: 'Create a CV', onClick: () => setCreateOpen(true) }]} />{createDialog}</>
   if (!draft) return null
 
-  const exportUrl = `/api/v1/cv-documents/export`
   return (
     <PageFrame className="studio-shell">
       <header className="studio-header">
@@ -138,7 +159,7 @@ export function CvStudio() {
         <div className="studio-header-actions">
           <span className={`studio-save-state studio-save-state--${saveState}`} role="status" aria-live="polite">{saveState === 'saving' ? 'Saving…' : saveState === 'error' ? 'Save failed' : saveState === 'saved' ? 'Saved' : 'All changes saved'}</span>
           <Button type="button" variant="outline" disabled={dirty} onClick={() => setCreateOpen(true)}><FilePlus2 size={16} /> New CV</Button>
-          <Button asChild variant="outline"><a href={exportUrl}><Download size={16} /> Export data</a></Button>
+          <Button type="button" variant="outline" loading={exporting} aria-label={exporting ? 'Exporting data' : 'Export data'} onClick={() => void exportData()}><Download size={16} /> Export data</Button>
           <Button type="button" variant="outline" disabled={dirty} onClick={() => void removeDocument(false)}><Trash2 size={16} /> Delete document</Button>
           <Button type="button" variant="outline" disabled={dirty} onClick={() => void removeDocument(true)}>Delete all documents</Button>
         </div>

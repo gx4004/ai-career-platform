@@ -62,6 +62,7 @@ import {
   careerDataExportSchema,
   cvDocumentCreateSchema,
   cvDocumentListSchema,
+  cvDocumentsExportSchema,
   cvDocumentSchema,
   cvDocumentUpdateSchema,
   cvVariantCreateSchema,
@@ -86,6 +87,13 @@ import type {
 
 export function listCvDocuments() {
   return request('/cv-documents', { method: 'GET', schema: cvDocumentListSchema })
+}
+
+export function exportCvDocuments() {
+  return request('/cv-documents/export', {
+    method: 'GET',
+    schema: cvDocumentsExportSchema,
+  })
 }
 
 export function createCvDocument(payload: CvDocumentCreate) {
