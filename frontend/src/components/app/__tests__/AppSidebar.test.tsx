@@ -115,6 +115,8 @@ describe('AppSidebar', () => {
       'VITE_R13_CAMPAIGNS_ENABLED',
       'VITE_R14_DISCOVERY_ENABLED',
       'VITE_R15_QUEUE_ENABLED',
+      'VITE_R16_SUBMISSION_FOUNDATION_ENABLED',
+      'VITE_R17_DEVELOPMENT_LOOP_ENABLED',
     ]) vi.stubEnv(flag, 'true')
     mockPathname.current = '/dashboard'
     mockUseIsMobile.mockReturnValue(false)
@@ -124,11 +126,34 @@ describe('AppSidebar', () => {
   it('shows discovery only to authenticated users', () => {
     const authenticated = renderSidebar()
     expect(screen.getByRole('link', { name: 'Discover' })).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Queue' })).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Development' })).toBeTruthy()
     authenticated.unmount()
 
     mockSessionUser.current = null
     renderSidebar()
     expect(screen.queryByRole('link', { name: 'Discover' })).toBeNull()
+    expect(screen.queryByRole('link', { name: 'Queue' })).toBeNull()
+    expect(screen.queryByRole('link', { name: 'Development' })).toBeNull()
+  })
+
+  it('keeps build-ahead navigation absent unless its complete dependency chain is on', () => {
+    for (const flag of [
+      'VITE_R11_EVIDENCE_PROFILE_ENABLED',
+      'VITE_R12_CV_STUDIO_ENABLED',
+      'VITE_R13_CAMPAIGNS_ENABLED',
+      'VITE_R14_DISCOVERY_ENABLED',
+      'VITE_R15_QUEUE_ENABLED',
+      'VITE_R16_SUBMISSION_FOUNDATION_ENABLED',
+      'VITE_R17_DEVELOPMENT_LOOP_ENABLED',
+    ]) vi.stubEnv(flag, 'false')
+
+    renderSidebar()
+
+    expect(screen.queryByRole('link', { name: 'Evidence' })).toBeNull()
+    expect(screen.queryByRole('link', { name: 'Discover' })).toBeNull()
+    expect(screen.queryByRole('link', { name: 'Queue' })).toBeNull()
+    expect(screen.queryByRole('link', { name: 'Development' })).toBeNull()
   })
 
   it('starts collapsed on desktop when no cookie exists', () => {
