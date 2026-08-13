@@ -1,6 +1,7 @@
 from app.config import Settings, settings
 from app.models.campaign_event import CampaignEvent
 from app.models.campaign_listing import CampaignListing
+from app.models.tool_run import ToolRun
 from app.models.workspace import Workspace
 from app.schemas.tools import ImportedJobResponse
 
@@ -122,6 +123,72 @@ def test_dark_campaigns_reject_campaign_writes_but_keep_core_workspace_edits(
     # The same writes succeed once the outcome is explicitly activated.
     monkeypatch.setattr(settings, "R13_CAMPAIGNS_ENABLED", True)
     assert client.patch(url, headers=auth_headers, json={"company": "ProbeCo"}).status_code == 200
+
+
+def test_dark_campaigns_redact_retained_campaign_data_from_core_history(
+    client, auth_headers, test_user, db, monkeypatch
+):
+    """A flag rollback keeps core history usable without exposing dark R13 data."""
+    workspace = Workspace(
+        user_id=test_user.id,
+        label="Core label",
+        is_pinned=True,
+        company="Owner A Company",
+        role="Private role",
+        status="planning",
+    )
+    db.add(workspace)
+    db.flush()
+    listing = CampaignListing(
+        workspace_id=workspace.id,
+        title="Private listing",
+        company="Owner A Company",
+        description="Sensitive listing description",
+        source_url="https://example.com/private-role",
+    )
+    db.add(listing)
+    db.flush()
+    workspace.current_listing_id = listing.id
+    run = ToolRun(
+        user_id=test_user.id,
+        workspace_id=workspace.id,
+        tool_name="resume",
+        label="Core run",
+        result_payload={"score": 80},
+    )
+    db.add(run)
+    db.commit()
+
+    monkeypatch.setattr(settings, "R13_CAMPAIGNS_ENABLED", False)
+
+    workspace_payload = client.get(
+        "/api/v1/history/workspaces", headers=auth_headers
+    ).json()["items"][0]
+    history_payload = client.get("/api/v1/history", headers=auth_headers).json()[
+        "items"
+    ][0]["workspace"]
+    detail_payload = client.get(
+        f"/api/v1/history/{run.id}", headers=auth_headers
+    ).json()["workspace"]
+    renamed_payload = client.patch(
+        f"/api/v1/history/workspaces/{workspace.id}",
+        headers=auth_headers,
+        json={"label": "Still core"},
+    ).json()
+
+    for payload in (
+        workspace_payload,
+        history_payload,
+        detail_payload,
+        renamed_payload,
+    ):
+        assert payload["id"] == workspace.id
+        assert payload["is_pinned"] is True
+        assert payload["company"] is None
+        assert payload["role"] is None
+        assert payload["status"] is None
+        assert payload["deadline"] is None
+        assert payload["listing"] is None
 
 
 def test_dark_campaigns_reject_pasted_listing_attachment(
