@@ -87,6 +87,7 @@ def test_allowlist_accepts_r10_operational_shapes():
         event_name="r10_rate_limit_event",
         operational_dimension="auth",
         operational_outcome="guest",
+        metric_value=1,
     )
     ActivationEventCreate(
         event_name="r10_import_outcome",
@@ -124,6 +125,7 @@ def test_r10_import_outcome_values_remain_compatible_with_source_health(outcome)
             "event_name": "r10_rate_limit_event",
             "operational_dimension": "auth",
             "operational_outcome": "guest",
+            "metric_value": 1,
             "user_id": "u_123",
         },
         # R10 dimensions are exclusive to their authoritative event shapes.
@@ -189,7 +191,7 @@ def test_provider_trigger_not_fired_when_grouped_below_threshold(db):
             created_at=FIXED_NOW - timedelta(days=1) + timedelta(seconds=i * 5),
         )
     trig = _trigger(compute_scorecard(db, now=FIXED_NOW), "provider_incidents")
-    assert trig.state == "not_fired"
+    assert trig.state == "insufficient_sample"
     assert trig.review_required is False
     assert trig.evidence_detail["incidents"] == 1
 
@@ -205,12 +207,13 @@ def test_cache_trigger_not_fired_on_single_instance(db, monkeypatch):
     assert trig.state == "not_fired"
 
 
-def test_cache_trigger_fires_on_multi_instance_inefficiency(db, monkeypatch):
+def test_cache_trigger_stays_evidence_only_without_accepted_budget(db, monkeypatch):
     monkeypatch.setattr("app.services.scorecard.settings.API_REPLICA_CLASS", "multi")
     for _ in range(150):
         _event(db, event_name="r10_cache_outcome", operational_outcome="miss", created_at=FIXED_NOW)
     trig = _trigger(compute_scorecard(db, now=FIXED_NOW), "cache_multi_instance")
-    assert trig.state == "fired"
+    assert trig.state == "insufficient_sample"
+    assert trig.review_required is False
     assert trig.response_ticket == 137
 
 
@@ -313,6 +316,7 @@ def _insert_rate_limit_window(
             event_name="r10_rate_limit_event",
             operational_dimension=family,
             operational_outcome=identity_type,
+            metric_value=1,
             created_at=created_at,
         )
 
@@ -322,10 +326,10 @@ def test_abuse_cost_fires_for_one_family_across_three_completed_windows(db):
         _insert_rate_limit_window(db, window=window, family="auth", count=50)
     trig = _trigger(compute_scorecard(db, now=FIXED_NOW), "abuse_cost")
     assert trig.state == "fired"
-    assert trig.evidence_detail["rate_limit_sustained_flows"] == "auth/guest"
+    assert trig.evidence_detail["rate_limit_sustained_flows"] == "auth"
 
 
-def test_abuse_cost_does_not_combine_account_and_guest_pressure(db):
+def test_abuse_cost_combines_account_and_guest_pressure_by_route_family(db):
     for window in (1, 2, 3):
         _insert_rate_limit_window(
             db, window=window, family="auth", count=25, identity_type="guest"
@@ -336,8 +340,8 @@ def test_abuse_cost_does_not_combine_account_and_guest_pressure(db):
 
     trig = _trigger(compute_scorecard(db, now=FIXED_NOW), "abuse_cost")
 
-    assert trig.state == "not_fired"
-    assert trig.evidence_detail["rate_limit_sustained_flows"] == "none"
+    assert trig.state == "fired"
+    assert trig.evidence_detail["rate_limit_sustained_flows"] == "auth"
 
 
 def test_abuse_cost_resets_when_rate_pressure_is_not_consecutive(db):

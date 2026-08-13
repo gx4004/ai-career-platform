@@ -1,10 +1,10 @@
 name: CI
 
 on:
-  pull_request:
-    branches: [main, chapter2]
-  push:
-    branches: [main, deploy]
+  # Hosted CI is deliberately manual-only to conserve the repository's Actions
+  # quota. Agents run the equivalent gates locally; only an owner dispatches this
+  # workflow when hosted evidence is explicitly needed.
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -134,6 +134,14 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements-dev.txt
 
+      - name: Production dependency audit
+        # PYSEC-2026-1325 has no fixed ecdsa release. The application constrains
+        # JWTs to HS256, so that optional EC code path is unreachable; keep the
+        # narrow exception visible until python-jose/ecdsa is replaced.
+        run: |
+          python -m pip install pip-audit==2.10.1
+          pip-audit -r requirements.txt --ignore-vuln PYSEC-2026-1325
+
       - name: Ruff check
         run: ruff check app
 
@@ -146,6 +154,11 @@ jobs:
         env:
           DATABASE_URL: postgresql+psycopg2://cw:cw@localhost:5432/cw_ci
         run: python tests/migration_submission_roundtrip.py
+
+      - name: Populated operational-metric migration round trip
+        env:
+          DATABASE_URL: postgresql+psycopg2://cw:cw@localhost:5432/cw_ci
+        run: python tests/migration_operational_metric_roundtrip.py
 
       - name: Alembic upgrade smoke
         env:

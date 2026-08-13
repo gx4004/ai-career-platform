@@ -29,6 +29,10 @@ from app.config import settings
 from app.models.analytics_event import AnalyticsEvent
 from app.schemas.admin import AdminScorecardResponse, ScorecardTrigger, TriggerState
 from app.services.analytics import safe_record_activation_event
+from app.services.rate_limit_events import (
+    RATE_LIMIT_BUCKET_SECONDS,
+    RATE_LIMIT_EVIDENCE_THRESHOLD,
+)
 
 logger = logging.getLogger("app.scorecard")
 
@@ -48,8 +52,8 @@ LATENCY_WINDOW_DAYS = 3
 LATENCY_MIN_DAILY_SAMPLE = 20
 
 ABUSE_COST_WINDOW_HOURS = 24
-RATE_LIMIT_WINDOW_MINUTES = 15
-RATE_LIMIT_WINDOW_THRESHOLD = 50
+RATE_LIMIT_WINDOW_MINUTES = RATE_LIMIT_BUCKET_SECONDS // 60
+RATE_LIMIT_WINDOW_THRESHOLD = RATE_LIMIT_EVIDENCE_THRESHOLD
 RATE_LIMIT_CONSECUTIVE_WINDOWS = 3
 
 DB_STORAGE_TRIGGER_PCT = 70.0
@@ -232,17 +236,15 @@ def _evaluate_cache(db: Session, now: datetime) -> dict[str, object]:
             f"Multi-instance declared but only {lookups} cache observations "
             f"(need ≥{CACHE_MIN_SAMPLE}) to judge duplicate cost."
         )
-    elif failures > 0 or hit_ratio < 0.5:
-        state = "fired"
-        evidence = (
-            f"Multi-instance with cache inefficiency: hit ratio {hit_ratio:.0%}, "
-            f"{failures} lookup failures over {lookups} lookups."
-        )
     else:
-        state = "not_fired"
+        # D-052 requires a predeclared, accepted cache-efficiency or duplicate-
+        # provider-cost budget before this evidence may authorize #137 review.
+        # No such budget is accepted yet; do not invent a 50% threshold.
+        state = "insufficient_sample"
         evidence = (
-            f"Multi-instance but cache healthy: hit ratio {hit_ratio:.0%} over "
-            f"{lookups} lookups."
+            f"Multi-instance evidence collected: hit ratio {hit_ratio:.0%}, "
+            f"{failures} lookup failures over {lookups} lookups; an accepted "
+            "cache-efficiency/cost budget is still required."
         )
     return {
         "state": state,
@@ -306,11 +308,16 @@ def _evaluate_provider(db: Session, now: datetime) -> dict[str, object]:
             f"{PROVIDER_INCIDENT_WINDOW_DAYS}d (≥{PROVIDER_INCIDENT_THRESHOLD})."
         )
     else:
-        state = "not_fired"
+        # The incident branch is below threshold, but the accepted trigger is an
+        # OR with a provider-caused availability-SLO branch. That SLO and its
+        # authoritative signal are not yet accepted, so the whole trigger cannot
+        # truthfully be cleared as not fired.
+        state = "insufficient_sample"
         evidence = (
             f"{incidents} grouped provider incidents in "
             f"{PROVIDER_INCIDENT_WINDOW_DAYS}d (threshold {PROVIDER_INCIDENT_THRESHOLD}); "
-            f"{len(timestamps)} raw failures."
+            f"{len(timestamps)} raw failures. Provider availability-SLO evidence "
+            "is not configured."
         )
     return {
         "state": state,
@@ -436,6 +443,7 @@ def _evaluate_abuse_cost(db: Session, now: datetime) -> dict[str, object]:
         db.query(
             AnalyticsEvent.operational_dimension,
             AnalyticsEvent.operational_outcome,
+            AnalyticsEvent.metric_value,
             AnalyticsEvent.created_at,
         )
         .filter(
@@ -449,32 +457,41 @@ def _evaluate_abuse_cost(db: Session, now: datetime) -> dict[str, object]:
         )
         .all()
     )
-    counts_by_flow: dict[tuple[str, str], list[int]] = {}
-    for family, identity_type, created_at in rate_rows:
+    counts_by_family: dict[str, list[int]] = {}
+    identity_breakdown: dict[tuple[str, str], list[int]] = {}
+    for family, identity_type, metric_value, created_at in rate_rows:
         event_at = _as_utc(created_at)
         minutes_before_boundary = (current_boundary - event_at).total_seconds() / 60
         window_index = int((minutes_before_boundary - 0.000001) // RATE_LIMIT_WINDOW_MINUTES)
         if 0 <= window_index < RATE_LIMIT_CONSECUTIVE_WINDOWS:
-            flow = (family or "other", identity_type or "unknown")
-            counts_by_flow.setdefault(flow, [0] * RATE_LIMIT_CONSECUTIVE_WINDOWS)[
-                window_index
-            ] += 1
+            route_family = family or "other"
+            identity = identity_type or "unknown"
+            weight = int(metric_value) if metric_value is not None else 1
+            counts_by_family.setdefault(
+                route_family, [0] * RATE_LIMIT_CONSECUTIVE_WINDOWS
+            )[window_index] += weight
+            identity_breakdown.setdefault(
+                (route_family, identity), [0] * RATE_LIMIT_CONSECUTIVE_WINDOWS
+            )[window_index] += weight
     sustained_flows = [
-        flow
-        for flow, counts in counts_by_flow.items()
+        family
+        for family, counts in counts_by_family.items()
         if all(count >= RATE_LIMIT_WINDOW_THRESHOLD for count in counts)
     ]
     max_rate_events = max(
-        (max(counts) for counts in counts_by_flow.values()), default=0
+        (max(counts) for counts in counts_by_family.values()), default=0
     )
-    sustained_flow_labels = [
-        f"{family}/{identity_type}" for family, identity_type in sorted(sustained_flows)
+    sustained_flow_labels = sorted(sustained_flows)
+    breakdown_labels = [
+        f"{family}/{identity_type}={','.join(str(value) for value in counts)}"
+        for (family, identity_type), counts in sorted(identity_breakdown.items())
     ]
     detail: dict[str, float | int | str] = {
         "cost_24h_usd": round(total_cost_f, 6),
         "cost_alert_budget_usd": budget,
         "rate_limit_max_15m": max_rate_events,
         "rate_limit_sustained_flows": ", ".join(sustained_flow_labels) or "none",
+        "rate_limit_identity_breakdown": "; ".join(breakdown_labels) or "none",
         "rate_limit_windows": RATE_LIMIT_CONSECUTIVE_WINDOWS,
     }
     if sustained_flows:
@@ -501,7 +518,7 @@ def _evaluate_abuse_cost(db: Session, now: datetime) -> dict[str, object]:
         "evidence": evidence,
         "evidence_detail": detail,
         "last_evidence_at": _iso(
-            max((_as_utc(created_at) for _, _, created_at in rate_rows), default=None)
+            max((_as_utc(created_at) for _, _, _, created_at in rate_rows), default=None)
         ),
         "evidence_fresh": True,
     }

@@ -35,7 +35,9 @@ export default defineConfig({
   globalSetup: './e2e/global-setup.ts',
   webServer: [
     {
-      command: 'python3 -m tests.e2e_server',
+      // Playwright starts web servers before globalSetup. Upgrade here as well
+      // so recurring best-effort schedulers never race an empty local database.
+      command: 'alembic upgrade head && python3 -m tests.e2e_server',
       cwd: backendDir,
       url: `${backendUrl}/api/v1/health`,
       reuseExistingServer: false,

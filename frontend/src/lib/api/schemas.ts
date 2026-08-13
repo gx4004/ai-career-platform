@@ -680,7 +680,7 @@ export const topActionSchema = z.object({
   priority: z.enum(['high', 'medium', 'low']),
 })
 
-export const boundedIdentifierSchema = z.string().min(1).max(100)
+export const boundedIdentifierSchema = codePointBoundedString({ min: 1, max: 100 })
 export const workspaceContextInputSchema = z.object({
   workspace_id: boundedIdentifierSchema.nullable().optional(),
   linked_history_ids: z.array(boundedIdentifierSchema).max(50).default([]),
@@ -730,7 +730,7 @@ function utf8Size(value: string): number | null {
     const code = value.charCodeAt(index)
     if (code >= 0xd800 && code <= 0xdbff) {
       const next = value.charCodeAt(index + 1)
-      if (next < 0xdc00 || next > 0xdfff) return null
+      if (!(next >= 0xdc00 && next <= 0xdfff)) return null
       index += 1
     } else if (code >= 0xdc00 && code <= 0xdfff) {
       return null
@@ -738,6 +738,65 @@ function utf8Size(value: string): number | null {
   }
   return new TextEncoder().encode(value).length
 }
+
+function codePointBoundedString({ min, max }: { min?: number; max?: number }) {
+  return z.string().superRefine((value, ctx) => {
+    const length = Array.from(value).length
+    if (min !== undefined && length < min) {
+      ctx.addIssue({
+        code: 'too_small',
+        origin: 'string',
+        minimum: min,
+        inclusive: true,
+        message: `Too small: expected string to have >=${min} characters`,
+      })
+    }
+    if (max !== undefined && length > max) {
+      ctx.addIssue({
+        code: 'too_big',
+        origin: 'string',
+        maximum: max,
+        inclusive: true,
+        message: `Too big: expected string to have <=${max} characters`,
+      })
+    }
+  })
+}
+
+function validateUtf8(value: string, ctx: z.RefinementCtx): void {
+  if (utf8Size(value) === null) {
+    ctx.addIssue({ code: 'custom', message: 'Password must be valid UTF-8' })
+  }
+}
+
+export const loginPasswordSchema = z.string().superRefine(validateUtf8)
+export const newPasswordSchema = codePointBoundedString({ min: 8 }).superRefine(
+  (value, ctx) => {
+    const size = utf8Size(value)
+    if (size === null) {
+      ctx.addIssue({ code: 'custom', message: 'Password must be valid UTF-8' })
+    } else if (size > 72) {
+      ctx.addIssue({ code: 'custom', message: 'Password must be at most 72 UTF-8 bytes' })
+    }
+  },
+)
+export const loginRequestSchema = z.object({
+  email: z.email(),
+  password: loginPasswordSchema,
+})
+export const registerRequestSchema = z.object({
+  email: z.email(),
+  password: newPasswordSchema,
+  full_name: z.string().nullable().optional(),
+  captcha_token: z.string().nullable().optional(),
+  tos_accepted: z.boolean().refine(value => value, {
+    message: 'You must accept the Terms of Service',
+  }),
+})
+export const passwordResetConfirmRequestSchema = z.object({
+  token: z.string(),
+  new_password: newPasswordSchema,
+})
 
 function validateBoundedHandoff(value: unknown, ctx: z.RefinementCtx): void {
   const pending = [value]
@@ -815,43 +874,43 @@ export const jobMatchHandoffSchema = z.object({
 const toolRequestContextShape = {
   workspace_context: workspaceContextInputSchema.nullable().optional(),
   parent_run_id: boundedIdentifierSchema.nullable().optional(),
-  feedback: z.string().max(2_000).nullable().optional(),
+  feedback: codePointBoundedString({ max: 2_000 }).nullable().optional(),
 }
 
 export const resumeAnalyzeRequestSchema = z.object({
-  resume_text: z.string().min(50).max(50_000),
-  job_description: z.string().max(20_000).nullable().optional(),
+  resume_text: codePointBoundedString({ min: 50, max: 50_000 }),
+  job_description: codePointBoundedString({ max: 20_000 }).nullable().optional(),
   ...toolRequestContextShape,
 })
 export const jobMatchRequestSchema = z.object({
-  resume_text: z.string().min(50).max(50_000),
-  job_description: z.string().min(20).max(20_000),
+  resume_text: codePointBoundedString({ min: 50, max: 50_000 }),
+  job_description: codePointBoundedString({ min: 20, max: 20_000 }),
   ...toolRequestContextShape,
 })
 export const coverLetterRequestSchema = z.object({
-  resume_text: z.string().min(50).max(50_000),
-  job_description: z.string().min(20).max(20_000),
-  tone: z.string().max(50).nullable().optional(),
+  resume_text: codePointBoundedString({ min: 50, max: 50_000 }),
+  job_description: codePointBoundedString({ min: 20, max: 20_000 }),
+  tone: codePointBoundedString({ max: 50 }).nullable().optional(),
   resume_analysis: resumeAnalysisHandoffSchema.nullable().optional(),
   job_match: jobMatchHandoffSchema.nullable().optional(),
   ...toolRequestContextShape,
 })
 export const interviewRequestSchema = z.object({
-  resume_text: z.string().min(50).max(50_000),
-  job_description: z.string().min(20).max(20_000),
+  resume_text: codePointBoundedString({ min: 50, max: 50_000 }),
+  job_description: codePointBoundedString({ min: 20, max: 20_000 }),
   num_questions: z.number().int().min(3).max(12).nullable().optional(),
   resume_analysis: resumeAnalysisHandoffSchema.nullable().optional(),
   job_match: jobMatchHandoffSchema.nullable().optional(),
   ...toolRequestContextShape,
 })
 export const careerRequestSchema = z.object({
-  resume_text: z.string().min(50).max(50_000),
-  target_role: z.string().max(200).nullable().optional(),
+  resume_text: codePointBoundedString({ min: 50, max: 50_000 }),
+  target_role: codePointBoundedString({ max: 200 }).nullable().optional(),
   ...toolRequestContextShape,
 })
 export const portfolioRequestSchema = z.object({
-  resume_text: z.string().min(50).max(50_000),
-  target_role: z.string().max(200),
+  resume_text: codePointBoundedString({ min: 50, max: 50_000 }),
+  target_role: codePointBoundedString({ max: 200 }),
   ...toolRequestContextShape,
 })
 

@@ -38,8 +38,9 @@ class AnalyticsEvent(Base):
     # Backend-computed operational metrics (nullable — frontend events omit them).
     duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
     cost_estimate: Mapped[float | None] = mapped_column(Numeric(12, 6), nullable=True)
-    # Generic bounded numeric measurement for R10 operational snapshots only.
-    # The schema gate restricts it to storage percentage / pool checkout ratio.
+    # Generic bounded numeric measurement for R10 operational evidence only.
+    # The schema gate restricts it to storage/pool snapshots or the coalesced
+    # rate-limit threshold count.
     metric_value: Mapped[float | None] = mapped_column(Numeric(12, 6), nullable=True)
     # R10 operational-event dimensions (issue #136, D-053). Two reused, closed-set
     # low-cardinality columns feeding the scaling-trigger scorecard: the primary

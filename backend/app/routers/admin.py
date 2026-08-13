@@ -41,6 +41,7 @@ from app.schemas.admin import (
     AdminUserListResponse,
     EvalRunItem,
 )
+from app.schemas.analytics import OperationalToolId
 from app.schemas.discovery_personalization import AdminRecommendationReportList
 from app.schemas.discovery_sources import (
     DiscoverySourceListResponse,
@@ -54,7 +55,6 @@ from app.schemas.submission_safety import (
     SubmissionSafetyPolicyResponse,
 )
 from app.schemas.submission_sources import SubmissionSourceGovernanceResponse
-from app.schemas.telemetry import ToolId
 from app.services.analytics import (
     ACTIVATION_DEFAULT_WINDOW_DAYS,
     aggregate_activation_metrics,
@@ -550,7 +550,7 @@ def get_activation(
     # resolve the aliased Literal as a query-param forward ref under
     # `from __future__ import annotations`.
     access_mode: Literal["authenticated", "guest_demo"] | None = Query(None),
-    tool_id: ToolId | None = Query(None),
+    tool_id: OperationalToolId | None = Query(None),
     start: datetime | None = Query(None),
     end: datetime | None = Query(None),
     admin: User = Depends(get_current_admin),

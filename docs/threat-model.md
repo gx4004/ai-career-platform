@@ -1,7 +1,7 @@
 # Career Workbench — Threat Model
 
 **Status:** canonical baseline
-**Last reviewed:** 2026-07-06
+**Last reviewed:** 2026-08-13
 **Source:** executable code, configuration, and intended Railway topology
 
 This document establishes the evidence baseline for R3: Privacy, Security, and
@@ -457,6 +457,13 @@ actions expire after one hour and login-failure counters after 15 minutes.
   — `backend/app/auth/security.py:create_access_token`
 - **Refresh token payload:** `{sub, exp, iat, type: "refresh", jti: uuid.hex, tv: token_version}` — lifetime: `REFRESH_TOKEN_EXPIRE_DAYS` (default 7 days)
   — `backend/app/auth/security.py:create_refresh_token`
+
+The locked `python-jose[cryptography]` graph still installs `ecdsa`, whose
+`PYSEC-2026-1325` advisory has no fixed release. Application configuration is
+type-constrained to HS256, so the affected EC signing/key-generation paths are unreachable.
+CI ignores only that exact advisory and continues failing on every other finding.
+Changing the JWT algorithm is blocked until `python-jose`/`ecdsa` is replaced or
+the advisory is fixed; removing the transitive package remains dependency debt.
 
 ### 7.2 Token Revocation
 
@@ -979,10 +986,10 @@ available for export/deletion, and quota counters remain durable.
 
 | Concern | Detail |
 |---------|--------|
-| What is captured | Error stack traces, request metadata (scrubbed), performance traces (10% sample) |
-| What is scrubbed | Request body, cookies, query strings, auth/cookie headers, entire user context; frontend fetch/XHR breadcrumb bodies |
+| What is captured | Code-path stack traces without local variables and scrubbed request metadata; performance transactions are disabled because they bypass error-event scrubbing |
+| What is scrubbed | Request body, cookies, query strings, auth/cookie headers, entire user context, exception/message content, unsafe contexts, frame variables, all backend breadcrumbs, and frontend fetch/XHR breadcrumb bodies |
 | Opt-in behavior | Sentry SDK only initializes if `SENTRY_DSN` env var is set (empty by default) |
-| Backend scrubbing | `_scrub_sentry_event()` — `backend/app/main.py:37-65` |
+| Backend scrubbing | `_scrub_sentry_event()` in `backend/app/main.py` |
 | Frontend scrubbing | Tested `beforeSend` + `beforeBreadcrumb` hooks — `frontend/src/lib/observability/sentryPrivacy.ts` |
 
 ### 9.6 Railway PostgreSQL
@@ -1012,7 +1019,7 @@ All log lines are single-line JSON objects emitted to stdout. Key events:
 | `user_account_deleted` | user_id, runs_deleted, workspaces_deleted, user_record_deleted | info |
 | `frontend_telemetry` | Allowlisted event/category enums, tool/access mode, booleans, timestamp, and explicit low-cardinality dimensions | info |
 | `profile_item_*` (adoption) | Backend-only; item kind, provenance class, confirmation-state transition, bounded counts — never evidence content, employer/institution names, or content ids (D-067) | info |
-| `r10_rate_limit_event` | Backend-only durable event; bounded route family and account/guest class — never raw path, account/IP, limiter key, or exception detail (D-053, D-057) | info |
+| `r10_rate_limit_event` | Backend-only coalesced threshold evidence; bounded route family, account/guest/mixed class, and rejection count — never raw path, account/IP, limiter key, or exception detail (D-053, D-057) | info |
 | `r10_database_query` | Backend-only durable event; closed query-family name and duration — never SQL text, parameters, user content, or identifiers (D-053, D-058) | info |
 | `r10_database_snapshot` | Backend-only durable event; storage percentage or pool checkout ratio sampled every 15 minutes — never database names, connection strings, SQL, or row content (D-053, D-058) | info |
 
@@ -1087,7 +1094,7 @@ authoritative access seam (D-048, ADR 0003); it may not reuse a client-only gate
 | 3 | **SSRF via job URL import** | API → Internet | Medium — internal network access | All-answer IP checks, per-hop DNS pinning, redirect re-validation, browser network denial, response type/size bounds | Public endpoints can still return attacker-controlled HTML; extraction remains best-effort and intentionally unauthenticated |
 | 4 | **Session hijacking (cookie theft)** | Browser → API | High — full account access | HttpOnly cookies, SameSite=Lax, Secure in production | No token binding; refresh token lives 7 days; no device/session fingerprinting |
 | 5 | **Persistent XSS via stored/generated content** | DB → Browser | Medium — session theft, credential capture | Tool output is rendered in React (auto-escaped), no raw HTML insertion; the frontend CSP denies objects and framing and limits script origins | Generated content includes untrusted LLM output; the SSR-compatible CSP currently permits inline scripts; no output sanitization beyond React defaults |
-| 6 | **Malicious file upload** | Browser → API | Medium — DoS, parser exploitation | 10MB limit, magic byte validation, PDF/DOCX only | No page count limit; no ZIP bomb protection for DOCX; PyMuPDF processes arbitrary PDFs |
+| 6 | **Malicious file upload / oversized request body** | Browser → API | Medium — DoS, parser exploitation | ASGI receive limits reject JSON above 1 MiB, multipart bodies above an 11,010,048-byte transport ceiling, and more than 4,096 body chunks before parsing; upload handling independently enforces a 10MB file limit, magic-byte validation, PDF/DOCX only, and archive bounds | PyMuPDF still processes adversarial PDFs inside the isolated parser budget; deployment proxy limits require staging verification |
 | 7 | **Prompt injection to extract system prompts or influence outputs** | API → Vertex AI | Low-Medium — output manipulation | 17 regex patterns in `input_sanitizer.py` | Regex cannot block all injection vectors; no system prompt hardening / delimiters |
 | 8 | **Account enumeration** | API → Auth | Low — privacy | Login/register return distinct errors; password reset always returns 200 | Login says "Invalid email or password" (ambiguous), but registration says "Email already registered" (distinct) |
 | 9 | **Career-gap inference through telemetry/admin access** | API → analytics store → admin | High — a weakness profile could harm the user professionally | Development events have only closed gap/response/state enums, no user/item identifiers or free text; the admin endpoint returns grouped counts only and remains admin-gated | An administrator can still infer population-level product patterns; admin credential security remains a trust assumption |
@@ -1098,9 +1105,9 @@ authoritative access seam (D-048, ADR 0003); it may not reuse a client-only gate
 
 | Rank | Failure Mode | Affected Asset | Current Protection | Gap |
 |------|-------------|----------------|-------------------|-----|
-| 1 | **Resume/JD leakage via logs or error reports** | Resume text, generated content | Sentry drops bodies, breadcrumb payloads, query strings, credentials, and user context; telemetry rejects unknown/content fields; model/import/email/OAuth failures log only generic categories | Sentry stack traces still expose code paths; processor enablement and retention remain unverified |
+| 1 | **Resume/JD leakage via logs or error reports** | Resume text, generated content | Sentry drops bodies, breadcrumb payloads, query strings, credentials, user context, raw exception values, unsafe contexts, and frame variables; provider chains are suppressed; telemetry rejects unknown/content fields; model/import/email/OAuth failures log only generic categories | Scrubbed stack traces still expose code paths; processor enablement and retention remain unverified |
 | 2 | **Generated content accessible to wrong user** | ToolRun results | User-scoped cache keys; DB queries filter by `user_id` | In-memory cache key includes user scope; no cross-user access observed in code — confidence is high but only code-audit, not penetration-test, verified |
-| 3 | **Browser storage persistence after logout** | sessionStorage data | Tab-scoped sessionStorage clears on tab close; localStorage consent stays | Logout clears pending intent, invalidates query cache, but does not clear tool drafts, workflow context, demo results, or resume-carry from current tab's sessionStorage |
+| 3 | **Browser storage persistence after logout** | sessionStorage data | Explicit logout (including local cleanup after server failure), successful account deletion, and the settings reset clear tool drafts, workflow context, demo results, and resume carry in the current tab; tab close also clears them | Another already-open tab retains its independent tab-scoped copy until that tab logs out, resets, or closes; cross-tab synchronization is deliberately absent under D-011 |
 | 4 | **Password reset link exposure** | Reset token | New links use a fragment that is scrubbed after hydration; single-use password-hash-derived signing invalidates the token on password change | Legacy query-token links remain accepted temporarily for rollout compatibility and are scrubbed client-side |
 | 5 | **Account deletion — data reappears from backup** | All user data | Cascading delete in single transaction; structured log emitted; no backups exist during thesis-demo phase, so no restore-reappearance risk currently | Before R5/beta launch, the accepted backup + restore procedure (D-032) must document how deletions are honored across a restore |
 | 6 | **Incomplete account deletion** | User data | `delete_all_user_data()` explicitly deletes development items, gap classifications, evidence, documents, tool runs, campaigns, and the user; PostgreSQL independently cascades owner rows; derived development recommendations disappear with their classifications | No post-delete verification query; content-free aggregate analytics remain until their 180-day retention boundary, by design; if Sentry is active, previously-captured events remain in Sentry's retention window |

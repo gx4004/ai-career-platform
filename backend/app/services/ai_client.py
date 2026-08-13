@@ -145,14 +145,14 @@ async def _call_vertex(system_prompt: str, user_prompt: str, model_name: str | N
         set_provider_incident("timeout")
         raise TimeoutError(
             f"AI request timed out after {_LLM_TIMEOUT_SECONDS}s. Please try again."
-        )
+        ) from None
     except genai_errors.ClientError as exc:
         if exc.code == 429:
             logger.error("Vertex AI quota exceeded")
             set_provider_incident("quota")
             raise RuntimeError(
                 "AI service quota exceeded. Please try again in a few minutes."
-            ) from exc
+            ) from None
         if exc.code in {401, 403}:
             logger.error(
                 "Vertex AI permission denied for project=%s", settings.VERTEX_PROJECT_ID
@@ -160,20 +160,20 @@ async def _call_vertex(system_prompt: str, user_prompt: str, model_name: str | N
             set_provider_incident("permission")
             raise ProviderConfigurationError(
                 "AI service configuration error. Please contact support."
-            ) from exc
+            ) from None
         logger.error("Vertex AI call failed status=%d", exc.code)
         set_provider_incident("unavailable")
-        raise RuntimeError("AI service temporarily unavailable. Please try again.") from exc
+        raise RuntimeError("AI service temporarily unavailable. Please try again.") from None
     except auth_exceptions.GoogleAuthError as exc:
         logger.error("Vertex AI credentials unavailable error_type=%s", type(exc).__name__)
         set_provider_incident("permission")
         raise ProviderConfigurationError(
             "AI service configuration error. Please contact support."
-        ) from exc
+        ) from None
     except genai_errors.ServerError as exc:
         logger.error("Vertex AI call failed error_type=%s", type(exc).__name__)
         set_provider_incident("unavailable")
-        raise RuntimeError("AI service temporarily unavailable. Please try again.") from exc
+        raise RuntimeError("AI service temporarily unavailable. Please try again.") from None
     except Exception as exc:  # noqa: BLE001 — transport failures have no SDK type
         # The Gen AI SDK does not wrap httpx transport failures (DNS, TLS, refused
         # connection, reset) into an APIError, so an unreachable provider escaped
@@ -182,7 +182,7 @@ async def _call_vertex(system_prompt: str, user_prompt: str, model_name: str | N
         # class used to cover these. Only the error type is logged.
         logger.error("Vertex AI transport failure error_type=%s", type(exc).__name__)
         set_provider_incident("unavailable")
-        raise RuntimeError("AI service temporarily unavailable. Please try again.") from exc
+        raise RuntimeError("AI service temporarily unavailable. Please try again.") from None
     finally:
         if async_client is not None:
             with suppress(Exception):
@@ -224,11 +224,11 @@ async def _call_google_genai(system_prompt: str, user_prompt: str, model_name: s
         set_provider_incident("timeout")
         raise TimeoutError(
             f"AI request timed out after {_LLM_TIMEOUT_SECONDS}s. Please try again."
-        )
+        ) from None
     except Exception as exc:
         logger.error("Google AI call failed error_type=%s", type(exc).__name__)
         set_provider_incident("unavailable")
-        raise RuntimeError("AI service temporarily unavailable. Please try again.")
+        raise RuntimeError("AI service temporarily unavailable. Please try again.") from None
 
     # Record actual token usage before parsing: the tokens were consumed even if
     # the JSON body later fails to parse (R6 cost estimate, issue #106).

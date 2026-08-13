@@ -39,9 +39,12 @@ import {
   interviewResultSchema,
   jobMatchRequestSchema,
   jobMatchResultSchema,
+  loginRequestSchema,
   parsedCvSchema,
+  passwordResetConfirmRequestSchema,
   portfolioRequestSchema,
   portfolioResultSchema,
+  registerRequestSchema,
   resumeAnalyzeRequestSchema,
   resumeResultSchema,
   toolRunDetailSchema,
@@ -56,6 +59,7 @@ import {
   campaignTaskSchema, campaignNoteSchema, campaignContactSchema,
   campaignReminderResponseSchema,
   campaignReviewResponseSchema,
+  careerDataExportSchema,
   cvDocumentCreateSchema,
   cvDocumentListSchema,
   cvDocumentSchema,
@@ -324,24 +328,18 @@ export type HistoryQueryParams = {
 
 // Auth endpoints don't parse response bodies. HttpOnly cookies set by the
 // backend are the sole source of session truth.
-export async function login(payload: { email: string; password: string }): Promise<void> {
+export async function login(payload: z.input<typeof loginRequestSchema>): Promise<void> {
   await request('/auth/login', {
     method: 'POST',
-    body: payload,
+    body: loginRequestSchema.parse(payload),
     schema: authSessionResponseSchema,
   })
 }
 
-export function register(payload: {
-  email: string
-  password: string
-  full_name?: string
-  captcha_token?: string
-  tos_accepted: boolean
-}) {
+export function register(payload: z.input<typeof registerRequestSchema>) {
   return request('/auth/register', {
     method: 'POST',
-    body: payload,
+    body: registerRequestSchema.parse(payload),
     schema: userSchema,
   })
 }
@@ -472,6 +470,13 @@ export function deleteEvidenceItem(itemId: string) {
 
 export function deleteEvidenceProfile() {
   return request<void>('/evidence-profile/items', { method: 'DELETE' })
+}
+
+export function exportCareerData() {
+  return request('/evidence-profile/export', {
+    method: 'GET',
+    schema: careerDataExportSchema,
+  })
 }
 
 // R11 (#146): derive reviewable evidence proposals from parsed resume text.
@@ -678,10 +683,10 @@ export function requestPasswordReset(payload: { email: string }) {
   })
 }
 
-export function confirmPasswordReset(payload: { token: string; new_password: string }) {
+export function confirmPasswordReset(payload: z.input<typeof passwordResetConfirmRequestSchema>) {
   return request<{ message: string }>('/auth/password-reset/confirm', {
     method: 'POST',
-    body: payload,
+    body: passwordResetConfirmRequestSchema.parse(payload),
   })
 }
 

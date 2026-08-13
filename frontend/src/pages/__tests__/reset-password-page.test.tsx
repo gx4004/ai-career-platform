@@ -74,4 +74,21 @@ describe('ResetPasswordPage reset-link privacy', () => {
     expect(window.location.search).toBe('')
     expect(window.location.hash).toBe('')
   })
+
+  it('rejects a reset password over the bcrypt UTF-8 byte limit before submission', async () => {
+    window.history.replaceState({}, '', '/reset-password#token=fragment-token')
+    render(<ResetPasswordPage />)
+
+    const oversized = '🔒'.repeat(19)
+    fireEvent.change(screen.getByLabelText('New password'), {
+      target: { value: oversized },
+    })
+    fireEvent.change(screen.getByLabelText('Confirm password'), {
+      target: { value: oversized },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Reset password' }))
+
+    expect((await screen.findByRole('alert')).textContent).toContain('72 UTF-8 bytes')
+    expect(confirmPasswordResetMock).not.toHaveBeenCalled()
+  })
 })
