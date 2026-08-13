@@ -22,7 +22,9 @@ from app.evals.run_eval import (
     REPORT_SCHEMA_VERSION,
     TOOL_CAREER_PATH,
     TOOL_COVER_LETTER,
+    TOOL_INTERVIEW_QA,
     TOOL_JOB_MATCH,
+    TOOL_PORTFOLIO_PLANNER,
     TOOL_RESUME,
     ToolReport,
     build_report,
@@ -142,6 +144,20 @@ def test_filename_embeds_tool_and_prompt_version() -> None:
     assert name.startswith("resume-")
     assert PROMPT_VERSIONS[TOOL_RESUME] in name
     assert name.endswith("-20260710T153000Z.json")
+
+
+def test_all_tool_reports_identify_the_evidence_aware_prompt_generation() -> None:
+    """R11 evidence injection changed every tool prompt's cache/report identity."""
+    from app.evals.run_eval import PROMPT_VERSIONS
+
+    assert PROMPT_VERSIONS == {
+        TOOL_RESUME: "2026-08-13-v2",
+        TOOL_JOB_MATCH: "2026-08-13-v2",
+        TOOL_CAREER_PATH: "2026-08-13-v2",
+        TOOL_COVER_LETTER: "2026-08-13-v2",
+        TOOL_INTERVIEW_QA: "2026-08-13-v2",
+        TOOL_PORTFOLIO_PLANNER: "2026-08-13-v2",
+    }
 
 
 # --- Deterministic orchestration (no live call) ---
