@@ -334,7 +334,7 @@ def _evaluate_latency(db: Session, now: datetime) -> dict[str, object]:
     # Each tool sustains a breach only if it breaches every one of the last
     # LATENCY_WINDOW_DAYS complete daily windows. A day that recovers resets the
     # streak — that is the false-positive reset the spec requires.
-    per_tool_breaches: dict[str, list[bool]] = {}
+    per_tool_breaches: dict[str, list[bool | None]] = {}
     worst_p95 = 0.0
     evaluated_days = 0
     for day_index in range(1, LATENCY_WINDOW_DAYS + 1):
@@ -357,9 +357,9 @@ def _evaluate_latency(db: Session, now: datetime) -> dict[str, object]:
         day_had_sample = False
         for tool_id, durations in by_tool.items():
             if len(durations) < LATENCY_MIN_DAILY_SAMPLE:
-                # Insufficient sample this day → cannot confirm a breach → the
-                # streak cannot be sustained (records as non-breach).
-                per_tool_breaches.setdefault(tool_id, []).append(False)
+                # Missing evidence is distinct from a healthy daily window: it
+                # can neither sustain a breach nor clear the trigger.
+                per_tool_breaches.setdefault(tool_id, []).append(None)
                 continue
             day_had_sample = True
             p95 = _p95(durations) or 0.0
@@ -371,7 +371,14 @@ def _evaluate_latency(db: Session, now: datetime) -> dict[str, object]:
     sustained = [
         tool_id
         for tool_id, breaches in per_tool_breaches.items()
-        if len(breaches) == LATENCY_WINDOW_DAYS and all(breaches)
+        if len(breaches) == LATENCY_WINDOW_DAYS
+        and all(breach is True for breach in breaches)
+    ]
+    fully_evaluated_tools = [
+        tool_id
+        for tool_id, breaches in per_tool_breaches.items()
+        if len(breaches) == LATENCY_WINDOW_DAYS
+        and all(breach is not None for breach in breaches)
     ]
     abandonment_rows = (
         db.query(AnalyticsEvent.tool_id, func.count(AnalyticsEvent.id))
@@ -404,11 +411,11 @@ def _evaluate_latency(db: Session, now: datetime) -> dict[str, object]:
             f"{sum(abandonment_counts.values())} loader abandonments, but #139 has no "
             "accepted material-elevation threshold."
         )
-    elif evaluated_days == 0:
+    elif not fully_evaluated_tools:
         state = "insufficient_sample"
         evidence = (
-            f"Fewer than {LATENCY_MIN_DAILY_SAMPLE} completed runs per tool on each of "
-            f"the last {LATENCY_WINDOW_DAYS} days; p95 not evaluable."
+            f"No tool had at least {LATENCY_MIN_DAILY_SAMPLE} completed runs on each of "
+            f"the last {LATENCY_WINDOW_DAYS} days; p95 not evaluable across the full window."
         )
     else:
         state = "not_fired"

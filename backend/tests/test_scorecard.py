@@ -228,13 +228,20 @@ def test_cache_trigger_insufficient_when_multi_but_low_sample(db, monkeypatch):
 # ── Latency + false-positive reset (AC per D-056) ──────────────────────────
 
 
-def _insert_latency_day(db, *, days_ago: int, count: int, duration_ms: int):
+def _insert_latency_day(
+    db,
+    *,
+    days_ago: int,
+    count: int,
+    duration_ms: int,
+    tool_id: str = "resume",
+):
     day_at = FIXED_NOW.replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=days_ago) + timedelta(hours=12)
     for _ in range(count):
         _event(
             db,
             event_name="tool_run_completed",
-            tool_id="resume",
+            tool_id=tool_id,
             duration_ms=duration_ms,
             created_at=day_at,
         )
@@ -271,6 +278,31 @@ def test_latency_insufficient_when_daily_sample_too_small(db):
     for day in (1, 2, 3):
         _insert_latency_day(db, days_ago=day, count=5, duration_ms=90000)
     trig = _trigger(compute_scorecard(db, now=FIXED_NOW), "latency_abandonment")
+    assert trig.state == "insufficient_sample"
+
+
+def test_latency_insufficient_when_daily_samples_are_split_across_tools(db):
+    for day, tool_id in ((1, "resume"), (2, "job-match"), (3, "career")):
+        _insert_latency_day(
+            db,
+            days_ago=day,
+            count=25,
+            duration_ms=1000,
+            tool_id=tool_id,
+        )
+
+    trig = _trigger(compute_scorecard(db, now=FIXED_NOW), "latency_abandonment")
+
+    assert trig.state == "insufficient_sample"
+
+
+def test_latency_insufficient_when_one_tool_has_an_under_sampled_day(db):
+    _insert_latency_day(db, days_ago=1, count=25, duration_ms=1000)
+    _insert_latency_day(db, days_ago=2, count=5, duration_ms=1000)
+    _insert_latency_day(db, days_ago=3, count=25, duration_ms=1000)
+
+    trig = _trigger(compute_scorecard(db, now=FIXED_NOW), "latency_abandonment")
+
     assert trig.state == "insufficient_sample"
 
 
