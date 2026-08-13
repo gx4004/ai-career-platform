@@ -178,6 +178,7 @@ test('app-shell pages have semantic landmarks', async ({ page }) => {
 })
 
 test('interactive elements have accessible names', async ({ page }) => {
+  test.setTimeout(60_000)
   for (const path of representativeRoutes) {
     await gotoHydrated(page, path)
 

@@ -227,6 +227,40 @@ def test_resume_text_max_length(client, auth_headers, path, base_payload, _patch
     assert resp.status_code == 422
 
 
+def test_resume_text_bounds_count_unicode_code_points(client, auth_headers, _patch_ai):
+    accepted = client.post(
+        f"{PREFIX}/resume/analyze",
+        json={"resume_text": "🧭" * 50_000},
+        headers=auth_headers,
+    )
+    rejected = client.post(
+        f"{PREFIX}/resume/analyze",
+        json={"resume_text": "🧭" * 50_001},
+        headers=auth_headers,
+    )
+
+    assert accepted.status_code == 200
+    assert rejected.status_code == 422
+
+
+def test_parent_identifier_bound_counts_unicode_code_points(
+    client, auth_headers, _patch_ai
+):
+    accepted = client.post(
+        f"{PREFIX}/resume/analyze",
+        json={"resume_text": VALID_RESUME, "parent_run_id": "🧭" * 100},
+        headers=auth_headers,
+    )
+    rejected = client.post(
+        f"{PREFIX}/resume/analyze",
+        json={"resume_text": VALID_RESUME, "parent_run_id": "🧭" * 101},
+        headers=auth_headers,
+    )
+
+    assert accepted.status_code == 404
+    assert rejected.status_code == 422
+
+
 @pytest.mark.parametrize(
     "path,base_payload",
     [

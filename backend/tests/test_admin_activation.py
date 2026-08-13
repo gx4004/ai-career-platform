@@ -81,6 +81,16 @@ def test_activation_rejects_invalid_tool_id(client, admin_headers):
     assert resp.status_code == 422
 
 
+def test_activation_accepts_backend_operational_tool_id(client, admin_headers):
+    resp = client.get(
+        f"{PREFIX}/admin/activation",
+        params={"tool_id": "cv-quality"},
+        headers=admin_headers,
+    )
+    assert resp.status_code == 200
+    assert resp.json()["tool_id"] == "cv-quality"
+
+
 # --- Shaped response for a window + access-mode filter ---------------------
 
 

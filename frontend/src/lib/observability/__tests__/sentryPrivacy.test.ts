@@ -1,10 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import {
+  SENTRY_TRACES_SAMPLE_RATE,
   scrubSentryBreadcrumb,
   scrubSentryEvent,
 } from '#/lib/observability/sentryPrivacy'
 
 describe('frontend Sentry privacy hooks', () => {
+  it('disables performance transactions that bypass error-event scrubbing', () => {
+    expect(SENTRY_TRACES_SAMPLE_RATE).toBe(0)
+  })
+
   it('removes request content, credentials, query strings, and user PII', () => {
     const event = scrubSentryEvent({
       request: {
@@ -35,7 +40,7 @@ describe('frontend Sentry privacy hooks', () => {
     expect(event.user).toBeUndefined()
   })
 
-  it('removes fetch bodies and strips breadcrumb URL queries', () => {
+  it('removes breadcrumb message and data content', () => {
     const breadcrumb = scrubSentryBreadcrumb({
       category: 'fetch',
       message: '/api/v1/tools?token=secret',
@@ -46,9 +51,39 @@ describe('frontend Sentry privacy hooks', () => {
       },
     })
 
-    expect(breadcrumb.message).toBe('/api/v1/tools')
-    expect(breadcrumb.data?.url).toBe('https://api.example.com/path')
-    expect(breadcrumb.data?.request_body).toBeUndefined()
-    expect(breadcrumb.data?.response_body).toBeUndefined()
+    expect(breadcrumb.message).toBeUndefined()
+    expect(breadcrumb.data).toBeUndefined()
+  })
+
+  it('removes exception messages, local variables, and unsafe contexts', () => {
+    const privateValue = 'private resume for sentinel@example.com'
+    const event = scrubSentryEvent({
+      message: privateValue,
+      logentry: { message: privateValue },
+      contexts: { react: { componentStack: privateValue } },
+      extra: { providerResponse: privateValue },
+      exception: {
+        values: [{
+          type: 'Error',
+          value: privateValue,
+          stacktrace: { frames: [{ function: 'render', vars: { resume: privateValue } }] },
+        }],
+      },
+    })
+
+    expect(JSON.stringify(event)).not.toContain(privateValue)
+    expect(event.exception?.values?.[0]?.type).toBe('Error')
+    expect(event.exception?.values?.[0]?.value).toBe('[scrubbed]')
+    expect(event.exception?.values?.[0]?.stacktrace?.frames?.[0]?.vars).toBeUndefined()
+  })
+
+  it('drops breadcrumbs already attached to an error event', () => {
+    const privateValue = 'private resume for sentinel@example.com'
+    const event = scrubSentryEvent({
+      breadcrumbs: [{ category: 'console', message: privateValue }],
+    })
+
+    expect(JSON.stringify(event)).not.toContain(privateValue)
+    expect(event.breadcrumbs).toBeUndefined()
   })
 })

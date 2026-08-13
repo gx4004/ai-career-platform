@@ -8,7 +8,6 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
-from starlette.concurrency import run_in_threadpool
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.responses import JSONResponse, Response
@@ -50,7 +49,10 @@ from app.routers import (
     telemetry,
 )
 from app.services.observability import configure_logging
-from app.services.rate_limit_events import rate_limit_route_family, record_rate_limit_event
+from app.services.rate_limit_events import (
+    collect_rate_limit_evidence,
+    rate_limit_route_family,
+)
 from app.services.retention import (
     run_activation_prune_scheduler,
     run_database_sample_scheduler,
@@ -60,6 +62,7 @@ from app.services.retention import (
 configure_logging()
 
 _SENSITIVE_HEADERS = {"authorization", "cookie", "set-cookie", "x-csrf-token"}
+SENTRY_TRACES_SAMPLE_RATE = 0.0
 
 
 def _strip_query(value: str) -> str:
@@ -83,6 +86,24 @@ def _scrub_sentry_event(event, _hint):
                 if key.lower() in _SENSITIVE_HEADERS:
                     headers[key] = "[scrubbed]"
     event.pop("user", None)
+    for key in ("message", "logentry", "contexts", "extra", "breadcrumbs"):
+        event.pop(key, None)
+    exception = event.get("exception")
+    if isinstance(exception, dict):
+        values = exception.get("values")
+        if isinstance(values, list):
+            for value in values:
+                if not isinstance(value, dict):
+                    continue
+                value["value"] = "[scrubbed]"
+                stacktrace = value.get("stacktrace")
+                if not isinstance(stacktrace, dict):
+                    continue
+                frames = stacktrace.get("frames")
+                if isinstance(frames, list):
+                    for frame in frames:
+                        if isinstance(frame, dict):
+                            frame.pop("vars", None)
     return event
 
 
@@ -90,12 +111,31 @@ if settings.SENTRY_DSN:
     sentry_sdk.init(
         dsn=settings.SENTRY_DSN,
         environment=settings.ENVIRONMENT,
-        traces_sample_rate=0.1,
+        traces_sample_rate=SENTRY_TRACES_SAMPLE_RATE,
         send_default_pii=False,
+        include_local_variables=False,
         before_send=_scrub_sentry_event,
     )
 
 logger = logging.getLogger(__name__)
+_rate_limit_evidence_tasks: set[asyncio.Task] = set()
+RATE_LIMIT_EVIDENCE_MAX_TASKS = 64
+
+
+def schedule_rate_limit_evidence(*, route_family: str, identity_type: str) -> None:
+    """Collect coalesced evidence off-loop with bounded task bookkeeping."""
+    if len(_rate_limit_evidence_tasks) >= RATE_LIMIT_EVIDENCE_MAX_TASKS:
+        logger.warning("rate_limit_evidence_dropped reason=task_capacity")
+        return
+    task = asyncio.create_task(
+        asyncio.to_thread(
+            collect_rate_limit_evidence,
+            route_family=route_family,
+            identity_type=identity_type,
+        )
+    )
+    _rate_limit_evidence_tasks.add(task)
+    task.add_done_callback(_rate_limit_evidence_tasks.discard)
 
 
 @asynccontextmanager
@@ -149,25 +189,97 @@ app.add_exception_handler(RequestValidationError, request_validation_error_handl
 async def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded):
     identity_type = get_abuse_identity_type(request)
     route_family = rate_limit_route_family(request.url.path)
-    logger.warning(
-        "abuse_limit_exceeded route=%s identity_type=%s",
-        route_family,
-        identity_type,
-    )
-    # Evidence collection must not become the outage it measures (D-054). The
-    # recorder does blocking psycopg2 I/O, and this handler runs on the event loop
-    # under exactly the sustained-abuse traffic #140 exists to detect, so it is
-    # offloaded. Events are still recorded one-for-one: the scorecard counts them
-    # per window, so sampling here would corrupt the accepted threshold.
-    await run_in_threadpool(
-        record_rate_limit_event,
-        route_family=route_family,
-        identity_type=identity_type,
-    )
+    try:
+        schedule_rate_limit_evidence(
+            route_family=route_family,
+            identity_type=identity_type,
+        )
+    except Exception as error:  # defensive: evidence must not replace the 429
+        logger.warning(
+            "rate_limit_evidence_schedule_failed error_type=%s",
+            type(error).__name__,
+        )
     return _rate_limit_exceeded_handler(request, exc)
 
 
 app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
+
+
+JSON_BODY_LIMIT_BYTES = 1_048_576
+MULTIPART_BODY_LIMIT_BYTES = 11_010_048
+# Bound middleware bookkeeping even when a peer emits endless empty/tiny ASGI
+# frames. Normal servers deliver request bodies in much larger chunks.
+REQUEST_BODY_MAX_CHUNKS = 4_096
+
+
+class RequestSizeLimitMiddleware:
+    """Reject oversized request bodies before Starlette parses or buffers them."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http" or scope.get("method") not in {"POST", "PUT", "PATCH"}:
+            await self.app(scope, receive, send)
+            return
+
+        headers = {key.lower(): value for key, value in scope.get("headers", [])}
+        content_type = headers.get(b"content-type", b"").decode("latin-1").lower()
+        limit = (
+            MULTIPART_BODY_LIMIT_BYTES
+            if content_type.startswith("multipart/form-data")
+            else JSON_BODY_LIMIT_BYTES
+        )
+        raw_length = headers.get(b"content-length")
+        if raw_length is not None:
+            try:
+                if int(raw_length) > limit:
+                    await self._reject(send)
+                    return
+            except ValueError:
+                await self._reject(send)
+                return
+
+        buffered = []
+        size = 0
+        chunk_count = 0
+        while True:
+            message = await receive()
+            if message["type"] == "http.disconnect":
+                return
+            if message["type"] != "http.request":
+                continue
+            chunk_count += 1
+            if chunk_count > REQUEST_BODY_MAX_CHUNKS:
+                await self._reject(send)
+                return
+            size += len(message.get("body", b""))
+            if size > limit:
+                await self._reject(send)
+                return
+            buffered.append(message)
+            if not message.get("more_body", False):
+                break
+
+        messages = iter(buffered)
+
+        async def replay_receive():
+            return next(messages, {"type": "http.disconnect"})
+
+        await self.app(scope, replay_receive, send)
+
+    @staticmethod
+    async def _reject(send):
+        body = b'{"detail":"Request body is too large"}'
+        await send({
+            "type": "http.response.start",
+            "status": status.HTTP_413_CONTENT_TOO_LARGE,
+            "headers": [
+                (b"content-type", b"application/json"),
+                (b"content-length", str(len(body)).encode("ascii")),
+            ],
+        })
+        await send({"type": "http.response.body", "body": body})
 
 
 # --- Security headers ---
@@ -182,6 +294,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         return response
 
 
+app.add_middleware(RequestSizeLimitMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(
     SessionMiddleware,

@@ -51,9 +51,6 @@ endpoint exists.
 - Backend dependency resolution is locked: intent lives in `requirements.in`, and
   generated `requirements.txt` pins the complete graph so CI, local development,
   and deployment resolve the same versions (#288).
-- The checkout contains an explicit owner-only `ai_client.py` demo-delay tweak,
-  untracked `.commandcode/` and `.scratch/` state, and unrelated stashes. They must
-  remain preserved and only task-scoped paths may be staged.
 
 ## Known Working Product Shape
 

@@ -1,13 +1,26 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { getAdminActivation, getAdminEvalRuns } from '#/lib/api/admin'
+import {
+  adminOperationalToolIdSchema,
+  getAdminActivation,
+  getAdminEvalRuns,
+} from '#/lib/api/admin'
 import type {
   AdminAccessMode,
   AdminActivation,
   AdminEvalRuns,
+  AdminOperationalToolId,
   EvalRunItem,
 } from '#/lib/api/admin'
 import { toolList } from '#/lib/tools/registry'
+
+const operationalTools: { id: AdminOperationalToolId; label: string }[] = [
+  ...toolList,
+  { id: 'application-reviewer', label: 'Application Reviewer' },
+  { id: 'application-packet', label: 'Application Packet' },
+  { id: 'cv-quality', label: 'CV Quality' },
+  { id: 'cv-tailoring', label: 'CV Tailoring' },
+]
 
 function isoDaysAgo(days: number): string {
   const d = new Date()
@@ -111,7 +124,7 @@ export function EvalRunsSection() {
 
 export function AdminActivationPage() {
   const [accessMode, setAccessMode] = useState<'' | AdminAccessMode>('')
-  const [toolId, setToolId] = useState('')
+  const [toolId, setToolId] = useState<'' | AdminOperationalToolId>('')
   const [start, setStart] = useState(() => isoDaysAgo(14))
   const [end, setEnd] = useState(() => isoDaysAgo(0))
 
@@ -146,11 +159,13 @@ export function AdminActivationPage() {
           <select
             className="admin-toolbar-select"
             value={toolId}
-            onChange={(e) => setToolId(e.target.value)}
+            onChange={(e) => setToolId(
+              e.target.value ? adminOperationalToolIdSchema.parse(e.target.value) : '',
+            )}
             aria-label="Tool"
           >
             <option value="">All tools</option>
-            {toolList.map((tool) => (
+            {operationalTools.map((tool) => (
               <option key={tool.id} value={tool.id}>{tool.label}</option>
             ))}
           </select>

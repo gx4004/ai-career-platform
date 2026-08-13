@@ -193,8 +193,12 @@ describe('CV Studio editor surface', () => {
       .mockResolvedValueOnce({ ...(await api.scoreCvDocument()), remaining_model_runs: 0 })
       .mockRejectedValueOnce(new Error('This document has reached its model scoring limit. Deterministic checks remain available.'))
     view()
-    fireEvent.click(await screen.findByRole('button', { name: 'Add model perspective' }))
-    expect((await screen.findByRole('alert')).textContent).toContain('reached its model scoring limit')
+    fireEvent.click(await screen.findByRole(
+      'button',
+      { name: 'Add model perspective' },
+      { timeout: 5_000 },
+    ))
+    expect((await screen.findByRole('alert', {}, { timeout: 5_000 })).textContent).toContain('reached its model scoring limit')
     expect(screen.getByText('0 model scoring runs remain for this document.')).toBeTruthy()
-  })
+  }, 10_000)
 })

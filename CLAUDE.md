@@ -69,6 +69,10 @@ cd backend && alembic upgrade head        # Run migrations
 ```
 
 ## Code Conventions
+- Hosted GitHub Actions are paused by policy: `.github/workflows/ci.yml` must stay
+  manual-dispatch only. Run all feasible gates locally; pushes may update PRs but
+  must not add automatic `push`, `pull_request`, or scheduled triggers. Only the
+  owner decides when to dispatch the preserved hosted workflow.
 - Tool order: Resume(1) → Job Match(2) → Career Path(3) → Cover Letter(4) → Interview Q&A(5) → Portfolio(6)
 - Tool groups: `primary` (resume, job-match) | `application` (cover-letter, interview) | `planning` (career, portfolio)
 - All tool metadata lives in `frontend/src/lib/tools/registry.ts`

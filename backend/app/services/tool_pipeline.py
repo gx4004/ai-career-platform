@@ -8,6 +8,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.config import settings
+from app.feature_gates import outcome_enabled
 from app.models.user import User
 from app.services.analytics import safe_record_activation_event
 from app.services.evidence_injection import load_profile_for_injection
@@ -115,7 +116,7 @@ async def run_tool_pipeline(
     profile_version: str | None = None
     if (
         settings.EVIDENCE_PROFILE_INJECTION_ENABLED or require_evidence_profile
-    ) and current_user is not None:
+    ) and outcome_enabled("r11") and current_user is not None:
         evidence_payload, profile_version = load_profile_for_injection(db, current_user.id)
         if not evidence_payload.is_empty() and _accepts_evidence_profile(service_fn):
             service_kwargs["evidence_profile"] = evidence_payload

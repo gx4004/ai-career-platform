@@ -86,9 +86,10 @@ ImportSourceFamily = Literal[
 # yielded a usable posting and the user gets the paste fallback.
 ImportOutcome = Literal["success", "fallback", "failure"]
 
-# A rate-limit event retains only a stable route family and whether the limited
-# identity was an authenticated account or a guest. Raw paths, IPs, account IDs,
-# tokens, limiter keys, and exception details have no accepted field.
+# A coalesced rate-limit event retains only a stable route family and whether
+# the threshold bucket contained authenticated accounts, guests, or both. Raw
+# paths, IPs, account IDs, tokens, limiter keys, and exception details have no
+# accepted field.
 RateLimitRouteFamily = Literal[
     "auth",
     "tools",
@@ -104,7 +105,7 @@ RateLimitRouteFamily = Literal[
     "telemetry",
     "other",
 ]
-RateLimitIdentityType = Literal["account", "guest"]
+RateLimitIdentityType = Literal["account", "guest", "mixed"]
 GenerationPhase = Literal["sanitize", "cache", "provider", "persist", "finalize"]
 DatabaseQueryFamily = Literal["history_list", "workspace_list", "admin_runs"]
 DatabaseMetric = Literal["storage_pct", "pool_checkout_ratio"]
@@ -360,7 +361,8 @@ class ActivationEventCreate(BaseModel):
     already rejects unknown fields. Adds the two backend-computed operational
     metrics — `duration_ms` and `cost_estimate` — which no client reports, and
     the two low-cardinality R10 operational dimensions (`operational_dimension`,
-    `operational_outcome`) that carry scaling-trigger evidence (#136, D-053).
+    `operational_outcome`) and bounded numeric evidence that carry scaling-trigger
+    evidence (#136, D-053).
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -428,6 +430,7 @@ class ActivationEventCreate(BaseModel):
             "r10_rate_limit_event": {
                 "operational_dimension",
                 "operational_outcome",
+                "metric_value",
             },
             "r10_generation_phase": {
                 "tool_id",
@@ -489,6 +492,8 @@ class ActivationEventCreate(BaseModel):
             valid = (
                 self.operational_dimension in _R10_ROUTE_FAMILIES
                 and self.operational_outcome in _R10_IDENTITY_TYPES
+                and self.metric_value is not None
+                and self.metric_value >= 1
             )
         elif self.event_name == "r10_generation_phase":
             valid = (

@@ -164,6 +164,38 @@ async def test_default_off_injection_is_a_no_op(db, test_user):
     assert captured["payload"] is None
 
 
+@pytest.mark.asyncio
+async def test_legacy_injection_switch_cannot_bypass_dark_r11(
+    db, test_user, monkeypatch
+):
+    _seed_profile(db, test_user.id)
+    monkeypatch.setattr(settings, "EVIDENCE_PROFILE_INJECTION_ENABLED", True)
+    monkeypatch.setattr(settings, "R11_EVIDENCE_PROFILE_ENABLED", False)
+    captured: dict = {"payload": "sentinel"}
+
+    async def fake_service(
+        resume_text=None, job_description=None, feedback=None, evidence_profile=None
+    ):
+        captured["payload"] = evidence_profile
+        return {"summary": "ok"}
+
+    await run_tool_pipeline(
+        tool_name="resume",
+        service_fn=fake_service,
+        service_kwargs={
+            "resume_text": RESUME,
+            "job_description": None,
+            "feedback": None,
+        },
+        label_fn=lambda r: "label",
+        resume_text=RESUME,
+        current_user=test_user,
+        db=db,
+    )
+
+    assert captured["payload"] is None
+
+
 # ── Cache key: the profile version participates and edits invalidate it ───────
 
 

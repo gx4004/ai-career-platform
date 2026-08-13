@@ -192,6 +192,10 @@ class AbuseCounterStore:
             expiry=expiry,
         )
 
+    def get(self, namespace: str, identity: str) -> int:
+        value = self._storage.get(self._key(namespace, identity))
+        return int(value or 0)
+
     def clear(self, namespace: str, identity: str) -> None:
         self._storage.clear(self._key(namespace, identity))
 

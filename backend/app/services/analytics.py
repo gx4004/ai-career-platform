@@ -9,6 +9,7 @@ from typing import Any
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from app.limiter import abuse_counters
 from app.models.analytics_event import AnalyticsEvent
 from app.schemas.admin import (
     AdminActivationResponse,
@@ -66,7 +67,20 @@ def _quantize_cost(value: Any) -> Decimal | None:
 def record_database_query_timing(
     db: Session, *, query_family: str, started_at: float
 ) -> None:
-    """Persist one bounded representative-query duration (#141, D-053)."""
+    """Persist at most one representative sample per family per minute."""
+    try:
+        sample_number = abuse_counters.increment(
+            "database-query-sample", query_family, expiry=60
+        )
+    except Exception as exc:  # noqa: BLE001 — instrumentation is best-effort
+        logger.warning(
+            "database_query_sample_failed query_family=%s error_type=%s",
+            query_family,
+            type(exc).__name__,
+        )
+        return
+    if sample_number != 1:
+        return
     safe_record_activation_event(
         db,
         event_name="r10_database_query",

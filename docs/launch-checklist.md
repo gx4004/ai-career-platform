@@ -79,11 +79,13 @@ Backend settings to verify in the deployed environment:
 - `CORS_ORIGINS` and `FRONTEND_URL` match the deployed frontend origin.
 - `GOOGLE_REDIRECT_URI` matches the deployed OAuth callback.
 - `RATE_LIMIT_STORAGE_URI` is configured for any non-development deployment.
-- `RATE_LIMIT_HMAC_SECRET` is set and distinct from public examples.
+- `ABUSE_IDENTITY_HMAC_KEY` is set, secret, and distinct from `SECRET_KEY`.
 - `TRUST_PROXY_HEADERS` and `TRUSTED_PROXY_CIDRS` match Railway evidence.
 - `SENTRY_DSN` is either intentionally unset or documented as active.
 - Email provider settings are present if password reset must work.
 - Vertex/Gemini credentials are present with the accepted permission scope.
+- `API_REPLICA_CLASS`, `LATENCY_P95_BUDGET_MS`, `COST_ALERT_USD_24H`, and
+  `DB_CAPACITY_BYTES` match the recorded deployment topology and capacity.
 
 Frontend settings to verify:
 

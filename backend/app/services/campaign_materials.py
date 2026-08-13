@@ -4,6 +4,7 @@ from typing import Literal
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
+from app.feature_gates import outcome_enabled
 from app.models.cv_document import CvDocument, CvVariant
 from app.models.packet_approval_snapshot import PacketApprovalSnapshot
 from app.models.submission_record import SubmissionRecord
@@ -41,19 +42,22 @@ def get_campaign_detail(db: Session, workspace: Workspace, user_id: str) -> Camp
         .all()
     )
     summary = build_workspace_summary(workspace, list(workspace.tool_runs))
-    submission_records = (
-        db.query(SubmissionRecord)
-        .join(
-            PacketApprovalSnapshot,
-            PacketApprovalSnapshot.id == SubmissionRecord.packet_approval_snapshot_id,
+    r16_enabled = outcome_enabled("r16")
+    submission_records = []
+    if r16_enabled:
+        submission_records = (
+            db.query(SubmissionRecord)
+            .join(
+                PacketApprovalSnapshot,
+                PacketApprovalSnapshot.id == SubmissionRecord.packet_approval_snapshot_id,
+            )
+            .filter(
+                SubmissionRecord.user_id == user_id,
+                PacketApprovalSnapshot.campaign_id == workspace.id,
+            )
+            .order_by(SubmissionRecord.submitted_at.asc(), SubmissionRecord.id.asc())
+            .all()
         )
-        .filter(
-            SubmissionRecord.user_id == user_id,
-            PacketApprovalSnapshot.campaign_id == workspace.id,
-        )
-        .order_by(SubmissionRecord.submitted_at.asc(), SubmissionRecord.id.asc())
-        .all()
-    )
     return CampaignDetailResponse(
         **summary.model_dump(),
         selected_materials=CampaignSelectedMaterials(
@@ -75,6 +79,7 @@ def get_campaign_detail(db: Session, workspace: Workspace, user_id: str) -> Camp
                 "created_at": e.created_at,
             }
             for e in workspace.campaign_events
+            if r16_enabled or e.event_type != "submission_confirmed"
         ],
         tasks=list(workspace.campaign_tasks),
         notes=list(workspace.campaign_notes),

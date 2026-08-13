@@ -5,7 +5,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.schemas.analytics import DiscoverySourceFamily
+from app.schemas.analytics import DiscoverySourceFamily, OperationalToolId
 from app.schemas.development import DevelopmentResponseKind, DevelopmentState
 from app.schemas.gap_classification import GapKind
 
@@ -91,7 +91,7 @@ class ToolLatencyCost(BaseModel):
     ``runs`` counts completed runs; cost fields are null when no completed run
     in scope recorded a cost estimate."""
 
-    tool_id: str
+    tool_id: OperationalToolId
     runs: int = 0
     avg_duration_ms: float | None = None
     total_cost_estimate: Decimal | None = None
@@ -103,8 +103,8 @@ class AdminActivationResponse(BaseModel):
 
     window_start: str
     window_end: str
-    access_mode: str | None = None
-    tool_id: str | None = None
+    access_mode: Literal["authenticated", "guest_demo"] | None = None
+    tool_id: OperationalToolId | None = None
     funnel: list[FunnelStepCount] = []
     failures: list[FailureCategoryCount] = []
     tools: list[ToolLatencyCost] = []

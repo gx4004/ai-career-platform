@@ -61,3 +61,9 @@ def test_ci_jobs_have_read_only_checkout_credentials() -> None:
         for step in job.get("steps", []):
             if step.get("uses", "").startswith("actions/checkout@"):
                 assert step.get("with", {}).get("persist-credentials") is False
+
+
+def test_ci_is_manual_dispatch_only() -> None:
+    workflow = yaml.load(CI_WORKFLOW.read_text(), Loader=yaml.BaseLoader)
+
+    assert set(workflow["on"]) == {"workflow_dispatch"}
