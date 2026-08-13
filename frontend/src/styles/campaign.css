@@ -69,12 +69,24 @@
 .campaign-reminders li { display: flex; justify-content: space-between; gap: 1rem; padding-top: .6rem; border-top: 1px solid var(--divider); }
 .campaign-reviewer { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 1.25rem 2rem; align-items: start; margin-bottom: 4rem; padding: 1.5rem; border: 1px solid var(--border-soft); border-radius: var(--radius-xl); background: var(--surface-raised); }
 .campaign-reviewer h2 { margin: .2rem 0 .4rem; color: var(--text-strong); font-size: var(--type-section); }
-.campaign-reviewer > button, .campaign-findings article > button { display: inline-flex; align-items: center; justify-content: center; gap: .5rem; min-height: var(--touch-target); padding: .6rem .9rem; border: 1px solid var(--border-strong); border-radius: var(--radius-md); color: var(--accent-vivid); }
+.campaign-reviewer > button, .campaign-findings article > button, .campaign-development-controls button, .campaign-gap-action button { display: inline-flex; align-items: center; justify-content: center; gap: .5rem; min-height: var(--touch-target); padding: .6rem .9rem; border: 1px solid var(--border-strong); border-radius: var(--radius-md); color: var(--accent-vivid); }
 .campaign-reviewer button svg { width: 1rem; }
 .campaign-findings { grid-column: 1 / -1; display: grid; gap: .8rem; }
 .campaign-findings article { display: grid; gap: .65rem; min-width: 0; padding: 1rem; border: 1px solid var(--divider); border-radius: var(--radius-lg); overflow-wrap: anywhere; }
 .campaign-findings article > div { display: flex; align-items: center; gap: .65rem; }
 .campaign-finding-severity { padding: .2rem .45rem; border-radius: var(--radius-pill); background: var(--surface-focus); font-size: var(--type-xs); text-transform: uppercase; }
 .campaign-findings details ul { padding: .6rem 0 0 1.2rem; }
-@media (max-width: 767px) { .campaign-page { padding-inline: var(--mobile-pad); } .campaign-hero, .campaign-layout, .campaign-tracking-grid, .campaign-reminders, .campaign-reviewer { grid-template-columns: minmax(0, 1fr); } .campaign-hero { gap: 1.25rem; } .campaign-back { margin-bottom: 1.25rem; } .campaign-materials { position: static; } .campaign-section-heading { display: grid; } .campaign-confirmation-content dl > div { grid-template-columns: minmax(0, 1fr); gap: .25rem; } .campaign-reminders button, .campaign-reviewer > button { width: 100%; justify-content: center; } }
+.campaign-development-controls { display: flex; align-items: center; justify-content: space-between; gap: .75rem; padding: .75rem; border: 1px solid var(--divider); border-radius: var(--radius-lg); background: var(--surface-focus); }
+.campaign-development-controls p { max-width: 44rem; }
+.campaign-gap-action { display: grid; gap: .65rem; padding: .85rem; border-left: 3px solid var(--accent-vivid); border-radius: 0 var(--radius-md) var(--radius-md) 0; background: var(--surface-focus); }
+.campaign-gap-action__heading, .campaign-gap-response > div:first-child { display: grid; gap: .2rem; }
+.campaign-gap-action__label { color: var(--text-muted); font-size: var(--type-xs); font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.campaign-gap-response { display: grid; gap: .65rem; }
+.campaign-gap-response h4 { margin: 0; color: var(--text-strong); }
+.campaign-gap-response dl, .campaign-gap-proposal dl { display: grid; gap: .35rem; }
+.campaign-gap-response dl > div, .campaign-gap-proposal dl > div { display: grid; grid-template-columns: minmax(8rem, .45fr) minmax(0, 1fr); gap: .75rem; }
+.campaign-gap-response dt, .campaign-gap-proposal dt { color: var(--text-muted); }
+.campaign-gap-sources, .campaign-gap-proposal ul { padding-left: 1.2rem; }
+.campaign-gap-proposal { display: grid; gap: .5rem; padding: .7rem; border: 1px solid var(--divider); border-radius: var(--radius-md); background: var(--surface-raised); }
+@media (max-width: 767px) { .campaign-page { padding-inline: var(--mobile-pad); } .campaign-hero, .campaign-layout, .campaign-tracking-grid, .campaign-reminders, .campaign-reviewer { grid-template-columns: minmax(0, 1fr); } .campaign-hero { gap: 1.25rem; } .campaign-back { margin-bottom: 1.25rem; } .campaign-materials { position: static; } .campaign-section-heading, .campaign-development-controls { display: grid; } .campaign-confirmation-content dl > div, .campaign-gap-response dl > div, .campaign-gap-proposal dl > div { grid-template-columns: minmax(0, 1fr); gap: .25rem; } .campaign-reminders button, .campaign-reviewer > button, .campaign-development-controls button { width: 100%; justify-content: center; } }
 @media (prefers-reduced-motion: reduce) { .campaign-page *, .campaign-page *::before, .campaign-page *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; } }
