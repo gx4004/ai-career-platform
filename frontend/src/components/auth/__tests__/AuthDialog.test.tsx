@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { useState } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AuthDialog } from '#/components/auth/AuthDialog'
 import { useSession } from '#/hooks/useSession'
@@ -91,6 +92,29 @@ function LogoutButton() {
   return <button onClick={() => void logout()}>Log out</button>
 }
 
+function LoginButton() {
+  const { login } = useSession()
+  return (
+    <button
+      onClick={() =>
+        void login({ email: 'next-owner@example.com', password: 'password123' })
+      }
+    >
+      Log in
+    </button>
+  )
+}
+
+function OwnerLocalStateProbe() {
+  const [draft, setDraft] = useState('')
+  return (
+    <div>
+      <span data-testid="owner-local-state">{draft}</span>
+      <button onClick={() => setDraft('owner-a-local-draft')}>Seed local state</button>
+    </div>
+  )
+}
+
 function renderAuthFlow() {
   const queryClient = new QueryClient({
     defaultOptions: {
@@ -104,7 +128,9 @@ function renderAuthFlow() {
     <QueryClientProvider client={queryClient}>
       <SessionProvider>
         <LandingSignInButton />
+        <LoginButton />
         <LogoutButton />
+        <OwnerLocalStateProbe />
         <AuthDialog />
       </SessionProvider>
     </QueryClientProvider>,
@@ -139,6 +165,7 @@ describe('AuthDialog', () => {
       is_active: true,
     })
     logoutMock.mockResolvedValue(undefined)
+    loginMock.mockResolvedValue(undefined)
   })
 
   it('navigates to /login instead of opening a dialog when openAuthDialog is called', async () => {
@@ -194,6 +221,92 @@ describe('AuthDialog', () => {
     })
   })
 
+  it('purges every owner-scoped query while retaining deployment-level cache on logout', async () => {
+    const { queryClient } = renderAuthFlow()
+    queryClient.setQueryData(['evidence-profile', 'items'], {
+      items: [{ id: 'owner-a-evidence' }],
+    })
+    queryClient.setQueryData(['cv-studio', 'documents'], {
+      items: [{ id: 'owner-a-cv' }],
+    })
+    queryClient.setQueryData(['campaign', 'campaign-a'], {
+      id: 'campaign-a',
+    })
+    queryClient.setQueryData(['discovery', 'recommendations'], {
+      items: [{ id: 'owner-a-recommendation' }],
+    })
+    queryClient.setQueryData(['development-plan', 'items'], {
+      items: [{ id: 'owner-a-development-item' }],
+    })
+    queryClient.setQueryData(['submission-safety', 'u1', 'grant-a'], {
+      status: 'active',
+    })
+    // An unknown future feature must fail closed at the auth boundary instead
+    // of relying on every feature author to remember a cleanup allowlist.
+    queryClient.setQueryData(['future-owner-surface'], {
+      secret: 'owner-a-data',
+    })
+    queryClient.getMutationCache().build(queryClient, {
+      mutationKey: ['future-owner-mutation'],
+      mutationFn: async () => ({ secret: 'owner-a-mutation-result' }),
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Log out' }))
+
+    await waitFor(() => {
+      expect(
+        queryClient
+          .getQueryCache()
+          .getAll()
+          .map((query) => query.queryKey[0])
+          .filter((root) => root !== 'current-user'),
+      ).toEqual(expect.arrayContaining(['auth-providers', 'health']))
+      expect(
+        queryClient
+          .getQueryCache()
+          .getAll()
+          .filter(
+            (query) =>
+              !['current-user', 'auth-providers', 'health'].includes(
+                String(query.queryKey[0]),
+              ),
+          ),
+      ).toEqual([])
+      expect(queryClient.getMutationCache().getAll()).toEqual([])
+    })
+  })
+
+  it('remounts owner-local component state when the authenticated identity ends', async () => {
+    renderAuthFlow()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Seed local state' }))
+    expect(screen.getByTestId('owner-local-state').textContent).toBe(
+      'owner-a-local-draft',
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Log out' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('owner-local-state').textContent).toBe('')
+    })
+  })
+
+  it('purges owner-scoped cache before completing a new authentication', async () => {
+    const { queryClient } = renderAuthFlow()
+    queryClient.setQueryData(['evidence-profile', 'items'], {
+      items: [{ id: 'previous-owner-evidence' }],
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Log in' }))
+
+    await waitFor(() => {
+      expect(loginMock).toHaveBeenCalled()
+      expect(
+        queryClient.getQueriesData({ queryKey: ['evidence-profile'] }),
+      ).toEqual([])
+    })
+  })
+
   it('does NOT open the dialog on cw:session-expired for a never-authed visitor', async () => {
     // Regression guard: Phase 1 security migration removed the `if (token)`
     // gate on session-expired dispatch; the only remaining guard is inside
@@ -222,6 +335,7 @@ describe('AuthDialog', () => {
     })
 
     await new Promise((resolve) => setTimeout(resolve, 0))
+    fireEvent.click(screen.getByRole('button', { name: 'Seed local state' }))
     queryClient.setQueryData(['submission-authorizations', 'u1'], {
       items: [{ id: 'expired-sensitive-grant' }],
     })
@@ -251,6 +365,8 @@ describe('AuthDialog', () => {
       queryClient.getQueriesData({ queryKey: ['submission-authorizations'] }),
     ).toEqual([])
     expect(queryClient.getQueriesData({ queryKey: ['queue'] })).toEqual([])
+    expect(clearSensitiveBrowserDataMock).toHaveBeenCalled()
+    expect(screen.getByTestId('owner-local-state').textContent).toBe('')
 
     Object.defineProperty(window, 'location', {
       value: { ...window.location, pathname: originalPathname, search: originalSearch },
