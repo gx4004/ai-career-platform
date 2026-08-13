@@ -198,7 +198,11 @@ async def _run_tool_pipeline_after_validation(
     # cache scopes across accounts complicates audit and personalization later).
     cached = None
     content_hash = None
-    if not clean_feedback:
+    # A disabled cache is not a cache miss. Skip both the lookup/write seams and
+    # their R10 outcome events so the scaling scorecard sees only real cache
+    # evidence. The phase timing remains present to keep pipeline observability
+    # structurally consistent across configurations.
+    if settings.RESULT_CACHE_ENABLED and not clean_feedback:
         hash_kwargs: dict[str, str] = {}
         if cache_extra_keys:
             hash_kwargs.update(cache_extra_keys)

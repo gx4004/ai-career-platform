@@ -80,6 +80,37 @@ async def test_pipeline_emits_cache_miss_then_write_then_hit(db):
 
 
 @pytest.mark.asyncio
+async def test_disabled_cache_emits_no_false_miss_or_write_evidence(db, monkeypatch):
+    clear_cache()
+    monkeypatch.setattr("app.services.tool_pipeline.settings.RESULT_CACHE_ENABLED", False)
+    service_calls = 0
+
+    async def service(**_):
+        nonlocal service_calls
+        service_calls += 1
+        return {"summary": "ok"}
+
+    kwargs = dict(
+        tool_name="resume",
+        service_fn=service,
+        service_kwargs={},
+        label_fn=lambda result: "label",
+        resume_text="a sufficiently long cache-disabled resume body",
+        db=db,
+        current_user=None,
+    )
+
+    await run_tool_pipeline(**kwargs)
+    await run_tool_pipeline(**kwargs)
+
+    assert service_calls == 2
+    assert _outcomes(db, "r10_cache_outcome") == []
+    phases = [dimension for dimension, _ in _outcomes(db, "r10_generation_phase")]
+    assert phases.count("cache") == 2
+    assert phases.count("provider") == 2
+
+
+@pytest.mark.asyncio
 async def test_pipeline_emits_one_provider_incident_per_failure(db):
     clear_cache()
 
