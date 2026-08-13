@@ -4,7 +4,7 @@ import json
 # schema. Included in the cache key so a rollout immediately invalidates
 # in-flight cached responses instead of serving stale outputs for up to the
 # RESULT_CACHE_TTL_SECONDS window.
-RESUME_PROMPT_VERSION = "2026-04-28-v1"
+RESUME_PROMPT_VERSION = "2026-08-13-v2"
 
 
 def build_resume_prompt(
