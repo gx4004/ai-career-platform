@@ -1,5 +1,6 @@
 from typing import Literal
 
+from pydantic import Field
 from pydantic_settings import BaseSettings
 
 
@@ -68,17 +69,17 @@ class Settings(BaseSettings):
     # Operator-declared deployment topology class. The intended backend starts
     # one Uvicorn process, so `single` is the accurate default; declare `multi`
     # only when two or more API replicas are actually verified (D-052/ADR 0004).
-    API_REPLICA_CLASS: str = "single"
+    API_REPLICA_CLASS: Literal["single", "multi"] = "single"
     # Per-tool submit-to-result p95 latency budget in milliseconds. The latency
     # trigger fires only if this is sustained across consecutive daily windows.
-    LATENCY_P95_BUDGET_MS: int = 60000
+    LATENCY_P95_BUDGET_MS: int = Field(default=60000, gt=0)
     # Provider LLM-cost alert budget over a rolling 24h window, in USD. Feeds the
     # abuse/cost trigger's cost-alert branch (D-057).
-    COST_ALERT_USD_24H: float = 5.0
+    COST_ALERT_USD_24H: float = Field(default=5.0, gt=0, allow_inf_nan=False)
     # Provisioned Postgres capacity in bytes for the storage-headroom signal;
     # 0 means "unknown" and the database trigger reports insufficient evidence
     # for storage rather than guessing (D-058).
-    DB_CAPACITY_BYTES: int = 0
+    DB_CAPACITY_BYTES: int = Field(default=0, ge=0)
 
     CAPTCHA_ENABLED: bool = False
     CAPTCHA_SECRET_KEY: str = ""
