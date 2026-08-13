@@ -27,8 +27,8 @@ import type {
   DiscoveryRecommendation,
   DiscoveryReportReasonCategory,
 } from '#/lib/api/schemas'
+import { DISCOVERY_RECOMMENDATIONS_QUERY_KEY } from '#/lib/query/evidenceCaches'
 
-const RECOMMENDATIONS_KEY = ['discovery', 'recommendations']
 const PERSONALIZATION_KEY = ['discovery', 'personalization']
 
 const REPORT_REASONS: { value: DiscoveryReportReasonCategory; label: string }[] = [
@@ -44,7 +44,7 @@ export function DiscoveryPage() {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const query = useQuery({
-    queryKey: RECOMMENDATIONS_KEY,
+    queryKey: DISCOVERY_RECOMMENDATIONS_QUERY_KEY,
     queryFn: listDiscoveryRecommendations,
     staleTime: 60_000,
   })
@@ -55,7 +55,7 @@ export function DiscoveryPage() {
   })
 
   const invalidateFeed = () => {
-    queryClient.invalidateQueries({ queryKey: RECOMMENDATIONS_KEY })
+    queryClient.invalidateQueries({ queryKey: DISCOVERY_RECOMMENDATIONS_QUERY_KEY })
     queryClient.invalidateQueries({ queryKey: PERSONALIZATION_KEY })
   }
 
