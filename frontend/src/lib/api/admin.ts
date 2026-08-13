@@ -218,23 +218,24 @@ export type AdminActivation = z.infer<typeof adminActivationSchema>
 // (EvalRunItem / AdminEvalRunsResponse). Latest report per tool read from disk
 // (app/evals/reports/), never analytics_events (D-045).
 
-export type EvalRunItem = {
-  tool_id: string
-  has_report: boolean
-  report_schema_version: string | null
-  prompt_version: string | null
-  judge_prompt_version: string | null
-  generated_at: string | null
-  mode: string | null
-  fixtures_evaluated: number | null
-  calibration_miss_rate: number | null
-  fabrication_candidate_count: number | null
-  usefulness_score: number | null
-}
-
-export type AdminEvalRuns = {
-  tools: EvalRunItem[]
-}
+export const evalRunItemSchema = z.strictObject({
+  tool_id: z.string(),
+  has_report: z.boolean(),
+  report_schema_version: z.string().nullable(),
+  prompt_version: z.string().nullable(),
+  judge_prompt_version: z.string().nullable(),
+  generated_at: z.iso.datetime({ offset: true }).nullable(),
+  mode: z.enum(['deterministic', 'live']).nullable(),
+  fixtures_evaluated: z.number().int().nonnegative().nullable(),
+  calibration_miss_rate: z.number().min(0).max(1).nullable(),
+  fabrication_candidate_count: z.number().int().nonnegative().nullable(),
+  usefulness_score: z.number().min(1).max(5).nullable(),
+})
+export const adminEvalRunsSchema = z.strictObject({
+  tools: z.array(evalRunItemSchema),
+})
+export type EvalRunItem = z.infer<typeof evalRunItemSchema>
+export type AdminEvalRuns = z.infer<typeof adminEvalRunsSchema>
 
 // R11 profile-adoption view — mirrors backend/app/schemas/admin.py
 // (ProfileKindCount / ProfileProvenanceCount / ProfileTransitionCount /
@@ -300,34 +301,46 @@ export type AdminDevelopmentLoop = z.infer<typeof adminDevelopmentLoopSchema>
 // same first-party operational store; a fired trigger sets review_required and
 // links its deferred response ticket — the scorecard never enables a response.
 
-export type TriggerState = 'fired' | 'not_fired' | 'insufficient_sample'
-
-export type ScorecardTrigger = {
-  id: string
-  label: string
-  threshold: string
-  observation_window: string
-  minimum_sample: string
-  evidence: string
-  evidence_detail: Record<string, number | string>
-  evidence_fresh: boolean
-  last_evidence_at: string | null
-  state: TriggerState
-  review_required: boolean
-  response_ticket: number
-  response_ticket_title: string
-  owner: string
-  rollback: string
-  exit_criteria: string
-}
-
-export type AdminScorecard = {
-  generated_at: string
-  window_start: string
-  window_end: string
-  replica_class: string
-  triggers: ScorecardTrigger[]
-}
+export const triggerStateSchema = z.enum([
+  'fired',
+  'not_fired',
+  'insufficient_sample',
+])
+export const scorecardTriggerSchema = z.strictObject({
+  id: z.enum([
+    'cache_multi_instance',
+    'provider_incidents',
+    'latency_abandonment',
+    'abuse_cost',
+    'database_growth',
+    'import_concentration',
+  ]),
+  label: z.string(),
+  threshold: z.string(),
+  observation_window: z.string(),
+  minimum_sample: z.string(),
+  evidence: z.string(),
+  evidence_detail: z.record(z.string(), z.union([z.number(), z.string()])),
+  evidence_fresh: z.boolean(),
+  last_evidence_at: z.iso.datetime({ offset: true }).nullable(),
+  state: triggerStateSchema,
+  review_required: z.boolean(),
+  response_ticket: z.number().int().positive(),
+  response_ticket_title: z.string(),
+  owner: z.string(),
+  rollback: z.string(),
+  exit_criteria: z.string(),
+})
+export const adminScorecardSchema = z.strictObject({
+  generated_at: z.iso.datetime({ offset: true }),
+  window_start: z.iso.datetime({ offset: true }),
+  window_end: z.iso.datetime({ offset: true }),
+  replica_class: z.enum(['single', 'multi']),
+  triggers: z.array(scorecardTriggerSchema),
+})
+export type TriggerState = z.infer<typeof triggerStateSchema>
+export type ScorecardTrigger = z.infer<typeof scorecardTriggerSchema>
+export type AdminScorecard = z.infer<typeof adminScorecardSchema>
 
 // R14 per-source health — mirrors backend/app/schemas/admin.py
 // (SourceFamilyHealth / AdminSourceHealthResponse). Read-only aggregate over the
@@ -455,11 +468,11 @@ export function getAdminActivation(
 }
 
 export function getAdminEvalRuns() {
-  return adminRequest<AdminEvalRuns>('/admin/eval-runs')
+  return adminRequest<AdminEvalRuns>('/admin/eval-runs', {}, adminEvalRunsSchema)
 }
 
 export function getAdminScorecard() {
-  return adminRequest<AdminScorecard>('/admin/scorecard')
+  return adminRequest<AdminScorecard>('/admin/scorecard', {}, adminScorecardSchema)
 }
 
 export function getAdminProfileAdoption(
