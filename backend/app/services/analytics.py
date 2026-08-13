@@ -3,11 +3,13 @@ from __future__ import annotations
 import logging
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from time import perf_counter
 from typing import Any
 
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from app.limiter import abuse_counters
 from app.models.analytics_event import AnalyticsEvent
 from app.schemas.admin import (
     AdminActivationResponse,
@@ -62,19 +64,46 @@ def _quantize_cost(value: Any) -> Decimal | None:
     return Decimal(str(value)).quantize(Decimal("0.000001"))
 
 
+def record_database_query_timing(
+    db: Session, *, query_family: str, started_at: float
+) -> None:
+    """Persist at most one representative sample per family per minute."""
+    try:
+        sample_number = abuse_counters.increment(
+            "database-query-sample", query_family, expiry=60
+        )
+    except Exception as exc:  # noqa: BLE001 — instrumentation is best-effort
+        logger.warning(
+            "database_query_sample_failed query_family=%s error_type=%s",
+            query_family,
+            type(exc).__name__,
+        )
+        return
+    if sample_number != 1:
+        return
+    safe_record_activation_event(
+        db,
+        event_name="r10_database_query",
+        operational_dimension=query_family,
+        duration_ms=max(0, int((perf_counter() - started_at) * 1000)),
+    )
+
+
 def aggregate_activation_metrics(
     db: Session,
     *,
     window_start: datetime,
     window_end: datetime,
     access_mode: AccessMode | None = None,
+    tool_id: str | None = None,
 ) -> AdminActivationResponse:
     """Aggregate the activation-event store into the admin dashboard shape (D-039).
 
     Read-only. Returns the six-step funnel counts, failure counts by allowlisted
     category, and per-tool latency/cost (over completed runs), all restricted to
     ``[window_start, window_end]`` (by server ingest time) and, when
-    ``access_mode`` is given, to events tagged with that access mode. Plain
+    ``access_mode`` is given, to events tagged with that access mode. When
+    ``tool_id`` is given, every aggregate is restricted to that tool. Plain
     aggregate counts only — the dashboard renders them as tables, with no
     charting library (ADR 0001).
     """
@@ -86,6 +115,8 @@ def aggregate_activation_metrics(
         )
         if access_mode is not None:
             query = query.filter(AnalyticsEvent.access_mode == access_mode)
+        if tool_id is not None:
+            query = query.filter(AnalyticsEvent.tool_id == tool_id)
         return query
 
     counts_by_name = dict(
@@ -147,6 +178,7 @@ def aggregate_activation_metrics(
         window_start=window_start.isoformat(),
         window_end=window_end.isoformat(),
         access_mode=access_mode,
+        tool_id=tool_id,
         funnel=funnel,
         failures=failures,
         tools=tools,

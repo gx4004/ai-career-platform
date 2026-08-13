@@ -5,6 +5,7 @@ import type {
   ResumeResult,
   ToolRunDetail,
 } from '#/lib/api/schemas'
+import { workspaceContextInputSchema } from '#/lib/api/schemas'
 import type { WorkflowContextState } from '#/lib/tools/drafts'
 import { readWorkflowContext, writeWorkflowContext } from '#/lib/tools/drafts'
 import { getToolByHistoryName, type ToolId } from '#/lib/tools/registry'
@@ -90,7 +91,7 @@ export function buildWorkspaceRequestContext(
   context: WorkflowContextState | null,
 ): {
   workspace_context?: {
-    workspace_id?: string
+    workspace_id?: string | null
     linked_history_ids: string[]
   }
 } {
@@ -106,10 +107,10 @@ export function buildWorkspaceRequestContext(
   }
 
   return {
-    workspace_context: {
+    workspace_context: workspaceContextInputSchema.parse({
       workspace_id: context.workspaceId,
       linked_history_ids: linkedHistoryIds,
-    },
+    }),
   }
 }
 

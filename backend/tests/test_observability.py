@@ -1,7 +1,7 @@
 import json
 import logging
 
-from app.main import _scrub_sentry_event
+from app.main import SENTRY_TRACES_SAMPLE_RATE, _scrub_sentry_event
 from app.schemas.telemetry import TelemetryEventRequest
 from app.services.ai_client import _safe_parse_json
 from app.services.observability import (
@@ -102,6 +102,55 @@ def test_scrub_sentry_event_leaves_url_without_query_alone():
     scrubbed = _scrub_sentry_event(event, None)
 
     assert scrubbed["request"]["url"] == "https://example.com/dashboard"
+
+
+def test_scrub_sentry_event_removes_exception_content_and_frame_variables():
+    private = "private resume for sentinel@example.com"
+    event = {
+        "message": private,
+        "logentry": {"message": private},
+        "contexts": {"react": {"componentStack": private}},
+        "extra": {"provider_response": private},
+        "exception": {
+            "values": [{
+                "type": "RuntimeError",
+                "value": private,
+                "stacktrace": {"frames": [{"function": "complete", "vars": {"prompt": private}}]},
+            }],
+        },
+    }
+
+    scrubbed = _scrub_sentry_event(event, None)
+
+    serialized = json.dumps(scrubbed)
+    assert private not in serialized
+    assert "sentinel@example.com" not in serialized
+    assert scrubbed["exception"]["values"][0]["type"] == "RuntimeError"
+    assert scrubbed["exception"]["values"][0]["value"] == "[scrubbed]"
+    assert "vars" not in scrubbed["exception"]["values"][0]["stacktrace"]["frames"][0]
+
+
+def test_scrub_sentry_event_drops_breadcrumb_content():
+    private = "private resume for sentinel@example.com"
+    event = {
+        "breadcrumbs": {
+            "values": [
+                {
+                    "category": "http",
+                    "message": private,
+                    "data": {"payload": private},
+                }
+            ]
+        }
+    }
+
+    scrubbed = _scrub_sentry_event(event, None)
+
+    assert "breadcrumbs" not in scrubbed
+
+
+def test_sentry_performance_transactions_are_disabled():
+    assert SENTRY_TRACES_SAMPLE_RATE == 0.0
 
 
 def test_malformed_model_output_is_not_written_to_logs(caplog):

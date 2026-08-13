@@ -2,6 +2,7 @@ import '#/lib/i18n'
 import * as Sentry from '@sentry/react'
 import { type ReactNode, useEffect } from 'react'
 import {
+  SENTRY_TRACES_SAMPLE_RATE,
   scrubSentryBreadcrumb,
   scrubSentryEvent,
 } from '#/lib/observability/sentryPrivacy'
@@ -10,7 +11,7 @@ if (import.meta.env.VITE_SENTRY_DSN) {
   Sentry.init({
     dsn: import.meta.env.VITE_SENTRY_DSN,
     environment: import.meta.env.MODE,
-    tracesSampleRate: 0.1,
+    tracesSampleRate: SENTRY_TRACES_SAMPLE_RATE,
     sendDefaultPii: false,
     beforeSend: (event) => scrubSentryEvent(event),
     beforeBreadcrumb: (breadcrumb) => scrubSentryBreadcrumb(breadcrumb),

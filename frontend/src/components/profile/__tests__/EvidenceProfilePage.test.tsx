@@ -9,6 +9,7 @@ const listEvidenceItemsMock = vi.hoisted(() => vi.fn())
 const setConfirmationMock = vi.hoisted(() => vi.fn())
 const updateItemMock = vi.hoisted(() => vi.fn())
 const deleteItemMock = vi.hoisted(() => vi.fn())
+const deleteProfileMock = vi.hoisted(() => vi.fn())
 const openAuthDialogMock = vi.hoisted(() => vi.fn())
 const sessionState = vi.hoisted(() => ({ status: 'authenticated' as string }))
 
@@ -17,6 +18,7 @@ vi.mock('#/lib/api/client', () => ({
   setEvidenceItemConfirmation: setConfirmationMock,
   updateEvidenceItem: updateItemMock,
   deleteEvidenceItem: deleteItemMock,
+  deleteEvidenceProfile: deleteProfileMock,
 }))
 
 vi.mock('#/hooks/useSession', () => ({
@@ -156,7 +158,7 @@ describe('EvidenceProfilePage', () => {
     await waitFor(() => expect(deleteItemMock).toHaveBeenCalledWith('e1'))
   })
 
-  it('deletes the whole profile by removing every item immediately', async () => {
+  it('deletes the whole profile through the atomic bulk endpoint', async () => {
     renderPage()
 
     await screen.findByRole('region', { name: 'Experience' })
@@ -165,10 +167,8 @@ describe('EvidenceProfilePage', () => {
     const dialog = await screen.findByRole('dialog')
     fireEvent.click(within(dialog).getByRole('button', { name: /Delete everything/i }))
 
-    await waitFor(() => {
-      expect(deleteItemMock).toHaveBeenCalledWith('e1')
-      expect(deleteItemMock).toHaveBeenCalledWith('s1')
-    })
+    await waitFor(() => expect(deleteProfileMock).toHaveBeenCalledOnce())
+    expect(deleteItemMock).not.toHaveBeenCalled()
   })
 
   it('shows a sign-in prompt when unauthenticated', () => {

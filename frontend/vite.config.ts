@@ -8,6 +8,7 @@ import tailwindcss from '@tailwindcss/vite'
 import tsconfigPaths from 'vite-tsconfig-paths'
 
 const isTest = process.env.VITEST === 'true'
+const backendPort = process.env.E2E_BACKEND_PORT ?? '8000'
 
 export default defineConfig({
   resolve: {
@@ -16,14 +17,8 @@ export default defineConfig({
   server: {
     proxy: {
       '/api/v1': {
-        target: 'http://127.0.0.1:8000',
+        target: `http://127.0.0.1:${backendPort}`,
         changeOrigin: true,
-      },
-      '/ingest': {
-        target: 'https://us.i.posthog.com',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/ingest/, ''),
-        secure: false,
       },
     },
   },

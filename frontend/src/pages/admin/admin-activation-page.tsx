@@ -1,12 +1,26 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { getAdminActivation, getAdminEvalRuns } from '#/lib/api/admin'
+import {
+  adminOperationalToolIdSchema,
+  getAdminActivation,
+  getAdminEvalRuns,
+} from '#/lib/api/admin'
 import type {
   AdminAccessMode,
   AdminActivation,
   AdminEvalRuns,
+  AdminOperationalToolId,
   EvalRunItem,
 } from '#/lib/api/admin'
+import { toolList } from '#/lib/tools/registry'
+
+const operationalTools: { id: AdminOperationalToolId; label: string }[] = [
+  ...toolList,
+  { id: 'application-reviewer', label: 'Application Reviewer' },
+  { id: 'application-packet', label: 'Application Packet' },
+  { id: 'cv-quality', label: 'CV Quality' },
+  { id: 'cv-tailoring', label: 'CV Tailoring' },
+]
 
 function isoDaysAgo(days: number): string {
   const d = new Date()
@@ -110,14 +124,16 @@ export function EvalRunsSection() {
 
 export function AdminActivationPage() {
   const [accessMode, setAccessMode] = useState<'' | AdminAccessMode>('')
+  const [toolId, setToolId] = useState<'' | AdminOperationalToolId>('')
   const [start, setStart] = useState(() => isoDaysAgo(14))
   const [end, setEnd] = useState(() => isoDaysAgo(0))
 
   const { data, isLoading, isError } = useQuery<AdminActivation>({
-    queryKey: ['admin-activation', accessMode, start, end],
+    queryKey: ['admin-activation', accessMode, toolId, start, end],
     queryFn: () =>
       getAdminActivation({
         access_mode: accessMode || undefined,
+        tool_id: toolId || undefined,
         start: start ? `${start}T00:00:00` : undefined,
         end: end ? `${end}T23:59:59` : undefined,
       }),
@@ -139,6 +155,19 @@ export function AdminActivationPage() {
             <option value="">All access modes</option>
             <option value="authenticated">Authenticated</option>
             <option value="guest_demo">Guest</option>
+          </select>
+          <select
+            className="admin-toolbar-select"
+            value={toolId}
+            onChange={(e) => setToolId(
+              e.target.value ? adminOperationalToolIdSchema.parse(e.target.value) : '',
+            )}
+            aria-label="Tool"
+          >
+            <option value="">All tools</option>
+            {operationalTools.map((tool) => (
+              <option key={tool.id} value={tool.id}>{tool.label}</option>
+            ))}
           </select>
           <input
             className="admin-toolbar-input"

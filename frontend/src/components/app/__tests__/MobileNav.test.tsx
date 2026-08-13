@@ -20,6 +20,12 @@ vi.mock('#/components/mobile/ToolGridSheet', () => ({ ToolGridSheet: () => null 
 
 describe('MobileNav discovery visibility', () => {
   beforeEach(() => {
+    for (const flag of [
+      'VITE_R11_EVIDENCE_PROFILE_ENABLED',
+      'VITE_R12_CV_STUDIO_ENABLED',
+      'VITE_R13_CAMPAIGNS_ENABLED',
+      'VITE_R14_DISCOVERY_ENABLED',
+    ]) vi.stubEnv(flag, 'true')
     pathname.current = '/dashboard'
     sessionUser.current = { id: 'user-1' }
   })

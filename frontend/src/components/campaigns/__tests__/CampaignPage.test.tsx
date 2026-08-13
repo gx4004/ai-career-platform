@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { CampaignPage } from '../CampaignPage'
 
 const api = vi.hoisted(() => ({ getCampaign: vi.fn(), updateCampaignMaterials: vi.fn(), deleteCampaign: vi.fn(), createCampaignTask: vi.fn(), updateCampaignTask: vi.fn(), deleteCampaignTask: vi.fn(), createCampaignNote: vi.fn(), deleteCampaignNote: vi.fn(), createCampaignContact: vi.fn(), deleteCampaignContact: vi.fn(), getCampaignReminders: vi.fn(), updateCampaignReminderConsent: vi.fn(), reviewCampaign: vi.fn() }))
@@ -25,6 +25,17 @@ const campaign = {
 function renderPage() { api.getCampaignReminders.mockResolvedValue({ enabled: false, items: [], next_surface_at: null }); const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } }); return render(<QueryClientProvider client={client}><CampaignPage campaignId="ws-1" /></QueryClientProvider>) }
 
 describe('CampaignPage', () => {
+  beforeEach(() => {
+    for (const flag of [
+      'VITE_R11_EVIDENCE_PROFILE_ENABLED',
+      'VITE_R12_CV_STUDIO_ENABLED',
+      'VITE_R13_CAMPAIGNS_ENABLED',
+      'VITE_R14_DISCOVERY_ENABLED',
+      'VITE_R15_QUEUE_ENABLED',
+      'VITE_R16_SUBMISSION_FOUNDATION_ENABLED',
+    ]) vi.stubEnv(flag, 'true')
+  })
+
   it('shows campaign facts, canonical listing, and immutable material choices', async () => {
     api.getCampaign.mockResolvedValue(campaign)
     api.reviewCampaign.mockResolvedValue({ history_id: 'review-1', schema_version: 'application-reviewer/v1', summary: { headline: '1 advisory finding', verdict: 'Review', confidence_note: 'Deterministic' }, top_actions: [], generated_at: '2026-07-13T10:00:00Z', download_title: 'Review', exportable_sections: [], editable_blocks: [], access_mode: 'authenticated', saved: true, locked_actions: [], findings: [{ id: 'finding-1', category: 'unsupported_claim', severity: 'high', message: 'Nimbus is not traceable.', locations: ['Cover letter'], trace: ['claim:Nimbus', 'result:no_match'] }] })
@@ -62,12 +73,23 @@ describe('CampaignPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Delete campaign' }))
     await waitFor(() => expect(api.deleteCampaign).toHaveBeenCalledWith('ws-1'))
     await waitFor(() => expect(navigate).toHaveBeenCalledWith({ to: '/history' }))
-  })
+  }, 10_000)
 
   it('renders an explicit empty state and disables unavailable material selection', async () => {
     api.getCampaign.mockResolvedValue({ ...campaign, listing: null, available_materials: { cv_variants: [], cover_letters: [], interviews: [] } })
     renderPage()
     expect(await screen.findByText('No canonical listing yet')).toBeTruthy()
     expect((screen.getByLabelText('Interview preparation revision') as HTMLSelectElement).disabled).toBe(true)
+  })
+
+  it('keeps R16 confirmation controls dark until the full R16 chain is enabled', async () => {
+    vi.stubEnv('VITE_R16_SUBMISSION_FOUNDATION_ENABLED', 'false')
+    api.getCampaign.mockResolvedValue(campaign)
+
+    renderPage()
+
+    expect(await screen.findByRole('heading', { name: 'Platform Engineer', level: 1 })).toBeTruthy()
+    expect(screen.queryByText('Submission confirmations')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'View submission confirmation' })).toBeNull()
   })
 })

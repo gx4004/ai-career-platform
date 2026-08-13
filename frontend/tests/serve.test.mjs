@@ -75,7 +75,11 @@ function assertBaselineHeaders(headers) {
 }
 
 test('frontend responses apply deployment-compatible security headers', async (t) => {
-  const origin = await startFixture(t)
+  const origin = await startFixture(t, {
+    // Historical PostHog variables must not expand the current processor allowlist.
+    VITE_PUBLIC_POSTHOG_HOST: 'https://us.i.posthog.com',
+    VITE_PUBLIC_POSTHOG_INGESTION_HOST: 'https://posthog.example.test',
+  })
   const html = await fetch(origin)
   const asset = await fetch(`${origin}/assets/app.js`)
 
@@ -91,6 +95,7 @@ test('frontend responses apply deployment-compatible security headers', async (t
     html.headers.get('content-security-policy'),
     /font-src 'self' https:\/\/fonts\.gstatic\.com/,
   )
+  assert.doesNotMatch(html.headers.get('content-security-policy'), /posthog/)
 })
 
 test('HSTS is emitted only for a trusted HTTPS-forwarded response', async (t) => {

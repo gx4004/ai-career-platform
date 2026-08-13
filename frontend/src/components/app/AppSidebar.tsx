@@ -33,6 +33,12 @@ import {
 import { cn } from '#/lib/utils'
 import { registryEntries, toolList } from '#/lib/tools/registry'
 import { toolAccentStyle } from '#/lib/tools/styleUtils'
+import {
+  isR11EvidenceProfileEnabled,
+  isR12CvStudioEnabled,
+  isR14DiscoveryEnabled,
+  isR15QueueEnabled,
+} from '#/lib/flags/featureFlags'
 
 const accountNavItems = [
   { label: 'History', icon: History, route: '/history' },
@@ -55,6 +61,17 @@ export function AppSidebar() {
   const isCollapsedDesktop = !isMobile && state === 'collapsed'
   const isDesktopToolRoute =
     !isMobile && toolList.some((tool) => pathname === tool.route)
+  const visibleRegistryEntries = registryEntries.filter(
+    (entry) => entry.id !== 'cv-studio' || isR12CvStudioEnabled(),
+  )
+  const visibleAccountNavItems = accountNavItems.filter(
+    (item) => item.route !== '/profile' || isR11EvidenceProfileEnabled(),
+  )
+  const visibleAuthenticatedNavItems = authenticatedNavItems.filter((item) => {
+    if (item.route === '/discovery') return isR14DiscoveryEnabled()
+    if (item.route === '/queue') return isR15QueueEnabled()
+    return true
+  })
 
   return (
     <Sidebar className="app-sidebar-shell" collapsible="icon">
@@ -123,7 +140,7 @@ export function AppSidebar() {
           <SidebarGroupLabel>Career Tools</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {registryEntries.map((tool) => (
+              {visibleRegistryEntries.map((tool) => (
                 <SidebarMenuItem key={tool.id}>
                   <SidebarMenuButton
                     asChild
@@ -149,7 +166,7 @@ export function AppSidebar() {
               <SidebarGroupLabel>Opportunities</SidebarGroupLabel>
               <SidebarGroupContent>
                 <SidebarMenu>
-                  {authenticatedNavItems.map((item) => (
+                  {visibleAuthenticatedNavItems.map((item) => (
                     <SidebarMenuItem key={item.route}>
                       <SidebarMenuButton
                         asChild
@@ -173,7 +190,7 @@ export function AppSidebar() {
       <SidebarFooter className="app-sidebar-footer">
         <SidebarSeparator />
         <SidebarMenu>
-          {accountNavItems.map((item) => (
+          {visibleAccountNavItems.map((item) => (
             <SidebarMenuItem key={item.route}>
               <SidebarMenuButton
                 asChild

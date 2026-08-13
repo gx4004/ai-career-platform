@@ -97,3 +97,43 @@ export function isR7ValueSpecificSignupEnabled(): boolean {
 export function isR7ResultsNudgeEnabled(): boolean {
   return readBooleanFlag(import.meta.env.VITE_R7_RESULTS_NUDGE)
 }
+
+/**
+ * Provisional R11–R17 outcomes are built ahead but must remain dark until their
+ * accepted roadmap gates close. Downstream flags require every upstream flag,
+ * preventing a deployment typo from exposing an incomplete dependency chain.
+ * The backend enforces the same chain authoritatively.
+ */
+export function isR11EvidenceProfileEnabled(): boolean {
+  return readBooleanFlag(import.meta.env.VITE_R11_EVIDENCE_PROFILE_ENABLED)
+}
+
+export function isR12CvStudioEnabled(): boolean {
+  return isR11EvidenceProfileEnabled()
+    && readBooleanFlag(import.meta.env.VITE_R12_CV_STUDIO_ENABLED)
+}
+
+export function isR13CampaignsEnabled(): boolean {
+  return isR12CvStudioEnabled()
+    && readBooleanFlag(import.meta.env.VITE_R13_CAMPAIGNS_ENABLED)
+}
+
+export function isR14DiscoveryEnabled(): boolean {
+  return isR13CampaignsEnabled()
+    && readBooleanFlag(import.meta.env.VITE_R14_DISCOVERY_ENABLED)
+}
+
+export function isR15QueueEnabled(): boolean {
+  return isR14DiscoveryEnabled()
+    && readBooleanFlag(import.meta.env.VITE_R15_QUEUE_ENABLED)
+}
+
+export function isR16SubmissionFoundationEnabled(): boolean {
+  return isR15QueueEnabled()
+    && readBooleanFlag(import.meta.env.VITE_R16_SUBMISSION_FOUNDATION_ENABLED)
+}
+
+export function isR17DevelopmentLoopEnabled(): boolean {
+  return isR16SubmissionFoundationEnabled()
+    && readBooleanFlag(import.meta.env.VITE_R17_DEVELOPMENT_LOOP_ENABLED)
+}

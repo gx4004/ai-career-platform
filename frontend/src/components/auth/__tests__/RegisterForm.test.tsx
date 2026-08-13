@@ -97,4 +97,19 @@ describe('RegisterForm — auth_signup_source telemetry (D-040)', () => {
       ),
     ).toHaveLength(0)
   })
+
+  it('rejects a new password over the bcrypt UTF-8 byte limit before submission', async () => {
+    render(<RegisterForm />)
+    fireEvent.change(screen.getByLabelText('Email'), {
+      target: { value: 'new.user@example.com' },
+    })
+    fireEvent.change(screen.getByLabelText('Password'), {
+      target: { value: '🔒'.repeat(19) },
+    })
+    fireEvent.click(screen.getByRole('checkbox'))
+    fireEvent.click(screen.getByRole('button', { name: 'Create free account' }))
+
+    expect((await screen.findByRole('alert')).textContent).toContain('72 UTF-8 bytes')
+    expect(registerMock).not.toHaveBeenCalled()
+  })
 })

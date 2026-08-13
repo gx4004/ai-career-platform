@@ -4,6 +4,7 @@ import logging
 from datetime import UTC, datetime
 from typing import Any
 
+from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from app.models.campaign_event import CampaignEvent
@@ -27,6 +28,7 @@ from app.services.packet_gate import delete_queue_pause_state
 from app.services.premium_outputs import attach_premium_outputs
 from app.services.queue_audit import delete_queue_audit_events
 from app.services.queue_rules import delete_queue_rules
+from app.services.result_access import evaluate_result_access
 from app.services.submission_authorizations import delete_submission_authorizations
 from app.services.submissions import delete_submission_records
 from app.services.workspaces import resolve_workspace, touch_workspace
@@ -144,12 +146,18 @@ def build_tool_response(
     access_mode: str,
 ) -> dict[str, Any]:
     enriched = attach_premium_outputs(tool_name, result)
+    access_decision = evaluate_result_access(
+        surface="live_result",
+        tool_name=tool_name,
+        access_mode=access_mode,
+    )
     return {
         **enriched,
         "history_id": history_id,
         "access_mode": access_mode,
         "saved": history_id is not None,
         "locked_actions": [] if history_id else GUEST_LOCKED_ACTIONS,
+        "access_decision": access_decision.model_dump(),
     }
 
 
@@ -168,6 +176,12 @@ def persist_tool_run(
     if current_user is None:
         return None
 
+    require_valid_parent_run(
+        db,
+        current_user=current_user,
+        tool_name=tool_name,
+        parent_run_id=parent_run_id,
+    )
     linked_ids = _unique_strings(linked_context_ids)
     workspace = resolve_workspace(
         db,
@@ -195,6 +209,31 @@ def persist_tool_run(
     db.commit()
     db.refresh(run)
     return run
+
+
+def require_valid_parent_run(
+    db: Session,
+    *,
+    current_user: User,
+    tool_name: str,
+    parent_run_id: str | None,
+) -> ToolRun | None:
+    """Resolve an append-only revision parent without revealing another owner."""
+    if parent_run_id is None:
+        return None
+
+    parent = (
+        db.query(ToolRun)
+        .filter(
+            ToolRun.id == parent_run_id,
+            ToolRun.user_id == current_user.id,
+            ToolRun.tool_name == tool_name,
+        )
+        .first()
+    )
+    if parent is None:
+        raise HTTPException(status_code=404, detail="Parent run not found")
+    return parent
 
 
 def attach_workspace_meta(

@@ -28,6 +28,13 @@ const workflowContext: WorkflowContextState = {
     access_mode: 'authenticated',
     saved: true,
     locked_actions: [],
+    access_decision: {
+      state: 'full',
+      treatment: 'control',
+      reason: 'policy_disabled',
+      can_export: true,
+      policy_version: 'control-v1',
+    },
     overall_score: 78,
     score_breakdown: [],
     strengths: ['Clear backend scope'],
@@ -57,6 +64,13 @@ const workflowContext: WorkflowContextState = {
     access_mode: 'authenticated',
     saved: true,
     locked_actions: [],
+    access_decision: {
+      state: 'full',
+      treatment: 'control',
+      reason: 'policy_disabled',
+      can_export: true,
+      policy_version: 'control-v1',
+    },
     match_score: 68,
     verdict: 'borderline',
     requirements: [
@@ -101,6 +115,21 @@ describe('applicationHandoff', () => {
 
     expect(payload.resume_analysis?.history_id).toBe('r1')
     expect(payload.job_match?.history_id).toBe('j1')
+    expect(payload.resume_analysis).not.toHaveProperty('overall_score')
+    expect(payload.resume_analysis).not.toHaveProperty('schema_version')
+    expect(payload.job_match).not.toHaveProperty('schema_version')
+  })
+
+  it('rejects a handoff that exceeds the backend list bound', () => {
+    const oversized = {
+      ...workflowContext,
+      resumeAnalysis: {
+        ...workflowContext.resumeAnalysis,
+        strengths: Array.from({ length: 101 }, () => 'signal'),
+      },
+    } as WorkflowContextState
+
+    expect(() => getApplicationHandoffPayload(oversized)).toThrow()
   })
 
   it('extracts cover letter handoff seeds from job match', () => {

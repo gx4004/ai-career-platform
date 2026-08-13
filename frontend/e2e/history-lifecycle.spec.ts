@@ -28,8 +28,16 @@ async function register(page: Page, identity: string) {
   await page.locator('#register-email').fill(email)
   await page.locator('#register-password').fill(password)
   await page.locator('#register-tos').check()
+  const responsePromise = page.waitForResponse(
+    (response) =>
+      response.url() === `${apiUrl}/auth/register` && response.request().method() === 'POST',
+  )
   await page.getByRole('button', { name: 'Create free account' }).click()
-  await expect(page.getByRole('heading', { name: 'You are already signed in' })).toBeVisible()
+  const response = await responsePromise
+  expect(response.ok()).toBe(true)
+  await expect(page.getByRole('heading', { name: 'You are already signed in' })).toBeVisible({
+    timeout: 15_000,
+  })
   return email
 }
 
@@ -167,7 +175,7 @@ test('deleting one run preserves its workspace and deleting the final run remove
 })
 
 test('empty state renders when no runs exist', async ({ page }) => {
-  test.setTimeout(30_000)
+  test.setTimeout(60_000)
   await register(page, 'Empty')
   await gotoHydrated(page, '/history')
   await expect(page.getByText(/no runs found/i)).toBeVisible()

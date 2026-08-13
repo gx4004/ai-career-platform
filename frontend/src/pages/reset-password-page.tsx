@@ -2,6 +2,7 @@ import { Link, useSearch } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
 import { AlertCircle, CheckCircle2, Eye, EyeOff, Lock } from 'lucide-react'
 import { confirmPasswordReset } from '#/lib/api/client'
+import { newPasswordSchema } from '#/lib/api/schemas'
 import { FadeUp } from '#/components/ui/motion'
 import { Button } from '#/components/ui/button'
 import { Input } from '#/components/ui/input'
@@ -109,8 +110,9 @@ export function ResetPasswordPage() {
     e.preventDefault()
     setError('')
 
-    if (password.length < 8) {
-      setError('Password must be at least 8 characters.')
+    const passwordResult = newPasswordSchema.safeParse(password)
+    if (!passwordResult.success) {
+      setError(passwordResult.error.issues[0]?.message || 'Password is invalid')
       return
     }
     if (password !== confirm) {
@@ -153,7 +155,7 @@ export function ResetPasswordPage() {
                   id="new-password"
                   type={showPassword ? 'text' : 'password'}
                   className="auth-input pr-11"
-                  placeholder="At least 8 characters"
+                  placeholder="8+ characters, at most 72 UTF-8 bytes"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   autoComplete="new-password"

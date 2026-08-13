@@ -1,9 +1,26 @@
 from pydantic import BaseModel, EmailStr, field_validator
 
+from app.schemas.validation import utf8_size
+
+
+def _validate_bcrypt_password(value: str) -> str:
+    if utf8_size(value) > 72:
+        raise ValueError("Password must be at most 72 UTF-8 bytes")
+    return value
+
 
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
+
+    @field_validator("password")
+    @classmethod
+    def password_is_valid_utf8(cls, v: str) -> str:
+        # Existing bcrypt hashes created before the 72-byte registration bound
+        # must remain usable. Only validate encoding at login; enforce the new
+        # byte ceiling when creating or replacing a password.
+        utf8_size(v)
+        return v
 
 
 class RegisterRequest(BaseModel):
@@ -16,9 +33,10 @@ class RegisterRequest(BaseModel):
     @field_validator("password")
     @classmethod
     def password_strength(cls, v: str) -> str:
+        utf8_size(v)
         if len(v) < 8:
             raise ValueError("Password must be at least 8 characters")
-        return v
+        return _validate_bcrypt_password(v)
 
     @field_validator("tos_accepted")
     @classmethod
@@ -26,10 +44,6 @@ class RegisterRequest(BaseModel):
         if not v:
             raise ValueError("You must accept the Terms of Service")
         return v
-
-
-class RefreshTokenRequest(BaseModel):
-    refresh_token: str = ""
 
 
 class PasswordResetRequest(BaseModel):
@@ -43,15 +57,14 @@ class PasswordResetConfirm(BaseModel):
     @field_validator("new_password")
     @classmethod
     def password_strength(cls, v: str) -> str:
+        utf8_size(v)
         if len(v) < 8:
             raise ValueError("Password must be at least 8 characters")
-        return v
+        return _validate_bcrypt_password(v)
 
 
-class TokenResponse(BaseModel):
-    access_token: str
-    refresh_token: str
-    token_type: str = "bearer"
+class AuthSessionResponse(BaseModel):
+    ok: bool = True
 
 
 class UserResponse(BaseModel):

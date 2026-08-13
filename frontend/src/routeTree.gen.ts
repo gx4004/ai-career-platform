@@ -9,152 +9,52 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as TermsRouteImport } from './routes/terms'
-import { Route as SettingsRouteImport } from './routes/settings'
-import { Route as ResumeRouteImport } from './routes/resume'
-import { Route as ResetPasswordRouteImport } from './routes/reset-password'
-import { Route as QueueRouteImport } from './routes/queue'
-import { Route as ProfileRouteImport } from './routes/profile'
-import { Route as PrivacyRouteImport } from './routes/privacy'
-import { Route as PortfolioRouteImport } from './routes/portfolio'
-import { Route as LoginRouteImport } from './routes/login'
-import { Route as JobMatchRouteImport } from './routes/job-match'
-import { Route as InterviewRouteImport } from './routes/interview'
-import { Route as ImprintRouteImport } from './routes/imprint'
-import { Route as HistoryRouteImport } from './routes/history'
-import { Route as DiscoveryRouteImport } from './routes/discovery'
-import { Route as DevelopmentPlanRouteImport } from './routes/development-plan'
-import { Route as DashboardRouteImport } from './routes/dashboard'
-import { Route as CvStudioRouteImport } from './routes/cv-studio'
-import { Route as CoverLetterRouteImport } from './routes/cover-letter'
-import { Route as CookiesRouteImport } from './routes/cookies'
-import { Route as CareerRouteImport } from './routes/career'
-import { Route as AdminRouteImport } from './routes/admin'
-import { Route as AccountRouteImport } from './routes/account'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AccountRouteImport } from './routes/account'
+import { Route as AdminRouteImport } from './routes/admin'
+import { Route as CareerRouteImport } from './routes/career'
+import { Route as CookiesRouteImport } from './routes/cookies'
+import { Route as CoverLetterRouteImport } from './routes/cover-letter'
+import { Route as CvStudioRouteImport } from './routes/cv-studio'
+import { Route as DashboardRouteImport } from './routes/dashboard'
+import { Route as DevelopmentPlanRouteImport } from './routes/development-plan'
+import { Route as DiscoveryRouteImport } from './routes/discovery'
+import { Route as HistoryRouteImport } from './routes/history'
+import { Route as ImprintRouteImport } from './routes/imprint'
+import { Route as InterviewRouteImport } from './routes/interview'
+import { Route as JobMatchRouteImport } from './routes/job-match'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as PortfolioRouteImport } from './routes/portfolio'
+import { Route as PrivacyRouteImport } from './routes/privacy'
+import { Route as ProfileRouteImport } from './routes/profile'
+import { Route as QueueRouteImport } from './routes/queue'
+import { Route as ResetPasswordRouteImport } from './routes/reset-password'
+import { Route as ResumeRouteImport } from './routes/resume'
+import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as TermsRouteImport } from './routes/terms'
 import { Route as AdminIndexRouteImport } from './routes/admin/index'
-import { Route as CampaignsCampaignIdRouteImport } from './routes/campaigns.$campaignId'
-import { Route as AdminUsersRouteImport } from './routes/admin/users'
-import { Route as AdminSubmissionQualityRouteImport } from './routes/admin/submission-quality'
-import { Route as AdminSourceHealthRouteImport } from './routes/admin/source-health'
-import { Route as AdminScorecardRouteImport } from './routes/admin/scorecard'
-import { Route as AdminRunsRouteImport } from './routes/admin/runs'
-import { Route as AdminProfileAdoptionRouteImport } from './routes/admin/profile-adoption'
-import { Route as AdminPacketGateRouteImport } from './routes/admin/packet-gate'
-import { Route as AdminDiscoverySourcesRouteImport } from './routes/admin/discovery-sources'
-import { Route as AdminDiscoveryReportsRouteImport } from './routes/admin/discovery-reports'
-import { Route as AdminDevelopmentLoopRouteImport } from './routes/admin/development-loop'
 import { Route as AdminActivationRouteImport } from './routes/admin/activation'
-import { Route as ResumeResultHistoryIdRouteImport } from './routes/resume_.result.$historyId'
-import { Route as PortfolioResultHistoryIdRouteImport } from './routes/portfolio_.result.$historyId'
-import { Route as JobMatchResultHistoryIdRouteImport } from './routes/job-match_.result.$historyId'
-import { Route as InterviewResultHistoryIdRouteImport } from './routes/interview_.result.$historyId'
-import { Route as CoverLetterResultHistoryIdRouteImport } from './routes/cover-letter_.result.$historyId'
+import { Route as AdminDevelopmentLoopRouteImport } from './routes/admin/development-loop'
+import { Route as AdminDiscoveryReportsRouteImport } from './routes/admin/discovery-reports'
+import { Route as AdminDiscoverySourcesRouteImport } from './routes/admin/discovery-sources'
+import { Route as AdminPacketGateRouteImport } from './routes/admin/packet-gate'
+import { Route as AdminProfileAdoptionRouteImport } from './routes/admin/profile-adoption'
+import { Route as AdminRunsRouteImport } from './routes/admin/runs'
+import { Route as AdminScorecardRouteImport } from './routes/admin/scorecard'
+import { Route as AdminSourceHealthRouteImport } from './routes/admin/source-health'
+import { Route as AdminSubmissionQualityRouteImport } from './routes/admin/submission-quality'
+import { Route as AdminUsersRouteImport } from './routes/admin/users'
+import { Route as CampaignsCampaignIdRouteImport } from './routes/campaigns.$campaignId'
 import { Route as CareerResultHistoryIdRouteImport } from './routes/career_.result.$historyId'
+import { Route as CoverLetterResultHistoryIdRouteImport } from './routes/cover-letter_.result.$historyId'
+import { Route as InterviewResultHistoryIdRouteImport } from './routes/interview_.result.$historyId'
+import { Route as JobMatchResultHistoryIdRouteImport } from './routes/job-match_.result.$historyId'
+import { Route as PortfolioResultHistoryIdRouteImport } from './routes/portfolio_.result.$historyId'
+import { Route as ResumeResultHistoryIdRouteImport } from './routes/resume_.result.$historyId'
 
-const TermsRoute = TermsRouteImport.update({
-  id: '/terms',
-  path: '/terms',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SettingsRoute = SettingsRouteImport.update({
-  id: '/settings',
-  path: '/settings',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ResumeRoute = ResumeRouteImport.update({
-  id: '/resume',
-  path: '/resume',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ResetPasswordRoute = ResetPasswordRouteImport.update({
-  id: '/reset-password',
-  path: '/reset-password',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const QueueRoute = QueueRouteImport.update({
-  id: '/queue',
-  path: '/queue',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ProfileRoute = ProfileRouteImport.update({
-  id: '/profile',
-  path: '/profile',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PrivacyRoute = PrivacyRouteImport.update({
-  id: '/privacy',
-  path: '/privacy',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PortfolioRoute = PortfolioRouteImport.update({
-  id: '/portfolio',
-  path: '/portfolio',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LoginRoute = LoginRouteImport.update({
-  id: '/login',
-  path: '/login',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const JobMatchRoute = JobMatchRouteImport.update({
-  id: '/job-match',
-  path: '/job-match',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const InterviewRoute = InterviewRouteImport.update({
-  id: '/interview',
-  path: '/interview',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ImprintRoute = ImprintRouteImport.update({
-  id: '/imprint',
-  path: '/imprint',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const HistoryRoute = HistoryRouteImport.update({
-  id: '/history',
-  path: '/history',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DiscoveryRoute = DiscoveryRouteImport.update({
-  id: '/discovery',
-  path: '/discovery',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DevelopmentPlanRoute = DevelopmentPlanRouteImport.update({
-  id: '/development-plan',
-  path: '/development-plan',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DashboardRoute = DashboardRouteImport.update({
-  id: '/dashboard',
-  path: '/dashboard',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const CvStudioRoute = CvStudioRouteImport.update({
-  id: '/cv-studio',
-  path: '/cv-studio',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const CoverLetterRoute = CoverLetterRouteImport.update({
-  id: '/cover-letter',
-  path: '/cover-letter',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const CookiesRoute = CookiesRouteImport.update({
-  id: '/cookies',
-  path: '/cookies',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const CareerRoute = CareerRouteImport.update({
-  id: '/career',
-  path: '/career',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AdminRoute = AdminRouteImport.update({
-  id: '/admin',
-  path: '/admin',
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AccountRoute = AccountRouteImport.update({
@@ -162,9 +62,109 @@ const AccountRoute = AccountRouteImport.update({
   path: '/account',
   getParentRoute: () => rootRouteImport,
 } as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
+const AdminRoute = AdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CareerRoute = CareerRouteImport.update({
+  id: '/career',
+  path: '/career',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CookiesRoute = CookiesRouteImport.update({
+  id: '/cookies',
+  path: '/cookies',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CoverLetterRoute = CoverLetterRouteImport.update({
+  id: '/cover-letter',
+  path: '/cover-letter',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CvStudioRoute = CvStudioRouteImport.update({
+  id: '/cv-studio',
+  path: '/cv-studio',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DashboardRoute = DashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DevelopmentPlanRoute = DevelopmentPlanRouteImport.update({
+  id: '/development-plan',
+  path: '/development-plan',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DiscoveryRoute = DiscoveryRouteImport.update({
+  id: '/discovery',
+  path: '/discovery',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HistoryRoute = HistoryRouteImport.update({
+  id: '/history',
+  path: '/history',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ImprintRoute = ImprintRouteImport.update({
+  id: '/imprint',
+  path: '/imprint',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const InterviewRoute = InterviewRouteImport.update({
+  id: '/interview',
+  path: '/interview',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const JobMatchRoute = JobMatchRouteImport.update({
+  id: '/job-match',
+  path: '/job-match',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PortfolioRoute = PortfolioRouteImport.update({
+  id: '/portfolio',
+  path: '/portfolio',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProfileRoute = ProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const QueueRoute = QueueRouteImport.update({
+  id: '/queue',
+  path: '/queue',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ResetPasswordRoute = ResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ResumeRoute = ResumeRouteImport.update({
+  id: '/resume',
+  path: '/resume',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TermsRoute = TermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminIndexRoute = AdminIndexRouteImport.update({
@@ -172,54 +172,9 @@ const AdminIndexRoute = AdminIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AdminRoute,
 } as any)
-const CampaignsCampaignIdRoute = CampaignsCampaignIdRouteImport.update({
-  id: '/campaigns/$campaignId',
-  path: '/campaigns/$campaignId',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AdminUsersRoute = AdminUsersRouteImport.update({
-  id: '/users',
-  path: '/users',
-  getParentRoute: () => AdminRoute,
-} as any)
-const AdminSubmissionQualityRoute = AdminSubmissionQualityRouteImport.update({
-  id: '/submission-quality',
-  path: '/submission-quality',
-  getParentRoute: () => AdminRoute,
-} as any)
-const AdminSourceHealthRoute = AdminSourceHealthRouteImport.update({
-  id: '/source-health',
-  path: '/source-health',
-  getParentRoute: () => AdminRoute,
-} as any)
-const AdminScorecardRoute = AdminScorecardRouteImport.update({
-  id: '/scorecard',
-  path: '/scorecard',
-  getParentRoute: () => AdminRoute,
-} as any)
-const AdminRunsRoute = AdminRunsRouteImport.update({
-  id: '/runs',
-  path: '/runs',
-  getParentRoute: () => AdminRoute,
-} as any)
-const AdminProfileAdoptionRoute = AdminProfileAdoptionRouteImport.update({
-  id: '/profile-adoption',
-  path: '/profile-adoption',
-  getParentRoute: () => AdminRoute,
-} as any)
-const AdminPacketGateRoute = AdminPacketGateRouteImport.update({
-  id: '/packet-gate',
-  path: '/packet-gate',
-  getParentRoute: () => AdminRoute,
-} as any)
-const AdminDiscoverySourcesRoute = AdminDiscoverySourcesRouteImport.update({
-  id: '/discovery-sources',
-  path: '/discovery-sources',
-  getParentRoute: () => AdminRoute,
-} as any)
-const AdminDiscoveryReportsRoute = AdminDiscoveryReportsRouteImport.update({
-  id: '/discovery-reports',
-  path: '/discovery-reports',
+const AdminActivationRoute = AdminActivationRouteImport.update({
+  id: '/activation',
+  path: '/activation',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminDevelopmentLoopRoute = AdminDevelopmentLoopRouteImport.update({
@@ -227,14 +182,76 @@ const AdminDevelopmentLoopRoute = AdminDevelopmentLoopRouteImport.update({
   path: '/development-loop',
   getParentRoute: () => AdminRoute,
 } as any)
-const AdminActivationRoute = AdminActivationRouteImport.update({
-  id: '/activation',
-  path: '/activation',
+const AdminDiscoveryReportsRoute = AdminDiscoveryReportsRouteImport.update({
+  id: '/discovery-reports',
+  path: '/discovery-reports',
   getParentRoute: () => AdminRoute,
 } as any)
-const ResumeResultHistoryIdRoute = ResumeResultHistoryIdRouteImport.update({
-  id: '/resume_/result/$historyId',
-  path: '/resume/result/$historyId',
+const AdminDiscoverySourcesRoute = AdminDiscoverySourcesRouteImport.update({
+  id: '/discovery-sources',
+  path: '/discovery-sources',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminPacketGateRoute = AdminPacketGateRouteImport.update({
+  id: '/packet-gate',
+  path: '/packet-gate',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminProfileAdoptionRoute = AdminProfileAdoptionRouteImport.update({
+  id: '/profile-adoption',
+  path: '/profile-adoption',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminRunsRoute = AdminRunsRouteImport.update({
+  id: '/runs',
+  path: '/runs',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminScorecardRoute = AdminScorecardRouteImport.update({
+  id: '/scorecard',
+  path: '/scorecard',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminSourceHealthRoute = AdminSourceHealthRouteImport.update({
+  id: '/source-health',
+  path: '/source-health',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminSubmissionQualityRoute = AdminSubmissionQualityRouteImport.update({
+  id: '/submission-quality',
+  path: '/submission-quality',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminUsersRoute = AdminUsersRouteImport.update({
+  id: '/users',
+  path: '/users',
+  getParentRoute: () => AdminRoute,
+} as any)
+const CampaignsCampaignIdRoute = CampaignsCampaignIdRouteImport.update({
+  id: '/campaigns/$campaignId',
+  path: '/campaigns/$campaignId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CareerResultHistoryIdRoute = CareerResultHistoryIdRouteImport.update({
+  id: '/career_/result/$historyId',
+  path: '/career/result/$historyId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CoverLetterResultHistoryIdRoute =
+  CoverLetterResultHistoryIdRouteImport.update({
+    id: '/cover-letter_/result/$historyId',
+    path: '/cover-letter/result/$historyId',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const InterviewResultHistoryIdRoute =
+  InterviewResultHistoryIdRouteImport.update({
+    id: '/interview_/result/$historyId',
+    path: '/interview/result/$historyId',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const JobMatchResultHistoryIdRoute = JobMatchResultHistoryIdRouteImport.update({
+  id: '/job-match_/result/$historyId',
+  path: '/job-match/result/$historyId',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PortfolioResultHistoryIdRoute =
@@ -243,26 +260,9 @@ const PortfolioResultHistoryIdRoute =
     path: '/portfolio/result/$historyId',
     getParentRoute: () => rootRouteImport,
   } as any)
-const JobMatchResultHistoryIdRoute = JobMatchResultHistoryIdRouteImport.update({
-  id: '/job-match_/result/$historyId',
-  path: '/job-match/result/$historyId',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const InterviewResultHistoryIdRoute =
-  InterviewResultHistoryIdRouteImport.update({
-    id: '/interview_/result/$historyId',
-    path: '/interview/result/$historyId',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const CoverLetterResultHistoryIdRoute =
-  CoverLetterResultHistoryIdRouteImport.update({
-    id: '/cover-letter_/result/$historyId',
-    path: '/cover-letter/result/$historyId',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const CareerResultHistoryIdRoute = CareerResultHistoryIdRouteImport.update({
-  id: '/career_/result/$historyId',
-  path: '/career/result/$historyId',
+const ResumeResultHistoryIdRoute = ResumeResultHistoryIdRouteImport.update({
+  id: '/resume_/result/$historyId',
+  path: '/resume/result/$historyId',
   getParentRoute: () => rootRouteImport,
 } as any)
 
@@ -567,151 +567,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/terms': {
-      id: '/terms'
-      path: '/terms'
-      fullPath: '/terms'
-      preLoaderRoute: typeof TermsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/settings': {
-      id: '/settings'
-      path: '/settings'
-      fullPath: '/settings'
-      preLoaderRoute: typeof SettingsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/resume': {
-      id: '/resume'
-      path: '/resume'
-      fullPath: '/resume'
-      preLoaderRoute: typeof ResumeRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/reset-password': {
-      id: '/reset-password'
-      path: '/reset-password'
-      fullPath: '/reset-password'
-      preLoaderRoute: typeof ResetPasswordRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/queue': {
-      id: '/queue'
-      path: '/queue'
-      fullPath: '/queue'
-      preLoaderRoute: typeof QueueRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/profile': {
-      id: '/profile'
-      path: '/profile'
-      fullPath: '/profile'
-      preLoaderRoute: typeof ProfileRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/privacy': {
-      id: '/privacy'
-      path: '/privacy'
-      fullPath: '/privacy'
-      preLoaderRoute: typeof PrivacyRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/portfolio': {
-      id: '/portfolio'
-      path: '/portfolio'
-      fullPath: '/portfolio'
-      preLoaderRoute: typeof PortfolioRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/login': {
-      id: '/login'
-      path: '/login'
-      fullPath: '/login'
-      preLoaderRoute: typeof LoginRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/job-match': {
-      id: '/job-match'
-      path: '/job-match'
-      fullPath: '/job-match'
-      preLoaderRoute: typeof JobMatchRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/interview': {
-      id: '/interview'
-      path: '/interview'
-      fullPath: '/interview'
-      preLoaderRoute: typeof InterviewRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/imprint': {
-      id: '/imprint'
-      path: '/imprint'
-      fullPath: '/imprint'
-      preLoaderRoute: typeof ImprintRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/history': {
-      id: '/history'
-      path: '/history'
-      fullPath: '/history'
-      preLoaderRoute: typeof HistoryRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/discovery': {
-      id: '/discovery'
-      path: '/discovery'
-      fullPath: '/discovery'
-      preLoaderRoute: typeof DiscoveryRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/development-plan': {
-      id: '/development-plan'
-      path: '/development-plan'
-      fullPath: '/development-plan'
-      preLoaderRoute: typeof DevelopmentPlanRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/dashboard': {
-      id: '/dashboard'
-      path: '/dashboard'
-      fullPath: '/dashboard'
-      preLoaderRoute: typeof DashboardRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/cv-studio': {
-      id: '/cv-studio'
-      path: '/cv-studio'
-      fullPath: '/cv-studio'
-      preLoaderRoute: typeof CvStudioRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/cover-letter': {
-      id: '/cover-letter'
-      path: '/cover-letter'
-      fullPath: '/cover-letter'
-      preLoaderRoute: typeof CoverLetterRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/cookies': {
-      id: '/cookies'
-      path: '/cookies'
-      fullPath: '/cookies'
-      preLoaderRoute: typeof CookiesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/career': {
-      id: '/career'
-      path: '/career'
-      fullPath: '/career'
-      preLoaderRoute: typeof CareerRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/admin': {
-      id: '/admin'
-      path: '/admin'
-      fullPath: '/admin'
-      preLoaderRoute: typeof AdminRouteImport
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/account': {
@@ -721,11 +581,151 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AccountRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+    '/admin': {
+      id: '/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AdminRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/career': {
+      id: '/career'
+      path: '/career'
+      fullPath: '/career'
+      preLoaderRoute: typeof CareerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/cookies': {
+      id: '/cookies'
+      path: '/cookies'
+      fullPath: '/cookies'
+      preLoaderRoute: typeof CookiesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/cover-letter': {
+      id: '/cover-letter'
+      path: '/cover-letter'
+      fullPath: '/cover-letter'
+      preLoaderRoute: typeof CoverLetterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/cv-studio': {
+      id: '/cv-studio'
+      path: '/cv-studio'
+      fullPath: '/cv-studio'
+      preLoaderRoute: typeof CvStudioRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/dashboard': {
+      id: '/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof DashboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/development-plan': {
+      id: '/development-plan'
+      path: '/development-plan'
+      fullPath: '/development-plan'
+      preLoaderRoute: typeof DevelopmentPlanRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/discovery': {
+      id: '/discovery'
+      path: '/discovery'
+      fullPath: '/discovery'
+      preLoaderRoute: typeof DiscoveryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/history': {
+      id: '/history'
+      path: '/history'
+      fullPath: '/history'
+      preLoaderRoute: typeof HistoryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/imprint': {
+      id: '/imprint'
+      path: '/imprint'
+      fullPath: '/imprint'
+      preLoaderRoute: typeof ImprintRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/interview': {
+      id: '/interview'
+      path: '/interview'
+      fullPath: '/interview'
+      preLoaderRoute: typeof InterviewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/job-match': {
+      id: '/job-match'
+      path: '/job-match'
+      fullPath: '/job-match'
+      preLoaderRoute: typeof JobMatchRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/portfolio': {
+      id: '/portfolio'
+      path: '/portfolio'
+      fullPath: '/portfolio'
+      preLoaderRoute: typeof PortfolioRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/profile': {
+      id: '/profile'
+      path: '/profile'
+      fullPath: '/profile'
+      preLoaderRoute: typeof ProfileRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/queue': {
+      id: '/queue'
+      path: '/queue'
+      fullPath: '/queue'
+      preLoaderRoute: typeof QueueRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reset-password': {
+      id: '/reset-password'
+      path: '/reset-password'
+      fullPath: '/reset-password'
+      preLoaderRoute: typeof ResetPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/resume': {
+      id: '/resume'
+      path: '/resume'
+      fullPath: '/resume'
+      preLoaderRoute: typeof ResumeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/terms': {
+      id: '/terms'
+      path: '/terms'
+      fullPath: '/terms'
+      preLoaderRoute: typeof TermsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin/': {
@@ -735,74 +735,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminIndexRouteImport
       parentRoute: typeof AdminRoute
     }
-    '/campaigns/$campaignId': {
-      id: '/campaigns/$campaignId'
-      path: '/campaigns/$campaignId'
-      fullPath: '/campaigns/$campaignId'
-      preLoaderRoute: typeof CampaignsCampaignIdRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/admin/users': {
-      id: '/admin/users'
-      path: '/users'
-      fullPath: '/admin/users'
-      preLoaderRoute: typeof AdminUsersRouteImport
-      parentRoute: typeof AdminRoute
-    }
-    '/admin/submission-quality': {
-      id: '/admin/submission-quality'
-      path: '/submission-quality'
-      fullPath: '/admin/submission-quality'
-      preLoaderRoute: typeof AdminSubmissionQualityRouteImport
-      parentRoute: typeof AdminRoute
-    }
-    '/admin/source-health': {
-      id: '/admin/source-health'
-      path: '/source-health'
-      fullPath: '/admin/source-health'
-      preLoaderRoute: typeof AdminSourceHealthRouteImport
-      parentRoute: typeof AdminRoute
-    }
-    '/admin/scorecard': {
-      id: '/admin/scorecard'
-      path: '/scorecard'
-      fullPath: '/admin/scorecard'
-      preLoaderRoute: typeof AdminScorecardRouteImport
-      parentRoute: typeof AdminRoute
-    }
-    '/admin/runs': {
-      id: '/admin/runs'
-      path: '/runs'
-      fullPath: '/admin/runs'
-      preLoaderRoute: typeof AdminRunsRouteImport
-      parentRoute: typeof AdminRoute
-    }
-    '/admin/profile-adoption': {
-      id: '/admin/profile-adoption'
-      path: '/profile-adoption'
-      fullPath: '/admin/profile-adoption'
-      preLoaderRoute: typeof AdminProfileAdoptionRouteImport
-      parentRoute: typeof AdminRoute
-    }
-    '/admin/packet-gate': {
-      id: '/admin/packet-gate'
-      path: '/packet-gate'
-      fullPath: '/admin/packet-gate'
-      preLoaderRoute: typeof AdminPacketGateRouteImport
-      parentRoute: typeof AdminRoute
-    }
-    '/admin/discovery-sources': {
-      id: '/admin/discovery-sources'
-      path: '/discovery-sources'
-      fullPath: '/admin/discovery-sources'
-      preLoaderRoute: typeof AdminDiscoverySourcesRouteImport
-      parentRoute: typeof AdminRoute
-    }
-    '/admin/discovery-reports': {
-      id: '/admin/discovery-reports'
-      path: '/discovery-reports'
-      fullPath: '/admin/discovery-reports'
-      preLoaderRoute: typeof AdminDiscoveryReportsRouteImport
+    '/admin/activation': {
+      id: '/admin/activation'
+      path: '/activation'
+      fullPath: '/admin/activation'
+      preLoaderRoute: typeof AdminActivationRouteImport
       parentRoute: typeof AdminRoute
     }
     '/admin/development-loop': {
@@ -812,39 +749,81 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminDevelopmentLoopRouteImport
       parentRoute: typeof AdminRoute
     }
-    '/admin/activation': {
-      id: '/admin/activation'
-      path: '/activation'
-      fullPath: '/admin/activation'
-      preLoaderRoute: typeof AdminActivationRouteImport
+    '/admin/discovery-reports': {
+      id: '/admin/discovery-reports'
+      path: '/discovery-reports'
+      fullPath: '/admin/discovery-reports'
+      preLoaderRoute: typeof AdminDiscoveryReportsRouteImport
       parentRoute: typeof AdminRoute
     }
-    '/resume_/result/$historyId': {
-      id: '/resume_/result/$historyId'
-      path: '/resume/result/$historyId'
-      fullPath: '/resume/result/$historyId'
-      preLoaderRoute: typeof ResumeResultHistoryIdRouteImport
+    '/admin/discovery-sources': {
+      id: '/admin/discovery-sources'
+      path: '/discovery-sources'
+      fullPath: '/admin/discovery-sources'
+      preLoaderRoute: typeof AdminDiscoverySourcesRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/packet-gate': {
+      id: '/admin/packet-gate'
+      path: '/packet-gate'
+      fullPath: '/admin/packet-gate'
+      preLoaderRoute: typeof AdminPacketGateRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/profile-adoption': {
+      id: '/admin/profile-adoption'
+      path: '/profile-adoption'
+      fullPath: '/admin/profile-adoption'
+      preLoaderRoute: typeof AdminProfileAdoptionRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/runs': {
+      id: '/admin/runs'
+      path: '/runs'
+      fullPath: '/admin/runs'
+      preLoaderRoute: typeof AdminRunsRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/scorecard': {
+      id: '/admin/scorecard'
+      path: '/scorecard'
+      fullPath: '/admin/scorecard'
+      preLoaderRoute: typeof AdminScorecardRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/source-health': {
+      id: '/admin/source-health'
+      path: '/source-health'
+      fullPath: '/admin/source-health'
+      preLoaderRoute: typeof AdminSourceHealthRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/submission-quality': {
+      id: '/admin/submission-quality'
+      path: '/submission-quality'
+      fullPath: '/admin/submission-quality'
+      preLoaderRoute: typeof AdminSubmissionQualityRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/users': {
+      id: '/admin/users'
+      path: '/users'
+      fullPath: '/admin/users'
+      preLoaderRoute: typeof AdminUsersRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/campaigns/$campaignId': {
+      id: '/campaigns/$campaignId'
+      path: '/campaigns/$campaignId'
+      fullPath: '/campaigns/$campaignId'
+      preLoaderRoute: typeof CampaignsCampaignIdRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/portfolio_/result/$historyId': {
-      id: '/portfolio_/result/$historyId'
-      path: '/portfolio/result/$historyId'
-      fullPath: '/portfolio/result/$historyId'
-      preLoaderRoute: typeof PortfolioResultHistoryIdRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/job-match_/result/$historyId': {
-      id: '/job-match_/result/$historyId'
-      path: '/job-match/result/$historyId'
-      fullPath: '/job-match/result/$historyId'
-      preLoaderRoute: typeof JobMatchResultHistoryIdRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/interview_/result/$historyId': {
-      id: '/interview_/result/$historyId'
-      path: '/interview/result/$historyId'
-      fullPath: '/interview/result/$historyId'
-      preLoaderRoute: typeof InterviewResultHistoryIdRouteImport
+    '/career_/result/$historyId': {
+      id: '/career_/result/$historyId'
+      path: '/career/result/$historyId'
+      fullPath: '/career/result/$historyId'
+      preLoaderRoute: typeof CareerResultHistoryIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/cover-letter_/result/$historyId': {
@@ -854,11 +833,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CoverLetterResultHistoryIdRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/career_/result/$historyId': {
-      id: '/career_/result/$historyId'
-      path: '/career/result/$historyId'
-      fullPath: '/career/result/$historyId'
-      preLoaderRoute: typeof CareerResultHistoryIdRouteImport
+    '/interview_/result/$historyId': {
+      id: '/interview_/result/$historyId'
+      path: '/interview/result/$historyId'
+      fullPath: '/interview/result/$historyId'
+      preLoaderRoute: typeof InterviewResultHistoryIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/job-match_/result/$historyId': {
+      id: '/job-match_/result/$historyId'
+      path: '/job-match/result/$historyId'
+      fullPath: '/job-match/result/$historyId'
+      preLoaderRoute: typeof JobMatchResultHistoryIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/portfolio_/result/$historyId': {
+      id: '/portfolio_/result/$historyId'
+      path: '/portfolio/result/$historyId'
+      fullPath: '/portfolio/result/$historyId'
+      preLoaderRoute: typeof PortfolioResultHistoryIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/resume_/result/$historyId': {
+      id: '/resume_/result/$historyId'
+      path: '/resume/result/$historyId'
+      fullPath: '/resume/result/$historyId'
+      preLoaderRoute: typeof ResumeResultHistoryIdRouteImport
       parentRoute: typeof rootRouteImport
     }
   }

@@ -16,21 +16,20 @@ import { AppStatePanel } from '#/components/app/AppStatePanel'
 import { useSession } from '#/hooks/useSession'
 import { useResumeCarry } from '#/hooks/use-resume-carry'
 import {
+  deleteEvidenceProfile,
   deleteEvidenceItem,
   listEvidenceItems,
   setEvidenceItemConfirmation,
   updateEvidenceItem,
 } from '#/lib/api/client'
 import type { EvidenceItem } from '#/lib/api/schemas'
-import { countByState, groupItemsByKind } from '#/lib/profile/evidence'
+import { EVIDENCE_QUERY_KEY, countByState, groupItemsByKind } from '#/lib/profile/evidence'
 import { EvidenceItemCard } from '#/components/profile/EvidenceItemCard'
 import {
   CorrectEvidenceDialog,
   type CorrectionSubmit,
 } from '#/components/profile/CorrectEvidenceDialog'
 import { ResumeImportDialog } from '#/components/profile/ResumeImportDialog'
-
-const EVIDENCE_QUERY_KEY = ['evidence-profile', 'items'] as const
 
 export function EvidenceProfilePage() {
   const { status, openAuthDialog } = useSession()
@@ -109,13 +108,8 @@ export function EvidenceProfilePage() {
     onSettled: () => setPendingItemId(null),
   })
 
-  // No dedicated whole-profile delete endpoint exists; deletion is composed from
-  // the per-item DELETE so erasure is immediate and complete (D-065).
   const purgeMutation = useMutation({
-    mutationFn: async () => {
-      const current = await listEvidenceItems()
-      await Promise.all(current.items.map((item) => deleteEvidenceItem(item.id)))
-    },
+    mutationFn: () => deleteEvidenceProfile(),
     onSuccess: async () => {
       setPurgeOpen(false)
       await invalidate()

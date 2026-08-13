@@ -1,7 +1,7 @@
 # Career Workbench — Product Specification
 
 **Status:** canonical product contract
-**Last reviewed:** 2026-07-07
+**Last reviewed:** 2026-08-13
 **Posture:** thesis demo mode today; the eventual first release is a free private
 beta (D-028). Monetization is deferred (D-019, D-020).
 
@@ -21,8 +21,9 @@ the next, which is the product advantage over six standalone generators.
 
 The long-term direction — Evidence Profile, premium CV Studio, Application
 Campaigns, lawful job discovery, and trust-staged application automation — is owned
-by `docs/product-direction.md` and gated by the roadmap (R11+). None of it is a
-current implementation claim.
+by `docs/product-direction.md` and gated by the roadmap (R11+). Repository foundations
+for R11–R17 exist as default-dark build-ahead code under D-120; none is an enabled
+product, production-readiness, or outcome-completion claim.
 
 ## 2. Access Modes
 
@@ -132,7 +133,8 @@ Per `docs/roadmap.md` non-goals and accepted decisions:
 - CAPTCHA beyond the evidence-triggered posture in `docs/architecture.md`;
 - LLM streaming, multi-provider fallback (single Vertex AI provider, D-006);
 - native mobile apps (responsive web only, D-015);
-- collaboration/sharing, A/B testing framework, CV version management;
+- collaboration/sharing, a general A/B testing framework, and activation of the
+  roadmap-gated CV variant-management foundation;
 - new tools before the existing six are validated.
 
 ## 10. Related Documents

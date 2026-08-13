@@ -28,6 +28,11 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.models.analytics_event import AnalyticsEvent
 from app.schemas.admin import AdminScorecardResponse, ScorecardTrigger, TriggerState
+from app.services.analytics import safe_record_activation_event
+from app.services.rate_limit_events import (
+    RATE_LIMIT_BUCKET_SECONDS,
+    RATE_LIMIT_EVIDENCE_THRESHOLD,
+)
 
 logger = logging.getLogger("app.scorecard")
 
@@ -47,6 +52,9 @@ LATENCY_WINDOW_DAYS = 3
 LATENCY_MIN_DAILY_SAMPLE = 20
 
 ABUSE_COST_WINDOW_HOURS = 24
+RATE_LIMIT_WINDOW_MINUTES = RATE_LIMIT_BUCKET_SECONDS // 60
+RATE_LIMIT_WINDOW_THRESHOLD = RATE_LIMIT_EVIDENCE_THRESHOLD
+RATE_LIMIT_CONSECUTIVE_WINDOWS = 3
 
 DB_STORAGE_TRIGGER_PCT = 70.0
 
@@ -228,17 +236,15 @@ def _evaluate_cache(db: Session, now: datetime) -> dict[str, object]:
             f"Multi-instance declared but only {lookups} cache observations "
             f"(need ≥{CACHE_MIN_SAMPLE}) to judge duplicate cost."
         )
-    elif failures > 0 or hit_ratio < 0.5:
-        state = "fired"
-        evidence = (
-            f"Multi-instance with cache inefficiency: hit ratio {hit_ratio:.0%}, "
-            f"{failures} lookup failures over {lookups} lookups."
-        )
     else:
-        state = "not_fired"
+        # D-052 requires a predeclared, accepted cache-efficiency or duplicate-
+        # provider-cost budget before this evidence may authorize #137 review.
+        # No such budget is accepted yet; do not invent a 50% threshold.
+        state = "insufficient_sample"
         evidence = (
-            f"Multi-instance but cache healthy: hit ratio {hit_ratio:.0%} over "
-            f"{lookups} lookups."
+            f"Multi-instance evidence collected: hit ratio {hit_ratio:.0%}, "
+            f"{failures} lookup failures over {lookups} lookups; an accepted "
+            "cache-efficiency/cost budget is still required."
         )
     return {
         "state": state,
@@ -302,11 +308,16 @@ def _evaluate_provider(db: Session, now: datetime) -> dict[str, object]:
             f"{PROVIDER_INCIDENT_WINDOW_DAYS}d (≥{PROVIDER_INCIDENT_THRESHOLD})."
         )
     else:
-        state = "not_fired"
+        # The incident branch is below threshold, but the accepted trigger is an
+        # OR with a provider-caused availability-SLO branch. That SLO and its
+        # authoritative signal are not yet accepted, so the whole trigger cannot
+        # truthfully be cleared as not fired.
+        state = "insufficient_sample"
         evidence = (
             f"{incidents} grouped provider incidents in "
             f"{PROVIDER_INCIDENT_WINDOW_DAYS}d (threshold {PROVIDER_INCIDENT_THRESHOLD}); "
-            f"{len(timestamps)} raw failures."
+            f"{len(timestamps)} raw failures. Provider availability-SLO evidence "
+            "is not configured."
         )
     return {
         "state": state,
@@ -362,21 +373,36 @@ def _evaluate_latency(db: Session, now: datetime) -> dict[str, object]:
         for tool_id, breaches in per_tool_breaches.items()
         if len(breaches) == LATENCY_WINDOW_DAYS and all(breaches)
     ]
+    abandonment_rows = (
+        db.query(AnalyticsEvent.tool_id, func.count(AnalyticsEvent.id))
+        .filter(
+            AnalyticsEvent.event_name == "generation_loader_abandoned",
+            AnalyticsEvent.created_at >= today_start - timedelta(days=LATENCY_WINDOW_DAYS),
+            AnalyticsEvent.tool_id.isnot(None),
+        )
+        .group_by(AnalyticsEvent.tool_id)
+        .all()
+    )
+    abandonment_counts = {tool_id: count for tool_id, count in abandonment_rows}
     detail: dict[str, float | int | str] = {
         "budget_ms": budget,
         "worst_p95_ms": round(worst_p95, 1),
         "days_with_sample": evaluated_days,
         "sustained_breach_tools": ", ".join(sorted(sustained)) or "none",
+        "loader_abandonments": sum(abandonment_counts.values()),
+        "loader_abandonments_by_tool": ", ".join(
+            f"{tool}:{count}" for tool, count in sorted(abandonment_counts.items())
+        ) or "none",
     }
     if sustained:
-        # Latency clearly sustains a breach, but the trigger also requires
-        # materially elevated loader abandonment, which is not yet instrumented
-        # — so the honest state is "review the abandonment signal", never fired.
+        # The abandonment signal now exists, but no material-elevation comparison
+        # threshold was accepted in #139. Do not invent one and auto-authorize UI.
         state: TriggerState = "insufficient_sample"
         evidence = (
             f"p95 breach sustained {LATENCY_WINDOW_DAYS}d for {', '.join(sorted(sustained))} "
-            f"(worst {worst_p95:.0f} ms > {budget} ms); loader-abandonment signal not "
-            "instrumented (see #139) so elevation cannot be confirmed."
+            f"(worst {worst_p95:.0f} ms > {budget} ms); observed "
+            f"{sum(abandonment_counts.values())} loader abandonments, but #139 has no "
+            "accepted material-elevation threshold."
         )
     elif evaluated_days == 0:
         state = "insufficient_sample"
@@ -408,12 +434,74 @@ def _evaluate_abuse_cost(db: Session, now: datetime) -> dict[str, object]:
     )
     total_cost_f = float(total_cost or 0)
     budget = settings.COST_ALERT_USD_24H
+    current_boundary = now.replace(
+        minute=(now.minute // RATE_LIMIT_WINDOW_MINUTES) * RATE_LIMIT_WINDOW_MINUTES,
+        second=0,
+        microsecond=0,
+    )
+    rate_rows = (
+        db.query(
+            AnalyticsEvent.operational_dimension,
+            AnalyticsEvent.operational_outcome,
+            AnalyticsEvent.metric_value,
+            AnalyticsEvent.created_at,
+        )
+        .filter(
+            AnalyticsEvent.event_name == "r10_rate_limit_event",
+            AnalyticsEvent.created_at
+            >= current_boundary
+            - timedelta(
+                minutes=RATE_LIMIT_WINDOW_MINUTES * RATE_LIMIT_CONSECUTIVE_WINDOWS
+            ),
+            AnalyticsEvent.created_at < current_boundary,
+        )
+        .all()
+    )
+    counts_by_family: dict[str, list[int]] = {}
+    identity_breakdown: dict[tuple[str, str], list[int]] = {}
+    for family, identity_type, metric_value, created_at in rate_rows:
+        event_at = _as_utc(created_at)
+        minutes_before_boundary = (current_boundary - event_at).total_seconds() / 60
+        window_index = int((minutes_before_boundary - 0.000001) // RATE_LIMIT_WINDOW_MINUTES)
+        if 0 <= window_index < RATE_LIMIT_CONSECUTIVE_WINDOWS:
+            route_family = family or "other"
+            identity = identity_type or "unknown"
+            weight = int(metric_value) if metric_value is not None else 1
+            counts_by_family.setdefault(
+                route_family, [0] * RATE_LIMIT_CONSECUTIVE_WINDOWS
+            )[window_index] += weight
+            identity_breakdown.setdefault(
+                (route_family, identity), [0] * RATE_LIMIT_CONSECUTIVE_WINDOWS
+            )[window_index] += weight
+    sustained_flows = [
+        family
+        for family, counts in counts_by_family.items()
+        if all(count >= RATE_LIMIT_WINDOW_THRESHOLD for count in counts)
+    ]
+    max_rate_events = max(
+        (max(counts) for counts in counts_by_family.values()), default=0
+    )
+    sustained_flow_labels = sorted(sustained_flows)
+    breakdown_labels = [
+        f"{family}/{identity_type}={','.join(str(value) for value in counts)}"
+        for (family, identity_type), counts in sorted(identity_breakdown.items())
+    ]
     detail: dict[str, float | int | str] = {
         "cost_24h_usd": round(total_cost_f, 6),
         "cost_alert_budget_usd": budget,
-        "rate_limit_events": "not instrumented (see #140)",
+        "rate_limit_max_15m": max_rate_events,
+        "rate_limit_sustained_flows": ", ".join(sustained_flow_labels) or "none",
+        "rate_limit_identity_breakdown": "; ".join(breakdown_labels) or "none",
+        "rate_limit_windows": RATE_LIMIT_CONSECUTIVE_WINDOWS,
     }
-    if total_cost_f > budget:
+    if sustained_flows:
+        state: TriggerState = "fired"
+        evidence = (
+            f"Rate-limit pressure sustained for {', '.join(sustained_flow_labels)}: "
+            f"≥{RATE_LIMIT_WINDOW_THRESHOLD} events in each of "
+            f"{RATE_LIMIT_CONSECUTIVE_WINDOWS} consecutive {RATE_LIMIT_WINDOW_MINUTES}-min windows."
+        )
+    elif total_cost_f > budget:
         state: TriggerState = "fired"
         evidence = (
             f"Provider cost ${total_cost_f:.4f} over {ABUSE_COST_WINDOW_HOURS}h exceeds "
@@ -423,13 +511,15 @@ def _evaluate_abuse_cost(db: Session, now: datetime) -> dict[str, object]:
         state = "not_fired"
         evidence = (
             f"Provider cost ${total_cost_f:.4f} over {ABUSE_COST_WINDOW_HOURS}h within the "
-            f"${budget:.2f} budget; route rate-limit-event branch not yet instrumented."
+            f"${budget:.2f} budget; no route family sustained rate-limit pressure."
         )
     return {
         "state": state,
         "evidence": evidence,
         "evidence_detail": detail,
-        "last_evidence_at": None,
+        "last_evidence_at": _iso(
+            max((_as_utc(created_at) for _, _, _, created_at in rate_rows), default=None)
+        ),
         "evidence_fresh": True,
     }
 
@@ -466,14 +556,50 @@ def gather_database_evidence(db: Session) -> tuple[float | None, float | None]:
     return storage_pct, pool_ratio
 
 
+def capture_database_snapshot(db: Session) -> int:
+    """Persist available bounded storage/pool measurements for sustained evidence."""
+    storage_pct, pool_ratio = gather_database_evidence(db)
+    samples = (
+        ("storage_pct", storage_pct),
+        ("pool_checkout_ratio", pool_ratio),
+    )
+    recorded = 0
+    for metric, value in samples:
+        if value is None:
+            continue
+        safe_record_activation_event(
+            db,
+            event_name="r10_database_snapshot",
+            operational_dimension=metric,
+            metric_value=value,
+        )
+        recorded += 1
+    return recorded
+
+
+def forecast_storage_pct(
+    samples: Sequence[tuple[datetime, float]], *, horizon_days: int = 90
+) -> float | None:
+    """Linear percentage forecast after at least seven days of sampled evidence."""
+    if len(samples) < 2:
+        return None
+    ordered = sorted((_as_utc(at), value) for at, value in samples)
+    span_days = (ordered[-1][0] - ordered[0][0]).total_seconds() / 86_400
+    if span_days < 7:
+        return None
+    slope_per_day = (ordered[-1][1] - ordered[0][1]) / span_days
+    return round(max(0.0, ordered[-1][1] + slope_per_day * horizon_days), 2)
+
+
 def evaluate_database_growth(storage_pct: float | None) -> tuple[TriggerState, str]:
     """Pure threshold logic for the database-growth trigger (D-058).
 
     Fires only on a hard, measured storage-headroom breach. Pool checkout
     pressure is shown as supporting evidence but not fired on, because a single
     live reading cannot establish that it is *sustained*; query-plan p95 and the
-    90-day capacity forecast are not yet instrumented either, so with no storage
-    signal the trigger reports insufficient evidence rather than guessing.
+    90-day capacity forecast requires at least seven days of bounded samples, so
+    with no storage signal the trigger reports insufficient evidence rather than
+    guessing.
     """
     if storage_pct is not None and storage_pct >= DB_STORAGE_TRIGGER_PCT:
         return "fired", (
@@ -483,28 +609,92 @@ def evaluate_database_growth(storage_pct: float | None) -> tuple[TriggerState, s
     if storage_pct is not None:
         return "not_fired", (
             f"Storage at {storage_pct:.1f}% of capacity (< {DB_STORAGE_TRIGGER_PCT:.0f}%); "
-            "query-plan and 90-day forecast signals not yet instrumented (see #141)."
+            "query-plan evidence and a mature 90-day forecast remain required."
         )
     return "insufficient_sample", (
         "No provisioned-capacity/storage signal available (set DB_CAPACITY_BYTES on "
-        "Postgres); query-plan and forecast signals not yet instrumented (see #141)."
+        "Postgres); query-plan evidence and a mature forecast remain required."
     )
 
 
 def _evaluate_database(db: Session, now: datetime) -> dict[str, object]:
     storage_pct, pool_ratio = gather_database_evidence(db)
-    state, evidence = evaluate_database_growth(storage_pct)
+    query_rows = (
+        db.query(
+            AnalyticsEvent.operational_dimension,
+            AnalyticsEvent.duration_ms,
+        )
+        .filter(
+            AnalyticsEvent.event_name == "r10_database_query",
+            AnalyticsEvent.duration_ms.isnot(None),
+            AnalyticsEvent.created_at >= now - timedelta(days=7),
+        )
+        .all()
+    )
+    query_durations: dict[str, list[float]] = {}
+    for family, duration in query_rows:
+        query_durations.setdefault(family, []).append(float(duration))
+    query_p95 = {
+        family: round(_p95(durations) or 0.0, 1)
+        for family, durations in query_durations.items()
+    }
+    snapshot_rows = (
+        db.query(
+            AnalyticsEvent.operational_dimension,
+            AnalyticsEvent.metric_value,
+            AnalyticsEvent.created_at,
+        )
+        .filter(
+            AnalyticsEvent.event_name == "r10_database_snapshot",
+            AnalyticsEvent.metric_value.isnot(None),
+            AnalyticsEvent.created_at >= now - timedelta(days=30),
+        )
+        .order_by(AnalyticsEvent.created_at)
+        .all()
+    )
+    storage_samples = [
+        (_as_utc(created_at), float(value))
+        for metric, value, created_at in snapshot_rows
+        if metric == "storage_pct"
+    ]
+    pool_samples = [
+        float(value)
+        for metric, value, _ in snapshot_rows
+        if metric == "pool_checkout_ratio"
+    ]
+    storage_forecast = forecast_storage_pct(storage_samples)
+    latest_sampled_storage = storage_samples[-1][1] if storage_samples else None
+    effective_storage = storage_pct if storage_pct is not None else latest_sampled_storage
+    state, evidence = evaluate_database_growth(effective_storage)
+    if storage_forecast is not None and storage_forecast >= 100:
+        state = "fired"
+        evidence = (
+            f"90-day storage forecast reaches {storage_forecast:.1f}% of provisioned capacity."
+        )
     detail: dict[str, float | int | str] = {
-        "storage_pct": storage_pct if storage_pct is not None else "unknown",
+        "storage_pct": effective_storage if effective_storage is not None else "unknown",
         "pool_checkout_ratio": pool_ratio if pool_ratio is not None else "unknown",
         "storage_trigger_pct": DB_STORAGE_TRIGGER_PCT,
+        "query_samples_7d": len(query_rows),
+        "query_p95_ms": ", ".join(
+            f"{family}:{value:.1f}" for family, value in sorted(query_p95.items())
+        ) or "none",
+        "query_budget": "not accepted",
+        "snapshot_samples_30d": len(snapshot_rows),
+        "pool_checkout_max_30d": round(max(pool_samples), 4) if pool_samples else "unknown",
+        "storage_forecast_90d_pct": storage_forecast if storage_forecast is not None else "unknown",
     }
+    if query_rows:
+        evidence += (
+            f" Representative query p95 observed for {len(query_p95)} families, "
+            "but no accepted p95 budget exists; query timing alone cannot fire #141."
+        )
     return {
         "state": state,
         "evidence": evidence,
         "evidence_detail": detail,
         "last_evidence_at": _iso(now),
-        "evidence_fresh": storage_pct is not None or pool_ratio is not None,
+        "evidence_fresh": bool(snapshot_rows) or storage_pct is not None or pool_ratio is not None,
     }
 
 

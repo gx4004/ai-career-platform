@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic_settings import BaseSettings
 
 
@@ -6,7 +8,7 @@ class Settings(BaseSettings):
     SECRET_KEY: str = "change-me-to-a-random-secret-key"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
-    ALGORITHM: str = "HS256"
+    ALGORITHM: Literal["HS256"] = "HS256"
 
     LLM_PROVIDER: str = "vertex"
     LLM_MODEL: str = "gemini-2.5-flash"
@@ -39,6 +41,7 @@ class Settings(BaseSettings):
     RESULT_CACHE_TTL_SECONDS: int = 3600
     RESULT_CACHE_ENABLED: bool = True
     BLENDED_SCORING_ENABLED: bool = True
+    RESULT_ACCESS_POLICY_ENABLED: bool = False
 
     # ── R11 Evidence Profile injection (issue #147, D-063, ADR 0005) ──
     # Master switch for injecting confirmed profile evidence through the shared
@@ -48,6 +51,18 @@ class Settings(BaseSettings):
     # with no data loss (ADR 0005); an operator enables it once the gate closes.
     # Even when True it is a no-op for guests and users with no profile items.
     EVIDENCE_PROFILE_INJECTION_ENABLED: bool = False
+
+    # Build-ahead outcomes are code-complete but not production-authorized.
+    # These server-side switches are the authoritative exposure boundary; the
+    # frontend mirrors them only for navigation. Each defaults off and must be
+    # activated deliberately after its accepted roadmap gate closes.
+    R11_EVIDENCE_PROFILE_ENABLED: bool = False
+    R12_CV_STUDIO_ENABLED: bool = False
+    R13_CAMPAIGNS_ENABLED: bool = False
+    R14_DISCOVERY_ENABLED: bool = False
+    R15_QUEUE_ENABLED: bool = False
+    R16_SUBMISSION_FOUNDATION_ENABLED: bool = False
+    R17_DEVELOPMENT_LOOP_ENABLED: bool = False
 
     # ── R10 scaling-trigger scorecard inputs (issue #136, parent #135) ──
     # Operator-declared deployment topology class. The intended backend starts

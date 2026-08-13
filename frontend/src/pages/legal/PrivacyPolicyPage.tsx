@@ -34,8 +34,9 @@ export function PrivacyPolicyPage() {
           with your account so you can revisit past runs.
         </li>
         <li>
-          <strong>Technical data:</strong> IP address, browser type, device information, and error diagnostics
-          collected automatically when something goes wrong in the app (via Sentry).
+          <strong>Technical data:</strong> your IP address, which our own service processes to apply rate limits and
+          prevent abuse, plus low-cardinality operational diagnostics. Sentry error monitoring is inactive by
+          default; if enabled after privacy-scrubbing checks, it may receive minimal error diagnostics.
         </li>
         <li>
           <strong>Cookies and similar storage:</strong> strictly-necessary authentication cookies and a local
@@ -55,11 +56,11 @@ export function PrivacyPolicyPage() {
         </li>
         <li>
           <strong>Security and bot protection (Art. 6(1)(f) GDPR — legitimate interest):</strong> preventing abuse and
-          automated attacks through Google reCAPTCHA.
+          automated attacks. Google reCAPTCHA is used only if that protection is enabled for a sensitive form.
         </li>
         <li>
           <strong>Error monitoring (Art. 6(1)(f) GDPR — legitimate interest):</strong> understanding and fixing crashes
-          and bugs via Sentry.
+          and bugs. Sentry is used only if enabled after privacy-scrubbing checks.
         </li>
         <li>
           <strong>Transactional email (Art. 6(1)(b) GDPR — contract):</strong> sending password-reset emails through
@@ -82,7 +83,10 @@ export function PrivacyPolicyPage() {
       </p>
 
       <h2>5. Who we share data with (sub-processors)</h2>
-      <p>We use the following third-party providers to run the Service:</p>
+      <p>
+        We use the following third-party providers to run the Service. Providers marked optional process data only
+        when the corresponding integration is enabled.
+      </p>
       <ul>
         <li>
           <strong>Google Cloud (Vertex AI / Gemini)</strong> — AI processing of your content.{' '}
@@ -97,13 +101,13 @@ export function PrivacyPolicyPage() {
           </a>
         </li>
         <li>
-          <strong>Google reCAPTCHA</strong> — bot protection on sensitive forms.{' '}
+          <strong>Google reCAPTCHA (optional)</strong> — bot protection on sensitive forms when enabled.{' '}
           <a href="https://policies.google.com/privacy" target="_blank" rel="noreferrer" className="legal-page__link">
             Privacy policy
           </a>
         </li>
         <li>
-          <strong>Sentry</strong> — error monitoring.{' '}
+          <strong>Sentry (optional; inactive by default)</strong> — error monitoring after privacy-scrubbing checks.{' '}
           <a href="https://sentry.io/privacy/" target="_blank" rel="noreferrer" className="legal-page__link">
             Privacy policy
           </a>
@@ -127,9 +131,10 @@ export function PrivacyPolicyPage() {
 
       <h2>6. International transfers</h2>
       <p>
-        Some of our sub-processors (notably Google and Sentry) process data in the United States or other countries
-        outside the European Economic Area. Where this happens, transfers are protected by the European Commission’s
-        Standard Contractual Clauses and, where applicable, supplementary measures required under GDPR.
+        Some active or optional sub-processors, including Google and Sentry, may process data in the United States or
+        other countries outside the European Economic Area. Where this happens, transfers are protected by the
+        European Commission’s Standard Contractual Clauses and, where applicable, supplementary measures required
+        under GDPR. Optional providers receive data only while their integration is enabled.
       </p>
 
       <h2>7. How long we keep data</h2>
@@ -142,8 +147,9 @@ export function PrivacyPolicyPage() {
           <strong>Content data (tool runs)</strong> is kept until you delete it or until you delete your account.
         </li>
         <li>
-          <strong>Error logs</strong> in Sentry are retained according to Sentry’s default retention policy (currently
-          up to 90 days for most events).
+          <strong>Error diagnostics</strong> remain in first-party operational logs according to the hosting
+          provider’s managed retention. If Sentry is enabled later, its events follow Sentry’s platform-managed
+          retention settings; Sentry is inactive by default.
         </li>
       </ul>
 

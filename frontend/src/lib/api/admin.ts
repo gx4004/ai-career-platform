@@ -44,7 +44,11 @@ async function adminFetch(path: string, options: RequestInit = {}) {
   })
 }
 
-async function adminRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
+async function adminRequest<T>(
+  path: string,
+  options: RequestInit = {},
+  schema?: z.ZodType<T>,
+): Promise<T> {
   let response = await adminFetch(path, options)
 
   if (response.status === 401 && path !== '/auth/refresh') {
@@ -73,6 +77,15 @@ async function adminRequest<T>(path: string, options: RequestInit = {}): Promise
           ? String((parsed as Record<string, unknown>).detail)
           : undefined
     throw new ApiError(detail || 'Request failed', response.status, detail)
+  }
+
+  if (schema) {
+    try {
+      return schema.parse(parsed)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Invalid response shape'
+      throw new ApiError('Server returned an unexpected response', 502, message)
+    }
   }
 
   return parsed as T
@@ -149,35 +162,57 @@ export type AdminHealth = {
 // R6 activation dashboard — mirrors backend/app/schemas/admin.py
 // (FunnelStepCount / FailureCategoryCount / ToolLatencyCost / AdminActivationResponse).
 
-export type AdminAccessMode = 'authenticated' | 'guest_demo'
-
-export type FunnelStepCount = {
-  step: string
-  label: string
-  count: number
-}
-
-export type FailureCategoryCount = {
-  failure_category: string
-  count: number
-}
-
-export type ToolLatencyCost = {
-  tool_id: string
-  runs: number
-  avg_duration_ms: number | null
-  total_cost_estimate: number | string | null
-  avg_cost_estimate: number | string | null
-}
-
-export type AdminActivation = {
-  window_start: string
-  window_end: string
-  access_mode: AdminAccessMode | null
-  funnel: FunnelStepCount[]
-  failures: FailureCategoryCount[]
-  tools: ToolLatencyCost[]
-}
+export const adminAccessModeSchema = z.enum(['authenticated', 'guest_demo'])
+export const adminOperationalToolIdSchema = z.enum([
+  'resume',
+  'job-match',
+  'career',
+  'cover-letter',
+  'interview',
+  'portfolio',
+  'application-reviewer',
+  'application-packet',
+  'cv-quality',
+  'cv-tailoring',
+])
+const queryDateTimeSchema = z.string().refine(
+  value => !Number.isNaN(Date.parse(value)),
+  { message: 'Expected a valid date-time' },
+)
+export const adminActivationQuerySchema = z.object({
+  access_mode: adminAccessModeSchema.optional(),
+  tool_id: adminOperationalToolIdSchema.optional(),
+  start: queryDateTimeSchema.optional(),
+  end: queryDateTimeSchema.optional(),
+})
+const funnelStepCountSchema = z.object({
+  step: z.string(),
+  label: z.string(),
+  count: z.number().int().nonnegative(),
+})
+const failureCategoryCountSchema = z.object({
+  failure_category: z.string(),
+  count: z.number().int().nonnegative(),
+})
+const toolLatencyCostSchema = z.object({
+  tool_id: adminOperationalToolIdSchema,
+  runs: z.number().int().nonnegative(),
+  avg_duration_ms: z.number().nullable(),
+  total_cost_estimate: z.union([z.number(), z.string()]).nullable(),
+  avg_cost_estimate: z.union([z.number(), z.string()]).nullable(),
+})
+export const adminActivationSchema = z.object({
+  window_start: z.iso.datetime({ offset: true }),
+  window_end: z.iso.datetime({ offset: true }),
+  access_mode: adminAccessModeSchema.nullable(),
+  tool_id: adminOperationalToolIdSchema.nullable(),
+  funnel: z.array(funnelStepCountSchema),
+  failures: z.array(failureCategoryCountSchema),
+  tools: z.array(toolLatencyCostSchema),
+})
+export type AdminAccessMode = z.infer<typeof adminAccessModeSchema>
+export type AdminOperationalToolId = z.infer<typeof adminOperationalToolIdSchema>
+export type AdminActivation = z.infer<typeof adminActivationSchema>
 
 // R8 eval runs — mirrors backend/app/schemas/admin.py
 // (EvalRunItem / AdminEvalRunsResponse). Latest report per tool read from disk
@@ -404,14 +439,18 @@ export function getAdminRun(runId: string) {
 }
 
 export function getAdminActivation(
-  params: { access_mode?: AdminAccessMode; start?: string; end?: string } = {},
+  params: z.input<typeof adminActivationQuerySchema> = {},
 ) {
+  const query = adminActivationQuerySchema.parse(params)
   return adminRequest<AdminActivation>(
     `/admin/activation${buildQs({
-      access_mode: params.access_mode,
-      start: params.start,
-      end: params.end,
+      access_mode: query.access_mode,
+      tool_id: query.tool_id,
+      start: query.start,
+      end: query.end,
     })}`,
+    {},
+    adminActivationSchema,
   )
 }
 

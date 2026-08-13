@@ -5,6 +5,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.auth.security import create_access_token, hash_password
+from app.config import settings
 from app.database import Base, get_db
 from app.limiter import _reset_abuse_state_for_tests
 from app.main import app
@@ -21,8 +22,20 @@ TestSession = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
 @pytest.fixture(autouse=True)
-def setup_db():
+def setup_db(monkeypatch):
     _reset_abuse_state_for_tests()
+    # Build-ahead contract tests run against explicitly enabled local outcomes.
+    # Production defaults remain dark and are covered separately.
+    for flag in (
+        "R11_EVIDENCE_PROFILE_ENABLED",
+        "R12_CV_STUDIO_ENABLED",
+        "R13_CAMPAIGNS_ENABLED",
+        "R14_DISCOVERY_ENABLED",
+        "R15_QUEUE_ENABLED",
+        "R16_SUBMISSION_FOUNDATION_ENABLED",
+        "R17_DEVELOPMENT_LOOP_ENABLED",
+    ):
+        monkeypatch.setattr(settings, flag, True)
     Base.metadata.create_all(bind=engine)
     yield
     Base.metadata.drop_all(bind=engine)

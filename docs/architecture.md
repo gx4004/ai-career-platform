@@ -1,7 +1,7 @@
 # Career Workbench — Architecture
 
 **Status:** canonical baseline
-**Last reviewed:** 2026-07-05
+**Last reviewed:** 2026-08-13
 
 ## System Context
 
@@ -106,22 +106,26 @@ Core entities:
   optional workspace, and optional parent revision.
 - `EvidenceItem` (R11 foundation built dark under explicit owner override; D-061,
   ADR 0005) — per-user typed evidence with provenance and confirmation state.
-  Authenticated CRUD exists; profile injection, import/export, and UI activation
-  remain unshipped and the D-060 production-activation gate remains closed.
+  Authenticated CRUD, reviewed import, recovery export/erasure, profile UI, and
+  shared-pipeline injection exist behind the server-authoritative R11 gate; the
+  recovery controls stay reachable while R11 is dark. D-060's production-activation
+  gate remains closed under the narrow build-ahead clarification D-120.
 - CV document (R12 foundation built dark under owner override; D-069, ADR 0006) —
   per-user structured document whose claims reference Evidence Profile items, with
   one working draft plus immutable recoverable variants. The authenticated import
   API is also dark: review proposals are transient and only explicit acceptance
   atomically creates the document and imported/unconfirmed profile items. Acceptance
   retries are owner-scoped and idempotent. D-068's activation gate remains closed.
-- Application campaign (planned, R13; D-077, ADR 0007) — `Workspace` evolved in
+- Application campaign (R13 foundation built dark; D-077, ADR 0007) — `Workspace` evolved in
   place with optional campaign fields and dependent owner-scoped tables (listing,
-  events, tasks, notes, contacts). Contract defined; nothing ships until R12 lands
-  (D-076).
-- Discovered listings store (planned, R14; D-087, ADR 0008) — product-owned
+  events, tasks, notes, contacts), reminders, reviewer, and submitted-version
+  recovery. Activation remains behind D-076 and the dependency chain (D-120).
+- Discovered listings store (R14 fixture-only foundation built dark; D-087, ADR 0008) — product-owned
   listings with source attribution, retrieval date, dedup, and per-source
-  retention; distinct from campaign canonical listings. Contract defined; nothing
-  ships until R13 lands and each source passes terms review (D-084).
+  retention; distinct from campaign canonical listings. Registry, governed fixture
+  ingestion, ranking, personalization, and correction/report controls exist, but no
+  real source is configured and activation still requires R13 plus per-source terms
+  approval (D-084, D-120).
 - Application packet and approval snapshot (dark R15 build-ahead; D-093–D-099,
   ADR 0009) — a reference-only composition plus a write-once by-value freeze at
   guarded acceptance. The snapshot stores the packet-referenced discovered listing
@@ -192,11 +196,29 @@ and resume carry while preserving consent, onboarding, and non-sensitive UI stat
 - BeautifulSoup with Playwright fallback for supported job imports.
 - Resend for password-reset email.
 - Google OAuth for sign-in.
-- Sentry for scrubbed error monitoring.
+- Sentry for scrubbed error monitoring when explicitly enabled after staging verification.
 - Railway for intended hosting and database.
 
 Each integration must fail with an actionable product state. Optional integrations
 must not make unrelated core flows unavailable.
+
+## Build-Ahead Activation Boundary
+
+R11–R17 implementation is provisional code, not a production entitlement. Dedicated
+user API families are protected by server-authoritative, default-off outcome flags;
+downstream flags also require every upstream flag. The frontend mirrors that chain
+for routes and navigation, but it is never the security boundary. Core six-tool and
+history routes remain independent. Account-wide export and deletion continue to own
+recovery and erasure if build-ahead data exists while an outcome is dark.
+
+R9 has one candidate-neutral, server-authoritative result-access seam shared by live
+tool responses, saved-result delivery, and server-generated exports. Its default-off
+contract can express only the complete control experience; enabling the seam before a
+candidate is selected still grants full access. Existing persisted result payloads are
+not rewritten: the decision is evaluated at delivery time, and the frontend schema
+defaults legacy payloads to the same full-control state. Candidate eligibility,
+treatments, withheld fields, lifetime, expiry, and revocation remain deliberately
+unimplemented until #128 and #129 supply an accepted product and legal contract.
 
 Provider fallback is not active. It may be introduced only after sustained provider-
 incident evidence and after the alternative passes R8 quality evaluation plus privacy,
@@ -206,8 +228,8 @@ hedged across providers by default.
 ## Frontend Response Security
 
 The production frontend server, not the API, owns browser document and static-asset
-security headers. It emits a CSP derived from the configured API, Sentry, and
-PostHog origins, denies framing and object embedding, and restricts fonts to the
+security headers. It emits a CSP derived from the configured API and optional Sentry
+origin, denies framing and object embedding, and restricts fonts to the
 bundled files plus the Google Fonts hosts currently referenced by the root route.
 The policy retains inline script/style compatibility because the SSR wrapper and
 current UI emit inline content.
@@ -228,13 +250,33 @@ generated content, cookies, auth headers, tokens, email/IP addresses, full impor
 URLs, raw provider exceptions, stable run/workspace identifiers, or frontend error
 messages. Frontend telemetry is an extra-forbidden allowlist with no route or
 stable run/workspace fields and only explicit low-cardinality dimensions. Both Sentry SDKs drop request content,
-credentials, query strings, breadcrumb bodies, and the entire user context.
+credentials, query strings, breadcrumb bodies, raw exception messages, unsafe
+contexts, and the entire user context; the backend also disables local-variable
+capture and provider boundaries suppress raw exception chains. Sentry performance
+transactions are disabled because their separate envelope hooks bypass ordinary
+error-event scrubbing; product latency evidence stays in first-party telemetry.
+
+Mutating HTTP requests are bounded at the ASGI receive seam before framework
+parsing: JSON bodies may not exceed 1 MiB, multipart transport may not exceed
+11,010,048 bytes, and no body may exceed 4,096 receive chunks. Upload parsing then
+applies the stricter 10 MB document and archive/content checks.
 
 Operational questions should be answerable without reconstructing sensitive content.
 R10 scaling evidence extends this boundary with allowlisted aggregate dimensions for
 topology, cache outcome, provider incident category, phase latency, database health,
 abuse/cost pressure, and job-import source family (D-053). Full URLs and raw provider
-errors remain forbidden.
+errors remain forbidden. The shared pipeline records actual sanitize, cache, provider,
+persist, and finalize durations; the browser records a bounded loader-abandonment duration
+only when a pending loader is left. These are evidence inputs, not a progress
+transport, and no material-elevation threshold has been accepted for #139.
+Representative history, workspace, and admin-run reads likewise persist only a
+closed query-family name and duration. The scorecard reports their seven-day p95 but
+cannot fire the query branch until an explicit p95 budget is accepted; SQL text,
+parameters, user content, and identifiers never enter telemetry. A fail-safe
+15-minute scheduler samples only storage percentage (when provisioned capacity is
+configured) and pool checkout ratio into the same 180-day store. Seven or more days
+of storage evidence can drive the predeclared 90-day capacity forecast; pool samples
+remain evidence-only until a sustained-pressure threshold is accepted.
 
 ## Scaling Response Boundaries
 
@@ -269,7 +311,7 @@ errors remain forbidden.
   allowlisted low-cardinality profile events, never evidence text or stable content
   identifiers (D-067).
 
-## CV Studio Boundaries (R12, deferred)
+## CV Studio Boundaries (R12, built ahead; activation deferred)
 
 - The CV document is its own persisted structured entity; it is never stored as
   `ToolRun` payloads or freeform rich text, and its claims reference Evidence
@@ -312,7 +354,7 @@ errors remain forbidden.
   variants separately in its existing transactional audit. Studio telemetry carries
   closed event names only and no content, titles, or stable document/run identifiers.
 
-## Campaign and Reviewer Boundaries (R13, foundation underway)
+## Campaign and Reviewer Boundaries (R13, built ahead; activation deferred)
 
 - Campaigns are the `Workspace` entity evolved additively; existing workspaces stay
   valid label-only campaigns and the implicit creation path keeps working (D-077,
@@ -357,7 +399,7 @@ errors remain forbidden.
 - Campaign content, including contacts (third-party personal data), joins the
   sensitive-content lifecycle and allowlisted-telemetry boundaries (D-083).
 
-## Discovery Boundaries (R14, registry foundation built dark)
+## Discovery Boundaries (R14, fixture-only foundation built dark)
 
 - The persisted discovery-source registry documents owner, terms status and review
   record, allowed behavior, rate limit, attribution rule, retention rule, and kill
@@ -368,7 +410,7 @@ errors remain forbidden.
   endpoint, a closed subset of minimal role/location/pagination parameters, robots
   applicability, and an atomic database-backed request window. The dark adapter
   DNS-pins public targets, rejects redirects, identifies itself, rechecks the kill
-  switch before the source request, and returns bounded bytes for the future
+  switch before the source request, and returns bounded bytes for the dark
   listings-store layer; no real source or ingestion schedule is configured (#172,
   D-086, D-089).
 - Discovery operationalizes D-026: robots.txt honored, honest identifying user
@@ -384,9 +426,8 @@ errors remain forbidden.
   re-evaluates source retention at read time, emits each canonical listing once,
   and returns the matched keyword, owner evidence-item references, component
   scores, source attribution, and retrieval date that explain its rank. The
-  responsive account-only surface exposes the trace without changing the six
-  single-shot tools; hide/correct/report controls remain the next layer (D-088,
-  #174).
+  responsive account-only surface exposes the trace plus hide, correct, and report
+  controls without changing the six single-shot tools (D-088, #174–#175).
   Each request selects at most 500 canonical candidates by their latest currently
   live attribution and returns at most 50 ranked results, so expired rows consume
   no candidate budget and profile-to-corpus comparison work stays bounded.
@@ -604,11 +645,14 @@ also delays but never suppresses the action. For an incident-wide reset, operato
 rotate `RATE_LIMIT_KEY_PREFIX`; abandoned keys expire naturally. Production code
 does not issue a datastore-global reset, and no relational migration exists.
 
-Rate-limit events log only the route and verified account/guest class. The release
-operator investigates when one route emits at least 50 limit events in 15 minutes
-for three consecutive windows, or when provider cost alerts fire. CAPTCHA is not
-enabled automatically. The existing flag protects registration only; challenging a
-different attacked flow requires a reviewed frontend/backend contract for that flow
+Rate-limit rejection counts use shared limiter storage and coalesce into at most one
+threshold evidence row per bounded route family and 15-minute bucket. The row keeps
+only the threshold count and whether pressure was account, guest, or mixed—never raw
+paths, identities, IPs, or limiter keys. The scorecard fires review when one family
+reaches at least 50 rejections in each of three consecutive completed windows, or
+when provider cost alerts fire. CAPTCHA is not enabled automatically. The existing flag protects
+registration only; challenging a different attacked flow requires a reviewed
+frontend/backend contract for that flow
 before activation. This keeps CAPTCHA evidence-triggered rather than unconditional.
 
 Rollback is configuration-first: raise bounded limits or disable the shared
@@ -632,6 +676,12 @@ For a database change:
 3. Define downgrade/rollback posture.
 4. Check data ownership and deletion behavior.
 5. Update this document if the domain model or invariant changed.
+
+The `c4a8e2f6b1d9` operational-metric migration is expand-compatible: old code
+ignores its nullable column and existing rows receive `NULL`. Roll back application
+code first (or forward-fix) while retaining the column. Before an optional database
+downgrade, drain all code that writes `metric_value`; downgrading preserves event
+rows but intentionally discards collected metric samples.
 
 ## Release Shape
 

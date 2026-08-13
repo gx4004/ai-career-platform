@@ -82,11 +82,19 @@ function renderPage(payload: unknown, personalization: unknown = { hidden_source
   )
 }
 
+function findRecommendationHeading() {
+  return screen.findByRole(
+    'heading',
+    { name: 'Platform Engineer' },
+    { timeout: 5_000 },
+  )
+}
+
 describe('DiscoveryPage', () => {
   it('renders rank rationale, source, and retrieval date for each live recommendation', async () => {
     renderPage({ confirmed_item_count: 2, preference_item_count: 1, items: [RECOMMENDATION] })
 
-    expect(await screen.findByRole('heading', { name: 'Platform Engineer' })).toBeTruthy()
+    expect(await findRecommendationHeading()).toBeTruthy()
     expect(screen.getByText('Kubernetes')).toBeTruthy()
     expect(screen.getByText('Platform')).toBeTruthy()
     expect(screen.getByLabelText('82 out of 100 match')).toBeTruthy()
@@ -105,7 +113,7 @@ describe('DiscoveryPage', () => {
 
   it('offers a correct-preferences link that points at the evidence profile', async () => {
     renderPage({ confirmed_item_count: 1, preference_item_count: 1, items: [RECOMMENDATION] })
-    await screen.findByRole('heading', { name: 'Platform Engineer' })
+    await findRecommendationHeading()
 
     const link = screen.getByRole('link', { name: 'Correct your preferences' })
     expect(link.getAttribute('href')).toBe('/profile')
@@ -113,7 +121,7 @@ describe('DiscoveryPage', () => {
 
   it('dismisses a recommendation through the owner-scoped control', async () => {
     renderPage({ confirmed_item_count: 1, preference_item_count: 1, items: [RECOMMENDATION] })
-    await screen.findByRole('heading', { name: 'Platform Engineer' })
+    await findRecommendationHeading()
 
     fireEvent.click(screen.getByRole('button', { name: /Dismiss/ }))
     await waitFor(() => expect(dismissRecommendation).toHaveBeenCalledWith('listing-1'))
@@ -121,7 +129,7 @@ describe('DiscoveryPage', () => {
 
   it('adopts a recommendation into a new campaign and navigates to it', async () => {
     renderPage({ confirmed_item_count: 1, preference_item_count: 1, items: [RECOMMENDATION] })
-    await screen.findByRole('heading', { name: 'Platform Engineer' })
+    await findRecommendationHeading()
 
     const adoptButton = screen.getByRole('button', { name: /Adopt into campaign/ })
     expect((adoptButton as HTMLButtonElement).disabled).toBeFalsy()
@@ -138,7 +146,7 @@ describe('DiscoveryPage', () => {
 
   it('hides a source from a card', async () => {
     renderPage({ confirmed_item_count: 1, preference_item_count: 1, items: [RECOMMENDATION] })
-    await screen.findByRole('heading', { name: 'Platform Engineer' })
+    await findRecommendationHeading()
 
     fireEvent.click(screen.getByRole('button', { name: 'Hide Licensed Feed' }))
     await waitFor(() => expect(hideSource).toHaveBeenCalledWith('source-1'))
@@ -146,7 +154,7 @@ describe('DiscoveryPage', () => {
 
   it('reports a recommendation with a required reason', async () => {
     renderPage({ confirmed_item_count: 1, preference_item_count: 1, items: [RECOMMENDATION] })
-    await screen.findByRole('heading', { name: 'Platform Engineer' })
+    await findRecommendationHeading()
 
     // The report form is hidden until the control is opened.
     expect(screen.queryByLabelText('Report this recommendation')).toBeNull()
@@ -183,7 +191,7 @@ describe('DiscoveryPage', () => {
         dismissals: [],
       },
     )
-    await screen.findByRole('heading', { name: 'Platform Engineer' })
+    await findRecommendationHeading()
 
     const unhide = await screen.findByRole('button', { name: /Unhide/ })
     fireEvent.click(unhide)

@@ -151,6 +151,7 @@ export function ToolPageLoading({
   onReady?: () => void
 }) {
   const tool = tools[toolId]
+  const { status } = useSession()
 
   return (
     <div className={cn('tool-loading-stage', className)}>
@@ -159,6 +160,7 @@ export function ToolPageLoading({
         toolId={toolId}
         mutationDone={mutationDone}
         onReady={onReady}
+        accessMode={status === 'authenticated' ? 'authenticated' : 'guest_demo'}
       />
     </div>
   )
