@@ -67,10 +67,20 @@ def _route_operation_counts(routes: list) -> Counter[tuple[str, str, str]]:
     """Count operations by their stable endpoint identity, independent of prefixes."""
     return Counter(
         (route.endpoint.__module__, route.endpoint.__qualname__, method)
-        for route in routes
-        if isinstance(route, APIRoute)
+        for route in _effective_routes(routes)
+        if isinstance(route, APIRoute) or hasattr(route, "original_route")
         for method in route.methods
     )
+
+
+def _effective_routes(routes: list):
+    """Flatten FastAPI's lazy included-router wrappers into effective routes."""
+    for route in routes:
+        contexts = getattr(route, "effective_route_contexts", None)
+        if callable(contexts):
+            yield from contexts()
+        else:
+            yield route
 
 
 def _openapi_operations(schema: dict) -> set[str]:
@@ -102,9 +112,11 @@ def test_openapi_schema_generates():
 
 
 def test_assembled_app_contains_every_discovered_router_operation():
-    assert _route_operation_counts(assembled_app.routes) == _route_operation_counts(
-        _all_router_routes()
-    )
+    assembled = _route_operation_counts(assembled_app.routes)
+    discovered = _route_operation_counts(_all_router_routes())
+
+    assert sum(assembled.values()) == 133
+    assert assembled == discovered
 
 
 def test_assembled_openapi_matches_the_reviewed_operation_contract():
