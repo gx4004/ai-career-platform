@@ -87,6 +87,41 @@ Notes:
 
 ## Verification Commands
 
+The canonical release-candidate gate runs locally and never dispatches GitHub
+Actions. It requires the versions declared by `.nvmrc` and `.python-version`, an
+active Python 3.12 virtual environment, Docker, LibreOffice, Poppler, and
+explicitly selected fresh PostgreSQL databases. Inspect the non-mutating
+prerequisites first:
+
+```bash
+./scripts/local-release.sh --preflight
+```
+
+For the complete gate, create an empty disposable database named
+`cw_local_release` or `cw_local_release_*`. The submission-authorization race
+proof has an independent lifecycle, so give it a second empty database named
+`codex_submission_authorization_concurrency_*`. Pass both URLs explicitly:
+
+```bash
+./scripts/local-release.sh --plan \
+  --database-url postgresql+psycopg2://<user>:<password>@<host>/cw_local_release_<id> \
+  --authorization-database-url \
+    postgresql+psycopg2://<user>:<password>@<host>/codex_submission_authorization_concurrency_<id>
+./scripts/local-release.sh \
+  --database-url postgresql+psycopg2://<user>:<password>@<host>/cw_local_release_<id> \
+  --authorization-database-url \
+    postgresql+psycopg2://<user>:<password>@<host>/codex_submission_authorization_concurrency_<id>
+```
+
+The runner ignores ambient `DATABASE_URL`/`E2E_DATABASE_URL` values, verifies that
+each connected database name matches its guarded URL, and refuses a non-empty
+database. It runs the populated migration round trips and browser suite against
+the main disposable database and the isolated authorization race proof against the
+second. It never drops either; discard them explicitly after reviewing the result.
+`--plan` redacts both supplied URLs.
+
+During focused iteration, run the smallest relevant checks directly:
+
 ```bash
 cd frontend
 pnpm typecheck
