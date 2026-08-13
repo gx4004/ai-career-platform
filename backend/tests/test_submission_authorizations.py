@@ -181,6 +181,45 @@ def test_grant_is_explicit_per_source_and_requires_the_source_gate(db, test_user
     assert grant.scope == "submit_applications"
 
 
+def test_identical_callback_reuses_grant_and_changed_mechanism_replaces_it(
+    db,
+    test_user,
+):
+    actor = _user(db, "authorization-idempotency-admin@example.com", admin=True)
+    source = _promoted_source(db, actor, "authorization-idempotency")
+
+    first = record_submission_authorization(
+        db,
+        user_id=test_user.id,
+        source_key=source.source_key,
+        authorization=_proof(),
+    )
+    repeated = record_submission_authorization(
+        db,
+        user_id=test_user.id,
+        source_key=source.source_key,
+        authorization=_proof(),
+    )
+
+    assert repeated.id == first.id
+    assert db.query(SubmissionAuthorizationGrant).count() == 1
+
+    replacement = record_submission_authorization(
+        db,
+        user_id=test_user.id,
+        source_key=source.source_key,
+        authorization=VerifiedSourceAuthorization(
+            mechanism="oauth2_device_authorization",
+            scope="submit_applications",
+            user_consent_confirmed=True,
+        ),
+    )
+
+    assert replacement.id != first.id
+    assert replacement.mechanism == "oauth2_device_authorization"
+    assert db.query(SubmissionAuthorizationGrant).count() == 1
+
+
 def test_no_http_route_can_fabricate_a_grant(client, auth_headers):
     response = client.post(
         f"{PREFIX}/submission-authorizations",
