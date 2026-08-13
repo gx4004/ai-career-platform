@@ -1,5 +1,5 @@
 import { render, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ClaimPromotionSection } from '#/components/profile/ClaimPromotionSection'
 
 vi.mock('#/lib/api/client', () => ({
@@ -14,6 +14,8 @@ const INTERVIEW_PAYLOAD = {
 }
 
 describe('ClaimPromotionSection', () => {
+  beforeEach(() => vi.stubEnv('VITE_R11_EVIDENCE_PROFILE_ENABLED', 'true'))
+
   it('renders a promote control per claim for an authenticated user', () => {
     render(<ClaimPromotionSection toolId="interview" payload={INTERVIEW_PAYLOAD} authenticated />)
     expect(screen.getByText('Save to your Evidence Profile')).toBeTruthy()

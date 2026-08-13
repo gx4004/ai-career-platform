@@ -1,5 +1,6 @@
 import { Link } from '@tanstack/react-router'
 import { registryEntries } from '#/lib/tools/registry'
+import { isR12CvStudioEnabled } from '#/lib/flags/featureFlags'
 import {
   Sheet,
   SheetContent,
@@ -20,7 +21,9 @@ export function ToolGridSheet({ open, onOpenChange }: ToolGridSheetProps) {
           <SheetTitle className="mobile-tool-grid-title">Tools</SheetTitle>
         </SheetHeader>
         <div className="mobile-tool-grid">
-          {registryEntries.map((tool) => (
+          {registryEntries
+            .filter((tool) => tool.id !== 'cv-studio' || isR12CvStudioEnabled())
+            .map((tool) => (
             <Link
               key={tool.id}
               to={tool.route}
@@ -32,7 +35,7 @@ export function ToolGridSheet({ open, onOpenChange }: ToolGridSheetProps) {
               </span>
               <span className="mobile-tool-grid-label">{tool.label}</span>
             </Link>
-          ))}
+            ))}
         </div>
       </SheetContent>
     </Sheet>

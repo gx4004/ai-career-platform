@@ -1,7 +1,7 @@
 # Career Workbench — Decision Log
 
 **Status:** append-only canonical record
-**Last reviewed:** 2026-07-10 (D-119 added same day)
+**Last reviewed:** 2026-08-13 (D-120 added)
 
 Use this log for durable product or architecture choices. New entries get the next
 ID. To reverse a decision, add a new entry and mark the old one `superseded`; do not
@@ -128,6 +128,7 @@ erase history.
 | D-117 | accepted | Resolve D-UNK-4 by default-safe decision: production launches with `SENTRY_DSN` unset (Sentry inactive), and enabling it later requires the R5 staging verification of scrubbing against representative failures before the DSN is ever set. | Extends the accepted Sentry posture (D-018, D-034): inactive-by-default means no error data leaves the Railway network until scrubbing is verified with evidence rather than assumed from code review. |
 | D-118 | accepted | Resolve the product side of D-UNK-5: PostHog is not activated and is not a processor for the product going forward; the remnant frontend proxy/configuration is removed as cleanup; disclosures reference PostHog only historically. The remaining human decision is narrowed to the disposition of the historical PostHog cloud-project data (delete, export-then-delete, or retain with documented basis). | D-036 and D-050 already chose the first-party analytics path twice and explicitly kept PostHog reactivation out of scope; carrying "should PostHog be activated?" as an open unknown contradicted the accepted decision log, while the un-purged 2026 cloud data remains a real, user-owned action item. |
 | D-119 | accepted | Resolve the historical PostHog cloud-data disposition (narrowed D-UNK-5): delete the historical PostHog cloud project data without export, as a user-performed console action tracked by issue #208; any future PostHog adoption is a brand-new processor decision starting from zero. | The data (real PII/session content captured 2026-04-13–28) has had no identified product need in over 100 days, D-118 already removed PostHog from the forward inventory, and deletion without export is the minimal-risk, RODO-aligned disposition. |
+| D-120 | accepted | Supersede only the implementation-timing/no-code clauses of D-060, D-068, D-076, D-084, D-092, D-100, and D-108: owner-authorized R11–R17 foundations may merge as repository-verified build-ahead code only when every user API and route is server-authoritatively default-dark in dependency order, account export/erasure remains reachable, no real source credential/provider/outward-act adapter is introduced, and implementation evidence cannot satisfy or bypass an outcome gate. Production activation remains sequenced and requires every existing quality, privacy, legal/terms, evidence, rehearsal, and owner-acceptance condition. | The Owner's PR #316 checkpoint authorizes coherent preparatory code for review and merge into the experimental `chapter2` integration branch, not activation, deployment, promotion, or acceptance of any roadmap outcome. This reconciles the repository's dark foundations with the original anti-premature-activation intent without weakening a single external or evidence gate. |
 
 ## Decisions Needed
 

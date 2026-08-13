@@ -159,6 +159,22 @@ describe('buildWorkspaceRequestContext', () => {
     expect(out.workspace_context?.workspace_id).toBe('ws-1')
     expect(out.workspace_context?.linked_history_ids).toEqual(['run-1', 'run-2', 'run-3'])
   })
+
+  it('rejects context identifiers beyond backend limits', () => {
+    const oversizedId = {
+      lastToolId: 'resume',
+      updatedAt: 1,
+      workspaceId: 'x'.repeat(101),
+    } as WorkflowContextState
+    const excessiveLinks = {
+      lastToolId: 'resume',
+      updatedAt: 1,
+      linkedContextIds: Array.from({ length: 51 }, (_, index) => `run-${index}`),
+    } as WorkflowContextState
+
+    expect(() => buildWorkspaceRequestContext(oversizedId)).toThrow()
+    expect(() => buildWorkspaceRequestContext(excessiveLinks)).toThrow()
+  })
 })
 
 describe('getWorkflowTargetRole', () => {

@@ -1,7 +1,8 @@
 # Career Workbench - Staging and Launch Runbook
 
-**Status:** R5 prep document; staging execution is blocked until the remaining R3
-production decisions and evidence are available.
+**Status:** R5 rehearsal is unblocked by D-116. The rehearsal collects the R3
+deployment evidence; promotion remains blocked until every stop condition and
+remaining owner decision is closed.
 
 This runbook is the release-operations checklist for a private beta candidate.
 It records what to verify, what evidence to capture, and when to stop. Do not use
@@ -12,8 +13,9 @@ environment.
 
 Do not promote or invite users when any of these are true:
 
-- R3 retention and backup decisions in `docs/threat-model.md` D-UNK-6 or D-UNK-7
-  are unresolved.
+- The accepted retention and backup controls in D-031 through D-035 are not
+  satisfied, including the R5 managed-backup and restore rehearsal required by
+  D-032. (`docs/threat-model.md` records D-UNK-6 and D-UNK-7 as resolved.)
 - Production/staging frontend and backend domains, TLS, credentialed CORS,
   OAuth redirect values, or HSTS compatibility are unverified.
 - `RATE_LIMIT_STORAGE_URI` is missing outside development or shared limiter
@@ -25,8 +27,9 @@ Do not promote or invite users when any of these are true:
 ## R3 Evidence Checklist (closes the R3 gate; D-116)
 
 Record each answer in `docs/threat-model.md` §14 and the affected R3 issue
-(#75, #76, #81, #82). The R3 gate closes when every row has evidence plus the two
-named human decisions (historical PostHog data disposition; D-NEXT-2 launch market).
+(#75, #76, #81, #82). The R3 gate closes when every row has evidence, the accepted
+D-119 historical PostHog deletion is completed without export, and D-NEXT-2 names
+the launch market.
 
 - [ ] D-UNK-1: production `TRUST_PROXY_HEADERS` / `TRUSTED_PROXY_CIDRS` values match Railway's actual proxy chain (verify with a logged forwarded-header sample).
 - [ ] D-UNK-2: Railway PostgreSQL connection ceiling recorded; `pool_size=20, max_overflow=10` confirmed or adjusted.
@@ -38,7 +41,7 @@ named human decisions (historical PostHog data disposition; D-NEXT-2 launch mark
 - [ ] #76: `RATE_LIMIT_STORAGE_URI` configured and capacity-tested on staging.
 - [ ] #81: security headers verified on staging (CSP against real origins, fonts, downloads, OAuth); Docker builds verified.
 - [ ] D-117: confirm `SENTRY_DSN` is unset in production (or staging scrub verification exists before it is ever set).
-- [ ] D-118: remnant PostHog proxy/configuration removed; disclosures reference PostHog only historically.
+- [x] D-118: remnant PostHog proxy/configuration removed; disclosures reference PostHog only historically.
 
 ## Preflight Inventory
 
@@ -76,17 +79,19 @@ Backend settings to verify in the deployed environment:
 - `CORS_ORIGINS` and `FRONTEND_URL` match the deployed frontend origin.
 - `GOOGLE_REDIRECT_URI` matches the deployed OAuth callback.
 - `RATE_LIMIT_STORAGE_URI` is configured for any non-development deployment.
-- `RATE_LIMIT_HMAC_SECRET` is set and distinct from public examples.
+- `ABUSE_IDENTITY_HMAC_KEY` is set, secret, and distinct from `SECRET_KEY`.
 - `TRUST_PROXY_HEADERS` and `TRUSTED_PROXY_CIDRS` match Railway evidence.
 - `SENTRY_DSN` is either intentionally unset or documented as active.
 - Email provider settings are present if password reset must work.
 - Vertex/Gemini credentials are present with the accepted permission scope.
+- `API_REPLICA_CLASS`, `LATENCY_P95_BUDGET_MS`, `COST_ALERT_USD_24H`, and
+  `DB_CAPACITY_BYTES` match the recorded deployment topology and capacity.
 
 Frontend settings to verify:
 
 - `VITE_API_URL` points at the deployed API route.
 - `SECURITY_HSTS_ENABLED` remains off until TLS/domain evidence is accepted.
-- Sentry/PostHog settings match the legal disclosure decision.
+- Sentry settings match the legal disclosure decision; no PostHog variables are present.
 - No ad, payment, subscription, or affiliate integration is enabled without a
   new roadmap decision.
 

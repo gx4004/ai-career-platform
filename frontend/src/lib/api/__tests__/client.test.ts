@@ -48,12 +48,8 @@ afterEach(() => {
 
 describe('API client', () => {
   describe('login', () => {
-    it('sends POST to /auth/login and ignores any token in the response body', async () => {
-      // Backend may still return tokens in the body for legacy reasons; the
-      // frontend must not parse or leak them — cookies are the sole source.
-      mockFetch.mockResolvedValueOnce(
-        mockJsonResponse({ access_token: 'leaked-token', token_type: 'bearer' }),
-      )
+    it('sends POST to /auth/login and relies on the cookie session', async () => {
+      mockFetch.mockResolvedValueOnce(mockJsonResponse({ ok: true }))
 
       const result = await login({ email: 'test@example.com', password: 'pass123' })
 
@@ -62,7 +58,7 @@ describe('API client', () => {
       expect(url).toBe(`${API_URL}/auth/login`)
       expect(options.method).toBe('POST')
       expect(options.credentials).toBe('include')
-      // Callers must not receive tokens — return type is void.
+      // Callers receive no session material — the return type is void.
       expect(result).toBeUndefined()
     })
   })
@@ -74,7 +70,7 @@ describe('API client', () => {
 
       const result = await register({
         email: 'test@example.com',
-        password: 'pass123',
+        password: 'pass1234',
         tos_accepted: true,
       })
 
@@ -85,16 +81,11 @@ describe('API client', () => {
       expect(JSON.parse(String(init?.body))).toMatchObject({ tos_accepted: true })
     })
 
-    it('forwards a falsy tos_accepted as-is so the backend can reject it', async () => {
-      const errorPayload = { detail: 'You must accept the Terms of Service' }
-      mockFetch.mockResolvedValueOnce(mockJsonResponse(errorPayload, 422))
-
-      await expect(
-        register({ email: 'test@example.com', password: 'pass123', tos_accepted: false }),
-      ).rejects.toThrow()
-
-      const [, init] = mockFetch.mock.calls[0]
-      expect(JSON.parse(String(init?.body))).toMatchObject({ tos_accepted: false })
+    it('rejects missing terms consent before making a request', () => {
+      expect(() =>
+        register({ email: 'test@example.com', password: 'pass1234', tos_accepted: false }),
+      ).toThrow('Terms of Service')
+      expect(mockFetch).not.toHaveBeenCalled()
     })
   })
 
@@ -167,7 +158,7 @@ describe('API client', () => {
         mockJsonResponse({ detail: 'Unauthorized' }, 401),
       )
       mockFetch.mockResolvedValueOnce(
-        mockJsonResponse({ access_token: 'cookie-refresh-token', token_type: 'bearer' }),
+        mockJsonResponse({ ok: true }),
       )
       mockFetch.mockResolvedValueOnce(mockJsonResponse(userData))
 
@@ -196,6 +187,9 @@ describe('API client', () => {
   })
 
   describe('tool endpoints', () => {
+    const validResume = 'Professional resume with enough detail for request validation.'
+    const validJob = 'Backend role requiring Python and reliable API delivery.'
+
     it('runResumeAnalysis sends to /resume/analyze', async () => {
       mockFetch.mockResolvedValueOnce(mockJsonResponse({
         history_id: 'r1',
@@ -230,7 +224,7 @@ describe('API client', () => {
         role_fit: null,
       }))
 
-      await runResumeAnalysis({ resume_text: 'my resume' })
+      await runResumeAnalysis({ resume_text: validResume })
 
       const [url, options] = mockFetch.mock.calls[0]
       expect(url).toBe(`${API_URL}/resume/analyze`)
@@ -261,7 +255,7 @@ describe('API client', () => {
         recruiter_summary: '',
       }))
 
-      await runJobMatch({ resume_text: 'resume', job_description: 'job' })
+      await runJobMatch({ resume_text: validResume, job_description: validJob })
 
       const [url] = mockFetch.mock.calls[0]
       expect(url).toBe(`${API_URL}/job-match/match`)
@@ -299,7 +293,7 @@ describe('API client', () => {
         customization_notes: [],
       }))
 
-      await runCoverLetter({ resume_text: 'resume', job_description: 'job' })
+      await runCoverLetter({ resume_text: validResume, job_description: validJob })
 
       const [url] = mockFetch.mock.calls[0]
       expect(url).toBe(`${API_URL}/cover-letter/generate`)
@@ -325,7 +319,7 @@ describe('API client', () => {
         interviewer_notes: [],
       }))
 
-      await runInterview({ resume_text: 'resume', job_description: 'job' })
+      await runInterview({ resume_text: validResume, job_description: validJob })
 
       const [url] = mockFetch.mock.calls[0]
       expect(url).toBe(`${API_URL}/interview/questions`)
@@ -359,7 +353,7 @@ describe('API client', () => {
         next_steps: [],
       }))
 
-      await runCareer({ resume_text: 'resume' })
+      await runCareer({ resume_text: validResume })
 
       const [url] = mockFetch.mock.calls[0]
       expect(url).toBe(`${API_URL}/career/recommend`)
@@ -391,10 +385,34 @@ describe('API client', () => {
         presentation_tips: [],
       }))
 
-      await runPortfolio({ resume_text: 'resume', target_role: 'engineer' })
+      await runPortfolio({ resume_text: validResume, target_role: 'engineer' })
 
       const [url] = mockFetch.mock.calls[0]
       expect(url).toBe(`${API_URL}/portfolio/recommend`)
+    })
+
+    it('rejects bounded workflow identifiers before making a request', () => {
+      expect(() =>
+        runResumeAnalysis({
+          resume_text: validResume,
+          parent_run_id: 'x'.repeat(101),
+        }),
+      ).toThrow()
+
+      expect(mockFetch).not.toHaveBeenCalled()
+    })
+
+    it('counts Unicode code points before crossing the network boundary', async () => {
+      mockFetch.mockResolvedValueOnce(mockJsonResponse({}))
+
+      await expect(
+        runResumeAnalysis({ resume_text: '🧭'.repeat(50_000) }),
+      ).rejects.toThrow('unexpected response')
+      expect(mockFetch).toHaveBeenCalledOnce()
+
+      mockFetch.mockClear()
+      expect(() => runResumeAnalysis({ resume_text: '🧭'.repeat(50_001) })).toThrow()
+      expect(mockFetch).not.toHaveBeenCalled()
     })
   })
 

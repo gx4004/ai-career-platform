@@ -35,7 +35,9 @@ export default defineConfig({
   globalSetup: './e2e/global-setup.ts',
   webServer: [
     {
-      command: 'python3 -m tests.e2e_server',
+      // Playwright starts web servers before globalSetup. Upgrade here as well
+      // so recurring best-effort schedulers never race an empty local database.
+      command: 'alembic upgrade head && python3 -m tests.e2e_server',
       cwd: backendDir,
       url: `${backendUrl}/api/v1/health`,
       reuseExistingServer: false,
@@ -47,6 +49,10 @@ export default defineConfig({
         CORS_ORIGINS: frontendUrl,
         FRONTEND_URL: frontendUrl,
         RESULT_CACHE_ENABLED: 'false',
+        // The product defaults build-ahead rounds off. This suite deliberately
+        // exercises the R12 CV Studio surface, so opt its dependency chain in.
+        R11_EVIDENCE_PROFILE_ENABLED: 'true',
+        R12_CV_STUDIO_ENABLED: 'true',
         E2E_BACKEND_PORT: backendPort,
       },
     },
@@ -62,6 +68,8 @@ export default defineConfig({
         // only the interactive app server needs normal development semantics.
         CI: '',
         VITE_API_URL: `${backendUrl}/api/v1`,
+        VITE_R11_EVIDENCE_PROFILE_ENABLED: 'true',
+        VITE_R12_CV_STUDIO_ENABLED: 'true',
       },
     },
   ],

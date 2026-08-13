@@ -6,6 +6,7 @@ import {
   AlertTriangle,
   Clock,
   Compass,
+  Download,
   Globe,
   HardDrive,
   RotateCcw,
@@ -27,11 +28,12 @@ import { PageFrame } from '#/components/app/PageFrame'
 import { OnboardingDialog } from '#/components/onboarding/OnboardingDialog'
 import { useOnboarding } from '#/hooks/useOnboarding'
 import { useSession } from '#/hooks/useSession'
-import { deleteAccount } from '#/lib/api/client'
+import { deleteAccount, deleteEvidenceProfile, exportCareerData } from '#/lib/api/client'
 import { changeLanguage } from '#/lib/i18n'
 import { clearSensitiveBrowserData } from '#/lib/privacy/browserData'
 import { SUBMISSION_AUTHORIZATIONS_QUERY_ROOT } from '#/lib/api/submissionAuthorizations'
 import { QUEUE_QUERY_ROOT } from '#/lib/api/queueCache'
+import { EVIDENCE_QUERY_KEY } from '#/lib/profile/evidence'
 
 export function SettingsPage() {
   const queryClient = useQueryClient()
@@ -48,6 +50,10 @@ export function SettingsPage() {
   const [deleteConfirmInput, setDeleteConfirmInput] = useState('')
   const [deleteSubmitting, setDeleteSubmitting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [profileDeleteOpen, setProfileDeleteOpen] = useState(false)
+  const [dataAction, setDataAction] = useState<'export' | 'erase' | null>(null)
+  const [exportError, setExportError] = useState<string | null>(null)
+  const [profileDeleteError, setProfileDeleteError] = useState<string | null>(null)
   const isAuthenticated = status === 'authenticated' && user !== null
   const expectedConfirmation = user?.email ?? ''
   const deleteEnabled =
@@ -94,6 +100,43 @@ export function SettingsPage() {
           : 'Account deletion failed. Please try again or contact support.',
       )
       setDeleteSubmitting(false)
+    }
+  }
+
+  async function handleCareerDataExport() {
+    setDataAction('export')
+    setExportError(null)
+    try {
+      const payload = await exportCareerData()
+      const blob = new Blob([JSON.stringify(payload, null, 2)], {
+        type: 'application/json;charset=utf-8',
+      })
+      const url = URL.createObjectURL(blob)
+      const anchor = document.createElement('a')
+      anchor.href = url
+      anchor.download = `career-workbench-data-${new Date().toISOString().slice(0, 10)}.json`
+      anchor.click()
+      URL.revokeObjectURL(url)
+    } catch (error) {
+      setExportError(error instanceof Error ? error.message : 'Career data export failed.')
+    } finally {
+      setDataAction(null)
+    }
+  }
+
+  async function handleProfileErasure() {
+    setDataAction('erase')
+    setProfileDeleteError(null)
+    try {
+      await deleteEvidenceProfile()
+      queryClient.removeQueries({ queryKey: EVIDENCE_QUERY_KEY })
+      setProfileDeleteOpen(false)
+    } catch (error) {
+      setProfileDeleteError(
+        error instanceof Error ? error.message : 'Evidence profile deletion failed.',
+      )
+    } finally {
+      setDataAction(null)
     }
   }
 
@@ -247,6 +290,52 @@ export function SettingsPage() {
           <section className="settings-section">
             <div className="settings-panel">
               <div className="settings-row">
+                <div className="settings-row-icon">
+                  <Download size={18} />
+                </div>
+                <div className="settings-info">
+                  <h2 className="settings-title">Export career data</h2>
+                  <p className="settings-description">
+                    Download all structured career data in a machine-readable JSON file.
+                    This recovery control remains available while preview features are hidden.
+                  </p>
+                </div>
+                <div className="settings-action">
+                  <Button
+                    variant="outline"
+                    onClick={() => void handleCareerDataExport()}
+                    loading={dataAction === 'export'}
+                  >
+                    <Download size={14} className="mr-1.5" />
+                    Export data
+                  </Button>
+                </div>
+              </div>
+              <div className="settings-row">
+                <div className="settings-row-icon" style={{ color: 'var(--destructive)' }}>
+                  <Trash2 size={18} />
+                </div>
+                <div className="settings-info">
+                  <h2 className="settings-title">Delete evidence profile</h2>
+                  <p className="settings-description">
+                    Permanently erase saved Evidence Profile items without deleting your account.
+                  </p>
+                </div>
+                <div className="settings-action">
+                  <Button
+                    variant="outline"
+                    className="settings-btn settings-btn--destructive"
+                    onClick={() => {
+                      setProfileDeleteError(null)
+                      setProfileDeleteOpen(true)
+                    }}
+                  >
+                    Delete profile
+                  </Button>
+                </div>
+              </div>
+              {exportError ? <p role="alert" className="small-copy" style={{ color: 'var(--destructive)' }}>{exportError}</p> : null}
+              <div className="settings-row">
                 <div
                   className="settings-row-icon"
                   style={{ color: 'var(--destructive)' }}
@@ -335,6 +424,38 @@ export function SettingsPage() {
             >
               <Trash2 size={14} className="mr-1.5" />
               {deleteSubmitting ? 'Deleting…' : 'Delete account permanently'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog
+        open={profileDeleteOpen}
+        onOpenChange={(open) => dataAction !== 'erase' && setProfileDeleteOpen(open)}
+      >
+        <DialogContent showCloseButton={dataAction !== 'erase'}>
+          <DialogHeader>
+            <DialogTitle>Delete your evidence profile?</DialogTitle>
+            <DialogDescription>
+              This immediately removes every Evidence Profile item. It does not delete your
+              account, and it cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          {profileDeleteError ? (
+            <p role="alert" className="small-copy" style={{ color: 'var(--destructive)' }}>
+              {profileDeleteError}
+            </p>
+          ) : null}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setProfileDeleteOpen(false)} disabled={dataAction === 'erase'}>
+              Cancel
+            </Button>
+            <Button
+              variant="outline"
+              className="settings-btn--destructive"
+              onClick={() => void handleProfileErasure()}
+              loading={dataAction === 'erase'}
+            >
+              Delete evidence profile
             </Button>
           </DialogFooter>
         </DialogContent>

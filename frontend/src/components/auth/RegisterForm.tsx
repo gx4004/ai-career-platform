@@ -5,6 +5,7 @@ import { Button } from '#/components/ui/button'
 import { Input } from '#/components/ui/input'
 import { Label } from '#/components/ui/label'
 import { useSession } from '#/hooks/useSession'
+import { newPasswordSchema } from '#/lib/api/schemas'
 import { readPendingIntent } from '#/lib/auth/pendingIntent'
 import { trackTelemetry } from '#/lib/telemetry/client'
 
@@ -52,6 +53,7 @@ export function RegisterForm({
   const [showPassword, setShowPassword] = useState(false)
   const [tosAccepted, setTosAccepted] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [passwordError, setPasswordError] = useState('')
 
   return (
     <div className="grid gap-5">
@@ -79,6 +81,12 @@ export function RegisterForm({
         onSubmit={async (event) => {
           event.preventDefault()
           if (!tosAccepted) return
+          const passwordResult = newPasswordSchema.safeParse(password)
+          if (!passwordResult.success) {
+            setPasswordError(passwordResult.error.issues[0]?.message || 'Password is invalid')
+            return
+          }
+          setPasswordError('')
           setLoading(true)
           // Capture the originating surface before `register` completes — a
           // successful signup consumes and clears the pending intent.
@@ -139,8 +147,11 @@ export function RegisterForm({
               id="register-password"
               type={showPassword ? 'text' : 'password'}
               value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              placeholder="At least 8 characters"
+              onChange={(event) => {
+                setPassword(event.target.value)
+                setPasswordError('')
+              }}
+              placeholder="8+ characters, at most 72 UTF-8 bytes"
               className="auth-input pr-11"
               autoComplete="new-password"
               minLength={8}
@@ -185,13 +196,13 @@ export function RegisterForm({
           </Label>
         </div>
         <div className="min-h-[2.5rem]">
-          {authError ? (
+          {passwordError || authError ? (
             <div
               role="alert"
               className="flex items-start gap-2.5 rounded-lg border border-destructive/25 bg-destructive/5 px-3 py-2.5 text-destructive"
             >
               <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-              <p className="text-sm leading-relaxed">{authError}</p>
+              <p className="text-sm leading-relaxed">{passwordError || authError}</p>
             </div>
           ) : null}
         </div>

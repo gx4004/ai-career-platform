@@ -90,7 +90,8 @@ export function CookiePolicyPage() {
         We do collect a small amount of first-party diagnostic telemetry to monitor whether the tools complete
         successfully (event names like <code>tool_run_started</code>, <code>tool_run_succeeded</code>,
         <code>frontend_error</code>). The payload contains the tool ID, access mode (guest or authenticated),
-        completion status, and low-cardinality failure categories, never routes, raw error messages, history/workspace
+        completion status, bounded durations (including when a pending generation loader is left), and
+        low-cardinality failure categories, never routes, raw error messages, history/workspace
         identifiers, resume text, job descriptions, or generated content. This telemetry runs through our own backend
         and is suppressed when you decline cookies.
       </p>
@@ -103,8 +104,9 @@ export function CookiePolicyPage() {
 
       <h2>4. Error monitoring (Sentry)</h2>
       <p>
-        When something crashes in the app, we send a diagnostic event to Sentry to help us fix the bug. Sentry does
-        not set tracking cookies for this; it is triggered only on errors and uses a minimal payload. See Sentry’s{' '}
+        Sentry error monitoring is inactive by default. If we enable it after completing privacy-scrubbing checks,
+        crashes may send a minimal diagnostic event to Sentry to help us fix the bug. Sentry does not set tracking
+        cookies for this processing. See Sentry’s{' '}
         <a href="https://sentry.io/privacy/" target="_blank" rel="noreferrer" className="legal-page__link">
           privacy policy
         </a>{' '}

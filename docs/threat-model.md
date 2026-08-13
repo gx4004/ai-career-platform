@@ -1,7 +1,7 @@
 # Career Workbench — Threat Model
 
 **Status:** canonical baseline
-**Last reviewed:** 2026-07-06
+**Last reviewed:** 2026-08-13
 **Source:** executable code, configuration, and intended Railway topology
 
 This document establishes the evidence baseline for R3: Privacy, Security, and
@@ -44,25 +44,28 @@ uvicorn process without `--workers`. The frontend is a single Node process.
 ### 1.3 Health Checks
 
 - Backend: `GET /api/v1/health` — unauthenticated, checks database connectivity
-  via `SELECT 1`. Returns `{"status": "ok"}` or `{"status": "degraded"}`.
+  via `SELECT 1`. Returns HTTP 200 with `{"status": "ok"}` when ready and HTTP
+  503 with `{"status": "degraded"}` when the database check fails.
   — `backend/app/routers/health.py:health_check`
 - Frontend: `GET /` — serves the homepage.
   — `frontend/railway.toml:10` — `healthcheckPath = "/"`
 
 ### 1.4 Container Posture
 
-Both Dockerfiles run as root — no `USER` instruction exists.
+Both Dockerfiles run the application as a dedicated non-root user.
 
 - Backend: `backend/Dockerfile` — based on `python:3.12-slim`, includes
-  Playwright + Chromium for PDF rendering
-- Frontend: `frontend/Dockerfile` — multi-stage build from `node:20-slim`,
-  runs custom `serve.mjs`
+  Playwright + Chromium for PDF rendering, runs as UID 10001 (`appuser`)
+- Frontend: `frontend/Dockerfile` — multi-stage build from `node:22-slim`,
+  runs custom `serve.mjs` as the base image's `node` user
 
 ### 1.5 Multi-Instance Readiness
 
-The `start.sh` script is explicitly multi-instance aware — it uses a `RUN_MIGRATIONS`
-env var and relies on Alembic locking for migration safety. Rate-limit and abuse
-counter storage is shared outside development; the result cache remains local:
+The `start.sh` script uses `RUN_MIGRATIONS` to choose which instance applies
+migrations and fails startup if that migration command fails. It does not provide
+cross-instance migration locking; deployment orchestration must ensure only one
+instance migrates. Rate-limit and abuse counter storage is shared outside
+development; the result cache remains local:
 
 | Subsystem | Current | Multi-Instance Impact |
 |-----------|---------|-----------------------|
@@ -167,7 +170,7 @@ Browser                    Backend API                       Database
   │  {email, password}       ├─ bcrypt.checkpw()              │
   │                          ├─ SELECT user BY email ────────►│
   │                          ├─ set_auth_cookies()            │
-  │  ◄── User + cookies ────┤                                 │
+  │  ◄── {ok: true} + cookies                                 │
   │  (cw_access, cw_refresh HttpOnly)                         │
 ```
 
@@ -454,6 +457,13 @@ actions expire after one hour and login-failure counters after 15 minutes.
   — `backend/app/auth/security.py:create_access_token`
 - **Refresh token payload:** `{sub, exp, iat, type: "refresh", jti: uuid.hex, tv: token_version}` — lifetime: `REFRESH_TOKEN_EXPIRE_DAYS` (default 7 days)
   — `backend/app/auth/security.py:create_refresh_token`
+
+The locked `python-jose[cryptography]` graph still installs `ecdsa`, whose
+`PYSEC-2026-1325` advisory has no fixed release. Application configuration is
+type-constrained to HS256, so the affected EC signing/key-generation paths are unreachable.
+CI ignores only that exact advisory and continues failing on every other finding.
+Changing the JWT algorithm is blocked until `python-jose`/`ecdsa` is replaced or
+the advisory is fixed; removing the transitive package remains dependency debt.
 
 ### 7.2 Token Revocation
 
@@ -976,17 +986,19 @@ available for export/deletion, and quota counters remain durable.
 
 | Concern | Detail |
 |---------|--------|
-| What is captured | Error stack traces, request metadata (scrubbed), performance traces (10% sample) |
-| What is scrubbed | Request body, cookies, query strings, auth/cookie headers, entire user context; frontend fetch/XHR breadcrumb bodies |
+| What is captured | Code-path stack traces without local variables and scrubbed request metadata; performance transactions are disabled because they bypass error-event scrubbing |
+| What is scrubbed | Request body, cookies, query strings, auth/cookie headers, entire user context, exception/message content, unsafe contexts, frame variables, all backend breadcrumbs, and frontend fetch/XHR breadcrumb bodies |
 | Opt-in behavior | Sentry SDK only initializes if `SENTRY_DSN` env var is set (empty by default) |
-| Backend scrubbing | `_scrub_sentry_event()` — `backend/app/main.py:37-65` |
+| Backend scrubbing | `_scrub_sentry_event()` in `backend/app/main.py` |
 | Frontend scrubbing | Tested `beforeSend` + `beforeBreadcrumb` hooks — `frontend/src/lib/observability/sentryPrivacy.ts` |
 
 ### 9.6 Railway PostgreSQL
 
 Access via `DATABASE_URL` env var. Connection pooling: `pool_size=20` in
 production + `max_overflow=10`, with `pool_pre_ping=True`. Migrations run via
-Alembic on deploy.
+Alembic on deploy, and a migration error prevents the application server from
+starting. Multi-replica activation still requires a single-migrator deployment
+procedure because the repository does not implement an advisory lock.
 
 — `backend/app/database.py:9-29`
 — `backend/alembic/env.py`
@@ -1007,6 +1019,9 @@ All log lines are single-line JSON objects emitted to stdout. Key events:
 | `user_account_deleted` | user_id, runs_deleted, workspaces_deleted, user_record_deleted | info |
 | `frontend_telemetry` | Allowlisted event/category enums, tool/access mode, booleans, timestamp, and explicit low-cardinality dimensions | info |
 | `profile_item_*` (adoption) | Backend-only; item kind, provenance class, confirmation-state transition, bounded counts — never evidence content, employer/institution names, or content ids (D-067) | info |
+| `r10_rate_limit_event` | Backend-only coalesced threshold evidence; bounded route family, account/guest/mixed class, and rejection count — never raw path, account/IP, limiter key, or exception detail (D-053, D-057) | info |
+| `r10_database_query` | Backend-only durable event; closed query-family name and duration — never SQL text, parameters, user content, or identifiers (D-053, D-058) | info |
+| `r10_database_snapshot` | Backend-only durable event; storage percentage or pool checkout ratio sampled every 15 minutes — never database names, connection strings, SQL, or row content (D-053, D-058) | info |
 
 **Deliberately NOT logged:** Resume text, job descriptions, generated content,
 passwords, tokens, cookies, email addresses, IP addresses, provider exception
@@ -1027,28 +1042,23 @@ Deletion-audit `user_id` necessity and retention remain owned by #74.
 - **Event names:** `landing_page_viewed`, `tool_run_started`, `tool_run_succeeded`,
   `tool_run_failed`, `result_page_loaded`, `result_page_cache_miss`,
   `export_action_used`, `workspace_resumed`, `frontend_error`, `tool_regenerate`,
-  `auth_signup_source`, `workflow_continued`
+  `auth_signup_source`, `workflow_continued`, `generation_loader_abandoned`
 - **Deliberately excluded:** Resume text, job descriptions, user emails, PII
 
 — `frontend/src/lib/telemetry/client.ts`
 
 ### 10.3 PostHog — NOT Active
 
-PostHog environment variables exist in `/frontend/.env`:
-```
-VITE_PUBLIC_POSTHOG_PROJECT_TOKEN=...
-VITE_PUBLIC_POSTHOG_HOST=https://us.i.posthog.com
-VITE_PUBLIC_POSTHOG_INGESTION_HOST=/ingest
-```
+PostHog was evaluated historically but is not a current processor (D-118):
 
-And the frontend Dockerfile declares them as build args. However:
-- `posthog-js` is not in `package.json`
-- No `posthog` imports exist in `src/`
-- The Vite proxy to PostHog is present in `vite.config.ts:22-27` but unused
-- `CookiePolicyPage.tsx` explicitly states: *"Right now, Career Workbench does
-  not load any analytics or advertising cookies."*
+- `posthog-js` is not in `package.json` and no PostHog imports exist in `src/`.
+- PostHog build arguments, runtime variables, CSP origins, and the unused Vite
+  ingestion proxy have been removed.
+- `CookiePolicyPage.tsx` explicitly states that Career Workbench does not load
+  analytics or advertising cookies.
 
-**Status:** Infrastructure present but SDK is not activated. See D-UNK-4.
+Historical cloud-project deletion is an owner-only console action tracked by #208
+(D-119); it does not change the application's current processor posture.
 
 ### 10.4 Google AdSense — Client Ad/Unlock Path Removed
 
@@ -1084,7 +1094,7 @@ authoritative access seam (D-048, ADR 0003); it may not reuse a client-only gate
 | 3 | **SSRF via job URL import** | API → Internet | Medium — internal network access | All-answer IP checks, per-hop DNS pinning, redirect re-validation, browser network denial, response type/size bounds | Public endpoints can still return attacker-controlled HTML; extraction remains best-effort and intentionally unauthenticated |
 | 4 | **Session hijacking (cookie theft)** | Browser → API | High — full account access | HttpOnly cookies, SameSite=Lax, Secure in production | No token binding; refresh token lives 7 days; no device/session fingerprinting |
 | 5 | **Persistent XSS via stored/generated content** | DB → Browser | Medium — session theft, credential capture | Tool output is rendered in React (auto-escaped), no raw HTML insertion; the frontend CSP denies objects and framing and limits script origins | Generated content includes untrusted LLM output; the SSR-compatible CSP currently permits inline scripts; no output sanitization beyond React defaults |
-| 6 | **Malicious file upload** | Browser → API | Medium — DoS, parser exploitation | 10MB limit, magic byte validation, PDF/DOCX only | No page count limit; no ZIP bomb protection for DOCX; PyMuPDF processes arbitrary PDFs |
+| 6 | **Malicious file upload / oversized request body** | Browser → API | Medium — DoS, parser exploitation | ASGI receive limits reject JSON above 1 MiB, multipart bodies above an 11,010,048-byte transport ceiling, and more than 4,096 body chunks before parsing; upload handling independently enforces a 10MB file limit, magic-byte validation, PDF/DOCX only, and archive bounds | PyMuPDF still processes adversarial PDFs inside the isolated parser budget; deployment proxy limits require staging verification |
 | 7 | **Prompt injection to extract system prompts or influence outputs** | API → Vertex AI | Low-Medium — output manipulation | 17 regex patterns in `input_sanitizer.py` | Regex cannot block all injection vectors; no system prompt hardening / delimiters |
 | 8 | **Account enumeration** | API → Auth | Low — privacy | Login/register return distinct errors; password reset always returns 200 | Login says "Invalid email or password" (ambiguous), but registration says "Email already registered" (distinct) |
 | 9 | **Career-gap inference through telemetry/admin access** | API → analytics store → admin | High — a weakness profile could harm the user professionally | Development events have only closed gap/response/state enums, no user/item identifiers or free text; the admin endpoint returns grouped counts only and remains admin-gated | An administrator can still infer population-level product patterns; admin credential security remains a trust assumption |
@@ -1095,9 +1105,9 @@ authoritative access seam (D-048, ADR 0003); it may not reuse a client-only gate
 
 | Rank | Failure Mode | Affected Asset | Current Protection | Gap |
 |------|-------------|----------------|-------------------|-----|
-| 1 | **Resume/JD leakage via logs or error reports** | Resume text, generated content | Sentry drops bodies, breadcrumb payloads, query strings, credentials, and user context; telemetry rejects unknown/content fields; model/import/email/OAuth failures log only generic categories | Sentry stack traces still expose code paths; processor enablement and retention remain unverified |
+| 1 | **Resume/JD leakage via logs or error reports** | Resume text, generated content | Sentry drops bodies, breadcrumb payloads, query strings, credentials, user context, raw exception values, unsafe contexts, and frame variables; provider chains are suppressed; telemetry rejects unknown/content fields; model/import/email/OAuth failures log only generic categories | Scrubbed stack traces still expose code paths; processor enablement and retention remain unverified |
 | 2 | **Generated content accessible to wrong user** | ToolRun results | User-scoped cache keys; DB queries filter by `user_id` | In-memory cache key includes user scope; no cross-user access observed in code — confidence is high but only code-audit, not penetration-test, verified |
-| 3 | **Browser storage persistence after logout** | sessionStorage data | Tab-scoped sessionStorage clears on tab close; localStorage consent stays | Logout clears pending intent, invalidates query cache, but does not clear tool drafts, workflow context, demo results, or resume-carry from current tab's sessionStorage |
+| 3 | **Browser storage persistence after logout** | sessionStorage data | Explicit logout (including local cleanup after server failure), successful account deletion, and the settings reset clear tool drafts, workflow context, demo results, and resume carry in the current tab; tab close also clears them | Another already-open tab retains its independent tab-scoped copy until that tab logs out, resets, or closes; cross-tab synchronization is deliberately absent under D-011 |
 | 4 | **Password reset link exposure** | Reset token | New links use a fragment that is scrubbed after hydration; single-use password-hash-derived signing invalidates the token on password change | Legacy query-token links remain accepted temporarily for rollout compatibility and are scrubbed client-side |
 | 5 | **Account deletion — data reappears from backup** | All user data | Cascading delete in single transaction; structured log emitted; no backups exist during thesis-demo phase, so no restore-reappearance risk currently | Before R5/beta launch, the accepted backup + restore procedure (D-032) must document how deletions are honored across a restore |
 | 6 | **Incomplete account deletion** | User data | `delete_all_user_data()` explicitly deletes development items, gap classifications, evidence, documents, tool runs, campaigns, and the user; PostgreSQL independently cascades owner rows; derived development recommendations disappear with their classifications | No post-delete verification query; content-free aggregate analytics remain until their 180-day retention boundary, by design; if Sentry is active, previously-captured events remain in Sentry's retention window |
@@ -1113,7 +1123,7 @@ authoritative access seam (D-048, ADR 0003); it may not reuse a client-only gate
 | 3 | Docker runtime users | Frontend runs as the base image's `node` user; backend runs as dedicated UID 10001 with owned application and Playwright files | Non-root user with minimal capabilities | Image-build verification remains required where Docker is available | #81 |
 | 4 | No dormant-account TTL cleanup | Data persists indefinitely while an account exists; deletion is user-initiated only | Accepted as final posture (D-031) — no automated cleanup planned | None; user-initiated erasure satisfies GDPR right-to-erasure | #74 (resolved) |
 | 5 | No automated backups | No backup scripts, no cron jobs | Railway managed automated backups + rehearsed restore procedure, required before beta launch | Data loss on Railway incident until R5 lands the backup + restore rehearsal | #74 (resolved) / R5 |
-| 6 | PostHog infrastructure present, SDK inactive | Build args + env vars + proxy config exist | Decision: activate PostHog OR remove dead config | Confusion about active processors; CookiePolicyPage claims no analytics but proxy exists | #82 |
+| 6 | PostHog removal | SDK, build args, runtime variables, CSP origins, and proxy are absent | Resolved by D-118; retain historical references only where needed for #208 | Historical cloud-project data remains until the owner completes #208 | #82 / #208 |
 | 7 | No email verification on password registration | Account immediately usable | Email verification before first tool use | Spam accounts, wrong-email lockouts | #75 |
 | 8 | Low-cost endpoints remain unlimited | `GET /auth/me`, `POST /auth/logout`, `GET /auth/providers`, history GET/PATCH/DELETE | Add limits only if availability evidence shows abuse | Broad limiting can degrade normal authenticated navigation | R10 |
 | 9 | Password reset URL exposure | New links use `#token=...`; the page consumes and scrubs fragment and legacy query tokens | Remove legacy query compatibility after the reset-token lifetime and rollout window | Old links can retain tokens in pre-existing browser history | #75 |

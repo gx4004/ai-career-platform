@@ -6,6 +6,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from app.schemas.access_policy import ResultAccessDecision
 from app.schemas.application_packets import PacketApprovalSnapshotResponse
 from app.schemas.tools import SharedResultEnvelope
 
@@ -71,6 +72,7 @@ class ToolRunSummary(BaseModel):
     # break the frontend parse; the Literal makes the contract exact.
     access_mode: Literal["authenticated", "guest_demo"] = "authenticated"
     locked_actions: list[str] = Field(default_factory=list)
+    access_decision: ResultAccessDecision | None = None
     metadata: SavedRunMetadata = Field(default_factory=SavedRunMetadata)
     workspace: WorkspaceSummary | None = None
 

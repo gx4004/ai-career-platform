@@ -200,6 +200,15 @@ def set_evidence_confirmation(
 
 def delete_evidence_item(db: Session, item_id: str, user_id: str) -> None:
     item = get_evidence_item(db, item_id, user_id)
+    kind, provenance = _prepare_evidence_item_deletion(db, item)
+    db.commit()
+    _record_evidence_item_deleted(db, kind=kind, provenance=provenance)
+
+
+def _prepare_evidence_item_deletion(
+    db: Session, item: EvidenceItem
+) -> tuple[str, str]:
+    """Stage one item's owner-related cleanup without committing the transaction."""
     development_item = _linked_development_item(db, item)
     if development_item is not None:
         development_item.evidence_item_id = None
@@ -216,13 +225,35 @@ def delete_evidence_item(db: Session, item_id: str, user_id: str) -> None:
     # no resulting confirmation state, so the transition dimension stays null.
     kind, provenance = item.kind, item.provenance
     db.delete(item)
-    db.commit()
+    return kind, provenance
+
+
+def _record_evidence_item_deleted(
+    db: Session, *, kind: str, provenance: str
+) -> None:
     safe_record_activation_event(
         db,
         event_name="profile_item_deleted",
         evidence_kind=kind,
         evidence_provenance=provenance,
     )
+
+
+def delete_evidence_profile(db: Session, user_id: str) -> int:
+    """Delete every owner-scoped profile item in one transaction (D-065).
+
+    Development-item links and timelines are staged alongside the evidence-row
+    deletes, then one commit makes the whole erasure visible. Telemetry is emitted
+    only after that transaction succeeds and carries no content or identifiers.
+    """
+    items = list_evidence_items(db, user_id)
+    deleted_dimensions = [
+        _prepare_evidence_item_deletion(db, item) for item in items
+    ]
+    db.commit()
+    for kind, provenance in deleted_dimensions:
+        _record_evidence_item_deleted(db, kind=kind, provenance=provenance)
+    return len(items)
 
 
 def export_evidence_profile(db: Session, user_id: str) -> EvidenceProfileExport:

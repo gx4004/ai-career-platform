@@ -11,6 +11,9 @@ cannot drift back to "string with no min/max" in a future refactor.
 from __future__ import annotations
 
 import pytest
+from pydantic import ValidationError
+
+from app.schemas.tools import ResumeAnalysisHandoff
 
 PREFIX = "/api/v1"
 
@@ -40,6 +43,92 @@ def _feedback_too_long():
 
 def _target_role_too_long():
     return "x" * 201
+
+
+@pytest.mark.parametrize(
+    "path,base_payload",
+    [
+        ("/resume/analyze", {"resume_text": VALID_RESUME}),
+        ("/job-match/match", {"resume_text": VALID_RESUME, "job_description": VALID_JD}),
+        ("/cover-letter/generate", {"resume_text": VALID_RESUME, "job_description": VALID_JD}),
+        ("/interview/questions", {"resume_text": VALID_RESUME, "job_description": VALID_JD}),
+        ("/career/recommend", {"resume_text": VALID_RESUME}),
+        ("/portfolio/recommend", {"resume_text": VALID_RESUME, "target_role": "Backend Engineer"}),
+    ],
+)
+def test_revision_parent_id_is_bounded(client, auth_headers, path, base_payload):
+    response = client.post(
+        f"{PREFIX}{path}",
+        headers=auth_headers,
+        json={**base_payload, "parent_run_id": "x" * 101},
+    )
+
+    assert response.status_code == 422
+
+
+def test_workspace_context_ids_and_count_are_bounded(client, auth_headers):
+    oversized_id = client.post(
+        f"{PREFIX}/resume/analyze",
+        headers=auth_headers,
+        json={
+            "resume_text": VALID_RESUME,
+            "workspace_context": {"workspace_id": "x" * 101},
+        },
+    )
+    excessive_links = client.post(
+        f"{PREFIX}/resume/analyze",
+        headers=auth_headers,
+        json={
+            "resume_text": VALID_RESUME,
+            "workspace_context": {
+                "linked_history_ids": [f"run-{index}" for index in range(51)]
+            },
+        },
+    )
+
+    assert oversized_id.status_code == 422
+    assert excessive_links.status_code == 422
+
+
+@pytest.mark.parametrize("path", ["/cover-letter/generate", "/interview/questions"])
+def test_nested_handoff_complexity_is_bounded(client, auth_headers, path):
+    base_payload = {"resume_text": VALID_RESUME, "job_description": VALID_JD}
+    excessive_list = client.post(
+        f"{PREFIX}{path}",
+        headers=auth_headers,
+        json={
+            **base_payload,
+            "resume_analysis": {"strengths": ["signal"] * 101},
+        },
+    )
+    excessive_string = client.post(
+        f"{PREFIX}{path}",
+        headers=auth_headers,
+        json={
+            **base_payload,
+            "job_match": {"recruiter_summary": "x" * 20_001},
+        },
+    )
+
+    assert excessive_list.status_code == 422
+    assert excessive_string.status_code == 422
+
+
+def test_deep_unknown_handoff_data_hits_complexity_guard_without_recursion_error():
+    nested: dict = {}
+    cursor = nested
+    for _ in range(1_100):
+        child: dict = {}
+        cursor["child"] = child
+        cursor = child
+
+    with pytest.raises(ValidationError, match="too complex"):
+        ResumeAnalysisHandoff.model_validate({"unknown": nested})
+
+
+def test_invalid_unicode_handoff_is_a_validation_error():
+    with pytest.raises(ValidationError, match="valid UTF-8"):
+        ResumeAnalysisHandoff.model_validate({"strengths": ["\ud800"]})
 
 
 @pytest.fixture
@@ -136,6 +225,40 @@ def test_resume_text_max_length(client, auth_headers, path, base_payload, _patch
     payload = {**base_payload, "resume_text": _resume_too_long()}
     resp = client.post(f"{PREFIX}{path}", json=payload, headers=auth_headers)
     assert resp.status_code == 422
+
+
+def test_resume_text_bounds_count_unicode_code_points(client, auth_headers, _patch_ai):
+    accepted = client.post(
+        f"{PREFIX}/resume/analyze",
+        json={"resume_text": "🧭" * 50_000},
+        headers=auth_headers,
+    )
+    rejected = client.post(
+        f"{PREFIX}/resume/analyze",
+        json={"resume_text": "🧭" * 50_001},
+        headers=auth_headers,
+    )
+
+    assert accepted.status_code == 200
+    assert rejected.status_code == 422
+
+
+def test_parent_identifier_bound_counts_unicode_code_points(
+    client, auth_headers, _patch_ai
+):
+    accepted = client.post(
+        f"{PREFIX}/resume/analyze",
+        json={"resume_text": VALID_RESUME, "parent_run_id": "🧭" * 100},
+        headers=auth_headers,
+    )
+    rejected = client.post(
+        f"{PREFIX}/resume/analyze",
+        json={"resume_text": VALID_RESUME, "parent_run_id": "🧭" * 101},
+        headers=auth_headers,
+    )
+
+    assert accepted.status_code == 404
+    assert rejected.status_code == 422
 
 
 @pytest.mark.parametrize(

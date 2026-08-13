@@ -2,12 +2,17 @@ import asyncio
 import json
 import logging
 import random
+from contextlib import suppress
 
 from app.config import settings
 from app.services.llm_cost import record_llm_usage
 from app.services.provider_incident import set_provider_incident
 
 logger = logging.getLogger(__name__)
+
+
+class ProviderConfigurationError(RuntimeError):
+    """A provider configuration fault that cannot recover through request retries."""
 
 
 def _record_usage(response: object, model: str) -> None:
@@ -34,30 +39,6 @@ def _record_usage(response: object, model: str) -> None:
         logger.debug("LLM usage capture skipped model=%s", model, exc_info=True)
 
 # ---------------------------------------------------------------------------
-# Lazy Vertex AI singleton
-# ---------------------------------------------------------------------------
-_vertex_initialised = False
-
-
-def _ensure_vertex_init() -> None:
-    global _vertex_initialised
-    if _vertex_initialised:
-        return
-    import vertexai
-
-    vertexai.init(
-        project=settings.VERTEX_PROJECT_ID,
-        location=settings.VERTEX_LOCATION,
-    )
-    _vertex_initialised = True
-    logger.info(
-        "Vertex AI initialised  project=%s  location=%s",
-        settings.VERTEX_PROJECT_ID,
-        settings.VERTEX_LOCATION,
-    )
-
-
-# ---------------------------------------------------------------------------
 # Public entry-point
 # ---------------------------------------------------------------------------
 
@@ -79,6 +60,8 @@ async def _with_retry(coro_factory, max_retries: int = _MAX_RETRIES, base_delay:
     for attempt in range(max_retries + 1):
         try:
             return await coro_factory()
+        except ProviderConfigurationError:
+            raise
         except (TimeoutError, RuntimeError, json.JSONDecodeError) as exc:
             last_exc = exc
             if attempt < max_retries:
@@ -126,26 +109,32 @@ async def complete_structured(
 
 
 async def _call_vertex(system_prompt: str, user_prompt: str, model_name: str | None = None) -> dict:
-    from google.api_core import exceptions as gcp_exceptions
-    from vertexai.generative_models import GenerationConfig, GenerativeModel
+    from google import genai
+    from google.auth import exceptions as auth_exceptions
+    from google.genai import errors as genai_errors
 
-    _ensure_vertex_init()
-
-    model = GenerativeModel(
-        model_name or settings.LLM_MODEL,
-        system_instruction=[system_prompt],
-    )
-
-    generation_config = GenerationConfig(
-        temperature=0.3,
-        response_mime_type="application/json",
-    )
-
+    # ``vertexai.generative_models`` was removed after 2026-06-24. Use the
+    # supported Google Gen AI SDK against the stable Vertex API while preserving
+    # Application Default Credentials and the existing project/location config.
+    client = None
+    async_client = None
     try:
+        client = genai.Client(
+            vertexai=True,
+            project=settings.VERTEX_PROJECT_ID,
+            location=settings.VERTEX_LOCATION,
+            http_options={"api_version": "v1"},
+        )
+        async_client = client.aio
         response = await asyncio.wait_for(
-            model.generate_content_async(
-                user_prompt,
-                generation_config=generation_config,
+            async_client.models.generate_content(
+                model=model_name or settings.LLM_MODEL,
+                contents=user_prompt,
+                config={
+                    "system_instruction": system_prompt,
+                    "temperature": 0.3,
+                    "response_mime_type": "application/json",
+                },
             ),
             timeout=_LLM_TIMEOUT_SECONDS,
         )
@@ -156,23 +145,51 @@ async def _call_vertex(system_prompt: str, user_prompt: str, model_name: str | N
         set_provider_incident("timeout")
         raise TimeoutError(
             f"AI request timed out after {_LLM_TIMEOUT_SECONDS}s. Please try again."
-        )
-    except gcp_exceptions.ResourceExhausted:
-        logger.error("Vertex AI quota exceeded")
-        set_provider_incident("quota")
-        raise RuntimeError(
-            "AI service quota exceeded. Please try again in a few minutes."
-        )
-    except gcp_exceptions.PermissionDenied:
-        logger.error(
-            "Vertex AI permission denied for project=%s", settings.VERTEX_PROJECT_ID
-        )
+        ) from None
+    except genai_errors.ClientError as exc:
+        if exc.code == 429:
+            logger.error("Vertex AI quota exceeded")
+            set_provider_incident("quota")
+            raise RuntimeError(
+                "AI service quota exceeded. Please try again in a few minutes."
+            ) from None
+        if exc.code in {401, 403}:
+            logger.error(
+                "Vertex AI permission denied for project=%s", settings.VERTEX_PROJECT_ID
+            )
+            set_provider_incident("permission")
+            raise ProviderConfigurationError(
+                "AI service configuration error. Please contact support."
+            ) from None
+        logger.error("Vertex AI call failed status=%d", exc.code)
+        set_provider_incident("unavailable")
+        raise RuntimeError("AI service temporarily unavailable. Please try again.") from None
+    except auth_exceptions.GoogleAuthError as exc:
+        logger.error("Vertex AI credentials unavailable error_type=%s", type(exc).__name__)
         set_provider_incident("permission")
-        raise RuntimeError("AI service configuration error. Please contact support.")
-    except gcp_exceptions.GoogleAPICallError as exc:
+        raise ProviderConfigurationError(
+            "AI service configuration error. Please contact support."
+        ) from None
+    except genai_errors.ServerError as exc:
         logger.error("Vertex AI call failed error_type=%s", type(exc).__name__)
         set_provider_incident("unavailable")
-        raise RuntimeError("AI service temporarily unavailable. Please try again.")
+        raise RuntimeError("AI service temporarily unavailable. Please try again.") from None
+    except Exception as exc:  # noqa: BLE001 — transport failures have no SDK type
+        # The Gen AI SDK does not wrap httpx transport failures (DNS, TLS, refused
+        # connection, reset) into an APIError, so an unreachable provider escaped
+        # as a raw httpx error: no retry, and no `r10_provider_incident` evidence
+        # for the D-055 fallback trigger. The removed `GoogleAPICallError` base
+        # class used to cover these. Only the error type is logged.
+        logger.error("Vertex AI transport failure error_type=%s", type(exc).__name__)
+        set_provider_incident("unavailable")
+        raise RuntimeError("AI service temporarily unavailable. Please try again.") from None
+    finally:
+        if async_client is not None:
+            with suppress(Exception):
+                await async_client.aclose()
+        if client is not None:
+            with suppress(Exception):
+                client.close()
 
     # Record actual token usage before parsing: the tokens were consumed even if
     # the JSON body later fails to parse (R6 cost estimate, issue #106).
@@ -207,11 +224,11 @@ async def _call_google_genai(system_prompt: str, user_prompt: str, model_name: s
         set_provider_incident("timeout")
         raise TimeoutError(
             f"AI request timed out after {_LLM_TIMEOUT_SECONDS}s. Please try again."
-        )
+        ) from None
     except Exception as exc:
         logger.error("Google AI call failed error_type=%s", type(exc).__name__)
         set_provider_incident("unavailable")
-        raise RuntimeError("AI service temporarily unavailable. Please try again.")
+        raise RuntimeError("AI service temporarily unavailable. Please try again.") from None
 
     # Record actual token usage before parsing: the tokens were consumed even if
     # the JSON body later fails to parse (R6 cost estimate, issue #106).

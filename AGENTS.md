@@ -103,6 +103,16 @@ Before handing off:
 
 ## Verification
 
+### Local-first CI policy
+
+- Run every feasible quality gate locally. Pushes and pull-request updates are
+  allowed, but they must not consume hosted Actions quota automatically.
+- GitHub Actions workflows are manual-dispatch only. Do not add `push`,
+  `pull_request`, scheduled, or other automatic triggers unless the owner
+  explicitly reverses this policy.
+- Do not dispatch or rerun GitHub Actions yourself. Preserve the checked-in jobs
+  for an owner-triggered hosted gate when the owner decides it is needed.
+
 ```bash
 # Frontend
 cd frontend

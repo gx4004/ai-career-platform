@@ -1,4 +1,5 @@
 import hashlib
+from time import perf_counter
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
@@ -6,6 +7,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.auth.security import get_current_user
 from app.database import get_db
+from app.feature_gates import outcome_enabled, require_r13_enabled, require_r17_enabled
 from app.limiter import limiter
 from app.models.application_packet import ApplicationPacket
 from app.models.campaign_event import CampaignEvent
@@ -43,6 +45,7 @@ from app.schemas.history import (
     WorkspaceSummary,
     WorkspaceUpdateRequest,
 )
+from app.services.analytics import record_database_query_timing
 from app.services.campaign_materials import (
     clear_selected_run,
     get_campaign_detail,
@@ -69,6 +72,7 @@ from app.services.gap_classifier import (
 )
 from app.services.gap_response import map_gap_to_response
 from app.services.input_sanitizer import sanitize_user_input
+from app.services.result_access import evaluate_result_access
 from app.services.tool_pipeline import run_tool_pipeline
 from app.services.tool_runs import build_workspace_summary, derive_saved_run_metadata
 
@@ -123,6 +127,7 @@ def list_history(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    query_started = perf_counter()
     query = (
         db.query(ToolRun)
         .options(selectinload(ToolRun.workspace))
@@ -145,13 +150,17 @@ def list_history(
     )
     workspace_runs = _workspace_runs_map(db, current_user.id, items)
 
-    return ToolRunListResponse(
+    response = ToolRunListResponse(
         items=[_summary(r, workspace_runs.get(r.workspace_id, [])) for r in items],
         total=total,
         page=page,
         page_size=page_size,
         has_more=(page * page_size) < total,
     )
+    record_database_query_timing(
+        db, query_family="history_list", started_at=query_started
+    )
+    return response
 
 
 @router.get("/workspaces", response_model=WorkspaceListResponse)
@@ -160,6 +169,7 @@ def list_workspaces(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    query_started = perf_counter()
     workspaces = (
         db.query(Workspace)
         .options(selectinload(Workspace.tool_runs))
@@ -173,12 +183,17 @@ def list_workspaces(
         summary = build_workspace_summary(workspace, list(workspace.tool_runs))
         if summary is not None:
             items.append(summary)
-    return WorkspaceListResponse(items=items, total=len(items))
+    response = WorkspaceListResponse(items=items, total=len(items))
+    record_database_query_timing(
+        db, query_family="workspace_list", started_at=query_started
+    )
+    return response
 
 
 @router.get("/workspaces/{workspace_id}", response_model=CampaignDetailResponse)
 def get_campaign(
     workspace_id: str,
+    _gate: None = Depends(require_r13_enabled),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -190,6 +205,7 @@ def get_campaign(
 def update_campaign_materials(
     workspace_id: str,
     body: CampaignMaterialSelectionRequest,
+    _gate: None = Depends(require_r13_enabled),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -202,6 +218,7 @@ def update_campaign_materials(
 def get_campaign_reminders(
     request: Request,
     workspace_id: str,
+    _gate: None = Depends(require_r13_enabled),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -213,6 +230,7 @@ def get_campaign_reminders(
 def update_campaign_reminders(
     workspace_id: str,
     body: CampaignReminderConsent,
+    _gate: None = Depends(require_r13_enabled),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -224,6 +242,7 @@ def update_campaign_reminders(
 async def review_campaign(
     request: Request,
     workspace_id: str,
+    _gate: None = Depends(require_r13_enabled),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -272,6 +291,7 @@ def _serialize_gap_classifications(rows) -> GapClassificationListResponse:
 async def classify_campaign_gaps(
     request: Request,
     workspace_id: str,
+    _gate: None = Depends(require_r17_enabled),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -308,6 +328,7 @@ async def classify_campaign_gaps(
 )
 def get_campaign_gaps(
     workspace_id: str,
+    _gate: None = Depends(require_r17_enabled),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -323,6 +344,7 @@ def get_campaign_gaps(
 def delete_campaign_gap(
     workspace_id: str,
     classification_id: str,
+    _gate: None = Depends(require_r17_enabled),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> Response:
@@ -341,6 +363,7 @@ def delete_campaign_gap(
 def get_gap_response(
     workspace_id: str,
     classification_id: str,
+    _gate: None = Depends(require_r17_enabled),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -371,6 +394,7 @@ def get_gap_response(
 def create_campaign_task(
     workspace_id: str,
     body: CampaignTaskCreate,
+    _gate: None = Depends(require_r13_enabled),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -382,6 +406,7 @@ def update_campaign_task(
     workspace_id: str,
     item_id: str,
     body: CampaignTaskUpdate,
+    _gate: None = Depends(require_r13_enabled),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -410,6 +435,7 @@ def update_campaign_task(
 def delete_campaign_task(
     workspace_id: str,
     item_id: str,
+    _gate: None = Depends(require_r13_enabled),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -422,6 +448,7 @@ def delete_campaign_task(
 def create_campaign_note(
     workspace_id: str,
     body: CampaignNoteCreate,
+    _gate: None = Depends(require_r13_enabled),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -432,6 +459,7 @@ def create_campaign_note(
 def delete_campaign_note(
     workspace_id: str,
     item_id: str,
+    _gate: None = Depends(require_r13_enabled),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -444,6 +472,7 @@ def delete_campaign_note(
 def create_campaign_contact(
     workspace_id: str,
     body: CampaignContactCreate,
+    _gate: None = Depends(require_r13_enabled),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -454,6 +483,7 @@ def create_campaign_contact(
 def delete_campaign_contact(
     workspace_id: str,
     item_id: str,
+    _gate: None = Depends(require_r13_enabled),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -478,6 +508,14 @@ def _delete_campaign_record(
     return DeletedResponse(deleted=1)
 
 
+# `label` and `is_pinned` are core history controls that predate R13 and must keep
+# working while campaigns are dark. The remaining fields drive campaign state,
+# `CampaignEvent` rows, and R15/R16 submission snapshots, so this endpoint is gated
+# per field instead of wholesale — a route-level dependency would break pinning and
+# renaming for every user.
+_R13_WORKSPACE_FIELDS = frozenset({"company", "role", "status", "deadline"})
+
+
 @router.patch("/workspaces/{workspace_id}", response_model=WorkspaceSummary)
 def update_workspace(
     workspace_id: str,
@@ -485,6 +523,9 @@ def update_workspace(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    if body.model_fields_set & _R13_WORKSPACE_FIELDS and not outcome_enabled("r13"):
+        # Match the gate dependencies: a dark outcome is absent, not forbidden.
+        raise HTTPException(status_code=404, detail="Feature not available")
     if "status" in body.model_fields_set:
         workspace = (
             db.query(Workspace)
@@ -602,6 +643,11 @@ def get_history_item(
 ):
     run = _get_run(db, history_id, current_user.id)
     workspace_runs = _workspace_runs_map(db, current_user.id, [run])
+    access_decision = evaluate_result_access(
+        surface="saved_result",
+        tool_name=run.tool_name,
+        access_mode="authenticated",
+    )
     return ToolRunDetail(
         id=run.id,
         tool_name=run.tool_name,
@@ -611,6 +657,7 @@ def get_history_item(
         saved=True,
         access_mode="authenticated",
         locked_actions=[],
+        access_decision=access_decision,
         metadata=derive_saved_run_metadata(run.tool_name, run.result_payload or {}),
         workspace=build_workspace_summary(run.workspace, workspace_runs.get(run.workspace_id, [])),
         parent_run_id=run.parent_run_id,
@@ -642,6 +689,14 @@ def export_pdf(
     )
     if not run:
         raise HTTPException(status_code=404, detail="Run not found")
+
+    access_decision = evaluate_result_access(
+        surface="export",
+        tool_name=run.tool_name,
+        access_mode="authenticated",
+    )
+    if not access_decision.can_export:
+        raise HTTPException(status_code=403, detail="Export is not available")
 
     result = run.result_payload or {}
 

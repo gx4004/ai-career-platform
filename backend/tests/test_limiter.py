@@ -187,7 +187,7 @@ def test_development_allows_in_memory_rate_limit_storage(monkeypatch):
     validate_abuse_control_config()
 
 
-def test_resource_import_limit_is_shared_and_returns_429(client, monkeypatch):
+def test_resource_import_limit_is_shared_and_returns_429(client, monkeypatch, caplog):
     monkeypatch.setattr("app.limiter.settings.RESOURCE_IMPORT_LIMIT", "2/minute")
     limiter._storage.reset()
     scrape = AsyncMock(
@@ -199,6 +199,11 @@ def test_resource_import_limit_is_shared_and_returns_429(client, monkeypatch):
         )
     )
     monkeypatch.setattr("app.routers.job_posts.scrape_job_posting", scrape)
+    recorded = []
+    monkeypatch.setattr(
+        "app.main.schedule_rate_limit_evidence",
+        lambda **evidence: recorded.append(evidence),
+    )
 
     responses = [
         client.post(
@@ -210,6 +215,45 @@ def test_resource_import_limit_is_shared_and_returns_429(client, monkeypatch):
 
     assert [response.status_code for response in responses] == [200, 200, 429]
     assert scrape.await_count == 2
+    assert recorded == [{"route_family": "imports", "identity_type": "guest"}]
+    assert "/api/v1/job-posts/import-url" not in caplog.text
+
+
+def test_evidence_storage_failure_preserves_rate_limit_response(
+    client, monkeypatch, caplog
+):
+    monkeypatch.setattr("app.limiter.settings.RESOURCE_IMPORT_LIMIT", "1/minute")
+    limiter._storage.reset()
+    monkeypatch.setattr(
+        "app.routers.job_posts.scrape_job_posting",
+        AsyncMock(
+            return_value=ImportedJobResponse(
+                job_title="Engineer",
+                company_name="Example",
+                job_description="A safe imported job description.",
+                source_url="https://example.com/job",
+            )
+        ),
+    )
+    monkeypatch.setattr(
+        "app.main.schedule_rate_limit_evidence",
+        lambda **_: (_ for _ in ()).throw(RuntimeError("private storage detail")),
+    )
+
+    first = client.post(
+        "/api/v1/job-posts/import-url",
+        json={"url": "https://example.com/job"},
+    )
+    second = client.post(
+        "/api/v1/job-posts/import-url",
+        json={"url": "https://example.com/job"},
+    )
+
+    assert first.status_code == 200
+    assert second.status_code == 429
+    assert "rate_limit_evidence_schedule_failed" in caplog.text
+    assert "RuntimeError" in caplog.text
+    assert "private storage detail" not in caplog.text
 
 
 def test_model_cost_limit_returns_429_before_second_tool_run(

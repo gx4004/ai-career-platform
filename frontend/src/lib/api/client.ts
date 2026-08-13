@@ -12,7 +12,10 @@ import {
 } from '#/lib/api/packetSchemas'
 import {
   authProvidersSchema,
+  authSessionResponseSchema,
+  careerRequestSchema,
   careerResultSchema,
+  coverLetterRequestSchema,
   coverLetterResultSchema,
   deletedResponseSchema,
   evidenceItemListSchema,
@@ -32,10 +35,17 @@ import {
   importJobTextSchema,
   importJobUrlSchema,
   interviewPracticeFeedbackSchema,
+  interviewRequestSchema,
   interviewResultSchema,
+  jobMatchRequestSchema,
   jobMatchResultSchema,
+  loginRequestSchema,
   parsedCvSchema,
+  passwordResetConfirmRequestSchema,
+  portfolioRequestSchema,
   portfolioResultSchema,
+  registerRequestSchema,
+  resumeAnalyzeRequestSchema,
   resumeResultSchema,
   toolRunDetailSchema,
   toolRunListSchema,
@@ -49,6 +59,8 @@ import {
   campaignTaskSchema, campaignNoteSchema, campaignContactSchema,
   campaignReminderResponseSchema,
   campaignReviewResponseSchema,
+  careerDataExportSchema,
+  cvDocumentCreateSchema,
   cvDocumentListSchema,
   cvDocumentSchema,
   cvDocumentUpdateSchema,
@@ -64,8 +76,7 @@ import type {
   EvidenceConfirmationAction,
   EvidenceItemCreate,
   EvidenceItemUpdate,
-  JobMatchResult,
-  ResumeResult,
+  CvDocumentCreate,
   CvDocumentUpdate,
   CvAtsCheckKey,
   CvTemplateId,
@@ -75,6 +86,12 @@ import type {
 
 export function listCvDocuments() {
   return request('/cv-documents', { method: 'GET', schema: cvDocumentListSchema })
+}
+
+export function createCvDocument(payload: CvDocumentCreate) {
+  return request('/cv-documents', {
+    method: 'POST', body: cvDocumentCreateSchema.parse(payload), schema: cvDocumentSchema,
+  })
 }
 
 export function getCvDocument(documentId: string) {
@@ -309,27 +326,20 @@ export type HistoryQueryParams = {
   page_size?: number
 }
 
-// Auth endpoints don't parse response bodies — HttpOnly cookies set by the
-// backend are the sole source of session truth. Any `access_token` the
-// backend still returns in JSON is explicitly discarded by the frontend
-// (Codex-flagged cleanup: backend-side body removal is a follow-up).
-export async function login(payload: { email: string; password: string }): Promise<void> {
-  await request<unknown>('/auth/login', {
+// Auth endpoints don't parse response bodies. HttpOnly cookies set by the
+// backend are the sole source of session truth.
+export async function login(payload: z.input<typeof loginRequestSchema>): Promise<void> {
+  await request('/auth/login', {
     method: 'POST',
-    body: payload,
+    body: loginRequestSchema.parse(payload),
+    schema: authSessionResponseSchema,
   })
 }
 
-export function register(payload: {
-  email: string
-  password: string
-  full_name?: string
-  captcha_token?: string
-  tos_accepted: boolean
-}) {
+export function register(payload: z.input<typeof registerRequestSchema>) {
   return request('/auth/register', {
     method: 'POST',
-    body: payload,
+    body: registerRequestSchema.parse(payload),
     schema: userSchema,
   })
 }
@@ -458,6 +468,17 @@ export function deleteEvidenceItem(itemId: string) {
   return request<void>(`/evidence-profile/items/${itemId}`, { method: 'DELETE' })
 }
 
+export function deleteEvidenceProfile() {
+  return request<void>('/evidence-profile/items', { method: 'DELETE' })
+}
+
+export function exportCareerData() {
+  return request('/evidence-profile/export', {
+    method: 'GET',
+    schema: careerDataExportSchema,
+  })
+}
+
 // R11 (#146): derive reviewable evidence proposals from parsed resume text.
 // Authenticated-only server-side (guests get 401/403). Proposals are ephemeral —
 // nothing is stored until the user accepts one via createEvidenceItem.
@@ -499,52 +520,34 @@ export function importJobText(payload: {
   })
 }
 
-export function runResumeAnalysis(payload: {
-  resume_text: string
-  job_description?: string
-}) {
+export function runResumeAnalysis(payload: z.input<typeof resumeAnalyzeRequestSchema>) {
   return request('/resume/analyze', {
     method: 'POST',
-    body: payload,
+    body: resumeAnalyzeRequestSchema.parse(payload),
     schema: resumeResultSchema,
   })
 }
 
-export function runJobMatch(payload: {
-  resume_text: string
-  job_description: string
-}) {
+export function runJobMatch(payload: z.input<typeof jobMatchRequestSchema>) {
   return request('/job-match/match', {
     method: 'POST',
-    body: payload,
+    body: jobMatchRequestSchema.parse(payload),
     schema: jobMatchResultSchema,
   })
 }
 
-export function runCoverLetter(payload: {
-  resume_text: string
-  job_description: string
-  tone?: string
-  resume_analysis?: ResumeResult
-  job_match?: JobMatchResult
-}) {
+export function runCoverLetter(payload: z.input<typeof coverLetterRequestSchema>) {
   return request('/cover-letter/generate', {
     method: 'POST',
-    body: payload,
+    body: coverLetterRequestSchema.parse(payload),
     schema: coverLetterResultSchema,
   })
 }
 
-export function runInterview(payload: {
-  resume_text: string
-  job_description: string
-  num_questions?: number
-  resume_analysis?: ResumeResult
-  job_match?: JobMatchResult
-}) {
+export function runInterview(payload: z.input<typeof interviewRequestSchema>) {
   return request('/interview/questions', {
     method: 'POST',
-    body: payload,
+    body: interviewRequestSchema.parse(payload),
     schema: interviewResultSchema,
   })
 }
@@ -561,24 +564,18 @@ export function runInterviewPracticeFeedback(payload: {
   })
 }
 
-export function runCareer(payload: {
-  resume_text: string
-  target_role?: string
-}) {
+export function runCareer(payload: z.input<typeof careerRequestSchema>) {
   return request('/career/recommend', {
     method: 'POST',
-    body: payload,
+    body: careerRequestSchema.parse(payload),
     schema: careerResultSchema,
   })
 }
 
-export function runPortfolio(payload: {
-  resume_text: string
-  target_role: string
-}) {
+export function runPortfolio(payload: z.input<typeof portfolioRequestSchema>) {
   return request('/portfolio/recommend', {
     method: 'POST',
-    body: payload,
+    body: portfolioRequestSchema.parse(payload),
     schema: portfolioResultSchema,
   })
 }
@@ -686,17 +683,18 @@ export function requestPasswordReset(payload: { email: string }) {
   })
 }
 
-export function confirmPasswordReset(payload: { token: string; new_password: string }) {
+export function confirmPasswordReset(payload: z.input<typeof passwordResetConfirmRequestSchema>) {
   return request<{ message: string }>('/auth/password-reset/confirm', {
     method: 'POST',
-    body: payload,
+    body: passwordResetConfirmRequestSchema.parse(payload),
   })
 }
 
 export async function refreshToken(): Promise<void> {
-  await request<unknown>('/auth/refresh', {
+  await request('/auth/refresh', {
     method: 'POST',
     body: {},
+    schema: authSessionResponseSchema,
   })
 }
 

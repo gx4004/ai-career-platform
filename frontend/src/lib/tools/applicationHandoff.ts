@@ -1,4 +1,8 @@
-import type { JobMatchResult, ResumeResult } from '#/lib/api/schemas'
+import {
+  jobMatchHandoffSchema,
+  resumeAnalysisHandoffSchema,
+} from '#/lib/api/schemas'
+import type { z } from 'zod'
 import type { WorkflowContextState } from '#/lib/tools/drafts'
 
 export type CoverLetterSeed = {
@@ -20,8 +24,8 @@ export type InterviewSeed = {
 }
 
 type ApplicationHandoffPayload = {
-  resume_analysis?: ResumeResult
-  job_match?: JobMatchResult
+  resume_analysis?: z.infer<typeof resumeAnalysisHandoffSchema>
+  job_match?: z.infer<typeof jobMatchHandoffSchema>
 }
 
 export function getApplicationHandoffPayload(
@@ -30,8 +34,12 @@ export function getApplicationHandoffPayload(
   if (!context) return {}
 
   return {
-    resume_analysis: context.resumeAnalysis,
-    job_match: context.jobMatch,
+    resume_analysis: context.resumeAnalysis
+      ? resumeAnalysisHandoffSchema.parse(context.resumeAnalysis)
+      : undefined,
+    job_match: context.jobMatch
+      ? jobMatchHandoffSchema.parse(context.jobMatch)
+      : undefined,
   }
 }
 

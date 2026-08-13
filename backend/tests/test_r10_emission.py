@@ -10,6 +10,7 @@ from __future__ import annotations
 import pytest
 
 from app.models.analytics_event import AnalyticsEvent
+from app.schemas.analytics import ActivationEventCreate
 from app.schemas.tools import ImportedJobResponse
 from app.services.import_source import set_import_outcome
 from app.services.provider_incident import set_provider_incident
@@ -28,6 +29,22 @@ def _outcomes(db, event_name: str):
         .all()
     )
     return rows
+
+
+@pytest.mark.parametrize(
+    "tool_name",
+    ["cv-quality", "cv-tailoring", "application-reviewer", "application-packet"],
+)
+def test_build_ahead_pipeline_tools_have_bounded_operational_ids(tool_name):
+    event = ActivationEventCreate(
+        event_name="r10_generation_phase",
+        tool_id=tool_name,
+        access_mode="authenticated",
+        duration_ms=1,
+        operational_dimension="provider",
+    )
+
+    assert event.tool_id == tool_name
 
 
 @pytest.mark.asyncio
@@ -51,11 +68,15 @@ async def test_pipeline_emits_cache_miss_then_write_then_hit(db):
     outcomes = [o for _, o in _outcomes(db, "r10_cache_outcome")]
     assert "miss" in outcomes
     assert "write" in outcomes
+    phases = [dimension for dimension, _ in _outcomes(db, "r10_generation_phase")]
+    assert phases == ["sanitize", "cache", "provider", "persist", "finalize"]
 
     # Identical inputs → cache hit on the second run.
     await run_tool_pipeline(**kwargs)
     outcomes = [o for _, o in _outcomes(db, "r10_cache_outcome")]
     assert "hit" in outcomes
+    phases = [dimension for dimension, _ in _outcomes(db, "r10_generation_phase")]
+    assert phases[-4:] == ["sanitize", "cache", "persist", "finalize"]
 
 
 @pytest.mark.asyncio
@@ -83,6 +104,8 @@ async def test_pipeline_emits_one_provider_incident_per_failure(db):
     # Exactly one incident event, carrying the category (not the raw message).
     assert len(incidents) == 1
     assert incidents[0][0] == "timeout"
+    phases = [dimension for dimension, _ in _outcomes(db, "r10_generation_phase")]
+    assert phases == ["sanitize", "cache", "provider"]
 
 
 @pytest.mark.asyncio
@@ -108,6 +131,13 @@ async def test_import_endpoint_records_family_not_url(client, db, monkeypatch):
     dimension, outcome = rows[0]
     assert dimension == "greenhouse"
     assert outcome == "success"
+    assert (
+        db.query(AnalyticsEvent)
+        .filter(AnalyticsEvent.event_name == "r10_import_outcome")
+        .one()
+        .duration_ms
+        >= 0
+    )
 
     # No stored analytics row may contain any fragment of the raw URL.
     all_values = [

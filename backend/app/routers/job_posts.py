@@ -1,10 +1,12 @@
 import logging
+from time import perf_counter
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from app.auth.security import get_current_user, get_optional_current_user
 from app.database import get_db
+from app.feature_gates import require_r13_enabled
 from app.limiter import limiter, resource_abuse_limits
 from app.models.user import User
 from app.schemas.analytics import ImportOutcome, ImportSourceFamily
@@ -32,26 +34,46 @@ async def import_job_url(
     current_user: User | None = Depends(get_optional_current_user),
     db: Session = Depends(get_db),
 ):
+    if body.campaign_id is not None:
+        # Standalone URL parsing predates R13, but attaching its result mutates
+        # campaign state and must remain absent while that outcome is dark.
+        require_r13_enabled()
     # R10 import-concentration evidence (#136, D-059): map the URL to an
     # allowlisted source family *here*, then let the scraper run and record only
     # the family + outcome class. The raw URL is used solely for the local
     # mapping and is never handed to analytics.
     source_family = map_source_family(str(body.url))
     reset_import_outcome()
+    import_started = perf_counter()
     try:
         result = await scrape_job_posting(str(body.url))
     except ValueError as e:
-        _record_import_outcome(db, source_family, forced_outcome="failure")
+        _record_import_outcome(
+            db,
+            source_family,
+            duration_ms=max(0, int((perf_counter() - import_started) * 1000)),
+            forced_outcome="failure",
+        )
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as exc:
         logger.error("Job import failed error_type=%s", type(exc).__name__)
-        _record_import_outcome(db, source_family, forced_outcome="failure")
+        _record_import_outcome(
+            db,
+            source_family,
+            duration_ms=max(0, int((perf_counter() - import_started) * 1000)),
+            forced_outcome="failure",
+        )
         raise HTTPException(
             status_code=502,
             detail="Could not fetch or parse the job posting. Please check the URL and try again.",
         )
     import_outcome: ImportOutcome = get_import_outcome() or "failure"
-    _record_import_outcome(db, source_family, forced_outcome=import_outcome)
+    _record_import_outcome(
+        db,
+        source_family,
+        duration_ms=max(0, int((perf_counter() - import_started) * 1000)),
+        forced_outcome=import_outcome,
+    )
     if body.campaign_id is not None:
         if current_user is None:
             raise HTTPException(
@@ -78,7 +100,11 @@ async def import_job_url(
     return result
 
 
-@router.post("/import-text", response_model=ImportedJobResponse)
+@router.post(
+    "/import-text",
+    response_model=ImportedJobResponse,
+    dependencies=[Depends(require_r13_enabled)],
+)
 @limiter.limit("10/minute")
 def import_job_text(
     request: Request,
@@ -109,13 +135,15 @@ def _record_import_outcome(
     db: Session,
     source_family: ImportSourceFamily,
     *,
+    duration_ms: int,
     forced_outcome: ImportOutcome | None = None,
 ) -> None:
-    """Emit one allowlisted `r10_import_outcome` event (family + outcome only)."""
+    """Emit one bounded import family/outcome/duration event."""
     outcome: ImportOutcome = forced_outcome or get_import_outcome() or "failure"
     safe_record_activation_event(
         db,
         event_name="r10_import_outcome",
         operational_dimension=source_family,
         operational_outcome=outcome,
+        duration_ms=duration_ms,
     )

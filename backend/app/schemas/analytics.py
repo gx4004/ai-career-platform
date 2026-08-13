@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from decimal import Decimal
-from typing import Literal
+from typing import Literal, get_args
 
 from pydantic import BaseModel, ConfigDict, model_validator
 
@@ -39,6 +39,18 @@ R10EventName = Literal[
     "r10_cache_outcome",
     "r10_provider_incident",
     "r10_import_outcome",
+    "r10_rate_limit_event",
+    "r10_generation_phase",
+    "r10_database_query",
+    "r10_database_snapshot",
+]
+
+# The shared pipeline also serves CV Studio operations that are not accepted by
+# browser telemetry. Their backend telemetry still needs a bounded identifier;
+# widening the browser ToolId contract would expose server-only operation names.
+OperationalToolId = ToolId | Literal[
+    "cv-quality",
+    "cv-tailoring",
 ]
 
 # Cache lookup/write outcome at the shared tool-pipeline seam (ADR 0004). No
@@ -73,6 +85,49 @@ ImportSourceFamily = Literal[
 # the bounded Playwright fallback produced the result, `failure` = neither tier
 # yielded a usable posting and the user gets the paste fallback.
 ImportOutcome = Literal["success", "fallback", "failure"]
+
+# A coalesced rate-limit event retains only a stable route family and whether
+# the threshold bucket contained authenticated accounts, guests, or both. Raw
+# paths, IPs, account IDs, tokens, limiter keys, and exception details have no
+# accepted field.
+RateLimitRouteFamily = Literal[
+    "auth",
+    "tools",
+    "imports",
+    "history",
+    "profile",
+    "cv_studio",
+    "campaigns",
+    "discovery",
+    "queue",
+    "submission",
+    "admin",
+    "telemetry",
+    "other",
+]
+RateLimitIdentityType = Literal["account", "guest", "mixed"]
+GenerationPhase = Literal["sanitize", "cache", "provider", "persist", "finalize"]
+DatabaseQueryFamily = Literal["history_list", "workspace_list", "admin_runs"]
+DatabaseMetric = Literal["storage_pct", "pool_checkout_ratio"]
+
+_R10_EVENT_NAMES = frozenset(get_args(R10EventName))
+_R10_ROUTE_FAMILIES = frozenset(get_args(RateLimitRouteFamily))
+_R10_IDENTITY_TYPES = frozenset(get_args(RateLimitIdentityType))
+_R10_PHASES = frozenset(get_args(GenerationPhase))
+_R10_QUERY_FAMILIES = frozenset(get_args(DatabaseQueryFamily))
+_R10_DATABASE_METRICS = frozenset(get_args(DatabaseMetric))
+_R10_PROVIDER_CATEGORIES = frozenset(get_args(ProviderIncidentCategory))
+_R10_IMPORT_FAMILIES = frozenset(get_args(ImportSourceFamily))
+_R10_CACHE_OUTCOMES = frozenset(get_args(CacheOutcome))
+_R10_IMPORT_OUTCOMES = frozenset(get_args(ImportOutcome))
+_R10_DIMENSIONS = frozenset().union(
+    _R10_ROUTE_FAMILIES,
+    _R10_PHASES,
+    _R10_QUERY_FAMILIES,
+    _R10_DATABASE_METRICS,
+    _R10_PROVIDER_CATEGORIES,
+    _R10_IMPORT_FAMILIES,
+)
 
 # R14 source-registry events never carry a source key/name. The family and
 # governance transition are the only bounded dimensions that cross telemetry.
@@ -150,7 +205,14 @@ PacketGateHaltReason = Literal["fabrication_regression", "packet_quality_regress
 # or import outcome). Which axis a value belongs to is unambiguous from
 # `event_name`, so aggregation never has to disambiguate a bare string.
 OperationalDimension = (
-    ProviderIncidentCategory | ImportSourceFamily | DiscoverySourceFamily | PacketGateHaltReason
+    ProviderIncidentCategory
+    | ImportSourceFamily
+    | RateLimitRouteFamily
+    | GenerationPhase
+    | DatabaseQueryFamily
+    | DatabaseMetric
+    | DiscoverySourceFamily
+    | PacketGateHaltReason
 )
 OperationalOutcome = (
     CacheOutcome
@@ -165,6 +227,7 @@ OperationalOutcome = (
     | SubmissionSafetyOutcome
     | SubmissionQualityOutcome
     | PacketGateOutcome
+    | RateLimitIdentityType
 )
 
 # ── R11 profile-adoption allowlist (issue #150, parent #143, D-067) ──
@@ -298,14 +361,15 @@ class ActivationEventCreate(BaseModel):
     already rejects unknown fields. Adds the two backend-computed operational
     metrics — `duration_ms` and `cost_estimate` — which no client reports, and
     the two low-cardinality R10 operational dimensions (`operational_dimension`,
-    `operational_outcome`) that carry scaling-trigger evidence (#136, D-053).
+    `operational_outcome`) and bounded numeric evidence that carry scaling-trigger
+    evidence (#136, D-053).
     """
 
     model_config = ConfigDict(extra="forbid")
 
     event_name: ActivationEventName
     level: TelemetryLevel = "info"
-    tool_id: ToolId | None = None
+    tool_id: OperationalToolId | None = None
     access_mode: AccessMode | None = None
     saved: bool | None = None
     failure_category: FailureCategory | None = None
@@ -314,6 +378,7 @@ class ActivationEventCreate(BaseModel):
     session_status: SessionStatus | None = None
     duration_ms: int | None = None
     cost_estimate: Decimal | None = None
+    metric_value: Decimal | None = None
     operational_dimension: OperationalDimension | None = None
     operational_outcome: OperationalOutcome | None = None
     # R11 profile-adoption dimensions (#150, D-067). Null for every non-profile
@@ -330,6 +395,132 @@ class ActivationEventCreate(BaseModel):
     development_state_from: DevelopmentState | None = None
     development_state_to: DevelopmentState | None = None
     occurred_at: datetime | None = None
+
+    @model_validator(mode="after")
+    def validate_r10_event_shape(self):
+        """Bind every R10 dimension to its one authoritative event shape."""
+        if (
+            self.event_name not in _SUBMISSION_SOURCE_EVENT_OUTCOMES
+            and self.operational_outcome in _SUBMISSION_SOURCE_EXCLUSIVE_OUTCOMES
+        ):
+            raise ValueError(
+                "submission-source outcomes are valid only for submission-source events"
+            )
+        if self.event_name not in _R10_EVENT_NAMES:
+            if (
+                self.operational_dimension in _R10_DIMENSIONS
+                or self.operational_outcome in _R10_IDENTITY_TYPES
+                or self.metric_value is not None
+            ):
+                raise ValueError("R10 dimensions are valid only for matching R10 events")
+            return self
+
+        allowed_fields = {
+            "r10_cache_outcome": {"operational_outcome"},
+            "r10_provider_incident": {
+                "tool_id",
+                "access_mode",
+                "operational_dimension",
+            },
+            "r10_import_outcome": {
+                "duration_ms",
+                "operational_dimension",
+                "operational_outcome",
+            },
+            "r10_rate_limit_event": {
+                "operational_dimension",
+                "operational_outcome",
+                "metric_value",
+            },
+            "r10_generation_phase": {
+                "tool_id",
+                "access_mode",
+                "duration_ms",
+                "operational_dimension",
+            },
+            "r10_database_query": {"duration_ms", "operational_dimension"},
+            "r10_database_snapshot": {"metric_value", "operational_dimension"},
+        }[self.event_name]
+        field_values = {
+            "tool_id": self.tool_id,
+            "access_mode": self.access_mode,
+            "saved": self.saved,
+            "failure_category": self.failure_category,
+            "export_format": self.export_format,
+            "has_feedback": self.has_feedback,
+            "session_status": self.session_status,
+            "duration_ms": self.duration_ms,
+            "cost_estimate": self.cost_estimate,
+            "metric_value": self.metric_value,
+            "operational_dimension": self.operational_dimension,
+            "operational_outcome": self.operational_outcome,
+            "evidence_kind": self.evidence_kind,
+            "evidence_provenance": self.evidence_provenance,
+            "confirmation_transition": self.confirmation_transition,
+            "development_gap_kind": self.development_gap_kind,
+            "development_response_kind": self.development_response_kind,
+            "development_state_from": self.development_state_from,
+            "development_state_to": self.development_state_to,
+            "occurred_at": self.occurred_at,
+        }
+        unexpected = sorted(
+            name
+            for name, value in field_values.items()
+            if value is not None and name not in allowed_fields
+        )
+        expected_level = "error" if self.event_name == "r10_provider_incident" else "info"
+        if unexpected or self.level != expected_level:
+            raise ValueError(
+                f"{self.event_name} contains fields outside its bounded event shape"
+            )
+
+        if self.event_name == "r10_cache_outcome":
+            valid = self.operational_outcome in _R10_CACHE_OUTCOMES
+        elif self.event_name == "r10_provider_incident":
+            valid = (
+                self.tool_id is not None
+                and self.access_mode is not None
+                and self.operational_dimension in _R10_PROVIDER_CATEGORIES
+            )
+        elif self.event_name == "r10_import_outcome":
+            valid = (
+                self.operational_dimension in _R10_IMPORT_FAMILIES
+                and self.operational_outcome in _R10_IMPORT_OUTCOMES
+                and self.duration_ms is not None
+            )
+        elif self.event_name == "r10_rate_limit_event":
+            valid = (
+                self.operational_dimension in _R10_ROUTE_FAMILIES
+                and self.operational_outcome in _R10_IDENTITY_TYPES
+                and self.metric_value is not None
+                and self.metric_value >= 1
+            )
+        elif self.event_name == "r10_generation_phase":
+            valid = (
+                self.tool_id is not None
+                and self.access_mode is not None
+                and self.operational_dimension in _R10_PHASES
+                and self.duration_ms is not None
+            )
+        elif self.event_name == "r10_database_query":
+            valid = (
+                self.operational_dimension in _R10_QUERY_FAMILIES
+                and self.duration_ms is not None
+            )
+        else:
+            valid = (
+                self.operational_dimension in _R10_DATABASE_METRICS
+                and self.metric_value is not None
+                and self.metric_value >= 0
+            )
+        if not valid:
+            raise ValueError(f"{self.event_name} is missing its required bounded fields")
+
+        if self.operational_dimension == "storage_pct" and self.metric_value > 100:
+            raise ValueError("storage percentage cannot exceed 100")
+        if self.operational_dimension == "pool_checkout_ratio" and self.metric_value > 1:
+            raise ValueError("pool checkout ratio cannot exceed 1")
+        return self
 
     @model_validator(mode="after")
     def validate_development_event_shape(self):

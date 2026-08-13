@@ -386,6 +386,28 @@ def test_submits_exact_frozen_fields_once_and_persists_proof(
     assert envelope.reservation_checks == [None, None, "fixture-attempt", None]
 
 
+def test_dark_r16_hides_submission_confirmation_from_campaign_detail(
+    client, auth_headers, db, test_user, monkeypatch
+):
+    from app.config import settings
+
+    source, _, grant = _source_and_grant(db, test_user)
+    snapshot = _snapshot(db, test_user)
+    _submit(db, test_user, snapshot, source, grant, FixtureEnvelope(), FixtureAdapter())
+
+    monkeypatch.setattr(settings, "R16_SUBMISSION_FOUNDATION_ENABLED", False)
+    response = client.get(
+        f"/api/v1/history/workspaces/{snapshot.campaign_id}", headers=auth_headers
+    )
+
+    assert response.status_code == 200
+    detail = response.json()
+    assert detail["submission_confirmations"] == []
+    assert "submission_confirmed" not in {
+        event["event_type"] for event in detail["events"]
+    }
+
+
 def test_process_restart_uses_durable_record_not_in_memory_state(db, test_user):
     source, _, grant = _source_and_grant(db, test_user)
     snapshot = _snapshot(db, test_user)

@@ -1,4 +1,5 @@
 from app.auth.security import hash_password, verify_password
+from app.models.user import User
 
 PREFIX = "/api/v1/auth"
 
@@ -30,15 +31,125 @@ def test_register_duplicate(client, test_user):
     assert "already registered" in resp.json()["detail"]
 
 
+def test_password_inputs_reject_values_over_bcrypt_byte_limit(client):
+    too_long_ascii = "a" * 73
+    too_long_multibyte = "🔒" * 19
+
+    for password in (too_long_ascii, too_long_multibyte):
+        register = client.post(
+            f"{PREFIX}/register",
+            json={
+                "email": "long-password@example.com",
+                "password": password,
+                "tos_accepted": True,
+            },
+        )
+        reset = client.post(
+            f"{PREFIX}/password-reset/confirm",
+            json={"token": "invalid", "new_password": password},
+        )
+
+        assert register.status_code == 422
+        assert reset.status_code == 422
+
+
+def test_login_accepts_legacy_password_over_current_bcrypt_limit(client, db):
+    legacy_password = "a" * 73
+    db.add(
+        User(
+            email="legacy-password@example.com",
+            hashed_password=hash_password(legacy_password),
+        )
+    )
+    db.commit()
+
+    response = client.post(
+        f"{PREFIX}/login",
+        json={"email": "legacy-password@example.com", "password": legacy_password},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"ok": True}
+
+
+def test_password_inputs_reject_invalid_unicode_as_validation_errors(client):
+    payloads = [
+        ("/register", '{"email":"unicode@example.com","password":"\\ud800","tos_accepted":true}'),
+        ("/login", '{"email":"unicode@example.com","password":"\\ud800"}'),
+        ("/password-reset/confirm", '{"token":"invalid","new_password":"\\ud800"}'),
+    ]
+
+    for path, body in payloads:
+        response = client.post(
+            f"{PREFIX}{path}",
+            content=body,
+            headers={"content-type": "application/json"},
+        )
+
+        assert response.status_code == 422
+        assert "unicode@example.com" not in response.text
+        assert "\\ud800" not in response.text
+
+
+def test_registration_fails_closed_when_captcha_secret_is_missing(client, monkeypatch):
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "CAPTCHA_ENABLED", True)
+    monkeypatch.setattr(settings, "CAPTCHA_SECRET_KEY", "")
+
+    response = client.post(
+        f"{PREFIX}/register",
+        json={
+            "email": "captcha@example.com",
+            "password": "secret123",
+            "tos_accepted": True,
+            "captcha_token": "browser-token",
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {"detail": "CAPTCHA verification failed"}
+
+
 def test_login(client, test_user):
     resp = client.post(
         f"{PREFIX}/login",
         json={"email": "test@example.com", "password": "password123"},
     )
     assert resp.status_code == 200
-    data = resp.json()
-    assert "access_token" in data
-    assert data["token_type"] == "bearer"
+    assert resp.json() == {"ok": True}
+    assert resp.cookies.get("cw_access")
+    assert resp.cookies.get("cw_refresh")
+
+
+def test_refresh_rotates_cookie_session_without_exposing_tokens(client, test_user):
+    login_resp = client.post(
+        f"{PREFIX}/login",
+        json={"email": "test@example.com", "password": "password123"},
+    )
+    assert login_resp.status_code == 200
+
+    resp = client.post(f"{PREFIX}/refresh", json={})
+
+    assert resp.status_code == 200
+    assert resp.json() == {"ok": True}
+    assert resp.cookies.get("cw_access")
+    assert resp.cookies.get("cw_refresh")
+
+
+def test_refresh_requires_http_only_cookie_not_body_token(client, test_user):
+    login_resp = client.post(
+        f"{PREFIX}/login",
+        json={"email": "test@example.com", "password": "password123"},
+    )
+    body_token = login_resp.cookies.get("cw_refresh")
+    assert body_token
+    client.cookies.clear()
+
+    resp = client.post(f"{PREFIX}/refresh", json={"refresh_token": body_token})
+
+    assert resp.status_code == 401
+    assert resp.json()["detail"] == "No refresh token provided"
 
 
 def test_login_invalid_password(client, test_user):

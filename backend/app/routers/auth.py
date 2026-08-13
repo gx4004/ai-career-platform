@@ -19,13 +19,12 @@ from app.limiter import clear_auth_failures, limiter, record_account_pressure, r
 from app.models.user import User
 from app.schemas.auth import (
     AuthProvidersResponse,
+    AuthSessionResponse,
     DeleteAccountRequest,
     LoginRequest,
     PasswordResetConfirm,
     PasswordResetRequest,
-    RefreshTokenRequest,
     RegisterRequest,
-    TokenResponse,
     UserResponse,
 )
 from app.services.captcha import verify_captcha
@@ -36,7 +35,7 @@ from app.services.tool_runs import delete_all_user_data
 router = APIRouter()
 
 
-@router.post("/login", response_model=TokenResponse)
+@router.post("/login", response_model=AuthSessionResponse)
 @limiter.limit("10/minute")
 async def login(request: Request, response: Response, body: LoginRequest, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == body.email).first()
@@ -55,7 +54,7 @@ async def login(request: Request, response: Response, body: LoginRequest, db: Se
     access = create_access_token(user.id)
     refresh = create_refresh_token(user.id, user.token_version)
     set_auth_cookies(response, access, refresh)
-    return TokenResponse(access_token=access, refresh_token=refresh)
+    return AuthSessionResponse()
 
 
 @router.post("/register", response_model=UserResponse, status_code=201)
@@ -109,17 +108,14 @@ def get_me(current_user: User = Depends(get_current_user)):
     return _user_response(current_user)
 
 
-@router.post("/refresh", response_model=TokenResponse)
+@router.post("/refresh", response_model=AuthSessionResponse)
 @limiter.limit("20/minute")
 def refresh_token(
     request: Request,
     response: Response,
-    body: RefreshTokenRequest | None = None,
     db: Session = Depends(get_db),
 ):
     token = request.cookies.get("cw_refresh")
-    if not token and body:
-        token = body.refresh_token
     if not token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -150,7 +146,7 @@ def refresh_token(
     access = create_access_token(user.id)
     refresh = create_refresh_token(user.id, user.token_version)
     set_auth_cookies(response, access, refresh)
-    return TokenResponse(access_token=access, refresh_token=refresh)
+    return AuthSessionResponse()
 
 
 @router.post("/logout", status_code=200)

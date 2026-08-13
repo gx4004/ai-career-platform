@@ -72,6 +72,25 @@ def test_activation_rejects_invalid_access_mode(client, admin_headers):
     assert resp.status_code == 422
 
 
+def test_activation_rejects_invalid_tool_id(client, admin_headers):
+    resp = client.get(
+        f"{PREFIX}/admin/activation",
+        params={"tool_id": "not-a-tool"},
+        headers=admin_headers,
+    )
+    assert resp.status_code == 422
+
+
+def test_activation_accepts_backend_operational_tool_id(client, admin_headers):
+    resp = client.get(
+        f"{PREFIX}/admin/activation",
+        params={"tool_id": "cv-quality"},
+        headers=admin_headers,
+    )
+    assert resp.status_code == 200
+    assert resp.json()["tool_id"] == "cv-quality"
+
+
 # --- Shaped response for a window + access-mode filter ---------------------
 
 
@@ -162,3 +181,38 @@ def test_activation_default_window_covers_all_access_modes(client, db, admin_hea
     assert body["access_mode"] is None
     landing = next(s for s in body["funnel"] if s["step"] == "landing")
     assert landing["count"] == 2
+
+
+def test_activation_filters_every_aggregate_by_tool(client, db, admin_headers):
+    now = datetime.now(UTC)
+    for tool_id in ("resume", "job-match"):
+        _event(db, event_name="tool_run_started", tool_id=tool_id, created_at=now)
+        _event(
+            db,
+            event_name="tool_run_completed",
+            tool_id=tool_id,
+            duration_ms=1000,
+            created_at=now,
+        )
+        _event(
+            db,
+            event_name="tool_run_failed",
+            tool_id=tool_id,
+            failure_category=f"{tool_id}_failure",
+            created_at=now,
+        )
+
+    resp = client.get(
+        f"{PREFIX}/admin/activation",
+        params={"tool_id": "resume"},
+        headers=admin_headers,
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+
+    assert body["tool_id"] == "resume"
+    funnel = {step["step"]: step["count"] for step in body["funnel"]}
+    assert funnel["tool_started"] == 1
+    assert funnel["completed"] == 1
+    assert body["failures"] == [{"failure_category": "resume_failure", "count": 1}]
+    assert [tool["tool_id"] for tool in body["tools"]] == ["resume"]

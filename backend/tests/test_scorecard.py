@@ -19,8 +19,10 @@ from app.models.analytics_event import AnalyticsEvent
 from app.models.user import User
 from app.schemas.analytics import ActivationEventCreate
 from app.services.scorecard import (
+    capture_database_snapshot,
     compute_scorecard,
     evaluate_database_growth,
+    forecast_storage_pct,
     group_provider_incidents,
 )
 
@@ -58,13 +60,52 @@ def _trigger(card, trigger_id: str):
 def test_allowlist_accepts_r10_operational_shapes():
     ActivationEventCreate(event_name="r10_cache_outcome", operational_outcome="hit")
     ActivationEventCreate(
-        event_name="r10_provider_incident", operational_dimension="timeout"
+        event_name="r10_provider_incident",
+        level="error",
+        tool_id="resume",
+        access_mode="guest_demo",
+        operational_dimension="timeout",
+    )
+    ActivationEventCreate(
+        event_name="r10_database_snapshot",
+        operational_dimension="storage_pct",
+        metric_value=42.5,
+    )
+    ActivationEventCreate(
+        event_name="r10_database_query",
+        operational_dimension="history_list",
+        duration_ms=25,
+    )
+    ActivationEventCreate(
+        event_name="r10_generation_phase",
+        tool_id="resume",
+        access_mode="guest_demo",
+        operational_dimension="provider",
+        duration_ms=123,
+    )
+    ActivationEventCreate(
+        event_name="r10_rate_limit_event",
+        operational_dimension="auth",
+        operational_outcome="guest",
+        metric_value=1,
     )
     ActivationEventCreate(
         event_name="r10_import_outcome",
         operational_dimension="greenhouse",
         operational_outcome="success",
+        duration_ms=25,
     )
+
+
+@pytest.mark.parametrize("outcome", ["success", "failure"])
+def test_r10_import_outcome_values_remain_compatible_with_source_health(outcome):
+    event = ActivationEventCreate(
+        event_name="discovery_source_fetch_outcome",
+        operational_dimension="licensed",
+        operational_outcome=outcome,
+    )
+
+    assert event.operational_outcome == outcome
 
 
 @pytest.mark.parametrize(
@@ -79,6 +120,27 @@ def test_allowlist_accepts_r10_operational_shapes():
         {"event_name": "r10_cache_outcome", "user_id": "u_123"},
         # An unknown event name is forbidden.
         {"event_name": "r10_totally_made_up"},
+        {"event_name": "r10_rate_limit_event", "operational_dimension": "auth"},
+        {
+            "event_name": "r10_rate_limit_event",
+            "operational_dimension": "auth",
+            "operational_outcome": "guest",
+            "metric_value": 1,
+            "user_id": "u_123",
+        },
+        # R10 dimensions are exclusive to their authoritative event shapes.
+        {"event_name": "landing_page_viewed", "operational_dimension": "provider"},
+        {"event_name": "landing_page_viewed", "operational_dimension": "storage_pct"},
+        {
+            "event_name": "r10_database_query",
+            "operational_dimension": "provider",
+            "duration_ms": 5,
+        },
+        {
+            "event_name": "r10_import_outcome",
+            "operational_dimension": "greenhouse",
+            "operational_outcome": "success",
+        },
     ],
 )
 def test_allowlist_rejects_disallowed_shapes(fields):
@@ -129,7 +191,7 @@ def test_provider_trigger_not_fired_when_grouped_below_threshold(db):
             created_at=FIXED_NOW - timedelta(days=1) + timedelta(seconds=i * 5),
         )
     trig = _trigger(compute_scorecard(db, now=FIXED_NOW), "provider_incidents")
-    assert trig.state == "not_fired"
+    assert trig.state == "insufficient_sample"
     assert trig.review_required is False
     assert trig.evidence_detail["incidents"] == 1
 
@@ -145,12 +207,13 @@ def test_cache_trigger_not_fired_on_single_instance(db, monkeypatch):
     assert trig.state == "not_fired"
 
 
-def test_cache_trigger_fires_on_multi_instance_inefficiency(db, monkeypatch):
+def test_cache_trigger_stays_evidence_only_without_accepted_budget(db, monkeypatch):
     monkeypatch.setattr("app.services.scorecard.settings.API_REPLICA_CLASS", "multi")
     for _ in range(150):
         _event(db, event_name="r10_cache_outcome", operational_outcome="miss", created_at=FIXED_NOW)
     trig = _trigger(compute_scorecard(db, now=FIXED_NOW), "cache_multi_instance")
-    assert trig.state == "fired"
+    assert trig.state == "insufficient_sample"
+    assert trig.review_required is False
     assert trig.response_ticket == 137
 
 
@@ -181,10 +244,18 @@ def test_latency_sustained_breach_reports_insufficient_for_abandonment(db):
     # p95 > 60s on each of the last 3 days, sufficient sample each day.
     for day in (1, 2, 3):
         _insert_latency_day(db, days_ago=day, count=25, duration_ms=90000)
+    _event(
+        db,
+        event_name="generation_loader_abandoned",
+        tool_id="resume",
+        duration_ms=45000,
+        created_at=FIXED_NOW - timedelta(days=1),
+    )
     trig = _trigger(compute_scorecard(db, now=FIXED_NOW), "latency_abandonment")
-    # Sustained latency breach, but abandonment is not instrumented → cannot fire.
+    # Sustained latency breach, but no accepted material-elevation threshold → cannot fire.
     assert trig.state == "insufficient_sample"
     assert "resume" in str(trig.evidence_detail["sustained_breach_tools"])
+    assert trig.evidence_detail["loader_abandonments"] == 1
 
 
 def test_latency_false_positive_reset_when_a_day_recovers(db):
@@ -234,6 +305,53 @@ def test_abuse_cost_not_fired_under_budget(db, monkeypatch):
     assert trig.state == "not_fired"
 
 
+def _insert_rate_limit_window(
+    db, *, window: int, family: str, count: int, identity_type: str = "guest"
+):
+    boundary = FIXED_NOW.replace(minute=0, second=0, microsecond=0)
+    created_at = boundary - timedelta(minutes=window * 15 - 1)
+    for _ in range(count):
+        _event(
+            db,
+            event_name="r10_rate_limit_event",
+            operational_dimension=family,
+            operational_outcome=identity_type,
+            metric_value=1,
+            created_at=created_at,
+        )
+
+
+def test_abuse_cost_fires_for_one_family_across_three_completed_windows(db):
+    for window in (1, 2, 3):
+        _insert_rate_limit_window(db, window=window, family="auth", count=50)
+    trig = _trigger(compute_scorecard(db, now=FIXED_NOW), "abuse_cost")
+    assert trig.state == "fired"
+    assert trig.evidence_detail["rate_limit_sustained_flows"] == "auth"
+
+
+def test_abuse_cost_combines_account_and_guest_pressure_by_route_family(db):
+    for window in (1, 2, 3):
+        _insert_rate_limit_window(
+            db, window=window, family="auth", count=25, identity_type="guest"
+        )
+        _insert_rate_limit_window(
+            db, window=window, family="auth", count=25, identity_type="account"
+        )
+
+    trig = _trigger(compute_scorecard(db, now=FIXED_NOW), "abuse_cost")
+
+    assert trig.state == "fired"
+    assert trig.evidence_detail["rate_limit_sustained_flows"] == "auth"
+
+
+def test_abuse_cost_resets_when_rate_pressure_is_not_consecutive(db):
+    _insert_rate_limit_window(db, window=1, family="auth", count=50)
+    _insert_rate_limit_window(db, window=2, family="auth", count=49)
+    _insert_rate_limit_window(db, window=3, family="auth", count=50)
+    trig = _trigger(compute_scorecard(db, now=FIXED_NOW), "abuse_cost")
+    assert trig.state == "not_fired"
+
+
 # ── Database growth (pure threshold logic, AC per D-058) ───────────────────
 
 
@@ -247,6 +365,67 @@ def test_database_trigger_insufficient_on_sqlite(db):
     # No configured capacity + SQLite pool without introspection → unknown.
     trig = _trigger(compute_scorecard(db, now=FIXED_NOW), "database_growth")
     assert trig.state == "insufficient_sample"
+
+
+def test_database_trigger_reports_bounded_query_family_p95_without_firing(db):
+    for duration in (10, 20, 30, 40):
+        _event(
+            db,
+            event_name="r10_database_query",
+            operational_dimension="history_list",
+            duration_ms=duration,
+            created_at=FIXED_NOW - timedelta(days=1),
+        )
+    trig = _trigger(compute_scorecard(db, now=FIXED_NOW), "database_growth")
+    assert trig.state == "insufficient_sample"
+    assert trig.evidence_detail["query_samples_7d"] == 4
+    assert trig.evidence_detail["query_p95_ms"] == "history_list:40.0"
+    assert trig.evidence_detail["query_budget"] == "not accepted"
+
+
+def test_database_snapshot_records_only_available_bounded_metrics(db, monkeypatch):
+    monkeypatch.setattr(
+        "app.services.scorecard.gather_database_evidence", lambda _db: (42.5, 0.25)
+    )
+    assert capture_database_snapshot(db) == 2
+    rows = db.query(AnalyticsEvent).order_by(AnalyticsEvent.created_at).all()
+    assert [(row.operational_dimension, float(row.metric_value)) for row in rows] == [
+        ("storage_pct", 42.5),
+        ("pool_checkout_ratio", 0.25),
+    ]
+
+
+def test_storage_forecast_requires_seven_days_and_projects_ninety_days():
+    assert forecast_storage_pct([(FIXED_NOW, 50.0)]) is None
+    assert forecast_storage_pct(
+        [(FIXED_NOW - timedelta(days=6), 50.0), (FIXED_NOW, 56.0)]
+    ) is None
+    assert forecast_storage_pct(
+        [(FIXED_NOW - timedelta(days=10), 50.0), (FIXED_NOW, 60.0)]
+    ) == 150.0
+
+
+def test_database_trigger_fires_when_capacity_forecast_reaches_limit(db, monkeypatch):
+    monkeypatch.setattr(
+        "app.services.scorecard.gather_database_evidence", lambda _db: (60.0, 0.1)
+    )
+    _event(
+        db,
+        event_name="r10_database_snapshot",
+        operational_dimension="storage_pct",
+        metric_value=50,
+        created_at=FIXED_NOW - timedelta(days=10),
+    )
+    _event(
+        db,
+        event_name="r10_database_snapshot",
+        operational_dimension="storage_pct",
+        metric_value=60,
+        created_at=FIXED_NOW,
+    )
+    trig = _trigger(compute_scorecard(db, now=FIXED_NOW), "database_growth")
+    assert trig.state == "fired"
+    assert trig.evidence_detail["storage_forecast_90d_pct"] == 150.0
 
 
 # ── Import concentration (AC per D-059) ────────────────────────────────────

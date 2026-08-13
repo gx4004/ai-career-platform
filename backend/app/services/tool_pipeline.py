@@ -8,6 +8,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.config import settings
+from app.feature_gates import outcome_enabled
 from app.models.user import User
 from app.services.analytics import safe_record_activation_event
 from app.services.evidence_injection import load_profile_for_injection
@@ -20,7 +21,12 @@ from app.services.observability import (
 )
 from app.services.provider_incident import get_provider_incident, reset_provider_incident
 from app.services.result_cache import compute_content_hash, get_cached_result, set_cached_result
-from app.services.tool_runs import build_tool_response, extract_linked_context_ids, persist_tool_run
+from app.services.tool_runs import (
+    build_tool_response,
+    extract_linked_context_ids,
+    persist_tool_run,
+    require_valid_parent_run,
+)
 
 
 async def run_tool_pipeline(
@@ -41,6 +47,15 @@ async def run_tool_pipeline(
     require_evidence_profile: bool = False,
 ) -> dict[str, Any]:
     """Shared pipeline: sanitize -> cache -> service -> fallback -> persist -> respond."""
+    if current_user is not None:
+        # Validate revision lineage before cache/provider work so an invalid or
+        # cross-owner parent cannot consume model quota or create side effects.
+        require_valid_parent_run(
+            db,
+            current_user=current_user,
+            tool_name=tool_name,
+            parent_run_id=parent_run_id,
+        )
     access_mode = "authenticated" if current_user else "guest_demo"
     linked_ids = linked_context_ids or []
     start = perf_counter()
@@ -69,6 +84,7 @@ async def run_tool_pipeline(
     )
 
     # Sanitize
+    sanitize_start = perf_counter()
     clean_resume = sanitize_user_input(resume_text)
     clean_jd = sanitize_user_input(job_description) if job_description else None
     clean_feedback = sanitize_user_input(feedback) if feedback else None
@@ -81,6 +97,14 @@ async def run_tool_pipeline(
     if "feedback" in service_kwargs:
         service_kwargs["feedback"] = clean_feedback
 
+    _record_generation_phase(
+        db,
+        tool_name=tool_name,
+        access_mode=access_mode,
+        phase="sanitize",
+        started_at=sanitize_start,
+    )
+
     # Evidence Profile injection (R11, D-063 / ADR 0005). The shared pipeline is
     # the only seam that reads the profile — no tool router gains its own access
     # path. Authenticated-only; guests keep inline inputs and tab-scoped carry
@@ -88,10 +112,11 @@ async def run_tool_pipeline(
     # today's inline-input behavior with no data loss (ADR 0005). A user with no
     # confirmed/unconfirmed items yields an empty payload, so tools behave
     # exactly as today until the user confirms evidence.
+    cache_start = perf_counter()
     profile_version: str | None = None
     if (
         settings.EVIDENCE_PROFILE_INJECTION_ENABLED or require_evidence_profile
-    ) and current_user is not None:
+    ) and outcome_enabled("r11") and current_user is not None:
         evidence_payload, profile_version = load_profile_for_injection(db, current_user.id)
         if not evidence_payload.is_empty() and _accepts_evidence_profile(service_fn):
             service_kwargs["evidence_profile"] = evidence_payload
@@ -123,12 +148,28 @@ async def run_tool_pipeline(
         else:
             _record_cache_outcome(db, "hit" if cached is not None else "miss")
 
+    _record_generation_phase(
+        db,
+        tool_name=tool_name,
+        access_mode=access_mode,
+        phase="cache",
+        started_at=cache_start,
+    )
+
     if cached is not None:
         result = {**cached}
     else:
+        provider_start = perf_counter()
         try:
             result = await service_fn(**service_kwargs)
         except Exception as exc:
+            _record_generation_phase(
+                db,
+                tool_name=tool_name,
+                access_mode=access_mode,
+                phase="provider",
+                started_at=provider_start,
+            )
             failed_duration_ms = int((perf_counter() - start) * 1000)
             log_tool_run_failed(
                 tool_name=tool_name,
@@ -167,6 +208,14 @@ async def run_tool_pipeline(
                 )
             raise
 
+        _record_generation_phase(
+            db,
+            tool_name=tool_name,
+            access_mode=access_mode,
+            phase="provider",
+            started_at=provider_start,
+        )
+
         if content_hash is not None:
             try:
                 set_cached_result(content_hash, result)
@@ -175,6 +224,7 @@ async def run_tool_pipeline(
             else:
                 _record_cache_outcome(db, "write")
 
+    persistence_start = perf_counter()
     run = persist_tool_run(
         db,
         current_user=current_user,
@@ -187,13 +237,21 @@ async def run_tool_pipeline(
         feedback_text=clean_feedback,
     )
 
+    _record_generation_phase(
+        db,
+        tool_name=tool_name,
+        access_mode=access_mode,
+        phase="persist",
+        started_at=persistence_start,
+    )
+
+    finalize_start = perf_counter()
     response = build_tool_response(
         result,
         tool_name=tool_name,
         history_id=run.id if run else None,
         access_mode=access_mode,
     )
-
     completed_duration_ms = int((perf_counter() - start) * 1000)
     log_tool_run_completed(
         tool_name=tool_name,
@@ -209,6 +267,13 @@ async def run_tool_pipeline(
         duration_ms=completed_duration_ms,
         cost_estimate=get_llm_cost(),
         saved=run is not None,
+    )
+    _record_generation_phase(
+        db,
+        tool_name=tool_name,
+        access_mode=access_mode,
+        phase="finalize",
+        started_at=finalize_start,
     )
 
     return response
@@ -238,4 +303,23 @@ def _record_cache_outcome(db: Session, outcome: str) -> None:
         db,
         event_name="r10_cache_outcome",
         operational_outcome=outcome,
+    )
+
+
+def _record_generation_phase(
+    db: Session,
+    *,
+    tool_name: str,
+    access_mode: str,
+    phase: str,
+    started_at: float,
+) -> None:
+    """Persist timing from a real shared-pipeline boundary, never fake progress."""
+    safe_record_activation_event(
+        db,
+        event_name="r10_generation_phase",
+        tool_id=tool_name,
+        access_mode=access_mode,
+        operational_dimension=phase,
+        duration_ms=max(0, int((perf_counter() - started_at) * 1000)),
     )
