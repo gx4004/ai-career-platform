@@ -8,7 +8,8 @@ Usage:
 ``pip --report`` resolves the full dependency graph without installing anything,
 so this is safe to run against an environment you do not want modified.
 
-Run it on Linux, or verify the result in CI before merging: the resolver honours
+Run it on Linux, or verify the result in the local Linux/container gate (or an
+owner-dispatched hosted gate) before merging: the resolver honours
 environment markers, so a lock generated on one platform can omit a dependency
 another platform needs. The declared set currently carries only Windows markers,
 which is why a macOS-generated lock has held.
