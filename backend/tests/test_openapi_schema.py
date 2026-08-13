@@ -12,13 +12,15 @@ reclassifies the request body as a *query parameter*. The route keeps working
 just enough to look fine until something asks for the schema, at which point
 generation fails for the entire application.
 
-So this file asserts two things: that the schema builds at all, and that the
+So this file asserts that the schema builds, that the assembled application
+contains every operation discovered from the router package, that its published
+operation contract changes only through an explicit fixture update, and that the
 body params which trigger the bug are typed as bodies rather than query params.
 
-The schema is built from the router modules rather than `app.main`, for the
-reason recorded in `test_submission_boundary.py`: under CI the assembled app has
-been observed carrying only FastAPI's four default routes (#288), which would
-make every assertion here vacuous.
+The annotation regression checks still build an independently aggregated router
+schema. The assembled app is checked separately against that aggregation and the
+reviewed public contract, so losing a router can no longer make the schema checks
+vacuously green (#288).
 """
 
 from __future__ import annotations
@@ -27,14 +29,18 @@ import importlib
 import pkgutil
 import warnings
 from collections import Counter
+from pathlib import Path
 
 from fastapi import APIRouter
 from fastapi.openapi.utils import get_openapi
+from fastapi.routing import APIRoute
 
 import app.routers
+from app.main import app as assembled_app
 
-MINIMUM_EXPECTED_ROUTES = 50
 SCHEMA_TEST_PREFIX = "/__schema__"
+OPERATION_CONTRACT = Path(__file__).parent / "fixtures" / "openapi_operations.txt"
+OPENAPI_METHODS = {"delete", "get", "head", "options", "patch", "post", "put", "trace"}
 
 
 def _all_router_routes() -> list:
@@ -57,16 +63,52 @@ def _schema() -> dict:
     return get_openapi(title="Career Workbench", version="test", routes=_all_router_routes())
 
 
+def _route_operation_counts(routes: list) -> Counter[tuple[str, str, str]]:
+    """Count operations by their stable endpoint identity, independent of prefixes."""
+    return Counter(
+        (route.endpoint.__module__, route.endpoint.__qualname__, method)
+        for route in routes
+        if isinstance(route, APIRoute)
+        for method in route.methods
+    )
+
+
+def _openapi_operations(schema: dict) -> set[str]:
+    return {
+        f"{method.upper()} {path}"
+        for path, path_item in schema["paths"].items()
+        for method in path_item
+        if method.lower() in OPENAPI_METHODS
+    }
+
+
+def _reviewed_operation_contract() -> set[str]:
+    operations = [
+        line.strip()
+        for line in OPERATION_CONTRACT.read_text().splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    ]
+    assert operations == sorted(set(operations)), (
+        f"{OPERATION_CONTRACT.name} must stay sorted and contain each operation once"
+    )
+    return set(operations)
+
+
 def test_openapi_schema_generates():
     """The whole schema must build. One unresolvable annotation breaks all of it."""
     schema = _schema()
 
     assert schema["openapi"]
-    assert len(schema["paths"]) >= MINIMUM_EXPECTED_ROUTES, (
-        f"Only {len(schema['paths'])} paths in the generated schema — expected at "
-        f"least {MINIMUM_EXPECTED_ROUTES}. The scan is not seeing the routers, so "
-        "the assertions here would be vacuous."
+
+
+def test_assembled_app_contains_every_discovered_router_operation():
+    assert _route_operation_counts(assembled_app.routes) == _route_operation_counts(
+        _all_router_routes()
     )
+
+
+def test_assembled_openapi_matches_the_reviewed_operation_contract():
+    assert _openapi_operations(assembled_app.openapi()) == _reviewed_operation_contract()
 
 
 def test_openapi_operation_ids_are_unique():
