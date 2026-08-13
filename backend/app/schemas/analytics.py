@@ -4,7 +4,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Literal, get_args
 
-from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.schemas.development import DevelopmentResponseKind, DevelopmentState
 from app.schemas.evidence_profile import (
@@ -376,9 +376,13 @@ class ActivationEventCreate(BaseModel):
     export_format: ExportFormat | None = None
     has_feedback: bool | None = None
     session_status: SessionStatus | None = None
-    duration_ms: int | None = None
-    cost_estimate: Decimal | None = None
-    metric_value: Decimal | None = None
+    duration_ms: int | None = Field(default=None, ge=0, le=86_400_000)
+    cost_estimate: Decimal | None = Field(
+        default=None, ge=0, le=Decimal("999999.999999")
+    )
+    metric_value: Decimal | None = Field(
+        default=None, ge=0, le=Decimal("999999.999999")
+    )
     operational_dimension: OperationalDimension | None = None
     operational_outcome: OperationalOutcome | None = None
     # R11 profile-adoption dimensions (#150, D-067). Null for every non-profile
