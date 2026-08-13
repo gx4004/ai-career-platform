@@ -1,7 +1,8 @@
 # Career Workbench — Current State
 
-**Snapshot date:** 2026-08-12
-**Confidence:** code- and CI-informed; release environment not re-verified
+**Snapshot date:** 2026-08-13
+**Confidence:** code-, independent-review-, and local-verification-informed; release
+environment not re-verified
 
 This file records current posture, blockers, and risks. GitHub Issues, pull
 requests, and Git history own implementation detail. Accepted decisions remain in
@@ -10,8 +11,9 @@ requests, and Git history own implementation detail. Accepted decisions remain i
 
 ## Current Posture
 
-Career Workbench has a mature local and CI-verified product body on `chapter2`,
-with a cumulative local release candidate on `codex/autonomous-20260802`:
+Career Workbench has a mature product body on `chapter2`, with the cumulative
+release review and integration record carried by PR #316 from
+`codex/autonomous-20260802`:
 
 - R0–R2 engineering and end-to-end audit gates are complete.
 - R3 is specification-complete; deployed-environment evidence and named human
@@ -33,21 +35,24 @@ with a cumulative local release candidate on `codex/autonomous-20260802`:
   build completion, not production activation or acceptance of the roadmap
   outcome.
 
-The candidate also completes the safe preparatory portions of R9/R10, hardens
-R1/R3/R6/R11 boundaries, and corrects CV Studio recovery. It is tracked in draft
-PR #316 but remains unmerged, undeployed, and unaccepted as activation evidence.
-No real submission source, source OAuth flow, third-party credential store,
-production adapter, scheduler, public submission route, or unattended outward-act
-endpoint exists.
+The reviewed body also completes the safe preparatory portions of R9/R10, hardens
+R1/R3/R6/R11 boundaries, and corrects CV Studio recovery. Integrating it into the
+experimental `chapter2` branch is not deployment, production activation, or
+acceptance of any roadmap outcome. No real submission source, source OAuth flow,
+third-party credential store, production adapter, scheduler, public submission
+route, or unattended outward-act endpoint exists.
 
 ## Branch and Release Posture
 
-- `chapter2` is the integration branch (D-027) and is at `8d47223e`; the
-  `codex/autonomous-20260802` candidate has the same merge base and is published
-  through draft PR #316.
-- `main` and `deploy` both remain at `6a00a612`, 170 commits behind `chapter2`.
+- `chapter2` is the integration branch (D-027); PR #316 is the cumulative review
+  record for the current release body.
+- `main` and `deploy` remain stable promotion branches. Their promotion distance
+  must be measured from live refs at release time rather than copied into memory.
 - The documented `chapter2 → main → deploy` promotion has not been run for
   this product body. Promotion remains an owner-controlled release action.
+- GitHub Actions is intentionally manual-dispatch only to conserve hosted quota.
+  Pushes and pull-request updates do not run CI; all feasible gates run locally,
+  and only the owner may request a hosted dispatch.
 - Backend dependency resolution is locked: intent lives in `requirements.in`, and
   generated `requirements.txt` pins the complete graph so CI, local development,
   and deployment resolve the same versions (#288).
@@ -85,8 +90,8 @@ endpoint exists.
 
 ## Immediate Objective
 
-After completing the remaining safe R9/R10 preparatory slices, GitHub still has no
-decision-complete implementation issue. The next valid work requires external
+After the cumulative release review, GitHub has no decision-complete implementation
+issue. The next valid work requires external
 evidence, credentials, an irreversible provider action, or human judgement:
 
 1. Run the R3/R5 staging and release checklist against the actual Railway topology,
@@ -132,10 +137,11 @@ R9/R10 responses are `needs-info`.
 - **Release environment unverified.** Railway topology, variables, migrations,
   domain, backup posture, OAuth, email, provider, and monitoring facts may have
   changed. `docs/launch-checklist.md` owns verification.
-- **Container build unverified locally.** The frontend image is aligned to Node 22,
-  but Docker is unavailable in this checkout environment. CI now builds both
-  deployment images and verifies their non-root runtime users; remote CI and
-  staging still own the actual construction/startup evidence.
+- **Container build unverified for the reviewed head.** The frontend image is
+  aligned to Node 22, but Docker is unavailable in this checkout environment.
+  The preserved manual workflow can build both images and verify their non-root
+  runtime users when the owner chooses to spend hosted quota; staging still owns
+  actual construction/startup evidence.
 - **Repository security settings require owner action.** Dependabot configuration
   and a high-severity production audit gate now live in the repository, while
   secret scanning, push protection, and code scanning still require GitHub
@@ -145,9 +151,10 @@ R9/R10 responses are `needs-info`.
   dependency-ordered flags. This closes accidental exposure but does not accept any
   outcome gate; activation still requires the recorded evidence and owner decision.
 - **Sensitive browser state.** Four `sessionStorage` keys retain resume text, job
-  descriptions, or generated output for shipped tab-scoped workflows. #77 requires
-  owner judgement on further minimization; logout/deletion/manual reset cleanup is
-  implemented and regression-tested.
+  descriptions, or generated output for shipped tab-scoped workflows. Logout,
+  deletion, and manual reset clear the current tab and are regression-tested; an
+  independently open tab retains its deliberately isolated copy until it performs
+  the same action or closes.
 - **Source legality and authorization.** Fixture support is not permission for a
   real source. Keep every discovery/submission source absent, pending, or killed
   until accepted terms review and compatibility ownership exist. D-026 prohibitions
@@ -167,26 +174,28 @@ R9/R10 responses are `needs-info`.
 
 ## Verification Baseline
 
-The `codex/autonomous-20260802` candidate is the latest local verification point
-on this snapshot:
+The PR #316 release body is the latest local verification point on this snapshot:
 
-- backend: ruff clean; 989 tests passed;
-- frontend: typecheck clean; 463 Vitest tests plus 5 Node tests passed; client and
+- backend: Ruff clean; 1,011 tests passed;
+- frontend: typecheck clean; 478 Vitest tests plus 5 Node tests passed; client and
   SSR production builds passed;
-- frontend production dependencies: `pnpm audit --prod` reports no known
-  vulnerabilities after the TanStack/Vite/Tailwind patch refresh and bounded
-  transitive overrides;
-- PostgreSQL: a fresh database migrated from base to head (`c4a8e2f6b1d9`);
-- browser: the fresh-database Playwright gate passed 52/52 on this candidate;
-- independent cumulative Standards and Spec reviews: a second review over the same
-  range found six actionable defects that the first pass missed — an ungated
-  campaign write path that could persist campaign and submission-snapshot rows
-  while R13 was dark, loader-abandonment telemetry that fired on every completed
-  run, an orphaned campaign link on `/history`, a privacy disclosure narrower than
-  the IP processing the limiter performs, a synchronous database write on the
-  rate-limited request path, and provider transport failures that were neither
-  retried nor recorded as incidents. All six are fixed with regression tests that
-  fail without the fix; the reviews are clean after those corrections.
+- dependency integrity: `pnpm audit --prod` reports no known production
+  vulnerabilities; `pip check` reports a consistent environment; `pip-audit`
+  reports no known vulnerabilities after the narrow documented ignore for the
+  unfixed optional `ecdsa` EC-path advisory that is unreachable under the enforced
+  HS256-only JWT contract;
+- PostgreSQL: populated packet-approval, trusted-submission, and operational-metric
+  upgrade/downgrade/upgrade round trips passed; a fresh database reached
+  `c4a8e2f6b1d9`; the two-worker submission-concurrency check passed;
+- browser: the fresh-database Playwright gate passed 52/52;
+- independent cumulative specification, standards, security/privacy, migration,
+  and operational-readiness reviews found and fixed every actionable local issue,
+  including dark-route data exposure, injection gating, Unicode/UTF-8 contract
+  drift, Sentry leakage, pre-parse body bounds, privacy-control reachability,
+  rate-limit/database evidence amplification, scorecard semantics, migration
+  round trips, and full-suite synchronization drift;
+- hosted CI and Docker were deliberately not run for this head: Actions is
+  manual-only by owner policy, and Docker is unavailable locally.
 
 This evidence does not verify the deployed environment or close an activation gate.
 
