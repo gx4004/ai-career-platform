@@ -65,6 +65,37 @@ def test_record_activation_event_accepts_backend_metrics(db):
 @pytest.mark.parametrize(
     "field, value",
     [
+        ("duration_ms", -1),
+        ("duration_ms", 86_400_001),
+        ("cost_estimate", Decimal("-0.000001")),
+        ("cost_estimate", Decimal("1000000")),
+        ("metric_value", Decimal("-0.000001")),
+        ("metric_value", Decimal("1000000")),
+    ],
+)
+def test_record_activation_event_rejects_out_of_range_numeric_evidence(field, value):
+    payload = {
+        "event_name": "tool_run_completed",
+        "tool_id": "resume",
+        "access_mode": "authenticated",
+        "saved": True,
+        field: value,
+    }
+    if field == "metric_value":
+        payload = {
+            "event_name": "r10_rate_limit_event",
+            "operational_dimension": "tools",
+            "operational_outcome": "account",
+            field: value,
+        }
+
+    with pytest.raises(ValidationError):
+        ActivationEventCreate(**payload)
+
+
+@pytest.mark.parametrize(
+    "field, value",
+    [
         ("resume_text", "private resume content"),
         ("job_description", "private role"),
         ("generated_content", "cover letter body"),
