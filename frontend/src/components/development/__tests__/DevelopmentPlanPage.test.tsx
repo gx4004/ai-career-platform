@@ -1,4 +1,4 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DevelopmentItem } from '#/lib/api/developmentSchemas'
@@ -9,6 +9,8 @@ const updateItemMock = vi.hoisted(() => vi.fn())
 const deleteItemMock = vi.hoisted(() => vi.fn())
 const confirmEvidenceMock = vi.hoisted(() => vi.fn())
 const declineEvidenceMock = vi.hoisted(() => vi.fn())
+const warmEvidenceFetchMock = vi.hoisted(() => vi.fn())
+const warmRecommendationsFetchMock = vi.hoisted(() => vi.fn())
 const openAuthDialogMock = vi.hoisted(() => vi.fn())
 const sessionState = vi.hoisted(() => ({ status: 'authenticated' as string }))
 
@@ -78,10 +80,23 @@ const items: DevelopmentItem[] = [
   }),
 ]
 
-function renderPage() {
+function WarmEvidenceConsumers() {
+  useQuery({
+    queryKey: ['evidence-profile', 'items'],
+    queryFn: warmEvidenceFetchMock,
+  })
+  useQuery({
+    queryKey: ['discovery', 'recommendations'],
+    queryFn: warmRecommendationsFetchMock,
+  })
+  return null
+}
+
+function renderPage({ warmEvidenceConsumers = false } = {}) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={client}>
+      {warmEvidenceConsumers ? <WarmEvidenceConsumers /> : null}
       <DevelopmentPlanPage />
     </QueryClientProvider>,
   )
@@ -109,6 +124,12 @@ describe('DevelopmentPlanPage', () => {
     declineEvidenceMock.mockReset().mockResolvedValue(
       makeItem({ id: 'd3', state: 'completed' }),
     )
+    warmEvidenceFetchMock.mockReset().mockResolvedValue({ items: [] })
+    warmRecommendationsFetchMock.mockReset().mockResolvedValue({
+      confirmed_item_count: 0,
+      preference_item_count: 0,
+      items: [],
+    })
     openAuthDialogMock.mockReset()
   })
 
@@ -204,6 +225,49 @@ describe('DevelopmentPlanPage', () => {
     fireEvent.click(within(group).getByRole('button', { name: 'Decline proposal' }))
     await waitFor(() => expect(declineEvidenceMock).toHaveBeenCalledWith('d3'))
   })
+
+  it.each([
+    {
+      actionName: 'Confirm evidence',
+      mutation: confirmEvidenceMock,
+      expectedRecommendationCalls: 2,
+    },
+    {
+      actionName: 'Decline proposal',
+      mutation: declineEvidenceMock,
+      expectedRecommendationCalls: 1,
+    },
+  ])(
+    '$actionName refreshes warm evidence consumers with ranking impact respected',
+    async ({ actionName, mutation, expectedRecommendationCalls }) => {
+      getPlanMock.mockResolvedValue({
+        schema_version: 'development-plan/v1',
+        items: [
+          makeItem({
+            id: 'd3',
+            state: 'completed',
+            evidence_proposal: {
+              id: 'e1',
+              content: { statement: 'Rewrote the CV summary around measured outcomes.' },
+              confirmation_state: 'unconfirmed',
+            },
+          }),
+        ],
+      })
+      renderPage({ warmEvidenceConsumers: true })
+
+      const group = await screen.findByRole('region', { name: 'Reword existing content' })
+      await waitFor(() => expect(warmEvidenceFetchMock).toHaveBeenCalledTimes(1))
+      await waitFor(() => expect(warmRecommendationsFetchMock).toHaveBeenCalledTimes(1))
+
+      fireEvent.click(within(group).getByRole('button', { name: actionName }))
+
+      await waitFor(() => expect(mutation).toHaveBeenCalledWith('d3'))
+      await waitFor(() => expect(getPlanMock).toHaveBeenCalledTimes(2))
+      await waitFor(() => expect(warmEvidenceFetchMock).toHaveBeenCalledTimes(2))
+      expect(warmRecommendationsFetchMock).toHaveBeenCalledTimes(expectedRecommendationCalls)
+    },
+  )
 
   it('shows confirmed evidence without offering proposal actions again', async () => {
     getPlanMock.mockResolvedValue({

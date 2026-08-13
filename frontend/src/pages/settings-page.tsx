@@ -34,6 +34,7 @@ import { clearSensitiveBrowserData } from '#/lib/privacy/browserData'
 import { SUBMISSION_AUTHORIZATIONS_QUERY_ROOT } from '#/lib/api/submissionAuthorizations'
 import { QUEUE_QUERY_ROOT } from '#/lib/api/queueCache'
 import { EVIDENCE_QUERY_KEY } from '#/lib/profile/evidence'
+import { invalidateEvidenceCaches } from '#/lib/query/evidenceCaches'
 
 export function SettingsPage() {
   const queryClient = useQueryClient()
@@ -130,6 +131,7 @@ export function SettingsPage() {
     try {
       await deleteEvidenceProfile()
       queryClient.removeQueries({ queryKey: EVIDENCE_QUERY_KEY })
+      await invalidateEvidenceCaches(queryClient, { rankingMayChange: true })
       setProfileDeleteOpen(false)
     } catch (error) {
       setProfileDeleteError(

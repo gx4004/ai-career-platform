@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { EvidenceItem } from '#/lib/api/schemas'
@@ -10,6 +10,8 @@ const setConfirmationMock = vi.hoisted(() => vi.fn())
 const updateItemMock = vi.hoisted(() => vi.fn())
 const deleteItemMock = vi.hoisted(() => vi.fn())
 const deleteProfileMock = vi.hoisted(() => vi.fn())
+const warmDevelopmentFetchMock = vi.hoisted(() => vi.fn())
+const warmRecommendationsFetchMock = vi.hoisted(() => vi.fn())
 const openAuthDialogMock = vi.hoisted(() => vi.fn())
 const sessionState = vi.hoisted(() => ({ status: 'authenticated' as string }))
 
@@ -66,10 +68,23 @@ const items: EvidenceItem[] = [
   }),
 ]
 
-function renderPage() {
+function WarmEvidenceConsumers() {
+  useQuery({
+    queryKey: ['development-plan', 'items'],
+    queryFn: warmDevelopmentFetchMock,
+  })
+  useQuery({
+    queryKey: ['discovery', 'recommendations'],
+    queryFn: warmRecommendationsFetchMock,
+  })
+  return null
+}
+
+function renderPage({ warmEvidenceConsumers = false } = {}) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={client}>
+      {warmEvidenceConsumers ? <WarmEvidenceConsumers /> : null}
       <EvidenceProfilePage />
     </QueryClientProvider>,
   )
@@ -82,6 +97,16 @@ describe('EvidenceProfilePage', () => {
     setConfirmationMock.mockReset().mockImplementation((id: string) => Promise.resolve(makeItem({ id })))
     updateItemMock.mockReset().mockImplementation((id: string) => Promise.resolve(makeItem({ id })))
     deleteItemMock.mockReset().mockResolvedValue(undefined)
+    deleteProfileMock.mockReset().mockResolvedValue(undefined)
+    warmDevelopmentFetchMock.mockReset().mockResolvedValue({
+      schema_version: 'development-plan/v1',
+      items: [],
+    })
+    warmRecommendationsFetchMock.mockReset().mockResolvedValue({
+      confirmed_item_count: 0,
+      preference_item_count: 0,
+      items: [],
+    })
     openAuthDialogMock.mockReset()
   })
 
@@ -169,6 +194,97 @@ describe('EvidenceProfilePage', () => {
 
     await waitFor(() => expect(deleteProfileMock).toHaveBeenCalledOnce())
     expect(deleteItemMock).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    {
+      action: 'confirming an item',
+      perform: async () => {
+        const region = await screen.findByRole('region', { name: 'Experience' })
+        fireEvent.click(within(region).getByRole('button', { name: /^Confirm$/i }))
+        await waitFor(() => expect(setConfirmationMock).toHaveBeenCalledWith('e1', 'confirm'))
+      },
+    },
+    {
+      action: 'rejecting an item',
+      perform: async () => {
+        const region = await screen.findByRole('region', { name: 'Skills' })
+        fireEvent.click(within(region).getByRole('button', { name: /Reject/i }))
+        await waitFor(() => expect(setConfirmationMock).toHaveBeenCalledWith('s1', 'reject'))
+      },
+    },
+    {
+      action: 'correcting a confirmed item',
+      perform: async () => {
+        const region = await screen.findByRole('region', { name: 'Skills' })
+        fireEvent.click(within(region).getByRole('button', { name: /Correct/i }))
+        fireEvent.change(await screen.findByLabelText('Content (JSON fields)'), {
+          target: { value: '{"text":"Advanced TypeScript"}' },
+        })
+        fireEvent.click(screen.getByRole('button', { name: /Save as unconfirmed/i }))
+        await waitFor(() =>
+          expect(updateItemMock).toHaveBeenCalledWith('s1', {
+            content: { text: 'Advanced TypeScript' },
+          }),
+        )
+      },
+    },
+    {
+      action: 'deleting a confirmed item',
+      perform: async () => {
+        const region = await screen.findByRole('region', { name: 'Skills' })
+        fireEvent.click(within(region).getByRole('button', { name: /Delete/i }))
+        const dialog = await screen.findByRole('dialog')
+        fireEvent.click(within(dialog).getByRole('button', { name: /Delete item/i }))
+        await waitFor(() => expect(deleteItemMock).toHaveBeenCalledWith('s1'))
+      },
+    },
+    {
+      action: 'purging the profile',
+      perform: async () => {
+        await screen.findByRole('region', { name: 'Experience' })
+        fireEvent.click(screen.getByRole('button', { name: /Delete profile/i }))
+        const dialog = await screen.findByRole('dialog')
+        fireEvent.click(within(dialog).getByRole('button', { name: /Delete everything/i }))
+        await waitFor(() => expect(deleteProfileMock).toHaveBeenCalledOnce())
+      },
+    },
+  ])(
+    '$action refreshes warm development and recommendation caches',
+    async ({ perform }) => {
+      renderPage({ warmEvidenceConsumers: true })
+      await waitFor(() => expect(warmDevelopmentFetchMock).toHaveBeenCalledTimes(1))
+      await waitFor(() => expect(warmRecommendationsFetchMock).toHaveBeenCalledTimes(1))
+
+      await perform()
+
+      await waitFor(() => expect(warmDevelopmentFetchMock).toHaveBeenCalledTimes(2))
+      await waitFor(() => expect(warmRecommendationsFetchMock).toHaveBeenCalledTimes(2))
+    },
+  )
+
+  it('refreshes warm consumers when correction saves but explicit confirmation fails', async () => {
+    setConfirmationMock.mockRejectedValueOnce(
+      new Error('Confirmation failed after the correction was saved.'),
+    )
+    renderPage({ warmEvidenceConsumers: true })
+    await waitFor(() => expect(warmDevelopmentFetchMock).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(warmRecommendationsFetchMock).toHaveBeenCalledTimes(1))
+
+    const region = await screen.findByRole('region', { name: 'Skills' })
+    fireEvent.click(within(region).getByRole('button', { name: /Correct/i }))
+    fireEvent.change(await screen.findByLabelText('Content (JSON fields)'), {
+      target: { value: '{"text":"Advanced TypeScript"}' },
+    })
+    fireEvent.click(screen.getByLabelText(/I confirm this correction is accurate/i))
+    fireEvent.click(screen.getByRole('button', { name: /Save and confirm/i }))
+
+    expect((await screen.findByRole('alert')).textContent).toContain(
+      'Confirmation failed after the correction was saved.',
+    )
+    await waitFor(() => expect(listEvidenceItemsMock).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(warmDevelopmentFetchMock).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(warmRecommendationsFetchMock).toHaveBeenCalledTimes(2))
   })
 
   it('shows a sign-in prompt when unauthenticated', () => {

@@ -23,7 +23,11 @@ import {
   updateEvidenceItem,
 } from '#/lib/api/client'
 import type { EvidenceItem } from '#/lib/api/schemas'
-import { EVIDENCE_QUERY_KEY, countByState, groupItemsByKind } from '#/lib/profile/evidence'
+import { countByState, groupItemsByKind } from '#/lib/profile/evidence'
+import {
+  EVIDENCE_QUERY_KEY,
+  invalidateEvidenceCaches,
+} from '#/lib/query/evidenceCaches'
 import { EvidenceItemCard } from '#/components/profile/EvidenceItemCard'
 import {
   CorrectEvidenceDialog,
@@ -56,14 +60,18 @@ export function EvidenceProfilePage() {
     window.setTimeout(() => setActionError(null), 4000)
   }
 
-  async function invalidate() {
+  async function invalidateEvidenceOnly() {
     await queryClient.invalidateQueries({ queryKey: EVIDENCE_QUERY_KEY })
+  }
+
+  async function invalidateProfileMutation() {
+    await invalidateEvidenceCaches(queryClient, { rankingMayChange: true })
   }
 
   const confirmationMutation = useMutation({
     mutationFn: ({ id, action }: { id: string; action: 'confirm' | 'reject' }) =>
       setEvidenceItemConfirmation(id, action),
-    onSuccess: invalidate,
+    onSuccess: invalidateProfileMutation,
     onError: (error) => reportError(error, 'Could not update the item.'),
     onSettled: () => setPendingItemId(null),
   })
@@ -86,20 +94,20 @@ export function EvidenceProfilePage() {
         await setEvidenceItemConfirmation(id, 'confirm')
       }
     },
-    onSuccess: async () => {
+    onSuccess: () => {
       setCorrectTarget(null)
       setCorrectError(null)
-      await invalidate()
     },
     onError: (error) =>
       setCorrectError(error instanceof Error ? error.message : 'Could not save the correction.'),
+    onSettled: invalidateProfileMutation,
   })
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => deleteEvidenceItem(id),
     onSuccess: async () => {
       setDeleteTarget(null)
-      await invalidate()
+      await invalidateProfileMutation()
     },
     onError: (error) => {
       setDeleteTarget(null)
@@ -112,7 +120,7 @@ export function EvidenceProfilePage() {
     mutationFn: () => deleteEvidenceProfile(),
     onSuccess: async () => {
       setPurgeOpen(false)
-      await invalidate()
+      await invalidateProfileMutation()
     },
     onError: (error) => {
       setPurgeOpen(false)
@@ -298,7 +306,7 @@ export function EvidenceProfilePage() {
           open={importOpen}
           resumeText={resumeText}
           onOpenChange={setImportOpen}
-          onImported={invalidate}
+          onImported={invalidateEvidenceOnly}
         />
       ) : null}
 
