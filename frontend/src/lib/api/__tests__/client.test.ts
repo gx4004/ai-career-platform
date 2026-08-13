@@ -18,6 +18,7 @@ import {
   runCareer,
   runPortfolio,
   logout,
+  exportCvDocuments,
   API_URL,
   __resetRefreshState,
 } from '#/lib/api/client'
@@ -111,6 +112,40 @@ describe('API client', () => {
       const result = await getHealth()
 
       expect(result.status).toBe('ok')
+    })
+  })
+
+  describe('CV document export', () => {
+    it('loads the owner export from the configured API with cookie credentials', async () => {
+      const payload = {
+        schema_version: 'cv-documents-export/v1',
+        exported_at: '2026-08-13T10:00:00Z',
+        document_count: 0,
+        documents: [],
+      }
+      mockFetch.mockResolvedValueOnce(mockJsonResponse(payload))
+
+      const result = await exportCvDocuments()
+
+      expect(result).toEqual(payload)
+      const [url, options] = mockFetch.mock.calls[0]
+      expect(url).toBe(`${API_URL}/cv-documents/export`)
+      expect(options.method).toBe('GET')
+      expect(options.credentials).toBe('include')
+    })
+
+    it('rejects a malformed export response as a service contract failure', async () => {
+      const { ApiError } = await import('#/lib/api/errors')
+      mockFetch.mockResolvedValueOnce(mockJsonResponse({
+        schema_version: 'cv-documents-export/v1',
+        exported_at: '2026-08-13T10:00:00Z',
+        document_count: 1,
+        documents: [],
+      }))
+
+      await expect(exportCvDocuments()).rejects.toMatchObject({
+        status: 502,
+      } satisfies Partial<InstanceType<typeof ApiError>>)
     })
   })
 

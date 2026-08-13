@@ -8,6 +8,7 @@ const api = vi.hoisted(() => ({
   listEvidenceItems: vi.fn(),
   snapshotCvVariant: vi.fn(), restoreCvVariant: vi.fn(),
   deleteCvDocument: vi.fn(), deleteAllCvDocuments: vi.fn(),
+  exportCvDocuments: vi.fn(),
   scoreCvDocument: vi.fn(),
   fetchCvArtifactBlob: vi.fn(() => Promise.resolve(new Blob(['artifact']))),
 }))
@@ -18,15 +19,20 @@ vi.mock('#/hooks/useSession', () => ({ useSession: () => session }))
 const section = { id: 's1', kind: 'experience' as const, title: 'Experience', visible: true, position: 0, entries: [{ id: 'e1', evidence_item_id: null, body: 'Built accessible systems.', position: 0 }] }
 const document = { id: 'd1', name: 'Principal CV', sections: [section], created_at: '2026-07-12T10:00:00Z', updated_at: '2026-07-12T10:00:00Z', quality_model_runs: 0, tailoring_model_runs: 0, quality_model_run_limit: 10 as const, tailoring_model_run_limit: 10 as const, variants: [{ id: 'v1', name: 'Base', target_role: null, sections: [section], created_at: '2026-07-12T10:00:00Z' }] }
 const confirmedEvidence = { id: 'ev-1', kind: 'achievement' as const, content: { statement: 'Reduced review time by 23%.' }, provenance: 'user-entered' as const, confirmation_state: 'confirmed' as const, created_at: '2026-07-12T10:00:00Z', updated_at: '2026-07-12T10:00:00Z' }
+const cvExport = { schema_version: 'cv-documents-export/v1' as const, exported_at: '2026-08-13T10:00:00Z', document_count: 1, documents: [document] }
+let clickedDownload = ''
 
 function view() {
   return render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}><CvStudio /></QueryClientProvider>)
 }
 
 beforeEach(() => {
-  vi.clearAllMocks(); session.status = 'authenticated'
+  vi.clearAllMocks(); session.status = 'authenticated'; clickedDownload = ''
   Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: vi.fn(() => 'blob:artifact') })
   Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: vi.fn() })
+  vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
+    clickedDownload = this.download
+  })
   api.listCvDocuments.mockResolvedValue({ items: [document] })
   api.createCvDocument.mockResolvedValue(document)
   api.listEvidenceItems.mockResolvedValue({ items: [] })
@@ -34,6 +40,7 @@ beforeEach(() => {
   api.updateCvDocument.mockResolvedValue(document)
   api.deleteCvDocument.mockResolvedValue(undefined)
   api.deleteAllCvDocuments.mockResolvedValue(undefined)
+  api.exportCvDocuments.mockResolvedValue(cvExport)
   api.scoreCvDocument.mockResolvedValue({
     schema_version: 'cv-quality/v1', scoring_mode: 'heuristic',
     remaining_model_runs: 10,
@@ -114,6 +121,53 @@ describe('CV Studio editor surface', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Delete all documents' }))
     await waitFor(() => expect(api.deleteAllCvDocuments).toHaveBeenCalled())
   })
+
+  it('downloads the validated owner export through the API client', async () => {
+    view()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Export data' }))
+
+    await waitFor(() => expect(api.exportCvDocuments).toHaveBeenCalledTimes(1))
+    expect(URL.createObjectURL).toHaveBeenCalledWith(expect.any(Blob))
+    expect(clickedDownload).toBe('career-workbench-cv-data.json')
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:artifact')
+  })
+
+  it('keeps an export failure visible and does not start a download', async () => {
+    api.exportCvDocuments.mockRejectedValueOnce(new Error('CV export is temporarily unavailable.'))
+    view()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Export data' }))
+
+    expect((await screen.findByRole('alert')).textContent).toContain(
+      'CV export is temporarily unavailable.',
+    )
+    expect(clickedDownload).toBe('')
+  })
+
+  it('announces export progress and prevents duplicate downloads', async () => {
+    let resolveExport!: (value: typeof cvExport) => void
+    api.exportCvDocuments.mockImplementationOnce(
+      () => new Promise((resolve) => { resolveExport = resolve }),
+    )
+    view()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Export data' }))
+
+    const pending = await screen.findByRole('button', { name: 'Exporting data' })
+    expect((pending as HTMLButtonElement).disabled).toBe(true)
+    expect(pending.getAttribute('aria-busy')).toBe('true')
+    fireEvent.click(pending)
+    expect(api.exportCvDocuments).toHaveBeenCalledTimes(1)
+
+    await act(async () => resolveExport(cvExport))
+    await waitFor(() => {
+      expect((screen.getByRole('button', { name: 'Export data' }) as HTMLButtonElement).disabled)
+        .toBe(false)
+    })
+    expect(clickedDownload).toBe('career-workbench-cv-data.json')
+  })
+
   it('previews the exact paginated PDF artifact and exposes both export formats', async () => {
     view()
     const preview = await screen.findByTitle('ATS Essential PDF preview')
