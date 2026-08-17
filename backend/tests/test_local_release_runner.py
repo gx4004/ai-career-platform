@@ -169,6 +169,98 @@ def test_preflight_fails_clearly_on_python_runtime_drift(tmp_path: Path) -> None
     assert "Python 3.12 required; found 3.11" in result.stderr
 
 
+def _declared_runtime_commands(directory: Path) -> None:
+    _fake_command(directory, "node", "printf 'v22.20.0\\n'")
+    _fake_command(directory, "pnpm", "printf '10.30.3\\n'")
+    _fake_command(
+        directory,
+        "python3",
+        "case \"$*\" in\n"
+        "  *version_info.major*version_info.minor*) printf '3.12\\n' ;;\n"
+        "  *'sys.prefix != sys.base_prefix'*) exit 0 ;;\n"
+        "  '-m pip --version') printf 'pip fixture\\n' ;;\n"
+        "  *) exit 1 ;;\n"
+        "esac",
+    )
+    _fake_command(directory, "pdftotext", "exit 0")
+    _fake_command(directory, "soffice", "exit 0")
+
+
+def _isolated_path(directory: Path) -> str:
+    """A PATH that exposes only the fixture commands plus core system utilities."""
+
+    return f"{directory}:/usr/bin:/bin:/usr/sbin:/sbin"
+
+
+def test_preflight_fails_when_docker_is_missing_and_names_the_opt_out(
+    tmp_path: Path,
+) -> None:
+    _declared_runtime_commands(tmp_path)
+    environment = {**os.environ, "PATH": _isolated_path(tmp_path)}
+
+    result = _run("--preflight", environment=environment)
+
+    assert result.returncode == 1
+    assert "--allow-missing-docker" in result.stderr
+
+
+def test_preflight_skips_container_evidence_only_when_explicitly_allowed(
+    tmp_path: Path,
+) -> None:
+    _declared_runtime_commands(tmp_path)
+    environment = {**os.environ, "PATH": _isolated_path(tmp_path)}
+
+    result = _run("--preflight", "--allow-missing-docker", environment=environment)
+
+    assert result.returncode == 0, result.stderr
+    assert "SKIPPED" in result.stdout
+    assert "no container evidence" in result.stdout.lower()
+
+
+def test_preflight_still_fails_on_an_unreachable_docker_daemon(tmp_path: Path) -> None:
+    _declared_runtime_commands(tmp_path)
+    _fake_command(tmp_path, "docker", "exit 1")
+    environment = {**os.environ, "PATH": _isolated_path(tmp_path)}
+
+    result = _run("--preflight", environment=environment)
+
+    assert result.returncode == 1
+    assert "--allow-missing-docker" in result.stderr
+
+
+def test_release_plan_omits_container_commands_when_docker_is_allowed_missing() -> None:
+    result = _run(
+        "--plan",
+        "--allow-missing-docker",
+        "--database-url",
+        "postgresql+psycopg2://cw:secret@127.0.0.1:5432/cw_local_release_contract",
+        "--authorization-database-url",
+        "postgresql+psycopg2://cw:authorization-secret@127.0.0.1:5432/"
+        "codex_submission_authorization_concurrency_contract",
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "docker build" not in result.stdout
+    assert "docker run" not in result.stdout
+    assert "SKIPPED" in result.stdout
+    assert "pnpm test:e2e:ci" in result.stdout
+
+
+def test_release_plan_marks_the_incomplete_result_without_container_evidence() -> None:
+    result = _run(
+        "--plan",
+        "--allow-missing-docker",
+        "--database-url",
+        "postgresql+psycopg2://cw:secret@127.0.0.1:5432/cw_local_release_contract",
+        "--authorization-database-url",
+        "postgresql+psycopg2://cw:authorization-secret@127.0.0.1:5432/"
+        "codex_submission_authorization_concurrency_contract",
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "WITHOUT container evidence" in result.stdout
+
+
 def test_preflight_accepts_the_declared_runtimes_and_local_tools(tmp_path: Path) -> None:
     _fake_command(tmp_path, "node", "printf 'v22.20.0\\n'")
     _fake_command(tmp_path, "pnpm", "printf '10.30.3\\n'")

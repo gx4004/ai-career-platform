@@ -5,6 +5,8 @@ set -Eeuo pipefail
 repository_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 mode="full"
 plan_only=false
+allow_missing_docker=false
+containers_available=true
 database_url=""
 authorization_database_url=""
 
@@ -20,6 +22,11 @@ database must be named cw_local_release or cw_local_release_*, and the isolated
 authorization proof database must be named
 codex_submission_authorization_concurrency_*. The runner never reads ambient
 database URLs and never drops a database.
+
+Docker is required by default so the gate produces deployment-image evidence.
+Pass --allow-missing-docker to run every other gate on a host without a reachable
+Docker daemon; the run then reports that it produced no container evidence and
+says so again in its final result line.
 EOF
 }
 
@@ -37,6 +44,10 @@ while (($#)); do
       ;;
     --plan)
       plan_only=true
+      shift
+      ;;
+    --allow-missing-docker)
+      allow_missing_docker=true
       shift
       ;;
     --database-url)
@@ -125,19 +136,34 @@ verify_runtime_contract() {
     exit 1
   fi
 
-  require_command docker
   require_command pdftotext
   if ! command -v soffice >/dev/null 2>&1 && ! command -v libreoffice >/dev/null 2>&1; then
     printf 'local release: LibreOffice (soffice or libreoffice) is required for document QA\n' >&2
     exit 1
   fi
-  if ! docker info >/dev/null 2>&1; then
-    printf 'local release: Docker is required and its daemon must be reachable\n' >&2
+
+  if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
+    containers_available=true
+  elif [[ "$allow_missing_docker" == true ]]; then
+    containers_available=false
+  else
+    printf 'local release: Docker is required and its daemon must be reachable so the gate can build and inspect both deployment images; install or start Docker, or pass --allow-missing-docker to run every other gate without container evidence\n' >&2
     exit 1
   fi
 
   printf 'Runtime preflight passed: Node %s, pnpm %s, Python %s.\n' \
     "${node_version#v}" "$pnpm_version" "$python_version"
+
+  if [[ "$containers_available" != true ]]; then
+    announce_container_skip
+  fi
+}
+
+announce_container_skip() {
+  printf '\n==> Container verification SKIPPED\n'
+  printf '    Docker is unavailable and --allow-missing-docker was passed, so this\n'
+  printf '    run produces no container evidence: neither deployment image is built\n'
+  printf '    and neither non-root runtime user is inspected.\n'
 }
 
 verify_container() {
@@ -254,6 +280,9 @@ run_e2e() {
 if [[ "$plan_only" == true ]]; then
   printf 'Local release plan (%s). Runtime contract: Node 22.x, pnpm 10.30.3, Python 3.12.\n' \
     "$mode"
+  if [[ "$allow_missing_docker" == true ]]; then
+    containers_available=false
+  fi
 else
   verify_runtime_contract
 fi
@@ -282,8 +311,12 @@ run_in_directory "Audit production Python dependencies" backend \
   python3 -m pip_audit -r requirements.txt --ignore-vuln PYSEC-2026-1325
 run_in_directory "Backend Ruff" backend python3 -m ruff check app
 
-verify_container frontend node
-verify_container backend appuser
+if [[ "$containers_available" == true ]]; then
+  verify_container frontend node
+  verify_container backend appuser
+else
+  announce_container_skip
+fi
 
 run_with_database LOCAL_RELEASE_DATABASE_URL "$database_url" \
   '<disposable-postgresql-url>' "Require a fresh disposable PostgreSQL database" . \
@@ -327,8 +360,16 @@ run_in_directory "Backend pytest" backend python3 -m pytest -q
 run_in_directory "Install Playwright Chromium" frontend pnpm exec playwright install chromium
 run_e2e
 
-if [[ "$plan_only" == true ]]; then
-  printf '\nLocal release plan complete. No gate commands or database connections were run.\n'
+if [[ "$containers_available" == true ]]; then
+  container_result=''
 else
-  printf '\nLocal release gate passed. Both disposable databases were intentionally left in place.\n'
+  container_result=' WITHOUT container evidence'
+fi
+
+if [[ "$plan_only" == true ]]; then
+  printf '\nLocal release plan complete%s. No gate commands or database connections were run.\n' \
+    "$container_result"
+else
+  printf '\nLocal release gate passed%s. Both disposable databases were intentionally left in place.\n' \
+    "$container_result"
 fi

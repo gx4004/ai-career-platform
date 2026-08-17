@@ -120,6 +120,13 @@ the main disposable database and the isolated authorization race proof against t
 second. It never drops either; discard them explicitly after reviewing the result.
 `--plan` redacts both supplied URLs.
 
+Docker is required by default so the gate builds both deployment images and
+confirms their non-root runtime users. On a host without a reachable Docker
+daemon, add `--allow-missing-docker` to run every other gate. That opt-out is
+deliberate and loud: the run prints a `Container verification SKIPPED` block and
+its final line reads `WITHOUT container evidence`, so a passing run is never
+mistaken for one that verified the deployment images.
+
 During focused iteration, run the smallest relevant checks directly:
 
 ```bash
