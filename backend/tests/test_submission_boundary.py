@@ -34,6 +34,7 @@ import importlib
 import pkgutil
 
 import app.routers
+from app.main import app as assembled_app
 
 # Tokens that indicate a route performs or schedules a submission on the user's
 # behalf. Deliberately narrow: matched as substrings against the lowercased
@@ -68,6 +69,32 @@ KNOWN_NON_SUBMISSION_APPLY_SUFFIX = "/{document_id}/tailoring/apply"
 MINIMUM_EXPECTED_ROUTERS = 10
 MINIMUM_EXPECTED_ROUTES = 50
 
+# The router-module scan above sees only each module's *own* paths, so a
+# submission token contributed by the mount prefix is invisible to it.
+# `submission_authorizations` is mounted at `/api/v1/submission-authorizations`
+# (`app/main.py`), and its local paths are `/`, `/{grant_id}` and
+# `/{grant_id}/safety` — none of which contains a forbidden token. A route added
+# there as `/{grant_id}/dispatch` would assemble into an outward-act-shaped path
+# and pass the module scan silently. This is the exact, reviewed set of
+# submission-shaped operations on the assembled surface.
+#
+# None of these performs, schedules, or retries an outward act: the admin rows
+# are governance/safety controls and one read-only aggregate (R16 #193/#195),
+# and the three grant rows read or revoke an authorization record.
+ASSEMBLED_ALLOWED_SUBMISSION_OPERATIONS = {
+    ("POST", "/api/v1/admin/discovery-sources/{source_id}/submission-kill-switch"),
+    ("PUT", "/api/v1/admin/discovery-sources/{source_id}/submission-safety"),
+    ("GET", "/api/v1/admin/submission-quality"),
+    ("GET", "/api/v1/admin/submission-safety"),
+    ("POST", "/api/v1/admin/submission-safety/global-kill-switch"),
+    ("POST", "/api/v1/admin/submission-safety/rehearsal"),
+    ("GET", "/api/v1/submission-authorizations"),
+    ("DELETE", "/api/v1/submission-authorizations/{grant_id}"),
+    ("GET", "/api/v1/submission-authorizations/{grant_id}/safety"),
+}
+
+API_PREFIX = "/api/v1"
+
 
 def _router_routes() -> list[tuple[str, str]]:
     """Every (module_name, route_path) pair defined by an app router module."""
@@ -80,6 +107,25 @@ def _router_routes() -> list[tuple[str, str]]:
             if path is not None:
                 found.append((module_info.name, path))
     return found
+
+
+def _assembled_operations() -> set[tuple[str, str]]:
+    """Every ``(METHOD, assembled_path)`` the application actually exposes.
+
+    Uses the same effective-route walk the activation-gate guard uses, because
+    ``include_router`` nests routers rather than flattening them.
+    """
+    operations: set[tuple[str, str]] = set()
+    for route in assembled_app.routes:
+        contexts = getattr(route, "effective_route_contexts", None)
+        candidates = contexts() if callable(contexts) else [route]
+        for candidate in candidates:
+            path = getattr(candidate, "path", "")
+            if not path.startswith(API_PREFIX):
+                continue
+            for method in getattr(candidate, "methods", set()) - {"HEAD", "OPTIONS"}:
+                operations.add((method, path))
+    return operations
 
 
 def test_surface_under_test_is_actually_populated():
@@ -156,6 +202,66 @@ def test_tailoring_apply_is_not_treated_as_a_submission_route():
     assert not any(
         token in KNOWN_NON_SUBMISSION_APPLY_SUFFIX.lower() for token in FORBIDDEN_PATH_TOKENS
     )
+
+
+def test_assembled_surface_is_populated_and_covers_the_router_scan():
+    """Guard the assembled guard against the historical empty-app failure mode.
+
+    An earlier revision of this file inspected the assembled application and, in
+    one environment, saw an instance carrying only FastAPI's default docs routes
+    — so its submission assertion passed against nothing. Pin both a floor and
+    the relationship to the independent router-module scan, so an assembled view
+    that has lost its routers can never look clean.
+    """
+    assembled = _assembled_operations()
+    module_paths = {path for _, path in _router_routes()}
+
+    assert len(assembled) >= MINIMUM_EXPECTED_ROUTES, (
+        f"Only {len(assembled)} assembled API operations were discovered — "
+        f"expected at least {MINIMUM_EXPECTED_ROUTES}. The assembled assertion "
+        "below would be vacuous."
+    )
+    assert len(assembled) >= len(module_paths), (
+        "The assembled surface exposes fewer operations than the router modules "
+        f"define ({len(assembled)} < {len(module_paths)}); the effective-route "
+        "walk is not seeing mounted routers."
+    )
+
+
+def test_assembled_surface_exposes_no_unreviewed_submission_operation():
+    """Default-deny on the path the client actually calls, prefix included.
+
+    The module scan cannot see a token contributed by the mount prefix, so this
+    is the assertion that covers `/api/v1/submission-authorizations/...`.
+    """
+    observed = {
+        (method, path)
+        for method, path in _assembled_operations()
+        if any(token in path.lower() for token in FORBIDDEN_PATH_TOKENS)
+    }
+
+    assert observed == ASSEMBLED_ALLOWED_SUBMISSION_OPERATIONS, (
+        "The assembled API surface must expose no submission operation outside "
+        "the exact reviewed set (ADR 0009, D-096; ADR 0010 for R16). "
+        f"Unreviewed: {sorted(observed - ASSEMBLED_ALLOWED_SUBMISSION_OPERATIONS)}. "
+        f"Missing (update the set deliberately): "
+        f"{sorted(ASSEMBLED_ALLOWED_SUBMISSION_OPERATIONS - observed)}."
+    )
+
+
+def test_assembled_guard_would_catch_a_prefix_only_dispatch_route():
+    """Prove the blind spot this assertion exists to close is really closed.
+
+    `POST /{grant_id}/dispatch` on `submission_authorizations` carries no
+    forbidden token in its own path, so the router-module scan is blind to it.
+    Its assembled path is not.
+    """
+    local_path = "/{grant_id}/dispatch"
+    assembled_path = f"{API_PREFIX}/submission-authorizations{local_path}"
+
+    assert not any(token in local_path.lower() for token in FORBIDDEN_PATH_TOKENS)
+    assert any(token in assembled_path.lower() for token in FORBIDDEN_PATH_TOKENS)
+    assert ("POST", assembled_path) not in ASSEMBLED_ALLOWED_SUBMISSION_OPERATIONS
 
 
 def test_guard_would_catch_a_submission_route():
