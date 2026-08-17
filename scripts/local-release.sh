@@ -84,7 +84,11 @@ fi
 
 # Never allow an ambient or .env-exported target to select a destructive gate.
 # Database-bearing commands receive only the URL parsed from --database-url.
+# The browser suite likewise binds ports this runner selects, so a developer
+# server already listening on the interactive defaults cannot decide, or break,
+# the gate.
 unset DATABASE_URL E2E_DATABASE_URL LOCAL_RELEASE_DATABASE_URL
+unset E2E_FRONTEND_PORT E2E_BACKEND_PORT
 
 if [[ "$mode" == "full" ]]; then
   if ! LOCAL_RELEASE_DATABASE_URL="$database_url" \
@@ -259,18 +263,39 @@ run_with_database() {
   fi
 }
 
+select_free_port() {
+  python3 - <<'PY'
+import socket
+
+with socket.socket() as probe:
+    probe.bind(("127.0.0.1", 0))
+    print(probe.getsockname()[1])
+PY
+}
+
 run_e2e() {
   local label="Browser tracer journeys"
+  local frontend_port backend_port
   printf '\n==> %s\n' "$label"
   if [[ "$plan_only" == true ]]; then
     printf '    (cd frontend && CI=true E2E_DATABASE_URL=<disposable-postgresql-url> '
+    printf 'E2E_FRONTEND_PORT=<selected-free-port> E2E_BACKEND_PORT=<selected-free-port> '
     print_command pnpm test:e2e:ci
     printf ')\n'
     return
   fi
+  frontend_port="$(select_free_port)"
+  backend_port="$(select_free_port)"
+  if [[ "$frontend_port" == "$backend_port" ]]; then
+    printf 'local release: could not select two distinct free ports\n' >&2
+    exit 1
+  fi
+  printf '    frontend port %s, backend port %s\n' "$frontend_port" "$backend_port"
   if ! (
     cd "$repository_root/frontend" && \
-      CI=true E2E_DATABASE_URL="$database_url" pnpm test:e2e:ci
+      CI=true E2E_DATABASE_URL="$database_url" \
+      E2E_FRONTEND_PORT="$frontend_port" E2E_BACKEND_PORT="$backend_port" \
+      pnpm test:e2e:ci
   ); then
     printf 'local release: FAILED — %s\n' "$label" >&2
     exit 1

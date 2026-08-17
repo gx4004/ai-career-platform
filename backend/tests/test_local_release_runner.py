@@ -192,6 +192,46 @@ def _isolated_path(directory: Path) -> str:
     return f"{directory}:/usr/bin:/bin:/usr/sbin:/sbin"
 
 
+def test_release_plan_selects_its_own_e2e_ports() -> None:
+    result = _run(
+        "--plan",
+        "--allow-missing-docker",
+        "--database-url",
+        "postgresql+psycopg2://cw:secret@127.0.0.1:5432/cw_local_release_contract",
+        "--authorization-database-url",
+        "postgresql+psycopg2://cw:authorization-secret@127.0.0.1:5432/"
+        "codex_submission_authorization_concurrency_contract",
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "E2E_FRONTEND_PORT=<selected-free-port>" in result.stdout
+    assert "E2E_BACKEND_PORT=<selected-free-port>" in result.stdout
+
+
+def test_release_ignores_ambient_e2e_ports() -> None:
+    """A developer server on the default ports must not decide the gate's ports."""
+
+    environment = {
+        **os.environ,
+        "E2E_FRONTEND_PORT": "3000",
+        "E2E_BACKEND_PORT": "8000",
+    }
+    result = _run(
+        "--plan",
+        "--allow-missing-docker",
+        "--database-url",
+        "postgresql+psycopg2://cw:secret@127.0.0.1:5432/cw_local_release_contract",
+        "--authorization-database-url",
+        "postgresql+psycopg2://cw:authorization-secret@127.0.0.1:5432/"
+        "codex_submission_authorization_concurrency_contract",
+        environment=environment,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "E2E_FRONTEND_PORT=3000" not in result.stdout
+    assert "E2E_BACKEND_PORT=8000" not in result.stdout
+
+
 def test_preflight_fails_when_docker_is_missing_and_names_the_opt_out(
     tmp_path: Path,
 ) -> None:
