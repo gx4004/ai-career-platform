@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { uniqueEmail } from './helpers/identity'
 
 const resumeText = `
 Jordan Rivera
@@ -44,7 +45,7 @@ async function register(page: import('@playwright/test').Page, prefix: string) {
   await gotoHydrated(page, '/login')
   await page.getByRole('tab', { name: 'Create Account' }).click()
   await page.locator('#register-name').fill('R2 Test User')
-  await page.locator('#register-email').fill(`${prefix}-${Date.now()}@example.com`)
+  await page.locator('#register-email').fill(uniqueEmail(prefix))
   await page.locator('#register-password').fill('correct-horse-battery-staple')
   await page.locator('#register-tos').check()
   await page.getByRole('button', { name: 'Create free account' }).click()

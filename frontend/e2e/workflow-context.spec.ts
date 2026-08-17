@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
+import { uniqueEmail } from './helpers/identity'
 
 const apiUrl = `http://127.0.0.1:${process.env.E2E_BACKEND_PORT ?? '8000'}/api/v1`
 const password = 'correct-horse-battery-staple'
@@ -34,7 +35,7 @@ async function gotoHydrated(page: Page, path: string) {
 }
 
 async function register(page: Page, identity: string) {
-  const email = `${identity.toLowerCase().replaceAll(' ', '-')}-${Date.now()}@example.com`
+  const email = uniqueEmail(identity.toLowerCase().replaceAll(' ', '-'))
   await gotoHydrated(page, '/login')
   await page.getByRole('tab', { name: 'Create Account' }).click()
   await page.locator('#register-name').fill(identity)
