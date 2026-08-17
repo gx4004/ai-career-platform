@@ -179,4 +179,26 @@ describe('CampaignReviewer development acceptance path', () => {
       within(finding).getByRole('button', { name: 'Added to development plan' }),
     ).toHaveProperty('disabled', true)
   })
+
+  it('renders the disclosed relationship from the payload, never a fixed claim', async () => {
+    // D-111: if the backend ever widens `commercial_relationship`, the UI must
+    // not keep asserting "None disclosed". The cast stands in for that widening.
+    api.getCampaignGapResponse.mockResolvedValue({
+      ...response,
+      commercial_relationship: 'affiliate' as never,
+    })
+    setOutcomeFlags(true)
+    renderReviewer()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Run application review' }))
+    const finding = await screen.findByRole('article')
+    fireEvent.click(screen.getByRole('button', { name: 'Classify review findings' }))
+    await waitFor(() =>
+      expect(api.classifyCampaignGaps).toHaveBeenCalledWith('campaign-1'),
+    )
+    fireEvent.click(within(finding).getByRole('button', { name: 'Inspect honest response' }))
+
+    expect(await within(finding).findByText('affiliate')).toBeTruthy()
+    expect(within(finding).queryByText('None disclosed')).toBeNull()
+  })
 })

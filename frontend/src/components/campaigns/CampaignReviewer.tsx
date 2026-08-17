@@ -12,6 +12,7 @@ import { isR17DevelopmentLoopEnabled } from '#/lib/flags/featureFlags'
 import {
   GAP_KIND_LABELS,
   RESPONSE_KIND_LABELS,
+  commercialRelationshipLabel,
 } from '#/lib/development/plan'
 import { DEVELOPMENT_PLAN_QUERY_KEY } from '#/lib/query/evidenceCaches'
 import { PROVENANCE_LABELS, contentEntries } from '#/lib/profile/evidence'
@@ -220,7 +221,7 @@ function ClassifiedFindingDevelopmentAction({
             </div>
             <div>
               <dt>Commercial relationship</dt>
-              <dd>None disclosed</dd>
+              <dd>{commercialRelationshipLabel(offer.commercial_relationship)}</dd>
             </div>
           </dl>
           {offer.sources.length > 0 ? (
