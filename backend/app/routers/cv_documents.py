@@ -60,6 +60,7 @@ from app.services.cv_rendering import build_render_model, render_docx, render_pd
 from app.services.cv_tailoring import generate_cv_tailoring, proposal_token, verify_proposal_token
 from app.services.cv_upload import CvUploadRejected, read_validated_cv_upload
 from app.services.evidence_profile import create_evidence_item
+from app.services.result_access import evaluate_result_access
 from app.services.tool_pipeline import run_tool_pipeline
 
 router = APIRouter()
@@ -197,6 +198,15 @@ def export_artifact(
         document = get_document(db, document_id, current_user.id)
     except CvDocumentNotFoundError as error:
         _not_found(error)
+
+    access_decision = evaluate_result_access(
+        surface="export",
+        tool_name="cv-document",
+        access_mode="authenticated",
+    )
+    if not access_decision.can_export:
+        raise HTTPException(status_code=403, detail="Export is not available")
+
     model = build_render_model(document, template)
     artifact = render_pdf(model) if format == "pdf" else render_docx(model)
     media_type = (

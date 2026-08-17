@@ -419,6 +419,10 @@ class InterviewPracticeFeedbackResponse(BaseModel):
     suggestions: list[str] = []
     overall_feedback: str = ""
     is_empty_answer: bool = False
+    # Practice feedback is generated content delivered straight to the browser,
+    # so it states the server decision like every other delivery surface
+    # (SharedResultEnvelope above, ToolRunSummary in schemas/history.py).
+    access_decision: ResultAccessDecision = Field(default_factory=ResultAccessDecision)
 
 
 class ParsedCvResponse(BaseModel):
