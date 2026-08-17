@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { AlertCircle, Eye, EyeOff } from 'lucide-react'
 import { z } from 'zod'
@@ -33,13 +33,10 @@ type RegistrationChallenge = {
 
 const NO_CHALLENGE: RegistrationChallenge = { required: false, provider: null }
 
-async function fetchRegistrationChallenge(
-  signal: AbortSignal,
-): Promise<RegistrationChallenge> {
+async function fetchRegistrationChallenge(): Promise<RegistrationChallenge> {
   const response = await fetch(`${API_URL}/auth/providers`, {
     method: 'GET',
     credentials: 'include',
-    signal,
   })
   if (!response.ok) {
     throw new Error('Sign-up configuration is unavailable')
@@ -49,6 +46,27 @@ async function fetchRegistrationChallenge(
     required: advertised.captcha_required,
     provider: advertised.captcha_provider,
   }
+}
+
+// Deployment configuration cannot change while the page is open, so the
+// advertisement is fetched once per page load and shared by every mount of this
+// form. Memoising here also keeps a remount (the auth tabs mount the panel more
+// than once) from issuing a second request or aborting an in-flight one — extra
+// request churn on the sign-up path buys nothing.
+let advertisedChallenge: Promise<RegistrationChallenge> | null = null
+
+function loadRegistrationChallenge(): Promise<RegistrationChallenge> {
+  if (!advertisedChallenge) {
+    // A failed advertisement is not an error the user should ever see: the
+    // server enforces the real requirement on the register call itself.
+    advertisedChallenge = fetchRegistrationChallenge().catch(() => NO_CHALLENGE)
+  }
+  return advertisedChallenge
+}
+
+// Test-only: drop the cached advertisement between cases.
+export function __resetRegistrationChallengeCache() {
+  advertisedChallenge = null
 }
 
 // --- challenge token seam ---------------------------------------------------
@@ -193,18 +211,20 @@ export function RegisterForm({
   const [loading, setLoading] = useState(false)
   const [passwordError, setPasswordError] = useState('')
   const [challengeError, setChallengeError] = useState('')
-  // Held as a promise rather than state: a submit that races the in-flight
-  // advertisement must wait for the answer instead of assuming there is no
-  // challenge. An unreachable advertisement resolves to "no challenge" and the
-  // server still enforces the real requirement.
-  const challengeRef = useRef<Promise<RegistrationChallenge> | null>(null)
+  // Plain state, deliberately not awaited on submit. Until the advertisement
+  // lands, this form behaves exactly as it did before the challenge existed —
+  // an advertisement that is slow, aborted, or unreachable can never delay or
+  // block a sign-up, and the server stays the authority on what is required.
+  const [challenge, setChallenge] = useState<RegistrationChallenge>(NO_CHALLENGE)
 
   useEffect(() => {
-    const controller = new AbortController()
-    challengeRef.current = fetchRegistrationChallenge(controller.signal).catch(
-      () => NO_CHALLENGE,
-    )
-    return () => controller.abort()
+    let active = true
+    loadRegistrationChallenge().then((advertised) => {
+      if (active) setChallenge(advertised)
+    })
+    return () => {
+      active = false
+    }
   }, [])
 
   return (
@@ -245,7 +265,6 @@ export function RegisterForm({
           // successful signup consumes and clears the pending intent.
           const signupSurfaceTool = resolveSignupSurfaceTool()
           try {
-            const challenge = (await challengeRef.current) ?? NO_CHALLENGE
             let captchaToken: string | null = null
             if (challenge.required) {
               try {
@@ -378,6 +397,12 @@ export function RegisterForm({
             </div>
           ) : null}
         </div>
+        {challenge.required ? (
+          // Rendered only where a deployment turned the challenge on, so the
+          // default sign-up surface is untouched. It also tells the user why a
+          // third-party widget is about to run.
+          <p className="small-copy muted-copy">Protected by reCAPTCHA.</p>
+        ) : null}
         <Button
           type="submit"
           size="lg"
