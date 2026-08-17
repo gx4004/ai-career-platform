@@ -226,11 +226,11 @@ Browser → POST /auth/password-reset/confirm {token, new_password}
 | 9 | Structured CV drafts and variant snapshots | High | `cv_documents.sections`, `cv_variants.sections` | Until document/account deletion | Full career history, target-role intent, professional reputation exposure |
 | 10 | Classified career gaps and development plans | High | `gap_classifications.message/locations/cited_trace`, `development_items.notes/timeline` | Until item/classification/account deletion | Skill-deficit inference, professional vulnerability, learning intent, and target-role exposure |
 | 11 | Tool metadata (scores, skill gaps, recommendations) | Medium | `tool_runs.result_payload` | Until deletion | Career profile inference |
-| 12 | Workspace/campaign target, schedule, and transition history | High | `workspaces.label`, `workspaces.is_pinned`, `workspaces.company`, `workspaces.role`, `workspaces.status`, `workspaces.deadline`, `campaign_events.details` | Until deletion | Job-search intent, target employer, application timing, and outcome-history exposure |
-| 13 | Submission and packet-approval frozen bundles | High | `campaign_submission_snapshots.content_json`, `packet_approval_snapshots.content_json` | Until campaign/account deletion | Exact CV, cover letter, target listing, owner approval, and application-history exposure |
-| 14 | Discovery and submission source governance records | Medium | `discovery_sources`, `submission_source_governance` | Until registry deletion | Source contracts, legal-review posture, operational ownership, and acquisition/submission bounds exposed |
-| 15 | Per-source user submission authorization, frozen dispatch claim, content-free attempt ledger, and immutable submission proof | High | `submission_authorization_grants`, `submission_dispatch_claims`, `submission_dispatch_attempts`, `submission_records` | Grant until revocation; claim/attempt/record until packet/source/account deletion | Job-search automation intent, submitted fields, timing, confirmation, and authorized employer-system relationship exposed |
-| 16 | Product-owned discovered listings | Medium-High | `discovered_listings`, `discovered_listing_attributions` | Per-source registry retention | Employer openings, acquisition sources, and stale corpus exposure |
+| 12 | Workspace/campaign target, schedule, tracking records, and transition history | High | `workspaces`, `campaign_listings`, `campaign_tasks`, `campaign_notes`, `campaign_contacts`, `campaign_events` | Until campaign/account deletion | Job-search intent, target employer, application timing, third-party contact data, and outcome-history exposure |
+| 13 | Queue rules, application intent, user-authored stop answers, and frozen approval/submission bundles | High | `queue_rules`, `queue_settings`, `application_packets`, `packet_stop_answers`, `packet_approval_snapshots`, `campaign_submission_snapshots` | Until campaign/account deletion; rules/settings until account deletion | Exact CV, cover letter, target listing, compensation/work-authorization preferences, owner approval, and application-history exposure |
+| 14 | Discovery and submission source governance and safety records | Medium | `discovery_sources`, `submission_source_governance`, `submission_safety_controls`, `submission_safety_policies`, `submission_incident_rehearsals` | Until registry/control deletion; rehearsal history is append-only | Source contracts, legal-review posture, operator identity, operational ownership, and acquisition/submission bounds exposed |
+| 15 | Per-source user authorization, frozen dispatch state, attempt/stop ledgers, and immutable submission proof | High | `submission_authorization_grants`, `submission_dispatch_claims`, `submission_dispatch_attempts`, `submission_stop_events`, `submission_records` | Grant until revocation; remaining rows until packet/source/account deletion | Job-search automation intent, submitted fields, timing, confirmation, stop reasons, and authorized employer-system relationship exposed |
+| 16 | Product-owned discovered listings and owner correction/report state | Medium-High | `discovered_listings`, `discovered_listing_attributions`, `discovery_hidden_sources`, `discovery_dismissed_listings`, `discovery_recommendation_reports` | Listings follow source retention; owner state until explicit/account deletion | Employer openings, acquisition sources, job-search preferences, report prose, and stale corpus exposure |
 | 17 | Behavioral telemetry (event names, routes, timestamps) | Low | Log stdout, Sentry (if enabled) | 180-day durable-event window; processor retention otherwise deployment-defined | Usage pattern inference |
 | 18 | Sidebar state, language preference | None | `sidebar_state` cookie, `app_language` localStorage | 7 days / forever | None |
 
@@ -241,6 +241,28 @@ descriptions, tool metadata) exist in browser sessionStorage only:
 `cw:demo-result:{id}`, `career-workbench:workflow-context`, `career-workbench:draft:{toolId}`, `cw:resume-carry`. These are tab-scoped and die with the
 tab (plus a 4-hour TTL on workflow context). However, for authenticated users,
 the same data persists indefinitely in the `tool_runs` table.
+
+### 4.2 Executable Relational Store Inventory
+
+Importing the assembled application registers **37 application tables** in
+`Base.metadata` (the database-managed `alembic_version` table is intentionally
+excluded). This is the complete code-level store inventory at the reviewed HEAD;
+it does not assert that any dark outcome is active in a deployed environment.
+
+| Domain | Application tables | Authorization, retention, and portability boundary |
+|--------|--------------------|----------------------------------------------------|
+| Core identity, runs, campaigns, and operational events | `users`, `tool_runs`, `workspaces`, `analytics_events` | Identity, runs, and campaigns are owner-linked and removed by account deletion. Operational events contain only allowlisted low-cardinality fields, no user id, and use the documented retention prune. |
+| R11 Evidence Profile | `evidence_items` | Owner-scoped; single-item and bulk erasure plus `career-data-export/v1`. |
+| R12 CV Studio | `cv_documents`, `cv_variants` | Owner-scoped; document/bulk erasure plus `career-data-export/v1`; variants are immutable snapshots. |
+| R13 campaigns | `campaign_listings`, `campaign_tasks`, `campaign_notes`, `campaign_contacts`, `campaign_submission_snapshots`, `campaign_events` | All rows belong through an owner-scoped workspace. Campaign/account deletion removes them; the structured export includes their portable owner content. |
+| R14 discovery | `discovery_sources`, `discovered_listings`, `discovered_listing_attributions`, `discovery_hidden_sources`, `discovery_dismissed_listings`, `discovery_recommendation_reports` | Registry/listing rows are product/admin data with source-governed retention. Hidden, dismissed, and report rows are owner-scoped and join export/account erasure. |
+| R15 approval queue | `queue_rules`, `queue_settings`, `application_packets`, `packet_stop_answers`, `packet_approval_snapshots`, `queue_audit_events`, `pipeline_halts` | Rules, packets, answers, snapshots, and audit rows are owner-scoped and join account erasure/export. `pipeline_halts` also holds content-free pipeline-wide operational state; owner pause scopes are erased with the owner. |
+| R16 submission foundation | `submission_source_governance`, `submission_authorization_grants`, `submission_dispatch_claims`, `submission_dispatch_attempts`, `submission_stop_events`, `submission_safety_controls`, `submission_safety_policies`, `submission_incident_rehearsals`, `submission_records` | Governance/safety rows are admin or global operational state. Grants and dispatch/audit rows are owner/packet-linked and join account erasure; the owner export exposes the bounded authorization and immutable record contracts, not internal control-plane secrets. No table stores provider credentials. |
+| R17 development loop | `gap_classifications`, `development_items` | Owner-scoped; item/classification erasure plus derived-offer and plan portability in `career-data-export/v1`. |
+
+— `backend/app/models/__init__.py`; `backend/app/database.py:Base`;
+`backend/app/services/tool_runs.py:delete_all_user_data`;
+`backend/app/services/data_export.py:export_career_data`
 
 ---
 
@@ -311,123 +333,250 @@ artifact and are deleted on every app mount.
 
 ## §6 API Surface & Authorization Matrix
 
-All routes are mounted under `/api/v1` in `backend/app/main.py:175-205`.
+The assembled FastAPI application publishes **133 reviewed operations**, all
+under `/api/v1`. The exact method/path set is locked by
+`backend/tests/fixtures/openapi_operations.txt` and
+`backend/tests/test_openapi_schema.py`; paths below are relative to `/api/v1`.
+Operations for dark outcomes remain visible in the schema, but an `R11`–`R17`
+gate returns 404 until that outcome **and every upstream outcome** are enabled.
+All seven backend flags default to false. This inventory records executable
+surface area, not production activation.
 
-### 6.1 No Authentication Required (12 endpoints)
+In the tables, `—` means no SlowAPI route window; authentication, request-size,
+schema, and service-level checks still apply. `Model shared` means the current
+default shared ceilings of 30 requests/hour per account-or-guest identity and 60
+requests/hour per source IP. `Resource shared` means 60/hour per identity and
+120/hour per source IP. Those shared values are configuration-backed. The R12
+quality route waives only the shared model counters for its deterministic mode;
+its fixed 20/minute route limit still applies.
 
-| Method | Path | Rate Limit | Purpose |
+### 6.1 No Authentication Required (11 operations)
+
+| Method | Path | Rate limit | Purpose |
 |--------|------|------------|---------|
-| `GET` | `/health` | None | Railway health probe (DB check) |
+| `GET` | `/health` | — | Database readiness probe |
 | `POST` | `/auth/login` | 10/min | Email/password login |
 | `POST` | `/auth/register` | 5/min | Account registration |
-| `GET` | `/auth/google/login` | None | Google OAuth redirect |
-| `GET` | `/auth/google/callback` | None | Google OAuth callback |
-| `POST` | `/auth/logout` | None | Clear any auth cookies present |
-| `POST` | `/auth/password-reset/request` | 3/min | Request reset email |
-| `POST` | `/auth/password-reset/confirm` | 10/min | Confirm reset with signed reset token |
-| `GET` | `/auth/providers` | None | List configured sign-in providers |
-| `POST` | `/files/parse-cv` | 20/min | Parse an uploaded CV without resolving identity |
-| `POST` | `/job-posts/import-url` | 10/min | Import a job post without resolving identity |
-| `POST` | `/telemetry/events` | 60/min | Accept allowlisted telemetry without resolving identity |
+| `POST` | `/auth/logout` | — | Origin-checked cookie clearing; valid access token not required |
+| `GET` | `/auth/providers` | — | Configured sign-in providers |
+| `POST` | `/auth/password-reset/request` | 3/min | Enumeration-resistant reset request |
+| `POST` | `/auth/password-reset/confirm` | 10/min | Signed reset-token confirmation |
+| `GET` | `/auth/google/login` | — | OAuth redirect and session state creation |
+| `GET` | `/auth/google/callback` | — | OAuth callback with session-state validation |
+| `POST` | `/files/parse-cv` | 20/min + Resource shared | Transient CV parsing |
+| `POST` | `/telemetry/events` | 60/min | Allowlisted telemetry ingest |
 
-### 6.2 Optional Authentication — Guest or Authenticated (7 endpoints)
+### 6.2 Optional Authentication — Guest or Authenticated (8 operations)
 
-These accept unauthenticated requests but extract authenticated user if present
-via `get_optional_current_user()`. Rate-limited at 10/min per endpoint.
+These call `get_optional_current_user()`: authenticated runs may persist, while
+guest runs remain transient. URL import is also optional-auth; only its explicit
+`campaign_id` branch requires authentication and the cumulative R13 gate.
 
-| Method | Path | Rate Limit |
-|--------|------|------------|
-| `POST` | `/resume/analyze` | 10/min |
-| `POST` | `/job-match/match` | 10/min |
-| `POST` | `/cover-letter/generate` | 10/min |
-| `POST` | `/interview/questions` | 10/min |
-| `POST` | `/interview/practice-feedback` | 10/min |
-| `POST` | `/career/recommend` | 10/min |
-| `POST` | `/portfolio/recommend` | 10/min |
+| Method | Path | Outcome gate | Rate limit |
+|--------|------|--------------|------------|
+| `POST` | `/job-posts/import-url` | R13 only when attaching to `campaign_id` | 10/min + Resource shared |
+| `POST` | `/resume/analyze` | — | 10/min + Model shared |
+| `POST` | `/job-match/match` | — | 10/min + Model shared |
+| `POST` | `/cover-letter/generate` | — | 10/min + Model shared |
+| `POST` | `/interview/questions` | — | 10/min + Model shared |
+| `POST` | `/interview/practice-feedback` | — | 10/min + Model shared |
+| `POST` | `/career/recommend` | — | 10/min + Model shared |
+| `POST` | `/portfolio/recommend` | — | 10/min + Model shared |
 
-### 6.3 Authentication or Session Credential Required (38 endpoints)
+### 6.3 Authenticated Owner (90) or Refresh Credential (1)
 
-| Method | Path | Rate Limit |
-|--------|------|------------|
-| `GET` | `/auth/me` | None |
-| `POST` | `/auth/refresh` | 20/min |
-| `POST` | `/auth/me/delete` | 5/min |
-| `GET` | `/history` | None |
-| `GET` | `/history/workspaces` | None |
-| `GET` | `/history/workspaces/{id}` | None |
-| `PATCH` | `/history/workspaces/{id}` | None |
-| `PATCH` | `/history/workspaces/{id}/materials` | None |
-| `POST` | `/history/workspaces/{id}/tasks` | None |
-| `PATCH` | `/history/workspaces/{id}/tasks/{task_id}` | None |
-| `DELETE` | `/history/workspaces/{id}/tasks/{task_id}` | None |
-| `POST` | `/history/workspaces/{id}/notes` | None |
-| `DELETE` | `/history/workspaces/{id}/notes/{note_id}` | None |
-| `POST` | `/history/workspaces/{id}/contacts` | None |
-| `DELETE` | `/history/workspaces/{id}/contacts/{contact_id}` | None |
-| `GET` | `/history/workspaces/{id}/reminders` | 10/min |
-| `PATCH` | `/history/workspaces/{id}/reminders` | None (revocation must remain immediate) |
-| `POST` | `/history/workspaces/{id}/review` | 10/min |
-| `POST` | `/history/workspaces/{id}/gap-classifications` | 10/min |
-| `GET` | `/history/workspaces/{id}/gap-classifications` | None |
-| `GET` | `/history/workspaces/{id}/gap-classifications/{classification_id}/response` | None |
-| `DELETE` | `/history/workspaces/{id}/gap-classifications/{classification_id}` | None (owner-scoped erasure must remain immediate) |
-| `GET` | `/history/{id}` | None |
-| `GET` | `/history/{run_id}/export/pdf` | 10/min |
-| `DELETE` | `/history/{id}` | None |
-| `PATCH` | `/history/{id}/favorite` | None |
-| `PATCH` | `/history/{id}` | None |
-| `GET` | `/evidence-profile/items` | None |
-| `POST` | `/evidence-profile/items` | None |
-| `GET` | `/evidence-profile/items/{id}` | None |
-| `PATCH` | `/evidence-profile/items/{id}` | None |
-| `POST` | `/evidence-profile/items/{id}/confirmation` | None |
-| `DELETE` | `/evidence-profile/items/{id}` | None |
-| `GET` | `/evidence-profile/export` | 5/min |
-| `GET` | `/development-plan` | None |
-| `POST` | `/development-plan` | None |
-| `PATCH` | `/development-plan/{id}` | None |
-| `DELETE` | `/development-plan/{id}` | None |
-| `GET` | `/cv-documents` | None |
-| `POST` | `/cv-documents` | None |
-| `GET` | `/cv-documents/{id}` | None |
-| `PATCH` | `/cv-documents/{id}` | None |
-| `DELETE` | `/cv-documents/{id}` | None |
-| `POST` | `/cv-documents/{id}/variants` | None |
-| `POST` | `/cv-documents/{id}/variants/{variant_id}/restore` | None |
-| `GET` | `/cv-documents/export` | 5/min |
+`POST /auth/refresh` is the sole route in this section that accepts a refresh
+cookie instead of an access credential. Every other operation resolves
+`get_current_user()` and scopes owner data by that user's id. The two R11 rows
+marked `— (owner lifecycle)` intentionally remain available while R11 creation
+is dark; R12 export and erasure remain inside the cumulative R12 router gate.
+
+| Method | Path | Outcome gate | Rate limit |
+|--------|------|--------------|------------|
+| `POST` | `/auth/refresh` | — | 20/min |
+
+#### Core authenticated history and account lifecycle (11)
+
+| Method | Path | Outcome gate | Rate limit |
+|--------|------|--------------|------------|
+| `GET` | `/auth/me` | — | — |
+| `POST` | `/auth/me/delete` | — | 5/min |
+| `GET` | `/history` | — | — |
+| `GET` | `/history/workspaces` | — | — |
+| `PATCH` | `/history/workspaces/{workspace_id}` | — | — |
+| `DELETE` | `/history/workspaces/{workspace_id}` | — | — |
+| `GET` | `/history/{history_id}` | — | — |
+| `GET` | `/history/{run_id}/export/pdf` | — | 10/min |
+| `DELETE` | `/history/{history_id}` | — | — |
+| `PATCH` | `/history/{history_id}/favorite` | — | — |
+| `PATCH` | `/history/{history_id}` | — | — |
+
+#### R11 Evidence Profile and lifecycle (9)
+
+| Method | Path | Outcome gate | Rate limit |
+|--------|------|--------------|------------|
+| `GET` | `/evidence-profile/items` | R11 | — |
+| `POST` | `/evidence-profile/import/proposals` | R11 | 10/min + Model shared |
+| `POST` | `/evidence-profile/items` | R11 | — |
+| `GET` | `/evidence-profile/items/{item_id}` | R11 | — |
+| `PATCH` | `/evidence-profile/items/{item_id}` | R11 | — |
+| `POST` | `/evidence-profile/items/{item_id}/confirmation` | R11 | — |
+| `DELETE` | `/evidence-profile/items/{item_id}` | R11 | — |
+| `GET` | `/evidence-profile/export` | — (owner lifecycle) | 5/min |
+| `DELETE` | `/evidence-profile/items` | — (owner lifecycle) | 5/min |
+
+#### R12 CV Studio (18)
+
+| Method | Path | Outcome gate | Rate limit |
+|--------|------|--------------|------------|
+| `POST` | `/cv-documents/import/proposals` | R12 | 20/min |
+| `POST` | `/cv-documents/import/accept` | R12 | — |
+| `GET` | `/cv-documents/export` | R12 | 5/min |
+| `GET` | `/cv-documents` | R12 | — |
+| `POST` | `/cv-documents` | R12 | — |
+| `GET` | `/cv-documents/{document_id}` | R12 | — |
+| `GET` | `/cv-documents/{document_id}/render` | R12 | — |
+| `GET` | `/cv-documents/{document_id}/artifacts/{format}` | R12 | 10/min |
+| `GET` | `/cv-documents/{document_id}/artifacts/{format}/evidence` | R12 | 10/min |
+| `POST` | `/cv-documents/{document_id}/quality` | R12 | 20/min + Model shared when model-backed |
+| `PATCH` | `/cv-documents/{document_id}` | R12 | — |
+| `POST` | `/cv-documents/{document_id}/tailoring` | R12 | 20/min + Model shared |
+| `POST` | `/cv-documents/{document_id}/tailoring/apply` | R12 | — |
+| `POST` | `/cv-documents/{document_id}/tailoring/edit-proposals` | R12 | — |
+| `DELETE` | `/cv-documents/{document_id}` | R12 | — |
+| `DELETE` | `/cv-documents` | R12 | — |
+| `POST` | `/cv-documents/{document_id}/variants` | R12 | — |
+| `POST` | `/cv-documents/{document_id}/variants/{variant_id}/restore` | R12 | — |
+
+#### R13 campaigns (13)
+
+| Method | Path | Outcome gate | Rate limit |
+|--------|------|--------------|------------|
+| `POST` | `/job-posts/import-text` | R13 | 10/min |
+| `GET` | `/history/workspaces/{workspace_id}` | R13 | — |
+| `PATCH` | `/history/workspaces/{workspace_id}/materials` | R13 | — |
+| `GET` | `/history/workspaces/{workspace_id}/reminders` | R13 | 10/min |
+| `PATCH` | `/history/workspaces/{workspace_id}/reminders` | R13 | — |
+| `POST` | `/history/workspaces/{workspace_id}/review` | R13 | 10/min |
+| `POST` | `/history/workspaces/{workspace_id}/tasks` | R13 | — |
+| `PATCH` | `/history/workspaces/{workspace_id}/tasks/{item_id}` | R13 | — |
+| `DELETE` | `/history/workspaces/{workspace_id}/tasks/{item_id}` | R13 | — |
+| `POST` | `/history/workspaces/{workspace_id}/notes` | R13 | — |
+| `DELETE` | `/history/workspaces/{workspace_id}/notes/{item_id}` | R13 | — |
+| `POST` | `/history/workspaces/{workspace_id}/contacts` | R13 | — |
+| `DELETE` | `/history/workspaces/{workspace_id}/contacts/{item_id}` | R13 | — |
+
+#### R14 discovery and correction (8)
+
+| Method | Path | Outcome gate | Rate limit |
+|--------|------|--------------|------------|
+| `GET` | `/discovery/recommendations` | R14 | — |
+| `POST` | `/discovery/recommendations/{listing_id}/adopt` | R14 | — |
+| `GET` | `/discovery/personalization` | R14 | — |
+| `POST` | `/discovery/hidden-sources` | R14 | — |
+| `DELETE` | `/discovery/hidden-sources/{source_id}` | R14 | — |
+| `POST` | `/discovery/dismissals` | R14 | — |
+| `DELETE` | `/discovery/dismissals/{listing_id}` | R14 | — |
+| `POST` | `/discovery/reports` | R14 | — |
+
+#### R15 approval queue (18)
+
+| Method | Path | Outcome gate | Rate limit |
+|--------|------|--------------|------------|
+| `GET` | `/queue/rules` | R15 | — |
+| `PUT` | `/queue/rules` | R15 | — |
+| `DELETE` | `/queue/rules/{rule_type}` | R15 | — |
+| `GET` | `/queue/settings` | R15 | — |
+| `PUT` | `/queue/settings` | R15 | — |
+| `GET` | `/queue/preview` | R15 | — |
+| `POST` | `/packets/prepare` | R15 | — |
+| `GET` | `/packets` | R15 | — |
+| `GET` | `/packets/queue-state` | R15 | — |
+| `POST` | `/packets/pause` | R15 | — |
+| `POST` | `/packets/resume` | R15 | — |
+| `GET` | `/packets/{packet_id}` | R15 | — |
+| `GET` | `/packets/{packet_id}/approval-preview` | R15 | — |
+| `POST` | `/packets/{packet_id}/stop-answers` | R15 | — |
+| `POST` | `/packets/{packet_id}/accept` | R15 | — |
+| `POST` | `/packets/{packet_id}/skip` | R15 | — |
+| `POST` | `/packets/{packet_id}/reject` | R15 | — |
+| `POST` | `/packets/{packet_id}/edit` | R15 | — |
+
+#### R16 submission authorization/safety inspection (3)
+
+These routes list/revoke a previously recorded bounded grant and inspect its
+current gates. There is no public grant-creation route and no client-callable
+outward submission operation.
+
+| Method | Path | Outcome gate | Rate limit |
+|--------|------|--------------|------------|
+| `GET` | `/submission-authorizations` | R16 | 30/min |
+| `GET` | `/submission-authorizations/{grant_id}/safety` | R16 | 30/min |
+| `DELETE` | `/submission-authorizations/{grant_id}` | R16 | 30/min |
+
+#### R17 development loop (10)
+
+| Method | Path | Outcome gate | Rate limit |
+|--------|------|--------------|------------|
+| `POST` | `/history/workspaces/{workspace_id}/gap-classifications` | R17 | 10/min |
+| `GET` | `/history/workspaces/{workspace_id}/gap-classifications` | R17 | — |
+| `DELETE` | `/history/workspaces/{workspace_id}/gap-classifications/{classification_id}` | R17 | — |
+| `GET` | `/history/workspaces/{workspace_id}/gap-classifications/{classification_id}/response` | R17 | — |
+| `GET` | `/development-plan` | R17 | — |
+| `POST` | `/development-plan` | R17 | — |
+| `PATCH` | `/development-plan/{item_id}` | R17 | — |
+| `DELETE` | `/development-plan/{item_id}` | R17 | — |
+| `POST` | `/development-plan/{item_id}/confirm-evidence` | R17 | — |
+| `POST` | `/development-plan/{item_id}/decline-evidence` | R17 | — |
 
 The Evidence Profile endpoints are authenticated-owner-only (`get_current_user`
 scopes every row to the caller; no anonymous profile rows exist — D-064). The
-bulk `GET /evidence-profile/export` is rate-limited at the same 5/min ceiling as
-`POST /auth/me/delete` because it is a bulk read of the user's most sensitive
-stored content (#149, D-065); see §8.7.
+bulk export and erasure operations use a 5/min ceiling because they cross the
+largest owner-data lifecycle boundaries (#149, D-065); see §8.7.
 
-### 6.4 Admin Required (12 endpoints)
+### 6.4 Admin Required (23 operations)
 
-All require `get_current_admin` (chains: `get_current_user` → `is_admin` check).
-Rate-limited at 60/min.
+All chain `get_current_admin` through `get_current_user` and an `is_admin`
+check, and all use a 60/min route window. Admin governance and aggregate
+operational views are not user-feature activation seams: user R11–R17 surfaces
+remain governed by the cumulative gates above. The R16 controls below can only
+configure or inspect the dark safety foundation; none invokes an external
+submission adapter.
 
-| Method | Path | Rate Limit |
-|--------|------|------------|
-| `GET` | `/admin/users` | 60/min |
-| `GET` | `/admin/users/{id}` | 60/min |
-| `PATCH` | `/admin/users/{id}/admin` | 60/min |
-| `GET` | `/admin/runs` | 60/min |
-| `GET` | `/admin/runs/{run_id}` | 60/min |
-| `GET` | `/admin/stats` | 60/min |
-| `GET` | `/admin/activation` | 60/min |
-| `GET` | `/admin/profile-adoption` | 60/min |
-| `GET` | `/admin/development-loop` | 60/min |
-| `GET` | `/admin/scorecard` | 60/min |
-| `GET` | `/admin/eval-runs` | 60/min |
-| `GET` | `/admin/discovery-sources` | 60/min |
-| `GET` | `/admin/health` | 60/min |
+| Method | Path | Domain | Rate limit |
+|--------|------|--------|------------|
+| `GET` | `/admin/discovery-sources` | R14 source governance | 60/min |
+| `GET` | `/admin/discovery-reports` | R14 owner-reported corrections | 60/min |
+| `GET` | `/admin/source-health` | R14 aggregate source health | 60/min |
+| `POST` | `/admin/discovery-sources/{source_id}/kill-switch` | R14 source control | 60/min |
+| `GET` | `/admin/submission-safety` | R16 safety posture | 60/min |
+| `POST` | `/admin/submission-safety/global-kill-switch` | R16 global fail-closed control | 60/min |
+| `POST` | `/admin/submission-safety/rehearsal` | R16 incident-rehearsal evidence | 60/min |
+| `PUT` | `/admin/discovery-sources/{source_id}/submission-safety` | R16 per-source policy | 60/min |
+| `POST` | `/admin/discovery-sources/{source_id}/submission-kill-switch` | R16 per-source fail-closed control | 60/min |
+| `GET` | `/admin/submission-quality` | R16 aggregate quality | 60/min |
+| `GET` | `/admin/users` | User administration | 60/min |
+| `GET` | `/admin/users/{user_id}` | User administration | 60/min |
+| `PATCH` | `/admin/users/{user_id}/admin` | Role administration | 60/min |
+| `GET` | `/admin/runs` | Run administration | 60/min |
+| `GET` | `/admin/runs/{run_id}` | Run administration | 60/min |
+| `GET` | `/admin/stats` | Aggregate usage | 60/min |
+| `GET` | `/admin/activation` | R6 activation aggregate | 60/min |
+| `GET` | `/admin/profile-adoption` | R11 adoption aggregate | 60/min |
+| `GET` | `/admin/development-loop` | R17 adoption aggregate | 60/min |
+| `GET` | `/admin/packet-gate` | R15 trust-chain aggregate | 60/min |
+| `GET` | `/admin/scorecard` | R10 scaling evidence | 60/min |
+| `GET` | `/admin/eval-runs` | R8 local-eval evidence | 60/min |
+| `GET` | `/admin/health` | Admin operational health | 60/min |
 
 ### 6.5 Unrate-Limited Endpoints (Risk Note)
 
-The following endpoints have no rate limit:
-`GET /auth/me`, `POST /auth/logout`, `GET /auth/providers`, all history
-`GET`/`PATCH`/`DELETE` endpoints (except PDF export), and the OAuth endpoints.
+Exactly **77 of 133 operations** have no SlowAPI route window; they are marked
+`—` above. Most are authenticated owner-scoped CRUD, lifecycle, discovery, or
+queue mutations. This is current executable posture, not evidence that those
+operations need no abuse control before activation. Default-dark outcome gates
+reduce present exposure but are not a substitute for a pre-activation rate-limit
+review. OAuth navigation, providers, logout, and health are also unrate-limited.
 
 ### 6.6 Rate-Limit Identity
 
@@ -1204,31 +1353,40 @@ PostgreSQL cascade all remove the listing, and `career-data-export/v1` includes 
 
 ## Verification Record
 
-The following verifications were run against commit `bcbf887d` (chapter2 HEAD at
-time of creation) and re-verified after review fixes against commit `aec1a824`.
-All claims in this document that reference code paths were confirmed by direct
-file inspection.
+The original baseline was created against `bcbf887d` and reviewed against
+`aec1a824`. The inventory and command evidence below were re-run on 2026-08-13
+against working-tree base `0cbc9480`; executable route, dependency, limiter, and
+model metadata were used instead of decorator-text counts.
 
 | Section | Verification | Result |
 |---------|-------------|--------|
 | §1 | `grep -n "numReplicas" railway.toml frontend/railway.toml` | `railway.toml:12`, `frontend/railway.toml:14` — 1 each |
-| §1 | `grep "CMD" backend/Dockerfile` | `uvicorn app.main:app --host 0.0.0.0 --port 8000` |
-| §2 | `grep -n "CORS_ORIGINS" backend/app/config.py` | Line 19 |
-| §2 | `grep -n "allow_origins\|allow_credentials" backend/app/main.py` | Lines 100-106 |
-| §3 | `grep -n "run_tool_pipeline" backend/app/services/tool_pipeline.py` | Primary pipeline function |
-| §4 | `grep -n "result_payload\|hashed_password\|google_id" backend/app/models/` | All model fields confirmed |
-| §5 | `grep -rn "localStorage\|sessionStorage" frontend/src/ --include="*.ts" --include="*.tsx" -l` | 14 files matched |
-| §6 | `rg '@router\.(get|post|patch|put|delete)' backend/app/routers/` | 82 route decorators |
-| §6 | `rg 'limiter\.limit' backend/app/routers/ --glob='*.py'` | 40 rate-limit decorators |
-| §6 | `grep -n "include_router" backend/app/main.py` | Lines 175-205 |
-| §6.6 | `grep -n "_get_client_ip\|TRUST_PROXY_HEADERS" backend/app/limiter.py` | Lines 10-17 |
-| §7 | `grep -n "ALGORITHM\|SECRET_KEY" backend/app/config.py` | Lines 17-18 |
-| §7 | `grep -n "set_cookie\|delete_cookie\|set_auth_cookies\|clear_auth_cookies" backend/app/auth/security.py` | Lines 95-119 |
-| §8 | `grep -n "sanitize_user_input\|_validate_url" backend/app/services/` | sanitizer + scraper guards confirmed |
-| §8.6 | `grep -n "BeautifulSoup\|bs4" backend/app/services/job_scraper.py` | Lines 7, 99, 150, 165, 179 |
-| §10 | `grep -rn "Sentry.init\|beforeSend\|_scrub_sentry_event"` | Both frontend and backend scrubbing |
-| §13 | `grep "USER" backend/Dockerfile frontend/Dockerfile` | No USER instruction in either |
+| §1, §13 | `grep -n 'useradd\|^USER ' backend/Dockerfile frontend/Dockerfile` | Backend creates UID 10001 and runs as `appuser`; frontend runtime uses `USER node` |
+| §1 | `grep -n "CMD" backend/Dockerfile` | Line 22: single-process `uvicorn app.main:app --host 0.0.0.0 --port 8000` |
+| §2 | `grep -n "CORS_ORIGINS" backend/app/config.py` | Line 22: local origins default |
+| §2 | `grep -n "allow_origins\|allow_credentials" backend/app/main.py` | Lines 311-312: configured origins with credentials |
+| §3 | `rg -n 'def run_tool_pipeline' backend/app/services/tool_pipeline.py` | Primary pipeline at line 32 |
+| §4 | `rg -n 'result_payload\|hashed_password\|google_id' backend/app/models --glob='*.py'` | Sensitive model fields confirmed |
+| §4.2 | Assembled-app `Base.metadata.tables` introspection | 37 unique application tables; Alembic head `c4a8e2f6b1d9` |
+| §5 | `rg -l 'localStorage\|sessionStorage' frontend/src --glob='*.ts' --glob='*.tsx' --glob='!**/__tests__/**' --glob='!**/*.test.*'` | 15 production files matched for manual key review |
+| §6 | `cd backend && .venv/bin/pytest -q tests/test_openapi_schema.py tests/test_feature_gates.py tests/test_submission_boundary.py` | 27 passed; assembled app has exactly 133 operations, matches the reviewed fixture, preserves cumulative gates, and exposes no outward-submission endpoint |
+| §6 | Assembled FastAPI dependency and Limiter-registry introspection | Auth split: 11 public, 8 optional, 1 refresh-cookie, 90 owner, 23 admin; 56 limited and 77 without a route window |
+| §6 | Documentation operation-table comparison with `tests/fixtures/openapi_operations.txt` | 133 unique documentation rows; no missing or extra operation; gate and limited/unlimited presence match runtime introspection |
+| §6.6 | `rg -n '_get_client_ip\|TRUST_PROXY_HEADERS' backend/app/limiter.py` | Client-IP trust decision at lines 16-18; all uses inspected |
+| §7 | `rg -n 'ALGORITHM\|SECRET_KEY' backend/app/config.py` | `SECRET_KEY` line 9; HS256-constrained algorithm line 12 |
+| §7 | `rg -n 'set_cookie\|delete_cookie\|def set_auth_cookies\|def clear_auth_cookies' backend/app/auth/security.py` | Cookie write/delete boundary at lines 95-119 |
+| §8 | `rg -n 'sanitize_user_input\|def _validate_url' backend/app/services --glob='*.py'` | Input sanitizer and scraper URL guard confirmed |
+| §8.6 | `rg -n 'BeautifulSoup\|bs4' backend/app/services/job_scraper.py` | Import line 5 and bounded HTML parse/extract path confirmed |
+| §10 | `rg -n 'Sentry\.init\|beforeSend\|_scrub_sentry_event' frontend/src backend/app` | Frontend and backend initialization/scrubbing boundaries confirmed |
 | §13 | `grep "posthog" frontend/package.json` | No match (SDK not installed) |
+
+The assembled-route introspection traversed each effective FastAPI route's
+dependency graph (including included-router dependencies), then joined endpoint
+identity to SlowAPI's static and shared-limit registries. This avoids the stale
+and incomplete results produced by counting source decorators.
+
+---
+
 # R13 third-party campaign contacts
 
 Campaign contacts contain third-party personal data deliberately bounded to a
@@ -1516,9 +1674,11 @@ owner to approve again after either transition.
 
 The trust chain gates queueing: the R13 reviewer runs on each prepared packet, and a
 packet carrying any unresolved fabrication finding is never queued (D-097); a
-regression-eval failure halts preparation pipeline-wide until cleared. No submission
-code path exists — the API surface has no submission endpoint (test-verified,
-ADR 0009). Approval returns a manual handoff only. The client renders an external
+regression-eval failure halts preparation pipeline-wide until cleared. No
+client-callable outward-submission endpoint exists: §6 lists only queue decisions
+and R16 authorization/safety/governance inspection or control, while the
+fixture-backed internal engine remains unrouted (test-verified, ADR 0009).
+Approval returns a manual handoff only. The client renders an external
 link only for a credential-free HTTPS destination and requires the user's click;
 unsafe or missing stored URLs are retained inside the immutable audit content but
 never become a clickable handoff.
