@@ -1,11 +1,28 @@
-"""Cache-key scoping invariants for `result_cache.compute_content_hash`.
+"""Cache-key scoping invariants for `result_cache.compute_content_hash`, plus
+the storage contract of the in-process result cache itself.
 
 Locks in the contract added in `tool_pipeline`: identical inputs must yield
 *different* cache slots when the user_scope kwarg differs, so two authenticated
 users (or guest + an authenticated user) never share a slot.
+
+The storage tests below pin ADR 0004 / D-054: the cache is a bounded, fail-open
+acceleration layer. A miss, an eviction, or an internal failure may cost a model
+call, but it must never raise into a request or hand back another key's payload.
+Time is injected through the explicit `now=` seam (same style as
+`compute_scorecard(db, now=...)` in test_scorecard.py) — no test sleeps.
 """
 
-from app.services.result_cache import compute_content_hash
+import pytest
+
+from app.config import settings
+from app.services.result_cache import (
+    _cache,
+    clear_cache,
+    compute_content_hash,
+    get_cached_result,
+    purge_expired,
+    set_cached_result,
+)
 
 
 def test_cache_key_changes_with_user_scope():
@@ -80,3 +97,177 @@ def test_cache_key_changes_with_model():
         model="gemini-2.6-pro",
     )
     assert base != bumped
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# Storage contract: TTL, bounded LRU, disabled mode, fail-open (ADR 0004)
+# ──────────────────────────────────────────────────────────────────────────
+
+# A fixed epoch; every storage test states the clock it reads.
+T0 = 1_700_000_000.0
+
+
+@pytest.fixture(autouse=True)
+def _isolated_cache():
+    """The cache is process-global; no test may inherit another test's entries."""
+    clear_cache()
+    yield
+    clear_cache()
+
+
+def _key(suffix: str) -> str:
+    return compute_content_hash("resume", f"resume body {suffix}", "role", user_scope="user-x")
+
+
+class _BrokenStore(dict):
+    """Stands in for `_cache` to simulate an internal cache-layer fault."""
+
+    def get(self, *args, **kwargs):
+        raise RuntimeError("simulated cache backend failure")
+
+    def items(self):
+        raise RuntimeError("simulated cache backend failure")
+
+    def __setitem__(self, key, value):
+        raise RuntimeError("simulated cache backend failure")
+
+
+def test_hit_returns_the_stored_payload_within_ttl():
+    key = _key("hit")
+    set_cached_result(key, {"summary": "cached"}, now=T0)
+
+    assert get_cached_result(key, now=T0 + 1) == {"summary": "cached"}
+
+
+def test_two_keys_never_return_each_others_payload():
+    """Isolation: distinct hashes are distinct slots, including under eviction
+    pressure — a resume result must never be served for another input."""
+    a, b = _key("alpha"), _key("beta")
+    set_cached_result(a, {"summary": "alpha result"}, now=T0)
+    set_cached_result(b, {"summary": "beta result"}, now=T0)
+
+    assert get_cached_result(a, now=T0) == {"summary": "alpha result"}
+    assert get_cached_result(b, now=T0) == {"summary": "beta result"}
+    assert get_cached_result(_key("gamma"), now=T0) is None
+
+
+def test_entry_past_the_ttl_is_not_returned(monkeypatch):
+    monkeypatch.setattr(settings, "RESULT_CACHE_TTL_SECONDS", 3600)
+    key = _key("ttl")
+    set_cached_result(key, {"summary": "stale"}, now=T0)
+
+    assert get_cached_result(key, now=T0 + 3599) == {"summary": "stale"}
+    assert get_cached_result(key, now=T0 + 3601) is None
+    # The expired slot is dropped, not just hidden from the reader.
+    assert key not in _cache
+
+
+def test_expired_entry_is_reclaimed_without_a_lookup_of_its_own_key(monkeypatch):
+    """The memory-retention half of the bug: an entry whose exact key is never
+    read again must still stop occupying the process."""
+    monkeypatch.setattr(settings, "RESULT_CACHE_TTL_SECONDS", 60)
+    stale = _key("never-read-again")
+    set_cached_result(stale, {"summary": "resume-derived text"}, now=T0)
+
+    # Unrelated traffic, an hour later. Nobody looks `stale` up.
+    set_cached_result(_key("fresh"), {"summary": "fresh"}, now=T0 + 3600)
+
+    assert stale not in _cache
+    assert len(_cache) == 1
+
+
+def test_purge_expired_reports_reclaimed_entries_and_keeps_live_ones(monkeypatch):
+    monkeypatch.setattr(settings, "RESULT_CACHE_TTL_SECONDS", 60)
+    stale = _key("stale")
+    live = _key("live")
+    set_cached_result(stale, {"summary": "stale"}, now=T0)
+    set_cached_result(live, {"summary": "live"}, now=T0 + 30)
+
+    assert purge_expired(now=T0 + 61) == 1
+    assert stale not in _cache
+    assert get_cached_result(live, now=T0 + 61) == {"summary": "live"}
+
+
+def test_bound_evicts_the_least_recently_used_entry(monkeypatch):
+    monkeypatch.setattr(settings, "RESULT_CACHE_MAX_ENTRIES", 3)
+    monkeypatch.setattr(settings, "RESULT_CACHE_TTL_SECONDS", 3600)
+    k1, k2, k3, k4 = (_key(f"lru-{i}") for i in range(4))
+    for key in (k1, k2, k3):
+        set_cached_result(key, {"key": key}, now=T0)
+
+    # Read k1: it is now the most recently *used* entry even though it was
+    # written first, so k2 becomes the eviction candidate.
+    assert get_cached_result(k1, now=T0 + 1) == {"key": k1}
+
+    set_cached_result(k4, {"key": k4}, now=T0 + 2)
+
+    assert len(_cache) == 3
+    assert get_cached_result(k1, now=T0 + 3) == {"key": k1}  # recently read survives
+    assert get_cached_result(k2, now=T0 + 3) is None  # least recently used, evicted
+    assert get_cached_result(k3, now=T0 + 3) == {"key": k3}
+    assert get_cached_result(k4, now=T0 + 3) == {"key": k4}
+
+
+def test_cache_never_grows_past_the_configured_bound(monkeypatch):
+    """The unbounded-growth bug: many distinct inputs inside one TTL window."""
+    monkeypatch.setattr(settings, "RESULT_CACHE_MAX_ENTRIES", 8)
+    monkeypatch.setattr(settings, "RESULT_CACHE_TTL_SECONDS", 3600)
+
+    for index in range(200):
+        set_cached_result(_key(f"flood-{index}"), {"index": index}, now=T0)
+
+    assert len(_cache) == 8
+    # Eviction is silent: the newest write is still a hit, nothing raised.
+    assert get_cached_result(_key("flood-199"), now=T0) == {"index": 199}
+    assert get_cached_result(_key("flood-0"), now=T0) is None
+
+
+def test_disabled_cache_stores_nothing_and_every_read_misses(monkeypatch):
+    """Configuration-first rollback to cache-disabled operation (ADR 0004)."""
+    monkeypatch.setattr(settings, "RESULT_CACHE_ENABLED", False)
+    key = _key("disabled")
+
+    set_cached_result(key, {"summary": "must not be stored"}, now=T0)
+
+    assert len(_cache) == 0
+    assert get_cached_result(key, now=T0) is None
+
+    # Re-enabling must not resurrect anything that was never written.
+    monkeypatch.setattr(settings, "RESULT_CACHE_ENABLED", True)
+    assert get_cached_result(key, now=T0) is None
+
+
+def test_lookup_failure_surfaces_as_a_miss(monkeypatch, caplog):
+    key = _key("boom")
+    set_cached_result(key, {"summary": "resume-derived-sentinel"}, now=T0)
+    monkeypatch.setattr("app.services.result_cache._cache", _BrokenStore())
+
+    with caplog.at_level("WARNING"):
+        assert get_cached_result(key, now=T0) is None
+
+    # Failures are visible to operators but never echo the key or the payload
+    # (cached values share ToolRun.result_payload's sensitivity — D-054).
+    assert caplog.records
+    assert key not in caplog.text
+    assert "resume-derived-sentinel" not in caplog.text
+
+
+def test_write_failure_never_raises_into_the_request(monkeypatch):
+    monkeypatch.setattr("app.services.result_cache._cache", _BrokenStore())
+
+    assert set_cached_result(_key("boom"), {"summary": "cached"}, now=T0) is None
+
+
+def test_eviction_failure_never_raises_into_the_request(monkeypatch):
+    def explode(*_args, **_kwargs):
+        raise RuntimeError("simulated eviction failure")
+
+    monkeypatch.setattr("app.services.result_cache._evict_to_bound", explode)
+
+    assert set_cached_result(_key("evict-boom"), {"summary": "cached"}, now=T0) is None
+
+
+def test_purge_failure_surfaces_as_zero_reclaimed(monkeypatch):
+    monkeypatch.setattr("app.services.result_cache._cache", _BrokenStore())
+
+    assert purge_expired(now=T0) == 0
