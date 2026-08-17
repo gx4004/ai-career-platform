@@ -26,6 +26,7 @@ function evalItem(overrides: Partial<EvalRunItem> & { tool_id: string }): EvalRu
     mode: null,
     fixtures_evaluated: null,
     calibration_miss_rate: null,
+    explanation_inconsistency_count: null,
     fabrication_candidate_count: null,
     usefulness_score: null,
     ...overrides,
@@ -49,12 +50,13 @@ describe('EvalRunsSection', () => {
         evalItem({
           tool_id: 'resume',
           has_report: true,
-          report_schema_version: 'r8-eval-report-v1',
+          report_schema_version: 'r8-eval-report-v2',
           prompt_version: 'resume-v3',
           generated_at: '2026-07-09T12:00:00+00:00',
           mode: 'deterministic',
           fixtures_evaluated: 11,
           calibration_miss_rate: 0.09,
+          explanation_inconsistency_count: 2,
         }),
         evalItem({
           tool_id: 'cover-letter',
@@ -69,12 +71,56 @@ describe('EvalRunsSection', () => {
       ],
     })
 
-    // Calibration tool shows a miss rate; generative tool shows fabrication +
-    // usefulness. Prompt versions render for both.
-    expect(await screen.findByText('Miss rate 9.0%')).toBeTruthy()
+    // Calibration tool shows a miss rate plus the explanation inconsistency
+    // count; generative tool shows fabrication + usefulness. Prompt versions
+    // render for both.
+    expect(await screen.findByText('Miss rate 9.0% · Explanation 2')).toBeTruthy()
     expect(screen.getByText('Fabrication 3 · Usefulness 4.25/5')).toBeTruthy()
     expect(screen.getByText('resume-v3')).toBeTruthy()
     expect(screen.getByText('cover-v2')).toBeTruthy()
+  })
+
+  it('omits the explanation figure for a report written before that check existed', async () => {
+    // A `r8-eval-report-v1` artifact carries no explanation count. Absent means
+    // "not measured", so the cell must not imply zero contradictions.
+    renderSection({
+      tools: [
+        evalItem({
+          tool_id: 'job-match',
+          has_report: true,
+          report_schema_version: 'r8-eval-report-v1',
+          prompt_version: 'job-match-v3',
+          generated_at: '2026-07-09T12:00:00+00:00',
+          mode: 'deterministic',
+          fixtures_evaluated: 9,
+          calibration_miss_rate: 0.22,
+          explanation_inconsistency_count: null,
+        }),
+      ],
+    })
+
+    expect(await screen.findByText('Miss rate 22.0%')).toBeTruthy()
+    expect(screen.queryByText(/Explanation/)).toBeNull()
+  })
+
+  it('renders a zero explanation count as measured, not absent', async () => {
+    renderSection({
+      tools: [
+        evalItem({
+          tool_id: 'job-match',
+          has_report: true,
+          report_schema_version: 'r8-eval-report-v2',
+          prompt_version: 'job-match-v3',
+          generated_at: '2026-07-09T12:00:00+00:00',
+          mode: 'deterministic',
+          fixtures_evaluated: 9,
+          calibration_miss_rate: 0.22,
+          explanation_inconsistency_count: 0,
+        }),
+      ],
+    })
+
+    expect(await screen.findByText('Miss rate 22.0% · Explanation 0')).toBeTruthy()
   })
 
   it('shows an explicit "no eval run yet" state for a tool with no report', async () => {

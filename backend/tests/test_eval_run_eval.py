@@ -16,6 +16,7 @@ from pathlib import Path
 
 import pytest
 
+from app.evals.explanation import TOOL_RESUME_ANALYZER
 from app.evals.loader import EvalFixture
 from app.evals.run_eval import (
     ALL_TOOLS,
@@ -67,6 +68,31 @@ def _fake_complete(score: int = 4, rationale: str = "specific"):
         return {JUDGE_SCORE_KEY: score, JUDGE_RATIONALE_KEY: rationale}
 
     return _complete
+
+
+async def _fake_scoring_outputs(corpus, tools):
+    """Canned scoring-tool responses whose narrative contradicts their own numbers.
+
+    Resume: a "keywords" issue rendered "low" over a subscore in the "high"
+    band. Job Match: a summary verdict of "strong" over a match score whose band
+    is "borderline". Both are supplied by the caller, so no LLM is involved.
+    """
+    fixture_id = corpus[0].id
+    return {
+        TOOL_RESUME_ANALYZER: {
+            fixture_id: {
+                "score_breakdown": [{"key": "keywords", "score": 30}],
+                "issues": [{"id": "kw", "category": "keywords", "severity": "low"}],
+            }
+        },
+        TOOL_JOB_MATCH: {
+            fixture_id: {
+                "match_score": 60,
+                "verdict": "borderline",
+                "summary": {"verdict": "strong"},
+            }
+        },
+    }
 
 
 async def _fake_generate(corpus, tools):
@@ -183,6 +209,9 @@ async def test_deterministic_resume_report_has_calibration_only(tmp_path: Path) 
     assert data["tool"] == TOOL_RESUME
     assert data["mode"] == "deterministic"
     assert isinstance(data["calibration_miss_rate"], float)
+    # The explanation check is deterministic too, so it reports a real figure
+    # (not null) on the credential-free path (D-121).
+    assert data["explanation_inconsistency_count"] == 0
     assert data["fabrication_candidate_count"] is None
     assert data["usefulness_score"] is None
     assert data["judge_prompt_version"] is None
@@ -200,6 +229,9 @@ async def test_deterministic_generative_report_has_null_live_figures(
     )
     data = json.loads(path.read_text())
     assert data["calibration_miss_rate"] is None
+    # A generative tool has no heuristic numbers to contradict, so the
+    # explanation figure stays null exactly like the calibration one.
+    assert data["explanation_inconsistency_count"] is None
     assert data["fabrication_candidate_count"] is None
     assert data["usefulness_score"] is None
 
@@ -211,6 +243,26 @@ async def test_single_tool_writes_only_that_report(tmp_path: Path) -> None:
     files = list(tmp_path.glob("*.json"))
     assert len(files) == 1
     assert files[0].name.startswith("job-match-")
+
+
+async def test_explanation_inconsistencies_reach_the_scoring_tool_reports(
+    tmp_path: Path,
+) -> None:
+    """The count in the report is the check's real finding, not a hard-coded zero."""
+    paths = await run_eval(
+        "all",
+        reports_dir=tmp_path,
+        fixtures=_fixtures(),
+        scoring_outputs=_fake_scoring_outputs,
+        now=lambda: _FIXED_NOW,
+    )
+    by_tool = {json.loads(p.read_text())["tool"]: json.loads(p.read_text()) for p in paths}
+
+    assert by_tool[TOOL_RESUME]["explanation_inconsistency_count"] == 1
+    assert by_tool[TOOL_JOB_MATCH]["explanation_inconsistency_count"] == 1
+    # Still null for every generative tool.
+    assert by_tool[TOOL_CAREER_PATH]["explanation_inconsistency_count"] is None
+    assert by_tool[TOOL_PORTFOLIO_PLANNER]["explanation_inconsistency_count"] is None
 
 
 # --- Live orchestration wired to injected fakes ---
@@ -300,6 +352,41 @@ def test_main_default_is_live(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -
     assert data["mode"] == "live"
     assert data["fabrication_candidate_count"] >= 1
     assert data["usefulness_score"] == pytest.approx(4.0)
+
+
+def test_main_default_live_wires_the_live_scoring_outputs_seam(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The scoring tools' explanation figures are only worth reading when they
+    # score real responses, so the default (live) CLI path must route through
+    # live_scoring_outputs. Swapped for a fake so no provider is touched.
+    monkeypatch.setattr("app.evals.run_eval.load_fixtures", _fixtures)
+    monkeypatch.setattr("app.evals.run_eval.live_scoring_outputs", _fake_scoring_outputs)
+    monkeypatch.setattr("app.evals.run_eval.live_generate_outputs", _fake_generate)
+    monkeypatch.setattr("app.services.ai_client.complete_structured", _fake_complete(4))
+
+    assert main(["resume", "--reports-dir", str(tmp_path)]) == 0
+
+    data = json.loads(next(iter(tmp_path.glob("*.json"))).read_text())
+    assert data["mode"] == "live"
+    assert data["explanation_inconsistency_count"] == 1
+
+
+def test_main_deterministic_reports_explanation_without_a_provider(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def _boom(*args: object, **kwargs: object) -> None:
+        raise AssertionError("--deterministic must not call the live LLM")
+
+    monkeypatch.setattr("app.evals.run_eval.load_fixtures", _fixtures)
+    monkeypatch.setattr("app.services.ai_client.complete_structured", _boom)
+
+    assert main(["job-match", "--reports-dir", str(tmp_path), "--deterministic"]) == 0
+
+    data = json.loads(next(iter(tmp_path.glob("*.json"))).read_text())
+    assert data["mode"] == "deterministic"
+    # The heuristic-only fallback narrative agrees with its own numbers.
+    assert data["explanation_inconsistency_count"] == 0
 
 
 def test_main_rejects_unknown_target(tmp_path: Path) -> None:

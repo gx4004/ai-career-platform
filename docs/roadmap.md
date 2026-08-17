@@ -156,9 +156,10 @@ increase in failure, cost, or privacy risk.
 
 ### R8. Output Quality Program
 
-**Status:** implementation complete through #119–#124; the evaluation corpus,
-checks, runner, and admin evidence view exist, while release changes must still pass
-the program's quality/latency/cost gate
+**Status:** implementation complete through #119–#124 plus the scoring-tool
+explanation-consistency check (D-121); the evaluation corpus, checks, runner, and
+admin evidence view exist, while release changes must still pass the program's
+quality/latency/cost gate
 **Outcome:** changes to prompts, heuristics, and models can be evaluated consistently.
 
 Acceptance gate:
