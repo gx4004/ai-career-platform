@@ -28,6 +28,7 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.models.analytics_event import AnalyticsEvent
 from app.schemas.admin import AdminScorecardResponse, ScorecardTrigger, TriggerState
+from app.schemas.analytics import IMPORT_FAILURE_OUTCOMES
 from app.services.analytics import safe_record_activation_event
 from app.services.rate_limit_events import (
     RATE_LIMIT_BUCKET_SECONDS,
@@ -728,7 +729,10 @@ def _evaluate_import(db: Session, now: datetime) -> dict[str, object]:
     for family, outcome, count in rows:
         family = family or "other"
         attempts[family] = attempts.get(family, 0) + count
-        if outcome == "failure":
+        # Import failures now carry a bounded category, so matching the bare
+        # legacy literal would silently stop counting every categorised failure
+        # and under-report the very concentration this trigger measures.
+        if outcome in IMPORT_FAILURE_OUTCOMES:
             failures[family] = failures.get(family, 0) + count
     total_attempts = sum(attempts.values())
     total_failures = sum(failures.values())

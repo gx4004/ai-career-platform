@@ -490,6 +490,38 @@ def test_import_trigger_not_fired_when_healthy(db):
     assert trig.state == "not_fired"
 
 
+@pytest.mark.parametrize(
+    "category",
+    ["failure_blocked", "failure_timeout", "failure_unavailable", "failure_unparseable", "failure_empty"],
+)
+def test_import_trigger_counts_every_categorised_failure(db, category):
+    """Bounded failure categories must still count toward the #142 trigger.
+
+    The trigger previously matched the bare `failure` literal. Once the scraper
+    began recording *why* an import failed, matching that literal alone would
+    have silently stopped counting every categorised failure — under-reporting
+    the concentration the trigger exists to measure, in the exact release that
+    made the evidence more precise.
+    """
+    _insert_import(db, family="greenhouse", outcome="success", count=40)
+    _insert_import(db, family="greenhouse", outcome=category, count=20)
+
+    trig = _trigger(compute_scorecard(db, now=FIXED_NOW), "import_concentration")
+
+    assert trig.state == "fired"
+    assert trig.evidence_detail["top_family"] == "greenhouse"
+
+
+def test_import_trigger_does_not_count_a_low_quality_success_as_failure(db):
+    """`success_low_quality` means the fetch worked; it is not a failure."""
+    _insert_import(db, family="lever", outcome="success", count=40)
+    _insert_import(db, family="lever", outcome="success_low_quality", count=20)
+
+    trig = _trigger(compute_scorecard(db, now=FIXED_NOW), "import_concentration")
+
+    assert trig.state == "not_fired"
+
+
 def test_import_trigger_insufficient_below_min_attempts(db):
     _insert_import(db, family="workday", outcome="success", count=10)
     trig = _trigger(compute_scorecard(db, now=FIXED_NOW), "import_concentration")

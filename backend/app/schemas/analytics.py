@@ -81,10 +81,58 @@ ImportSourceFamily = Literal[
     "other",
 ]
 
-# Job-import attempt outcome. `success` = first-tier HTTP fetch, `fallback` =
-# the bounded Playwright fallback produced the result, `failure` = neither tier
-# yielded a usable posting and the user gets the paste fallback.
-ImportOutcome = Literal["success", "fallback", "failure"]
+# Bounded job-import failure categories (#142, D-059). Mirrors
+# `ProviderIncidentCategory`: one closed, content-free, low-cardinality set,
+# derived only from branches `job_scraper` can actually distinguish today. Never
+# a URL, never a hostname — the allowlisted source family is the only
+# host-derived label and it rides on `operational_dimension` — and never an
+# exception, status line, or source message. The values carry a `failure_`
+# prefix because they share the single outcome column with the classes below.
+#   - `failure_blocked`     — the fetch was refused: the source answered
+#                             401/403/407/429/451, or the outbound guard rejected
+#                             the target or a redirect hop.
+#   - `failure_timeout`     — the fetch exceeded the tier's timeout budget.
+#   - `failure_unavailable` — no usable response arrived: a connection/transport
+#                             error, another non-2xx status, or the redirect
+#                             limit was exhausted.
+#   - `failure_unparseable` — a response arrived that cannot be turned into a
+#                             posting: unsupported content type, over-size body,
+#                             or HTML the parser rejected.
+#   - `failure_empty`       — fetch and parse both worked, but the page carried
+#                             no description text at all.
+ImportFailureCategory = Literal[
+    "failure_blocked",
+    "failure_timeout",
+    "failure_unavailable",
+    "failure_unparseable",
+    "failure_empty",
+]
+
+# Job-import attempt outcome. Whether the fetch and the parse *worked* is
+# recorded separately from whether the result was *substantive* (#142): a page
+# that parses into a short description is a low-quality success, not a failed
+# import, and recording it as a failure biases the very source-concentration
+# evidence D-059 decides from.
+#   - `success`             — the first-tier HTTP fetch parsed a substantive
+#                             posting.
+#   - `success_low_quality` — the first-tier fetch and parse both worked, but the
+#                             page yielded a short description.
+#   - `fallback`            — the bounded Playwright fallback produced the result.
+#   - `failure`             — an import failed with no distinguishable category
+#                             (e.g. the endpoint rejected the URL before any tier
+#                             ran); the categories above carry every failure the
+#                             scraper itself observed.
+ImportOutcome = Literal[
+    "success",
+    "success_low_quality",
+    "fallback",
+    "failure",
+    ImportFailureCategory,
+]
+
+# Coarse failure class for consumers that ask "did this import fail?" rather than
+# "why" — the one outcome column now carries both axes.
+IMPORT_FAILURE_OUTCOMES = frozenset({"failure", *get_args(ImportFailureCategory)})
 
 # A coalesced rate-limit event retains only a stable route family and whether
 # the threshold bucket contained authenticated accounts, guests, or both. Raw
@@ -120,6 +168,12 @@ _R10_PROVIDER_CATEGORIES = frozenset(get_args(ProviderIncidentCategory))
 _R10_IMPORT_FAMILIES = frozenset(get_args(ImportSourceFamily))
 _R10_CACHE_OUTCOMES = frozenset(get_args(CacheOutcome))
 _R10_IMPORT_OUTCOMES = frozenset(get_args(ImportOutcome))
+# Import-specific outcome values (#142). `success`/`fallback`/`failure` stay
+# shared with the discovery source-health outcomes, but the quality class and the
+# failure categories describe one event only.
+_IMPORT_EXCLUSIVE_OUTCOMES = frozenset(
+    {"success_low_quality", *get_args(ImportFailureCategory)}
+)
 _R10_DIMENSIONS = frozenset().union(
     _R10_ROUTE_FAMILIES,
     _R10_PHASES,
@@ -409,6 +463,13 @@ class ActivationEventCreate(BaseModel):
         ):
             raise ValueError(
                 "submission-source outcomes are valid only for submission-source events"
+            )
+        if (
+            self.event_name != "r10_import_outcome"
+            and self.operational_outcome in _IMPORT_EXCLUSIVE_OUTCOMES
+        ):
+            raise ValueError(
+                "import quality/failure classes are valid only for import outcome events"
             )
         if self.event_name not in _R10_EVENT_NAMES:
             if (
