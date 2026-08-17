@@ -256,7 +256,26 @@ async def _run_tool_pipeline_after_validation(
             started_at=provider_start,
         )
 
-        if content_hash is not None:
+        # Spec decision #7 lets Resume Analyzer and Job Match swallow a provider
+        # failure and return a heuristic-only result, so a real outage reaches
+        # this success path rather than the failure path below. The accumulator
+        # is cleared by the LLM client whenever a retry eventually succeeds, so a
+        # category surviving here means exactly one thing: this run completed on
+        # a degraded answer.
+        degraded_category = get_provider_incident()
+        if degraded_category is not None:
+            # The D-055/#138 trigger counts user-visible incidents. A silently
+            # degraded scoring run is the most user-visible outcome there is.
+            safe_record_activation_event(
+                db,
+                event_name="r10_provider_incident",
+                level="error",
+                tool_id=tool_name,
+                access_mode=access_mode,
+                operational_dimension=degraded_category,
+            )
+
+        if content_hash is not None and degraded_category is None:
             try:
                 set_cached_result(content_hash, result)
             except Exception:  # noqa: BLE001 — cache write is best-effort
