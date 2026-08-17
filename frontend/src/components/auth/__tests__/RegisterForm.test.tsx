@@ -1,7 +1,10 @@
 import type { ReactNode } from 'react'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { RegisterForm } from '#/components/auth/RegisterForm'
+import {
+  RegisterForm,
+  __resetRegistrationChallengeCache,
+} from '#/components/auth/RegisterForm'
 
 const registerMock = vi.hoisted(() => vi.fn())
 const trackTelemetryMock = vi.hoisted(() => vi.fn())
@@ -61,6 +64,7 @@ describe('RegisterForm — auth_signup_source telemetry (D-040)', () => {
     registerMock.mockReset().mockResolvedValue(undefined)
     trackTelemetryMock.mockReset()
     readPendingIntentMock.mockReset().mockReturnValue(null)
+    __resetRegistrationChallengeCache()
     stubAdvertisement()
   })
 
@@ -146,6 +150,7 @@ describe('RegisterForm — registration challenge', () => {
     registerMock.mockReset().mockResolvedValue(undefined)
     trackTelemetryMock.mockReset()
     readPendingIntentMock.mockReset().mockReturnValue(null)
+    __resetRegistrationChallengeCache()
     delete window.grecaptcha
   })
 
@@ -155,12 +160,18 @@ describe('RegisterForm — registration challenge', () => {
     delete window.grecaptcha
   })
 
+  /** The form only asks for a token once the advertisement has been applied. */
+  async function waitForAdvertisedChallenge() {
+    await screen.findByText('Protected by reCAPTCHA.')
+  }
+
   it('sends the legacy payload with no token when no challenge is advertised', async () => {
     const execute = vi.fn()
     window.grecaptcha = { ready: (cb: () => void) => cb(), execute }
-    stubAdvertisement()
+    const fetchMock = stubAdvertisement()
 
     render(<RegisterForm />)
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
     fillAndSubmit()
 
     await waitFor(() => expect(registerMock).toHaveBeenCalledTimes(1))
@@ -189,6 +200,7 @@ describe('RegisterForm — registration challenge', () => {
     const fetchMock = stubAdvertisement(CHALLENGE_ADVERTISED)
 
     render(<RegisterForm />)
+    await waitForAdvertisedChallenge()
     fillAndSubmit()
 
     await waitFor(() => expect(registerMock).toHaveBeenCalledTimes(1))
@@ -212,6 +224,7 @@ describe('RegisterForm — registration challenge', () => {
     stubAdvertisement(CHALLENGE_ADVERTISED)
 
     render(<RegisterForm />)
+    await waitForAdvertisedChallenge()
     fillAndSubmit()
 
     expect((await screen.findByRole('alert')).textContent).toContain(
@@ -229,6 +242,7 @@ describe('RegisterForm — registration challenge', () => {
     stubAdvertisement(CHALLENGE_ADVERTISED)
 
     render(<RegisterForm />)
+    await waitForAdvertisedChallenge()
     fillAndSubmit()
 
     expect((await screen.findByRole('alert')).textContent).toContain(
@@ -245,5 +259,36 @@ describe('RegisterForm — registration challenge', () => {
 
     await waitFor(() => expect(registerMock).toHaveBeenCalledTimes(1))
     expect(Object.keys(registerMock.mock.calls[0][0])).not.toContain('captcha_token')
+  })
+
+  it('never waits on an unresolved advertisement before registering', async () => {
+    // The advertisement request that never settles is the regression: a signup
+    // must not be delayed or blocked by it. Nothing resolves this promise, so a
+    // submit path that awaits the advertisement can never call register.
+    vi.stubGlobal('fetch', vi.fn().mockReturnValue(new Promise(() => {})))
+
+    render(<RegisterForm />)
+    fillAndSubmit()
+
+    await waitFor(() => expect(registerMock).toHaveBeenCalledTimes(1))
+    expect(registerMock.mock.calls[0][0]).toEqual({
+      email: 'new.user@example.com',
+      password: 'sufficiently-long-pass',
+      full_name: undefined,
+      tos_accepted: true,
+    })
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('fetches the advertisement once per page load across remounts', async () => {
+    const fetchMock = stubAdvertisement()
+
+    const first = render(<RegisterForm />)
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+    first.unmount()
+    render(<RegisterForm />)
+
+    await waitFor(() => expect(registerMock).toHaveBeenCalledTimes(0))
+    expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 })
