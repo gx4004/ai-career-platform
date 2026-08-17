@@ -861,12 +861,15 @@ patterns to strip known injection markers, including:
 
 - **Key:** SHA-256 hash of `(tool_name, resume.strip().lower(), jd.strip().lower(), extra_params)`
 - **User scope:** Authenticated users have a separate hash namespace from guests
-- **TTL:** `RESULT_CACHE_TTL_SECONDS` (default 3600s)
-- **Storage:** In-memory Python `dict` — does not survive process restarts or share across instances
-- **Skip conditions:** Cache bypassed when `feedback` param is present
+- **TTL:** `RESULT_CACHE_TTL_SECONDS` (default 3600s); expired entries are swept on
+  every write, not only when their own key is looked up again
+- **Bound:** `RESULT_CACHE_MAX_ENTRIES` (default 512), least-recently-used eviction
+- **Storage:** In-memory `OrderedDict` — does not survive process restarts or share across instances
+- **Skip conditions:** Cache bypassed when `feedback` param is present, and a run
+  that completed on a degraded provider fallback is never written
 
 — `backend/app/services/result_cache.py`
-— `backend/app/config.py:RESULT_CACHE_TTL_SECONDS, RESULT_CACHE_ENABLED`
+— `backend/app/config.py:RESULT_CACHE_TTL_SECONDS, RESULT_CACHE_ENABLED, RESULT_CACHE_MAX_ENTRIES`
 
 ### 8.4 LLM Integration
 
