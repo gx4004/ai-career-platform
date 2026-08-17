@@ -294,9 +294,10 @@ kept per key so the guarantee is stated rather than inferred from the heading.
 |-----|-------|------|-------------|-----|------------|-----------|
 | `career-workbench:draft:{toolId}` | `src/lib/tools/drafts.ts` | `{resumeText, jobDescription, ...}` | **High** — full resume + JD text | Tab close | Manual clear, explicit logout, account deletion, or tab close | Isolated per tab |
 | `career-workbench:workflow-context` | `src/lib/tools/drafts.ts` | `{resumeText, jobDescription, resumeAnalysis, jobMatch, ...}` | **High** — full analysis results | 4 hours / tab close | Manual clear, explicit logout, account deletion, TTL, or tab close | Isolated per tab (D-011) |
-| `cw:demo-result:{id}` | `src/lib/tools/demoRuns.ts` | Full `ToolRunDetail` (all LLM output) | **High** — complete tool result | Tab close | Manual clear, explicit logout, account deletion, or tab close | Isolated per tab |
-| `cw:resume-carry` | `src/lib/tools/resumeCarryStore.ts` | Raw resume text (plain string) | **High** — unstructured resume | Tab close | Manual clear, explicit logout, account deletion, or tab close | Isolated per tab |
-| `cw:resume-carry-filename` | `src/lib/tools/resumeCarryStore.ts` | Filename string | Low | Tab close | Manual clear, explicit logout, account deletion, or tab close | Isolated per tab |
+| `cw:demo-result:{id}` | `src/lib/tools/demoRuns.ts` | Full `ToolRunDetail` (all LLM output) | **High** — complete tool result | Tab close; only the 6 newest runs are retained (`MAX_TRANSIENT_RESULTS`) | Manual clear, explicit logout, account deletion, tab close, or eviction by a newer run | Isolated per tab |
+| `cw:resume-carry` | `src/lib/tools/resumeCarryStore.ts` | Raw resume text (plain string) | **High** — unstructured resume | 4 hours idle / tab close | Manual clear, explicit logout, account deletion, TTL on next read, or tab close | Isolated per tab |
+| `cw:resume-carry-filename` | `src/lib/tools/resumeCarryStore.ts` | Filename string | Low | 4 hours idle / tab close | Manual clear, explicit logout, account deletion, TTL on next read, or tab close | Isolated per tab |
+| `cw:resume-carry-updated-at` | `src/lib/tools/resumeCarryStore.ts` | Epoch-ms write stamp for the carried resume | None | 4 hours idle / tab close | Manual clear, explicit logout, account deletion, TTL on next read, or tab close | Isolated per tab |
 | `cw:practice-attempts` | `src/components/tooling/InterviewPracticeMode.tsx:31,65` | `Record<number,number>` | None | Tab close | Tab close | Isolated per tab |
 | `cw:consecutive-crashes` | `src/components/app/ErrorBoundary.tsx:34-38` | String number | None | On success/redirect | 2+ crashes → redirect + clear | Isolated per tab — a crash loop in one tab never trips another |
 | `cw:guest-banner-dismissed` | `src/components/tooling/GuestSaveBanner.tsx:17,27` | `"1"` flag | None | Tab close | Tab close | Isolated per tab — dismissing re-prompts in a new tab |
@@ -321,8 +322,11 @@ Four sessionStorage keys contain resume text and/or generated career content:
 
 All four are tab-scoped and are cleared together by the settings control,
 explicit logout (including local cleanup after a server failure), and successful
-account deletion. They also die on tab close; workflow context has an additional
-4-hour TTL. For authenticated users, the same data is also server-persisted in
+account deletion. Draft clearing follows the `career-workbench:draft:` key prefix,
+so it cannot drift from the set of tools that write drafts. They also die on tab
+close; workflow context and the carried resume each have a 4-hour TTL, and guest
+demo results are capped at the 6 newest runs with the oldest evicted first. For
+authenticated users, the same data is also server-persisted in
 `tool_runs.result_payload`.
 
 **No localStorage key stores resume text, JD text, or generated content.**
