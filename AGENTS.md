@@ -118,7 +118,7 @@ The root runner is the canonical local release gate. It verifies Node 22, pnpm
 document tools before it installs or tests anything. Full mode requires fresh,
 explicitly named `cw_local_release*` and
 `codex_submission_authorization_concurrency_*` PostgreSQL databases and never
-reads ambient database URLs:
+reads ambient database URLs or browser-suite ports:
 
 ```bash
 ./scripts/local-release.sh --preflight
@@ -127,6 +127,12 @@ reads ambient database URLs:
   --authorization-database-url \
   postgresql+psycopg2://<user>:<password>@<host>/codex_submission_authorization_concurrency_<id>
 ```
+
+On a host without a reachable Docker daemon, add `--allow-missing-docker`. The
+run then reports `Container verification SKIPPED` and finishes `WITHOUT
+container evidence`; never describe such a run as a complete gate. The browser
+suite always binds ports the runner selects, so a running development server no
+longer aborts the gate.
 
 Use focused commands while iterating:
 
