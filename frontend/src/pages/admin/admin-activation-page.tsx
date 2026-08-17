@@ -47,12 +47,18 @@ function fmtTimestamp(value: string | null): string {
   return d.toLocaleString()
 }
 
-// Resume / Job Match carry a calibration miss rate; the four generative tools
-// carry a fabrication-candidate count and an LLM-as-judge usefulness score.
-// Only one branch is populated per tool (see backend `ToolReport`).
+// Resume / Job Match carry a calibration miss rate plus an explanation
+// inconsistency count (places the rendered explanation contradicts the numbers
+// in the same response, D-121); the four generative tools carry a
+// fabrication-candidate count and an LLM-as-judge usefulness score. Only one
+// branch is populated per tool (see backend `ToolReport`). A report written
+// before the explanation check existed carries `null` there, which stays
+// unrendered — absent means "not measured", never "zero contradictions".
 function fmtQuality(item: EvalRunItem): string {
   if (item.calibration_miss_rate !== null) {
-    return `Miss rate ${(item.calibration_miss_rate * 100).toFixed(1)}%`
+    const calibration = `Miss rate ${(item.calibration_miss_rate * 100).toFixed(1)}%`
+    if (item.explanation_inconsistency_count === null) return calibration
+    return `${calibration} · Explanation ${item.explanation_inconsistency_count}`
   }
   const parts: string[] = []
   if (item.fabrication_candidate_count !== null) {

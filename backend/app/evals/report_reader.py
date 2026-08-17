@@ -20,17 +20,27 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
-from app.evals.run_eval import ALL_TOOLS, REPORT_SCHEMA_VERSION, REPORTS_DIR
+from app.evals.run_eval import (
+    ALL_TOOLS,
+    REPORTS_DIR,
+    SUPPORTED_REPORT_SCHEMA_VERSIONS,
+)
 
 __all__ = ["ALL_TOOLS", "REPORTS_DIR", "latest_reports_by_tool"]
 
 
 class _EvalReportArtifact(BaseModel):
-    """Strict trust boundary for generated on-disk eval artifacts."""
+    """Strict trust boundary for generated on-disk eval artifacts.
+
+    Every schema version in :data:`SUPPORTED_REPORT_SCHEMA_VERSIONS` is accepted,
+    and each figure added by a later version defaults to ``None``, so a report
+    written before a check existed stays readable instead of disappearing from
+    the admin view.
+    """
 
     model_config = ConfigDict(extra="forbid", strict=True)
 
-    report_schema_version: Literal[REPORT_SCHEMA_VERSION]
+    report_schema_version: str
     tool: str
     prompt_version: str = Field(min_length=1)
     judge_prompt_version: str | None
@@ -38,8 +48,16 @@ class _EvalReportArtifact(BaseModel):
     mode: Literal["deterministic", "live"]
     fixtures_evaluated: int = Field(ge=0)
     calibration_miss_rate: float | None = Field(default=None, ge=0, le=1)
+    explanation_inconsistency_count: int | None = Field(default=None, ge=0)
     fabrication_candidate_count: int | None = Field(default=None, ge=0)
     usefulness_score: float | None = Field(default=None, ge=1, le=5)
+
+    @field_validator("report_schema_version")
+    @classmethod
+    def validate_report_schema_version(cls, value: str) -> str:
+        if value not in SUPPORTED_REPORT_SCHEMA_VERSIONS:
+            raise ValueError("unsupported eval report schema version")
+        return value
 
     @field_validator("tool")
     @classmethod

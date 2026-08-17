@@ -20,6 +20,7 @@ const validEvalItem = {
   mode: 'deterministic',
   fixtures_evaluated: 11,
   calibration_miss_rate: 0.09,
+  explanation_inconsistency_count: 0,
   fabrication_candidate_count: null,
   usefulness_score: null,
 }
@@ -80,6 +81,7 @@ describe('admin eval response contract', () => {
         mode: null,
         fixtures_evaluated: null,
         calibration_miss_rate: null,
+        explanation_inconsistency_count: null,
         fabrication_candidate_count: null,
         usefulness_score: null,
         resume_text: 'must never cross the admin aggregate contract',
@@ -94,6 +96,8 @@ describe('admin eval response contract', () => {
     { mode: 'preview' },
     { fixtures_evaluated: -1 },
     { calibration_miss_rate: 1.1 },
+    { explanation_inconsistency_count: -1 },
+    { explanation_inconsistency_count: 1.5 },
     { fabrication_candidate_count: -1 },
     { usefulness_score: 5.1 },
   ])('rejects malformed bounded report fields through the public client: %o', async invalid => {

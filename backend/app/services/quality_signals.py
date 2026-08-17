@@ -512,6 +512,29 @@ def compute_overall_score(score_breakdown: list[dict[str, int | str]]) -> int:
     return round(sum(scores) / max(len(scores), 1))
 
 
+#: Resume Analyzer severity bands. A dimension scoring below
+#: :data:`SEVERITY_HIGH_BELOW` is "high" severity, below
+#: :data:`SEVERITY_MEDIUM_BELOW` is "medium", otherwise "low".
+SEVERITY_HIGH_BELOW = 55
+SEVERITY_MEDIUM_BELOW = 72
+
+
+def severity_from_score(score: int) -> str:
+    """Return the Resume Analyzer severity band for a category subscore (0..100).
+
+    The band that turns a numeric dimension score into the issue severity the
+    result page renders. It lives here, beside :func:`job_match_verdict` (the
+    Job Match equivalent), so the R8 explanation-consistency check
+    (:mod:`app.evals.explanation`) can measure the *same* band production
+    applies instead of restating the thresholds.
+    """
+    if score < SEVERITY_HIGH_BELOW:
+        return "high"
+    if score < SEVERITY_MEDIUM_BELOW:
+        return "medium"
+    return "low"
+
+
 def compute_match_score(matched_keywords: list[str], missing_keywords: list[str]) -> int:
     total = len(matched_keywords) + len(missing_keywords)
     if total == 0:

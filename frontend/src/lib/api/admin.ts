@@ -228,6 +228,7 @@ export const evalRunItemSchema = z.strictObject({
   mode: z.enum(['deterministic', 'live']).nullable(),
   fixtures_evaluated: z.number().int().nonnegative().nullable(),
   calibration_miss_rate: z.number().min(0).max(1).nullable(),
+  explanation_inconsistency_count: z.number().int().nonnegative().nullable(),
   fabrication_candidate_count: z.number().int().nonnegative().nullable(),
   usefulness_score: z.number().min(1).max(5).nullable(),
 })

@@ -47,7 +47,13 @@ def _write_report(reports_dir: Path, name: str, report: dict) -> None:
     (reports_dir / name).write_text(json.dumps(report, indent=2), encoding="utf-8")
 
 
-def _calibration_report(tool: str, *, generated_at: str, miss_rate: float) -> dict:
+def _calibration_report(
+    tool: str,
+    *,
+    generated_at: str,
+    miss_rate: float,
+    inconsistencies: int | None = 0,
+) -> dict:
     return {
         "report_schema_version": REPORT_SCHEMA_VERSION,
         "tool": tool,
@@ -57,9 +63,24 @@ def _calibration_report(tool: str, *, generated_at: str, miss_rate: float) -> di
         "mode": "deterministic",
         "fixtures_evaluated": 11,
         "calibration_miss_rate": miss_rate,
+        "explanation_inconsistency_count": inconsistencies,
         "fabrication_candidate_count": None,
         "usefulness_score": None,
     }
+
+
+def _legacy_v1_report(tool: str, *, generated_at: str, miss_rate: float) -> dict:
+    """A report artifact written before the explanation check existed (D-121).
+
+    ``r8-eval-report-v1`` files carry no ``explanation_inconsistency_count`` key
+    at all; they must stay readable rather than being skipped as off-shape.
+    """
+    report = _calibration_report(
+        tool, generated_at=generated_at, miss_rate=miss_rate
+    )
+    report["report_schema_version"] = "r8-eval-report-v1"
+    del report["explanation_inconsistency_count"]
+    return report
 
 
 def _generative_report(tool: str, *, generated_at: str) -> dict:
@@ -72,6 +93,7 @@ def _generative_report(tool: str, *, generated_at: str) -> dict:
         "mode": "live",
         "fixtures_evaluated": 8,
         "calibration_miss_rate": None,
+        "explanation_inconsistency_count": None,
         "fabrication_candidate_count": 3,
         "usefulness_score": 4.25,
     }
@@ -141,6 +163,7 @@ def test_eval_runs_surfaces_latest_report_per_tool(client, admin_headers, tmp_pa
     assert resume["has_report"] is True
     assert resume["generated_at"] == "2026-07-09T12:00:00+00:00"
     assert resume["calibration_miss_rate"] == 0.09
+    assert resume["explanation_inconsistency_count"] == 0
     assert resume["fabrication_candidate_count"] is None
 
     cover = tools["cover-letter"]
@@ -148,9 +171,56 @@ def test_eval_runs_surfaces_latest_report_per_tool(client, admin_headers, tmp_pa
     assert cover["fabrication_candidate_count"] == 3
     assert cover["usefulness_score"] == 4.25
     assert cover["calibration_miss_rate"] is None
+    assert cover["explanation_inconsistency_count"] is None
 
     # A tool with no file still appears, in the empty state.
     assert tools["job-match"]["has_report"] is False
+
+
+def test_eval_runs_still_reads_a_report_written_before_the_explanation_check(
+    client, admin_headers, tmp_path
+):
+    # A v1 artifact has no explanation field at all. It must still load, with
+    # the new figure reported as "not measured" (null) rather than zero.
+    _write_report(
+        tmp_path,
+        "resume-resume-v3-20260701T120000Z.json",
+        _legacy_v1_report(
+            "resume", generated_at="2026-07-01T12:00:00+00:00", miss_rate=0.18
+        ),
+    )
+    app.dependency_overrides[get_reports_dir] = lambda: tmp_path
+
+    resp = client.get(f"{PREFIX}/admin/eval-runs", headers=admin_headers)
+
+    assert resp.status_code == 200
+    resume = {t["tool_id"]: t for t in resp.json()["tools"]}["resume"]
+    assert resume["has_report"] is True
+    assert resume["report_schema_version"] == "r8-eval-report-v1"
+    assert resume["calibration_miss_rate"] == 0.18
+    assert resume["explanation_inconsistency_count"] is None
+
+
+def test_eval_runs_skips_a_report_with_an_unsupported_schema_version(
+    client, admin_headers, tmp_path
+):
+    _write_report(
+        tmp_path,
+        "resume-future.json",
+        {
+            **_calibration_report(
+                "resume", generated_at="2026-07-09T12:00:00+00:00", miss_rate=0.09
+            ),
+            "report_schema_version": "r8-eval-report-v99",
+        },
+    )
+    app.dependency_overrides[get_reports_dir] = lambda: tmp_path
+
+    resp = client.get(f"{PREFIX}/admin/eval-runs", headers=admin_headers)
+
+    assert resp.status_code == 200
+    tools = {t["tool_id"]: t for t in resp.json()["tools"]}
+    assert tools["resume"]["has_report"] is False
 
 
 def test_eval_runs_skips_malformed_report_file(client, admin_headers, tmp_path):

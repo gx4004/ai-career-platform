@@ -15,6 +15,7 @@ from app.services.quality_signals import (
     compute_resume_breakdown,
     confidence_gap_note,
     detect_sector,
+    severity_from_score,
 )
 
 logger = logging.getLogger(__name__)
@@ -42,14 +43,6 @@ def _default_headline(score: int, missing_keywords: list[str]) -> str:
     return "The resume needs clearer evidence before it will feel competitive."
 
 
-def _severity_from_score(score: int) -> str:
-    if score < 55:
-        return "high"
-    if score < 72:
-        return "medium"
-    return "low"
-
-
 def _heuristic_issues(
     prepass: ResumePrepass,
     score_breakdown: list[dict[str, int | str]],
@@ -62,7 +55,7 @@ def _heuristic_issues(
         issues.append(
             {
                 "id": "keywords-cover-missing-keywords",
-                "severity": _severity_from_score(breakdown["keywords"]),
+                "severity": severity_from_score(breakdown["keywords"]),
                 "category": "keywords",
                 "title": "Important target-role keywords are still missing",
                 "why_it_matters": "Recruiters scan for job-specific language before they read details.",
@@ -75,7 +68,7 @@ def _heuristic_issues(
         issues.append(
             {
                 "id": "impact-add-measurable-results",
-                "severity": _severity_from_score(breakdown["impact"]),
+                "severity": severity_from_score(breakdown["impact"]),
                 "category": "impact",
                 "title": "Impact is not backed up with enough measurable results",
                 "why_it_matters": "Without numbers, it is harder for a hiring manager to trust the scale of your work.",
@@ -93,7 +86,7 @@ def _heuristic_issues(
         issues.append(
             {
                 "id": "completeness-add-core-sections",
-                "severity": _severity_from_score(breakdown["completeness"]),
+                "severity": severity_from_score(breakdown["completeness"]),
                 "category": "completeness",
                 "title": "Core resume sections are missing or hard to detect",
                 "why_it_matters": "When expected sections are unclear, important evidence is easier to miss.",
@@ -106,7 +99,7 @@ def _heuristic_issues(
         issues.append(
             {
                 "id": "structure-use-scannable-bullets",
-                "severity": _severity_from_score(breakdown["structure"]),
+                "severity": severity_from_score(breakdown["structure"]),
                 "category": "structure",
                 "title": "The resume could be easier to scan",
                 "why_it_matters": "Dense paragraphs slow recruiters down and hide evidence that should stand out.",
@@ -119,7 +112,7 @@ def _heuristic_issues(
         issues.append(
             {
                 "id": "clarity-add-context",
-                "severity": _severity_from_score(breakdown["clarity"]),
+                "severity": severity_from_score(breakdown["clarity"]),
                 "category": "clarity",
                 "title": "The resume may be too thin to communicate your scope clearly",
                 "why_it_matters": "If the document is too brief, recruiters cannot quickly see context, ownership, and outcomes.",

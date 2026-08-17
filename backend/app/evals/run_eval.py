@@ -5,7 +5,12 @@ synthetic fixture corpus and writes one versioned JSON report per tool per run t
 ``backend/app/evals/reports/`` (parent spec #118; D-044, D-045):
 
 - Resume Analyzer / Job Match: the deterministic calibration check
-  (:mod:`app.evals.calibration`) — a per-tool miss rate. No LLM call.
+  (:mod:`app.evals.calibration`) — a per-tool miss rate — plus the deterministic
+  explanation-consistency check (:mod:`app.evals.explanation`) — a per-tool count
+  of places the rendered explanation contradicts the numbers in the same
+  response. Neither check calls an LLM itself; on the live path the explanation
+  check scores real responses from each tool's ``service_fn``, on the
+  deterministic path it scores their heuristic-only fallback responses.
 - Cover Letter / Interview Q&A / Career Path / Portfolio Planner: the
   deterministic fabrication-candidate check (:mod:`app.evals.fabrication`) plus
   the LLM-as-judge usefulness score (:mod:`app.evals.usefulness`), scored over
@@ -21,9 +26,11 @@ credentials. CI never invokes this script; the default ``pytest`` run exercises
 the orchestration with injected fakes only, so no test makes a live call.
 
 Pass ``--deterministic`` for the credential-free path: it runs only the
-deterministic calibration check (Resume/Job Match) and leaves the generative
-tools' live figures (``fabrication_candidate_count``, ``usefulness_score``) as
-``null``. Use it to reproduce a report offline or without credentials.
+deterministic checks (Resume/Job Match calibration and explanation consistency,
+the latter over the two tools' heuristic-only responses) and leaves the
+generative tools' live figures (``fabrication_candidate_count``,
+``usefulness_score``) as ``null``. Use it to reproduce a report offline or
+without credentials.
 
 Reports are dev-tooling artifacts written to disk as versioned JSON; they are
 never persisted into the ``analytics_events`` table (D-037, D-045).
@@ -54,6 +61,11 @@ from app.evals.calibration import (
     ToolMissRate,
     run_calibration,
 )
+from app.evals.explanation import (
+    ExplanationReport,
+    ToolExplanationCount,
+    run_explanation_check,
+)
 from app.evals.fabrication import (
     GENERATIVE_TOOLS,
     TOOL_CAREER_PATH,
@@ -75,14 +87,31 @@ from app.prompts.interview import INTERVIEW_PROMPT_VERSION
 from app.prompts.job_match import JOB_MATCH_PROMPT_VERSION
 from app.prompts.portfolio import PORTFOLIO_PROMPT_VERSION
 from app.prompts.resume import RESUME_PROMPT_VERSION
+from app.services.quality_signals import (
+    build_resume_prepass,
+    compute_match_score,
+    compute_overall_score,
+    compute_resume_breakdown,
+    job_match_verdict,
+)
 
 #: Directory the versioned JSON reports are written to (created on demand). The
 #: reports themselves are generated artifacts and are not committed (D-045).
 REPORTS_DIR = Path(__file__).parent / "reports"
 
 #: Bumped when the on-disk report shape changes, so a reader can tell whether an
-#: older report file is still comparable to a newer one.
-REPORT_SCHEMA_VERSION = "r8-eval-report-v1"
+#: older report file is still comparable to a newer one. ``v2`` added
+#: ``explanation_inconsistency_count`` for the two scoring tools (D-121).
+REPORT_SCHEMA_VERSION = "r8-eval-report-v2"
+
+#: Report schema versions the reader still accepts. Every bump so far has been
+#: purely additive with a ``null`` default, so an older artifact stays readable
+#: (it simply carries no figure for a check that did not exist when it was
+#: written); a breaking change must drop the superseded version from this tuple.
+SUPPORTED_REPORT_SCHEMA_VERSIONS: tuple[str, ...] = (
+    "r8-eval-report-v1",
+    REPORT_SCHEMA_VERSION,
+)
 
 #: CLI tool id for the Resume Analyzer (router ``tool_name``). It maps to the
 #: calibration module's :data:`TOOL_RESUME_ANALYZER` ("resume-analyzer") key.
@@ -126,6 +155,11 @@ _METADATA_KEYS: frozenset[str] = frozenset(
     {"schema_version", "generated_at", "tone_used", "confidence_note"}
 )
 
+#: Placeholder ``generated_at`` stamped into the heuristic Resume payloads built
+#: by :func:`deterministic_scoring_outputs`. The explanation check never reads
+#: that field, and a constant keeps the deterministic path reproducible.
+_HEURISTIC_GENERATED_AT = "1970-01-01T00:00:00+00:00"
+
 #: A callable that produces generated output text per generative tool per fixture:
 #: ``(corpus, tools) -> {tool_id: {fixture_id: output_text}}``. Injected so tests
 #: never reach the live provider; the live implementation is
@@ -133,6 +167,16 @@ _METADATA_KEYS: frozenset[str] = frozenset(
 GenerateOutputsFn = Callable[
     [list[EvalFixture], Sequence[str]],
     Awaitable[Mapping[str, Mapping[str, str]]],
+]
+
+#: A callable that produces one *response mapping* per scoring tool per fixture:
+#: ``(corpus, tools) -> {tool_id: {fixture_id: result}}``, keyed by the
+#: explanation check's tool ids. Injected so the caller chooses between the
+#: credential-free heuristic path (:func:`deterministic_scoring_outputs`) and the
+#: live one (:func:`live_scoring_outputs`).
+ScoringOutputsFn = Callable[
+    [list[EvalFixture], Sequence[str]],
+    Awaitable[Mapping[str, Mapping[str, Mapping[str, object]]]],
 ]
 
 
@@ -150,6 +194,10 @@ class ToolReport:
         mode: ``"deterministic"`` (no live LLM) or ``"live"``.
         fixtures_evaluated: How many fixtures fed this tool's checks.
         calibration_miss_rate: Resume/Job Match miss rate (0..1), else ``None``.
+        explanation_inconsistency_count: Resume/Job Match tally of places the
+            rendered explanation contradicts the numbers in the same response
+            (D-121), else ``None``. Reported beside the miss rate because both
+            answer "do this tool's numbers hold up?" (R8 acceptance gate).
         fabrication_candidate_count: Generative-tool untraceable-claim tally, or
             ``None`` when no output was generated (deterministic run) or N/A.
         usefulness_score: Generative-tool average usefulness (1..5), or ``None``.
@@ -163,6 +211,7 @@ class ToolReport:
     mode: str
     fixtures_evaluated: int
     calibration_miss_rate: float | None
+    explanation_inconsistency_count: int | None
     fabrication_candidate_count: int | None
     usefulness_score: float | None
 
@@ -281,10 +330,129 @@ async def live_generate_outputs(
     return outputs
 
 
+def _scoring_targets(tools: Sequence[str]) -> list[str]:
+    """Map CLI targets onto the explanation check's scoring-tool ids."""
+    return [_CALIBRATION_KEY[tool] for tool in tools if tool in CALIBRATION_TOOLS]
+
+
+async def deterministic_scoring_outputs(
+    corpus: list[EvalFixture],
+    tools: Sequence[str],
+) -> dict[str, dict[str, dict]]:
+    """Build Resume/Job Match responses from their heuristic paths only.
+
+    The credential-free source of scoring-tool outputs for the explanation
+    check: it calls the two services' own heuristic builders — the code that
+    runs verbatim when the provider is unavailable (spec decision #7) — so the
+    check measures production's fallback narrative instead of a re-derivation.
+    **No live call is made** (D-044); the service modules are imported lazily
+    here for the same reason :func:`live_generate_outputs` imports lazily, and
+    only the heuristic helpers are touched.
+    """
+    from app.services.job_matcher import (
+        CONFIDENCE_NOTE as JOB_MATCH_CONFIDENCE_NOTE,
+    )
+    from app.services.job_matcher import (
+        SCHEMA_VERSION as JOB_MATCH_SCHEMA_VERSION,
+    )
+    from app.services.job_matcher import (
+        _fallback_requirements,
+        _fallback_tailoring_actions,
+        _headline,
+    )
+    from app.services.resume_analyzer import _build_heuristic_fallback
+
+    targets = _scoring_targets(tools)
+    outputs: dict[str, dict[str, dict]] = {}
+    for tool in targets:
+        tool_outputs: dict[str, dict] = {}
+        for fixture in corpus:
+            prepass = build_resume_prepass(fixture.resume_text, fixture.job_description)
+            if tool == TOOL_RESUME_ANALYZER:
+                breakdown = compute_resume_breakdown(prepass)
+                tool_outputs[fixture.id] = _build_heuristic_fallback(
+                    prepass,
+                    breakdown,
+                    compute_overall_score(breakdown),
+                    _HEURISTIC_GENERATED_AT,
+                )
+                continue
+            # Job Match needs a job description; no-JD fixtures are skipped
+            # exactly as the calibration check skips them.
+            if fixture.job_description is None:
+                continue
+            match_score = compute_match_score(
+                prepass.matched_keywords, prepass.missing_keywords
+            )
+            verdict = job_match_verdict(match_score)
+            tool_outputs[fixture.id] = {
+                "schema_version": JOB_MATCH_SCHEMA_VERSION,
+                "summary": {
+                    "headline": _headline(
+                        verdict, prepass.matched_keywords, prepass.missing_keywords
+                    ),
+                    "verdict": verdict,
+                    "confidence_note": JOB_MATCH_CONFIDENCE_NOTE,
+                },
+                "match_score": match_score,
+                "verdict": verdict,
+                "requirements": _fallback_requirements(
+                    prepass.matched_keywords, prepass.missing_keywords
+                ),
+                "tailoring_actions": _fallback_tailoring_actions(
+                    prepass.missing_keywords
+                ),
+            }
+        outputs[tool] = tool_outputs
+    return outputs
+
+
+async def live_scoring_outputs(
+    corpus: list[EvalFixture],
+    tools: Sequence[str],
+) -> dict[str, dict[str, dict]]:
+    """Generate real Resume/Job Match responses by calling their ``service_fn``s.
+
+    The explanation check's whole point is the LLM half of these two tools
+    (D-121), so the live run scores the real responses. Calls the same service
+    callables ``run_tool_pipeline`` uses, directly and without cache or
+    persistence. **Reaches the live Gemini provider** and requires configured
+    Vertex credentials — only the default (live) CLI path routes here.
+    """
+    # Imported lazily so the deterministic path never touches the provider stack.
+    from app.services.job_matcher import match_job
+    from app.services.resume_analyzer import analyze_resume
+
+    targets = _scoring_targets(tools)
+    outputs: dict[str, dict[str, dict]] = {}
+    for tool in targets:
+        tool_outputs: dict[str, dict] = {}
+        for fixture in corpus:
+            if tool == TOOL_RESUME_ANALYZER:
+                tool_outputs[fixture.id] = await analyze_resume(
+                    fixture.resume_text, fixture.job_description
+                )
+            elif fixture.job_description is not None:
+                tool_outputs[fixture.id] = await match_job(
+                    fixture.resume_text, fixture.job_description
+                )
+        outputs[tool] = tool_outputs
+    return outputs
+
+
 def _calibration_stats(
     tool: str, report: CalibrationReport | None
 ) -> ToolMissRate | None:
     """Return the tool's calibration stats, or ``None`` if it is not a calibration tool."""
+    if report is None or tool not in CALIBRATION_TOOLS:
+        return None
+    return report.per_tool.get(_CALIBRATION_KEY[tool])
+
+
+def _explanation_stats(
+    tool: str, report: ExplanationReport | None
+) -> ToolExplanationCount | None:
+    """Return the tool's explanation stats, or ``None`` if it is not a scoring tool."""
     if report is None or tool not in CALIBRATION_TOOLS:
         return None
     return report.per_tool.get(_CALIBRATION_KEY[tool])
@@ -296,6 +464,7 @@ def build_report(
     generated_at: datetime,
     mode: str,
     calibration: CalibrationReport | None,
+    explanation: ExplanationReport | None = None,
     fabrication: FabricationReport | None,
     usefulness: UsefulnessReport | None,
 ) -> ToolReport:
@@ -305,6 +474,11 @@ def build_report(
     calibration_stats = _calibration_stats(tool, calibration)
     calibration_miss_rate = (
         round(calibration_stats.miss_rate, 4) if calibration_stats is not None else None
+    )
+
+    explanation_stats = _explanation_stats(tool, explanation)
+    explanation_inconsistency_count = (
+        explanation_stats.inconsistency_count if explanation_stats is not None else None
     )
 
     fabrication_count: int | None = None
@@ -332,6 +506,7 @@ def build_report(
         mode=mode,
         fixtures_evaluated=fixtures_evaluated,
         calibration_miss_rate=calibration_miss_rate,
+        explanation_inconsistency_count=explanation_inconsistency_count,
         fabrication_candidate_count=fabrication_count,
         usefulness_score=usefulness_score,
     )
@@ -371,6 +546,7 @@ async def run_eval(
     *,
     reports_dir: Path | None = None,
     generate_outputs: GenerateOutputsFn | None = None,
+    scoring_outputs: ScoringOutputsFn | None = None,
     score_usefulness: bool = False,
     complete: CompleteFn | None = None,
     fixtures: list[EvalFixture] | None = None,
@@ -386,6 +562,11 @@ async def run_eval(
             (the ``--deterministic`` path) generates no output, so generative
             reports carry ``null`` fabrication/usefulness figures and no live
             call is made.
+        scoring_outputs: Produces the Resume/Job Match response mappings the
+            explanation-consistency check reads. Defaults to
+            :func:`deterministic_scoring_outputs`, which is credential-free, so
+            the check reports a real figure even on the ``--deterministic``
+            path; the CLI passes :func:`live_scoring_outputs` for the full run.
         score_usefulness: When ``True`` (and outputs exist), score usefulness via
             :func:`run_usefulness_judge`. Left ``False`` on the deterministic path.
         complete: Judge LLM entry point forwarded to the usefulness judge; tests
@@ -402,8 +583,13 @@ async def run_eval(
     generated_at = clock()
 
     calibration: CalibrationReport | None = None
+    explanation: ExplanationReport | None = None
     if any(tool in CALIBRATION_TOOLS for tool in targets):
         calibration = run_calibration(corpus)
+        build_scoring_outputs = scoring_outputs or deterministic_scoring_outputs
+        explanation = run_explanation_check(
+            await build_scoring_outputs(corpus, targets), corpus
+        )
 
     generative_targets = [tool for tool in targets if tool in GENERATIVE_TOOLS]
     outputs: Mapping[str, Mapping[str, str]] = {}
@@ -427,6 +613,7 @@ async def run_eval(
             generated_at=generated_at,
             mode=mode,
             calibration=calibration,
+            explanation=explanation,
             fabrication=fabrication,
             usefulness=usefulness,
         )
@@ -452,9 +639,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--deterministic",
         action="store_true",
         help="run only the credential-free deterministic checks (calibration "
-        "for Resume/Job Match); skip live generation and the usefulness judge, "
-        "leaving generative live figures null. Use without Vertex credentials "
-        "or to reproduce a report offline. Default is the full live run.",
+        "and explanation consistency for Resume/Job Match, the latter over "
+        "their heuristic-only responses); skip live generation and the "
+        "usefulness judge, leaving generative live figures null. Use without "
+        "Vertex credentials or to reproduce a report offline. Default is the "
+        "full live run.",
     )
     parser.add_argument(
         "--reports-dir",
@@ -475,6 +664,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             args.target,
             reports_dir=args.reports_dir,
             generate_outputs=live_generate_outputs if live else None,
+            scoring_outputs=live_scoring_outputs if live else None,
             score_usefulness=live,
         )
     )
