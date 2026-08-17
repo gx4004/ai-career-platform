@@ -41,6 +41,14 @@ class Settings(BaseSettings):
 
     RESULT_CACHE_TTL_SECONDS: int = 3600
     RESULT_CACHE_ENABLED: bool = True
+    # Entry bound for the in-process result cache (LRU eviction at the bound).
+    # Measured payloads: ~2.6 KB JSON for a Resume heuristic result, ~25 KB for a
+    # cover letter, ~63 KB (~84 KB resident) for a 12-question interview set —
+    # the service-clamped worst case. A full 512-entry cache of those worst-case
+    # payloads measured ~35 MB RSS in one Uvicorn worker (~8 MB for typical
+    # payloads), while still holding a full TTL window for ~17 users running at
+    # the 30/hour MODEL_COST_LIMIT.
+    RESULT_CACHE_MAX_ENTRIES: int = Field(default=512, gt=0)
     BLENDED_SCORING_ENABLED: bool = True
     RESULT_ACCESS_POLICY_ENABLED: bool = False
 
