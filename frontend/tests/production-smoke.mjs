@@ -36,6 +36,20 @@ function assertBaselineSecurityHeaders(headers) {
   assert.equal(headers.get('permissions-policy'), 'camera=(), microphone=(), geolocation=()')
   assert.equal(headers.get('cross-origin-opener-policy'), 'same-origin')
   assert.equal(headers.get('cross-origin-resource-policy'), 'same-origin')
+
+  const csp = headers.get('content-security-policy') ?? ''
+  // Served by the real built artifact, not the dev server: the dev server never
+  // sends this policy, so the CV Studio blob: preview can only regress here.
+  assert.match(
+    csp,
+    /(^|; )frame-src 'self' blob:(;|$)/,
+    `served CSP lacks the blob: frame source the CV Studio preview needs: ${csp}`,
+  )
+  assert.match(
+    csp,
+    /(^|; )img-src 'self' data: blob:(;|$)/,
+    `served CSP image sources drifted from the repo-local set: ${csp}`,
+  )
 }
 
 async function listen(server) {
