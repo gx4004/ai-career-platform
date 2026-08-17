@@ -4,6 +4,7 @@ import type {
   DevelopmentState,
 } from '#/lib/api/developmentSchemas'
 import type { GapKind } from '#/lib/api/gapClassificationSchemas'
+import type { GapCommercialRelationship } from '#/lib/api/gapResponseSchemas'
 
 // R17 #199 development-plan presentation helpers. Mirrors lib/profile/evidence.ts:
 // stable label maps, a grouping that preserves canonical order, and per-state
@@ -42,6 +43,24 @@ export const RESPONSE_KIND_DESCRIPTIONS: Record<DevelopmentResponseKind, string>
   capture_evidence: 'The proof already exists; record it in your profile.',
   produce_evidence: 'The work is real but not yet demonstrable — create an artifact.',
   learn_skill: 'A genuine skill gap — plan the learning that closes it.',
+}
+
+// D-111 requires the commercial relationship behind a recommendation to be
+// disclosed. Keying the label map on the schema-derived union means widening
+// `commercial_relationship` server-side is a compile error here rather than a
+// UI that keeps asserting the old, now-false disclosure.
+export const COMMERCIAL_RELATIONSHIP_LABELS: Record<GapCommercialRelationship, string> = {
+  none: 'None disclosed',
+}
+
+/** The disclosure to render for `value`, never a claim we cannot substantiate. */
+export function commercialRelationshipLabel(value: string): string {
+  return (
+    COMMERCIAL_RELATIONSHIP_LABELS[value as GapCommercialRelationship] ??
+    // An unrecognised relationship must never render as "None disclosed":
+    // showing the raw value is honest, silently under-disclosing is not.
+    value
+  )
 }
 
 export const GAP_KIND_LABELS: Record<GapKind, string> = {
