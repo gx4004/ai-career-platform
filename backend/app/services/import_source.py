@@ -6,11 +6,17 @@ can carry identifying data. This module is the local mapping seam: it turns a
 URL into one bounded family label (or `other`) and then the caller discards the
 raw URL before any analytics row is written.
 
-`scrape_job_posting` records which tier produced the result (first-tier HTTP =
-`success`, Playwright fallback = `fallback`, graceful paste fallback = `failure`)
-into a request-scoped `ContextVar`; the import router maps the family from the
-URL it already holds, reads the outcome, and emits one `r10_import_outcome`
-event carrying only the family + outcome class.
+`scrape_job_posting` records what actually happened into a request-scoped
+`ContextVar` (#142): the first-tier HTTP fetch producing a substantive posting is
+`success`, a first-tier fetch and parse that work but yield a short description
+are `success_low_quality`, the bounded Playwright fallback is `fallback`, and
+each failure the scraper can distinguish carries its bounded
+`ImportFailureCategory`. The import router maps the family from the URL it
+already holds, reads the outcome, and emits one `r10_import_outcome` event
+carrying only the family + outcome class. Consumers asking the coarse question
+"did this import fail?" test membership in `IMPORT_FAILURE_OUTCOMES`
+(`app/schemas/analytics.py`) rather than comparing against the bare `failure`
+literal.
 """
 from __future__ import annotations
 
