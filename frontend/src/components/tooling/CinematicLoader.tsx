@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
 import {
   FileSearch, Brain, BarChart3, CheckCircle2,
   Target, PenTool, MessageSquare, Compass, FolderOpen,
@@ -14,57 +14,78 @@ type Stage = {
   duration: number
 }
 
+// Honest-wording contract (D-056).
+//
+// These labels are driven by a client-side `setTimeout` schedule; nothing here
+// observes what the server is actually doing. So they are NOT status messages
+// and must not be worded as one. Two rules keep them truthful:
+//
+//   1. No trailing ellipsis. "Calculating score…" reads as "the server is doing
+//      this right now", which the client cannot substantiate.
+//   2. They are always rendered under the `STEPS_FRAME` caption below, which
+//      marks the whole list as typical rather than observed.
+//
+// The only claim this component can substantiate is "a request is in flight and
+// has not returned yet" — that is `STATUS_WORKING`, and it is the message that
+// actually reaches assistive technology as a status.
 const TOOL_STAGES: Record<ToolId, Stage[]> = {
   resume: [
-    { icon: FileSearch, label: 'Reading your resume…', duration: 1500 },
-    { icon: Brain, label: 'Analyzing sections…', duration: 2000 },
-    { icon: BarChart3, label: 'Calculating score…', duration: 2000 },
-    { icon: Lightbulb, label: 'Preparing improvement tips…', duration: 1500 },
-    { icon: CheckCircle2, label: 'Finalizing results…', duration: 1000 },
+    { icon: FileSearch, label: 'Reading your resume', duration: 1500 },
+    { icon: Brain, label: 'Analyzing sections', duration: 2000 },
+    { icon: BarChart3, label: 'Calculating your score', duration: 2000 },
+    { icon: Lightbulb, label: 'Preparing improvement tips', duration: 1500 },
+    { icon: CheckCircle2, label: 'Finalizing results', duration: 1000 },
   ],
   'job-match': [
-    { icon: FileSearch, label: 'Reading your resume…', duration: 1200 },
-    { icon: ClipboardList, label: 'Extracting requirements…', duration: 2000 },
-    { icon: Target, label: 'Matching qualifications…', duration: 2000 },
-    { icon: BarChart3, label: 'Calculating fit score…', duration: 1500 },
-    { icon: CheckCircle2, label: 'Preparing report…', duration: 1000 },
+    { icon: FileSearch, label: 'Reading your resume', duration: 1200 },
+    { icon: ClipboardList, label: 'Extracting requirements', duration: 2000 },
+    { icon: Target, label: 'Matching qualifications', duration: 2000 },
+    { icon: BarChart3, label: 'Calculating fit score', duration: 1500 },
+    { icon: CheckCircle2, label: 'Preparing report', duration: 1000 },
   ],
   'cover-letter': [
-    { icon: FileSearch, label: 'Preparing context…', duration: 1500 },
-    { icon: Target, label: 'Mapping requirements…', duration: 1500 },
-    { icon: PenTool, label: 'Writing your letter…', duration: 2500 },
-    { icon: Lightbulb, label: 'Final refinements…', duration: 1500 },
-    { icon: CheckCircle2, label: 'Finishing up…', duration: 1000 },
+    { icon: FileSearch, label: 'Preparing context', duration: 1500 },
+    { icon: Target, label: 'Mapping requirements', duration: 1500 },
+    { icon: PenTool, label: 'Writing your letter', duration: 2500 },
+    { icon: Lightbulb, label: 'Final refinements', duration: 1500 },
+    { icon: CheckCircle2, label: 'Finishing up', duration: 1000 },
   ],
   interview: [
-    { icon: Brain, label: 'Analyzing the role…', duration: 1500 },
-    { icon: MessageSquare, label: 'Selecting questions…', duration: 2000 },
-    { icon: Lightbulb, label: 'Building answer frameworks…', duration: 2000 },
-    { icon: ClipboardList, label: 'Preparing practice plan…', duration: 1500 },
-    { icon: CheckCircle2, label: 'Finishing up…', duration: 1000 },
+    { icon: Brain, label: 'Analyzing the role', duration: 1500 },
+    { icon: MessageSquare, label: 'Selecting questions', duration: 2000 },
+    { icon: Lightbulb, label: 'Building answer frameworks', duration: 2000 },
+    { icon: ClipboardList, label: 'Preparing practice plan', duration: 1500 },
+    { icon: CheckCircle2, label: 'Finishing up', duration: 1000 },
   ],
   career: [
-    { icon: Compass, label: 'Analyzing your career…', duration: 1500 },
-    { icon: Map, label: 'Evaluating paths…', duration: 2000 },
-    { icon: Briefcase, label: 'Identifying skill gaps…', duration: 2000 },
-    { icon: Lightbulb, label: 'Preparing recommendations…', duration: 1500 },
-    { icon: CheckCircle2, label: 'Finishing up…', duration: 1000 },
+    { icon: Compass, label: 'Analyzing your career', duration: 1500 },
+    { icon: Map, label: 'Evaluating paths', duration: 2000 },
+    { icon: Briefcase, label: 'Identifying skill gaps', duration: 2000 },
+    { icon: Lightbulb, label: 'Preparing recommendations', duration: 1500 },
+    { icon: CheckCircle2, label: 'Finishing up', duration: 1000 },
   ],
   portfolio: [
-    { icon: Layers, label: 'Mapping your skills…', duration: 1500 },
-    { icon: FolderOpen, label: 'Selecting projects…', duration: 2000 },
-    { icon: Map, label: 'Building roadmap…', duration: 2000 },
-    { icon: Lightbulb, label: 'Preparing presentation tips…', duration: 1500 },
-    { icon: CheckCircle2, label: 'Finishing up…', duration: 1000 },
+    { icon: Layers, label: 'Mapping your skills', duration: 1500 },
+    { icon: FolderOpen, label: 'Selecting projects', duration: 2000 },
+    { icon: Map, label: 'Building roadmap', duration: 2000 },
+    { icon: Lightbulb, label: 'Preparing presentation tips', duration: 1500 },
+    { icon: CheckCircle2, label: 'Finishing up', duration: 1000 },
   ],
 }
 
 const DEFAULT_STAGES: Stage[] = [
-  { icon: FileSearch, label: 'Parsing…', duration: 1500 },
-  { icon: Brain, label: 'Analyzing…', duration: 2500 },
-  { icon: BarChart3, label: 'Generating insights…', duration: 2000 },
-  { icon: CheckCircle2, label: 'Almost done…', duration: 1500 },
+  { icon: FileSearch, label: 'Parsing', duration: 1500 },
+  { icon: Brain, label: 'Analyzing', duration: 2500 },
+  { icon: BarChart3, label: 'Generating insights', duration: 2000 },
+  // Was "Almost done…" — a remaining-time claim the client cannot make.
+  { icon: CheckCircle2, label: 'Finishing up', duration: 1500 },
 ]
+
+/** Caption that marks the stage list as indicative rather than observed. */
+const STEPS_FRAME = 'Typical steps'
+/** The only substantiated claim: a request is in flight. */
+const STATUS_WORKING = 'Working on your results…'
+const STATUS_READY = 'Results are ready.'
 
 const MIN_DISPLAY_MS = 3000
 const MIN_PHASES_SHOWN = 2
@@ -98,6 +119,11 @@ export function CinematicLoader({
     }
     return DEFAULT_STAGES
   }, [customStages, toolId])
+
+  // The CSS keyframe loops in tooling-fullscreen.css are silenced by the
+  // `prefers-reduced-motion` block there; Framer Motion animations are JS, so
+  // they need this hook to honour the same user preference.
+  const reduceMotion = useReducedMotion()
 
   const [stageIndex, setStageIndex] = useState(0)
   const startTimeRef = useRef(Date.now())
@@ -187,18 +213,52 @@ export function CinematicLoader({
       ? 90
       : ((displayedStageIndex + 1) / totalStages) * 100
 
+  const statusLabel = mutationDone ? STATUS_READY : STATUS_WORKING
+  // Spoken form of what the screen shows: the substantiated claim first, then
+  // the current step explicitly marked as typical (see the STEPS_FRAME comment).
+  const announcement = mutationDone
+    ? STATUS_READY
+    : `Working on your results. Typical step: ${stage.label}.`
+
   return (
     <motion.div
       className="cinematic-loader"
       style={{ '--tool-accent': accent } as CSSProperties}
       data-progress={Math.round(progress)}
       data-stage-index={displayedStageIndex}
-      initial={{ opacity: 0, y: 20 }}
+      initial={reduceMotion ? false : { opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -10 }}
-      transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+      exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: -10 }}
+      transition={reduceMotion ? { duration: 0 } : { duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
     >
-      <div className="cinematic-scanner">
+      {/*
+        Accessibility contract (WCAG 2.2 4.1.3 Status Messages).
+
+        - This <p> is the ONLY node this component exposes to assistive
+          technology, and it is a stable element: it is never keyed and never
+          sits inside `AnimatePresence`, so React rewrites its text in place. A
+          stage change therefore produces exactly one announcement, and a
+          re-render that changes no stage produces none. Marking the visible
+          stage line as the live region instead would announce twice per stage,
+          because `AnimatePresence` keeps the exiting copy mounted alongside the
+          entering one.
+        - `role="status"` (with `aria-live`/`aria-atomic` spelled out, matching
+          WorkflowHandoffBanner) is polite, so it never interrupts the user.
+        - Deliberately no `aria-busy` on the root: `aria-busy="true"` on an
+          ancestor of a live region instructs AT to withhold updates until it
+          flips to false, and this loader unmounts on completion rather than
+          flipping, so the announcements could be swallowed entirely. The
+          explicit "Working on your results" wording states the in-progress
+          condition without that risk.
+        - Everything else below is decoration for this message and is
+          `aria-hidden`, so the scanner, the eight filler doc lines and the two
+          momentarily-overlapping stage copies are not read out.
+      */}
+      <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+        {announcement}
+      </p>
+
+      <div className="cinematic-scanner" aria-hidden="true">
         <div className="cinematic-doc">
           <div className="cinematic-doc-lines">
             {Array.from({ length: 8 }).map((_, i) => (
@@ -209,28 +269,40 @@ export function CinematicLoader({
         </div>
       </div>
 
-      <div className="cinematic-stage">
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={displayedStageIndex}
-            className="cinematic-stage-content"
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            transition={{ duration: 0.25 }}
-          >
-            <Icon size={20} style={{ color: accent }} />
-            <span>{stage.label}</span>
-          </motion.div>
-        </AnimatePresence>
+      <div className="cinematic-message" aria-hidden="true">
+        <p className="cinematic-status">{statusLabel}</p>
+
+        <div className="cinematic-stage">
+          <span className="cinematic-stage-hint">{STEPS_FRAME}</span>
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={displayedStageIndex}
+              className="cinematic-stage-content"
+              initial={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: -8 }}
+              transition={{ duration: reduceMotion ? 0 : 0.25 }}
+            >
+              <Icon size={16} style={{ color: accent }} />
+              <span>{stage.label}</span>
+            </motion.div>
+          </AnimatePresence>
+        </div>
       </div>
 
-      <div className="cinematic-progress">
+      {/*
+        Indeterminate progressbar: `aria-valuenow` is deliberately omitted, which
+        is the ARIA-defined way to say "in progress, amount unknown". The width
+        below comes from the client-side stage timer, not from the server, so
+        publishing it as `aria-valuenow` would assert a completion ratio the
+        client cannot observe — exactly what D-056 forbids.
+      */}
+      <div className="cinematic-progress" role="progressbar" aria-label="Generating results">
         <motion.div
           className="cinematic-progress-bar"
           initial={{ width: 0 }}
           animate={{ width: `${progress}%` }}
-          transition={{ duration: 0.6, ease: 'easeOut' }}
+          transition={reduceMotion ? { duration: 0 } : { duration: 0.6, ease: 'easeOut' }}
         />
       </div>
     </motion.div>

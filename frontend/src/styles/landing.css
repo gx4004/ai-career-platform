@@ -685,42 +685,6 @@
   line-height: 1.6;
 }
 
-/* Testimonials */
-.lp-redesign .lp-testimonials-grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 1.25rem;
-  margin-top: 3rem;
-}
-@media (min-width: 768px) { .lp-redesign .lp-testimonials-grid { grid-template-columns: repeat(2, 1fr); } }
-@media (min-width: 1024px) { .lp-redesign .lp-testimonials-grid { grid-template-columns: repeat(4, 1fr); gap: 1.5rem; } }
-.lp-redesign .lp-testimonial-card {
-  padding: 2rem;
-  border-radius: 1.25rem;
-  background: var(--lp-surface);
-  transition: background .25s ease, transform .25s ease;
-  display: flex;
-  flex-direction: column;
-}
-.lp-redesign .lp-testimonial-card:hover { background: var(--lp-surface-2); transform: translateY(-2px); }
-.lp-redesign .lp-testimonial-quote {
-  font-style: italic;
-  color: var(--lp-text-dim);
-  line-height: 1.6;
-  margin-bottom: 1.5rem;
-  flex: 1;
-}
-.lp-redesign .lp-testimonial-author { display: flex; align-items: center; gap: 0.875rem; }
-.lp-redesign .lp-testimonial-avatar {
-  width: 2.5rem; height: 2.5rem; border-radius: 9999px;
-  background: var(--lp-surface-hi);
-  color: var(--lp-primary);
-  display: flex; align-items: center; justify-content: center;
-  font-size: 0.75rem; font-weight: 700;
-}
-.lp-redesign .lp-testimonial-name { font-size: 0.875rem; font-weight: 700; color: #f1f5fd; }
-.lp-redesign .lp-testimonial-role { font-size: 0.75rem; color: var(--lp-text-mute); }
-
 /* Workflow Review/Aim/Build */
 .lp-redesign .lp-workflow-grid {
   display: grid;
@@ -1077,7 +1041,6 @@ body:has(.lp-redesign)::after { display: none !important; }
 .lp-redesign .lp-cta-h2,
 .lp-redesign .lp-workflow-title,
 .lp-redesign .lp-tool-title,
-.lp-redesign .lp-testimonial-name,
 .lp-redesign .lp-footer-h5 {
   font-family: var(--lp-font-display);
   font-feature-settings: 'ss01', 'ss02';
@@ -1741,25 +1704,6 @@ body:has(.lp-redesign)::after { display: none !important; }
   }
   .lp-redesign .lp-hero-trust-label { text-align: center; }
 
-  /* ── Testimonials: horizontal snap-scroll carousel ── */
-  .lp-redesign .lp-testimonials-grid {
-    display: flex;
-    grid-template-columns: none;
-    overflow-x: auto;
-    scroll-snap-type: x mandatory;
-    gap: 0.875rem;
-    padding: 0.25rem 1.25rem 1rem;
-    margin: 2.5rem -1.25rem 0;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-  }
-  .lp-redesign .lp-testimonials-grid::-webkit-scrollbar { display: none; }
-  .lp-redesign .lp-testimonial-card {
-    flex: 0 0 86%;
-    scroll-snap-align: center;
-    padding: 1.75rem;
-  }
-
   /* ── Workflow: vertical timeline with gradient rail ── */
   .lp-redesign #landing-journey { text-align: left; }
   .lp-redesign .lp-workflow-grid {
@@ -1909,6 +1853,5 @@ body:has(.lp-redesign)::after { display: none !important; }
   .lp-redesign .lp-hero { padding-top: 5.5rem; }
   .lp-redesign .lp-hero-eyebrow-row { gap: 0.375rem; }
   .lp-redesign .lp-hero-beta { padding: 0.25rem 0.6rem; font-size: 0.5625rem; }
-  .lp-redesign .lp-testimonial-card { flex: 0 0 90%; }
   .lp-redesign .lp-section-h2 { letter-spacing: -0.028em; }
 }
