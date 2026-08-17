@@ -1,7 +1,7 @@
 # Career Workbench — Product Roadmap
 
 **Planning horizon:** release candidate through premium application automation
-**Last reviewed:** 2026-08-12
+**Last reviewed:** 2026-08-13
 **Roadmap rule:** outcomes live here; implementation tasks live in issues/PRs.
 
 ## North Star
