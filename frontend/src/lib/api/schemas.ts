@@ -1159,6 +1159,16 @@ export const interviewPracticeFeedbackSchema = z.object({
   suggestions: z.array(z.string()).default([]),
   overall_feedback: z.string().default(''),
   is_empty_answer: z.boolean().default(false),
+  // Mirrors InterviewPracticeFeedbackResponse.access_decision (backend
+  // schemas/tools.py). Same control default as sharedResultEnvelopeSchema so a
+  // response from an older backend still parses.
+  access_decision: resultAccessDecisionSchema.default({
+    state: 'full',
+    treatment: 'control',
+    reason: 'policy_disabled',
+    can_export: true,
+    policy_version: 'control-v1',
+  }),
 })
 
 export type InterviewPracticeFeedback = z.infer<typeof interviewPracticeFeedbackSchema>

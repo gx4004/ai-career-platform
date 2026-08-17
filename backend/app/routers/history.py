@@ -839,6 +839,15 @@ def _workspace_runs_map(
 
 
 def _summary(run: ToolRun, workspace_runs: list[ToolRun] | None = None) -> ToolRunSummary:
+    # A list row is a delivery surface too. Leaving access_decision null here
+    # while the detail route populates it would push the busiest history surface
+    # back onto a client-assumed default, which is the shape D-048/ADR 0003 rule
+    # out. Same seam, same arguments as get_history_item.
+    access_decision = evaluate_result_access(
+        surface="saved_result",
+        tool_name=run.tool_name,
+        access_mode="authenticated",
+    )
     return ToolRunSummary(
         id=run.id,
         tool_name=run.tool_name,
@@ -848,6 +857,7 @@ def _summary(run: ToolRun, workspace_runs: list[ToolRun] | None = None) -> ToolR
         saved=True,
         access_mode="authenticated",
         locked_actions=[],
+        access_decision=access_decision,
         metadata=derive_saved_run_metadata(run.tool_name, run.result_payload or {}),
         workspace=build_workspace_summary(run.workspace, workspace_runs),
     )

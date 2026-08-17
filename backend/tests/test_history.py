@@ -176,6 +176,62 @@ def test_delete_last_run_preserves_workspace_with_campaign_data(
     assert remaining.tool_runs == []
 
 
+def test_list_rows_carry_the_same_server_decision_as_the_detail_route(
+    client, auth_headers, test_user, db
+):
+    """A list row is a delivery surface, so it states the decision explicitly.
+
+    Leaving `access_decision` null here would make the browser fall back to a
+    locally assumed default on the busiest history surface, which is exactly the
+    client-authoritative shape D-048 rules out.
+    """
+    run = _create_run(db, test_user.id)
+
+    listed = client.get(PREFIX, headers=auth_headers).json()["items"][0]
+    detail = client.get(f"{PREFIX}/{run.id}", headers=auth_headers).json()
+
+    assert listed["access_decision"] == {
+        "state": "full",
+        "treatment": "control",
+        "reason": "policy_disabled",
+        "can_export": True,
+        "policy_version": "control-v1",
+    }
+    assert listed["access_decision"] == detail["access_decision"]
+
+
+def test_summary_shaped_routes_all_carry_the_server_decision(
+    client, auth_headers, test_user, db
+):
+    run = _create_run(db, test_user.id, is_favorite=False, label="Old label")
+
+    favorite = client.patch(
+        f"{PREFIX}/{run.id}/favorite", json={"is_favorite": True}, headers=auth_headers
+    ).json()
+    relabelled = client.patch(
+        f"{PREFIX}/{run.id}", json={"label": "Backend application"}, headers=auth_headers
+    ).json()
+
+    assert favorite["access_decision"]["state"] == "full"
+    assert favorite["access_decision"]["can_export"] is True
+    assert relabelled["access_decision"] == favorite["access_decision"]
+
+
+def test_list_rows_reflect_the_enabled_candidate_neutral_policy(
+    client, auth_headers, test_user, db, monkeypatch
+):
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "RESULT_ACCESS_POLICY_ENABLED", True)
+    _create_run(db, test_user.id)
+
+    listed = client.get(PREFIX, headers=auth_headers).json()["items"][0]
+
+    assert listed["access_decision"]["reason"] == "no_candidate_selected"
+    assert listed["access_decision"]["state"] == "full"
+    assert listed["access_decision"]["can_export"] is True
+
+
 def test_toggle_favorite(client, auth_headers, test_user, db):
     run = _create_run(db, test_user.id, is_favorite=False)
 
