@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
+import type { ToolId } from '#/lib/tools/registry'
 import {
   readToolDraft,
   writeToolDraft,
@@ -86,6 +87,36 @@ describe('drafts', () => {
 
       expect(sessionStorage.getItem(getDraftKey('resume'))).toBeNull()
       expect(sessionStorage.getItem(getDraftKey('job-match'))).toBeNull()
+    })
+
+    // Drift proof: the clearing path must follow the writing path, not a
+    // hand-maintained id list. A seventh tool (or a renamed id) must not
+    // silently keep its resume text after logout or account deletion.
+    it('removes a draft stored under a tool id no clearing list knows about', () => {
+      const unlistedToolId = 'future-tool' as unknown as ToolId
+      writeToolDraft(unlistedToolId, {
+        ...baseDraftState,
+        resumeText: 'private resume',
+      })
+      expect(sessionStorage.getItem(getDraftKey(unlistedToolId))).toBeTruthy()
+
+      clearAllToolDrafts()
+
+      expect(sessionStorage.getItem(getDraftKey(unlistedToolId))).toBeNull()
+    })
+
+    it('leaves session keys outside the draft prefix untouched', () => {
+      writeToolDraft('resume', { ...baseDraftState, resumeText: 'resume' })
+      sessionStorage.setItem('career-workbench:workflow-context', '{"updatedAt":1}')
+      sessionStorage.setItem('cw:guest-banner-dismissed', '1')
+
+      clearAllToolDrafts()
+
+      expect(sessionStorage.getItem(getDraftKey('resume'))).toBeNull()
+      expect(sessionStorage.getItem('career-workbench:workflow-context')).toBe(
+        '{"updatedAt":1}',
+      )
+      expect(sessionStorage.getItem('cw:guest-banner-dismissed')).toBe('1')
     })
   })
 

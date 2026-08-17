@@ -8,6 +8,7 @@ import type {
 import {
   readSessionJson,
   removeSessionValue,
+  removeSessionValuesByPrefix,
   writeSessionJson,
 } from '#/lib/auth/storage'
 
@@ -75,19 +76,17 @@ export function clearToolDraft(toolId: ToolId): void {
   removeSessionValue(getDraftKey(toolId))
 }
 
+/**
+ * Clears every draft by key prefix rather than by a list of tool ids.
+ *
+ * Drafts hold full resume and job-description text, so the clearing path
+ * (logout, account deletion, manual reset) must not be able to drift from the
+ * writing path: a seventh tool or a renamed id would otherwise keep its draft
+ * forever. `getDraftKey` is the only writer of this prefix, so clearing the
+ * prefix clears exactly what the app wrote — no more, no less.
+ */
 export function clearAllToolDrafts(): void {
-  const draftIds: ToolId[] = [
-    'resume',
-    'job-match',
-    'cover-letter',
-    'interview',
-    'career',
-    'portfolio',
-  ]
-
-  for (const toolId of draftIds) {
-    clearToolDraft(toolId)
-  }
+  removeSessionValuesByPrefix(DRAFT_PREFIX)
 }
 
 const WORKFLOW_CONTEXT_TTL_MS = 4 * 60 * 60 * 1000 // 4 hours
