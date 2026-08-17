@@ -1288,9 +1288,11 @@ authoritative access seam (D-048, ADR 0003); it may not reuse a client-only gate
 
 ## §14 Unknowns Requiring Human Decisions
 
-Per D-116 (2026-07-10), the remaining rows below are production/staging **evidence
-items** collected by the R3 Evidence Checklist in `docs/launch-checklist.md` during
-the R5 staging rehearsal — except the narrowed D-UNK-5, which is a human decision.
+Per D-116 (2026-07-10), every remaining row below is a production/staging
+**evidence item** collected by the R3 Evidence Checklist in
+`docs/launch-checklist.md` during the R5 staging rehearsal. No open row is a
+pending human decision: both halves of D-UNK-5 were decided the same day
+(D-118 product side, D-119 historical data) and are recorded under Resolved.
 
 | ID | Question | Impact | Required For |
 |----|----------|--------|--------------|
@@ -1327,7 +1329,7 @@ blocked only by their listed dependencies — all other context is available her
 | #78 — Telemetry, Sentry, logs, deletion audit | §§10,12,13 — Observability, privacy failures, gaps #6 | Unblocked (code evidence complete; D-UNK-3 may affect) |
 | #79 — Upload boundaries & parser resource limits | §8.5 — File upload handling | Unblocked (code evidence complete) |
 | #80 — Scraper SSRF hardening | §§8.6,9.2 — Scraper implementation, Playwright integration | Unblocked (code evidence complete) |
-| #81 — Deployment-compatible security headers | §§1,13 — Topology, gap inventory (#3, #6) | Frontend response implementation locally verified; production compatibility remains blocked by D-UNK-1, D-UNK-3, D-UNK-5, D-UNK-9, D-UNK-10 |
+| #81 — Deployment-compatible security headers | §§1,13 — Topology, gap inventory (#3, #6) | Frontend response implementation locally verified; production compatibility remains blocked by D-UNK-1, D-UNK-3, D-UNK-9, D-UNK-10 |
 | #82 — Legal disclosure reconciliation | All sections + all prior issues | Blocked by #74–#81 |
 
 ### 8.10 Campaign Canonical Listing
