@@ -1,13 +1,151 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { AlertCircle, Eye, EyeOff } from 'lucide-react'
+import { z } from 'zod'
 import { Button } from '#/components/ui/button'
 import { Input } from '#/components/ui/input'
 import { Label } from '#/components/ui/label'
 import { useSession } from '#/hooks/useSession'
+import { API_URL } from '#/lib/api/client'
 import { newPasswordSchema } from '#/lib/api/schemas'
 import { readPendingIntent } from '#/lib/auth/pendingIntent'
 import { trackTelemetry } from '#/lib/telemetry/client'
+
+// --- registration challenge -------------------------------------------------
+// `GET /auth/providers` is where the backend already tells the client what this
+// deployment has configured, so it also advertises whether registration needs a
+// challenge token. Without that advertisement the client had no way to know,
+// and turning `CAPTCHA_ENABLED` on rejected every registration.
+//
+// Mirrors AuthProvidersPayload in backend/app/routers/auth.py. Anything the
+// client cannot read is treated as "no challenge": the server remains the
+// authority that enforces it.
+
+const registrationChallengeSchema = z.object({
+  captcha_required: z.boolean().default(false),
+  captcha_provider: z.string().nullable().default(null),
+})
+
+type RegistrationChallenge = {
+  required: boolean
+  provider: string | null
+}
+
+const NO_CHALLENGE: RegistrationChallenge = { required: false, provider: null }
+
+async function fetchRegistrationChallenge(
+  signal: AbortSignal,
+): Promise<RegistrationChallenge> {
+  const response = await fetch(`${API_URL}/auth/providers`, {
+    method: 'GET',
+    credentials: 'include',
+    signal,
+  })
+  if (!response.ok) {
+    throw new Error('Sign-up configuration is unavailable')
+  }
+  const advertised = registrationChallengeSchema.parse(await response.json())
+  return {
+    required: advertised.captcha_required,
+    provider: advertised.captcha_provider,
+  }
+}
+
+// --- challenge token seam ---------------------------------------------------
+// The one piece that cannot ship without deployment credentials is the public
+// site key, which arrives at build time like VITE_SENTRY_DSN does. Everything
+// else is wired here: the provider script is loaded on demand and the token
+// comes from the provider itself.
+//
+// Nothing in this seam fabricates a token. If the key is missing, the
+// advertised provider is one this client cannot satisfy, the script fails or
+// hangs, or the provider hands back an empty token, `requestChallengeToken`
+// throws and the submit handler fails closed — no registration is attempted.
+
+const RECAPTCHA_PROVIDER = 'recaptcha'
+const RECAPTCHA_SCRIPT_ID = 'cw-recaptcha-script'
+const RECAPTCHA_LOAD_TIMEOUT_MS = 10_000
+const CHALLENGE_UNAVAILABLE_MESSAGE =
+  'We could not load the verification challenge. Please reload the page and try again.'
+
+type ReCaptcha = {
+  ready: (callback: () => void) => void
+  execute: (siteKey: string, options: { action: string }) => Promise<string>
+}
+
+declare global {
+  interface Window {
+    grecaptcha?: ReCaptcha
+  }
+}
+
+function readCaptchaSiteKey(): string {
+  const configured = import.meta.env.VITE_CAPTCHA_SITE_KEY
+  return typeof configured === 'string' ? configured.trim() : ''
+}
+
+function loadRecaptcha(siteKey: string): Promise<ReCaptcha> {
+  const installed = window.grecaptcha
+  if (installed) return Promise.resolve(installed)
+
+  return new Promise<ReCaptcha>((resolve, reject) => {
+    const existing = document.getElementById(RECAPTCHA_SCRIPT_ID)
+    const script =
+      existing instanceof HTMLScriptElement ? existing : document.createElement('script')
+
+    // A script that never loads must not hold the submission open forever.
+    const timeout = window.setTimeout(() => {
+      reject(new Error('Challenge script timed out'))
+    }, RECAPTCHA_LOAD_TIMEOUT_MS)
+
+    script.addEventListener(
+      'load',
+      () => {
+        window.clearTimeout(timeout)
+        const provider = window.grecaptcha
+        if (provider) resolve(provider)
+        else reject(new Error('Challenge script installed no provider'))
+      },
+      { once: true },
+    )
+    script.addEventListener(
+      'error',
+      () => {
+        window.clearTimeout(timeout)
+        reject(new Error('Challenge script failed to load'))
+      },
+      { once: true },
+    )
+
+    if (!(existing instanceof HTMLScriptElement)) {
+      script.id = RECAPTCHA_SCRIPT_ID
+      script.async = true
+      script.src = `https://www.google.com/recaptcha/api.js?render=${encodeURIComponent(siteKey)}`
+      document.head.appendChild(script)
+    }
+  })
+}
+
+async function requestChallengeToken(challenge: RegistrationChallenge): Promise<string> {
+  if (challenge.provider !== RECAPTCHA_PROVIDER) {
+    throw new Error(`Unsupported challenge provider: ${challenge.provider ?? 'none'}`)
+  }
+  const siteKey = readCaptchaSiteKey()
+  if (!siteKey) {
+    throw new Error('No challenge site key is configured for this deployment')
+  }
+
+  const provider = await loadRecaptcha(siteKey)
+  const token = await new Promise<string>((resolve, reject) => {
+    provider.ready(() => {
+      provider.execute(siteKey, { action: 'register' }).then(resolve, reject)
+    })
+  })
+  if (!token) {
+    throw new Error('Challenge provider returned an empty token')
+  }
+  return token
+}
 
 // The originating surface a signup converted from, expressed with the existing
 // allowlisted `tool_id` dimension (D-040). A guest-save prompt records the tool
@@ -54,6 +192,20 @@ export function RegisterForm({
   const [tosAccepted, setTosAccepted] = useState(false)
   const [loading, setLoading] = useState(false)
   const [passwordError, setPasswordError] = useState('')
+  const [challengeError, setChallengeError] = useState('')
+  // Held as a promise rather than state: a submit that races the in-flight
+  // advertisement must wait for the answer instead of assuming there is no
+  // challenge. An unreachable advertisement resolves to "no challenge" and the
+  // server still enforces the real requirement.
+  const challengeRef = useRef<Promise<RegistrationChallenge> | null>(null)
+
+  useEffect(() => {
+    const controller = new AbortController()
+    challengeRef.current = fetchRegistrationChallenge(controller.signal).catch(
+      () => NO_CHALLENGE,
+    )
+    return () => controller.abort()
+  }, [])
 
   return (
     <div className="grid gap-5">
@@ -87,17 +239,35 @@ export function RegisterForm({
             return
           }
           setPasswordError('')
+          setChallengeError('')
           setLoading(true)
           // Capture the originating surface before `register` completes — a
           // successful signup consumes and clears the pending intent.
           const signupSurfaceTool = resolveSignupSurfaceTool()
           try {
-            await register({
+            const challenge = (await challengeRef.current) ?? NO_CHALLENGE
+            let captchaToken: string | null = null
+            if (challenge.required) {
+              try {
+                captchaToken = await requestChallengeToken(challenge)
+              } catch {
+                // Fail closed. A deployment that requires a challenge never
+                // gets a registration attempt without a provider token.
+                setChallengeError(CHALLENGE_UNAVAILABLE_MESSAGE)
+                return
+              }
+            }
+            // When no challenge is advertised the payload is exactly what it
+            // has always been; the token rides the existing `captcha_token`
+            // field of the register contract only when one was obtained.
+            const payload = {
               email,
               password,
               full_name: fullName || undefined,
               tos_accepted: tosAccepted,
-            })
+              ...(captchaToken ? { captcha_token: captchaToken } : {}),
+            }
+            await register(payload)
             // Fire exactly once at successful signup completion (D-040). The
             // originating surface is carried by `tool_id` (the tool a guest-save
             // prompt was raised from; absent for a direct registration). Google
@@ -196,13 +366,15 @@ export function RegisterForm({
           </Label>
         </div>
         <div className="min-h-[2.5rem]">
-          {passwordError || authError ? (
+          {passwordError || challengeError || authError ? (
             <div
               role="alert"
               className="flex items-start gap-2.5 rounded-lg border border-destructive/25 bg-destructive/5 px-3 py-2.5 text-destructive"
             >
               <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-              <p className="text-sm leading-relaxed">{passwordError || authError}</p>
+              <p className="text-sm leading-relaxed">
+                {passwordError || challengeError || authError}
+              </p>
             </div>
           ) : null}
         </div>
