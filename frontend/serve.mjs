@@ -30,6 +30,57 @@ function configuredOrigin(value) {
   }
 }
 
+// Hosts this server is willing to echo back in a redirect `Location`. The `Host`
+// header is client-controlled, so it is validated before it is reflected
+// (CWE-601 open redirect / cache poisoning). The variable names and the
+// comma-separated shape deliberately match the allowlist the backend already
+// reads (`backend/app/config.py:22-23`, `backend/app/main.py:306-308`), so a
+// deployment configures one set of origins for both services; like
+// SECURITY_HSTS_ENABLED these are plain runtime variables, not build-time VITE_*
+// ones. Both default to unset, and unset is the safe path: with no configured
+// origin the server emits no host-derived redirect at all.
+function configuredRedirectHosts() {
+  const hosts = []
+  for (const value of [
+    process.env.FRONTEND_URL,
+    ...(process.env.CORS_ORIGINS ?? '').split(','),
+  ]) {
+    const origin = configuredOrigin(value?.trim())
+    if (!origin) continue
+    const { host } = new URL(origin)
+    if (!hosts.includes(host)) hosts.push(host)
+  }
+  return hosts
+}
+
+const redirectHosts = configuredRedirectHosts()
+
+function httpsRedirectLocation(req) {
+  if (redirectHosts.length === 0) return null
+  // An unrecognised Host falls back to the first configured origin instead of
+  // being reflected, so a forged Host can never steer the redirect.
+  const host = redirectHosts.includes(req.headers.host) ? req.headers.host : redirectHosts[0]
+  try {
+    // Re-parsing against the trusted host also neutralises absolute-form request
+    // targets (`GET http://evil/ HTTP/1.1`) and protocol-relative paths.
+    const { pathname, search } = new URL(req.url, `https://${host}`)
+    return `https://${host}${pathname}${search}`
+  } catch {
+    return `https://${host}/`
+  }
+}
+
+// `Host` is untrusted and may not be a parseable URL host. An unguarded
+// `new URL()` here throws synchronously in the request handler and takes the
+// whole process down, so an unparseable Host becomes a 400 instead.
+function requestUrl(req) {
+  try {
+    return new URL(req.url, `http://${req.headers.host ?? 'localhost'}`)
+  } catch {
+    return null
+  }
+}
+
 function securityHeaders(req) {
   const connectOrigins = new Set(["'self'"])
   for (const value of [
@@ -49,7 +100,21 @@ function securityHeaders(req) {
       "form-action 'self'",
       `connect-src ${[...connectOrigins].join(' ')}`,
       "font-src 'self' https://fonts.gstatic.com",
-      "img-src 'self' data: blob: https:",
+      // The CV Studio preview frames a blob: URL it created itself
+      // (src/components/cv-studio/CvPreview.tsx). blob: is excluded from
+      // matching 'self' or any host-source in CSP3, so without this directive
+      // `default-src 'self'` governs frames and Chromium blocks the preview
+      // ("Framing 'blob:…' violates … default-src 'self'"). 'self' is kept so
+      // the only delta versus the previous effective policy is blob:.
+      // child-src is intentionally omitted: it is only a fallback for
+      // frame-src/worker-src, both of which are declared explicitly here and are
+      // supported by every browser this build targets (Vite's default
+      // baseline-widely-available floor is well above frame-src's CSP2 and
+      // worker-src's CSP3 support), so it would never be consulted.
+      "frame-src 'self' blob:",
+      // Every image the app renders is repo-local, a data: URI, or a blob: URL
+      // it generated; there is no third-party image origin to allow.
+      "img-src 'self' data: blob:",
       "script-src 'self' 'unsafe-inline'",
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "worker-src 'self' blob:",
@@ -85,12 +150,23 @@ const { default: server } = await import('./dist/server/server.js')
 const httpServer = createServer(async (req, res) => {
   // Redirect HTTP → HTTPS (Railway sets x-forwarded-proto when TLS is terminated)
   if (req.headers['x-forwarded-proto'] === 'http') {
-    writeResponseHead(res, req, 301, { Location: `https://${req.headers.host}${req.url}` })
-    res.end()
-    return
+    const location = httpsRedirectLocation(req)
+    if (location) {
+      writeResponseHead(res, req, 301, { Location: location })
+      res.end()
+      return
+    }
+    // No configured origin to upgrade to. Serve the request rather than emit a
+    // Location built from an unvalidated client Host; SECURITY_HSTS_ENABLED
+    // covers the upgrade once the deployed domain is accepted.
   }
 
-  const url = new URL(req.url, `http://${req.headers.host}`)
+  const url = requestUrl(req)
+  if (!url) {
+    writeResponseHead(res, req, 400)
+    res.end('Bad Request')
+    return
+  }
 
   // TanStack dev-only stylesheet — serve empty in production
   if (url.pathname.startsWith('/@tanstack-start/styles.css')) {
@@ -156,7 +232,14 @@ const httpServer = createServer(async (req, res) => {
 
     res.end(body)
   } catch (err) {
-    console.error('SSR Error:', err)
+    // Render errors routinely embed user-supplied content in their message and
+    // stack, and process stdout/stderr is the one surface Sentry's scrubbing
+    // does not cover. Log only the stable shape of the failure: error name,
+    // method, and path. The query string is dropped for the same reason, and the
+    // name is sanitised because a thrown object can carry an arbitrary one.
+    const rawName = err instanceof Error ? err.name : typeof err
+    const name = String(rawName).replace(/[^\w.$-]/g, '').slice(0, 64) || 'Unknown'
+    console.error(`SSR Error: name=${name} method=${req.method} path=${url.pathname}`)
     writeResponseHead(res, req, 500)
     res.end('Internal Server Error')
   }
