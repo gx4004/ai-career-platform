@@ -149,7 +149,9 @@ Candidate experiments, promoted only after baseline data:
 - context-carry transparency and controls;
 - stronger next-best-action after each result;
 - lower-friction signup after value;
-- result revisit and export reminders.
+- result revisit reminders. Shipped as an unfavorited-results nudge, not an
+  export reminder: export is not a persisted per-result fact, so an export
+  reminder could only be inferred rather than observed (D-122).
 
 Exit gate: at least one accepted activation metric improves without a material
 increase in failure, cost, or privacy risk.
