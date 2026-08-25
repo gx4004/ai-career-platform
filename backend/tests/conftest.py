@@ -102,3 +102,26 @@ def mock_ai_result(monkeypatch):
             monkeypatch.setattr(f"{mod}.complete_structured", fake_complete)
 
     return _mock
+
+
+@pytest.fixture(autouse=True)
+def isolated_eval_reports(tmp_path, monkeypatch):
+    """Keep the suite independent of whatever `run_eval` last wrote on disk.
+
+    Packet preparation now consults the latest eval reports and halts when a
+    relevant tool is failing (D-097). `REPORTS_DIR` defaults to a real,
+    gitignored directory in the source tree, so a developer who runs
+    `python -m app.evals.run_eval` and happens to produce a failing report would
+    silently turn every packet test that does not pass an explicit `reports_dir`
+    into a halt. The modules bind the path by value at import time, so each
+    binding has to be redirected, not just the definition.
+    """
+    reports = tmp_path / "eval-reports"
+    reports.mkdir()
+    for module in (
+        "app.evals.run_eval",
+        "app.evals.report_reader",
+        "app.routers.admin",
+    ):
+        monkeypatch.setattr(f"{module}.REPORTS_DIR", reports, raising=False)
+    return reports

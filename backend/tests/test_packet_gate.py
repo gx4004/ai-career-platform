@@ -12,7 +12,7 @@ Covers the acceptance criteria from the parent spec (#179, D-097):
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from pydantic import ValidationError
@@ -20,6 +20,13 @@ from pydantic import ValidationError
 from app.auth.security import create_access_token, hash_password
 from app.evals.calibration import CalibrationReport, ToolMissRate
 from app.evals.fabrication import FabricationReport, ToolFabricationCount
+from app.evals.report_reader import latest_reports_by_tool
+from app.evals.run_eval import (
+    PROMPT_VERSIONS,
+    REPORT_SCHEMA_VERSION,
+    ToolReport,
+    write_report,
+)
 from app.models.application_packet import ApplicationPacket
 from app.models.cv_document import CvDocument, CvVariant
 from app.models.discovered_listing import DiscoveredListing
@@ -35,9 +42,13 @@ from app.schemas.discovery_recommendations import (
 from app.services.analytics import record_activation_event
 from app.services.application_packets import prepare_packets
 from app.services.packet_gate import (
+    aggregate_packet_gate,
     apply_regression_gate,
+    apply_report_regression_gate,
     clear_pipeline_halt,
     evaluate_regression,
+    evaluate_report_regression,
+    get_halt_status,
     is_preparation_halted,
     is_queue_eligible,
     set_pipeline_halt,
@@ -271,7 +282,7 @@ def test_evaluate_regression_decision():
 
 
 @pytest.mark.asyncio
-async def test_failing_regression_halts_then_clear_resumes(db, test_user, monkeypatch):
+async def test_failing_regression_halts_then_clear_resumes(db, test_user, monkeypatch, tmp_path):
     _add_listing(db, "l-halt")
     _add_cv_variant(db, test_user.id)
     _patch_rank(monkeypatch, [_rec("l-halt")])
@@ -281,7 +292,11 @@ async def test_failing_regression_halts_then_clear_resumes(db, test_user, monkey
     apply_regression_gate(db, fabrication_report=_fabrication_report(3))
     assert is_preparation_halted(db) is True
 
-    halted = await prepare_packets(db, test_user.id, compose_fn=_compose_clean)
+    # An empty report directory keeps this case about the in-memory verdict alone:
+    # preparation also consults the on-disk reports, exercised below.
+    halted = await prepare_packets(
+        db, test_user.id, compose_fn=_compose_clean, reports_dir=tmp_path
+    )
     assert halted.prepares is False
     assert halted.reason == "halted"
     assert db.query(ApplicationPacket).count() == 0
@@ -290,7 +305,9 @@ async def test_failing_regression_halts_then_clear_resumes(db, test_user, monkey
     apply_regression_gate(db, fabrication_report=_fabrication_report(0))
     assert is_preparation_halted(db) is False
 
-    resumed = await prepare_packets(db, test_user.id, compose_fn=_compose_clean)
+    resumed = await prepare_packets(
+        db, test_user.id, compose_fn=_compose_clean, reports_dir=tmp_path
+    )
     assert resumed.prepared_count == 1
     assert db.query(ApplicationPacket).count() == 1
 
@@ -300,6 +317,143 @@ def test_explicit_halt_and_clear(db):
     assert is_preparation_halted(db) is True
     clear_pipeline_halt(db)
     assert is_preparation_halted(db) is False
+
+
+# ── AC2 (evidence): the halt is driven by the reports the eval runner writes ──
+
+
+def _write_eval_report(
+    reports_dir,
+    tool: str,
+    *,
+    generated_at: datetime,
+    miss_rate: float | None = None,
+    fabrication_candidates: int | None = None,
+):
+    """Write a real report artifact through the runner's own writer.
+
+    Mirrors a ``--deterministic`` run: no judge version, no usefulness score, and a
+    ``None`` figure wherever that credential-free path does not measure a check.
+    """
+    return write_report(
+        ToolReport(
+            report_schema_version=REPORT_SCHEMA_VERSION,
+            tool=tool,
+            prompt_version=PROMPT_VERSIONS[tool],
+            judge_prompt_version=None,
+            generated_at=generated_at.isoformat(),
+            mode="deterministic",
+            fixtures_evaluated=10,
+            calibration_miss_rate=miss_rate,
+            explanation_inconsistency_count=0 if miss_rate is not None else None,
+            fabrication_candidate_count=fabrication_candidates,
+            usefulness_score=None,
+        ),
+        reports_dir,
+    )
+
+
+@pytest.mark.asyncio
+async def test_failing_eval_report_halts_preparation_then_passing_one_resumes(
+    db, test_user, monkeypatch, tmp_path
+):
+    # The halt row is stamped with wall-clock time, and only evidence generated after
+    # it may lift it — so both reports are placed relative to the run itself.
+    run_at = datetime.now(UTC)
+    _write_eval_report(tmp_path, "resume", generated_at=run_at - timedelta(minutes=1),
+                       miss_rate=0.9)
+    _add_listing(db, "l-report")
+    _add_cv_variant(db, test_user.id)
+    _patch_rank(monkeypatch, [_rec("l-report")])
+    _add_rule(db, test_user.id)
+
+    halted = await prepare_packets(
+        db, test_user.id, compose_fn=_compose_clean, reports_dir=tmp_path
+    )
+
+    assert halted.prepares is False
+    assert halted.reason == "halted"
+    assert db.query(ApplicationPacket).count() == 0
+    # Surfaced exactly where the admin packet-gate view already reads halt state.
+    gate = aggregate_packet_gate(
+        db,
+        window_start=datetime(2026, 1, 1, tzinfo=UTC),
+        window_end=datetime(2030, 1, 1, tzinfo=UTC),
+    )
+    assert gate.halted is True
+    assert gate.halt_reason == "packet_quality_regression"
+
+    # A later passing run of the same eval clears the halt; preparation resumes.
+    _write_eval_report(tmp_path, "resume", generated_at=run_at + timedelta(minutes=1),
+                       miss_rate=0.0)
+    resumed = await prepare_packets(
+        db, test_user.id, compose_fn=_compose_clean, reports_dir=tmp_path
+    )
+
+    assert resumed.prepared_count == 1
+    assert is_preparation_halted(db) is False
+
+
+@pytest.mark.asyncio
+async def test_failing_fabrication_report_halts_with_its_own_reason(
+    db, test_user, monkeypatch, tmp_path
+):
+    _write_eval_report(
+        tmp_path,
+        "cover-letter",
+        generated_at=datetime(2026, 7, 14, tzinfo=UTC),
+        fabrication_candidates=2,
+    )
+    _add_listing(db, "l-fab-report")
+    _add_cv_variant(db, test_user.id)
+    _patch_rank(monkeypatch, [_rec("l-fab-report")])
+    _add_rule(db, test_user.id)
+
+    result = await prepare_packets(
+        db, test_user.id, compose_fn=_compose_clean, reports_dir=tmp_path
+    )
+
+    assert result.reason == "halted"
+    assert get_halt_status(db).reason == "fabrication_regression"
+
+
+def test_unmeasured_figures_and_irrelevant_tools_are_not_regressions(tmp_path):
+    # The credential-free deterministic runner leaves generative figures null; an
+    # absent measurement must never read as a failure.
+    _write_eval_report(
+        tmp_path, "cover-letter", generated_at=datetime(2026, 7, 14, tzinfo=UTC)
+    )
+    # A tool packet preparation never invokes must not halt this queue.
+    _write_eval_report(
+        tmp_path,
+        "portfolio",
+        generated_at=datetime(2026, 7, 14, tzinfo=UTC),
+        fabrication_candidates=9,
+    )
+
+    assert evaluate_report_regression(latest_reports_by_tool(tmp_path)) == (False, None)
+
+
+def test_passing_report_older_than_the_halt_cannot_lift_it(db, tmp_path):
+    _write_eval_report(
+        tmp_path, "resume", generated_at=datetime(2026, 7, 1, tzinfo=UTC), miss_rate=0.0
+    )
+    set_pipeline_halt(db, reason="fabrication_regression", now=datetime(2026, 7, 2, tzinfo=UTC))
+
+    assert apply_report_regression_gate(db, reports_dir=tmp_path).halted is True
+
+    # Only evidence generated after the halt resumes preparation.
+    _write_eval_report(
+        tmp_path, "resume", generated_at=datetime(2026, 7, 3, tzinfo=UTC), miss_rate=0.0
+    )
+    assert apply_report_regression_gate(db, reports_dir=tmp_path).halted is False
+
+
+def test_no_reports_leave_the_current_posture_untouched(db, tmp_path):
+    set_pipeline_halt(db, reason="packet_quality_regression")
+
+    assert apply_report_regression_gate(db, reports_dir=tmp_path).halted is True
+    assert is_preparation_halted(db) is True
 
 
 # ── AC4: gate events are allowlisted — no content can ride them ──
