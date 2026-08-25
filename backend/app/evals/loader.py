@@ -25,6 +25,14 @@ REQUIRED_FIELDS: tuple[str, ...] = (
     "notes",
 )
 
+#: Keys a fixture JSON object may define. ``expected_match_band`` is optional so
+#: fixtures authored before Job Match got its own scale keep loading unchanged;
+#: when absent it falls back to ``expected_score_band`` (#118).
+OPTIONAL_FIELDS: tuple[str, ...] = ("expected_match_band",)
+
+#: Every key the schema recognises. Anything else in a fixture file is rejected.
+KNOWN_FIELDS: tuple[str, ...] = REQUIRED_FIELDS + OPTIONAL_FIELDS
+
 
 class FixtureError(ValueError):
     """Raised when a fixture file is missing, malformed, or off-schema."""
@@ -40,8 +48,14 @@ class EvalFixture:
         job_description: Synthetic job description, or ``None`` for the no-JD
             case that exercises resume-only scoring.
         expected_score_band: Inclusive ``(min, max)`` band, each in ``0..100``,
-            for the Resume/Job Match calibration check only (D-042).
+            for the Resume Analyzer calibration check only (D-042). Authored on
+            the heuristic overall-score scale the check actually measures, not
+            the blended scale production reports (#118).
         notes: Short description of what the fixture is meant to exercise.
+        expected_match_band: Inclusive ``(min, max)`` band for the Job Match
+            calibration check. Job Match scores keyword overlap with the JD,
+            which is a different scale from resume quality, so it carries its own
+            band; defaults to ``expected_score_band`` when the fixture omits it.
     """
 
     id: str
@@ -49,6 +63,14 @@ class EvalFixture:
     job_description: str | None
     expected_score_band: tuple[int, int]
     notes: str
+    expected_match_band: tuple[int, int] | None = None
+
+    def __post_init__(self) -> None:
+        # Resolve the default here rather than in every consumer, so the two
+        # bands are always both present and a caller never has to know which
+        # fixtures predate the Job Match split.
+        if self.expected_match_band is None:
+            object.__setattr__(self, "expected_match_band", self.expected_score_band)
 
 
 def _require_non_empty_str(value: object, field: str, source: str) -> str:
@@ -57,18 +79,16 @@ def _require_non_empty_str(value: object, field: str, source: str) -> str:
     return value
 
 
-def _parse_score_band(value: object, source: str) -> tuple[int, int]:
+def _parse_score_band(value: object, source: str, field: str) -> tuple[int, int]:
     if not isinstance(value, (list, tuple)) or len(value) != 2:
-        raise FixtureError(
-            f"{source}: 'expected_score_band' must be a [min, max] pair"
-        )
+        raise FixtureError(f"{source}: '{field}' must be a [min, max] pair")
     low, high = value
     # bool is a subclass of int; reject it explicitly so True/False can't pass.
     if any(isinstance(bound, bool) or not isinstance(bound, int) for bound in (low, high)):
-        raise FixtureError(f"{source}: 'expected_score_band' bounds must be integers")
+        raise FixtureError(f"{source}: '{field}' bounds must be integers")
     if not (0 <= low <= high <= 100):
         raise FixtureError(
-            f"{source}: 'expected_score_band' must satisfy 0 <= min <= max <= 100, "
+            f"{source}: '{field}' must satisfy 0 <= min <= max <= 100, "
             f"got [{low}, {high}]"
         )
     return (low, high)
@@ -87,7 +107,7 @@ def _parse_fixture(path: Path) -> EvalFixture:
     missing = [field for field in REQUIRED_FIELDS if field not in raw]
     if missing:
         raise FixtureError(f"{source}: missing field(s): {', '.join(missing)}")
-    unknown = [key for key in raw if key not in REQUIRED_FIELDS]
+    unknown = [key for key in raw if key not in KNOWN_FIELDS]
     if unknown:
         raise FixtureError(f"{source}: unknown field(s): {', '.join(sorted(unknown))}")
 
@@ -107,7 +127,18 @@ def _parse_fixture(path: Path) -> EvalFixture:
             job_description, "job_description", source
         )
 
-    expected_score_band = _parse_score_band(raw["expected_score_band"], source)
+    expected_score_band = _parse_score_band(
+        raw["expected_score_band"], source, "expected_score_band"
+    )
+
+    # Absent means "reuse the resume band" (EvalFixture resolves it); an explicit
+    # value still has to be a well-formed band.
+    raw_match_band = raw.get("expected_match_band")
+    expected_match_band = (
+        None
+        if raw_match_band is None
+        else _parse_score_band(raw_match_band, source, "expected_match_band")
+    )
 
     return EvalFixture(
         id=fixture_id,
@@ -115,6 +146,7 @@ def _parse_fixture(path: Path) -> EvalFixture:
         job_description=job_description,
         expected_score_band=expected_score_band,
         notes=notes,
+        expected_match_band=expected_match_band,
     )
 
 
