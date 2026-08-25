@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from time import perf_counter
 
 import pytest
 
@@ -18,6 +19,7 @@ from app.auth.security import create_access_token, hash_password
 from app.models.analytics_event import AnalyticsEvent
 from app.models.user import User
 from app.schemas.analytics import ActivationEventCreate
+from app.services.analytics import record_database_query_timing
 from app.services.scorecard import (
     capture_database_snapshot,
     compute_scorecard,
@@ -412,6 +414,34 @@ def test_database_trigger_reports_bounded_query_family_p95_without_firing(db):
     assert trig.state == "insufficient_sample"
     assert trig.evidence_detail["query_samples_7d"] == 4
     assert trig.evidence_detail["query_p95_ms"] == "history_list:40.0"
+    assert trig.evidence_detail["query_budget"] == "not accepted"
+
+
+def test_database_trigger_reports_every_instrumented_family_without_firing(db):
+    # #141: the trigger is blind to any read path that is not instrumented, so
+    # every family must survive the write seam's allowlist and reach the same
+    # bounded p95 report. Written through `record_database_query_timing` on
+    # purpose — inserting rows directly would bypass the allowlist this asserts.
+    families = (
+        "history_list",
+        "workspace_list",
+        "admin_runs",
+        "campaign_detail",
+        "history_detail",
+    )
+    for family in families:
+        record_database_query_timing(db, query_family=family, started_at=perf_counter())
+    now = datetime.now(UTC)
+
+    trig = _trigger(compute_scorecard(db, now=now), "database_growth")
+    assert trig.state == "insufficient_sample"
+    assert trig.evidence_detail["query_samples_7d"] == len(families)
+    reported = {
+        entry.split(":")[0] for entry in trig.evidence_detail["query_p95_ms"].split(", ")
+    }
+    assert reported == set(families)
+    # Evidence only: no p95 budget is accepted, so richer coverage must not move
+    # the trigger's state (D-053, ADR 0004).
     assert trig.evidence_detail["query_budget"] == "not accepted"
 
 

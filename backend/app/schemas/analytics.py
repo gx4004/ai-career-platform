@@ -155,7 +155,27 @@ RateLimitRouteFamily = Literal[
 ]
 RateLimitIdentityType = Literal["account", "guest", "mixed"]
 GenerationPhase = Literal["sanitize", "cache", "provider", "persist", "finalize"]
-DatabaseQueryFamily = Literal["history_list", "workspace_list", "admin_runs"]
+# Closed set of read paths the database-growth trigger (#141) can see. The
+# trigger is blind to anything absent here, so the set has to cover the heaviest
+# reads and not only the convenient ones. Each value names a *route family* —
+# never a table, a statement, an owner, or a row identifier. The sampled
+# duration is the only measurement that crosses the boundary (D-053).
+#   - `history_list`    — paginated run list (`GET /history`).
+#   - `workspace_list`  — campaign/workspace list (`GET /history/workspaces`).
+#   - `admin_runs`      — admin run browser (`GET /admin/runs`).
+#   - `campaign_detail` — one campaign read (`GET /history/workspaces/{id}`):
+#                         an owner-wide CV-variant join, an owner-wide
+#                         cover-letter/interview run scan, a submission-record
+#                         join, and six per-campaign collection loads.
+#   - `history_detail`  — one run read (`GET /history/{id}`): the run row plus a
+#                         re-query of every sibling run in the same campaign.
+DatabaseQueryFamily = Literal[
+    "history_list",
+    "workspace_list",
+    "admin_runs",
+    "campaign_detail",
+    "history_detail",
+]
 DatabaseMetric = Literal["storage_pct", "pool_checkout_ratio"]
 
 _R10_EVENT_NAMES = frozenset(get_args(R10EventName))
