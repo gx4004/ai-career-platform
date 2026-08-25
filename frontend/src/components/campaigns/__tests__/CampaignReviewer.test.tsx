@@ -13,6 +13,13 @@ const createDevelopmentItem = vi.hoisted(() => vi.fn())
 
 vi.mock('#/lib/api/client', () => api)
 vi.mock('#/lib/api/development', () => ({ createDevelopmentItem }))
+// The reviewer links first-party next steps with the router's Link; the anchor
+// keeps the destination assertable without standing a router up.
+vi.mock('@tanstack/react-router', () => ({
+  Link: ({ to, children }: { to: string; children: React.ReactNode }) => (
+    <a href={to}>{children}</a>
+  ),
+}))
 
 const review = {
   findings: [
@@ -56,6 +63,20 @@ const response = {
     provenance: 'inferred',
   },
   sources: [],
+  commercial_relationship: 'none',
+}
+
+// R17 #197: a substance gap the user cannot yet close must still name where to
+// go next — here the Portfolio Planner the user already has.
+const produceEvidenceResponse = {
+  gap_classification_id: 'gap-1',
+  gap_kind: 'evidence_not_yet_produced',
+  response_kind: 'produce_evidence',
+  action_path: 'portfolio_planner',
+  headline: 'Plan a portfolio project',
+  detail: 'Build something that demonstrates this requirement.',
+  capture_proposal: null,
+  sources: [{ label: 'Portfolio Planner: Kubernetes', url: null, route: '/portfolio' }],
   commercial_relationship: 'none',
 }
 
@@ -178,6 +199,29 @@ describe('CampaignReviewer development acceptance path', () => {
     expect(
       within(finding).getByRole('button', { name: 'Added to development plan' }),
     ).toHaveProperty('disabled', true)
+  })
+
+  it('links the named first-party next step for a gap it cannot close', async () => {
+    api.getCampaignGapResponse.mockResolvedValue(produceEvidenceResponse)
+    setOutcomeFlags(true)
+    renderReviewer()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Run application review' }))
+    const finding = await screen.findByRole('article')
+    fireEvent.click(screen.getByRole('button', { name: 'Classify review findings' }))
+    await waitFor(() =>
+      expect(api.classifyCampaignGaps).toHaveBeenCalledWith('campaign-1'),
+    )
+    fireEvent.click(within(finding).getByRole('button', { name: 'Inspect honest response' }))
+
+    const step = await within(finding).findByRole('link', {
+      name: 'Portfolio Planner: Kubernetes',
+    })
+    // In-app, so the step is reachable without leaving the campaign.
+    expect(step.getAttribute('href')).toBe('/portfolio')
+    expect(step.getAttribute('target')).toBeNull()
+    expect(within(finding).getByText('None disclosed')).toBeTruthy()
+    expect(within(finding).queryByText('No external sources were recommended.')).toBeNull()
   })
 
   it('renders the disclosed relationship from the payload, never a fixed claim', async () => {

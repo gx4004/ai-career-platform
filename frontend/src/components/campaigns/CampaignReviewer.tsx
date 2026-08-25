@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { Link } from '@tanstack/react-router'
 import { useState } from 'react'
 import { ListPlus, ShieldCheck } from 'lucide-react'
 import {
@@ -225,10 +226,14 @@ function ClassifiedFindingDevelopmentAction({
             </div>
           </dl>
           {offer.sources.length > 0 ? (
-            <ul className="campaign-gap-sources" aria-label="Recommendation sources">
+            <ul className="campaign-gap-sources" aria-label="Recommended next steps">
               {offer.sources.map((source) => (
-                <li key={`${source.label}:${source.url ?? ''}`}>
-                  {source.url ? (
+                <li key={`${source.label}:${source.route ?? source.url ?? ''}`}>
+                  {source.route ? (
+                    // A first-party next step stays in-app; only an external
+                    // source opens a new tab.
+                    <Link to={source.route}>{source.label}</Link>
+                  ) : source.url ? (
                     <a href={source.url} target="_blank" rel="noreferrer">
                       {source.label}
                     </a>
