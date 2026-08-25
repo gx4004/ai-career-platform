@@ -1,3 +1,6 @@
+import ast
+from pathlib import Path
+
 import pytest
 from pydantic import ValidationError
 
@@ -819,3 +822,171 @@ def test_tool_run_summary_access_mode_is_constrained_to_the_frontend_enum():
 
     with pytest.raises(ValidationError):
         ToolRunSummary(**base, access_mode="something_else")
+
+
+BACKEND_ROOT = Path(__file__).resolve().parents[1]
+
+#: Packages that actually put a message on the wire. A module importing one of
+#: these is an email sender whatever its helper happens to be called.
+EMAIL_TRANSPORT_PACKAGES = frozenset(
+    {"resend", "smtplib", "aiosmtplib", "email", "sendgrid", "postmarker", "mailjet_rest"}
+)
+#: Settings only an email path reads. This catches a sender that talks to the
+#: provider over plain HTTP instead of importing its SDK.
+EMAIL_SETTINGS_MARKERS = ("RESEND", "SMTP", "MAIL")
+
+
+def _app_modules() -> dict[str, ast.Module]:
+    """Parse every module in the app package, keyed by its dotted import name."""
+
+    modules = {}
+    for path in sorted((BACKEND_ROOT / "app").rglob("*.py")):
+        parts = list(path.relative_to(BACKEND_ROOT).with_suffix("").parts)
+        if parts[-1] == "__init__":
+            parts.pop()
+        modules[".".join(parts)] = ast.parse(path.read_text())
+    return modules
+
+
+def _imported_names(tree: ast.Module) -> set[str]:
+    """Every dotted name the module imports, including imports inside functions.
+
+    Function-local imports matter here: the one known sender defers ``import
+    resend`` into its send helper, and the history router defers its PDF import.
+    """
+
+    names: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            names.update(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            names.add(node.module)
+            names.update(f"{node.module}.{alias.name}" for alias in node.names)
+    return names
+
+
+def _owning_module(name: str, modules: dict[str, ast.Module]) -> str | None:
+    """Map an imported name onto the app module that defines it, if any."""
+
+    while name:
+        if name in modules:
+            return name
+        name = name.rpartition(".")[0]
+    return None
+
+
+def _email_sender_modules(modules: dict[str, ast.Module]) -> set[str]:
+    senders = set()
+    for name, tree in modules.items():
+        if any(
+            imported.partition(".")[0] in EMAIL_TRANSPORT_PACKAGES
+            for imported in _imported_names(tree)
+        ):
+            senders.add(name)
+            continue
+        for node in ast.walk(tree):
+            if (
+                isinstance(node, ast.Attribute)
+                and node.attr.isupper()
+                and any(marker in node.attr for marker in EMAIL_SETTINGS_MARKERS)
+            ):
+                senders.add(name)
+                break
+    return senders
+
+
+def _reachable(seeds: set[str], modules: dict[str, ast.Module]) -> set[str]:
+    seen: set[str] = set()
+    pending = [seed for seed in seeds if seed in modules]
+    while pending:
+        current = pending.pop()
+        if current in seen:
+            continue
+        seen.add(current)
+        for imported in _imported_names(modules[current]):
+            owner = _owning_module(imported, modules)
+            if owner is not None and owner not in seen:
+                pending.append(owner)
+    return seen
+
+
+def _campaign_seed_modules(modules: dict[str, ast.Module]) -> set[str]:
+    """Campaign/reminder services plus whatever the campaign endpoints call.
+
+    Endpoint seeds come from the router's own decorators, so a new
+    ``/workspaces`` route is covered the moment it is added.
+    """
+
+    seeds = {
+        name
+        for name in modules
+        if name.startswith("app.services.campaign_") or "reminder" in name
+    }
+    router = modules["app.routers.history"]
+    bindings: dict[str, str] = {}
+    for node in ast.walk(router):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                bindings[alias.asname or alias.name.partition(".")[0]] = alias.name
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            for alias in node.names:
+                bindings[alias.asname or alias.name] = f"{node.module}.{alias.name}"
+    for node in router.body:
+        if not isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
+            continue
+        routed = any(
+            isinstance(decorator, ast.Call)
+            and decorator.args
+            and isinstance(decorator.args[0], ast.Constant)
+            and str(decorator.args[0].value).startswith("/workspaces")
+            for decorator in node.decorator_list
+        )
+        if not routed:
+            continue
+        for used in ast.walk(node):
+            if isinstance(used, ast.Name) and used.id in bindings:
+                owner = _owning_module(bindings[used.id], modules)
+                if owner is not None:
+                    seeds.add(owner)
+    return seeds
+
+
+def test_no_campaign_or_reminder_path_reaches_an_email_sender():
+    """R13 promises in-product reminders only, so no campaign path may send email.
+
+    The check walks the static import graph out of the campaign and reminder
+    services and every ``/workspaces`` endpoint in the history router, then
+    asserts nothing reachable is an email sender. Senders are discovered rather
+    than named: a module counts as one when it imports an email transport
+    package or reads an email-only setting, so renaming the send helper or
+    routing through a new indirect caller still trips this.
+
+    What it does not prove: it is static. A sender reached through importlib, a
+    runtime registry, or a bare HTTP call with an inline API key would slip
+    past, and it says nothing about mail sent by infrastructure outside the app
+    package. It also proves nothing about what the reminder payload contains —
+    the surfacing behaviour is covered by the reminder API tests above.
+    """
+
+    modules = _app_modules()
+    senders = _email_sender_modules(modules)
+    assert senders, "no email sender found at all — the transport list has gone stale"
+
+    # Positive control: the same walk must be able to reach a sender from the
+    # routers that do send mail, otherwise the campaign result below would pass
+    # for the wrong reason.
+    from_routers = _reachable({name for name in modules if name.startswith("app.routers.")}, modules)
+    assert senders & from_routers, "the import walk cannot reach any sender — walk is broken"
+
+    seeds = _campaign_seed_modules(modules)
+    assert {
+        "app.services.campaign_reminders",
+        "app.services.campaign_tracking",
+        "app.services.campaign_materials",
+    } <= seeds, f"campaign seed discovery found too little: {sorted(seeds)}"
+
+    reachable = _reachable(seeds, modules)
+    assert not senders & reachable, (
+        "a campaign or reminder path can reach an email sender: "
+        f"{sorted(senders & reachable)}"
+    )
