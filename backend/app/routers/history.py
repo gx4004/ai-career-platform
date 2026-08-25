@@ -72,6 +72,7 @@ from app.services.gap_classifier import (
 )
 from app.services.gap_response import map_gap_to_response
 from app.services.input_sanitizer import sanitize_user_input
+from app.services.premium_outputs import attach_premium_outputs
 from app.services.result_access import evaluate_result_access
 from app.services.tool_pipeline import run_tool_pipeline
 from app.services.tool_runs import build_workspace_summary, derive_saved_run_metadata
@@ -675,7 +676,13 @@ def get_history_item(
         metadata=derive_saved_run_metadata(run.tool_name, run.result_payload or {}),
         workspace=build_workspace_summary(run.workspace, workspace_runs.get(run.workspace_id, [])),
         parent_run_id=run.parent_run_id,
-        result_payload=run.result_payload or {},
+        # The live response is enriched by `build_tool_response`, but only the
+        # raw model result is persisted — so a saved run read back had no
+        # `exportable_sections` and the export controls vanished on reload.
+        # Enriching here is a read-time projection: it costs no provider call,
+        # reuses sections the payload already carries, and repairs every run
+        # saved before this, without rewriting stored evidence.
+        result_payload=attach_premium_outputs(run.tool_name, run.result_payload),
     )
     record_database_query_timing(
         db, query_family="history_detail", started_at=query_started
