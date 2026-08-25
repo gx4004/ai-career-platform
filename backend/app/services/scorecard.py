@@ -48,9 +48,17 @@ PROVIDER_INCIDENT_THRESHOLD = 3
 # window; this is the *read-side* grouping (the write side already collapses a
 # request's internal retries into a single incident event).
 PROVIDER_INCIDENT_GAP_SECONDS = 300
+# The availability half of the provider trigger is judged over its own shorter
+# window, and needs enough started runs for a ratio to mean anything at all.
+PROVIDER_SLO_WINDOW_DAYS = 7
+PROVIDER_SLO_MIN_RUNS = 100
 
 LATENCY_WINDOW_DAYS = 3
 LATENCY_MIN_DAILY_SAMPLE = 20
+# "Materially elevated" abandonment is a comparison, so both the breach window
+# and the window before it must clear the same evidentiary bar the p95 half
+# already demands — a full window of runs — or the ratio is noise.
+ABANDONMENT_MIN_WINDOW_SAMPLE = LATENCY_MIN_DAILY_SAMPLE * LATENCY_WINDOW_DAYS
 
 ABUSE_COST_WINDOW_HOURS = 24
 RATE_LIMIT_WINDOW_MINUTES = RATE_LIMIT_BUCKET_SECONDS // 60
@@ -58,6 +66,8 @@ RATE_LIMIT_WINDOW_THRESHOLD = RATE_LIMIT_EVIDENCE_THRESHOLD
 RATE_LIMIT_CONSECUTIVE_WINDOWS = 3
 
 DB_STORAGE_TRIGGER_PCT = 70.0
+DB_QUERY_WINDOW_DAYS = 7
+DB_QUERY_MIN_SAMPLE = 20
 
 IMPORT_WINDOW_DAYS = 14
 IMPORT_MIN_ATTEMPTS = 50
@@ -74,8 +84,8 @@ _TRIGGER_META: dict[str, dict[str, object]] = {
     "cache_multi_instance": {
         "label": "Multi-instance / cache",
         "threshold": (
-            f"≥2 verified API replicas AND {CACHE_WINDOW_DAYS}-day material "
-            "duplicate provider cost or cache-efficiency loss vs the accepted budget"
+            f"≥2 verified API replicas AND a {CACHE_WINDOW_DAYS}-day cache hit "
+            f"ratio below the {settings.CACHE_HIT_RATIO_FLOOR:.0%} floor"
         ),
         "observation_window": f"{CACHE_WINDOW_DAYS} days",
         "minimum_sample": f"≥{CACHE_MIN_SAMPLE} cache observations in window",
@@ -90,10 +100,16 @@ _TRIGGER_META: dict[str, dict[str, object]] = {
         "threshold": (
             f"≥{PROVIDER_INCIDENT_THRESHOLD} user-visible provider incidents in "
             f"{PROVIDER_INCIDENT_WINDOW_DAYS} days, or provider-caused availability "
-            "breaches the accepted 7-day SLO"
+            f"below {settings.PROVIDER_AVAILABILITY_SLO_PCT:.2f}% over "
+            f"{PROVIDER_SLO_WINDOW_DAYS} days"
         ),
-        "observation_window": f"{PROVIDER_INCIDENT_WINDOW_DAYS} days",
-        "minimum_sample": "Any grouped incident (retries collapsed into one)",
+        "observation_window": (
+            f"{PROVIDER_INCIDENT_WINDOW_DAYS} days / {PROVIDER_SLO_WINDOW_DAYS}-day SLO"
+        ),
+        "minimum_sample": (
+            "Any grouped incident (retries collapsed into one); "
+            f"≥{PROVIDER_SLO_MIN_RUNS} started runs for the SLO"
+        ),
         "response_ticket": 138,
         "response_ticket_title": "Qualify and circuit-break a provider fallback after incidents",
         "owner": "Product owner (with privacy/processor review)",
@@ -104,11 +120,15 @@ _TRIGGER_META: dict[str, dict[str, object]] = {
         "label": "Perceived generation latency / abandonment",
         "threshold": (
             f"A tool's submit-to-result p95 breaches its {settings.LATENCY_P95_BUDGET_MS} ms "
-            f"budget for {LATENCY_WINDOW_DAYS} consecutive daily windows AND loader "
-            "abandonment is materially elevated"
+            f"budget for {LATENCY_WINDOW_DAYS} consecutive daily windows AND its loader "
+            f"abandonment reaches {settings.LOADER_ABANDONMENT_ELEVATION_FACTOR:g}× the "
+            "preceding window's rate"
         ),
         "observation_window": f"{LATENCY_WINDOW_DAYS} consecutive daily windows",
-        "minimum_sample": f"≥{LATENCY_MIN_DAILY_SAMPLE} completed runs per tool per day",
+        "minimum_sample": (
+            f"≥{LATENCY_MIN_DAILY_SAMPLE} completed runs per tool per day; "
+            f"≥{ABANDONMENT_MIN_WINDOW_SAMPLE} attempts per abandonment window"
+        ),
         "response_ticket": 139,
         "response_ticket_title": "Add real staged generation progress after latency evidence",
         "owner": "Product owner (with developer)",
@@ -133,12 +153,17 @@ _TRIGGER_META: dict[str, dict[str, object]] = {
     "database_growth": {
         "label": "Database growth",
         "threshold": (
-            "A representative query breaches its accepted p95, pool checkout "
-            f"pressure is sustained, storage reaches {DB_STORAGE_TRIGGER_PCT:.0f}%, "
-            "or the 90-day forecast reaches provisioned capacity"
+            f"A representative query breaches its {settings.DB_QUERY_P95_BUDGET_MS} ms "
+            f"p95 budget, pool checkout pressure is sustained, storage reaches "
+            f"{DB_STORAGE_TRIGGER_PCT:.0f}%, or the 90-day forecast reaches "
+            "provisioned capacity"
         ),
-        "observation_window": "Rolling; capacity-plan before saturation",
-        "minimum_sample": "Configured DB capacity + representative query volume",
+        "observation_window": (
+            f"Rolling; {DB_QUERY_WINDOW_DAYS}-day query p95, capacity-plan before saturation"
+        ),
+        "minimum_sample": (
+            f"Configured DB capacity + ≥{DB_QUERY_MIN_SAMPLE} samples per query family"
+        ),
         "response_ticket": 141,
         "response_ticket_title": "Optimize the measured PostgreSQL bottleneck",
         "owner": "Product owner (with developer)",
@@ -212,6 +237,7 @@ def _evaluate_cache(db: Session, now: datetime) -> dict[str, object]:
         )
         .scalar()
     )
+    floor = settings.CACHE_HIT_RATIO_FLOOR
     detail: dict[str, float | int | str] = {
         "replica_class": settings.API_REPLICA_CLASS,
         "hits": hits,
@@ -219,6 +245,7 @@ def _evaluate_cache(db: Session, now: datetime) -> dict[str, object]:
         "writes": writes,
         "failures": failures,
         "hit_ratio": hit_ratio,
+        "hit_ratio_floor": floor,
     }
 
     multi_instance = settings.API_REPLICA_CLASS.lower() != "single"
@@ -237,15 +264,20 @@ def _evaluate_cache(db: Session, now: datetime) -> dict[str, object]:
             f"Multi-instance declared but only {lookups} cache observations "
             f"(need ≥{CACHE_MIN_SAMPLE}) to judge duplicate cost."
         )
-    else:
-        # D-052 requires a predeclared, accepted cache-efficiency or duplicate-
-        # provider-cost budget before this evidence may authorize #137 review.
-        # No such budget is accepted yet; do not invent a 50% threshold.
-        state = "insufficient_sample"
+    elif hit_ratio < floor:
+        # On ≥2 replicas every miss another replica already answered is duplicated
+        # provider cost, which is what #137 reviews. The floor is a provisional,
+        # env-overridable budget (D-124) and only asks for that review.
+        state = "fired"
         evidence = (
-            f"Multi-instance evidence collected: hit ratio {hit_ratio:.0%}, "
-            f"{failures} lookup failures over {lookups} lookups; an accepted "
-            "cache-efficiency/cost budget is still required."
+            f"Multi-instance hit ratio {hit_ratio:.0%} over {lookups} lookups is "
+            f"below the {floor:.0%} floor ({failures} lookup failures)."
+        )
+    else:
+        state = "not_fired"
+        evidence = (
+            f"Multi-instance hit ratio {hit_ratio:.0%} over {lookups} lookups meets "
+            f"the {floor:.0%} floor ({failures} lookup failures)."
         )
     return {
         "state": state,
@@ -279,6 +311,20 @@ def group_provider_incidents(
     return incidents
 
 
+def provider_availability_pct(started_runs: int, incidents: int) -> float | None:
+    """Provider-caused availability over the SLO window, in percent.
+
+    Started runs are the denominator because each one is an opportunity for a
+    provider-caused failure, and *grouped* incidents are the numerator so a
+    retry storm counts once — the same read-side grouping the incident branch
+    uses. Returns ``None`` below the minimum run volume: a ratio over a handful
+    of runs is noise, not an SLO.
+    """
+    if started_runs < PROVIDER_SLO_MIN_RUNS:
+        return None
+    return round(max(0.0, 1 - incidents / started_runs) * 100, 3)
+
+
 def _evaluate_provider(db: Session, now: datetime) -> dict[str, object]:
     window_start = now - timedelta(days=PROVIDER_INCIDENT_WINDOW_DAYS)
     events = (
@@ -297,9 +343,30 @@ def _evaluate_provider(db: Session, now: datetime) -> dict[str, object]:
         if category is not None:
             by_category[category] = by_category.get(category, 0) + 1
     last_at = _as_utc(timestamps[-1]) if timestamps else None
+    # Second branch of the trigger's OR: provider-caused availability over its
+    # own shorter window, against the env-overridable SLO (D-124).
+    slo_start = now - timedelta(days=PROVIDER_SLO_WINDOW_DAYS)
+    slo_incidents = group_provider_incidents(
+        [stamp for stamp in timestamps if _as_utc(stamp) >= slo_start]
+    )
+    started_runs = (
+        db.query(func.count(AnalyticsEvent.id))
+        .filter(
+            AnalyticsEvent.event_name == "tool_run_started",
+            AnalyticsEvent.created_at >= slo_start,
+        )
+        .scalar()
+        or 0
+    )
+    availability = provider_availability_pct(started_runs, slo_incidents)
+    slo = settings.PROVIDER_AVAILABILITY_SLO_PCT
     detail: dict[str, float | int | str] = {
         "incidents": incidents,
         "raw_failures": len(timestamps),
+        "runs_started_7d": started_runs,
+        "incidents_7d": slo_incidents,
+        "availability_pct": availability if availability is not None else "unknown",
+        "availability_slo_pct": slo,
         **{f"category_{k}": v for k, v in by_category.items()},
     }
     if incidents >= PROVIDER_INCIDENT_THRESHOLD:
@@ -308,25 +375,74 @@ def _evaluate_provider(db: Session, now: datetime) -> dict[str, object]:
             f"{incidents} grouped provider incidents in "
             f"{PROVIDER_INCIDENT_WINDOW_DAYS}d (≥{PROVIDER_INCIDENT_THRESHOLD})."
         )
-    else:
-        # The incident branch is below threshold, but the accepted trigger is an
-        # OR with a provider-caused availability-SLO branch. That SLO and its
-        # authoritative signal are not yet accepted, so the whole trigger cannot
-        # truthfully be cleared as not fired.
+    elif availability is not None and availability < slo:
+        state = "fired"
+        evidence = (
+            f"Provider-caused availability {availability:.3f}% over "
+            f"{PROVIDER_SLO_WINDOW_DAYS}d ({slo_incidents} grouped incidents across "
+            f"{started_runs} started runs) is below the {slo:.2f}% SLO."
+        )
+    elif availability is None:
+        # Both branches must be evaluable before the trigger can be cleared, and
+        # too few started runs is a genuinely thin sample, not a verdict.
         state = "insufficient_sample"
         evidence = (
             f"{incidents} grouped provider incidents in "
             f"{PROVIDER_INCIDENT_WINDOW_DAYS}d (threshold {PROVIDER_INCIDENT_THRESHOLD}); "
-            f"{len(timestamps)} raw failures. Provider availability-SLO evidence "
-            "is not configured."
+            f"only {started_runs} tool runs started in {PROVIDER_SLO_WINDOW_DAYS}d "
+            f"(need ≥{PROVIDER_SLO_MIN_RUNS}) to judge the availability SLO."
+        )
+    else:
+        state = "not_fired"
+        evidence = (
+            f"{incidents} grouped provider incidents in "
+            f"{PROVIDER_INCIDENT_WINDOW_DAYS}d (threshold {PROVIDER_INCIDENT_THRESHOLD}); "
+            f"availability {availability:.3f}% over {PROVIDER_SLO_WINDOW_DAYS}d meets "
+            f"the {slo:.2f}% SLO."
         )
     return {
         "state": state,
         "evidence": evidence,
         "evidence_detail": detail,
         "last_evidence_at": _iso(last_at),
-        "evidence_fresh": last_at is not None,
+        # Started runs are evidence too: with them the SLO branch is evaluable
+        # even in a window that recorded no incident at all.
+        "evidence_fresh": last_at is not None or started_runs > 0,
     }
+
+
+def _abandonment_window(
+    db: Session, *, start: datetime, end: datetime
+) -> tuple[dict[str, int], dict[str, int]]:
+    """Loader abandonments and completed runs per tool over one window."""
+
+    def _by_tool(event_name: str) -> dict[str, int]:
+        rows = (
+            db.query(AnalyticsEvent.tool_id, func.count(AnalyticsEvent.id))
+            .filter(
+                AnalyticsEvent.event_name == event_name,
+                AnalyticsEvent.tool_id.isnot(None),
+                AnalyticsEvent.created_at >= start,
+                AnalyticsEvent.created_at < end,
+            )
+            .group_by(AnalyticsEvent.tool_id)
+            .all()
+        )
+        return {tool_id: count for tool_id, count in rows}
+
+    return _by_tool("generation_loader_abandoned"), _by_tool("tool_run_completed")
+
+
+def abandonment_rate(abandoned: int, completed: int) -> float | None:
+    """Share of a tool's generation attempts abandoned at the loader.
+
+    ``None`` below the window's minimum attempts: elevation is a ratio of
+    ratios, so a thin window turns it into a coin flip rather than evidence.
+    """
+    attempts = abandoned + completed
+    if attempts < ABANDONMENT_MIN_WINDOW_SAMPLE:
+        return None
+    return abandoned / attempts
 
 
 def _evaluate_latency(db: Session, now: datetime) -> dict[str, object]:
@@ -381,36 +497,76 @@ def _evaluate_latency(db: Session, now: datetime) -> dict[str, object]:
         if len(breaches) == LATENCY_WINDOW_DAYS
         and all(breach is not None for breach in breaches)
     ]
-    abandonment_rows = (
-        db.query(AnalyticsEvent.tool_id, func.count(AnalyticsEvent.id))
-        .filter(
-            AnalyticsEvent.event_name == "generation_loader_abandoned",
-            AnalyticsEvent.created_at >= today_start - timedelta(days=LATENCY_WINDOW_DAYS),
-            AnalyticsEvent.tool_id.isnot(None),
-        )
-        .group_by(AnalyticsEvent.tool_id)
-        .all()
+    # Both abandonment windows end at `today_start` so they cover the same
+    # complete daily windows the p95 half judges; a partial current day would
+    # make the two rates incomparable.
+    breach_abandoned, breach_completed = _abandonment_window(
+        db,
+        start=today_start - timedelta(days=LATENCY_WINDOW_DAYS),
+        end=today_start,
     )
-    abandonment_counts = {tool_id: count for tool_id, count in abandonment_rows}
+    baseline_abandoned, baseline_completed = _abandonment_window(
+        db,
+        start=today_start - timedelta(days=LATENCY_WINDOW_DAYS * 2),
+        end=today_start - timedelta(days=LATENCY_WINDOW_DAYS),
+    )
+    factor = settings.LOADER_ABANDONMENT_ELEVATION_FACTOR
+    elevated: list[str] = []
+    comparable: list[str] = []
+    rate_labels: list[str] = []
+    for tool_id in sorted(sustained):
+        breach_rate = abandonment_rate(
+            breach_abandoned.get(tool_id, 0), breach_completed.get(tool_id, 0)
+        )
+        baseline_rate = abandonment_rate(
+            baseline_abandoned.get(tool_id, 0), baseline_completed.get(tool_id, 0)
+        )
+        if breach_rate is None or baseline_rate is None:
+            continue
+        comparable.append(tool_id)
+        rate_labels.append(
+            f"{tool_id}:{breach_rate:.1%} vs {baseline_rate:.1%} baseline"
+        )
+        # A zero baseline over a full window of attempts is a real floor, so any
+        # abandonment against it is elevation — and still only asks for review.
+        if breach_rate > 0 and breach_rate >= baseline_rate * factor:
+            elevated.append(tool_id)
     detail: dict[str, float | int | str] = {
         "budget_ms": budget,
         "worst_p95_ms": round(worst_p95, 1),
         "days_with_sample": evaluated_days,
         "sustained_breach_tools": ", ".join(sorted(sustained)) or "none",
-        "loader_abandonments": sum(abandonment_counts.values()),
+        "loader_abandonments": sum(breach_abandoned.values()),
         "loader_abandonments_by_tool": ", ".join(
-            f"{tool}:{count}" for tool, count in sorted(abandonment_counts.items())
+            f"{tool}:{count}" for tool, count in sorted(breach_abandoned.items())
         ) or "none",
+        "abandonment_elevation_factor": factor,
+        "abandonment_rate_by_tool": ", ".join(rate_labels) or "none",
+        "abandonment_elevated_tools": ", ".join(elevated) or "none",
     }
-    if sustained:
-        # The abandonment signal now exists, but no material-elevation comparison
-        # threshold was accepted in #139. Do not invent one and auto-authorize UI.
-        state: TriggerState = "insufficient_sample"
+    if elevated:
+        state: TriggerState = "fired"
         evidence = (
             f"p95 breach sustained {LATENCY_WINDOW_DAYS}d for {', '.join(sorted(sustained))} "
-            f"(worst {worst_p95:.0f} ms > {budget} ms); observed "
-            f"{sum(abandonment_counts.values())} loader abandonments, but #139 has no "
-            "accepted material-elevation threshold."
+            f"(worst {worst_p95:.0f} ms > {budget} ms) AND loader abandonment for "
+            f"{', '.join(elevated)} reached {factor:g}× the preceding window "
+            f"({'; '.join(rate_labels)})."
+        )
+    elif sustained and not comparable:
+        # The breach is real, but its abandonment half has no comparable sample;
+        # a thin window stays insufficient rather than clearing the trigger.
+        state = "insufficient_sample"
+        evidence = (
+            f"p95 breach sustained {LATENCY_WINDOW_DAYS}d for {', '.join(sorted(sustained))} "
+            f"(worst {worst_p95:.0f} ms > {budget} ms), but neither window reached "
+            f"{ABANDONMENT_MIN_WINDOW_SAMPLE} generation attempts to compare abandonment."
+        )
+    elif sustained:
+        state = "not_fired"
+        evidence = (
+            f"p95 breach sustained {LATENCY_WINDOW_DAYS}d for {', '.join(sorted(sustained))} "
+            f"(worst {worst_p95:.0f} ms > {budget} ms), but loader abandonment is not "
+            f"{factor:g}× its preceding window ({'; '.join(rate_labels)})."
         )
     elif not fully_evaluated_tools:
         state = "insufficient_sample"
@@ -635,7 +791,7 @@ def _evaluate_database(db: Session, now: datetime) -> dict[str, object]:
         .filter(
             AnalyticsEvent.event_name == "r10_database_query",
             AnalyticsEvent.duration_ms.isnot(None),
-            AnalyticsEvent.created_at >= now - timedelta(days=7),
+            AnalyticsEvent.created_at >= now - timedelta(days=DB_QUERY_WINDOW_DAYS),
         )
         .all()
     )
@@ -646,6 +802,14 @@ def _evaluate_database(db: Session, now: datetime) -> dict[str, object]:
         family: round(_p95(durations) or 0.0, 1)
         for family, durations in query_durations.items()
     }
+    # A p95 over a handful of timings is not a p95, so only families with a real
+    # sample are compared against the budget (D-124).
+    query_budget = settings.DB_QUERY_P95_BUDGET_MS
+    breaching_families = sorted(
+        family
+        for family, value in query_p95.items()
+        if len(query_durations[family]) >= DB_QUERY_MIN_SAMPLE and value > query_budget
+    )
     snapshot_rows = (
         db.query(
             AnalyticsEvent.operational_dimension,
@@ -687,15 +851,23 @@ def _evaluate_database(db: Session, now: datetime) -> dict[str, object]:
         "query_p95_ms": ", ".join(
             f"{family}:{value:.1f}" for family, value in sorted(query_p95.items())
         ) or "none",
-        "query_budget": "not accepted",
+        "query_budget_ms": query_budget,
+        "query_budget_breaches": ", ".join(breaching_families) or "none",
         "snapshot_samples_30d": len(snapshot_rows),
         "pool_checkout_max_30d": round(max(pool_samples), 4) if pool_samples else "unknown",
         "storage_forecast_90d_pct": storage_forecast if storage_forecast is not None else "unknown",
     }
-    if query_rows:
+    if breaching_families:
+        state = "fired"
+        evidence = (
+            f"Representative query p95 breaches the {query_budget} ms budget for "
+            f"{', '.join(breaching_families)} over {DB_QUERY_WINDOW_DAYS}d. " + evidence
+        )
+    elif query_rows:
         evidence += (
             f" Representative query p95 observed for {len(query_p95)} families, "
-            "but no accepted p95 budget exists; query timing alone cannot fire #141."
+            f"all within the {query_budget} ms budget or below "
+            f"{DB_QUERY_MIN_SAMPLE} samples."
         )
     return {
         "state": state,

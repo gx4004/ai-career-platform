@@ -89,6 +89,26 @@ class Settings(BaseSettings):
     # 0 means "unknown" and the database trigger reports insufficient evidence
     # for storage rather than guessing (D-058).
     DB_CAPACITY_BYTES: int = Field(default=0, ge=0)
+    # The four budgets below are the missing halves of the #138, #139 and #141
+    # triggers. Each is provisional in the same spirit as LATENCY_P95_BUDGET_MS
+    # above: an operator retunes it from the environment, and a wrong value
+    # costs one extra human review rather than an action (D-124).
+    # Cache-hit floor, as a ratio of lookups. Only consulted once ≥2 replicas
+    # are declared, where a low ratio is duplicated provider cost (ADR 0004).
+    CACHE_HIT_RATIO_FLOOR: float = Field(default=0.5, gt=0, le=1, allow_inf_nan=False)
+    # Provider-caused availability floor in percent over the trigger's 7-day SLO
+    # window — the second branch of the provider trigger's OR (D-055).
+    PROVIDER_AVAILABILITY_SLO_PCT: float = Field(
+        default=99.0, gt=0, le=100, allow_inf_nan=False
+    )
+    # How many times its own prior-window baseline a tool's loader-abandonment
+    # rate must reach to count as "materially elevated" beside a sustained p95
+    # breach. A factor below 1 would fire on abandonment that improved.
+    LOADER_ABANDONMENT_ELEVATION_FACTOR: float = Field(
+        default=2.0, ge=1, allow_inf_nan=False
+    )
+    # Representative-query p95 budget in milliseconds for the database trigger.
+    DB_QUERY_P95_BUDGET_MS: int = Field(default=250, gt=0)
 
     CAPTCHA_ENABLED: bool = False
     CAPTCHA_SECRET_KEY: str = ""
