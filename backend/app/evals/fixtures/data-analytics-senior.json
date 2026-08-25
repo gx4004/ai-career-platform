@@ -3,8 +3,12 @@
   "resume_text": "Priya Venn\nSenior Data Analyst\n\nSummary\nSenior analytics leader with 8 years building analytics platforms and leading experimentation programs across fintech products.\n\nExperience\nSunridge Health - Analytics Lead (2018-Present)\n- Led an analytics team of 5 and owned the company experimentation program.\n- Built a self-serve BI platform with 120+ dashboards, reducing ad-hoc requests by 55%.\n- Directed analysis of 200+ experiments informing roadmap prioritization.\n- Mentored 4 analysts and set the reporting standards used company-wide.\n\nSkills\nSQL, Python, Data Analysis, Machine Learning, analytics, dashboards, business intelligence, experimentation\n\nEducation\nMS in Data Science, Westmere University",
   "job_description": "Senior Data Analyst\n\nOwn analytics and experimentation for our fintech platform. Lead reporting, mentor analysts, and turn data into insights that shape the roadmap.\n\nRequirements:\n- 6+ years in data analytics\n- Expert SQL and business intelligence tooling\n- Experience leading experimentation and analysis\n- Ability to mentor and set analytics direction",
   "expected_score_band": [
-    72,
-    92
+    82,
+    96
   ],
-  "notes": "Strong data-analytics match at senior seniority. Exercises both the data-analytics discipline and the senior case with a high expected band."
+  "expected_match_band": [
+    62,
+    78
+  ],
+  "notes": "Strong data-analytics match at senior seniority. Resume band 82-96 is the senior tier. Match band 62-78 is deliberately lower than the other senior fixtures rather than widened to match them: the JD asks for leadership, mentoring and product strategy in those words and the resume describes that work without using them, so keyword overlap sits near six of ten. This is the fixture that shows Job Match measuring JD vocabulary, not resume quality."
 }
