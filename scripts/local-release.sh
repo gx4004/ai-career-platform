@@ -9,6 +9,7 @@ allow_missing_docker=false
 containers_available=true
 database_url=""
 authorization_database_url=""
+query_plan_database_url=""
 
 usage() {
   cat <<'EOF'
@@ -21,7 +22,13 @@ Full and plan modes require two explicit, disposable PostgreSQL URLs: the main
 database must be named cw_local_release or cw_local_release_*, and the isolated
 authorization proof database must be named
 codex_submission_authorization_concurrency_*. The runner never reads ambient
-database URLs and never drops a database.
+database URLs and never drops either of them.
+
+The query-plan evidence step (#141 AC2) seeds tens of thousands of synthetic
+rows, so it gets a third database that the step itself creates and drops: by
+default a cw_query_plans_<timestamp> sibling of --database-url on the same
+server, or --query-plan-database-url URL if you name one. That name must start
+with cw_query_plans_, and the connecting role needs CREATEDB.
 
 Docker is required by default so the gate produces deployment-image evidence.
 Pass --allow-missing-docker to run every other gate on a host without a reachable
@@ -60,6 +67,11 @@ while (($#)); do
       authorization_database_url="$2"
       shift 2
       ;;
+    --query-plan-database-url)
+      (($# >= 2)) || die_usage "--query-plan-database-url requires a value"
+      query_plan_database_url="$2"
+      shift 2
+      ;;
     --help|-h)
       usage
       exit 0
@@ -78,7 +90,8 @@ if [[ "$mode" == "full" && -z "$authorization_database_url" ]]; then
   die_usage "full release mode requires --authorization-database-url"
 fi
 
-if [[ "$mode" == "preflight" && ( -n "$database_url" || -n "$authorization_database_url" ) ]]; then
+if [[ "$mode" == "preflight" && ( -n "$database_url" || -n "$authorization_database_url" \
+  || -n "$query_plan_database_url" ) ]]; then
   die_usage "database URLs are not used with --preflight"
 fi
 
@@ -273,6 +286,28 @@ with socket.socket() as probe:
 PY
 }
 
+# The query-plan evidence seeds ~50,000 synthetic rows, which would leave the
+# release database unrepresentative for the migration round trips and the
+# browser suite that read it afterwards. Default it to a throwaway sibling on the
+# same server so the gate still takes only the two URLs it always has; the
+# evidence step creates and drops that database itself.
+derive_query_plan_database_url() {
+  python3 - "$1" <<'PY'
+import sys
+from datetime import UTC, datetime
+from urllib.parse import urlsplit
+
+parsed = urlsplit(sys.argv[1])
+if not parsed.scheme:
+    raise SystemExit("local release: --database-url has no scheme to derive from")
+# Rebuilt by hand rather than with urlunsplit, which drops the "//" of a
+# socket-style URL whose authority is empty.
+name = f"cw_query_plans_{datetime.now(UTC):%Y%m%d%H%M%S}"
+query = f"?{parsed.query}" if parsed.query else ""
+print(f"{parsed.scheme}://{parsed.netloc}/{name}{query}")
+PY
+}
+
 run_e2e() {
   local label="Browser tracer journeys"
   local frontend_port backend_port
@@ -364,6 +399,14 @@ run_with_database DATABASE_URL "$database_url" '<disposable-postgresql-url>' \
 run_with_database DATABASE_URL "$database_url" '<disposable-postgresql-url>' \
   "Concurrent submission retry proof" backend \
   python3 tests/postgres_submission_concurrency.py
+
+if [[ "$plan_only" != true && -z "$query_plan_database_url" ]]; then
+  query_plan_database_url="$(derive_query_plan_database_url "$database_url")"
+fi
+run_with_database DATABASE_URL "$query_plan_database_url" \
+  '<disposable-query-plan-postgresql-url>' \
+  "History and admin query-plan evidence" backend \
+  python3 tests/postgres_history_query_plans.py
 
 run_with_database LOCAL_RELEASE_DATABASE_URL "$authorization_database_url" \
   '<authorization-concurrency-postgresql-url>' \
