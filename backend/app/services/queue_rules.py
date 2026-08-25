@@ -28,9 +28,13 @@ from app.services.queue_audit import record_queue_audit_event
 DEFAULT_MAX_PACKETS_PER_RUN = 10
 DEFAULT_COST_CEILING_USD = Decimal("1.00")
 
-# Projected LLM/preparation cost to build one packet, in USD. Used to enforce the
-# cost ceiling before packets are actually prepared (packet preparation lands in
-# #181). A conservative estimate for cost observability, not billing.
+# Pre-flight projection of what one packet will cost to prepare, in USD. It is the
+# only cost figure available before any provider call is made, so it is what the
+# preview shows and what decides whether a run has room to start one more packet.
+# It is NOT what the ceiling is ultimately enforced against: preparation makes
+# several provider calls per packet, so :func:`app.services.application_packets.
+# prepare_packets` re-applies the ceiling to the spend the LLM cost accumulator
+# actually measured, and persists that measured figure on each packet.
 ESTIMATED_PACKET_COST_USD = Decimal("0.05")
 
 _KEYWORD_RULE_TYPES = frozenset(KEYWORD_RULE_TYPES)
