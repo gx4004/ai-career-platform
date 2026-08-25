@@ -86,16 +86,50 @@ def test_capture_seed_falls_back_to_requirement_then_message():
     assert from_message.capture_proposal.content == {"statement": "Address the requirement"}
 
 
-# --- recommendations disclose sourcing, fabricate nothing (D-111) -------------
+# --- recommendations name a next step, fabricate nothing (D-111) --------------
+
+#: gap kind -> (action path, first-party route, surface name in the label)
+NEXT_STEP_FOR_GAP = {
+    "evidence_not_yet_produced": ("portfolio_planner", "/portfolio", "Portfolio Planner"),
+    "missing_skill": ("career_path", "/career", "Career Path"),
+}
 
 
-@pytest.mark.parametrize("gap_kind", ["evidence_not_yet_produced", "missing_skill"])
-def test_recommendations_disclose_no_commercial_relationship_and_no_fabricated_sources(gap_kind):
+@pytest.mark.parametrize("gap_kind", list(RESPONSE_FOR_GAP))
+def test_every_response_names_a_surface_instead_of_open_ended_advice(gap_kind):
+    # Advice that names nothing is not a next step: no current response may fall
+    # back to the pathless "advisory" route.
+    assert map_gap_to_response(_cls(gap_kind)).action_path != "advisory"
+
+
+@pytest.mark.parametrize("gap_kind,expected", list(NEXT_STEP_FOR_GAP.items()))
+def test_advisory_gaps_name_an_existing_first_party_next_step(gap_kind, expected):
+    action_path, route, surface = expected
+    offer = map_gap_to_response(
+        _cls(gap_kind, trace=["listing_requirement:Kubernetes", f"classified:{gap_kind}"])
+    )
+    assert offer.action_path == action_path
+    assert [source.route for source in offer.sources] == [route]
+    # The step names the requirement the trace already cited — never new text.
+    assert offer.sources[0].label == f"{surface}: Kubernetes"
+    assert offer.capture_proposal is None
+
+
+@pytest.mark.parametrize("gap_kind", list(NEXT_STEP_FOR_GAP))
+def test_named_steps_are_first_party_with_no_commercial_relationship(gap_kind):
     offer = map_gap_to_response(_cls(gap_kind))
     assert offer.commercial_relationship == "none"
-    assert offer.sources == []
-    assert offer.action_path == "advisory"
-    assert offer.capture_proposal is None
+    assert offer.sources
+    # First-party routes only: #200 recommends no external source, so there is
+    # nothing whose provenance or sponsorship could go undisclosed.
+    assert all(source.url is None and source.route is not None for source in offer.sources)
+
+
+def test_next_step_label_falls_back_to_the_finding_message():
+    offer = map_gap_to_response(
+        _cls("missing_skill", trace=["result:x"], message="Rust experience required")
+    )
+    assert offer.sources[0].label == "Career Path: Rust experience required"
 
 
 def test_mapping_is_pure_and_needs_no_session():
@@ -136,8 +170,11 @@ def test_endpoint_returns_the_honest_offer(client, auth_headers, test_user, db):
     assert response.status_code == 200
     body = response.json()
     assert body["response_kind"] == "learn_skill"
-    assert body["action_path"] == "advisory"
+    assert body["action_path"] == "career_path"
     assert body["commercial_relationship"] == "none"
+    assert body["sources"] == [
+        {"label": "Career Path: Rust", "url": None, "route": "/career"}
+    ]
 
 
 def test_endpoint_unknown_classification_is_404(client, auth_headers, test_user, db):

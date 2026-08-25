@@ -13,7 +13,11 @@ from __future__ import annotations
 from app.models.gap_classification import GapClassification
 from app.schemas.development import RESPONSE_FOR_GAP
 from app.schemas.evidence_profile import EvidenceItemCreate
-from app.schemas.gap_response import GapResponseOffer
+from app.schemas.gap_response import (
+    FirstPartyRoute,
+    GapRecommendationSource,
+    GapResponseOffer,
+)
 
 _CLAIM_PREFIX = "claim:"
 _REQUIREMENT_PREFIX = "listing_requirement:"
@@ -64,13 +68,15 @@ def map_gap_to_response(classification: GapClassification) -> GapResponseOffer:
             gap_classification_id=classification.id,
             gap_kind=gap_kind,
             response_kind=response_kind,
-            action_path="advisory",
-            headline="Produce demonstrating evidence",
+            action_path="portfolio_planner",
+            headline="Plan a portfolio project",
             detail=(
-                "Build a portfolio project that demonstrates this requirement, then "
-                "capture the result as evidence. No sources are recommended here; "
-                "none are fabricated."
+                "Build something that demonstrates this requirement, then capture the "
+                "result as evidence. The next step is the Portfolio Planner you "
+                "already have; no outside source is recommended, and none is "
+                "fabricated."
             ),
+            sources=[_first_party_step("Portfolio Planner", "/portfolio", classification)],
         )
 
     # missing_skill
@@ -78,18 +84,36 @@ def map_gap_to_response(classification: GapClassification) -> GapResponseOffer:
         gap_classification_id=classification.id,
         gap_kind=gap_kind,
         response_kind=response_kind,
-        action_path="advisory",
-        headline="Develop this skill",
+        action_path="career_path",
+        headline="Plan the learning that closes this",
         detail=(
-            "Nothing in your materials or profile shows this skill yet. Develop it, "
-            "then demonstrate it. No learning sources are recommended here; none are "
-            "fabricated."
+            "Nothing in your materials or profile shows this skill yet. Plan the "
+            "learning in Career Path, then demonstrate it. No outside learning source "
+            "is recommended here; none is fabricated."
         ),
+        sources=[_first_party_step("Career Path", "/career", classification)],
+    )
+
+
+def _first_party_step(
+    surface: str, route: FirstPartyRoute, classification: GapClassification
+) -> GapRecommendationSource:
+    """The named next step for an advisory gap.
+
+    A first-party surface the user already has, labelled with the requirement the
+    classification's own trace cited — so the response names something concrete
+    without inventing an external source or a commercial relationship (D-111).
+    """
+    return GapRecommendationSource(
+        label=f"{surface}: {_capture_seed(classification)}",
+        route=route,
     )
 
 
 def _capture_seed(classification: GapClassification) -> str:
-    """The most specific seed statement for a capture proposal, from the trace.
+    """The most specific statement the classification's trace supports.
+
+    Seeds both the capture proposal and the label of a named next step.
 
     Prefers the reviewer's own captured claim, then the unmet listing requirement,
     then the finding message — never invented text.

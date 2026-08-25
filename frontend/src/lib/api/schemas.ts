@@ -228,11 +228,19 @@ export const cvDocumentsExportSchema = z.object({
 export const gapActionPathSchema = z.enum([
   'reviewer_reword',
   'evidence_profile_create',
+  'portfolio_planner',
+  'career_path',
+  // Kept for a response with no product surface to name; every current response
+  // names one, because advice that names nothing is not a next step (D-111).
   'advisory',
 ])
+// The first-party surfaces a next step may point at. A literal union (not a bare
+// string) so a route that no longer exists cannot be linked to.
+export const gapFirstPartyRouteSchema = z.enum(['/portfolio', '/career'])
 export const gapRecommendationSourceSchema = z.strictObject({
   label: z.string(),
   url: z.string().url().nullish(),
+  route: gapFirstPartyRouteSchema.nullish(),
 })
 export const gapResponseOfferSchema = z.strictObject({
   gap_classification_id: z.string(),
