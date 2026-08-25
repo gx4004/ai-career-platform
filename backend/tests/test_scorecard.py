@@ -193,9 +193,80 @@ def test_provider_trigger_not_fired_when_grouped_below_threshold(db):
             created_at=FIXED_NOW - timedelta(days=1) + timedelta(seconds=i * 5),
         )
     trig = _trigger(compute_scorecard(db, now=FIXED_NOW), "provider_incidents")
+    # Below the incident threshold, and no started runs to judge the SLO half.
     assert trig.state == "insufficient_sample"
     assert trig.review_required is False
     assert trig.evidence_detail["incidents"] == 1
+
+
+def _insert_started_runs(db, *, count: int, days_ago: int = 1):
+    for _ in range(count):
+        _event(
+            db,
+            event_name="tool_run_started",
+            tool_id="resume",
+            access_mode="account",
+            created_at=FIXED_NOW - timedelta(days=days_ago),
+        )
+
+
+def _insert_incidents(db, *, count: int, days_ago: int = 1):
+    # Spread beyond the grouping gap so each failure is its own incident.
+    for i in range(count):
+        _event(
+            db,
+            event_name="r10_provider_incident",
+            operational_dimension="timeout",
+            created_at=FIXED_NOW - timedelta(days=days_ago) + timedelta(minutes=i * 10),
+        )
+
+
+def test_provider_trigger_fires_when_availability_breaches_slo(db, monkeypatch):
+    monkeypatch.setattr(
+        "app.services.scorecard.settings.PROVIDER_AVAILABILITY_SLO_PCT", 99.0
+    )
+    _insert_started_runs(db, count=100)
+    # Two incidents stay under the ≥3 incident-count branch, so only the
+    # availability branch can fire: 98% against a 99% SLO.
+    _insert_incidents(db, count=2)
+
+    trig = _trigger(compute_scorecard(db, now=FIXED_NOW), "provider_incidents")
+
+    assert trig.state == "fired"
+    assert trig.review_required is True
+    assert trig.response_ticket == 138
+    assert trig.evidence_detail["availability_pct"] == 98.0
+
+
+def test_provider_trigger_not_fired_when_availability_meets_slo(db, monkeypatch):
+    monkeypatch.setattr(
+        "app.services.scorecard.settings.PROVIDER_AVAILABILITY_SLO_PCT", 99.0
+    )
+    _insert_started_runs(db, count=200)
+    _insert_incidents(db, count=1)
+
+    trig = _trigger(compute_scorecard(db, now=FIXED_NOW), "provider_incidents")
+
+    # Both branches are now evaluable, so the trigger can honestly clear.
+    assert trig.state == "not_fired"
+    assert trig.review_required is False
+    assert trig.evidence_detail["availability_pct"] == 99.5
+
+
+def test_provider_trigger_keeps_a_thin_run_sample_out_of_the_slo_verdict(db, monkeypatch):
+    monkeypatch.setattr(
+        "app.services.scorecard.settings.PROVIDER_AVAILABILITY_SLO_PCT", 99.0
+    )
+    # 98.99% availability — a breach if the ratio were trusted, but one incident
+    # in 99 runs is noise, not an SLO measurement.
+    _insert_started_runs(db, count=99)
+    _insert_incidents(db, count=1)
+
+    trig = _trigger(compute_scorecard(db, now=FIXED_NOW), "provider_incidents")
+
+    assert trig.state == "insufficient_sample"
+    assert trig.review_required is False
+    assert trig.evidence_detail["availability_pct"] == "unknown"
 
 
 # ── Cache / multi-instance (AC per D-054, ADR 0004) ────────────────────────
@@ -209,14 +280,28 @@ def test_cache_trigger_not_fired_on_single_instance(db, monkeypatch):
     assert trig.state == "not_fired"
 
 
-def test_cache_trigger_stays_evidence_only_without_accepted_budget(db, monkeypatch):
+def test_cache_trigger_fires_when_hit_ratio_is_below_the_floor(db, monkeypatch):
     monkeypatch.setattr("app.services.scorecard.settings.API_REPLICA_CLASS", "multi")
+    monkeypatch.setattr("app.services.scorecard.settings.CACHE_HIT_RATIO_FLOOR", 0.5)
     for _ in range(150):
         _event(db, event_name="r10_cache_outcome", operational_outcome="miss", created_at=FIXED_NOW)
     trig = _trigger(compute_scorecard(db, now=FIXED_NOW), "cache_multi_instance")
-    assert trig.state == "insufficient_sample"
-    assert trig.review_required is False
+    assert trig.state == "fired"
+    assert trig.review_required is True
     assert trig.response_ticket == 137
+
+
+def test_cache_trigger_not_fired_when_hit_ratio_meets_the_floor(db, monkeypatch):
+    monkeypatch.setattr("app.services.scorecard.settings.API_REPLICA_CLASS", "multi")
+    monkeypatch.setattr("app.services.scorecard.settings.CACHE_HIT_RATIO_FLOOR", 0.5)
+    for _ in range(120):
+        _event(db, event_name="r10_cache_outcome", operational_outcome="hit", created_at=FIXED_NOW)
+    for _ in range(30):
+        _event(db, event_name="r10_cache_outcome", operational_outcome="miss", created_at=FIXED_NOW)
+    trig = _trigger(compute_scorecard(db, now=FIXED_NOW), "cache_multi_instance")
+    assert trig.state == "not_fired"
+    assert trig.review_required is False
+    assert trig.evidence_detail["hit_ratio"] == 0.8
 
 
 def test_cache_trigger_insufficient_when_multi_but_low_sample(db, monkeypatch):
@@ -249,6 +334,24 @@ def _insert_latency_day(
         )
 
 
+def _insert_abandonments(
+    db,
+    *,
+    days_ago: int,
+    count: int,
+    tool_id: str = "resume",
+):
+    day_at = FIXED_NOW.replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=days_ago) + timedelta(hours=12)
+    for _ in range(count):
+        _event(
+            db,
+            event_name="generation_loader_abandoned",
+            tool_id=tool_id,
+            duration_ms=45000,
+            created_at=day_at,
+        )
+
+
 def test_latency_sustained_breach_reports_insufficient_for_abandonment(db):
     # p95 > 60s on each of the last 3 days, sufficient sample each day.
     for day in (1, 2, 3):
@@ -261,10 +364,51 @@ def test_latency_sustained_breach_reports_insufficient_for_abandonment(db):
         created_at=FIXED_NOW - timedelta(days=1),
     )
     trig = _trigger(compute_scorecard(db, now=FIXED_NOW), "latency_abandonment")
-    # Sustained latency breach, but no accepted material-elevation threshold → cannot fire.
+    # Sustained latency breach, but the window before it holds no attempts at
+    # all, so there is nothing to call the abandonment "elevated" against.
     assert trig.state == "insufficient_sample"
     assert "resume" in str(trig.evidence_detail["sustained_breach_tools"])
     assert trig.evidence_detail["loader_abandonments"] == 1
+    assert trig.evidence_detail["abandonment_rate_by_tool"] == "none"
+
+
+def test_latency_fires_when_abandonment_is_materially_elevated(db, monkeypatch):
+    monkeypatch.setattr(
+        "app.services.scorecard.settings.LOADER_ABANDONMENT_ELEVATION_FACTOR", 2.0
+    )
+    for day in (1, 2, 3):
+        _insert_latency_day(db, days_ago=day, count=25, duration_ms=90000)
+    for day in (4, 5, 6):
+        _insert_latency_day(db, days_ago=day, count=25, duration_ms=1000)
+    _insert_abandonments(db, days_ago=1, count=10)  # 10/85 ≈ 11.8%
+    _insert_abandonments(db, days_ago=4, count=3)  # 3/78 ≈ 3.8% baseline
+
+    trig = _trigger(compute_scorecard(db, now=FIXED_NOW), "latency_abandonment")
+
+    assert trig.state == "fired"
+    assert trig.review_required is True
+    assert trig.response_ticket == 139
+    assert trig.evidence_detail["abandonment_elevated_tools"] == "resume"
+
+
+def test_latency_not_fired_when_abandonment_matches_its_baseline(db, monkeypatch):
+    monkeypatch.setattr(
+        "app.services.scorecard.settings.LOADER_ABANDONMENT_ELEVATION_FACTOR", 2.0
+    )
+    for day in (1, 2, 3):
+        _insert_latency_day(db, days_ago=day, count=25, duration_ms=90000)
+    for day in (4, 5, 6):
+        _insert_latency_day(db, days_ago=day, count=25, duration_ms=1000)
+    _insert_abandonments(db, days_ago=1, count=3)
+    _insert_abandonments(db, days_ago=4, count=3)
+
+    trig = _trigger(compute_scorecard(db, now=FIXED_NOW), "latency_abandonment")
+
+    # The p95 breach sustained, but abandonment held at its own baseline — the
+    # trigger's AND is not satisfied, so it clears instead of asking for review.
+    assert trig.state == "not_fired"
+    assert trig.review_required is False
+    assert trig.evidence_detail["abandonment_elevated_tools"] == "none"
 
 
 def test_latency_false_positive_reset_when_a_day_recovers(db):
@@ -401,8 +545,24 @@ def test_database_trigger_insufficient_on_sqlite(db):
     assert trig.state == "insufficient_sample"
 
 
-def test_database_trigger_reports_bounded_query_family_p95_without_firing(db):
-    for duration in (10, 20, 30, 40):
+def _insert_query_timings(db, *, family: str, count: int, duration_ms: int):
+    for _ in range(count):
+        _event(
+            db,
+            event_name="r10_database_query",
+            operational_dimension=family,
+            duration_ms=duration_ms,
+            created_at=FIXED_NOW - timedelta(days=1),
+        )
+
+
+def test_database_trigger_reports_bounded_query_family_p95_without_firing(
+    db, monkeypatch
+):
+    monkeypatch.setattr("app.services.scorecard.settings.DB_QUERY_P95_BUDGET_MS", 250)
+    # Four timings, every one of them over budget: a p95 this thin is not a p95,
+    # so the budget must not turn it into a verdict.
+    for duration in (400, 410, 420, 430):
         _event(
             db,
             event_name="r10_database_query",
@@ -413,11 +573,30 @@ def test_database_trigger_reports_bounded_query_family_p95_without_firing(db):
     trig = _trigger(compute_scorecard(db, now=FIXED_NOW), "database_growth")
     assert trig.state == "insufficient_sample"
     assert trig.evidence_detail["query_samples_7d"] == 4
-    assert trig.evidence_detail["query_p95_ms"] == "history_list:40.0"
-    assert trig.evidence_detail["query_budget"] == "not accepted"
+    assert trig.evidence_detail["query_p95_ms"] == "history_list:430.0"
+    assert trig.evidence_detail["query_budget_ms"] == 250
+    assert trig.evidence_detail["query_budget_breaches"] == "none"
 
 
-def test_database_trigger_reports_every_instrumented_family_without_firing(db):
+def test_database_trigger_fires_when_a_query_family_breaches_its_p95_budget(
+    db, monkeypatch
+):
+    monkeypatch.setattr("app.services.scorecard.settings.DB_QUERY_P95_BUDGET_MS", 250)
+    _insert_query_timings(db, family="history_list", count=25, duration_ms=400)
+    _insert_query_timings(db, family="workspace_list", count=25, duration_ms=20)
+
+    trig = _trigger(compute_scorecard(db, now=FIXED_NOW), "database_growth")
+
+    assert trig.state == "fired"
+    assert trig.review_required is True
+    assert trig.response_ticket == 141
+    assert trig.evidence_detail["query_budget_breaches"] == "history_list"
+
+
+def test_database_trigger_reports_every_instrumented_family_without_firing(
+    db, monkeypatch
+):
+    monkeypatch.setattr("app.services.scorecard.settings.DB_QUERY_P95_BUDGET_MS", 250)
     # #141: the trigger is blind to any read path that is not instrumented, so
     # every family must survive the write seam's allowlist and reach the same
     # bounded p95 report. Written through `record_database_query_timing` on
@@ -440,9 +619,10 @@ def test_database_trigger_reports_every_instrumented_family_without_firing(db):
         entry.split(":")[0] for entry in trig.evidence_detail["query_p95_ms"].split(", ")
     }
     assert reported == set(families)
-    # Evidence only: no p95 budget is accepted, so richer coverage must not move
-    # the trigger's state (D-053, ADR 0004).
-    assert trig.evidence_detail["query_budget"] == "not accepted"
+    # One timing per family is under the per-family minimum, so richer coverage
+    # must not move the trigger's state (D-053, ADR 0004).
+    assert trig.evidence_detail["query_budget_ms"] == 250
+    assert trig.evidence_detail["query_budget_breaches"] == "none"
 
 
 def test_database_snapshot_records_only_available_bounded_metrics(db, monkeypatch):

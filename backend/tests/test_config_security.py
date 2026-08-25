@@ -27,6 +27,25 @@ def test_replica_class_rejects_unknown_topology(replica_class):
         ("COST_ALERT_USD_24H", float("inf")),
         ("COST_ALERT_USD_24H", float("-inf")),
         ("DB_CAPACITY_BYTES", -1),
+        # A hit-ratio floor is a ratio: outside (0, 1] it can never be met or
+        # missed, so the cache trigger would read as budgeted and be inert.
+        ("CACHE_HIT_RATIO_FLOOR", 0),
+        ("CACHE_HIT_RATIO_FLOOR", -0.1),
+        ("CACHE_HIT_RATIO_FLOOR", 1.01),
+        ("CACHE_HIT_RATIO_FLOOR", float("nan")),
+        ("CACHE_HIT_RATIO_FLOOR", float("inf")),
+        ("PROVIDER_AVAILABILITY_SLO_PCT", 0),
+        ("PROVIDER_AVAILABILITY_SLO_PCT", -1.0),
+        ("PROVIDER_AVAILABILITY_SLO_PCT", 100.01),
+        ("PROVIDER_AVAILABILITY_SLO_PCT", float("nan")),
+        ("PROVIDER_AVAILABILITY_SLO_PCT", float("inf")),
+        # Below 1 the "elevation" factor would fire on abandonment that improved.
+        ("LOADER_ABANDONMENT_ELEVATION_FACTOR", 0.99),
+        ("LOADER_ABANDONMENT_ELEVATION_FACTOR", 0),
+        ("LOADER_ABANDONMENT_ELEVATION_FACTOR", float("nan")),
+        ("LOADER_ABANDONMENT_ELEVATION_FACTOR", float("inf")),
+        ("DB_QUERY_P95_BUDGET_MS", 0),
+        ("DB_QUERY_P95_BUDGET_MS", -1),
     ],
 )
 def test_scorecard_settings_reject_nonsensical_numeric_values(field, value):
@@ -40,12 +59,20 @@ def test_scorecard_settings_accept_documented_boundaries():
         LATENCY_P95_BUDGET_MS=1,
         COST_ALERT_USD_24H=0.01,
         DB_CAPACITY_BYTES=0,
+        CACHE_HIT_RATIO_FLOOR=1.0,
+        PROVIDER_AVAILABILITY_SLO_PCT=100.0,
+        LOADER_ABANDONMENT_ELEVATION_FACTOR=1.0,
+        DB_QUERY_P95_BUDGET_MS=1,
     )
 
     assert settings.API_REPLICA_CLASS == "multi"
     assert settings.LATENCY_P95_BUDGET_MS == 1
     assert settings.COST_ALERT_USD_24H == 0.01
     assert settings.DB_CAPACITY_BYTES == 0
+    assert settings.CACHE_HIT_RATIO_FLOOR == 1.0
+    assert settings.PROVIDER_AVAILABILITY_SLO_PCT == 100.0
+    assert settings.LOADER_ABANDONMENT_ELEVATION_FACTOR == 1.0
+    assert settings.DB_QUERY_P95_BUDGET_MS == 1
 
 
 def _origin_config(monkeypatch, *, environment, cors_origins, frontend_url):
