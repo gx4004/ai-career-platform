@@ -990,3 +990,26 @@ def test_no_campaign_or_reminder_path_reaches_an_email_sender():
         "a campaign or reminder path can reach an email sender: "
         f"{sorted(senders & reachable)}"
     )
+
+
+def test_saved_run_detail_carries_the_export_affordance(client, db, test_user, auth_headers):
+    """A reload must not cost the user their export controls.
+
+    `persist_tool_run` stores the pre-enrichment result while `build_tool_response`
+    enriches only the live response, so `exportable_sections` and `download_title`
+    existed on the run that had just finished and vanished from the same run read
+    back afterwards — the TXT export button disappeared on reload, and every run
+    saved before this fix has the same hole.
+    """
+    run = _create_run(db, test_user.id, tool_name="resume", label="Saved resume")
+    assert "exportable_sections" not in (run.result_payload or {})
+
+    response = client.get(f"{PREFIX}/{run.id}", headers=auth_headers)
+
+    assert response.status_code == 200
+    payload = response.json()["result_payload"]
+    assert payload["exportable_sections"], "saved run detail must offer the same export sections as the live run"
+    assert payload["download_title"]
+    # Enrichment is a read-time projection, not a rewrite of stored evidence.
+    db.refresh(run)
+    assert "exportable_sections" not in (run.result_payload or {})
