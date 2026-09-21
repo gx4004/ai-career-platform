@@ -78,8 +78,9 @@ Before changing code:
 - Inspect `git status` and preserve unrelated or in-progress work.
 - Confirm the current branch and the relevant roadmap outcome.
 - Read the nearest tests and surrounding implementation.
-- Treat old plans (`FRONTEND_OVERHAUL_PLAN.md`, thesis checklists, audit artifacts)
-  as historical evidence, not current authority.
+- Treat old plans (historical docs removed in the 2026-09 tidy and kept only in git
+  history under tag `archive/pre-tidy-20260918`, audit artifacts) as historical
+  evidence, not current authority.
 
 While changing code:
 
