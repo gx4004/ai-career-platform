@@ -21,9 +21,10 @@ which document owns which kind of fact and how updates happen.
 | `../CONTEXT.md` (root) | Shared domain terminology | A domain term is added or corrected |
 | `agents/` | Agent workflow conventions (issue tracker, triage labels, domain docs) | The agent workflow changes |
 
-Historical documents (`spec-legacy.md`, `qa-checklist.md`, root
-`QA-VISUAL-PASS.md`, root `FRONTEND_OVERHAUL_PLAN.md`, thesis files) carry explicit
-HISTORICAL banners. They are evidence, never authority.
+Historical documents (`spec-legacy.md`, `qa-checklist.md`, `prd-r0.md`, root
+`QA-VISUAL-PASS.md`, root `FRONTEND_OVERHAUL_PLAN.md`) were removed in the
+2026-09 repo tidy; recover them from git history (tag `archive/pre-tidy-20260918`)
+if needed. They are evidence, never authority.
 
 ## Source-of-Truth Precedence
 

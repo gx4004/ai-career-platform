@@ -29,7 +29,6 @@ file::memory:
 .codex-previews/
 .posthog-events.json
 posthog-setup-report.md
-AGENTS.md
 
 # Test coverage output (never commit — leaks source snapshots + local paths)
 coverage/
@@ -39,6 +38,15 @@ frontend/coverage/
 # Local task artifacts (claude-code, codex, etc.)
 .artifacts/
 frontend/.artifacts/
+.commandcode/
+.scratch/
+.remember/
+*.bundle
+
+# Local scratch dirs (never tracked)
+tmp/
+thesis/
+admin/
 
 # Archive / unused assets (kept locally)
 pics/

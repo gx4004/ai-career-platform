@@ -8,8 +8,8 @@ beta (D-028). Monetization is deferred (D-019, D-020).
 This document owns the product contract and scope: what the product promises users
 and what is deliberately out of scope. Engineering boundaries and invariants live in
 `docs/architecture.md`; priorities and gates live in `docs/roadmap.md`; durable
-decisions live in `docs/decisions.md`. The original 2026-03 specification is
-preserved in `docs/spec-legacy.md` and is historical only.
+decisions live in `docs/decisions.md`. The original 2026-03 specification (`spec-legacy.md`) was
+removed in the 2026-09 tidy and lives only in git history (tag `archive/pre-tidy-20260918`).
 
 ## 1. Product Intent
 
