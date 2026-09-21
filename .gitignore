@@ -43,10 +43,10 @@ frontend/.artifacts/
 .remember/
 *.bundle
 
-# Local scratch dirs (never tracked)
-tmp/
-thesis/
-admin/
+# Local scratch dirs at repo root (never tracked; anchored so product dirs like frontend/src/routes/admin stay visible)
+/tmp/
+/thesis/
+/admin/
 
 # Archive / unused assets (kept locally)
 pics/
