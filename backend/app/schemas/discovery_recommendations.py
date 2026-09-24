@@ -43,9 +43,23 @@ class DiscoveryRecommendation(BaseModel):
     title: str
     company: str
     description: str
+    # ATS-sourced fields (#323). Null for listings ingested before these
+    # fields existed, and for non-ATS sources that never populate them.
+    location: str | None = None
+    remote: bool | None = None
+    posted_at: datetime | None = None
+    apply_url: HttpsUrl | None = None
+    department: str | None = None
     score: int = Field(ge=0, le=100)
     rationale: list[RecommendationSignal]
     attributions: list[RecommendationAttribution] = Field(min_length=1)
+
+    @field_validator("posted_at")
+    @classmethod
+    def require_posted_at_offset(cls, value: datetime | None) -> datetime | None:
+        if value is not None and value.tzinfo is None:
+            return value.replace(tzinfo=UTC)
+        return value
 
 
 class DiscoveryRecommendationList(BaseModel):

@@ -49,7 +49,9 @@ def store_discovered_listing(
     )
     require_ingestion_allowed(db, source_key, source.allowed_behavior)
     source_family = source.source_family
-    source_url = _canonical_source_url(body.source_url, source.endpoint_url or "")
+    source_url = _canonical_source_url(
+        body.source_url, source.endpoint_url or "", source_family
+    )
     digest = listing_content_sha256(body.title, body.company, body.description)
     listing = db.query(DiscoveredListing).filter_by(content_sha256=digest).first()
     deduplicated = listing is not None
@@ -59,6 +61,11 @@ def store_discovered_listing(
             title=body.title.strip(),
             company=body.company.strip(),
             description=body.description.strip(),
+            location=_stripped_or_none(body.location),
+            remote=body.remote,
+            posted_at=body.posted_at,
+            apply_url=body.apply_url,
+            department=_stripped_or_none(body.department),
         )
         try:
             with db.begin_nested():
@@ -70,6 +77,14 @@ def store_discovered_listing(
             # failing or creating a parallel listing.
             listing = db.query(DiscoveredListing).filter_by(content_sha256=digest).one()
             deduplicated = True
+    # Refresh mutable, non-hashed fields on every store (including a dedup
+    # hit) so a re-fetch that only changes e.g. `posted_at` or `remote` still
+    # reaches the canonical row.
+    listing.location = _stripped_or_none(body.location)
+    listing.remote = body.remote
+    listing.posted_at = body.posted_at
+    listing.apply_url = body.apply_url
+    listing.department = _stripped_or_none(body.department)
 
     attribution = (
         db.query(DiscoveredListingAttribution)
@@ -236,9 +251,36 @@ def _normalize(value: str) -> str:
     return re.sub(r"\s+", " ", re.sub(r"[^\w\s]", " ", value)).strip()
 
 
-def _canonical_source_url(value: str, endpoint_url: str) -> str:
+# Employer-ATS governance rows point `endpoint_url` at the provider's JSON API
+# host (e.g. `boards-api.greenhouse.io`), but each posting's public, shareable
+# URL lives on a separate hosted-board host the same provider operates (e.g.
+# `boards.greenhouse.io`) — never on the employer's own custom careers domain,
+# which `ats_ingestion` never uses as `source_url` (#323). This is a closed
+# allowlist, not a pass-through: an attribution URL for an `employer_ats`
+# source must land on exactly the hosted-board host paired with its API host.
+_EMPLOYER_ATS_LISTING_HOST_BY_API_HOST = {
+    "boards-api.greenhouse.io": "boards.greenhouse.io",
+    "api.lever.co": "jobs.lever.co",
+    "api.ashbyhq.com": "jobs.ashbyhq.com",
+}
+
+
+def _canonical_source_url(value: str, endpoint_url: str, source_family: str = "") -> str:
     parsed = urlparse(value)
     endpoint = urlparse(endpoint_url)
-    if parsed.username or parsed.password or parsed.hostname != endpoint.hostname:
+    if parsed.username or parsed.password:
+        raise ValueError("Listing attribution URL must belong to the governed source host")
+    if source_family == "employer_ats":
+        allowed_host = _EMPLOYER_ATS_LISTING_HOST_BY_API_HOST.get(endpoint.hostname or "")
+        if allowed_host is None or parsed.hostname != allowed_host:
+            raise ValueError("Listing attribution URL must belong to the governed source host")
+    elif parsed.hostname != endpoint.hostname:
         raise ValueError("Listing attribution URL must belong to the governed source host")
     return urlunparse((parsed.scheme, parsed.netloc, parsed.path or "/", "", "", ""))
+
+
+def _stripped_or_none(value: str | None) -> str | None:
+    if value is None:
+        return None
+    stripped = value.strip()
+    return stripped or None

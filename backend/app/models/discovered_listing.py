@@ -1,7 +1,7 @@
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import DateTime, ForeignKey, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -17,6 +17,15 @@ class DiscoveredListing(Base):
     title: Mapped[str] = mapped_column(String(200), nullable=False)
     company: Mapped[str] = mapped_column(String(200), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False)
+    # ATS-sourced fields (#323). Nullable: paste/user-provided listings and
+    # licensed-feed listings never populate them. Not part of the content hash
+    # so a re-fetch that only refreshes these (e.g. `posted_at`) still dedups
+    # against the same canonical listing.
+    location: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    remote: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    posted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    apply_url: Mapped[str | None] = mapped_column(String(2048), nullable=True)
+    department: Mapped[str | None] = mapped_column(String(200), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
     )
