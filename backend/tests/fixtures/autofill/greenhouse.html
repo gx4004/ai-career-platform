@@ -1,0 +1,56 @@
+<!doctype html>
+<!-- Local fixture shaped like a hosted Greenhouse application form. Never a live site. -->
+<html>
+<head><meta charset="utf-8"><title>Apply for Backend Engineer at Acme</title></head>
+<body>
+<script>window.__submitted = false;</script>
+<form id="application_form" action="/submitted" method="post"
+      onsubmit="window.__submitted = true; return false;">
+  <div class="field">
+    <label for="first_name">First Name <span class="asterisk">*</span></label>
+    <input type="text" id="first_name" name="job_application[first_name]" required>
+  </div>
+  <div class="field">
+    <label for="last_name">Last Name <span class="asterisk">*</span></label>
+    <input type="text" id="last_name" name="job_application[last_name]" required>
+  </div>
+  <div class="field">
+    <label for="email">Email <span class="asterisk">*</span></label>
+    <input type="text" id="email" name="job_application[email]" required>
+  </div>
+  <div class="field">
+    <label for="phone">Phone</label>
+    <input type="text" id="phone" name="job_application[phone]">
+  </div>
+  <fieldset id="resume_fieldset">
+    <legend>Resume/CV <span class="asterisk">*</span></legend>
+    <input type="file" id="resume" name="resume" style="display:none">
+    <button type="button" data-source="attach">Attach</button>
+  </fieldset>
+  <fieldset id="cover_letter_fieldset">
+    <legend>Cover Letter</legend>
+    <input type="file" id="cover_letter" name="cover_letter" style="display:none">
+    <button type="button" data-source="attach">Attach</button>
+  </fieldset>
+  <div class="field">
+    <label for="question_1">LinkedIn Profile</label>
+    <input type="text" id="question_1" name="job_application[answers_attributes][0][text_value]">
+  </div>
+  <div class="field">
+    <label for="question_2">Website</label>
+    <input type="text" id="question_2" name="job_application[answers_attributes][1][text_value]">
+  </div>
+  <div class="field">
+    <label for="question_3">What is your notice period? <span class="asterisk">*</span></label>
+    <input type="text" id="question_3" name="job_application[answers_attributes][2][text_value]">
+  </div>
+  <div class="field">
+    <label for="question_4">Are you legally authorized to work in the country? <span class="asterisk">*</span></label>
+    <select id="question_4" name="job_application[answers_attributes][3][boolean_value]">
+      <option value="">--</option><option value="1">Yes</option><option value="0">No</option>
+    </select>
+  </div>
+  <input type="submit" id="submit_app" value="Submit Application">
+</form>
+</body>
+</html>

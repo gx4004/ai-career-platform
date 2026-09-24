@@ -2,11 +2,13 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.auth.security import get_current_user
+from app.config import settings
 from app.database import get_db
 from app.models.user import User
 from app.schemas.application_packets import (
     ApplicationPacketItem,
     ApplicationPacketList,
+    AutofillReport,
     PacketApprovalPreview,
     PacketApprovalRequest,
     PacketApprovalResult,
@@ -20,6 +22,13 @@ from app.services.application_packets import (
     get_packet,
     list_packets,
     prepare_packets,
+)
+from app.services.autopilot_autofill import (
+    AutofillBusy,
+    AutofillRefused,
+    PacketNotApprovedError,
+    build_materials,
+    start_autofill,
 )
 from app.services.packet_approval import (
     PacketNotApprovableError,
@@ -274,3 +283,52 @@ def mark_applied(
         raise HTTPException(
             status_code=409, detail="Accept this application before marking it applied."
         ) from error
+
+
+# ── Autopilot experiment (#325): local-only, off by default, stops before submit ──
+
+AUTOFILL_TIMEOUT_SECONDS = 90
+
+
+@router.post("/{packet_id}/autofill", response_model=AutofillReport)
+def autofill(
+    packet_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Open the approved application's form in a browser on this computer and fill it.
+
+    Never submits: the owner reviews the open window and presses submit themselves.
+    """
+    if not settings.AUTOPILOT_EXPERIMENT_ENABLED:
+        raise HTTPException(status_code=404, detail="Not found")
+    try:
+        materials = build_materials(db, current_user, packet_id)
+        report = start_autofill(current_user.id, materials)
+    except PacketNotFoundError as error:
+        raise HTTPException(status_code=404, detail="Application packet not found") from error
+    except PacketNotApprovedError as error:
+        raise HTTPException(
+            status_code=409, detail="Approve this application before filling the form."
+        ) from error
+    except AutofillRefused as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    except AutofillBusy as error:
+        raise HTTPException(
+            status_code=409, detail="A form is already being filled. Finish that one first."
+        ) from error
+    try:
+        result = report.result(timeout=AUTOFILL_TIMEOUT_SECONDS)
+    except TimeoutError as error:
+        raise HTTPException(
+            status_code=504, detail="The form took too long. Check the open browser window."
+        ) from error
+    except Exception as error:  # noqa: BLE001 — Playwright missing or the page failed
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                "Could not fill the form. This only works when the app runs on your own "
+                "computer with a browser installed (python -m playwright install chromium)."
+            ),
+        ) from error
+    return AutofillReport(filled=result.filled, skipped=result.skipped, url=result.url)
