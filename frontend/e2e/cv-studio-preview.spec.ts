@@ -28,14 +28,12 @@ test('CV Studio live preview fits 320/375px, follows the template and has a clea
   await page.setViewportSize({ width: 320, height: 812 })
   await page.addInitScript(() => localStorage.setItem('cw-cookie-consent', 'accepted'))
   const email = uniqueEmail('cv-preview')
-  await gotoHydrated(page, '/login')
-  await page.getByRole('tab', { name: 'Create Account' }).click()
-  await page.locator('#register-name').fill('Preview Tester')
-  await page.locator('#register-email').fill(email)
-  await page.locator('#register-password').fill('Password123!')
-  await page.locator('#register-tos').check()
-  await page.getByRole('button', { name: 'Create free account' }).click()
-  await expect(page.getByRole('heading', { name: 'You are already signed in' })).toBeVisible()
+  // Register through the API (shares the page's cookie jar); the sign-up UI has
+  // its own coverage, and this spec is about the studio surface.
+  const registered = await page.request.post('/api/v1/auth/register', {
+    data: { email, password: 'Password123!', full_name: 'Preview Tester', tos_accepted: true },
+  })
+  expect(registered.ok()).toBe(true)
   const created = await page.request.post('/api/v1/cv-documents', { data: {
     name: 'Mobile Preview CV', sections: [
       { id: 'summary', kind: 'summary', title: 'Summary', visible: true, position: 0,

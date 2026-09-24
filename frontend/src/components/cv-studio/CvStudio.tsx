@@ -460,19 +460,19 @@ export function CvStudio() {
 
       <div className="cvs-mobile-tabs" role="tablist" aria-label="Studio view">
         {([['edit', 'Edit'], ['design', 'Design'], ['preview', 'Preview']] as const).map(([view, label]) => (
-          <button key={view} type="button" role="tab" aria-selected={mobileView === view} className={cn('cvs-mobile-tabs__tab', mobileView === view && 'is-active')} onClick={() => chooseMobileView(view)}>
+          <button key={view} type="button" role="tab" aria-controls="cvs-studio-body" aria-selected={mobileView === view} className={cn('cvs-mobile-tabs__tab', mobileView === view && 'is-active')} onClick={() => chooseMobileView(view)}>
             {label}
           </button>
         ))}
       </div>
 
-      <div className="cvs-studio" data-view={mobileView}>
+      <div id="cvs-studio-body" className="cvs-studio" data-view={mobileView}>
         <aside className="cvs-rail" aria-label="Outline and design">
           <div className="cvs-rail__tabs" role="tablist" aria-label="Side panel">
-            <button type="button" role="tab" id="cvs-tab-outline" aria-controls="cvs-panel-outline" aria-selected={railTab === 'outline'} className={cn('cvs-rail__tab', railTab === 'outline' && 'is-active')} onClick={() => setRailTab('outline')}>
+            <button type="button" role="tab" id="cvs-tab-outline" aria-controls="cvs-panel-outline" aria-selected={railTab === 'outline'} className={cn('cvs-rail__tab', railTab === 'outline' && 'is-active')} onClick={() => { setRailTab('outline'); if (mobileView === 'design') setMobileView('edit') }}>
               <ListTree size={15} aria-hidden="true" /> Outline
             </button>
-            <button type="button" role="tab" id="cvs-tab-design" aria-controls="cvs-panel-design" aria-selected={railTab === 'design'} className={cn('cvs-rail__tab', railTab === 'design' && 'is-active')} onClick={() => setRailTab('design')}>
+            <button type="button" role="tab" id="cvs-tab-design" aria-controls="cvs-panel-design" aria-selected={railTab === 'design'} className={cn('cvs-rail__tab', railTab === 'design' && 'is-active')} onClick={() => { setRailTab('design'); if (mobileView === 'edit') setMobileView('design') }}>
               <LayoutTemplate size={15} aria-hidden="true" /> Design
             </button>
           </div>
