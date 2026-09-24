@@ -88,6 +88,41 @@ export const discoveryRecommendationListSchema = z.strictObject({
 export type DiscoveryRecommendation = z.infer<typeof discoveryRecommendationSchema>
 export type DiscoveryRecommendationList = z.infer<typeof discoveryRecommendationListSchema>
 
+// Job search (#323). Mirrors DiscoveryListingPage in
+// backend/app/schemas/discovery_recommendations.py.
+const httpsUrlSchema = z.string().url().max(2_048).refine((value) => value.startsWith('https://'))
+export const discoveryListingSchema = z.strictObject({
+  listing_id: z.string(),
+  title: z.string(),
+  company: z.string(),
+  description: z.string(),
+  location: z.string().nullable().default(null),
+  remote: z.boolean().nullable().default(null),
+  posted_at: z.iso.datetime({ offset: true }).nullable().default(null),
+  apply_url: httpsUrlSchema.nullable().default(null),
+  department: z.string().nullable().default(null),
+  score: z.number().int().min(0).max(100).nullable(),
+  matched_keywords: z.array(z.string()),
+  source_name: z.string(),
+  source_url: httpsUrlSchema,
+})
+export const discoveryListingPageSchema = z.strictObject({
+  items: z.array(discoveryListingSchema),
+  total: z.number().int().nonnegative(),
+  page: z.number().int().positive(),
+  limit: z.number().int().positive(),
+  sort: z.enum(['best_match', 'newest']),
+  has_profile: z.boolean(),
+  stats: z.strictObject({
+    jobs: z.number().int().nonnegative(),
+    companies: z.number().int().nonnegative(),
+    new_this_week: z.number().int().nonnegative(),
+  }),
+  companies: z.array(z.string()),
+})
+export type DiscoveryListing = z.infer<typeof discoveryListingSchema>
+export type DiscoveryListingPage = z.infer<typeof discoveryListingPageSchema>
+
 // R14 #175 discovery correction controls. Mirrors
 // backend/app/schemas/discovery_personalization.py.
 export const discoverySourceFamilySchema = z.enum([

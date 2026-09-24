@@ -259,6 +259,18 @@ test('capture authenticated + guest pages for visual review', async ({ page, bro
       .waitFor({ timeout: 10_000 })
       .catch((error) => console.warn('[screenshots] auth cookie check inconclusive:', describeError(error)))
 
+    // Job Discovery seed: the harness DB has no ingested listings and must not
+    // hit the network, so ~20 listings + confirmed skills go straight into the DB.
+    try {
+      execFileSync(env.pythonBin, ['-m', 'tests.seed_discovery_listings', email], {
+        cwd: env.backendDir,
+        env: { ...process.env, DATABASE_URL: env.databaseUrl },
+        stdio: 'pipe',
+      })
+    } catch (error) {
+      console.warn('[screenshots] discovery seed skipped (page shows its empty state):', describeError(error))
+    }
+
     // --- Desktop authenticated pages -----------------------------------------
     for (const p of userPages) {
       await capturePage(page, 'desktop', p.name, p.path, results)
