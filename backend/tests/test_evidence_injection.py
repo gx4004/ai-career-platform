@@ -140,7 +140,7 @@ async def test_no_injection_for_user_without_profile_items(db, test_user, inject
 @pytest.mark.asyncio
 async def test_default_off_injection_is_a_no_op(db, test_user):
     # Ships dark: the switch defaults OFF to honor the open R1–R4 / R3 gate
-    # (D-060), matching #144's dormant build-ahead and the R7 flag pattern.
+    # (D-060), matching #144's dormant build-ahead pattern.
     assert settings.EVIDENCE_PROFILE_INJECTION_ENABLED is False
 
     _seed_profile(db, test_user.id)

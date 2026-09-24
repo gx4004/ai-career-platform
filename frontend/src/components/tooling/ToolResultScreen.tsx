@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import { AlertCircle, ArrowRight, Clock, Copy, Download, FileText, Loader2, RefreshCw, Star, Undo2, X } from 'lucide-react'
+import { AlertCircle, Clock, Copy, Download, FileText, Loader2, RefreshCw, Star, Undo2, X } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { FadeIn, FadeUp } from '#/components/ui/motion'
 import { ScoreTooltip } from '#/components/tooling/ScoreTooltip'
@@ -10,10 +10,6 @@ import { ClaimPromotionSection } from '#/components/profile/ClaimPromotionSectio
 import { PageFrame } from '#/components/app/PageFrame'
 import { ApiError } from '#/lib/api/errors'
 import { getHistoryItem } from '#/lib/api/client'
-import {
-  isR7NextBestActionEnabled,
-  isR7ValueSpecificSignupEnabled,
-} from '#/lib/flags/featureFlags'
 import { useFavoriteToggle } from '#/hooks/useFavoriteToggle'
 import { useSession } from '#/hooks/useSession'
 import { getTransientResult, isDemoHistoryId } from '#/lib/tools/demoRuns'
@@ -26,7 +22,6 @@ import {
 } from '#/lib/tools/exports'
 import { resultDefinitions } from '#/lib/tools/resultDefinitions'
 import { deriveWorkflowUpdateFromHistoryItem } from '#/lib/tools/workflowContext'
-import { getNextStepToolId } from '#/lib/tools/runMetadata'
 import { getToolByHistoryName, tools } from '#/lib/tools/registry'
 import type { ToolId } from '#/lib/tools/registry'
 import { toolAccentStyle } from '#/lib/tools/styleUtils'
@@ -82,7 +77,6 @@ export function ToolResultScreen({
   const [parentRunId, setParentRunId] = useState<string | null>(null)
   const [showUndo, setShowUndo] = useState(true)
   const [bannerDismissed, setBannerDismissed] = useState(false)
-  const valueSpecificSignupEnabled = isR7ValueSpecificSignupEnabled()
   const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const queryClient = useQueryClient()
   const demoItem = useMemo(() => getTransientResult(historyId), [historyId])
@@ -224,9 +218,7 @@ export function ToolResultScreen({
 
   const resolvedTool = getToolByHistoryName(item.tool_name) || tools[toolId]
   const definition = resultDefinitions[resolvedTool.id]
-  const guestSignupLabel = valueSpecificSignupEnabled
-    ? `Sign in to save your ${resolvedTool.label} result`
-    : 'Sign in'
+  const guestSignupLabel = 'Sign in'
   const payload = item.result_payload
   const summary =
     payload.summary && typeof payload.summary === 'object'
@@ -239,8 +231,6 @@ export function ToolResultScreen({
       : item.label || resolvedTool.shortLabel
   const savedResult = item.saved
   const guestResult = !savedResult
-  const nextBestActionEnabled = isR7NextBestActionEnabled()
-  const nextTool = tools[getNextStepToolId(resolvedTool.id, item.metadata)]
   function handleRegenSubmit() {
     const params = new URLSearchParams()
     params.set('parent_run_id', historyId)
@@ -280,15 +270,6 @@ export function ToolResultScreen({
         formatExportContent(exportableSections, 'txt'),
       )
     }
-  }
-
-  function handleNextBestAction() {
-    trackTelemetry({
-      event_name: 'workflow_continued',
-      tool_id: resolvedTool.id,
-      access_mode: savedResult ? 'authenticated' : 'guest_demo',
-    })
-    void navigate({ to: nextTool.route })
   }
 
   return (
@@ -470,11 +451,7 @@ export function ToolResultScreen({
           <div className="result-guest-banner">
             {status !== 'authenticated' ? (
               <>
-                <span>
-                  {valueSpecificSignupEnabled
-                    ? `Keep your ${resolvedTool.label} result`
-                    : 'Guest demo'}
-                </span>
+                <span>Guest demo</span>
                 <Button
                   type="button"
                   variant="outline"
@@ -517,20 +494,6 @@ export function ToolResultScreen({
           payload={payload as Record<string, unknown>}
           authenticated={status === 'authenticated'}
         />
-
-        {nextBestActionEnabled ? (
-          <div className="result-action" aria-label="Try next suggestion">
-            <div className="result-action__text">
-              <strong>Keep your workflow moving.</strong> Use this result in {nextTool.label}.
-            </div>
-            <div className="result-action__btns">
-              <Button type="button" onClick={handleNextBestAction}>
-                Try next: {nextTool.label}
-                <ArrowRight aria-hidden="true" />
-              </Button>
-            </div>
-          </div>
-        ) : null}
 
       </section>
     </PageFrame>

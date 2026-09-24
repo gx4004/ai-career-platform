@@ -50,20 +50,6 @@ describe('LandingExperimentHero', () => {
     expect(imageLink?.getAttribute('aria-label')).toBeTruthy()
   })
 
-  it('replaces the generic hero CTA with the resume-first vs role-first choice when the R7 flag is on', () => {
-    vi.stubEnv('VITE_R7_ENTRY_CHOICE', 'true')
-    const { container } = render(<LandingExperimentHero />)
-
-    // The generic single primary CTA is gone; the explicit choice takes its place.
-    expect(container.querySelector('.lp-hero-actions')).toBeNull()
-    expect(container.querySelector('.lp-hero-entry .lp-entry-choice')).toBeTruthy()
-
-    const resumeFirst = container.querySelector('[data-entry-choice="resume-first"]')
-    const roleFirst = container.querySelector('[data-entry-choice="role-first"]')
-    expect(resumeFirst?.getAttribute('href')).toBe('/resume')
-    expect(roleFirst?.getAttribute('href')).toBe('/job-match')
-  })
-
   it('lp-hero-copy has min-width:0 to prevent trust marquee from expanding grid cell', () => {
     // Regression: without min-width:0, the trust track's width:max-content expands
     // .lp-hero-copy to ~2300px; text-align:center then pushes hero text off-screen on mobile.

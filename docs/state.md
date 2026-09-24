@@ -170,7 +170,6 @@ Neither baseline verifies the deployed environment or closes an activation gate.
 
 - Do not promote `chapter2`, mutate `deploy`, or run production migrations without
   explicit release ownership and current backup/rollback evidence.
-- Do not enable R7 flags without the accepted R6 baseline and experiment metric.
 - Do not add monetization, a provider fallback, streaming, stronger challenge, a
   database optimization, or source specialization before its accepted decision or
   R10 trigger.
