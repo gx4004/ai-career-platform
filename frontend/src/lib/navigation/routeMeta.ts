@@ -130,9 +130,22 @@ export function getRouteMeta(pathname: string): RouteMeta {
   if (pathname === '/campaigns') {
     return {
       title: 'Campaigns',
-      description: 'Track applications you have adopted from Job Discovery.',
+      description: 'Track applications you have saved from Job Discovery.',
       sectionLabel: 'Job search',
       breadcrumbs: ['Dashboard', 'Campaigns'],
+      topbarVariant: 'compact',
+    }
+  }
+
+  // Detail tabs (/campaigns/$id, /campaigns/$id?tab=…) fall through to here;
+  // without this the topbar breadcrumb renders nothing at all (career-
+  // workbench#326) since the 'standard' fallback variant only shows on mobile.
+  if (pathname.startsWith('/campaigns/')) {
+    return {
+      title: 'Application',
+      description: 'Documents, tasks, notes, and the timeline for this application.',
+      sectionLabel: 'Job search',
+      breadcrumbs: ['Dashboard', 'Campaigns', 'Application'],
       topbarVariant: 'compact',
     }
   }
