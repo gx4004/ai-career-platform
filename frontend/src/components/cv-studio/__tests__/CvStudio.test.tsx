@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { CvStudio } from '#/components/cv-studio/CvStudio'
 import type { CvDocument } from '#/lib/api/schemas'
+import { readWorkflowContext, writeWorkflowContext } from '#/lib/tools/drafts'
 
 const api = vi.hoisted(() => ({
   listCvDocuments: vi.fn(), createCvDocument: vi.fn(), getCvDocument: vi.fn(), updateCvDocument: vi.fn(),
@@ -59,6 +60,7 @@ async function openMenu(name: string) {
 
 beforeEach(() => {
   vi.clearAllMocks(); session.status = 'authenticated'; clickedDownload = ''
+  window.sessionStorage.clear()
   Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: vi.fn(() => 'blob:artifact') })
   Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: vi.fn() })
   vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
@@ -290,5 +292,51 @@ describe('CV Studio quality, exports and versions', { timeout: 15_000 }, () => {
     fireEvent.click(screen.getByRole('button', { name: 'Restore' }))
     await waitFor(() => expect(api.restoreCvVariant).toHaveBeenCalledWith('d1', 'v1'))
     expect((await screen.findByRole('alert')).textContent).toContain('Restore unavailable')
+  })
+})
+
+describe('CV Studio tailoring prefill from Job Discovery', { timeout: 15_000 }, () => {
+  it('opens the tailor dialog prefilled from a pending job and clears the marker', async () => {
+    writeWorkflowContext({
+      targetRole: 'Senior Backend Engineer',
+      jobDescription: 'Senior Backend Engineer at Northwind Labs\n\nOwn our platform services.',
+      tailorPending: true,
+      updatedAt: Date.now(),
+    })
+
+    view()
+
+    const dialog = await screen.findByRole('dialog', { name: 'Tailor to a job' })
+    expect((within(dialog).getByLabelText('Job title') as HTMLInputElement).value).toBe('Senior Backend Engineer')
+    expect((within(dialog).getByLabelText('Job description') as HTMLTextAreaElement).value).toBe(
+      'Senior Backend Engineer at Northwind Labs\n\nOwn our platform services.',
+    )
+    expect(readWorkflowContext()?.tailorPending).toBeFalsy()
+  })
+
+  it('does not reopen the tailor dialog after it is dismissed once', async () => {
+    writeWorkflowContext({
+      targetRole: 'Senior Backend Engineer',
+      jobDescription: 'Own our platform services.',
+      tailorPending: true,
+      updatedAt: Date.now(),
+    })
+
+    view()
+
+    const dialog = await screen.findByRole('dialog', { name: 'Tailor to a job' })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Close' }))
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Tailor to a job' })).toBeNull())
+
+    // A later autosave-driven re-render of `draft` must not reopen it.
+    fireEvent.change(await screen.findByLabelText('Document name'), { target: { value: 'Renamed' } })
+    await waitFor(() => expect(api.updateCvDocument).toHaveBeenCalled(), { timeout: 1500 })
+    expect(screen.queryByRole('dialog', { name: 'Tailor to a job' })).toBeNull()
+  })
+
+  it('leaves the tailor dialog closed when nothing is pending', async () => {
+    view()
+    await screen.findByLabelText('Document name')
+    expect(screen.queryByRole('dialog', { name: 'Tailor to a job' })).toBeNull()
   })
 })

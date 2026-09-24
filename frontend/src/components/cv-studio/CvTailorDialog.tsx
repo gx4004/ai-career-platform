@@ -47,7 +47,7 @@ function ChangeCard({ change, decision, onDecide }: {
   )
 }
 
-export function CvTailorDialog({ open, onOpenChange, documentId, canGenerate, remainingRuns, onSaved, onGenerated }: {
+export function CvTailorDialog({ open, onOpenChange, documentId, canGenerate, remainingRuns, onSaved, onGenerated, seed }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   documentId: string
@@ -56,6 +56,8 @@ export function CvTailorDialog({ open, onOpenChange, documentId, canGenerate, re
   remainingRuns: number
   onSaved: (variant: CvVariant) => void
   onGenerated: () => void
+  /** Prefills the form when the dialog is opened for a job carried over from Job Discovery. */
+  seed?: { jobTitle: string; jobDescription: string } | null
 }) {
   const titleId = useId()
   const descriptionId = useId()
@@ -69,6 +71,16 @@ export function CvTailorDialog({ open, onOpenChange, documentId, canGenerate, re
   const [error, setError] = useState('')
 
   useEffect(() => { if (!open) setError('') }, [open])
+
+  // Prefill from a job carried over from Job Discovery when the dialog opens
+  // with a seed — never mid-session, so it can't clobber what someone typed.
+  useEffect(() => {
+    if (open && seed) {
+      setJobTitle(seed.jobTitle)
+      setJobDescription(seed.jobDescription)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only react to `open` toggling on
+  }, [open])
 
   async function generate() {
     setState('generating'); setError('')

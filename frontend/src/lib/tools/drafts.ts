@@ -38,6 +38,13 @@ export type WorkflowContextState = {
   workspaceLabel?: string
   lastToolId?: ToolId
   historyId?: string
+  /**
+   * Set by Discovery's "Tailor my CV" alongside `targetRole` + `jobDescription`
+   * (career-workbench#324). CV Studio reads this once on mount to open the
+   * tailor dialog prefilled, then clears it — so a stale `jobDescription` left
+   * over from an unrelated tool run never reopens the dialog on its own.
+   */
+  tailorPending?: boolean
   resumeAnalysis?: ResumeResult
   jobMatch?: JobMatchResult
   careerResult?: CareerResult
