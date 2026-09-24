@@ -54,9 +54,13 @@ export default defineConfig({
         FRONTEND_URL: frontendUrl,
         RESULT_CACHE_ENABLED: 'false',
         // The product defaults build-ahead rounds off. This suite deliberately
-        // exercises the R12 CV Studio surface, so opt its dependency chain in.
+        // exercises the R11-R15 build-ahead surfaces (CV Studio, Discovery,
+        // Campaigns, Queue), so opt their dependency chain in.
         R11_EVIDENCE_PROFILE_ENABLED: 'true',
         R12_CV_STUDIO_ENABLED: 'true',
+        R13_CAMPAIGNS_ENABLED: 'true',
+        R14_DISCOVERY_ENABLED: 'true',
+        R15_QUEUE_ENABLED: 'true',
         E2E_BACKEND_PORT: backendPort,
       },
     },
@@ -74,6 +78,9 @@ export default defineConfig({
         VITE_API_URL: `${backendUrl}/api/v1`,
         VITE_R11_EVIDENCE_PROFILE_ENABLED: 'true',
         VITE_R12_CV_STUDIO_ENABLED: 'true',
+        VITE_R13_CAMPAIGNS_ENABLED: 'true',
+        VITE_R14_DISCOVERY_ENABLED: 'true',
+        VITE_R15_QUEUE_ENABLED: 'true',
       },
     },
   ],
