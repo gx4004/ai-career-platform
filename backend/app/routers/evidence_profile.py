@@ -20,6 +20,7 @@ from app.services.data_export import export_career_data
 from app.services.evidence_import import generate_import_proposals
 from app.services.evidence_profile import (
     EvidenceItemNotFoundError,
+    confirm_all_imported_evidence,
     create_evidence_item,
     delete_evidence_item,
     delete_evidence_profile,
@@ -100,10 +101,30 @@ def create_item(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    # Proposal creation never carries trust state. Confirmation and rejection are
-    # separate, authenticated user actions, so automated callers cannot smuggle a
-    # confirmed item through this write contract (D-062).
-    return create_evidence_item(db, current_user.id, body)
+    # The request body never carries trust state directly (D-062) — a client
+    # cannot smuggle a confirmed item through the payload. A `user-entered` item
+    # is the owner typing it themselves right now, so it is trusted immediately
+    # with no extra confirm click; `imported`/`inferred` items still land
+    # unconfirmed for review (Phase 1b, #321).
+    confirmation_state = "confirmed" if body.provenance == "user-entered" else "unconfirmed"
+    return create_evidence_item(
+        db, current_user.id, body, confirmation_state=confirmation_state
+    )
+
+
+@router.post(
+    "/items/confirm-imported",
+    response_model=EvidenceItemListResponse,
+    dependencies=[Depends(require_r11_enabled)],
+)
+def confirm_imported_items(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Bulk-confirm every still-unconfirmed imported item at once (#321)."""
+    return EvidenceItemListResponse(
+        items=confirm_all_imported_evidence(db, current_user.id)
+    )
 
 
 @router.delete("/items", status_code=status.HTTP_204_NO_CONTENT)

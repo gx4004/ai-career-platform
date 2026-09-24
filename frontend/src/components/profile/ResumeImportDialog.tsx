@@ -127,8 +127,8 @@ export function ResumeImportDialog({
           <DialogTitle>Review evidence from your resume</DialogTitle>
           <DialogDescription>
             These are suggestions extracted from your uploaded resume. Nothing is saved until you
-            accept it — accepted items arrive as <strong>unconfirmed</strong> and stay that way
-            until you confirm them. You can skip this entirely.
+            accept it — accepted items arrive as <strong>Suggested</strong> and stay that way
+            until you accept them in your profile. You can skip this entirely.
           </DialogDescription>
         </DialogHeader>
 

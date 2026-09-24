@@ -82,62 +82,88 @@ def get_evidence_item(db: Session, item_id: str, user_id: str) -> EvidenceItem:
     return item
 
 
-def create_evidence_item(db: Session, user_id: str, body: EvidenceItemCreate) -> EvidenceItem:
-    item = stage_evidence_proposal(db, user_id, body)
+def create_evidence_item(
+    db: Session,
+    user_id: str,
+    body: EvidenceItemCreate,
+    *,
+    confirmation_state: str = "unconfirmed",
+) -> EvidenceItem:
+    """Create one item, defaulting to an unconfirmed proposal (D-062).
+
+    Callers that know the owner typed the content themselves right now — a
+    manual create of a `user-entered` item — may pass ``confirmation_state=
+    "confirmed"`` so the item lands already trusted, with no extra confirm
+    click (Phase 1b, #321). Import and inferred proposals keep the default.
+    """
+    item = stage_evidence_proposal(db, user_id, body, confirmation_state=confirmation_state)
     db.commit()
     db.refresh(item)
-    # A new proposal is always unconfirmed (D-062); record the adoption event.
     _record_profile_event(
         db,
         event_name="profile_item_created",
         item=item,
-        confirmation_transition="unconfirmed",
+        confirmation_transition=item.confirmation_state,
     )
     return item
 
 
 def stage_evidence_proposal(
-    db: Session, user_id: str, body: EvidenceItemCreate
+    db: Session,
+    user_id: str,
+    body: EvidenceItemCreate,
+    *,
+    confirmation_state: str = "unconfirmed",
 ) -> EvidenceItem:
-    """Stage one unconfirmed proposal in the caller's transaction (D-062)."""
+    """Stage one proposal in the caller's transaction (D-062).
+
+    Defaults to unconfirmed; a caller that is staging content the owner
+    supplied themselves right now may pass ``confirmation_state="confirmed"``.
+    """
     item = EvidenceItem(
         user_id=user_id,
         kind=body.kind,
         content=body.content,
         provenance=body.provenance,
-        confirmation_state="unconfirmed",
+        confirmation_state=confirmation_state,
     )
     db.add(item)
     db.flush()
     return item
 
 
-def record_evidence_proposal_created(db: Session, item: EvidenceItem) -> None:
+def record_evidence_proposal_created(
+    db: Session, item: EvidenceItem, *, confirmation_transition: str = "unconfirmed"
+) -> None:
     """Record the allowlisted adoption event after the caller commits its transaction."""
     _record_profile_event(
         db,
         event_name="profile_item_created",
         item=item,
-        confirmation_transition="unconfirmed",
+        confirmation_transition=confirmation_transition,
     )
 
 
 def update_evidence_item(
     db: Session, item_id: str, user_id: str, body: EvidenceItemUpdate
 ) -> EvidenceItem:
+    """Apply an owner-authored correction and mark it confirmed (Phase 1b, #321).
+
+    Editing is the owner typing the correction themselves right now, so it is
+    trusted the same way a manual create is: the item lands confirmed with no
+    extra confirm click. Use the reject action to withdraw trust instead.
+    """
     item = get_evidence_item(db, item_id, user_id)
     for field, value in body.model_dump(exclude_unset=True).items():
         setattr(item, field, value)
-    # Editing any trust-bearing field creates a new unconfirmed proposal. A
-    # prior confirmation cannot silently vouch for materially different data.
-    item.confirmation_state = "unconfirmed"
+    item.confirmation_state = "confirmed"
     db.commit()
     db.refresh(item)
     _record_profile_event(
         db,
         event_name="profile_item_updated",
         item=item,
-        confirmation_transition="unconfirmed",
+        confirmation_transition="confirmed",
     )
     return item
 
@@ -196,6 +222,40 @@ def set_evidence_confirmation(
         confirmation_transition=item.confirmation_state,
     )
     return item
+
+
+def confirm_all_imported_evidence(db: Session, user_id: str) -> list[EvidenceItem]:
+    """Confirm every still-unconfirmed imported item in one action (Phase 1b, #321).
+
+    Scoped to `imported` provenance only — the resume-import review is the one
+    surface with a batch of same-origin proposals piling up. Imported items are
+    never linked to a development item, so there is no dev-lifecycle timeline to
+    update here (unlike :func:`set_evidence_confirmation`). One commit for the
+    whole batch, then one allowlisted event per item, mirroring
+    :func:`delete_evidence_profile`'s commit-then-emit shape.
+    """
+    items = (
+        db.query(EvidenceItem)
+        .filter(
+            EvidenceItem.user_id == user_id,
+            EvidenceItem.provenance == "imported",
+            EvidenceItem.confirmation_state == "unconfirmed",
+        )
+        .order_by(EvidenceItem.created_at.asc())
+        .all()
+    )
+    for item in items:
+        item.confirmation_state = "confirmed"
+    db.commit()
+    for item in items:
+        db.refresh(item)
+        _record_profile_event(
+            db,
+            event_name="profile_item_confirmed",
+            item=item,
+            confirmation_transition="confirmed",
+        )
+    return items
 
 
 def delete_evidence_item(db: Session, item_id: str, user_id: str) -> None:

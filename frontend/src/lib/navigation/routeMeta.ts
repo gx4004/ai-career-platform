@@ -39,16 +39,6 @@ export function getRouteMeta(pathname: string): RouteMeta {
     }
   }
 
-  if (pathname === '/development-plan') {
-    return {
-      title: 'Development Plan',
-      description: 'Track and complete the development items derived from your classified gaps.',
-      sectionLabel: 'Growth',
-      breadcrumbs: ['Dashboard', 'Development Plan'],
-      topbarVariant: 'compact',
-    }
-  }
-
   if (pathname === '/discovery') {
     return {
       title: 'Job Discovery',

@@ -4,12 +4,16 @@ CRUD over a user's bounded development items. Mirrors the Evidence Profile
 service shape: owner-scoped queries, a not-found sentinel, and an export/delete
 pair that joins the account-deletion cascade and the portable data export.
 
-Completion into evidence (#201): marking an item completed stages an unconfirmed
-Evidence Profile proposal through the existing R11 seam
-(:func:`app.services.evidence_profile.stage_evidence_proposal`) — nothing here
-writes a confirmed fact. Confirming or declining that proposal routes back through
-this service so the item's own timeline records what happened, and declining
-hard-deletes the proposal so no rejected trace lingers in the profile (D-113).
+Completion into evidence (#201): marking an item completed stages an Evidence
+Profile proposal through the existing R11 seam
+(:func:`app.services.evidence_profile.stage_evidence_proposal`). When the owner
+supplied the evidence text themselves (their own notes), the proposal is staged
+already confirmed — nothing here fabricates a fact, it is the owner's own words
+(Phase 1b, #321). Otherwise the seed comes from the gap classification's cited
+trace or an honest generic statement, and the proposal stays unconfirmed for
+review through the normal Evidence Profile confirm/reject actions, or through
+this service's own confirm/decline-evidence endpoints. Declining hard-deletes
+the proposal so no rejected trace lingers in the profile (D-113).
 """
 
 from __future__ import annotations
@@ -192,11 +196,17 @@ def _completion_seed(db: Session, item: DevelopmentItem) -> str:
 
 
 def _stage_completion_proposal(db: Session, item: DevelopmentItem) -> EvidenceItem:
-    """Stage the unconfirmed proposal completion produces (D-113) and link it.
+    """Stage the proposal completion produces (D-113) and link it.
 
     Stages only (add + flush, no commit) — the caller commits atomically with the
-    rest of the item's own update.
+    rest of the item's own update. When the owner supplied the evidence text
+    themselves (``item.notes``), the proposal lands already confirmed — no extra
+    confirm step (Phase 1b, #321). Otherwise the seed falls back to the gap
+    classification's cited trace or an honest generic statement, neither of
+    which the owner authored, so it stays unconfirmed for review exactly as
+    before.
     """
+    user_supplied = bool(item.notes)
     proposal = stage_evidence_proposal(
         db,
         item.user_id,
@@ -205,12 +215,15 @@ def _stage_completion_proposal(db: Session, item: DevelopmentItem) -> EvidenceIt
             content={"statement": _completion_seed(db, item)},
             provenance="inferred",
         ),
+        confirmation_state="confirmed" if user_supplied else "unconfirmed",
     )
     item.evidence_item_id = proposal.id
-    item.timeline = [
-        *item.timeline,
-        _event("evidence_proposal_created", evidence_item_id=proposal.id),
-    ]
+    events = [_event("evidence_proposal_created", evidence_item_id=proposal.id)]
+    if user_supplied:
+        # Mirror the timeline shape the old two-step confirm produced, so the
+        # item's history reads the same either way.
+        events.append(_event("evidence_confirmed", evidence_item_id=proposal.id))
+    item.timeline = [*item.timeline, *events]
     return proposal
 
 
@@ -241,7 +254,9 @@ def update_development_item(
     db.commit()
     db.refresh(item)
     if staged_proposal is not None:
-        record_evidence_proposal_created(db, staged_proposal)
+        record_evidence_proposal_created(
+            db, staged_proposal, confirmation_transition=staged_proposal.confirmation_state
+        )
     if state_from is not None:
         _record_item_event(
             db,
