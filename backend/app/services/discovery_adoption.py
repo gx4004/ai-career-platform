@@ -7,11 +7,11 @@ retrieval date (D-091, D-078). Discovery never reaches this seam on its own — 
 scheduler, ingestion job, or ranking read may create a campaign, task, or
 reminder (D-091).
 
-The refusal rule is delegated to the ranked feed itself: adoption re-ranks the
-owner's live recommendations and adopts only a listing the user can currently
-see. A dismissed listing, a listing left with no visible source (every source
-hidden), and an expired listing are all absent from that feed, so they can never
-be adopted implicitly (respects the #175 personalization store, D-090).
+The refusal rule is delegated to the feed's visibility rules: adoption adopts
+only a listing the user can currently see — in the ranked feed, or found through
+job search under the same rules. A dismissed listing, a listing left with no
+visible source (every source hidden), and an expired listing are never visible,
+so they can never be adopted implicitly (respects the #175 personalization store, D-090).
 
 That refusal is evaluated on every call, including re-adoption of a listing this
 owner already holds a campaign for. Adoption is idempotent, but idempotency
@@ -29,7 +29,10 @@ from app.models.workspace import Workspace
 from app.schemas.discovery_recommendations import DiscoveryRecommendation
 from app.services.analytics import safe_record_activation_event
 from app.services.campaign_listings import attach_listing
-from app.services.discovery_recommendations import rank_discovery_recommendations
+from app.services.discovery_recommendations import (
+    rank_discovery_recommendations,
+    visible_recommendation,
+)
 
 
 class RecommendationNotAdoptableError(Exception):
@@ -65,6 +68,11 @@ def adopt_recommendation(
         (item for item in feed.items if item.listing_id == listing_id),
         None,
     )
+    if recommendation is None:
+        # The ranked feed is a top-N cut (and empty without confirmed evidence);
+        # job search shows every visible listing, so the same visibility rules
+        # are re-checked for the one listing (#323).
+        recommendation = visible_recommendation(db, user_id, listing_id, now=now)
     if recommendation is None:
         raise RecommendationNotAdoptableError(listing_id)
 

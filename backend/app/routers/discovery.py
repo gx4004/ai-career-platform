@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from typing import Literal
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.orm import Session
 
 from app.auth.security import get_current_user
@@ -13,7 +15,10 @@ from app.schemas.discovery_personalization import (
     RecommendationReportAck,
     RecommendationReportCreate,
 )
-from app.schemas.discovery_recommendations import DiscoveryRecommendationList
+from app.schemas.discovery_recommendations import (
+    DiscoveryListingPage,
+    DiscoveryRecommendationList,
+)
 from app.schemas.history import CampaignDetailResponse
 from app.services.campaign_materials import get_campaign_detail
 from app.services.discovery_adoption import (
@@ -30,9 +35,40 @@ from app.services.discovery_personalization import (
     undismiss_recommendation,
     unhide_source,
 )
-from app.services.discovery_recommendations import rank_discovery_recommendations
+from app.services.discovery_recommendations import (
+    rank_discovery_recommendations,
+    search_listings,
+)
 
 router = APIRouter()
+
+
+@router.get("/listings", response_model=DiscoveryListingPage)
+def list_listings(
+    q: str | None = Query(default=None, max_length=200),
+    location: str | None = Query(default=None, max_length=200),
+    remote: bool | None = None,
+    company: str | None = Query(default=None, max_length=200),
+    posted_within_days: int | None = Query(default=None, ge=1, le=365),
+    sort: Literal["best_match", "newest"] = "best_match",
+    page: int = Query(default=1, ge=1, le=1000),
+    limit: int = Query(default=20, ge=1, le=50),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Search every listing the user can see; scored when they have confirmed evidence."""
+    return search_listings(
+        db,
+        current_user.id,
+        q=q,
+        location=location,
+        remote=remote,
+        company=company,
+        posted_within_days=posted_within_days,
+        sort=sort,
+        page=page,
+        limit=limit,
+    )
 
 
 @router.get("/recommendations", response_model=DiscoveryRecommendationList)
