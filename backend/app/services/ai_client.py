@@ -285,12 +285,20 @@ async def _call_anthropic(system_prompt: str, user_prompt: str, model_name: str 
     # the same transient failure twice, under two different backoff schedules.
     client = anthropic.AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY, max_retries=0)
     model = model_name or settings.LLM_MODEL or _ANTHROPIC_DEFAULT_MODEL
+    # Vertex/Google get response_mime_type="application/json" as a hard
+    # enforcement; the Messages API has no equivalent, so the JSON-only
+    # instruction is appended here instead of trusting every caller's own
+    # prompt wording. 16000: the interview payload alone can run ~63 KB
+    # (app/config.py's RESULT_CACHE_MAX_ENTRIES comment) — an 8K cap would
+    # truncate it mid-object into a JSONDecodeError that `_with_retry` then
+    # retries against the same truncation for no benefit.
+    json_only_system = system_prompt + "\n\nOutput only the JSON object. No prose, no code fences."
     try:
         response = await asyncio.wait_for(
             client.messages.create(
                 model=model,
-                max_tokens=8192,
-                system=system_prompt,
+                max_tokens=16000,
+                system=json_only_system,
                 messages=[{"role": "user", "content": user_prompt}],
             ),
             timeout=_LLM_TIMEOUT_SECONDS,

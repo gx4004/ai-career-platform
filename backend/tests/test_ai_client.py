@@ -446,7 +446,11 @@ async def test_anthropic_provider_called(monkeypatch):
     assert fake_client.init_kwargs["max_retries"] == 0
     call = fake_client.messages.calls[0]
     assert call["model"] == "claude-sonnet-5"
-    assert call["system"] == SYSTEM
+    # The caller's system prompt is preserved verbatim, with a JSON-only
+    # instruction appended (Anthropic has no response_mime_type enforcement).
+    assert call["system"].startswith(SYSTEM)
+    assert "Output only the JSON object" in call["system"]
+    assert call["max_tokens"] == 16000
     assert call["messages"] == [{"role": "user", "content": USER}]
     assert fake_client.closed is True
 

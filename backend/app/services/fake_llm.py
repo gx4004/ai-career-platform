@@ -657,29 +657,60 @@ def _cv_quality(system_prompt: str, user_prompt: str) -> dict:
 _MARKER_EVIDENCE_IMPORT = "You are an information-extraction assistant for a career workbench."
 
 
+_SECTION_HEADER_RE = re.compile(r"^[A-Z][A-Za-z ]{2,30}$")
+
+
+def _find_role_and_employer(lines: list[str]) -> tuple[str, str]:
+    """A "Role at Employer" / "Role | Employer" line, if the resume has one."""
+    for line in lines:
+        for sep in (" at ", " @ ", " | "):
+            if sep in line:
+                role, _, employer = line.partition(sep)
+                role, employer = role.strip(), employer.strip()
+                if role and employer:
+                    return role[:80], employer[:80]
+    return (lines[0][:80] if lines else "Professional experience"), "Employer named in the resume"
+
+
+def _find_skill_line(lines: list[str]) -> str:
+    """A comma-separated line (a skills list) over a prose sentence."""
+    for line in lines:
+        if line.count(",") >= 2 and len(line) < 200 and not _SECTION_HEADER_RE.match(line):
+            return line.split(",", 1)[0].strip()[:60]
+    return "Core professional skill"
+
+
+def _find_achievement_line(lines: list[str]) -> str:
+    """A quantified bullet (has a digit/%/$) rather than a plain section header."""
+    for line in lines:
+        if _SECTION_HEADER_RE.match(line):
+            continue
+        if re.search(r"[\d%$]", line) and len(line) > 15:
+            return line.lstrip("-•* ").strip()[:200]
+    return "A measurable outcome described in the resume."
+
+
 def _evidence_import(system_prompt: str, user_prompt: str) -> dict:
     resume_text = user_prompt.split("RESUME TEXT:\n", 1)[-1]
     lines = [line.strip() for line in resume_text.splitlines() if line.strip()]
-    first_line = lines[0] if lines else "Professional experience"
+    role, employer = _find_role_and_employer(lines)
 
     proposals = [
         {
             "kind": "experience",
             "content": {
-                "role": first_line[:80],
-                "employer": "Referenced employer",
+                "role": role,
+                "employer": employer,
                 "summary": "Role responsibilities and scope as described in the resume.",
             },
         },
         {
             "kind": "skill",
-            "content": {"name": lines[1][:60] if len(lines) > 1 else "Core professional skill"},
+            "content": {"name": _find_skill_line(lines)},
         },
         {
             "kind": "achievement",
-            "content": {
-                "statement": lines[2][:200] if len(lines) > 2 else "A measurable outcome described in the resume.",
-            },
+            "content": {"statement": _find_achievement_line(lines)},
         },
     ]
     return {"proposals": proposals}
