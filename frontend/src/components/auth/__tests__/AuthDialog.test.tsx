@@ -202,11 +202,8 @@ describe('AuthDialog', () => {
     })
   })
 
-  it('purges the prior owner submission grants before another user can sign in', async () => {
+  it('purges the prior owner queue packets before another user can sign in', async () => {
     const { queryClient } = renderAuthFlow()
-    queryClient.setQueryData(['submission-authorizations', 'u1'], {
-      items: [{ id: 'owner-a-sensitive-grant' }],
-    })
     queryClient.setQueryData(['queue', 'u1', 'packets'], {
       items: [{ id: 'owner-a-sensitive-packet' }],
     })
@@ -214,9 +211,6 @@ describe('AuthDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Log out' }))
 
     await waitFor(() => {
-      expect(
-        queryClient.getQueriesData({ queryKey: ['submission-authorizations'] }),
-      ).toEqual([])
       expect(queryClient.getQueriesData({ queryKey: ['queue'] })).toEqual([])
     })
   })
@@ -238,10 +232,7 @@ describe('AuthDialog', () => {
     queryClient.setQueryData(['development-plan', 'items'], {
       items: [{ id: 'owner-a-development-item' }],
     })
-    queryClient.setQueryData(['submission-safety', 'u1', 'grant-a'], {
-      status: 'active',
-    })
-    // An unknown future feature must fail closed at the auth boundary instead
+// An unknown future feature must fail closed at the auth boundary instead
     // of relying on every feature author to remember a cleanup allowlist.
     queryClient.setQueryData(['future-owner-surface'], {
       secret: 'owner-a-data',
@@ -336,9 +327,6 @@ describe('AuthDialog', () => {
 
     await new Promise((resolve) => setTimeout(resolve, 0))
     fireEvent.click(screen.getByRole('button', { name: 'Seed local state' }))
-    queryClient.setQueryData(['submission-authorizations', 'u1'], {
-      items: [{ id: 'expired-sensitive-grant' }],
-    })
     queryClient.setQueryData(['queue', 'u1', 'packets'], {
       items: [{ id: 'expired-sensitive-packet' }],
     })
@@ -361,9 +349,6 @@ describe('AuthDialog', () => {
     })
 
     expect(screen.queryByRole('dialog')).not.toBeNull()
-    expect(
-      queryClient.getQueriesData({ queryKey: ['submission-authorizations'] }),
-    ).toEqual([])
     expect(queryClient.getQueriesData({ queryKey: ['queue'] })).toEqual([])
     expect(clearSensitiveBrowserDataMock).toHaveBeenCalled()
     expect(screen.getByTestId('owner-local-state').textContent).toBe('')

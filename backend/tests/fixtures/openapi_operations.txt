@@ -12,7 +12,6 @@ DELETE /api/v1/history/workspaces/{workspace_id}/notes/{item_id}
 DELETE /api/v1/history/workspaces/{workspace_id}/tasks/{item_id}
 DELETE /api/v1/history/{history_id}
 DELETE /api/v1/queue/rules/{rule_type}
-DELETE /api/v1/submission-authorizations/{grant_id}
 GET /api/v1/admin/activation
 GET /api/v1/admin/development-loop
 GET /api/v1/admin/discovery-reports
@@ -26,8 +25,6 @@ GET /api/v1/admin/runs/{run_id}
 GET /api/v1/admin/scorecard
 GET /api/v1/admin/source-health
 GET /api/v1/admin/stats
-GET /api/v1/admin/submission-quality
-GET /api/v1/admin/submission-safety
 GET /api/v1/admin/users
 GET /api/v1/admin/users/{user_id}
 GET /api/v1/auth/google/callback
@@ -64,8 +61,6 @@ GET /api/v1/packets/{packet_id}/approval-preview
 GET /api/v1/queue/preview
 GET /api/v1/queue/rules
 GET /api/v1/queue/settings
-GET /api/v1/submission-authorizations
-GET /api/v1/submission-authorizations/{grant_id}/safety
 PATCH /api/v1/admin/users/{user_id}/admin
 PATCH /api/v1/cv-documents/{document_id}
 PATCH /api/v1/development-plan/{item_id}
@@ -77,9 +72,6 @@ PATCH /api/v1/history/workspaces/{workspace_id}/tasks/{item_id}
 PATCH /api/v1/history/{history_id}
 PATCH /api/v1/history/{history_id}/favorite
 POST /api/v1/admin/discovery-sources/{source_id}/kill-switch
-POST /api/v1/admin/discovery-sources/{source_id}/submission-kill-switch
-POST /api/v1/admin/submission-safety/global-kill-switch
-POST /api/v1/admin/submission-safety/rehearsal
 POST /api/v1/auth/login
 POST /api/v1/auth/logout
 POST /api/v1/auth/me/delete
@@ -131,6 +123,5 @@ POST /api/v1/packets/{packet_id}/stop-answers
 POST /api/v1/portfolio/recommend
 POST /api/v1/resume/analyze
 POST /api/v1/telemetry/events
-PUT /api/v1/admin/discovery-sources/{source_id}/submission-safety
 PUT /api/v1/queue/rules
 PUT /api/v1/queue/settings

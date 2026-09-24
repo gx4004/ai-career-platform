@@ -29,8 +29,6 @@ from app.services.packet_gate import delete_queue_pause_state
 from app.services.premium_outputs import attach_premium_outputs
 from app.services.queue_audit import delete_queue_audit_events
 from app.services.queue_rules import delete_queue_rules
-from app.services.submission_authorizations import delete_submission_authorizations
-from app.services.submissions import delete_submission_records
 from app.services.workspaces import resolve_workspace, touch_workspace
 
 logger = logging.getLogger(__name__)
@@ -69,10 +67,6 @@ def delete_all_user_data(db: Session, user_id: str) -> None:
     # its ONLY deletion path, preserving the append-only guarantee (D-098/D-099,
     # R15 #186).
     delete_queue_audit_events(db, user_id)
-    # Submission lifecycle deletion first locks packet -> snapshot -> claim in
-    # dispatch-compatible order, then removes records and claims before their
-    # referenced snapshots (also preserving SQLite behavior; D-107).
-    delete_submission_records(db, user_id)
     # Approval snapshots are immutable by-value records (D-096/D-099). Account
     # erasure explicitly removes them before their packet/campaign foreign keys,
     # including in SQLite tests where FK cascades are disabled. Deleting an
@@ -81,10 +75,6 @@ def delete_all_user_data(db: Session, user_id: str) -> None:
     # Stop answers are owner-scoped sensitive content the user typed (D-099, R15 #182).
     # Deleted before their packets so the FK to application_packets is removed first.
     delete_packet_stop_answers(db, user_id)
-    # R16 source-specific grants are revocable owner-scoped records and contain no
-    # provider credentials. Explicit deletion preserves lifecycle behavior when FK
-    # cascades are disabled in SQLite tests (D-101/D-107, R16 #190).
-    delete_submission_authorizations(db, user_id)
     # A user's own queue-pause state is owner-scoped data (unlike the pipeline-wide
     # regression halt, which is operational state and stays out of this cascade).
     delete_queue_pause_state(db, user_id)

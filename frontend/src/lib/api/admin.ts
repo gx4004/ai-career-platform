@@ -9,7 +9,6 @@ import { gapKindSchema } from '#/lib/api/gapClassificationSchemas'
 import {
   discoverySourceListSchema,
   discoverySourceSchema,
-  submissionSourceGovernanceSchema,
   type DiscoverySource,
   type DiscoverySourceList,
 } from '#/lib/api/discoverySchemas'
@@ -17,17 +16,6 @@ import {
   adminDiscoveryReportListSchema,
   type AdminDiscoveryReportList,
 } from '#/lib/api/schemas'
-import {
-  adminSubmissionSafetySchema,
-  submissionSafetyControlSchema,
-  submissionSafetyPolicyConfigSchema,
-  submissionSafetyPolicySchema,
-  type AdminSubmissionSafety,
-  type SubmissionIncidentRehearsalInput,
-  type SubmissionSafetyControl,
-  type SubmissionSafetyPolicy,
-  type SubmissionSafetyPolicyConfig,
-} from '#/lib/api/submissionSafetySchemas'
 
 export type { DiscoverySource, DiscoverySourceList } from '#/lib/api/discoverySchemas'
 
@@ -373,29 +361,6 @@ export type AdminSourceHealth = {
   families: SourceFamilyHealth[]
 }
 
-export const submissionFamilyQualitySchema = z.strictObject({
-  source_family: z.enum([
-    'licensed',
-    'employer_ats',
-    'public_career_page',
-    'user_provided',
-  ]),
-  evidence_base: z.number().int().nonnegative(),
-  response_rate: z.number().min(0).max(1).nullable(),
-  packet_edit_rate: z.number().min(0).max(1).nullable(),
-  duplicate_prevention_rate: z.number().min(0).max(1).nullable(),
-  complaint_rate: z.number().min(0).max(1).nullable(),
-})
-
-export const adminSubmissionQualitySchema = z.strictObject({
-  window_start: z.iso.datetime({ offset: true }),
-  window_end: z.iso.datetime({ offset: true }),
-  families: z.array(submissionFamilyQualitySchema),
-})
-
-export type SubmissionFamilyQuality = z.infer<typeof submissionFamilyQualitySchema>
-export type AdminSubmissionQuality = z.infer<typeof adminSubmissionQualitySchema>
-
 // R15 packet-queue trust-chain gate — mirrors backend/app/schemas/admin.py
 // (AdminPacketGateResponse). Read-only aggregate over the same first-party
 // operational path; only the current halt posture + bounded gate-event counts —
@@ -509,15 +474,6 @@ export function getAdminSourceHealth(params: { start?: string; end?: string } = 
   )
 }
 
-export async function getAdminSubmissionQuality(
-  params: { start?: string; end?: string } = {},
-) {
-  const response = await adminRequest<unknown>(
-    `/admin/submission-quality${buildQs({ start: params.start, end: params.end })}`,
-  )
-  return adminSubmissionQualitySchema.parse(response)
-}
-
 export function getAdminPacketGate(params: { start?: string; end?: string } = {}) {
   return adminRequest<AdminPacketGate>(
     `/admin/packet-gate${buildQs({ start: params.start, end: params.end })}`,
@@ -536,55 +492,4 @@ export async function setDiscoverySourceKillSwitch(
     { method: 'POST' },
   )
   return discoverySourceSchema.parse(response)
-}
-
-export async function getAdminSubmissionSafety(): Promise<AdminSubmissionSafety> {
-  return adminSubmissionSafetySchema.parse(
-    await adminRequest<unknown>('/admin/submission-safety'),
-  )
-}
-
-export async function setGlobalSubmissionKillSwitch(
-  tripped: boolean,
-): Promise<SubmissionSafetyControl> {
-  const response = await adminRequest<unknown>(
-    `/admin/submission-safety/global-kill-switch${buildQs({ tripped: String(tripped) })}`,
-    { method: 'POST' },
-  )
-  return submissionSafetyControlSchema.parse(response)
-}
-
-export async function recordSubmissionIncidentRehearsal(
-  rehearsal: SubmissionIncidentRehearsalInput,
-): Promise<SubmissionSafetyControl> {
-  const response = await adminRequest<unknown>('/admin/submission-safety/rehearsal', {
-    method: 'POST',
-    body: JSON.stringify(rehearsal),
-  })
-  return submissionSafetyControlSchema.parse(response)
-}
-
-export async function configureSourceSubmissionSafety(
-  sourceId: string,
-  config: SubmissionSafetyPolicyConfig,
-): Promise<SubmissionSafetyPolicy> {
-  const response = await adminRequest<unknown>(
-    `/admin/discovery-sources/${sourceId}/submission-safety`,
-    {
-      method: 'PUT',
-      body: JSON.stringify(submissionSafetyPolicyConfigSchema.parse(config)),
-    },
-  )
-  return submissionSafetyPolicySchema.parse(response)
-}
-
-export async function setSubmissionSourceKillSwitch(
-  sourceId: string,
-  tripped: boolean,
-) {
-  const response = await adminRequest<unknown>(
-    `/admin/discovery-sources/${sourceId}/submission-kill-switch${buildQs({ tripped: String(tripped) })}`,
-    { method: 'POST' },
-  )
-  return submissionSourceGovernanceSchema.parse(response)
 }

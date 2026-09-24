@@ -48,10 +48,6 @@ export function isR15QueueEnabled(): boolean {
   return readBooleanFlag(import.meta.env.VITE_R15_QUEUE_ENABLED)
 }
 
-export function isR16SubmissionFoundationEnabled(): boolean {
-  return readBooleanFlag(import.meta.env.VITE_R16_SUBMISSION_FOUNDATION_ENABLED)
-}
-
 export function isR17DevelopmentLoopEnabled(): boolean {
   return readBooleanFlag(import.meta.env.VITE_R17_DEVELOPMENT_LOOP_ENABLED)
 }
