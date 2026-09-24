@@ -158,13 +158,6 @@ describe('drafts', () => {
           access_mode: 'authenticated',
           saved: true,
           locked_actions: [],
-          access_decision: {
-            state: 'full',
-            treatment: 'control',
-            reason: 'policy_disabled',
-            can_export: true,
-            policy_version: 'control-v1',
-          },
           match_score: 68,
           verdict: 'borderline',
           requirements: [],
