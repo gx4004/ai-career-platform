@@ -74,14 +74,12 @@ describe('application packet contracts', () => {
     expect(applicationPacketItemSchema.safeParse(withoutDecision).success).toBe(false)
   })
 
-  it('mirrors the queue review state (pause + regression halt, R15 #183)', () => {
-    const parsed = queueReviewStateSchema.parse({ paused: true, preparation_halted: false })
+  it('mirrors the queue review state (pause, R15 #183)', () => {
+    const parsed = queueReviewStateSchema.parse({ paused: true })
     expect(parsed.paused).toBe(true)
-    expect(parsed.preparation_halted).toBe(false)
-    expect(queueReviewStateSchema.safeParse({ paused: true }).success).toBe(false)
+    expect(queueReviewStateSchema.safeParse({}).success).toBe(false)
     expect(
-      queueReviewStateSchema.safeParse({ paused: true, preparation_halted: false, extra: 1 })
-        .success,
+      queueReviewStateSchema.safeParse({ paused: true, extra: 1 }).success,
     ).toBe(false)
   })
 

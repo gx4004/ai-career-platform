@@ -67,7 +67,7 @@ function makePacket(overrides: Record<string, unknown> = {}) {
 
 function renderPage(
   packets: unknown[],
-  state: unknown = { paused: false, preparation_halted: false },
+  state: unknown = { paused: false },
 ) {
   listPackets.mockResolvedValue({ items: packets })
   getQueueState.mockResolvedValue(state)
@@ -84,8 +84,8 @@ function renderPage(
       drafts: { cover_letter: { body: 'Exact approved draft.' } },
     },
   })
-  pauseQueue.mockResolvedValue({ paused: true, preparation_halted: false })
-  resumeQueue.mockResolvedValue({ paused: false, preparation_halted: false })
+  pauseQueue.mockResolvedValue({ paused: true })
+  resumeQueue.mockResolvedValue({ paused: false })
   acceptPacket.mockResolvedValue({
     packet: makePacket({ decision: 'accepted' }),
     snapshot: {
@@ -260,14 +260,14 @@ describe('QueuePage', () => {
   })
 
   it('pauses the whole queue and reflects the halted state', async () => {
-    renderPage([makePacket()], { paused: false, preparation_halted: false })
+    renderPage([makePacket()], { paused: false })
     const toggle = await screen.findByRole('button', { name: /Pause queue/ })
     fireEvent.click(toggle)
     await waitFor(() => expect(pauseQueue).toHaveBeenCalled())
   })
 
   it('shows the paused banner and a resume control when the queue is paused', async () => {
-    renderPage([makePacket()], { paused: true, preparation_halted: false })
+    renderPage([makePacket()], { paused: true })
     expect(await screen.findByText(/Queue paused/i)).toBeTruthy()
     expect(screen.getByRole('button', { name: /Resume queue/ })).toBeTruthy()
   })
@@ -293,7 +293,7 @@ describe('QueuePage', () => {
 
     sessionState.user = { id: 'owner-b', email: 'owner-b@example.com' }
     listPackets.mockResolvedValue({ items: [ownerBPacket] })
-    getQueueState.mockResolvedValue({ paused: false, preparation_halted: false })
+    getQueueState.mockResolvedValue({ paused: false })
     view.rerenderPage()
 
     await waitFor(() => {

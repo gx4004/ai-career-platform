@@ -81,7 +81,7 @@ def get_queue_state(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """This owner's current preparation posture (paused / regression-halted).
+    """This owner's current preparation posture (paused or not).
 
     The review surface reads this to reflect the pause toggle and to show that
     preparation is halted while paused (ADR 0009).
@@ -103,7 +103,7 @@ def resume(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Resume this owner's queue: clears their pause (a regression halt still blocks)."""
+    """Resume this owner's queue: clears their pause."""
     return resume_queue(db, current_user.id)
 
 

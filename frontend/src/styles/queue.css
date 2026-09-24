@@ -70,11 +70,6 @@
   background: color-mix(in srgb, var(--color-warning, #d97706) 12%, var(--card));
 }
 
-.queue-banner--halted {
-  border-color: var(--destructive, #dc2626);
-  background: color-mix(in srgb, var(--destructive, #dc2626) 10%, var(--card));
-}
-
 .queue-banner--error {
   border-color: var(--destructive, #dc2626);
   color: var(--destructive, #dc2626);

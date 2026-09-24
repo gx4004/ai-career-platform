@@ -221,7 +221,7 @@ treatments, withheld fields, lifetime, expiry, and revocation remain deliberatel
 unimplemented until #128 and #129 supply an accepted product and legal contract.
 
 Provider fallback is not active. It may be introduced only after sustained provider-
-incident evidence and after the alternative passes R8 quality evaluation plus privacy,
+incident evidence and after the alternative passes a quality evaluation plus privacy,
 processor, cost, latency, and tool-specific failure review (D-055). Requests are not
 hedged across providers by default.
 
@@ -270,13 +270,13 @@ persist, and finalize durations; the browser records a bounded loader-abandonmen
 only when a pending loader is left. These are evidence inputs, not a progress
 transport, and no material-elevation threshold has been accepted for #139.
 Representative history, workspace, and admin-run reads likewise persist only a
-closed query-family name and duration. The scorecard reports their seven-day p95 but
-cannot fire the query branch until an explicit p95 budget is accepted; SQL text,
-parameters, user content, and identifiers never enter telemetry. A fail-safe
-15-minute scheduler samples only storage percentage (when provisioned capacity is
-configured) and pool checkout ratio into the same 180-day store. Seven or more days
-of storage evidence can drive the predeclared 90-day capacity forecast; pool samples
-remain evidence-only until a sustained-pressure threshold is accepted.
+closed query-family name and duration; SQL text, parameters, user content, and
+identifiers never enter telemetry. The R10 scaling-trigger scorecard that once
+aggregated this evidence into a dashboard was removed in the Sept 2026 reset
+(#319) as unused speculative infrastructure — no production traffic ever
+approached a trigger threshold. The underlying `analytics_events` rows and
+their emission sites are unchanged and remain available for direct query if a
+scaling decision is ever needed.
 
 ## Scaling Response Boundaries
 
@@ -464,7 +464,7 @@ remain evidence-only until a sustained-pressure threshold is accepted.
   URLs produce instructions without a link. Submission automation exists only
   behind R16's per-source authorization contract (D-096).
 - Every packet passes the D-082 reviewer with zero unresolved fabrication findings
-  before queueing; regression evals gate continued operation (D-097).
+  before queueing (D-097).
 - Queue actions are append-only audit events. Approval is terminal and structurally
   unique per packet and per normalized owner/company/role, with the existing
   submitted-campaign check as the second duplicate axis. Campaign submission

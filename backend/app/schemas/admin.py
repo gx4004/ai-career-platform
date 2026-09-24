@@ -110,52 +110,6 @@ class AdminActivationResponse(BaseModel):
     tools: list[ToolLatencyCost] = []
 
 
-# ── R8 eval runs section (issue #124, parent #118, D-045) ──
-# Read-only view over the latest versioned JSON eval report per tool, read from
-# disk (`app/evals/reports/`) — never from `analytics_events` (D-045). Mirrors
-# the `ToolReport` shape written by `app/evals/run_eval.py`. Plain tables only,
-# no charting library (D-039).
-
-
-class EvalRunItem(BaseModel):
-    """Latest eval report for one tool, or the "no eval run yet" state.
-
-    When ``has_report`` is ``False`` no report file exists yet for the tool and
-    every metric field is ``None``; the admin UI renders an explicit "no eval
-    run yet" state rather than an error or blank space. When ``True`` the fields
-    mirror the on-disk ``ToolReport`` (see ``app/evals/run_eval.py``): Resume /
-    Job Match carry ``calibration_miss_rate`` and
-    ``explanation_inconsistency_count`` (D-121); the four generative tools carry
-    ``fabrication_candidate_count`` and ``usefulness_score``.
-
-    ``explanation_inconsistency_count`` is also ``None`` on a report written
-    before that check existed (schema version ``r8-eval-report-v1``), which the
-    reader still accepts — the UI must treat "absent" as "not measured", not as
-    zero contradictions.
-    """
-
-    tool_id: str
-    has_report: bool = False
-    report_schema_version: str | None = None
-    prompt_version: str | None = None
-    judge_prompt_version: str | None = None
-    generated_at: str | None = None
-    mode: str | None = None
-    fixtures_evaluated: int | None = None
-    calibration_miss_rate: float | None = None
-    explanation_inconsistency_count: int | None = None
-    fabrication_candidate_count: int | None = None
-    usefulness_score: float | None = None
-
-
-class AdminEvalRunsResponse(BaseModel):
-    """Latest eval report per tool (all six, canonical tool-order) for the
-    admin dashboard's read-only Eval Runs section. Sourced from disk, not
-    ``analytics_events`` (D-045)."""
-
-    tools: list[EvalRunItem] = []
-
-
 # ── R11 profile-adoption view (issue #150, parent #143, D-067) ──
 # Read-only aggregate over the same first-party analytics store, answering "is
 # the Evidence Profile being adopted and trusted?". Plain counts/tables only —
@@ -242,52 +196,6 @@ class AdminDevelopmentLoopResponse(BaseModel):
     state_transitions: list[DevelopmentStateTransitionCount] = []
 
 
-# ── R10 scaling-trigger scorecard (issue #136, parent #135, D-052/D-053) ──
-# Read-only aggregate over the same first-party operational store. Never enables
-# a response: a crossed threshold sets `review_required` and links the deferred
-# response ticket. Plain tables only — no charting library, no BI tool (D-039).
-
-
-# fired: threshold met on a sufficient, sustained sample. not_fired: sufficient
-# evidence shows the threshold is not met (includes a transient breach that did
-# not sustain — a reset false positive). insufficient_sample: not enough fresh
-# evidence, or the sub-signal is not yet instrumented, to decide.
-TriggerState = Literal["fired", "not_fired", "insufficient_sample"]
-
-
-class ScorecardTrigger(BaseModel):
-    """One R10 scaling trigger with its predeclared plan and current evidence."""
-
-    id: str
-    label: str
-    threshold: str
-    observation_window: str
-    minimum_sample: str
-    evidence: str
-    evidence_detail: dict[str, float | int | str] = {}
-    evidence_fresh: bool = False
-    last_evidence_at: str | None = None
-    state: TriggerState = "insufficient_sample"
-    # True only when `state == "fired"`. Signals the operator to *review* the
-    # linked response; the scorecard never enables the response itself.
-    review_required: bool = False
-    response_ticket: int
-    response_ticket_title: str
-    owner: str
-    rollback: str
-    exit_criteria: str
-
-
-class AdminScorecardResponse(BaseModel):
-    """The full R10 operational scaling-trigger scorecard (read-only)."""
-
-    generated_at: str
-    window_start: str
-    window_end: str
-    replica_class: str
-    triggers: list[ScorecardTrigger] = []
-
-
 # ── R14 per-source health & kill switch (issue #177, parent #170, D-053/D-090) ──
 # Read-only aggregate over the same first-party operational path — no new vendor.
 # Every figure is a bounded per-source-family aggregate; no listing content, full
@@ -341,21 +249,15 @@ class AdminSourceHealthResponse(BaseModel):
 class AdminPacketGateResponse(BaseModel):
     """Trust-chain gate state for the admin dashboard (D-097).
 
-    ``halted`` / ``halt_reason`` / ``halted_since`` describe the current
-    pipeline-wide preparation halt (if any); the ``gate_*`` and ``pipeline_*``
-    counts are windowed tallies of the allowlisted gate events.
+    Windowed tallies of the allowlisted per-packet gate events (a packet's
+    reviewer pass surfaces one of ``running`` / ``passed`` / ``blocked``).
     """
 
     window_start: str
     window_end: str
-    halted: bool = False
-    halt_reason: str | None = None
-    halted_since: str | None = None
     gate_running: int = 0
     gate_passed: int = 0
     gate_blocked: int = 0
-    pipeline_halted: int = 0
-    pipeline_cleared: int = 0
 
 
 # Rebuild models that use forward references

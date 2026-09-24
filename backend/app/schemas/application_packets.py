@@ -185,18 +185,15 @@ class PacketPreparationResult(BaseModel):
 
 
 class QueueReviewState(BaseModel):
-    """Whether preparation is currently halted, and why (R15 #183).
+    """Whether the owner has paused their queue (R15 #183).
 
-    ``paused`` is the owner-initiated global pause toggle — while set, preparation
-    refuses immediately (ADR 0009). ``preparation_halted`` reflects a pipeline-wide
-    regression halt (#184). Either one makes :func:`prepare_packets` refuse; the UI
-    surfaces the pause toggle from ``paused`` and can distinguish a regression halt.
+    ``paused`` is the owner-initiated global pause toggle — while set,
+    :func:`prepare_packets` refuses immediately (ADR 0009).
     """
 
     model_config = ConfigDict(extra="forbid")
 
     paused: bool
-    preparation_halted: bool
 
 
 # ── Stop answers (owner-scoped; the only way to resolve a stop, D-095) ──
