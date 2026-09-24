@@ -266,10 +266,8 @@ export const packetStopAnswersExportSchema = z.strictObject({
 export type PacketStopAnswersExport = z.infer<typeof packetStopAnswersExportSchema>
 
 // Queue review controls (R15 #183). `paused` is the owner's global pause toggle —
-// while set, preparation refuses immediately (ADR 0009). `preparation_halted` reflects
-// a pipeline-wide regression halt (#184); either one halts preparation.
+// while set, preparation refuses immediately (ADR 0009).
 export const queueReviewStateSchema = z.strictObject({
   paused: z.boolean(),
-  preparation_halted: z.boolean(),
 })
 export type QueueReviewState = z.infer<typeof queueReviewStateSchema>

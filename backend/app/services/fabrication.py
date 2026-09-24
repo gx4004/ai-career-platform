@@ -1,21 +1,19 @@
-"""R8 fabrication-candidate check for the four generative tools.
+"""Fabrication-candidate claim extraction and tracing (D-043).
 
 The generative tools (Cover Letter, Interview Q&A, Career Path, Portfolio
 Planner) have no heuristic score, so a prompt regression that starts inventing
 an employer, product, or metric absent from the user's resume would ship
-undetected. This module is the deterministic first-pass groundedness signal for
-that risk (D-043): given a fixture and that tool's generated output, it extracts
-candidate claims (proper nouns / employer-shaped tokens and quantified
-figures/metrics) from the output and traces each back to the fixture's source
-``resume_text`` using :func:`app.services.quality_signals.keyword_present`-style
-matching. Claims that cannot be traced are flagged as *fabrication candidates*
-and counted per tool across the fixture set.
+undetected. This module is the deterministic groundedness signal
+:mod:`app.services.campaign_reviewer` runs live on packet materials: it
+extracts candidate claims (proper nouns / employer-shaped tokens and
+quantified figures/metrics) from generated output and traces each back to the
+CV's source text using :func:`app.services.quality_signals.keyword_present`
+-style matching. Claims that cannot be traced surface as ``unsupported_claim``
+reviewer findings.
 
 This is a directional heuristic, not exact NLP entailment: it is intentionally
 cheap and auditable and will have false positives (D-043). It is fully
-deterministic and makes **no** live LLM call (D-044) — the generated outputs are
-supplied to :func:`run_fabrication_check` by the caller (the CLI runner, or a
-test's canned strings), never produced here.
+deterministic and makes **no** live LLM call (D-044).
 """
 
 from __future__ import annotations
@@ -24,22 +22,7 @@ import re
 from collections.abc import Mapping
 from dataclasses import dataclass
 
-from app.evals.loader import EvalFixture, load_fixtures
 from app.services.quality_signals import keyword_present
-
-#: Tool identifiers, matching the ``tool_name`` values the routers persist.
-TOOL_COVER_LETTER = "cover-letter"
-TOOL_INTERVIEW_QA = "interview"
-TOOL_CAREER_PATH = "career"
-TOOL_PORTFOLIO_PLANNER = "portfolio"
-
-#: The four generative tools this check covers, in tool-order.
-GENERATIVE_TOOLS: tuple[str, ...] = (
-    TOOL_CAREER_PATH,
-    TOOL_COVER_LETTER,
-    TOOL_INTERVIEW_QA,
-    TOOL_PORTFOLIO_PLANNER,
-)
 
 #: Claim kinds produced by :func:`extract_claims`.
 KIND_PROPER_NOUN = "proper-noun"
@@ -241,127 +224,3 @@ def trace_claim(claim: Claim, sources: Mapping[str, str]) -> ClaimTrace:
             for name, text in sources.items()
         ),
     )
-
-
-def _untraceable_claims(claims: list[Claim], resume_text: str) -> tuple[Claim, ...]:
-    """Return the subset of ``claims`` that cannot be traced to ``resume_text``."""
-    return tuple(claim for claim in claims if not claim_traceable(claim, resume_text))
-
-
-def find_fabrication_candidates(output_text: str, resume_text: str) -> list[Claim]:
-    """Return the claims in ``output_text`` not traceable to ``resume_text``."""
-    return [
-        claim
-        for claim in extract_claims(output_text)
-        if not trace_claim(claim, {"resume": resume_text}).traceable
-    ]
-
-
-@dataclass(frozen=True)
-class FabricationResult:
-    """One tool's fabrication outcome for one fixture's generated output."""
-
-    tool: str
-    fixture_id: str
-    total_claims: int
-    candidates: tuple[Claim, ...]
-
-    @property
-    def candidate_count(self) -> int:
-        return len(self.candidates)
-
-
-@dataclass(frozen=True)
-class ToolFabricationCount:
-    """A tool's fabrication-candidate tally across the outputs it was checked on."""
-
-    tool: str
-    evaluated: int
-    candidate_count: int
-    flagged_fixture_ids: tuple[str, ...]
-
-
-@dataclass(frozen=True)
-class FabricationReport:
-    """A full fabrication run: per-output results plus per-tool candidate counts."""
-
-    results: tuple[FabricationResult, ...]
-    per_tool: dict[str, ToolFabricationCount]
-
-
-def check_output(tool: str, fixture: EvalFixture, output_text: str) -> FabricationResult:
-    """Check one generated output against one fixture's source resume.
-
-    Args:
-        tool: One of :data:`GENERATIVE_TOOLS`.
-        fixture: The fixture whose ``resume_text`` is the ground truth.
-        output_text: The tool's generated output (canned in tests; produced by
-            the CLI runner in real use — never generated here).
-
-    Returns:
-        A :class:`FabricationResult` with every untraceable claim flagged.
-    """
-    claims = extract_claims(output_text)
-    candidates = _untraceable_claims(claims, fixture.resume_text)
-    return FabricationResult(
-        tool=tool,
-        fixture_id=fixture.id,
-        total_claims=len(claims),
-        candidates=candidates,
-    )
-
-
-def _tool_count(tool: str, results: list[FabricationResult]) -> ToolFabricationCount:
-    tool_results = [result for result in results if result.tool == tool]
-    flagged = tuple(result.fixture_id for result in tool_results if result.candidate_count > 0)
-    return ToolFabricationCount(
-        tool=tool,
-        evaluated=len(tool_results),
-        candidate_count=sum(result.candidate_count for result in tool_results),
-        flagged_fixture_ids=flagged,
-    )
-
-
-def run_fabrication_check(
-    outputs: Mapping[str, Mapping[str, str]],
-    fixtures: list[EvalFixture] | None = None,
-) -> FabricationReport:
-    """Run the fabrication-candidate check for all four generative tools.
-
-    Args:
-        outputs: ``{tool_id: {fixture_id: generated_output_text}}``. Tool ids
-            must be in :data:`GENERATIVE_TOOLS`; fixture ids must exist in the
-            corpus. Supplied by the caller so this stays LLM-free (D-044).
-        fixtures: Corpus to trace claims against; defaults to the committed
-            synthetic fixtures (D-041).
-
-    Returns:
-        A :class:`FabricationReport` with a per-output result list and a per-tool
-        candidate count for every generative tool (zero when no output was
-        supplied for it).
-
-    Raises:
-        ValueError: If ``outputs`` names a tool outside :data:`GENERATIVE_TOOLS`
-            or a fixture id absent from the corpus.
-    """
-    corpus = load_fixtures() if fixtures is None else fixtures
-    fixtures_by_id = {fixture.id: fixture for fixture in corpus}
-
-    unknown_tools = [tool for tool in outputs if tool not in GENERATIVE_TOOLS]
-    if unknown_tools:
-        raise ValueError(
-            f"outputs reference non-generative tool(s): {', '.join(sorted(unknown_tools))}"
-        )
-
-    results: list[FabricationResult] = []
-    for tool in GENERATIVE_TOOLS:
-        for fixture_id, output_text in outputs.get(tool, {}).items():
-            fixture = fixtures_by_id.get(fixture_id)
-            if fixture is None:
-                raise ValueError(
-                    f"output for tool {tool!r} references unknown fixture id {fixture_id!r}"
-                )
-            results.append(check_output(tool, fixture, output_text))
-
-    per_tool = {tool: _tool_count(tool, results) for tool in GENERATIVE_TOOLS}
-    return FabricationReport(results=tuple(results), per_tool=per_tool)

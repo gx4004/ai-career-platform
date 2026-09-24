@@ -239,7 +239,6 @@ export function QueuePage() {
     remaining[packet.id] ?? packet.unresolved_questions
 
   const paused = stateQuery.data?.paused ?? false
-  const regressionHalted = stateQuery.data?.preparation_halted ?? false
   const packets = packetsQuery.data?.items ?? []
   const visibleHandoff =
     handoff !== null && handoff.ownerId === userId ? handoff.value : null
@@ -272,15 +271,6 @@ export function QueuePage() {
           <span>
             <strong>Queue paused.</strong> Preparation is halted — no new packets are
             prepared until you resume.
-          </span>
-        </div>
-      ) : null}
-      {regressionHalted ? (
-        <div className="queue-banner queue-banner--halted" role="status">
-          <AlertTriangle size={18} aria-hidden="true" />
-          <span>
-            <strong>Preparation is halted</strong> by a quality regression. New packets
-            resume automatically once the regression clears.
           </span>
         </div>
       ) : null}

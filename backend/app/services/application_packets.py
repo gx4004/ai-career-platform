@@ -24,7 +24,6 @@ import hashlib
 from collections.abc import Awaitable, Callable
 from datetime import datetime
 from decimal import Decimal
-from pathlib import Path
 from typing import Any
 
 from sqlalchemy.exc import IntegrityError
@@ -53,11 +52,9 @@ from app.services.packet_approval import (
     packet_item_with_true_unresolved,
 )
 from app.services.packet_gate import (
-    apply_report_regression_gate,
     emit_gate_outcome,
     emit_gate_running,
     gate_state_for,
-    is_preparation_halted,
     is_queue_paused,
 )
 from app.services.queue_audit import record_queue_audit_event
@@ -504,7 +501,6 @@ async def prepare_packets(
     *,
     compose_fn: Callable[..., Awaitable[dict[str, Any]]] | None = None,
     now: datetime | None = None,
-    reports_dir: Path | None = None,
 ) -> PacketPreparationResult:
     """Prepare a packet for every admitted candidate, through the shared pipeline.
 
@@ -519,23 +515,15 @@ async def prepare_packets(
     ``pending`` and blocked only on ``missing_material`` (no CV variant existed at
     prep time) is re-composed in place once a CV variant becomes available, matching
     the recovery path documented in :mod:`app.services.packet_approval`.
-
-    Args:
-        reports_dir: Eval-report directory the regression gate consults; defaults
-            to the runner's own (:mod:`app.evals.report_reader`).
     """
     # Local import breaks the tool_runs <-> tool_pipeline import cycle.
     from app.services.tool_pipeline import run_tool_pipeline
 
-    # Pipeline-wide halt gate (D-097): a failing packet-quality / fabrication
-    # regression eval halts preparation for everyone until cleared. The verdict is
-    # re-derived here from the latest eval reports on disk, so failing evidence
-    # actually stops the pipeline instead of only being able to. This owner's own
-    # pause (R15 #183) refuses through the same consultation seam, scoped so it
-    # never affects other owners. Consulted before any candidate work so a halted
-    # OR paused pipeline prepares — and spends — nothing.
-    apply_report_regression_gate(db, reports_dir=reports_dir)
-    if is_preparation_halted(db) or is_queue_paused(db, user_id):
+    # This owner's own pause (R15 #183) refuses preparation through the
+    # pipeline-halt consultation seam, scoped so it never affects other owners.
+    # Consulted before any candidate work so a paused queue prepares — and
+    # spends — nothing.
+    if is_queue_paused(db, user_id):
         return _halted_result()
 
     compose = compose_fn or compose_packet_materials
@@ -743,7 +731,7 @@ async def prepare_packets(
 
 
 def _halted_result() -> PacketPreparationResult:
-    """Preparation refused because the pipeline is halted on a regression eval (D-097)."""
+    """Preparation refused because the owner has paused their queue (R15 #183)."""
     return PacketPreparationResult(
         prepares=False,
         reason="halted",

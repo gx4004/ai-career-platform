@@ -174,7 +174,6 @@ def test_pause_state_reported_for_ui(db, test_user):
     pause_queue(db, test_user.id)
     state = queue_review_state(db, test_user.id)
     assert state.paused is True
-    assert state.preparation_halted is False
 
 
 @pytest.mark.asyncio

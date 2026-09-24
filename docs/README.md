@@ -16,7 +16,6 @@ which document owns which kind of fact and how updates happen.
 | `decisions.md` | Accepted durable decisions (append-only D-### log) | A durable decision is accepted or superseded |
 | `adr/` | Architectural decision records not already owned by `decisions.md` | A durable architectural fork is decided (see `adr/README.md`) |
 | `product-direction.md` | Long-term strategic direction (Evidence Profile, CV Studio, Campaigns, automation trust levels) | The accepted strategy changes |
-| `launch-checklist.md` | Staging and release runbook (R5) | Release operations change |
 | `../design.md` (root) | UI tokens and visual rules | The shipped visual contract changes |
 | `../CONTEXT.md` (root) | Shared domain terminology | A domain term is added or corrected |
 | `agents/` | Agent workflow conventions (issue tracker, triage labels, domain docs) | The agent workflow changes |

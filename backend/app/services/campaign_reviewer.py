@@ -5,8 +5,8 @@ import re
 import uuid
 from datetime import UTC, datetime
 
-from app.evals.fabrication import extract_claims, trace_claim
 from app.services.evidence_injection import EvidencePayload
+from app.services.fabrication import extract_claims, trace_claim
 from app.services.quality_signals import extract_job_keywords, keyword_present
 
 GENERIC_PHRASES = (
