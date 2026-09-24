@@ -72,6 +72,7 @@ from app.services.gap_classifier import (
 )
 from app.services.gap_response import map_gap_to_response
 from app.services.input_sanitizer import sanitize_user_input
+from app.services.premium_outputs import attach_premium_outputs
 from app.services.result_access import evaluate_result_access
 from app.services.tool_pipeline import run_tool_pipeline
 from app.services.tool_runs import build_workspace_summary, derive_saved_run_metadata
@@ -197,8 +198,18 @@ def get_campaign(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    # Heaviest owner-scoped read in the router (#141): one campaign fans out
+    # into an owner-wide CV-variant join, an owner-wide cover-letter/interview
+    # run scan, a submission-record join, and six collection loads. Sampled the
+    # same way as the list families — one bounded family label plus a duration,
+    # no id, no listing/company/note content, no statement text (D-053).
+    query_started = perf_counter()
     workspace = _get_workspace(db, workspace_id, current_user.id)
-    return get_campaign_detail(db, workspace, current_user.id)
+    response = get_campaign_detail(db, workspace, current_user.id)
+    record_database_query_timing(
+        db, query_family="campaign_detail", started_at=query_started
+    )
+    return response
 
 
 @router.patch("/workspaces/{workspace_id}/materials", response_model=CampaignDetailResponse)
@@ -641,6 +652,10 @@ def get_history_item(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    # The single busiest authenticated read: every result page load lands here,
+    # and it costs a run lookup plus a re-query of every sibling run in the same
+    # campaign. Left uninstrumented the trigger could not see it at all (#141).
+    query_started = perf_counter()
     run = _get_run(db, history_id, current_user.id)
     workspace_runs = _workspace_runs_map(db, current_user.id, [run])
     access_decision = evaluate_result_access(
@@ -648,7 +663,7 @@ def get_history_item(
         tool_name=run.tool_name,
         access_mode="authenticated",
     )
-    return ToolRunDetail(
+    response = ToolRunDetail(
         id=run.id,
         tool_name=run.tool_name,
         label=run.label,
@@ -661,8 +676,18 @@ def get_history_item(
         metadata=derive_saved_run_metadata(run.tool_name, run.result_payload or {}),
         workspace=build_workspace_summary(run.workspace, workspace_runs.get(run.workspace_id, [])),
         parent_run_id=run.parent_run_id,
-        result_payload=run.result_payload or {},
+        # The live response is enriched by `build_tool_response`, but only the
+        # raw model result is persisted — so a saved run read back had no
+        # `exportable_sections` and the export controls vanished on reload.
+        # Enriching here is a read-time projection: it costs no provider call,
+        # reuses sections the payload already carries, and repairs every run
+        # saved before this, without rewriting stored evidence.
+        result_payload=attach_premium_outputs(run.tool_name, run.result_payload),
     )
+    record_database_query_timing(
+        db, query_family="history_detail", started_at=query_started
+    )
+    return response
 
 
 @router.get("/{run_id}/export/pdf")
@@ -839,6 +864,15 @@ def _workspace_runs_map(
 
 
 def _summary(run: ToolRun, workspace_runs: list[ToolRun] | None = None) -> ToolRunSummary:
+    # A list row is a delivery surface too. Leaving access_decision null here
+    # while the detail route populates it would push the busiest history surface
+    # back onto a client-assumed default, which is the shape D-048/ADR 0003 rule
+    # out. Same seam, same arguments as get_history_item.
+    access_decision = evaluate_result_access(
+        surface="saved_result",
+        tool_name=run.tool_name,
+        access_mode="authenticated",
+    )
     return ToolRunSummary(
         id=run.id,
         tool_name=run.tool_name,
@@ -848,6 +882,7 @@ def _summary(run: ToolRun, workspace_runs: list[ToolRun] | None = None) -> ToolR
         saved=True,
         access_mode="authenticated",
         locked_actions=[],
+        access_decision=access_decision,
         metadata=derive_saved_run_metadata(run.tool_name, run.result_payload or {}),
         workspace=build_workspace_summary(run.workspace, workspace_runs),
     )

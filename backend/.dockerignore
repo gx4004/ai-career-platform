@@ -1,0 +1,36 @@
+# Local configuration and secrets. Keep the public inventory available to the
+# image context without ever sending a developer's real environment file.
+**/.env
+**/.env.*
+!**/.env.example
+
+# Python environments and caches.
+.venv/
+venv/
+**/__pycache__/
+**/*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Local databases and transient application data.
+*.db
+**/*.db
+*.sqlite
+**/*.sqlite
+*.sqlite3
+**/*.sqlite3
+file::memory:
+
+# Build, test, and tool artifacts.
+.artifacts/
+build/
+dist/
+coverage/
+htmlcov/
+test-results/
+**/*.egg-info/
+
+# Host-only noise.
+**/.DS_Store
+**/*.log

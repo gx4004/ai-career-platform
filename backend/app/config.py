@@ -1,5 +1,7 @@
 from typing import Literal
+from urllib.parse import urlsplit
 
+from pydantic import Field
 from pydantic_settings import BaseSettings
 
 
@@ -40,6 +42,14 @@ class Settings(BaseSettings):
 
     RESULT_CACHE_TTL_SECONDS: int = 3600
     RESULT_CACHE_ENABLED: bool = True
+    # Entry bound for the in-process result cache (LRU eviction at the bound).
+    # Measured payloads: ~2.6 KB JSON for a Resume heuristic result, ~25 KB for a
+    # cover letter, ~63 KB (~84 KB resident) for a 12-question interview set —
+    # the service-clamped worst case. A full 512-entry cache of those worst-case
+    # payloads measured ~35 MB RSS in one Uvicorn worker (~8 MB for typical
+    # payloads), while still holding a full TTL window for ~17 users running at
+    # the 30/hour MODEL_COST_LIMIT.
+    RESULT_CACHE_MAX_ENTRIES: int = Field(default=512, gt=0)
     BLENDED_SCORING_ENABLED: bool = True
     RESULT_ACCESS_POLICY_ENABLED: bool = False
 
@@ -68,17 +78,37 @@ class Settings(BaseSettings):
     # Operator-declared deployment topology class. The intended backend starts
     # one Uvicorn process, so `single` is the accurate default; declare `multi`
     # only when two or more API replicas are actually verified (D-052/ADR 0004).
-    API_REPLICA_CLASS: str = "single"
+    API_REPLICA_CLASS: Literal["single", "multi"] = "single"
     # Per-tool submit-to-result p95 latency budget in milliseconds. The latency
     # trigger fires only if this is sustained across consecutive daily windows.
-    LATENCY_P95_BUDGET_MS: int = 60000
+    LATENCY_P95_BUDGET_MS: int = Field(default=60000, gt=0)
     # Provider LLM-cost alert budget over a rolling 24h window, in USD. Feeds the
     # abuse/cost trigger's cost-alert branch (D-057).
-    COST_ALERT_USD_24H: float = 5.0
+    COST_ALERT_USD_24H: float = Field(default=5.0, gt=0, allow_inf_nan=False)
     # Provisioned Postgres capacity in bytes for the storage-headroom signal;
     # 0 means "unknown" and the database trigger reports insufficient evidence
     # for storage rather than guessing (D-058).
-    DB_CAPACITY_BYTES: int = 0
+    DB_CAPACITY_BYTES: int = Field(default=0, ge=0)
+    # The four budgets below are the missing halves of the #138, #139 and #141
+    # triggers. Each is provisional in the same spirit as LATENCY_P95_BUDGET_MS
+    # above: an operator retunes it from the environment, and a wrong value
+    # costs one extra human review rather than an action (D-124).
+    # Cache-hit floor, as a ratio of lookups. Only consulted once ≥2 replicas
+    # are declared, where a low ratio is duplicated provider cost (ADR 0004).
+    CACHE_HIT_RATIO_FLOOR: float = Field(default=0.5, gt=0, le=1, allow_inf_nan=False)
+    # Provider-caused availability floor in percent over the trigger's 7-day SLO
+    # window — the second branch of the provider trigger's OR (D-055).
+    PROVIDER_AVAILABILITY_SLO_PCT: float = Field(
+        default=99.0, gt=0, le=100, allow_inf_nan=False
+    )
+    # How many times its own prior-window baseline a tool's loader-abandonment
+    # rate must reach to count as "materially elevated" beside a sustained p95
+    # breach. A factor below 1 would fire on abandonment that improved.
+    LOADER_ABANDONMENT_ELEVATION_FACTOR: float = Field(
+        default=2.0, ge=1, allow_inf_nan=False
+    )
+    # Representative-query p95 budget in milliseconds for the database trigger.
+    DB_QUERY_P95_BUDGET_MS: int = Field(default=250, gt=0)
 
     CAPTCHA_ENABLED: bool = False
     CAPTCHA_SECRET_KEY: str = ""
@@ -101,3 +131,122 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+
+# Values a browser never sends as an `Origin`, but that read like an allowlist
+# entry. `*` makes CORSMiddleware echo whatever origin asked; `null` is what
+# sandboxed iframes, `file://` documents, and some redirect chains send.
+_NON_ORIGIN_TOKENS = frozenset({"*", "null"})
+
+
+def resolve_allowed_origins() -> list[str]:
+    """Return the effective credentialed CORS allowlist.
+
+    Single source of truth for the origin list so the startup check below and
+    the CORSMiddleware registration in `app.main` cannot drift apart.
+    """
+    origins = [
+        value.strip() for value in settings.CORS_ORIGINS.split(",") if value.strip()
+    ]
+    frontend = settings.FRONTEND_URL.strip()
+    if frontend and frontend not in origins:
+        origins.append(frontend)
+    return origins
+
+
+def validate_origin_config() -> None:
+    """Refuse to boot outside development on an unusable origin configuration.
+
+    `CORS_ORIGINS` and `FRONTEND_URL` are the whole browser-facing trust
+    boundary: CORS runs with `allow_credentials=True`, so every entry is an
+    origin allowed to drive cookie-authenticated requests, and `FRONTEND_URL`
+    is additionally the redirect target for OAuth and password-reset links.
+    Every failure below is silent at runtime — the browser just drops the
+    response, or the allowlist quietly trusts everyone — which is why this is a
+    boot refusal rather than a log line. Development stays permissive so plain
+    HTTP localhost work is unaffected, matching `validate_abuse_control_config`.
+    """
+    if settings.ENVIRONMENT == "development":
+        return
+
+    origins = resolve_allowed_origins()
+    frontend = settings.FRONTEND_URL.strip()
+
+    # No allowlist at all: no browser origin can ever be granted credentialed
+    # access, so the deployed frontend cannot call the API and both variables
+    # are plainly unset rather than deliberately empty.
+    if not origins:
+        raise RuntimeError(
+            "CORS_ORIGINS and FRONTEND_URL are both empty. Set the deployed "
+            f"frontend origin before running in {settings.ENVIRONMENT}."
+        )
+
+    # An unset FRONTEND_URL is not merely a missing origin: the OAuth callback
+    # and the password-reset email silently fall back to the first CORS entry
+    # or to `http://localhost:3000` (`app/routers/google_auth.py`,
+    # `app/routers/auth.py`), so users would receive localhost links.
+    if not frontend:
+        raise RuntimeError(
+            "FRONTEND_URL is empty, so OAuth redirects and password-reset links "
+            "fall back to a localhost URL. Set the deployed frontend origin "
+            f"before running in {settings.ENVIRONMENT}."
+        )
+
+    for origin in origins:
+        if origin in _NON_ORIGIN_TOKENS:
+            raise RuntimeError(
+                f"Origin {origin!r} grants credentialed access to any site. "
+                "List the exact frontend origins in CORS_ORIGINS before running "
+                f"in {settings.ENVIRONMENT}."
+            )
+
+        parts = urlsplit(origin)
+        # A browser `Origin` header is exactly `scheme://host[:port]`, and
+        # CORSMiddleware compares it as an exact string. An entry with no
+        # scheme/host, or with a path, trailing slash, query, or fragment, can
+        # never match one: it is dead configuration that reads as protection.
+        if parts.scheme not in {"http", "https"} or not parts.netloc:
+            raise RuntimeError(
+                f"Origin {origin!r} is not a browser origin. Use "
+                "scheme://host[:port] with an http or https scheme before "
+                f"running in {settings.ENVIRONMENT}."
+            )
+        if parts.path or parts.query or parts.fragment:
+            raise RuntimeError(
+                f"Origin {origin!r} carries a path, query, or fragment and can "
+                "never match a browser Origin header. Use scheme://host[:port] "
+                f"before running in {settings.ENVIRONMENT}."
+            )
+        # Outside development the session cookie is https-only (`app.main`) and
+        # the auth cookies are `Secure` (`app/auth/security.py`), so a plain
+        # HTTP origin can never receive them — the flow is broken by
+        # construction, and keeping it allowlisted advertises a downgrade path.
+        if parts.scheme != "https":
+            raise RuntimeError(
+                f"Origin {origin!r} is not https, but session and auth cookies "
+                f"are Secure in {settings.ENVIRONMENT}. Use an https origin."
+            )
+
+    # FRONTEND_URL is appended to the allowlist by `app.main`. If an explicit
+    # CORS_ORIGINS list exists and does not name it, the two settings disagree
+    # about which site this deployment serves and the credentialed allowlist is
+    # widened to an origin the operator never declared.
+    declared = [
+        value.strip() for value in settings.CORS_ORIGINS.split(",") if value.strip()
+    ]
+    if declared:
+        frontend_parts = urlsplit(frontend)
+        frontend_origin = (
+            frontend_parts.scheme.lower(),
+            frontend_parts.netloc.lower(),
+        )
+        declared_origins = {
+            (urlsplit(value).scheme.lower(), urlsplit(value).netloc.lower())
+            for value in declared
+        }
+        if frontend_origin not in declared_origins:
+            raise RuntimeError(
+                f"FRONTEND_URL {frontend!r} does not match any CORS_ORIGINS entry "
+                f"({', '.join(declared)}). Declare the deployed frontend origin in "
+                f"CORS_ORIGINS before running in {settings.ENVIRONMENT}."
+            )

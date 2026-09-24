@@ -3,8 +3,8 @@
   "resume_text": "Casey Wren\nBackend Engineer\n\nSummary\nBackend engineer with 5 years building services and APIs for e-commerce platforms.\n\nExperience\nFoxglove Retail - Backend Engineer (2020-Present)\n- Built and maintained 20+ REST APIs powering the checkout service.\n- Reduced order-processing errors by 42% by adding idempotency keys and retries.\n- Migrated services to Docker and Kubernetes, improving deploy reliability.\n- Tuned PostgreSQL queries, lowering p95 response time by 30%.\n\nSkills\nPython, FastAPI, PostgreSQL, Docker, Kubernetes, AWS, CI/CD, APIs\n\nEducation\nBS in Software Engineering, Westmere University",
   "job_description": null,
   "expected_score_band": [
-    64,
-    86
+    76,
+    90
   ],
-  "notes": "No-job-description case: exercises resume-only scoring (keyword score falls back to detected-skill count). Solid mid-level backend resume with no target JD."
+  "notes": "No-job-description case: exercises resume-only scoring (keyword score falls back to detected-skill count) and the loader's expected_match_band default. Solid mid-level backend resume with no target JD. Resume band 76-90 is the heuristic's solid-mid tier; an eight-item skills list drives the no-JD keyword fallback close to its ceiling. Job Match is not evaluated without a JD, so this fixture carries no match band."
 }

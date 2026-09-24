@@ -25,7 +25,14 @@ TelemetryEventName = Literal[
     "generation_loader_abandoned",
 ]
 TelemetryLevel = Literal["info", "error"]
-ToolId = Literal[
+
+# Tool ids a browser is allowed to report. Every member is a tool a user can
+# start from the UI (frontend/src/lib/tools/registry.ts) or a result surface
+# rendered in the browser. This list is the browser ingest contract and must stay
+# member-for-member equal to BROWSER_TOOL_IDS in
+# frontend/src/lib/telemetry/client.ts — see
+# tests/test_telemetry_tool_id_contract.py.
+BrowserToolId = Literal[
     "resume",
     "job-match",
     "career",
@@ -33,8 +40,24 @@ ToolId = Literal[
     "interview",
     "portfolio",
     "application-reviewer",
-    "application-packet",
 ]
+
+# Backend-generated pipeline operations that reuse the tool-run taxonomy but that
+# no browser can emit. `application-packet` is written only by the packet
+# pipeline (app/services/application_packets.py:PACKET_TOOL_NAME) and has no
+# frontend tool id at all; it entered the browser union only so the backend
+# reporting union would accept it, which both widened the ingest contract (a
+# client could fabricate packet activation rows) and left the frontend union
+# behind. Same reasoning as the CV Studio ids in app/schemas/analytics.py:
+# backend telemetry needs a bounded identifier; the browser contract must not
+# gain one.
+BackendOnlyToolId = Literal["application-packet"]
+
+# Every tool identifier the backend reports on — the reporting taxonomy, not the
+# ingest contract. Nested Literals flatten (PEP 586), so this stays a flat
+# Literal and `OperationalToolId` in app/schemas/analytics.py keeps covering
+# every tool run exactly as before.
+ToolId = Literal[BrowserToolId, BackendOnlyToolId]
 AccessMode = Literal["authenticated", "guest_demo"]
 FailureCategory = Literal[
     "tool_request_failed",
@@ -51,7 +74,7 @@ class TelemetryEventRequest(BaseModel):
 
     event_name: TelemetryEventName
     level: TelemetryLevel = "info"
-    tool_id: ToolId | None = None
+    tool_id: BrowserToolId | None = None
     access_mode: AccessMode | None = None
     saved: bool | None = None
     failure_category: FailureCategory | None = None

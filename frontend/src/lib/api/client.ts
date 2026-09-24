@@ -10,6 +10,8 @@ import {
   stopAnswerRequestSchema,
   stopAnswerResultSchema,
 } from '#/lib/api/packetSchemas'
+import { gapClassificationListResponseSchema } from '#/lib/api/gapClassificationSchemas'
+import { gapResponseOfferSchema } from '#/lib/api/gapResponseSchemas'
 import {
   authProvidersSchema,
   authSessionResponseSchema,
@@ -62,6 +64,7 @@ import {
   careerDataExportSchema,
   cvDocumentCreateSchema,
   cvDocumentListSchema,
+  cvDocumentsExportSchema,
   cvDocumentSchema,
   cvDocumentUpdateSchema,
   cvVariantCreateSchema,
@@ -86,6 +89,13 @@ import type {
 
 export function listCvDocuments() {
   return request('/cv-documents', { method: 'GET', schema: cvDocumentListSchema })
+}
+
+export function exportCvDocuments() {
+  return request('/cv-documents/export', {
+    method: 'GET',
+    schema: cvDocumentsExportSchema,
+  })
 }
 
 export function createCvDocument(payload: CvDocumentCreate) {
@@ -675,6 +685,19 @@ export function deleteCampaignContact(workspaceId: string, contactId: string) { 
 export function getCampaignReminders(workspaceId: string) { return request(`/history/workspaces/${workspaceId}/reminders`, { method: 'GET', schema: campaignReminderResponseSchema }) }
 export function updateCampaignReminderConsent(workspaceId: string, enabled: boolean) { return request(`/history/workspaces/${workspaceId}/reminders`, { method: 'PATCH', body: { enabled }, schema: campaignReminderResponseSchema }) }
 export function reviewCampaign(workspaceId: string) { return request(`/history/workspaces/${workspaceId}/review`, { method: 'POST', body: {}, schema: campaignReviewResponseSchema }) }
+export function classifyCampaignGaps(workspaceId: string) {
+  return request(`/history/workspaces/${workspaceId}/gap-classifications`, {
+    method: 'POST',
+    body: {},
+    schema: gapClassificationListResponseSchema,
+  })
+}
+export function getCampaignGapResponse(workspaceId: string, classificationId: string) {
+  return request(
+    `/history/workspaces/${workspaceId}/gap-classifications/${classificationId}/response`,
+    { method: 'GET', schema: gapResponseOfferSchema },
+  )
+}
 
 export function requestPasswordReset(payload: { email: string }) {
   return request<{ message: string }>('/auth/password-reset/request', {

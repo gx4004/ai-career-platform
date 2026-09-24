@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
+import { uniqueEmail } from './helpers/identity'
 
 async function gotoHydrated(page: Page, path: string) {
   await page.goto(path, { waitUntil: 'domcontentloaded' })
@@ -11,7 +12,7 @@ test('CV artifact preview fits 320/375px and has a clean print surface', async (
   // SidebarInset before React's breakpoint hook commits the mobile tree.
   await page.setViewportSize({ width: 320, height: 812 })
   await page.addInitScript(() => localStorage.setItem('cw-cookie-consent', 'accepted'))
-  const email = `cv-preview-${Date.now()}@example.com`
+  const email = uniqueEmail('cv-preview')
   await gotoHydrated(page, '/login')
   await page.getByRole('tab', { name: 'Create Account' }).click()
   await page.locator('#register-name').fill('Preview Tester')

@@ -9,7 +9,11 @@ from app.database import get_db
 from app.feature_gates import require_r13_enabled
 from app.limiter import limiter, resource_abuse_limits
 from app.models.user import User
-from app.schemas.analytics import ImportOutcome, ImportSourceFamily
+from app.schemas.analytics import (
+    IMPORT_FAILURE_OUTCOMES,
+    ImportOutcome,
+    ImportSourceFamily,
+)
 from app.schemas.tools import ImportedJobResponse, ImportJobTextRequest, ImportJobUrlRequest
 from app.services.analytics import safe_record_activation_event
 from app.services.campaign_listings import attach_listing
@@ -79,7 +83,7 @@ async def import_job_url(
             raise HTTPException(
                 status_code=401, detail="Authentication required to attach a listing"
             )
-        if import_outcome == "failure":
+        if import_outcome in IMPORT_FAILURE_OUTCOMES:
             return result
         if result.job_title is None or result.company_name is None:
             raise HTTPException(

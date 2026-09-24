@@ -124,8 +124,14 @@ class EvalRunItem(BaseModel):
     every metric field is ``None``; the admin UI renders an explicit "no eval
     run yet" state rather than an error or blank space. When ``True`` the fields
     mirror the on-disk ``ToolReport`` (see ``app/evals/run_eval.py``): Resume /
-    Job Match carry ``calibration_miss_rate``; the four generative tools carry
+    Job Match carry ``calibration_miss_rate`` and
+    ``explanation_inconsistency_count`` (D-121); the four generative tools carry
     ``fabrication_candidate_count`` and ``usefulness_score``.
+
+    ``explanation_inconsistency_count`` is also ``None`` on a report written
+    before that check existed (schema version ``r8-eval-report-v1``), which the
+    reader still accepts — the UI must treat "absent" as "not measured", not as
+    zero contradictions.
     """
 
     tool_id: str
@@ -137,6 +143,7 @@ class EvalRunItem(BaseModel):
     mode: str | None = None
     fixtures_evaluated: int | None = None
     calibration_miss_rate: float | None = None
+    explanation_inconsistency_count: int | None = None
     fabrication_candidate_count: int | None = None
     usefulness_score: float | None = None
 

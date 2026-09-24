@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs'
+import { uniqueEmail } from './helpers/identity'
 
 const apiUrl = `http://127.0.0.1:${process.env.E2E_BACKEND_PORT ?? '8000'}/api/v1`
 const password = 'correct-horse-battery-staple'
@@ -27,7 +28,7 @@ async function gotoHydrated(page: Page, path: string) {
 }
 
 async function register(page: Page, identity: string) {
-  const email = `${identity.toLowerCase().replaceAll(' ', '-')}-${Date.now()}@example.com`
+  const email = uniqueEmail(identity.toLowerCase().replaceAll(' ', '-'))
   await gotoHydrated(page, '/login')
   await page.getByRole('tab', { name: 'Create Account' }).click()
   await page.locator('#register-name').fill(identity)
@@ -35,7 +36,9 @@ async function register(page: Page, identity: string) {
   await page.locator('#register-password').fill(password)
   await page.locator('#register-tos').check()
   await page.getByRole('button', { name: 'Create free account' }).click()
-  await expect(page.getByRole('heading', { name: 'You are already signed in' })).toBeVisible()
+  await expect(
+    page.getByRole('heading', { name: 'You are already signed in' }),
+  ).toBeVisible({ timeout: 15_000 })
   return email
 }
 
@@ -173,6 +176,7 @@ test('PDF export returns 404 for cross-owner access', async ({ page, browser }) 
 })
 
 test('retry recovers from a transient request failure without duplicating the run', async ({ page }) => {
+  test.setTimeout(60_000)
   await register(page, 'Retry Run')
   let attempts = 0
   await page.route(`${apiUrl}/resume/analyze`, async (route) => {

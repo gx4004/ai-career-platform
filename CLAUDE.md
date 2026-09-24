@@ -5,7 +5,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # Career Workbench — Development Context
 
 ## What This Is
-AI-powered job-search workspace. 6 tools (Resume Analyzer, Job Match, Cover Letter, Interview Q&A, Career Path, Portfolio Planner). Users upload resume once, use it across all tools. Currently in **thesis demo mode** — all results fully visible, no ad gate. Hybrid monetization (ad-gated results + premium tier) planned for post-thesis launch.
+AI-powered job-search workspace. Six tools in canonical order: Resume Analyzer,
+Job Match, Career Path, Cover Letter, Interview Q&A, and Portfolio Planner. Users
+can carry resume context across the connected workflow. Results remain fully
+visible with no ad gate; no future monetization candidate is selected or
+authorized.
 
 ## Stack
 - **Frontend**: React 19 + TanStack Start/Router + Vite 7 + Tailwind 4 + Radix/shadcn + Framer Motion
@@ -13,7 +17,8 @@ AI-powered job-search workspace. 6 tools (Resume Analyzer, Job Match, Cover Lett
 - **LLM**: Vertex AI Gemini 2.5 Flash (native async, single provider V1). Cheaper model for interview practice feedback.
 - **Auth**: JWT in HttpOnly cookies (access 30min + refresh 7day) + Google OAuth (authlib) + password reset (Resend)
 - **Deploy**: Full Railway (backend + frontend + Postgres). Same domain, path-based routing.
-- **Monitoring**: Railway metrics + Sentry free tier
+- **Monitoring**: Railway metrics; Sentry remains inactive while its DSN is unset
+  and requires staging scrub evidence before activation (D-117)
 - **Package manager**: pnpm (not npm)
 
 ## Key Architecture Decisions
@@ -26,7 +31,7 @@ AI-powered job-search workspace. 6 tools (Resume Analyzer, Job Match, Cover Lett
 | SameSite=Lax cookies, no CSRF tokens | Sufficient for SPA + JSON API |
 | No client-side ad/unlock path | Dormant ad gate + `ad-unlocked` sessionStorage contract removed (R9 #127, D-051); any future monetized access must be server-authoritative (D-048) |
 | English only V1 | Realistic scope for solo dev |
-| In-memory cache V1 | Redis V1.1 when traffic warrants |
+| In-memory cache today | Review distributed coordination only if the R10 multi-instance trigger fires |
 | 4 retry + exponential backoff for LLM | 5s→10s→20s→40s + jitter, 120s per-call timeout, then tool-specific fallback (heuristic for Resume / Job Match, explicit error for generative tools) |
 | Admin panel integrated in main frontend | No separate app, /admin/* routes |
 
@@ -90,11 +95,11 @@ cd backend && alembic upgrade head        # Run migrations
 - Guest runs: in-memory Map only, never persisted, drives signup conversion
 - Workflow context: sessionStorage, tab-scoped, no cross-tab sync
 
-## Codex Integration (GPT-5.4)
+## Codex Integration
 
 ### When to Use Codex
 - **After every feature/fix**: Run `/codex:review --background` before creating PR
-- **Complex bugs**: `/codex:rescue --background investigate <problem>` — second opinion from GPT-5.4
+- **Complex bugs**: `/codex:rescue --background investigate <problem>` — independent second opinion
 - **Critical changes (auth, security, data)**: `/codex:adversarial-review --background <focus>`
 - **Design decisions**: `/codex:adversarial-review challenge whether <decision> was the right call`
 - **Stuck on a bug**: `/codex:rescue --background fix <description>` — let Codex try while Claude continues
@@ -117,7 +122,9 @@ Review gate is OFF — Codex does not automatically review Claude's output. Requ
 - Suggest `/codex:adversarial-review` before any PR that touches auth, payments, or data models
 
 ### Config
-- Model: GPT-5.4 (default, best quality). Use `--model gpt-5.4-mini` only for quick checks.
+- Model: use GPT-5.6 Sol at xhigh/Ultra for cumulative, security-sensitive, or
+  cross-cutting repository work. Terra is appropriate for small, well-bounded,
+  low-risk edits with complete tests.
 - Results: `/codex:status` for progress, `/codex:result` for output
 - Resume in Codex: `codex resume <session-id>` to continue work directly in Codex CLI
 
@@ -125,7 +132,7 @@ Review gate is OFF — Codex does not automatically review Claude's output. Requ
 - Don't add i18n translations (EN only V1, infrastructure stays)
 - Don't implement premium/subscription tier (V1.1)
 - Don't add affiliate links (V1.1)
-- Don't add CAPTCHA (V1.1, rate limit sufficient)
+- Don't add CAPTCHA/Turnstile unless the accepted R10 abuse/cost trigger fires
 - Don't implement real AdSense SDK (placeholder until approved)
 - Don't re-introduce a client ad gate (dormant path removed in R9 #127; results are fully free; any future access gate must be server-authoritative per D-048)
 - Don't send welcome or account-deletion confirmation emails (V1.1; password-reset is the only transactional email V1)

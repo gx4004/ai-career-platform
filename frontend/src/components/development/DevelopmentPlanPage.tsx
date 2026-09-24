@@ -26,13 +26,15 @@ import type {
   DevelopmentState,
 } from '#/lib/api/developmentSchemas'
 import { countByState, groupItemsByResponseKind } from '#/lib/development/plan'
+import {
+  DEVELOPMENT_PLAN_QUERY_KEY,
+  invalidateEvidenceCaches,
+} from '#/lib/query/evidenceCaches'
 import { DevelopmentItemCard } from '#/components/development/DevelopmentItemCard'
 import {
   EditDevelopmentItemDialog,
   type DevelopmentEditSubmit,
 } from '#/components/development/EditDevelopmentItemDialog'
-
-const DEVELOPMENT_QUERY_KEY = ['development-plan', 'items'] as const
 
 export function DevelopmentPlanPage() {
   const { status, openAuthDialog } = useSession()
@@ -46,7 +48,7 @@ export function DevelopmentPlanPage() {
   const [deleteTarget, setDeleteTarget] = useState<DevelopmentItem | null>(null)
 
   const itemsQuery = useQuery({
-    queryKey: DEVELOPMENT_QUERY_KEY,
+    queryKey: DEVELOPMENT_PLAN_QUERY_KEY,
     queryFn: async () => (await getDevelopmentPlan()).items,
     enabled: isAuthenticated,
   })
@@ -57,7 +59,7 @@ export function DevelopmentPlanPage() {
   }
 
   async function invalidate() {
-    await queryClient.invalidateQueries({ queryKey: DEVELOPMENT_QUERY_KEY })
+    await queryClient.invalidateQueries({ queryKey: DEVELOPMENT_PLAN_QUERY_KEY })
   }
 
   const stateMutation = useMutation({
@@ -98,7 +100,11 @@ export function DevelopmentPlanPage() {
       action === 'confirm'
         ? confirmDevelopmentEvidence(id)
         : declineDevelopmentEvidence(id),
-    onSuccess: invalidate,
+    onSuccess: async (_item, { action }) => {
+      await invalidateEvidenceCaches(queryClient, {
+        rankingMayChange: action === 'confirm',
+      })
+    },
     onError: (error) => reportError(error, 'Could not update the evidence proposal.'),
     onSettled: () => setPendingItemId(null),
   })

@@ -1,0 +1,27 @@
+# Local configuration and secrets. Keep the public inventory available to the
+# image context without ever sending a developer's real environment file.
+**/.env
+**/.env.*
+!**/.env.example
+
+# Host dependencies and generated application output.
+node_modules/
+.pnpm-store/
+dist/
+.output/
+.nitro/
+.tanstack/
+.vite/
+.wrangler/
+__unconfig*
+**/*.tsbuildinfo
+
+# Build, test, and tool artifacts.
+.artifacts/
+coverage/
+test-results/
+playwright-report/
+
+# Host-only noise.
+**/.DS_Store
+**/*.log

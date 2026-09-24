@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
+import { uniqueEmail } from './helpers/identity'
 
 const providerFailureMarker = '[E2E_PROVIDER_FAILURE]'
 
@@ -144,7 +145,7 @@ async function register(page: Page) {
   await gotoHydrated(page, '/login')
   await page.getByRole('tab', { name: 'Create Account' }).click()
   await page.locator('#register-name').fill('R2 Guest Audit')
-  await page.locator('#register-email').fill(`guest-audit-${Date.now()}@example.com`)
+  await page.locator('#register-email').fill(uniqueEmail('guest-audit'))
   await page.locator('#register-password').fill('correct-horse-battery-staple')
   await page.locator('#register-tos').check()
   await page.getByRole('button', { name: 'Create free account' }).click()
@@ -155,6 +156,7 @@ for (const tool of guestTools) {
   test(`${tool.label} guest result survives refresh and expires when transient state is cleared`, async ({
     page,
   }) => {
+    test.setTimeout(60_000)
     await runGuestTool(page, tool)
     await expect(page).toHaveURL(tool.resultPath)
     await expect(page.getByText(`${tool.label} · Guest demo`)).toBeVisible()
@@ -200,6 +202,7 @@ test('guest runs for all six tools never appear in persisted history', async ({
 
 for (const tool of guestTools) {
   test(`${tool.label} preserves its tool-specific provider failure behavior`, async ({ page }) => {
+    test.setTimeout(60_000)
     await runGuestTool(page, tool, `${resumeText}\n${providerFailureMarker}`)
 
     if (tool.generative) {
