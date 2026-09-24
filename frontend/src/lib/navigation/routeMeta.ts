@@ -1,4 +1,62 @@
+import type { LucideIcon } from 'lucide-react'
+import {
+  BadgeCheck,
+  ClipboardCheck,
+  Compass,
+  History as HistoryIcon,
+  Megaphone,
+  PanelsTopLeft,
+} from 'lucide-react'
+import {
+  isR11EvidenceProfileEnabled,
+  isR12CvStudioEnabled,
+  isR13CampaignsEnabled,
+  isR14DiscoveryEnabled,
+  isR15QueueEnabled,
+} from '#/lib/flags/featureFlags'
 import { tools } from '#/lib/tools/registry'
+
+/** One destination in a grouped nav section (sidebar + mobile tools sheet). */
+export type NavDestination = {
+  label: string
+  route: string
+  icon: LucideIcon
+  /** Omitted means always visible (subject to the surrounding auth gate). */
+  enabled?: () => boolean
+}
+
+export type NavGroup = {
+  id: string
+  label: string
+  destinations: NavDestination[]
+}
+
+/**
+ * Shared source of truth for the owner-workspace nav groups so the sidebar
+ * and the mobile tools sheet render the same structure instead of drifting.
+ * The six tools live in their own "Tools" group built straight from
+ * `toolList` (canonical priority order) at each call site.
+ */
+export const navGroups: NavGroup[] = [
+  {
+    id: 'job-search',
+    label: 'Job search',
+    destinations: [
+      { label: 'Discover', route: '/discovery', icon: Compass, enabled: isR14DiscoveryEnabled },
+      { label: 'Queue', route: '/queue', icon: ClipboardCheck, enabled: isR15QueueEnabled },
+      { label: 'Campaigns', route: '/campaigns', icon: Megaphone, enabled: isR13CampaignsEnabled },
+    ],
+  },
+  {
+    id: 'you',
+    label: 'You',
+    destinations: [
+      { label: 'CV Studio', route: '/cv-studio', icon: PanelsTopLeft, enabled: isR12CvStudioEnabled },
+      { label: 'Profile', route: '/profile', icon: BadgeCheck, enabled: isR11EvidenceProfileEnabled },
+      { label: 'History', route: '/history', icon: HistoryIcon },
+    ],
+  },
+]
 
 type RouteMeta = {
   title: string
@@ -31,10 +89,20 @@ export function getRouteMeta(pathname: string): RouteMeta {
 
   if (pathname === '/profile') {
     return {
-      title: 'Evidence Profile',
-      description: 'Inspect, confirm, correct, and remove the career evidence stored for your account.',
-      sectionLabel: 'Trust',
-      breadcrumbs: ['Dashboard', 'Evidence Profile'],
+      title: 'Your profile',
+      description: 'Facts about your experience that CV Studio and the tools reuse.',
+      sectionLabel: 'You',
+      breadcrumbs: ['Dashboard', 'Your profile'],
+      topbarVariant: 'compact',
+    }
+  }
+
+  if (pathname === '/cv-studio') {
+    return {
+      title: 'CV Studio',
+      description: 'Build and tailor CV versions from the facts in your profile.',
+      sectionLabel: 'You',
+      breadcrumbs: ['Dashboard', 'CV Studio'],
       topbarVariant: 'compact',
     }
   }
@@ -43,7 +111,7 @@ export function getRouteMeta(pathname: string): RouteMeta {
     return {
       title: 'Job Discovery',
       description: 'Review live roles ranked against evidence and preferences you confirmed.',
-      sectionLabel: 'Opportunities',
+      sectionLabel: 'Job search',
       breadcrumbs: ['Dashboard', 'Job Discovery'],
       topbarVariant: 'compact',
     }
@@ -53,8 +121,18 @@ export function getRouteMeta(pathname: string): RouteMeta {
     return {
       title: 'Application Queue',
       description: 'Review each prepared packet, then accept, edit, skip, or reject it — or pause all preparation.',
-      sectionLabel: 'Opportunities',
+      sectionLabel: 'Job search',
       breadcrumbs: ['Dashboard', 'Application Queue'],
+      topbarVariant: 'compact',
+    }
+  }
+
+  if (pathname === '/campaigns') {
+    return {
+      title: 'Campaigns',
+      description: 'Track applications you have adopted from Job Discovery.',
+      sectionLabel: 'Job search',
+      breadcrumbs: ['Dashboard', 'Campaigns'],
       topbarVariant: 'compact',
     }
   }

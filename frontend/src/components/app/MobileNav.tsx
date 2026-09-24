@@ -66,12 +66,14 @@ export function MobileNav() {
           </Link>
         ) : null}
 
+        {/* Points at /account, not /profile — "Account" avoids colliding with
+            the "You → Profile" nav destination (career facts, /profile). */}
         <Link
           to="/account"
           className={`mobile-tab-item${isActive('/account') || isActive('/settings') ? ' is-active' : ''}`}
         >
           <UserRound size={20} strokeWidth={isActive('/account') || isActive('/settings') ? 2.2 : 1.8} />
-          <span>Profile</span>
+          <span>Account</span>
         </Link>
       </nav>
 
