@@ -16,6 +16,7 @@ import { AppStatePanel } from '#/components/app/AppStatePanel'
 import { useSession } from '#/hooks/useSession'
 import { useResumeCarry } from '#/hooks/use-resume-carry'
 import {
+  confirmImportedEvidenceItems,
   deleteEvidenceProfile,
   deleteEvidenceItem,
   listEvidenceItems,
@@ -34,6 +35,7 @@ import {
   type CorrectionSubmit,
 } from '#/components/profile/CorrectEvidenceDialog'
 import { ResumeImportDialog } from '#/components/profile/ResumeImportDialog'
+import { SkillsToBuildSection } from '#/components/profile/SkillsToBuildSection'
 
 export function EvidenceProfilePage() {
   const { status, openAuthDialog } = useSession()
@@ -76,23 +78,17 @@ export function EvidenceProfilePage() {
     onSettled: () => setPendingItemId(null),
   })
 
+  const acceptAllMutation = useMutation({
+    mutationFn: () => confirmImportedEvidenceItems(),
+    onSuccess: invalidateProfileMutation,
+    onError: (error) => reportError(error, 'Could not accept all suggested items.'),
+  })
+
   const correctionMutation = useMutation({
-    mutationFn: async ({
-      id,
-      content,
-      confirmEdit,
-    }: {
-      id: string
-      content: Record<string, unknown>
-      confirmEdit: boolean
-    }) => {
-      // The API always returns an edited item to `unconfirmed` (D-062). To keep
-      // a confirmed edit confirmed, the user's explicit confirmation is a second,
-      // separate call — never an automatic side effect of the edit.
+    mutationFn: async ({ id, content }: { id: string; content: Record<string, unknown> }) => {
+      // Saving a correction is the owner typing it themselves right now, so the
+      // API marks it Saved directly (Phase 1b, #321) — no extra confirm click.
       await updateEvidenceItem(id, { content })
-      if (confirmEdit) {
-        await setEvidenceItemConfirmation(id, 'confirm')
-      }
     },
     onSuccess: () => {
       setCorrectTarget(null)
@@ -131,6 +127,10 @@ export function EvidenceProfilePage() {
   const items = itemsQuery.data ?? []
   const groups = useMemo(() => groupItemsByKind(items), [items])
   const counts = useMemo(() => countByState(items), [items])
+  const importedUnconfirmedCount = useMemo(
+    () => items.filter((item) => item.provenance === 'imported' && item.confirmation_state === 'unconfirmed').length,
+    [items],
+  )
 
   function handleConfirm(item: EvidenceItem) {
     setPendingItemId(item.id)
@@ -142,11 +142,7 @@ export function EvidenceProfilePage() {
   }
   function handleCorrectSubmit(payload: CorrectionSubmit) {
     if (!correctTarget) return
-    correctionMutation.mutate({
-      id: correctTarget.id,
-      content: payload.content,
-      confirmEdit: payload.confirmEdit,
-    })
+    correctionMutation.mutate({ id: correctTarget.id, content: payload.content })
   }
   function handleDeleteConfirmed() {
     if (!deleteTarget) return
@@ -190,11 +186,11 @@ export function EvidenceProfilePage() {
           {counts.total > 0 ? (
             <dl className="evidence-summary" aria-label="Trust state summary">
               <div className="evidence-summary__stat">
-                <dt>Confirmed</dt>
+                <dt>Saved</dt>
                 <dd>{counts.confirmed}</dd>
               </div>
               <div className="evidence-summary__stat">
-                <dt>Unconfirmed</dt>
+                <dt>Suggested</dt>
                 <dd>{counts.unconfirmed}</dd>
               </div>
               <div className="evidence-summary__stat">
@@ -215,11 +211,29 @@ export function EvidenceProfilePage() {
               <p className="muted-copy small-copy">
                 Review suggestions extracted from{' '}
                 {filename ? <strong>{filename}</strong> : 'your uploaded resume'}. Nothing is saved
-                unless you accept it, and everything you accept arrives as unconfirmed.
+                unless you accept it, and everything you accept arrives as Suggested until you
+                accept it.
               </p>
             </div>
             <Button variant="outline" onClick={() => setImportOpen(true)}>
               Review resume evidence
+            </Button>
+          </section>
+        ) : null}
+
+        {importedUnconfirmedCount > 0 ? (
+          <section className="evidence-accept-all" aria-label="Accept all suggested imports">
+            <p className="muted-copy small-copy">
+              {importedUnconfirmedCount} imported{' '}
+              {importedUnconfirmedCount === 1 ? 'item is' : 'items are'} still Suggested.
+            </p>
+            <Button
+              variant="outline"
+              loading={acceptAllMutation.isPending}
+              disabled={acceptAllMutation.isPending}
+              onClick={() => acceptAllMutation.mutate()}
+            >
+              Accept all
             </Button>
           </section>
         ) : null}
@@ -248,7 +262,7 @@ export function EvidenceProfilePage() {
             <h2 className="evidence-empty__title">No evidence yet</h2>
             <p className="muted-copy">
               Your profile fills up as you import a resume or promote a tool result into it.
-              Anything added arrives as unconfirmed until you confirm it.
+              Anything added arrives as Suggested until you accept it.
             </p>
           </div>
         ) : (
@@ -279,6 +293,8 @@ export function EvidenceProfilePage() {
             ))}
           </div>
         )}
+
+        <SkillsToBuildSection />
 
         {items.length > 0 ? (
           <section className="evidence-danger">

@@ -158,9 +158,11 @@ def test_state_transition_appends_timeline_and_updates_state(db, test_user):
     assert transition["to_state"] == "in_progress"
 
 
-def test_completion_stages_one_unconfirmed_proposal_from_the_completed_update(
+def test_completion_with_user_supplied_notes_confirms_evidence_directly(
     client, auth_headers, test_user, db
 ):
+    """Completing with the owner's own notes text stages the proposal already
+    confirmed — no extra confirm step (Phase 1b, #321)."""
     classification = _classification(
         db,
         test_user.id,
@@ -183,7 +185,7 @@ def test_completion_stages_one_unconfirmed_proposal_from_the_completed_update(
     body = response.json()
     assert body["created_at"].endswith("Z")
     assert body["updated_at"].endswith("Z")
-    assert body["evidence_proposal"]["confirmation_state"] == "unconfirmed"
+    assert body["evidence_proposal"]["confirmation_state"] == "confirmed"
     assert body["evidence_proposal"]["content"] == {
         "statement": "Built a Kubernetes deployment controller."
     }
@@ -194,11 +196,12 @@ def test_completion_stages_one_unconfirmed_proposal_from_the_completed_update(
     )
     assert proposal.user_id == test_user.id
     assert proposal.provenance == "inferred"
-    assert proposal.confirmation_state == "unconfirmed"
+    assert proposal.confirmation_state == "confirmed"
     assert proposal.content == {"statement": "Built a Kubernetes deployment controller."}
-    assert [event["event"] for event in body["timeline"]][-2:] == [
+    assert [event["event"] for event in body["timeline"]][-3:] == [
         "state_changed",
         "evidence_proposal_created",
+        "evidence_confirmed",
     ]
 
     # A repeated completed update cannot mint a second profile item.
@@ -209,6 +212,41 @@ def test_completion_stages_one_unconfirmed_proposal_from_the_completed_update(
     )
     assert repeated.status_code == 200
     assert db.query(EvidenceItem).filter_by(user_id=test_user.id).count() == 1
+
+
+def test_completion_without_notes_stages_an_unconfirmed_proposal_from_the_trace(
+    client, auth_headers, test_user, db
+):
+    """Without the owner's own notes, the seed is system-derived (trace or
+    fallback), so it stays unconfirmed for review exactly as before."""
+    classification = _classification(
+        db,
+        test_user.id,
+        gap_kind="missing_skill",
+    )
+    item = create_development_item(
+        db, test_user.id, DevelopmentItemCreate(gap_classification_id=classification.id)
+    )
+
+    response = client.patch(
+        f"{PREFIX}/{item.id}",
+        headers=auth_headers,
+        json={"state": "completed"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["evidence_proposal"]["confirmation_state"] == "unconfirmed"
+    proposal = (
+        db.query(EvidenceItem)
+        .filter_by(id=body["evidence_proposal"]["id"])
+        .one()
+    )
+    assert proposal.confirmation_state == "unconfirmed"
+    assert [event["event"] for event in body["timeline"]][-2:] == [
+        "state_changed",
+        "evidence_proposal_created",
+    ]
 
 
 def test_update_can_clear_notes_with_null_but_leaves_omitted_fields(db, test_user):
@@ -406,21 +444,14 @@ def test_confirmed_completion_reaches_tailoring_and_recommendation_grounding(
         json={"state": "completed"},
     )
     assert completed.status_code == 200
-    evidence_id = completed.json()["evidence_proposal"]["id"]
-
-    before_payload, _ = load_profile_for_injection(db, test_user.id)
-    assert before_payload.locked_facts == []
-    assert rank_discovery_recommendations(db, test_user.id).items == []
-
-    confirmed = client.post(
-        f"{PREFIX}/{item.id}/confirm-evidence",
-        headers=auth_headers,
-    )
-
-    assert confirmed.status_code == 200
-    body = confirmed.json()
+    body = completed.json()
+    evidence_id = body["evidence_proposal"]["id"]
+    # The owner's own notes ("Built a Kubernetes...") confirm the evidence
+    # directly on completion — no separate confirm-evidence call needed
+    # (Phase 1b, #321).
     assert body["evidence_proposal"]["confirmation_state"] == "confirmed"
     assert body["timeline"][-1]["event"] == "evidence_confirmed"
+
     after_payload, _ = load_profile_for_injection(db, test_user.id)
     assert after_payload.locked_facts == [
         {
@@ -499,14 +530,14 @@ def test_confirmed_completion_reaches_tailoring_and_recommendation_grounding(
 def test_declining_completion_removes_only_the_proposal(
     client, auth_headers, test_user, db
 ):
+    # No notes: the seed comes from the trace/fallback, so completion still
+    # stages an unconfirmed proposal that decline-evidence can act on
+    # (Phase 1b, #321 only auto-confirms when the owner supplied the text).
     classification = _classification(db, test_user.id, gap_kind="missing_skill")
     item = create_development_item(
         db,
         test_user.id,
-        DevelopmentItemCreate(
-            gap_classification_id=classification.id,
-            notes="Completed a supervised Rust learning project.",
-        ),
+        DevelopmentItemCreate(gap_classification_id=classification.id),
     )
     completed = client.patch(
         f"{PREFIX}/{item.id}",
@@ -564,14 +595,14 @@ def test_confirmed_evidence_cannot_be_declined_as_if_it_were_still_a_proposal(
 def test_evidence_profile_confirmation_preserves_linked_development_lifecycle(
     client, auth_headers, test_user, db, action
 ):
+    # No notes: completion stages an unconfirmed proposal, so the general
+    # evidence-profile confirm/reject action below is exercised from that
+    # starting state (Phase 1b, #321).
     classification = _classification(db, test_user.id)
     item = create_development_item(
         db,
         test_user.id,
-        DevelopmentItemCreate(
-            gap_classification_id=classification.id,
-            notes="Completed a supervised Rust learning project.",
-        ),
+        DevelopmentItemCreate(gap_classification_id=classification.id),
     )
     completed = client.patch(
         f"{PREFIX}/{item.id}",

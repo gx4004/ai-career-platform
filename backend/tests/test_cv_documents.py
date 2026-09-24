@@ -784,14 +784,9 @@ def test_unsupported_tailoring_change_is_blocked_until_evidence_is_confirmed(
     )
     assert proposal.status_code == 201
     proposed_item = proposal.json()
-    assert proposed_item["confirmation_state"] == "unconfirmed"
-    confirmation = client.post(
-        f"/api/v1/evidence-profile/items/{proposed_item['id']}/confirmation",
-        json={"action": "confirm"},
-        headers=auth_headers,
-    )
-    assert confirmation.status_code == 200
-    assert confirmation.json()["confirmation_state"] == "confirmed"
+    # `user-entered` is the owner typing it themselves right now, so a manual
+    # create lands confirmed with no extra confirm click (Phase 1b, #321).
+    assert proposed_item["confirmation_state"] == "confirmed"
 
     supported = _signed(
         document["id"],

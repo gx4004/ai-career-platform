@@ -127,14 +127,12 @@ describe('AppSidebar', () => {
     const authenticated = renderSidebar()
     expect(screen.getByRole('link', { name: 'Discover' })).toBeTruthy()
     expect(screen.getByRole('link', { name: 'Queue' })).toBeTruthy()
-    expect(screen.getByRole('link', { name: 'Development' })).toBeTruthy()
     authenticated.unmount()
 
     mockSessionUser.current = null
     renderSidebar()
     expect(screen.queryByRole('link', { name: 'Discover' })).toBeNull()
     expect(screen.queryByRole('link', { name: 'Queue' })).toBeNull()
-    expect(screen.queryByRole('link', { name: 'Development' })).toBeNull()
   })
 
   it('keeps build-ahead navigation absent unless its complete dependency chain is on', () => {
@@ -153,7 +151,6 @@ describe('AppSidebar', () => {
     expect(screen.queryByRole('link', { name: 'Evidence' })).toBeNull()
     expect(screen.queryByRole('link', { name: 'Discover' })).toBeNull()
     expect(screen.queryByRole('link', { name: 'Queue' })).toBeNull()
-    expect(screen.queryByRole('link', { name: 'Development' })).toBeNull()
   })
 
   it('starts collapsed on desktop when no cookie exists', () => {

@@ -36,7 +36,9 @@ def test_owner_can_crud_evidence_items(client, auth_headers, test_user, db):
     created = client.post(PREFIX, json=_payload(), headers=auth_headers)
     assert created.status_code == 201
     item = created.json()
-    assert item["confirmation_state"] == "unconfirmed"
+    # `user-entered` is the owner typing it themselves right now, so a manual
+    # create lands confirmed with no extra confirm click (Phase 1b, #321).
+    assert item["confirmation_state"] == "confirmed"
 
     listed = client.get(PREFIX, headers=auth_headers)
     assert listed.status_code == 200
@@ -168,11 +170,28 @@ def test_confirmation_requires_dedicated_explicit_user_action(client, auth_heade
     assert rejected.json()["confirmation_state"] == "rejected"
 
 
-def test_editing_a_confirmed_item_resets_trust(client, auth_headers):
+def test_editing_an_item_confirms_it(client, auth_headers):
+    # Correcting an item is the owner typing the fix themselves right now, so it
+    # lands confirmed with no extra confirm click (Phase 1b, #321) — editing no
+    # longer resets trust to unconfirmed.
+    created = client.post(
+        PREFIX, json=_payload(provenance="imported"), headers=auth_headers
+    ).json()
+    assert created["confirmation_state"] == "unconfirmed"
+    edited = client.patch(
+        f"{PREFIX}/{created['id']}",
+        json={"content": {"statement": "A materially different synthetic claim."}},
+        headers=auth_headers,
+    )
+    assert edited.status_code == 200
+    assert edited.json()["confirmation_state"] == "confirmed"
+
+
+def test_editing_a_rejected_item_confirms_it(client, auth_headers):
     created = client.post(PREFIX, json=_payload(), headers=auth_headers).json()
     client.post(
         f"{PREFIX}/{created['id']}/confirmation",
-        json={"action": "confirm"},
+        json={"action": "reject"},
         headers=auth_headers,
     )
     edited = client.patch(
@@ -181,7 +200,76 @@ def test_editing_a_confirmed_item_resets_trust(client, auth_headers):
         headers=auth_headers,
     )
     assert edited.status_code == 200
-    assert edited.json()["confirmation_state"] == "unconfirmed"
+    assert edited.json()["confirmation_state"] == "confirmed"
+
+
+def test_import_and_inferred_provenance_still_start_unconfirmed(client, auth_headers):
+    for provenance in ("imported", "inferred"):
+        created = client.post(
+            PREFIX, json=_payload(provenance=provenance), headers=auth_headers
+        ).json()
+        assert created["confirmation_state"] == "unconfirmed"
+
+
+def test_accept_all_confirms_every_unconfirmed_imported_item_only(
+    client, auth_headers, test_user, db
+):
+    imported_one = client.post(
+        PREFIX, json=_payload(provenance="imported"), headers=auth_headers
+    ).json()
+    imported_two = client.post(
+        PREFIX, json=_payload(provenance="imported"), headers=auth_headers
+    ).json()
+    already_rejected = client.post(
+        PREFIX, json=_payload(provenance="imported"), headers=auth_headers
+    ).json()
+    client.post(
+        f"{PREFIX}/{already_rejected['id']}/confirmation",
+        json={"action": "reject"},
+        headers=auth_headers,
+    )
+    inferred = client.post(
+        PREFIX, json=_payload(provenance="inferred"), headers=auth_headers
+    ).json()
+
+    response = client.post(f"{PREFIX}/confirm-imported", headers=auth_headers)
+    assert response.status_code == 200
+    confirmed_ids = {item["id"] for item in response.json()["items"]}
+    assert confirmed_ids == {imported_one["id"], imported_two["id"]}
+
+    listed = {item["id"]: item["confirmation_state"] for item in client.get(PREFIX, headers=auth_headers).json()["items"]}
+    assert listed[imported_one["id"]] == "confirmed"
+    assert listed[imported_two["id"]] == "confirmed"
+    # A previously-rejected imported item is untouched by the bulk action.
+    assert listed[already_rejected["id"]] == "rejected"
+    # Non-imported provenance is untouched.
+    assert listed[inferred["id"]] == "unconfirmed"
+
+    # Calling it again with nothing left pending is a no-op, not an error.
+    again = client.post(f"{PREFIX}/confirm-imported", headers=auth_headers)
+    assert again.status_code == 200
+    assert again.json()["items"] == []
+
+
+def test_accept_all_is_owner_scoped_and_requires_auth(
+    client, auth_headers, test_user, second_user, db
+):
+    assert client.post(f"{PREFIX}/confirm-imported").status_code in (401, 403)
+
+    foreign = EvidenceItem(
+        user_id=second_user.id,
+        kind="skill",
+        content={"name": "Foreign synthetic skill"},
+        provenance="imported",
+        confirmation_state="unconfirmed",
+    )
+    db.add(foreign)
+    db.commit()
+
+    response = client.post(f"{PREFIX}/confirm-imported", headers=auth_headers)
+    assert response.status_code == 200
+    assert response.json()["items"] == []
+    assert db.query(EvidenceItem).filter_by(id=foreign.id).one().confirmation_state == "unconfirmed"
 
 
 def test_all_typed_kinds_and_provenance_values_are_accepted(client, auth_headers):
@@ -418,7 +506,9 @@ def test_profile_lifecycle_emits_allowlisted_events(client, auth_headers, db):
     created_ev, updated_ev, confirmed_ev, rejected_ev, deleted_ev = events
     assert (created_ev.evidence_kind, created_ev.evidence_provenance) == ("experience", "imported")
     assert created_ev.confirmation_transition == "unconfirmed"
-    assert updated_ev.confirmation_transition == "unconfirmed"
+    # Editing is the owner's own correction, so it confirms rather than resets
+    # (Phase 1b, #321).
+    assert updated_ev.confirmation_transition == "confirmed"
     assert confirmed_ev.confirmation_transition == "confirmed"
     assert rejected_ev.confirmation_transition == "rejected"
     # Deletion has no resulting confirmation state, but still carries the kind.
