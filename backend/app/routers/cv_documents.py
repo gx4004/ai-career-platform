@@ -27,6 +27,10 @@ from app.schemas.cv_documents import (
     CvQualityRequest,
     CvQualityResponse,
     CvRenderModel,
+    CvStyle,
+    CvStyleCatalog,
+    CvStyleCatalogFont,
+    CvStyleCatalogTemplate,
     CvTailoringApply,
     CvTailoringEditProposal,
     CvTailoringProposal,
@@ -54,9 +58,21 @@ from app.services.cv_documents import (
     restore_variant,
     update_document,
 )
+from app.services.cv_fonts import FONT_FAMILIES
 from app.services.cv_parser_process import CvParserProcessRejected, parse_cv_import_isolated
-from app.services.cv_quality import analyze_cv_quality, analyze_cv_quality_heuristic
-from app.services.cv_rendering import build_render_model, render_docx, render_pdf, validate_artifact
+from app.services.cv_quality import (
+    analyze_cv_quality,
+    analyze_cv_quality_heuristic,
+    compute_ats_summary,
+)
+from app.services.cv_rendering import (
+    ATS_SAFE_TEMPLATES,
+    TEMPLATES,
+    build_render_model,
+    render_docx,
+    render_pdf,
+    validate_artifact,
+)
 from app.services.cv_tailoring import generate_cv_tailoring, proposal_token, verify_proposal_token
 from app.services.cv_upload import CvUploadRejected, read_validated_cv_upload
 from app.services.evidence_profile import create_evidence_item
@@ -66,6 +82,32 @@ from app.services.tool_pipeline import run_tool_pipeline
 router = APIRouter()
 CV_QUALITY_MODEL_RUN_LIMIT = 10
 CV_TAILORING_MODEL_RUN_LIMIT = 10
+
+_TEMPLATE_CATALOG_META = {
+    "ats-essential": ("ATS Essential", "Single-column, minimal styling built for applicant tracking systems."),
+    "professional-editorial": (
+        "Professional Editorial",
+        "A refined single-column layout with warm serif section headings.",
+    ),
+    "technical-portfolio": (
+        "Technical Portfolio",
+        "Monospace-accented layout suited to engineering and technical roles.",
+    ),
+    "modern-two-column": (
+        "Modern Two-Column",
+        "A sidebar column for contact/skills next to a wide main column. PDF only — "
+        "DOCX exports degrade to a single column.",
+    ),
+    "minimal-serif": (
+        "Minimal Serif",
+        "A quiet, minimal serif layout with generous whitespace.",
+    ),
+}
+
+
+def _document_style(document: CvDocument) -> CvStyle | None:
+    return CvStyle(**document.style) if document.style else None
+
 
 _INVALID_IMPORT = (
     "Use an unencrypted PDF, a valid DOCX without unsafe archive content, or UTF-8 plain text."
@@ -149,6 +191,24 @@ def create(
         _invalid_evidence(error)
 
 
+@router.get("/style-catalog", response_model=CvStyleCatalog)
+def style_catalog(current_user: User = Depends(get_current_user)):
+    templates = [
+        CvStyleCatalogTemplate(
+            id=template_id,
+            name=_TEMPLATE_CATALOG_META[template_id][0],
+            description=_TEMPLATE_CATALOG_META[template_id][1],
+            ats_safe=template_id in ATS_SAFE_TEMPLATES,
+        )
+        for template_id in TEMPLATES
+    ]
+    fonts = [
+        CvStyleCatalogFont(id=family.id, name=family.name, category=family.category)
+        for family in FONT_FAMILIES.values()
+    ]
+    return CvStyleCatalog(templates=templates, fonts=fonts)
+
+
 @router.get("/{document_id}", response_model=CvDocumentResponse)
 def get_one(
     document_id: str,
@@ -172,6 +232,43 @@ def preview_render(
         return build_render_model(get_document(db, document_id, current_user.id), template)
     except CvDocumentNotFoundError as error:
         _not_found(error)
+
+
+@router.get("/{document_id}/render-model", response_model=CvRenderModel)
+def render_model_preview(
+    document_id: str,
+    template_id: CvTemplateId | None = None,
+    font_id: str | None = None,
+    accent_color: str | None = None,
+    density: str | None = None,
+    ats_mode: bool | None = None,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Live-preview render model: an unsaved style can be tried via query params.
+
+    Falls back field-by-field to the document's saved style (or the default style
+    when none is saved), so the UI can preview a single changed control without
+    resending the whole style object.
+    """
+    try:
+        document = get_document(db, document_id, current_user.id)
+    except CvDocumentNotFoundError as error:
+        _not_found(error)
+    base = document.style or {}
+    overrides = {
+        "template_id": template_id,
+        "font_id": font_id,
+        "accent_color": accent_color,
+        "density": density,
+        "ats_mode": ats_mode,
+    }
+    merged = {**base, **{k: v for k, v in overrides.items() if v is not None}}
+    try:
+        style = CvStyle(**merged)
+    except Exception as error:
+        raise HTTPException(status_code=422, detail="Invalid style override") from error
+    return build_render_model(document, style.template_id, style)
 
 
 def _safe_filename(name: str, template: str, extension: str) -> str:
@@ -207,7 +304,7 @@ def export_artifact(
     if not access_decision.can_export:
         raise HTTPException(status_code=403, detail="Export is not available")
 
-    model = build_render_model(document, template)
+    model = build_render_model(document, template, _document_style(document))
     artifact = render_pdf(model) if format == "pdf" else render_docx(model)
     media_type = (
         "application/pdf"
@@ -237,9 +334,10 @@ def artifact_evidence(
     db: Session = Depends(get_db),
 ):
     try:
-        model = build_render_model(get_document(db, document_id, current_user.id), template)
+        document = get_document(db, document_id, current_user.id)
     except CvDocumentNotFoundError as error:
         _not_found(error)
+    model = build_render_model(document, template, _document_style(document))
     artifact = render_pdf(model) if format == "pdf" else render_docx(model)
     return validate_artifact(model, artifact, format)
 
@@ -315,7 +413,7 @@ async def quality(
         },
     )
     if body.artifact_template is not None and body.artifact_format is not None:
-        model = build_render_model(document, body.artifact_template)
+        model = build_render_model(document, body.artifact_template, _document_style(document))
         artifact = render_pdf(model) if body.artifact_format == "pdf" else render_docx(model)
         evidence = validate_artifact(model, artifact, body.artifact_format)
         statuses = {
@@ -334,8 +432,11 @@ async def quality(
     remaining = CV_QUALITY_MODEL_RUN_LIMIT - (
         quota_document.quality_model_runs if body.use_model else document.quality_model_runs
     )
+    ats_score, ats_fixes = compute_ats_summary(result["ats_checks"], _document_style(document))
     safe_record_activation_event(db, event_name="studio_quality_checked")
-    return CvQualityResponse(**result, remaining_model_runs=remaining)
+    return CvQualityResponse(
+        **result, remaining_model_runs=remaining, ats_score=ats_score, ats_fixes=ats_fixes
+    )
 
 
 @router.patch("/{document_id}", response_model=CvDocumentResponse)
@@ -348,7 +449,7 @@ def update(
     try:
         document = get_document(db, document_id, current_user.id)
         sections = None if body.sections is None else [item.model_dump() for item in body.sections]
-        return update_document(db, document, name=body.name, sections=sections)
+        return update_document(db, document, name=body.name, sections=sections, style=body.style)
     except CvDocumentNotFoundError as error:
         _not_found(error)
     except InvalidEvidenceReferenceError as error:

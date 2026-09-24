@@ -182,7 +182,30 @@ export const cvEntrySchema = z.strictObject({
   evidence_item_id: z.string().min(1).nullable(),
   body: z.string().min(1).max(5_000),
   position: z.number().int().nonnegative(),
+  heading: z.string().min(1).max(200).nullable().optional(),
+  subheading: z.string().min(1).max(200).nullable().optional(),
+  location: z.string().min(1).max(200).nullable().optional(),
+  start_date: z.string().min(1).max(40).nullable().optional(),
+  end_date: z.string().min(1).max(40).nullable().optional(),
+  bullets: z.array(z.string()).max(30).optional(),
 })
+export const cvFontIdSchema = z.enum(['lato', 'pt-sans', 'pt-serif', 'crimson-text', 'ibm-plex-mono'])
+export const cvDensitySchema = z.enum(['compact', 'normal', 'spacious'])
+export const CV_ACCENT_PALETTE = [
+  '#111827', '#7C2D12', '#075985', '#166534', '#6D28D9', '#B91C1C', '#0F766E',
+] as const
+export const cvStyleSchema = z.strictObject({
+  template_id: z.enum([
+    'ats-essential', 'professional-editorial', 'technical-portfolio',
+    'modern-two-column', 'minimal-serif',
+  ]).default('ats-essential'),
+  font_id: cvFontIdSchema.default('lato'),
+  accent_color: z.enum(CV_ACCENT_PALETTE).default('#111827'),
+  density: cvDensitySchema.default('normal'),
+  section_order: z.array(z.string()).max(50).nullable().optional(),
+  ats_mode: z.boolean().default(false),
+})
+export type CvStyle = z.infer<typeof cvStyleSchema>
 export const cvSectionSchema = z.strictObject({
   id: z.string().min(1).max(100),
   kind: cvSectionKindSchema,
@@ -200,6 +223,7 @@ export type CvDocumentCreate = z.input<typeof cvDocumentCreateSchema>
 export const cvDocumentUpdateSchema = z.strictObject({
   name: z.string().min(1).max(120).optional(),
   sections: z.array(cvSectionSchema).max(50).optional(),
+  style: cvStyleSchema.optional(),
 }).refine((value) => Object.keys(value).length > 0)
 export const cvVariantCreateSchema = z.strictObject({
   name: z.string().min(1).max(120),
@@ -211,6 +235,10 @@ export const cvVariantSchema = z.object({
 })
 export const cvDocumentSchema = z.object({
   id: z.string(), name: z.string(), sections: z.array(cvSectionSchema),
+  style: cvStyleSchema.default(() => ({
+    template_id: 'ats-essential' as const, font_id: 'lato' as const, accent_color: '#111827' as const,
+    density: 'normal' as const, ats_mode: false,
+  })),
   created_at: z.iso.datetime({ offset: true }), updated_at: z.iso.datetime({ offset: true }),
   quality_model_runs: z.number().int().nonnegative(), tailoring_model_runs: z.number().int().nonnegative(),
   quality_model_run_limit: z.literal(10), tailoring_model_run_limit: z.literal(10),
@@ -389,6 +417,7 @@ export const cvTailoringChangeSchema = z.strictObject({
 })
 export const cvTailoringProposalSchema = z.object({
   schema_version: z.literal('cv-tailoring/v1'), job_title: z.string(), changes: z.array(cvTailoringChangeSchema).max(50),
+  skipped: z.array(z.strictObject({ id: z.string(), reason: z.literal('stale_before_text') })).max(50).default([]),
   remaining_regenerations: z.number().int().nonnegative(), request_id: z.string().uuid(), proposal_token: z.string().length(64), history_id: z.string().nullable(), access_mode: z.literal('authenticated'),
   saved: z.boolean(), locked_actions: z.array(z.string()),
 })
@@ -404,20 +433,31 @@ export type CvTailoringChange = z.infer<typeof cvTailoringChangeSchema>
 export const cvAtsCheckKeySchema = z.enum([
   'section_structure', 'text_layer', 'links', 'page_breaks', 're_importability',
 ])
+export const cvTemplateIdSchema = z.enum([
+  'ats-essential', 'professional-editorial', 'technical-portfolio',
+  'modern-two-column', 'minimal-serif',
+])
 export const cvQualityRequestSchema = z.strictObject({
   use_model: z.boolean().default(false),
   checks: z.array(cvAtsCheckKeySchema).min(1).max(5).optional(),
-  artifact_template: z.enum(['ats-essential', 'professional-editorial', 'technical-portfolio']).optional(),
+  artifact_template: cvTemplateIdSchema.optional(),
   artifact_format: z.enum(['docx', 'pdf']).optional(),
 }).refine((value) => Boolean(value.artifact_template) === Boolean(value.artifact_format), {
   message: 'artifact_template and artifact_format must be supplied together',
 })
-export const cvTemplateIdSchema = z.enum(['ats-essential', 'professional-editorial', 'technical-portfolio'])
 export const cvRenderModelSchema = z.object({
   schema_version: z.literal('cv-render/v1'), document_id: z.string(), document_name: z.string(), template_id: cvTemplateIdSchema,
   page: z.object({ width_mm: z.number().int(), height_mm: z.number().int(), margin_mm: z.number().int() }),
-  tokens: z.record(z.string(), z.union([z.string(), z.number()])),
-  sections: z.array(z.object({ id: z.string(), kind: cvSectionKindSchema, title: z.string(), entries: z.array(z.object({ id: z.string(), text: z.string(), links: z.array(z.string()) })) })),
+  tokens: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])),
+  sections: z.array(z.object({
+    id: z.string(), kind: cvSectionKindSchema, title: z.string(),
+    entries: z.array(z.object({
+      id: z.string(), text: z.string(), links: z.array(z.string()),
+      heading: z.string().nullable().optional(), subheading: z.string().nullable().optional(),
+      location: z.string().nullable().optional(), start_date: z.string().nullable().optional(),
+      end_date: z.string().nullable().optional(), bullets: z.array(z.string()).optional(),
+    })),
+  })),
   canonical_hash: z.string().regex(/^[0-9a-f]{64}$/),
 })
 export type CvTemplateId = z.infer<typeof cvTemplateIdSchema>
@@ -437,7 +477,18 @@ export const cvQualityResponseSchema = z.object({
   remaining_model_runs: z.number().int().nonnegative(),
   history_id: z.string().nullable().optional(), access_mode: z.literal('authenticated'),
   saved: z.boolean(), locked_actions: z.array(z.string()),
+  ats_score: z.number().int().min(0).max(100).default(0),
+  ats_fixes: z.array(z.string()).default([]),
 })
+export const cvStyleCatalogSchema = z.object({
+  templates: z.array(z.object({
+    id: cvTemplateIdSchema, name: z.string(), description: z.string(), ats_safe: z.boolean(),
+  })),
+  fonts: z.array(z.object({ id: cvFontIdSchema, name: z.string(), category: z.string() })),
+  palette: z.array(z.string()),
+  densities: z.array(cvDensitySchema),
+})
+export type CvStyleCatalog = z.infer<typeof cvStyleCatalogSchema>
 export type CvAtsCheckKey = z.infer<typeof cvAtsCheckKeySchema>
 export type CvQualityResponse = z.infer<typeof cvQualityResponseSchema>
 
@@ -449,6 +500,12 @@ export const cvImportClaimSchema = z.strictObject({
 export const cvImportEntrySchema = z.strictObject({
   id: z.string().min(1).max(100), body: z.string().min(1).max(5_000),
   position: z.number().int().nonnegative(), claim: cvImportClaimSchema.nullable(),
+  heading: z.string().min(1).max(200).nullable().optional(),
+  subheading: z.string().min(1).max(200).nullable().optional(),
+  location: z.string().min(1).max(200).nullable().optional(),
+  start_date: z.string().min(1).max(40).nullable().optional(),
+  end_date: z.string().min(1).max(40).nullable().optional(),
+  bullets: z.array(z.string()).max(30).optional(),
 })
 export const cvImportSectionSchema = z.strictObject({
   id: z.string().min(1).max(100), kind: cvSectionKindSchema,

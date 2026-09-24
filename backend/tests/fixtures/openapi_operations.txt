@@ -1,5 +1,3 @@
-# Reviewed public OpenAPI operation contract.
-# Keep one `METHOD /path` entry per line, sorted lexicographically.
 DELETE /api/v1/cv-documents
 DELETE /api/v1/cv-documents/{document_id}
 DELETE /api/v1/development-plan/{item_id}
@@ -38,10 +36,12 @@ GET /api/v1/auth/me
 GET /api/v1/auth/providers
 GET /api/v1/cv-documents
 GET /api/v1/cv-documents/export
+GET /api/v1/cv-documents/style-catalog
 GET /api/v1/cv-documents/{document_id}
 GET /api/v1/cv-documents/{document_id}/artifacts/{format}
 GET /api/v1/cv-documents/{document_id}/artifacts/{format}/evidence
 GET /api/v1/cv-documents/{document_id}/render
+GET /api/v1/cv-documents/{document_id}/render-model
 GET /api/v1/development-plan
 GET /api/v1/discovery/personalization
 GET /api/v1/discovery/recommendations
