@@ -527,7 +527,7 @@ scopes every row to the caller; no anonymous profile rows exist — D-064). The
 bulk export and erasure operations use a 5/min ceiling because they cross the
 largest owner-data lifecycle boundaries (#149, D-065); see §8.7.
 
-### 6.4 Admin Required (17 operations)
+### 6.4 Admin Required (18 operations)
 
 All chain `get_current_admin` through `get_current_user` and an `is_admin`
 check, and all use a 60/min route window. Admin governance and aggregate
@@ -540,6 +540,7 @@ remain governed by the cumulative gates above.
 | `GET` | `/admin/discovery-reports` | R14 owner-reported corrections | 60/min |
 | `GET` | `/admin/source-health` | R14 aggregate source health | 60/min |
 | `POST` | `/admin/discovery-sources/{source_id}/kill-switch` | R14 source control | 60/min |
+| `POST` | `/admin/discovery-sources/refresh` | R14 employer-ATS on-demand ingestion | 60/min |
 | `GET` | `/admin/users` | User administration | 60/min |
 | `GET` | `/admin/users/{user_id}` | User administration | 60/min |
 | `PATCH` | `/admin/users/{user_id}/admin` | Role administration | 60/min |

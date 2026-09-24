@@ -78,6 +78,13 @@ class Settings(BaseSettings):
     R15_QUEUE_ENABLED: bool = False
     R17_DEVELOPMENT_LOOP_ENABLED: bool = False
 
+    # Recurring employer-ATS ingestion (Greenhouse/Lever/Ashby public job-board
+    # APIs, #323). Independent of R14_DISCOVERY_ENABLED so it does not flip a
+    # network-fetching background loop on just because the discovery routes are
+    # exposed; both must be true for the scheduler to start (see
+    # `app.services.ats_ingestion.run_ats_ingestion_scheduler`). Ships dark.
+    ATS_INGESTION_ENABLED: bool = False
+
     # ── R10 scaling-trigger scorecard inputs (issue #136, parent #135) ──
     # Operator-declared deployment topology class. The intended backend starts
     # one Uvicorn process, so `single` is the accurate default; declare `multi`

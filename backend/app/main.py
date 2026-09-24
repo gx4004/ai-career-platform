@@ -46,6 +46,7 @@ from app.routers import (
     resume,
     telemetry,
 )
+from app.services.ats_ingestion import run_ats_ingestion_scheduler
 from app.services.observability import configure_logging
 from app.services.rate_limit_events import (
     collect_rate_limit_evidence,
@@ -141,23 +142,30 @@ async def lifespan(app: FastAPI):
     """Start the recurring activation-event retention prune (D-037, #107).
 
     See `app.services.retention` for why an app-startup task is the chosen
-    mechanism. The task is cancelled cleanly on shutdown.
+    mechanism. The task is cancelled cleanly on shutdown. `run_ats_ingestion_scheduler`
+    (#323) follows the same pattern but returns immediately as a no-op when its
+    own flags are off, so the task always exists but never fetches unless
+    deliberately enabled.
     """
     prune_task = asyncio.create_task(run_activation_prune_scheduler())
     listing_expiry_task = asyncio.create_task(run_discovered_listing_expiry_scheduler())
     database_sample_task = asyncio.create_task(run_database_sample_scheduler())
+    ats_ingestion_task = asyncio.create_task(run_ats_ingestion_scheduler())
     try:
         yield
     finally:
         prune_task.cancel()
         listing_expiry_task.cancel()
         database_sample_task.cancel()
+        ats_ingestion_task.cancel()
         with suppress(asyncio.CancelledError):
             await prune_task
         with suppress(asyncio.CancelledError):
             await listing_expiry_task
         with suppress(asyncio.CancelledError):
             await database_sample_task
+        with suppress(asyncio.CancelledError):
+            await ats_ingestion_task
 
 
 app = FastAPI(title="Career Workbench API", version="1.0.0", lifespan=lifespan)
