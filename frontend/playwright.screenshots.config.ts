@@ -17,7 +17,6 @@ const enabledOutcomeFlags = {
   R13_CAMPAIGNS_ENABLED: 'true',
   R14_DISCOVERY_ENABLED: 'true',
   R15_QUEUE_ENABLED: 'true',
-  R16_SUBMISSION_FOUNDATION_ENABLED: 'true',
   R17_DEVELOPMENT_LOOP_ENABLED: 'true',
 }
 
@@ -84,7 +83,6 @@ export default defineConfig({
         VITE_R13_CAMPAIGNS_ENABLED: 'true',
         VITE_R14_DISCOVERY_ENABLED: 'true',
         VITE_R15_QUEUE_ENABLED: 'true',
-        VITE_R16_SUBMISSION_FOUNDATION_ENABLED: 'true',
         VITE_R17_DEVELOPMENT_LOOP_ENABLED: 'true',
       },
     },

@@ -15,10 +15,6 @@ DATABASE_NAME_PROFILES = {
         re.compile(r"^cw_local_release(?:_[a-z0-9]+)*$"),
         "cw_local_release or start with cw_local_release_",
     ),
-    "authorization-concurrency": (
-        re.compile(r"^codex_submission_authorization_concurrency_[a-z0-9]+$"),
-        "start with codex_submission_authorization_concurrency_",
-    ),
 }
 POSTGRESQL_SCHEMES = {
     "postgres",

@@ -32,7 +32,6 @@ def setup_db(monkeypatch):
         "R13_CAMPAIGNS_ENABLED",
         "R14_DISCOVERY_ENABLED",
         "R15_QUEUE_ENABLED",
-        "R16_SUBMISSION_FOUNDATION_ENABLED",
         "R17_DEVELOPMENT_LOOP_ENABLED",
     ):
         monkeypatch.setattr(settings, flag, True)

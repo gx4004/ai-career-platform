@@ -781,20 +781,16 @@ def _empty_result(selection) -> PacketPreparationResult:
 def _packet_item(
     packet: ApplicationPacket,
     answered_fields: set[str] | None = None,
-    submission_stop=None,
 ) -> ApplicationPacketItem:
     """Serialize a packet with its true outstanding questions (see packet_approval).
 
     ``answered_fields`` defaults to empty — correct for a packet just created this
     call, which by definition has no stop answers recorded against it yet.
     """
-    item = packet_item_with_true_unresolved(packet, answered_fields or set())
-    return item.model_copy(update={"submission_stop": submission_stop})
+    return packet_item_with_true_unresolved(packet, answered_fields or set())
 
 
 def list_packets(db: Session, user_id: str) -> ApplicationPacketList:
-    from app.services.submissions import stop_notices_by_packet
-
     rows = (
         db.query(ApplicationPacket)
         .filter(ApplicationPacket.user_id == user_id)
@@ -802,16 +798,8 @@ def list_packets(db: Session, user_id: str) -> ApplicationPacketList:
         .all()
     )
     answered_by_packet = answered_fields_by_packet(db, user_id)
-    stop_by_packet = stop_notices_by_packet(db, user_id)
     return ApplicationPacketList(
-        items=[
-            _packet_item(
-                row,
-                answered_by_packet.get(row.id),
-                stop_by_packet.get(row.id),
-            )
-            for row in rows
-        ]
+        items=[_packet_item(row, answered_by_packet.get(row.id)) for row in rows]
     )
 
 
@@ -820,8 +808,6 @@ class PacketNotFoundError(Exception):
 
 
 def get_packet(db: Session, user_id: str, packet_id: str) -> ApplicationPacketItem:
-    from app.services.submissions import stop_notices_by_packet
-
     row = (
         db.query(ApplicationPacket)
         .filter(ApplicationPacket.user_id == user_id, ApplicationPacket.id == packet_id)
@@ -830,11 +816,7 @@ def get_packet(db: Session, user_id: str, packet_id: str) -> ApplicationPacketIt
     if row is None:
         raise PacketNotFoundError(packet_id)
     answered = answered_fields_for_packet(db, user_id, packet_id)
-    return _packet_item(
-        row,
-        answered,
-        stop_notices_by_packet(db, user_id).get(packet_id),
-    )
+    return _packet_item(row, answered)
 
 
 # ── Export + deletion cascade (D-099) ──

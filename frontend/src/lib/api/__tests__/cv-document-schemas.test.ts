@@ -61,16 +61,6 @@ describe('CV document schema (R12, #153)', () => {
       packet_stop_answers: { stop_answers: [] },
       packet_approval_snapshots: { snapshots: [] },
       queue_audit: { events: [] },
-      submission_authorizations: {
-        schema_version: 'submission-authorizations-export/v1',
-        grant_count: 0,
-        grants: [],
-      },
-      submission_records: {
-        schema_version: 'submission-records-export/v1', record_count: 0, records: [],
-        dispatch_claim_count: 0, dispatch_claims: [],
-        dispatch_attempt_count: 0, dispatch_attempts: [], stop_count: 0, stops: [],
-      },
       development: {
         item_count: 0,
         items: [],

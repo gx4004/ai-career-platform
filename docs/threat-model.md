@@ -227,12 +227,11 @@ Browser → POST /auth/password-reset/confirm {token, new_password}
 | 10 | Classified career gaps and development plans | High | `gap_classifications.message/locations/cited_trace`, `development_items.notes/timeline` | Until item/classification/account deletion | Skill-deficit inference, professional vulnerability, learning intent, and target-role exposure |
 | 11 | Tool metadata (scores, skill gaps, recommendations) | Medium | `tool_runs.result_payload` | Until deletion | Career profile inference |
 | 12 | Workspace/campaign target, schedule, tracking records, and transition history | High | `workspaces`, `campaign_listings`, `campaign_tasks`, `campaign_notes`, `campaign_contacts`, `campaign_events` | Until campaign/account deletion | Job-search intent, target employer, application timing, third-party contact data, and outcome-history exposure |
-| 13 | Queue rules, application intent, user-authored stop answers, and frozen approval/submission bundles | High | `queue_rules`, `queue_settings`, `application_packets`, `packet_stop_answers`, `packet_approval_snapshots`, `campaign_submission_snapshots` | Until campaign/account deletion; rules/settings until account deletion | Exact CV, cover letter, target listing, compensation/work-authorization preferences, owner approval, and application-history exposure |
-| 14 | Discovery and submission source governance and safety records | Medium | `discovery_sources`, `submission_source_governance`, `submission_safety_controls`, `submission_safety_policies`, `submission_incident_rehearsals` | Until registry/control deletion; rehearsal history is append-only | Source contracts, legal-review posture, operator identity, operational ownership, and acquisition/submission bounds exposed |
-| 15 | Per-source user authorization, frozen dispatch state, attempt/stop ledgers, and immutable submission proof | High | `submission_authorization_grants`, `submission_dispatch_claims`, `submission_dispatch_attempts`, `submission_stop_events`, `submission_records` | Grant until revocation; remaining rows until packet/source/account deletion | Job-search automation intent, submitted fields, timing, confirmation, stop reasons, and authorized employer-system relationship exposed |
-| 16 | Product-owned discovered listings and owner correction/report state | Medium-High | `discovered_listings`, `discovered_listing_attributions`, `discovery_hidden_sources`, `discovery_dismissed_listings`, `discovery_recommendation_reports` | Listings follow source retention; owner state until explicit/account deletion | Employer openings, acquisition sources, job-search preferences, report prose, and stale corpus exposure |
-| 17 | Behavioral telemetry (event names, routes, timestamps) | Low | Log stdout, Sentry (if enabled) | 180-day durable-event window; processor retention otherwise deployment-defined | Usage pattern inference |
-| 18 | Sidebar state, language preference | None | `sidebar_state` cookie, `app_language` localStorage | 7 days / forever | None |
+| 13 | Queue rules, application intent, user-authored stop answers, and frozen approval bundles | High | `queue_rules`, `queue_settings`, `application_packets`, `packet_stop_answers`, `packet_approval_snapshots`, `campaign_submission_snapshots` | Until campaign/account deletion; rules/settings until account deletion | Exact CV, cover letter, target listing, compensation/work-authorization preferences, owner approval, and application-history exposure |
+| 14 | Discovery source governance records | Medium | `discovery_sources` | Until registry deletion | Source contracts, legal-review posture, operator identity, and operational ownership exposed |
+| 15 | Product-owned discovered listings and owner correction/report state | Medium-High | `discovered_listings`, `discovered_listing_attributions`, `discovery_hidden_sources`, `discovery_dismissed_listings`, `discovery_recommendation_reports` | Listings follow source retention; owner state until explicit/account deletion | Employer openings, acquisition sources, job-search preferences, report prose, and stale corpus exposure |
+| 16 | Behavioral telemetry (event names, routes, timestamps) | Low | Log stdout, Sentry (if enabled) | 180-day durable-event window; processor retention otherwise deployment-defined | Usage pattern inference |
+| 17 | Sidebar state, language preference | None | `sidebar_state` cookie, `app_language` localStorage | 7 days / forever | None |
 
 ### 4.1 Guest-Specific Storage Note
 
@@ -244,7 +243,7 @@ the same data persists indefinitely in the `tool_runs` table.
 
 ### 4.2 Executable Relational Store Inventory
 
-Importing the assembled application registers **37 application tables** in
+Importing the assembled application registers **28 application tables** in
 `Base.metadata` (the database-managed `alembic_version` table is intentionally
 excluded). This is the complete code-level store inventory at the reviewed HEAD;
 it does not assert that any dark outcome is active in a deployed environment.
@@ -257,7 +256,6 @@ it does not assert that any dark outcome is active in a deployed environment.
 | R13 campaigns | `campaign_listings`, `campaign_tasks`, `campaign_notes`, `campaign_contacts`, `campaign_submission_snapshots`, `campaign_events` | All rows belong through an owner-scoped workspace. Campaign/account deletion removes them; the structured export includes their portable owner content. |
 | R14 discovery | `discovery_sources`, `discovered_listings`, `discovered_listing_attributions`, `discovery_hidden_sources`, `discovery_dismissed_listings`, `discovery_recommendation_reports` | Registry/listing rows are product/admin data with source-governed retention. Hidden, dismissed, and report rows are owner-scoped and join export/account erasure. |
 | R15 approval queue | `queue_rules`, `queue_settings`, `application_packets`, `packet_stop_answers`, `packet_approval_snapshots`, `queue_audit_events`, `pipeline_halts` | Rules, packets, answers, snapshots, and audit rows are owner-scoped and join account erasure/export. `pipeline_halts` also holds content-free pipeline-wide operational state; owner pause scopes are erased with the owner. |
-| R16 submission foundation | `submission_source_governance`, `submission_authorization_grants`, `submission_dispatch_claims`, `submission_dispatch_attempts`, `submission_stop_events`, `submission_safety_controls`, `submission_safety_policies`, `submission_incident_rehearsals`, `submission_records` | Governance/safety rows are admin or global operational state. Grants and dispatch/audit rows are owner/packet-linked and join account erasure; the owner export exposes the bounded authorization and immutable record contracts, not internal control-plane secrets. No table stores provider credentials. |
 | R17 development loop | `gap_classifications`, `development_items` | Owner-scoped; item/classification erasure plus derived-offer and plan portability in `career-data-export/v1`. |
 
 — `backend/app/models/__init__.py`; `backend/app/database.py:Base`;
@@ -387,7 +385,7 @@ guest runs remain transient. URL import is also optional-auth; only its explicit
 | `POST` | `/career/recommend` | — | 10/min + Model shared |
 | `POST` | `/portfolio/recommend` | — | 10/min + Model shared |
 
-### 6.3 Authenticated Owner (93) or Refresh Credential (1)
+### 6.3 Authenticated Owner (90) or Refresh Credential (1)
 
 `POST /auth/refresh` is the sole route in this section that accepts a refresh
 cookie instead of an access credential. Every other operation resolves
@@ -509,18 +507,6 @@ is dark; R12 export and erasure remain inside the cumulative R12 router gate.
 | `POST` | `/packets/{packet_id}/reject` | R15 | — |
 | `POST` | `/packets/{packet_id}/edit` | R15 | — |
 
-#### R16 submission authorization/safety inspection (3)
-
-These routes list/revoke a previously recorded bounded grant and inspect its
-current gates. There is no public grant-creation route and no client-callable
-outward submission operation.
-
-| Method | Path | Outcome gate | Rate limit |
-|--------|------|--------------|------------|
-| `GET` | `/submission-authorizations` | R16 | 30/min |
-| `GET` | `/submission-authorizations/{grant_id}/safety` | R16 | 30/min |
-| `DELETE` | `/submission-authorizations/{grant_id}` | R16 | 30/min |
-
 #### R17 development loop (10)
 
 | Method | Path | Outcome gate | Rate limit |
@@ -541,14 +527,12 @@ scopes every row to the caller; no anonymous profile rows exist — D-064). The
 bulk export and erasure operations use a 5/min ceiling because they cross the
 largest owner-data lifecycle boundaries (#149, D-065); see §8.7.
 
-### 6.4 Admin Required (23 operations)
+### 6.4 Admin Required (17 operations)
 
 All chain `get_current_admin` through `get_current_user` and an `is_admin`
 check, and all use a 60/min route window. Admin governance and aggregate
 operational views are not user-feature activation seams: user R11–R17 surfaces
-remain governed by the cumulative gates above. The R16 controls below can only
-configure or inspect the dark safety foundation; none invokes an external
-submission adapter.
+remain governed by the cumulative gates above.
 
 | Method | Path | Domain | Rate limit |
 |--------|------|--------|------------|
@@ -556,12 +540,6 @@ submission adapter.
 | `GET` | `/admin/discovery-reports` | R14 owner-reported corrections | 60/min |
 | `GET` | `/admin/source-health` | R14 aggregate source health | 60/min |
 | `POST` | `/admin/discovery-sources/{source_id}/kill-switch` | R14 source control | 60/min |
-| `GET` | `/admin/submission-safety` | R16 safety posture | 60/min |
-| `POST` | `/admin/submission-safety/global-kill-switch` | R16 global fail-closed control | 60/min |
-| `POST` | `/admin/submission-safety/rehearsal` | R16 incident-rehearsal evidence | 60/min |
-| `PUT` | `/admin/discovery-sources/{source_id}/submission-safety` | R16 per-source policy | 60/min |
-| `POST` | `/admin/discovery-sources/{source_id}/submission-kill-switch` | R16 per-source fail-closed control | 60/min |
-| `GET` | `/admin/submission-quality` | R16 aggregate quality | 60/min |
 | `GET` | `/admin/users` | User administration | 60/min |
 | `GET` | `/admin/users/{user_id}` | User administration | 60/min |
 | `PATCH` | `/admin/users/{user_id}/admin` | Role administration | 60/min |
@@ -578,7 +556,7 @@ submission adapter.
 
 ### 6.5 Unrate-Limited Endpoints (Risk Note)
 
-Exactly **78 of 134 operations** have no SlowAPI route window; they are marked
+Exactly **78 of 127 operations** have no SlowAPI route window; they are marked
 `—` above. Most are authenticated owner-scoped CRUD, lifecycle, discovery, or
 queue mutations. This is current executable posture, not evidence that those
 operations need no abuse control before activation. Default-dark outcome gates
@@ -1381,7 +1359,7 @@ model metadata were used instead of decorator-text counts.
 | §4 | `rg -n 'result_payload\|hashed_password\|google_id' backend/app/models --glob='*.py'` | Sensitive model fields confirmed |
 | §4.2 | Assembled-app `Base.metadata.tables` introspection | 37 unique application tables; Alembic head `c4a8e2f6b1d9` |
 | §5 | `rg -l 'localStorage\|sessionStorage' frontend/src --glob='*.ts' --glob='*.tsx' --glob='!**/__tests__/**' --glob='!**/*.test.*'` | 15 production files matched for manual key review |
-| §6 | `cd backend && .venv/bin/pytest -q tests/test_openapi_schema.py tests/test_feature_gates.py tests/test_submission_boundary.py` | 27 passed; assembled app has exactly 134 operations, matches the reviewed fixture, preserves cumulative gates, and exposes no outward-submission endpoint |
+| §6 | `cd backend && .venv/bin/pytest -q tests/test_openapi_schema.py tests/test_feature_gates.py` | assembled app has exactly 127 operations, matches the reviewed fixture, and preserves cumulative gates |
 | §6 | Assembled FastAPI dependency and Limiter-registry introspection | Auth split: 11 public, 8 optional, 1 refresh-cookie, 90 owner, 23 admin; 56 limited and 77 without a route window |
 | §6 | Documentation operation-table comparison with `tests/fixtures/openapi_operations.txt` | 133 unique documentation rows; no missing or extra operation; gate and limited/unlimited presence match runtime introspection |
 | §6.6 | `rg -n '_get_client_ip\|TRUST_PROXY_HEADERS' backend/app/limiter.py` | Client-IP trust decision at lines 16-18; all uses inspected |

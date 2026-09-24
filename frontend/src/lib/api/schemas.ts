@@ -1,5 +1,4 @@
 import { z } from 'zod'
-import { submissionAuthorizationsExportSchema } from '#/lib/api/submissionAuthorizationSchemas'
 import {
   developmentItemSchema,
   developmentResponseKindSchema,
@@ -7,7 +6,6 @@ import {
 import { gapClassificationSchema, gapKindSchema } from '#/lib/api/gapClassificationSchemas'
 import {
   applicationPacketsExportSchema,
-  packetApprovalSnapshotResponseSchema,
   packetApprovalSnapshotsExportSchema,
   packetStopAnswersExportSchema,
 } from '#/lib/api/packetSchemas'
@@ -297,74 +295,6 @@ export const developmentLoopExportSchema = z
       value.recommendation_count === value.recommendations.length,
   )
 
-const submissionRecordSchema = z.strictObject({
-  id: z.string(),
-  packet_approval_snapshot_id: z.string(),
-  discovery_source_id: z.string(),
-  authorization_grant_id: z.string(),
-  idempotency_key: z.string(),
-  snapshot_content_sha256: z.string().regex(/^[0-9a-f]{64}$/),
-  contract_version: z.string(),
-  contract_sha256: z.string().regex(/^[0-9a-f]{64}$/),
-  submitted_fields: z.record(z.string(), z.unknown()),
-  submitted_fields_sha256: z.string().regex(/^[0-9a-f]{64}$/),
-  source_confirmation_id: z.string(),
-  submitted_at: z.iso.datetime({ offset: true }),
-})
-
-const submissionRecordsExportSchema = z
-  .strictObject({
-    schema_version: z.literal('submission-records-export/v1'),
-    record_count: z.number().int().nonnegative(),
-    records: z.array(submissionRecordSchema),
-    dispatch_claim_count: z.number().int().nonnegative(),
-    dispatch_claims: z.array(z.strictObject({
-      idempotency_key: z.string(),
-      packet_approval_snapshot_id: z.string(),
-      discovery_source_id: z.string(),
-      authorization_grant_id: z.string(),
-      snapshot_content_sha256: z.string().regex(/^[0-9a-f]{64}$/),
-      contract_version: z.string(),
-      contract_sha256: z.string().regex(/^[0-9a-f]{64}$/),
-      submitted_fields: z.record(z.string(), z.unknown()),
-      submitted_fields_sha256: z.string().regex(/^[0-9a-f]{64}$/),
-      created_at: z.iso.datetime({ offset: true }),
-    })),
-    dispatch_attempt_count: z.number().int().nonnegative(),
-    dispatch_attempts: z.array(z.strictObject({
-      id: z.string(),
-      discovery_source_id: z.string(),
-      idempotency_key: z.string(),
-      created_at: z.iso.datetime({ offset: true }),
-    })),
-    stop_count: z.number().int().nonnegative(),
-    stops: z.array(z.strictObject({
-      id: z.string(),
-      packet_approval_snapshot_id: z.string(),
-      discovery_source_id: z.string(),
-      authorization_grant_id: z.string(),
-      idempotency_key: z.string(),
-      contract_version: z.string(),
-      contract_sha256: z.string().regex(/^[0-9a-f]{64}$/),
-      reason: z.enum([
-        'challenge',
-        'authentication_required',
-        'uncertainty',
-        'compatibility_mismatch',
-        'source_validation_rejected',
-      ]),
-      source_code: z.string().nullable(),
-      created_at: z.iso.datetime({ offset: true }),
-    })),
-  })
-  .refine(
-    (value) =>
-      value.record_count === value.records.length &&
-      value.dispatch_claim_count === value.dispatch_claims.length &&
-      value.dispatch_attempt_count === value.dispatch_attempts.length &&
-      value.stop_count === value.stops.length,
-  )
-
 export const careerDataExportSchema = z.strictObject({
   schema_version: z.literal('career-data-export/v1'),
   exported_at: z.iso.datetime(),
@@ -376,8 +306,6 @@ export const careerDataExportSchema = z.strictObject({
   packet_stop_answers: packetStopAnswersExportSchema,
   packet_approval_snapshots: packetApprovalSnapshotsExportSchema,
   queue_audit: queueAuditExportSchema,
-  submission_authorizations: submissionAuthorizationsExportSchema,
-  submission_records: submissionRecordsExportSchema,
   development: developmentLoopExportSchema,
   campaigns: z.strictObject({
     campaign_count: z.number().int().nonnegative(),
@@ -686,17 +614,6 @@ export const campaignReminderResponseSchema = z.object({
   next_surface_at: z.iso.datetime({ offset: true }).nullable(),
 })
 export const campaignSubmissionSnapshotSchema = z.object({ id: z.string(), content: z.record(z.string(), z.unknown()), content_sha256: z.string().length(64), created_at: z.iso.datetime() })
-export const campaignSubmissionConfirmationSchema = z.strictObject({
-  record_id: z.string(),
-  discovery_source_id: z.string(),
-  contract_version: z.string(),
-  submitted_fields: z.record(z.string(), z.unknown()),
-  submitted_fields_sha256: z.string().regex(/^[0-9a-f]{64}$/),
-  source_confirmation_id: z.string(),
-  submitted_at: z.iso.datetime({ offset: true }),
-  snapshot: packetApprovalSnapshotResponseSchema,
-  product_copy_deletion_notice: z.literal('Deleting this campaign removes its product-held submission records but does not withdraw the application from the employer.'),
-})
 export const campaignDetailSchema = workspaceSummarySchema.extend({
   selected_materials: z.object({
     cv_variant: campaignCvVariantReferenceSchema.nullable(),
@@ -711,7 +628,6 @@ export const campaignDetailSchema = workspaceSummarySchema.extend({
   events: z.array(campaignEventSchema), tasks: z.array(campaignTaskSchema),
   notes: z.array(campaignNoteSchema), contacts: z.array(campaignContactSchema),
   submission_snapshots: z.array(campaignSubmissionSnapshotSchema),
-  submission_confirmations: z.array(campaignSubmissionConfirmationSchema).default([]),
 })
 export const campaignMaterialSelectionSchema = z.strictObject({
   cv_variant_id: z.string().nullable().optional(),

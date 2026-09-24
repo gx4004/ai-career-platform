@@ -59,6 +59,7 @@ export function CampaignPage({ campaignId }: { campaignId: string }) {
       <div className="campaign-meta" aria-label="Campaign details">
         <span className="campaign-status">{campaign.status?.replace('-', ' ') || 'Not started'}</span>
         <span><CalendarDays aria-hidden="true" />{campaign.deadline ? new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(campaign.deadline)) : 'No deadline'}</span>
+        <Button variant="outline" className="button-destructive-soft" onClick={() => setDeleteOpen(true)}><Trash2 size={14} className="mr-1.5" />Delete campaign</Button>
       </div>
     </header>
 
@@ -76,7 +77,7 @@ export function CampaignPage({ campaignId }: { campaignId: string }) {
         {mutation.isError ? <p className="campaign-error" role="alert">The selection could not be saved. Try again.</p> : null}
       </aside>
     </div>
-    <CampaignTracking campaign={campaign} campaignId={campaignId} refresh={refresh} onRequestDelete={() => setDeleteOpen(true)} />
+    <CampaignTracking campaign={campaign} campaignId={campaignId} refresh={refresh} />
     <CampaignReminders campaignId={campaignId} />
     <CampaignReviewer campaignId={campaignId} />
     <Dialog open={deleteOpen} onOpenChange={(open) => { if (!deleteMutation.isPending) setDeleteOpen(open) }}>

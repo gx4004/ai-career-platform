@@ -4,8 +4,6 @@ from urllib.parse import urlparse
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from app.schemas.submission_sources import SubmissionSourceGovernanceResponse
-
 DiscoverySourceFamily = Literal["licensed", "employer_ats", "public_career_page", "user_provided"]
 DiscoveryTermsStatus = Literal["pending", "accepted", "failed"]
 DiscoveryAllowedBehavior = Literal[
@@ -113,7 +111,6 @@ class DiscoverySourceResponse(BaseModel):
     retention_days: int
     kill_switch: bool
     ingestion_allowed: bool
-    submission_governance: SubmissionSourceGovernanceResponse | None = None
     created_at: datetime
     updated_at: datetime
 
