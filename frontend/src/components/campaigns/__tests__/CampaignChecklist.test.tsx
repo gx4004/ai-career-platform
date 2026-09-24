@@ -1,7 +1,8 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { CampaignReviewer } from '#/components/campaigns/CampaignReviewer'
+import { CampaignChecklist } from '#/components/campaigns/CampaignChecklist'
+import type { CampaignDetail } from '#/lib/api/schemas'
 
 const api = vi.hoisted(() => ({
   reviewCampaign: vi.fn(),
@@ -20,6 +21,15 @@ vi.mock('@tanstack/react-router', () => ({
     <a href={to}>{children}</a>
   ),
 }))
+
+const baseCampaign = {
+  id: 'campaign-1', label: null, is_pinned: false, company: 'Northstar', role: 'Platform Engineer', status: 'preparing',
+  deadline: null, listing: null, linked_run_ids: [], last_active_tool: null, last_active_result_id: null,
+  updated_at: '2026-08-13T10:00:00Z', next_task: null, last_activity_at: null,
+  selected_materials: { cv_variant: null, cover_letter: null, interview: null },
+  available_materials: { cv_variants: [], cover_letters: [], interviews: [] },
+  events: [], tasks: [], notes: [], contacts: [], submission_snapshots: [],
+} as CampaignDetail
 
 const review = {
   findings: [
@@ -108,7 +118,7 @@ function setOutcomeFlags(r17Enabled: boolean) {
   vi.stubEnv('VITE_R17_DEVELOPMENT_LOOP_ENABLED', String(r17Enabled))
 }
 
-function renderReviewer() {
+function renderReviewer(campaign: CampaignDetail = baseCampaign) {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: { retry: false },
@@ -117,12 +127,12 @@ function renderReviewer() {
   })
   return render(
     <QueryClientProvider client={queryClient}>
-      <CampaignReviewer campaignId="campaign-1" />
+      <CampaignChecklist campaign={campaign} />
     </QueryClientProvider>,
   )
 }
 
-describe('CampaignReviewer development acceptance path', () => {
+describe('CampaignChecklist next-step path', () => {
   beforeEach(() => {
     api.reviewCampaign.mockReset().mockResolvedValue(review)
     api.classifyCampaignGaps.mockReset().mockResolvedValue({
@@ -140,9 +150,9 @@ describe('CampaignReviewer development acceptance path', () => {
     setOutcomeFlags(false)
     renderReviewer()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Run application review' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Run the checks' }))
     expect(await screen.findByText(review.findings[0].message)).toBeTruthy()
-    expect(screen.queryByRole('button', { name: 'Classify review findings' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Suggest next steps' })).toBeNull()
     expect(api.classifyCampaignGaps).not.toHaveBeenCalled()
   })
 
@@ -151,9 +161,9 @@ describe('CampaignReviewer development acceptance path', () => {
     vi.stubEnv('VITE_R13_CAMPAIGNS_ENABLED', 'false')
     renderReviewer()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Run application review' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Run the checks' }))
     expect(await screen.findByText(review.findings[0].message)).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Classify review findings' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Suggest next steps' })).toBeTruthy()
   })
 
   it('requires explicit review, classification, response inspection, and plan creation', async () => {
@@ -163,17 +173,17 @@ describe('CampaignReviewer development acceptance path', () => {
     expect(api.classifyCampaignGaps).not.toHaveBeenCalled()
     expect(createDevelopmentItem).not.toHaveBeenCalled()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Run application review' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Run the checks' }))
     const finding = await screen.findByRole('article')
     expect(within(finding).getByText(review.findings[0].message)).toBeTruthy()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Classify review findings' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Suggest next steps' }))
     await waitFor(() =>
       expect(api.classifyCampaignGaps).toHaveBeenCalledWith('campaign-1'),
     )
     expect(await within(finding).findByText('Uncaptured evidence')).toBeTruthy()
 
-    fireEvent.click(within(finding).getByText('Why this classification'))
+    fireEvent.click(within(finding).getByText('Why?'))
     expect(
       within(finding).getByText(
         'classified:uncaptured_evidence:claim_present_unconfirmed',
@@ -181,19 +191,19 @@ describe('CampaignReviewer development acceptance path', () => {
     ).toBeTruthy()
     expect(api.getCampaignGapResponse).not.toHaveBeenCalled()
 
-    fireEvent.click(within(finding).getByRole('button', { name: 'Inspect honest response' }))
+    fireEvent.click(within(finding).getByRole('button', { name: 'See what to do' }))
     await waitFor(() =>
       expect(api.getCampaignGapResponse).toHaveBeenCalledWith('campaign-1', 'gap-1'),
     )
     expect(await within(finding).findByText('Capture this as evidence')).toBeTruthy()
     expect(within(finding).getByText('Reduced migration time by 30%')).toBeTruthy()
-    expect(within(finding).getByText('Inferred')).toBeTruthy()
-    expect(within(finding).getByText('Not saved or confirmed')).toBeTruthy()
+    expect(within(finding).getByText(/Source: Inferred/)).toBeTruthy()
+    expect(within(finding).getByText(/Not saved yet/)).toBeTruthy()
     expect(within(finding).getByText('None disclosed')).toBeTruthy()
     expect(createDevelopmentItem).not.toHaveBeenCalled()
     expect(api.setEvidenceItemConfirmation).not.toHaveBeenCalled()
 
-    fireEvent.click(within(finding).getByRole('button', { name: 'Add to development plan' }))
+    fireEvent.click(within(finding).getByRole('button', { name: 'Add to my development plan' }))
     await waitFor(() =>
       expect(createDevelopmentItem).toHaveBeenCalledWith({
         gap_classification_id: 'gap-1',
@@ -201,11 +211,11 @@ describe('CampaignReviewer development acceptance path', () => {
     )
     expect(await within(finding).findByRole('status')).toHaveProperty(
       'textContent',
-      'Added as planned. No evidence was created or confirmed.',
+      'Added to your development plan.',
     )
     expect(api.setEvidenceItemConfirmation).not.toHaveBeenCalled()
     expect(
-      within(finding).getByRole('button', { name: 'Added to development plan' }),
+      within(finding).getByRole('button', { name: 'Added to your plan' }),
     ).toHaveProperty('disabled', true)
   })
 
@@ -214,13 +224,13 @@ describe('CampaignReviewer development acceptance path', () => {
     setOutcomeFlags(true)
     renderReviewer()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Run application review' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Run the checks' }))
     const finding = await screen.findByRole('article')
-    fireEvent.click(screen.getByRole('button', { name: 'Classify review findings' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Suggest next steps' }))
     await waitFor(() =>
       expect(api.classifyCampaignGaps).toHaveBeenCalledWith('campaign-1'),
     )
-    fireEvent.click(within(finding).getByRole('button', { name: 'Inspect honest response' }))
+    fireEvent.click(within(finding).getByRole('button', { name: 'See what to do' }))
 
     const step = await within(finding).findByRole('link', {
       name: 'Portfolio Planner: Kubernetes',
@@ -229,7 +239,6 @@ describe('CampaignReviewer development acceptance path', () => {
     expect(step.getAttribute('href')).toBe('/portfolio')
     expect(step.getAttribute('target')).toBeNull()
     expect(within(finding).getByText('None disclosed')).toBeTruthy()
-    expect(within(finding).queryByText('No external sources were recommended.')).toBeNull()
   })
 
   it('renders the disclosed relationship from the payload, never a fixed claim', async () => {
@@ -242,15 +251,69 @@ describe('CampaignReviewer development acceptance path', () => {
     setOutcomeFlags(true)
     renderReviewer()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Run application review' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Run the checks' }))
     const finding = await screen.findByRole('article')
-    fireEvent.click(screen.getByRole('button', { name: 'Classify review findings' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Suggest next steps' }))
     await waitFor(() =>
       expect(api.classifyCampaignGaps).toHaveBeenCalledWith('campaign-1'),
     )
-    fireEvent.click(within(finding).getByRole('button', { name: 'Inspect honest response' }))
+    fireEvent.click(within(finding).getByRole('button', { name: 'See what to do' }))
 
     expect(await within(finding).findByText('affiliate')).toBeTruthy()
     expect(within(finding).queryByText('None disclosed')).toBeNull()
+  })
+
+})
+
+describe('CampaignChecklist', () => {
+  beforeEach(() => {
+    api.reviewCampaign.mockReset().mockResolvedValue(review)
+    setOutcomeFlags(false)
+  })
+
+  afterEach(() => vi.unstubAllEnvs())
+
+  function item(title: string) {
+    return screen.getByText(title).closest('li') as HTMLElement
+  }
+
+  it('ticks off the basics from what the application already has', () => {
+    renderReviewer({
+      ...baseCampaign,
+      listing: { title: 'Platform Engineer', company: 'Northstar', description: 'Own the platform.', source_url: null, retrieved_at: '2026-08-12T10:00:00Z' },
+      selected_materials: { ...baseCampaign.selected_materials, cv_variant: { id: 'cv-1', document_id: 'doc-1', document_name: 'CV', name: 'Platform', target_role: null, created_at: '2026-08-12T10:00:00Z' } },
+    })
+
+    expect(within(item('The job posting is attached')).getByLabelText('Done')).toBeTruthy()
+    expect(within(item("You've picked a CV version")).getByLabelText('Done')).toBeTruthy()
+    expect(within(item("You've picked a cover letter")).getByLabelText('Needs a look')).toBeTruthy()
+    // Content checks wait for the user to run them.
+    expect(within(item('You cover what the job asks for')).getByLabelText('Not checked yet')).toBeTruthy()
+    expect(api.reviewCampaign).not.toHaveBeenCalled()
+  })
+
+  it('files each finding under its check in plain words, and hides it on request', async () => {
+    renderReviewer()
+    fireEvent.click(screen.getByRole('button', { name: 'Run the checks' }))
+
+    const finding = await screen.findByRole('article')
+    const claims = item('Everything you claim is backed up')
+    expect(within(claims).getByLabelText('Needs a look')).toBeTruthy()
+    expect(within(claims).getByText(review.findings[0].message)).toBeTruthy()
+    expect(within(finding).getByText('Where: Cover letter')).toBeTruthy()
+    expect(within(item('Your documents agree')).getByLabelText('Done')).toBeTruthy()
+    expect(screen.getByText('1 thing to look at')).toBeTruthy()
+
+    fireEvent.click(within(finding).getByRole('button', { name: 'Hide' }))
+    expect(screen.queryByRole('article')).toBeNull()
+    expect(screen.getByText('All clear. Nice work.')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Check again' })).toBeTruthy()
+  })
+
+  it('says so plainly when the checks cannot run', async () => {
+    api.reviewCampaign.mockRejectedValueOnce(new Error('offline'))
+    renderReviewer()
+    fireEvent.click(screen.getByRole('button', { name: 'Run the checks' }))
+    expect((await screen.findByRole('alert')).textContent).toBe("The checks couldn't run. Try again.")
   })
 })

@@ -96,25 +96,25 @@ async def review_campaign_materials(
     return {
         "schema_version": "application-reviewer/v1",
         "summary": {
-            "headline": f"{len(findings)} advisory finding{'s' if len(findings) != 1 else ''}",
-            "verdict": "Review the located findings before submission.",
-            "confidence_note": "Deterministic checks only; findings never edit materials.",
+            "headline": f"{len(findings)} thing{'s' if len(findings) != 1 else ''} to look at",
+            "verdict": "Look these over before you send your application.",
+            "confidence_note": "Quick rule-based checks. Nothing is changed for you.",
         },
         "top_actions": [
             {
-                "title": "Review advisory findings",
-                "action": "Inspect, edit source materials if useful, or dismiss each finding.",
+                "title": "Look over what the checks found",
+                "action": "Fix your documents where it helps, or hide the ones that don't apply.",
                 "priority": "high"
                 if any(item["severity"] == "high" for item in findings)
                 else "medium",
             }
         ],
         "generated_at": datetime.now(UTC).isoformat(),
-        "download_title": "Application quality review",
+        "download_title": "Application checklist",
         "exportable_sections": [
             {
                 "id": "findings",
-                "title": "Advisory findings",
+                "title": "What the checks found",
                 "items": [f"{item['category']}: {item['message']}" for item in findings],
             }
         ],
@@ -171,7 +171,8 @@ def _unsupported(
                 _finding(
                     "unsupported_claim",
                     "high",
-                    f"{claim.text} is not traceable to confirmed evidence or source material.",
+                    f"We couldn't find “{claim.text}” in your CV or profile. "
+                    "Make sure you can back it up.",
                     [_locator(location, output, claim.text)],
                     [
                         f"claim:{claim.text}",
@@ -188,9 +189,9 @@ def _missed_requirements(listing: str, cv: str, cover: str) -> list[dict]:
         _finding(
             "missed_requirement",
             "medium",
-            f"The selected materials do not address the listing requirement “{keyword}”.",
+            f"The job asks for “{keyword}”, but your CV and cover letter don't mention it.",
             [
-                _locator("Canonical listing", listing, keyword),
+                _locator("Job posting", listing, keyword),
                 "CV:entire document",
                 "Cover letter:entire document",
             ],
@@ -212,7 +213,7 @@ def _contradictions(cv: str, cover: str) -> list[dict]:
             _finding(
                 "contradiction",
                 "high",
-                "Years-of-experience claims conflict across selected materials.",
+                "Your CV and cover letter give different years of experience.",
                 [f"CV:chars {match.start()}-{match.end()}:{match.group()}" for match in cv_matches]
                 + [
                     f"Cover letter:chars {match.start()}-{match.end()}:{match.group()}"
@@ -229,7 +230,7 @@ def _generic_and_repeated(cv: str, cover: str) -> list[dict]:
         _finding(
             "generic_language",
             "low",
-            f"Generic phrase “{phrase}” weakens specificity.",
+            f"“{phrase}” is a stock phrase. Swap it for something specific you did.",
             [
                 _locator(
                     "Cover letter" if phrase in cover.lower() else "CV",
@@ -254,7 +255,7 @@ def _generic_and_repeated(cv: str, cover: str) -> list[dict]:
             _finding(
                 "repetition",
                 "low",
-                "The same substantive sentence appears more than once.",
+                "The same sentence appears more than once.",
                 [
                     *([_locator("CV", cv, sentence)] if sentence in cv.lower() else []),
                     *(
@@ -276,7 +277,7 @@ def _document_defects(cv: str, cover: str) -> list[dict]:
             _finding(
                 "document_defect",
                 "medium",
-                "The selected CV has too little visible content.",
+                "Your CV looks almost empty.",
                 ["CV:entire document"],
                 [f"visible_characters:{len(cv.strip())}", "minimum:80"],
             )
@@ -286,7 +287,7 @@ def _document_defects(cv: str, cover: str) -> list[dict]:
             _finding(
                 "document_defect",
                 "medium",
-                "The selected cover letter is unusually short.",
+                "Your cover letter is very short.",
                 ["Cover letter:entire document"],
                 [f"visible_characters:{len(cover.strip())}", "minimum:120"],
             )
@@ -297,7 +298,7 @@ def _document_defects(cv: str, cover: str) -> list[dict]:
                 _finding(
                     "document_defect",
                     "high",
-                    f"Unresolved placeholder “{token}” remains.",
+                    f"There's a leftover placeholder: “{token}”.",
                     [
                         *([_locator("CV", cv, token)] if token in cv.lower() else []),
                         *(

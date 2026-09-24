@@ -242,6 +242,30 @@ def test_legacy_workspace_is_a_label_only_campaign(client, auth_headers, test_us
     assert campaign["deadline"] is None
 
 
+def test_workspace_list_shows_the_soonest_open_task(client, auth_headers, test_user, db):
+    workspace = Workspace(user_id=test_user.id, label="Board card")
+    db.add(workspace)
+    db.commit()
+    db.refresh(workspace)
+    tasks = f"{PREFIX}/workspaces/{workspace.id}/tasks"
+
+    assert client.get(f"{PREFIX}/workspaces", headers=auth_headers).json()["items"][0][
+        "next_task"
+    ] is None
+    client.post(tasks, json={"title": "Undated"}, headers=auth_headers)
+    later = {"title": "Later", "deadline": "2026-09-20T12:00:00Z"}
+    client.post(tasks, json=later, headers=auth_headers)
+    sooner = client.post(
+        tasks, json={"title": "Sooner", "deadline": "2026-09-10T12:00:00Z"}, headers=auth_headers
+    ).json()
+    client.patch(f"{tasks}/{sooner['id']}", json={"completed": True}, headers=auth_headers)
+
+    listed = client.get(f"{PREFIX}/workspaces", headers=auth_headers).json()["items"][0]
+    assert listed["next_task"]["title"] == "Later"
+    # Adding tasks is activity even though the workspace row itself did not change.
+    assert listed["last_activity_at"] >= listed["updated_at"]
+
+
 def test_owner_can_update_and_read_campaign_fields(client, auth_headers, test_user, db):
     workspace = Workspace(user_id=test_user.id, label="Target")
     db.add(workspace)
@@ -299,22 +323,19 @@ def test_campaign_status_lifecycle_is_enforced_server_side(client, auth_headers,
     db.refresh(workspace)
     endpoint = f"{PREFIX}/workspaces/{workspace.id}"
 
-    assert (
-        client.patch(endpoint, json={"status": "applied"}, headers=auth_headers).status_code == 409
-    )
-    assert (
-        client.patch(endpoint, json={"status": "planning"}, headers=auth_headers).status_code == 200
-    )
-    assert (
-        client.patch(endpoint, json={"status": "preparing"}, headers=auth_headers).status_code
-        == 200
-    )
-    assert (
-        client.patch(endpoint, json={"status": "applied"}, headers=auth_headers).status_code == 200
-    )
-    assert (
-        client.patch(endpoint, json={"status": "planning"}, headers=auth_headers).status_code == 409
-    )
+    def move(status):
+        return client.patch(endpoint, json={"status": status}, headers=auth_headers).status_code
+
+    # Forward moves may skip steps (the pipeline board drops a saved job straight
+    # into Applied); backward moves and moves out of a closed stage never pass.
+    assert move("planning") == 200
+    assert move("applied") == 200
+    assert move("preparing") == 409
+    assert move("planning") == 409
+    assert move("offer") == 200
+    assert move("rejected") == 200
+    assert move("interviewing") == 409
+    assert move("withdrawn") == 409
     assert (
         client.patch(endpoint, json={"status": "custom-stage"}, headers=auth_headers).status_code
         == 422
@@ -345,8 +366,9 @@ def test_campaign_status_lifecycle_is_enforced_server_side(client, auth_headers,
         if event.event_type == "status_changed"
     ] == [
         ("status_changed", {"from": None, "to": "planning"}),
-        ("status_changed", {"from": "planning", "to": "preparing"}),
-        ("status_changed", {"from": "preparing", "to": "applied"}),
+        ("status_changed", {"from": "planning", "to": "applied"}),
+        ("status_changed", {"from": "applied", "to": "offer"}),
+        ("status_changed", {"from": "offer", "to": "rejected"}),
     ]
     assert [event.event_type for event in events].count("submission_snapshot_created") == 1
 

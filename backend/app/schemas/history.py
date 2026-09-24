@@ -42,6 +42,11 @@ class CampaignListingResponse(BaseModel):
     retrieved_at: datetime
 
 
+class CampaignNextTask(BaseModel):
+    title: str
+    deadline: datetime | None = None
+
+
 class WorkspaceSummary(BaseModel):
     id: str
     label: str | None = None
@@ -55,6 +60,9 @@ class WorkspaceSummary(BaseModel):
     last_active_tool: str | None = None
     last_active_result_id: str | None = None
     updated_at: str
+    # Only the campaign list fills these, for the pipeline board cards.
+    next_task: CampaignNextTask | None = None
+    last_activity_at: datetime | None = None
 
 
 class ToolRunSummary(BaseModel):
