@@ -91,7 +91,9 @@ export function RunList({
                   {showFavoriteStar && (
                     <Star size={12} className="run-row-favorite" aria-hidden />
                   )}
-                  <Badge variant="outline">{tool?.shortLabel || item.tool_name}</Badge>
+                  <Badge variant="outline">
+                    <span className="run-row-badge-text">{tool?.shortLabel || item.tool_name}</span>
+                  </Badge>
                   {!showFavoriteStar && (
                     <span className="small-copy muted-copy run-row-date">
                       {new Date(item.created_at).toLocaleDateString()}
