@@ -387,7 +387,7 @@ guest runs remain transient. URL import is also optional-auth; only its explicit
 | `POST` | `/career/recommend` | — | 10/min + Model shared |
 | `POST` | `/portfolio/recommend` | — | 10/min + Model shared |
 
-### 6.3 Authenticated Owner (90) or Refresh Credential (1)
+### 6.3 Authenticated Owner (92) or Refresh Credential (1)
 
 `POST /auth/refresh` is the sole route in this section that accepts a refresh
 cookie instead of an access credential. Every other operation resolves
@@ -429,17 +429,19 @@ is dark; R12 export and erasure remain inside the cumulative R12 router gate.
 | `GET` | `/evidence-profile/export` | — (owner lifecycle) | 5/min |
 | `DELETE` | `/evidence-profile/items` | — (owner lifecycle) | 5/min |
 
-#### R12 CV Studio (18)
+#### R12 CV Studio (20)
 
 | Method | Path | Outcome gate | Rate limit |
 |--------|------|--------------|------------|
 | `POST` | `/cv-documents/import/proposals` | R12 | 20/min |
 | `POST` | `/cv-documents/import/accept` | R12 | — |
 | `GET` | `/cv-documents/export` | R12 | 5/min |
+| `GET` | `/cv-documents/style-catalog` | R12 | — |
 | `GET` | `/cv-documents` | R12 | — |
 | `POST` | `/cv-documents` | R12 | — |
 | `GET` | `/cv-documents/{document_id}` | R12 | — |
 | `GET` | `/cv-documents/{document_id}/render` | R12 | — |
+| `GET` | `/cv-documents/{document_id}/render-model` | R12 | — |
 | `GET` | `/cv-documents/{document_id}/artifacts/{format}` | R12 | 10/min |
 | `GET` | `/cv-documents/{document_id}/artifacts/{format}/evidence` | R12 | 10/min |
 | `POST` | `/cv-documents/{document_id}/quality` | R12 | 20/min + Model shared when model-backed |

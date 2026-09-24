@@ -4,7 +4,9 @@ import logging
 import re
 from typing import Any
 
+from app.schemas.cv_documents import CvStyle
 from app.services.ai_client import complete_structured
+from app.services.cv_rendering import ATS_SAFE_TEMPLATES
 from app.services.quality_signals import compute_blended_score
 
 logger = logging.getLogger(__name__)
@@ -27,10 +29,24 @@ def _visible(sections: list[dict]) -> list[dict]:
     )
 
 
+def _entry_text(entry: dict) -> str:
+    """Flatten a structured or freeform entry into one scoring string.
+
+    Structured fields (heading/subheading/location/dates/bullets) are additive
+    enrichments over ``body`` (D-322); older entries carry only ``body`` and this
+    must return exactly ``body.strip()`` for them.
+    """
+    parts = [str(entry.get("body", "")).strip()]
+    for key in ("heading", "subheading", "location"):
+        value = entry.get(key)
+        if value:
+            parts.append(str(value).strip())
+    parts.extend(str(b).strip() for b in entry.get("bullets") or [] if str(b).strip())
+    return " ".join(part for part in parts if part)
+
+
 def _bodies(sections: list[dict]) -> list[str]:
-    return [
-        str(e.get("body", "")).strip() for s in _visible(sections) for e in s.get("entries", [])
-    ]
+    return [_entry_text(e) for s in _visible(sections) for e in s.get("entries", [])]
 
 
 def score_cv_quality(sections: list[dict]) -> list[dict[str, Any]]:
@@ -192,6 +208,35 @@ async def analyze_cv_quality(
         "scoring_mode": mode,
         "advisory_note": ADVISORY_NOTE,
     }
+
+
+_STATUS_WEIGHT = {"pass": 1.0, "review": 0.5, "not_run": 0.6, "fail": 0.0}
+
+
+def compute_ats_summary(
+    ats_checks: list[dict[str, Any]], style: CvStyle | None
+) -> tuple[int, list[str]]:
+    """Derive a compact 0-100 ATS score + fix list from existing check statuses.
+
+    Additive to the dimension/check scoring above — no new ``CvAtsCheckKey`` is
+    introduced, only a summary layered over the ones that already ran.
+    """
+    style = style or CvStyle()
+    if not ats_checks:
+        base = 60.0
+    else:
+        base = sum(_STATUS_WEIGHT.get(c["status"], 0.5) for c in ats_checks) / len(ats_checks) * 100
+    fixes = [c["remediation"] for c in ats_checks if c["status"] == "fail"]
+    if style.ats_mode:
+        base = min(100, base + 12)
+    elif style.template_id not in ATS_SAFE_TEMPLATES:
+        base -= 20
+        fixes.append(
+            "This template's layout can confuse ATS parsers — enable ATS mode or "
+            "switch to a single-column template before applying to strict portals."
+        )
+    score = max(0, min(100, round(base)))
+    return score, fixes
 
 
 async def analyze_cv_quality_heuristic(

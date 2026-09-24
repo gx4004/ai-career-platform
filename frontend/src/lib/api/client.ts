@@ -74,6 +74,7 @@ import {
   cvTailoringApplySchema,
   cvTailoringProposalSchema,
   cvRenderModelSchema,
+  cvStyleCatalogSchema,
 } from '#/lib/api/schemas'
 import type {
   EvidenceConfirmationAction,
@@ -145,6 +146,29 @@ export function scoreCvDocument(
 
 export function getCvRenderModel(documentId: string, template: CvTemplateId) {
   return request(`/cv-documents/${documentId}/render?template=${encodeURIComponent(template)}`, { method: 'GET', schema: cvRenderModelSchema })
+}
+
+export function getCvStyleCatalog() {
+  return request('/cv-documents/style-catalog', { method: 'GET', schema: cvStyleCatalogSchema })
+}
+
+export interface CvRenderModelPreviewOverrides {
+  template_id?: CvTemplateId
+  font_id?: string
+  accent_color?: string
+  density?: string
+  ats_mode?: boolean
+}
+
+export function getCvRenderModelPreview(documentId: string, overrides: CvRenderModelPreviewOverrides = {}) {
+  const params = new URLSearchParams()
+  for (const [key, value] of Object.entries(overrides)) {
+    if (value !== undefined) params.set(key, String(value))
+  }
+  const query = params.toString()
+  return request(`/cv-documents/${documentId}/render-model${query ? `?${query}` : ''}`, {
+    method: 'GET', schema: cvRenderModelSchema,
+  })
 }
 
 export function cvArtifactUrl(documentId: string, template: CvTemplateId, format: 'docx' | 'pdf') {
