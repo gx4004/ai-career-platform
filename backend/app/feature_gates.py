@@ -1,4 +1,18 @@
-"""Server-authoritative activation gates for provisional build-ahead outcomes."""
+"""Server-authoritative activation gates for provisional build-ahead outcomes.
+
+Each outcome (R11-R17) is an independent on/off toggle: enabling one does not
+require any other outcome to also be enabled, and disabling one does not dark
+any other outcome's routes (#321, Phase 1a). Earlier revisions chained these
+gates (each outcome required every earlier one too); that chain is gone.
+
+The one place a real data dependency exists — CV Studio's evidence-grounded
+tailoring reads confirmed Evidence Profile items — is handled at the data
+layer, not here: ``run_tool_pipeline`` only attaches an evidence payload when
+``outcome_enabled("r11")`` is true, and the CV document/tailoring services
+already treat a missing or empty evidence profile as "no evidence available"
+rather than an error. So CV Studio (R12) stays fully usable with R11 off; it
+just degrades the evidence-grounded parts instead of crashing.
+"""
 
 from collections.abc import Callable
 
@@ -8,47 +22,17 @@ from app.config import settings
 
 _OUTCOME_FLAGS: dict[str, tuple[str, ...]] = {
     "r11": ("R11_EVIDENCE_PROFILE_ENABLED",),
-    "r12": ("R11_EVIDENCE_PROFILE_ENABLED", "R12_CV_STUDIO_ENABLED"),
-    "r13": (
-        "R11_EVIDENCE_PROFILE_ENABLED",
-        "R12_CV_STUDIO_ENABLED",
-        "R13_CAMPAIGNS_ENABLED",
-    ),
-    "r14": (
-        "R11_EVIDENCE_PROFILE_ENABLED",
-        "R12_CV_STUDIO_ENABLED",
-        "R13_CAMPAIGNS_ENABLED",
-        "R14_DISCOVERY_ENABLED",
-    ),
-    "r15": (
-        "R11_EVIDENCE_PROFILE_ENABLED",
-        "R12_CV_STUDIO_ENABLED",
-        "R13_CAMPAIGNS_ENABLED",
-        "R14_DISCOVERY_ENABLED",
-        "R15_QUEUE_ENABLED",
-    ),
-    "r16": (
-        "R11_EVIDENCE_PROFILE_ENABLED",
-        "R12_CV_STUDIO_ENABLED",
-        "R13_CAMPAIGNS_ENABLED",
-        "R14_DISCOVERY_ENABLED",
-        "R15_QUEUE_ENABLED",
-        "R16_SUBMISSION_FOUNDATION_ENABLED",
-    ),
-    "r17": (
-        "R11_EVIDENCE_PROFILE_ENABLED",
-        "R12_CV_STUDIO_ENABLED",
-        "R13_CAMPAIGNS_ENABLED",
-        "R14_DISCOVERY_ENABLED",
-        "R15_QUEUE_ENABLED",
-        "R16_SUBMISSION_FOUNDATION_ENABLED",
-        "R17_DEVELOPMENT_LOOP_ENABLED",
-    ),
+    "r12": ("R12_CV_STUDIO_ENABLED",),
+    "r13": ("R13_CAMPAIGNS_ENABLED",),
+    "r14": ("R14_DISCOVERY_ENABLED",),
+    "r15": ("R15_QUEUE_ENABLED",),
+    "r16": ("R16_SUBMISSION_FOUNDATION_ENABLED",),
+    "r17": ("R17_DEVELOPMENT_LOOP_ENABLED",),
 }
 
 
 def outcome_enabled(outcome: str) -> bool:
-    """Require the outcome and every upstream outcome to be explicitly active."""
+    """Require the outcome's own flag (and only its own flag) to be active."""
     return all(bool(getattr(settings, flag)) for flag in _OUTCOME_FLAGS[outcome])
 
 
