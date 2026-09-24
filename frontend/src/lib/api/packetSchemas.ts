@@ -131,6 +131,14 @@ export const packetPreparationResultSchema = z.strictObject({
 })
 export type PacketPreparationResult = z.infer<typeof packetPreparationResultSchema>
 
+// Autopilot experiment report (#325). Mirrors AutofillReport.
+export const autofillReportSchema = z.strictObject({
+  filled: z.array(z.string()),
+  skipped: z.array(z.string()),
+  url: z.string(),
+})
+export type AutofillReport = z.infer<typeof autofillReportSchema>
+
 export const applicationPacketsExportSchema = z.strictObject({
   packets: z.array(applicationPacketItemSchema),
 })

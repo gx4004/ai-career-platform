@@ -335,7 +335,7 @@ artifact and are deleted on every app mount.
 
 ## §6 API Surface & Authorization Matrix
 
-The assembled FastAPI application publishes **134 reviewed operations**, all
+The assembled FastAPI application publishes **130 reviewed operations**, all
 under `/api/v1`. The exact method/path set is locked by
 `backend/tests/fixtures/openapi_operations.txt` and
 `backend/tests/test_openapi_schema.py`; paths below are relative to `/api/v1`.
@@ -386,7 +386,7 @@ guest runs remain transient. URL import is also optional-auth; only its explicit
 | `POST` | `/career/recommend` | — | 10/min + Model shared |
 | `POST` | `/portfolio/recommend` | — | 10/min + Model shared |
 
-### 6.3 Authenticated Owner (92) or Refresh Credential (1)
+### 6.3 Authenticated Owner (93) or Refresh Credential (1)
 
 `POST /auth/refresh` is the sole route in this section that accepts a refresh
 cookie instead of an access credential. Every other operation resolves
@@ -486,7 +486,7 @@ is dark; R12 export and erasure remain inside the cumulative R12 router gate.
 | `DELETE` | `/discovery/dismissals/{listing_id}` | R14 | — |
 | `POST` | `/discovery/reports` | R14 | — |
 
-#### R15 approval queue (19)
+#### R15 approval queue (20)
 
 | Method | Path | Outcome gate | Rate limit |
 |--------|------|--------------|------------|
@@ -509,6 +509,7 @@ is dark; R12 export and erasure remain inside the cumulative R12 router gate.
 | `POST` | `/packets/{packet_id}/reject` | R15 | — |
 | `POST` | `/packets/{packet_id}/edit` | R15 | — |
 | `POST` | `/packets/{packet_id}/applied` | R15 | — |
+| `POST` | `/packets/{packet_id}/autofill` | `AUTOPILOT_EXPERIMENT_ENABLED` (local-only experiment; never submits) | one run per owner |
 
 #### R17 development loop (10)
 
