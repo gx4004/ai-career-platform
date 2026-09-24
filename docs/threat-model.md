@@ -335,7 +335,7 @@ artifact and are deleted on every app mount.
 
 ## §6 API Surface & Authorization Matrix
 
-The assembled FastAPI application publishes **133 reviewed operations**, all
+The assembled FastAPI application publishes **134 reviewed operations**, all
 under `/api/v1`. The exact method/path set is locked by
 `backend/tests/fixtures/openapi_operations.txt` and
 `backend/tests/test_openapi_schema.py`; paths below are relative to `/api/v1`.
@@ -386,7 +386,7 @@ guest runs remain transient. URL import is also optional-auth; only its explicit
 | `POST` | `/career/recommend` | — | 10/min + Model shared |
 | `POST` | `/portfolio/recommend` | — | 10/min + Model shared |
 
-### 6.3 Authenticated Owner (90) or Refresh Credential (1)
+### 6.3 Authenticated Owner (91) or Refresh Credential (1)
 
 `POST /auth/refresh` is the sole route in this section that accepts a refresh
 cookie instead of an access credential. Every other operation resolves
@@ -472,10 +472,11 @@ is dark; R12 export and erasure remain inside the cumulative R12 router gate.
 | `POST` | `/history/workspaces/{workspace_id}/contacts` | R13 | — |
 | `DELETE` | `/history/workspaces/{workspace_id}/contacts/{item_id}` | R13 | — |
 
-#### R14 discovery and correction (8)
+#### R14 discovery and correction (9)
 
 | Method | Path | Outcome gate | Rate limit |
 |--------|------|--------------|------------|
+| `GET` | `/discovery/listings` | R14 | — |
 | `GET` | `/discovery/recommendations` | R14 | — |
 | `POST` | `/discovery/recommendations/{listing_id}/adopt` | R14 | — |
 | `GET` | `/discovery/personalization` | R14 | — |
@@ -1361,8 +1362,8 @@ model metadata were used instead of decorator-text counts.
 | §4.2 | Assembled-app `Base.metadata.tables` introspection | 37 unique application tables; Alembic head `c4a8e2f6b1d9` |
 | §5 | `rg -l 'localStorage\|sessionStorage' frontend/src --glob='*.ts' --glob='*.tsx' --glob='!**/__tests__/**' --glob='!**/*.test.*'` | 15 production files matched for manual key review |
 | §6 | `cd backend && .venv/bin/pytest -q tests/test_openapi_schema.py tests/test_feature_gates.py` | assembled app has exactly 127 operations, matches the reviewed fixture, and preserves cumulative gates |
-| §6 | Assembled FastAPI dependency and Limiter-registry introspection | Auth split: 11 public, 8 optional, 1 refresh-cookie, 90 owner, 23 admin; 56 limited and 77 without a route window |
-| §6 | Documentation operation-table comparison with `tests/fixtures/openapi_operations.txt` | 133 unique documentation rows; no missing or extra operation; gate and limited/unlimited presence match runtime introspection |
+| §6 | Assembled FastAPI dependency and Limiter-registry introspection | Auth split: 11 public, 8 optional, 1 refresh-cookie, 91 owner, 23 admin; 56 limited and 78 without a route window |
+| §6 | Documentation operation-table comparison with `tests/fixtures/openapi_operations.txt` | 134 unique documentation rows; no missing or extra operation; gate and limited/unlimited presence match runtime introspection |
 | §6.6 | `rg -n '_get_client_ip\|TRUST_PROXY_HEADERS' backend/app/limiter.py` | Client-IP trust decision at lines 16-18; all uses inspected |
 | §7 | `rg -n 'ALGORITHM\|SECRET_KEY' backend/app/config.py` | `SECRET_KEY` line 9; HS256-constrained algorithm line 12 |
 | §7 | `rg -n 'set_cookie\|delete_cookie\|def set_auth_cookies\|def clear_auth_cookies' backend/app/auth/security.py` | Cookie write/delete boundary at lines 95-119 |

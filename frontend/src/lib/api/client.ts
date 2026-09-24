@@ -27,7 +27,7 @@ import {
   evidenceConfirmationActionSchema,
   evidenceImportRequestSchema,
   evidenceImportProposalsSchema,
-  discoveryRecommendationListSchema,
+  discoveryListingPageSchema,
   discoveryPersonalizationSchema,
   discoveryHiddenSourceSchema,
   discoveryDismissalSchema,
@@ -426,10 +426,26 @@ export function listEvidenceItems() {
   })
 }
 
-export function listDiscoveryRecommendations() {
-  return request('/discovery/recommendations', {
+export type DiscoveryListingQuery = {
+  q?: string
+  location?: string
+  remote?: boolean
+  company?: string
+  posted_within_days?: number
+  sort?: 'best_match' | 'newest'
+  page?: number
+  limit?: number
+}
+
+export function searchDiscoveryListings(query: DiscoveryListingQuery = {}) {
+  const params = new URLSearchParams()
+  for (const [key, value] of Object.entries(query)) {
+    if (value !== undefined && value !== '') params.set(key, String(value))
+  }
+  const search = params.toString()
+  return request(`/discovery/listings${search ? `?${search}` : ''}`, {
     method: 'GET',
-    schema: discoveryRecommendationListSchema,
+    schema: discoveryListingPageSchema,
   })
 }
 

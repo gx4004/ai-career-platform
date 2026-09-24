@@ -1,79 +1,65 @@
 import type { ReactNode } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { DiscoveryPage } from '#/pages/discovery-page'
+import { readWorkflowContext } from '#/lib/tools/drafts'
 
-const listRecommendations = vi.hoisted(() => vi.fn())
+const searchListings = vi.hoisted(() => vi.fn())
 const getPersonalization = vi.hoisted(() => vi.fn())
-const hideSource = vi.hoisted(() => vi.fn())
 const unhideSource = vi.hoisted(() => vi.fn())
 const dismissRecommendation = vi.hoisted(() => vi.fn())
 const undismissRecommendation = vi.hoisted(() => vi.fn())
-const reportRecommendation = vi.hoisted(() => vi.fn())
 const adoptRecommendation = vi.hoisted(() => vi.fn())
 const navigate = vi.hoisted(() => vi.fn())
 
 vi.mock('#/lib/api/client', () => ({
-  listDiscoveryRecommendations: listRecommendations,
+  searchDiscoveryListings: searchListings,
   getDiscoveryPersonalization: getPersonalization,
-  hideDiscoverySource: hideSource,
   unhideDiscoverySource: unhideSource,
   dismissDiscoveryRecommendation: dismissRecommendation,
   undismissDiscoveryRecommendation: undismissRecommendation,
-  reportDiscoveryRecommendation: reportRecommendation,
   adoptDiscoveryRecommendation: adoptRecommendation,
 }))
 
 vi.mock('@tanstack/react-router', () => ({
-  Link: ({ children, to }: { children: ReactNode; to: string }) => (
-    <a href={to}>{children}</a>
-  ),
+  Link: ({ children, to }: { children: ReactNode; to: string }) => <a href={to}>{children}</a>,
   useNavigate: () => navigate,
 }))
 
-const RECOMMENDATION = {
+const LISTING = {
   listing_id: 'listing-1',
   title: 'Platform Engineer',
   company: 'Acme Systems',
-  description: 'Build Kubernetes services.',
+  description: 'Build Kubernetes services.\n\nWork with Python every day.',
+  location: 'Berlin, Germany',
+  remote: true,
+  posted_at: new Date(Date.now() - 3 * 86_400_000).toISOString(),
+  apply_url: 'https://jobs.example/apply/1',
+  department: 'Infrastructure',
   score: 82,
-  rationale: [
-    {
-      kind: 'confirmed_evidence',
-      label: 'Confirmed evidence overlaps this listing',
-      matched_keywords: ['Kubernetes'],
-      evidence_item_ids: ['evidence-1'],
-      score: 80,
-    },
-    {
-      kind: 'preference',
-      label: 'Confirmed preferences align with this listing',
-      matched_keywords: ['Platform'],
-      evidence_item_ids: ['preference-1'],
-      score: 90,
-    },
-  ],
-  attributions: [
-    {
-      source_id: 'source-1',
-      source_name: 'Licensed Feed',
-      source_family: 'licensed',
-      source_url: 'https://feed.example/jobs/1',
-      retrieved_at: '2026-07-13T00:00:00Z',
-    },
-  ],
+  matched_keywords: ['Kubernetes', 'Python'],
+  source_name: 'Greenhouse',
+  source_url: 'https://boards.example/jobs/1',
 }
 
-function renderPage(payload: unknown, personalization: unknown = { hidden_sources: [], dismissals: [] }) {
-  listRecommendations.mockResolvedValue(payload)
+function page(overrides: Record<string, unknown> = {}) {
+  return {
+    items: [LISTING],
+    total: 1,
+    page: 1,
+    limit: 20,
+    sort: 'best_match',
+    has_profile: true,
+    stats: { jobs: 5820, companies: 48, new_this_week: 614 },
+    companies: ['Acme Systems', 'Stripe'],
+    ...overrides,
+  }
+}
+
+function renderPage(payload: unknown = page(), personalization: unknown = { hidden_sources: [], dismissals: [] }) {
+  searchListings.mockResolvedValue(payload)
   getPersonalization.mockResolvedValue(personalization)
-  hideSource.mockResolvedValue({})
-  unhideSource.mockResolvedValue(undefined)
-  dismissRecommendation.mockResolvedValue({})
-  reportRecommendation.mockResolvedValue({})
-  adoptRecommendation.mockResolvedValue({ id: 'campaign-9' })
-  navigate.mockReset()
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(
     <QueryClientProvider client={client}>
@@ -82,58 +68,82 @@ function renderPage(payload: unknown, personalization: unknown = { hidden_source
   )
 }
 
-function findRecommendationHeading() {
-  return screen.findByRole(
-    'heading',
-    { name: 'Platform Engineer' },
-    { timeout: 5_000 },
-  )
-}
+const findCard = () => screen.findByRole('article', { name: 'Platform Engineer' }, { timeout: 5_000 })
+
+beforeEach(() => {
+  vi.clearAllMocks()
+  sessionStorage.clear()
+  unhideSource.mockResolvedValue(undefined)
+  dismissRecommendation.mockResolvedValue({ listing_id: 'listing-1', created_at: '2026-09-20T00:00:00Z' })
+  undismissRecommendation.mockResolvedValue(undefined)
+  adoptRecommendation.mockResolvedValue({ id: 'campaign-9' })
+})
 
 describe('DiscoveryPage', () => {
-  it('renders rank rationale, source, and retrieval date for each live recommendation', async () => {
-    renderPage({ confirmed_item_count: 2, preference_item_count: 1, items: [RECOMMENDATION] })
+  it('shows the stats and a job card with match, meta and attribution', async () => {
+    renderPage()
+    const card = await findCard()
 
-    expect(await findRecommendationHeading()).toBeTruthy()
-    expect(screen.getByText('Kubernetes')).toBeTruthy()
-    expect(screen.getByText('Platform')).toBeTruthy()
-    expect(screen.getByLabelText('82 out of 100 match')).toBeTruthy()
-    const source = screen.getByRole('link', { name: /licensed feed/i })
-    expect(source.getAttribute('href')).toBe('https://feed.example/jobs/1')
-    expect(source.getAttribute('target')).toBe('_blank')
-    expect(screen.getByText(/Retrieved/)).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'Discover jobs' })).toBeTruthy()
+    expect(screen.getByText('5,820')).toBeTruthy()
+    expect(screen.getByText('614')).toBeTruthy()
+    expect(within(card).getByLabelText('82% match')).toBeTruthy()
+    expect(within(card).getByText('Berlin, Germany')).toBeTruthy()
+    expect(within(card).getByText('Remote')).toBeTruthy()
+    expect(within(card).getByText('Posted 3 days ago')).toBeTruthy()
+    expect(within(card).getByText('Kubernetes')).toBeTruthy()
+    expect(within(card).getByText('via Greenhouse')).toBeTruthy()
   })
 
-  it('asks users without confirmed items to review their evidence profile', async () => {
-    renderPage({ confirmed_item_count: 0, preference_item_count: 0, items: [] })
+  it('opens the apply link in a new tab without leaking the opener', async () => {
+    renderPage()
+    const card = await findCard()
 
-    expect(await screen.findByText('Confirm profile evidence to rank opportunities.')).toBeTruthy()
-    expect(screen.getByRole('link', { name: 'Review evidence profile' }).getAttribute('href')).toBe('/profile')
+    const apply = within(card).getByRole('link', { name: /Apply on company site/ })
+    expect(apply.getAttribute('href')).toBe('https://jobs.example/apply/1')
+    expect(apply.getAttribute('target')).toBe('_blank')
+    expect(apply.getAttribute('rel')).toContain('noopener')
   })
 
-  it('offers a correct-preferences link that points at the evidence profile', async () => {
-    renderPage({ confirmed_item_count: 1, preference_item_count: 1, items: [RECOMMENDATION] })
-    await findRecommendationHeading()
+  it('sends filter changes to the search endpoint', async () => {
+    renderPage()
+    await findCard()
 
-    const link = screen.getByRole('link', { name: 'Correct your preferences' })
-    expect(link.getAttribute('href')).toBe('/profile')
+    fireEvent.change(screen.getAllByLabelText('Company')[0], { target: { value: 'Stripe' } })
+    fireEvent.click(screen.getAllByRole('button', { name: 'Remote only' })[0])
+    fireEvent.change(screen.getAllByLabelText('Posted')[0], { target: { value: '7' } })
+    fireEvent.change(screen.getByLabelText('Search jobs'), { target: { value: 'python' } })
+
+    await waitFor(() =>
+      expect(searchListings).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          q: 'python',
+          company: 'Stripe',
+          remote: true,
+          posted_within_days: 7,
+          page: 1,
+        }),
+      ),
+    )
   })
 
-  it('dismisses a recommendation through the owner-scoped control', async () => {
-    renderPage({ confirmed_item_count: 1, preference_item_count: 1, items: [RECOMMENDATION] })
-    await findRecommendationHeading()
+  it('hands the job to CV Studio through the workflow context', async () => {
+    renderPage()
+    const card = await findCard()
 
-    fireEvent.click(screen.getByRole('button', { name: /Dismiss/ }))
-    await waitFor(() => expect(dismissRecommendation).toHaveBeenCalledWith('listing-1'))
+    fireEvent.click(within(card).getByRole('button', { name: /Tailor my CV/ }))
+
+    expect(navigate).toHaveBeenCalledWith({ to: '/cv-studio' })
+    const context = readWorkflowContext()
+    expect(context?.targetRole).toBe('Platform Engineer')
+    expect(context?.jobDescription).toContain('Build Kubernetes services.')
   })
 
-  it('adopts a recommendation into a new campaign and navigates to it', async () => {
-    renderPage({ confirmed_item_count: 1, preference_item_count: 1, items: [RECOMMENDATION] })
-    await findRecommendationHeading()
+  it('adds the job to a new campaign and opens it', async () => {
+    renderPage()
+    const card = await findCard()
 
-    const adoptButton = screen.getByRole('button', { name: /Adopt into campaign/ })
-    expect((adoptButton as HTMLButtonElement).disabled).toBeFalsy()
-    fireEvent.click(adoptButton)
+    fireEvent.click(within(card).getByRole('button', { name: /Add to campaign/ }))
 
     await waitFor(() => expect(adoptRecommendation).toHaveBeenCalledWith('listing-1'))
     await waitFor(() =>
@@ -144,57 +154,75 @@ describe('DiscoveryPage', () => {
     )
   })
 
-  it('hides a source from a card', async () => {
-    renderPage({ confirmed_item_count: 1, preference_item_count: 1, items: [RECOMMENDATION] })
-    await findRecommendationHeading()
+  it('hides a job and offers undo', async () => {
+    renderPage()
+    const card = await findCard()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Hide Licensed Feed' }))
-    await waitFor(() => expect(hideSource).toHaveBeenCalledWith('source-1'))
+    fireEvent.click(within(card).getByRole('button', { name: 'Hide Platform Engineer' }))
+
+    await waitFor(() => expect(dismissRecommendation).toHaveBeenCalledWith('listing-1'))
+    fireEvent.click(await screen.findByRole('button', { name: 'Undo' }))
+    await waitFor(() => expect(undismissRecommendation).toHaveBeenCalledWith('listing-1'))
   })
 
-  it('reports a recommendation with a required reason', async () => {
-    renderPage({ confirmed_item_count: 1, preference_item_count: 1, items: [RECOMMENDATION] })
-    await findRecommendationHeading()
+  it('opens the full description as plain text in a details panel', async () => {
+    renderPage(page({ items: [{ ...LISTING, description: '<b>Bold</b> claim' }] }))
+    const card = await findCard()
 
-    // The report form is hidden until the control is opened.
-    expect(screen.queryByLabelText('Report this recommendation')).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: /Report a problem/ }))
+    fireEvent.click(within(card).getByRole('button', { name: 'Platform Engineer' }))
 
-    const form = screen.getByLabelText('Report this recommendation')
-    expect(form).toBeTruthy()
-    const textarea = screen.getByPlaceholderText('Tell us why this recommendation is wrong.')
-    fireEvent.change(textarea, { target: { value: 'Wrong location entirely.' } })
-    fireEvent.submit(form)
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByText('<b>Bold</b> claim')).toBeTruthy()
+    expect(dialog.querySelector('b')).toBeNull()
+  })
+
+  it('shows unscored jobs and a profile nudge when the user has no confirmed skills', async () => {
+    renderPage(page({ has_profile: false, sort: 'newest', items: [{ ...LISTING, score: null, matched_keywords: [] }] }))
+    const card = await findCard()
+
+    expect(within(card).queryByText(/match/)).toBeNull()
+    expect(screen.getByRole('link', { name: 'Open my profile' }).getAttribute('href')).toBe('/profile')
+    expect(screen.queryByRole('combobox', { name: 'Sort' })).toBeNull()
+  })
+
+  it('explains an empty result and clears filters', async () => {
+    renderPage(page({ items: [], total: 0 }))
+    await screen.findByRole('heading', { name: 'Discover jobs' })
+    fireEvent.change(screen.getByLabelText('Search jobs'), { target: { value: 'astronaut' } })
+
+    expect(await screen.findByText('No jobs match these filters')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Clear all filters' }))
+    expect((screen.getByLabelText('Search jobs') as HTMLInputElement).value).toBe('')
+  })
+
+  it('shows a first-run empty state when there are no jobs at all', async () => {
+    renderPage(page({ items: [], total: 0, stats: { jobs: 0, companies: 0, new_this_week: 0 } }))
+
+    expect(await screen.findByText('No jobs yet')).toBeTruthy()
+  })
+
+  it('loads the next page on demand', async () => {
+    renderPage(page({ total: 45 }))
+    await findCard()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show more jobs' }))
 
     await waitFor(() =>
-      expect(reportRecommendation).toHaveBeenCalledWith({
-        listingId: 'listing-1',
-        reasonCategory: 'not_relevant',
-        reason: 'Wrong location entirely.',
-      }),
+      expect(searchListings).toHaveBeenLastCalledWith(expect.objectContaining({ page: 2 })),
     )
   })
 
-  it('lists hidden sources with an unhide control', async () => {
-    renderPage(
-      { confirmed_item_count: 1, preference_item_count: 1, items: [RECOMMENDATION] },
-      {
-        hidden_sources: [
-          {
-            source_id: 'source-1',
-            source_key: 'feed',
-            display_name: 'Licensed Feed',
-            source_family: 'licensed',
-            created_at: '2026-07-13T00:00:00Z',
-          },
-        ],
-        dismissals: [],
-      },
-    )
-    await findRecommendationHeading()
+  it('lets users show a hidden company again', async () => {
+    renderPage(page(), {
+      hidden_sources: [{
+        source_id: 'source-1', source_key: 'employer-ats-greenhouse-acme', display_name: 'Acme',
+        source_family: 'employer_ats', created_at: '2026-09-20T00:00:00Z',
+      }],
+      dismissals: [],
+    })
 
-    const unhide = await screen.findByRole('button', { name: /Unhide/ })
-    fireEvent.click(unhide)
+    fireEvent.click(await screen.findByRole('button', { name: 'Show Acme again' }))
+
     await waitFor(() => expect(unhideSource).toHaveBeenCalledWith('source-1'))
   })
 })
