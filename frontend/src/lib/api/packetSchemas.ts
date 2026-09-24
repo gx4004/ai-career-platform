@@ -105,6 +105,9 @@ export const applicationPacketItemSchema = z.strictObject({
   estimated_cost_usd: z.number().min(0),
   created_at: offsetDateTimeSchema,
   updated_at: offsetDateTimeSchema,
+  // When the owner confirmed they applied on the company site (mark-as-applied).
+  // Only reachable once `decision === 'accepted'`.
+  applied_at: offsetDateTimeSchema.nullable(),
 })
 export type ApplicationPacketItem = z.infer<typeof applicationPacketItemSchema>
 

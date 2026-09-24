@@ -117,6 +117,7 @@ POST /api/v1/packets/pause
 POST /api/v1/packets/prepare
 POST /api/v1/packets/resume
 POST /api/v1/packets/{packet_id}/accept
+POST /api/v1/packets/{packet_id}/applied
 POST /api/v1/packets/{packet_id}/edit
 POST /api/v1/packets/{packet_id}/reject
 POST /api/v1/packets/{packet_id}/skip

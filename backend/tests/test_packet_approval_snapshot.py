@@ -1035,6 +1035,36 @@ def test_duplicate_endpoint_is_409(client, auth_headers, db, test_user):
     assert "already approved an application" in response.json()["detail"]
 
 
+def test_mark_applied_endpoint_refused_before_accept(client, auth_headers, db, test_user):
+    packet = _approvable_packet(db, test_user.id)
+    response = client.post(f"{PREFIX}/packets/{packet.id}/applied", headers=auth_headers)
+    assert response.status_code == 409
+
+
+def test_mark_applied_endpoint_after_accept(client, auth_headers, db, test_user):
+    packet = _approvable_packet(db, test_user.id)
+    sha = client.get(
+        f"{PREFIX}/packets/{packet.id}/approval-preview", headers=auth_headers
+    ).json()["material_sha256"]
+    client.post(
+        f"{PREFIX}/packets/{packet.id}/accept",
+        json={"expected_material_sha256": sha},
+        headers=auth_headers,
+    )
+
+    response = client.post(f"{PREFIX}/packets/{packet.id}/applied", headers=auth_headers)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["applied_at"] is not None
+    # Listing this packet again reflects the same applied state (D-093
+    # by-reference, no packet column) rather than only the mutation response.
+    listed = client.get(f"{PREFIX}/packets", headers=auth_headers).json()["items"]
+    assert next(item for item in listed if item["id"] == packet.id)["applied_at"] is not None
+    events = db.query(CampaignEvent).filter(CampaignEvent.workspace_id == packet.campaign_id).all()
+    assert [event.event_type for event in events] == ["packet_approved", "submission_confirmed"]
+
+
 def test_no_submission_endpoint_or_service_mutator_exists():
     import app.services.packet_approval_snapshot as service
     import app.services.queue_review as queue_review

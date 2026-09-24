@@ -10,14 +10,17 @@ import pytest
 
 from app.auth.security import hash_password
 from app.models.application_packet import ApplicationPacket
+from app.models.campaign_event import CampaignEvent
 from app.models.queue_audit_event import QueueAuditEvent
 from app.models.user import User
 from app.services.application_packets import prepare_packets
 from app.services.packet_gate import is_queue_paused
 from app.services.queue_review import (
     PacketDecisionLockedError,
+    PacketNotAcceptedError,
     PacketNotFoundError,
     edit_packet,
+    mark_packet_applied,
     pause_queue,
     queue_review_state,
     reject_packet,
@@ -102,6 +105,61 @@ def test_edit_reopens_to_pending_and_audits(db, test_user):
     assert result.cv_variant_id == "cv-1"
     assert result.drafts_run_id == "run-1"
     assert _audit_actions(db, test_user.id) == ["packet_edited"]
+
+
+# ── Mark as applied — owner confirms they submitted an accepted packet ──
+
+
+def test_mark_applied_refused_before_accepted(db, test_user):
+    packet = _make_packet(db, test_user.id)
+    with pytest.raises(PacketNotAcceptedError):
+        mark_packet_applied(db, test_user.id, packet.id)
+
+
+def test_mark_applied_records_campaign_event_and_audit(db, test_user):
+    packet = _make_packet(db, test_user.id, decision="accepted")
+    result = mark_packet_applied(db, test_user.id, packet.id)
+    assert result.applied_at is not None
+    events = (
+        db.query(CampaignEvent)
+        .filter(CampaignEvent.workspace_id == packet.campaign_id)
+        .all()
+    )
+    assert len(events) == 1
+    assert events[0].event_type == "submission_confirmed"
+    assert events[0].details == {"packet_id": packet.id}
+    assert _audit_actions(db, test_user.id) == ["packet_applied"]
+
+
+def test_mark_applied_is_idempotent(db, test_user):
+    packet = _make_packet(db, test_user.id, decision="accepted")
+    first = mark_packet_applied(db, test_user.id, packet.id)
+    second = mark_packet_applied(db, test_user.id, packet.id)
+    assert first.applied_at == second.applied_at
+    events = (
+        db.query(CampaignEvent)
+        .filter(CampaignEvent.workspace_id == packet.campaign_id)
+        .all()
+    )
+    assert len(events) == 1
+    assert _audit_actions(db, test_user.id) == ["packet_applied"]
+
+
+def test_mark_applied_on_missing_packet_raises(db, test_user):
+    with pytest.raises(PacketNotFoundError):
+        mark_packet_applied(db, test_user.id, "does-not-exist")
+
+
+def test_mark_applied_is_owner_scoped(db, test_user):
+    from app.auth.security import hash_password
+    from app.models.user import User
+
+    other = User(email="applied-other@example.com", hashed_password=hash_password("password123"))
+    db.add(other)
+    db.commit()
+    packet = _make_packet(db, other.id, decision="accepted")
+    with pytest.raises(PacketNotFoundError):
+        mark_packet_applied(db, test_user.id, packet.id)
 
 
 # ── An accepted decision cannot be silently overwritten ──

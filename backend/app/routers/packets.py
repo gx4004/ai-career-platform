@@ -35,7 +35,9 @@ from app.services.packet_approval_snapshot import (
 from app.services.queue_review import (
     PacketDecisionLockedError,
     PacketGateBlockedError,
+    PacketNotAcceptedError,
     edit_packet,
+    mark_packet_applied,
     pause_queue,
     queue_review_state,
     reject_packet,
@@ -249,4 +251,26 @@ def edit(
     except PacketDecisionLockedError as error:
         raise HTTPException(
             status_code=409, detail="This packet has already been accepted."
+        ) from error
+
+
+@router.post("/{packet_id}/applied", response_model=ApplicationPacketItem)
+def mark_applied(
+    packet_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """The owner confirms they submitted this approved application themselves.
+
+    Records the confirmation on the packet's campaign. Refused (409) until the
+    packet is accepted — there is no official destination to have applied on
+    before then.
+    """
+    try:
+        return mark_packet_applied(db, current_user.id, packet_id)
+    except PacketDecisionNotFoundError as error:
+        raise HTTPException(status_code=404, detail="Application packet not found") from error
+    except PacketNotAcceptedError as error:
+        raise HTTPException(
+            status_code=409, detail="Accept this application before marking it applied."
         ) from error

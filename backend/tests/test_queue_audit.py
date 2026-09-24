@@ -160,6 +160,16 @@ def test_reprepared_audit_action_does_not_break_export(db):
     assert [e.action for e in export.queue_audit.events] == ["packet_reprepared"]
 
 
+def test_packet_applied_audit_action_does_not_break_export(db):
+    """D-099 regression twin of the reprepared case above: ``packet_applied``
+    (written by mark-as-applied) must be in the export allowlist too.
+    """
+    user = _user(db)
+    record_queue_audit_event(db, user_id=user.id, action="packet_applied", packet_id="pkt-1")
+    export = export_career_data(db, user.id)
+    assert [e.action for e in export.queue_audit.events] == ["packet_applied"]
+
+
 def test_delete_queue_audit_events_is_owner_scoped(db):
     keep = _user(db, email="keep@example.com")
     drop = _user(db, email="drop@example.com")

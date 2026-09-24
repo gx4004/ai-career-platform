@@ -25,9 +25,12 @@ from sqlalchemy.orm import Session
 
 from app.models.application_packet import ApplicationPacket
 from app.schemas.application_packets import ApplicationPacketItem, QueueReviewState
+from app.services.campaign_tracking import record_event
 from app.services.packet_approval import (
+    APPLIED_EVENT_TYPE,
     PacketNotApprovableError,
     answered_fields_for_packet,
+    applied_at_for_packet,
     packet_item_with_true_unresolved,
 )
 from app.services.packet_gate import (
@@ -42,9 +45,11 @@ __all__ = [
     "PacketNotFoundError",
     "PacketDecisionLockedError",
     "PacketGateBlockedError",
+    "PacketNotAcceptedError",
     "edit_packet",
     "skip_packet",
     "reject_packet",
+    "mark_packet_applied",
     "pause_queue",
     "resume_queue",
     "queue_review_state",
@@ -76,6 +81,18 @@ class PacketDecisionLockedError(Exception):
     def __init__(self, packet_id: str) -> None:
         self.packet_id = packet_id
         super().__init__(f"Packet {packet_id} was already accepted")
+
+
+class PacketNotAcceptedError(Exception):
+    """Raised when mark-as-applied targets a packet that is not yet ``accepted``.
+
+    Only an approved packet has an official destination the owner could have
+    submitted on, so applied is reachable only after accept.
+    """
+
+    def __init__(self, packet_id: str) -> None:
+        self.packet_id = packet_id
+        super().__init__(f"Packet {packet_id} must be accepted before it can be applied")
 
 
 def _load_owned_packet(db: Session, user_id: str, packet_id: str) -> ApplicationPacket:
@@ -159,6 +176,30 @@ def edit_packet(db: Session, user_id: str, packet_id: str) -> ApplicationPacketI
     return _set_decision(
         db, packet, decision="pending", action="packet_edited", details={"reopened": True}
     )
+
+
+def mark_packet_applied(db: Session, user_id: str, packet_id: str) -> ApplicationPacketItem:
+    """Record that the owner submitted this approved application themselves.
+
+    The product never submits anything (ADR 0009); this only lets the owner
+    confirm, after opening the official destination, that they did. Reachable
+    only once a packet is ``accepted`` — an unaccepted packet has no destination
+    to have applied on. Idempotent: marking an already-applied packet again keeps
+    its original ``applied_at`` and does not duplicate the campaign event.
+    """
+    packet = _load_owned_packet(db, user_id, packet_id)
+    if packet.decision != "accepted":
+        raise PacketNotAcceptedError(packet.id)
+    applied_at = applied_at_for_packet(db, packet.campaign_id, packet.id)
+    if applied_at is None:
+        record_event(db, packet.campaign_id, APPLIED_EVENT_TYPE, {"packet_id": packet.id})
+        db.commit()
+        record_queue_audit_event(
+            db, user_id=user_id, action="packet_applied", packet_id=packet.id
+        )
+        applied_at = applied_at_for_packet(db, packet.campaign_id, packet.id)
+    answered = answered_fields_for_packet(db, user_id, packet.id)
+    return packet_item_with_true_unresolved(packet, answered, applied_at=applied_at)
 
 
 # ── Global pause (R15 #183) ──

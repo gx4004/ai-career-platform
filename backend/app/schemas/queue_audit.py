@@ -18,6 +18,7 @@ QueueAuditAction = Literal[
     "packet_edited",
     "packet_skipped",
     "packet_rejected",
+    "packet_applied",
     "queue_paused",
     "queue_resumed",
 ]

@@ -122,6 +122,7 @@ export const queueAuditActionSchema = z.enum([
   'packet_edited',
   'packet_skipped',
   'packet_rejected',
+  'packet_applied',
   'queue_paused',
   'queue_resumed',
 ])
