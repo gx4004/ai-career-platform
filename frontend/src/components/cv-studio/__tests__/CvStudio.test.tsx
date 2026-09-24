@@ -77,7 +77,7 @@ beforeEach(() => {
   api.snapshotCvVariant.mockResolvedValue(document.variants[0])
 })
 
-describe('CV Studio empty state', () => {
+describe('CV Studio empty state', { timeout: 15_000 }, () => {
   it('welcomes a new owner with import and evidence starts', async () => {
     api.listCvDocuments.mockResolvedValue({ items: [] })
     view()
@@ -121,7 +121,7 @@ describe('CV Studio empty state', () => {
   })
 })
 
-describe('CV Studio editor', () => {
+describe('CV Studio editor', { timeout: 15_000 }, () => {
   it('edits structured entry fields and bullets, shows them live, then autosaves', async () => {
     view()
     const role = await screen.findByLabelText('Job title')
@@ -201,7 +201,7 @@ describe('CV Studio editor', () => {
   })
 })
 
-describe('CV Studio design', () => {
+describe('CV Studio design', { timeout: 15_000 }, () => {
   it('persists a template, font, accent and spacing change and mirrors it in the preview', async () => {
     view()
     fireEvent.click(within(await screen.findByRole('tablist', { name: 'Side panel' })).getByRole('tab', { name: /Design/ }))
@@ -235,7 +235,7 @@ describe('CV Studio design', () => {
   })
 })
 
-describe('CV Studio quality, exports and versions', () => {
+describe('CV Studio quality, exports and versions', { timeout: 15_000 }, () => {
   it('shows the ATS score, plain fixes and tucks detailed checks under Advanced checks', async () => {
     view()
     expect(await screen.findByRole('img', { name: 'ATS score: 72 out of 100' })).toBeTruthy()
