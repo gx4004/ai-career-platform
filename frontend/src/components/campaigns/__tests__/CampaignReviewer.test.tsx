@@ -137,15 +137,25 @@ describe('CampaignReviewer development acceptance path', () => {
 
   afterEach(() => vi.unstubAllEnvs())
 
-  it('keeps classification and development actions dark without the complete R17 flag chain', async () => {
-    setOutcomeFlags(true)
-    vi.stubEnv('VITE_R16_SUBMISSION_FOUNDATION_ENABLED', 'false')
+  it('keeps classification and development actions dark when only R17 itself is off (#321: flags are independent)', async () => {
+    setOutcomeFlags(false)
     renderReviewer()
 
     fireEvent.click(screen.getByRole('button', { name: 'Run application review' }))
     expect(await screen.findByText(review.findings[0].message)).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Classify review findings' })).toBeNull()
     expect(api.classifyCampaignGaps).not.toHaveBeenCalled()
+  })
+
+  it('surfaces classification and development actions from R17 alone, regardless of every other outcome flag', async () => {
+    setOutcomeFlags(true)
+    vi.stubEnv('VITE_R16_SUBMISSION_FOUNDATION_ENABLED', 'false')
+    vi.stubEnv('VITE_R13_CAMPAIGNS_ENABLED', 'false')
+    renderReviewer()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Run application review' }))
+    expect(await screen.findByText(review.findings[0].message)).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Classify review findings' })).toBeTruthy()
   })
 
   it('requires explicit review, classification, response inspection, and plan creation', async () => {
