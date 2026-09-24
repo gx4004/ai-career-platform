@@ -28,13 +28,6 @@ const workflowContext: WorkflowContextState = {
     access_mode: 'authenticated',
     saved: true,
     locked_actions: [],
-    access_decision: {
-      state: 'full',
-      treatment: 'control',
-      reason: 'policy_disabled',
-      can_export: true,
-      policy_version: 'control-v1',
-    },
     overall_score: 78,
     score_breakdown: [],
     strengths: ['Clear backend scope'],
@@ -64,13 +57,6 @@ const workflowContext: WorkflowContextState = {
     access_mode: 'authenticated',
     saved: true,
     locked_actions: [],
-    access_decision: {
-      state: 'full',
-      treatment: 'control',
-      reason: 'policy_disabled',
-      can_export: true,
-      policy_version: 'control-v1',
-    },
     match_score: 68,
     verdict: 'borderline',
     requirements: [
