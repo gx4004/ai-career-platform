@@ -87,12 +87,6 @@ def test_local_docker_contexts_exclude_sensitive_and_generated_content() -> None
 
 def test_frontend_public_build_variables_are_inventoried_and_wired() -> None:
     expected_new_variables = {
-        "VITE_R7_ENTRY_CHOICE",
-        "VITE_R7_SAMPLE_QUICKFILL",
-        "VITE_R7_CONTEXT_CARRY",
-        "VITE_R7_NEXT_BEST_ACTION",
-        "VITE_R7_VALUE_SPECIFIC_SIGNUP",
-        "VITE_R7_RESULTS_NUDGE",
         "VITE_SENTRY_DSN",
     }
     referenced_variables = _frontend_build_variables()

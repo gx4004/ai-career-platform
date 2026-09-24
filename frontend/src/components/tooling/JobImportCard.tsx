@@ -3,10 +3,8 @@ import { useMutation, useQuery } from '@tanstack/react-query'
 import { Link2 } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { Input } from '#/components/ui/input'
-import { SampleQuickfill } from '#/components/tooling/SampleQuickfill'
 import { getHistoryWorkspaces, importJobText, importJobUrl } from '#/lib/api/client'
 import { isR13CampaignsEnabled } from '#/lib/flags/featureFlags'
-import { SAMPLE_JOB_DESCRIPTION } from '#/lib/tools/sampleContent'
 
 export function JobImportCard({
   onImported,
@@ -126,11 +124,6 @@ export function JobImportCard({
             ) : null}
           </>
         ) : null}
-        {/* R7 #111 sample quick-fill ships dark: renders nothing unless VITE_R7_SAMPLE_QUICKFILL=true. */}
-        <SampleQuickfill
-          label="Try a sample job description"
-          onUse={() => onImported(SAMPLE_JOB_DESCRIPTION)}
-        />
       </div>
     </div>
   )
