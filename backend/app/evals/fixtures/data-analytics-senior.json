@@ -7,8 +7,8 @@
     96
   ],
   "expected_match_band": [
-    62,
-    78
+    78,
+    92
   ],
-  "notes": "Strong data-analytics match at senior seniority. Resume band 82-96 is the senior tier. Match band 62-78 is deliberately lower than the other senior fixtures rather than widened to match them: the JD asks for leadership, mentoring and product strategy in those words and the resume describes that work without using them, so keyword overlap sits near six of ten. This is the fixture that shows Job Match measuring JD vocabulary, not resume quality."
+  "notes": "Strong data-analytics match at senior seniority. Resume band 82-96 is the senior tier. Match band was 62-78 before the generic-filler/skill-family fix (held bug #1, Sept reset): the JD's 'Ability to mentor and set analytics direction' extracted the generic word 'Ability' as a 10th ranked keyword, displacing 'Analyst' and counting as permanently missing (the resume never says the literal word 'ability'), which floored the match score at 78. With 'ability' correctly filtered as generic filler, 'Analyst' (which the resume title uses) is matched instead, leaving only 'Leadership' and 'Mentor' missing and raising the deterministic match score to 85. Band widened to 78-92 to bracket that score; the fixture still demonstrates Job Match measuring JD vocabulary, not resume quality — 'Leadership' and 'Mentor' remain genuinely missing because the resume describes that work without using those words."
 }
