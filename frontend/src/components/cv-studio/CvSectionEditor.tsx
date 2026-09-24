@@ -44,7 +44,7 @@ function StructuredEntry({ section, entry, index, onSections }: {
     <article className="cvs-entry cvs-entry--structured" aria-label={cardTitle}>
       <header className="cvs-entry__head">
         <p className="cvs-entry__title">{cardTitle}</p>
-        {entry.evidence_item_id ? <span className="cvs-evidence-tag"><BadgeCheck size={13} aria-hidden="true" /> From your Evidence</span> : null}
+        {entry.evidence_item_id ? <span className="cvs-evidence-tag"><BadgeCheck size={13} aria-hidden="true" /> Linked to your Evidence</span> : null}
         <span className="cvs-entry__tools">
           <Button type="button" variant="ghost" size="icon-sm" aria-label={`Move ${cardTitle} up`} disabled={index === 0} onClick={() => onSections((s) => moveEntry(s, section.id, index, -1))}><ArrowUp /></Button>
           <Button type="button" variant="ghost" size="icon-sm" aria-label={`Move ${cardTitle} down`} disabled={index === section.entries.length - 1} onClick={() => onSections((s) => moveEntry(s, section.id, index, 1))}><ArrowDown /></Button>
@@ -112,11 +112,11 @@ function FreeformEntry({ section, entry, index, onSections }: {
   return (
     <div className="cvs-entry cvs-entry--freeform">
       {only ? (
-        entry.evidence_item_id ? <span className="cvs-evidence-tag"><BadgeCheck size={13} aria-hidden="true" /> From your Evidence</span> : null
+        entry.evidence_item_id ? <span className="cvs-evidence-tag"><BadgeCheck size={13} aria-hidden="true" /> Linked to your Evidence</span> : null
       ) : (
         <div className="cvs-entry__freeform-head">
           <label htmlFor={uid}>Entry {index + 1}</label>
-          {entry.evidence_item_id ? <span className="cvs-evidence-tag"><BadgeCheck size={13} aria-hidden="true" /> From your Evidence</span> : null}
+          {entry.evidence_item_id ? <span className="cvs-evidence-tag"><BadgeCheck size={13} aria-hidden="true" /> Linked to your Evidence</span> : null}
           <span className="cvs-entry__tools">
             <Button type="button" variant="ghost" size="icon-sm" aria-label={`Move ${label} up`} disabled={index === 0} onClick={() => onSections((s) => moveEntry(s, section.id, index, -1))}><ArrowUp /></Button>
             <Button type="button" variant="ghost" size="icon-sm" aria-label={`Move ${label} down`} disabled={index === section.entries.length - 1} onClick={() => onSections((s) => moveEntry(s, section.id, index, 1))}><ArrowDown /></Button>

@@ -995,6 +995,10 @@
   field-sizing: content;
 }
 
+@supports not (field-sizing: content) {
+  .cvs-bullet__input { min-height: 3.6rem; resize: vertical; }
+}
+
 .cvs-bullet__input:focus-visible { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 
 .cvs-bullet__tools {
