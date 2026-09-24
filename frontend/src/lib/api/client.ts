@@ -75,6 +75,8 @@ import {
   cvTailoringProposalSchema,
   cvRenderModelSchema,
   cvStyleCatalogSchema,
+  cvImportProposalSchema,
+  cvImportAcceptSchema,
 } from '#/lib/api/schemas'
 import type {
   EvidenceConfirmationAction,
@@ -84,6 +86,7 @@ import type {
   CvDocumentUpdate,
   CvAtsCheckKey,
   CvTemplateId,
+  CvImportProposal,
   WorkspaceUpdate,
   CampaignMaterialSelection,
 } from '#/lib/api/schemas'
@@ -150,6 +153,23 @@ export function getCvRenderModel(documentId: string, template: CvTemplateId) {
 
 export function getCvStyleCatalog() {
   return request('/cv-documents/style-catalog', { method: 'GET', schema: cvStyleCatalogSchema })
+}
+
+// Reviewed CV import: the server parses a PDF/DOCX into a proposal the person
+// looks over, then accepting it creates the CV document (and stages any facts
+// it found as unconfirmed Evidence).
+export function proposeCvImport(file: File) {
+  const formData = new FormData()
+  formData.append('file', file)
+  return request('/cv-documents/import/proposals', {
+    method: 'POST', body: formData, schema: cvImportProposalSchema,
+  })
+}
+
+export function acceptCvImport(proposal: CvImportProposal) {
+  return request('/cv-documents/import/accept', {
+    method: 'POST', body: cvImportAcceptSchema.parse(proposal), schema: cvDocumentSchema,
+  })
 }
 
 export interface CvRenderModelPreviewOverrides {

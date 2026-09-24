@@ -72,6 +72,60 @@ mentor engineers across product teams. Required: Python, FastAPI,
 PostgreSQL, SQLAlchemy, Docker, and CI/CD experience. AWS a plus.
 `.trim()
 
+const cvStudioSeed = {
+  name: 'Alex Morgan',
+  sections: [
+    {
+      id: 'summary', kind: 'summary', title: 'Summary', visible: true, position: 0,
+      entries: [{
+        id: 'summary-1', evidence_item_id: null, position: 0,
+        body: 'Backend engineer with six years of experience building reliable Python services, data pipelines, and internal platforms for distributed teams.',
+      }],
+    },
+    {
+      id: 'experience', kind: 'experience', title: 'Experience', visible: true, position: 1,
+      entries: [
+        {
+          id: 'exp-1', evidence_item_id: null, position: 0,
+          heading: 'Senior Backend Engineer', subheading: 'Northwind Labs', location: 'Berlin',
+          start_date: 'Mar 2022', end_date: 'Present',
+          bullets: [
+            'Led the move of 14 services to FastAPI and PostgreSQL, cutting p95 latency by 38%.',
+            'Built the CI/CD pipeline that took releases from weekly to several times a day.',
+            'Mentored four engineers through their first on-call rotations.',
+          ],
+          body: 'Led the move of 14 services to FastAPI and PostgreSQL, cutting p95 latency by 38%.\nBuilt the CI/CD pipeline that took releases from weekly to several times a day.\nMentored four engineers through their first on-call rotations.',
+        },
+        {
+          id: 'exp-2', evidence_item_id: null, position: 1,
+          heading: 'Backend Engineer', subheading: 'Brightline Data', location: 'Remote',
+          start_date: 'Jun 2019', end_date: 'Feb 2022',
+          bullets: [
+            'Designed SQLAlchemy data models for a billing platform serving 2M invoices a month.',
+            'Automated schema migrations with Alembic and zero-downtime deploys on AWS.',
+          ],
+          body: 'Designed SQLAlchemy data models for a billing platform serving 2M invoices a month.\nAutomated schema migrations with Alembic and zero-downtime deploys on AWS.',
+        },
+      ],
+    },
+    {
+      id: 'education', kind: 'education', title: 'Education', visible: true, position: 2,
+      entries: [{
+        id: 'edu-1', evidence_item_id: null, position: 0,
+        heading: 'BSc Computer Science', subheading: 'University of Leeds', start_date: '2015', end_date: '2019',
+        body: 'BSc Computer Science', bullets: [],
+      }],
+    },
+    {
+      id: 'skills', kind: 'skills', title: 'Skills', visible: true, position: 3,
+      entries: [{
+        id: 'skills-1', evidence_item_id: null, position: 0,
+        body: 'Python, FastAPI, PostgreSQL, SQLAlchemy, React, TypeScript, Docker, AWS, CI/CD',
+      }],
+    },
+  ],
+}
+
 // Framer-motion `whileInView` sections (mostly on the landing page) never
 // mount if the viewport never scrolls past them; a full-page screenshot
 // still renders past the fold, but only after the browser has scrolled
@@ -244,24 +298,24 @@ test('capture authenticated + guest pages for visual review', async ({ page, bro
       console.warn('[screenshots] campaign seed skipped:', describeError(error))
     }
 
-    // CV Studio seed: same payload shape as cv-studio-preview.spec.ts.
+    // CV Studio seed: structured entries + a non-default style so the editor,
+    // design gallery and live paper preview all have something real to show.
     try {
-      const created = await page.request.post('/api/v1/cv-documents', {
+      const created = await page.request.post('/api/v1/cv-documents', { data: cvStudioSeed })
+      if (!created.ok()) throw new Error(`cv-document seed returned ${created.status()}`)
+      const { id } = await created.json()
+      const styled = await page.request.patch(`/api/v1/cv-documents/${id}`, {
         data: {
-          name: 'Screenshot Harness CV',
-          sections: [
-            {
-              id: 'summary',
-              kind: 'summary',
-              title: 'Summary',
-              visible: true,
-              position: 0,
-              entries: [{ id: 'entry-1', evidence_item_id: null, body: resumeText.split('\n\n')[1] ?? 'Backend engineer.', position: 0 }],
-            },
-          ],
+          style: {
+            template_id: 'professional-editorial', font_id: 'pt-serif', accent_color: '#075985',
+            density: 'normal', ats_mode: false,
+          },
         },
       })
-      if (!created.ok()) throw new Error(`cv-document seed returned ${created.status()}`)
+      if (!styled.ok()) throw new Error(`cv-document style seed returned ${styled.status()}`)
+      await page.request.post(`/api/v1/cv-documents/${id}/variants`, {
+        data: { name: 'Platform roles', target_role: 'Senior Backend Engineer' },
+      })
     } catch (error) {
       console.warn('[screenshots] cv-studio seed skipped (page still renders its empty state):', describeError(error))
     }
