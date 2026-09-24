@@ -49,10 +49,69 @@ def test_dark_profile_keeps_owner_export_and_erasure_available(
     )
 
 
-def test_downstream_route_requires_every_upstream_gate(
+def test_r12_cv_studio_stays_reachable_with_r11_evidence_profile_off(
     client, auth_headers, monkeypatch
 ):
+    """CV Studio (R12) depends only on its own flag (#321). R11 being dark must
+    not 404 CV Studio's own routes — it only means the shared pipeline never
+    attaches an evidence payload (see test_evidence_injection's
+    test_legacy_injection_switch_cannot_bypass_dark_r11), so evidence-grounded
+    features degrade gracefully instead of crashing."""
+    monkeypatch.setattr(settings, "R11_EVIDENCE_PROFILE_ENABLED", False)
+    monkeypatch.setattr(settings, "R12_CV_STUDIO_ENABLED", True)
+
+    # Evidence Profile's own routes are dark, as expected.
+    evidence_response = client.get(
+        "/api/v1/evidence-profile/items", headers=auth_headers
+    )
+    assert evidence_response.status_code == 404
+
+    # CV Studio keeps working: a plain document with no evidence links can be
+    # created, listed, and read back.
+    created = client.post(
+        "/api/v1/cv-documents",
+        headers=auth_headers,
+        json={
+            "name": "Reachable without Evidence Profile",
+            "sections": [
+                {
+                    "id": "section-summary",
+                    "kind": "summary",
+                    "title": "Summary",
+                    "visible": True,
+                    "position": 0,
+                    "entries": [
+                        {
+                            "id": "entry-one",
+                            "evidence_item_id": None,
+                            "body": "Built and shipped reliable systems.",
+                            "position": 0,
+                        }
+                    ],
+                }
+            ],
+        },
+    )
+    assert created.status_code == 201
+    document_id = created.json()["id"]
+    assert (
+        client.get(f"/api/v1/cv-documents/{document_id}", headers=auth_headers).status_code
+        == 200
+    )
+
+
+def test_outcome_gate_does_not_require_any_other_outcome(
+    client, auth_headers, monkeypatch
+):
+    """R11-R17 are independent (#321): an unrelated outcome being off must not
+    dark a route whose own flag is on, and a route's own flag being off must
+    still dark it regardless of every other outcome's state."""
     monkeypatch.setattr(settings, "R14_DISCOVERY_ENABLED", False)
+    monkeypatch.setattr(settings, "R15_QUEUE_ENABLED", True)
+    response = client.get("/api/v1/queue/rules", headers=auth_headers)
+    assert response.status_code == 200
+
+    monkeypatch.setattr(settings, "R15_QUEUE_ENABLED", False)
     response = client.get("/api/v1/queue/rules", headers=auth_headers)
     assert response.status_code == 404
 
