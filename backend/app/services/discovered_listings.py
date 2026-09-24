@@ -77,21 +77,27 @@ def store_discovered_listing(
             # failing or creating a parallel listing.
             listing = db.query(DiscoveredListing).filter_by(content_sha256=digest).one()
             deduplicated = True
-    # Refresh mutable, non-hashed fields on every store (including a dedup
-    # hit) so a re-fetch that only changes e.g. `posted_at` or `remote` still
-    # reaches the canonical row.
-    listing.location = _stripped_or_none(body.location)
-    listing.remote = body.remote
-    listing.posted_at = body.posted_at
-    listing.apply_url = body.apply_url
-    listing.department = _stripped_or_none(body.department)
-
     attribution = (
         db.query(DiscoveredListingAttribution)
         .filter_by(source_id=source.id, source_listing_key=body.source_listing_key)
         .with_for_update()
         .first()
     )
+    # Refresh mutable, non-hashed fields (location/remote/posted_at/apply_url/
+    # department) only when this store is either the listing's first write or
+    # a re-fetch of the *same* posting (same source + source_listing_key). A
+    # content-hash dedup hit from a *different* key — e.g. the same
+    # title/company/description posted for several offices — must not let
+    # whichever posting happens to be processed last silently overwrite the
+    # canonical row's location/apply_url with an unrelated office's.
+    is_same_posting_refresh = attribution is not None and attribution.listing_id == listing.id
+    if not deduplicated or is_same_posting_refresh:
+        listing.location = _stripped_or_none(body.location)
+        listing.remote = body.remote
+        listing.posted_at = body.posted_at
+        listing.apply_url = body.apply_url
+        listing.department = _stripped_or_none(body.department)
+
     previous_listing_id: str | None = None
     if attribution is None:
         attribution = DiscoveredListingAttribution(

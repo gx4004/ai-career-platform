@@ -177,6 +177,33 @@ async def test_refetching_the_same_board_deduplicates(db, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_dedup_from_a_different_posting_does_not_clobber_location(db, monkeypatch):
+    """Two distinct postings that hash to the same canonical listing (same
+    title/company/description, different office) must not let whichever one
+    is stored last silently overwrite the first one's location/apply_url."""
+    source = _activate_ats_source(db, _reviewer(db), provider="greenhouse", slug="examplecorp")
+    base = json.loads((FIXTURES_DIR / "greenhouse_jobs.json").read_text())
+    denver = base["jobs"][0]
+    london = {**denver, "id": 9999999, "location": {"name": "London, UK"}}
+    body = json.dumps({"jobs": [denver, london]}).encode()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, content=body, headers={"content-type": "application/json"})
+
+    _install_fixture_transport(monkeypatch, handler)
+
+    outcome = await ingest_ats_source(db, source_key=source.source_key)
+
+    assert outcome.stored == 1
+    assert outcome.deduplicated == 1
+    listing = db.query(DiscoveredListing).filter_by(title="Senior Backend Engineer").one()
+    # Whichever posting was stored first (Berlin, per fixture order) wins;
+    # London's later dedup hit must not overwrite it.
+    assert listing.location == "Berlin, Germany"
+    assert len(listing.attributions) == 2
+
+
+@pytest.mark.asyncio
 async def test_one_source_failure_does_not_stop_others(db, monkeypatch):
     reviewer = _reviewer(db)
     good = _activate_ats_source(db, reviewer, provider="greenhouse", slug="examplecorp")
