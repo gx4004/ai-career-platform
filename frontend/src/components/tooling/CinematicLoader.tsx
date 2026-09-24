@@ -20,8 +20,13 @@ type Stage = {
 // observes what the server is actually doing. So they are NOT status messages
 // and must not be worded as one. Two rules keep them truthful:
 //
-//   1. No trailing ellipsis. "Calculating score…" reads as "the server is doing
-//      this right now", which the client cannot substantiate.
+//   1. The label strings themselves carry no trailing ellipsis — "Calculating
+//      score…" as a *string* would read as "the server is doing this right
+//      now" wherever it surfaces, including the aria-live announcement below.
+//      The visible (aria-hidden) stage line appends its own decorative "…" at
+//      render time instead, purely as a "more is coming" affordance; it is
+//      never present in the announcement, which already states the
+//      substantiated claim explicitly ("Typical step: ...").
 //   2. They are always rendered under the `STEPS_FRAME` caption below, which
 //      marks the whole list as typical rather than observed.
 //
@@ -283,8 +288,10 @@ export function CinematicLoader({
               exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: -8 }}
               transition={{ duration: reduceMotion ? 0 : 0.25 }}
             >
-              <Icon size={16} style={{ color: accent }} />
-              <span>{stage.label}</span>
+              <Icon size={20} style={{ color: accent }} />
+              {/* Decorative-only ellipsis (see the D-056 comment above): the
+                  aria-live announcement never carries this. */}
+              <span>{stage.label}…</span>
             </motion.div>
           </AnimatePresence>
         </div>
