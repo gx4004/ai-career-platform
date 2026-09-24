@@ -3,14 +3,18 @@
 Browser tests run headless against the committed fixture forms in
 ``tests/fixtures/autofill/`` only — never against a live employer site. They call
 the fill step directly, which is what lets them use ``file://`` pages without
-touching the production host allowlist.
+touching the production host allowlist. The allowlist tests serve those same
+fixtures under an allowlisted URL (via ``route``) or from 127.0.0.1.
 """
 
 from __future__ import annotations
 
 import re
 import threading
+import time
 from concurrent.futures import Future
+from functools import partial
+from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 import pytest
@@ -25,8 +29,10 @@ from app.services.autopilot_autofill import (
     AutofillRefused,
     AutofillReport,
     SubmitRefused,
+    _open_form,
     _run,
     _safe_click,
+    _wait_for_owner,
     assert_allowed_apply_url,
     fill_application,
     form_url,
@@ -107,14 +113,18 @@ def test_start_refuses_a_non_allowlisted_url_before_opening_anything(monkeypatch
         start_autofill("user-1", AutofillMaterials(url="https://careers.acme.example/apply"))
 
 
-def test_one_run_at_a_time_per_owner(monkeypatch):
+def test_one_run_at_a_time_per_owner_until_the_browser_is_gone(monkeypatch):
+    # The stub never finishes, like a browser window the owner still has open.
     monkeypatch.setattr(autopilot_autofill, "_run", lambda *a: None)
     first = start_autofill("user-1", AutofillMaterials(url=MATERIALS.url))
-    with pytest.raises(AutofillBusy):
+    start_autofill("user-2", AutofillMaterials(url=MATERIALS.url))
+    first.set_result(AutofillReport(url=MATERIALS.url))  # the fill is done...
+    with pytest.raises(AutofillBusy):  # ...but the window is still open
         start_autofill("user-1", AutofillMaterials(url=MATERIALS.url))
-    start_autofill("user-2", AutofillMaterials(url=MATERIALS.url)).set_result(None)
-    first.set_result(None)
-    start_autofill("user-1", AutofillMaterials(url=MATERIALS.url)).set_result(None)
+    autopilot_autofill._release("user-1")  # what _run does once the browser closes
+    start_autofill("user-1", AutofillMaterials(url=MATERIALS.url))
+    autopilot_autofill._release("user-1")
+    autopilot_autofill._release("user-2")
 
 
 # ── Never submits: static guard ──
@@ -230,16 +240,75 @@ def test_safe_click_refuses_submit_controls(browser):
         page.close()
 
 
-def test_worker_fills_then_closes_when_headless(browser, tmp_path):
-    """The thread body end to end on a fixture page (the allowlist lives in start_autofill)."""
-    result: Future = Future()
-    local = AutofillMaterials(**{**MATERIALS.__dict__, "url": (FIXTURES / "lever.html").as_uri()})
-    worker = threading.Thread(target=_run, args=(local, result, True))
-    worker.start()
-    report = result.result(timeout=60)
-    worker.join(timeout=30)
-    assert isinstance(report, AutofillReport)
+@pytest.fixture
+def fixture_server():
+    """The fixture forms over plain http on 127.0.0.1: a host that is not allowlisted."""
+    handler = partial(SimpleHTTPRequestHandler, directory=str(FIXTURES))
+    handler.log_message = lambda *a: None
+    server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    yield f"http://127.0.0.1:{server.server_port}"
+    server.shutdown()
+
+
+def test_opens_an_allowlisted_page_and_fills_it(browser, tmp_path):
+    context = browser.new_context()
+    context.route(
+        "https://jobs.lever.co/**", lambda route: route.fulfill(path=FIXTURES / "lever.html")
+    )
+    page = context.new_page()
+    report = _open_form(page, MATERIALS, tmp_path)
+    assert page.url == "https://jobs.lever.co/acme/123/apply"
     assert "Email✱" in report.filled
+    assert page.evaluate("window.__submitted") is False
+    context.close()
+
+
+def test_a_redirect_off_the_allowlist_is_refused_and_nothing_is_filled(
+    browser, tmp_path, fixture_server
+):
+    context = browser.new_context()
+    context.route(
+        "https://boards.greenhouse.io/**",
+        lambda route: route.fulfill(
+            status=302, headers={"location": f"{fixture_server}/greenhouse.html"}
+        ),
+    )
+    page = context.new_page()
+    materials = AutofillMaterials(**{**MATERIALS.__dict__, "url": "https://boards.greenhouse.io/acme/jobs/1"})
+    with pytest.raises(AutofillRefused):
+        _open_form(page, materials, tmp_path)
+    assert not page.url.startswith("https://boards.greenhouse.io")
+    assert page.evaluate("document.querySelector('#first_name')?.value || ''") == ""
+    assert list(tmp_path.iterdir()) == []  # not even the CV was written out
+    context.close()
+
+
+def test_worker_refuses_an_off_list_page_then_closes_and_frees_the_owner(browser, monkeypatch):
+    """The thread body end to end: the navigation guard stops a non-allowlisted page."""
+    monkeypatch.setattr(
+        autopilot_autofill, "fill_application", lambda *a: pytest.fail("filled anyway")
+    )
+    local = AutofillMaterials(**{**MATERIALS.__dict__, "url": (FIXTURES / "lever.html").as_uri()})
+    autopilot_autofill._busy.add("user-9")
+    result: Future = Future()
+    worker = threading.Thread(target=_run, args=("user-9", local, result, True))
+    worker.start()
+    with pytest.raises(AutofillRefused):
+        result.result(timeout=60)
+    worker.join(timeout=30)
+    assert not worker.is_alive()
+    assert "user-9" not in autopilot_autofill._busy
+
+
+def test_waiting_for_the_owner_ends_when_the_tab_closes_or_time_runs_out(browser, monkeypatch):
+    page = browser.new_page()
+    monkeypatch.setattr(autopilot_autofill, "REVIEW_WINDOW_SECONDS", 0.5)
+    started = time.monotonic()
+    _wait_for_owner(page, browser)  # nobody closes it: gives up after the limit
+    assert time.monotonic() - started < 10
+    page.close()
+    _wait_for_owner(page, browser)  # already closed: returns at once
 
 
 # ── Endpoint ──
@@ -312,6 +381,21 @@ def test_non_allowlisted_destination_is_refused(
     response = client.post(f"{PREFIX}/packets/{packet.id}/autofill", headers=auth_headers)
     assert response.status_code == 400
     assert "Greenhouse, Lever, or Ashby" in response.json()["detail"]
+
+
+def test_a_page_that_moves_off_the_allowlist_is_a_400(
+    client, db, test_user, auth_headers, autopilot_on, monkeypatch
+):
+    def refused(*_args, **_kwargs):
+        future: Future = Future()
+        future.set_exception(AutofillRefused("The application page moved. Nothing was filled."))
+        return future
+
+    monkeypatch.setattr("app.routers.packets.start_autofill", refused)
+    packet = _approved(db, test_user.id)
+    response = client.post(f"{PREFIX}/packets/{packet.id}/autofill", headers=auth_headers)
+    assert response.status_code == 400
+    assert response.json()["detail"] == "The application page moved. Nothing was filled."
 
 
 def test_another_owners_packet_is_404(client, db, test_user, autopilot_on, monkeypatch):

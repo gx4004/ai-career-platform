@@ -14,6 +14,7 @@ import json
 import re
 import tempfile
 import threading
+import time
 from concurrent.futures import Future
 from dataclasses import dataclass, field
 from difflib import SequenceMatcher
@@ -33,6 +34,7 @@ ALLOWED_HOSTS = frozenset(
     {"boards.greenhouse.io", "job-boards.greenhouse.io", "jobs.lever.co", "jobs.ashbyhq.com"}
 )
 ACTION_TIMEOUT_MS = 15_000
+REVIEW_WINDOW_SECONDS = 30 * 60  # the window closes itself after this
 _HIGHLIGHT = "el => { el.style.outline = '3px solid #f59e0b'; el.style.outlineOffset = '2px' }"
 _SUBMIT_TEXT = re.compile(r"submit|send application|apply now", re.IGNORECASE)
 _PHONE = re.compile(r"\+?\d[\d\s().-]{7,}\d")
@@ -248,29 +250,78 @@ _busy: set[str] = set()
 _busy_lock = threading.Lock()
 
 
-def _run(materials: AutofillMaterials, result: Future, headless: bool) -> None:
+def _open_form(page, materials: AutofillMaterials, workdir: Path) -> AutofillReport:
+    """Open the form and fill it, but only while the page stays on an allowlisted host.
+
+    A guard aborts main-frame navigations to other hosts while we work, and the
+    final URL is checked again after any redirects, before anything is typed.
+    """
+    blocked: list[str] = []
+
+    def guard(route) -> None:
+        request = route.request
+        if (
+            request.is_navigation_request()
+            and request.frame.parent_frame is None
+            and not _allowed(request.url)
+        ):
+            blocked.append(request.url)
+            route.abort()
+        else:
+            route.fallback()
+
+    page.route("**/*", guard)
+    try:
+        page.goto(form_url(materials.url), wait_until="domcontentloaded")
+    except Exception:
+        if not blocked:
+            raise
+    if blocked or not _allowed(page.url):
+        raise AutofillRefused(
+            "The application page moved to a site Autopilot does not fill. Nothing was filled."
+        )
+    report = fill_application(page, materials, workdir)
+    page.unroute("**/*", guard)  # From here on the owner is in charge of the window.
+    return report
+
+
+def _wait_for_owner(page, browser) -> None:
+    """Wait until the owner closes the tab or quits the browser, but not forever."""
+    deadline = time.monotonic() + REVIEW_WINDOW_SECONDS
+    while not page.is_closed() and browser.is_connected() and time.monotonic() < deadline:
+        try:
+            left_ms = (deadline - time.monotonic()) * 1000
+            page.wait_for_event("close", timeout=max(1, min(5_000, left_ms)))
+        except Exception:  # noqa: BLE001 — still open (look again) or the browser is gone
+            pass
+
+
+def _run(user_id: str, materials: AutofillMaterials, result: Future, headless: bool) -> None:
     try:
         from playwright.sync_api import sync_playwright
 
         with tempfile.TemporaryDirectory(prefix="cw-autofill-") as workdir, sync_playwright() as pw:
             browser = pw.chromium.launch(headless=headless)
-            context = browser.new_context()
-            page = context.new_page()
-            page.set_default_timeout(ACTION_TIMEOUT_MS)
             try:
-                page.goto(form_url(materials.url), wait_until="domcontentloaded")
-                result.set_result(fill_application(page, materials, Path(workdir)))
-            except Exception as exc:  # noqa: BLE001 — the window stays open either way
-                result.set_exception(exc)
-            # The owner reviews and submits in this window. Wait until they close
-            # it: Chromium reads the attached files from ``workdir`` only when the
-            # form is sent.
-            if not headless:
-                context.wait_for_event("close", timeout=0)
-            browser.close()
+                page = browser.new_context().new_page()
+                page.set_default_timeout(ACTION_TIMEOUT_MS)
+                try:
+                    result.set_result(_open_form(page, materials, Path(workdir)))
+                except Exception as exc:  # noqa: BLE001 — surfaced to the waiting request
+                    result.set_exception(exc)
+                # The owner reviews and submits in this window. Chromium reads the
+                # attached files from ``workdir`` only when the form is sent, so
+                # keep both until they close it (a refused page closes at once).
+                if not headless and not isinstance(result.exception(), AutofillRefused):
+                    _wait_for_owner(page, browser)
+            finally:
+                browser.close()
     except Exception as exc:  # noqa: BLE001 — surfaced to the waiting request
         if not result.done():
             result.set_exception(exc)
+    finally:
+        # Only now is the browser gone, so only now may this owner start another.
+        _release(user_id)
 
 
 def _release(user_id: str) -> None:
@@ -286,8 +337,7 @@ def start_autofill(user_id: str, materials: AutofillMaterials, *, headless: bool
             raise AutofillBusy
         _busy.add(user_id)
     result: Future = Future()
-    result.add_done_callback(lambda _: _release(user_id))
-    threading.Thread(target=_run, args=(materials, result, headless), daemon=True).start()
+    threading.Thread(target=_run, args=(user_id, materials, result, headless), daemon=True).start()
     return result
 
 
