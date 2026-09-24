@@ -86,21 +86,6 @@ export const unresolvedQuestionSchema = z.strictObject({
 })
 export type UnresolvedQuestion = z.infer<typeof unresolvedQuestionSchema>
 
-export const packetSubmissionStopNoticeSchema = z.strictObject({
-  stop_event_id: z.string(),
-  reason: z.enum([
-    'challenge',
-    'authentication_required',
-    'uncertainty',
-    'compatibility_mismatch',
-    'source_validation_rejected',
-  ]),
-  explanation: z.string(),
-  destination_url: safeHttpsDestinationSchema,
-  instructions: z.string(),
-  stopped_at: offsetDateTimeSchema,
-})
-
 export const applicationPacketItemSchema = z.strictObject({
   id: z.string(),
   campaign_id: z.string(),
@@ -117,7 +102,6 @@ export const applicationPacketItemSchema = z.strictObject({
   decision: packetDecisionSchema,
   match_rationale: packetMatchRationaleSchema,
   unresolved_questions: z.array(unresolvedQuestionSchema),
-  submission_stop: packetSubmissionStopNoticeSchema.nullable().default(null),
   estimated_cost_usd: z.number().min(0),
   created_at: offsetDateTimeSchema,
   updated_at: offsetDateTimeSchema,

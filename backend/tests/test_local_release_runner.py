@@ -51,39 +51,10 @@ def test_release_plan_rejects_a_non_disposable_database_without_leaking_credenti
         "--plan",
         "--database-url",
         f"postgresql+psycopg2://release:{secret}@db.example/production",
-        "--authorization-database-url",
-        "postgresql+psycopg2://release:secret@db.example/"
-        "codex_submission_authorization_concurrency_contract",
     )
 
     assert result.returncode == 2
     assert "cw_local_release" in result.stderr
-    assert secret not in result.stdout + result.stderr
-
-
-def test_full_release_requires_a_separate_authorization_concurrency_database() -> None:
-    result = _run(
-        "--plan",
-        "--database-url",
-        "postgresql+psycopg2://cw:secret@localhost/cw_local_release_contract",
-    )
-
-    assert result.returncode == 2
-    assert "requires --authorization-database-url" in result.stderr
-
-
-def test_release_plan_rejects_an_ambiguous_authorization_database() -> None:
-    secret = "authorization-password"
-    result = _run(
-        "--plan",
-        "--database-url",
-        "postgresql+psycopg2://cw:secret@localhost/cw_local_release_contract",
-        "--authorization-database-url",
-        f"postgresql+psycopg2://cw:{secret}@localhost/cw_local_release_auth",
-    )
-
-    assert result.returncode == 2
-    assert "codex_submission_authorization_concurrency_" in result.stderr
     assert secret not in result.stdout + result.stderr
 
 
@@ -93,9 +64,6 @@ def test_release_plan_covers_every_local_manual_gate_and_redacts_the_database_ur
         "--plan",
         "--database-url",
         f"postgresql+psycopg2://cw:{secret}@127.0.0.1:5432/cw_local_release_contract",
-        "--authorization-database-url",
-        "postgresql+psycopg2://cw:authorization-secret@127.0.0.1:5432/"
-        "codex_submission_authorization_concurrency_contract",
     )
 
     assert result.returncode == 0, result.stderr
@@ -120,11 +88,8 @@ def test_release_plan_covers_every_local_manual_gate_and_redacts_the_database_ur
         "docker run --rm career-workbench-backend:local-release id -u",
         "python3 tests/migration_stable_release_roundtrip.py",
         "python3 tests/migration_packet_approval_roundtrip.py",
-        "python3 tests/migration_submission_roundtrip.py",
         "python3 tests/migration_operational_metric_roundtrip.py",
         "python3 -m alembic upgrade head",
-        "python3 tests/postgres_submission_concurrency.py",
-        "python3 tests/postgres_submission_authorization_concurrency.py",
         "pnpm exec playwright install chromium",
         "pnpm test:e2e:ci",
     ):
@@ -138,8 +103,6 @@ def test_release_plan_covers_every_local_manual_gate_and_redacts_the_database_ur
     assert stable_round_trip < packet_round_trip
     assert secret not in result.stdout + result.stderr
     assert "<disposable-postgresql-url>" in result.stdout
-    assert "<authorization-concurrency-postgresql-url>" in result.stdout
-    assert "authorization-secret" not in result.stdout + result.stderr
     assert "workflow_dispatch" not in result.stdout
     assert "gh workflow" not in result.stdout
     assert "gh run" not in result.stdout
@@ -198,9 +161,6 @@ def test_release_plan_selects_its_own_e2e_ports() -> None:
         "--allow-missing-docker",
         "--database-url",
         "postgresql+psycopg2://cw:secret@127.0.0.1:5432/cw_local_release_contract",
-        "--authorization-database-url",
-        "postgresql+psycopg2://cw:authorization-secret@127.0.0.1:5432/"
-        "codex_submission_authorization_concurrency_contract",
     )
 
     assert result.returncode == 0, result.stderr
@@ -221,9 +181,6 @@ def test_release_ignores_ambient_e2e_ports() -> None:
         "--allow-missing-docker",
         "--database-url",
         "postgresql+psycopg2://cw:secret@127.0.0.1:5432/cw_local_release_contract",
-        "--authorization-database-url",
-        "postgresql+psycopg2://cw:authorization-secret@127.0.0.1:5432/"
-        "codex_submission_authorization_concurrency_contract",
         environment=environment,
     )
 
@@ -274,9 +231,6 @@ def test_release_plan_omits_container_commands_when_docker_is_allowed_missing() 
         "--allow-missing-docker",
         "--database-url",
         "postgresql+psycopg2://cw:secret@127.0.0.1:5432/cw_local_release_contract",
-        "--authorization-database-url",
-        "postgresql+psycopg2://cw:authorization-secret@127.0.0.1:5432/"
-        "codex_submission_authorization_concurrency_contract",
     )
 
     assert result.returncode == 0, result.stderr
@@ -292,9 +246,6 @@ def test_release_plan_marks_the_incomplete_result_without_container_evidence() -
         "--allow-missing-docker",
         "--database-url",
         "postgresql+psycopg2://cw:secret@127.0.0.1:5432/cw_local_release_contract",
-        "--authorization-database-url",
-        "postgresql+psycopg2://cw:authorization-secret@127.0.0.1:5432/"
-        "codex_submission_authorization_concurrency_contract",
     )
 
     assert result.returncode == 0, result.stderr

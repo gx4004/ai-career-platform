@@ -148,7 +148,6 @@ RateLimitRouteFamily = Literal[
     "campaigns",
     "discovery",
     "queue",
-    "submission",
     "admin",
     "telemetry",
     "other",
@@ -233,30 +232,6 @@ DiscoveryPersonalizationOutcome = Literal[
 # adopted listing's source family rides on `operational_dimension`. No listing
 # content, listing id, campaign id, or run id is ever attached.
 DiscoveryAdoptionOutcome = Literal["adopted"]
-# R16 #189 submission-source governance reuses the source-family dimension and
-# exposes only the promotion/kill transition. No source key, contract fields,
-# reviewer identity, endpoint, or legal-review content enters telemetry.
-SubmissionSourceGovernanceOutcome = Literal[
-    "promoted",
-    "demoted",
-    "kill_switch_enabled",
-    "kill_switch_disabled",
-    "compatible",
-    "broken",
-]
-SubmissionSafetyOutcome = Literal[
-    "anomaly_detected",
-    "kill_switch_enabled",
-    "kill_switch_disabled",
-    "rehearsal_recorded",
-]
-SubmissionQualityOutcome = Literal[
-    "confirmed",
-    "response_received",
-    "packet_edited",
-    "duplicate_prevented",
-    "complaint_reported",
-]
 
 # R15 #184 packet-queue trust-chain gate. Backend-generated at the preparation
 # seam. Only the bounded gate outcome class rides on `operational_outcome`; for a
@@ -297,9 +272,6 @@ OperationalOutcome = (
     | DiscoveryExpiryOutcome
     | DiscoveryPersonalizationOutcome
     | DiscoveryAdoptionOutcome
-    | SubmissionSourceGovernanceOutcome
-    | SubmissionSafetyOutcome
-    | SubmissionQualityOutcome
     | PacketGateOutcome
     | RateLimitIdentityType
 )
@@ -345,43 +317,6 @@ DiscoveryEventName = Literal[
     "discovery_recommendation_adopted",
 ]
 
-SubmissionSourceGovernanceEventName = Literal[
-    "submission_source_promotion_changed",
-    "submission_source_kill_switch",
-    "submission_contract_checked",
-]
-_SUBMISSION_SOURCE_EVENT_OUTCOMES = {
-    "submission_source_promotion_changed": frozenset({"promoted", "demoted"}),
-    "submission_source_kill_switch": frozenset({"kill_switch_enabled", "kill_switch_disabled"}),
-    "submission_contract_checked": frozenset({"compatible", "broken"}),
-}
-_SUBMISSION_SOURCE_EXCLUSIVE_OUTCOMES = frozenset(
-    {"promoted", "demoted", "compatible", "broken"}
-)
-
-SubmissionSafetyEventName = Literal[
-    "submission_safety_anomaly",
-    "submission_global_kill_switch",
-    "submission_incident_rehearsal",
-]
-_SUBMISSION_SAFETY_EVENT_OUTCOMES = {
-    "submission_safety_anomaly": frozenset({"anomaly_detected"}),
-    "submission_global_kill_switch": frozenset({"kill_switch_enabled", "kill_switch_disabled"}),
-    "submission_incident_rehearsal": frozenset({"rehearsal_recorded"}),
-}
-_SUBMISSION_SAFETY_EXCLUSIVE_OUTCOMES = frozenset({"anomaly_detected", "rehearsal_recorded"})
-
-SubmissionQualityEventName = Literal["submission_quality_outcome"]
-_SUBMISSION_QUALITY_OUTCOMES = frozenset(
-    {
-        "confirmed",
-        "response_received",
-        "packet_edited",
-        "duplicate_prevented",
-        "complaint_reported",
-    }
-)
-
 # R15 #184 packet-queue trust-chain gate events (D-097). Backend-only, emitted at
 # the preparation seam; both carry only bounded operational dimensions.
 #   - `packet_queue_gate`       — per-packet + per-run gate outcome
@@ -418,9 +353,6 @@ ActivationEventName = (
     | ProfileEventName
     | StudioEventName
     | DiscoveryEventName
-    | SubmissionSourceGovernanceEventName
-    | SubmissionSafetyEventName
-    | SubmissionQualityEventName
     | PacketGateEventName
     | DevelopmentLoopEventName
 )
@@ -477,13 +409,6 @@ class ActivationEventCreate(BaseModel):
     @model_validator(mode="after")
     def validate_r10_event_shape(self):
         """Bind every R10 dimension to its one authoritative event shape."""
-        if (
-            self.event_name not in _SUBMISSION_SOURCE_EVENT_OUTCOMES
-            and self.operational_outcome in _SUBMISSION_SOURCE_EXCLUSIVE_OUTCOMES
-        ):
-            raise ValueError(
-                "submission-source outcomes are valid only for submission-source events"
-            )
         if (
             self.event_name != "r10_import_outcome"
             and self.operational_outcome in _IMPORT_EXCLUSIVE_OUTCOMES
@@ -661,130 +586,3 @@ class ActivationEventCreate(BaseModel):
             raise ValueError("development_item_deleted requires only the prior state")
         return self
 
-    @model_validator(mode="after")
-    def validate_submission_source_event_shape(self):
-        """Bind #189 promotion/kill outcomes to their authoritative event names."""
-        allowed_outcomes = _SUBMISSION_SOURCE_EVENT_OUTCOMES.get(self.event_name)
-        if allowed_outcomes is None:
-            # Kill-switch outcomes predate R16 and are intentionally shared with
-            # the R14 source-kill event; promotion outcomes are R16-exclusive.
-            if self.operational_outcome in _SUBMISSION_SOURCE_EXCLUSIVE_OUTCOMES:
-                raise ValueError(
-                    "submission-source outcomes are valid only for submission-source events"
-                )
-            return self
-        if (
-            self.operational_dimension
-            not in {"licensed", "employer_ats", "public_career_page", "user_provided"}
-            or self.operational_outcome not in allowed_outcomes
-        ):
-            raise ValueError(
-                "submission-source events require a source family and matching outcome"
-            )
-        unrelated_values = (
-            self.tool_id,
-            self.access_mode,
-            self.saved,
-            self.failure_category,
-            self.export_format,
-            self.has_feedback,
-            self.session_status,
-            self.duration_ms,
-            self.cost_estimate,
-            self.evidence_kind,
-            self.evidence_provenance,
-            self.confirmation_transition,
-            self.development_gap_kind,
-            self.development_response_kind,
-            self.development_state_from,
-            self.development_state_to,
-            self.occurred_at,
-        )
-        if any(value is not None for value in unrelated_values) or self.level != "info":
-            raise ValueError("submission-source events accept only source family and outcome")
-        return self
-
-    @model_validator(mode="after")
-    def validate_submission_safety_event_shape(self):
-        allowed_outcomes = _SUBMISSION_SAFETY_EVENT_OUTCOMES.get(self.event_name)
-        if allowed_outcomes is None:
-            if self.operational_outcome in _SUBMISSION_SAFETY_EXCLUSIVE_OUTCOMES:
-                raise ValueError("submission-safety outcomes are valid only for safety events")
-            return self
-        if self.operational_outcome not in allowed_outcomes:
-            raise ValueError("submission-safety event has the wrong outcome")
-        if self.event_name == "submission_safety_anomaly":
-            if (
-                self.operational_dimension
-                not in {
-                    "licensed",
-                    "employer_ats",
-                    "public_career_page",
-                    "user_provided",
-                }
-                or self.level != "error"
-            ):
-                raise ValueError("anomaly events require source family and error level")
-        elif self.operational_dimension is not None or self.level != "info":
-            raise ValueError("global safety events accept only their bounded outcome")
-        unrelated_values = (
-            self.tool_id,
-            self.access_mode,
-            self.saved,
-            self.failure_category,
-            self.export_format,
-            self.has_feedback,
-            self.session_status,
-            self.duration_ms,
-            self.cost_estimate,
-            self.evidence_kind,
-            self.evidence_provenance,
-            self.confirmation_transition,
-            self.development_gap_kind,
-            self.development_response_kind,
-            self.development_state_from,
-            self.development_state_to,
-            self.occurred_at,
-        )
-        if any(value is not None for value in unrelated_values):
-            raise ValueError("submission-safety events accept no content dimensions")
-        return self
-
-    @model_validator(mode="after")
-    def validate_submission_quality_event_shape(self):
-        if self.event_name != "submission_quality_outcome":
-            if self.operational_outcome in _SUBMISSION_QUALITY_OUTCOMES:
-                raise ValueError(
-                    "submission-quality outcomes are valid only for quality events"
-                )
-            return self
-        if (
-            self.operational_dimension
-            not in {"licensed", "employer_ats", "public_career_page", "user_provided"}
-            or self.operational_outcome not in _SUBMISSION_QUALITY_OUTCOMES
-        ):
-            raise ValueError(
-                "submission-quality events require a source family and quality outcome"
-            )
-        unrelated_values = (
-            self.tool_id,
-            self.access_mode,
-            self.saved,
-            self.failure_category,
-            self.export_format,
-            self.has_feedback,
-            self.session_status,
-            self.duration_ms,
-            self.cost_estimate,
-            self.evidence_kind,
-            self.evidence_provenance,
-            self.confirmation_transition,
-            self.development_gap_kind,
-            self.development_response_kind,
-            self.development_state_from,
-            self.development_state_to,
-            self.occurred_at,
-        )
-        if any(value is not None for value in unrelated_values) or self.level != "info":
-            raise ValueError("submission-quality events accept only family and outcome")
-        return self

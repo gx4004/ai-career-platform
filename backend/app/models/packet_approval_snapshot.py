@@ -74,21 +74,3 @@ class PacketApprovalSnapshot(Base):
         foreign_keys=[campaign_id],
         back_populates="packet_approval_snapshots",
     )
-    submission_records = relationship(
-        "SubmissionRecord",
-        back_populates="packet_approval_snapshot",
-        cascade="all, delete-orphan",
-        passive_deletes=False,
-    )
-    submission_dispatch_claims = relationship(
-        "SubmissionDispatchClaim",
-        back_populates="packet_approval_snapshot",
-        cascade="all, delete-orphan",
-        passive_deletes=False,
-    )
-    submission_stop_events = relationship(
-        "SubmissionStopEvent",
-        back_populates="packet_approval_snapshot",
-        cascade="all, delete-orphan",
-        passive_deletes=False,
-    )

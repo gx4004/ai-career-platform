@@ -5,7 +5,6 @@ import {
   isR13CampaignsEnabled,
   isR14DiscoveryEnabled,
   isR15QueueEnabled,
-  isR16SubmissionFoundationEnabled,
   isR17DevelopmentLoopEnabled,
 } from '#/lib/flags/featureFlags'
 
@@ -15,7 +14,6 @@ const FLAGS = [
   'VITE_R13_CAMPAIGNS_ENABLED',
   'VITE_R14_DISCOVERY_ENABLED',
   'VITE_R15_QUEUE_ENABLED',
-  'VITE_R16_SUBMISSION_FOUNDATION_ENABLED',
   'VITE_R17_DEVELOPMENT_LOOP_ENABLED',
 ] as const
 
@@ -28,7 +26,6 @@ describe('build-ahead outcome flags', () => {
     expect(isR13CampaignsEnabled()).toBe(false)
     expect(isR14DiscoveryEnabled()).toBe(false)
     expect(isR15QueueEnabled()).toBe(false)
-    expect(isR16SubmissionFoundationEnabled()).toBe(false)
     expect(isR17DevelopmentLoopEnabled()).toBe(false)
   })
 
@@ -40,7 +37,6 @@ describe('build-ahead outcome flags', () => {
     expect(isR13CampaignsEnabled()).toBe(false)
     expect(isR14DiscoveryEnabled()).toBe(false)
     expect(isR15QueueEnabled()).toBe(false)
-    expect(isR16SubmissionFoundationEnabled()).toBe(false)
   })
 
   it('does not require any upstream outcome to be on', () => {
@@ -52,7 +48,6 @@ describe('build-ahead outcome flags', () => {
     expect(isR13CampaignsEnabled()).toBe(false)
     expect(isR14DiscoveryEnabled()).toBe(true)
     expect(isR15QueueEnabled()).toBe(true)
-    expect(isR16SubmissionFoundationEnabled()).toBe(true)
     expect(isR17DevelopmentLoopEnabled()).toBe(true)
   })
 
