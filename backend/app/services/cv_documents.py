@@ -16,6 +16,7 @@ from app.schemas.cv_documents import (
 from app.schemas.evidence_profile import EvidenceItemCreate
 from app.services.analytics import safe_record_activation_event
 from app.services.campaign_materials import clear_selected_variants
+from app.services.cv_tailoring import read_change_field, write_change_field
 from app.services.evidence_profile import (
     record_evidence_proposal_created,
     stage_evidence_proposal,
@@ -311,14 +312,14 @@ def apply_tailoring(db: Session, document: CvDocument, body: CvTailoringApply) -
             continue
         key = (change.section_id, change.entry_id)
         current = entries.get(key)
-        if current is None or current["body"] != change.before:
+        if current is None or read_change_field(current, change.field) != change.before:
             raise InvalidTailoringProposalError
         if change.support == "unsupported":
             raise InvalidTailoringProposalError
         if decision.edited_after and decision.edited_after not in {change.before, change.after}:
             raise InvalidTailoringProposalError
         accepted_evidence.update(change.evidence_item_ids)
-        mutable[key]["body"] = decision.edited_after or change.after
+        write_change_field(mutable[key], change.field, decision.edited_after or change.after)
     if accepted_evidence:
         _validate_evidence(
             db,

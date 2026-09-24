@@ -739,6 +739,73 @@ def test_review_rejects_without_mutating_and_accept_creates_immutable_variant(
     )
 
 
+def test_tailoring_change_can_target_a_specific_bullet(
+    client, auth_headers, test_user, confirmed_evidence
+):
+    """A structured entry with bullets renders its bullets, not its body — a
+    change must be able to target one bullet by index and have it actually
+    apply, instead of silently rewriting the unrendered body (#322).
+    """
+    document = client.post(
+        PREFIX,
+        json={
+            "name": "Bulleted",
+            "sections": [
+                {
+                    "id": "section-experience",
+                    "kind": "experience",
+                    "title": "Experience",
+                    "visible": True,
+                    "position": 0,
+                    "entries": [
+                        {
+                            "id": "entry-one",
+                            "evidence_item_id": None,
+                            "body": "Senior Engineer",
+                            "position": 0,
+                            "heading": "Senior Engineer",
+                            "bullets": [
+                                "Improved a synthetic process by 20%.",
+                                "Led a synthetic migration.",
+                            ],
+                        }
+                    ],
+                }
+            ],
+        },
+        headers=auth_headers,
+    ).json()
+    change = {
+        "id": "change-one",
+        "section_id": "section-experience",
+        "entry_id": "entry-one",
+        "field": "bullets[0]",
+        "before": "Improved a synthetic process by 20%.",
+        "after": "Improved platform delivery by 20%.",
+        "job_requirement": "Platform delivery",
+        "evidence_item_ids": [confirmed_evidence.id],
+        "support": "confirmed",
+    }
+    payload = _signed(
+        document["id"],
+        test_user.id,
+        {
+            "request_id": "e5ac39c0-5a76-4e94-98f1-a0fd8b42a5b2",
+            "variant_name": "Bullet tailored",
+            "job_title": "Platform Engineer",
+            "changes": [change],
+            "decisions": [{"change_id": "change-one", "action": "accept"}],
+        },
+    )
+    response = client.post(
+        f"{PREFIX}/{document['id']}/tailoring/apply", json=payload, headers=auth_headers
+    )
+    assert response.status_code == 201
+    entry = response.json()["sections"][0]["entries"][0]
+    assert entry["bullets"] == ["Improved platform delivery by 20%.", "Led a synthetic migration."]
+    assert entry["body"] == "Senior Engineer"
+
+
 def test_unsupported_tailoring_change_is_blocked_until_evidence_is_confirmed(
     client, auth_headers, test_user, confirmed_evidence
 ):

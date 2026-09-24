@@ -1,7 +1,9 @@
+from pathlib import Path
 from typing import Literal
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, UploadFile, status
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.auth.security import get_current_user
@@ -58,7 +60,7 @@ from app.services.cv_documents import (
     restore_variant,
     update_document,
 )
-from app.services.cv_fonts import FONT_FAMILIES
+from app.services.cv_fonts import FONT_FAMILIES, FONTS_DIR
 from app.services.cv_parser_process import CvParserProcessRejected, parse_cv_import_isolated
 from app.services.cv_quality import (
     analyze_cv_quality,
@@ -73,7 +75,12 @@ from app.services.cv_rendering import (
     render_pdf,
     validate_artifact,
 )
-from app.services.cv_tailoring import generate_cv_tailoring, proposal_token, verify_proposal_token
+from app.services.cv_tailoring import (
+    generate_cv_tailoring,
+    proposal_token,
+    read_change_field,
+    verify_proposal_token,
+)
 from app.services.cv_upload import CvUploadRejected, read_validated_cv_upload
 from app.services.evidence_profile import create_evidence_item
 from app.services.tool_pipeline import run_tool_pipeline
@@ -206,6 +213,33 @@ def style_catalog(current_user: User = Depends(get_current_user)):
         for family in FONT_FAMILIES.values()
     ]
     return CvStyleCatalog(templates=templates, fonts=fonts)
+
+
+# Strict allowlist of the bundled OFL TTFs — never an arbitrary filesystem path.
+_ALLOWED_FONT_FILES: dict[str, Path] = {
+    filename: FONTS_DIR / family.dir_name / filename
+    for family in FONT_FAMILIES.values()
+    for filename in (family.regular_file, family.bold_file)
+}
+
+
+@router.get("/fonts/{filename}")
+def cv_font_file(filename: str):
+    """Serve a bundled CV template font so the live preview can use the exact
+    rendered face instead of a different file pulled from Google Fonts.
+    Static, non-sensitive, and safe to cache publicly for a long time.
+    """
+    path = _ALLOWED_FONT_FILES.get(filename)
+    if path is None or not path.is_file():
+        raise HTTPException(status_code=404, detail="Unknown font file")
+    return FileResponse(
+        path,
+        media_type="font/ttf",
+        headers={
+            "Cache-Control": "public, max-age=31536000, immutable",
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
 
 
 @router.get("/{document_id}", response_model=CvDocumentResponse)
@@ -527,7 +561,7 @@ def apply_tailoring_review(
             document_id,
             current_user.id,
             body.job_title,
-            [change.model_dump() for change in body.changes],
+            [change.model_dump(exclude_defaults=True) for change in body.changes],
         ):
             raise InvalidTailoringProposalError
         return apply_tailoring(db, get_document(db, document_id, current_user.id), body)
@@ -553,7 +587,7 @@ def propose_tailoring_edit(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    changes = [change.model_dump() for change in body.changes]
+    changes = [change.model_dump(exclude_defaults=True) for change in body.changes]
     if not verify_proposal_token(
         body.proposal_token,
         str(body.request_id),
@@ -575,7 +609,7 @@ def propose_tailoring_edit(
         )
     section = next((item for item in document.sections if item["id"] == change.section_id), None)
     if section is None or not any(
-        entry["id"] == change.entry_id and entry["body"] == change.before
+        entry["id"] == change.entry_id and read_change_field(entry, change.field) == change.before
         for entry in section["entries"]
     ):
         raise HTTPException(status_code=422, detail="Tailoring proposal is invalid or stale")

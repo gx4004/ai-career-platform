@@ -248,11 +248,24 @@ class CvTailoringChange(BaseModel):
     id: str = Field(min_length=1, max_length=100)
     section_id: str = Field(min_length=1, max_length=100)
     entry_id: str = Field(min_length=1, max_length=100)
+    # Which entry field this change rewrites: the unrendered "body", or one
+    # rendered bullet by index. Structured entries with bullets render as
+    # title + bullets, not body, so a change must be able to target the
+    # bullet that actually renders (#322). Defaults to "body" so existing
+    # freeform-entry proposals are unaffected.
+    field: str = Field(default="body", max_length=20)
     before: str = Field(min_length=1, max_length=5_000)
     after: str = Field(min_length=1, max_length=5_000)
     job_requirement: str = Field(min_length=1, max_length=1_000)
     evidence_item_ids: list[str] = Field(max_length=20)
     support: Literal["confirmed", "document", "unsupported"]
+
+    @field_validator("field")
+    @classmethod
+    def _valid_field(cls, value: str) -> str:
+        if value == "body" or re.fullmatch(r"bullets\[\d+\]", value):
+            return value
+        raise ValueError("field must be 'body' or 'bullets[<index>]'")
 
 
 class CvTailoringSkippedChange(BaseModel):
