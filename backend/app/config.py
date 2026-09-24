@@ -57,7 +57,6 @@ class Settings(BaseSettings):
     # the 30/hour MODEL_COST_LIMIT.
     RESULT_CACHE_MAX_ENTRIES: int = Field(default=512, gt=0)
     BLENDED_SCORING_ENABLED: bool = True
-    RESULT_ACCESS_POLICY_ENABLED: bool = False
 
     # ── R11 Evidence Profile injection (issue #147, D-063, ADR 0005) ──
     # Master switch for injecting confirmed profile evidence through the shared

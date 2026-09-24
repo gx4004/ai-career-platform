@@ -6,7 +6,6 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, StringConstraints, model_validator
 
-from app.schemas.access_policy import ResultAccessDecision
 from app.schemas.validation import utf8_size
 
 # --- Requests ---
@@ -142,7 +141,6 @@ class SharedResultEnvelope(BaseModel):
     locked_actions: list[Literal["save", "favorite", "continue", "history"]] = Field(
         default_factory=list
     )
-    access_decision: ResultAccessDecision = Field(default_factory=ResultAccessDecision)
 
 
 class ScoreBreakdownItem(BaseModel):
@@ -419,10 +417,6 @@ class InterviewPracticeFeedbackResponse(BaseModel):
     suggestions: list[str] = []
     overall_feedback: str = ""
     is_empty_answer: bool = False
-    # Practice feedback is generated content delivered straight to the browser,
-    # so it states the server decision like every other delivery surface
-    # (SharedResultEnvelope above, ToolRunSummary in schemas/history.py).
-    access_decision: ResultAccessDecision = Field(default_factory=ResultAccessDecision)
 
 
 class ParsedCvResponse(BaseModel):

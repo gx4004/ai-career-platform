@@ -1,7 +1,17 @@
 # 0003. Server-authoritative access decisions for R9 Monetization Experiment
 
-**Status:** accepted
+**Status:** superseded
 **Date:** 2026-07-10
+
+**Superseded (2026-09-24):** the always-full `result_access` seam this ADR
+specified (`evaluate_result_access`, `ResultAccessDecision`,
+`RESULT_ACCESS_POLICY_ENABLED`) was removed as dead ceremony — no monetization
+candidate was ever selected and the seam always returned full access. The
+underlying principle (server-authoritative access decisions, D-048) still holds
+for any future access gate; a new ADR should record that seam's design when a
+candidate is actually selected. The real guest-lock mechanism
+(`access_mode` / `locked_actions` / `GUEST_LOCKED_ACTIONS`) is unaffected and
+stays in place.
 
 ## Context
 

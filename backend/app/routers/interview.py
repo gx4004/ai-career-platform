@@ -16,7 +16,6 @@ from app.schemas.tools import (
     InterviewResponse,
 )
 from app.services.interview_gen import evaluate_practice_answer, generate_interview_questions
-from app.services.result_access import evaluate_result_access
 from app.services.tool_pipeline import run_tool_pipeline
 
 router = APIRouter()
@@ -90,12 +89,4 @@ async def practice_feedback(
     result = await evaluate_practice_answer(
         body.question, body.user_answer, body.model_answer
     )
-    # This is the one generated-content route that does not go through
-    # run_tool_pipeline, so it evaluates the same seam itself rather than
-    # delivering a result no server decision ever covered (D-048, ADR 0003).
-    access_decision = evaluate_result_access(
-        surface="live_result",
-        tool_name="interview",
-        access_mode="authenticated" if current_user else "guest_demo",
-    )
-    return InterviewPracticeFeedbackResponse(**result, access_decision=access_decision)
+    return InterviewPracticeFeedbackResponse(**result)
