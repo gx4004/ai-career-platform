@@ -228,6 +228,44 @@ async def test_cv_tailoring_fake_provider_is_not_degraded():
 
 
 @pytest.mark.asyncio
+async def test_cv_tailoring_fake_provider_targets_a_bullet_when_the_entry_has_bullets():
+    """A bullet-bearing entry renders its bullets, not its body (#322); the
+    fake fixture must cite and target the bullet, or the demo flow would
+    exercise a dead code path the real model prompt also uses.
+    """
+    from app.services import cv_tailoring
+    from app.services.cv_tailoring import read_change_field
+
+    sections = [
+        {
+            "id": "sec-exp",
+            "kind": "experience",
+            "title": "Experience",
+            "visible": True,
+            "position": 0,
+            "entries": [
+                {
+                    "id": "e1",
+                    "evidence_item_id": None,
+                    "body": "Senior Engineer",
+                    "position": 0,
+                    "heading": "Senior Engineer",
+                    "bullets": ["Built APIs for 3 internal teams.", "Reduced latency by 20%."],
+                }
+            ],
+        }
+    ]
+    result = await cv_tailoring.generate_cv_tailoring(
+        RESUME_TEXT, sections=sections, job_description=JOB_DESCRIPTION, job_title="Backend Engineer"
+    )
+    assert result["changes"]
+    change = result["changes"][0]
+    assert change["field"] == "bullets[0]"
+    entry = sections[0]["entries"][0]
+    assert change["before"] == read_change_field(entry, change["field"]) == entry["bullets"][0]
+
+
+@pytest.mark.asyncio
 async def test_cv_quality_fake_provider_is_not_degraded():
     from app.services import cv_quality
 

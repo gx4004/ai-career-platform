@@ -610,7 +610,15 @@ def _cv_tailoring(system_prompt: str, user_prompt: str) -> dict:
         if not entries:
             continue
         entry = entries[0]
-        before = str(entry.get("body", ""))
+        bullets = entry.get("bullets") or []
+        # A bullet-bearing structured entry renders its bullets, not its body
+        # (#322), so the fixture targets the first bullet when there is one —
+        # exercising the same field the real model is asked to use — and
+        # falls back to body for freeform entries.
+        if bullets:
+            field, before = "bullets[0]", str(bullets[0])
+        else:
+            field, before = "body", str(entry.get("body", ""))
         if not before:
             continue
         after = (before.rstrip(". ") + f", tailored to highlight fit for {job_title}.")[:4999]
@@ -619,6 +627,7 @@ def _cv_tailoring(system_prompt: str, user_prompt: str) -> dict:
                 "id": f"tailor-{section.get('id')}-{entry.get('id')}"[:100],
                 "section_id": section.get("id"),
                 "entry_id": entry.get("id"),
+                "field": field,
                 "before": before,
                 "after": after,
                 "job_requirement": f"Demonstrated fit for {job_title}",
