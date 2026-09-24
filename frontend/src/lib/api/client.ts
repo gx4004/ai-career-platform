@@ -498,6 +498,15 @@ export function setEvidenceItemConfirmation(
   })
 }
 
+// Phase 1b (#321): confirm every still-unconfirmed imported item in one call.
+export function confirmImportedEvidenceItems() {
+  return request('/evidence-profile/items/confirm-imported', {
+    method: 'POST',
+    body: {},
+    schema: evidenceItemListSchema,
+  })
+}
+
 export function deleteEvidenceItem(itemId: string) {
   return request<void>(`/evidence-profile/items/${itemId}`, { method: 'DELETE' })
 }

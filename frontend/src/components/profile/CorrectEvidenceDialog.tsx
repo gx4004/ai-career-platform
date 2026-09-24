@@ -20,7 +20,6 @@ import {
 
 export type CorrectionSubmit = {
   content: Record<string, unknown>
-  confirmEdit: boolean
 }
 
 export function CorrectEvidenceDialog({
@@ -39,17 +38,14 @@ export function CorrectEvidenceDialog({
   onSubmit: (payload: CorrectionSubmit) => void
 }) {
   const textareaId = useId()
-  const confirmId = useId()
   const errorId = useId()
   const [text, setText] = useState('')
-  const [confirmEdit, setConfirmEdit] = useState(false)
   const [parseError, setParseError] = useState<string | null>(null)
 
   // Reseed the editor whenever a different item opens.
   useEffect(() => {
     if (open && item) {
       setText(contentToEditableText(item.content))
-      setConfirmEdit(false)
       setParseError(null)
     }
   }, [open, item])
@@ -61,7 +57,7 @@ export function CorrectEvidenceDialog({
       return
     }
     setParseError(null)
-    onSubmit({ content: parsed.value, confirmEdit })
+    onSubmit({ content: parsed.value })
   }
 
   const shownError = parseError ?? error
@@ -75,9 +71,8 @@ export function CorrectEvidenceDialog({
             {item ? (
               <>
                 Editing a {KIND_LABELS[item.kind].toLowerCase()} item
-                {' '}({PROVENANCE_LABELS[item.provenance].toLowerCase()}). Saving a change
-                returns the item to <strong>unconfirmed</strong> unless you confirm the edit
-                below.
+                {' '}({PROVENANCE_LABELS[item.provenance].toLowerCase()}). Saving marks it{' '}
+                <strong>Saved</strong> — you typed it, so it is trusted right away.
               </>
             ) : null}
           </DialogDescription>
@@ -98,17 +93,6 @@ export function CorrectEvidenceDialog({
           />
         </div>
 
-        <label className="evidence-correct__confirm" htmlFor={confirmId}>
-          <input
-            id={confirmId}
-            type="checkbox"
-            checked={confirmEdit}
-            disabled={submitting}
-            onChange={(event) => setConfirmEdit(event.target.checked)}
-          />
-          <span>I confirm this correction is accurate</span>
-        </label>
-
         {shownError ? (
           <p id={errorId} role="alert" className="small-copy" style={{ color: 'var(--destructive)' }}>
             {shownError}
@@ -120,7 +104,7 @@ export function CorrectEvidenceDialog({
             Cancel
           </Button>
           <Button onClick={handleSubmit} loading={submitting} disabled={submitting}>
-            {confirmEdit ? 'Save and confirm' : 'Save as unconfirmed'}
+            Save
           </Button>
         </DialogFooter>
       </DialogContent>

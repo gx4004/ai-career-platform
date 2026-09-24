@@ -387,7 +387,7 @@ guest runs remain transient. URL import is also optional-auth; only its explicit
 | `POST` | `/career/recommend` | — | 10/min + Model shared |
 | `POST` | `/portfolio/recommend` | — | 10/min + Model shared |
 
-### 6.3 Authenticated Owner (92) or Refresh Credential (1)
+### 6.3 Authenticated Owner (93) or Refresh Credential (1)
 
 `POST /auth/refresh` is the sole route in this section that accepts a refresh
 cookie instead of an access credential. Every other operation resolves
@@ -415,13 +415,14 @@ is dark; R12 export and erasure remain inside the cumulative R12 router gate.
 | `PATCH` | `/history/{history_id}/favorite` | — | — |
 | `PATCH` | `/history/{history_id}` | — | — |
 
-#### R11 Evidence Profile and lifecycle (9)
+#### R11 Evidence Profile and lifecycle (10)
 
 | Method | Path | Outcome gate | Rate limit |
 |--------|------|--------------|------------|
 | `GET` | `/evidence-profile/items` | R11 | — |
 | `POST` | `/evidence-profile/import/proposals` | R11 | 10/min + Model shared |
 | `POST` | `/evidence-profile/items` | R11 | — |
+| `POST` | `/evidence-profile/items/confirm-imported` | R11 | — |
 | `GET` | `/evidence-profile/items/{item_id}` | R11 | — |
 | `PATCH` | `/evidence-profile/items/{item_id}` | R11 | — |
 | `POST` | `/evidence-profile/items/{item_id}/confirmation` | R11 | — |
@@ -577,7 +578,7 @@ submission adapter.
 
 ### 6.5 Unrate-Limited Endpoints (Risk Note)
 
-Exactly **77 of 133 operations** have no SlowAPI route window; they are marked
+Exactly **78 of 134 operations** have no SlowAPI route window; they are marked
 `—` above. Most are authenticated owner-scoped CRUD, lifecycle, discovery, or
 queue mutations. This is current executable posture, not evidence that those
 operations need no abuse control before activation. Default-dark outcome gates
@@ -1380,7 +1381,7 @@ model metadata were used instead of decorator-text counts.
 | §4 | `rg -n 'result_payload\|hashed_password\|google_id' backend/app/models --glob='*.py'` | Sensitive model fields confirmed |
 | §4.2 | Assembled-app `Base.metadata.tables` introspection | 37 unique application tables; Alembic head `c4a8e2f6b1d9` |
 | §5 | `rg -l 'localStorage\|sessionStorage' frontend/src --glob='*.ts' --glob='*.tsx' --glob='!**/__tests__/**' --glob='!**/*.test.*'` | 15 production files matched for manual key review |
-| §6 | `cd backend && .venv/bin/pytest -q tests/test_openapi_schema.py tests/test_feature_gates.py tests/test_submission_boundary.py` | 27 passed; assembled app has exactly 133 operations, matches the reviewed fixture, preserves cumulative gates, and exposes no outward-submission endpoint |
+| §6 | `cd backend && .venv/bin/pytest -q tests/test_openapi_schema.py tests/test_feature_gates.py tests/test_submission_boundary.py` | 27 passed; assembled app has exactly 134 operations, matches the reviewed fixture, preserves cumulative gates, and exposes no outward-submission endpoint |
 | §6 | Assembled FastAPI dependency and Limiter-registry introspection | Auth split: 11 public, 8 optional, 1 refresh-cookie, 90 owner, 23 admin; 56 limited and 77 without a route window |
 | §6 | Documentation operation-table comparison with `tests/fixtures/openapi_operations.txt` | 133 unique documentation rows; no missing or extra operation; gate and limited/unlimited presence match runtime introspection |
 | §6.6 | `rg -n '_get_client_ip\|TRUST_PROXY_HEADERS' backend/app/limiter.py` | Client-IP trust decision at lines 16-18; all uses inspected |

@@ -1,12 +1,11 @@
 import { Link } from '@tanstack/react-router'
-import { BadgeCheck, ClipboardCheck, Compass, Sprout } from 'lucide-react'
+import { BadgeCheck, ClipboardCheck, Compass } from 'lucide-react'
 import { registryEntries } from '#/lib/tools/registry'
 import {
   isR11EvidenceProfileEnabled,
   isR12CvStudioEnabled,
   isR14DiscoveryEnabled,
   isR15QueueEnabled,
-  isR17DevelopmentLoopEnabled,
 } from '#/lib/flags/featureFlags'
 import {
   Sheet,
@@ -26,7 +25,6 @@ const ownerDestinations = [
   { label: 'Evidence', route: '/profile', icon: BadgeCheck, enabled: isR11EvidenceProfileEnabled },
   { label: 'Discover', route: '/discovery', icon: Compass, enabled: isR14DiscoveryEnabled },
   { label: 'Queue', route: '/queue', icon: ClipboardCheck, enabled: isR15QueueEnabled },
-  { label: 'Development', route: '/development-plan', icon: Sprout, enabled: isR17DevelopmentLoopEnabled },
 ] as const
 
 export function ToolGridSheet({
