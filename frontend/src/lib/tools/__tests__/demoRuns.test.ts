@@ -163,6 +163,33 @@ describe('demoRuns', () => {
     expect(sessionStorage.getItem(`cw:demo-result:${fresh.id}`)).toBeTruthy()
   })
 
+  // D-048: access is server-authoritative. `setTransientResult` must copy
+  // `access_mode`/`locked_actions` from the server's response payload rather
+  // than deciding them itself — the client has no basis to compute access.
+  it('copies access_mode and locked_actions from the server response instead of hardcoding them', () => {
+    const item = setTransientResult('resume', {
+      generated_at: '2026-04-06T12:00:00Z',
+      summary: { headline: 'Test', verdict: 'Good', confidence_note: '' },
+      access_mode: 'guest_demo',
+      // Server sent a narrower lock set than the client's old hardcoded
+      // four-item list — the client must reflect exactly what the server sent.
+      locked_actions: ['save'],
+    })
+
+    expect(item.access_mode).toBe('guest_demo')
+    expect(item.locked_actions).toEqual(['save'])
+  })
+
+  it('falls back to a fully-locked guest demo when the server sends no access fields', () => {
+    const item = setTransientResult('resume', {
+      generated_at: '2026-04-06T12:00:00Z',
+      summary: { headline: 'Test', verdict: 'Good', confidence_note: '' },
+    })
+
+    expect(item.access_mode).toBe('guest_demo')
+    expect(item.locked_actions).toEqual([])
+  })
+
   it('cleans up persisted results that are not present in memory after reload', () => {
     sessionStorage.setItem(
       'cw:demo-result:resume-demo-123',
