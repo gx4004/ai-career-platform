@@ -1,49 +1,25 @@
 # Career Workbench — Current State
 
-**Snapshot date:** 2026-08-13
-**Confidence:** code-, independent-review-, and local-verification-informed; release
-environment not re-verified
+**Snapshot date:** 2026-09-24 (Sept 2026 reset)
+**Confidence:** code- and local-verification-informed; no deployed environment
 
 This file records current posture, blockers, and risks. GitHub Issues, pull
-requests, and Git history own implementation detail. Accepted decisions remain in
-`docs/decisions.md`; architecture and security claims remain in
-`docs/architecture.md` and `docs/threat-model.md`.
+requests, and Git history own implementation detail. Direction and phases live
+in `docs/roadmap.md` (umbrella issue #319).
 
 ## Current Posture
 
-Career Workbench has a mature product body on `chapter2`. PR #316 merged
-`codex/autonomous-20260802` into `chapter2` at `cd2986b3` on 2026-08-13. The
-current local candidate on `codex/local-roadmap-finish-20260813` carries the
-post-merge implementation and release-gate commits beyond that merge; measure its
-distance from live refs rather than copying a count into this file. It has not
-been pushed, promoted, deployed, or assigned final cumulative verification totals:
-
-- R0–R2 engineering and end-to-end audit gates are complete.
-- R3 is specification-complete; deployed-environment evidence and named human
-  decisions remain open.
-- R4 accessibility, mobile, and performance gate is complete.
-- R5 has a staging/release runbook but has not been rehearsed against the current
-  deployment.
-- R6 and R8 instrumentation/evaluation foundations are implemented; R6 still
-  needs a production-like two-week baseline.
-- R7's six experiments are implemented default-off behind independent flags; none
-  is authorized for live enablement before the R6 evidence gate.
-- R9 removed the historical client-side ad gate and now has a default-off,
-  candidate-neutral server result/export access seam. No monetization candidate,
-  entitlement, vendor, or experiment is selected.
-- R10 has an aggregate trigger scorecard fed by bounded rate-limit, generation-phase,
-  abandonment, database-query, and capacity samples. No response ticket is authorized
-  until its corresponding sustained trigger and owner-defined threshold fire.
-- Every R11–R17 tracer issue is implemented ahead of its outcome gate. This is
-  build completion, not production activation or acceptance of the roadmap
-  outcome.
-
-The merged body also completes the safe preparatory portions of R9/R10, hardens
-R1/R3/R6/R11 boundaries, and corrects CV Studio recovery. Its merge into the
-experimental `chapter2` branch did not deploy or activate production and does not
-accept any roadmap outcome. No real submission source, source OAuth flow,
-third-party credential store, production adapter, scheduler, public submission
-route, or unattended outward-act endpoint exists.
+- The owner reset direction on 2026-09-24: local-only, feature-first, keep every
+  built feature but make it real and visually consistent with the original design.
+- `chapter2` now contains all prior work: the R0–R17 build (PR #316), the
+  Aug 2026 roadmap-finish commits (#318), and the repo tidy (#317).
+- The R-series issues were closed as superseded; only #208 (owner PostHog console
+  deletion) remains from the old set.
+- `main` and `deploy` are untouched thesis-era branches; Railway is not paid for.
+  No release or promotion is planned in this run.
+- Locally all R11–R17 feature flags are switched on via gitignored `.env` files.
+- Vertex AI is not configured locally (placeholder project id); local AI runs use
+  `LLM_PROVIDER=fake` or `anthropic` once available.
 
 ## Branch and Release Posture
 
@@ -100,49 +76,8 @@ route, or unattended outward-act endpoint exists.
 
 ## Immediate Objective
 
-After the cumulative release review, live GitHub has 0 open pull requests and 33
-open issues: 23 are `ready-for-human`, 10 are `needs-info`, and 0 are
-`ready-for-agent`. GitHub therefore has no decision-complete implementation issue.
-The next valid work requires external evidence, credentials, an irreversible
-provider action, or human judgement:
-
-1. Run the R3/R5 staging and release checklist against the actual Railway topology,
-   including migration, backup/restore or forward-fix, OAuth, email, LLM, telemetry,
-   security-header, and rollback evidence.
-2. Restore live Vertex authorization for #51 and perform the credential-dependent
-   smoke journey.
-3. Complete the already accepted D-119 deletion of historical PostHog cloud data
-   for #208 without export, and retain provider evidence.
-4. Collect and accept the two-week R6 baseline; then choose the R7 experiment and
-   D-NEXT-6 activation target from evidence.
-5. Decide D-NEXT-2 (launch market), then perform the R9 legal/vendor/candidate
-   decisions before any monetization implementation.
-6. Observe the R10 scorecard and start only the response whose threshold fires.
-7. Accept R11–R17 evidence and activation gates in dependency order; never infer
-   acceptance from the existence of build-ahead code.
-8. Select an R18 direction only after retention evidence satisfies D-115.
-
-GitHub workflow labels now reflect this posture: closed tickets have no live
-workflow-state label; evidence/decision parents are `ready-for-human`; dependent
-R9/R10 responses are `needs-info`.
-
-## Activation Boundaries
-
-| Outcome | Implemented foundation | Remaining gate |
-|---|---|---|
-| R6 | allowlisted event store, funnel/failure/cost views, retention | production-like two-week baseline |
-| R7 | six independently flagged, default-off candidates | evidence-selected candidate and accepted success metric |
-| R8 | synthetic corpus, calibration/fabrication/usefulness checks, runner, admin evidence | every release change must pass quality, latency, and cost review |
-| R9 | unsafe dormant ad path removed; candidate-neutral access seam default-off | baseline, activation target, launch market, legal/vendor, candidate, treatment contract, rehearsal |
-| R10 | measured trigger scorecard and bounded operational samples | accepted missing thresholds and one sustained trigger for one proportional response |
-| R11 | full build-ahead tracer set | D-060 and upstream release-quality evidence |
-| R12 | full build-ahead tracer set | D-068 and accepted R11 activation |
-| R13 | full build-ahead tracer set | D-076 and accepted R12 activation |
-| R14 | fixture-only build-ahead tracer set | D-084, accepted R13, and per-source terms approval |
-| R15 | full preparation/manual-handoff tracer set | D-092, accepted R14, packet-quality and demand evidence |
-| R16 | local-fixture trusted-submission tracer set | D-100, accepted R15, real-source legal/contract approval and rehearsal |
-| R17 | full build-ahead tracer set | D-108 and accepted recurring campaign/reviewer evidence |
-| R18 | selection gate only | D-115 retention evidence and owner direction |
+Execute the reset phases in `docs/roadmap.md` (#320–#326) in order. Each slice
+lands as a PR into `chapter2` after local gates pass.
 
 ## Risks and Blockers
 
