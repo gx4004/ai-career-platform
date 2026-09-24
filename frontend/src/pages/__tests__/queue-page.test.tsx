@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { QueuePage } from '#/pages/queue-page'
 
 const listPackets = vi.hoisted(() => vi.fn())
@@ -21,6 +21,7 @@ const deleteQueueRule = vi.hoisted(() => vi.fn())
 const getQueueSettings = vi.hoisted(() => vi.fn())
 const updateQueueSettings = vi.hoisted(() => vi.fn())
 const preparePackets = vi.hoisted(() => vi.fn())
+const autofillPacket = vi.hoisted(() => vi.fn())
 const navigateSpy = vi.hoisted(() => vi.fn())
 const sessionState = vi.hoisted(() => ({
   user: { id: 'owner-a', email: 'owner-a@example.com' } as {
@@ -47,6 +48,7 @@ vi.mock('#/lib/api/client', () => ({
   getQueueSettings,
   updateQueueSettings,
   preparePackets,
+  autofillPacket,
 }))
 
 vi.mock('#/components/app/PageFrame', () => ({
@@ -164,6 +166,34 @@ describe('QueuePage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     sessionState.user = { id: 'owner-a', email: 'owner-a@example.com' }
+  })
+
+  afterEach(() => {
+    vi.unstubAllEnvs()
+  })
+
+  it('hides the Autopilot experiment unless its flag is on', async () => {
+    renderPage([makePacket({ decision: 'accepted' })])
+    expect(await screen.findByRole('link', { name: /Apply on company site/i })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /Fill the form for me/i })).toBeNull()
+  })
+
+  it('fills an approved form on request and shows what was filled and skipped', async () => {
+    vi.stubEnv('VITE_AUTOPILOT_EXPERIMENT_ENABLED', 'true')
+    autofillPacket.mockResolvedValue({
+      filled: ['First name', 'Email'],
+      skipped: ['Pronouns'],
+      url: 'https://jobs.lever.co/acme/1/apply',
+    })
+    renderPage([makePacket({ decision: 'accepted' })])
+    await screen.findByRole('link', { name: /Apply on company site/i })
+    const button = await screen.findByRole('button', { name: /Fill the form for me \(experimental\)/i })
+    expect(screen.getByText(/You check it and press submit yourself/i)).toBeTruthy()
+    fireEvent.click(button)
+    await waitFor(() => expect(autofillPacket).toHaveBeenCalledWith('packet-abcdef12'))
+    expect(await screen.findByText('First name, Email')).toBeTruthy()
+    expect(screen.getByText('Pronouns')).toBeTruthy()
+    expect(screen.getByText(/Nothing was submitted/i)).toBeTruthy()
   })
 
   it('shows the ready-for-review section with job title, company and match', async () => {

@@ -51,3 +51,8 @@ export function isR15QueueEnabled(): boolean {
 export function isR17DevelopmentLoopEnabled(): boolean {
   return readBooleanFlag(import.meta.env.VITE_R17_DEVELOPMENT_LOOP_ENABLED)
 }
+
+/** Autopilot experiment (#325): local-only browser form filling that stops before submit. */
+export function isAutopilotExperimentEnabled(): boolean {
+  return readBooleanFlag(import.meta.env.VITE_AUTOPILOT_EXPERIMENT_ENABLED)
+}

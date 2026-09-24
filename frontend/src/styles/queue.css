@@ -156,6 +156,43 @@
 
 .queue-card__footer--approved > * { font-size: var(--type-small); }
 
+/* Autopilot experiment (#325) on approved cards */
+
+.queue-autofill {
+  display: grid;
+  gap: 0.5rem;
+  padding-top: 0.75rem;
+  border-top: 1px dashed var(--border-soft);
+}
+
+.queue-autofill__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+}
+
+.queue-autofill__hint,
+.queue-autofill__error,
+.queue-autofill__report p {
+  margin: 0;
+  font-size: var(--type-small);
+  line-height: 1.5;
+}
+
+.queue-autofill__hint { flex: 1 1 16rem; color: var(--text-muted); }
+.queue-autofill__error { color: var(--destructive); }
+
+.queue-autofill__report {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: var(--radius-md);
+  background: var(--surface-focus);
+  color: var(--text-body);
+  overflow-wrap: anywhere;
+}
+
 /* Copy-to-clipboard list on approved cards */
 
 .queue-copy-list {
