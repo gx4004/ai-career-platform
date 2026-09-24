@@ -10,7 +10,8 @@ const setConfirmationMock = vi.hoisted(() => vi.fn())
 const updateItemMock = vi.hoisted(() => vi.fn())
 const deleteItemMock = vi.hoisted(() => vi.fn())
 const deleteProfileMock = vi.hoisted(() => vi.fn())
-const warmDevelopmentFetchMock = vi.hoisted(() => vi.fn())
+const confirmImportedMock = vi.hoisted(() => vi.fn())
+const getDevelopmentPlanMock = vi.hoisted(() => vi.fn())
 const warmRecommendationsFetchMock = vi.hoisted(() => vi.fn())
 const openAuthDialogMock = vi.hoisted(() => vi.fn())
 const sessionState = vi.hoisted(() => ({ status: 'authenticated' as string }))
@@ -21,6 +22,18 @@ vi.mock('#/lib/api/client', () => ({
   updateEvidenceItem: updateItemMock,
   deleteEvidenceItem: deleteItemMock,
   deleteEvidenceProfile: deleteProfileMock,
+  confirmImportedEvidenceItems: confirmImportedMock,
+}))
+
+// The "Skills to build" section is folded into this page (Phase 1b, #321) and
+// fetches through its own client module; keep it quiet by default so these
+// tests stay focused on the Evidence Profile surface.
+vi.mock('#/lib/api/development', () => ({
+  getDevelopmentPlan: getDevelopmentPlanMock,
+  updateDevelopmentItem: vi.fn(),
+  deleteDevelopmentItem: vi.fn(),
+  confirmDevelopmentEvidence: vi.fn(),
+  declineDevelopmentEvidence: vi.fn(),
 }))
 
 vi.mock('#/hooks/useSession', () => ({
@@ -68,11 +81,7 @@ const items: EvidenceItem[] = [
   }),
 ]
 
-function WarmEvidenceConsumers() {
-  useQuery({
-    queryKey: ['development-plan', 'items'],
-    queryFn: warmDevelopmentFetchMock,
-  })
+function WarmRecommendationsConsumer() {
   useQuery({
     queryKey: ['discovery', 'recommendations'],
     queryFn: warmRecommendationsFetchMock,
@@ -84,7 +93,7 @@ function renderPage({ warmEvidenceConsumers = false } = {}) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={client}>
-      {warmEvidenceConsumers ? <WarmEvidenceConsumers /> : null}
+      {warmEvidenceConsumers ? <WarmRecommendationsConsumer /> : null}
       <EvidenceProfilePage />
     </QueryClientProvider>,
   )
@@ -95,13 +104,11 @@ describe('EvidenceProfilePage', () => {
     sessionState.status = 'authenticated'
     listEvidenceItemsMock.mockReset().mockResolvedValue({ items })
     setConfirmationMock.mockReset().mockImplementation((id: string) => Promise.resolve(makeItem({ id })))
-    updateItemMock.mockReset().mockImplementation((id: string) => Promise.resolve(makeItem({ id })))
+    updateItemMock.mockReset().mockImplementation((id: string) => Promise.resolve(makeItem({ id, confirmation_state: 'confirmed' })))
     deleteItemMock.mockReset().mockResolvedValue(undefined)
     deleteProfileMock.mockReset().mockResolvedValue(undefined)
-    warmDevelopmentFetchMock.mockReset().mockResolvedValue({
-      schema_version: 'development-plan/v1',
-      items: [],
-    })
+    confirmImportedMock.mockReset().mockResolvedValue({ items: [] })
+    getDevelopmentPlanMock.mockReset().mockResolvedValue({ schema_version: 'development-plan/v1', items: [] })
     warmRecommendationsFetchMock.mockReset().mockResolvedValue({
       confirmed_item_count: 0,
       preference_item_count: 0,
@@ -110,23 +117,23 @@ describe('EvidenceProfilePage', () => {
     openAuthDialogMock.mockReset()
   })
 
-  it('renders items grouped by kind with provenance and confirmation state', async () => {
+  it('renders items grouped by kind with source and trust state', async () => {
     renderPage()
 
     const experience = await screen.findByRole('region', { name: 'Experience' })
     const skills = screen.getByRole('region', { name: 'Skills' })
-    // Both provenance and confirmation-state labels are visible on each card.
-    expect(within(experience).getByText('Unconfirmed')).toBeTruthy()
+    // Both source and trust-state labels are visible on each card.
+    expect(within(experience).getByText('Suggested')).toBeTruthy()
     expect(within(experience).getByText('Imported')).toBeTruthy()
-    expect(within(skills).getByText('Confirmed')).toBeTruthy()
+    expect(within(skills).getByText('Saved')).toBeTruthy()
     expect(within(skills).getByText('You entered')).toBeTruthy()
   })
 
-  it('confirms an unconfirmed item through the confirmation endpoint', async () => {
+  it('accepts a suggested item through the confirmation endpoint', async () => {
     renderPage()
 
     const region = await screen.findByRole('region', { name: 'Experience' })
-    fireEvent.click(within(region).getByRole('button', { name: /^Confirm$/i }))
+    fireEvent.click(within(region).getByRole('button', { name: /^Accept$/i }))
 
     await waitFor(() => expect(setConfirmationMock).toHaveBeenCalledWith('e1', 'confirm'))
   })
@@ -140,7 +147,7 @@ describe('EvidenceProfilePage', () => {
     await waitFor(() => expect(setConfirmationMock).toHaveBeenCalledWith('e1', 'reject'))
   })
 
-  it('correcting content leaves the item unconfirmed when the edit is not confirmed', async () => {
+  it('correcting content saves it directly — no extra confirm click', async () => {
     renderPage()
 
     const region = await screen.findByRole('region', { name: 'Experience' })
@@ -148,27 +155,13 @@ describe('EvidenceProfilePage', () => {
 
     const editor = await screen.findByLabelText('Content (JSON fields)')
     fireEvent.change(editor, { target: { value: '{"title":"Staff Engineer"}' } })
-    fireEvent.click(screen.getByRole('button', { name: /Save as unconfirmed/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^Save$/i }))
 
     await waitFor(() =>
       expect(updateItemMock).toHaveBeenCalledWith('e1', { content: { title: 'Staff Engineer' } }),
     )
+    // The old two-step "confirm the edit" call no longer exists.
     expect(setConfirmationMock).not.toHaveBeenCalled()
-  })
-
-  it('correcting content confirms only when the user confirms the edit', async () => {
-    renderPage()
-
-    const region = await screen.findByRole('region', { name: 'Experience' })
-    fireEvent.click(within(region).getByRole('button', { name: /Correct/i }))
-
-    const editor = await screen.findByLabelText('Content (JSON fields)')
-    fireEvent.change(editor, { target: { value: '{"title":"Staff Engineer"}' } })
-    fireEvent.click(screen.getByLabelText(/I confirm this correction is accurate/i))
-    fireEvent.click(screen.getByRole('button', { name: /Save and confirm/i }))
-
-    await waitFor(() => expect(updateItemMock).toHaveBeenCalledWith('e1', { content: { title: 'Staff Engineer' } }))
-    await waitFor(() => expect(setConfirmationMock).toHaveBeenCalledWith('e1', 'confirm'))
   })
 
   it('deletes a single item after confirmation', async () => {
@@ -196,12 +189,31 @@ describe('EvidenceProfilePage', () => {
     expect(deleteItemMock).not.toHaveBeenCalled()
   })
 
+  it('accepts every still-suggested imported item at once', async () => {
+    renderPage()
+
+    await screen.findByRole('region', { name: 'Experience' })
+    fireEvent.click(screen.getByRole('button', { name: /Accept all/i }))
+
+    await waitFor(() => expect(confirmImportedMock).toHaveBeenCalledOnce())
+  })
+
+  it('hides the accept-all action when nothing imported is still suggested', async () => {
+    listEvidenceItemsMock.mockResolvedValue({
+      items: [makeItem({ id: 's1', confirmation_state: 'confirmed', provenance: 'user-entered' })],
+    })
+    renderPage()
+
+    await screen.findByRole('region', { name: 'Experience' })
+    expect(screen.queryByRole('button', { name: /Accept all/i })).toBeNull()
+  })
+
   it.each([
     {
-      action: 'confirming an item',
+      action: 'accepting an item',
       perform: async () => {
         const region = await screen.findByRole('region', { name: 'Experience' })
-        fireEvent.click(within(region).getByRole('button', { name: /^Confirm$/i }))
+        fireEvent.click(within(region).getByRole('button', { name: /^Accept$/i }))
         await waitFor(() => expect(setConfirmationMock).toHaveBeenCalledWith('e1', 'confirm'))
       },
     },
@@ -214,14 +226,14 @@ describe('EvidenceProfilePage', () => {
       },
     },
     {
-      action: 'correcting a confirmed item',
+      action: 'correcting an item',
       perform: async () => {
         const region = await screen.findByRole('region', { name: 'Skills' })
         fireEvent.click(within(region).getByRole('button', { name: /Correct/i }))
         fireEvent.change(await screen.findByLabelText('Content (JSON fields)'), {
           target: { value: '{"text":"Advanced TypeScript"}' },
         })
-        fireEvent.click(screen.getByRole('button', { name: /Save as unconfirmed/i }))
+        fireEvent.click(screen.getByRole('button', { name: /^Save$/i }))
         await waitFor(() =>
           expect(updateItemMock).toHaveBeenCalledWith('s1', {
             content: { text: 'Advanced TypeScript' },
@@ -253,39 +265,15 @@ describe('EvidenceProfilePage', () => {
     '$action refreshes warm development and recommendation caches',
     async ({ perform }) => {
       renderPage({ warmEvidenceConsumers: true })
-      await waitFor(() => expect(warmDevelopmentFetchMock).toHaveBeenCalledTimes(1))
+      await waitFor(() => expect(getDevelopmentPlanMock).toHaveBeenCalledTimes(1))
       await waitFor(() => expect(warmRecommendationsFetchMock).toHaveBeenCalledTimes(1))
 
       await perform()
 
-      await waitFor(() => expect(warmDevelopmentFetchMock).toHaveBeenCalledTimes(2))
+      await waitFor(() => expect(getDevelopmentPlanMock).toHaveBeenCalledTimes(2))
       await waitFor(() => expect(warmRecommendationsFetchMock).toHaveBeenCalledTimes(2))
     },
   )
-
-  it('refreshes warm consumers when correction saves but explicit confirmation fails', async () => {
-    setConfirmationMock.mockRejectedValueOnce(
-      new Error('Confirmation failed after the correction was saved.'),
-    )
-    renderPage({ warmEvidenceConsumers: true })
-    await waitFor(() => expect(warmDevelopmentFetchMock).toHaveBeenCalledTimes(1))
-    await waitFor(() => expect(warmRecommendationsFetchMock).toHaveBeenCalledTimes(1))
-
-    const region = await screen.findByRole('region', { name: 'Skills' })
-    fireEvent.click(within(region).getByRole('button', { name: /Correct/i }))
-    fireEvent.change(await screen.findByLabelText('Content (JSON fields)'), {
-      target: { value: '{"text":"Advanced TypeScript"}' },
-    })
-    fireEvent.click(screen.getByLabelText(/I confirm this correction is accurate/i))
-    fireEvent.click(screen.getByRole('button', { name: /Save and confirm/i }))
-
-    expect((await screen.findByRole('alert')).textContent).toContain(
-      'Confirmation failed after the correction was saved.',
-    )
-    await waitFor(() => expect(listEvidenceItemsMock).toHaveBeenCalledTimes(2))
-    await waitFor(() => expect(warmDevelopmentFetchMock).toHaveBeenCalledTimes(2))
-    await waitFor(() => expect(warmRecommendationsFetchMock).toHaveBeenCalledTimes(2))
-  })
 
   it('shows a sign-in prompt when unauthenticated', () => {
     sessionState.status = 'unauthenticated'

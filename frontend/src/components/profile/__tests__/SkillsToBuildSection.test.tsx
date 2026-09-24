@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-quer
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DevelopmentItem } from '#/lib/api/developmentSchemas'
-import { DevelopmentPlanPage } from '#/components/development/DevelopmentPlanPage'
+import { SkillsToBuildSection } from '#/components/profile/SkillsToBuildSection'
 
 const getPlanMock = vi.hoisted(() => vi.fn())
 const updateItemMock = vi.hoisted(() => vi.fn())
@@ -11,8 +11,6 @@ const confirmEvidenceMock = vi.hoisted(() => vi.fn())
 const declineEvidenceMock = vi.hoisted(() => vi.fn())
 const warmEvidenceFetchMock = vi.hoisted(() => vi.fn())
 const warmRecommendationsFetchMock = vi.hoisted(() => vi.fn())
-const openAuthDialogMock = vi.hoisted(() => vi.fn())
-const sessionState = vi.hoisted(() => ({ status: 'authenticated' as string }))
 
 vi.mock('#/lib/api/development', () => ({
   getDevelopmentPlan: getPlanMock,
@@ -20,29 +18,6 @@ vi.mock('#/lib/api/development', () => ({
   deleteDevelopmentItem: deleteItemMock,
   confirmDevelopmentEvidence: confirmEvidenceMock,
   declineDevelopmentEvidence: declineEvidenceMock,
-}))
-
-vi.mock('#/hooks/useSession', () => ({
-  useSession: () => ({ status: sessionState.status, openAuthDialog: openAuthDialogMock }),
-}))
-
-vi.mock('#/components/app/AppStatePanel', () => ({
-  AppStatePanel: ({
-    title,
-    actions,
-  }: {
-    title: string
-    actions: { label: string; onClick?: () => void }[]
-  }) => (
-    <div>
-      <h1>{title}</h1>
-      {actions.map((a) => (
-        <button key={a.label} onClick={a.onClick}>
-          {a.label}
-        </button>
-      ))}
-    </div>
-  ),
 }))
 
 function makeItem(overrides: Partial<DevelopmentItem>): DevelopmentItem {
@@ -92,19 +67,18 @@ function WarmEvidenceConsumers() {
   return null
 }
 
-function renderPage({ warmEvidenceConsumers = false } = {}) {
+function renderSection({ warmEvidenceConsumers = false } = {}) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={client}>
       {warmEvidenceConsumers ? <WarmEvidenceConsumers /> : null}
-      <DevelopmentPlanPage />
+      <SkillsToBuildSection />
     </QueryClientProvider>,
   )
 }
 
-describe('DevelopmentPlanPage', () => {
+describe('SkillsToBuildSection', () => {
   beforeEach(() => {
-    sessionState.status = 'authenticated'
     getPlanMock
       .mockReset()
       .mockResolvedValue({ schema_version: 'development-plan/v1', items })
@@ -130,20 +104,25 @@ describe('DevelopmentPlanPage', () => {
       preference_item_count: 0,
       items: [],
     })
-    openAuthDialogMock.mockReset()
+  })
+
+  it('renders as the "Skills to build" section with an anchorable id', async () => {
+    renderSection()
+
+    const section = await screen.findByRole('region', { name: 'Skills to build' })
+    expect(section.id).toBe('skills-to-build')
+    expect(within(section).getByRole('heading', { name: 'Skills to build' })).toBeTruthy()
   })
 
   it('renders items grouped by response kind with a labeled status control', async () => {
-    renderPage()
+    renderSection()
 
     const reword = await screen.findByRole('region', { name: 'Reword existing content' })
     const learn = screen.getByRole('region', { name: 'Learn a new skill' })
 
     const rewordStatus = within(reword).getByRole('combobox') as HTMLSelectElement
     expect(rewordStatus.value).toBe('planned')
-    // The visible state badge (not the <select> option) reflects the state.
     expect(within(reword).getByText('Planned', { selector: '.development-state' })).toBeTruthy()
-    // The status control is labeled for assistive tech.
     expect(within(reword).getByLabelText('Status')).toBe(rewordStatus)
 
     const learnStatus = within(learn).getByRole('combobox') as HTMLSelectElement
@@ -152,7 +131,7 @@ describe('DevelopmentPlanPage', () => {
   })
 
   it('changes an item state through the update endpoint', async () => {
-    renderPage()
+    renderSection()
 
     const reword = await screen.findByRole('region', { name: 'Reword existing content' })
     fireEvent.change(within(reword).getByRole('combobox'), {
@@ -165,7 +144,7 @@ describe('DevelopmentPlanPage', () => {
   })
 
   it('edits the target date and notes through the update endpoint', async () => {
-    renderPage()
+    renderSection()
 
     const reword = await screen.findByRole('region', { name: 'Reword existing content' })
     fireEvent.click(within(reword).getByRole('button', { name: /Edit/i }))
@@ -186,7 +165,7 @@ describe('DevelopmentPlanPage', () => {
   })
 
   it('deletes an item after confirmation', async () => {
-    renderPage()
+    renderSection()
 
     const reword = await screen.findByRole('region', { name: 'Reword existing content' })
     fireEvent.click(within(reword).getByRole('button', { name: /Delete/i }))
@@ -212,7 +191,7 @@ describe('DevelopmentPlanPage', () => {
         }),
       ],
     })
-    renderPage()
+    renderSection()
 
     const group = await screen.findByRole('region', { name: 'Reword existing content' })
     expect(within(group).getByText(/ready to become reusable evidence/i)).toBeTruthy()
@@ -254,7 +233,7 @@ describe('DevelopmentPlanPage', () => {
           }),
         ],
       })
-      renderPage({ warmEvidenceConsumers: true })
+      renderSection({ warmEvidenceConsumers: true })
 
       const group = await screen.findByRole('region', { name: 'Reword existing content' })
       await waitFor(() => expect(warmEvidenceFetchMock).toHaveBeenCalledTimes(1))
@@ -284,19 +263,18 @@ describe('DevelopmentPlanPage', () => {
         }),
       ],
     })
-    renderPage()
+    renderSection()
 
     const group = await screen.findByRole('region', { name: 'Reword existing content' })
     expect(within(group).getByText('Evidence confirmed')).toBeTruthy()
     expect(within(group).queryByRole('button', { name: 'Decline proposal' })).toBeNull()
   })
 
-  it('shows a sign-in prompt when unauthenticated and does not fetch', () => {
-    sessionState.status = 'guest'
-    renderPage()
+  it('renders nothing when there are no development items', async () => {
+    getPlanMock.mockResolvedValue({ schema_version: 'development-plan/v1', items: [] })
+    const { container } = renderSection()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Sign in' }))
-    expect(openAuthDialogMock).toHaveBeenCalledWith({ to: '/development-plan', reason: 'account' })
-    expect(getPlanMock).not.toHaveBeenCalled()
+    await waitFor(() => expect(getPlanMock).toHaveBeenCalled())
+    await waitFor(() => expect(container.querySelector('#skills-to-build')).toBeNull())
   })
 })

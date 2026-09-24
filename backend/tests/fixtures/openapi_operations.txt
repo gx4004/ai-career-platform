@@ -107,6 +107,7 @@ POST /api/v1/discovery/recommendations/{listing_id}/adopt
 POST /api/v1/discovery/reports
 POST /api/v1/evidence-profile/import/proposals
 POST /api/v1/evidence-profile/items
+POST /api/v1/evidence-profile/items/confirm-imported
 POST /api/v1/evidence-profile/items/{item_id}/confirmation
 POST /api/v1/files/parse-cv
 POST /api/v1/history/workspaces/{workspace_id}/contacts

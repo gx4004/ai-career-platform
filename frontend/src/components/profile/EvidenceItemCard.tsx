@@ -69,7 +69,7 @@ export function EvidenceItemCard({
             onClick={() => onConfirm(item)}
           >
             <Check size={14} />
-            {state === 'rejected' ? 'Restore & confirm' : 'Confirm'}
+            {state === 'rejected' ? 'Restore & save' : 'Accept'}
           </Button>
         ) : null}
         {state !== 'rejected' ? (

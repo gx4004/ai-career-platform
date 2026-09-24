@@ -29,7 +29,7 @@ export const KIND_LABELS: Record<EvidenceKind, string> = {
   'interview-evidence': 'Interview evidence',
 }
 
-// Provenance is a factual origin label; it never implies the user vouched for it.
+// Source is a factual origin label; it never implies the user vouched for it.
 export const PROVENANCE_LABELS: Record<EvidenceProvenance, string> = {
   imported: 'Imported',
   inferred: 'Inferred',
@@ -43,8 +43,8 @@ export const PROVENANCE_DESCRIPTIONS: Record<EvidenceProvenance, string> = {
 }
 
 export const STATE_LABELS: Record<EvidenceConfirmationState, string> = {
-  unconfirmed: 'Unconfirmed',
-  confirmed: 'Confirmed',
+  unconfirmed: 'Suggested',
+  confirmed: 'Saved',
   rejected: 'Rejected',
 }
 
