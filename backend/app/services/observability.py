@@ -12,12 +12,85 @@ logger = logging.getLogger("app.observability")
 # is loggable here automatically, and one removed stops being logged.
 _TELEMETRY_FIELDS = frozenset(TelemetryEventRequest.model_fields)
 
+_ACCESS_LOGGER_NAME = "uvicorn.access"
+# Standard "no client recorded" placeholder in common/combined access-log format.
+_REDACTED_CLIENT = "-"
+# Keeps "this request carried a query string" visible without any of its content.
+_REDACTED_QUERY = "?<redacted>"
+# (client_addr, method, full_path, http_version, status)
+_ACCESS_RECORD_ARITY = 5
+
+
+class _AccessLogPrivacyFilter(logging.Filter):
+    """Strip request-identifying data from uvicorn's per-response access record.
+
+    uvicorn logs one record per response as
+    ``'%s - "%s %s HTTP/%s" %d' % (client_addr, method, full_path, http_version,
+    status)`` (``uvicorn/protocols/http/h11_impl.py`` and ``httptools_impl.py``).
+    ``full_path`` comes from ``uvicorn.protocols.utils.get_path_with_query_string``,
+    which appends the raw query string, and ``client_addr`` is the peer address.
+
+    Both are user data on this API — the admin user search filters on
+    ``?q=<email>`` (``app/routers/admin.py``) — and stdout is the one surface the
+    Sentry scrubbing in ``app/main.py`` never sees. docs/threat-model.md §10.1
+    lists email addresses and IP addresses among the values deliberately not
+    logged, so uvicorn's default access line contradicts the documented posture.
+
+    Rewriting ``record.args`` instead of swapping the formatter keeps this
+    independent of whichever handler/formatter is installed (uvicorn's default
+    ``AccessFormatter``, a ``--log-config`` override, or a plain handler), and it
+    runs on the logger before any handler sees the record. Method, path, protocol
+    version and status code survive untouched, so operational debugging still
+    works; the log is never silenced.
+    """
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        args = record.args
+        if not isinstance(args, tuple) or len(args) != _ACCESS_RECORD_ARITY:
+            # Not the access-record shape this filter understands. Pass it
+            # through unchanged rather than dropping it — the goal is redaction,
+            # not suppression.
+            return True
+        _client_addr, method, full_path, http_version, status = args
+        record.args = (
+            _REDACTED_CLIENT,
+            method,
+            _redact_query_string(full_path),
+            http_version,
+            status,
+        )
+        return True
+
+
+def _redact_query_string(full_path: Any) -> Any:
+    if not isinstance(full_path, str):
+        return full_path
+    path, separator, _query = full_path.partition("?")
+    if not separator:
+        return path
+    return f"{path}{_REDACTED_QUERY}"
+
+
+def _install_access_log_privacy_filter() -> None:
+    access_logger = logging.getLogger(_ACCESS_LOGGER_NAME)
+    if any(isinstance(item, _AccessLogPrivacyFilter) for item in access_logger.filters):
+        return
+    access_logger.addFilter(_AccessLogPrivacyFilter())
+
 
 def configure_logging() -> None:
     # httpx's INFO request line contains the full query string. Discovery
     # parameters are bounded but still reveal job-search intent.
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("httpcore").setLevel(logging.WARNING)
+    # uvicorn builds `uvicorn.access` from its own dictConfig in `Config.__init__`,
+    # which runs before `Config.load()` imports the ASGI app. `app.main` calls
+    # configure_logging() at import time, so the filter is installed after that
+    # dictConfig and survives it — and it holds for every entrypoint that imports
+    # the app: start.sh, the Dockerfile CMD, `uvicorn --reload`, and embedded
+    # servers. Neither start.sh nor the Dockerfile has to repeat it, which is why
+    # they stay flag-free and identical in this respect.
+    _install_access_log_privacy_filter()
     root_logger = logging.getLogger()
     if root_logger.handlers:
         return

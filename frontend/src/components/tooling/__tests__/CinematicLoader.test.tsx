@@ -1,4 +1,4 @@
-import { act, render } from '@testing-library/react'
+import { act, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { CinematicLoader } from '#/components/tooling/CinematicLoader'
@@ -85,5 +85,83 @@ describe('CinematicLoader', () => {
     })
 
     expect(progressValue(container)).toBe(100)
+  })
+
+  it('exposes its in-progress state to assistive technology', () => {
+    render(<CinematicLoader toolId="resume" mutationDone={false} />)
+
+    // Asserted by role, not by class name: a sighted-only spinner is exactly the
+    // defect this covers.
+    const region = screen.getByRole('status')
+    expect(region.getAttribute('aria-live')).toBe('polite')
+    expect(region.textContent).toContain('Working on your results')
+  })
+
+  it('announces a stage change without re-announcing on unrelated renders', () => {
+    const { rerender } = render(<CinematicLoader toolId="resume" mutationDone={false} />)
+
+    const region = screen.getByRole('status')
+    expect(region.textContent).toContain('Reading your resume')
+
+    // Resume stage 1 lands at 2000ms.
+    act(() => {
+      vi.advanceTimersByTime(2000)
+    })
+
+    // Exactly one live region, and it is the SAME node: a remounted or
+    // duplicated live region is what makes screen readers repeat themselves.
+    expect(screen.getAllByRole('status')).toHaveLength(1)
+    expect(screen.getByRole('status')).toBe(region)
+    expect(region.textContent).toContain('Analyzing sections')
+
+    const afterStageChange = region.textContent
+    rerender(<CinematicLoader toolId="resume" mutationDone={false} />)
+    rerender(<CinematicLoader toolId="resume" mutationDone={false} />)
+
+    // A re-render that changes no stage must not rewrite the announcement.
+    expect(screen.getAllByRole('status')).toHaveLength(1)
+    expect(screen.getByRole('status')).toBe(region)
+    expect(region.textContent).toBe(afterStageChange)
+  })
+
+  it('presents stage labels as indicative steps, not as server progress', () => {
+    const { container } = render(<CinematicLoader toolId="resume" mutationDone={false} />)
+
+    // The frame is a stable node, always rendered.
+    expect(screen.getByText(/typical steps/i)).toBeTruthy()
+
+    // Resume stage 2 lands at 4000ms — the former "Calculating score…" slot.
+    act(() => {
+      vi.advanceTimersByTime(4000)
+    })
+
+    const region = screen.getByRole('status')
+    expect(region.textContent).toMatch(/typical step/i)
+    expect(region.textContent).toContain('Calculating your score')
+
+    // D-056: the client timer must never be presented as server progress.
+    expect(container.textContent).not.toMatch(/Calculating score/)
+    expect(screen.queryByText('Calculating score…')).toBeNull()
+  })
+
+  it('never publishes a determinate progress value the client cannot know', () => {
+    const { rerender } = render(<CinematicLoader toolId="resume" mutationDone={false} />)
+
+    const bar = screen.getByRole('progressbar')
+    // Indeterminate by construction: the percentage comes from a setTimeout
+    // schedule, so aria-valuenow would assert a ratio the client cannot observe.
+    expect(bar.getAttribute('aria-valuenow')).toBeNull()
+    expect(bar.getAttribute('aria-valuetext')).toBeNull()
+
+    act(() => {
+      vi.advanceTimersByTime(60_000)
+    })
+    expect(screen.getByRole('progressbar').getAttribute('aria-valuenow')).toBeNull()
+
+    rerender(<CinematicLoader toolId="resume" mutationDone />)
+    act(() => {
+      vi.advanceTimersByTime(50)
+    })
+    expect(screen.getByRole('progressbar').getAttribute('aria-valuenow')).toBeNull()
   })
 })

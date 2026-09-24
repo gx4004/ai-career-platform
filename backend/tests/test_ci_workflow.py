@@ -67,3 +67,23 @@ def test_ci_is_manual_dispatch_only() -> None:
     workflow = yaml.load(CI_WORKFLOW.read_text(), Loader=yaml.BaseLoader)
 
     assert set(workflow["on"]) == {"workflow_dispatch"}
+
+
+def test_manual_backend_gate_keeps_cumulative_and_concurrency_proofs() -> None:
+    workflow_text = CI_WORKFLOW.read_text()
+
+    expected_commands = (
+        "python tests/migration_stable_release_roundtrip.py",
+        "python tests/migration_packet_approval_roundtrip.py",
+        "python tests/migration_submission_roundtrip.py",
+        "python tests/migration_operational_metric_roundtrip.py",
+        "python tests/postgres_submission_concurrency.py",
+        "python tests/postgres_submission_authorization_concurrency.py",
+    )
+    for command in expected_commands:
+        assert command in workflow_text
+
+    assert workflow_text.index(expected_commands[0]) < workflow_text.index(
+        expected_commands[1]
+    )
+    assert "codex_submission_authorization_concurrency_ci" in workflow_text

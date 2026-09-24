@@ -1,10 +1,20 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import {
+  MAX_TRANSIENT_RESULTS,
   clearTransientResults,
   getTransientResult,
   isDemoHistoryId,
   setTransientResult,
 } from '#/lib/tools/demoRuns'
+
+function storedDemoKeys(): string[] {
+  const keys: string[] = []
+  for (let index = 0; index < sessionStorage.length; index += 1) {
+    const key = sessionStorage.key(index)
+    if (key?.startsWith('cw:demo-result:')) keys.push(key)
+  }
+  return keys
+}
 
 describe('demoRuns', () => {
   afterEach(() => {
@@ -89,6 +99,68 @@ describe('demoRuns', () => {
 
     expect(sessionStorage.getItem(`cw:demo-result:${item1.id}`)).toBeNull()
     expect(sessionStorage.getItem(`cw:demo-result:${item2.id}`)).toBeNull()
+  })
+
+  it('gives every guest run a distinct id even within the same millisecond', () => {
+    const ids = new Set(
+      Array.from({ length: 5 }, () =>
+        setTransientResult('resume', {
+          generated_at: '2026-04-06T12:00:00Z',
+          summary: { headline: 'Same tick', verdict: 'B', confidence_note: '' },
+        }).id,
+      ),
+    )
+
+    expect(ids.size).toBe(5)
+  })
+
+  it('caps retained guest results and evicts the oldest first', () => {
+    const overflow = 3
+    const created = Array.from({ length: MAX_TRANSIENT_RESULTS + overflow }, (_unused, index) =>
+      setTransientResult('resume', {
+        generated_at: '2026-04-06T12:00:00Z',
+        summary: {
+          headline: `Run ${index}`,
+          verdict: 'B',
+          confidence_note: 'private resume text',
+        },
+      }),
+    )
+
+    expect(storedDemoKeys()).toHaveLength(MAX_TRANSIENT_RESULTS)
+
+    const evicted = created.slice(0, overflow)
+    const retained = created.slice(overflow)
+
+    for (const item of evicted) {
+      expect(sessionStorage.getItem(`cw:demo-result:${item.id}`)).toBeNull()
+      expect(getTransientResult(item.id)).toBeNull()
+    }
+
+    for (const item of retained) {
+      expect(sessionStorage.getItem(`cw:demo-result:${item.id}`)).toBeTruthy()
+      expect(getTransientResult(item.id)?.id).toBe(item.id)
+    }
+  })
+
+  it('prunes guest results left in storage by an earlier page load', () => {
+    const stale = Array.from({ length: MAX_TRANSIENT_RESULTS }, (_unused, index) => {
+      const id = `resume-demo-${1_000 + index}`
+      sessionStorage.setItem(
+        `cw:demo-result:${id}`,
+        JSON.stringify({ id, result_payload: { resume: 'private' } }),
+      )
+      return id
+    })
+
+    const fresh = setTransientResult('career', {
+      generated_at: '2026-04-06T12:00:00Z',
+      summary: { headline: 'Fresh', verdict: 'B', confidence_note: '' },
+    })
+
+    expect(storedDemoKeys()).toHaveLength(MAX_TRANSIENT_RESULTS)
+    expect(sessionStorage.getItem(`cw:demo-result:${stale[0]}`)).toBeNull()
+    expect(sessionStorage.getItem(`cw:demo-result:${fresh.id}`)).toBeTruthy()
   })
 
   it('cleans up persisted results that are not present in memory after reload', () => {

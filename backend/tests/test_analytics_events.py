@@ -65,6 +65,37 @@ def test_record_activation_event_accepts_backend_metrics(db):
 @pytest.mark.parametrize(
     "field, value",
     [
+        ("duration_ms", -1),
+        ("duration_ms", 86_400_001),
+        ("cost_estimate", Decimal("-0.000001")),
+        ("cost_estimate", Decimal("1000000")),
+        ("metric_value", Decimal("-0.000001")),
+        ("metric_value", Decimal("1000000")),
+    ],
+)
+def test_record_activation_event_rejects_out_of_range_numeric_evidence(field, value):
+    payload = {
+        "event_name": "tool_run_completed",
+        "tool_id": "resume",
+        "access_mode": "authenticated",
+        "saved": True,
+        field: value,
+    }
+    if field == "metric_value":
+        payload = {
+            "event_name": "r10_rate_limit_event",
+            "operational_dimension": "tools",
+            "operational_outcome": "account",
+            field: value,
+        }
+
+    with pytest.raises(ValidationError):
+        ActivationEventCreate(**payload)
+
+
+@pytest.mark.parametrize(
+    "field, value",
+    [
         ("resume_text", "private resume content"),
         ("job_description", "private role"),
         ("generated_content", "cover letter body"),
@@ -383,6 +414,72 @@ async def test_pipeline_persists_failure_with_allowlisted_category(db):
     # consumed and duration is persisted but cost is not (issue #106).
     assert failed.duration_ms is not None
     assert failed.cost_estimate is None
+
+
+async def test_pipeline_persists_one_failure_when_sanitization_fails(db, monkeypatch):
+    def fail_sanitization(_value):
+        raise ValueError("private input must never enter durable telemetry")
+
+    monkeypatch.setattr(
+        "app.services.tool_pipeline.sanitize_user_input", fail_sanitization
+    )
+
+    with pytest.raises(ValueError):
+        await run_tool_pipeline(
+            tool_name="resume",
+            service_fn=lambda **_: None,
+            service_kwargs={"resume_text": "private"},
+            label_fn=lambda result: "label",
+            resume_text="private resume text",
+            current_user=None,
+            db=db,
+        )
+
+    failures = (
+        db.query(AnalyticsEvent)
+        .filter(AnalyticsEvent.event_name == "tool_run_failed")
+        .all()
+    )
+    assert len(failures) == 1
+    assert failures[0].failure_category == "tool_request_failed"
+    assert failures[0].cost_estimate is None
+
+
+async def test_pipeline_persists_one_failure_after_provider_during_finalization(
+    db, monkeypatch
+):
+    async def service_fn(**_kwargs):
+        record_llm_usage(
+            model="gemini-2.5-flash", prompt_tokens=800, output_tokens=100
+        )
+        return {"summary": {"headline": "provider result"}}
+
+    def fail_finalization(*_args, **_kwargs):
+        raise RuntimeError("response finalization failed")
+
+    monkeypatch.setattr(
+        "app.services.tool_pipeline.build_tool_response", fail_finalization
+    )
+
+    with pytest.raises(RuntimeError):
+        await run_tool_pipeline(
+            tool_name="interview",
+            service_fn=service_fn,
+            service_kwargs={"resume_text": "x"},
+            label_fn=lambda result: "label",
+            resume_text="Some resume text for a finalization failure.",
+            current_user=None,
+            db=db,
+        )
+
+    failures = (
+        db.query(AnalyticsEvent)
+        .filter(AnalyticsEvent.event_name == "tool_run_failed")
+        .all()
+    )
+    assert len(failures) == 1
+    assert failures[0].failure_category == "tool_request_failed"
+    assert failures[0].cost_estimate is not None
 
 
 # --- Backend tool-run cost estimate (issue #106) ---------------------------

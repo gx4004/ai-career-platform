@@ -28,6 +28,7 @@ from app.services.application_packets import (
 from app.services.data_export import export_career_data
 from app.services.discovery_adoption import adopt_recommendation
 from app.services.evidence_injection import EvidencePayload
+from app.services.llm_cost import record_llm_usage
 from app.services.tool_runs import delete_all_user_data
 
 PREFIX = "/api/v1"
@@ -452,13 +453,57 @@ async def test_cost_ceiling_enforced_during_prep(db, test_user, monkeypatch):
     _add_cv_variant(db, test_user.id)
     _patch_rank(monkeypatch, [_rec(f"cost-{i}") for i in range(5)])
     _add_rule(db, test_user.id, "role", keywords=["engineer"])
-    # 0.10 ceiling admits exactly two packets at 0.05 each.
+    # 0.10 ceiling admits exactly two packets at the 0.05 pre-flight projection.
     _set_settings(db, test_user.id, cap=50, ceiling=0.10)
 
     result = await prepare_packets(db, test_user.id, compose_fn=_stub_compose)
     assert result.prepared_count == 2
     assert result.excluded_by_cost_ceiling == 3
-    assert result.estimated_total_cost_usd == pytest.approx(0.10)
+    # The reported total is measured spend, and this stub reaches no provider at all.
+    assert result.estimated_total_cost_usd == pytest.approx(0.0)
+
+
+@pytest.mark.asyncio
+async def test_cost_ceiling_enforced_on_measured_spend(db, test_user, monkeypatch):
+    """The ceiling stops the run on what preparation really spent, not the projection.
+
+    At the flat 0.05 projection all four candidates fit under a 1.00 ceiling; each
+    packet in fact costs 0.40, so the run must stop once its measured spend leaves no
+    room for another, and each packet must carry its own observed cost.
+    """
+    descriptions = [f"We build reliable backend systems, team {i}, for engineers." for i in range(4)]
+    for i, description in enumerate(descriptions):
+        _add_listing(db, f"spend-{i}", description=description)
+    _add_cv_variant(db, test_user.id)
+    # Distinct descriptions keep each packet on its own pipeline cache key, so every
+    # candidate genuinely reaches the (fake) provider.
+    _patch_rank(
+        monkeypatch,
+        [_rec(f"spend-{i}", description=description) for i, description in enumerate(descriptions)],
+    )
+    _add_rule(db, test_user.id, "role", keywords=["engineer"])
+    _set_settings(db, test_user.id, cap=50, ceiling=1.00)
+
+    async def expensive_compose(*, resume_text, job_description, listing_title="", company="",
+                                **kwargs):
+        # What the provider client records for a real call: 160k output tokens on
+        # Flash is 0.40 USD — eight times the flat projection.
+        record_llm_usage(model="gemini-2.5-flash", prompt_tokens=0, output_tokens=160_000)
+        return await _stub_compose(
+            resume_text=resume_text,
+            job_description=job_description,
+            listing_title=listing_title,
+            company=company,
+            **kwargs,
+        )
+
+    result = await prepare_packets(db, test_user.id, compose_fn=expensive_compose)
+
+    assert result.prepared_count == 3
+    assert result.excluded_by_cost_ceiling == 1
+    assert result.estimated_total_cost_usd == pytest.approx(1.20)
+    costs = [float(row.estimated_cost_usd) for row in db.query(ApplicationPacket).all()]
+    assert costs == pytest.approx([0.40, 0.40, 0.40])
 
 
 # ── Unresolved questions attached explicitly ──

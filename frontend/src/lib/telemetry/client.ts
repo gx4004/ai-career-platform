@@ -18,10 +18,35 @@ export type TelemetryEventName =
   | 'generation_loader_abandoned'
   | 'result_page_cache_miss'
 
+// The tool ids a browser may report. Deliberately narrower than the backend's
+// full tool taxonomy: `application-packet` is generated only by the backend
+// packet pipeline (backend/app/services/application_packets.py PACKET_TOOL_NAME)
+// and no browser surface can start it, so accepting it here would let a client
+// fabricate packet activation rows. The backend ingest contract validates
+// against the matching narrow enum — `BrowserToolId` in
+// backend/app/schemas/telemetry.py — and the two must agree member for member,
+// which __tests__/toolIdContract.test.ts and the backend
+// tests/test_telemetry_tool_id_contract.py both enforce against the real source.
+//
+// Kept as a runtime `as const` list so the type is derived from it, not restated
+// beside it: the test can read this array, and a member added to only one side
+// of the boundary fails a check instead of silently dropping or rejecting events.
+export const BROWSER_TOOL_IDS = [
+  'resume',
+  'job-match',
+  'career',
+  'cover-letter',
+  'interview',
+  'portfolio',
+  'application-reviewer',
+] as const
+
+export type BrowserToolId = (typeof BROWSER_TOOL_IDS)[number]
+
 type TelemetryPayload = {
   event_name: TelemetryEventName
   level?: 'info' | 'error'
-  tool_id?: 'resume' | 'job-match' | 'career' | 'cover-letter' | 'interview' | 'portfolio' | 'application-reviewer'
+  tool_id?: BrowserToolId
   access_mode?: 'authenticated' | 'guest_demo'
   saved?: boolean
   failure_category?: 'tool_request_failed' | 'render_error' | 'route_error' | 'chunk_load_error'

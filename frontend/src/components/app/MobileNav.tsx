@@ -75,7 +75,11 @@ export function MobileNav() {
         </Link>
       </nav>
 
-      <ToolGridSheet open={toolsOpen} onOpenChange={setToolsOpen} />
+      <ToolGridSheet
+        open={toolsOpen}
+        onOpenChange={setToolsOpen}
+        showAuthenticatedLinks={Boolean(user)}
+      />
     </>
   )
 }

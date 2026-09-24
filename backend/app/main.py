@@ -12,7 +12,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.responses import JSONResponse, Response
 
-from app.config import settings
+from app.config import resolve_allowed_origins, settings, validate_origin_config
 from app.feature_gates import (
     require_r12_enabled,
     require_r14_enabled,
@@ -303,9 +303,7 @@ app.add_middleware(
 )
 
 # --- CORS ---
-_origins = [o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()]
-if settings.FRONTEND_URL and settings.FRONTEND_URL not in _origins:
-    _origins.append(settings.FRONTEND_URL)
+_origins = resolve_allowed_origins()
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_origins,
@@ -324,6 +322,7 @@ if settings.SECRET_KEY == _DEFAULT_SECRET and settings.ENVIRONMENT != "developme
     )
 
 validate_abuse_control_config()
+validate_origin_config()
 
 if settings.LLM_PROVIDER.lower() == "vertex" and not settings.VERTEX_PROJECT_ID:
     logger.critical(

@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { SettingsPage } from '#/pages/settings-page'
@@ -10,6 +10,8 @@ const api = vi.hoisted(() => ({
   deleteEvidenceProfile: vi.fn(),
   exportCareerData: vi.fn(),
 }))
+const warmDevelopmentFetch = vi.hoisted(() => vi.fn())
+const warmRecommendationsFetch = vi.hoisted(() => vi.fn())
 
 vi.mock('#/lib/api/client', async (importOriginal) => ({
   ...await importOriginal<typeof import('#/lib/api/client')>(),
@@ -46,10 +48,23 @@ vi.mock('react-i18next', () => ({
 }))
 vi.mock('#/lib/i18n', () => ({ changeLanguage: vi.fn() }))
 
-function renderPage() {
+function WarmEvidenceConsumers() {
+  useQuery({
+    queryKey: ['development-plan', 'items'],
+    queryFn: warmDevelopmentFetch,
+  })
+  useQuery({
+    queryKey: ['discovery', 'recommendations'],
+    queryFn: warmRecommendationsFetch,
+  })
+  return null
+}
+
+function renderPage({ warmEvidenceConsumers = false } = {}) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   const view = render(
     <QueryClientProvider client={client}>
+      {warmEvidenceConsumers ? <WarmEvidenceConsumers /> : null}
       <SettingsPage />
     </QueryClientProvider>,
   )
@@ -67,8 +82,19 @@ describe('Settings privacy controls', () => {
       'VITE_R16_SUBMISSION_FOUNDATION_ENABLED',
       'VITE_R17_DEVELOPMENT_LOOP_ENABLED',
     ]) vi.stubEnv(flag, 'false')
-    api.exportCareerData.mockResolvedValue({ schema_version: 'career-data-export/v1' })
-    api.deleteEvidenceProfile.mockResolvedValue(undefined)
+    api.exportCareerData.mockReset().mockResolvedValue({
+      schema_version: 'career-data-export/v1',
+    })
+    api.deleteEvidenceProfile.mockReset().mockResolvedValue(undefined)
+    warmDevelopmentFetch.mockReset().mockResolvedValue({
+      schema_version: 'development-plan/v1',
+      items: [],
+    })
+    warmRecommendationsFetch.mockReset().mockResolvedValue({
+      confirmed_item_count: 0,
+      preference_item_count: 0,
+      items: [],
+    })
     Object.defineProperty(URL, 'createObjectURL', {
       configurable: true,
       value: vi.fn(() => 'blob:career-data'),
@@ -102,5 +128,18 @@ describe('Settings privacy controls', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Delete evidence profile' }))
 
     expect((await within(dialog).findByRole('alert')).textContent).toContain('Erase failed safely.')
+  })
+
+  it('refreshes warm evidence consumers after recovery-route profile erasure', async () => {
+    renderPage({ warmEvidenceConsumers: true })
+    await waitFor(() => expect(warmDevelopmentFetch).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(warmRecommendationsFetch).toHaveBeenCalledTimes(1))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete profile' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Delete evidence profile' }))
+
+    await waitFor(() => expect(api.deleteEvidenceProfile).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(warmDevelopmentFetch).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(warmRecommendationsFetch).toHaveBeenCalledTimes(2))
   })
 })

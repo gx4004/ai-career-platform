@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
+import { uniqueEmail } from './helpers/identity'
 
 /**
  * R3 #77(d) — sensitive browser storage must actually be empty after sign-out.
@@ -47,7 +48,7 @@ async function gotoHydrated(page: Page, path: string) {
 }
 
 async function register(page: Page, identity: string) {
-  const email = `${identity.toLowerCase().replaceAll(' ', '-')}-${Date.now()}@example.com`
+  const email = uniqueEmail(identity.toLowerCase().replaceAll(' ', '-'))
   await gotoHydrated(page, '/login')
   await page.getByRole('tab', { name: 'Create Account' }).click()
   await page.locator('#register-name').fill(identity)

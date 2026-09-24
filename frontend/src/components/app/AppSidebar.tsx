@@ -10,6 +10,7 @@ import {
   LayoutDashboard,
   Settings,
   ShieldCheck,
+  Sprout,
   UserRound,
 } from 'lucide-react'
 import { AppBrandLockup } from '#/components/app/AppBrandLockup'
@@ -38,6 +39,7 @@ import {
   isR12CvStudioEnabled,
   isR14DiscoveryEnabled,
   isR15QueueEnabled,
+  isR17DevelopmentLoopEnabled,
 } from '#/lib/flags/featureFlags'
 
 const accountNavItems = [
@@ -50,6 +52,7 @@ const accountNavItems = [
 const authenticatedNavItems = [
   { label: 'Discover', icon: Compass, route: '/discovery' },
   { label: 'Queue', icon: ClipboardCheck, route: '/queue' },
+  { label: 'Development', icon: Sprout, route: '/development-plan' },
 ] as const
 
 export function AppSidebar() {
@@ -70,6 +73,7 @@ export function AppSidebar() {
   const visibleAuthenticatedNavItems = authenticatedNavItems.filter((item) => {
     if (item.route === '/discovery') return isR14DiscoveryEnabled()
     if (item.route === '/queue') return isR15QueueEnabled()
+    if (item.route === '/development-plan') return isR17DevelopmentLoopEnabled()
     return true
   })
 

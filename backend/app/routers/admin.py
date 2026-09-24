@@ -766,6 +766,9 @@ def get_eval_runs(
                 mode=data.get("mode"),
                 fixtures_evaluated=data.get("fixtures_evaluated"),
                 calibration_miss_rate=data.get("calibration_miss_rate"),
+                explanation_inconsistency_count=data.get(
+                    "explanation_inconsistency_count"
+                ),
                 fabrication_candidate_count=data.get("fabrication_candidate_count"),
                 usefulness_score=data.get("usefulness_score"),
             )

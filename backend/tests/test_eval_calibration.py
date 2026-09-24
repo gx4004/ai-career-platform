@@ -44,13 +44,19 @@ _RESUME = (
 _JOB = "Senior Backend Engineer. Python, FastAPI, PostgreSQL, Docker, AWS, APIs."
 
 
-def _fixture(band: tuple[int, int], *, job_description: str | None = _JOB) -> EvalFixture:
+def _fixture(
+    band: tuple[int, int],
+    *,
+    job_description: str | None = _JOB,
+    match_band: tuple[int, int] | None = None,
+) -> EvalFixture:
     return EvalFixture(
         id="synthetic-case",
         resume_text=_RESUME,
         job_description=job_description,
         expected_score_band=band,
         notes="synthetic calibration test fixture",
+        expected_match_band=match_band,
     )
 
 
@@ -142,6 +148,42 @@ def test_job_match_scored_when_job_description_present() -> None:
     assert tools == {TOOL_RESUME_ANALYZER, TOOL_JOB_MATCH}
 
 
+# --- Per-tool bands (#118) ---
+
+
+def test_job_match_is_compared_against_its_own_band() -> None:
+    """Keyword overlap and resume quality are different scales, so different bands.
+
+    The resume band here is deliberately impossible; Job Match must ignore it and
+    read ``expected_match_band`` instead, so only the resume half is flagged.
+    """
+    fixture = _fixture((0, 10), match_band=(0, 100))
+    results = {result.tool: result for result in check_fixture(fixture)}
+
+    job_match = results[TOOL_JOB_MATCH]
+    assert job_match.expected_band == (0, 100)
+    assert job_match.is_miss is False
+
+    resume = results[TOOL_RESUME_ANALYZER]
+    assert resume.expected_band == (0, 10)
+    assert resume.is_miss is True
+
+
+def test_job_match_band_can_flag_a_miss_the_resume_band_would_not() -> None:
+    """The reverse direction: a wide resume band must not mask a match miss."""
+    fixture = _fixture((0, 100), match_band=(0, 10))
+    job_match = next(r for r in check_fixture(fixture) if r.tool == TOOL_JOB_MATCH)
+    assert job_match.expected_band == (0, 10)
+    assert job_match.is_miss is True
+
+
+def test_job_match_falls_back_to_the_resume_band() -> None:
+    """Fixtures that predate the split keep working off one band."""
+    fixture = _fixture((0, 100))
+    job_match = next(r for r in check_fixture(fixture) if r.tool == TOOL_JOB_MATCH)
+    assert job_match.expected_band == (0, 100)
+
+
 # --- Corpus-level per-tool miss rate ---
 
 
@@ -164,6 +206,19 @@ def test_run_calibration_reports_per_tool_miss_rate() -> None:
         assert rate.misses == len(rate.missed_fixture_ids)
         assert rate.misses <= rate.evaluated
         assert rate.miss_rate == pytest.approx(rate.misses / rate.evaluated)
+
+
+def test_committed_corpus_has_no_calibration_misses() -> None:
+    """The corpus is the harness's green baseline on an unmodified tree (#118).
+
+    Bands are authored on the scale each check actually measures, so a clean tree
+    reports a zero miss rate. A miss appearing here means either the heuristic
+    drifted or a band was authored on the wrong scale; either way it gets triaged
+    in the fixture's notes, not absorbed by widening the band.
+    """
+    report = run_calibration()
+    assert report.per_tool[TOOL_RESUME_ANALYZER].missed_fixture_ids == ()
+    assert report.per_tool[TOOL_JOB_MATCH].missed_fixture_ids == ()
 
 
 def test_run_calibration_is_deterministic() -> None:

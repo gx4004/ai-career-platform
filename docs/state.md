@@ -11,9 +11,12 @@ requests, and Git history own implementation detail. Accepted decisions remain i
 
 ## Current Posture
 
-Career Workbench has a mature product body on `chapter2`, with the cumulative
-release review and integration record carried by PR #316 from
-`codex/autonomous-20260802`:
+Career Workbench has a mature product body on `chapter2`. PR #316 merged
+`codex/autonomous-20260802` into `chapter2` at `cd2986b3` on 2026-08-13. The
+current local candidate on `codex/local-roadmap-finish-20260813` carries the
+post-merge implementation and release-gate commits beyond that merge; measure its
+distance from live refs rather than copying a count into this file. It has not
+been pushed, promoted, deployed, or assigned final cumulative verification totals:
 
 - R0–R2 engineering and end-to-end audit gates are complete.
 - R3 is specification-complete; deployed-environment evidence and named human
@@ -35,17 +38,20 @@ release review and integration record carried by PR #316 from
   build completion, not production activation or acceptance of the roadmap
   outcome.
 
-The reviewed body also completes the safe preparatory portions of R9/R10, hardens
-R1/R3/R6/R11 boundaries, and corrects CV Studio recovery. Integrating it into the
-experimental `chapter2` branch is not deployment, production activation, or
-acceptance of any roadmap outcome. No real submission source, source OAuth flow,
+The merged body also completes the safe preparatory portions of R9/R10, hardens
+R1/R3/R6/R11 boundaries, and corrects CV Studio recovery. Its merge into the
+experimental `chapter2` branch did not deploy or activate production and does not
+accept any roadmap outcome. No real submission source, source OAuth flow,
 third-party credential store, production adapter, scheduler, public submission
 route, or unattended outward-act endpoint exists.
 
 ## Branch and Release Posture
 
-- `chapter2` is the integration branch (D-027); PR #316 is the cumulative review
-  record for the current release body.
+- `chapter2` is the integration branch (D-027); merged PR #316 is the cumulative
+  review and integration record for the base release body at `cd2986b3`.
+- `codex/local-roadmap-finish-20260813` is the unpushed local candidate carrying the
+  additional hardening and release-gate commits. Its current cumulative verification
+  record remains in progress.
 - `main` and `deploy` remain stable promotion branches. Their promotion distance
   must be measured from live refs at release time rather than copied into memory.
 - The documented `chapter2 → main → deploy` promotion has not been run for
@@ -53,6 +59,10 @@ route, or unattended outward-act endpoint exists.
 - GitHub Actions is intentionally manual-dispatch only to conserve hosted quota.
   Pushes and pull-request updates do not run CI; all feasible gates run locally,
   and only the owner may request a hosted dispatch.
+- `scripts/local-release.sh` is the canonical local release gate. It verifies the
+  declared runtimes, builds and inspects both deployment images when Docker is
+  available, and requires explicit guarded disposable PostgreSQL URLs for database
+  mutation phases without dispatching Actions.
 - Backend dependency resolution is locked: intent lives in `requirements.in`, and
   generated `requirements.txt` pins the complete graph so CI, local development,
   and deployment resolve the same versions (#288).
@@ -90,9 +100,11 @@ route, or unattended outward-act endpoint exists.
 
 ## Immediate Objective
 
-After the cumulative release review, GitHub has no decision-complete implementation
-issue. The next valid work requires external
-evidence, credentials, an irreversible provider action, or human judgement:
+After the cumulative release review, live GitHub has 0 open pull requests and 33
+open issues: 23 are `ready-for-human`, 10 are `needs-info`, and 0 are
+`ready-for-agent`. GitHub therefore has no decision-complete implementation issue.
+The next valid work requires external evidence, credentials, an irreversible
+provider action, or human judgement:
 
 1. Run the R3/R5 staging and release checklist against the actual Railway topology,
    including migration, backup/restore or forward-fix, OAuth, email, LLM, telemetry,
@@ -137,11 +149,12 @@ R9/R10 responses are `needs-info`.
 - **Release environment unverified.** Railway topology, variables, migrations,
   domain, backup posture, OAuth, email, provider, and monitoring facts may have
   changed. `docs/launch-checklist.md` owns verification.
-- **Container build unverified for the reviewed head.** The frontend image is
-  aligned to Node 22, but Docker is unavailable in this checkout environment.
-  The preserved manual workflow can build both images and verify their non-root
-  runtime users when the owner chooses to spend hosted quota; staging still owns
-  actual construction/startup evidence.
+- **Container build unverified for the current local candidate.** Docker is
+  unavailable in this checkout environment. The root local release runner can build
+  both images and verify their non-root runtime users when Docker is available; the
+  preserved manual workflow is an optional owner-dispatched hosted evidence path,
+  not a prerequisite for local verification. Staging still owns deployed
+  construction and startup evidence.
 - **Repository security settings require owner action.** Dependabot configuration
   and a high-severity production audit gate now live in the repository, while
   secret scanning, push protection, and code scanning still require GitHub
@@ -174,7 +187,10 @@ R9/R10 responses are `needs-info`.
 
 ## Verification Baseline
 
-The PR #316 release body is the latest local verification point on this snapshot:
+### Historical merged baseline — PR #316
+
+The PR #316 release body at `cd2986b3` recorded this historical local verification
+baseline:
 
 - backend: Ruff clean; 1,011 tests passed;
 - frontend: typecheck clean; 478 Vitest tests plus 5 Node tests passed; client and
@@ -194,10 +210,26 @@ The PR #316 release body is the latest local verification point on this snapshot
   drift, Sentry leakage, pre-parse body bounds, privacy-control reachability,
   rate-limit/database evidence amplification, scorecard semantics, migration
   round trips, and full-suite synchronization drift;
-- hosted CI and Docker were deliberately not run for this head: Actions is
+- hosted CI and Docker were deliberately not run for `cd2986b3`: Actions was
   manual-only by owner policy, and Docker is unavailable locally.
 
-This evidence does not verify the deployed environment or close an activation gate.
+### Current local candidate — verification in progress
+
+The post-merge local candidate has final frontend evidence but does not yet have a
+complete cumulative release result:
+
+- runtime: Node 22.23.2;
+- frontend dependencies: `pnpm audit --prod` reports no known vulnerabilities;
+- frontend code and tests: typecheck passed; 517 Vitest tests plus 5 Node tests
+  passed;
+- frontend production process: the real client and SSR production build-and-serve
+  smoke passed;
+- backend, PostgreSQL, and E2E cumulative verification is in progress; no totals are
+  recorded yet and the PR #316 totals must not be copied forward;
+- hosted Actions has not been dispatched and remains manual-only; current container
+  evidence remains uncollected because Docker is unavailable locally.
+
+Neither baseline verifies the deployed environment or closes an activation gate.
 
 ## Constraints Until Decided
 

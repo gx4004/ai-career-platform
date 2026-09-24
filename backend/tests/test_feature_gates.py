@@ -1,6 +1,7 @@
 from app.config import Settings, settings
 from app.models.campaign_event import CampaignEvent
 from app.models.campaign_listing import CampaignListing
+from app.models.tool_run import ToolRun
 from app.models.workspace import Workspace
 from app.schemas.tools import ImportedJobResponse
 
@@ -122,6 +123,72 @@ def test_dark_campaigns_reject_campaign_writes_but_keep_core_workspace_edits(
     # The same writes succeed once the outcome is explicitly activated.
     monkeypatch.setattr(settings, "R13_CAMPAIGNS_ENABLED", True)
     assert client.patch(url, headers=auth_headers, json={"company": "ProbeCo"}).status_code == 200
+
+
+def test_dark_campaigns_redact_retained_campaign_data_from_core_history(
+    client, auth_headers, test_user, db, monkeypatch
+):
+    """A flag rollback keeps core history usable without exposing dark R13 data."""
+    workspace = Workspace(
+        user_id=test_user.id,
+        label="Core label",
+        is_pinned=True,
+        company="Owner A Company",
+        role="Private role",
+        status="planning",
+    )
+    db.add(workspace)
+    db.flush()
+    listing = CampaignListing(
+        workspace_id=workspace.id,
+        title="Private listing",
+        company="Owner A Company",
+        description="Sensitive listing description",
+        source_url="https://example.com/private-role",
+    )
+    db.add(listing)
+    db.flush()
+    workspace.current_listing_id = listing.id
+    run = ToolRun(
+        user_id=test_user.id,
+        workspace_id=workspace.id,
+        tool_name="resume",
+        label="Core run",
+        result_payload={"score": 80},
+    )
+    db.add(run)
+    db.commit()
+
+    monkeypatch.setattr(settings, "R13_CAMPAIGNS_ENABLED", False)
+
+    workspace_payload = client.get(
+        "/api/v1/history/workspaces", headers=auth_headers
+    ).json()["items"][0]
+    history_payload = client.get("/api/v1/history", headers=auth_headers).json()[
+        "items"
+    ][0]["workspace"]
+    detail_payload = client.get(
+        f"/api/v1/history/{run.id}", headers=auth_headers
+    ).json()["workspace"]
+    renamed_payload = client.patch(
+        f"/api/v1/history/workspaces/{workspace.id}",
+        headers=auth_headers,
+        json={"label": "Still core"},
+    ).json()
+
+    for payload in (
+        workspace_payload,
+        history_payload,
+        detail_payload,
+        renamed_payload,
+    ):
+        assert payload["id"] == workspace.id
+        assert payload["is_pinned"] is True
+        assert payload["company"] is None
+        assert payload["role"] is None
+        assert payload["status"] is None
+        assert payload["deadline"] is None
+        assert payload["listing"] is None
 
 
 def test_dark_campaigns_reject_pasted_listing_attachment(
@@ -246,6 +313,7 @@ def test_core_tool_route_remains_available_when_build_ahead_is_dark(
 # otherwise pass CI unnoticed — which is exactly how the campaign write path above
 # stayed open. This check is structural and does not depend on flag state.
 _GATED_PREFIXES = {
+    "/api/v1/evidence-profile": "require_r11_enabled",
     "/api/v1/cv-documents": "require_r12_enabled",
     "/api/v1/development-plan": "require_r17_enabled",
     "/api/v1/discovery": "require_r14_enabled",
@@ -261,12 +329,45 @@ _RECOVERY_ROUTES = {
     ("/api/v1/evidence-profile/items", "DELETE"),
 }
 
+# History and job-import mix stable core behavior with R13/R17 build-ahead
+# operations, so a prefix rule would incorrectly gate core history. Pin every
+# intentionally gated operation instead; additions must be reviewed here.
+_MIXED_GATED_ROUTES = {
+    ("POST", "/api/v1/job-posts/import-text"): "require_r13_enabled",
+    ("GET", "/api/v1/history/workspaces/{workspace_id}"): "require_r13_enabled",
+    ("PATCH", "/api/v1/history/workspaces/{workspace_id}/materials"): "require_r13_enabled",
+    ("GET", "/api/v1/history/workspaces/{workspace_id}/reminders"): "require_r13_enabled",
+    ("PATCH", "/api/v1/history/workspaces/{workspace_id}/reminders"): "require_r13_enabled",
+    ("POST", "/api/v1/history/workspaces/{workspace_id}/review"): "require_r13_enabled",
+    ("POST", "/api/v1/history/workspaces/{workspace_id}/tasks"): "require_r13_enabled",
+    ("PATCH", "/api/v1/history/workspaces/{workspace_id}/tasks/{item_id}"): "require_r13_enabled",
+    ("DELETE", "/api/v1/history/workspaces/{workspace_id}/tasks/{item_id}"): "require_r13_enabled",
+    ("POST", "/api/v1/history/workspaces/{workspace_id}/notes"): "require_r13_enabled",
+    ("DELETE", "/api/v1/history/workspaces/{workspace_id}/notes/{item_id}"): "require_r13_enabled",
+    ("POST", "/api/v1/history/workspaces/{workspace_id}/contacts"): "require_r13_enabled",
+    ("DELETE", "/api/v1/history/workspaces/{workspace_id}/contacts/{item_id}"): "require_r13_enabled",
+    ("POST", "/api/v1/history/workspaces/{workspace_id}/gap-classifications"): "require_r17_enabled",
+    ("GET", "/api/v1/history/workspaces/{workspace_id}/gap-classifications"): "require_r17_enabled",
+    ("DELETE", "/api/v1/history/workspaces/{workspace_id}/gap-classifications/{classification_id}"): "require_r17_enabled",
+    ("GET", "/api/v1/history/workspaces/{workspace_id}/gap-classifications/{classification_id}/response"): "require_r17_enabled",
+}
 
-def test_every_build_ahead_route_carries_its_activation_gate():
+
+def _effective_app_routes():
     from app.main import app
 
-    ungated = []
     for route in app.routes:
+        contexts = getattr(route, "effective_route_contexts", None)
+        if callable(contexts):
+            yield from contexts()
+        else:
+            yield route
+
+
+def test_every_build_ahead_route_carries_its_activation_gate():
+    ungated = []
+    inspected = 0
+    for route in _effective_app_routes():
         path = getattr(route, "path", "")
         prefix = next((p for p in _GATED_PREFIXES if path.startswith(p)), None)
         if prefix is None:
@@ -274,26 +375,47 @@ def test_every_build_ahead_route_carries_its_activation_gate():
         methods = getattr(route, "methods", set()) - {"HEAD", "OPTIONS"}
         if {(path, m) for m in methods} & _RECOVERY_ROUTES:
             continue
+        inspected += len(methods)
         names = {
             getattr(dep.call, "__name__", "") for dep in route.dependant.dependencies
         }
         if _GATED_PREFIXES[prefix] not in names:
             ungated.append(f"{sorted(methods)} {path}")
 
+    assert inspected > 0, "FastAPI route introspection did not inspect build-ahead routes"
     assert ungated == [], f"build-ahead routes missing an activation gate: {ungated}"
+
+
+def test_mixed_core_routers_pin_every_build_ahead_operation_gate():
+    observed = {}
+    for route in _effective_app_routes():
+        path = getattr(route, "path", "")
+        for method in getattr(route, "methods", set()) - {"HEAD", "OPTIONS"}:
+            key = (method, path)
+            if key not in _MIXED_GATED_ROUTES:
+                continue
+            observed[key] = {
+                getattr(dependency.call, "__name__", "")
+                for dependency in route.dependant.dependencies
+            }
+
+    assert observed.keys() == _MIXED_GATED_ROUTES.keys()
+    for operation, expected_gate in _MIXED_GATED_ROUTES.items():
+        assert expected_gate in observed[operation], f"{operation} is missing {expected_gate}"
 
 
 def test_evidence_profile_recovery_routes_stay_ungated_by_design():
     """Pin the two intentional exceptions so neither is gated by accident."""
-    from app.main import app
-
-    for route in app.routes:
+    inspected = set()
+    for route in _effective_app_routes():
         methods = getattr(route, "methods", set())
         for method in methods:
             if (getattr(route, "path", ""), method) in _RECOVERY_ROUTES:
+                inspected.add((getattr(route, "path", ""), method))
                 names = {
                     getattr(dep.call, "__name__", "")
                     for dep in route.dependant.dependencies
                 }
                 assert "require_r11_enabled" not in names
                 assert "get_current_user" in names
+    assert inspected == _RECOVERY_ROUTES

@@ -50,7 +50,17 @@ def record_submission_authorization(
     re-read first, so queue use or an unsupported source can never infer a grant.
     """
     source_authorization = require_submission_allowed(db, source_key)
-    if db.query(User.id).filter(User.id == user_id).one_or_none() is None:
+    # The grant row may not exist yet, so locking it cannot serialize concurrent
+    # callbacks. Lock the stable owner row before deciding whether to reuse or
+    # replace the one-per-owner/source grant. A waiting identical callback then
+    # observes and returns the committed winner instead of racing the unique key.
+    if (
+        db.query(User.id)
+        .filter(User.id == user_id)
+        .with_for_update()
+        .one_or_none()
+        is None
+    ):
         raise ValueError("Submission authorization requires an authenticated user")
 
     existing = (

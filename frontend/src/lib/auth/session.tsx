@@ -1,4 +1,5 @@
 import {
+  Fragment,
   createContext,
   useEffect,
   useCallback,
@@ -8,7 +9,11 @@ import {
   useState,
 } from 'react'
 import type { ReactNode } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  useQuery,
+  useQueryClient,
+  type QueryClient,
+} from '@tanstack/react-query'
 import {
   API_URL,
   getAuthProviders,
@@ -26,8 +31,6 @@ import {
 } from '#/lib/auth/pendingIntent'
 import { navigateToPath } from '#/lib/navigation/redirect'
 import { clearSensitiveBrowserData } from '#/lib/privacy/browserData'
-import { SUBMISSION_AUTHORIZATIONS_QUERY_ROOT } from '#/lib/api/submissionAuthorizations'
-import { QUEUE_QUERY_ROOT } from '#/lib/api/queueCache'
 import type { ToolId } from '#/lib/tools/registry'
 
 export type SessionState = {
@@ -62,6 +65,22 @@ export type SessionState = {
 // SessionState.providers stays empty and the account page falls through to
 // its "no additional providers" copy.
 const NO_PROVIDERS: OAuthProvider[] = []
+
+const DEPLOYMENT_QUERY_ROOTS = new Set([
+  'current-user',
+  'auth-providers',
+  'health',
+])
+
+function purgeOwnerScopedQueryData(queryClient: QueryClient) {
+  queryClient.removeQueries({
+    predicate: (query) => {
+      const [root] = query.queryKey
+      return typeof root !== 'string' || !DEPLOYMENT_QUERY_ROOTS.has(root)
+    },
+  })
+  queryClient.getMutationCache().clear()
+}
 
 const SessionContext = createContext<SessionState | null>(null)
 
@@ -115,13 +134,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     const handleExpired = () => {
       if (!hadAuthRef.current) return
       hadAuthRef.current = false
-      queryClient.removeQueries({ queryKey: ['history-page'] })
-      queryClient.removeQueries({ queryKey: ['history-workspaces'] })
-      queryClient.removeQueries({ queryKey: ['tool-run'] })
-      queryClient.removeQueries({
-        queryKey: SUBMISSION_AUTHORIZATIONS_QUERY_ROOT,
-      })
-      queryClient.removeQueries({ queryKey: QUEUE_QUERY_ROOT })
+      clearSensitiveBrowserData()
+      purgeOwnerScopedQueryData(queryClient)
       queryClient.setQueryData(['current-user'], null)
 
       if (typeof window !== 'undefined') {
@@ -187,6 +201,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   )
 
   const completeAuthentication = useCallback(async () => {
+    // A successful credential exchange can establish a different owner in the
+    // same tab. Purge before resolving that identity so no prior-owner query or
+    // mutation payload can render during the transition.
+    purgeOwnerScopedQueryData(queryClient)
+    queryClient.setQueryData(['current-user'], null)
     await queryClient.invalidateQueries({ queryKey: ['current-user'] })
     closeAuthDialog()
     await consumePendingIntent()
@@ -238,13 +257,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       setAuthDialogOpen(false)
       setAuthError('')
       hadAuthRef.current = false
-      queryClient.removeQueries({ queryKey: ['history-page'] })
-      queryClient.removeQueries({ queryKey: ['history-workspaces'] })
-      queryClient.removeQueries({ queryKey: ['tool-run'] })
-      queryClient.removeQueries({
-        queryKey: SUBMISSION_AUTHORIZATIONS_QUERY_ROOT,
-      })
-      queryClient.removeQueries({ queryKey: QUEUE_QUERY_ROOT })
+      purgeOwnerScopedQueryData(queryClient)
       queryClient.setQueryData(['current-user'], null)
       await queryClient.invalidateQueries({ queryKey: ['current-user'] })
     }
@@ -303,7 +316,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   )
 
   return (
-    <SessionContext.Provider value={value}>{children}</SessionContext.Provider>
+    <SessionContext.Provider value={value}>
+      <Fragment key={userQuery.data?.id ?? 'guest'}>
+        {children}
+      </Fragment>
+    </SessionContext.Provider>
   )
 }
 

@@ -15,6 +15,7 @@ from pathlib import Path
 import pytest
 
 from app.evals import EvalFixture, load_fixtures
+from app.evals.calibration import CALIBRATION_THRESHOLD, is_calibration_miss
 from app.evals.loader import FIXTURES_DIR, FixtureError
 from app.services import quality_signals as qs
 
@@ -47,11 +48,11 @@ def test_loader_returns_typed_fixtures_matching_schema() -> None:
         )
         assert isinstance(fixture.notes, str) and fixture.notes.strip()
 
-        band = fixture.expected_score_band
-        assert isinstance(band, tuple) and len(band) == 2
-        low, high = band
-        assert isinstance(low, int) and isinstance(high, int)
-        assert 0 <= low <= high <= 100
+        for band in (fixture.expected_score_band, fixture.expected_match_band):
+            assert isinstance(band, tuple) and len(band) == 2
+            low, high = band
+            assert isinstance(low, int) and isinstance(high, int)
+            assert 0 <= low <= high <= 100
 
 
 def test_fixture_ids_are_unique_and_match_filenames() -> None:
@@ -89,28 +90,49 @@ def test_corpus_covers_all_disciplines_and_required_seniorities() -> None:
     assert no_jd_count >= 1
 
 
-def test_expected_bands_are_reachable_by_the_blend() -> None:
-    """Corpus-authoring sanity guard: each band must be reachable by the blend.
+def test_expected_bands_sit_on_the_scale_the_check_measures() -> None:
+    """Corpus-authoring guard: each band must sit on its own tool's scale.
 
-    This does not implement the calibration check itself (that compares live tool
-    output to the band and belongs to a later R8 ticket, D-042). It only guards
-    the *authoring* of this corpus: the blended score is
-    0.4 * heuristic + 0.6 * LLM (quality_signals weights), so the reachable range
-    for any fixture is [0.4*heuristic, 0.4*heuristic + 60]. A band that cannot
-    overlap this range would flag every future eval run as a miss regardless of
-    tool quality, i.e. the fixture would be dead-on-arrival miscalibrated.
+    The calibration check (D-042) scores fixtures with the heuristic-only
+    scorers, and the two tools are on different scales: Resume Analyzer is the
+    mean of five floored dimensions, so a complete resume lands in the 70s-90s;
+    Job Match is keyword overlap with the JD, 25 at zero overlap and 100 at full.
+    A band authored against some other scale flags its fixture on every run
+    regardless of tool quality — the corpus originally held blended-scale bands
+    and reused the resume band for Job Match, which is how #118's three standing
+    misses got in. So assert each band brackets the score its own check produces,
+    inside the calibration tolerance.
     """
     for fixture in load_fixtures():
         prepass = qs.build_resume_prepass(fixture.resume_text, fixture.job_description)
-        heuristic_overall = qs.compute_overall_score(
-            qs.compute_resume_breakdown(prepass)
+        resume_overall = qs.compute_overall_score(qs.compute_resume_breakdown(prepass))
+        assert not is_calibration_miss(resume_overall, fixture.expected_score_band), (
+            f"{fixture.id}: resume score {resume_overall} falls outside "
+            f"expected_score_band {fixture.expected_score_band} by more than "
+            f"{CALIBRATION_THRESHOLD} points"
         )
-        blend_low = qs.HEURISTIC_WEIGHT * heuristic_overall
-        blend_high = blend_low + qs.LLM_WEIGHT * 100
-        low, high = fixture.expected_score_band
-        assert low <= blend_high and high >= blend_low, (
-            f"{fixture.id}: band {fixture.expected_score_band} cannot overlap "
-            f"blended range [{blend_low:.0f}, {blend_high:.0f}]"
+
+        if fixture.job_description is None:
+            continue
+        match = qs.compute_match_score(
+            prepass.matched_keywords, prepass.missing_keywords
+        )
+        assert not is_calibration_miss(match, fixture.expected_match_band), (
+            f"{fixture.id}: match score {match} falls outside expected_match_band "
+            f"{fixture.expected_match_band} by more than {CALIBRATION_THRESHOLD} points"
+        )
+
+
+def test_only_jd_fixtures_carry_an_explicit_match_band() -> None:
+    """Job Match is skipped without a JD, so only JD fixtures pin its band."""
+    for fixture in load_fixtures():
+        raw = json.loads(
+            (FIXTURES_DIR / f"{fixture.id}.json").read_text(encoding="utf-8")
+        )
+        has_band = "expected_match_band" in raw
+        assert has_band == (fixture.job_description is not None), (
+            f"{fixture.id}: expected_match_band should be present only when the "
+            f"fixture carries a job description"
         )
 
 
@@ -172,6 +194,32 @@ def test_loader_raises_on_unknown_field(tmp_path: Path) -> None:
 def test_loader_raises_on_bad_score_band(tmp_path: Path, band: object) -> None:
     payload = _valid_payload("sample")
     payload["expected_score_band"] = band
+    _write_fixture(tmp_path, "sample.json", payload)
+    with pytest.raises(FixtureError):
+        load_fixtures(tmp_path)
+
+
+def test_match_band_defaults_to_the_score_band(tmp_path: Path) -> None:
+    """Fixtures authored before Job Match got its own scale still load (#118)."""
+    _write_fixture(tmp_path, "sample.json", _valid_payload("sample"))
+    (fixture,) = load_fixtures(tmp_path)
+    assert fixture.expected_score_band == (40, 60)
+    assert fixture.expected_match_band == (40, 60)
+
+
+def test_match_band_is_read_independently_of_the_score_band(tmp_path: Path) -> None:
+    payload = _valid_payload("sample")
+    payload["expected_match_band"] = [80, 100]
+    _write_fixture(tmp_path, "sample.json", payload)
+    (fixture,) = load_fixtures(tmp_path)
+    assert fixture.expected_score_band == (40, 60)
+    assert fixture.expected_match_band == (80, 100)
+
+
+@pytest.mark.parametrize("band", [[100, 80], [-1, 50], [50, 101], [50], "80-100"])
+def test_loader_raises_on_bad_match_band(tmp_path: Path, band: object) -> None:
+    payload = _valid_payload("sample")
+    payload["expected_match_band"] = band
     _write_fixture(tmp_path, "sample.json", payload)
     with pytest.raises(FixtureError):
         load_fixtures(tmp_path)

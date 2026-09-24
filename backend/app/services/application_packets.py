@@ -23,6 +23,8 @@ from __future__ import annotations
 import hashlib
 from collections.abc import Awaitable, Callable
 from datetime import datetime
+from decimal import Decimal
+from pathlib import Path
 from typing import Any
 
 from sqlalchemy.exc import IntegrityError
@@ -44,12 +46,14 @@ from app.services.campaign_reviewer import review_campaign_materials
 from app.services.discovery_adoption import adopt_recommendation
 from app.services.evidence_injection import EvidencePayload, render_evidence_section
 from app.services.input_sanitizer import sanitize_user_input
+from app.services.llm_cost import get_llm_cost
 from app.services.packet_approval import (
     answered_fields_by_packet,
     answered_fields_for_packet,
     packet_item_with_true_unresolved,
 )
 from app.services.packet_gate import (
+    apply_report_regression_gate,
     emit_gate_outcome,
     emit_gate_running,
     gate_state_for,
@@ -482,32 +486,55 @@ async def _run_reviewer_gate(
 # ── Preparation orchestration ──
 
 
+def _observed_llm_cost() -> Decimal:
+    """What the shared-pipeline call that just returned actually spent (issue #106).
+
+    ``None`` from the accumulator means no provider call consumed tokens on that run
+    — a cache hit, or an injected client in a test — which is a measured zero, not a
+    missing figure, so the ceiling never charges a packet for spend that never
+    happened. Read immediately after each awaited pipeline call: the next one resets
+    the accumulator.
+    """
+    return get_llm_cost() or Decimal(0)
+
+
 async def prepare_packets(
     db: Session,
     user_id: str,
     *,
     compose_fn: Callable[..., Awaitable[dict[str, Any]]] | None = None,
     now: datetime | None = None,
+    reports_dir: Path | None = None,
 ) -> PacketPreparationResult:
     """Prepare a packet for every admitted candidate, through the shared pipeline.
 
     Server-authoritative: candidate selection, the volume cap, and the cost
-    ceiling are all enforced by :func:`select_admitted_candidates`, so preparation
-    never exceeds the user's mandate (D-094). Re-preparing a listing that already
-    has a packet is a no-op — no duplicate campaign, drafts, or packet row — with
-    one exception: a packet still ``pending`` and blocked only on ``missing_material``
-    (no CV variant existed at prep time) is re-composed in place once a CV variant
-    becomes available, matching the recovery path documented in
-    :mod:`app.services.packet_approval`.
+    ceiling are all enforced against this run, so preparation never exceeds the
+    user's mandate (D-094). :func:`select_admitted_candidates` applies the rules,
+    the cap, and the ceiling against the pre-flight cost *projection*; this
+    function then re-applies the ceiling against what the run has *measured* itself
+    spending, because a packet takes several provider calls and the projection is a
+    flat constant. Re-preparing a listing that already has a packet is a no-op — no
+    duplicate campaign, drafts, or packet row — with one exception: a packet still
+    ``pending`` and blocked only on ``missing_material`` (no CV variant existed at
+    prep time) is re-composed in place once a CV variant becomes available, matching
+    the recovery path documented in :mod:`app.services.packet_approval`.
+
+    Args:
+        reports_dir: Eval-report directory the regression gate consults; defaults
+            to the runner's own (:mod:`app.evals.report_reader`).
     """
     # Local import breaks the tool_runs <-> tool_pipeline import cycle.
     from app.services.tool_pipeline import run_tool_pipeline
 
     # Pipeline-wide halt gate (D-097): a failing packet-quality / fabrication
-    # regression eval halts preparation for everyone until cleared. This owner's own
+    # regression eval halts preparation for everyone until cleared. The verdict is
+    # re-derived here from the latest eval reports on disk, so failing evidence
+    # actually stops the pipeline instead of only being able to. This owner's own
     # pause (R15 #183) refuses through the same consultation seam, scoped so it
     # never affects other owners. Consulted before any candidate work so a halted
     # OR paused pipeline prepares — and spends — nothing.
+    apply_report_regression_gate(db, reports_dir=reports_dir)
     if is_preparation_halted(db) or is_queue_paused(db, user_id):
         return _halted_result()
 
@@ -523,6 +550,12 @@ async def prepare_packets(
 
     prepared: list[ApplicationPacket] = []
     skipped_existing = 0
+    # What this run has actually spent, per the LLM cost accumulator — the figure the
+    # ceiling is enforced against (D-094). `selection.packet_cost` stays the pre-flight
+    # projection of one more packet, used only to decide whether there is room to
+    # start another one; a packet's real cost is unknowable until its calls are made.
+    spent = Decimal(0)
+    stopped_by_measured_cost = 0
     for rec in selection.admitted:
         existing = (
             db.query(ApplicationPacket)
@@ -546,6 +579,14 @@ async def prepare_packets(
         )
         if existing is not None and not redo_existing:
             skipped_existing += 1
+            continue
+
+        # Measured spend has left no room for another packet: refuse this candidate
+        # and every one after it, before adopting a campaign whose materials this run
+        # will not pay to compose. Checked after the free skip above so a listing that
+        # already has a packet is never miscounted as ceiling-excluded.
+        if spent + selection.packet_cost > selection.cost_ceiling_usd:
+            stopped_by_measured_cost += 1
             continue
 
         if redo_existing:
@@ -583,6 +624,9 @@ async def prepare_packets(
             require_evidence_profile=True,
         )
         drafts_run_id = response.get("history_id")
+        # Read the drafts run's spend before the reviewer's own pipeline run resets
+        # the accumulator; both calls are this packet's cost.
+        packet_cost = _observed_llm_cost()
 
         # Trust-chain gate (D-097): run the R13 reviewer on the just-composed
         # materials. An unresolved fabrication finding keeps the packet out of the
@@ -597,6 +641,10 @@ async def prepare_packets(
             listing_description=rec.description,
             drafts_response=response,
         )
+        packet_cost += _observed_llm_cost()
+        # Counted here rather than after persistence: the calls were made, so the
+        # money is gone even if this candidate loses the insert race below.
+        spent += packet_cost
 
         rationale = build_match_rationale(rec, selection.rules)
         listing_attribution_id = _selected_attribution_id(db, rec)
@@ -620,7 +668,7 @@ async def prepare_packets(
             packet.unresolved_questions = unresolved
             packet.status = "blocked" if unresolved else "prepared"
             packet.gate_state = gate_state
-            packet.estimated_cost_usd = selection.packet_cost
+            packet.estimated_cost_usd = packet_cost
             prepared_action = "packet_reprepared"
             db.commit()
         else:
@@ -636,7 +684,7 @@ async def prepare_packets(
                 unresolved_questions=unresolved,
                 status="blocked" if unresolved else "prepared",
                 gate_state=gate_state,
-                estimated_cost_usd=selection.packet_cost,
+                estimated_cost_usd=packet_cost,
             )
             try:
                 with db.begin_nested():
@@ -679,11 +727,14 @@ async def prepare_packets(
         prepared_count=len(prepared),
         skipped_existing_count=skipped_existing,
         excluded_by_volume_cap=selection.excluded_by_volume_cap,
-        excluded_by_cost_ceiling=selection.excluded_by_cost_ceiling,
+        # Candidates the projection already excluded, plus those this run refused
+        # once its measured spend reached the ceiling.
+        excluded_by_cost_ceiling=selection.excluded_by_cost_ceiling + stopped_by_measured_cost,
         volume_cap=selection.volume_cap,
         cost_ceiling_usd=round(float(selection.cost_ceiling_usd), 4),
         estimated_packet_cost_usd=round(float(selection.packet_cost), 4),
-        estimated_total_cost_usd=round(float(selection.packet_cost) * len(prepared), 4),
+        # The run's observed spend, not the projection multiplied out.
+        estimated_total_cost_usd=round(float(spent), 4),
         packets=[
             _packet_item(packet, answered_fields_for_packet(db, user_id, packet.id))
             for packet in prepared

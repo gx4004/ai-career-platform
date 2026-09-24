@@ -46,16 +46,88 @@ async def run_tool_pipeline(
     cache_extra_keys: dict[str, str] | None = None,
     require_evidence_profile: bool = False,
 ) -> dict[str, Any]:
-    """Shared pipeline: sanitize -> cache -> service -> fallback -> persist -> respond."""
+    """Run one tool and durably classify every failure after run start."""
     if current_user is not None:
-        # Validate revision lineage before cache/provider work so an invalid or
-        # cross-owner parent cannot consume model quota or create side effects.
+        # Invalid or cross-owner revision lineage is request validation, not a
+        # started tool run. Keep it outside the failure telemetry boundary.
         require_valid_parent_run(
             db,
             current_user=current_user,
             tool_name=tool_name,
             parent_run_id=parent_run_id,
         )
+
+    started_at = perf_counter()
+    try:
+        return await _run_tool_pipeline_after_validation(
+            tool_name=tool_name,
+            service_fn=service_fn,
+            service_kwargs=service_kwargs,
+            label_fn=label_fn,
+            resume_text=resume_text,
+            job_description=job_description,
+            feedback=feedback,
+            parent_run_id=parent_run_id,
+            workspace_id=workspace_id,
+            linked_context_ids=linked_context_ids,
+            current_user=current_user,
+            db=db,
+            cache_extra_keys=cache_extra_keys,
+            require_evidence_profile=require_evidence_profile,
+        )
+    except Exception as exc:
+        access_mode = "authenticated" if current_user else "guest_demo"
+        failed_duration_ms = max(0, int((perf_counter() - started_at) * 1000))
+        log_tool_run_failed(
+            tool_name=tool_name,
+            access_mode=access_mode,
+            duration_ms=failed_duration_ms,
+            failure_category=exc.__class__.__name__,
+        )
+        # Only the closed category is durable; exception class/message stays in
+        # the structured operational log. Cost reflects any completed provider
+        # call and remains absent for pre-provider failures.
+        safe_record_activation_event(
+            db,
+            event_name="tool_run_failed",
+            level="error",
+            tool_id=tool_name,
+            access_mode=access_mode,
+            duration_ms=failed_duration_ms,
+            cost_estimate=get_llm_cost(),
+            failure_category="tool_request_failed",
+        )
+        incident_category = get_provider_incident()
+        if incident_category is not None:
+            safe_record_activation_event(
+                db,
+                event_name="r10_provider_incident",
+                level="error",
+                tool_id=tool_name,
+                access_mode=access_mode,
+                operational_dimension=incident_category,
+            )
+        raise
+
+
+async def _run_tool_pipeline_after_validation(
+    *,
+    tool_name: str,
+    service_fn: Callable[..., Awaitable[dict[str, Any]]],
+    service_kwargs: dict[str, Any],
+    label_fn: Callable[[dict[str, Any]], str],
+    resume_text: str,
+    job_description: str | None = None,
+    feedback: str | None = None,
+    parent_run_id: str | None = None,
+    workspace_id: str | None = None,
+    linked_context_ids: list[str] | None = None,
+    current_user: User | None = None,
+    db: Session,
+    cache_extra_keys: dict[str, str] | None = None,
+    require_evidence_profile: bool = False,
+) -> dict[str, Any]:
+    """Shared pipeline: sanitize -> cache -> service -> fallback -> persist -> respond."""
     access_mode = "authenticated" if current_user else "guest_demo"
     linked_ids = linked_context_ids or []
     start = perf_counter()
@@ -126,7 +198,11 @@ async def run_tool_pipeline(
     # cache scopes across accounts complicates audit and personalization later).
     cached = None
     content_hash = None
-    if not clean_feedback:
+    # A disabled cache is not a cache miss. Skip both the lookup/write seams and
+    # their R10 outcome events so the scaling scorecard sees only real cache
+    # evidence. The phase timing remains present to keep pipeline observability
+    # structurally consistent across configurations.
+    if settings.RESULT_CACHE_ENABLED and not clean_feedback:
         hash_kwargs: dict[str, str] = {}
         if cache_extra_keys:
             hash_kwargs.update(cache_extra_keys)
@@ -162,7 +238,7 @@ async def run_tool_pipeline(
         provider_start = perf_counter()
         try:
             result = await service_fn(**service_kwargs)
-        except Exception as exc:
+        except Exception:
             _record_generation_phase(
                 db,
                 tool_name=tool_name,
@@ -170,42 +246,6 @@ async def run_tool_pipeline(
                 phase="provider",
                 started_at=provider_start,
             )
-            failed_duration_ms = int((perf_counter() - start) * 1000)
-            log_tool_run_failed(
-                tool_name=tool_name,
-                access_mode=access_mode,
-                duration_ms=failed_duration_ms,
-                failure_category=exc.__class__.__name__,
-            )
-            # The exception class name is high-cardinality and not allowlisted,
-            # so it stays in the stdout log only; the durable event records the
-            # allowlisted `tool_request_failed` category (D-037). Cost is
-            # whatever provider calls consumed before the failure — None if it
-            # failed before reaching the provider (issue #106).
-            safe_record_activation_event(
-                db,
-                event_name="tool_run_failed",
-                level="error",
-                tool_id=tool_name,
-                access_mode=access_mode,
-                duration_ms=failed_duration_ms,
-                cost_estimate=get_llm_cost(),
-                failure_category="tool_request_failed",
-            )
-            # R10 provider-incident evidence (#136, D-055): if the failure came
-            # from a categorised provider error, record exactly one incident for
-            # this user-visible failure — the LLM client's internal retries have
-            # already been collapsed into a single category by the contextvar.
-            incident_category = get_provider_incident()
-            if incident_category is not None:
-                safe_record_activation_event(
-                    db,
-                    event_name="r10_provider_incident",
-                    level="error",
-                    tool_id=tool_name,
-                    access_mode=access_mode,
-                    operational_dimension=incident_category,
-                )
             raise
 
         _record_generation_phase(
@@ -216,7 +256,26 @@ async def run_tool_pipeline(
             started_at=provider_start,
         )
 
-        if content_hash is not None:
+        # Spec decision #7 lets Resume Analyzer and Job Match swallow a provider
+        # failure and return a heuristic-only result, so a real outage reaches
+        # this success path rather than the failure path below. The accumulator
+        # is cleared by the LLM client whenever a retry eventually succeeds, so a
+        # category surviving here means exactly one thing: this run completed on
+        # a degraded answer.
+        degraded_category = get_provider_incident()
+        if degraded_category is not None:
+            # The D-055/#138 trigger counts user-visible incidents. A silently
+            # degraded scoring run is the most user-visible outcome there is.
+            safe_record_activation_event(
+                db,
+                event_name="r10_provider_incident",
+                level="error",
+                tool_id=tool_name,
+                access_mode=access_mode,
+                operational_dimension=degraded_category,
+            )
+
+        if content_hash is not None and degraded_category is None:
             try:
                 set_cached_result(content_hash, result)
             except Exception:  # noqa: BLE001 — cache write is best-effort

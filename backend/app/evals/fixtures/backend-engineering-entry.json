@@ -3,8 +3,12 @@
   "resume_text": "Devon Marsh\nJunior Backend Developer\n\nSummary\nRecent computer science graduate seeking an entry-level backend role. Comfortable with Python and building small APIs from coursework and an internship.\n\nExperience\nMeadowbyte - Backend Engineering Intern (Summer 2025)\n- Built 3 REST API endpoints in Python and FastAPI for an internal inventory service.\n- Wrote unit tests with pytest, raising coverage on the module to 80%.\n\nCalder Polytechnic - Capstone Project (2024-2025)\n- Created a small microservice storing data in PostgreSQL, deployed with Docker.\n\nSkills\nPython, FastAPI, SQL, Docker, unit tests, APIs\n\nEducation\nBS in Computer Science, Calder Polytechnic (2025)",
   "job_description": "Backend Engineer (Entry Level)\n\nJoin our platform team as an entry-level backend engineer. You will build API endpoints, write tests, and learn our services and database stack.\n\nRequirements:\n- Familiarity with Python and REST APIs\n- Some exposure to SQL databases and Docker\n- Willingness to learn distributed systems and cloud infrastructure",
   "expected_score_band": [
-    55,
-    77
+    70,
+    84
   ],
-  "notes": "Backend discipline at entry-level seniority; thin but relevant resume against a junior JD. Exercises the entry-level case and a mid-low expected band."
+  "expected_match_band": [
+    54,
+    70
+  ],
+  "notes": "Backend discipline at entry-level seniority; thin but relevant resume against a junior JD. Resume band 70-84 is the heuristic's thin-resume tier: every dimension carries a floor, so a sectioned, bulleted, quantified resume cannot land far under 75 however junior it is. Match band 54-70 expects about half the JD's keywords echoed - cloud, distributed systems and databases are genuinely absent from an intern resume."
 }

@@ -128,6 +128,11 @@ class ApplicationPacket(Base):
     decision: Mapped[str] = mapped_column(
         String(16), nullable=False, default="pending", server_default="pending"
     )
+    # What preparing this packet actually cost: the token usage its provider calls
+    # reported, priced at the published rates (issue #106's accumulator). "Estimated"
+    # in the same sense as ``ToolRun.cost_estimate`` — derived from measured usage for
+    # cost observability, not billing reconciliation — never a flat per-packet guess.
+    # Zero means no provider call consumed tokens (a cache hit), not "not measured".
     estimated_cost_usd: Mapped[float] = mapped_column(Numeric(10, 4), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)

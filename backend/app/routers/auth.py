@@ -27,12 +27,26 @@ from app.schemas.auth import (
     RegisterRequest,
     UserResponse,
 )
-from app.services.captcha import verify_captcha
+from app.services.captcha import CaptchaVerdict, challenge_provider, verify_captcha
 from app.services.email_blocklist import is_disposable_email
 from app.services.email_service import send_password_reset_email
 from app.services.tool_runs import delete_all_user_data
 
 router = APIRouter()
+
+
+class AuthProvidersPayload(AuthProvidersResponse):
+    """Sign-up configuration this deployment advertises to the client.
+
+    Extends the existing provider advertisement instead of adding a second
+    configuration endpoint: the client already asks this endpoint what is
+    configured before it renders the sign-up surface, and the registration
+    challenge is exactly that kind of deployment fact. Only public
+    configuration is exposed — never the provider secret.
+    """
+
+    captcha_required: bool = False
+    captcha_provider: str | None = None
 
 
 @router.post("/login", response_model=AuthSessionResponse)
@@ -61,6 +75,32 @@ async def login(request: Request, response: Response, body: LoginRequest, db: Se
 @limiter.limit("5/minute")
 async def register(request: Request, response: Response, body: RegisterRequest, db: Session = Depends(get_db)):
     await record_account_pressure("registration", body.email)
+
+    # The challenge runs before anything that inspects this address, so no
+    # response can reveal whether an address is already registered (or blocked)
+    # until the challenge is satisfied. Returning the 409 first made the
+    # challenge useless for the abuse it exists to stop: an attacker could
+    # enumerate accounts at the plain rate limit while the challenge was on.
+    if settings.CAPTCHA_ENABLED:
+        if not body.captcha_token:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="CAPTCHA token is required",
+            )
+        verdict = await verify_captcha(body.captcha_token)
+        if verdict is not CaptchaVerdict.VERIFIED:
+            # A refused token and an unreachable provider both fail closed, and
+            # both get the same generic answer: the client-visible response
+            # must not become a probe for provider state, and provider detail
+            # never reaches the body. The unavailable case is distinguished
+            # where it matters — in the service's warning log — and matches the
+            # existing enabled-but-unconfigured posture, which also refuses to
+            # register when the challenge cannot be asked.
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="CAPTCHA verification failed",
+            )
+
     if settings.DISPOSABLE_EMAIL_BLOCK_ENABLED and is_disposable_email(body.email):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -73,19 +113,6 @@ async def register(request: Request, response: Response, body: RegisterRequest, 
             status_code=status.HTTP_409_CONFLICT,
             detail="Email already registered",
         )
-
-    if settings.CAPTCHA_ENABLED:
-        if not body.captcha_token:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="CAPTCHA token is required",
-            )
-        is_valid = await verify_captcha(body.captcha_token)
-        if not is_valid:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="CAPTCHA verification failed",
-            )
 
     user = User(
         email=body.email,
@@ -195,12 +222,17 @@ def delete_account(
     return None
 
 
-@router.get("/providers", response_model=AuthProvidersResponse)
+@router.get("/providers", response_model=AuthProvidersPayload)
 def get_providers():
     providers = []
     if settings.GOOGLE_CLIENT_ID:
         providers.append("google")
-    return AuthProvidersResponse(providers=providers)
+    provider = challenge_provider()
+    return AuthProvidersPayload(
+        providers=providers,
+        captcha_required=provider is not None,
+        captcha_provider=provider,
+    )
 
 
 @router.post("/password-reset/request", status_code=200)

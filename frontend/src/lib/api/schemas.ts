@@ -228,11 +228,19 @@ export const cvDocumentsExportSchema = z.object({
 export const gapActionPathSchema = z.enum([
   'reviewer_reword',
   'evidence_profile_create',
+  'portfolio_planner',
+  'career_path',
+  // Kept for a response with no product surface to name; every current response
+  // names one, because advice that names nothing is not a next step (D-111).
   'advisory',
 ])
+// The first-party surfaces a next step may point at. A literal union (not a bare
+// string) so a route that no longer exists cannot be linked to.
+export const gapFirstPartyRouteSchema = z.enum(['/portfolio', '/career'])
 export const gapRecommendationSourceSchema = z.strictObject({
   label: z.string(),
   url: z.string().url().nullish(),
+  route: gapFirstPartyRouteSchema.nullish(),
 })
 export const gapResponseOfferSchema = z.strictObject({
   gap_classification_id: z.string(),
@@ -1159,6 +1167,16 @@ export const interviewPracticeFeedbackSchema = z.object({
   suggestions: z.array(z.string()).default([]),
   overall_feedback: z.string().default(''),
   is_empty_answer: z.boolean().default(false),
+  // Mirrors InterviewPracticeFeedbackResponse.access_decision (backend
+  // schemas/tools.py). Same control default as sharedResultEnvelopeSchema so a
+  // response from an older backend still parses.
+  access_decision: resultAccessDecisionSchema.default({
+    state: 'full',
+    treatment: 'control',
+    reason: 'policy_disabled',
+    can_export: true,
+    policy_version: 'control-v1',
+  }),
 })
 
 export type InterviewPracticeFeedback = z.infer<typeof interviewPracticeFeedbackSchema>

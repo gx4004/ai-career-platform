@@ -29,6 +29,12 @@ describe('clearSensitiveBrowserData', () => {
       'career-workbench:draft:resume',
       JSON.stringify({ resumeText: 'private resume' }),
     )
+    // A tool id no clearing list knows about: the clearing path must follow the
+    // draft key prefix, not a hand-maintained id list.
+    sessionStorage.setItem(
+      'career-workbench:draft:future-tool',
+      JSON.stringify({ resumeText: 'private resume' }),
+    )
     sessionStorage.setItem(
       'career-workbench:workflow-context',
       JSON.stringify({ jobDescription: 'private role' }),
@@ -37,8 +43,13 @@ describe('clearSensitiveBrowserData', () => {
       'cw:demo-result:resume-demo-123',
       JSON.stringify({ result_payload: { summary: 'private result' } }),
     )
+    sessionStorage.setItem(
+      'cw:demo-result:career-demo-456',
+      JSON.stringify({ result_payload: { summary: 'private result' } }),
+    )
     sessionStorage.setItem('cw:resume-carry', 'private carried resume')
     sessionStorage.setItem('cw:resume-carry-filename', 'resume.pdf')
+    sessionStorage.setItem('cw:resume-carry-updated-at', String(Date.now()))
     sessionStorage.setItem(
       'cw:practice-attempts',
       JSON.stringify({ 0: 2 }),
@@ -50,10 +61,13 @@ describe('clearSensitiveBrowserData', () => {
     clearSensitiveBrowserData()
 
     expect(sessionStorage.getItem('career-workbench:draft:resume')).toBeNull()
+    expect(sessionStorage.getItem('career-workbench:draft:future-tool')).toBeNull()
     expect(sessionStorage.getItem('career-workbench:workflow-context')).toBeNull()
     expect(sessionStorage.getItem('cw:demo-result:resume-demo-123')).toBeNull()
+    expect(sessionStorage.getItem('cw:demo-result:career-demo-456')).toBeNull()
     expect(sessionStorage.getItem('cw:resume-carry')).toBeNull()
     expect(sessionStorage.getItem('cw:resume-carry-filename')).toBeNull()
+    expect(sessionStorage.getItem('cw:resume-carry-updated-at')).toBeNull()
     expect(sessionStorage.getItem('cw:practice-attempts')).not.toBeNull()
     expect(sessionStorage.getItem('cw:guest-banner-dismissed')).toBe('1')
     expect(localStorage.getItem('cw-cookie-consent')).toBe('accepted')

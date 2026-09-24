@@ -4,7 +4,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Literal, get_args
 
-from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.schemas.development import DevelopmentResponseKind, DevelopmentState
 from app.schemas.evidence_profile import (
@@ -81,10 +81,58 @@ ImportSourceFamily = Literal[
     "other",
 ]
 
-# Job-import attempt outcome. `success` = first-tier HTTP fetch, `fallback` =
-# the bounded Playwright fallback produced the result, `failure` = neither tier
-# yielded a usable posting and the user gets the paste fallback.
-ImportOutcome = Literal["success", "fallback", "failure"]
+# Bounded job-import failure categories (#142, D-059). Mirrors
+# `ProviderIncidentCategory`: one closed, content-free, low-cardinality set,
+# derived only from branches `job_scraper` can actually distinguish today. Never
+# a URL, never a hostname — the allowlisted source family is the only
+# host-derived label and it rides on `operational_dimension` — and never an
+# exception, status line, or source message. The values carry a `failure_`
+# prefix because they share the single outcome column with the classes below.
+#   - `failure_blocked`     — the fetch was refused: the source answered
+#                             401/403/407/429/451, or the outbound guard rejected
+#                             the target or a redirect hop.
+#   - `failure_timeout`     — the fetch exceeded the tier's timeout budget.
+#   - `failure_unavailable` — no usable response arrived: a connection/transport
+#                             error, another non-2xx status, or the redirect
+#                             limit was exhausted.
+#   - `failure_unparseable` — a response arrived that cannot be turned into a
+#                             posting: unsupported content type, over-size body,
+#                             or HTML the parser rejected.
+#   - `failure_empty`       — fetch and parse both worked, but the page carried
+#                             no description text at all.
+ImportFailureCategory = Literal[
+    "failure_blocked",
+    "failure_timeout",
+    "failure_unavailable",
+    "failure_unparseable",
+    "failure_empty",
+]
+
+# Job-import attempt outcome. Whether the fetch and the parse *worked* is
+# recorded separately from whether the result was *substantive* (#142): a page
+# that parses into a short description is a low-quality success, not a failed
+# import, and recording it as a failure biases the very source-concentration
+# evidence D-059 decides from.
+#   - `success`             — the first-tier HTTP fetch parsed a substantive
+#                             posting.
+#   - `success_low_quality` — the first-tier fetch and parse both worked, but the
+#                             page yielded a short description.
+#   - `fallback`            — the bounded Playwright fallback produced the result.
+#   - `failure`             — an import failed with no distinguishable category
+#                             (e.g. the endpoint rejected the URL before any tier
+#                             ran); the categories above carry every failure the
+#                             scraper itself observed.
+ImportOutcome = Literal[
+    "success",
+    "success_low_quality",
+    "fallback",
+    "failure",
+    ImportFailureCategory,
+]
+
+# Coarse failure class for consumers that ask "did this import fail?" rather than
+# "why" — the one outcome column now carries both axes.
+IMPORT_FAILURE_OUTCOMES = frozenset({"failure", *get_args(ImportFailureCategory)})
 
 # A coalesced rate-limit event retains only a stable route family and whether
 # the threshold bucket contained authenticated accounts, guests, or both. Raw
@@ -107,7 +155,27 @@ RateLimitRouteFamily = Literal[
 ]
 RateLimitIdentityType = Literal["account", "guest", "mixed"]
 GenerationPhase = Literal["sanitize", "cache", "provider", "persist", "finalize"]
-DatabaseQueryFamily = Literal["history_list", "workspace_list", "admin_runs"]
+# Closed set of read paths the database-growth trigger (#141) can see. The
+# trigger is blind to anything absent here, so the set has to cover the heaviest
+# reads and not only the convenient ones. Each value names a *route family* —
+# never a table, a statement, an owner, or a row identifier. The sampled
+# duration is the only measurement that crosses the boundary (D-053).
+#   - `history_list`    — paginated run list (`GET /history`).
+#   - `workspace_list`  — campaign/workspace list (`GET /history/workspaces`).
+#   - `admin_runs`      — admin run browser (`GET /admin/runs`).
+#   - `campaign_detail` — one campaign read (`GET /history/workspaces/{id}`):
+#                         an owner-wide CV-variant join, an owner-wide
+#                         cover-letter/interview run scan, a submission-record
+#                         join, and six per-campaign collection loads.
+#   - `history_detail`  — one run read (`GET /history/{id}`): the run row plus a
+#                         re-query of every sibling run in the same campaign.
+DatabaseQueryFamily = Literal[
+    "history_list",
+    "workspace_list",
+    "admin_runs",
+    "campaign_detail",
+    "history_detail",
+]
 DatabaseMetric = Literal["storage_pct", "pool_checkout_ratio"]
 
 _R10_EVENT_NAMES = frozenset(get_args(R10EventName))
@@ -120,6 +188,12 @@ _R10_PROVIDER_CATEGORIES = frozenset(get_args(ProviderIncidentCategory))
 _R10_IMPORT_FAMILIES = frozenset(get_args(ImportSourceFamily))
 _R10_CACHE_OUTCOMES = frozenset(get_args(CacheOutcome))
 _R10_IMPORT_OUTCOMES = frozenset(get_args(ImportOutcome))
+# Import-specific outcome values (#142). `success`/`fallback`/`failure` stay
+# shared with the discovery source-health outcomes, but the quality class and the
+# failure categories describe one event only.
+_IMPORT_EXCLUSIVE_OUTCOMES = frozenset(
+    {"success_low_quality", *get_args(ImportFailureCategory)}
+)
 _R10_DIMENSIONS = frozenset().union(
     _R10_ROUTE_FAMILIES,
     _R10_PHASES,
@@ -376,9 +450,13 @@ class ActivationEventCreate(BaseModel):
     export_format: ExportFormat | None = None
     has_feedback: bool | None = None
     session_status: SessionStatus | None = None
-    duration_ms: int | None = None
-    cost_estimate: Decimal | None = None
-    metric_value: Decimal | None = None
+    duration_ms: int | None = Field(default=None, ge=0, le=86_400_000)
+    cost_estimate: Decimal | None = Field(
+        default=None, ge=0, le=Decimal("999999.999999")
+    )
+    metric_value: Decimal | None = Field(
+        default=None, ge=0, le=Decimal("999999.999999")
+    )
     operational_dimension: OperationalDimension | None = None
     operational_outcome: OperationalOutcome | None = None
     # R11 profile-adoption dimensions (#150, D-067). Null for every non-profile
@@ -405,6 +483,13 @@ class ActivationEventCreate(BaseModel):
         ):
             raise ValueError(
                 "submission-source outcomes are valid only for submission-source events"
+            )
+        if (
+            self.event_name != "r10_import_outcome"
+            and self.operational_outcome in _IMPORT_EXCLUSIVE_OUTCOMES
+        ):
+            raise ValueError(
+                "import quality/failure classes are valid only for import outcome events"
             )
         if self.event_name not in _R10_EVENT_NAMES:
             if (

@@ -3,16 +3,26 @@
 For each synthetic fixture (:class:`app.evals.loader.EvalFixture`), this runs the
 deterministic heuristic scorers from :mod:`app.services.quality_signals` against
 the fixture's ``resume_text``/``job_description``, compares the actual score to
-the fixture's ``expected_score_band``, and flags a "calibration miss" when the
-actual score falls outside the band by more than :data:`CALIBRATION_THRESHOLD`
-points. It reports a per-tool miss rate across the fixture corpus for the Resume
-Analyzer and Job Match tools (D-042).
+the fixture's expected band, and flags a "calibration miss" when the actual score
+falls outside the band by more than :data:`CALIBRATION_THRESHOLD` points. It
+reports a per-tool miss rate across the fixture corpus for the Resume Analyzer
+and Job Match tools (D-042).
+
+The two tools are measured on two different scales, so each has its own band
+(#118). Resume Analyzer is the mean of the five heuristic dimensions, every one
+of which has a generous floor, so a complete resume lands in the 70s-90s;
+``expected_score_band`` is authored on that scale. Job Match is pure keyword
+overlap with the JD (25 at zero overlap, 100 at full), so a resume that echoes a
+JD's vocabulary scores near the top regardless of its quality;
+``expected_match_band`` is authored on *that* scale. Reusing one band for both is
+what shipped the harness red with untriaged misses.
 
 This path is deterministic and heuristic-only: it makes no live LLM call (D-044),
 so the whole check is unit-testable in isolation. The Resume Analyzer score is
 routed through :func:`compute_blended_score` with no LLM breakdown, exercising the
 same "blended score" entry point production uses (which returns the heuristic
-breakdown unchanged when there is no LLM half).
+breakdown unchanged when there is no LLM half) — note this means the score is the
+heuristic overall, not the 40/60 blend production reports when an LLM half exists.
 """
 
 from __future__ import annotations
@@ -34,8 +44,9 @@ TOOL_JOB_MATCH = "job-match"
 
 #: Points an actual score may fall outside its expected band before the fixture
 #: is flagged as a calibration miss (D-042's "fixed threshold"). Fixture bands
-#: are 20 points wide; this tolerance absorbs minor heuristic drift at the band
-#: edges without hiding a real regression.
+#: are 14 points wide on the resume scale and 16 on the match scale; this
+#: tolerance absorbs minor heuristic drift at the band edges without hiding a
+#: real regression.
 CALIBRATION_THRESHOLD = 5
 
 
@@ -45,6 +56,7 @@ def resume_analyzer_score(fixture: EvalFixture) -> int:
     Mirrors the heuristic-only path in :mod:`app.services.resume_analyzer`: build
     the prepass, compute the resume breakdown, blend with no LLM breakdown (a
     no-op that returns the heuristic breakdown), then take the overall score.
+    Compare against ``expected_score_band``, which is authored on this scale.
     """
     prepass = build_resume_prepass(fixture.resume_text, fixture.job_description)
     breakdown = compute_resume_breakdown(prepass)
@@ -54,6 +66,9 @@ def resume_analyzer_score(fixture: EvalFixture) -> int:
 
 def job_match_score(fixture: EvalFixture) -> int | None:
     """Return the Job Match heuristic score for a fixture, or ``None`` if N/A.
+
+    This is keyword overlap with the JD, not resume quality: compare it against
+    ``expected_match_band``, never against ``expected_score_band``.
 
     Job Match requires a job description, so no-JD fixtures are not scored and are
     excluded from the Job Match miss rate rather than scored against a
@@ -128,9 +143,9 @@ def _result_for(
     tool: str,
     fixture: EvalFixture,
     score: int,
+    band: tuple[int, int],
     threshold: int,
 ) -> CalibrationResult:
-    band = fixture.expected_score_band
     return CalibrationResult(
         tool=tool,
         fixture_id=fixture.id,
@@ -148,16 +163,29 @@ def check_fixture(
     """Return the calibration result for every applicable tool on one fixture.
 
     Always includes a Resume Analyzer result; includes a Job Match result only
-    when the fixture has a job description.
+    when the fixture has a job description. Each tool is compared against its own
+    band, since the two scores are on different scales (#118).
     """
     results = [
         _result_for(
-            TOOL_RESUME_ANALYZER, fixture, resume_analyzer_score(fixture), threshold
+            TOOL_RESUME_ANALYZER,
+            fixture,
+            resume_analyzer_score(fixture),
+            fixture.expected_score_band,
+            threshold,
         )
     ]
     match = job_match_score(fixture)
     if match is not None:
-        results.append(_result_for(TOOL_JOB_MATCH, fixture, match, threshold))
+        results.append(
+            _result_for(
+                TOOL_JOB_MATCH,
+                fixture,
+                match,
+                fixture.expected_match_band,
+                threshold,
+            )
+        )
     return results
 
 

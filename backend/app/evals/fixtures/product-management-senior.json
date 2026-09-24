@@ -3,8 +3,12 @@
   "resume_text": "Harlan Voss\nSenior Product Manager\n\nSummary\nSenior product manager with 9 years owning roadmaps and go-to-market for B2B SaaS, driving strategy and cross-functional delivery.\n\nExperience\nOrchard Grid - Principal Product Manager (2018-Present)\n- Owned the product roadmap and prioritization for a platform serving 500+ enterprise customers.\n- Led go-to-market for 4 launches, growing annual recurring revenue by 34%.\n- Aligned engineering, design, and sales through stakeholder management and clear requirements.\n\nSkills\nProduct Strategy, roadmap, prioritization, requirements, stakeholder management, go-to-market, Communication\n\nEducation\nMBA, Westmere University; BS in Economics, Grayford Institute of Technology",
   "job_description": "Senior Product Manager\n\nOwn the roadmap for our B2B platform. Set product strategy, drive go-to-market, and lead cross-functional teams from discovery through launch.\n\nRequirements:\n- 6+ years in product management\n- Strong product strategy, roadmap, and prioritization skills\n- Experience with go-to-market and stakeholder management\n- Excellent communication across engineering, design, and sales",
   "expected_score_band": [
-    72,
-    92
+    82,
+    96
   ],
-  "notes": "Strong product-management match at senior seniority. Exercises the product-management discipline and the senior case with a high expected band."
+  "expected_match_band": [
+    84,
+    100
+  ],
+  "notes": "Strong product-management match at senior seniority. Resume band 82-96 is the senior tier. Match band 84-100: the resume echoes all ten extracted JD keywords, so keyword overlap saturates at 100 - the correct output for a keyword-overlap scorer, and the case that proved Job Match needs its own band (#118). Scored against the resume band it read as an 8-point miss on an unmodified tree."
 }

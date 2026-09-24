@@ -6,7 +6,7 @@ from contextlib import suppress
 
 from app.config import settings
 from app.services.llm_cost import record_llm_usage
-from app.services.provider_incident import set_provider_incident
+from app.services.provider_incident import reset_provider_incident, set_provider_incident
 
 logger = logging.getLogger(__name__)
 
@@ -98,6 +98,13 @@ async def complete_structured(
             raise ValueError(f"Unsupported LLM provider: {provider}")
 
     result = await _with_retry(_dispatch)
+
+    # A run that retried and then succeeded is not a user-visible incident
+    # (D-055). Failed attempts record their category as they go, so clearing it
+    # on success is what lets the shared pipeline read the accumulator on its
+    # success path and know that a surviving category means the caller swallowed
+    # a terminal failure and returned a degraded result.
+    reset_provider_incident()
 
     logger.info("LLM response provider=%s  model=%s  keys=%s", provider, model, list(result.keys()))
     return result
@@ -247,7 +254,13 @@ def _safe_parse_json(content: str | None, provider: str) -> dict:
     """Parse LLM response text into a dict, with markdown-fence fallback."""
     if not content:
         logger.error("LLM returned empty content  provider=%s", provider)
-        raise ValueError(f"LLM provider '{provider}' returned empty content")
+        # Same provider failure mode as unparseable content, and the sibling
+        # branch below already records it (#136, D-055). Raised as RuntimeError,
+        # not ValueError, so `_with_retry` treats an empty response as the
+        # transient provider fault it is — bare ValueError is reserved for the
+        # unsupported-provider configuration error, which never recovers.
+        set_provider_incident("malformed")
+        raise RuntimeError(f"LLM provider '{provider}' returned empty content")
 
     try:
         return json.loads(content)

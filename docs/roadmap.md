@@ -1,7 +1,7 @@
 # Career Workbench — Product Roadmap
 
 **Planning horizon:** release candidate through premium application automation
-**Last reviewed:** 2026-08-12
+**Last reviewed:** 2026-08-13
 **Roadmap rule:** outcomes live here; implementation tasks live in issues/PRs.
 
 ## North Star
@@ -149,16 +149,19 @@ Candidate experiments, promoted only after baseline data:
 - context-carry transparency and controls;
 - stronger next-best-action after each result;
 - lower-friction signup after value;
-- result revisit and export reminders.
+- result revisit reminders. Shipped as an unfavorited-results nudge, not an
+  export reminder: export is not a persisted per-result fact, so an export
+  reminder could only be inferred rather than observed (D-122).
 
 Exit gate: at least one accepted activation metric improves without a material
 increase in failure, cost, or privacy risk.
 
 ### R8. Output Quality Program
 
-**Status:** implementation complete through #119–#124; the evaluation corpus,
-checks, runner, and admin evidence view exist, while release changes must still pass
-the program's quality/latency/cost gate
+**Status:** implementation complete through #119–#124 plus the scoring-tool
+explanation-consistency check (D-121); the evaluation corpus, checks, runner, and
+admin evidence view exist, while release changes must still pass the program's
+quality/latency/cost gate
 **Outcome:** changes to prompts, heuristics, and models can be evaluated consistently.
 
 Acceptance gate:

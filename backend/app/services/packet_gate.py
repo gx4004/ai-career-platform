@@ -14,7 +14,12 @@ Two server-authoritative rules live here (D-097):
    :class:`~app.models.pipeline_halt.PipelineHalt` row is set for the
    ``packet-preparation`` scope and :func:`prepare_packets` refuses to prepare
    anything until it is cleared. Clearing (a subsequent passing eval, or an explicit
-   operator clear) lets preparation resume.
+   operator clear) lets preparation resume. The evidence is real: every preparation
+   run consults the latest on-disk eval report per tool (:mod:`app.evals.report_reader`,
+   written by ``python -m app.evals.run_eval``) through
+   :func:`apply_report_regression_gate`, so the rule is enforced rather than merely
+   available. Those reports include the credential-free ``--deterministic`` ones, so
+   the decision never needs a billed provider call.
 
 Every gate state transition (running / passed / blocked / halted / cleared) is
 emitted through the shared operational-event seam as an ALLOWLISTED, low-cardinality
@@ -25,12 +30,19 @@ identifier ever rides along (``ActivationEventCreate`` enforces this via
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any
 
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from app.evals.calibration import TOOL_JOB_MATCH
+from app.evals.fabrication import TOOL_COVER_LETTER
+from app.evals.report_reader import latest_reports_by_tool
+from app.evals.run_eval import TOOL_RESUME
 from app.models.analytics_event import AnalyticsEvent
 from app.models.pipeline_halt import PipelineHalt
 from app.models.submission_safety import SubmissionSafetyControl
@@ -85,6 +97,13 @@ FABRICATION_FINDING_CATEGORY = "unsupported_claim"
 # report objects so the decision never needs a live LLM call (D-044).
 FABRICATION_REGRESSION_MAX_CANDIDATES = 0
 PACKET_QUALITY_MAX_MISS_RATE = 0.5
+
+# The tools whose latest eval report gates packet preparation. A packet's materials
+# are cover-letter-shaped drafts, so the cover-letter fabrication figure is this
+# pipeline's fabrication evidence; the two heuristic-scored tools carry the only
+# calibration (packet-quality) figures the runner produces. A regression in a tool
+# preparation never invokes must not halt this queue.
+PACKET_REGRESSION_TOOLS: tuple[str, ...] = (TOOL_RESUME, TOOL_JOB_MATCH, TOOL_COVER_LETTER)
 
 
 # ── Fabrication-finding gate (per packet) ──
@@ -316,6 +335,96 @@ def apply_regression_gate(
     )
     if failed and reason is not None:
         return set_pipeline_halt(db, reason=reason, now=now)
+    return clear_pipeline_halt(db)
+
+
+def evaluate_report_regression(
+    reports: Mapping[str, Mapping[str, Any]],
+    *,
+    fabrication_max_candidates: int = FABRICATION_REGRESSION_MAX_CANDIDATES,
+    quality_max_miss_rate: float = PACKET_QUALITY_MAX_MISS_RATE,
+) -> tuple[bool, str | None]:
+    """Decide the same verdict as :func:`evaluate_regression`, from on-disk reports.
+
+    The figures are the ones the runner already wrote per tool, so both paths apply
+    one set of thresholds to one set of numbers. Two deliberate asymmetries with the
+    in-memory path: only :data:`PACKET_REGRESSION_TOOLS` are consulted, and a ``None``
+    figure means the check did not run for that report (the credential-free
+    ``--deterministic`` runner leaves every generative figure null) — an absent
+    measurement is never read as a failure. Fabrication is checked first so a
+    fabrication regression is never masked by a concurrent quality regression.
+    """
+    relevant = [reports[tool] for tool in PACKET_REGRESSION_TOOLS if tool in reports]
+    for report in relevant:
+        candidates = report.get("fabrication_candidate_count")
+        if candidates is not None and candidates > fabrication_max_candidates:
+            return True, "fabrication_regression"
+    for report in relevant:
+        miss_rate = report.get("calibration_miss_rate")
+        if miss_rate is not None and miss_rate > quality_max_miss_rate:
+            return True, "packet_quality_regression"
+    return False, None
+
+
+def _generated_at(report: Mapping[str, Any]) -> datetime:
+    return datetime.fromisoformat(str(report["generated_at"]).replace("Z", "+00:00"))
+
+
+def _postdates_halt(reports: Mapping[str, Mapping[str, Any]], status: HaltStatus) -> bool:
+    """True when the newest consulted report was generated after the standing halt."""
+    if status.halted_since is None:
+        return False
+    halted_since = status.halted_since
+    if halted_since.tzinfo is None:
+        halted_since = halted_since.replace(tzinfo=UTC)
+    newest = max((_generated_at(report) for report in reports.values()), default=None)
+    return newest is not None and newest > halted_since
+
+
+def apply_report_regression_gate(
+    db: Session,
+    *,
+    reports_dir: Path | None = None,
+    now: datetime | None = None,
+) -> HaltStatus:
+    """Halt or resume preparation from the eval reports the runner wrote to disk.
+
+    This is the gate's evidence-backed caller. :func:`apply_regression_gate` decides
+    on report *objects* a caller already holds; this one reads the latest report per
+    tool from ``reports_dir`` — the artifacts ``python -m app.evals.run_eval`` writes,
+    including on its credential-free ``--deterministic`` path — so a halt decision
+    costs no provider call. The halt it sets is the same ``pipeline_halts`` row
+    :func:`aggregate_packet_gate` already reports to the admin dashboard.
+
+    Two rules keep the automatic verdict from overruling what it cannot see. Absence
+    of evidence is not evidence of passing: with no report for any packet-relevant
+    tool the current posture is left exactly as it stands. And passing evidence that
+    predates a standing halt cannot lift it — only an eval run *after* the halt, or an
+    explicit operator clear, resumes preparation.
+
+    Args:
+        reports_dir: Report directory to read; defaults to the runner's own.
+        now: Clock override for the halt timestamp.
+    """
+    reports = {
+        tool: report
+        for tool, report in latest_reports_by_tool(reports_dir).items()
+        if tool in PACKET_REGRESSION_TOOLS
+    }
+    if not reports:
+        return get_halt_status(db)
+
+    failed, reason = evaluate_report_regression(reports)
+    status = get_halt_status(db)
+    if failed and reason is not None:
+        # A halt is a state transition, not a heartbeat: re-stamping an identical
+        # standing halt would emit one `halted` event per preparation attempt and
+        # inflate the admin dashboard's tally.
+        if status.halted and status.reason == reason:
+            return status
+        return set_pipeline_halt(db, reason=reason, now=now)
+    if status.halted and not _postdates_halt(reports, status):
+        return status
     return clear_pipeline_halt(db)
 
 

@@ -3,8 +3,12 @@
   "resume_text": "Nadia Verrill\nData Analyst\n\nSummary\nData analyst with 5 years turning product data into dashboards and experiment insights for SaaS teams.\n\nExperience\nTanager Analytics - Data Analyst (2020-Present)\n- Built 25+ dashboards in SQL and a BI tool, adopted by 4 departments.\n- Designed and analyzed 60+ A/B experiments, improving conversion by 12%.\n- Automated weekly reporting with Python, saving 8 hours per week.\n\nSkills\nSQL, Python, Data Analysis, analytics, dashboards, experimentation, reporting\n\nEducation\nBS in Statistics, Grayford Institute of Technology",
   "job_description": "Data Analyst\n\nWe are hiring a data analyst to own reporting and experimentation. You will build dashboards, run analysis, and deliver insights to product teams.\n\nRequirements:\n- Strong SQL and data analysis skills\n- Experience building dashboards and business intelligence reporting\n- Familiarity with experimentation and A/B testing\n- Python for automation is a plus",
   "expected_score_band": [
-    68,
-    88
+    76,
+    90
   ],
-  "notes": "Strong data-analytics match, mid-level; SQL/dashboards/experimentation resume aligned to an analyst JD. Exercises the data-analytics discipline."
+  "expected_match_band": [
+    84,
+    100
+  ],
+  "notes": "Strong data-analytics match, mid-level; SQL/dashboards/experimentation resume aligned to an analyst JD. Resume band 76-90 is the solid-mid tier: one role, four sections, three quantified bullets. Match band 84-100 - the resume names all but one of the JD's terms ('Testing', which it phrases as A/B experiments)."
 }

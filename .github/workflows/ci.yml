@@ -88,8 +88,8 @@ jobs:
       - name: Unit tests
         run: pnpm test
 
-      - name: Build
-        run: pnpm build
+      - name: Production artifact and process smoke
+        run: pnpm test:production-smoke
 
   backend:
     name: Backend (ruff / pytest)
@@ -145,6 +145,11 @@ jobs:
       - name: Ruff check
         run: ruff check app
 
+      - name: Populated stable-release migration round trip
+        env:
+          DATABASE_URL: postgresql+psycopg2://cw:cw@localhost:5432/cw_ci
+        run: python tests/migration_stable_release_roundtrip.py
+
       - name: Populated packet-approval migration round trip
         env:
           DATABASE_URL: postgresql+psycopg2://cw:cw@localhost:5432/cw_ci
@@ -169,6 +174,24 @@ jobs:
         env:
           DATABASE_URL: postgresql+psycopg2://cw:cw@localhost:5432/cw_ci
         run: python tests/postgres_submission_concurrency.py
+
+      - name: Prepare isolated authorization-concurrency database
+        env:
+          PGPASSWORD: cw
+        run: >-
+          createdb --host localhost --username cw
+          codex_submission_authorization_concurrency_ci
+
+      - name: Concurrent submission-authorization proof
+        env:
+          DATABASE_URL: >-
+            postgresql+psycopg2://cw:cw@localhost:5432/codex_submission_authorization_concurrency_ci
+        run: |
+          alembic upgrade head
+          python tests/postgres_submission_authorization_concurrency.py
+
+      - name: Backend startup process smoke
+        run: pytest -q tests/test_startup_script.py
 
       - name: Pytest
         run: pytest -q
