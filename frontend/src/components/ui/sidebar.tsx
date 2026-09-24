@@ -398,7 +398,14 @@ function SidebarContent({ className, ...props }: React.ComponentProps<"div">) {
       data-slot="sidebar-content"
       data-sidebar="content"
       className={cn(
-        "no-scrollbar flex min-h-0 flex-1 flex-col gap-0 overflow-auto group-data-[collapsible=icon]:overflow-hidden",
+        // Collapsed (icon-only) mode used to hard-clip with overflow-hidden,
+        // which silently dropped nav items below the fold with no way to
+        // reach them (the rail now carries three grouped sections — Tools,
+        // Job search, You — plus Dashboard, more than the older two-group
+        // layout, career-workbench#324). overflow-auto keeps every item
+        // reachable by scroll in both states; no-scrollbar already hides the
+        // scrollbar chrome so the rail's look is unchanged.
+        "no-scrollbar flex min-h-0 flex-1 flex-col gap-0 overflow-auto",
         className
       )}
       {...props}
