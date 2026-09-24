@@ -152,6 +152,8 @@ export function DiscoveryPage() {
     writeWorkflowContext({
       targetRole: listing.title,
       jobDescription: `${listing.title} at ${listing.company}\n\n${listing.description}`,
+      // Tells CV Studio to open its tailor dialog prefilled on arrival (#324).
+      tailorPending: true,
       updatedAt: Date.now(),
     })
     navigate({ to: '/cv-studio' })

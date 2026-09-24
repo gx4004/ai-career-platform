@@ -30,7 +30,7 @@ describe('ToolGridSheet authenticated workspace navigation', () => {
     for (const flag of outcomeFlags) vi.stubEnv(flag, 'true')
   })
 
-  it('exposes every enabled mobile-only workspace destination to an owner', () => {
+  it('exposes every enabled mobile-only workspace destination to an owner, grouped like the sidebar', () => {
     render(
       <ToolGridSheet
         open
@@ -39,26 +39,34 @@ describe('ToolGridSheet authenticated workspace navigation', () => {
       />,
     )
 
-    expect(screen.getByRole('link', { name: 'Evidence' }).getAttribute('href')).toBe('/profile')
+    expect(screen.getByRole('link', { name: 'Profile' }).getAttribute('href')).toBe('/profile')
+    expect(screen.getByRole('link', { name: 'CV Studio' }).getAttribute('href')).toBe('/cv-studio')
     expect(screen.getByRole('link', { name: 'Discover' }).getAttribute('href')).toBe('/discovery')
     expect(screen.getByRole('link', { name: 'Queue' }).getAttribute('href')).toBe('/queue')
+    expect(screen.getByRole('link', { name: 'Campaigns' }).getAttribute('href')).toBe('/campaigns')
+    expect(screen.getByRole('heading', { name: 'Job search' })).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'You' })).toBeTruthy()
   })
 
-  it('keeps owner destinations absent for guests even when flags are enabled', () => {
+  it('keeps job-search destinations absent for guests even when flags are enabled, but keeps You visible', () => {
     render(<ToolGridSheet open onOpenChange={vi.fn()} showAuthenticatedLinks={false} />)
 
-    expect(screen.queryByRole('link', { name: 'Evidence' })).toBeNull()
     expect(screen.queryByRole('link', { name: 'Discover' })).toBeNull()
     expect(screen.queryByRole('link', { name: 'Queue' })).toBeNull()
+    expect(screen.queryByRole('link', { name: 'Campaigns' })).toBeNull()
+    expect(screen.getByRole('link', { name: 'Profile' }).getAttribute('href')).toBe('/profile')
+    expect(screen.getByRole('link', { name: 'CV Studio' }).getAttribute('href')).toBe('/cv-studio')
   })
 
-  it('keeps every owner destination absent while the outcome chain is dark', () => {
+  it('keeps every flag-gated destination absent while the outcome chain is dark', () => {
     for (const flag of outcomeFlags) vi.stubEnv(flag, 'false')
 
     render(<ToolGridSheet open onOpenChange={vi.fn()} showAuthenticatedLinks />)
 
-    expect(screen.queryByRole('link', { name: 'Evidence' })).toBeNull()
+    expect(screen.queryByRole('link', { name: 'Profile' })).toBeNull()
+    expect(screen.queryByRole('link', { name: 'CV Studio' })).toBeNull()
     expect(screen.queryByRole('link', { name: 'Discover' })).toBeNull()
     expect(screen.queryByRole('link', { name: 'Queue' })).toBeNull()
+    expect(screen.queryByRole('link', { name: 'Campaigns' })).toBeNull()
   })
 })

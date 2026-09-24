@@ -18,6 +18,7 @@ import {
 import type { CvDocument, CvSection, CvStyle, CvStyleCatalog, CvVariant } from '#/lib/api/schemas'
 import { FALLBACK_STYLE_CATALOG, TEMPLATE_NAMES, friendlyAtsFixes } from '#/lib/cv-studio/catalog'
 import { addSection, moveSection, moveSectionTo, toSavableSections } from '#/lib/cv-studio/editor'
+import { readWorkflowContext, writeWorkflowContext } from '#/lib/tools/drafts'
 import { cn } from '#/lib/utils'
 import { CreateCvDocumentDialog } from './CreateCvDocumentDialog'
 import { CvAtsPanel, useCvQuality } from './CvAtsPanel'
@@ -126,6 +127,8 @@ export function CvStudio() {
   const [createOpen, setCreateOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
   const [tailorOpen, setTailorOpen] = useState(false)
+  const [tailorSeed, setTailorSeed] = useState<{ jobTitle: string; jobDescription: string } | null>(null)
+  const autoOpenedTailorRef = useRef(false)
   const [pdfOpen, setPdfOpen] = useState(false)
   const [exporting, setExporting] = useState<'pdf' | 'docx' | 'data' | null>(null)
   const [railTab, setRailTab] = useState<RailTab>('outline')
@@ -133,6 +136,28 @@ export function CvStudio() {
   const saveGeneration = useRef(0)
   const saveQueue = useRef<Promise<CvDocument | undefined>>(Promise.resolve(undefined))
   const now = useNow(30_000)
+
+  // Job Discovery's "Tailor my CV" leaves a one-shot marker in the workflow
+  // context (career-workbench#324). Read it once on mount and clear it
+  // immediately — not on dialog close — so StrictMode's double-invoke and any
+  // later remount can't reopen the dialog from a stale marker.
+  useEffect(() => {
+    const context = readWorkflowContext()
+    if (context?.tailorPending) {
+      setTailorSeed({ jobTitle: context.targetRole ?? '', jobDescription: context.jobDescription ?? '' })
+      writeWorkflowContext({ tailorPending: false, updatedAt: Date.now() })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only on mount
+  }, [])
+
+  // Wait for a document to be loaded (the dialog needs `draft.id`), then open
+  // the tailor dialog exactly once for the seeded job.
+  useEffect(() => {
+    if (tailorSeed && draft && !autoOpenedTailorRef.current) {
+      autoOpenedTailorRef.current = true
+      setTailorOpen(true)
+    }
+  }, [tailorSeed, draft])
 
   const listQuery = useQuery({ queryKey: LIST_KEY, queryFn: listCvDocuments, enabled: authenticated })
   useEffect(() => {
@@ -538,6 +563,7 @@ export function CvStudio() {
       <CvTailorDialog
         open={tailorOpen} onOpenChange={setTailorOpen} documentId={draft.id} canGenerate={!dirty}
         remainingRuns={remainingTailorRuns} onSaved={handleTailorSaved} onGenerated={() => void documentQuery.refetch()}
+        seed={tailorSeed}
       />
       <ExactPdfDialog open={pdfOpen} onOpenChange={setPdfOpen} documentId={draft.id} documentName={draft.name} revision={draft.updated_at} style={draft.style} />
     </WorkspacePage>

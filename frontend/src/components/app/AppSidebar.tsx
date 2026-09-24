@@ -1,12 +1,8 @@
 import { Link, useRouterState } from '@tanstack/react-router'
 import {
   ArrowLeft,
-  BadgeCheck,
-  Compass,
-  ClipboardCheck,
   ChevronLeft,
   ChevronRight,
-  History,
   LayoutDashboard,
   Settings,
   ShieldCheck,
@@ -31,25 +27,13 @@ import {
   useSidebar,
 } from '#/components/ui/sidebar'
 import { cn } from '#/lib/utils'
-import { registryEntries, toolList } from '#/lib/tools/registry'
+import { toolList } from '#/lib/tools/registry'
 import { toolAccentStyle } from '#/lib/tools/styleUtils'
-import {
-  isR11EvidenceProfileEnabled,
-  isR12CvStudioEnabled,
-  isR14DiscoveryEnabled,
-  isR15QueueEnabled,
-} from '#/lib/flags/featureFlags'
+import { navGroups } from '#/lib/navigation/routeMeta'
 
 const accountNavItems = [
-  { label: 'History', icon: History, route: '/history' },
-  { label: 'Evidence', icon: BadgeCheck, route: '/profile' },
   { label: 'Account', icon: UserRound, route: '/account' },
   { label: 'Settings', icon: Settings, route: '/settings' },
-] as const
-
-const authenticatedNavItems = [
-  { label: 'Discover', icon: Compass, route: '/discovery' },
-  { label: 'Queue', icon: ClipboardCheck, route: '/queue' },
 ] as const
 
 export function AppSidebar() {
@@ -61,17 +45,16 @@ export function AppSidebar() {
   const isCollapsedDesktop = !isMobile && state === 'collapsed'
   const isDesktopToolRoute =
     !isMobile && toolList.some((tool) => pathname === tool.route)
-  const visibleRegistryEntries = registryEntries.filter(
-    (entry) => entry.id !== 'cv-studio' || isR12CvStudioEnabled(),
-  )
-  const visibleAccountNavItems = accountNavItems.filter(
-    (item) => item.route !== '/profile' || isR11EvidenceProfileEnabled(),
-  )
-  const visibleAuthenticatedNavItems = authenticatedNavItems.filter((item) => {
-    if (item.route === '/discovery') return isR14DiscoveryEnabled()
-    if (item.route === '/queue') return isR15QueueEnabled()
-    return true
-  })
+  const visibleGroup = (id: string) => {
+    const group = navGroups.find((candidate) => candidate.id === id)
+    if (!group) return []
+    return group.destinations.filter((item) => item.enabled?.() ?? true)
+  }
+  // "Job search" stays owner-only, same as the old "Opportunities" group.
+  // "You" (CV Studio, Profile, History) keeps rendering for guests, same as
+  // the old "Career Tools" + footer items did before the regroup.
+  const jobSearchDestinations = user ? visibleGroup('job-search') : []
+  const youDestinations = visibleGroup('you')
 
   return (
     <Sidebar className="app-sidebar-shell" collapsible="icon">
@@ -137,10 +120,10 @@ export function AppSidebar() {
         </SidebarGroup>
         <SidebarSeparator />
         <SidebarGroup>
-          <SidebarGroupLabel>Career Tools</SidebarGroupLabel>
+          <SidebarGroupLabel>Tools</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {visibleRegistryEntries.map((tool) => (
+              {toolList.map((tool) => (
                 <SidebarMenuItem key={tool.id}>
                   <SidebarMenuButton
                     asChild
@@ -159,14 +142,51 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
-        {user ? (
+        {jobSearchDestinations.length > 0 ? (
           <>
             <SidebarSeparator />
             <SidebarGroup>
-              <SidebarGroupLabel>Opportunities</SidebarGroupLabel>
+              <SidebarGroupLabel>Job search</SidebarGroupLabel>
               <SidebarGroupContent>
                 <SidebarMenu>
-                  {visibleAuthenticatedNavItems.map((item) => (
+                  {jobSearchDestinations.map((item) => (
+                    <SidebarMenuItem key={item.route}>
+                      <SidebarMenuButton
+                        asChild
+                        tooltip={item.label}
+                        isActive={pathname.startsWith(item.route)}
+                        className="app-sidebar-menu-button"
+                      >
+                        {/* Campaigns has no registered route yet (built alongside
+                            this change by another agent), so it can't use the
+                            typed router Link. */}
+                        {item.route === '/campaigns' ? (
+                          <a href={item.route}>
+                            <item.icon className="app-sidebar-item-icon" />
+                            <span>{item.label}</span>
+                          </a>
+                        ) : (
+                          <Link to={item.route}>
+                            <item.icon className="app-sidebar-item-icon" />
+                            <span>{item.label}</span>
+                          </Link>
+                        )}
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          </>
+        ) : null}
+        {youDestinations.length > 0 ? (
+          <>
+            <SidebarSeparator />
+            <SidebarGroup>
+              <SidebarGroupLabel>You</SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {youDestinations.map((item) => (
                     <SidebarMenuItem key={item.route}>
                       <SidebarMenuButton
                         asChild
@@ -190,7 +210,7 @@ export function AppSidebar() {
       <SidebarFooter className="app-sidebar-footer">
         <SidebarSeparator />
         <SidebarMenu>
-          {visibleAccountNavItems.map((item) => (
+          {accountNavItems.map((item) => (
             <SidebarMenuItem key={item.route}>
               <SidebarMenuButton
                 asChild
