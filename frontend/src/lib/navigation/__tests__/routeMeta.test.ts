@@ -41,6 +41,13 @@ describe('getRouteMeta', () => {
     expect(meta.breadcrumbs[1]).toMatch(/Resume/i)
   })
 
+  it('describes the profile page in plain language, grouped under You', () => {
+    const meta = getRouteMeta('/profile')
+    expect(meta.title).toBe('Your profile')
+    expect(meta.sectionLabel).toBe('You')
+    expect(meta.breadcrumbs).toEqual(['Dashboard', 'Your profile'])
+  })
+
   it('falls back to the workspace label for unknown routes', () => {
     const meta = getRouteMeta('/some-other-path')
     expect(meta.title).toBe('Career Workbench')

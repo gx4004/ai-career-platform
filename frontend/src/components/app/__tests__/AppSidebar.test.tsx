@@ -56,14 +56,18 @@ vi.mock('#/components/auth/SessionMenu', () => ({
   SessionMenu: () => <div>Session menu</div>,
 }))
 
-vi.mock('#/lib/navigation/routeMeta', () => ({
-  getRouteMeta: () => ({
-    sectionLabel: 'Workspace',
-    title: 'Dashboard',
-    description: 'Current workbench view.',
-    breadcrumbs: ['Home', 'Dashboard'],
-  }),
-}))
+vi.mock('#/lib/navigation/routeMeta', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('#/lib/navigation/routeMeta')>()
+  return {
+    ...actual,
+    getRouteMeta: () => ({
+      sectionLabel: 'Workspace',
+      title: 'Dashboard',
+      description: 'Current workbench view.',
+      breadcrumbs: ['Home', 'Dashboard'],
+    }),
+  }
+})
 
 function renderSidebar(defaultOpen = false) {
   return render(
@@ -146,9 +150,36 @@ describe('AppSidebar', () => {
 
     renderSidebar()
 
-    expect(screen.queryByRole('link', { name: 'Evidence' })).toBeNull()
+    expect(screen.queryByRole('link', { name: 'Profile' })).toBeNull()
+    expect(screen.queryByRole('link', { name: 'CV Studio' })).toBeNull()
     expect(screen.queryByRole('link', { name: 'Discover' })).toBeNull()
     expect(screen.queryByRole('link', { name: 'Queue' })).toBeNull()
+    expect(screen.queryByRole('link', { name: 'Campaigns' })).toBeNull()
+  })
+
+  it('groups the sidebar into Tools, Job search, and You', () => {
+    renderSidebar()
+
+    expect(screen.getByText('Tools')).toBeTruthy()
+    expect(screen.getByText('Job search')).toBeTruthy()
+    expect(screen.getByText('You')).toBeTruthy()
+    expect(screen.getByRole('link', { name: /resume analyzer/i }).getAttribute('href')).toBe('/resume')
+    expect(screen.getByRole('link', { name: 'Discover' }).getAttribute('href')).toBe('/discovery')
+    expect(screen.getByRole('link', { name: 'Queue' }).getAttribute('href')).toBe('/queue')
+    expect(screen.getByRole('link', { name: 'Campaigns' }).getAttribute('href')).toBe('/campaigns')
+    expect(screen.getByRole('link', { name: 'CV Studio' }).getAttribute('href')).toBe('/cv-studio')
+    expect(screen.getByRole('link', { name: 'Profile' }).getAttribute('href')).toBe('/profile')
+    expect(screen.getByRole('link', { name: 'History' }).getAttribute('href')).toBe('/history')
+  })
+
+  it('keeps "You" destinations visible for guests, unlike "Job search"', () => {
+    mockSessionUser.current = null
+    renderSidebar()
+
+    expect(screen.getByRole('link', { name: 'CV Studio' }).getAttribute('href')).toBe('/cv-studio')
+    expect(screen.getByRole('link', { name: 'Profile' }).getAttribute('href')).toBe('/profile')
+    expect(screen.getByRole('link', { name: 'History' }).getAttribute('href')).toBe('/history')
+    expect(screen.queryByText('Job search')).toBeNull()
   })
 
   it('starts collapsed on desktop when no cookie exists', () => {
