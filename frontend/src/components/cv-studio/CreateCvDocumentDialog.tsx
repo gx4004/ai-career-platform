@@ -21,7 +21,7 @@ function evidenceSummary(item: EvidenceItem) {
     .map(({ value }) => value)
     .filter(Boolean)
     .join(' · ')
-  return content || 'Confirmed evidence item'
+  return content || 'Confirmed fact'
 }
 
 export function CreateCvDocumentDialog({
@@ -67,7 +67,7 @@ export function CreateCvDocumentDialog({
       onCreated(created)
       onOpenChange(false)
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Could not create the CV document.')
+      setError(caught instanceof Error ? caught.message : 'We couldn’t create your CV.')
     } finally {
       setSubmitting(false)
     }
@@ -78,15 +78,15 @@ export function CreateCvDocumentDialog({
       <DialogContent showCloseButton={!submitting}>
         <form className="grid gap-4" onSubmit={handleSubmit}>
           <DialogHeader>
-            <DialogTitle>Create a CV document</DialogTitle>
+            <DialogTitle>Start a new CV</DialogTitle>
             <DialogDescription>
-              Start blank or include facts you have already confirmed. Every selected fact stays
-              linked to your evidence profile.
+              Start blank, or pick facts you’ve already confirmed in your Evidence and we’ll add
+              them for you.
             </DialogDescription>
           </DialogHeader>
 
           <div className="grid gap-2">
-            <Label htmlFor={nameId}>Document name</Label>
+            <Label htmlFor={nameId}>CV name</Label>
             <Input
               id={nameId}
               value={name}
@@ -99,13 +99,13 @@ export function CreateCvDocumentDialog({
           </div>
 
           <fieldset className="grid max-h-64 gap-2 overflow-y-auto rounded-[var(--radius-lg)] border border-border/70 p-3">
-            <legend className="px-1 text-sm font-medium">Confirmed evidence (optional)</legend>
+            <legend className="px-1 text-sm font-medium">Facts from your Evidence (optional)</legend>
             {evidenceQuery.isLoading ? (
-              <p className="small-copy muted-copy" role="status">Loading confirmed evidence…</p>
+              <p className="small-copy muted-copy" role="status">Loading your Evidence…</p>
             ) : evidenceQuery.isError ? (
               <div className="grid gap-2">
                 <p className="small-copy text-destructive" role="alert">
-                  Confirmed evidence could not be loaded. You can still create a blank CV.
+                  We couldn’t load your Evidence. You can still start a blank CV.
                 </p>
                 <Button type="button" size="sm" variant="outline" onClick={() => void evidenceQuery.refetch()}>
                   Try again
@@ -113,7 +113,7 @@ export function CreateCvDocumentDialog({
               </div>
             ) : confirmedItems.length === 0 ? (
               <p className="small-copy muted-copy">
-                No confirmed evidence is available yet. This CV will start blank.
+                You haven’t confirmed any facts in your Evidence yet, so this CV will start blank.
               </p>
             ) : confirmedItems.map((item) => {
               const inputId = `cv-evidence-${item.id}`

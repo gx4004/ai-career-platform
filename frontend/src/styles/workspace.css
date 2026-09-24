@@ -12,6 +12,9 @@
   max-width: var(--shell-max, 74rem);
   margin-inline: auto;
   padding-block: 1.5rem 3rem;
+  /* The ambient glow below bleeds past the page on purpose; clip it so it never
+     adds a horizontal scrollbar (clip, unlike hidden, keeps sticky children working). */
+  overflow-x: clip;
 }
 
 .workspace-page--wide {
