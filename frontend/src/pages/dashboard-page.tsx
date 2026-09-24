@@ -3,6 +3,7 @@ import { DashboardHero } from '#/components/dashboard/DashboardHero'
 import { FavoriteRuns } from '#/components/dashboard/FavoriteRuns'
 import { RecentRuns } from '#/components/dashboard/RecentRuns'
 import { DashboardActivityFooter } from '#/components/dashboard/DashboardActivityFooter'
+import { DashboardFeatureLinks } from '#/components/dashboard/DashboardFeatureLinks'
 import { PageFrame } from '#/components/app/PageFrame'
 import { OnboardingTour } from '#/components/onboarding/OnboardingTour'
 import { useOnboarding } from '#/hooks/useOnboarding'
@@ -46,6 +47,7 @@ export function DashboardPage() {
           ) : (
             <DashboardActivityFooter />
           )}
+          <DashboardFeatureLinks />
           <div className="dashboard-footer-strip" />
         </div>
       </div>

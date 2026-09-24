@@ -267,7 +267,7 @@ export function HistoryPage({
                 <div key={workspace.id} className="grid gap-1">
                   <p>{workspace.label || 'Pinned workspace'}</p>
                   <p className="small-copy muted-copy">
-                    {workspace.last_active_tool || 'No latest artifact'} • {workspace.linked_run_ids.length} linked runs
+                    {workspace.last_active_tool || 'No latest artifact'} • {workspace.linked_run_ids.length} linked {workspace.linked_run_ids.length === 1 ? 'run' : 'runs'}
                   </p>
                 </div>
               ))
@@ -389,7 +389,7 @@ export function HistoryPage({
                           placeholder="Name this workspace"
                         />
                         <p className="small-copy muted-copy">
-                          {workspace.last_active_tool || 'No active tool'} • {workspace.linked_run_ids.length} linked runs
+                          {workspace.last_active_tool || 'No active tool'} • {workspace.linked_run_ids.length} linked {workspace.linked_run_ids.length === 1 ? 'run' : 'runs'}
                         </p>
                       </div>
                       <Button
