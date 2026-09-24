@@ -55,6 +55,7 @@ frontend/layout-mockups.html
 frontend/public/design-exploration.html
 test-results/
 frontend/test-results/
+frontend/e2e/screenshots/
 
 # IDE / OS / build caches
 .idea/

@@ -13,6 +13,10 @@ const backendUrl = `http://127.0.0.1:${backendPort}`
 
 export default defineConfig({
   testDir: './e2e',
+  // The screenshots harness (frontend/e2e/screenshots.spec.ts) boots its own
+  // webServer pair with every outcome flag on and is run separately via
+  // `pnpm screenshots` / playwright.screenshots.config.ts — never here.
+  testIgnore: '**/screenshots.spec.ts',
   fullyParallel: false,
   // E2E files use isolated browser contexts/users and the dedicated backend
   // disables request limiting, so CI can safely run two files concurrently.
