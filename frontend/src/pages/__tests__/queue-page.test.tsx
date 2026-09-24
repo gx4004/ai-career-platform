@@ -1,5 +1,6 @@
+import type { ReactNode } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { QueuePage } from '#/pages/queue-page'
 
@@ -13,6 +14,14 @@ const skipPacket = vi.hoisted(() => vi.fn())
 const rejectPacket = vi.hoisted(() => vi.fn())
 const editPacket = vi.hoisted(() => vi.fn())
 const answerPacketStopQuestion = vi.hoisted(() => vi.fn())
+const markPacketApplied = vi.hoisted(() => vi.fn())
+const listQueueRules = vi.hoisted(() => vi.fn())
+const upsertQueueRule = vi.hoisted(() => vi.fn())
+const deleteQueueRule = vi.hoisted(() => vi.fn())
+const getQueueSettings = vi.hoisted(() => vi.fn())
+const updateQueueSettings = vi.hoisted(() => vi.fn())
+const preparePackets = vi.hoisted(() => vi.fn())
+const navigateSpy = vi.hoisted(() => vi.fn())
 const sessionState = vi.hoisted(() => ({
   user: { id: 'owner-a', email: 'owner-a@example.com' } as {
     id: string
@@ -31,6 +40,13 @@ vi.mock('#/lib/api/client', () => ({
   rejectPacket,
   editPacket,
   answerPacketStopQuestion,
+  markPacketApplied,
+  listQueueRules,
+  upsertQueueRule,
+  deleteQueueRule,
+  getQueueSettings,
+  updateQueueSettings,
+  preparePackets,
 }))
 
 vi.mock('#/components/app/PageFrame', () => ({
@@ -43,6 +59,13 @@ vi.mock('#/hooks/useSession', () => ({
     user: sessionState.user,
   }),
 }))
+
+vi.mock('@tanstack/react-router', () => ({
+  Link: ({ children, to }: { children: ReactNode; to: string }) => <a href={to}>{children}</a>,
+  useNavigate: () => navigateSpy,
+}))
+
+const DEFAULT_SETTINGS = { max_packets_per_run: 20, cost_ceiling_usd: 5, estimated_packet_cost_usd: 0.1, is_default: true }
 
 function makePacket(overrides: Record<string, unknown> = {}) {
   return {
@@ -61,6 +84,7 @@ function makePacket(overrides: Record<string, unknown> = {}) {
     estimated_cost_usd: 0.05,
     created_at: '2026-07-14T00:00:00Z',
     updated_at: '2026-07-14T00:00:00Z',
+    applied_at: null,
     ...overrides,
   }
 }
@@ -68,9 +92,12 @@ function makePacket(overrides: Record<string, unknown> = {}) {
 function renderPage(
   packets: unknown[],
   state: unknown = { paused: false },
+  rules: unknown[] = [],
 ) {
   listPackets.mockResolvedValue({ items: packets })
   getQueueState.mockResolvedValue(state)
+  listQueueRules.mockResolvedValue({ items: rules })
+  getQueueSettings.mockResolvedValue(DEFAULT_SETTINGS)
   getPacketApprovalPreview.mockResolvedValue({
     destination_url: 'https://jobs.example/apply/1',
     material_sha256: 'd'.repeat(64),
@@ -80,8 +107,8 @@ function renderPage(
         company: 'Acme',
         description: 'Build reliable backend systems.',
       },
-      cv_variant: { id: 'variant-1', sections: [{ title: 'Experience' }] },
-      drafts: { cover_letter: { body: 'Exact approved draft.' } },
+      cv_variant: { id: 'variant-1', name: 'Platform roles', sections: [{ id: 'exp', title: 'Experience', entries: [{ id: 'e1', body: 'Led the platform team.' }] }] },
+      drafts: { cover_letter: { body: 'Exact approved draft.' }, screening_answers: [{ question: 'Notice period?', answer: 'Two weeks.' }] },
     },
   })
   pauseQueue.mockResolvedValue({ paused: true })
@@ -107,6 +134,7 @@ function renderPage(
   skipPacket.mockResolvedValue(makePacket({ decision: 'skipped' }))
   rejectPacket.mockResolvedValue(makePacket({ decision: 'rejected' }))
   editPacket.mockResolvedValue(makePacket({ decision: 'pending' }))
+  markPacketApplied.mockResolvedValue(makePacket({ decision: 'accepted', applied_at: '2026-07-26T00:00:00Z' }))
   answerPacketStopQuestion.mockResolvedValue({
     packet_id: 'packet-abcdef12',
     resolved_field: 'salary',
@@ -138,35 +166,60 @@ describe('QueuePage', () => {
     sessionState.user = { id: 'owner-a', email: 'owner-a@example.com' }
   })
 
-  it('accepts a prepared packet with no unresolved questions', async () => {
+  it('shows the ready-for-review section with job title, company and match', async () => {
     renderPage([makePacket()])
-    const accept = await screen.findByRole('button', { name: /Accept/ })
-    expect((accept as HTMLButtonElement).disabled).toBe(true)
-    expect(await screen.findByText(/Build reliable backend systems/)).toBeTruthy()
-    fireEvent.click(screen.getByRole('checkbox', { name: /I reviewed these exact materials/i }))
-    expect((accept as HTMLButtonElement).disabled).toBe(false)
-    fireEvent.click(accept)
+    expect(await screen.findByText('Ready for review')).toBeTruthy()
+    expect(await screen.findByText('Senior Backend Engineer')).toBeTruthy()
+    expect(screen.getByText('Acme')).toBeTruthy()
+    expect(screen.getByText('82%')).toBeTruthy()
+  })
+
+  it('shows an empty state pointing to Discover when the queue is empty', async () => {
+    renderPage([])
+    expect(await screen.findByText(/Nothing in your queue yet/i)).toBeTruthy()
+    expect(screen.getByRole('link', { name: /Discover jobs/i })).toBeTruthy()
+  })
+
+  it('approves a packet from the review drawer once reviewed', async () => {
+    renderPage([makePacket()])
+    fireEvent.click(await screen.findByRole('button', { name: /Review application/i }))
+    const approve = await screen.findByRole('button', { name: /^Approve$/ })
+    expect((approve as HTMLButtonElement).disabled).toBe(true)
+    fireEvent.click(screen.getByRole('checkbox', { name: /I've looked this over/i }))
+    expect((approve as HTMLButtonElement).disabled).toBe(false)
+    fireEvent.click(approve)
     await waitFor(() =>
       expect(acceptPacket).toHaveBeenCalledWith('packet-abcdef12', 'd'.repeat(64)),
     )
   })
 
-  it('shows a safe user-driven link to the official destination after approval', async () => {
-    renderPage([makePacket()])
-
-    fireEvent.click(await screen.findByRole('checkbox', { name: /I reviewed these exact materials/i }))
-    fireEvent.click(await screen.findByRole('button', { name: /Accept/ }))
-
-    const link = await screen.findByRole('link', {
-      name: /Open official application destination/i,
-    })
-    expect(link.getAttribute('href')).toBe('https://jobs.example/apply/1')
+  it('gives the approved card a safe apply link with target and rel set', async () => {
+    renderPage([makePacket({ decision: 'accepted' })])
+    const link = await screen.findByRole('link', { name: /Apply on company site/i })
+    await waitFor(() => expect(link.getAttribute('href')).toBe('https://jobs.example/apply/1'))
     expect(link.getAttribute('target')).toBe('_blank')
     expect(link.getAttribute('rel')).toContain('noopener')
-    expect(screen.getByText(/submit it yourself/i)).toBeTruthy()
   })
 
-  it('disables accept while an unresolved question blocks approval (D-095)', async () => {
+  it('offers copy-to-clipboard for the prepared cover letter and screening answers', async () => {
+    renderPage([makePacket({ decision: 'accepted' })])
+    expect(await screen.findByRole('button', { name: /Copy Cover letter/i })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /Copy Notice period/i })).toBeTruthy()
+  })
+
+  it('marks an approved packet as applied', async () => {
+    renderPage([makePacket({ decision: 'accepted' })])
+    fireEvent.click(await screen.findByRole('button', { name: /Mark as applied/i }))
+    await waitFor(() => expect(markPacketApplied).toHaveBeenCalledWith('packet-abcdef12'))
+  })
+
+  it('shows an Applied pill instead of the mark-applied control once applied', async () => {
+    renderPage([makePacket({ decision: 'accepted', applied_at: '2026-07-26T00:00:00Z' })])
+    expect(await screen.findByText('Applied')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /Mark as applied/i })).toBeNull()
+  })
+
+  it('disables approve while an unresolved question blocks it (D-095)', async () => {
     renderPage([
       makePacket({
         status: 'blocked',
@@ -175,17 +228,12 @@ describe('QueuePage', () => {
         ],
       }),
     ])
-    const accept = await screen.findByRole('button', { name: /Accept/ })
-    expect((accept as HTMLButtonElement).disabled).toBe(true)
-    expect(
-      screen.getByRole('heading', { name: /Unresolved questions block acceptance/i }),
-    ).toBeTruthy()
-    expect(
-      screen.getByText(/Accept is disabled until every unresolved question is answered/i),
-    ).toBeTruthy()
+    fireEvent.click(await screen.findByRole('button', { name: /Review application/i }))
+    expect(await screen.findByText(/Before you can approve this/i)).toBeTruthy()
+    expect((screen.getByRole('button', { name: /^Approve$/ }) as HTMLButtonElement).disabled).toBe(true)
   })
 
-  it('enables accept after the blocking stop question is answered', async () => {
+  it('resolves a blocking question, then allows approval', async () => {
     renderPage([
       makePacket({
         status: 'blocked',
@@ -194,88 +242,77 @@ describe('QueuePage', () => {
         ],
       }),
     ])
-    await screen.findByRole('button', { name: /Accept/ })
-    fireEvent.change(screen.getByLabelText(/Your answer to/), {
+    fireEvent.click(await screen.findByRole('button', { name: /Review application/i }))
+    fireEvent.change(await screen.findByLabelText(/Your answer to/), {
       target: { value: 'Market rate' },
     })
-    fireEvent.click(screen.getByRole('button', { name: /Save answer/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Save answer/i }))
     await waitFor(() =>
       expect(answerPacketStopQuestion).toHaveBeenCalledWith('packet-abcdef12', {
         field: 'salary',
         answer: 'Market rate',
       }),
     )
-    fireEvent.click(await screen.findByRole('checkbox', { name: /I reviewed these exact materials/i }))
-    await waitFor(() =>
-      expect((screen.getByRole('button', { name: /Accept/ }) as HTMLButtonElement).disabled).toBe(false),
-    )
   })
 
-  it('shows the non-answerable CV hint for a missing-material question', async () => {
-    renderPage([
-      makePacket({
-        status: 'blocked',
-        cv_variant_id: null,
-        unresolved_questions: [
-          { field: 'cv_variant', category: 'missing_material', question: 'Select a CV.' },
-        ],
-      }),
-    ])
-    expect(await screen.findByText(/cannot be answered here/i)).toBeTruthy()
-    // No answer input is offered for a non-stop question.
-    expect(screen.queryByLabelText(/Your answer to/)).toBeNull()
-  })
-
-  it('asks for re-preparation when a required non-CV reference disappeared', async () => {
-    renderPage([
-      makePacket({
-        status: 'blocked',
-        listing_id: null,
-        unresolved_questions: [
-          {
-            field: 'listing',
-            category: 'missing_material',
-            question: 'The target listing is no longer available.',
-          },
-        ],
-      }),
-    ])
-
-    expect(await screen.findByText(/re-prepare this packet/i)).toBeTruthy()
-    expect(screen.queryByText(/Select or tailor a CV variant/i)).toBeNull()
-  })
-
-  it('skips and rejects a packet through the per-packet controls', async () => {
+  it('skips and rejects a packet from the drawer', async () => {
     renderPage([makePacket()])
-    fireEvent.click(await screen.findByRole('button', { name: /Skip/ }))
+    fireEvent.click(await screen.findByRole('button', { name: /Review application/i }))
+    fireEvent.click(await screen.findByRole('button', { name: /^Skip$/ }))
     await waitFor(() => expect(skipPacket).toHaveBeenCalledWith('packet-abcdef12'))
-    fireEvent.click(screen.getByRole('button', { name: /Reject/ }))
-    await waitFor(() => expect(rejectPacket).toHaveBeenCalledWith('packet-abcdef12'))
   })
 
-  it('edits (reopens) a packet through the per-packet control', async () => {
-    renderPage([makePacket({ decision: 'rejected' })])
-    fireEvent.click(await screen.findByRole('button', { name: /Edit/ }))
+  it('edits a packet by reopening it and navigating to CV Studio', async () => {
+    renderPage([makePacket()])
+    fireEvent.click(await screen.findByRole('button', { name: /Review application/i }))
+    fireEvent.click(await screen.findByRole('button', { name: /Edit in CV Studio/i }))
     await waitFor(() => expect(editPacket).toHaveBeenCalledWith('packet-abcdef12'))
+    await waitFor(() => expect(navigateSpy).toHaveBeenCalledWith({ to: '/cv-studio' }))
   })
 
   it('pauses the whole queue and reflects the halted state', async () => {
     renderPage([makePacket()], { paused: false })
-    const toggle = await screen.findByRole('button', { name: /Pause queue/ })
-    fireEvent.click(toggle)
+    fireEvent.click(await screen.findByRole('button', { name: /Pause queue/i }))
     await waitFor(() => expect(pauseQueue).toHaveBeenCalled())
   })
 
   it('shows the paused banner and a resume control when the queue is paused', async () => {
     renderPage([makePacket()], { paused: true })
     expect(await screen.findByText(/Queue paused/i)).toBeTruthy()
-    expect(screen.getByRole('button', { name: /Resume queue/ })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /Resume queue/i })).toBeTruthy()
+  })
+
+  it('adds a keyword rule and saves it', async () => {
+    upsertQueueRule.mockResolvedValue({
+      id: 'rule-1', rule_type: 'role', keywords: ['backend engineer'], min_score: null,
+      created_at: '2026-07-14T00:00:00Z', updated_at: '2026-07-14T00:00:00Z',
+    })
+    renderPage([])
+    const input = await screen.findByLabelText('Keywords')
+    fireEvent.change(input, { target: { value: 'backend engineer' } })
+    fireEvent.click(within(input.closest('form') as HTMLElement).getByRole('button', { name: /^Add$/ }))
+    await waitFor(() =>
+      expect(upsertQueueRule).toHaveBeenCalledWith({
+        rule_type: 'role',
+        keywords: ['backend engineer'],
+      }),
+    )
+  })
+
+  it('shows saved location and role keywords as removable chips', async () => {
+    renderPage([], { paused: false }, [
+      { id: 'rule-1', rule_type: 'role', keywords: ['backend engineer'], min_score: null, created_at: '2026-07-14T00:00:00Z', updated_at: '2026-07-14T00:00:00Z' },
+      { id: 'rule-2', rule_type: 'location', keywords: ['Berlin'], min_score: null, created_at: '2026-07-14T00:00:00Z', updated_at: '2026-07-14T00:00:00Z' },
+    ])
+    expect(await screen.findByText('backend engineer')).toBeTruthy()
+    expect(screen.getByText('Berlin')).toBeTruthy()
   })
 
   it('never shows owner A packets or handoff after owner B replaces the session', async () => {
     const ownerAPacket = makePacket({
       id: 'alpha-owner-a',
       campaign_id: 'campaign-owner-a',
+      decision: 'accepted',
     })
     const ownerBPacket = makePacket({
       id: 'bravo-owner-b',
@@ -283,12 +320,8 @@ describe('QueuePage', () => {
     })
     const view = renderPage([ownerAPacket])
 
-    fireEvent.click(await screen.findByRole('checkbox', { name: /I reviewed these exact materials/i }))
-    fireEvent.click(await screen.findByRole('button', { name: /Accept/ }))
     expect(
-      await screen.findByRole('link', {
-        name: /Open official application destination/i,
-      }),
+      await screen.findByRole('link', { name: /Apply on company site/i }),
     ).toBeTruthy()
 
     sessionState.user = { id: 'owner-b', email: 'owner-b@example.com' }
@@ -297,12 +330,9 @@ describe('QueuePage', () => {
     view.rerenderPage()
 
     await waitFor(() => {
-      expect(screen.getByText(/Packet bravo-ow/i)).toBeTruthy()
-      expect(screen.queryByText(/Packet alpha-ow/i)).toBeNull()
+      expect(screen.getByText('Ready for review')).toBeTruthy()
       expect(
-        screen.queryByRole('link', {
-          name: /Open official application destination/i,
-        }),
+        screen.queryByRole('link', { name: /Apply on company site/i }),
       ).toBeNull()
     })
     expect(

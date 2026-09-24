@@ -297,6 +297,18 @@ test('capture authenticated + guest pages for visual review', async ({ page, bro
       console.warn('[screenshots] profile seed skipped (page shows its empty state):', describeError(error))
     }
     await capturePage(page, 'desktop', 'profile', '/profile', results)
+    // Application Queue seed: a pending application, an approved-not-yet-applied
+    // one, and an approved-and-applied one, so both queue sections and both
+    // approved-card states have something real to show.
+    try {
+      execFileSync(env.pythonBin, ['-m', 'tests.seed_queue_packets', email], {
+        cwd: env.backendDir,
+        env: { ...process.env, DATABASE_URL: env.databaseUrl },
+        stdio: 'pipe',
+      })
+    } catch (error) {
+      console.warn('[screenshots] queue seed skipped (page shows its empty state):', describeError(error))
+    }
 
     // --- Desktop authenticated pages -----------------------------------------
     for (const p of userPages) {

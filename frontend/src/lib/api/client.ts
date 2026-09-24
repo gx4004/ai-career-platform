@@ -6,10 +6,19 @@ import {
   packetApprovalResultSchema,
   packetApprovalPreviewSchema,
   packetApprovalRequestSchema,
+  packetPreparationResultSchema,
   queueReviewStateSchema,
   stopAnswerRequestSchema,
   stopAnswerResultSchema,
 } from '#/lib/api/packetSchemas'
+import {
+  queueRuleItemSchema,
+  queueRuleListSchema,
+  queueRuleUpsertSchema,
+  queueSettingsResponseSchema,
+  queueSettingsUpsertSchema,
+} from '#/lib/api/queueSchemas'
+import type { QueueRuleType, QueueRuleUpsert, QueueSettingsUpsert } from '#/lib/api/queueSchemas'
 import { gapClassificationListResponseSchema } from '#/lib/api/gapClassificationSchemas'
 import { gapResponseOfferSchema } from '#/lib/api/gapResponseSchemas'
 import {
@@ -885,5 +894,51 @@ export function answerPacketStopQuestion(
     method: 'POST',
     body: stopAnswerRequestSchema.parse(payload),
     schema: stopAnswerResultSchema,
+  })
+}
+
+export function markPacketApplied(packetId: string) {
+  return request(`/packets/${packetId}/applied`, {
+    method: 'POST',
+    body: {},
+    schema: applicationPacketItemSchema,
+  })
+}
+
+// ── Queue rules — the filters a job must pass to become a packet (R15 #180) ──
+
+export function listQueueRules() {
+  return request('/queue/rules', { method: 'GET', schema: queueRuleListSchema })
+}
+
+export function upsertQueueRule(payload: QueueRuleUpsert) {
+  return request('/queue/rules', {
+    method: 'PUT',
+    body: queueRuleUpsertSchema.parse(payload),
+    schema: queueRuleItemSchema,
+  })
+}
+
+export function deleteQueueRule(ruleType: QueueRuleType) {
+  return request(`/queue/rules/${ruleType}`, { method: 'DELETE' })
+}
+
+export function getQueueSettings() {
+  return request('/queue/settings', { method: 'GET', schema: queueSettingsResponseSchema })
+}
+
+export function updateQueueSettings(payload: QueueSettingsUpsert) {
+  return request('/queue/settings', {
+    method: 'PUT',
+    body: queueSettingsUpsertSchema.parse(payload),
+    schema: queueSettingsResponseSchema,
+  })
+}
+
+export function preparePackets() {
+  return request('/packets/prepare', {
+    method: 'POST',
+    body: {},
+    schema: packetPreparationResultSchema,
   })
 }

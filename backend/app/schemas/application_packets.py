@@ -140,11 +140,21 @@ class ApplicationPacketItem(BaseModel):
     estimated_cost_usd: float = Field(ge=0)
     created_at: datetime
     updated_at: datetime
+    # When the owner confirmed they submitted this application on the company site
+    # (mark-as-applied). Derived from the packet's ``submission_confirmed`` campaign
+    # event (D-093 by-reference) — not a column, so no new packet state to drift.
+    # None until marked; only reachable once ``decision == "accepted"``.
+    applied_at: datetime | None = None
 
     @field_validator("created_at", "updated_at")
     @classmethod
     def normalize(cls, value: datetime) -> datetime:
         return _as_utc(value)
+
+    @field_validator("applied_at")
+    @classmethod
+    def normalize_applied_at(cls, value: datetime | None) -> datetime | None:
+        return _as_utc(value) if value is not None else None
 
     @field_validator("estimated_cost_usd", mode="before")
     @classmethod

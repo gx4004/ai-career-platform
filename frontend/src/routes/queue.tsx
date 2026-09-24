@@ -4,6 +4,9 @@ import { isR15QueueEnabled } from '#/lib/flags/featureFlags'
 import { requireEnabledOutcome } from '#/lib/flags/outcomeGuard'
 
 export const Route = createFileRoute('/queue')({
+  // The session cookie is only sent from the browser, so the auth guard must
+  // not run during server rendering (it would bounce a signed-in reload to /login).
+  ssr: false,
   beforeLoad: async () => {
     requireEnabledOutcome(isR15QueueEnabled())
     await requireUser()
