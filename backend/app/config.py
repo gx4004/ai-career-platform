@@ -84,6 +84,10 @@ class Settings(BaseSettings):
     # exposed; both must be true for the scheduler to start (see
     # `app.services.ats_ingestion.run_ats_ingestion_scheduler`). Ships dark.
     ATS_INGESTION_ENABLED: bool = False
+    # Autopilot experiment (#325): opens a headed browser on the machine running
+    # the backend, fills an approved application form, and stops before submit.
+    # Local-only; never enable on a hosted deployment.
+    AUTOPILOT_EXPERIMENT_ENABLED: bool = False
 
     CAPTCHA_ENABLED: bool = False
     CAPTCHA_SECRET_KEY: str = ""
