@@ -14,6 +14,7 @@ import {
   Plus,
   SkipForward,
   Sparkles,
+  Wand2,
   X,
 } from 'lucide-react'
 import {
@@ -35,6 +36,7 @@ import { useSession } from '#/hooks/useSession'
 import {
   acceptPacket,
   answerPacketStopQuestion,
+  autofillPacket,
   deleteQueueRule,
   editPacket,
   getPacketApprovalPreview,
@@ -52,6 +54,7 @@ import {
   upsertQueueRule,
 } from '#/lib/api/client'
 import { ApiError } from '#/lib/api/errors'
+import { isAutopilotExperimentEnabled } from '#/lib/flags/featureFlags'
 import {
   QUEUE_QUERY_ROOT,
   queuePacketsQueryKey,
@@ -520,7 +523,54 @@ function ApprovedCard({
           </Button>
         )}
       </div>
+      {isAutopilotExperimentEnabled() && !applied && preview.data?.destination_url ? (
+        <AutofillBlock packetId={packet.id} />
+      ) : null}
     </article>
+  )
+}
+
+// Autopilot experiment (#325): local-only, off by default, stops before submit.
+function AutofillBlock({ packetId }: { packetId: string }) {
+  const autofill = useMutation({ mutationFn: () => autofillPacket(packetId) })
+  const report = autofill.data
+  return (
+    <div className="queue-autofill">
+      <div className="queue-autofill__row">
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={() => autofill.mutate()}
+          loading={autofill.isPending}
+        >
+          <Wand2 size={14} aria-hidden="true" /> Fill the form for me (experimental)
+        </Button>
+        <p className="queue-autofill__hint">
+          Opens the company form in a browser on this computer and fills what it can. You
+          check it and press submit yourself.
+        </p>
+      </div>
+      {autofill.isError ? (
+        <p className="queue-autofill__error" role="alert">
+          {autofill.error instanceof Error ? autofill.error.message : 'Could not fill the form.'}
+        </p>
+      ) : null}
+      {report ? (
+        <div className="queue-autofill__report" role="status">
+          <p>
+            <strong>Filled:</strong> {report.filled.length > 0 ? report.filled.join(', ') : 'nothing'}
+          </p>
+          {report.skipped.length > 0 ? (
+            <p>
+              <strong>Fill these yourself (highlighted in the form):</strong>{' '}
+              {report.skipped.join(', ')}
+            </p>
+          ) : null}
+          <p>Nothing was submitted. Check the browser window and press submit when you're happy.</p>
+        </div>
+      ) : null}
+    </div>
   )
 }
 

@@ -35,8 +35,20 @@ Tracked on GitHub: umbrella #319.
 | 2 CV Studio | #322 | Structured editor, customisation, ATS mode, live preview, redesign |
 | 3 Discovery + Queue | #323 | Real ingestion from public job boards; redesigned discovery and queue |
 | 4 Campaigns + Evidence | #324 | Redesigned tracker and profile; grouped navigation |
-| 5 Autopilot experiment | #325 | Browser-assisted fill that stops before submit |
+| 5 Autopilot experiment | #325 | Browser-assisted fill — experimental, off by default, stops before submit |
 | 6 Polish and finish | #326 | Consistency, e2e journeys, local release gate, final review |
+
+## Autopilot experiment (#325)
+
+Off by default: `AUTOPILOT_EXPERIMENT_ENABLED` (backend) and
+`VITE_AUTOPILOT_EXPERIMENT_ENABLED` (frontend). On an approved queue card, "Fill
+the form for me (experimental)" opens the listing's Greenhouse, Lever, or Ashby
+form in a browser on the machine running the backend, so it only makes sense
+locally. It fills name, email, phone, links, the tailored CV PDF, the cover
+letter, and screening answers whose labels match, highlights the rest, and
+stops. It never presses submit; the owner reviews the open window and submits.
+Only https pages on those three hosts are opened. Tests use local fixture forms
+only, never live employer sites.
 
 ## Deferred (not in this run)
 

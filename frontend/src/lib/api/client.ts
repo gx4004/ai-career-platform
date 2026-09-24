@@ -3,6 +3,7 @@ import { ApiError } from '#/lib/api/errors'
 import {
   applicationPacketItemSchema,
   applicationPacketListSchema,
+  autofillReportSchema,
   packetApprovalResultSchema,
   packetApprovalPreviewSchema,
   packetApprovalRequestSchema,
@@ -902,6 +903,15 @@ export function markPacketApplied(packetId: string) {
     method: 'POST',
     body: {},
     schema: applicationPacketItemSchema,
+  })
+}
+
+/** Autopilot experiment: fill the approved form in a local browser. Never submits. */
+export function autofillPacket(packetId: string) {
+  return request(`/packets/${packetId}/autofill`, {
+    method: 'POST',
+    body: {},
+    schema: autofillReportSchema,
   })
 }
 
