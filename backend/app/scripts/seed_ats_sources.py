@@ -26,6 +26,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import secrets
 from pathlib import Path
 
 from app.auth.security import hash_password
@@ -63,8 +64,9 @@ def _system_reviewer(db) -> User:
     reviewer = User(
         email=SEED_REVIEWER_EMAIL,
         # Not a login path this account is ever meant to use — a random,
-        # never-communicated password, exactly like any other system actor.
-        hashed_password=hash_password(Path(__file__).name + str(id(object()))),
+        # never-communicated, cryptographically strong password, exactly like
+        # any other system actor's credential.
+        hashed_password=hash_password(secrets.token_urlsafe(32)),
         is_admin=True,
     )
     db.add(reviewer)

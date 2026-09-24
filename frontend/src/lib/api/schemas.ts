@@ -74,7 +74,7 @@ export const discoveryRecommendationSchema = z.strictObject({
   location: z.string().nullable().default(null),
   remote: z.boolean().nullable().default(null),
   posted_at: z.iso.datetime({ offset: true }).nullable().default(null),
-  apply_url: z.string().url().max(2_048).nullable().default(null),
+  apply_url: z.string().url().max(2_048).refine((value) => value.startsWith('https://')).nullable().default(null),
   department: z.string().nullable().default(null),
   score: z.number().int().min(0).max(100),
   rationale: z.array(discoveryRecommendationSignalSchema),

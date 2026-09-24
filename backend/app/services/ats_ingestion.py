@@ -250,9 +250,22 @@ async def run_ats_ingestion_scheduler(
 
 
 async def _run_ats_ingestion_once() -> ATSIngestSummary | None:
+    """Run one full ingestion pass off the event loop.
+
+    `run_ats_ingestion` mixes real network I/O (async, wants the loop) with
+    hundreds of synchronous DB writes (`store_discovered_listing`'s
+    queries/commits) that would otherwise block every other request on this
+    process for however long the run takes — minutes against a fully seeded
+    source list. `asyncio.to_thread` moves the whole pass to a worker thread,
+    where `asyncio.run` gives it its own event loop for the fetches.
+    """
+    return await asyncio.to_thread(_run_ats_ingestion_once_sync)
+
+
+def _run_ats_ingestion_once_sync() -> ATSIngestSummary | None:
     db = SessionLocal()
     try:
-        summary = await run_ats_ingestion(db)
+        summary = asyncio.run(run_ats_ingestion(db))
         logger.info(
             "ats ingestion run sources=%d failures=%d",
             len(summary.outcomes),
@@ -268,6 +281,18 @@ async def _run_ats_ingestion_once() -> ATSIngestSummary | None:
         return None
     finally:
         db.close()
+
+
+async def run_ats_ingestion_off_loop(db: Session) -> ATSIngestSummary:
+    """Run ingestion for an already-open session without blocking the event loop.
+
+    For a caller (the admin on-demand refresh) that already holds a
+    request-scoped `db`: the run happens in a worker thread with its own event
+    loop for the fetches, and `db` is used there and back on the main thread
+    only sequentially (this coroutine awaits the thread before touching it
+    again), so it is never accessed from two threads at once.
+    """
+    return await asyncio.to_thread(lambda: asyncio.run(run_ats_ingestion(db)))
 
 
 def _record_ats_fetch_outcome(db: Session, source_family: str, outcome: str) -> None:

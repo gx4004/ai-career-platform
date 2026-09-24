@@ -54,7 +54,7 @@ from app.services.analytics import (
     aggregate_profile_adoption,
     record_database_query_timing,
 )
-from app.services.ats_ingestion import run_ats_ingestion
+from app.services.ats_ingestion import run_ats_ingestion_off_loop
 from app.services.discovery_personalization import list_admin_reports
 from app.services.discovery_sources import operate_source_kill_switch
 from app.services.packet_gate import aggregate_packet_gate
@@ -185,9 +185,12 @@ async def refresh_ats_sources(
 
     Admin-gated exactly like every other endpoint here. Reuses the same
     per-source governance and isolation as the scheduled run: one source's
-    failure never fails this request, it is reported per source instead.
+    failure never fails this request, it is reported per source instead. Runs
+    off the event loop (`run_ats_ingestion_off_loop`) so this request's
+    potentially multi-minute ingestion pass never blocks every other request
+    on this process.
     """
-    summary = await run_ats_ingestion(db)
+    summary = await run_ats_ingestion_off_loop(db)
     return ATSIngestionRefreshResponse(
         outcomes=summary.outcomes,
         failures=summary.failures,
