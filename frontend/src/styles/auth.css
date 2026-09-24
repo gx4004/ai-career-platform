@@ -75,7 +75,10 @@
   justify-content: space-between;
   gap: 1rem;
   margin-bottom: 0.75rem;
-  color: rgba(255, 255, 255, 0.6);
+  /* This row renders inside .auth-page-shell, on its near-white card
+     background, not on the dark .auth-page gradient behind it — white text
+     here was reading as white-on-white (career-workbench#326). */
+  color: var(--text-muted);
   font-size: 0.85rem;
 }
 
@@ -84,13 +87,13 @@
   display: inline-flex;
   align-items: center;
   min-height: var(--touch-target, 44px);
-  color: rgba(255, 255, 255, 0.7);
+  color: var(--text-muted);
   text-decoration: none;
 }
 
 .auth-page-actions a:hover,
 .auth-page-actions button:hover {
-  color: #fff;
+  color: var(--text-strong);
 }
 
 .auth-back-link {
@@ -99,12 +102,12 @@
   padding: 0;
   cursor: pointer;
   white-space: nowrap;
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--text-muted);
   transition: color var(--transition-fast);
 }
 
 .auth-back-link:hover {
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--text-strong);
 }
 
 .auth-dialog-content {

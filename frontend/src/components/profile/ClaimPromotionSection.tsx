@@ -29,7 +29,7 @@ export function ClaimPromotionSection({
       <div className="claim-promote__head">
         <strong className="claim-promote__title">Save to your Evidence Profile</strong>
         <p className="claim-promote__hint">
-          Add a specific claim as a suggested item you can review and accept later.
+          Add this detail as a suggested item you can review and confirm later.
         </p>
       </div>
       <ul className="claim-promote__list">

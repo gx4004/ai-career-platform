@@ -550,6 +550,11 @@ svg {
   border-radius: var(--radius-pill) !important;
   border-color: transparent !important;
   background: rgba(255, 255, 255, 0.06) !important;
+  /* Ghost buttons default to `text-foreground` (the light-surface text
+     color), which is nearly invisible against the dark topbar — the name +
+     chevron rendered as nearly-illegible dark-on-dark text (career-
+     workbench#326). Match the sidebar's light foreground instead. */
+  color: var(--sidebar-foreground) !important;
   transition: background var(--transition-fast),
               box-shadow var(--transition-smooth);
 }
