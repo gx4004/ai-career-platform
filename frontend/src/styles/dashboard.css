@@ -1592,6 +1592,23 @@ body.page-tone-dashboard .app-main {
   color: color-mix(in srgb, var(--tool-accent, var(--accent)) 72%, var(--text-strong));
   font-weight: 700;
   letter-spacing: 0.015em;
+  /* A run whose tool_name isn't one of the six registered tools (e.g. the
+     CV Studio quality check) falls back to its raw, longer slug — without a
+     bound this overflows the narrow mobile scroll-snap cards and gets hard-
+     clipped by .run-row's `overflow: hidden` (career-workbench#326). Letting
+     the badge itself shrink is only half the fix: `text-overflow: ellipsis`
+     doesn't apply to an inline-flex box's own overflow, hence the nested
+     .run-row-badge-text span below. */
+  min-width: 0;
+  max-width: 100%;
+}
+
+.run-row-badge-text {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .run-row-cta {

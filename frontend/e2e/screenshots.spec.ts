@@ -327,6 +327,13 @@ test('capture authenticated + guest pages for visual review', async ({ page, bro
       await page.getByRole('button', { name: 'Review resume' }).click()
       await page.waitForURL(/\/resume\/result\/[^/]+$/, { timeout: 45_000 })
       resumeResultPath = new URL(page.url()).pathname
+      // The result page mounts its own "Fetching saved output" spinner
+      // (ToolResultScreen) after the URL changes; settle()'s networkidle
+      // check can pass while that query is still pending, capturing a bare
+      // spinner instead of the result (career-workbench#326). Wait for the
+      // actual result heading rather than the spinner's absence — a fresh
+      // history fetch right after registration can outlast a short wait.
+      await page.locator('.result-hero__headline').first().waitFor({ timeout: 30_000 }).catch(() => {})
       await shootCurrentPage(page, 'desktop', 'resume-result', results)
     } catch (error) {
       results.push({ name: 'resume-result', viewport: 'desktop', status: 'failed', error: describeError(error) })
@@ -441,9 +448,9 @@ test('capture authenticated + guest pages for visual review', async ({ page, bro
       await capturePage(mobilePage, 'mobile', 'resume-input', '/resume', results, { waitForMobileShell: true })
 
       if (resumeResultPath) {
-        await capturePage(mobilePage, 'mobile', 'resume-result', resumeResultPath, results, {
-          waitForMobileShell: true,
-        })
+        await mobilePage.goto(resumeResultPath, { waitUntil: 'domcontentloaded', timeout: 30_000 }).catch(() => {})
+        await mobilePage.locator('.result-hero__headline').first().waitFor({ timeout: 30_000 }).catch(() => {})
+        await shootCurrentPage(mobilePage, 'mobile', 'resume-result', results, { waitForMobileShell: true })
       } else {
         skip(results, 'resume-result', 'mobile', 'desktop seed did not produce a result page')
       }
