@@ -8,7 +8,6 @@ import { OnboardingTour } from '#/components/onboarding/OnboardingTour'
 import { useOnboarding } from '#/hooks/useOnboarding'
 import { useSession } from '#/hooks/useSession'
 import { useBreakpoint } from '#/hooks/use-breakpoint'
-import { ResultsNudge } from '#/components/history/ResultsNudge'
 
 export function DashboardPage() {
   const onboarding = useOnboarding()
@@ -39,7 +38,6 @@ export function DashboardPage() {
         <div className="dashboard-light-surface">
           {isAuthenticated ? (
             <>
-              <ResultsNudge />
               <div className="dashboard-runs-grid" data-tour="activity">
                 <RecentRuns />
                 <FavoriteRuns />

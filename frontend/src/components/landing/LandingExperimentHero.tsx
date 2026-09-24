@@ -11,8 +11,6 @@ import {
   landingExperimentHeroCopy,
   landingPrimaryCta,
 } from '#/components/landing/landingContent'
-import { LandingEntryChoice } from '#/components/landing/LandingEntryChoice'
-import { isR7EntryChoiceEnabled } from '#/lib/flags/featureFlags'
 
 const MotionLink = motion.create(Link)
 
@@ -93,33 +91,19 @@ export function LandingExperimentHero() {
           </h1>
           <p className="lp-hero-body lp-hero-body--desktop">{copy.body}</p>
           <p className="lp-hero-body lp-hero-body--mobile">{copy.mobileBody}</p>
-          {/* R7 #110 entry choice ships dark: default off keeps the single generic hero CTA. */}
-          {isR7EntryChoiceEnabled() ? (
-            <div className="lp-hero-entry">
-              <LandingEntryChoice />
-              <a
-                href="#landing-journey"
-                className="lp-btn-ghost"
-                onClick={(e) => handleSmoothScroll(e, 'landing-journey')}
-              >
-                {copy.secondaryCtaLabel}
-              </a>
-            </div>
-          ) : (
-            <div className="lp-hero-actions">
-              <Link to={landingPrimaryCta.to} className="lp-btn-primary">
-                {copy.ctaLabel}
-                <ArrowRight size={18} />
-              </Link>
-              <a
-                href="#landing-journey"
-                className="lp-btn-ghost"
-                onClick={(e) => handleSmoothScroll(e, 'landing-journey')}
-              >
-                {copy.secondaryCtaLabel}
-              </a>
-            </div>
-          )}
+          <div className="lp-hero-actions">
+            <Link to={landingPrimaryCta.to} className="lp-btn-primary">
+              {copy.ctaLabel}
+              <ArrowRight size={18} />
+            </Link>
+            <a
+              href="#landing-journey"
+              className="lp-btn-ghost"
+              onClick={(e) => handleSmoothScroll(e, 'landing-journey')}
+            >
+              {copy.secondaryCtaLabel}
+            </a>
+          </div>
         </div>
 
         <MotionLink
