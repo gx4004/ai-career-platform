@@ -18,6 +18,11 @@ DiscoveryQueryParameter = Literal[
     "cursor",
     "limit",
     "posted_after",
+    # Employer-ATS provider query parameters (#323). Fixed, provider-specific
+    # switches — never user-supplied search terms.
+    "content",
+    "mode",
+    "includeCompensation",
 ]
 
 

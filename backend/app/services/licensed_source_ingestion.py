@@ -161,12 +161,22 @@ async def _fetch_resource(
     url: str,
     query: dict[str, str | int | bool],
     allowed_content_types: frozenset[str],
+    *,
+    timeout_seconds: float = _TIMEOUT_SECONDS,
+    max_bytes: int = _MAX_RESPONSE_BYTES,
+    user_agent: str = DISCOVERY_USER_AGENT,
 ) -> tuple[bytes, str]:
+    """SSRF-safe, size-and-content-type-bounded GET. Shared by every governed
+    ingestion path (licensed feeds/APIs and employer-ATS adapters, #323) —
+    `timeout_seconds`/`max_bytes`/`user_agent` let a caller widen the response
+    cap for a legitimately larger payload (e.g. Greenhouse `content=true`)
+    without weakening the default for every other source.
+    """
     target = resolve_public_target(url)
     transport = httpx.AsyncHTTPTransport(retries=0)
     async with httpx.AsyncClient(
         follow_redirects=False,
-        timeout=_TIMEOUT_SECONDS,
+        timeout=timeout_seconds,
         transport=transport,
         trust_env=False,
     ) as client:
@@ -176,7 +186,7 @@ async def _fetch_resource(
             params=query,
             headers={
                 "Host": target.host_header,
-                "User-Agent": DISCOVERY_USER_AGENT,
+                "User-Agent": user_agent,
                 "Accept": ",".join(sorted(allowed_content_types)),
             },
             extensions={"sni_hostname": target.hostname},
@@ -190,12 +200,12 @@ async def _fetch_resource(
             if content_type not in allowed_content_types:
                 raise httpx.HTTPError("Unsupported discovery response content type")
             content_length = response.headers.get("content-length")
-            if content_length and int(content_length) > _MAX_RESPONSE_BYTES:
+            if content_length and int(content_length) > max_bytes:
                 raise httpx.HTTPError("Discovery response is too large")
             body = bytearray()
             async for chunk in response.aiter_bytes():
                 body.extend(chunk)
-                if len(body) > _MAX_RESPONSE_BYTES:
+                if len(body) > max_bytes:
                     raise httpx.HTTPError("Discovery response is too large")
             return bytes(body), content_type
         finally:
