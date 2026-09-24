@@ -83,7 +83,7 @@ lands as a PR into `chapter2` after local gates pass.
 
 - **Release environment unverified.** Railway topology, variables, migrations,
   domain, backup posture, OAuth, email, provider, and monitoring facts may have
-  changed. `docs/launch-checklist.md` owns verification.
+  changed and remain to be verified before promotion.
 - **Container build unverified for the current local candidate.** Docker is
   unavailable in this checkout environment. The root local release runner can build
   both images and verify their non-root runtime users when Docker is available; the

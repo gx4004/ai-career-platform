@@ -16,13 +16,11 @@ GET /api/v1/admin/activation
 GET /api/v1/admin/development-loop
 GET /api/v1/admin/discovery-reports
 GET /api/v1/admin/discovery-sources
-GET /api/v1/admin/eval-runs
 GET /api/v1/admin/health
 GET /api/v1/admin/packet-gate
 GET /api/v1/admin/profile-adoption
 GET /api/v1/admin/runs
 GET /api/v1/admin/runs/{run_id}
-GET /api/v1/admin/scorecard
 GET /api/v1/admin/source-health
 GET /api/v1/admin/stats
 GET /api/v1/admin/users

@@ -6,7 +6,6 @@
 # generation then fails for the whole app (#285). Real annotation objects
 # sidestep the lookup entirely. Covered by tests/test_openapi_schema.py.
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
 from time import perf_counter
 from typing import Literal
 
@@ -17,7 +16,6 @@ from sqlalchemy.orm import Session
 
 from app.auth.security import get_current_admin
 from app.database import get_db
-from app.evals.report_reader import ALL_TOOLS, REPORTS_DIR, latest_reports_by_tool
 from app.limiter import limiter
 from app.models.discovery_source import DiscoverySource
 from app.models.tool_run import ToolRun
@@ -25,20 +23,17 @@ from app.models.user import User
 from app.schemas.admin import (
     AdminActivationResponse,
     AdminDevelopmentLoopResponse,
-    AdminEvalRunsResponse,
     AdminPacketGateResponse,
     AdminProfileAdoptionResponse,
     AdminRunDetailResponse,
     AdminRunItem,
     AdminRunListResponse,
-    AdminScorecardResponse,
     AdminSetAdminRequest,
     AdminSourceHealthResponse,
     AdminStatsResponse,
     AdminUserDetailResponse,
     AdminUserItem,
     AdminUserListResponse,
-    EvalRunItem,
 )
 from app.schemas.analytics import OperationalToolId
 from app.schemas.ats_ingestion import ATSIngestionRefreshResponse
@@ -58,7 +53,6 @@ from app.services.ats_ingestion import run_ats_ingestion_off_loop
 from app.services.discovery_personalization import list_admin_reports
 from app.services.discovery_sources import operate_source_kill_switch
 from app.services.packet_gate import aggregate_packet_gate
-from app.services.scorecard import compute_scorecard
 from app.services.source_health import aggregate_source_health
 
 router = APIRouter()
@@ -588,89 +582,6 @@ def get_packet_gate(
         window_start=window_start,
         window_end=window_end,
     )
-
-
-# ── Scaling-trigger scorecard (R10, issue #136) ──
-
-
-@router.get("/scorecard", response_model=AdminScorecardResponse)
-@limiter.limit(_ADMIN_RATE)
-def get_scorecard(
-    request: Request,
-    admin: User = Depends(get_current_admin),
-    db: Session = Depends(get_db),
-):
-    """Read-only R10 operational scaling-trigger scorecard (#136, D-052/D-053).
-
-    Admin-gated exactly like every other endpoint here (``get_current_admin``).
-    For each of the six predeclared triggers it reports the threshold,
-    observation window, minimum sample, current evidence, freshness, trigger
-    state, owner, rollback, and exit criteria, plus the deferred response ticket
-    a fired trigger authorises *review* of. It never changes any response
-    configuration — a crossed threshold only sets ``review_required``.
-    """
-    return compute_scorecard(db)
-
-
-# ── Eval Runs (R8, issue #124) ──
-
-
-def get_reports_dir() -> Path:
-    """Directory the R8 eval reports are read from.
-
-    A FastAPI dependency so tests can point the endpoint at a fixture directory
-    of fake reports via ``app.dependency_overrides`` without touching the real
-    ``app/evals/reports/`` tree.
-    """
-    return REPORTS_DIR
-
-
-@router.get("/eval-runs", response_model=AdminEvalRunsResponse)
-@limiter.limit(_ADMIN_RATE)
-def get_eval_runs(
-    request: Request,
-    admin: User = Depends(get_current_admin),
-    reports_dir: Path = Depends(get_reports_dir),
-):
-    """Read-only latest R8 eval report per tool, read from disk (D-045).
-
-    Surfaces the newest versioned JSON report file per tool from
-    ``app/evals/reports/`` beside the activation dashboard's per-tool
-    latency/cost view, so quality/latency/cost are visible together on one page
-    (parent spec #118). Reports are dev-tooling artifacts on disk and are never
-    read from the ``analytics_events`` table (D-045).
-
-    Admin-gated exactly like every other endpoint here (``get_current_admin``).
-    Every tool (all six, canonical tool-order) is returned; a tool with no
-    report yet carries ``has_report=False`` so the UI shows an explicit
-    "no eval run yet" state rather than an error or blank.
-    """
-    latest = latest_reports_by_tool(reports_dir)
-    items: list[EvalRunItem] = []
-    for tool_id in ALL_TOOLS:
-        data = latest.get(tool_id)
-        if data is None:
-            items.append(EvalRunItem(tool_id=tool_id, has_report=False))
-            continue
-        items.append(
-            EvalRunItem(
-                tool_id=tool_id,
-                has_report=True,
-                report_schema_version=data.get("report_schema_version"),
-                prompt_version=data.get("prompt_version"),
-                judge_prompt_version=data.get("judge_prompt_version"),
-                generated_at=data.get("generated_at"),
-                mode=data.get("mode"),
-                fixtures_evaluated=data.get("fixtures_evaluated"),
-                calibration_miss_rate=data.get("calibration_miss_rate"),
-                explanation_inconsistency_count=data.get(
-                    "explanation_inconsistency_count"
-                ),
-                fabrication_candidate_count=data.get("fabrication_candidate_count"),
-                usefulness_score=data.get("usefulness_score"),
-            )
-        )
-    return AdminEvalRunsResponse(tools=items)
 
 
 # ── Health ──

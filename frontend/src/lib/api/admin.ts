@@ -202,30 +202,6 @@ export type AdminAccessMode = z.infer<typeof adminAccessModeSchema>
 export type AdminOperationalToolId = z.infer<typeof adminOperationalToolIdSchema>
 export type AdminActivation = z.infer<typeof adminActivationSchema>
 
-// R8 eval runs — mirrors backend/app/schemas/admin.py
-// (EvalRunItem / AdminEvalRunsResponse). Latest report per tool read from disk
-// (app/evals/reports/), never analytics_events (D-045).
-
-export const evalRunItemSchema = z.strictObject({
-  tool_id: z.string(),
-  has_report: z.boolean(),
-  report_schema_version: z.string().nullable(),
-  prompt_version: z.string().nullable(),
-  judge_prompt_version: z.string().nullable(),
-  generated_at: z.iso.datetime({ offset: true }).nullable(),
-  mode: z.enum(['deterministic', 'live']).nullable(),
-  fixtures_evaluated: z.number().int().nonnegative().nullable(),
-  calibration_miss_rate: z.number().min(0).max(1).nullable(),
-  explanation_inconsistency_count: z.number().int().nonnegative().nullable(),
-  fabrication_candidate_count: z.number().int().nonnegative().nullable(),
-  usefulness_score: z.number().min(1).max(5).nullable(),
-})
-export const adminEvalRunsSchema = z.strictObject({
-  tools: z.array(evalRunItemSchema),
-})
-export type EvalRunItem = z.infer<typeof evalRunItemSchema>
-export type AdminEvalRuns = z.infer<typeof adminEvalRunsSchema>
-
 // R11 profile-adoption view — mirrors backend/app/schemas/admin.py
 // (ProfileKindCount / ProfileProvenanceCount / ProfileTransitionCount /
 // AdminProfileAdoptionResponse). Read-only aggregate over the same first-party
@@ -285,52 +261,6 @@ export const adminDevelopmentLoopSchema = z.strictObject({
 })
 export type AdminDevelopmentLoop = z.infer<typeof adminDevelopmentLoopSchema>
 
-// R10 scaling-trigger scorecard — mirrors backend/app/schemas/admin.py
-// (ScorecardTrigger / AdminScorecardResponse). Read-only aggregate over the
-// same first-party operational store; a fired trigger sets review_required and
-// links its deferred response ticket — the scorecard never enables a response.
-
-export const triggerStateSchema = z.enum([
-  'fired',
-  'not_fired',
-  'insufficient_sample',
-])
-export const scorecardTriggerSchema = z.strictObject({
-  id: z.enum([
-    'cache_multi_instance',
-    'provider_incidents',
-    'latency_abandonment',
-    'abuse_cost',
-    'database_growth',
-    'import_concentration',
-  ]),
-  label: z.string(),
-  threshold: z.string(),
-  observation_window: z.string(),
-  minimum_sample: z.string(),
-  evidence: z.string(),
-  evidence_detail: z.record(z.string(), z.union([z.number(), z.string()])),
-  evidence_fresh: z.boolean(),
-  last_evidence_at: z.iso.datetime({ offset: true }).nullable(),
-  state: triggerStateSchema,
-  review_required: z.boolean(),
-  response_ticket: z.number().int().positive(),
-  response_ticket_title: z.string(),
-  owner: z.string(),
-  rollback: z.string(),
-  exit_criteria: z.string(),
-})
-export const adminScorecardSchema = z.strictObject({
-  generated_at: z.iso.datetime({ offset: true }),
-  window_start: z.iso.datetime({ offset: true }),
-  window_end: z.iso.datetime({ offset: true }),
-  replica_class: z.enum(['single', 'multi']),
-  triggers: z.array(scorecardTriggerSchema),
-})
-export type TriggerState = z.infer<typeof triggerStateSchema>
-export type ScorecardTrigger = z.infer<typeof scorecardTriggerSchema>
-export type AdminScorecard = z.infer<typeof adminScorecardSchema>
-
 // R14 per-source health — mirrors backend/app/schemas/admin.py
 // (SourceFamilyHealth / AdminSourceHealthResponse). Read-only aggregate over the
 // same first-party operational path; every figure is a bounded per-source-family
@@ -363,19 +293,14 @@ export type AdminSourceHealth = {
 
 // R15 packet-queue trust-chain gate — mirrors backend/app/schemas/admin.py
 // (AdminPacketGateResponse). Read-only aggregate over the same first-party
-// operational path; only the current halt posture + bounded gate-event counts —
-// no packet content, listing text/id, run id, finding text, or user data (D-097).
+// operational path; only bounded gate-event counts — no packet content,
+// listing text/id, run id, finding text, or user data (D-097).
 export type AdminPacketGate = {
   window_start: string
   window_end: string
-  halted: boolean
-  halt_reason: string | null
-  halted_since: string | null
   gate_running: number
   gate_passed: number
   gate_blocked: number
-  pipeline_halted: number
-  pipeline_cleared: number
 }
 
 // API functions
@@ -431,14 +356,6 @@ export function getAdminActivation(
     {},
     adminActivationSchema,
   )
-}
-
-export function getAdminEvalRuns() {
-  return adminRequest<AdminEvalRuns>('/admin/eval-runs', {}, adminEvalRunsSchema)
-}
-
-export function getAdminScorecard() {
-  return adminRequest<AdminScorecard>('/admin/scorecard', {}, adminScorecardSchema)
 }
 
 export function getAdminProfileAdoption(
