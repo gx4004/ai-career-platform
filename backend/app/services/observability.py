@@ -80,9 +80,16 @@ def _install_access_log_privacy_filter() -> None:
 
 def configure_logging() -> None:
     # httpx's INFO request line contains the full query string. Discovery
-    # parameters are bounded but still reveal job-search intent.
+    # parameters are bounded but still reveal job-search intent. httpx2/
+    # httpcore2 (the generation `starlette.testclient` and the `anthropic`
+    # SDK's outbound requests use once installed) log the same INFO request
+    # line under their own logger names, so they need the same silencing —
+    # otherwise this protection quietly stops covering the code paths that
+    # moved to the newer library.
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("httpcore").setLevel(logging.WARNING)
+    logging.getLogger("httpx2").setLevel(logging.WARNING)
+    logging.getLogger("httpcore2").setLevel(logging.WARNING)
     # uvicorn builds `uvicorn.access` from its own dictConfig in `Config.__init__`,
     # which runs before `Config.load()` imports the ASGI app. `app.main` calls
     # configure_logging() at import time, so the filter is installed after that

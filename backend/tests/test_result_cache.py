@@ -99,6 +99,34 @@ def test_cache_key_changes_with_model():
     assert base != bumped
 
 
+def test_cache_key_changes_with_llm_provider():
+    """`tool_pipeline.run_tool_pipeline` keys every cache lookup on
+    `settings.LLM_PROVIDER` (unconditionally, not just via a router's
+    `cache_extra_keys`). Two providers can otherwise share a model string
+    (google/vertex both default to "gemini-2.5-flash") or the caller may not
+    know its own effective model at all (anthropic's own default lives inside
+    `ai_client.complete_structured`, not in `settings.LLM_MODEL`) — either way
+    an operator switching providers must never see the other provider's
+    cached output."""
+    vertex = compute_content_hash(
+        "resume",
+        "alice resume",
+        "junior backend role",
+        user_scope="user-x",
+        model="gemini-2.5-flash",
+        llm_provider="vertex",
+    )
+    anthropic = compute_content_hash(
+        "resume",
+        "alice resume",
+        "junior backend role",
+        user_scope="user-x",
+        model="gemini-2.5-flash",
+        llm_provider="anthropic",
+    )
+    assert vertex != anthropic
+
+
 # ──────────────────────────────────────────────────────────────────────────
 # Storage contract: TTL, bounded LRU, disabled mode, fail-open (ADR 0004)
 # ──────────────────────────────────────────────────────────────────────────

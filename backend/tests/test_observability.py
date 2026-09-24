@@ -6,6 +6,7 @@ from app.schemas.telemetry import TelemetryEventRequest
 from app.services.ai_client import _safe_parse_json
 from app.services.observability import (
     _TELEMETRY_FIELDS,
+    configure_logging,
     log_frontend_telemetry,
     log_user_account_deleted,
 )
@@ -251,3 +252,21 @@ def test_account_deletion_audit_logs_counts_and_no_user_content(caplog):
         "development_items_deleted": 5,
         "user_record_deleted": True,
     }
+
+
+def test_configure_logging_silences_both_httpx_generations():
+    """The query-string privacy filter must cover httpx2/httpcore2 too.
+
+    `starlette.testclient` (and the `anthropic` SDK's own outbound requests)
+    prefer httpx2 over httpx once it is installed, logging their INFO request
+    line — which carries the full query string — under "httpx2"/"httpcore2"
+    instead of "httpx"/"httpcore". Silencing only the old names left this
+    privacy protection silently uncovered wherever the newer library runs.
+    """
+    for name in ("httpx", "httpcore", "httpx2", "httpcore2"):
+        logging.getLogger(name).setLevel(logging.NOTSET)
+
+    configure_logging()
+
+    for name in ("httpx", "httpcore", "httpx2", "httpcore2"):
+        assert logging.getLogger(name).level == logging.WARNING

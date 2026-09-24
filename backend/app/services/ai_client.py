@@ -4,7 +4,7 @@ import logging
 import random
 from contextlib import suppress
 
-from app.config import settings
+from app.config import Settings, settings
 from app.services.llm_cost import record_llm_usage
 from app.services.provider_incident import reset_provider_incident, set_provider_incident
 
@@ -18,18 +18,24 @@ class ProviderConfigurationError(RuntimeError):
 def _record_usage(response: object, model: str) -> None:
     """Record a provider response's actual token usage for R6 cost estimation.
 
-    Reads the `usage_metadata` both Vertex and google-genai attach to a
-    response (`prompt_token_count` / `candidates_token_count`). Best effort:
-    cost instrumentation must never break a tool run, so any missing field or
-    unexpected shape is swallowed — the run simply carries no cost from this
-    call.
+    Reads whichever usage shape the response carries: Vertex and google-genai
+    attach `usage_metadata` (`prompt_token_count` / `candidates_token_count`);
+    the Anthropic SDK attaches `usage` (`input_tokens` / `output_tokens`)
+    directly on the message. Best effort: cost instrumentation must never
+    break a tool run, so any missing field or unexpected shape is swallowed —
+    the run simply carries no cost from this call.
     """
     try:
         usage = getattr(response, "usage_metadata", None)
-        if usage is None:
-            return
-        prompt_tokens = int(getattr(usage, "prompt_token_count", 0) or 0)
-        output_tokens = int(getattr(usage, "candidates_token_count", 0) or 0)
+        if usage is not None:
+            prompt_tokens = int(getattr(usage, "prompt_token_count", 0) or 0)
+            output_tokens = int(getattr(usage, "candidates_token_count", 0) or 0)
+        else:
+            usage = getattr(response, "usage", None)
+            if usage is None:
+                return
+            prompt_tokens = int(getattr(usage, "input_tokens", 0) or 0)
+            output_tokens = int(getattr(usage, "output_tokens", 0) or 0)
         record_llm_usage(
             model=model,
             prompt_tokens=prompt_tokens,
@@ -45,6 +51,14 @@ def _record_usage(response: object, model: str) -> None:
 _LLM_TIMEOUT_SECONDS = 120
 _MAX_RETRIES = 4
 _RETRY_BASE_DELAY = 5.0
+
+# claude-haiku-4-5 default for the `anthropic` provider (issue: local dev
+# without Vertex). `settings.LLM_MODEL`'s own field default is Vertex-shaped
+# ("gemini-2.5-flash"), so it is not a usable anthropic model id — applied
+# only when the caller passed no model_override and the operator never
+# customized LLM_MODEL away from that built-in default, so an explicit
+# LLM_MODEL/LLM_PRACTICE_MODEL always wins per the usual override rule.
+_ANTHROPIC_DEFAULT_MODEL = "claude-haiku-4-5"
 
 
 async def _with_retry(coro_factory, max_retries: int = _MAX_RETRIES, base_delay: float = _RETRY_BASE_DELAY):
@@ -86,6 +100,12 @@ async def complete_structured(
     """Call the configured LLM provider and return parsed JSON."""
     provider = settings.LLM_PROVIDER.lower()
     model = model_override or settings.LLM_MODEL
+    if (
+        provider == "anthropic"
+        and not model_override
+        and settings.LLM_MODEL == Settings.model_fields["LLM_MODEL"].default
+    ):
+        model = _ANTHROPIC_DEFAULT_MODEL
 
     logger.info("LLM request  provider=%s  model=%s", provider, model)
 
@@ -94,6 +114,10 @@ async def complete_structured(
             return await _call_vertex(system_prompt, user_prompt, model)
         elif provider == "google":
             return await _call_google_genai(system_prompt, user_prompt, model)
+        elif provider == "anthropic":
+            return await _call_anthropic(system_prompt, user_prompt, model)
+        elif provider == "fake":
+            return await _call_fake(system_prompt, user_prompt, model)
         else:
             raise ValueError(f"Unsupported LLM provider: {provider}")
 
@@ -243,6 +267,95 @@ async def _call_google_genai(system_prompt: str, user_prompt: str, model_name: s
 
     content = response.text
     return _safe_parse_json(content, "google")
+
+
+async def _call_anthropic(system_prompt: str, user_prompt: str, model_name: str | None = None) -> dict:
+    import anthropic
+
+    if not settings.ANTHROPIC_API_KEY:
+        logger.error("Anthropic API key is not configured")
+        set_provider_incident("permission")
+        raise ProviderConfigurationError(
+            "AI service configuration error. Please contact support."
+        )
+
+    # max_retries=0: `_with_retry` above is the single retry policy for every
+    # provider (5s->10s->20s->40s + jitter); letting the SDK's own default
+    # retries (2, on 429/5xx/connection errors) run underneath it would retry
+    # the same transient failure twice, under two different backoff schedules.
+    client = anthropic.AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY, max_retries=0)
+    model = model_name or settings.LLM_MODEL or _ANTHROPIC_DEFAULT_MODEL
+    # Vertex/Google get response_mime_type="application/json" as a hard
+    # enforcement; the Messages API has no equivalent, so the JSON-only
+    # instruction is appended here instead of trusting every caller's own
+    # prompt wording. 16000: the interview payload alone can run ~63 KB
+    # (app/config.py's RESULT_CACHE_MAX_ENTRIES comment) — an 8K cap would
+    # truncate it mid-object into a JSONDecodeError that `_with_retry` then
+    # retries against the same truncation for no benefit.
+    json_only_system = system_prompt + "\n\nOutput only the JSON object. No prose, no code fences."
+    try:
+        response = await asyncio.wait_for(
+            client.messages.create(
+                model=model,
+                max_tokens=16000,
+                system=json_only_system,
+                messages=[{"role": "user", "content": user_prompt}],
+            ),
+            timeout=_LLM_TIMEOUT_SECONDS,
+        )
+    except TimeoutError:
+        logger.error("Anthropic request timed out after %ds", _LLM_TIMEOUT_SECONDS)
+        set_provider_incident("timeout")
+        raise TimeoutError(
+            f"AI request timed out after {_LLM_TIMEOUT_SECONDS}s. Please try again."
+        ) from None
+    except (anthropic.AuthenticationError, anthropic.PermissionDeniedError) as exc:
+        # Most-specific-first: both subclass APIStatusError, so they must be
+        # caught ahead of it. Same mapping as Vertex's 401/403 ClientError
+        # branch — an unrecoverable config fault, never retried.
+        logger.error("Anthropic auth/permission failure error_type=%s", type(exc).__name__)
+        set_provider_incident("permission")
+        raise ProviderConfigurationError(
+            "AI service configuration error. Please contact support."
+        ) from None
+    except anthropic.RateLimitError:
+        logger.error("Anthropic rate limit exceeded")
+        set_provider_incident("quota")
+        raise RuntimeError(
+            "AI service quota exceeded. Please try again in a few minutes."
+        ) from None
+    except anthropic.APIStatusError as exc:
+        logger.error("Anthropic call failed status=%s", exc.status_code)
+        set_provider_incident("unavailable")
+        raise RuntimeError("AI service temporarily unavailable. Please try again.") from None
+    except anthropic.APIConnectionError as exc:
+        logger.error("Anthropic connection failure error_type=%s", type(exc).__name__)
+        set_provider_incident("unavailable")
+        raise RuntimeError("AI service temporarily unavailable. Please try again.") from None
+    except Exception as exc:  # noqa: BLE001 — an unmapped SDK/transport failure
+        logger.error("Anthropic transport failure error_type=%s", type(exc).__name__)
+        set_provider_incident("unavailable")
+        raise RuntimeError("AI service temporarily unavailable. Please try again.") from None
+    finally:
+        with suppress(Exception):
+            await client.close()
+
+    _record_usage(response, model)
+
+    content = "".join(
+        block.text for block in response.content if getattr(block, "type", None) == "text"
+    )
+    return _safe_parse_json(content, "anthropic")
+
+
+async def _call_fake(system_prompt: str, user_prompt: str, model_name: str | None = None) -> dict:
+    """`LLM_PROVIDER=fake` — deterministic local-demo fixtures, no network call.
+
+    See `app/services/fake_llm.py` for the per-caller fixture registry.
+    """
+    from app.services.fake_llm import fake_complete_structured
+
+    return await fake_complete_structured(system_prompt, user_prompt)
 
 
 # ---------------------------------------------------------------------------

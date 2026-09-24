@@ -207,6 +207,15 @@ async def _run_tool_pipeline_after_validation(
         if cache_extra_keys:
             hash_kwargs.update(cache_extra_keys)
         hash_kwargs["user_scope"] = current_user.id if current_user else "guest"
+        # A per-router `cache_extra_keys={"model": settings.LLM_MODEL}` only
+        # busts the cache on a model *string* change. It cannot by itself
+        # distinguish providers that can share a model string (google vs.
+        # vertex both default to "gemini-2.5-flash") or, since `anthropic`'s
+        # own default model lives inside `ai_client.complete_structured` and
+        # is invisible here, switching to `anthropic` with `LLM_MODEL` left at
+        # its Vertex-shaped default. Keying on the provider directly closes
+        # both gaps without every router having to know about it.
+        hash_kwargs["llm_provider"] = settings.LLM_PROVIDER
         # The profile version joins the cache key so a profile edit invalidates
         # cached results (D-063, ADR 0005). Only present for authenticated users
         # while injection is enabled; guests and the disabled path are unaffected.

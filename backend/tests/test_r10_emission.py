@@ -80,6 +80,42 @@ async def test_pipeline_emits_cache_miss_then_write_then_hit(db):
 
 
 @pytest.mark.asyncio
+async def test_pipeline_cache_is_scoped_by_llm_provider(db, monkeypatch):
+    """Switching `LLM_PROVIDER` must miss the cache even with identical
+    inputs, so a provider switch (e.g. onto `anthropic` or `fake` for local
+    development) never serves back another provider's cached output."""
+    clear_cache()
+
+    calls = 0
+
+    async def service(**_):
+        nonlocal calls
+        calls += 1
+        return {"summary": "ok"}
+
+    kwargs = dict(
+        tool_name="resume",
+        service_fn=service,
+        service_kwargs={},
+        label_fn=lambda r: "label",
+        resume_text="a sufficiently long resume body for hashing",
+        db=db,
+        current_user=None,
+    )
+
+    monkeypatch.setattr("app.services.tool_pipeline.settings.LLM_PROVIDER", "vertex")
+    await run_tool_pipeline(**kwargs)
+    assert calls == 1
+
+    monkeypatch.setattr("app.services.tool_pipeline.settings.LLM_PROVIDER", "anthropic")
+    await run_tool_pipeline(**kwargs)
+    assert calls == 2
+    outcomes = [o for _, o in _outcomes(db, "r10_cache_outcome")]
+    assert outcomes.count("miss") == 2
+    assert "hit" not in outcomes
+
+
+@pytest.mark.asyncio
 async def test_disabled_cache_emits_no_false_miss_or_write_evidence(db, monkeypatch):
     clear_cache()
     monkeypatch.setattr("app.services.tool_pipeline.settings.RESULT_CACHE_ENABLED", False)

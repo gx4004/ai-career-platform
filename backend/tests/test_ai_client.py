@@ -334,3 +334,338 @@ async def test_vertex_transport_failure_retries_and_records_an_incident(monkeypa
     assert "AI service temporarily unavailable" in str(error.value)
     # The raw transport detail never reaches the user-facing message.
     assert "10.0.0.1" not in str(error.value)
+
+
+# ---------- fake provider (LLM_PROVIDER=fake, local demo without Vertex) ----------
+
+
+@pytest.mark.asyncio
+async def test_fake_provider_dispatches_to_fake_llm_registry(monkeypatch):
+    monkeypatch.setattr("app.services.ai_client.settings.LLM_PROVIDER", "fake")
+    mock = AsyncMock(return_value={"ok": True})
+    monkeypatch.setattr("app.services.fake_llm.fake_complete_structured", mock)
+    result = await complete_structured(SYSTEM, USER)
+    mock.assert_awaited_once_with(SYSTEM, USER)
+    assert result == {"ok": True}
+
+
+@pytest.mark.asyncio
+async def test_fake_provider_unmatched_prompt_raises_and_is_not_retried(monkeypatch):
+    """An unrecognized prompt is a fixture-coverage gap, not a transient fault.
+
+    Bare ``ValueError`` is the same "never recovers from a retry" category as
+    the unsupported-provider branch, so one call, no backoff.
+    """
+    monkeypatch.setattr("app.services.ai_client.settings.LLM_PROVIDER", "fake")
+    with pytest.raises(ValueError, match="no registered fixture"):
+        await complete_structured("Some prompt with no known marker.", USER)
+
+
+# ---------- anthropic provider ----------
+
+
+class _FakeAnthropicTextBlock:
+    def __init__(self, text: str):
+        self.type = "text"
+        self.text = text
+
+
+class _FakeAnthropicUsage:
+    def __init__(self, input_tokens: int = 100, output_tokens: int = 40):
+        self.input_tokens = input_tokens
+        self.output_tokens = output_tokens
+
+
+class _FakeAnthropicResponse:
+    def __init__(self, text: str = '{"ok": true}', usage=None):
+        self.content = [_FakeAnthropicTextBlock(text)]
+        self.usage = usage if usage is not None else _FakeAnthropicUsage()
+
+
+class _FakeAnthropicMessages:
+    def __init__(self, response=None, error: Exception | None = None):
+        self._response = response
+        self._error = error
+        self.calls: list[dict] = []
+
+    async def create(self, **kwargs):
+        self.calls.append(kwargs)
+        if self._error is not None:
+            raise self._error
+        return self._response
+
+
+class _FakeAsyncAnthropic:
+    """Stand-in for ``anthropic.AsyncAnthropic`` — no real network call."""
+
+    def __init__(self, response=None, error: Exception | None = None, **init_kwargs):
+        self.init_kwargs = init_kwargs
+        self.messages = _FakeAnthropicMessages(response, error)
+        self.closed = False
+
+    async def close(self):
+        self.closed = True
+
+
+def _anthropic_status_error(cls, status_code: int, message: str = "error"):
+    import httpx2
+
+    request = httpx2.Request("POST", "https://api.anthropic.com/v1/messages")
+    response = httpx2.Response(status_code, request=request)
+    return cls(message, response=response, body=None)
+
+
+def _install_fake_anthropic_client(monkeypatch, anthropic_sdk, fake_client):
+    """Patch ``anthropic.AsyncAnthropic`` to return `fake_client`, capturing the
+    constructor kwargs `_call_anthropic` passed onto it."""
+
+    def _factory(**kwargs):
+        fake_client.init_kwargs = kwargs
+        return fake_client
+
+    monkeypatch.setattr(anthropic_sdk, "AsyncAnthropic", _factory)
+
+
+@pytest.mark.asyncio
+async def test_anthropic_provider_called(monkeypatch):
+    import anthropic as anthropic_sdk
+
+    monkeypatch.setattr("app.services.ai_client.settings.LLM_PROVIDER", "anthropic")
+    monkeypatch.setattr("app.services.ai_client.settings.ANTHROPIC_API_KEY", "sk-ant-test")
+    monkeypatch.setattr("app.services.ai_client.settings.LLM_MODEL", "claude-sonnet-5")
+
+    fake_client = _FakeAsyncAnthropic(response=_FakeAnthropicResponse('{"ok": true}'))
+    _install_fake_anthropic_client(monkeypatch, anthropic_sdk, fake_client)
+
+    result = await complete_structured(SYSTEM, USER)
+
+    assert result == {"ok": True}
+    assert fake_client.init_kwargs["api_key"] == "sk-ant-test"
+    # A single retry policy: `_with_retry` above already backs off, so the SDK's
+    # own retries must be disabled to avoid retrying the same failure twice.
+    assert fake_client.init_kwargs["max_retries"] == 0
+    call = fake_client.messages.calls[0]
+    assert call["model"] == "claude-sonnet-5"
+    # The caller's system prompt is preserved verbatim, with a JSON-only
+    # instruction appended (Anthropic has no response_mime_type enforcement).
+    assert call["system"].startswith(SYSTEM)
+    assert "Output only the JSON object" in call["system"]
+    assert call["max_tokens"] == 16000
+    assert call["messages"] == [{"role": "user", "content": USER}]
+    assert fake_client.closed is True
+
+
+@pytest.mark.asyncio
+async def test_anthropic_default_model_is_haiku_when_llm_model_not_customized(monkeypatch):
+    import anthropic as anthropic_sdk
+
+    monkeypatch.setattr("app.services.ai_client.settings.LLM_PROVIDER", "anthropic")
+    monkeypatch.setattr("app.services.ai_client.settings.ANTHROPIC_API_KEY", "sk-ant-test")
+    # LLM_MODEL left at its Vertex-shaped built-in default ("gemini-2.5-flash").
+
+    fake_client = _FakeAsyncAnthropic(response=_FakeAnthropicResponse())
+    _install_fake_anthropic_client(monkeypatch, anthropic_sdk, fake_client)
+
+    await complete_structured(SYSTEM, USER)
+
+    assert fake_client.messages.calls[0]["model"] == "claude-haiku-4-5"
+
+
+@pytest.mark.asyncio
+async def test_anthropic_explicit_llm_model_overrides_the_haiku_default(monkeypatch):
+    import anthropic as anthropic_sdk
+
+    monkeypatch.setattr("app.services.ai_client.settings.LLM_PROVIDER", "anthropic")
+    monkeypatch.setattr("app.services.ai_client.settings.ANTHROPIC_API_KEY", "sk-ant-test")
+    monkeypatch.setattr("app.services.ai_client.settings.LLM_MODEL", "claude-opus-5")
+
+    fake_client = _FakeAsyncAnthropic(response=_FakeAnthropicResponse())
+    _install_fake_anthropic_client(monkeypatch, anthropic_sdk, fake_client)
+
+    await complete_structured(SYSTEM, USER)
+
+    assert fake_client.messages.calls[0]["model"] == "claude-opus-5"
+
+
+@pytest.mark.asyncio
+async def test_anthropic_model_override_param_wins_over_default(monkeypatch):
+    import anthropic as anthropic_sdk
+
+    monkeypatch.setattr("app.services.ai_client.settings.LLM_PROVIDER", "anthropic")
+    monkeypatch.setattr("app.services.ai_client.settings.ANTHROPIC_API_KEY", "sk-ant-test")
+
+    fake_client = _FakeAsyncAnthropic(response=_FakeAnthropicResponse())
+    _install_fake_anthropic_client(monkeypatch, anthropic_sdk, fake_client)
+
+    await complete_structured(SYSTEM, USER, model_override="claude-sonnet-5")
+
+    assert fake_client.messages.calls[0]["model"] == "claude-sonnet-5"
+
+
+@pytest.mark.asyncio
+async def test_anthropic_missing_api_key_is_a_configuration_error_not_retried(monkeypatch):
+    import anthropic as anthropic_sdk
+
+    monkeypatch.setattr("app.services.ai_client.settings.LLM_PROVIDER", "anthropic")
+    monkeypatch.setattr("app.services.ai_client.settings.ANTHROPIC_API_KEY", "")
+
+    attempts = 0
+
+    def _unexpected_construction(**_kwargs):
+        nonlocal attempts
+        attempts += 1
+        raise AssertionError("client must not be constructed without an API key")
+
+    monkeypatch.setattr(anthropic_sdk, "AsyncAnthropic", _unexpected_construction)
+
+    import app.services.ai_client as mod
+
+    with pytest.raises(mod.ProviderConfigurationError):
+        await complete_structured(SYSTEM, USER)
+
+    assert attempts == 0
+
+
+@pytest.mark.asyncio
+async def test_anthropic_authentication_error_maps_to_configuration_error_not_retried(monkeypatch):
+    import anthropic as anthropic_sdk
+
+    monkeypatch.setattr("app.services.ai_client.settings.LLM_PROVIDER", "anthropic")
+    monkeypatch.setattr("app.services.ai_client.settings.ANTHROPIC_API_KEY", "sk-ant-bad")
+
+    error = _anthropic_status_error(anthropic_sdk.AuthenticationError, 401, "invalid x-api-key")
+    fake_client = _FakeAsyncAnthropic(error=error)
+    _install_fake_anthropic_client(monkeypatch, anthropic_sdk, fake_client)
+
+    import app.services.ai_client as mod
+
+    incidents: list[str] = []
+    monkeypatch.setattr(mod, "set_provider_incident", incidents.append)
+
+    with pytest.raises(mod.ProviderConfigurationError, match="AI service configuration error") as excinfo:
+        await complete_structured(SYSTEM, USER)
+
+    assert len(fake_client.messages.calls) == 1
+    assert incidents == ["permission"]
+    assert "invalid x-api-key" not in str(excinfo.value)
+    assert fake_client.closed is True
+
+
+@pytest.mark.asyncio
+async def test_anthropic_permission_denied_error_maps_to_configuration_error(monkeypatch):
+    import anthropic as anthropic_sdk
+
+    monkeypatch.setattr("app.services.ai_client.settings.LLM_PROVIDER", "anthropic")
+    monkeypatch.setattr("app.services.ai_client.settings.ANTHROPIC_API_KEY", "sk-ant-test")
+
+    error = _anthropic_status_error(anthropic_sdk.PermissionDeniedError, 403, "model not permitted")
+    fake_client = _FakeAsyncAnthropic(error=error)
+    _install_fake_anthropic_client(monkeypatch, anthropic_sdk, fake_client)
+
+    import app.services.ai_client as mod
+
+    with pytest.raises(mod.ProviderConfigurationError):
+        await complete_structured(SYSTEM, USER)
+
+    assert len(fake_client.messages.calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_anthropic_rate_limit_error_is_retried_as_runtimeerror(monkeypatch):
+    import anthropic as anthropic_sdk
+
+    monkeypatch.setattr("app.services.ai_client.settings.LLM_PROVIDER", "anthropic")
+    monkeypatch.setattr("app.services.ai_client.settings.ANTHROPIC_API_KEY", "sk-ant-test")
+
+    error = _anthropic_status_error(anthropic_sdk.RateLimitError, 429, "rate limited")
+    fake_client = _FakeAsyncAnthropic(error=error)
+    _install_fake_anthropic_client(monkeypatch, anthropic_sdk, fake_client)
+
+    import app.services.ai_client as mod
+
+    incidents: list[str] = []
+    monkeypatch.setattr(mod, "set_provider_incident", incidents.append)
+
+    with pytest.raises(RuntimeError, match="AI service quota exceeded"):
+        await complete_structured(SYSTEM, USER)
+
+    # Retried like Vertex's ResourceExhausted/429 branch.
+    assert len(fake_client.messages.calls) == 5
+    assert incidents == ["quota"] * 5
+
+
+@pytest.mark.asyncio
+async def test_anthropic_server_error_is_retried_as_runtimeerror(monkeypatch):
+    import anthropic as anthropic_sdk
+
+    monkeypatch.setattr("app.services.ai_client.settings.LLM_PROVIDER", "anthropic")
+    monkeypatch.setattr("app.services.ai_client.settings.ANTHROPIC_API_KEY", "sk-ant-test")
+
+    error = _anthropic_status_error(anthropic_sdk.InternalServerError, 500, "server error")
+    fake_client = _FakeAsyncAnthropic(error=error)
+    _install_fake_anthropic_client(monkeypatch, anthropic_sdk, fake_client)
+
+    with pytest.raises(RuntimeError, match="AI service temporarily unavailable"):
+        await complete_structured(SYSTEM, USER)
+
+    assert len(fake_client.messages.calls) == 5
+
+
+@pytest.mark.asyncio
+async def test_anthropic_connection_error_is_retried_and_hides_transport_detail(monkeypatch):
+    import anthropic as anthropic_sdk
+    import httpx2
+
+    monkeypatch.setattr("app.services.ai_client.settings.LLM_PROVIDER", "anthropic")
+    monkeypatch.setattr("app.services.ai_client.settings.ANTHROPIC_API_KEY", "sk-ant-test")
+
+    request = httpx2.Request("POST", "https://api.anthropic.com/v1/messages")
+    error = anthropic_sdk.APIConnectionError(message="connection refused to 10.0.0.1", request=request)
+    fake_client = _FakeAsyncAnthropic(error=error)
+    _install_fake_anthropic_client(monkeypatch, anthropic_sdk, fake_client)
+
+    with pytest.raises(RuntimeError) as excinfo:
+        await complete_structured(SYSTEM, USER)
+
+    assert len(fake_client.messages.calls) == 5
+    assert "AI service temporarily unavailable" in str(excinfo.value)
+    assert "10.0.0.1" not in str(excinfo.value)
+
+
+@pytest.mark.asyncio
+async def test_anthropic_records_usage_through_the_shared_cost_accumulator(monkeypatch):
+    import anthropic as anthropic_sdk
+
+    from app.services import llm_cost
+
+    monkeypatch.setattr("app.services.ai_client.settings.LLM_PROVIDER", "anthropic")
+    monkeypatch.setattr("app.services.ai_client.settings.ANTHROPIC_API_KEY", "sk-ant-test")
+    monkeypatch.setattr("app.services.ai_client.settings.LLM_MODEL", "claude-sonnet-5")
+
+    llm_cost.reset_llm_cost()
+    usage = _FakeAnthropicUsage(input_tokens=1000, output_tokens=200)
+    fake_client = _FakeAsyncAnthropic(response=_FakeAnthropicResponse('{"ok": true}', usage=usage))
+    _install_fake_anthropic_client(monkeypatch, anthropic_sdk, fake_client)
+
+    await complete_structured(SYSTEM, USER)
+
+    total = llm_cost._llm_cost_total.get()
+    assert total == llm_cost.estimate_cost("claude-sonnet-5", 1000, 200)
+
+
+@pytest.mark.asyncio
+async def test_anthropic_concatenates_only_text_blocks(monkeypatch):
+    import anthropic as anthropic_sdk
+
+    monkeypatch.setattr("app.services.ai_client.settings.LLM_PROVIDER", "anthropic")
+    monkeypatch.setattr("app.services.ai_client.settings.ANTHROPIC_API_KEY", "sk-ant-test")
+
+    response = _FakeAnthropicResponse('{"a": 1}')
+    non_text_block = type("ThinkingBlock", (), {"type": "thinking", "thinking": "..."})()
+    response.content = [non_text_block, _FakeAnthropicTextBlock('{"a": 1}')]
+    fake_client = _FakeAsyncAnthropic(response=response)
+    _install_fake_anthropic_client(monkeypatch, anthropic_sdk, fake_client)
+
+    result = await complete_structured(SYSTEM, USER)
+
+    assert result == {"a": 1}
