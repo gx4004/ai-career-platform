@@ -40,7 +40,6 @@ import { Route as AdminDiscoverySourcesRouteImport } from './routes/admin/discov
 import { Route as AdminPacketGateRouteImport } from './routes/admin/packet-gate'
 import { Route as AdminProfileAdoptionRouteImport } from './routes/admin/profile-adoption'
 import { Route as AdminRunsRouteImport } from './routes/admin/runs'
-import { Route as AdminScorecardRouteImport } from './routes/admin/scorecard'
 import { Route as AdminSourceHealthRouteImport } from './routes/admin/source-health'
 import { Route as AdminUsersRouteImport } from './routes/admin/users'
 import { Route as CampaignsCampaignIdRouteImport } from './routes/campaigns.$campaignId'
@@ -206,11 +205,6 @@ const AdminRunsRoute = AdminRunsRouteImport.update({
   path: '/runs',
   getParentRoute: () => AdminRoute,
 } as any)
-const AdminScorecardRoute = AdminScorecardRouteImport.update({
-  id: '/scorecard',
-  path: '/scorecard',
-  getParentRoute: () => AdminRoute,
-} as any)
 const AdminSourceHealthRoute = AdminSourceHealthRouteImport.update({
   id: '/source-health',
   path: '/source-health',
@@ -291,7 +285,6 @@ export interface FileRoutesByFullPath {
   '/admin/packet-gate': typeof AdminPacketGateRoute
   '/admin/profile-adoption': typeof AdminProfileAdoptionRoute
   '/admin/runs': typeof AdminRunsRoute
-  '/admin/scorecard': typeof AdminScorecardRoute
   '/admin/source-health': typeof AdminSourceHealthRoute
   '/admin/users': typeof AdminUsersRoute
   '/campaigns/$campaignId': typeof CampaignsCampaignIdRoute
@@ -333,7 +326,6 @@ export interface FileRoutesByTo {
   '/admin/packet-gate': typeof AdminPacketGateRoute
   '/admin/profile-adoption': typeof AdminProfileAdoptionRoute
   '/admin/runs': typeof AdminRunsRoute
-  '/admin/scorecard': typeof AdminScorecardRoute
   '/admin/source-health': typeof AdminSourceHealthRoute
   '/admin/users': typeof AdminUsersRoute
   '/campaigns/$campaignId': typeof CampaignsCampaignIdRoute
@@ -377,7 +369,6 @@ export interface FileRoutesById {
   '/admin/packet-gate': typeof AdminPacketGateRoute
   '/admin/profile-adoption': typeof AdminProfileAdoptionRoute
   '/admin/runs': typeof AdminRunsRoute
-  '/admin/scorecard': typeof AdminScorecardRoute
   '/admin/source-health': typeof AdminSourceHealthRoute
   '/admin/users': typeof AdminUsersRoute
   '/campaigns/$campaignId': typeof CampaignsCampaignIdRoute
@@ -422,7 +413,6 @@ export interface FileRouteTypes {
     | '/admin/packet-gate'
     | '/admin/profile-adoption'
     | '/admin/runs'
-    | '/admin/scorecard'
     | '/admin/source-health'
     | '/admin/users'
     | '/campaigns/$campaignId'
@@ -464,7 +454,6 @@ export interface FileRouteTypes {
     | '/admin/packet-gate'
     | '/admin/profile-adoption'
     | '/admin/runs'
-    | '/admin/scorecard'
     | '/admin/source-health'
     | '/admin/users'
     | '/campaigns/$campaignId'
@@ -507,7 +496,6 @@ export interface FileRouteTypes {
     | '/admin/packet-gate'
     | '/admin/profile-adoption'
     | '/admin/runs'
-    | '/admin/scorecard'
     | '/admin/source-health'
     | '/admin/users'
     | '/campaigns/$campaignId'
@@ -772,13 +760,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminRunsRouteImport
       parentRoute: typeof AdminRoute
     }
-    '/admin/scorecard': {
-      id: '/admin/scorecard'
-      path: '/scorecard'
-      fullPath: '/admin/scorecard'
-      preLoaderRoute: typeof AdminScorecardRouteImport
-      parentRoute: typeof AdminRoute
-    }
     '/admin/source-health': {
       id: '/admin/source-health'
       path: '/source-health'
@@ -853,7 +834,6 @@ interface AdminRouteChildren {
   AdminPacketGateRoute: typeof AdminPacketGateRoute
   AdminProfileAdoptionRoute: typeof AdminProfileAdoptionRoute
   AdminRunsRoute: typeof AdminRunsRoute
-  AdminScorecardRoute: typeof AdminScorecardRoute
   AdminSourceHealthRoute: typeof AdminSourceHealthRoute
   AdminUsersRoute: typeof AdminUsersRoute
   AdminIndexRoute: typeof AdminIndexRoute
@@ -867,7 +847,6 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminPacketGateRoute: AdminPacketGateRoute,
   AdminProfileAdoptionRoute: AdminProfileAdoptionRoute,
   AdminRunsRoute: AdminRunsRoute,
-  AdminScorecardRoute: AdminScorecardRoute,
   AdminSourceHealthRoute: AdminSourceHealthRoute,
   AdminUsersRoute: AdminUsersRoute,
   AdminIndexRoute: AdminIndexRoute,

@@ -527,7 +527,7 @@ scopes every row to the caller; no anonymous profile rows exist — D-064). The
 bulk export and erasure operations use a 5/min ceiling because they cross the
 largest owner-data lifecycle boundaries (#149, D-065); see §8.7.
 
-### 6.4 Admin Required (18 operations)
+### 6.4 Admin Required (16 operations)
 
 All chain `get_current_admin` through `get_current_user` and an `is_admin`
 check, and all use a 60/min route window. Admin governance and aggregate
@@ -551,8 +551,6 @@ remain governed by the cumulative gates above.
 | `GET` | `/admin/profile-adoption` | R11 adoption aggregate | 60/min |
 | `GET` | `/admin/development-loop` | R17 adoption aggregate | 60/min |
 | `GET` | `/admin/packet-gate` | R15 trust-chain aggregate | 60/min |
-| `GET` | `/admin/scorecard` | R10 scaling evidence | 60/min |
-| `GET` | `/admin/eval-runs` | R8 local-eval evidence | 60/min |
 | `GET` | `/admin/health` | Admin operational health | 60/min |
 
 ### 6.5 Unrate-Limited Endpoints (Risk Note)
@@ -1274,8 +1272,9 @@ authoritative access seam (D-048, ADR 0003); it may not reuse a client-only gate
 ## §14 Unknowns Requiring Human Decisions
 
 Per D-116 (2026-07-10), every remaining row below is a production/staging
-**evidence item** collected by the R3 Evidence Checklist in
-`docs/launch-checklist.md` during the R5 staging rehearsal. No open row is a
+**evidence item** collected during the R5 staging rehearsal (the R3 Evidence
+Checklist that tracked this, `docs/launch-checklist.md`, was retired in the
+Sept 2026 reset, #319). No open row is a
 pending human decision: both halves of D-UNK-5 were decided the same day
 (D-118 product side, D-119 historical data) and are recorded under Resolved.
 

@@ -31,7 +31,6 @@ from app.services.packet_approval import (
     packet_item_with_true_unresolved,
 )
 from app.services.packet_gate import (
-    is_preparation_halted,
     is_queue_paused,
     pause_preparation,
     resume_preparation,
@@ -166,11 +165,8 @@ def edit_packet(db: Session, user_id: str, packet_id: str) -> ApplicationPacketI
 
 
 def queue_review_state(db: Session, user_id: str) -> QueueReviewState:
-    """This owner's current preparation posture the UI reads to reflect pause/halt."""
-    return QueueReviewState(
-        paused=is_queue_paused(db, user_id),
-        preparation_halted=is_preparation_halted(db),
-    )
+    """This owner's current preparation posture the UI reads to reflect the pause."""
+    return QueueReviewState(paused=is_queue_paused(db, user_id))
 
 
 def pause_queue(db: Session, user_id: str) -> QueueReviewState:
@@ -181,10 +177,7 @@ def pause_queue(db: Session, user_id: str) -> QueueReviewState:
 
 
 def resume_queue(db: Session, user_id: str) -> QueueReviewState:
-    """Resume this owner's queue: clear their pause, then record ``queue_resumed``.
-
-    A concurrent regression halt (#184) is untouched and still blocks preparation.
-    """
+    """Resume this owner's queue: clear their pause, then record ``queue_resumed``."""
     resume_preparation(db, user_id)
     record_queue_audit_event(db, user_id=user_id, action="queue_resumed")
     return queue_review_state(db, user_id)

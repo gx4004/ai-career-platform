@@ -4,7 +4,6 @@ import {
   Users,
   FileText,
   Activity,
-  Gauge,
   ShieldCheck,
   ShieldAlert,
   Database,
@@ -23,7 +22,6 @@ const NAV = [
   { to: '/admin/source-health', label: 'Source Health', icon: HeartPulse },
   { to: '/admin/packet-gate', label: 'Packet Gate', icon: ShieldAlert },
   { to: '/admin/discovery-reports', label: 'Recommendation Reports', icon: Flag },
-  { to: '/admin/scorecard', label: 'Scaling Triggers', icon: Gauge },
   { to: '/admin/users', label: 'Users', icon: Users },
   { to: '/admin/runs', label: 'Runs', icon: FileText },
 ] as const

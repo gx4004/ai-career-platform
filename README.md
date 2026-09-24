@@ -82,7 +82,6 @@ Notes:
 
 ## Launch Readiness
 
-- Operator checklist: [docs/launch-checklist.md](docs/launch-checklist.md)
 - Product QA gates: [docs/roadmap.md](docs/roadmap.md)
 
 ## Verification Commands

@@ -1,11 +1,12 @@
-"""Keep the R3 evidence checklist and the threat model's unknowns in agreement.
+"""Keep the threat model's §14 unknowns table internally consistent.
 
-D-116 makes the R3 gate depend on two hand-maintained lists agreeing: the
-unresolved unknowns in `docs/threat-model.md` §14, and the R3 Evidence Checklist
-rows in `docs/launch-checklist.md` that collect them during the R5 staging
-rehearsal. Nothing checked that. A gap in either direction is a silent hole in a
-release gate — an unknown with no checklist row is evidence nobody will collect,
-and a checklist row for a resolved unknown is work nobody needs to do.
+D-116 originally made the R3 gate depend on two hand-maintained lists agreeing:
+the unresolved unknowns in `docs/threat-model.md` §14, and the R3 Evidence
+Checklist rows in `docs/launch-checklist.md` that collected them during the R5
+staging rehearsal. The checklist file was retired in the Sept 2026 reset
+(#319) as unused speculative process; what remains here is the
+self-consistency checking of §14 and §15 against each other, which does not
+depend on the deleted file.
 
 Precedent for asserting on repository documents from the backend suite:
 `test_ci_workflow.py` and `test_deployment_contract.py`.
@@ -18,7 +19,6 @@ from pathlib import Path
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 THREAT_MODEL = REPOSITORY_ROOT / "docs" / "threat-model.md"
-LAUNCH_CHECKLIST = REPOSITORY_ROOT / "docs" / "launch-checklist.md"
 
 UNKNOWN_ID = re.compile(r"\bD-UNK-\d+\b")
 
@@ -58,44 +58,15 @@ def _resolved_unknowns() -> set[str]:
     return _table_row_ids(section)
 
 
-def _checklist_unknowns() -> set[str]:
-    document = LAUNCH_CHECKLIST.read_text(encoding="utf-8")
-    ids: set[str] = set()
-    for line in document.splitlines():
-        stripped = line.strip()
-        if not stripped.startswith("- [ ]") and not stripped.startswith("- [x]"):
-            continue
-        found = UNKNOWN_ID.match(stripped.removeprefix("- [ ]").removeprefix("- [x]").strip())
-        if found:
-            ids.add(found.group())
-    return ids
-
-
-def test_every_open_unknown_has_an_evidence_checklist_row():
-    unresolved = _unresolved_unknowns()
-    checklist = _checklist_unknowns()
-
-    assert unresolved, "§14 lists no open unknowns — the parser is not seeing the table"
-    assert unresolved <= checklist, (
-        "Every open §14 unknown must have an R3 Evidence Checklist row (D-116). "
-        f"Uncollected: {sorted(unresolved - checklist)}"
-    )
-
-
-def test_the_checklist_collects_no_already_resolved_unknown():
+def test_no_open_unknown_is_also_listed_as_resolved():
     resolved = _resolved_unknowns()
     unresolved = _unresolved_unknowns()
-    checklist = _checklist_unknowns()
 
+    assert unresolved, "§14 lists no open unknowns — the parser is not seeing the table"
     assert resolved, "§14's Resolved table is empty — the parser is not seeing it"
     assert not (resolved & unresolved), (
         "An unknown is listed as both open and resolved in §14: "
         f"{sorted(resolved & unresolved)}"
-    )
-    stale = (checklist & resolved) - unresolved
-    assert not stale, (
-        "The R3 Evidence Checklist still collects evidence for resolved unknowns: "
-        f"{sorted(stale)}"
     )
 
 

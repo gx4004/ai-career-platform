@@ -585,9 +585,7 @@ def severity_from_score(score: int) -> str:
 
     The band that turns a numeric dimension score into the issue severity the
     result page renders. It lives here, beside :func:`job_match_verdict` (the
-    Job Match equivalent), so the R8 explanation-consistency check
-    (:mod:`app.evals.explanation`) can measure the *same* band production
-    applies instead of restating the thresholds.
+    Job Match equivalent), as the single source of truth production applies.
     """
     if score < SEVERITY_HIGH_BELOW:
         return "high"
