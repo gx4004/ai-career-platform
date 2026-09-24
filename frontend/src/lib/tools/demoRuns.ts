@@ -101,6 +101,18 @@ export function setTransientResult(
     typeof result.generated_at === 'string' ? result.generated_at : new Date().toISOString()
   const demoId = `${toolId}-demo-${nextDemoSequence()}`
 
+  // D-048: access is server-authoritative. This store only ever holds
+  // guest-demo runs (the caller reaches it exactly when the server returned
+  // no history_id), so the server's own `access_mode`/`locked_actions` on the
+  // result payload are copied as-is rather than recomputed here — the
+  // fallbacks below only cover a missing field, they are not a client-side
+  // access decision.
+  const accessMode: ToolRunDetail['access_mode'] =
+    result.access_mode === 'authenticated' ? 'authenticated' : 'guest_demo'
+  const lockedActions: ToolRunDetail['locked_actions'] = Array.isArray(result.locked_actions)
+    ? (result.locked_actions as ToolRunDetail['locked_actions'])
+    : []
+
   const item: ToolRunDetail = {
     id: demoId,
     tool_name: toolId,
@@ -108,8 +120,8 @@ export function setTransientResult(
     is_favorite: false,
     created_at: generatedAt,
     saved: false,
-    access_mode: 'guest_demo',
-    locked_actions: ['save', 'favorite', 'continue', 'history'],
+    access_mode: accessMode,
+    locked_actions: lockedActions,
     parent_run_id: parentRunId ?? null,
     metadata: deriveRunMetadata(toolId, result),
     result_payload: result,
