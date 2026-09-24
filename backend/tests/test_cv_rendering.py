@@ -57,12 +57,19 @@ def _document(db, test_user):
     )
 
 
-def test_exactly_three_declarative_templates_share_canonical_render_model(db, test_user):
+ORIGINAL_TEMPLATES = ["ats-essential", "professional-editorial", "technical-portfolio"]
+
+
+def test_five_declarative_templates_share_canonical_render_model(db, test_user):
     document = _document(db, test_user)
-    assert list(TEMPLATES) == ["ats-essential", "professional-editorial", "technical-portfolio"]
+    assert list(TEMPLATES) == [
+        *ORIGINAL_TEMPLATES,
+        "modern-two-column",
+        "minimal-serif",
+    ]
     models = [build_render_model(document, template) for template in TEMPLATES]
     assert all(model.sections == models[0].sections for model in models)
-    assert len({model.canonical_hash for model in models}) == 3
+    assert len({model.canonical_hash for model in models}) == len(TEMPLATES)
 
 
 def test_docx_and_pdf_are_byte_stable_and_validate_for_every_template(db, test_user):
@@ -91,7 +98,7 @@ def test_docx_and_pdf_are_byte_stable_and_validate_for_every_template(db, test_u
 def test_every_template_matches_the_reviewed_pdf_layout_snapshot(db, test_user):
     expected = json.loads((Path(__file__).parent / "fixtures/cv_render_layouts.json").read_text())
     document = _document(db, test_user)
-    for template in TEMPLATES:
+    for template in ORIGINAL_TEMPLATES:
         with fitz.open(
             stream=render_pdf(build_render_model(document, template)), filetype="pdf"
         ) as pdf:
@@ -110,13 +117,26 @@ def test_every_template_matches_the_reviewed_pixel_snapshot(db, test_user):
         "technical-portfolio": "6bfa4d7925f2e5ea7c391840e872db28a0f35a0ced93436c361cb5313357b84d",
     }
     document = _document(db, test_user)
-    for template in TEMPLATES:
+    for template in ORIGINAL_TEMPLATES:
         with fitz.open(
             stream=render_pdf(build_render_model(document, template)), filetype="pdf"
         ) as pdf:
             pixmap = pdf[0].get_pixmap(matrix=fitz.Matrix(1.5, 1.5), alpha=False)
         assert (pixmap.width, pixmap.height) == (893, 1263)
         assert hashlib.sha256(pixmap.samples).hexdigest() == expected[template]
+
+
+def test_new_templates_render_and_reimport_cleanly(db, test_user):
+    document = _document(db, test_user)
+    for template in ("modern-two-column", "minimal-serif"):
+        model = build_render_model(document, template)
+        pdf = render_pdf(model)
+        docx = render_docx(model)
+        with fitz.open(stream=pdf, filetype="pdf") as parsed:
+            assert "Synthetic CV" in "".join(page.get_text() for page in parsed)
+        evidence_pdf = validate_artifact(model, pdf, "pdf")
+        evidence_docx = validate_artifact(model, docx, "docx")
+        assert evidence_pdf.canonical_hash == model.canonical_hash == evidence_docx.canonical_hash
 
 
 def test_boundary_fixture_keeps_heading_with_following_entry(db, test_user):

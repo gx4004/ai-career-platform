@@ -71,18 +71,26 @@ async def generate_cv_tailoring(
     confirmed_ids = {str(fact["evidence_item_id"]) for fact in confirmed_facts}
     if len({change.id for change in changes}) != len(changes):
         raise ValueError("Tailoring output repeated a change identifier")
+    kept: list[CvTailoringChange] = []
+    skipped: list[dict[str, str]] = []
     for change in changes:
         entry = entries.get((change.section_id, change.entry_id))
         if change.section_id not in section_ids or entry is None or entry["body"] != change.before:
-            raise ValueError("Tailoring output referenced stale document content")
+            # A single change quoting stale/mismatched source text is dropped rather
+            # than failing the whole proposal — the model-run quota still counts once
+            # since the caller consumes it before this call (#322).
+            skipped.append({"id": change.id, "reason": "stale_before_text"})
+            continue
         if change.support == "confirmed" and (
             not change.evidence_item_ids or not set(change.evidence_item_ids) <= confirmed_ids
         ):
             raise ValueError("Tailoring output claimed unavailable confirmed evidence")
         if change.support == "document" and change.evidence_item_ids:
             raise ValueError("Document-grounded changes cannot claim profile provenance")
+        kept.append(change)
     return {
         "schema_version": "cv-tailoring/v1",
         "job_title": job_title,
-        "changes": [c.model_dump() for c in changes],
+        "changes": [c.model_dump() for c in kept],
+        "skipped": skipped,
     }
