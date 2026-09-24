@@ -69,9 +69,12 @@ test('production client keeps total CSS under the baseline budget', () => {
   // just under 480 KiB until the queue review surface (#183) legitimately tipped
   // it. The delta is a few KiB of uncompressed CSS (<1 KiB gzipped over the
   // wire); 500 KiB keeps a real performance guard with headroom for R15/R16.
+  // Raised to 540 KiB for the CV Studio redesign (#322): chapter2 sat at ~499
+  // KiB, and the flagship editor (outline, structured cards, design gallery,
+  // live paper preview) ships ~36 KiB minified (~7 KiB gzipped), replacing ~10 KiB.
   const totalKiB = cssFiles.reduce((sum, file) => sum + assetSizeKiB(file), 0)
   assert.ok(
-    totalKiB < 500,
-    `production CSS total is ${totalKiB.toFixed(1)} KiB, expected < 500 KiB`,
+    totalKiB < 540,
+    `production CSS total is ${totalKiB.toFixed(1)} KiB, expected < 540 KiB`,
   )
 })
