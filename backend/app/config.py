@@ -76,7 +76,6 @@ class Settings(BaseSettings):
     R13_CAMPAIGNS_ENABLED: bool = False
     R14_DISCOVERY_ENABLED: bool = False
     R15_QUEUE_ENABLED: bool = False
-    R16_SUBMISSION_FOUNDATION_ENABLED: bool = False
     R17_DEVELOPMENT_LOOP_ENABLED: bool = False
 
     # ── R10 scaling-trigger scorecard inputs (issue #136, parent #135) ──

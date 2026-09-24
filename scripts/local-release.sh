@@ -8,21 +8,18 @@ plan_only=false
 allow_missing_docker=false
 containers_available=true
 database_url=""
-authorization_database_url=""
 query_plan_database_url=""
 
 usage() {
   cat <<'EOF'
 Usage:
   ./scripts/local-release.sh --preflight
-  ./scripts/local-release.sh --plan --database-url URL --authorization-database-url URL
-  ./scripts/local-release.sh --database-url URL --authorization-database-url URL
+  ./scripts/local-release.sh --plan --database-url URL
+  ./scripts/local-release.sh --database-url URL
 
-Full and plan modes require two explicit, disposable PostgreSQL URLs: the main
-database must be named cw_local_release or cw_local_release_*, and the isolated
-authorization proof database must be named
-codex_submission_authorization_concurrency_*. The runner never reads ambient
-database URLs and never drops either of them.
+Full and plan modes require one explicit, disposable PostgreSQL URL: the main
+database must be named cw_local_release or cw_local_release_*. The runner never
+reads ambient database URLs and never drops it.
 
 The query-plan evidence step (#141 AC2) seeds tens of thousands of synthetic
 rows, so it gets a third database that the step itself creates and drops: by
@@ -62,11 +59,6 @@ while (($#)); do
       database_url="$2"
       shift 2
       ;;
-    --authorization-database-url)
-      (($# >= 2)) || die_usage "--authorization-database-url requires a value"
-      authorization_database_url="$2"
-      shift 2
-      ;;
     --query-plan-database-url)
       (($# >= 2)) || die_usage "--query-plan-database-url requires a value"
       query_plan_database_url="$2"
@@ -86,12 +78,7 @@ if [[ "$mode" == "full" && -z "$database_url" ]]; then
   die_usage "full release mode requires --database-url"
 fi
 
-if [[ "$mode" == "full" && -z "$authorization_database_url" ]]; then
-  die_usage "full release mode requires --authorization-database-url"
-fi
-
-if [[ "$mode" == "preflight" && ( -n "$database_url" || -n "$authorization_database_url" \
-  || -n "$query_plan_database_url" ) ]]; then
+if [[ "$mode" == "preflight" && ( -n "$database_url" || -n "$query_plan_database_url" ) ]]; then
   die_usage "database URLs are not used with --preflight"
 fi
 
@@ -106,11 +93,6 @@ unset E2E_FRONTEND_PORT E2E_BACKEND_PORT
 if [[ "$mode" == "full" ]]; then
   if ! LOCAL_RELEASE_DATABASE_URL="$database_url" \
     python3 "$repository_root/scripts/validate-release-database.py"; then
-    exit 2
-  fi
-  if ! LOCAL_RELEASE_DATABASE_URL="$authorization_database_url" \
-    python3 "$repository_root/scripts/validate-release-database.py" \
-      --profile authorization-concurrency; then
     exit 2
   fi
 fi
@@ -388,17 +370,11 @@ run_with_database DATABASE_URL "$database_url" '<disposable-postgresql-url>' \
   "Populated packet-approval migration round trip" backend \
   python3 tests/migration_packet_approval_roundtrip.py
 run_with_database DATABASE_URL "$database_url" '<disposable-postgresql-url>' \
-  "Populated submission migration round trip" backend \
-  python3 tests/migration_submission_roundtrip.py
-run_with_database DATABASE_URL "$database_url" '<disposable-postgresql-url>' \
   "Populated operational-metric migration round trip" backend \
   python3 tests/migration_operational_metric_roundtrip.py
 run_with_database DATABASE_URL "$database_url" '<disposable-postgresql-url>' \
   "Alembic upgrade smoke" backend \
   python3 -m alembic upgrade head
-run_with_database DATABASE_URL "$database_url" '<disposable-postgresql-url>' \
-  "Concurrent submission retry proof" backend \
-  python3 tests/postgres_submission_concurrency.py
 
 if [[ "$plan_only" != true && -z "$query_plan_database_url" ]]; then
   query_plan_database_url="$(derive_query_plan_database_url "$database_url")"
@@ -407,20 +383,6 @@ run_with_database DATABASE_URL "$query_plan_database_url" \
   '<disposable-query-plan-postgresql-url>' \
   "History and admin query-plan evidence" backend \
   python3 tests/postgres_history_query_plans.py
-
-run_with_database LOCAL_RELEASE_DATABASE_URL "$authorization_database_url" \
-  '<authorization-concurrency-postgresql-url>' \
-  "Require a fresh authorization-concurrency database" . \
-  python3 scripts/validate-release-database.py \
-    --profile authorization-concurrency --require-empty
-run_with_database DATABASE_URL "$authorization_database_url" \
-  '<authorization-concurrency-postgresql-url>' \
-  "Prepare authorization-concurrency database" backend \
-  python3 -m alembic upgrade head
-run_with_database DATABASE_URL "$authorization_database_url" \
-  '<authorization-concurrency-postgresql-url>' \
-  "Concurrent submission-authorization proof" backend \
-  python3 tests/postgres_submission_authorization_concurrency.py
 
 run_in_directory "Backend startup process smoke" backend \
   python3 -m pytest -q tests/test_startup_script.py

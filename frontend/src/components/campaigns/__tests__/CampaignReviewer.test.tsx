@@ -102,7 +102,6 @@ function setOutcomeFlags(r17Enabled: boolean) {
     'VITE_R13_CAMPAIGNS_ENABLED',
     'VITE_R14_DISCOVERY_ENABLED',
     'VITE_R15_QUEUE_ENABLED',
-    'VITE_R16_SUBMISSION_FOUNDATION_ENABLED',
   ]) {
     vi.stubEnv(flag, 'true')
   }
@@ -149,7 +148,6 @@ describe('CampaignReviewer development acceptance path', () => {
 
   it('surfaces classification and development actions from R17 alone, regardless of every other outcome flag', async () => {
     setOutcomeFlags(true)
-    vi.stubEnv('VITE_R16_SUBMISSION_FOUNDATION_ENABLED', 'false')
     vi.stubEnv('VITE_R13_CAMPAIGNS_ENABLED', 'false')
     renderReviewer()
 

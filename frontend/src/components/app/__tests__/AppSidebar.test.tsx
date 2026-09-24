@@ -115,7 +115,6 @@ describe('AppSidebar', () => {
       'VITE_R13_CAMPAIGNS_ENABLED',
       'VITE_R14_DISCOVERY_ENABLED',
       'VITE_R15_QUEUE_ENABLED',
-      'VITE_R16_SUBMISSION_FOUNDATION_ENABLED',
       'VITE_R17_DEVELOPMENT_LOOP_ENABLED',
     ]) vi.stubEnv(flag, 'true')
     mockPathname.current = '/dashboard'
@@ -142,7 +141,6 @@ describe('AppSidebar', () => {
       'VITE_R13_CAMPAIGNS_ENABLED',
       'VITE_R14_DISCOVERY_ENABLED',
       'VITE_R15_QUEUE_ENABLED',
-      'VITE_R16_SUBMISSION_FOUNDATION_ENABLED',
       'VITE_R17_DEVELOPMENT_LOOP_ENABLED',
     ]) vi.stubEnv(flag, 'false')
 

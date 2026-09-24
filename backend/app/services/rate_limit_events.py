@@ -25,7 +25,6 @@ _PREFIX_FAMILIES: tuple[tuple[str, RateLimitRouteFamily], ...] = (
     ("/api/v1/discovery", "discovery"),
     ("/api/v1/queue", "queue"),
     ("/api/v1/packets", "queue"),
-    ("/api/v1/submission-authorizations", "submission"),
     ("/api/v1/admin", "admin"),
     ("/api/v1/telemetry", "telemetry"),
 )

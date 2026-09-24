@@ -13,7 +13,6 @@ def test_build_ahead_outcomes_default_off():
     assert defaults.R13_CAMPAIGNS_ENABLED is False
     assert defaults.R14_DISCOVERY_ENABLED is False
     assert defaults.R15_QUEUE_ENABLED is False
-    assert defaults.R16_SUBMISSION_FOUNDATION_ENABLED is False
     assert defaults.R17_DEVELOPMENT_LOOP_ENABLED is False
 
 
@@ -360,7 +359,6 @@ def test_core_tool_route_remains_available_when_build_ahead_is_dark(
         "R13_CAMPAIGNS_ENABLED",
         "R14_DISCOVERY_ENABLED",
         "R15_QUEUE_ENABLED",
-        "R16_SUBMISSION_FOUNDATION_ENABLED",
         "R17_DEVELOPMENT_LOOP_ENABLED",
     ):
         monkeypatch.setattr(settings, flag, False)
@@ -368,7 +366,7 @@ def test_core_tool_route_remains_available_when_build_ahead_is_dark(
 
 
 # Prefix -> the gate every route under it must carry. `conftest` force-enables all
-# seven flags for the rest of the suite, so an ungated build-ahead route would
+# six flags for the rest of the suite, so an ungated build-ahead route would
 # otherwise pass CI unnoticed — which is exactly how the campaign write path above
 # stayed open. This check is structural and does not depend on flag state.
 _GATED_PREFIXES = {
@@ -378,7 +376,6 @@ _GATED_PREFIXES = {
     "/api/v1/discovery": "require_r14_enabled",
     "/api/v1/queue": "require_r15_enabled",
     "/api/v1/packets": "require_r15_enabled",
-    "/api/v1/submission-authorizations": "require_r16_enabled",
 }
 
 # Deliberate exceptions: portability and erasure must survive a dark outcome so a

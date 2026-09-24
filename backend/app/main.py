@@ -17,7 +17,6 @@ from app.feature_gates import (
     require_r12_enabled,
     require_r14_enabled,
     require_r15_enabled,
-    require_r16_enabled,
     require_r17_enabled,
 )
 from app.limiter import (
@@ -45,7 +44,6 @@ from app.routers import (
     portfolio,
     queue_rules,
     resume,
-    submission_authorizations,
     telemetry,
 )
 from app.services.observability import configure_logging
@@ -384,12 +382,6 @@ app.include_router(
     prefix=f"{prefix}/packets",
     tags=["packets"],
     dependencies=[Depends(require_r15_enabled)],
-)
-app.include_router(
-    submission_authorizations.router,
-    prefix=f"{prefix}/submission-authorizations",
-    tags=["submission-authorizations"],
-    dependencies=[Depends(require_r16_enabled)],
 )
 app.include_router(telemetry.router, prefix=f"{prefix}/telemetry", tags=["telemetry"])
 app.include_router(admin.router, prefix=f"{prefix}/admin", tags=["admin"])
