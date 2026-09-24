@@ -333,8 +333,29 @@ test('capture authenticated + guest pages for visual review', async ({ page, bro
     }
     await capturePage(page, 'desktop', 'cv-studio', '/cv-studio', results)
 
+    // Applications board seed: six applications across every stage (after the
+    // CV seed so the featured one can point at a real CV version). Its detail
+    // page replaces the bare job-match workspace as the campaign-detail shot.
+    try {
+      const featured = execFileSync(env.pythonBin, ['-m', 'tests.seed_campaigns', email], {
+        cwd: env.backendDir,
+        env: { ...process.env, DATABASE_URL: env.databaseUrl },
+        stdio: 'pipe',
+      }).toString().trim().split('\n').pop()
+      if (featured) campaignPath = `/campaigns/${featured}`
+    } catch (error) {
+      console.warn('[screenshots] campaigns seed skipped (board shows fewer cards):', describeError(error))
+    }
+    await capturePage(page, 'desktop', 'campaigns', '/campaigns', results)
+
     if (campaignPath) {
       await capturePage(page, 'desktop', 'campaign-detail', campaignPath, results)
+      // The detail page is tabbed; shoot the busiest tabs too.
+      for (const tab of ['Tasks', 'Timeline', 'Checklist']) {
+        const clicked = await page.getByRole('tab', { name: new RegExp(`^${tab}`) }).click({ timeout: 5_000 }).then(() => true, () => false)
+        if (clicked) await shootCurrentPage(page, 'desktop', `campaign-detail-${tab.toLowerCase()}`, results)
+        else skip(results, `campaign-detail-${tab.toLowerCase()}`, 'desktop', `${tab} tab not found`)
+      }
     } else {
       skip(results, 'campaign-detail', 'desktop', 'no workspace/campaign could be seeded')
     }
@@ -387,6 +408,8 @@ test('capture authenticated + guest pages for visual review', async ({ page, bro
       } else {
         skip(results, 'resume-result', 'mobile', 'desktop seed did not produce a result page')
       }
+
+      await capturePage(mobilePage, 'mobile', 'campaigns', '/campaigns', results, { waitForMobileShell: true })
 
       if (campaignPath) {
         await capturePage(mobilePage, 'mobile', 'campaign-detail', campaignPath, results, {

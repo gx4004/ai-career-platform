@@ -3,254 +3,274 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { CampaignPage } from '../CampaignPage'
 
-const api = vi.hoisted(() => ({ getCampaign: vi.fn(), updateCampaignMaterials: vi.fn(), deleteCampaign: vi.fn(), createCampaignTask: vi.fn(), updateCampaignTask: vi.fn(), deleteCampaignTask: vi.fn(), createCampaignNote: vi.fn(), deleteCampaignNote: vi.fn(), createCampaignContact: vi.fn(), deleteCampaignContact: vi.fn(), getCampaignReminders: vi.fn(), updateCampaignReminderConsent: vi.fn(), reviewCampaign: vi.fn() }))
+const api = vi.hoisted(() => ({ getCampaign: vi.fn(), updateCampaignMaterials: vi.fn(), updateHistoryWorkspace: vi.fn(), deleteCampaign: vi.fn(), createCampaignTask: vi.fn(), updateCampaignTask: vi.fn(), deleteCampaignTask: vi.fn(), createCampaignNote: vi.fn(), deleteCampaignNote: vi.fn(), createCampaignContact: vi.fn(), deleteCampaignContact: vi.fn(), getCampaignReminders: vi.fn(), updateCampaignReminderConsent: vi.fn(), reviewCampaign: vi.fn(), classifyCampaignGaps: vi.fn(), getCampaignGapResponse: vi.fn() }))
 const navigate = vi.hoisted(() => vi.fn())
 vi.mock('#/lib/api/client', () => api)
 vi.mock('#/hooks/useSession', () => ({ useSession: () => ({ status: 'authenticated', openAuthDialog: vi.fn() }) }))
-vi.mock('@tanstack/react-router', () => ({ Link: ({ children }: { children: React.ReactNode }) => <a href="/history">{children}</a>, useNavigate: () => navigate }))
+vi.mock('@tanstack/react-router', () => ({
+  Link: ({ to, params, children, className }: { to: string; params?: { historyId?: string }; children: React.ReactNode; className?: string }) => (
+    <a href={params?.historyId ? to.replace('$historyId', params.historyId) : to} className={className}>{children}</a>
+  ),
+  useNavigate: () => navigate,
+}))
 
 const campaign = {
-  id: 'ws-1', label: 'Northstar', is_pinned: false, company: 'Northstar Labs', role: 'Platform Engineer', status: 'preparing', deadline: '2026-08-15T16:00:00Z', linked_run_ids: [], last_active_tool: null, last_active_result_id: null, updated_at: '2026-07-13T10:00:00Z',
+  id: 'ws-1', label: 'Northstar', is_pinned: false, company: 'Northstar Labs', role: 'Platform Engineer', status: 'preparing', deadline: '2026-08-15T16:00:00Z', linked_run_ids: [], last_active_tool: null, last_active_result_id: null, updated_at: '2026-07-13T10:00:00Z', next_task: null, last_activity_at: null,
   listing: { title: 'Platform Engineer', company: 'Northstar Labs', description: 'Own the service platform and improve reliability across product teams.', source_url: 'https://jobs.example/platform', retrieved_at: '2026-07-12T10:00:00Z' },
   selected_materials: { cv_variant: null, cover_letter: null, interview: null },
   available_materials: { cv_variants: [{ id: 'cv-1', document_id: 'doc-1', document_name: 'Engineering CV', name: 'Northstar', target_role: 'Platform Engineer', created_at: '2026-07-12T10:00:00Z' }], cover_letters: [{ id: 'cl-2', label: 'Northstar letter', parent_run_id: 'cl-1', created_at: '2026-07-12T11:00:00Z' }], interviews: [] },
-  events: [{ id: 'event-1', event_type: 'status_changed', details: { from: 'planning', to: 'preparing' }, provenance: 'user', created_at: '2026-07-13T10:00:00Z' }, { id: 'event-2', event_type: 'submission_snapshot_created', details: { snapshot_id: 'snapshot-1' }, provenance: 'user', created_at: '2026-07-13T10:00:00Z' }],
+  events: [{ id: 'event-1', event_type: 'status_changed', details: { from: 'planning', to: 'preparing' }, provenance: 'user', created_at: '2026-07-13T10:00:00Z' }, { id: 'event-2', event_type: 'submission_snapshot_created', details: { snapshot_id: 'snapshot-1' }, provenance: 'system', created_at: '2026-07-14T10:00:00Z' }],
   tasks: [{ id: 'task-1', title: 'Send application', deadline: null, completed: false, created_at: '2026-07-13T10:00:00Z' }],
   notes: [{ id: 'note-1', text: 'Ask about team structure', created_at: '2026-07-13T10:00:00Z' }],
   contacts: [{ id: 'contact-1', name: 'Alex', role: 'Recruiter', channel: 'Email', created_at: '2026-07-13T10:00:00Z' }],
-  submission_snapshots: [{ id: 'snapshot-1', content: { listing: { title: 'Platform Engineer', company: 'Northstar Labs', description: 'Frozen listing' }, cv_variant: { name: 'Applied CV', sections: [] }, cover_letter: { label: 'Sent letter', result_payload: { body: 'Frozen letter' } } }, content_sha256: 'a'.repeat(64), created_at: '2026-07-13T10:00:00Z' }],
+  submission_snapshots: [{ id: 'snapshot-1', content: { listing: { title: 'Platform Engineer', company: 'Northstar Labs', description: 'Frozen listing' }, cv_variant: { name: 'Applied CV', sections: [] }, cover_letter: { label: 'Sent letter', result_payload: { body: 'Frozen letter' } } }, content_sha256: 'a'.repeat(64), created_at: '2026-07-14T10:00:00Z' }],
 }
 
 const remindersOff = { enabled: false, items: [], next_surface_at: null }
+const date = (value: string) => new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(value))
 function renderPage(reminders: unknown = remindersOff) { api.getCampaignReminders.mockResolvedValue(reminders); const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } }); return render(<QueryClientProvider client={client}><CampaignPage campaignId="ws-1" /></QueryClientProvider>) }
-// Tracking panels share one <section> per heading; scope queries so a control
-// asserted for tasks cannot be satisfied by the notes or contacts panel.
-function tracker(name: string) { return screen.getByRole('heading', { name, level: 3 }).closest('.campaign-tracker') as HTMLElement }
+async function openTab(name: string) {
+  await screen.findByRole('heading', { name: 'Platform Engineer', level: 1 })
+  fireEvent.click(screen.getByRole('tab', { name: new RegExp(`^${name}`) }))
+  return screen.getByRole('tabpanel')
+}
 
 describe('CampaignPage', () => {
   beforeEach(() => {
-    for (const flag of [
-      'VITE_R11_EVIDENCE_PROFILE_ENABLED',
-      'VITE_R12_CV_STUDIO_ENABLED',
-      'VITE_R13_CAMPAIGNS_ENABLED',
-      'VITE_R14_DISCOVERY_ENABLED',
-      'VITE_R15_QUEUE_ENABLED',
-    ]) vi.stubEnv(flag, 'true')
+    vi.stubEnv('VITE_R13_CAMPAIGNS_ENABLED', 'true')
     vi.clearAllMocks()
   })
 
-  it('shows campaign facts, canonical listing, and immutable material choices', async () => {
+  it('shows the role, company, stage and key dates in the hero', async () => {
     api.getCampaign.mockResolvedValue(campaign)
-    api.reviewCampaign.mockResolvedValue({ history_id: 'review-1', schema_version: 'application-reviewer/v1', summary: { headline: '1 advisory finding', verdict: 'Review', confidence_note: 'Deterministic' }, top_actions: [], generated_at: '2026-07-13T10:00:00Z', download_title: 'Review', exportable_sections: [], editable_blocks: [], access_mode: 'authenticated', saved: true, locked_actions: [], findings: [{ id: 'finding-1', category: 'unsupported_claim', severity: 'high', message: 'Nimbus is not traceable.', locations: ['Cover letter'], trace: ['claim:Nimbus', 'result:no_match'] }] })
-    api.updateCampaignMaterials.mockImplementation(async (_id, payload) => ({ ...campaign, selected_materials: { ...campaign.selected_materials, cv_variant: payload.cv_variant_id ? campaign.available_materials.cv_variants[0] : null } }))
     renderPage()
     expect(await screen.findByRole('heading', { name: 'Platform Engineer', level: 1 })).toBeTruthy()
-    expect(screen.getAllByText('Northstar Labs')).toHaveLength(2)
-    expect(screen.getByText(/Own the service platform/)).toBeTruthy()
-    fireEvent.change(screen.getByLabelText('CV variant'), { target: { value: 'cv-1' } })
-    await waitFor(() => expect(api.updateCampaignMaterials).toHaveBeenCalledWith('ws-1', { cv_variant_id: 'cv-1' }))
-    expect(screen.getByRole('option', { name: /Northstar letter — revision.*cl-2/ })).toBeTruthy()
-    expect((await screen.findByRole('status')).textContent).toBe('Selection saved.')
-    expect(screen.getByText('Send application')).toBeTruthy()
-    expect(screen.getByText('Ask about team structure')).toBeTruthy()
-    expect(screen.getByText(/Status changed/)).toBeTruthy()
-    expect(await screen.findByRole('button', { name: 'Turn reminders on' })).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: 'View submitted application' }))
-    expect((screen.getByText(/Application sent/).closest('details') as HTMLDetailsElement).open).toBe(true)
-    fireEvent.click(screen.getByText(/Application sent/))
-    expect(screen.getByText('Frozen listing')).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: 'Run application review' }))
-    expect(await screen.findByText('Nimbus is not traceable.')).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: 'Dismiss finding' }))
-    expect(screen.queryByText('Nimbus is not traceable.')).toBeNull()
-    api.deleteCampaign.mockResolvedValue({ deleted: 1 })
-    fireEvent.click(screen.getAllByRole('button', { name: 'Delete campaign' })[0])
-    expect(screen.getByRole('dialog', { name: 'Delete this campaign?' })).toBeTruthy()
-    expect(screen.getByText(/cannot withdraw or recall the employer-held application/)).toBeTruthy()
-    // The header trigger is aria-hidden while the dialog is open, so only the
-    // dialog's own confirm button remains in the accessibility tree.
-    fireEvent.click(screen.getByRole('button', { name: 'Delete campaign' }))
-    await waitFor(() => expect(api.deleteCampaign).toHaveBeenCalledWith('ws-1'))
-    await waitFor(() => expect(navigate).toHaveBeenCalledWith({ to: '/history' }))
-  }, 10_000)
-
-  it('renders an explicit empty state and disables unavailable material selection', async () => {
-    api.getCampaign.mockResolvedValue({ ...campaign, listing: null, available_materials: { cv_variants: [], cover_letters: [], interviews: [] } })
-    renderPage()
-    expect(await screen.findByText('No canonical listing yet')).toBeTruthy()
-    expect((screen.getByLabelText('Interview preparation revision') as HTMLSelectElement).disabled).toBe(true)
+    expect(screen.getByText('Northstar Labs', { selector: '.workspace-hero__eyebrow' })).toBeTruthy()
+    expect(screen.getByText('Getting ready')).toBeTruthy()
+    expect(screen.getByText(date('2026-08-15T16:00:00Z'))).toBeTruthy()
+    expect(screen.getByText(date('2026-07-14T10:00:00Z'))).toBeTruthy()
+    expect(screen.getByRole('link', { name: /Job posting/ }).getAttribute('href')).toBe('https://jobs.example/platform')
+    expect(screen.getByRole('link', { name: /All applications/ }).getAttribute('href')).toBe('/campaigns')
   })
 
-  describe('campaign tracking', () => {
-    it('creates a task with the entered deadline anchored inside the chosen day', async () => {
+  it('shows the job description and lets you pick the documents you are sending', async () => {
+    api.getCampaign.mockResolvedValue(campaign)
+    api.updateCampaignMaterials.mockImplementation(async (_id, payload) => ({ ...campaign, selected_materials: { ...campaign.selected_materials, cv_variant: payload.cv_variant_id ? campaign.available_materials.cv_variants[0] : null } }))
+    renderPage()
+    expect(await screen.findByText(/Own the service platform/)).toBeTruthy()
+    expect(screen.getByRole('option', { name: /Northstar letter \(edited\)/ })).toBeTruthy()
+
+    fireEvent.change(screen.getByLabelText('CV version'), { target: { value: 'cv-1' } })
+
+    await waitFor(() => expect(api.updateCampaignMaterials).toHaveBeenCalledWith('ws-1', { cv_variant_id: 'cv-1' }))
+    expect((await screen.findByRole('status')).textContent).toBe('Saved.')
+    expect(screen.getByRole('link', { name: 'Open' }).getAttribute('href')).toBe('/cv-studio')
+    // Nothing to pick for interview prep yet, so point at the tool that makes one.
+    expect(screen.getByRole('link', { name: 'Prepare for interviews' }).getAttribute('href')).toBe('/interview')
+    expect(screen.getByText('Send application')).toBeTruthy()
+  })
+
+  it('shows friendly empty states when there is no posting or documents yet', async () => {
+    api.getCampaign.mockResolvedValue({ ...campaign, listing: null, available_materials: { cv_variants: [], cover_letters: [], interviews: [] }, tasks: [] })
+    renderPage()
+    expect(await screen.findByText('No job posting yet')).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Write a cover letter' })).toBeTruthy()
+    expect(screen.getByText('Nothing planned')).toBeTruthy()
+    expect(screen.queryByRole('link', { name: /Job posting/ })).toBeNull()
+  })
+
+  it('moves the application forward from the stage menu', async () => {
+    api.getCampaign.mockResolvedValue(campaign)
+    api.updateHistoryWorkspace.mockResolvedValue({ ...campaign, status: 'interviewing' })
+    renderPage()
+    fireEvent.keyDown(await screen.findByRole('button', { name: /Change stage/ }), { key: 'Enter' })
+    const menu = await screen.findByRole('menu')
+    const options = within(menu).getAllByRole('menuitem').map((item) => item.textContent)
+    // Only later stages are offered: the server never moves an application backwards.
+    expect(options).toEqual(['Applied', 'Interviewing', 'Offer', 'Offer accepted', 'Close: not selected', 'Close: I withdrew'])
+
+    fireEvent.click(within(menu).getByRole('menuitem', { name: 'Interviewing' }))
+
+    await waitFor(() => expect(api.updateHistoryWorkspace).toHaveBeenCalledWith('ws-1', { status: 'interviewing' }))
+    await waitFor(() => expect(api.getCampaign).toHaveBeenCalledTimes(2))
+  })
+
+  it('deletes the application after confirming, then returns to the board', async () => {
+    api.getCampaign.mockResolvedValue(campaign)
+    api.deleteCampaign.mockResolvedValue({ deleted: 1 })
+    renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete application' }))
+    const dialog = screen.getByRole('dialog', { name: 'Delete this application?' })
+    expect(within(dialog).getByText(/doesn't withdraw anything you already sent/)).toBeTruthy()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete' }))
+    await waitFor(() => expect(api.deleteCampaign).toHaveBeenCalledWith('ws-1'))
+    await waitFor(() => expect(navigate).toHaveBeenCalledWith({ to: '/campaigns' }))
+  })
+
+  describe('tasks, notes and contacts', () => {
+    it('creates a task with the entered due date anchored inside the chosen day', async () => {
       api.getCampaign.mockResolvedValue(campaign)
       api.createCampaignTask.mockResolvedValue({ id: 'task-2', title: 'Prepare portfolio', deadline: '2026-08-20T12:00:00Z', completed: false, created_at: '2026-07-13T10:00:00Z' })
 
       renderPage()
-      expect(await screen.findByRole('heading', { name: 'Platform Engineer', level: 1 })).toBeTruthy()
-      fireEvent.change(screen.getByLabelText('Next action'), { target: { value: 'Prepare portfolio' } })
-      fireEvent.change(screen.getByLabelText('Deadline (optional)'), { target: { value: '2026-08-20' } })
-      fireEvent.click(within(tracker('Tasks')).getByRole('button', { name: 'Add task' }))
+      const panel = await openTab('Tasks')
+      fireEvent.change(within(panel).getByLabelText('New task'), { target: { value: 'Prepare portfolio' } })
+      fireEvent.change(within(panel).getByLabelText('Due date (optional)'), { target: { value: '2026-08-20' } })
+      fireEvent.click(within(panel).getByRole('button', { name: 'Add task' }))
 
       await waitFor(() => expect(api.createCampaignTask).toHaveBeenCalledTimes(1))
       const [id, payload] = api.createCampaignTask.mock.calls[0]
       expect(id).toBe('ws-1')
       expect(payload.title).toBe('Prepare portfolio')
-      // The midday anchor is why a date-only input survives the trip through UTC:
-      // the instant must still land on the day the owner picked, in either direction.
+      // The midday anchor is why a date-only input survives the trip through UTC.
       expect(payload.deadline.slice(0, 10)).toBe('2026-08-20')
-      await waitFor(() => expect((screen.getByLabelText('Next action') as HTMLInputElement).value).toBe(''))
-      expect((screen.getByLabelText('Deadline (optional)') as HTMLInputElement).value).toBe('')
+      await waitFor(() => expect((within(panel).getByLabelText('New task') as HTMLInputElement).value).toBe(''))
+      expect((within(panel).getByLabelText('Due date (optional)') as HTMLInputElement).value).toBe('')
     })
 
-    it('submits a task with no deadline as an explicit null', async () => {
+    it('submits a task with no due date as an explicit null', async () => {
       api.getCampaign.mockResolvedValue(campaign)
       api.createCampaignTask.mockResolvedValue({ id: 'task-3', title: 'Call Alex', deadline: null, completed: false, created_at: '2026-07-13T10:00:00Z' })
-
       renderPage()
-      expect(await screen.findByRole('heading', { name: 'Platform Engineer', level: 1 })).toBeTruthy()
-      fireEvent.change(screen.getByLabelText('Next action'), { target: { value: 'Call Alex' } })
-      fireEvent.click(within(tracker('Tasks')).getByRole('button', { name: 'Add task' }))
-
+      const panel = await openTab('Tasks')
+      fireEvent.change(within(panel).getByLabelText('New task'), { target: { value: 'Call Alex' } })
+      fireEvent.click(within(panel).getByRole('button', { name: 'Add task' }))
       await waitFor(() => expect(api.createCampaignTask).toHaveBeenCalledWith('ws-1', { title: 'Call Alex', deadline: null }))
     })
 
-    it('toggles completion against the stored state and shows a task deadline', async () => {
+    it('toggles completion against the stored state and shows the due date', async () => {
       const deadline = '2026-08-20T12:00:00Z'
       api.getCampaign.mockResolvedValue({ ...campaign, tasks: [{ ...campaign.tasks[0], deadline }] })
       api.updateCampaignTask.mockResolvedValue({ ...campaign.tasks[0], deadline, completed: true })
-
       renderPage()
-      expect(await screen.findByRole('heading', { name: 'Platform Engineer', level: 1 })).toBeTruthy()
-      const tasks = within(tracker('Tasks'))
-      const checkbox = tasks.getByRole('checkbox') as HTMLInputElement
+      const panel = await openTab('Tasks')
+      const checkbox = within(panel).getByRole('checkbox', { name: 'Send application' }) as HTMLInputElement
       expect(checkbox.checked).toBe(false)
-      expect(tasks.getByText(`Send application · ${new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(deadline))}`)).toBeTruthy()
-
+      expect(within(panel).getByText(date(deadline))).toBeTruthy()
       fireEvent.click(checkbox)
-
       await waitFor(() => expect(api.updateCampaignTask).toHaveBeenCalledWith('ws-1', 'task-1', true))
     })
 
     it('deletes a task, a note, and a contact by their own ids', async () => {
       api.getCampaign.mockResolvedValue(campaign)
       for (const mock of [api.deleteCampaignTask, api.deleteCampaignNote, api.deleteCampaignContact]) mock.mockResolvedValue({ deleted: 1 })
-
       renderPage()
-      expect(await screen.findByRole('heading', { name: 'Platform Engineer', level: 1 })).toBeTruthy()
-      fireEvent.click(screen.getByRole('button', { name: 'Delete task Send application' }))
+      fireEvent.click(within(await openTab('Tasks')).getByRole('button', { name: 'Delete task Send application' }))
       await waitFor(() => expect(api.deleteCampaignTask).toHaveBeenCalledWith('ws-1', 'task-1'))
-      fireEvent.click(screen.getByRole('button', { name: 'Delete note' }))
+      fireEvent.click(within(await openTab('Notes')).getByRole('button', { name: 'Delete note' }))
       await waitFor(() => expect(api.deleteCampaignNote).toHaveBeenCalledWith('ws-1', 'note-1'))
-      fireEvent.click(screen.getByRole('button', { name: 'Delete contact Alex' }))
+      fireEvent.click(within(await openTab('Contacts')).getByRole('button', { name: 'Delete contact Alex' }))
       await waitFor(() => expect(api.deleteCampaignContact).toHaveBeenCalledWith('ws-1', 'contact-1'))
     })
 
-    it('reports a failed tracking write once for the whole section', async () => {
+    it('adds a note and a contact', async () => {
+      api.getCampaign.mockResolvedValue(campaign)
+      api.createCampaignNote.mockResolvedValue({ id: 'note-2', text: 'Salary band', created_at: '2026-07-13T10:00:00Z' })
+      api.createCampaignContact.mockResolvedValue({ id: 'contact-2', name: 'Sam', role: null, channel: null, created_at: '2026-07-13T10:00:00Z' })
+      renderPage()
+      let panel = await openTab('Notes')
+      fireEvent.change(within(panel).getByLabelText('New note'), { target: { value: 'Salary band' } })
+      fireEvent.click(within(panel).getByRole('button', { name: 'Add note' }))
+      await waitFor(() => expect(api.createCampaignNote).toHaveBeenCalledWith('ws-1', 'Salary band'))
+      panel = await openTab('Contacts')
+      fireEvent.change(within(panel).getByLabelText('Name'), { target: { value: 'Sam' } })
+      fireEvent.click(within(panel).getByRole('button', { name: 'Add contact' }))
+      await waitFor(() => expect(api.createCampaignContact).toHaveBeenCalledWith('ws-1', { name: 'Sam', role: null, channel: null }))
+    })
+
+    it('shows empty states for notes and contacts', async () => {
+      api.getCampaign.mockResolvedValue({ ...campaign, notes: [], contacts: [], tasks: [] })
+      renderPage()
+      expect(within(await openTab('Tasks')).getByText('No tasks yet')).toBeTruthy()
+      expect(within(await openTab('Notes')).getByText('No notes yet')).toBeTruthy()
+      expect(within(await openTab('Contacts')).getByText('No contacts yet')).toBeTruthy()
+    })
+
+    it('reports a failed write once', async () => {
       api.getCampaign.mockResolvedValue(campaign)
       api.deleteCampaignNote.mockRejectedValueOnce(new Error('offline'))
-
       renderPage()
-      expect(await screen.findByRole('heading', { name: 'Platform Engineer', level: 1 })).toBeTruthy()
-      expect(screen.queryByText('The campaign update could not be saved.')).toBeNull()
-      fireEvent.click(screen.getByRole('button', { name: 'Delete note' }))
-
-      const banner = await screen.findByText('The campaign update could not be saved.')
+      fireEvent.click(within(await openTab('Notes')).getByRole('button', { name: 'Delete note' }))
+      const banner = await screen.findByText("That change couldn't be saved. Try again.")
       expect(banner.getAttribute('role')).toBe('alert')
-      // One banner for tasks, notes and contacts together — the three trackers
-      // share a single mutation, so a per-tracker copy would be a regression.
-      expect(screen.getAllByText('The campaign update could not be saved.')).toHaveLength(1)
-    })
-
-    it('labels timeline events by humanized type and provenance', async () => {
-      api.getCampaign.mockResolvedValue(campaign)
-
-      renderPage()
-      expect(await screen.findByRole('heading', { name: 'Platform Engineer', level: 1 })).toBeTruthy()
-      const entries = within(tracker('Timeline')).getAllByRole('listitem').map(item => item.textContent)
-
-      expect(entries).toHaveLength(2)
-      expect(entries[0]).toContain('Status changed')
-      expect(entries[0]).toContain('You')
-      expect(entries[1]).toContain('View submitted application')
-      // Event rows carry the type, never the private details behind it.
-      expect(entries.join(' ')).not.toContain('planning')
-    })
-
-    it('opens the submitted snapshot disclosure from its timeline event', async () => {
-      api.getCampaign.mockResolvedValue(campaign)
-
-      renderPage()
-      const summary = await screen.findByText(/Application sent/)
-      const disclosure = summary.closest('details') as HTMLDetailsElement
-      expect(disclosure.open).toBe(false)
-
-      fireEvent.click(screen.getByRole('button', { name: 'View submitted application' }))
-
-      expect(disclosure.open).toBe(true)
-      const frozen = within(disclosure)
-      expect(frozen.getByText(/Platform Engineer · Northstar Labs/)).toBeTruthy()
-      expect(frozen.getByText('Frozen listing')).toBeTruthy()
-      expect(frozen.getByText(/Applied CV/)).toBeTruthy()
-      expect(frozen.getByText(/Sent letter/)).toBeTruthy()
-      expect(frozen.getByText(`SHA-256 ${'a'.repeat(64)}`)).toBeTruthy()
-    })
-
-    it('says so plainly when nothing has been submitted yet', async () => {
-      api.getCampaign.mockResolvedValue({ ...campaign, submission_snapshots: [] })
-
-      renderPage()
-
-      expect(await screen.findByText('No submitted application snapshot yet.')).toBeTruthy()
-      expect(tracker('Submitted versions').querySelector('details')).toBeNull()
+      expect(screen.getAllByText("That change couldn't be saved. Try again.")).toHaveLength(1)
     })
   })
 
+  describe('timeline', () => {
+    it('lists events newest first in plain words, with what was sent', async () => {
+      api.getCampaign.mockResolvedValue(campaign)
+      renderPage()
+      const panel = await openTab('Timeline')
+      const entries = within(panel).getAllByRole('listitem').map((item) => item.textContent)
+      expect(entries).toHaveLength(2)
+      expect(entries[0]).toContain('Application sent')
+      expect(entries[0]).toContain('Automatic')
+      expect(entries[1]).toContain('Moved to Getting ready')
+      expect(entries[1]).toContain('You')
+
+      const sent = within(panel).getByText('See what you sent').closest('details') as HTMLDetailsElement
+      expect(within(sent).getByText('Platform Engineer · Northstar Labs')).toBeTruthy()
+      expect(within(sent).getByText('Applied CV')).toBeTruthy()
+      expect(within(sent).getByText('Sent letter')).toBeTruthy()
+    })
+
+    it('has an empty state', async () => {
+      api.getCampaign.mockResolvedValue({ ...campaign, events: [], submission_snapshots: [] })
+      renderPage()
+      expect(within(await openTab('Timeline')).getByText('Nothing here yet')).toBeTruthy()
+    })
+  })
+
+  it('opens the pre-application checklist tab', async () => {
+    api.getCampaign.mockResolvedValue(campaign)
+    renderPage()
+    const panel = await openTab('Checklist')
+    expect(within(panel).getByText('The job posting is attached')).toBeTruthy()
+    expect(within(panel).getByRole('button', { name: 'Run the checks' })).toBeTruthy()
+  })
+
   describe('deadline reminders', () => {
-    it('starts off, surfaces deadlines only after consent, and revokes cleanly', async () => {
+    it('starts off, shows deadlines only once turned on, and turns off cleanly', async () => {
       api.getCampaign.mockResolvedValue(campaign)
       api.updateCampaignReminderConsent
         .mockResolvedValueOnce({ enabled: true, items: [{ kind: 'task_deadline', task_id: 'task-1', label: 'Follow up with Alex', deadline: '2026-08-14T12:00:00Z' }], next_surface_at: null })
         .mockResolvedValueOnce({ enabled: false, items: [], next_surface_at: null })
-
       renderPage()
-      const enable = await screen.findByRole('button', { name: 'Turn reminders on' })
+      const panel = await openTab('Tasks')
+      const enable = await within(panel).findByRole('button', { name: 'Turn reminders on' })
       expect(enable.getAttribute('aria-pressed')).toBe('false')
-      expect(screen.getByText(/No email or push notifications/)).toBeTruthy()
-      expect(screen.queryByText('Follow up with Alex')).toBeNull()
+      expect(within(panel).getByText(/never send emails/)).toBeTruthy()
+      expect(within(panel).queryByText('Follow up with Alex')).toBeNull()
 
       fireEvent.click(enable)
-
       await waitFor(() => expect(api.updateCampaignReminderConsent).toHaveBeenCalledWith('ws-1', true))
-      const revoke = await screen.findByRole('button', { name: 'Turn reminders off' })
+      const revoke = await within(panel).findByRole('button', { name: 'Turn reminders off' })
       expect(revoke.getAttribute('aria-pressed')).toBe('true')
-      expect(screen.getByText('Follow up with Alex')).toBeTruthy()
+      expect(within(panel).getByText('Follow up with Alex')).toBeTruthy()
 
       fireEvent.click(revoke)
-
       await waitFor(() => expect(api.updateCampaignReminderConsent).toHaveBeenLastCalledWith('ws-1', false))
-      expect(await screen.findByRole('button', { name: 'Turn reminders on' })).toBeTruthy()
-      expect(screen.queryByText('Follow up with Alex')).toBeNull()
+      expect(await within(panel).findByRole('button', { name: 'Turn reminders on' })).toBeTruthy()
+      expect(within(panel).queryByText('Follow up with Alex')).toBeNull()
     })
 
-    it('keeps consent on when there is nothing due', async () => {
+    it('stays on when nothing is due', async () => {
       api.getCampaign.mockResolvedValue(campaign)
-
       renderPage({ enabled: true, items: [], next_surface_at: '2026-08-14T12:00:00Z' })
-
-      expect(await screen.findByText('No approaching deadlines to surface right now.')).toBeTruthy()
-      expect(screen.getByRole('button', { name: 'Turn reminders off' })).toBeTruthy()
+      const panel = await openTab('Tasks')
+      expect(await within(panel).findByText('Nothing due soon.')).toBeTruthy()
+      expect(within(panel).getByRole('button', { name: 'Turn reminders off' })).toBeTruthy()
     })
 
-    it('leaves the control untouched when consent could not be saved', async () => {
+    it('leaves the control untouched when the change could not be saved', async () => {
       api.getCampaign.mockResolvedValue(campaign)
       api.updateCampaignReminderConsent.mockRejectedValueOnce(new Error('offline'))
-
       renderPage()
-      fireEvent.click(await screen.findByRole('button', { name: 'Turn reminders on' }))
-
-      expect(await screen.findByText('Reminder consent could not be updated.')).toBeTruthy()
-      expect(screen.getByRole('button', { name: 'Turn reminders on' })).toBeTruthy()
+      const panel = await openTab('Tasks')
+      fireEvent.click(await within(panel).findByRole('button', { name: 'Turn reminders on' }))
+      expect(await within(panel).findByText("Reminders couldn't be updated. Try again.")).toBeTruthy()
+      expect(within(panel).getByRole('button', { name: 'Turn reminders on' })).toBeTruthy()
     })
   })
 })

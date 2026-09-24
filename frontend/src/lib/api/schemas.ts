@@ -624,6 +624,12 @@ export const workspaceSummarySchema = z.object({
   last_active_tool: z.string().nullable().optional(),
   last_active_result_id: z.string().nullable().optional(),
   updated_at: z.string(),
+  // Filled only by the campaign list, for the pipeline board cards.
+  next_task: z
+    .object({ title: z.string(), deadline: z.iso.datetime({ offset: true }).nullable() })
+    .nullable()
+    .default(null),
+  last_activity_at: z.iso.datetime({ offset: true }).nullable().default(null),
 })
 
 export const workspaceUpdateSchema = z.strictObject({
@@ -642,22 +648,23 @@ export const workspaceListSchema = z.object({
 
 export const campaignCvVariantReferenceSchema = z.object({
   id: z.string(), document_id: z.string(), document_name: z.string(), name: z.string(),
-  target_role: z.string().nullable().default(null), created_at: z.iso.datetime(),
+  target_role: z.string().nullable().default(null), created_at: z.iso.datetime({ offset: true }),
 })
 export const campaignRunReferenceSchema = z.object({
   id: z.string(), label: z.string().nullable().default(null),
-  parent_run_id: z.string().nullable().default(null), created_at: z.iso.datetime(),
+  parent_run_id: z.string().nullable().default(null), created_at: z.iso.datetime({ offset: true }),
 })
-export const campaignEventSchema = z.object({ id: z.string(), event_type: z.string(), details: z.record(z.string(), z.unknown()), provenance: z.enum(['user', 'system']), created_at: z.iso.datetime() })
-export const campaignTaskSchema = z.object({ id: z.string(), title: z.string(), deadline: z.iso.datetime({ offset: true }).nullable(), completed: z.boolean(), created_at: z.iso.datetime() })
-export const campaignNoteSchema = z.object({ id: z.string(), text: z.string(), created_at: z.iso.datetime() })
-export const campaignContactSchema = z.object({ id: z.string(), name: z.string(), role: z.string().nullable(), channel: z.string().nullable(), created_at: z.iso.datetime() })
+// Timestamps may carry the database session's UTC offset (e.g. +02:00), not only Z.
+export const campaignEventSchema = z.object({ id: z.string(), event_type: z.string(), details: z.record(z.string(), z.unknown()), provenance: z.enum(['user', 'system']), created_at: z.iso.datetime({ offset: true }) })
+export const campaignTaskSchema = z.object({ id: z.string(), title: z.string(), deadline: z.iso.datetime({ offset: true }).nullable(), completed: z.boolean(), created_at: z.iso.datetime({ offset: true }) })
+export const campaignNoteSchema = z.object({ id: z.string(), text: z.string(), created_at: z.iso.datetime({ offset: true }) })
+export const campaignContactSchema = z.object({ id: z.string(), name: z.string(), role: z.string().nullable(), channel: z.string().nullable(), created_at: z.iso.datetime({ offset: true }) })
 export const campaignReminderResponseSchema = z.object({
   enabled: z.boolean(),
   items: z.array(z.object({ kind: z.enum(['campaign_deadline', 'task_deadline']), task_id: z.string().nullable(), label: z.string(), deadline: z.iso.datetime({ offset: true }) })),
   next_surface_at: z.iso.datetime({ offset: true }).nullable(),
 })
-export const campaignSubmissionSnapshotSchema = z.object({ id: z.string(), content: z.record(z.string(), z.unknown()), content_sha256: z.string().length(64), created_at: z.iso.datetime() })
+export const campaignSubmissionSnapshotSchema = z.object({ id: z.string(), content: z.record(z.string(), z.unknown()), content_sha256: z.string().length(64), created_at: z.iso.datetime({ offset: true }) })
 export const campaignDetailSchema = workspaceSummarySchema.extend({
   selected_materials: z.object({
     cv_variant: campaignCvVariantReferenceSchema.nullable(),
