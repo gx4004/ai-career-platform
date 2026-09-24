@@ -1,0 +1,23 @@
+{
+  "jobs": [
+    {
+      "id": 1234567,
+      "title": "Senior Backend Engineer",
+      "location": {"name": "Berlin, Germany"},
+      "content": "<p>We are looking for a <b>Senior Backend Engineer</b> to join our platform team. You will design and build scalable systems, mentor other engineers, and partner with product to ship reliable APIs used by millions of users worldwide every day.</p>",
+      "absolute_url": "https://www.examplecorp.com/careers/1234567-senior-backend-engineer",
+      "first_published": "2026-09-01T10:00:00Z",
+      "updated_at": "2026-09-03T10:00:00Z",
+      "departments": [{"name": "Engineering"}]
+    },
+    {
+      "id": 1234568,
+      "title": "Too Short Listing",
+      "location": {"name": "Remote"},
+      "content": "<p>Too short.</p>",
+      "absolute_url": "https://www.examplecorp.com/careers/1234568",
+      "first_published": "2026-09-02T10:00:00Z",
+      "departments": [{"name": "Engineering"}]
+    }
+  ]
+}

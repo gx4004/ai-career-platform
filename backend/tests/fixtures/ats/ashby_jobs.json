@@ -1,0 +1,22 @@
+{
+  "jobs": [
+    {
+      "id": "job-1",
+      "title": "Staff Data Engineer",
+      "location": "Remote - Europe",
+      "department": "Data",
+      "descriptionPlain": "Join our data platform team to build the pipelines and infrastructure that power analytics and machine learning across the entire company, working with petabyte-scale datasets every day.",
+      "jobUrl": "https://jobs.ashbyhq.com/examplecorp/job-1",
+      "applyUrl": "https://jobs.ashbyhq.com/examplecorp/job-1/apply",
+      "isRemote": true,
+      "publishedAt": "2026-08-15T00:00:00Z",
+      "isListed": true
+    },
+    {
+      "id": "job-2",
+      "title": "Unlisted Role",
+      "descriptionPlain": "This role has enough description text to pass the length check but is not listed and must still be skipped regardless of its content length here.",
+      "isListed": false
+    }
+  ]
+}

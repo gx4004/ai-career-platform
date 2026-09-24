@@ -71,6 +71,7 @@ PATCH /api/v1/history/workspaces/{workspace_id}/reminders
 PATCH /api/v1/history/workspaces/{workspace_id}/tasks/{item_id}
 PATCH /api/v1/history/{history_id}
 PATCH /api/v1/history/{history_id}/favorite
+POST /api/v1/admin/discovery-sources/refresh
 POST /api/v1/admin/discovery-sources/{source_id}/kill-switch
 POST /api/v1/auth/login
 POST /api/v1/auth/logout

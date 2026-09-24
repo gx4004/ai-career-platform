@@ -41,6 +41,7 @@ from app.schemas.admin import (
     EvalRunItem,
 )
 from app.schemas.analytics import OperationalToolId
+from app.schemas.ats_ingestion import ATSIngestionRefreshResponse
 from app.schemas.discovery_personalization import AdminRecommendationReportList
 from app.schemas.discovery_sources import (
     DiscoverySourceListResponse,
@@ -53,6 +54,7 @@ from app.services.analytics import (
     aggregate_profile_adoption,
     record_database_query_timing,
 )
+from app.services.ats_ingestion import run_ats_ingestion
 from app.services.discovery_personalization import list_admin_reports
 from app.services.discovery_sources import operate_source_kill_switch
 from app.services.packet_gate import aggregate_packet_gate
@@ -170,6 +172,26 @@ def operate_kill_switch(
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     return source
+
+
+@router.post("/discovery-sources/refresh", response_model=ATSIngestionRefreshResponse)
+@limiter.limit(_ADMIN_RATE)
+async def refresh_ats_sources(
+    request: Request,
+    admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """Run employer-ATS ingestion now, on demand (#323).
+
+    Admin-gated exactly like every other endpoint here. Reuses the same
+    per-source governance and isolation as the scheduled run: one source's
+    failure never fails this request, it is reported per source instead.
+    """
+    summary = await run_ats_ingestion(db)
+    return ATSIngestionRefreshResponse(
+        outcomes=summary.outcomes,
+        failures=summary.failures,
+    )
 
 
 # ── Users ──
