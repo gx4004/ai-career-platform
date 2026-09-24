@@ -36,6 +36,7 @@ import {
 } from '#/components/profile/CorrectEvidenceDialog'
 import { ResumeImportDialog } from '#/components/profile/ResumeImportDialog'
 import { SkillsToBuildSection } from '#/components/profile/SkillsToBuildSection'
+import { isR17DevelopmentLoopEnabled } from '#/lib/flags/featureFlags'
 
 export function EvidenceProfilePage() {
   const { status, openAuthDialog } = useSession()
@@ -294,7 +295,7 @@ export function EvidenceProfilePage() {
           </div>
         )}
 
-        <SkillsToBuildSection />
+        {isR17DevelopmentLoopEnabled() ? <SkillsToBuildSection /> : null}
 
         {items.length > 0 ? (
           <section className="evidence-danger">
