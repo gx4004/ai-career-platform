@@ -48,6 +48,7 @@ const packet = {
   estimated_cost_usd: 0.05,
   created_at: '2026-07-14T00:00:00Z',
   updated_at: '2026-07-14T00:00:00Z',
+  applied_at: null,
 }
 
 describe('application packet contracts', () => {
@@ -58,6 +59,11 @@ describe('application packet contracts', () => {
     expect(parsed.unresolved_questions[0].category).toBe('work_authorization')
     // Trust-chain gate outcome + reviewer reference (R15 #184, D-097).
     expect(parsed.gate_state).toBe('passed')
+    // Mark-as-applied state (derived, not a packet column — see backend
+    // packet_approval.applied_at_by_packet).
+    expect(applicationPacketItemSchema.parse({ ...packet, applied_at: '2026-07-25T12:00:00Z' }).applied_at).toBe(
+      '2026-07-25T12:00:00Z',
+    )
     expect(parsed.review_run_id).toBe('review-1')
     // The owner's review decision (R15 #183).
     expect(parsed.decision).toBe('pending')

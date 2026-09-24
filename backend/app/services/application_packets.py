@@ -49,6 +49,7 @@ from app.services.llm_cost import get_llm_cost
 from app.services.packet_approval import (
     answered_fields_by_packet,
     answered_fields_for_packet,
+    applied_at_by_packet,
     packet_item_with_true_unresolved,
 )
 from app.services.packet_gate import (
@@ -769,13 +770,17 @@ def _empty_result(selection) -> PacketPreparationResult:
 def _packet_item(
     packet: ApplicationPacket,
     answered_fields: set[str] | None = None,
+    *,
+    applied_at=None,
 ) -> ApplicationPacketItem:
     """Serialize a packet with its true outstanding questions (see packet_approval).
 
     ``answered_fields`` defaults to empty — correct for a packet just created this
     call, which by definition has no stop answers recorded against it yet.
     """
-    return packet_item_with_true_unresolved(packet, answered_fields or set())
+    return packet_item_with_true_unresolved(
+        packet, answered_fields or set(), applied_at=applied_at
+    )
 
 
 def list_packets(db: Session, user_id: str) -> ApplicationPacketList:
@@ -786,8 +791,14 @@ def list_packets(db: Session, user_id: str) -> ApplicationPacketList:
         .all()
     )
     answered_by_packet = answered_fields_by_packet(db, user_id)
+    applied_by_packet = applied_at_by_packet(db, {row.campaign_id for row in rows})
     return ApplicationPacketList(
-        items=[_packet_item(row, answered_by_packet.get(row.id)) for row in rows]
+        items=[
+            _packet_item(
+                row, answered_by_packet.get(row.id), applied_at=applied_by_packet.get(row.id)
+            )
+            for row in rows
+        ]
     )
 
 
@@ -804,7 +815,8 @@ def get_packet(db: Session, user_id: str, packet_id: str) -> ApplicationPacketIt
     if row is None:
         raise PacketNotFoundError(packet_id)
     answered = answered_fields_for_packet(db, user_id, packet_id)
-    return _packet_item(row, answered)
+    applied_at = applied_at_by_packet(db, {row.campaign_id}).get(packet_id)
+    return _packet_item(row, answered, applied_at=applied_at)
 
 
 # ── Export + deletion cascade (D-099) ──

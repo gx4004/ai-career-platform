@@ -15,9 +15,12 @@ Two server-authoritative rules live here (ADR 0009 / D-095):
 
 from __future__ import annotations
 
+from datetime import datetime
+
 from sqlalchemy.orm import Session
 
 from app.models.application_packet import ApplicationPacket
+from app.models.campaign_event import CampaignEvent
 from app.models.packet_stop_answer import PacketStopAnswer
 from app.schemas.application_packets import (
     ApplicationPacketItem,
@@ -88,8 +91,49 @@ def answered_fields_by_packet(db: Session, user_id: str) -> dict[str, set[str]]:
     return grouped
 
 
+# The campaign event type that records a "mark as applied" confirmation. Reused
+# rather than invented: it already exists in the CampaignEvent contract (both the
+# backend Literal and the frontend zod enum) and the campaign timeline already
+# excludes it from what it renders, so recording it here needs no schema change
+# anywhere in the campaigns domain (D-093 by-reference, no new packet column).
+APPLIED_EVENT_TYPE = "submission_confirmed"
+
+
+def applied_at_by_packet(db: Session, campaign_ids: set[str]) -> dict[str, datetime]:
+    """Batched lookup of when each packet in ``campaign_ids`` was marked applied.
+
+    One query for a whole ``list_packets`` read instead of one per packet. The
+    first recorded event wins if a packet were ever (harmlessly) marked twice.
+    """
+    if not campaign_ids:
+        return {}
+    applied: dict[str, datetime] = {}
+    rows = (
+        db.query(CampaignEvent)
+        .filter(
+            CampaignEvent.workspace_id.in_(campaign_ids),
+            CampaignEvent.event_type == APPLIED_EVENT_TYPE,
+        )
+        .order_by(CampaignEvent.created_at.asc())
+        .all()
+    )
+    for row in rows:
+        packet_id = row.details.get("packet_id") if isinstance(row.details, dict) else None
+        if packet_id and packet_id not in applied:
+            applied[str(packet_id)] = row.created_at
+    return applied
+
+
+def applied_at_for_packet(db: Session, campaign_id: str, packet_id: str) -> datetime | None:
+    """Single-packet form of :func:`applied_at_by_packet`, for one-off reads."""
+    return applied_at_by_packet(db, {campaign_id}).get(packet_id)
+
+
 def packet_item_with_true_unresolved(
-    packet: ApplicationPacket, answered_fields: set[str]
+    packet: ApplicationPacket,
+    answered_fields: set[str],
+    *,
+    applied_at: datetime | None = None,
 ) -> ApplicationPacketItem:
     """Serialize a packet with its *actually* outstanding questions.
 
@@ -105,7 +149,8 @@ def packet_item_with_true_unresolved(
         update={
             "unresolved_questions": [
                 UnresolvedQuestion.model_validate(q) for q in outstanding
-            ]
+            ],
+            "applied_at": applied_at,
         }
     )
 
