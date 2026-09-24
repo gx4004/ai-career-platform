@@ -42,7 +42,17 @@ SECTION_PATTERNS: dict[str, tuple[str, ...]] = {
 
 SKILL_PATTERNS: dict[str, tuple[str, ...]] = {
     "Python": (r"\bpython\b",),
-    "SQL": (r"\bsql\b", r"\bpostgresql\b", r"\bmysql\b", r"\bsqlite\b"),
+    "SQL": (
+        r"\bsql\b",
+        r"\bpostgresql\b",
+        r"\bpostgres\b",
+        r"\bmysql\b",
+        r"\bsqlite\b",
+        r"\bt-sql\b",
+        r"\btsql\b",
+        r"\bmssql\b",
+        r"\bsql server\b",
+    ),
     "FastAPI": (r"\bfastapi\b",),
     "APIs": (r"\bapi\b", r"\bapis\b", r"\brest\b", r"\bgraphql\b"),
     "JavaScript": (r"\bjavascript\b",),
@@ -131,6 +141,48 @@ STOPWORDS = {
     "work",
     "years",
     "your",
+    # Generic job-posting filler: common verbs/nouns/adjectives that describe
+    # the *posting* rather than a resume-checkable skill. Left uncaught, these
+    # were being ranked as "missing keywords" against any resume that didn't
+    # happen to restate the same filler word (e.g. "Learn", "Ability").
+    "ability",
+    "abilities",
+    "learn",
+    "learning",
+    "excellent",
+    "required",
+    "requirement",
+    "requirements",
+    "preferred",
+    "responsibilities",
+    "responsibility",
+    "qualifications",
+    "qualification",
+    "familiarity",
+    "familiar",
+    "proficient",
+    "proficiency",
+    "understanding",
+    "environment",
+    "environments",
+    "demonstrated",
+    "passion",
+    "passionate",
+    "ideal",
+    "plus",
+    "detail",
+    "details",
+    "oriented",
+    "motivated",
+    "growing",
+    "growth",
+    "opportunity",
+    "opportunities",
+    "fast-paced",
+    "ensure",
+    "ensuring",
+    "bachelor",
+    "degree",
 }
 
 ACTION_VERBS = (
@@ -383,11 +435,20 @@ def infer_resume_discipline(
     return top_discipline
 
 
+#: Case-folded lookup from a SKILL_PATTERNS label to its patterns, so
+#: `keyword_present` can match every synonym/family-member of a skill
+#: (e.g. "SQL" -> PostgreSQL, MySQL, T-SQL, ...), not just the literal label.
+_SKILL_PATTERNS_BY_LOWER_LABEL = {label.lower(): patterns for label, patterns in SKILL_PATTERNS.items()}
+
+
 def keyword_present(keyword: str, text: str) -> bool:
     lowered = text.lower()
     normalized = keyword.lower().strip(".,:;!()[]{}")
     if normalized in {"api", "apis"}:
         return bool(re.search(r"\bapi(?:s)?\b", lowered))
+    family_patterns = _SKILL_PATTERNS_BY_LOWER_LABEL.get(normalized)
+    if family_patterns:
+        return any(re.search(pattern, lowered) for pattern in family_patterns)
     if " " in normalized:
         return normalized in lowered
     return bool(re.search(rf"\b{re.escape(normalized)}\b", lowered))

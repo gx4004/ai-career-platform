@@ -878,10 +878,10 @@ body.tool-fullscreen-open .mobile-nav-pill {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.4rem;
-  font-size: 0.85rem;
+  gap: 0.5rem;
+  font-size: 0.95rem;
   font-weight: 500;
-  color: var(--text-muted);
+  color: var(--text-body);
 }
 
 .cinematic-progress {
