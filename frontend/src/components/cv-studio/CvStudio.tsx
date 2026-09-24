@@ -16,7 +16,7 @@ import {
   listCvDocuments, restoreCvVariant, snapshotCvVariant, updateCvDocument,
 } from '#/lib/api/client'
 import type { CvDocument, CvSection, CvStyle, CvStyleCatalog, CvVariant } from '#/lib/api/schemas'
-import { FALLBACK_STYLE_CATALOG, TEMPLATE_NAMES } from '#/lib/cv-studio/catalog'
+import { FALLBACK_STYLE_CATALOG, TEMPLATE_NAMES, friendlyAtsFixes } from '#/lib/cv-studio/catalog'
 import { addSection, moveSection, moveSectionTo, toSavableSections } from '#/lib/cv-studio/editor'
 import { cn } from '#/lib/utils'
 import { CreateCvDocumentDialog } from './CreateCvDocumentDialog'
@@ -25,7 +25,7 @@ import { CvDesignPanel } from './CvDesignPanel'
 import { CvImportDialog } from './CvImportDialog'
 import { CvOutline } from './CvOutline'
 import { CvPaper, ExactPdfDialog } from './CvPaperPreview'
-import { scoreGradient } from './CvScoreRing'
+import { CvScoreRing, scoreGradient } from './CvScoreRing'
 import { CvSectionEditor } from './CvSectionEditor'
 import { CvTailorDialog } from './CvTailorDialog'
 import { CvVersionsPanel } from './CvVersionsPanel'
@@ -334,7 +334,11 @@ export function CvStudio() {
           eyebrow="CV Studio"
           title="Build a CV you’re proud to send"
           subtitle="Write it once, pick a look, and tailor it to every job. We check that application systems can read it, and keep every version safe."
-        />
+        >
+          <ul className="cvs-chips" aria-label="What you can do here">
+            {['Structured editor', 'Live preview', 'ATS check', 'Tailor to a job', 'Versions'].map((chip) => <li key={chip}>{chip}</li>)}
+          </ul>
+        </WorkspaceHero>
         <WorkspacePanel className="cvs-empty-panel">
           <WorkspaceEmpty
             icon={FileUp}
@@ -357,6 +361,7 @@ export function CvStudio() {
   const documents = listQuery.data.items
   const visibleSections = draft.sections.filter((section) => section.visible).length
   const atsScore = quality.data?.ats_score
+  const atsFixCount = quality.data ? friendlyAtsFixes(quality.data).length : 0
   const remainingTailorRuns = draft.tailoring_model_run_limit - draft.tailoring_model_runs
   const templateName = TEMPLATE_NAMES[draft.style.template_id]
 
@@ -503,11 +508,22 @@ export function CvStudio() {
             <Button type="button" size="sm" variant="outline" disabled={dirty} onClick={() => setPdfOpen(true)}><FileSearch size={15} /> View exact PDF</Button>
           </div>
           <CvPaper name={draft.name} sections={draft.sections} style={draft.style} />
+          {atsScore !== undefined ? (
+            <a className="cvs-ats-mini" href="#cvs-ats-check">
+              <CvScoreRing score={atsScore} size={52} />
+              <span className="cvs-ats-mini__text">
+                <span className="cvs-ats-mini__title">ATS check<span className="sr-only">: {atsScore} out of 100.</span></span>
+                <span className="cvs-ats-mini__hint">
+                  {atsFixCount === 0 ? 'Reads cleanly. Nothing to fix.' : `${atsFixCount} ${atsFixCount === 1 ? 'fix' : 'fixes'} to make it safer`}
+                </span>
+              </span>
+            </a>
+          ) : null}
         </aside>
       </div>
 
       <div className="cvs-lower">
-        <WorkspacePanel kicker="Quality" title="ATS check" description="How well application tracking systems can read your CV." className="cvs-lower__ats" delay={0.1}>
+        <WorkspacePanel id="cvs-ats-check" kicker="Quality" title="ATS check" description="How well application tracking systems can read your CV." className="cvs-lower__ats" delay={0.1}>
           <CvAtsPanel
             documentId={draft.id} revision={qualityRevision} template={draft.style.template_id} atsMode={draft.style.ats_mode}
             onTurnOnAtsMode={() => { editStyle({ ats_mode: true }); setRailTab('design') }}

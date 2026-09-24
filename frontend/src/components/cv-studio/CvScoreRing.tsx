@@ -7,7 +7,7 @@ export function scoreGradient(score: number) {
   return { start: '#dc2626', end: '#f87171', tone: 'low' as const }
 }
 
-export function CvScoreRing({ score, size = 104, label }: { score: number; size?: number; label: string }) {
+export function CvScoreRing({ score, size = 104, label }: { score: number; size?: number; label?: string }) {
   const uid = useId().replace(/:/g, '')
   const stroke = size >= 96 ? 8 : 5
   const radius = size / 2 - stroke - 2
@@ -15,7 +15,7 @@ export function CvScoreRing({ score, size = 104, label }: { score: number; size?
   const safe = Math.max(0, Math.min(100, Math.round(score)))
   const gradient = scoreGradient(safe)
   return (
-    <div className={`cvs-ring cvs-ring--${gradient.tone}`} style={{ width: size, height: size }} role="img" aria-label={label}>
+    <div className={`cvs-ring cvs-ring--${gradient.tone}`} style={{ width: size, height: size }} {...(label ? { role: 'img', 'aria-label': label } : { 'aria-hidden': true })}>
       <svg viewBox={`0 0 ${size} ${size}`} aria-hidden="true">
         <defs>
           <linearGradient id={`${uid}-g`} x1="0%" y1="0%" x2="100%" y2="0%">
