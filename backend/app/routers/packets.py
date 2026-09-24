@@ -323,6 +323,8 @@ def autofill(
         raise HTTPException(
             status_code=504, detail="The form took too long. Check the open browser window."
         ) from error
+    except AutofillRefused as error:  # the page moved to a site Autopilot does not fill
+        raise HTTPException(status_code=400, detail=str(error)) from error
     except Exception as error:  # noqa: BLE001 — Playwright missing or the page failed
         raise HTTPException(
             status_code=502,
