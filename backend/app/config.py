@@ -20,6 +20,12 @@ class Settings(BaseSettings):
     VERTEX_PROJECT_ID: str = ""
     VERTEX_LOCATION: str = "us-central1"
 
+    # `anthropic` provider (local dev without Vertex, or a real second provider).
+    # No default model here: ai_client falls back to claude-haiku-4-5 only when
+    # LLM_MODEL is still at its Vertex-shaped built-in default and no
+    # model_override was passed, so an operator's explicit LLM_MODEL always wins.
+    ANTHROPIC_API_KEY: str = ""
+
     CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000"
     FRONTEND_URL: str = "http://localhost:3000"
 
