@@ -11,6 +11,12 @@ can carry resume context across the connected workflow. Results remain fully
 visible with no ad gate; no future monetization candidate is selected or
 authorized.
 
+**Sept 2026 reset:** local-only, feature-first. Beyond the six tools the product
+includes CV Studio (flagship), Evidence Profile, Campaigns, Job Discovery,
+Approval Queue, and an experimental Autopilot. New or redesigned pages must match
+the original visual language (dashboard, tool input heroes, result pages).
+Direction and phases: `docs/roadmap.md` (umbrella #319).
+
 ## Stack
 - **Frontend**: React 19 + TanStack Start/Router + Vite 7 + Tailwind 4 + Radix/shadcn + Framer Motion
 - **Backend**: FastAPI + SQLAlchemy + Alembic + Railway Postgres
@@ -54,7 +60,7 @@ backend/app/prompts/        — Prompt builders per tool
 backend/app/models/         — User, ToolRun, Workspace ORM models
 backend/app/schemas/        — Pydantic request/response schemas
 backend/app/auth/           — JWT + bcrypt + Google OAuth
-docs/spec.md                — Current product contract (roadmap lives in docs/roadmap.md)
+docs/spec.md                — Product contract (direction + phases: docs/roadmap.md, reset 2026-09-24)
 ```
 
 ## Commands
