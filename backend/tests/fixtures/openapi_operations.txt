@@ -39,6 +39,7 @@ GET /api/v1/cv-documents/{document_id}/artifacts/{format}/evidence
 GET /api/v1/cv-documents/{document_id}/render
 GET /api/v1/cv-documents/{document_id}/render-model
 GET /api/v1/development-plan
+GET /api/v1/discovery/listings
 GET /api/v1/discovery/personalization
 GET /api/v1/discovery/recommendations
 GET /api/v1/evidence-profile/export
