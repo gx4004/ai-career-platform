@@ -1,83 +1,6 @@
-/* Evidence Profile — inspection and trust-state UI (R11, #145).
-   Light content surface consistent with the hybrid theme. State legibility is
-   carried by color + label + border so it never depends on color alone (WCAG). */
-
-.evidence-layout {
-  display: flex;
-  flex-direction: column;
-  gap: 1.75rem;
-  padding-block: 1.5rem 4rem;
-}
-
-.evidence-header {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 1.25rem;
-}
-
-.evidence-header__title {
-  display: flex;
-  gap: 0.9rem;
-  max-width: 44rem;
-}
-
-.evidence-header__icon {
-  display: grid;
-  place-items: center;
-  width: 2.5rem;
-  height: 2.5rem;
-  flex-shrink: 0;
-  border-radius: var(--radius-lg);
-  background: var(--surface-subtle);
-  border: 1px solid var(--border-soft);
-  color: var(--accent);
-}
-
-.evidence-header__heading {
-  font-family: var(--font-display);
-  font-size: 1.55rem;
-  font-weight: 650;
-  letter-spacing: var(--tracking-title);
-  color: var(--text-strong);
-}
-
-.evidence-header__subtitle {
-  margin-top: 0.35rem;
-  color: var(--text-muted);
-  font-size: 0.9rem;
-  line-height: 1.5;
-}
-
-.evidence-summary {
-  display: flex;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-}
-
-.evidence-summary__stat {
-  min-width: 5.5rem;
-  padding: 0.6rem 0.85rem;
-  border-radius: var(--radius-lg);
-  background: var(--surface-raised);
-  border: 1px solid var(--border-soft);
-  box-shadow: var(--shadow-soft);
-}
-
-.evidence-summary__stat dt {
-  font-size: var(--type-xs);
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-.evidence-summary__stat dd {
-  font-family: var(--font-display);
-  font-size: 1.4rem;
-  font-weight: 650;
-  color: var(--text-strong);
-}
+/* Your profile ("Evidence Profile") — the facts CV Studio and the tools reuse
+   (R11, #145; redesigned onto the shared workspace shell in #324). State
+   legibility is carried by color + label + border, never color alone (WCAG). */
 
 .evidence-banner {
   padding: 0.75rem 1rem;
@@ -254,30 +177,8 @@
   border: 1px dashed var(--border-strong);
 }
 
-.evidence-empty__title {
-  font-family: var(--font-display);
-  font-size: 1.15rem;
-  font-weight: 620;
-  color: var(--text-strong);
-}
-
-.evidence-danger {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 1.1rem 1.25rem;
-  border-radius: var(--radius-xl);
-  border: 1px solid color-mix(in srgb, var(--destructive) 28%, var(--border-soft));
-  background: var(--destructive-soft);
-}
-
-.evidence-danger__title {
-  font-family: var(--font-display);
-  font-size: 1rem;
-  font-weight: 620;
-  color: var(--text-strong);
+.evidence-danger .workspace-panel__title {
+  color: var(--destructive);
 }
 
 .evidence-correct__editor {
@@ -286,33 +187,9 @@
   line-height: 1.5;
 }
 
-.evidence-correct__confirm {
-  display: flex;
-  align-items: center;
-  gap: 0.55rem;
-  font-size: 0.875rem;
-  color: var(--text-strong);
-  cursor: pointer;
-}
-
-.evidence-correct__confirm input {
-  width: 1rem;
-  height: 1rem;
-  accent-color: var(--accent);
-}
-
 @media (max-width: 640px) {
   .evidence-group__list {
     grid-template-columns: 1fr;
-  }
-
-  .evidence-header {
-    flex-direction: column;
-  }
-
-  .evidence-danger {
-    flex-direction: column;
-    align-items: stretch;
   }
 }
 
@@ -322,42 +199,74 @@
   }
 }
 
-/* R11 (#146) — reviewable resume-import proposals.
-   Entry CTA on the profile page plus the review dialog list. Proposals are
-   ephemeral: nothing here is persisted until the user accepts an item. */
+/* Suggestions to review — imported/inferred facts waiting for a decision. A
+   compact list so "Accept all" plus per-item accept/reject stay scannable
+   even with a dozen suggestions (unlike the full evidence-card grid below). */
 
-.evidence-import-cta {
+.evidence-suggestions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.evidence-suggestion {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 1rem;
-  padding: 1rem 1.25rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg, 14px);
-  background: var(--surface-muted, rgba(0, 0, 0, 0.02));
+  padding: 0.7rem 0.9rem;
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--warning-soft) 55%, var(--surface-raised));
+  border: 1px solid color-mix(in srgb, var(--warning) 22%, var(--border-soft));
 }
 
-.evidence-import-cta__icon {
-  display: grid;
-  place-items: center;
-  width: 2.25rem;
-  height: 2.25rem;
-  flex-shrink: 0;
-  border-radius: var(--radius-md, 10px);
-  color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
-}
-
-.evidence-import-cta__body {
-  flex: 1 1 auto;
+.evidence-suggestion__body {
+  display: flex;
+  align-items: baseline;
+  gap: 0.55rem;
   min-width: 0;
 }
 
-.evidence-import-cta__title {
-  font-size: 0.95rem;
-  font-weight: 600;
-  color: var(--text-strong);
-  margin-bottom: 0.15rem;
+.evidence-suggestion__kind {
+  flex-shrink: 0;
+  font-size: var(--type-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
 }
+
+.evidence-suggestion__text {
+  margin: 0;
+  color: var(--text-strong);
+  font-size: 0.875rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.evidence-suggestion__actions {
+  flex-shrink: 0;
+  display: flex;
+  gap: 0.35rem;
+}
+
+@media (max-width: 640px) {
+  .evidence-suggestion {
+    flex-wrap: wrap;
+  }
+
+  .evidence-suggestion__text {
+    white-space: normal;
+  }
+}
+
+/* R11 (#146) — reviewable resume-import proposals. The review dialog list;
+   the entry point is the hero's "Import from your CV" action. Proposals are
+   ephemeral: nothing here is persisted until the user accepts an item. */
 
 .evidence-import__dialog {
   max-width: 34rem;
@@ -373,10 +282,10 @@
 }
 
 .evidence-import__item {
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md, 10px);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
   padding: 0.85rem 1rem;
-  background: var(--surface, #fff);
+  background: var(--surface-raised);
 }
 
 .evidence-import__item-head {
@@ -437,11 +346,4 @@
   flex-direction: column;
   gap: 0.75rem;
   align-items: flex-start;
-}
-
-@media (max-width: 640px) {
-  .evidence-import-cta {
-    flex-direction: column;
-    align-items: flex-start;
-  }
 }

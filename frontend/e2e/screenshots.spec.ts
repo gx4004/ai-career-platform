@@ -227,11 +227,11 @@ test('capture authenticated + guest pages for visual review', async ({ page, bro
 
   const results: CaptureResult[] = []
   const guestPages = STATIC_PAGES.filter((p) => p.auth === 'guest')
-  // resume-input and cv-studio are captured explicitly below (after the
-  // resume submission and the CV Studio seed, respectively), so excluding
+  // resume-input, cv-studio, and profile are captured explicitly below (after
+  // the resume submission and their own seeds, respectively), so excluding
   // them here avoids shooting each twice.
   const userPages = STATIC_PAGES.filter(
-    (p) => p.auth === 'user' && p.name !== 'resume-input' && p.name !== 'cv-studio',
+    (p) => p.auth === 'user' && p.name !== 'resume-input' && p.name !== 'cv-studio' && p.name !== 'profile',
   )
   let summary = buildSummary(results)
 
@@ -270,6 +270,33 @@ test('capture authenticated + guest pages for visual review', async ({ page, bro
     } catch (error) {
       console.warn('[screenshots] discovery seed skipped (page shows its empty state):', describeError(error))
     }
+
+    // Your profile seed: a few confirmed facts plus a couple of imported ones
+    // still awaiting review, so the hero stats, the grouped fact cards, and
+    // the "Suggestions to review" panel all have something real to show.
+    try {
+      const confirmed = [
+        { kind: 'experience', provenance: 'user-entered', content: {
+          title: 'Senior Backend Engineer', company: 'Northwind Labs',
+          summary: 'Leads the platform team building the services the rest of the company runs on.',
+        } },
+        { kind: 'skill', provenance: 'user-entered', content: { text: 'Python, FastAPI, PostgreSQL, SQLAlchemy' } },
+        { kind: 'education', provenance: 'user-entered', content: { degree: 'BSc Computer Science', school: 'TU Berlin' } },
+      ]
+      const suggested = [
+        { kind: 'achievement', provenance: 'imported', content: {
+          text: 'Cut p95 latency by 38% moving 14 services to FastAPI and PostgreSQL.',
+        } },
+        { kind: 'skill', provenance: 'imported', content: { text: 'Docker, AWS, CI/CD' } },
+      ]
+      for (const item of [...confirmed, ...suggested]) {
+        const created = await page.request.post('/api/v1/evidence-profile/items', { data: item })
+        if (!created.ok()) throw new Error(`evidence item seed returned ${created.status()}`)
+      }
+    } catch (error) {
+      console.warn('[screenshots] profile seed skipped (page shows its empty state):', describeError(error))
+    }
+    await capturePage(page, 'desktop', 'profile', '/profile', results)
 
     // --- Desktop authenticated pages -----------------------------------------
     for (const p of userPages) {
@@ -397,6 +424,7 @@ test('capture authenticated + guest pages for visual review', async ({ page, bro
       }
 
       await capturePage(mobilePage, 'mobile', 'cv-studio', '/cv-studio', results, { waitForMobileShell: true })
+      await capturePage(mobilePage, 'mobile', 'profile', '/profile', results, { waitForMobileShell: true })
 
       if (isAdmin) {
         await capturePage(mobilePage, 'mobile', 'admin', '/admin', results, { waitForMobileShell: true })
