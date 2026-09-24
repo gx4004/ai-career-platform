@@ -96,25 +96,25 @@ async def review_campaign_materials(
     return {
         "schema_version": "application-reviewer/v1",
         "summary": {
-            "headline": f"{len(findings)} advisory finding{'s' if len(findings) != 1 else ''}",
-            "verdict": "Review the located findings before submission.",
-            "confidence_note": "Deterministic checks only; findings never edit materials.",
+            "headline": f"{len(findings)} thing{'s' if len(findings) != 1 else ''} to look at",
+            "verdict": "Look these over before you send your application.",
+            "confidence_note": "Quick rule-based checks. Nothing is changed for you.",
         },
         "top_actions": [
             {
-                "title": "Review advisory findings",
-                "action": "Inspect, edit source materials if useful, or dismiss each finding.",
+                "title": "Look over what the checks found",
+                "action": "Fix your documents where it helps, or hide the ones that don't apply.",
                 "priority": "high"
                 if any(item["severity"] == "high" for item in findings)
                 else "medium",
             }
         ],
         "generated_at": datetime.now(UTC).isoformat(),
-        "download_title": "Application quality review",
+        "download_title": "Application checklist",
         "exportable_sections": [
             {
                 "id": "findings",
-                "title": "Advisory findings",
+                "title": "What the checks found",
                 "items": [f"{item['category']}: {item['message']}" for item in findings],
             }
         ],
