@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { FileUp, ShieldCheck, Trash2 } from 'lucide-react'
+import { BadgeCheck, Check, FileUp, Trash2, X } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import {
   Dialog,
@@ -11,8 +11,13 @@ import {
   DialogTitle,
 } from '#/components/ui/dialog'
 import { Skeleton } from '#/components/ui/skeleton'
-import { PageFrame } from '#/components/app/PageFrame'
 import { AppStatePanel } from '#/components/app/AppStatePanel'
+import {
+  WorkspaceEmpty,
+  WorkspaceHero,
+  WorkspacePage,
+  WorkspacePanel,
+} from '#/components/app/WorkspacePage'
 import { useSession } from '#/hooks/useSession'
 import { useResumeCarry } from '#/hooks/use-resume-carry'
 import {
@@ -23,9 +28,11 @@ import {
   setEvidenceItemConfirmation,
   updateEvidenceItem,
 } from '#/lib/api/client'
+import { getDevelopmentPlan } from '#/lib/api/development'
 import type { EvidenceItem } from '#/lib/api/schemas'
-import { countByState, groupItemsByKind } from '#/lib/profile/evidence'
+import { contentEntries, countByState, groupItemsByKind } from '#/lib/profile/evidence'
 import {
+  DEVELOPMENT_PLAN_QUERY_KEY,
   EVIDENCE_QUERY_KEY,
   invalidateEvidenceCaches,
 } from '#/lib/query/evidenceCaches'
@@ -38,11 +45,59 @@ import { ResumeImportDialog } from '#/components/profile/ResumeImportDialog'
 import { SkillsToBuildSection } from '#/components/profile/SkillsToBuildSection'
 import { isR17DevelopmentLoopEnabled } from '#/lib/flags/featureFlags'
 
+/** A short one-line preview of what a suggested item says, for the review list. */
+function previewText(item: EvidenceItem): string {
+  const entries = contentEntries(item.content)
+  return entries.find((entry) => entry.value)?.value || 'No details recorded'
+}
+
+function SuggestionRow({
+  item,
+  busy,
+  onAccept,
+  onReject,
+}: {
+  item: EvidenceItem
+  busy: boolean
+  onAccept: (item: EvidenceItem) => void
+  onReject: (item: EvidenceItem) => void
+}) {
+  return (
+    <li className="evidence-suggestion">
+      <div className="evidence-suggestion__body">
+        <span className="evidence-suggestion__kind">{item.kind}</span>
+        <p className="evidence-suggestion__text">{previewText(item)}</p>
+      </div>
+      <div className="evidence-suggestion__actions">
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={busy}
+          onClick={() => onAccept(item)}
+          aria-label={`Accept: ${previewText(item)}`}
+        >
+          <Check size={14} />
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          disabled={busy}
+          onClick={() => onReject(item)}
+          aria-label={`Reject: ${previewText(item)}`}
+        >
+          <X size={14} />
+        </Button>
+      </div>
+    </li>
+  )
+}
+
 export function EvidenceProfilePage() {
   const { status, openAuthDialog } = useSession()
   const queryClient = useQueryClient()
   const isAuthenticated = status === 'authenticated'
-  const { hasResume, resumeText, filename } = useResumeCarry()
+  const { hasResume, resumeText } = useResumeCarry()
+  const developmentLoopEnabled = isR17DevelopmentLoopEnabled()
 
   const [importOpen, setImportOpen] = useState(false)
   const [pendingItemId, setPendingItemId] = useState<string | null>(null)
@@ -56,6 +111,14 @@ export function EvidenceProfilePage() {
     queryKey: EVIDENCE_QUERY_KEY,
     queryFn: async () => (await listEvidenceItems()).items,
     enabled: isAuthenticated,
+  })
+
+  // Shares its cache with SkillsToBuildSection's own query below (same query
+  // key), so this only costs a stat on the hero — not a second network call.
+  const developmentItemsQuery = useQuery({
+    queryKey: DEVELOPMENT_PLAN_QUERY_KEY,
+    queryFn: async () => (await getDevelopmentPlan()).items,
+    enabled: isAuthenticated && developmentLoopEnabled,
   })
 
   function reportError(error: unknown, fallback: string) {
@@ -128,6 +191,10 @@ export function EvidenceProfilePage() {
   const items = itemsQuery.data ?? []
   const groups = useMemo(() => groupItemsByKind(items), [items])
   const counts = useMemo(() => countByState(items), [items])
+  const suggestions = useMemo(
+    () => items.filter((item) => item.confirmation_state === 'unconfirmed'),
+    [items],
+  )
   const importedUnconfirmedCount = useMemo(
     () => items.filter((item) => item.provenance === 'imported' && item.confirmation_state === 'unconfirmed').length,
     [items],
@@ -154,8 +221,8 @@ export function EvidenceProfilePage() {
   if (!isAuthenticated) {
     return (
       <AppStatePanel
-        title="Your evidence profile"
-        description="Sign in to inspect the career evidence stored for your account, confirm what you stand behind, and remove anything you do not."
+        title="Your profile"
+        description="Sign in to see the facts about your experience that CV Studio and the tools reuse — confirm what you stand behind, and remove anything you do not."
         scene="loginWorkflow"
         actions={[
           {
@@ -169,111 +236,104 @@ export function EvidenceProfilePage() {
   }
 
   return (
-    <PageFrame>
-      <section className="content-max evidence-layout">
-        <header className="evidence-header">
-          <div className="evidence-header__title">
-            <div className="evidence-header__icon" aria-hidden="true">
-              <ShieldCheck size={20} />
-            </div>
-            <div>
-              <h1 className="evidence-header__heading">Evidence profile</h1>
-              <p className="evidence-header__subtitle">
-                Every career fact stored for your account, grouped by kind. Confirm what you
-                vouch for, correct mistakes, and reject or delete anything that does not belong.
-              </p>
-            </div>
-          </div>
-          {counts.total > 0 ? (
-            <dl className="evidence-summary" aria-label="Trust state summary">
-              <div className="evidence-summary__stat">
-                <dt>Saved</dt>
-                <dd>{counts.confirmed}</dd>
-              </div>
-              <div className="evidence-summary__stat">
-                <dt>Suggested</dt>
-                <dd>{counts.unconfirmed}</dd>
-              </div>
-              <div className="evidence-summary__stat">
-                <dt>Rejected</dt>
-                <dd>{counts.rejected}</dd>
-              </div>
-            </dl>
-          ) : null}
-        </header>
+    <WorkspacePage className="evidence-page">
+      <WorkspaceHero
+        icon={BadgeCheck}
+        eyebrow="Your workspace"
+        title="Your profile"
+        subtitle="Facts about your experience that CV Studio and the tools reuse."
+        stats={[
+          { label: 'Saved facts', value: counts.confirmed },
+          { label: 'Suggestions to review', value: counts.unconfirmed },
+          ...(developmentLoopEnabled
+            ? [{ label: 'Skills to build', value: developmentItemsQuery.data?.length ?? 0 }]
+            : []),
+        ]}
+        actions={
+          <Button onClick={() => (hasResume && resumeText.length >= 50 ? setImportOpen(true) : undefined)} asChild={!(hasResume && resumeText.length >= 50)}>
+            {hasResume && resumeText.length >= 50 ? (
+              <>
+                <FileUp size={16} /> Import from your CV
+              </>
+            ) : (
+              <a href="/resume">
+                <FileUp size={16} /> Upload a CV to import from
+              </a>
+            )}
+          </Button>
+        }
+      />
 
-        {hasResume && resumeText.length >= 50 ? (
-          <section className="evidence-import-cta" aria-label="Import from resume">
-            <div className="evidence-import-cta__icon" aria-hidden="true">
-              <FileUp size={18} />
-            </div>
-            <div className="evidence-import-cta__body">
-              <h2 className="evidence-import-cta__title">Import evidence from your resume</h2>
-              <p className="muted-copy small-copy">
-                Review suggestions extracted from{' '}
-                {filename ? <strong>{filename}</strong> : 'your uploaded resume'}. Nothing is saved
-                unless you accept it, and everything you accept arrives as Suggested until you
-                accept it.
-              </p>
-            </div>
-            <Button variant="outline" onClick={() => setImportOpen(true)}>
-              Review resume evidence
-            </Button>
-          </section>
-        ) : null}
+      {actionError ? (
+        <p role="alert" className="evidence-banner evidence-banner--error">
+          {actionError}
+        </p>
+      ) : null}
 
-        {importedUnconfirmedCount > 0 ? (
-          <section className="evidence-accept-all" aria-label="Accept all suggested imports">
-            <p className="muted-copy small-copy">
-              {importedUnconfirmedCount} imported{' '}
-              {importedUnconfirmedCount === 1 ? 'item is' : 'items are'} still Suggested.
-            </p>
-            <Button
-              variant="outline"
-              loading={acceptAllMutation.isPending}
-              disabled={acceptAllMutation.isPending}
-              onClick={() => acceptAllMutation.mutate()}
-            >
-              Accept all
-            </Button>
-          </section>
-        ) : null}
-
-        {actionError ? (
-          <p role="alert" className="evidence-banner evidence-banner--error">
-            {actionError}
-          </p>
-        ) : null}
-
-        {itemsQuery.isLoading ? (
-          <div className="evidence-groups" aria-hidden="true">
-            {[0, 1, 2].map((n) => (
-              <Skeleton key={n} className="evidence-skeleton" />
+      {suggestions.length > 0 ? (
+        <WorkspacePanel
+          kicker="Review"
+          title="Suggestions to review"
+          description="Facts pulled from your CV or from a tool result. Nothing counts as saved until you accept it."
+          actions={
+            importedUnconfirmedCount > 0 ? (
+              <Button
+                variant="outline"
+                loading={acceptAllMutation.isPending}
+                disabled={acceptAllMutation.isPending}
+                onClick={() => acceptAllMutation.mutate()}
+              >
+                Accept all
+              </Button>
+            ) : null
+          }
+        >
+          <ul className="evidence-suggestions">
+            {suggestions.map((item) => (
+              <SuggestionRow
+                key={item.id}
+                item={item}
+                busy={pendingItemId === item.id}
+                onAccept={handleConfirm}
+                onReject={handleReject}
+              />
             ))}
-          </div>
-        ) : itemsQuery.isError ? (
-          <div className="evidence-empty">
-            <p>We could not load your evidence profile.</p>
-            <Button variant="outline" onClick={() => itemsQuery.refetch()}>
-              Try again
-            </Button>
-          </div>
-        ) : items.length === 0 ? (
-          <div className="evidence-empty">
-            <h2 className="evidence-empty__title">No evidence yet</h2>
-            <p className="muted-copy">
-              Your profile fills up as you import a resume or promote a tool result into it.
-              Anything added arrives as Suggested until you accept it.
-            </p>
-          </div>
-        ) : (
+          </ul>
+        </WorkspacePanel>
+      ) : null}
+
+      {itemsQuery.isLoading ? (
+        <div className="evidence-groups" aria-hidden="true">
+          {[0, 1, 2].map((n) => (
+            <Skeleton key={n} className="evidence-skeleton" />
+          ))}
+        </div>
+      ) : itemsQuery.isError ? (
+        <div className="evidence-empty">
+          <p>We could not load your profile.</p>
+          <Button variant="outline" onClick={() => itemsQuery.refetch()}>
+            Try again
+          </Button>
+        </div>
+      ) : items.length === 0 ? (
+        <WorkspaceEmpty
+          icon={BadgeCheck}
+          title="No facts yet"
+          description="Your profile fills up as you import a CV or save a result from one of the tools. Anything added arrives as a suggestion until you accept it."
+        />
+      ) : (
+        <WorkspacePanel
+          kicker="All facts"
+          title="Grouped by kind"
+          description="Correct a mistake, reject it, or delete anything that does not belong."
+        >
           <div className="evidence-groups">
             {groups.map((group) => (
               <section key={group.kind} className="evidence-group" aria-label={group.label}>
-                <h2 className="evidence-group__title">
+                <h3 className="evidence-group__title">
                   {group.label}
                   <span className="evidence-group__count">{group.items.length}</span>
-                </h2>
+                </h3>
                 <ul className="evidence-group__list">
                   {group.items.map((item) => (
                     <EvidenceItemCard
@@ -293,19 +353,17 @@ export function EvidenceProfilePage() {
               </section>
             ))}
           </div>
-        )}
+        </WorkspacePanel>
+      )}
 
-        {isR17DevelopmentLoopEnabled() ? <SkillsToBuildSection /> : null}
+      {developmentLoopEnabled ? <SkillsToBuildSection /> : null}
 
-        {items.length > 0 ? (
-          <section className="evidence-danger">
-            <div>
-              <h2 className="evidence-danger__title">Delete entire profile</h2>
-              <p className="muted-copy small-copy">
-                Permanently removes every evidence item above. This takes effect immediately and
-                cannot be undone.
-              </p>
-            </div>
+      {items.length > 0 ? (
+        <WorkspacePanel
+          className="evidence-danger"
+          title="Delete your whole profile"
+          description="Permanently removes every fact above. This takes effect immediately and cannot be undone."
+          actions={
             <Button
               variant="outline"
               className="settings-btn--destructive"
@@ -314,9 +372,11 @@ export function EvidenceProfilePage() {
               <Trash2 size={14} className="mr-1.5" />
               Delete profile
             </Button>
-          </section>
-        ) : null}
-      </section>
+          }
+        >
+          <></>
+        </WorkspacePanel>
+      ) : null}
 
       {importOpen ? (
         <ResumeImportDialog
@@ -349,8 +409,8 @@ export function EvidenceProfilePage() {
           <DialogHeader>
             <DialogTitle>Delete this item?</DialogTitle>
             <DialogDescription>
-              This permanently removes the item from your evidence profile. It takes effect
-              immediately and cannot be undone.
+              This permanently removes the item from your profile. It takes effect immediately
+              and cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -380,11 +440,10 @@ export function EvidenceProfilePage() {
       >
         <DialogContent showCloseButton={!purgeMutation.isPending}>
           <DialogHeader>
-            <DialogTitle>Delete your entire evidence profile?</DialogTitle>
+            <DialogTitle>Delete your entire profile?</DialogTitle>
             <DialogDescription>
-              This permanently removes all {counts.total} evidence{' '}
-              {counts.total === 1 ? 'item' : 'items'}. Erasure is immediate — we do not keep a
-              backup — and cannot be undone.
+              This permanently removes all {counts.total} {counts.total === 1 ? 'fact' : 'facts'}.
+              It happens immediately — we do not keep a backup — and cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -407,6 +466,6 @@ export function EvidenceProfilePage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </PageFrame>
+    </WorkspacePage>
   )
 }
