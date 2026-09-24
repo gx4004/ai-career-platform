@@ -3,6 +3,7 @@ from time import perf_counter
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
+from sqlalchemy import func
 from sqlalchemy.orm import Session, selectinload
 
 from app.auth.security import get_current_user
@@ -26,6 +27,7 @@ from app.schemas.history import (
     CampaignContactResponse,
     CampaignDetailResponse,
     CampaignMaterialSelectionRequest,
+    CampaignNextTask,
     CampaignNoteCreate,
     CampaignNoteResponse,
     CampaignReminderConsent,
@@ -83,33 +85,23 @@ TRACKING_DELETE_CONFIG = {
     CampaignContact: ("Contact", "contact_deleted", "contact_id"),
 }
 
+# Status only moves forward along the ladder; a user may skip steps (e.g. log an
+# application that was already sent), and any open campaign may close as
+# rejected or withdrawn. accepted, rejected and withdrawn are final.
+_STATUS_LADDER = [
+    CampaignStatus.PLANNING,
+    CampaignStatus.PREPARING,
+    CampaignStatus.APPLIED,
+    CampaignStatus.INTERVIEWING,
+    CampaignStatus.OFFER,
+    CampaignStatus.ACCEPTED,
+]
+_CLOSED_STATUSES = {CampaignStatus.REJECTED, CampaignStatus.WITHDRAWN}
 CAMPAIGN_STATUS_TRANSITIONS: dict[CampaignStatus | None, set[CampaignStatus]] = {
-    None: {CampaignStatus.PLANNING},
-    CampaignStatus.PLANNING: {
-        CampaignStatus.PREPARING,
-        CampaignStatus.REJECTED,
-        CampaignStatus.WITHDRAWN,
-    },
-    CampaignStatus.PREPARING: {
-        CampaignStatus.APPLIED,
-        CampaignStatus.REJECTED,
-        CampaignStatus.WITHDRAWN,
-    },
-    CampaignStatus.APPLIED: {
-        CampaignStatus.INTERVIEWING,
-        CampaignStatus.OFFER,
-        CampaignStatus.REJECTED,
-        CampaignStatus.WITHDRAWN,
-    },
-    CampaignStatus.INTERVIEWING: {
-        CampaignStatus.OFFER,
-        CampaignStatus.REJECTED,
-        CampaignStatus.WITHDRAWN,
-    },
-    CampaignStatus.OFFER: {
-        CampaignStatus.ACCEPTED,
-        CampaignStatus.REJECTED,
-        CampaignStatus.WITHDRAWN,
+    None: set(_STATUS_LADDER) | _CLOSED_STATUSES,
+    **{
+        status: set(_STATUS_LADDER[index + 1 :]) | _CLOSED_STATUSES
+        for index, status in enumerate(_STATUS_LADDER[:-1])
     },
     CampaignStatus.ACCEPTED: set(),
     CampaignStatus.REJECTED: set(),
@@ -172,17 +164,36 @@ def list_workspaces(
     query_started = perf_counter()
     workspaces = (
         db.query(Workspace)
-        .options(selectinload(Workspace.tool_runs))
+        .options(selectinload(Workspace.tool_runs), selectinload(Workspace.campaign_tasks))
         .filter(Workspace.user_id == current_user.id)
         .order_by(Workspace.is_pinned.desc(), Workspace.updated_at.desc())
         .limit(limit)
         .all()
     )
+    campaigns_enabled = outcome_enabled("r13")
+    last_events = dict(
+        db.query(CampaignEvent.workspace_id, func.max(CampaignEvent.created_at))
+        .filter(CampaignEvent.workspace_id.in_([workspace.id for workspace in workspaces]))
+        .group_by(CampaignEvent.workspace_id)
+        .all()
+    )
     items = []
     for workspace in workspaces:
         summary = build_workspace_summary(workspace, list(workspace.tool_runs))
-        if summary is not None:
-            items.append(summary)
+        if summary is None:
+            continue
+        if campaigns_enabled:
+            # Board cards: the soonest open task (undated ones after, in the order
+            # added) and the latest thing that happened to the application.
+            open_tasks = [task for task in workspace.campaign_tasks if not task.completed]
+            if open_tasks:
+                task = min(open_tasks, key=lambda item: (item.deadline is None, item.deadline or 0))
+                summary.next_task = CampaignNextTask(title=task.title, deadline=task.deadline)
+            last_event = last_events.get(workspace.id)
+            summary.last_activity_at = (
+                max(last_event, workspace.updated_at) if last_event else workspace.updated_at
+            )
+        items.append(summary)
     response = WorkspaceListResponse(items=items, total=len(items))
     record_database_query_timing(
         db, query_family="workspace_list", started_at=query_started

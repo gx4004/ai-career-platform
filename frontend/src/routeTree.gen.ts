@@ -42,6 +42,7 @@ import { Route as AdminProfileAdoptionRouteImport } from './routes/admin/profile
 import { Route as AdminRunsRouteImport } from './routes/admin/runs'
 import { Route as AdminSourceHealthRouteImport } from './routes/admin/source-health'
 import { Route as AdminUsersRouteImport } from './routes/admin/users'
+import { Route as CampaignsIndexRouteImport } from './routes/campaigns.index'
 import { Route as CampaignsCampaignIdRouteImport } from './routes/campaigns.$campaignId'
 import { Route as CareerResultHistoryIdRouteImport } from './routes/career_.result.$historyId'
 import { Route as CoverLetterResultHistoryIdRouteImport } from './routes/cover-letter_.result.$historyId'
@@ -215,6 +216,11 @@ const AdminUsersRoute = AdminUsersRouteImport.update({
   path: '/users',
   getParentRoute: () => AdminRoute,
 } as any)
+const CampaignsIndexRoute = CampaignsIndexRouteImport.update({
+  id: '/campaigns/',
+  path: '/campaigns/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const CampaignsCampaignIdRoute = CampaignsCampaignIdRouteImport.update({
   id: '/campaigns/$campaignId',
   path: '/campaigns/$campaignId',
@@ -289,6 +295,7 @@ export interface FileRoutesByFullPath {
   '/admin/users': typeof AdminUsersRoute
   '/campaigns/$campaignId': typeof CampaignsCampaignIdRoute
   '/admin/': typeof AdminIndexRoute
+  '/campaigns/': typeof CampaignsIndexRoute
   '/career/result/$historyId': typeof CareerResultHistoryIdRoute
   '/cover-letter/result/$historyId': typeof CoverLetterResultHistoryIdRoute
   '/interview/result/$historyId': typeof InterviewResultHistoryIdRoute
@@ -330,6 +337,7 @@ export interface FileRoutesByTo {
   '/admin/users': typeof AdminUsersRoute
   '/campaigns/$campaignId': typeof CampaignsCampaignIdRoute
   '/admin': typeof AdminIndexRoute
+  '/campaigns': typeof CampaignsIndexRoute
   '/career/result/$historyId': typeof CareerResultHistoryIdRoute
   '/cover-letter/result/$historyId': typeof CoverLetterResultHistoryIdRoute
   '/interview/result/$historyId': typeof InterviewResultHistoryIdRoute
@@ -373,6 +381,7 @@ export interface FileRoutesById {
   '/admin/users': typeof AdminUsersRoute
   '/campaigns/$campaignId': typeof CampaignsCampaignIdRoute
   '/admin/': typeof AdminIndexRoute
+  '/campaigns/': typeof CampaignsIndexRoute
   '/career_/result/$historyId': typeof CareerResultHistoryIdRoute
   '/cover-letter_/result/$historyId': typeof CoverLetterResultHistoryIdRoute
   '/interview_/result/$historyId': typeof InterviewResultHistoryIdRoute
@@ -417,6 +426,7 @@ export interface FileRouteTypes {
     | '/admin/users'
     | '/campaigns/$campaignId'
     | '/admin/'
+    | '/campaigns/'
     | '/career/result/$historyId'
     | '/cover-letter/result/$historyId'
     | '/interview/result/$historyId'
@@ -458,6 +468,7 @@ export interface FileRouteTypes {
     | '/admin/users'
     | '/campaigns/$campaignId'
     | '/admin'
+    | '/campaigns'
     | '/career/result/$historyId'
     | '/cover-letter/result/$historyId'
     | '/interview/result/$historyId'
@@ -500,6 +511,7 @@ export interface FileRouteTypes {
     | '/admin/users'
     | '/campaigns/$campaignId'
     | '/admin/'
+    | '/campaigns/'
     | '/career_/result/$historyId'
     | '/cover-letter_/result/$historyId'
     | '/interview_/result/$historyId'
@@ -533,6 +545,7 @@ export interface RootRouteChildren {
   SettingsRoute: typeof SettingsRoute
   TermsRoute: typeof TermsRoute
   CampaignsCampaignIdRoute: typeof CampaignsCampaignIdRoute
+  CampaignsIndexRoute: typeof CampaignsIndexRoute
   CareerResultHistoryIdRoute: typeof CareerResultHistoryIdRoute
   CoverLetterResultHistoryIdRoute: typeof CoverLetterResultHistoryIdRoute
   InterviewResultHistoryIdRoute: typeof InterviewResultHistoryIdRoute
@@ -774,6 +787,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminUsersRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/campaigns/': {
+      id: '/campaigns/'
+      path: '/campaigns'
+      fullPath: '/campaigns/'
+      preLoaderRoute: typeof CampaignsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/campaigns/$campaignId': {
       id: '/campaigns/$campaignId'
       path: '/campaigns/$campaignId'
@@ -879,6 +899,7 @@ const rootRouteChildren: RootRouteChildren = {
   SettingsRoute: SettingsRoute,
   TermsRoute: TermsRoute,
   CampaignsCampaignIdRoute: CampaignsCampaignIdRoute,
+  CampaignsIndexRoute: CampaignsIndexRoute,
   CareerResultHistoryIdRoute: CareerResultHistoryIdRoute,
   CoverLetterResultHistoryIdRoute: CoverLetterResultHistoryIdRoute,
   InterviewResultHistoryIdRoute: InterviewResultHistoryIdRoute,

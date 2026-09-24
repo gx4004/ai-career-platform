@@ -361,8 +361,9 @@ scaling decision is ever needed.
   ADR 0007). The shipped foundation adds nullable company, role, status, and
   timezone-aware deadline fields. Status is server-enforced as
   `planning → preparing → applied → interviewing → offer → accepted`, with
-  `rejected` and `withdrawn` terminal exits; legacy null rows may enter only at
-  `planning`. Deployment is expand-compatible: older application code ignores the
+  `rejected` and `withdrawn` terminal exits. Moves are forward-only but may skip
+  steps (the pipeline board moves a saved job straight to `applied`); legacy null
+  rows may enter at any stage. Deployment is expand-compatible: older application code ignores the
   nullable columns. The migration downgrade removes only the new columns and
   therefore discards campaign-field values; application rollback should normally
   leave the additive schema in place. Status and deadline mutations atomically add

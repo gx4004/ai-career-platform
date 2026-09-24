@@ -1,105 +1,242 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
-import { CalendarDays, ExternalLink, FileText, LockKeyhole, Trash2 } from 'lucide-react'
+import { ArrowLeft, ArrowRightLeft, Briefcase, ExternalLink, FileText, LockKeyhole, Trash2 } from 'lucide-react'
 import { AppStatePanel } from '#/components/app/AppStatePanel'
 import { PageFrame } from '#/components/app/PageFrame'
+import { StatusPill, WorkspaceEmpty, WorkspaceHero, WorkspacePage, WorkspacePanel } from '#/components/app/WorkspacePage'
 import { Button } from '#/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '#/components/ui/dialog'
 import { Skeleton } from '#/components/ui/skeleton'
 import { useSession } from '#/hooks/useSession'
-import { deleteCampaign, getCampaign, updateCampaignMaterials } from '#/lib/api/client'
-import type { CampaignMaterialSelection } from '#/lib/api/schemas'
-import { CampaignTracking } from './CampaignTracking'
-import { CampaignReminders } from './CampaignReminders'
-import { CampaignReviewer } from './CampaignReviewer'
+import { deleteCampaign, getCampaign, updateCampaignMaterials, updateHistoryWorkspace } from '#/lib/api/client'
+import type { CampaignDetail, CampaignMaterialSelection, CampaignStatus } from '#/lib/api/schemas'
+import { CampaignChecklist } from './CampaignChecklist'
+import { ContactsPanel, NotesPanel, TasksPanel, TimelinePanel } from './CampaignTracking'
+import { StageMenu } from './StageMenu'
+import { campaignCompany, campaignTitle, formatDate, stageTone, statusLabel } from './stages'
 
-type SelectionKey = keyof CampaignMaterialSelection
+const TABS = ['Overview', 'Tasks', 'Notes', 'Contacts', 'Timeline', 'Checklist'] as const
+type Tab = (typeof TABS)[number]
 
 export function CampaignPage({ campaignId }: { campaignId: string }) {
   const { status, openAuthDialog } = useSession()
   const queryClient = useQueryClient()
   const navigate = useNavigate()
+  const [tab, setTab] = useState<Tab>('Overview')
   const [deleteOpen, setDeleteOpen] = useState(false)
   const authenticated = status === 'authenticated'
-  const query = useQuery({
-    queryKey: ['campaign', campaignId], queryFn: () => getCampaign(campaignId), enabled: authenticated,
-  })
-  const mutation = useMutation({
+  const queryKey = ['campaign', campaignId]
+  const query = useQuery({ queryKey, queryFn: () => getCampaign(campaignId), enabled: authenticated })
+  const refresh = () => {
+    void queryClient.invalidateQueries({ queryKey: ['history-workspaces'] })
+    return queryClient.invalidateQueries({ queryKey })
+  }
+  // One mutation for every task/note/contact write, so one error banner covers them all.
+  const tracking = useMutation({ mutationFn: (write: () => Promise<unknown>) => write(), onSuccess: () => { void refresh() } })
+  const materials = useMutation({
     mutationFn: (payload: CampaignMaterialSelection) => updateCampaignMaterials(campaignId, payload),
     onSuccess: (campaign) => {
-      queryClient.setQueryData(['campaign', campaignId], campaign)
+      queryClient.setQueryData(queryKey, campaign)
       void queryClient.invalidateQueries({ queryKey: ['history-workspaces'] })
     },
   })
-  const refresh = () => queryClient.invalidateQueries({ queryKey: ['campaign', campaignId] })
-  const deleteMutation = useMutation({
+  const stage = useMutation({
+    mutationFn: (next: CampaignStatus) => updateHistoryWorkspace(campaignId, { status: next }),
+    onSuccess: () => { void refresh() },
+  })
+  const remove = useMutation({
     mutationFn: () => deleteCampaign(campaignId),
     onSuccess: () => {
-      queryClient.removeQueries({ queryKey: ['campaign', campaignId] })
+      queryClient.removeQueries({ queryKey })
       void queryClient.invalidateQueries({ queryKey: ['history-workspaces'] })
-      void navigate({ to: '/history' })
+      void navigate({ to: '/campaigns' })
     },
   })
 
   if (status === 'loading') return <CampaignSkeleton />
-  if (!authenticated) return <PageFrame><AppStatePanel badge="Account only" title="Sign in to open this campaign" description="Campaign listings and selected materials stay private to their owner." icon={<LockKeyhole aria-hidden="true" />} actions={[{ label: 'Sign in', onClick: () => openAuthDialog({ to: `/campaigns/${campaignId}`, reason: 'campaign' }) }]} /></PageFrame>
+  if (!authenticated) return <PageFrame><AppStatePanel badge="Account only" title="Sign in to open this application" description="Your applications are private to your account." icon={<LockKeyhole aria-hidden="true" />} actions={[{ label: 'Sign in', onClick: () => openAuthDialog({ to: `/campaigns/${campaignId}`, reason: 'campaign' }) }]} /></PageFrame>
   if (query.isPending) return <CampaignSkeleton />
-  if (query.isError || !query.data) return <PageFrame><AppStatePanel badge="Campaign unavailable" title="This campaign could not be opened" description="It may have been removed or belong to another account." actions={[{ label: 'Back to history', to: '/history', variant: 'outline' }]} /></PageFrame>
+  if (query.isError || !query.data) return <PageFrame><AppStatePanel badge="Not found" title="This application couldn't be opened" description="It may have been deleted." actions={[{ label: 'All applications', to: '/campaigns', variant: 'outline' }]} /></PageFrame>
 
   const campaign = query.data
-  return <PageFrame className="campaign-page">
-    <header className="campaign-hero">
-      <div>
-        <Link to="/history" className="campaign-back">History / Campaign</Link>
-        <p className="eyebrow">Application campaign</p>
-        <h1 className="page-title">{campaign.role || campaign.label || 'Untitled role'}</h1>
-        <p className="campaign-company">{campaign.company || 'Company not set'}</p>
-      </div>
-      <div className="campaign-meta" aria-label="Campaign details">
-        <span className="campaign-status">{campaign.status?.replace('-', ' ') || 'Not started'}</span>
-        <span><CalendarDays aria-hidden="true" />{campaign.deadline ? new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(campaign.deadline)) : 'No deadline'}</span>
-        <Button variant="outline" className="button-destructive-soft" onClick={() => setDeleteOpen(true)}><Trash2 size={14} className="mr-1.5" />Delete campaign</Button>
-      </div>
-    </header>
+  const title = campaignTitle(campaign)
+  const company = campaignCompany(campaign)
+  const openTasks = campaign.tasks.filter((task) => !task.completed)
+  const sentAt = campaign.submission_snapshots[0]?.created_at
+  const counts: Partial<Record<Tab, number>> = { Tasks: openTasks.length, Notes: campaign.notes.length, Contacts: campaign.contacts.length }
+  const trackingProps = { campaign, run: (write: () => Promise<unknown>) => tracking.mutate(write), pending: tracking.isPending }
 
-    <div className="campaign-layout">
-      <main className="campaign-listing" aria-labelledby="listing-title">
-        <div className="campaign-section-heading"><div><p className="eyebrow">Canonical source</p><h2 id="listing-title">Target listing</h2></div>{campaign.listing?.source_url ? <a href={campaign.listing.source_url} target="_blank" rel="noreferrer">Open source <ExternalLink aria-hidden="true" /></a> : null}</div>
-        {campaign.listing ? <><div className="campaign-listing-title"><strong>{campaign.listing.title}</strong><span>{campaign.listing.company}</span></div><p className="campaign-description">{campaign.listing.description}</p><p className="small-copy muted-copy">Retrieved {new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(campaign.listing.retrieved_at))}</p></> : <div className="campaign-empty"><FileText aria-hidden="true" /><h3>No canonical listing yet</h3><p>Attach the exact posting from a job tool to keep this campaign grounded.</p></div>}
-      </main>
-      <aside className="campaign-materials" aria-labelledby="materials-title">
-        <p className="eyebrow">Exact versions</p><h2 id="materials-title">Selected materials</h2><p className="small-copy muted-copy">Selections point to immutable versions. Their content is never copied into the campaign.</p>
-        <MaterialSelect label="CV variant" field="cv_variant_id" value={campaign.selected_materials.cv_variant?.id || ''} items={campaign.available_materials.cv_variants.map(item => ({ id: item.id, label: `${item.document_name} — ${item.name}` }))} empty="No CV variants available" pending={mutation.isPending} onChange={value => mutation.mutate({ cv_variant_id: value || null })} />
-        <MaterialSelect label="Cover letter revision" field="cover_letter_run_id" value={campaign.selected_materials.cover_letter?.id || ''} items={campaign.available_materials.cover_letters.map(item => ({ id: item.id, label: runLabel(item) }))} empty="No cover letters available" pending={mutation.isPending} onChange={value => mutation.mutate({ cover_letter_run_id: value || null })} />
-        <MaterialSelect label="Interview preparation revision" field="interview_run_id" value={campaign.selected_materials.interview?.id || ''} items={campaign.available_materials.interviews.map(item => ({ id: item.id, label: runLabel(item) }))} empty="No interview preparation available" pending={mutation.isPending} onChange={value => mutation.mutate({ interview_run_id: value || null })} />
-        <p className="small-copy muted-copy" role="status" aria-live="polite">{mutation.isPending ? 'Saving selection…' : mutation.isSuccess ? 'Selection saved.' : ''}</p>
-        {mutation.isError ? <p className="campaign-error" role="alert">The selection could not be saved. Try again.</p> : null}
-      </aside>
+  return (
+    <WorkspacePage className="camp-detail">
+      <Link to="/campaigns" className="camp-back"><ArrowLeft size={15} aria-hidden="true" /> All applications</Link>
+      <WorkspaceHero
+        icon={Briefcase}
+        eyebrow={company ?? 'Application'}
+        title={title}
+        actions={<>
+          {campaign.listing?.source_url ? (
+            <Button variant="outline" asChild>
+              <a href={campaign.listing.source_url} target="_blank" rel="noreferrer"><ExternalLink size={15} /> Job posting</a>
+            </Button>
+          ) : null}
+          <StageMenu status={campaign.status} onMove={(next) => stage.mutate(next)} disabled={stage.isPending}>
+            <Button><ArrowRightLeft size={15} /> Change stage</Button>
+          </StageMenu>
+          <Button variant="ghost" size="icon" aria-label="Delete application" onClick={() => setDeleteOpen(true)}><Trash2 size={16} /></Button>
+        </>}
+        stats={[
+          { label: 'Stage', value: <StatusPill tone={stageTone(campaign.status)}>{statusLabel(campaign.status)}</StatusPill> },
+          { label: 'Apply by', value: campaign.deadline ? formatDate(campaign.deadline) : '—' },
+          { label: 'Applied on', value: sentAt ? formatDate(sentAt) : '—' },
+          { label: 'Open tasks', value: openTasks.length },
+        ]}
+      />
+      {stage.isError ? <p className="camp-alert" role="alert">The stage couldn't be changed. Refresh the page and try again.</p> : null}
+
+      <div className="camp-tabs" role="tablist" aria-label="Application sections">
+        {TABS.map((name) => (
+          <button key={name} type="button" role="tab" id={`tab-${name}`} aria-selected={tab === name} aria-controls="camp-tabpanel" className={tab === name ? 'camp-tab is-active' : 'camp-tab'} onClick={() => setTab(name)}>
+            {name}
+            {counts[name] ? <span className="camp-tab__count">{counts[name]}</span> : null}
+          </button>
+        ))}
+      </div>
+
+      <div id="camp-tabpanel" role="tabpanel" aria-labelledby={`tab-${tab}`}>
+        {tab === 'Overview' ? <Overview campaign={campaign} materials={materials} onOpenTasks={() => setTab('Tasks')} /> : null}
+        {tab === 'Tasks' ? <TasksPanel {...trackingProps} /> : null}
+        {tab === 'Notes' ? <NotesPanel {...trackingProps} /> : null}
+        {tab === 'Contacts' ? <ContactsPanel {...trackingProps} /> : null}
+        {tab === 'Timeline' ? <TimelinePanel campaign={campaign} /> : null}
+        {tab === 'Checklist' ? <CampaignChecklist campaign={campaign} /> : null}
+        {tracking.isError ? <p role="alert" className="camp-alert">That change couldn't be saved. Try again.</p> : null}
+      </div>
+
+      <Dialog open={deleteOpen} onOpenChange={(open) => { if (!remove.isPending) setDeleteOpen(open) }}>
+        <DialogContent showCloseButton={!remove.isPending}>
+          <DialogHeader>
+            <DialogTitle>Delete this application?</DialogTitle>
+            <DialogDescription>This removes it from your board along with its tasks, notes and contacts. It doesn't withdraw anything you already sent to the employer.</DialogDescription>
+          </DialogHeader>
+          {remove.isError ? <p role="alert" className="camp-alert">It couldn't be deleted. Try again.</p> : null}
+          <DialogFooter>
+            <Button variant="outline" disabled={remove.isPending} onClick={() => setDeleteOpen(false)}>Cancel</Button>
+            <Button variant="outline" className="button-destructive-soft" loading={remove.isPending} disabled={remove.isPending} onClick={() => remove.mutate()}>
+              <Trash2 size={14} /> {remove.isPending ? 'Deleting…' : 'Delete'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </WorkspacePage>
+  )
+}
+
+type MaterialsMutation = { mutate: (payload: CampaignMaterialSelection) => void; isPending: boolean; isSuccess: boolean; isError: boolean }
+
+function Overview({ campaign, materials, onOpenTasks }: { campaign: CampaignDetail; materials: MaterialsMutation; onOpenTasks: () => void }) {
+  const [expanded, setExpanded] = useState(false)
+  const { selected_materials: selected, available_materials: available } = campaign
+  const next = campaign.tasks.find((task) => !task.completed)
+  const long = (campaign.listing?.description.length ?? 0) > 700
+  return (
+    <div className="camp-overview">
+      <WorkspacePanel kicker="The job" title="Job description" description={campaign.listing ? `${campaign.listing.title} at ${campaign.listing.company} · saved ${formatDate(campaign.listing.retrieved_at)}` : undefined}>
+        {campaign.listing ? (
+          <>
+            <p className={long && !expanded ? 'camp-description is-clamped' : 'camp-description'}>{campaign.listing.description}</p>
+            {long ? <button type="button" className="camp-link-button" onClick={() => setExpanded(!expanded)}>{expanded ? 'Show less' : 'Show full description'}</button> : null}
+          </>
+        ) : (
+          <WorkspaceEmpty icon={FileText} title="No job posting yet" description="Save the job from Job Discovery or import it in Job Match to keep the description here." />
+        )}
+      </WorkspacePanel>
+      <div className="camp-stack">
+        <WorkspacePanel kicker="Your documents" title="What you're sending" description="Pick the version of each document that goes with this application.">
+          <div className="camp-materials">
+            <MaterialRow
+              label="CV version" field="cv_variant_id" value={selected.cv_variant?.id ?? ''} pending={materials.isPending}
+              items={available.cv_variants.map((item) => ({ id: item.id, label: `${item.name} (${item.document_name})` }))}
+              open={selected.cv_variant ? { to: '/cv-studio' } : null}
+              create={{ to: '/cv-studio', label: 'Make one in CV Studio' }}
+              onChange={(value) => materials.mutate({ cv_variant_id: value || null })}
+            />
+            <MaterialRow
+              label="Cover letter" field="cover_letter_run_id" value={selected.cover_letter?.id ?? ''} pending={materials.isPending}
+              items={available.cover_letters.map((item) => ({ id: item.id, label: runLabel(item, 'Cover letter') }))}
+              open={selected.cover_letter ? { to: '/cover-letter/result/$historyId', historyId: selected.cover_letter.id } : null}
+              create={{ to: '/cover-letter', label: 'Write a cover letter' }}
+              onChange={(value) => materials.mutate({ cover_letter_run_id: value || null })}
+            />
+            <MaterialRow
+              label="Interview prep" field="interview_run_id" value={selected.interview?.id ?? ''} pending={materials.isPending}
+              items={available.interviews.map((item) => ({ id: item.id, label: runLabel(item, 'Interview prep') }))}
+              open={selected.interview ? { to: '/interview/result/$historyId', historyId: selected.interview.id } : null}
+              create={{ to: '/interview', label: 'Prepare for interviews' }}
+              onChange={(value) => materials.mutate({ interview_run_id: value || null })}
+            />
+          </div>
+          <p className="camp-muted" role="status" aria-live="polite">{materials.isPending ? 'Saving…' : materials.isSuccess ? 'Saved.' : ''}</p>
+          {materials.isError ? <p className="camp-alert" role="alert">Your choice couldn't be saved. Try again.</p> : null}
+        </WorkspacePanel>
+        <WorkspacePanel kicker="Up next" title={next ? next.title : 'Nothing planned'} description={next?.deadline ? `Due ${formatDate(next.deadline)}` : next ? 'No due date' : 'Add a task so you know what to do next.'}>
+          <button type="button" className="camp-link-button" onClick={onOpenTasks}>{next ? 'See all tasks' : 'Add a task'}</button>
+        </WorkspacePanel>
+      </div>
     </div>
-    <CampaignTracking campaign={campaign} campaignId={campaignId} refresh={refresh} />
-    <CampaignReminders campaignId={campaignId} />
-    <CampaignReviewer campaignId={campaignId} />
-    <Dialog open={deleteOpen} onOpenChange={(open) => { if (!deleteMutation.isPending) setDeleteOpen(open) }}>
-      <DialogContent showCloseButton={!deleteMutation.isPending}>
-        <DialogHeader>
-          <DialogTitle>Delete this campaign?</DialogTitle>
-          <DialogDescription>This permanently removes the campaign, its product-held submission confirmations, timeline, and retained snapshots. It cannot withdraw or recall the employer-held application.</DialogDescription>
-        </DialogHeader>
-        {deleteMutation.isError ? <p role="alert" className="campaign-error">The campaign could not be deleted. Try again.</p> : null}
-        <DialogFooter>
-          <Button variant="outline" disabled={deleteMutation.isPending} onClick={() => setDeleteOpen(false)}>Cancel</Button>
-          <Button variant="outline" className="button-destructive-soft" loading={deleteMutation.isPending} disabled={deleteMutation.isPending} onClick={() => deleteMutation.mutate()}><Trash2 size={14} className="mr-1.5" />{deleteMutation.isPending ? 'Deleting…' : 'Delete campaign'}</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  </PageFrame>
+  )
 }
 
-function MaterialSelect({ label, field, value, items, empty, pending, onChange }: { label: string; field: SelectionKey; value: string; items: Array<{ id: string; label: string }>; empty: string; pending: boolean; onChange: (value: string) => void }) {
+type OpenTarget = { to: '/cv-studio' } | { to: '/cover-letter/result/$historyId' | '/interview/result/$historyId'; historyId: string }
+
+function MaterialRow({ label, field, value, items, pending, open, create, onChange }: {
+  label: string
+  field: keyof CampaignMaterialSelection
+  value: string
+  items: Array<{ id: string; label: string }>
+  pending: boolean
+  open: OpenTarget | null
+  create: { to: '/cv-studio' | '/cover-letter' | '/interview'; label: string }
+  onChange: (value: string) => void
+}) {
   const id = `campaign-${field}`
-  return <div className="campaign-material-field"><label htmlFor={id}>{label}</label><select id={id} value={value} disabled={pending || items.length === 0} onChange={event => onChange(event.target.value)}><option value="">{items.length ? 'No selection' : empty}</option>{items.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}</select><p>{value ? 'Exact saved version selected' : 'Nothing selected yet'}</p></div>
+  return (
+    <div className="camp-material">
+      <label htmlFor={id} className="workspace-field__label">{label}</label>
+      {items.length ? (
+        <div className="camp-material__row">
+          <select id={id} className="workspace-select" value={value} disabled={pending} onChange={(event) => onChange(event.target.value)}>
+            <option value="">Not chosen yet</option>
+            {items.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
+          </select>
+          {open ? (
+            'historyId' in open
+              ? <Link to={open.to} params={{ historyId: open.historyId }} className="camp-link-button">Open</Link>
+              : <Link to={open.to} className="camp-link-button">Open</Link>
+          ) : null}
+        </div>
+      ) : (
+        <p className="camp-material__empty">
+          None yet. <Link to={create.to} className="camp-link-button">{create.label}</Link>
+        </p>
+      )}
+    </div>
+  )
 }
 
-function runLabel(run: { id: string; label: string | null; parent_run_id: string | null; created_at: string }) { return `${run.label || 'Untitled material'} — ${run.parent_run_id ? 'revision' : 'original'} · ${new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(run.created_at))} · ${run.id.slice(0, 8)}` }
-function CampaignSkeleton() { return <PageFrame className="campaign-page" aria-busy="true"><div className="campaign-hero"><div className="grid gap-3"><Skeleton className="h-4 w-28" /><Skeleton className="h-10 w-72 max-w-full" /><Skeleton className="h-5 w-40" /></div></div><div className="campaign-layout"><Skeleton className="h-[32rem] w-full" /><Skeleton className="h-[26rem] w-full" /></div></PageFrame> }
+function runLabel(run: { label: string | null; parent_run_id: string | null; created_at: string }, fallback: string) {
+  const when = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(run.created_at))
+  return `${run.label || fallback}${run.parent_run_id ? ' (edited)' : ''} · ${when}`
+}
+
+function CampaignSkeleton() {
+  return (
+    <WorkspacePage className="camp-detail">
+      <div className="camp-stack" aria-busy="true">
+        <Skeleton className="h-44 w-full rounded-3xl" />
+        <Skeleton className="h-10 w-96 max-w-full" />
+        <Skeleton className="h-[26rem] w-full" />
+      </div>
+    </WorkspacePage>
+  )
+}
