@@ -413,6 +413,14 @@ class PacketApprovalRequest(BaseModel):
     expected_material_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
 
 
+class AutofillReport(BaseModel):
+    """What the Autopilot experiment filled and left for the owner (#325)."""
+
+    filled: list[str]
+    skipped: list[str]
+    url: str
+
+
 class PacketApprovalResult(BaseModel):
     """Guarded approval result: decision, immutable snapshot, and manual handoff."""
 
