@@ -115,7 +115,7 @@ def test_assembled_app_contains_every_discovered_router_operation():
     assembled = _route_operation_counts(assembled_app.routes)
     discovered = _route_operation_counts(_all_router_routes())
 
-    assert sum(assembled.values()) == 126
+    assert sum(assembled.values()) == 127
     assert assembled == discovered
 
 

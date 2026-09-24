@@ -304,6 +304,35 @@ def _pdf_styles(model: CvRenderModel) -> dict[str, ParagraphStyle]:
     }
 
 
+def entry_render_lines(entry) -> list[str]:
+    """The literal text lines an entry renders as, in rendering order.
+
+    Single source of truth for what a structured entry (heading/subheading/
+    location/dates/bullets) actually puts on the page: ``_entry_flow`` and
+    ``_add_docx_structured_entry`` render exactly these lines (with their own
+    formatting), and ``validate_artifact`` checks against exactly these lines
+    instead of the unrendered ``entry.text`` — so a structured entry that
+    renders as "heading + bullets" is no longer judged against its plain body
+    (#322). A legacy/freeform entry (no heading) returns ``[entry.text]``.
+    """
+    if entry.heading is None:
+        return [entry.text] if entry.text else []
+    head_line = entry.heading
+    if entry.subheading:
+        head_line += f" — {entry.subheading}"
+    date_range = " – ".join(part for part in (entry.start_date, entry.end_date) if part)
+    if date_range:
+        head_line += f" {date_range}"
+    lines = [head_line]
+    if entry.location:
+        lines.append(entry.location)
+    if entry.bullets:
+        lines.extend(entry.bullets)
+    elif entry.text and entry.text != entry.heading:
+        lines.append(entry.text)
+    return lines
+
+
 def _entry_flow(entry, styles: dict[str, ParagraphStyle], content_width: float) -> list:
     if entry.heading is None:
         # Legacy/freeform path — must stay byte-identical to the pre-style renderer.
@@ -542,17 +571,48 @@ def _add_hyperlink(paragraph, url: str) -> None:
     paragraph._p.append(hyperlink)
 
 
+_BULLET_MARKER_RE = re.compile(r"^[•◦\-*]\s*")
+
+
+def _normalize_text(value: str) -> str:
+    return " ".join(str(value).split())
+
+
+def _strip_bullet_marker(value: str) -> str:
+    """Drop a leading bullet glyph a PDF's extracted text carries as literal
+    characters (rendered via ``&bull;&nbsp;`` in ``_entry_flow``) so it never
+    changes the *content* comparison in ``validate_artifact`` — DOCX bullets
+    use paragraph-level list formatting and never carry the glyph at all."""
+    return _BULLET_MARKER_RE.sub("", value)
+
+
 def validate_artifact(model: CvRenderModel, artifact: bytes, fmt: str) -> CvArtifactEvidence:
     parsed = parse_cv_import(artifact, f"cv.{fmt}", fmt)
+    # A structured entry renders as several lines (heading, location, one per
+    # bullet); own-parser re-import produces one entry per rendered line, so
+    # comparing per-section joined text (rather than an exact per-entry list)
+    # is what stays stable across both freeform and structured entries (#322).
     expected_structure = [
-        (section.kind, section.title, [entry.text for entry in section.entries])
+        (
+            section.kind,
+            section.title,
+            _normalize_text(
+                " ".join(line for entry in section.entries for line in entry_render_lines(entry))
+            ),
+        )
         for section in model.sections
     ]
     actual_structure = [
-        (section.kind, section.title, [entry.body for entry in section.entries])
+        (
+            section.kind,
+            section.title,
+            _normalize_text(
+                " ".join(_strip_bullet_marker(entry.body) for entry in section.entries)
+            ),
+        )
         for section in parsed.sections
     ]
-    if actual_structure and actual_structure[0][2] == [model.document_name]:
+    if actual_structure and actual_structure[0][2] == _normalize_text(model.document_name):
         actual_structure = actual_structure[1:]
     content_equivalent = expected_structure == actual_structure
     links = [
@@ -569,8 +629,17 @@ def validate_artifact(model: CvRenderModel, artifact: bytes, fmt: str) -> CvArti
             for section in model.sections:
                 if not section.entries:
                     continue
+                # Checked per rendered line (not one joined block): a bullet
+                # line's literal "•" glyph in the extracted text would
+                # otherwise break a contiguous substring match even though
+                # KeepTogether already guarantees the whole entry shares a
+                # page with its heading (#322).
+                first_lines = [
+                    _normalize_text(line) for line in entry_render_lines(section.entries[0])
+                ]
                 page_breaks_ok = page_breaks_ok and any(
-                    section.title in text and section.entries[0].text in text for text in page_text
+                    section.title in text and all(line in text for line in first_lines)
+                    for text in page_text
                 )
             artifact_links = {link.get("uri") for page in rendered for link in page.get_links()}
     else:

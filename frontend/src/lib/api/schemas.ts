@@ -346,6 +346,9 @@ export type CvDocumentUpdate = z.infer<typeof cvDocumentUpdateSchema>
 
 export const cvTailoringChangeSchema = z.strictObject({
   id: z.string().min(1).max(100), section_id: z.string().min(1).max(100), entry_id: z.string().min(1).max(100),
+  // Which entry field this change rewrites: "body", or "bullets[<index>]" for
+  // a specific rendered bullet — structured entries render bullets, not body (#322).
+  field: z.string().min(1).max(20).default('body'),
   before: z.string().min(1).max(5_000), after: z.string().min(1).max(5_000), job_requirement: z.string().min(1).max(1_000),
   evidence_item_ids: z.array(z.string()).max(20), support: z.enum(['confirmed', 'document', 'unsupported']),
 })

@@ -352,11 +352,12 @@ requests/hour per source IP. `Resource shared` means 60/hour per identity and
 quality route waives only the shared model counters for its deterministic mode;
 its fixed 20/minute route limit still applies.
 
-### 6.1 No Authentication Required (11 operations)
+### 6.1 No Authentication Required (12 operations)
 
 | Method | Path | Rate limit | Purpose |
 |--------|------|------------|---------|
 | `GET` | `/health` | — | Database readiness probe |
+| `GET` | `/cv-documents/fonts/{filename}` | — | Bundled OFL CV template font (strict filename allowlist, long-cached, static) |
 | `POST` | `/auth/login` | 10/min | Email/password login |
 | `POST` | `/auth/register` | 5/min | Account registration |
 | `POST` | `/auth/logout` | — | Origin-checked cookie clearing; valid access token not required |

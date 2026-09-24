@@ -211,6 +211,109 @@ def test_wrapped_first_entry_stays_with_its_heading(db, test_user):
         assert validate_artifact(model, render_pdf(model), "pdf").page_breaks == "pass"
 
 
+def test_structured_entry_scores_the_same_as_its_plain_text_equivalent(db, test_user):
+    """A structured entry (heading/subheading/dates/bullets) renders as title +
+    bullets, not its unrendered body — the artifact-validation checks must
+    compare against what actually renders, so a structured CV isn't scored
+    worse than an equivalent plain-body CV with the same visible content (#322).
+    """
+    structured = create_document(
+        db,
+        test_user.id,
+        CvDocumentCreate(
+            name="Structured CV",
+            sections=[
+                {
+                    "id": "experience",
+                    "kind": "experience",
+                    "title": "Experience",
+                    "position": 0,
+                    "entries": [
+                        {
+                            "id": "e1",
+                            "evidence_item_id": None,
+                            "body": "Senior Engineer",
+                            "position": 0,
+                            "heading": "Senior Engineer",
+                            "subheading": "Acme Corp",
+                            "location": "Remote",
+                            "start_date": "2020",
+                            "end_date": "2022",
+                            "bullets": [
+                                "Reduced processing time by 34% for 12 teams.",
+                                "Built an accessible workflow used by 1,800 accounts.",
+                            ],
+                        }
+                    ],
+                },
+                {
+                    "id": "skills",
+                    "kind": "skills",
+                    "title": "Skills",
+                    "position": 1,
+                    "entries": [
+                        {
+                            "id": "s1",
+                            "evidence_item_id": None,
+                            "body": "Python, TypeScript, AWS",
+                            "position": 0,
+                        }
+                    ],
+                },
+            ],
+        ),
+    )
+    plain = create_document(
+        db,
+        test_user.id,
+        CvDocumentCreate(
+            name="Plain CV",
+            sections=[
+                {
+                    "id": "experience",
+                    "kind": "experience",
+                    "title": "Experience",
+                    "position": 0,
+                    "entries": [
+                        {
+                            "id": "e1",
+                            "evidence_item_id": None,
+                            "body": (
+                                "Senior Engineer — Acme Corp 2020 – 2022 Remote "
+                                "Reduced processing time by 34% for 12 teams. "
+                                "Built an accessible workflow used by 1,800 accounts."
+                            ),
+                            "position": 0,
+                        }
+                    ],
+                },
+                {
+                    "id": "skills",
+                    "kind": "skills",
+                    "title": "Skills",
+                    "position": 1,
+                    "entries": [
+                        {
+                            "id": "s1",
+                            "evidence_item_id": None,
+                            "body": "Python, TypeScript, AWS",
+                            "position": 0,
+                        }
+                    ],
+                },
+            ],
+        ),
+    )
+    for document in (structured, plain):
+        model = build_render_model(document, "ats-essential")
+        for fmt, artifact in (("pdf", render_pdf(model)), ("docx", render_docx(model))):
+            evidence = validate_artifact(model, artifact, fmt)
+            assert evidence.searchable_text == "pass", fmt
+            assert evidence.re_importability == "pass", fmt
+            if fmt == "pdf":
+                assert evidence.page_breaks == "pass"
+
+
 def test_artifact_routes_are_owner_isolated_and_return_safe_headers(
     client, auth_headers, db, test_user
 ):
@@ -234,6 +337,18 @@ def test_artifact_routes_are_owner_isolated_and_return_safe_headers(
         client.get(f"/api/v1/cv-documents/{document.id}/render?template=ats-essential").status_code
         == 401
     )
+
+
+def test_font_route_serves_only_allowlisted_bundled_filenames_with_long_cache(client):
+    response = client.get("/api/v1/cv-documents/fonts/Lato-Regular.ttf")
+    assert response.status_code == 200
+    assert response.headers["content-type"] in ("font/ttf", "application/font-sfnt")
+    assert response.headers["cache-control"] == "public, max-age=31536000, immutable"
+    assert response.content[:4] in (b"\x00\x01\x00\x00", b"true", b"OTTO")
+
+    traversal = client.get("/api/v1/cv-documents/fonts/..%2Fcv_documents.py")
+    assert traversal.status_code == 404
+    assert client.get("/api/v1/cv-documents/fonts/Comic-Sans.ttf").status_code == 404
 
 
 def test_quality_artifact_checks_only_promote_after_real_validation(
