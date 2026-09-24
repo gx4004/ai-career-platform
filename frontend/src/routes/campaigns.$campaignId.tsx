@@ -4,6 +4,6 @@ import { requireEnabledOutcome } from '#/lib/flags/outcomeGuard'
 
 export const Route = createFileRoute('/campaigns/$campaignId')({
   beforeLoad: () => requireEnabledOutcome(isR13CampaignsEnabled()),
-  head: () => ({ meta: [{ title: 'Campaign | Career Workbench' }] }),
+  head: () => ({ meta: [{ title: 'Application | Career Workbench' }] }),
   component: lazyRouteComponent(() => import('#/pages/campaign-page'), 'CampaignRoutePage'),
 })
