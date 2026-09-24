@@ -22,8 +22,46 @@ CvQualityDimensionKey = Literal["impact", "clarity", "completeness", "structure"
 CvAtsCheckKey = Literal[
     "section_structure", "text_layer", "links", "page_breaks", "re_importability"
 ]
-CvTemplateId = Literal["ats-essential", "professional-editorial", "technical-portfolio"]
+CvTemplateId = Literal[
+    "ats-essential",
+    "professional-editorial",
+    "technical-portfolio",
+    "modern-two-column",
+    "minimal-serif",
+]
 CvArtifactFormat = Literal["docx", "pdf"]
+CvFontId = Literal["lato", "pt-sans", "pt-serif", "crimson-text", "ibm-plex-mono"]
+CvDensity = Literal["compact", "normal", "spacious"]
+
+# Curated palette so accent colors stay readable and print-safe. Any hex outside
+# this set is rejected rather than silently normalized.
+CV_ACCENT_PALETTE: tuple[str, ...] = (
+    "#111827",
+    "#7C2D12",
+    "#075985",
+    "#166534",
+    "#6D28D9",
+    "#B91C1C",
+    "#0F766E",
+)
+
+
+class CvStyle(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    template_id: CvTemplateId = "ats-essential"
+    font_id: CvFontId = "lato"
+    accent_color: str = Field(default="#111827", pattern=r"^#[0-9a-fA-F]{6}$")
+    density: CvDensity = "normal"
+    section_order: list[str] | None = Field(default=None, max_length=50)
+    ats_mode: bool = False
+
+    @field_validator("accent_color")
+    @classmethod
+    def _accent_in_palette(cls, value: str) -> str:
+        if value.upper() not in {color.upper() for color in CV_ACCENT_PALETTE}:
+            raise ValueError("accent_color must be one of the curated palette colors")
+        return value
 
 
 class CvEntry(BaseModel):
@@ -33,6 +71,12 @@ class CvEntry(BaseModel):
     evidence_item_id: str | None
     body: str = Field(min_length=1, max_length=5_000)
     position: int = Field(ge=0)
+    heading: str | None = Field(default=None, min_length=1, max_length=200)
+    subheading: str | None = Field(default=None, min_length=1, max_length=200)
+    location: str | None = Field(default=None, min_length=1, max_length=200)
+    start_date: str | None = Field(default=None, min_length=1, max_length=40)
+    end_date: str | None = Field(default=None, min_length=1, max_length=40)
+    bullets: list[str] = Field(default_factory=list, max_length=30)
 
 
 class CvSection(BaseModel):
@@ -59,10 +103,11 @@ class CvDocumentUpdate(BaseModel):
 
     name: str | None = Field(default=None, min_length=1, max_length=120)
     sections: list[CvSection] | None = Field(default=None, max_length=50)
+    style: CvStyle | None = None
 
     @model_validator(mode="after")
     def require_change(self):
-        if self.name is None and self.sections is None:
+        if self.name is None and self.sections is None and self.style is None:
             raise ValueError("At least one editable field is required")
         return self
 
@@ -87,6 +132,7 @@ class CvDocumentResponse(BaseModel):
     id: str
     name: str
     sections: list[CvSection]
+    style: CvStyle
     created_at: datetime
     updated_at: datetime
     quality_model_runs: int = Field(ge=0)
@@ -94,6 +140,11 @@ class CvDocumentResponse(BaseModel):
     quality_model_run_limit: Literal[10] = 10
     tailoring_model_run_limit: Literal[10] = 10
     variants: list[CvVariantResponse]
+
+    @field_validator("style", mode="before")
+    @classmethod
+    def _default_style_for_legacy_rows(cls, value):
+        return value if value is not None else CvStyle()
 
 
 class CvDocumentListResponse(BaseModel):
@@ -104,6 +155,12 @@ class CvRenderEntry(BaseModel):
     id: str
     text: str
     links: list[str] = Field(default_factory=list)
+    heading: str | None = None
+    subheading: str | None = None
+    location: str | None = None
+    start_date: str | None = None
+    end_date: str | None = None
+    bullets: list[str] = Field(default_factory=list)
 
 
 class CvRenderSection(BaseModel):
@@ -119,7 +176,7 @@ class CvRenderModel(BaseModel):
     document_name: str
     template_id: CvTemplateId
     page: dict[str, int]
-    tokens: dict[str, str | int]
+    tokens: dict[str, str | int | bool]
     sections: list[CvRenderSection]
     canonical_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
 
@@ -176,6 +233,8 @@ class CvQualityResponse(BaseModel):
     access_mode: Literal["authenticated"] = "authenticated"
     saved: bool = True
     locked_actions: list[str] = Field(default_factory=list)
+    ats_score: int = Field(ge=0, le=100, default=0)
+    ats_fixes: list[str] = Field(default_factory=list)
 
 
 class CvTailoringRequest(BaseModel):
@@ -196,10 +255,16 @@ class CvTailoringChange(BaseModel):
     support: Literal["confirmed", "document", "unsupported"]
 
 
+class CvTailoringSkippedChange(BaseModel):
+    id: str
+    reason: Literal["stale_before_text"]
+
+
 class CvTailoringProposal(BaseModel):
     schema_version: Literal["cv-tailoring/v1"] = "cv-tailoring/v1"
     job_title: str
     changes: list[CvTailoringChange] = Field(max_length=50)
+    skipped: list[CvTailoringSkippedChange] = Field(default_factory=list, max_length=50)
     remaining_regenerations: int = Field(ge=0)
     request_id: UUID
     proposal_token: str = Field(min_length=64, max_length=64)
@@ -255,6 +320,12 @@ class CvImportEntry(BaseModel):
     body: str = Field(min_length=1, max_length=5_000)
     position: int = Field(ge=0)
     claim: CvImportClaim | None
+    heading: str | None = Field(default=None, min_length=1, max_length=200)
+    subheading: str | None = Field(default=None, min_length=1, max_length=200)
+    location: str | None = Field(default=None, min_length=1, max_length=200)
+    start_date: str | None = Field(default=None, min_length=1, max_length=40)
+    end_date: str | None = Field(default=None, min_length=1, max_length=40)
+    bullets: list[str] = Field(default_factory=list, max_length=30)
 
 
 class CvImportSection(BaseModel):
@@ -305,3 +376,23 @@ class CvDocumentsExport(BaseModel):
         if self.document_count != len(self.documents):
             raise ValueError("document_count must equal the number of documents")
         return self
+
+
+class CvStyleCatalogTemplate(BaseModel):
+    id: CvTemplateId
+    name: str
+    description: str
+    ats_safe: bool
+
+
+class CvStyleCatalogFont(BaseModel):
+    id: CvFontId
+    name: str
+    category: str
+
+
+class CvStyleCatalog(BaseModel):
+    templates: list[CvStyleCatalogTemplate]
+    fonts: list[CvStyleCatalogFont]
+    palette: list[str] = Field(default_factory=lambda: list(CV_ACCENT_PALETTE))
+    densities: list[CvDensity] = Field(default_factory=lambda: ["compact", "normal", "spacious"])

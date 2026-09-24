@@ -5,7 +5,10 @@ import { Button } from '#/components/ui/button'
 import { fetchCvArtifactBlob } from '#/lib/api/client'
 import type { CvTemplateId } from '#/lib/api/schemas'
 
-const names: Record<CvTemplateId, string> = { 'ats-essential': 'ATS Essential', 'professional-editorial': 'Professional Editorial', 'technical-portfolio': 'Technical / Portfolio' }
+const names: Record<CvTemplateId, string> = {
+  'ats-essential': 'ATS Essential', 'professional-editorial': 'Professional Editorial', 'technical-portfolio': 'Technical / Portfolio',
+  'modern-two-column': 'Modern Two-Column', 'minimal-serif': 'Minimal Serif',
+}
 
 function useObjectUrl(blob: Blob | undefined) {
   const [url, setUrl] = useState('')

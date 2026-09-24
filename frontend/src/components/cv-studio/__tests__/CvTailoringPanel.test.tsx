@@ -25,7 +25,7 @@ const unsupported = {
 }
 const proposal: CvTailoringProposal = {
   schema_version: 'cv-tailoring/v1', job_title: 'Staff Engineer',
-  changes: [confirmed, fromDocument, unsupported], remaining_regenerations: 4,
+  changes: [confirmed, fromDocument, unsupported], skipped: [], remaining_regenerations: 4,
   request_id: '0a5b9f3c-1d2e-4f60-8a71-2c3d4e5f6071', proposal_token: 'a'.repeat(64),
   history_id: 'h1', access_mode: 'authenticated', saved: true, locked_actions: [],
 }

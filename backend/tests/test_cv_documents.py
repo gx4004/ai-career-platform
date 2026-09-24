@@ -54,6 +54,30 @@ def _section(evidence_id: str, *, body: str = "Improved a synthetic process by 2
     }
 
 
+def _with_response_defaults(sections):
+    """Structured-entry fields (#322) always round-trip in a response even when
+    the request omitted them — mirror that shape for exact-equality assertions.
+    """
+    return [
+        {
+            **section,
+            "entries": [
+                {
+                    "heading": None,
+                    "subheading": None,
+                    "location": None,
+                    "start_date": None,
+                    "end_date": None,
+                    "bullets": [],
+                    **entry,
+                }
+                for entry in section["entries"]
+            ],
+        }
+        for section in sections
+    ]
+
+
 def _signed(document_id, user_id, payload):
     payload["proposal_token"] = proposal_token(
         payload["request_id"], document_id, user_id, payload["job_title"], payload["changes"]
@@ -81,7 +105,7 @@ def test_owner_can_create_edit_snapshot_and_restore_without_mutating_variants(
         headers=auth_headers,
     )
     assert edited.status_code == 200
-    assert edited.json()["sections"] == edited_sections
+    assert edited.json()["sections"] == _with_response_defaults(edited_sections)
 
     snapshot = client.post(
         f"{PREFIX}/{created['id']}/variants",
@@ -102,19 +126,19 @@ def test_owner_can_create_edit_snapshot_and_restore_without_mutating_variants(
         headers=auth_headers,
     )
     assert restored.status_code == 200
-    assert restored.json()["sections"] == edited_sections
+    assert restored.json()["sections"] == _with_response_defaults(edited_sections)
 
     base_restored = client.post(
         f"{PREFIX}/{created['id']}/variants/{base_id}/restore",
         headers=auth_headers,
     )
     assert base_restored.status_code == 200
-    assert base_restored.json()["sections"] == [_section(confirmed_evidence.id)]
+    assert base_restored.json()["sections"] == _with_response_defaults([_section(confirmed_evidence.id)])
 
     fetched = client.get(f"{PREFIX}/{created['id']}", headers=auth_headers).json()
     snapshots = {variant["id"]: variant for variant in fetched["variants"]}
-    assert snapshots[snapshot_id]["sections"] == edited_sections
-    assert snapshots[base_id]["sections"] == [_section(confirmed_evidence.id)]
+    assert snapshots[snapshot_id]["sections"] == _with_response_defaults(edited_sections)
+    assert snapshots[base_id]["sections"] == _with_response_defaults([_section(confirmed_evidence.id)])
 
 
 def test_documents_are_authenticated_owner_only(

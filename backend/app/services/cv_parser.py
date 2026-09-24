@@ -46,6 +46,30 @@ def parse_cv_import(content: bytes, filename: str, ext: str) -> CvImportProposal
     return _structure_text(text, filename, warnings)
 
 
+# Heuristic only: "Role, Company (Jan 2020 - Present)" / "Role — Company (2019-2021)".
+# Lines that don't match this shape simply stay as plain ``body`` — no structured
+# fields are guessed, which keeps the import proposal reviewable and honest.
+_ENTRY_PATTERN = re.compile(
+    r"^(?P<heading>[^,|–—]+?)\s*[,|–—]\s*(?P<subheading>[^(]+?)\s*"
+    r"\((?P<start>[^–—-]+?)\s*[–—-]\s*(?P<end>[^)]+?)\)\s*$"
+)
+
+
+def _structured_fields(section_kind: str, body: str) -> dict:
+    if section_kind not in {"experience", "education"}:
+        return {}
+    match = _ENTRY_PATTERN.match(body)
+    if not match:
+        return {}
+    heading = match.group("heading").strip()
+    subheading = match.group("subheading").strip()
+    start = match.group("start").strip()
+    end = match.group("end").strip()
+    if not (heading and subheading and start and end):
+        return {}
+    return {"heading": heading, "subheading": subheading, "start_date": start, "end_date": end}
+
+
 _HEADINGS = {
     "summary": "summary", "profile": "summary", "experience": "experience",
     "work experience": "experience", "employment": "experience",
@@ -82,6 +106,7 @@ def _structure_text(text: str, filename: str, warnings: list[str]) -> CvImportPr
                     "kind": claim_kind, "content": {"statement": body},
                     "provenance": "imported",
                 },
+                **_structured_fields(section_kind, body),
             })
         sections.append({
             "id": f"section-{section_position}-{section_kind}", "kind": section_kind,

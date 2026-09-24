@@ -10,6 +10,7 @@ from app.schemas.cv_documents import (
     CvDocumentCreate,
     CvDocumentsExport,
     CvImportAccept,
+    CvStyle,
     CvTailoringApply,
 )
 from app.schemas.evidence_profile import EvidenceItemCreate
@@ -106,6 +107,17 @@ def _seed_sections(db: Session, user_id: str, ids: list[str]) -> list[dict]:
     sections = []
     for position, item in enumerate(items):
         body = str(item.content.get("statement") or item.content.get("name") or item.content)
+        entry = {
+            "id": f"entry-{item.id}",
+            "evidence_item_id": item.id,
+            "body": body,
+            "position": 0,
+        }
+        heading, subheading = _seed_heading(item.kind, item.content)
+        if heading:
+            entry["heading"] = heading
+        if subheading:
+            entry["subheading"] = subheading
         sections.append(
             {
                 "id": f"seed-{item.id}",
@@ -113,17 +125,30 @@ def _seed_sections(db: Session, user_id: str, ids: list[str]) -> list[dict]:
                 "title": item.kind.replace("-", " ").title(),
                 "visible": True,
                 "position": position,
-                "entries": [
-                    {
-                        "id": f"entry-{item.id}",
-                        "evidence_item_id": item.id,
-                        "body": body,
-                        "position": 0,
-                    }
-                ],
+                "entries": [entry],
             }
         )
     return sections
+
+
+def _seed_heading(kind: str, content: dict) -> tuple[str | None, str | None]:
+    """Best-effort heading/subheading extraction from evidence content (heuristic).
+
+    Evidence content shapes are user/import-authored and not schema-enforced
+    beyond "non-empty dict", so this only reads common, plausible keys and
+    never raises on a mismatch.
+    """
+    if not isinstance(content, dict):
+        return None, None
+    if kind == "experience":
+        heading = content.get("role") or content.get("title") or content.get("position")
+        subheading = content.get("company") or content.get("employer") or content.get("organization")
+        return heading, subheading
+    if kind == "education":
+        heading = content.get("degree") or content.get("program")
+        subheading = content.get("school") or content.get("institution") or content.get("university")
+        return heading, subheading
+    return None, None
 
 
 def _section_kind(kind: str) -> str:
@@ -175,14 +200,19 @@ def accept_import(db: Session, user_id: str, body: CvImportAccept) -> CvDocument
                         ),
                     )
                     staged_items.append(item)
-                entries.append(
-                    {
-                        "id": entry.id,
-                        "evidence_item_id": None if item is None else item.id,
-                        "body": entry.body,
-                        "position": entry.position,
-                    }
-                )
+                stored_entry = {
+                    "id": entry.id,
+                    "evidence_item_id": None if item is None else item.id,
+                    "body": entry.body,
+                    "position": entry.position,
+                }
+                for field in ("heading", "subheading", "location", "start_date", "end_date"):
+                    value = getattr(entry, field)
+                    if value is not None:
+                        stored_entry[field] = value
+                if entry.bullets:
+                    stored_entry["bullets"] = entry.bullets
+                entries.append(stored_entry)
             sections.append(
                 {
                     "id": section.id,
@@ -217,7 +247,9 @@ def accept_import(db: Session, user_id: str, body: CvImportAccept) -> CvDocument
     return get_document(db, document.id, user_id)
 
 
-def update_document(db: Session, document: CvDocument, *, name=None, sections=None):
+def update_document(
+    db: Session, document: CvDocument, *, name=None, sections=None, style: CvStyle | None = None
+):
     if name is not None:
         document.name = name
     if sections is not None:
@@ -229,6 +261,8 @@ def update_document(db: Session, document: CvDocument, *, name=None, sections=No
         }
         _validate_evidence(db, document.user_id, sections, already_linked=already_linked)
         document.sections = deepcopy(sections)
+    if style is not None:
+        document.style = style.model_dump()
     db.commit()
     safe_record_activation_event(db, event_name="studio_document_updated")
     return get_document(db, document.id, document.user_id)

@@ -16,6 +16,7 @@ const quality: CvQualityResponse = {
     { key: 'text_layer', label: 'Text layer', status: 'fail', explanation: 'The export has no selectable text.', remediation: 'Re-export from a studio template.' },
   ],
   history_id: 'h1', access_mode: 'authenticated', saved: true, locked_actions: [],
+  ats_score: 72, ats_fixes: [],
 }
 
 function view() {
