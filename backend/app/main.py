@@ -12,7 +12,12 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.responses import JSONResponse, Response
 
-from app.config import resolve_allowed_origins, settings, validate_origin_config
+from app.config import (
+    resolve_allowed_origins,
+    settings,
+    validate_llm_provider_config,
+    validate_origin_config,
+)
 from app.feature_gates import (
     require_r12_enabled,
     require_r14_enabled,
@@ -324,6 +329,7 @@ if settings.SECRET_KEY == _DEFAULT_SECRET and settings.ENVIRONMENT != "developme
 
 validate_abuse_control_config()
 validate_origin_config()
+validate_llm_provider_config()
 
 if settings.LLM_PROVIDER.lower() == "vertex" and not settings.VERTEX_PROJECT_ID:
     logger.critical(
