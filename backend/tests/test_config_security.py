@@ -1,7 +1,12 @@
 import pytest
 from pydantic import ValidationError
 
-from app.config import Settings, resolve_allowed_origins, validate_origin_config
+from app.config import (
+    Settings,
+    resolve_allowed_origins,
+    validate_llm_provider_config,
+    validate_origin_config,
+)
 
 
 def test_only_accepted_hs256_token_algorithm_is_configurable():
@@ -145,3 +150,29 @@ def test_resolved_origins_trim_entries_and_append_frontend_url_once(monkeypatch)
         "https://www.example.com",
         "https://cdn.example.com",
     ]
+
+
+@pytest.mark.parametrize("provider", ["fake", "FAKE", " fake "])
+def test_non_development_refuses_the_fake_llm_provider(monkeypatch, provider):
+    monkeypatch.setattr("app.config.settings.ENVIRONMENT", "production")
+    monkeypatch.setattr("app.config.settings.LLM_PROVIDER", provider)
+
+    with pytest.raises(RuntimeError, match="LLM_PROVIDER=fake"):
+        validate_llm_provider_config()
+
+
+@pytest.mark.parametrize(
+    ("environment", "provider"),
+    [
+        ("development", "fake"),
+        ("production", "vertex"),
+        ("production", "anthropic"),
+    ],
+)
+def test_llm_provider_config_allows_real_providers_and_local_fake(
+    monkeypatch, environment, provider
+):
+    monkeypatch.setattr("app.config.settings.ENVIRONMENT", environment)
+    monkeypatch.setattr("app.config.settings.LLM_PROVIDER", provider)
+
+    validate_llm_provider_config()

@@ -12,6 +12,7 @@ from __future__ import annotations
 import os
 
 from alembic.config import Config
+from alembic.script import ScriptDirectory
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.engine import make_url
 
@@ -126,7 +127,7 @@ def main() -> None:
     _assert_stable_rows(engine)
     with engine.connect() as connection:
         assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() \
-            == "c4a8e2f6b1d9"
+            == ScriptDirectory.from_config(config).get_current_head()
 
     command.downgrade(config, STABLE_DEPLOY_REVISION)
     _assert_stable_rows(engine)

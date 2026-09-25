@@ -133,6 +133,22 @@ def resolve_allowed_origins() -> list[str]:
     return origins
 
 
+def validate_llm_provider_config() -> None:
+    """Refuse to boot outside development on the canned-fixture LLM provider.
+
+    `LLM_PROVIDER=fake` serves deterministic demo fixtures instead of model
+    output. Outside development that would silently hand users canned results,
+    so it is a boot refusal, matching `validate_origin_config`.
+    """
+    if settings.ENVIRONMENT == "development":
+        return
+    if settings.LLM_PROVIDER.strip().lower() == "fake":
+        raise RuntimeError(
+            "LLM_PROVIDER=fake serves canned demo fixtures and is only allowed "
+            f"in development, not {settings.ENVIRONMENT}."
+        )
+
+
 def validate_origin_config() -> None:
     """Refuse to boot outside development on an unusable origin configuration.
 
