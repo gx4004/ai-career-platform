@@ -278,10 +278,10 @@ async def test_evidence_import_fake_provider_is_not_degraded():
 
 
 @pytest.mark.asyncio
-async def test_application_packets_compose_materials_fake_provider_is_not_degraded():
-    from app.services import application_packets
+async def test_application_drafts_fake_provider_is_not_degraded():
+    from app.services import application_drafts
 
-    result = await application_packets.compose_packet_materials(
+    result = await application_drafts.compose_application_drafts(
         resume_text=RESUME_TEXT,
         job_description=JOB_DESCRIPTION,
         listing_title="Backend Engineer",
@@ -293,7 +293,7 @@ async def test_application_packets_compose_materials_fake_provider_is_not_degrad
     assert result["screening_answers"]
     # Both fixture questions are generic ("why are you a fit" / "relevant
     # experience") and must not trip the never-draft stop-question classifier.
-    assert result["unresolved_questions"] == []
+    assert result["open_questions"] == []
 
 
 # ---------------------------------------------------------------------------

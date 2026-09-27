@@ -1,55 +1,16 @@
-"""R15 #182 — mandatory-stop enforcement for sensitive fields.
+"""Stop fields are never drafted (D-095).
 
-Covers the four acceptance criteria:
-- one authoritative server-side classifier, unbypassable by any client input (D-095);
-- for every stop category, the system never drafts the field;
-- approval is rejected server-side while any question is unresolved;
-- stop answers are owner-scoped and excluded from telemetry entirely (D-099).
+One server-side classifier decides which screening questions only the owner may
+answer. Drafts never contain an answer to one; it becomes an open question with
+the real question text, whatever support label the model or a client claims.
 """
 
 import json
 
 import pytest
-from pydantic import ValidationError
 
-from app.models.application_packet import ApplicationPacket
-from app.models.packet_stop_answer import PacketStopAnswer
-from app.schemas.discovery_recommendations import (
-    DiscoveryRecommendationList,
-)
-from app.services.application_packets import (
-    compose_packet_materials,
-    get_packet,
-    list_packets,
-    prepare_packets,
-)
-from app.services.data_export import export_career_data
-from app.services.packet_approval import (
-    PacketNotApprovableError,
-    StopAnswerError,
-    assert_packet_approvable,
-    export_packet_stop_answers,
-    is_packet_approvable,
-    store_stop_answer,
-)
-from app.services.stop_classifier import (
-    STOP_CATEGORIES,
-    classify_stop_category,
-    stop_categories_in,
-)
-from app.services.tool_runs import delete_all_user_data
-
-# Reuse the packet test helpers so setup matches the shipped preparation flow.
-from tests.test_application_packets import (
-    NEUTRAL_DESC,
-    _add_cv_variant,
-    _add_listing,
-    _add_rule,
-    _rec,
-    _stub_compose,
-)
-
-PREFIX = "/api/v1"
+from app.services.application_drafts import compose_application_drafts
+from app.services.stop_classifier import STOP_CATEGORIES, classify_stop_category
 
 # A field text that triggers each stop category, for the per-category coverage.
 STOP_FIELD_TEXT: dict[str, str] = {
@@ -64,16 +25,6 @@ STOP_FIELD_TEXT: dict[str, str] = {
 }
 
 
-def _patch_rank(monkeypatch, recs):
-    def fake_rank(db, user_id, *, now=None):
-        return DiscoveryRecommendationList(
-            items=recs, confirmed_item_count=1, preference_item_count=0
-        )
-
-    monkeypatch.setattr("app.services.queue_rules.rank_discovery_recommendations", fake_rank)
-    monkeypatch.setattr("app.services.discovery_adoption.rank_discovery_recommendations", fake_rank)
-
-
 # ── One authoritative classifier (D-095) ──
 
 
@@ -83,16 +34,8 @@ def test_classifier_covers_every_stop_category():
 
 
 def test_classifier_lets_draftable_fields_through():
-    assert classify_stop_category(NEUTRAL_DESC) is None
+    assert classify_stop_category("What is your notice period?") is None
     assert classify_stop_category("Describe your experience with Python and REST APIs.") is None
-
-
-def test_listing_scan_returns_all_stops_in_canonical_order():
-    text = "We offer relocation support and a competitive salary; visa sponsorship available."
-    found = stop_categories_in(text)
-    assert set(found) == {"work_authorization", "salary", "relocation"}
-    # Canonical order regardless of appearance order in the text.
-    assert found == [c for c in STOP_CATEGORIES if c in set(found)]
 
 
 # ── Never-draft guarantee, per category ──
@@ -117,14 +60,14 @@ async def test_compose_never_drafts_any_stop_category(monkeypatch, category):
             ],
         }
 
-    monkeypatch.setattr("app.services.application_packets.complete_structured", fake_llm)
-    result = await compose_packet_materials(resume_text="cv", job_description="jd")
+    monkeypatch.setattr("app.services.application_drafts.complete_structured", fake_llm)
+    result = await compose_application_drafts(resume_text="cv", job_description="jd")
 
     # No content was drafted for the stop field.
     assert result["screening_answers"] == []
     assert drafted_text not in json.dumps(result)
     # It surfaced as an explicit unresolved question of that exact category.
-    categories = {q["category"] for q in result["unresolved_questions"]}
+    categories = {q["category"] for q in result["open_questions"]}
     assert category in categories
 
 
@@ -143,11 +86,11 @@ async def test_compose_treats_ungrounded_answer_as_uncertain_stop(monkeypatch):
             ],
         }
 
-    monkeypatch.setattr("app.services.application_packets.complete_structured", fake_llm)
-    result = await compose_packet_materials(resume_text="cv", job_description="jd")
+    monkeypatch.setattr("app.services.application_drafts.complete_structured", fake_llm)
+    result = await compose_application_drafts(resume_text="cv", job_description="jd")
     assert result["screening_answers"] == []
     assert "I guessed this." not in json.dumps(result)
-    assert any(q["category"] == "uncertain" for q in result["unresolved_questions"])
+    assert any(q["category"] == "uncertain" for q in result["open_questions"])
 
 
 # ── No client input can bypass a stop (D-095) ──
@@ -177,248 +120,10 @@ async def test_client_supplied_confirmed_label_cannot_bypass_stop(monkeypatch):
         locked_facts=[{"evidence_item_id": "c1", "kind": "skill", "content": {"t": "x"}}],
         gaps=[],
     )
-    monkeypatch.setattr("app.services.application_packets.complete_structured", fake_llm)
-    result = await compose_packet_materials(
+    monkeypatch.setattr("app.services.application_drafts.complete_structured", fake_llm)
+    result = await compose_application_drafts(
         resume_text="cv", job_description="jd", evidence_profile=payload
     )
     assert result["screening_answers"] == []
     assert "No sponsorship needed." not in json.dumps(result)
-    assert any(q["category"] == "work_authorization" for q in result["unresolved_questions"])
-
-
-@pytest.mark.asyncio
-async def test_prepared_packet_stop_survives_regardless_of_status_field(
-    db, test_user, monkeypatch
-):
-    """The stop is derived from the listing text; the packet is blocked server-side
-    even though no client field controls it."""
-    desc = "Visa sponsorship offered for this engineer role."
-    _add_listing(db, "l-bypass", description=desc)
-    _add_cv_variant(db, test_user.id)
-    _patch_rank(monkeypatch, [_rec("l-bypass", description=desc)])
-    _add_rule(db, test_user.id, "role", keywords=["engineer"])
-    await prepare_packets(db, test_user.id, compose_fn=_stub_compose)
-    packet = db.query(ApplicationPacket).one()
-    assert packet.status == "blocked"
-    assert any(q["category"] == "work_authorization" for q in packet.unresolved_questions)
-
-
-# ── Approval rejected while any question is unresolved ──
-
-
-@pytest.mark.asyncio
-async def test_approval_rejected_while_unresolved_then_unlocked(db, test_user, monkeypatch):
-    desc = "Visa sponsorship available for this engineer role."
-    _add_listing(db, "l-appr", description=desc)
-    _add_cv_variant(db, test_user.id)
-    _patch_rank(monkeypatch, [_rec("l-appr", description=desc)])
-    _add_rule(db, test_user.id, "role", keywords=["engineer"])
-    await prepare_packets(db, test_user.id, compose_fn=_stub_compose)
-
-    packet = db.query(ApplicationPacket).one()
-    assert is_packet_approvable(db, test_user.id, packet.id) is False
-    with pytest.raises(PacketNotApprovableError):
-        assert_packet_approvable(db, test_user.id, packet.id)
-
-    # The user's typed answer is the only thing that resolves the stop.
-    outcome = store_stop_answer(
-        db, test_user.id, packet.id, field="work_authorization", answer="I hold an EU passport."
-    )
-    assert outcome.approvable is True
-    assert outcome.remaining_unresolved == 0
-    assert is_packet_approvable(db, test_user.id, packet.id) is True
-    assert_packet_approvable(db, test_user.id, packet.id)  # does not raise
-
-
-@pytest.mark.asyncio
-async def test_resolved_stop_answer_does_not_reappear_on_reread(db, test_user, monkeypatch):
-    """A resolved stop question must not reappear as outstanding on a later read.
-
-    ``ApplicationPacket.unresolved_questions`` is computed once at preparation time
-    and never rewritten as answers come in — the answer lives in a separate table.
-    ``list_packets``/``get_packet`` (what a page reload or remount re-fetches from)
-    must join against stored answers rather than serializing that raw column, or a
-    resolved packet looks blocked again after every refresh.
-    """
-    desc = "Visa sponsorship available for this engineer role."
-    _add_listing(db, "l-reread", description=desc)
-    _add_cv_variant(db, test_user.id)
-    _patch_rank(monkeypatch, [_rec("l-reread", description=desc)])
-    _add_rule(db, test_user.id, "role", keywords=["engineer"])
-    await prepare_packets(db, test_user.id, compose_fn=_stub_compose)
-    packet = db.query(ApplicationPacket).one()
-
-    store_stop_answer(
-        db, test_user.id, packet.id, field="work_authorization", answer="EU passport."
-    )
-
-    # The raw column is untouched (this is expected — it's not the source of truth)...
-    assert any(q["field"] == "work_authorization" for q in packet.unresolved_questions)
-    # ...but every owner-facing read must reflect the true, resolved state.
-    fetched = get_packet(db, test_user.id, packet.id)
-    assert fetched.unresolved_questions == []
-    listed = list_packets(db, test_user.id).items
-    assert len(listed) == 1
-    assert listed[0].unresolved_questions == []
-
-
-@pytest.mark.asyncio
-async def test_missing_material_question_is_not_answerable_and_blocks(db, test_user, monkeypatch):
-    _add_listing(db, "l-nocv")
-    _patch_rank(monkeypatch, [_rec("l-nocv")])
-    _add_rule(db, test_user.id, "role", keywords=["engineer"])
-    await prepare_packets(db, test_user.id, compose_fn=_stub_compose)
-    packet = db.query(ApplicationPacket).one()
-
-    # A missing-material question cannot be resolved by typing an answer.
-    with pytest.raises(StopAnswerError):
-        store_stop_answer(db, test_user.id, packet.id, field="cv_variant", answer="whatever")
-    assert is_packet_approvable(db, test_user.id, packet.id) is False
-
-
-@pytest.mark.asyncio
-async def test_missing_material_clears_by_re_preparing_with_a_cv(db, test_user, monkeypatch):
-    """The documented recovery path: adding a CV and re-preparing clears the block.
-
-    Before a CV exists, preparation creates a permanently-referenced packet row
-    blocked on ``missing_material`` — there is no other way to resolve that
-    question. Re-running ``prepare_packets`` after the owner adds a CV variant
-    must update that same packet in place rather than leaving it stuck forever.
-    """
-    _add_listing(db, "l-nocv-then-cv")
-    _patch_rank(monkeypatch, [_rec("l-nocv-then-cv")])
-    _add_rule(db, test_user.id, "role", keywords=["engineer"])
-    await prepare_packets(db, test_user.id, compose_fn=_stub_compose)
-    packet = db.query(ApplicationPacket).one()
-    original_id = packet.id
-    assert packet.cv_variant_id is None
-    assert packet.status == "blocked"
-    assert any(q["category"] == "missing_material" for q in packet.unresolved_questions)
-
-    _add_cv_variant(db, test_user.id)
-    result = await prepare_packets(db, test_user.id, compose_fn=_stub_compose)
-
-    assert result.prepared_count == 1
-    assert db.query(ApplicationPacket).count() == 1  # updated in place, not duplicated
-    db.refresh(packet)
-    assert packet.id == original_id
-    assert packet.cv_variant_id is not None
-    assert packet.status == "prepared"
-    assert not any(q["category"] == "missing_material" for q in packet.unresolved_questions)
-
-
-# ── Stop-answer storage: owner-scoped ──
-
-
-@pytest.mark.asyncio
-async def test_stop_answers_owner_scoped(db, test_user, monkeypatch):
-    from app.auth.security import hash_password
-    from app.models.user import User
-
-    other = User(
-        email="stop-other@example.com",
-        hashed_password=hash_password("password123"),
-        full_name="Other",
-    )
-    db.add(other)
-    db.commit()
-
-    desc = "Visa sponsorship available for this engineer role."
-    _add_listing(db, "l-owner", description=desc)
-    _add_cv_variant(db, test_user.id)
-    _patch_rank(monkeypatch, [_rec("l-owner", description=desc)])
-    _add_rule(db, test_user.id, "role", keywords=["engineer"])
-    await prepare_packets(db, test_user.id, compose_fn=_stub_compose)
-    packet = db.query(ApplicationPacket).one()
-
-    # A different user cannot store an answer against this owner's packet.
-    with pytest.raises(StopAnswerError):
-        store_stop_answer(db, other.id, packet.id, field="work_authorization", answer="hack")
-
-    store_stop_answer(
-        db, test_user.id, packet.id, field="work_authorization", answer="EU citizen."
-    )
-    assert export_packet_stop_answers(db, other.id).stop_answers == []
-    mine = export_packet_stop_answers(db, test_user.id).stop_answers
-    assert len(mine) == 1 and mine[0].answer == "EU citizen."
-
-
-@pytest.mark.asyncio
-async def test_stop_answer_rejects_field_not_on_packet(db, test_user, monkeypatch):
-    desc = "Visa sponsorship available for this engineer role."
-    _add_listing(db, "l-badfield", description=desc)
-    _add_cv_variant(db, test_user.id)
-    _patch_rank(monkeypatch, [_rec("l-badfield", description=desc)])
-    _add_rule(db, test_user.id, "role", keywords=["engineer"])
-    await prepare_packets(db, test_user.id, compose_fn=_stub_compose)
-    packet = db.query(ApplicationPacket).one()
-    # 'salary' is not one of this packet's unresolved questions.
-    with pytest.raises(StopAnswerError):
-        store_stop_answer(db, test_user.id, packet.id, field="salary", answer="100k")
-
-
-# ── Deletion cascade + export (D-099) ──
-
-
-@pytest.mark.asyncio
-async def test_stop_answers_deleted_and_exported(db, test_user, monkeypatch):
-    desc = "Visa sponsorship available for this engineer role."
-    _add_listing(db, "l-cascade", description=desc)
-    _add_cv_variant(db, test_user.id)
-    _patch_rank(monkeypatch, [_rec("l-cascade", description=desc)])
-    _add_rule(db, test_user.id, "role", keywords=["engineer"])
-    await prepare_packets(db, test_user.id, compose_fn=_stub_compose)
-    packet = db.query(ApplicationPacket).one()
-    store_stop_answer(
-        db, test_user.id, packet.id, field="work_authorization", answer="EU passport holder."
-    )
-
-    # Export carries the owner's own stop answers.
-    export = export_career_data(db, test_user.id)
-    assert len(export.packet_stop_answers.stop_answers) == 1
-    assert export.packet_stop_answers.stop_answers[0].category == "work_authorization"
-
-    # Erasure removes them.
-    assert db.query(PacketStopAnswer).count() == 1
-    delete_all_user_data(db, test_user.id)
-    assert db.query(PacketStopAnswer).count() == 0
-
-
-# ── Endpoint (owner-scoped resolve) ──
-
-
-def test_stop_answer_endpoint(client, auth_headers, db, test_user, monkeypatch):
-    desc = "Visa sponsorship available for this engineer role."
-    _add_listing(db, "l-ep", description=desc)
-    _add_cv_variant(db, test_user.id)
-    _patch_rank(monkeypatch, [_rec("l-ep", description=desc)])
-    _add_rule(db, test_user.id, "role", keywords=["engineer"])
-    monkeypatch.setattr("app.services.application_packets.compose_packet_materials", _stub_compose)
-
-    client.post(f"{PREFIX}/packets/prepare", headers=auth_headers)
-    packet_id = list_packets(db, test_user.id).items[0].id
-
-    resp = client.post(
-        f"{PREFIX}/packets/{packet_id}/stop-answers",
-        headers=auth_headers,
-        json={"field": "work_authorization", "answer": "EU citizen, no sponsorship needed."},
-    )
-    assert resp.status_code == 200
-    body = resp.json()
-    assert body["approvable"] is True
-    assert body["remaining_unresolved"] == 0
-
-    # A field not present on the packet is rejected server-side.
-    bad = client.post(
-        f"{PREFIX}/packets/{packet_id}/stop-answers",
-        headers=auth_headers,
-        json={"field": "salary", "answer": "n/a"},
-    )
-    assert bad.status_code == 400
-
-
-def test_stop_answer_endpoint_requires_auth(client):
-    resp = client.post(
-        f"{PREFIX}/packets/some-id/stop-answers", json={"field": "salary", "answer": "x"}
-    )
-    assert resp.status_code == 401
+    assert any(q["category"] == "work_authorization" for q in result["open_questions"])

@@ -4,22 +4,165 @@ import {
   developmentResponseKindSchema,
 } from '#/lib/api/developmentSchemas'
 import { gapClassificationSchema, gapKindSchema } from '#/lib/api/gapClassificationSchemas'
-import {
-  applicationPacketsExportSchema,
-  packetApprovalSnapshotsExportSchema,
-  packetStopAnswersExportSchema,
-} from '#/lib/api/packetSchemas'
-import { queueAuditExportSchema, queueRulesExportSchema } from '#/lib/api/queueSchemas'
 
-export const campaignStatusSchema = z.enum([
-  'planning', 'preparing', 'applied', 'interviewing',
-  'offer', 'accepted', 'rejected', 'withdrawn',
+// ── Applications (mirrors backend/app/schemas/applications.py) ──
+// Timestamps may carry the database session's UTC offset (e.g. +02:00), not only Z.
+const offsetDateTime = z.iso.datetime({ offset: true })
+
+export const applicationStatusSchema = z.enum([
+  'saved', 'applied', 'interviewing', 'offer', 'rejected', 'withdrawn',
 ])
-export type CampaignStatus = z.infer<typeof campaignStatusSchema>
-export const campaignListingSchema = z.strictObject({
+export type ApplicationStatus = z.infer<typeof applicationStatusSchema>
+export const applicationListingSchema = z.strictObject({
   title: z.string(), company: z.string(), description: z.string(),
-  source_url: z.string().url().nullable(), retrieved_at: z.iso.datetime({ offset: true }),
+  source_url: z.string().url().nullable(),
+  apply_url: z.string().url().nullable().default(null),
+  retrieved_at: offsetDateTime,
 })
+export const applicationTaskSchema = z.object({
+  id: z.string(), title: z.string(), deadline: offsetDateTime.nullable(),
+  completed: z.boolean(), created_at: offsetDateTime,
+})
+// One event shape for the page's activity list and the data export (which omits provenance).
+export const applicationEventSchema = z.object({
+  id: z.string(), event_type: z.string(), details: z.record(z.string(), z.unknown()),
+  provenance: z.enum(['user', 'system']).default('user'), created_at: offsetDateTime,
+})
+export const applicationSnapshotSchema = z.object({
+  id: z.string(), content: z.record(z.string(), z.unknown()),
+  content_sha256: z.string().length(64), created_at: offsetDateTime,
+})
+export const applicationCardSchema = z.object({
+  id: z.string(),
+  label: z.string().nullable().default(null),
+  title: z.string().nullable().default(null),
+  company: z.string().nullable().default(null),
+  status: applicationStatusSchema,
+  deadline: offsetDateTime.nullable().default(null),
+  applied_at: offsetDateTime.nullable().default(null),
+  match_score: z.number().int().nullable().default(null),
+  prepared: z.boolean().default(false),
+  ready: z.boolean().default(false),
+  open_question_count: z.number().int().nonnegative().default(0),
+  next_task: z.object({ title: z.string(), deadline: offsetDateTime.nullable() }).nullable().default(null),
+  last_activity_at: offsetDateTime.nullable().default(null),
+  is_pinned: z.boolean().default(false),
+  updated_at: offsetDateTime,
+})
+export const applicationListSchema = z.object({
+  items: z.array(applicationCardSchema),
+  total: z.number(),
+})
+const cvVariantReferenceSchema = z.object({
+  id: z.string(), document_id: z.string(), document_name: z.string(), name: z.string(),
+  target_role: z.string().nullable().default(null), created_at: offsetDateTime,
+})
+const runReferenceSchema = z.object({
+  id: z.string(), label: z.string().nullable().default(null),
+  parent_run_id: z.string().nullable().default(null), created_at: offsetDateTime,
+})
+export const applicationDetailSchema = applicationCardSchema.extend({
+  role: z.string().nullable().default(null),
+  listing: applicationListingSchema.nullable().default(null),
+  notes: z.string().nullable().default(null),
+  selected_materials: z.object({
+    cv_variant: cvVariantReferenceSchema.nullable(),
+    cover_letter: runReferenceSchema.nullable(),
+    interview: runReferenceSchema.nullable(),
+  }),
+  available_materials: z.object({
+    cv_variants: z.array(cvVariantReferenceSchema),
+    cover_letters: z.array(runReferenceSchema),
+    interviews: z.array(runReferenceSchema),
+  }),
+  drafts: z.object({
+    run_id: z.string(),
+    created_at: offsetDateTime,
+    cover_letter: z.object({
+      body: z.string(),
+      support: z.enum(['confirmed', 'document', 'unsupported']),
+      evidence_item_ids: z.array(z.string()).default([]),
+    }).nullable().default(null),
+    screening_answers: z.array(z.object({
+      question: z.string(),
+      answer: z.string(),
+      support: z.enum(['confirmed', 'document']),
+      evidence_item_ids: z.array(z.string()).default([]),
+    })).default([]),
+  }).nullable().default(null),
+  open_questions: z.array(z.object({
+    key: z.string(), question: z.string(), category: z.string(), answered: z.boolean().default(false),
+  })).default([]),
+  answers: z.record(z.string(), z.string()).default({}),
+  tasks: z.array(applicationTaskSchema).default([]),
+  events: z.array(applicationEventSchema).default([]),
+  snapshot: applicationSnapshotSchema.nullable().default(null),
+})
+export const applicationUpdateSchema = z.strictObject({
+  label: z.string().max(200).nullable().optional(),
+  company: z.string().max(200).nullable().optional(),
+  role: z.string().max(200).nullable().optional(),
+  status: applicationStatusSchema.optional(),
+  deadline: offsetDateTime.nullable().optional(),
+  notes: z.string().max(20_000).nullable().optional(),
+  cv_variant_id: z.string().nullable().optional(),
+  cover_letter_run_id: z.string().nullable().optional(),
+  interview_run_id: z.string().nullable().optional(),
+}).refine((value) => Object.keys(value).length > 0)
+export const applicationPreferencesSchema = z.object({
+  keywords: z.array(z.string()).default([]),
+  locations: z.array(z.string()).default([]),
+  remote: z.boolean().default(false),
+  max_per_run: z.number().int().min(1),
+  max_per_run_limit: z.number().int().min(1).default(10),
+  is_default: z.boolean().default(false),
+})
+export const applicationPreferencesUpdateSchema = z.strictObject({
+  keywords: z.array(z.string().max(100)).max(20),
+  locations: z.array(z.string().max(100)).max(20),
+  remote: z.boolean(),
+  max_per_run: z.number().int().min(1).max(10),
+})
+export const bulkPrepareResultSchema = z.object({
+  reason: z.enum(['prepared', 'no_preferences', 'no_cv']),
+  prepared: z.array(applicationCardSchema).default([]),
+  matched_count: z.number().int().nonnegative().default(0),
+  skipped_existing_count: z.number().int().nonnegative().default(0),
+  max_per_run: z.number().int(),
+})
+export const autofillReportSchema = z.object({
+  filled: z.array(z.string()),
+  skipped: z.array(z.string()),
+  url: z.string(),
+})
+const runExportSchema = z.object({
+  id: z.string(), tool_name: z.string(), label: z.string().nullable(),
+  parent_run_id: z.string().nullable(), result_payload: z.record(z.string(), z.unknown()),
+  created_at: offsetDateTime,
+})
+export const applicationsExportSchema = z.strictObject({
+  application_count: z.number().int().nonnegative(),
+  applications: z.array(z.object({
+    id: z.string(), label: z.string().nullable(), is_pinned: z.boolean(),
+    company: z.string().nullable(), role: z.string().nullable(),
+    status: applicationStatusSchema.nullable(),
+    deadline: offsetDateTime.nullable(), applied_at: offsetDateTime.nullable(),
+    match_score: z.number().int().nullable(), notes: z.string().nullable(),
+    open_questions: z.array(z.record(z.string(), z.unknown())).default([]),
+    answers: z.record(z.string(), z.string()).default({}),
+    created_at: offsetDateTime, updated_at: offsetDateTime,
+    listing: applicationListingSchema.nullable().default(null),
+    listing_revisions: z.array(applicationListingSchema).default([]),
+    selected_cv_variant_id: z.string().nullable().default(null),
+    selected_cover_letter: runExportSchema.nullable().default(null),
+    selected_interview: runExportSchema.nullable().default(null),
+    drafts: runExportSchema.nullable().default(null),
+    tasks: z.array(applicationTaskSchema).default([]),
+    snapshot: applicationSnapshotSchema.nullable().default(null),
+    events: z.array(applicationEventSchema.omit({ provenance: true })).default([]),
+  })),
+  preferences: applicationPreferencesSchema.nullable().default(null),
+}).refine((value) => value.application_count === value.applications.length)
 
 export const evidenceKindSchema = z.enum([
   'experience', 'achievement', 'skill', 'education', 'project',
@@ -273,36 +416,8 @@ export const careerDataExportSchema = z.strictObject({
   item_count: z.number().int().nonnegative(), items: z.array(evidenceItemSchema),
   cv_documents: cvDocumentsExportSchema,
   personalization: discoveryPersonalizationExportSchema,
-  queue_rules: queueRulesExportSchema,
-  application_packets: applicationPacketsExportSchema,
-  packet_stop_answers: packetStopAnswersExportSchema,
-  packet_approval_snapshots: packetApprovalSnapshotsExportSchema,
-  queue_audit: queueAuditExportSchema,
   development: developmentLoopExportSchema,
-  campaigns: z.strictObject({
-    campaign_count: z.number().int().nonnegative(),
-    campaigns: z.array(z.object({
-      id: z.string(), label: z.string().nullable(), is_pinned: z.boolean(),
-      company: z.string().nullable(), role: z.string().nullable(),
-      status: campaignStatusSchema.nullable(),
-      deadline: z.iso.datetime({ offset: true }).nullable(), reminders_enabled: z.boolean().default(false), created_at: z.iso.datetime(), updated_at: z.iso.datetime(),
-      listing: campaignListingSchema.nullable().default(null),
-      listing_revisions: z.array(campaignListingSchema).default([]),
-      events: z.array(z.object({
-        id: z.string(), event_type: z.enum(['status_changed', 'deadline_changed', 'listing_attached', 'listing_adopted', 'material_selection_changed', 'task_created', 'task_completed', 'task_reopened', 'task_deleted', 'note_added', 'note_deleted', 'contact_added', 'contact_deleted', 'submission_snapshot_created', 'packet_approved', 'submission_confirmed']),
-        details: z.record(z.string(), z.unknown()), created_at: z.iso.datetime(),
-      })),
-      tasks: z.array(z.object({ id: z.string(), title: z.string(), deadline: z.iso.datetime({ offset: true }).nullable(), completed: z.boolean(), created_at: z.iso.datetime() })).default([]),
-      notes: z.array(z.object({ id: z.string(), text: z.string(), created_at: z.iso.datetime() })).default([]),
-      contacts: z.array(z.object({ id: z.string(), name: z.string(), role: z.string().nullable(), channel: z.string().nullable(), created_at: z.iso.datetime() })).default([]),
-      submission_snapshots: z.array(z.object({ id: z.string(), content: z.record(z.string(), z.unknown()), content_sha256: z.string(), created_at: z.iso.datetime() })).default([]),
-      selected_cv_variant_id: z.string().nullable().default(null),
-      selected_cover_letter_run_id: z.string().nullable().default(null),
-      selected_interview_run_id: z.string().nullable().default(null),
-      selected_cover_letter: z.object({ id: z.string(), tool_name: z.literal('cover-letter'), label: z.string().nullable(), parent_run_id: z.string().nullable(), result_payload: z.record(z.string(), z.unknown()), created_at: z.iso.datetime() }).nullable().default(null),
-      selected_interview: z.object({ id: z.string(), tool_name: z.literal('interview'), label: z.string().nullable(), parent_run_id: z.string().nullable(), result_payload: z.record(z.string(), z.unknown()), created_at: z.iso.datetime() }).nullable().default(null),
-    })),
-  }).refine((value) => value.campaign_count === value.campaigns.length),
+  applications: applicationsExportSchema,
 }).refine((value) => value.item_count === value.items.length)
 export type CvEntry = z.infer<typeof cvEntrySchema>
 export type CvSection = z.infer<typeof cvSectionSchema>
@@ -493,9 +608,9 @@ export const toolRunSummarySchema = z.object({
       is_pinned: z.boolean().default(false),
       company: z.string().nullable().default(null),
       role: z.string().nullable().default(null),
-      status: campaignStatusSchema.nullable().default(null),
+      status: applicationStatusSchema.nullable().default(null),
       deadline: z.iso.datetime({ offset: true }).nullable().default(null),
-      listing: campaignListingSchema.nullable().default(null),
+      listing: applicationListingSchema.nullable().default(null),
       linked_run_ids: z.array(z.string()).default([]),
       last_active_tool: z.string().nullable().optional(),
       last_active_result_id: z.string().nullable().optional(),
@@ -524,74 +639,25 @@ export const workspaceSummarySchema = z.object({
   is_pinned: z.boolean().default(false),
   company: z.string().nullable().default(null),
   role: z.string().nullable().default(null),
-  status: campaignStatusSchema.nullable().default(null),
+  status: applicationStatusSchema.nullable().default(null),
   deadline: z.iso.datetime({ offset: true }).nullable().default(null),
-  listing: campaignListingSchema.nullable().default(null),
+  listing: applicationListingSchema.nullable().default(null),
   linked_run_ids: z.array(z.string()).default([]),
   last_active_tool: z.string().nullable().optional(),
   last_active_result_id: z.string().nullable().optional(),
   updated_at: z.string(),
-  // Filled only by the campaign list, for the pipeline board cards.
-  next_task: z
-    .object({ title: z.string(), deadline: z.iso.datetime({ offset: true }).nullable() })
-    .nullable()
-    .default(null),
-  last_activity_at: z.iso.datetime({ offset: true }).nullable().default(null),
 })
 
+// Label and pin only; application fields are edited through /applications.
 export const workspaceUpdateSchema = z.strictObject({
   label: z.string().max(200).nullable().optional(),
   is_pinned: z.boolean().optional(),
-  company: z.string().max(200).nullable().optional(),
-  role: z.string().max(200).nullable().optional(),
-  status: campaignStatusSchema.nullable().optional(),
-  deadline: z.iso.datetime({ offset: true }).nullable().optional(),
 }).refine((value) => Object.keys(value).length > 0)
 
 export const workspaceListSchema = z.object({
   items: z.array(workspaceSummarySchema),
   total: z.number(),
 })
-
-export const campaignCvVariantReferenceSchema = z.object({
-  id: z.string(), document_id: z.string(), document_name: z.string(), name: z.string(),
-  target_role: z.string().nullable().default(null), created_at: z.iso.datetime({ offset: true }),
-})
-export const campaignRunReferenceSchema = z.object({
-  id: z.string(), label: z.string().nullable().default(null),
-  parent_run_id: z.string().nullable().default(null), created_at: z.iso.datetime({ offset: true }),
-})
-// Timestamps may carry the database session's UTC offset (e.g. +02:00), not only Z.
-export const campaignEventSchema = z.object({ id: z.string(), event_type: z.string(), details: z.record(z.string(), z.unknown()), provenance: z.enum(['user', 'system']), created_at: z.iso.datetime({ offset: true }) })
-export const campaignTaskSchema = z.object({ id: z.string(), title: z.string(), deadline: z.iso.datetime({ offset: true }).nullable(), completed: z.boolean(), created_at: z.iso.datetime({ offset: true }) })
-export const campaignNoteSchema = z.object({ id: z.string(), text: z.string(), created_at: z.iso.datetime({ offset: true }) })
-export const campaignContactSchema = z.object({ id: z.string(), name: z.string(), role: z.string().nullable(), channel: z.string().nullable(), created_at: z.iso.datetime({ offset: true }) })
-export const campaignReminderResponseSchema = z.object({
-  enabled: z.boolean(),
-  items: z.array(z.object({ kind: z.enum(['campaign_deadline', 'task_deadline']), task_id: z.string().nullable(), label: z.string(), deadline: z.iso.datetime({ offset: true }) })),
-  next_surface_at: z.iso.datetime({ offset: true }).nullable(),
-})
-export const campaignSubmissionSnapshotSchema = z.object({ id: z.string(), content: z.record(z.string(), z.unknown()), content_sha256: z.string().length(64), created_at: z.iso.datetime({ offset: true }) })
-export const campaignDetailSchema = workspaceSummarySchema.extend({
-  selected_materials: z.object({
-    cv_variant: campaignCvVariantReferenceSchema.nullable(),
-    cover_letter: campaignRunReferenceSchema.nullable(),
-    interview: campaignRunReferenceSchema.nullable(),
-  }),
-  available_materials: z.object({
-    cv_variants: z.array(campaignCvVariantReferenceSchema),
-    cover_letters: z.array(campaignRunReferenceSchema),
-    interviews: z.array(campaignRunReferenceSchema),
-  }),
-  events: z.array(campaignEventSchema), tasks: z.array(campaignTaskSchema),
-  notes: z.array(campaignNoteSchema), contacts: z.array(campaignContactSchema),
-  submission_snapshots: z.array(campaignSubmissionSnapshotSchema),
-})
-export const campaignMaterialSelectionSchema = z.strictObject({
-  cv_variant_id: z.string().nullable().optional(),
-  cover_letter_run_id: z.string().nullable().optional(),
-  interview_run_id: z.string().nullable().optional(),
-}).refine((value) => Object.keys(value).length > 0)
 
 export const deletedResponseSchema = z.object({
   deleted: z.number(),
@@ -880,11 +946,11 @@ export const sharedResultEnvelopeSchema = z.object({
   locked_actions: z.array(z.enum(['save', 'favorite', 'continue', 'history'])).default([]),
 })
 
-export const campaignReviewFindingSchema = z.object({
+export const applicationReviewFindingSchema = z.object({
   id: z.string(), category: z.enum(['unsupported_claim', 'missed_requirement', 'contradiction', 'generic_language', 'repetition', 'document_defect']),
   severity: z.enum(['high', 'medium', 'low']), message: z.string(), locations: z.array(z.string()), trace: z.array(z.string()),
 })
-export const campaignReviewResponseSchema = sharedResultEnvelopeSchema.extend({ findings: z.array(campaignReviewFindingSchema) })
+export const applicationReviewResponseSchema = sharedResultEnvelopeSchema.extend({ findings: z.array(applicationReviewFindingSchema) })
 
 export const resumeResultSchema = sharedResultEnvelopeSchema
   .extend({
@@ -1068,9 +1134,18 @@ export type ToolRunList = z.infer<typeof toolRunListSchema>
 export type WorkspaceSummary = z.infer<typeof workspaceSummarySchema>
 export type WorkspaceList = z.infer<typeof workspaceListSchema>
 export type WorkspaceUpdate = z.input<typeof workspaceUpdateSchema>
-export type CampaignDetail = z.infer<typeof campaignDetailSchema>
-export type CampaignMaterialSelection = z.input<typeof campaignMaterialSelectionSchema>
-export type CampaignTask = z.infer<typeof campaignTaskSchema>
+export type ApplicationListing = z.infer<typeof applicationListingSchema>
+export type ApplicationCard = z.infer<typeof applicationCardSchema>
+export type ApplicationList = z.infer<typeof applicationListSchema>
+export type ApplicationDetail = z.infer<typeof applicationDetailSchema>
+export type ApplicationUpdate = z.input<typeof applicationUpdateSchema>
+export type ApplicationTask = z.infer<typeof applicationTaskSchema>
+export type ApplicationEvent = z.infer<typeof applicationEventSchema>
+export type ApplicationPreferences = z.infer<typeof applicationPreferencesSchema>
+export type ApplicationPreferencesUpdate = z.input<typeof applicationPreferencesUpdateSchema>
+export type BulkPrepareResult = z.infer<typeof bulkPrepareResultSchema>
+export type AutofillReport = z.infer<typeof autofillReportSchema>
+export type ApplicationReviewFinding = z.infer<typeof applicationReviewFindingSchema>
 export type ResumeResult = z.infer<typeof resumeResultSchema>
 export type JobMatchResult = z.infer<typeof jobMatchResultSchema>
 export type CoverLetterResult = z.infer<typeof coverLetterResultSchema>

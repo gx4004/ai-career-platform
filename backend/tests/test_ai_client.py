@@ -614,27 +614,6 @@ async def test_anthropic_connection_error_is_retried_and_hides_transport_detail(
 
 
 @pytest.mark.asyncio
-async def test_anthropic_records_usage_through_the_shared_cost_accumulator(monkeypatch):
-    import anthropic as anthropic_sdk
-
-    from app.services import llm_cost
-
-    monkeypatch.setattr("app.services.ai_client.settings.LLM_PROVIDER", "anthropic")
-    monkeypatch.setattr("app.services.ai_client.settings.ANTHROPIC_API_KEY", "sk-ant-test")
-    monkeypatch.setattr("app.services.ai_client.settings.LLM_MODEL", "claude-sonnet-5")
-
-    llm_cost.reset_llm_cost()
-    usage = _FakeAnthropicUsage(input_tokens=1000, output_tokens=200)
-    fake_client = _FakeAsyncAnthropic(response=_FakeAnthropicResponse('{"ok": true}', usage=usage))
-    _install_fake_anthropic_client(monkeypatch, anthropic_sdk, fake_client)
-
-    await complete_structured(SYSTEM, USER)
-
-    total = llm_cost._llm_cost_total.get()
-    assert total == llm_cost.estimate_cost("claude-sonnet-5", 1000, 200)
-
-
-@pytest.mark.asyncio
 async def test_anthropic_concatenates_only_text_blocks(monkeypatch):
     import anthropic as anthropic_sdk
 

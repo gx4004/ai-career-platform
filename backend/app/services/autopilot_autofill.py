@@ -1,4 +1,4 @@
-"""Autopilot experiment: fill an approved application form, then stop (#325).
+"""Autopilot experiment: fill an application form, then stop (#325).
 
 Local-only and off by default (``AUTOPILOT_EXPERIMENT_ENABLED``). A headed
 Chromium opens on the machine running the backend, so this only makes sense when
@@ -9,7 +9,6 @@ the window open. It never submits: the only interactions are ``fill`` and
 
 from __future__ import annotations
 
-import json
 import re
 import tempfile
 import threading
@@ -21,13 +20,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from urllib.parse import urlsplit
 
-from sqlalchemy.orm import Session
-
-from app.models.application_packet import ApplicationPacket
-from app.models.packet_approval_snapshot import PacketApprovalSnapshot
 from app.models.user import User
 from app.schemas.cv_documents import CvStyle
-from app.services.application_packets import PacketNotFoundError
 from app.services.cv_rendering import build_render_model, render_pdf
 from app.services.stop_classifier import classify_stop_category
 
@@ -78,7 +72,10 @@ class AutofillMaterials:
     resume_pdf: bytes = b""
     resume_filename: str = "CV.pdf"
     cover_letter: str = ""
+    # Drafted screening answers, never used on a stop field.
     answers: list[tuple[str, str]] = field(default_factory=list)
+    # The owner's own typed answers: the only thing that may fill a stop field.
+    owner_answers: list[tuple[str, str]] = field(default_factory=list)
 
     @property
     def full_name(self) -> str:
@@ -161,21 +158,32 @@ def _match_score(label: str, question: str) -> float:
     return max(overlap, SequenceMatcher(None, _norm(label), _norm(question)).ratio())
 
 
-def _answer_for(label: str, answers: list[tuple[str, str]]) -> str | None:
-    """The drafted answer for the prepared question this label best matches.
-
-    A label the stop classifier flags (salary, work authorization, demographics
-    and so on) never gets a drafted answer, whatever it resembles: only the owner
-    answers those.
-    """
-    if classify_stop_category(label) is not None:
-        return None
+def _best_answer(label: str, answers: list[tuple[str, str]]) -> str | None:
     best_score, best_answer = 0.0, None
     for question, answer in answers:
         score = _match_score(label, question)
         if score >= ANSWER_MATCH_THRESHOLD and score > best_score:
             best_score, best_answer = score, answer
     return best_answer
+
+
+def _answer_for(
+    label: str,
+    answers: list[tuple[str, str]],
+    owner_answers: list[tuple[str, str]] = (),
+) -> str | None:
+    """The answer for the question this label best matches.
+
+    The owner's own typed answers come first. A label the stop classifier flags
+    (salary, work authorization, demographics and so on) never gets a drafted
+    answer, whatever it resembles: only the owner answers those.
+    """
+    owned = _best_answer(label, list(owner_answers))
+    if owned is not None:
+        return owned
+    if classify_stop_category(label) is not None:
+        return None
+    return _best_answer(label, answers)
 
 
 def _field_kind(control: dict) -> str | None:
@@ -247,7 +255,9 @@ def fill_application(page, materials: AutofillMaterials, workdir: Path) -> Autof
             cover_done = True
         elif kind in values and values[kind] and typeable:
             locator.fill(values[kind])
-        elif kind is None and typeable and (answer := _answer_for(label, materials.answers)):
+        elif kind is None and typeable and (
+            answer := _answer_for(label, materials.answers, materials.owner_answers)
+        ):
             locator.fill(answer)
         else:
             if control["empty"] and control["visible"]:
@@ -356,11 +366,7 @@ def start_autofill(user_id: str, materials: AutofillMaterials, *, headless: bool
     return result
 
 
-# ── Materials: exactly what the owner approved (the frozen snapshot) ──
-
-
-class PacketNotApprovedError(Exception):
-    """Only an approved packet can be filled in."""
+# ── Materials: exactly what the application will send ──
 
 
 def _allowed(url: str | None) -> bool:
@@ -371,37 +377,21 @@ def _allowed(url: str | None) -> bool:
     return True
 
 
-def build_materials(db: Session, user: User, packet_id: str) -> AutofillMaterials:
-    """Collect the approved materials in the request thread (the worker never touches the DB)."""
-    packet = (
-        db.query(ApplicationPacket)
-        .filter(ApplicationPacket.user_id == user.id, ApplicationPacket.id == packet_id)
-        .one_or_none()
-    )
-    if packet is None:
-        raise PacketNotFoundError(packet_id)
-    snapshot = (
-        db.query(PacketApprovalSnapshot)
-        .filter(
-            PacketApprovalSnapshot.user_id == user.id,
-            PacketApprovalSnapshot.packet_id == packet_id,
-        )
-        .one_or_none()
-    )
-    if packet.decision != "accepted" or snapshot is None:
-        raise PacketNotApprovedError(packet_id)
+def build_materials(user: User, content: dict) -> AutofillMaterials:
+    """Collect what to fill from the application's content, in the request thread.
 
-    # Open exactly the destination frozen at approval, never the listing's live
-    # apply link: re-ingestion rewrites that after the owner has approved.
-    url = snapshot.destination_url
+    ``content`` is the application's frozen snapshot once it is marked applied,
+    otherwise its current materials (``applications.application_content``). The
+    worker thread never touches the database.
+    """
+    listing = content.get("listing") or {}
+    url = listing.get("apply_url") or ""
     if not _allowed(url):
         raise AutofillRefused(
             "Autopilot only opens Greenhouse, Lever, or Ashby application pages over https."
         )
 
-    content = json.loads(snapshot.content_json)
     variant = content.get("cv_variant") or {}
-    drafts = content.get("drafts") or {}
     first, _, last = (user.full_name or "").strip().rpartition(" ")
     if not first:
         first, last = last, ""
@@ -414,7 +404,7 @@ def build_materials(db: Session, user: User, packet_id: str) -> AutofillMaterial
     resume_pdf = b""
     if variant.get("sections"):
         document = SimpleNamespace(
-            id=variant.get("document_id") or packet_id,
+            id=variant.get("document_id") or content.get("application_id") or "cv",
             name=variant.get("name") or "CV",
             sections=variant["sections"],
         )
@@ -432,10 +422,15 @@ def build_materials(db: Session, user: User, packet_id: str) -> AutofillMaterial
         website=website,
         resume_pdf=resume_pdf,
         resume_filename=f"{safe_name}-CV.pdf" if safe_name else "CV.pdf",
-        cover_letter=str((drafts.get("cover_letter") or {}).get("body") or ""),
+        cover_letter=str((content.get("cover_letter") or {}).get("text") or ""),
         answers=[
             (str(item.get("question", "")), str(item.get("answer", "")))
-            for item in drafts.get("screening_answers") or []
+            for item in content.get("screening_answers") or []
+            if isinstance(item, dict) and item.get("answer")
+        ],
+        owner_answers=[
+            (str(item.get("question", "")), str(item.get("answer", "")))
+            for item in content.get("answers") or []
             if isinstance(item, dict) and item.get("answer")
         ],
     )

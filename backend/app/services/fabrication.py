@@ -4,7 +4,7 @@ The generative tools (Cover Letter, Interview Q&A, Career Path, Portfolio
 Planner) have no heuristic score, so a prompt regression that starts inventing
 an employer, product, or metric absent from the user's resume would ship
 undetected. This module is the deterministic groundedness signal
-:mod:`app.services.campaign_reviewer` runs live on packet materials: it
+:mod:`app.services.campaign_reviewer` runs on application materials: it
 extracts candidate claims (proper nouns / employer-shaped tokens and
 quantified figures/metrics) from generated output and traces each back to the
 CV's source text using :func:`app.services.quality_signals.keyword_present`

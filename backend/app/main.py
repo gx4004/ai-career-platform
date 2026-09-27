@@ -20,6 +20,7 @@ from app.config import (
 from app.limiter import limiter
 from app.routers import (
     admin,
+    applications,
     auth,
     career,
     cover_letter,
@@ -34,9 +35,7 @@ from app.routers import (
     interview,
     job_match,
     job_posts,
-    packets,
     portfolio,
-    queue_rules,
     resume,
     telemetry,
 )
@@ -235,14 +234,9 @@ app.include_router(
     tags=["discovery"],
 )
 app.include_router(
-    queue_rules.router,
-    prefix=f"{prefix}/queue",
-    tags=["queue"],
-)
-app.include_router(
-    packets.router,
-    prefix=f"{prefix}/packets",
-    tags=["packets"],
+    applications.router,
+    prefix=f"{prefix}/applications",
+    tags=["applications"],
 )
 app.include_router(telemetry.router, prefix=f"{prefix}/telemetry", tags=["telemetry"])
 app.include_router(admin.router, prefix=f"{prefix}/admin", tags=["admin"])

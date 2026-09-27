@@ -27,6 +27,7 @@ import uvicorn
 
 from app.limiter import limiter
 from app.services import (
+    application_drafts,
     career_recommender,
     cover_letter_gen,
     interview_gen,
@@ -43,6 +44,7 @@ async def deterministic_complete_structured(*_args, **_kwargs) -> dict:
 
 
 for service_module in (
+    application_drafts,
     resume_analyzer,
     job_matcher,
     cover_letter_gen,

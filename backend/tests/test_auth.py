@@ -197,8 +197,8 @@ def test_delete_account_requires_email_confirmation_in_body(client, auth_headers
     """Server-side guard: the typed-email confirmation the UI shows is also
     required by the API contract, so a direct call with no body or a wrong
     confirmation cannot wipe the account."""
-    from app.models.campaign_snapshot import CampaignSubmissionSnapshot
-    from app.models.campaign_tracking import CampaignContact, CampaignNote, CampaignTask
+    from app.models.application_snapshot import ApplicationSnapshot
+    from app.models.campaign_task import CampaignTask
     from app.models.tool_run import ToolRun
     from app.models.workspace import Workspace
 
@@ -209,11 +209,8 @@ def test_delete_account_requires_email_confirmation_in_body(client, auth_headers
     db.add_all(
         [
             CampaignTask(workspace_id=workspace.id, title="Private task"),
-            CampaignNote(workspace_id=workspace.id, text="Private note"),
-            CampaignContact(workspace_id=workspace.id, name="Private contact"),
-            CampaignSubmissionSnapshot(
+            ApplicationSnapshot(
                 workspace_id=workspace.id,
-                role_key=f"campaign:{workspace.id}",
                 content_json="{}",
                 content_sha256="0" * 64,
             ),
@@ -243,9 +240,7 @@ def test_delete_account_requires_email_confirmation_in_body(client, auth_headers
     assert resp.status_code == 204
     assert db.query(ToolRun).filter(ToolRun.user_id == test_user.id).count() == 0
     assert db.query(CampaignTask).filter_by(workspace_id=workspace_id).count() == 0
-    assert db.query(CampaignNote).filter_by(workspace_id=workspace_id).count() == 0
-    assert db.query(CampaignContact).filter_by(workspace_id=workspace_id).count() == 0
-    assert db.query(CampaignSubmissionSnapshot).filter_by(workspace_id=workspace_id).count() == 0
+    assert db.query(ApplicationSnapshot).filter_by(workspace_id=workspace_id).count() == 0
 
 
 def test_delete_account_requires_authentication(client):

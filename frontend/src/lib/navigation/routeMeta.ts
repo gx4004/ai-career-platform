@@ -59,35 +59,25 @@ export function getRouteMeta(pathname: string): RouteMeta {
     }
   }
 
-  if (pathname === '/queue') {
-    return {
-      title: 'Application Queue',
-      description: 'Review each prepared packet, then accept, edit, skip, or reject it — or pause all preparation.',
-      sectionLabel: 'Job search',
-      breadcrumbs: ['Dashboard', 'Application Queue'],
-      topbarVariant: 'compact',
-    }
-  }
-
   if (pathname === '/campaigns') {
     return {
-      title: 'Campaigns',
-      description: 'Track applications you have saved from Job Discovery.',
+      title: 'Applications',
+      description: 'Every job you are going for, from saved to offer.',
       sectionLabel: 'Job search',
-      breadcrumbs: ['Dashboard', 'Campaigns'],
+      breadcrumbs: ['Dashboard', 'Applications'],
       topbarVariant: 'compact',
     }
   }
 
-  // Detail tabs (/campaigns/$id, /campaigns/$id?tab=…) fall through to here;
+  // Application pages (/campaigns/$id) fall through to here;
   // without this the topbar breadcrumb renders nothing at all (career-
   // workbench#326) since the 'standard' fallback variant only shows on mobile.
   if (pathname.startsWith('/campaigns/')) {
     return {
       title: 'Application',
-      description: 'Documents, tasks, notes, and the timeline for this application.',
+      description: 'Apply, documents, tasks, notes and activity for this application.',
       sectionLabel: 'Job search',
-      breadcrumbs: ['Dashboard', 'Campaigns', 'Application'],
+      breadcrumbs: ['Dashboard', 'Applications', 'Application'],
       topbarVariant: 'compact',
     }
   }

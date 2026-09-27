@@ -20,6 +20,9 @@ class CampaignListing(Base):
     company: Mapped[str] = mapped_column(String(200), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False)
     source_url: Mapped[str | None] = mapped_column(String(2048), nullable=True)
+    # Where the owner applies: the discovered listing's apply link (or its source
+    # page) copied at adoption, or the imported URL. Autofill opens only this.
+    apply_url: Mapped[str | None] = mapped_column(String(2048), nullable=True)
     retrieved_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False
     )

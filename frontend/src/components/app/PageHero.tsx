@@ -2,8 +2,8 @@ import type { CSSProperties, ReactNode } from 'react'
 import type { LucideIcon } from 'lucide-react'
 
 /**
- * Hero for workspace pages (Campaigns first; CV Studio, Profile, Discovery and
- * Queue adopt it in their own redesigns). It is the tool input hero — same
+ * Hero for workspace pages (Applications first; CV Studio, Profile and
+ * Discovery adopt it in their own redesigns). It is the tool input hero — same
  * `tool-input-hero` classes, grain, glow, centred title, chips and rising
  * text — with the tool illustration swapped for the page's icon and the
  * page's one primary action underneath. No stat tiles: counts belong in
