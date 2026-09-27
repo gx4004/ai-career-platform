@@ -13,7 +13,6 @@ from app.config import settings
 from app.models.user import User
 from app.services.evidence_injection import load_profile_for_injection
 from app.services.input_sanitizer import sanitize_user_input
-from app.services.llm_cost import reset_llm_cost
 from app.services.observability import (
     log_tool_run_completed,
     log_tool_run_failed,
@@ -123,9 +122,6 @@ async def _run_tool_pipeline_after_validation(
     access_mode = "authenticated" if current_user else "guest_demo"
     linked_ids = linked_context_ids or []
     start = perf_counter()
-    # Clear any prior request's LLM cost so this run's figure only reflects the
-    # provider calls it makes; the packet cost ceiling reads it (D-094).
-    reset_llm_cost()
     _result_degraded.set(False)
 
     log_tool_run_started(
