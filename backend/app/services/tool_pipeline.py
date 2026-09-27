@@ -43,8 +43,13 @@ async def run_tool_pipeline(
     current_user: User | None = None,
     db: Session,
     cache_extra_keys: dict[str, str] | None = None,
+    persist_run: bool = True,
 ) -> dict[str, Any]:
-    """Run one tool and durably classify every failure after run start."""
+    """Run one tool and durably classify every failure after run start.
+
+    ``persist_run=False`` skips the ToolRun (and so the Workspace it would
+    open); only for non-tool callers whose result lives elsewhere.
+    """
     if current_user is not None:
         # Invalid or cross-owner revision lineage is request validation, not a
         # started tool run. Keep it outside the failure telemetry boundary.
@@ -71,6 +76,7 @@ async def run_tool_pipeline(
             current_user=current_user,
             db=db,
             cache_extra_keys=cache_extra_keys,
+            persist_run=persist_run,
         )
     except Exception as exc:
         access_mode = "authenticated" if current_user else "guest_demo"
@@ -122,6 +128,7 @@ async def _run_tool_pipeline_after_validation(
     current_user: User | None = None,
     db: Session,
     cache_extra_keys: dict[str, str] | None = None,
+    persist_run: bool = True,
 ) -> dict[str, Any]:
     """Shared pipeline: sanitize -> cache -> service -> fallback -> persist -> respond."""
     access_mode = "authenticated" if current_user else "guest_demo"
@@ -288,7 +295,7 @@ async def _run_tool_pipeline_after_validation(
     persistence_start = perf_counter()
     run = persist_tool_run(
         db,
-        current_user=current_user,
+        current_user=current_user if persist_run else None,
         tool_name=tool_name,
         label=label_fn(result),
         result=result,
@@ -313,6 +320,9 @@ async def _run_tool_pipeline_after_validation(
         history_id=run.id if run else None,
         access_mode=access_mode,
     )
+    if not persist_run and current_user is not None:
+        # Unsaved by design, not a guest: nothing is locked.
+        response["locked_actions"] = []
     completed_duration_ms = int((perf_counter() - start) * 1000)
     log_tool_run_completed(
         tool_name=tool_name,
