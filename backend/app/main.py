@@ -2,7 +2,6 @@ import asyncio
 import logging
 from contextlib import asynccontextmanager, suppress
 
-import sentry_sdk
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
@@ -17,7 +16,6 @@ from app.config import (
     settings,
     validate_autopilot_config,
     validate_llm_provider_config,
-    validate_origin_config,
 )
 from app.limiter import (
     limiter,
@@ -53,62 +51,6 @@ from app.services.retention import (
 )
 
 configure_logging()
-
-_SENSITIVE_HEADERS = {"authorization", "cookie", "set-cookie", "x-csrf-token"}
-SENTRY_TRACES_SAMPLE_RATE = 0.0
-
-
-def _strip_query(value: str) -> str:
-    cuts = [value.find(ch) for ch in ("?", "#")]
-    candidates = [c for c in cuts if c >= 0]
-    return value[: min(candidates)] if candidates else value
-
-
-def _scrub_sentry_event(event, _hint):
-    request = event.get("request")
-    if isinstance(request, dict):
-        request.pop("data", None)
-        request.pop("cookies", None)
-        request.pop("query_string", None)
-        url = request.get("url")
-        if isinstance(url, str):
-            request["url"] = _strip_query(url)
-        headers = request.get("headers")
-        if isinstance(headers, dict):
-            for key in list(headers.keys()):
-                if key.lower() in _SENSITIVE_HEADERS:
-                    headers[key] = "[scrubbed]"
-    event.pop("user", None)
-    for key in ("message", "logentry", "contexts", "extra", "breadcrumbs"):
-        event.pop(key, None)
-    exception = event.get("exception")
-    if isinstance(exception, dict):
-        values = exception.get("values")
-        if isinstance(values, list):
-            for value in values:
-                if not isinstance(value, dict):
-                    continue
-                value["value"] = "[scrubbed]"
-                stacktrace = value.get("stacktrace")
-                if not isinstance(stacktrace, dict):
-                    continue
-                frames = stacktrace.get("frames")
-                if isinstance(frames, list):
-                    for frame in frames:
-                        if isinstance(frame, dict):
-                            frame.pop("vars", None)
-    return event
-
-
-if settings.SENTRY_DSN:
-    sentry_sdk.init(
-        dsn=settings.SENTRY_DSN,
-        environment=settings.ENVIRONMENT,
-        traces_sample_rate=SENTRY_TRACES_SAMPLE_RATE,
-        send_default_pii=False,
-        include_local_variables=False,
-        before_send=_scrub_sentry_event,
-    )
 
 logger = logging.getLogger(__name__)
 
@@ -169,13 +111,10 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 JSON_BODY_LIMIT_BYTES = 1_048_576
 MULTIPART_BODY_LIMIT_BYTES = 11_010_048
-# Bound middleware bookkeeping even when a peer emits endless empty/tiny ASGI
-# frames. Normal servers deliver request bodies in much larger chunks.
-REQUEST_BODY_MAX_CHUNKS = 4_096
 
 
 class RequestSizeLimitMiddleware:
-    """Reject oversized request bodies before Starlette parses or buffers them."""
+    """Reject request bodies whose declared Content-Length exceeds the limit."""
 
     def __init__(self, app):
         self.app = app
@@ -202,33 +141,7 @@ class RequestSizeLimitMiddleware:
                 await self._reject(send)
                 return
 
-        buffered = []
-        size = 0
-        chunk_count = 0
-        while True:
-            message = await receive()
-            if message["type"] == "http.disconnect":
-                return
-            if message["type"] != "http.request":
-                continue
-            chunk_count += 1
-            if chunk_count > REQUEST_BODY_MAX_CHUNKS:
-                await self._reject(send)
-                return
-            size += len(message.get("body", b""))
-            if size > limit:
-                await self._reject(send)
-                return
-            buffered.append(message)
-            if not message.get("more_body", False):
-                break
-
-        messages = iter(buffered)
-
-        async def replay_receive():
-            return next(messages, {"type": "http.disconnect"})
-
-        await self.app(scope, replay_receive, send)
+        await self.app(scope, receive, send)
 
     @staticmethod
     async def _reject(send):
@@ -284,7 +197,6 @@ if settings.SECRET_KEY == _DEFAULT_SECRET and settings.ENVIRONMENT != "developme
     )
 
 validate_abuse_control_config()
-validate_origin_config()
 validate_llm_provider_config()
 validate_autopilot_config()
 
