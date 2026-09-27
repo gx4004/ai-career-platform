@@ -15,8 +15,7 @@ import {
   deleteAllCvDocuments, deleteCvDocument, exportCvDocuments, fetchCvArtifactBlob, getCvDocument, getCvStyleCatalog,
   listCvDocuments, restoreCvVariant, snapshotCvVariant, updateCvDocument,
 } from '#/lib/api/client'
-import type { CvDocument, CvSection, CvStyle, CvStyleCatalog, CvVariant } from '#/lib/api/schemas'
-import { FALLBACK_STYLE_CATALOG, TEMPLATE_NAMES } from '#/lib/cv-studio/catalog'
+import type { CvDocument, CvSection, CvStyle, CvVariant } from '#/lib/api/schemas'
 import { addSection, moveSection, moveSectionTo, toSavableSections } from '#/lib/cv-studio/editor'
 import { readWorkflowContext, writeWorkflowContext } from '#/lib/tools/drafts'
 import { cn } from '#/lib/utils'
@@ -76,16 +75,6 @@ function download(blob: Blob, filename: string) {
 }
 
 const safeFilename = (name: string) => name.trim().replace(/[\\/:*?"<>|]+/g, '-') || 'cv'
-
-function resolveCatalog(data: CvStyleCatalog | undefined): CvStyleCatalog {
-  if (!data) return FALLBACK_STYLE_CATALOG
-  return {
-    templates: data.templates.length ? data.templates : FALLBACK_STYLE_CATALOG.templates,
-    fonts: data.fonts.length ? data.fonts : FALLBACK_STYLE_CATALOG.fonts,
-    palette: data.palette.length ? data.palette : FALLBACK_STYLE_CATALOG.palette,
-    densities: data.densities.length ? data.densities : FALLBACK_STYLE_CATALOG.densities,
-  }
-}
 
 function SaveStatus({ state }: { state: SaveState }) {
   const content = state === 'saving'
@@ -171,13 +160,14 @@ export function CvStudio() {
   useEffect(() => {
     if (documentQuery.data && !dirty) setDraft(documentQuery.data)
   }, [documentQuery.data, dirty])
+  // Design values (templates, sizes, fonts, palette) come only from the backend
+  // catalog; it is static, so it loads once per session.
   const catalogQuery = useQuery({
     queryKey: ['cv-studio', 'style-catalog'],
     queryFn: getCvStyleCatalog,
     enabled: authenticated,
     staleTime: Infinity,
   })
-  const catalog = resolveCatalog(catalogQuery.data)
 
   useEffect(() => {
     if (!dirty || !draft) return
@@ -278,7 +268,7 @@ export function CvStudio() {
     setExporting(format)
     setActionError('')
     try {
-      const blob = await fetchCvArtifactBlob(draft.id, draft.style.template_id, format)
+      const blob = await fetchCvArtifactBlob(draft.id, format)
       download(blob, `${safeFilename(draft.name)}.${format}`)
     } catch {
       setActionError(`We couldn’t create the ${format.toUpperCase()} just now. Please try again.`)
@@ -338,10 +328,11 @@ export function CvStudio() {
   if (!authenticated) {
     return <AppStatePanel title="CV Studio" description="Sign in to write, design and export your CV, and keep every version safe." actions={[{ label: 'Sign in', onClick: () => openAuthDialog({ to: '/cv-studio', reason: 'CV Studio is private to your account.' }) }]} />
   }
-  if (listQuery.isPending || (documentId && documentQuery.isPending)) return <StudioSkeleton label="Loading CV Studio" />
-  if (listQuery.isError || documentQuery.isError) {
-    return <AppStatePanel title="CV Studio didn’t load" description="Your CVs are safe. Nothing was changed." detail="Try loading the studio again." actions={[{ label: 'Try again', onClick: () => { void listQuery.refetch(); void documentQuery.refetch() } }]} />
+  if (listQuery.isError || catalogQuery.isError || documentQuery.isError) {
+    return <AppStatePanel title="CV Studio didn’t load" description="Your CVs are safe. Nothing was changed." detail="Try loading the studio again." actions={[{ label: 'Try again', onClick: () => { void listQuery.refetch(); void catalogQuery.refetch(); void documentQuery.refetch() } }]} />
   }
+  if (listQuery.isPending || catalogQuery.isPending || (documentId && documentQuery.isPending)) return <StudioSkeleton label="Loading CV Studio" />
+  const catalog = catalogQuery.data
 
   const dialogs = (
     <>
@@ -387,7 +378,7 @@ export function CvStudio() {
   const checks = quality.data?.checks
   const checksPass = checks?.every((check) => check.passed) ?? false
   const remainingTailorRuns = draft.tailoring_model_run_limit - draft.tailoring_model_runs
-  const templateName = TEMPLATE_NAMES[draft.style.template_id]
+  const templateName = catalog.templates.find((template) => template.id === draft.style.template_id)?.name ?? ''
 
   const heroActions = (
     <>
@@ -531,7 +522,7 @@ export function CvStudio() {
             </div>
             <Button type="button" size="sm" variant="outline" disabled={dirty} onClick={() => setPdfOpen(true)}><FileSearch size={15} /> View exact PDF</Button>
           </div>
-          <CvPaper name={draft.name} sections={draft.sections} style={draft.style} />
+          <CvPaper name={draft.name} sections={draft.sections} style={draft.style} catalog={catalog} />
           {checks !== undefined ? (
             <a className={`cvs-ats-mini cvs-ats-mini--${checksPass ? 'pass' : 'fail'}`} href="#cvs-ats-check">
               {checksPass ? <CheckCircle2 size={20} aria-hidden="true" /> : <CircleAlert size={20} aria-hidden="true" />}
@@ -562,7 +553,7 @@ export function CvStudio() {
         remainingRuns={remainingTailorRuns} onSaved={handleTailorSaved} onGenerated={() => void documentQuery.refetch()}
         seed={tailorSeed}
       />
-      <ExactPdfDialog open={pdfOpen} onOpenChange={setPdfOpen} documentId={draft.id} documentName={draft.name} revision={draft.updated_at} style={draft.style} />
+      <ExactPdfDialog open={pdfOpen} onOpenChange={setPdfOpen} documentId={draft.id} documentName={draft.name} revision={draft.updated_at} style={draft.style} templateName={templateName} />
     </WorkspacePage>
   )
 }

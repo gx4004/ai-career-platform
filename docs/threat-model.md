@@ -429,7 +429,7 @@ is dark; R12 export and erasure remain inside the cumulative R12 router gate.
 | `GET` | `/evidence-profile/export` | — (owner lifecycle) | 5/min |
 | `DELETE` | `/evidence-profile/items` | — (owner lifecycle) | 5/min |
 
-#### R12 CV Studio (20)
+#### R12 CV Studio (16)
 
 | Method | Path | Outcome gate | Rate limit |
 |--------|------|--------------|------------|
@@ -440,15 +440,11 @@ is dark; R12 export and erasure remain inside the cumulative R12 router gate.
 | `GET` | `/cv-documents` | R12 | — |
 | `POST` | `/cv-documents` | R12 | — |
 | `GET` | `/cv-documents/{document_id}` | R12 | — |
-| `GET` | `/cv-documents/{document_id}/render` | R12 | — |
-| `GET` | `/cv-documents/{document_id}/render-model` | R12 | — |
 | `GET` | `/cv-documents/{document_id}/artifacts/{format}` | R12 | 10/min |
-| `GET` | `/cv-documents/{document_id}/artifacts/{format}/evidence` | R12 | 10/min |
 | `POST` | `/cv-documents/{document_id}/quality` | R12 | 20/min + Model shared when model-backed |
 | `PATCH` | `/cv-documents/{document_id}` | R12 | — |
 | `POST` | `/cv-documents/{document_id}/tailoring` | R12 | 20/min + Model shared |
 | `POST` | `/cv-documents/{document_id}/tailoring/apply` | R12 | — |
-| `POST` | `/cv-documents/{document_id}/tailoring/edit-proposals` | R12 | — |
 | `DELETE` | `/cv-documents/{document_id}` | R12 | — |
 | `DELETE` | `/cv-documents` | R12 | — |
 | `POST` | `/cv-documents/{document_id}/variants` | R12 | — |

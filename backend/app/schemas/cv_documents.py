@@ -31,17 +31,18 @@ CvArtifactFormat = Literal["docx", "pdf"]
 CvFontId = Literal["lato", "pt-sans", "pt-serif", "crimson-text", "ibm-plex-mono"]
 CvDensity = Literal["compact", "normal", "spacious"]
 
-# Curated palette so accent colors stay readable and print-safe. Any hex outside
-# this set is rejected rather than silently normalized.
-CV_ACCENT_PALETTE: tuple[str, ...] = (
-    "#111827",
-    "#7C2D12",
-    "#075985",
-    "#166534",
-    "#6D28D9",
-    "#B91C1C",
-    "#0F766E",
-)
+# Curated palette (color -> display name) so accent colors stay readable and
+# print-safe. Any hex outside this set is rejected rather than silently normalized.
+CV_ACCENT_NAMES: dict[str, str] = {
+    "#111827": "Ink",
+    "#7C2D12": "Rust",
+    "#075985": "Ocean",
+    "#166534": "Forest",
+    "#6D28D9": "Violet",
+    "#B91C1C": "Crimson",
+    "#0F766E": "Teal",
+}
+CV_ACCENT_PALETTE: tuple[str, ...] = tuple(CV_ACCENT_NAMES)
 
 
 class CvStyle(BaseModel):
@@ -51,7 +52,6 @@ class CvStyle(BaseModel):
     font_id: CvFontId = "lato"
     accent_color: str = Field(default="#111827", pattern=r"^#[0-9a-fA-F]{6}$")
     density: CvDensity = "normal"
-    section_order: list[str] | None = Field(default=None, max_length=50)
     ats_mode: bool = False
 
     @field_validator("accent_color")
@@ -148,15 +148,21 @@ class CvDocumentListResponse(BaseModel):
 
 
 class CvRenderEntry(BaseModel):
+    """One entry as it renders: every derived display value is computed once in
+    ``build_render_model`` so the PDF, DOCX and validation code never re-derive it."""
+
     id: str
     text: str
     links: list[str] = Field(default_factory=list)
     heading: str | None = None
     subheading: str | None = None
     location: str | None = None
-    start_date: str | None = None
-    end_date: str | None = None
+    # "start – end", or None when neither date is set.
+    dates: str | None = None
     bullets: list[str] = Field(default_factory=list)
+    # The body paragraph that renders, if any: a freeform entry's text, or a
+    # structured entry's text when it has no bullets and says more than its heading.
+    paragraph: str | None = None
 
 
 class CvRenderSection(BaseModel):
@@ -167,27 +173,23 @@ class CvRenderSection(BaseModel):
 
 
 class CvRenderModel(BaseModel):
-    schema_version: Literal["cv-render/v1"] = "cv-render/v1"
-    document_id: str
+    """Internal render input shared by the PDF and DOCX exporters (not an API response)."""
+
     document_name: str
     template_id: CvTemplateId
-    page: dict[str, int]
+    margin_mm: int
     tokens: dict[str, str | int | bool]
     sections: list[CvRenderSection]
-    canonical_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
 
 
 class CvArtifactEvidence(BaseModel):
-    schema_version: Literal["cv-artifact-evidence/v1"] = "cv-artifact-evidence/v1"
-    template_id: CvTemplateId
-    format: CvArtifactFormat
+    """What re-reading a rendered PDF proves about it (internal to the quality check)."""
+
     # One content-equivalence comparison: the text layer is readable and the
     # own-parser re-import returns the same sections in order.
     reads_back: Literal["pass", "fail"]
     links: Literal["pass", "fail"]
-    # PDF only: DOCX has no fixed pagination to inspect.
-    page_breaks: Literal["pass", "fail"] | None = None
-    canonical_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+    page_breaks: Literal["pass", "fail"]
 
 
 class CvQualityDimension(BaseModel):
@@ -266,14 +268,7 @@ class CvTailoringProposal(BaseModel):
 class CvTailoringDecision(BaseModel):
     model_config = ConfigDict(extra="forbid")
     change_id: str
-    action: Literal["accept", "reject", "edit"]
-    edited_after: str | None = Field(default=None, min_length=1, max_length=5_000)
-
-    @model_validator(mode="after")
-    def edit_requires_text(self):
-        if (self.action == "edit") != (self.edited_after is not None):
-            raise ValueError("edited_after is required only for edit decisions")
-        return self
+    action: Literal["accept", "reject"]
 
 
 class CvTailoringApply(BaseModel):
@@ -284,16 +279,6 @@ class CvTailoringApply(BaseModel):
     proposal_token: str = Field(min_length=64, max_length=64)
     changes: list[CvTailoringChange] = Field(max_length=50)
     decisions: list[CvTailoringDecision] = Field(max_length=50)
-
-
-class CvTailoringEditProposal(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    request_id: UUID
-    job_title: str = Field(min_length=1, max_length=200)
-    proposal_token: str = Field(min_length=64, max_length=64)
-    changes: list[CvTailoringChange] = Field(max_length=50)
-    change_id: str
-    edited_after: str = Field(min_length=1, max_length=5_000)
 
 
 class CvImportClaim(BaseModel):
@@ -367,21 +352,55 @@ class CvDocumentsExport(BaseModel):
         return self
 
 
+class CvStyleSizes(BaseModel):
+    body_pt: int
+    heading_pt: int
+    section_gap_pt: int
+
+
 class CvStyleCatalogTemplate(BaseModel):
     id: CvTemplateId
     name: str
     description: str
     ats_safe: bool
+    title_align: Literal["left", "center"]
+    margin_mm: int
+    # Section kinds placed in the sidebar; empty for single-column templates.
+    sidebar_kinds: list[CvSectionKind]
+    sizes: dict[CvDensity, CvStyleSizes]
 
 
 class CvStyleCatalogFont(BaseModel):
     id: CvFontId
     name: str
     category: str
+    css_family: str
+
+
+class CvStyleCatalogColor(BaseModel):
+    value: str
+    name: str
+
+
+class CvStyleCatalogDensity(BaseModel):
+    id: CvDensity
+    name: str
+
+
+class CvStyleCatalogAtsMode(BaseModel):
+    """What ATS-friendly mode forces, whatever the saved template/font/accent/density."""
+
+    template_id: CvTemplateId
+    density: CvDensity
+    accent: str
+    css_family: str
 
 
 class CvStyleCatalog(BaseModel):
+    """The single source of CV design values; the frontend preview looks these up."""
+
     templates: list[CvStyleCatalogTemplate]
     fonts: list[CvStyleCatalogFont]
-    palette: list[str] = Field(default_factory=lambda: list(CV_ACCENT_PALETTE))
-    densities: list[CvDensity] = Field(default_factory=lambda: ["compact", "normal", "spacious"])
+    palette: list[CvStyleCatalogColor]
+    densities: list[CvStyleCatalogDensity]
+    ats_mode: CvStyleCatalogAtsMode

@@ -97,3 +97,17 @@ def pdf_font_names(font_id: str) -> tuple[str, str]:
     register_fonts()
     family = FONT_FAMILIES[font_id]
     return family.pdf_name, f"{family.pdf_name}-Bold"
+
+
+_CSS_FALLBACKS = {
+    "sans-serif": "'Helvetica Neue', Arial, sans-serif",
+    "serif": "Georgia, 'Times New Roman', serif",
+    "monospace": "'SFMono-Regular', Menlo, monospace",
+}
+
+
+def css_family(font_id: str) -> str:
+    """CSS font stack for the live preview; the frontend's @font-face rules load
+    the same bundled TTFs under ``family.name``."""
+    family = FONT_FAMILIES[font_id]
+    return f"'{family.name}', {_CSS_FALLBACKS[family.category]}"

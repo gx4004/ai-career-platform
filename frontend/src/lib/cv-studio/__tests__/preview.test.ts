@@ -1,21 +1,19 @@
 import { describe, expect, it } from 'vitest'
 import type { CvSection } from '#/lib/api/schemas'
 import { buildPreviewSections, resolvePreviewStyle, splitTwoColumn } from '#/lib/cv-studio/preview'
+import { styleCatalogFixture as catalog } from './styleCatalog.fixture'
 
-describe('CV preview mirror of the server renderer', () => {
-  it('applies template tokens, density scaling and the chosen font/accent', () => {
-    expect(resolvePreviewStyle({ template_id: 'professional-editorial', font_id: 'pt-serif', accent_color: '#166534', density: 'spacious', ats_mode: false })).toMatchObject({
-      layout: 'professional-editorial', accent: '#166534', bodyPt: 12, headingPt: 17, marginMm: 20, sectionGapPt: 11, titleAlign: 'center', twoColumn: false,
-    })
-    expect(resolvePreviewStyle({ template_id: 'technical-portfolio', font_id: 'lato', accent_color: '#111827', density: 'compact', ats_mode: false })).toMatchObject({
-      bodyPt: 8, headingPt: 11, sectionGapPt: 5,
+describe('CV preview built from the backend style catalog', () => {
+  it('looks up the template sizes for the chosen density, font and accent', () => {
+    expect(resolvePreviewStyle({ template_id: 'professional-editorial', font_id: 'pt-serif', accent_color: '#166534', density: 'spacious', ats_mode: false }, catalog)).toEqual({
+      layout: 'professional-editorial', fontStack: "'PT Serif', serif", accent: '#166534',
+      bodyPt: 12, headingPt: 17, marginMm: 20, sectionGapPt: 11, titleAlign: 'center', sidebarKinds: [], atsMode: false,
     })
   })
 
-  it('forces the plain single-column layout in ATS mode', () => {
-    const style = resolvePreviewStyle({ template_id: 'modern-two-column', font_id: 'crimson-text', accent_color: '#B91C1C', density: 'compact', ats_mode: true })
-    expect(style).toMatchObject({ layout: 'ats-essential', accent: '#111827', bodyPt: 10, twoColumn: false, atsMode: true })
-    expect(style.fontStack).toMatch(/Helvetica/)
+  it('applies the catalog’s ATS-mode overrides whatever the saved style says', () => {
+    const style = resolvePreviewStyle({ template_id: 'modern-two-column', font_id: 'pt-serif', accent_color: '#B91C1C', density: 'compact', ats_mode: true }, catalog)
+    expect(style).toMatchObject({ layout: 'ats-essential', accent: '#111827', bodyPt: 10, sidebarKinds: [], atsMode: true, fontStack: 'Helvetica, sans-serif' })
   })
 
   it('lays out entries the way the PDF does and hides hidden sections', () => {
@@ -38,9 +36,10 @@ describe('CV preview mirror of the server renderer', () => {
     ])
   })
 
-  it('puts skills and certifications in the two-column sidebar, else the first section', () => {
+  it('puts the catalog’s sidebar kinds in the sidebar, else the first section', () => {
     const make = (id: string, kind: CvSection['kind']) => ({ id, kind, title: id, entries: [] })
-    expect(splitTwoColumn([make('s', 'summary'), make('k', 'skills')])).toEqual({ side: [make('k', 'skills')], main: [make('s', 'summary')] })
-    expect(splitTwoColumn([make('s', 'summary'), make('e', 'experience')])).toEqual({ side: [make('s', 'summary')], main: [make('e', 'experience')] })
+    const sidebar = catalog.templates.find((template) => template.id === 'modern-two-column')!.sidebar_kinds
+    expect(splitTwoColumn([make('s', 'summary'), make('k', 'skills')], sidebar)).toEqual({ side: [make('k', 'skills')], main: [make('s', 'summary')] })
+    expect(splitTwoColumn([make('s', 'summary'), make('e', 'experience')], sidebar)).toEqual({ side: [make('s', 'summary')], main: [make('e', 'experience')] })
   })
 })

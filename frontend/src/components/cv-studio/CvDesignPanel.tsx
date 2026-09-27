@@ -1,21 +1,14 @@
 import { useId } from 'react'
 import type { CSSProperties } from 'react'
 import { Check, ShieldCheck } from 'lucide-react'
-import { CV_ACCENT_PALETTE } from '#/lib/api/schemas'
 import type { CvStyle, CvStyleCatalog, CvTemplateId } from '#/lib/api/schemas'
-import { DENSITY_LABELS } from '#/lib/cv-studio/catalog'
-import { ACCENT_NAMES, FONT_STACKS, TEMPLATE_TOKENS } from '#/lib/cv-studio/preview'
 import { cn } from '#/lib/utils'
-
-type Accent = (typeof CV_ACCENT_PALETTE)[number]
-const isAccent = (value: string): value is Accent => (CV_ACCENT_PALETTE as readonly string[]).includes(value)
 
 /** A tiny CSS drawing of each template's layout, tinted with the chosen accent. */
 function TemplateThumb({ id, accent }: { id: CvTemplateId; accent: string }) {
-  const tokens = TEMPLATE_TOKENS[id]
   return (
     <span
-      className={`cvs-thumb cvs-thumb--${id} cvs-thumb--${tokens.font}`}
+      className={`cvs-thumb cvs-thumb--${id}`}
       style={{ '--thumb-accent': accent } as CSSProperties}
       aria-hidden="true"
     >
@@ -41,7 +34,6 @@ export function CvDesignPanel({ style, catalog, onChange }: {
 }) {
   const atsHintId = useId()
   const locked = style.ats_mode
-  const palette = catalog.palette.filter(isAccent)
   const lockedNote = locked ? <p className="cvs-design__locked">Paused while ATS-friendly mode is on.</p> : null
 
   return (
@@ -96,7 +88,7 @@ export function CvDesignPanel({ style, catalog, onChange }: {
           {catalog.fonts.map((font) => (
             <label key={font.id} className={cn('cvs-font', style.font_id === font.id && 'is-selected')}>
               <input type="radio" name="cv-font" value={font.id} checked={style.font_id === font.id} className="sr-only" onChange={() => onChange({ font_id: font.id })} />
-              <span className="cvs-font__sample" style={{ fontFamily: FONT_STACKS[font.id] }}>{font.name}</span>
+              <span className="cvs-font__sample" style={{ fontFamily: font.css_family }}>{font.name}</span>
               <span className="cvs-font__category">{font.category.replace('-', ' ')}</span>
             </label>
           ))}
@@ -106,10 +98,10 @@ export function CvDesignPanel({ style, catalog, onChange }: {
       <fieldset className="cvs-design__group" disabled={locked}>
         <legend>Accent colour</legend>
         <div className="cvs-swatches">
-          {palette.map((color) => (
-            <label key={color} className={cn('cvs-swatch', style.accent_color === color && 'is-selected')} title={ACCENT_NAMES[color]}>
-              <input type="radio" name="cv-accent" value={color} checked={style.accent_color === color} className="sr-only" aria-label={ACCENT_NAMES[color]} onChange={() => onChange({ accent_color: color })} />
-              <span className="cvs-swatch__dot" style={{ background: color }} />
+          {catalog.palette.map(({ value, name }) => (
+            <label key={value} className={cn('cvs-swatch', style.accent_color === value && 'is-selected')} title={name}>
+              <input type="radio" name="cv-accent" value={value} checked={style.accent_color === value} className="sr-only" aria-label={name} onChange={() => onChange({ accent_color: value })} />
+              <span className="cvs-swatch__dot" style={{ background: value }} />
             </label>
           ))}
         </div>
@@ -118,10 +110,10 @@ export function CvDesignPanel({ style, catalog, onChange }: {
       <fieldset className="cvs-design__group" disabled={locked}>
         <legend>Spacing</legend>
         <div className="cvs-segmented">
-          {catalog.densities.map((density) => (
-            <label key={density} className={cn('cvs-segmented__option', style.density === density && 'is-selected')}>
-              <input type="radio" name="cv-density" value={density} checked={style.density === density} className="sr-only" onChange={() => onChange({ density })} />
-              {DENSITY_LABELS[density]}
+          {catalog.densities.map(({ id, name }) => (
+            <label key={id} className={cn('cvs-segmented__option', style.density === id && 'is-selected')}>
+              <input type="radio" name="cv-density" value={id} checked={style.density === id} className="sr-only" onChange={() => onChange({ density: id })} />
+              {name}
             </label>
           ))}
         </div>

@@ -305,10 +305,8 @@ def apply_tailoring(db: Session, document: CvDocument, body: CvTailoringApply) -
             raise InvalidTailoringProposalError
         if change.support == "unsupported":
             raise InvalidTailoringProposalError
-        if decision.edited_after and decision.edited_after not in {change.before, change.after}:
-            raise InvalidTailoringProposalError
         accepted_evidence.update(change.evidence_item_ids)
-        write_change_field(mutable[key], change.field, decision.edited_after or change.after)
+        write_change_field(mutable[key], change.field, change.after)
     if accepted_evidence:
         _validate_evidence(
             db,

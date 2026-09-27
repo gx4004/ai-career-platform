@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { CvStudio } from '#/components/cv-studio/CvStudio'
 import type { CvDocument } from '#/lib/api/schemas'
 import { readWorkflowContext, writeWorkflowContext } from '#/lib/tools/drafts'
+import { styleCatalogFixture } from '#/lib/cv-studio/__tests__/styleCatalog.fixture'
 
 const api = vi.hoisted(() => ({
   listCvDocuments: vi.fn(), createCvDocument: vi.fn(), getCvDocument: vi.fn(), updateCvDocument: vi.fn(),
@@ -70,7 +71,7 @@ beforeEach(() => {
   api.listEvidenceItems.mockResolvedValue({ items: [] })
   api.getCvDocument.mockResolvedValue(document)
   api.updateCvDocument.mockImplementation((_id: string, payload: Partial<CvDocument>) => Promise.resolve({ ...document, ...payload, updated_at: '2026-07-12T10:05:00Z' }))
-  api.getCvStyleCatalog.mockRejectedValue(new Error('offline'))
+  api.getCvStyleCatalog.mockResolvedValue(styleCatalogFixture)
   api.deleteCvDocument.mockResolvedValue(undefined)
   api.deleteAllCvDocuments.mockResolvedValue(undefined)
   api.exportCvDocuments.mockResolvedValue({ schema_version: 'cv-documents-export/v1', exported_at: '2026-08-13T10:00:00Z', document_count: 1, documents: [document] })
@@ -219,6 +220,29 @@ describe('CV Studio design', { timeout: 15_000 }, () => {
     }), { timeout: 1500 })
   })
 
+  it('shows the template, colour and spacing names the style catalog provides', async () => {
+    api.getCvStyleCatalog.mockResolvedValue({
+      ...styleCatalogFixture,
+      templates: styleCatalogFixture.templates.map((template) => template.id === 'ats-essential' ? { ...template, name: 'Catalog Plain', description: 'Named by the server.' } : template),
+      palette: [{ value: '#111827', name: 'Graphite' }],
+      densities: [{ id: 'normal', name: 'Airy' }],
+    })
+    view()
+    fireEvent.click(within(await screen.findByRole('tablist', { name: 'Side panel' })).getByRole('tab', { name: /Design/ }))
+    expect(screen.getByRole('radio', { name: /Catalog Plain/ })).toBeTruthy()
+    expect(screen.getByText('Named by the server.')).toBeTruthy()
+    expect(screen.getByRole('radio', { name: 'Graphite' })).toBeTruthy()
+    expect(screen.getByRole('radio', { name: 'Airy' })).toBeTruthy()
+    expect(screen.queryByRole('radio', { name: 'Roomy' })).toBeNull()
+  })
+
+  it('asks to try again when the style catalog cannot load', async () => {
+    api.getCvStyleCatalog.mockRejectedValueOnce(new Error('offline'))
+    view()
+    fireEvent.click(await screen.findByRole('button', { name: 'Try again' }))
+    expect(await screen.findByTestId('cv-paper')).toBeTruthy()
+  })
+
   it('turns on ATS-friendly mode, pauses the other controls and saves it', async () => {
     api.getCvDocument.mockResolvedValue({ ...document, style: { ...style, template_id: 'modern-two-column', accent_color: '#B91C1C' } })
     view()
@@ -257,10 +281,10 @@ describe('CV Studio quality, exports and versions', { timeout: 15_000 }, () => {
     expect(screen.queryByRole('button', { name: /Turn on ATS-friendly mode/ })).toBeNull()
   })
 
-  it('exports the PDF with the chosen template and opens the exact server PDF', async () => {
+  it('exports the saved PDF and opens the exact server PDF', async () => {
     view()
     fireEvent.click(await screen.findByRole('button', { name: /Export PDF/ }))
-    await waitFor(() => expect(api.fetchCvArtifactBlob).toHaveBeenCalledWith('d1', 'ats-essential', 'pdf'))
+    await waitFor(() => expect(api.fetchCvArtifactBlob).toHaveBeenCalledWith('d1', 'pdf'))
     await waitFor(() => expect(clickedDownload).toBe('Principal CV.pdf'))
     fireEvent.click(screen.getByRole('button', { name: /View exact PDF/ }))
     expect(await screen.findByTitle('ATS Essential PDF preview')).toBeTruthy()

@@ -174,7 +174,6 @@ export const cvStyleSchema = z.strictObject({
   font_id: cvFontIdSchema.default('lato'),
   accent_color: z.enum(CV_ACCENT_PALETTE).default('#111827'),
   density: cvDensitySchema.default('normal'),
-  section_order: z.array(z.string()).max(50).nullable().optional(),
   ats_mode: z.boolean().default(false),
 })
 export type CvStyle = z.infer<typeof cvStyleSchema>
@@ -328,7 +327,7 @@ export const cvTailoringProposalSchema = z.object({
 export const cvTailoringApplySchema = z.strictObject({
   request_id: z.string().uuid(), variant_name: z.string().min(1).max(120), job_title: z.string().min(1).max(200), proposal_token: z.string().length(64),
   changes: z.array(cvTailoringChangeSchema).max(50), decisions: z.array(z.strictObject({
-    change_id: z.string(), action: z.enum(['accept', 'reject', 'edit']), edited_after: z.string().min(1).max(5_000).optional(),
+    change_id: z.string(), action: z.enum(['accept', 'reject']),
   })).max(50),
 })
 export type CvTailoringProposal = z.infer<typeof cvTailoringProposalSchema>
@@ -338,23 +337,7 @@ export const cvTemplateIdSchema = z.enum([
   'ats-essential', 'professional-editorial', 'technical-portfolio',
   'modern-two-column', 'minimal-serif',
 ])
-export const cvRenderModelSchema = z.object({
-  schema_version: z.literal('cv-render/v1'), document_id: z.string(), document_name: z.string(), template_id: cvTemplateIdSchema,
-  page: z.object({ width_mm: z.number().int(), height_mm: z.number().int(), margin_mm: z.number().int() }),
-  tokens: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])),
-  sections: z.array(z.object({
-    id: z.string(), kind: cvSectionKindSchema, title: z.string(),
-    entries: z.array(z.object({
-      id: z.string(), text: z.string(), links: z.array(z.string()),
-      heading: z.string().nullable().optional(), subheading: z.string().nullable().optional(),
-      location: z.string().nullable().optional(), start_date: z.string().nullable().optional(),
-      end_date: z.string().nullable().optional(), bullets: z.array(z.string()).optional(),
-    })),
-  })),
-  canonical_hash: z.string().regex(/^[0-9a-f]{64}$/),
-})
 export type CvTemplateId = z.infer<typeof cvTemplateIdSchema>
-export type CvRenderModel = z.infer<typeof cvRenderModelSchema>
 export const cvQualityResponseSchema = z.object({
   schema_version: z.literal('cv-quality/v2'),
   dimensions: z.array(z.object({
@@ -368,13 +351,22 @@ export const cvQualityResponseSchema = z.object({
   })),
   advisory_note: z.string(),
 })
+// GET /cv-documents/style-catalog: the backend's single source of CV design
+// values. The live preview looks sizes, fonts and names up here.
+const cvStyleSizesSchema = z.object({ body_pt: z.number(), heading_pt: z.number(), section_gap_pt: z.number() })
 export const cvStyleCatalogSchema = z.object({
   templates: z.array(z.object({
     id: cvTemplateIdSchema, name: z.string(), description: z.string(), ats_safe: z.boolean(),
-  })),
-  fonts: z.array(z.object({ id: cvFontIdSchema, name: z.string(), category: z.string() })),
-  palette: z.array(z.string()),
-  densities: z.array(cvDensitySchema),
+    title_align: z.enum(['left', 'center']), margin_mm: z.number(),
+    sidebar_kinds: z.array(cvSectionKindSchema),
+    sizes: z.object({ compact: cvStyleSizesSchema, normal: cvStyleSizesSchema, spacious: cvStyleSizesSchema }),
+  })).min(1),
+  fonts: z.array(z.object({ id: cvFontIdSchema, name: z.string(), category: z.string(), css_family: z.string() })).min(1),
+  palette: z.array(z.object({ value: z.enum(CV_ACCENT_PALETTE), name: z.string() })).min(1),
+  densities: z.array(z.object({ id: cvDensitySchema, name: z.string() })).min(1),
+  ats_mode: z.object({
+    template_id: cvTemplateIdSchema, density: cvDensitySchema, accent: z.string(), css_family: z.string(),
+  }),
 })
 export type CvStyleCatalog = z.infer<typeof cvStyleCatalogSchema>
 export type CvQualityResponse = z.infer<typeof cvQualityResponseSchema>
