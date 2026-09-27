@@ -43,7 +43,6 @@ from app.schemas.cv_documents import (
     CvVariantResponse,
 )
 from app.schemas.evidence_profile import EvidenceItemCreate, EvidenceItemResponse
-from app.services.analytics import safe_record_activation_event
 from app.services.cv_documents import (
     CvDocumentNotFoundError,
     DuplicateVariantNameError,
@@ -458,7 +457,6 @@ async def quality(
                 check["remediation"] = "Regenerate after editing if this artifact validation fails."
     remaining = CV_QUALITY_MODEL_RUN_LIMIT - quota_document.quality_model_runs
     ats_score, ats_fixes = compute_ats_summary(result["ats_checks"], style)
-    safe_record_activation_event(db, event_name="studio_quality_checked")
     return CvQualityResponse(
         **result, remaining_model_runs=remaining, ats_score=ats_score, ats_fixes=ats_fixes
     )
@@ -534,7 +532,6 @@ async def tailor(
     result["remaining_regenerations"] = (
         CV_TAILORING_MODEL_RUN_LIMIT - quota_document.tailoring_model_runs
     )
-    safe_record_activation_event(db, event_name="studio_tailoring_generated")
     result["request_id"] = uuid4()
     result["proposal_token"] = proposal_token(
         str(result["request_id"]), document.id, current_user.id, body.job_title, result["changes"]

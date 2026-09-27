@@ -5,10 +5,10 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-# Allowlisted dimensions shared by the frontend-telemetry ingestion contract and
-# the durable activation-event write seam (see app/schemas/analytics.py). These
-# are the same low-cardinality values the frontend schema already restricts
-# itself to (D-037) — never resume/JD/generated content, email, or free text.
+# Allowlisted dimensions for the frontend-telemetry ingestion contract. These are
+# the same low-cardinality values the frontend schema already restricts itself to
+# (D-037) — never resume/JD/generated content, email, or free text. Accepted
+# events are written to structured stdout only.
 TelemetryEventName = Literal[
     "landing_page_viewed",
     "tool_run_started",
@@ -42,22 +42,6 @@ BrowserToolId = Literal[
     "application-reviewer",
 ]
 
-# Backend-generated pipeline operations that reuse the tool-run taxonomy but that
-# no browser can emit. `application-packet` is written only by the packet
-# pipeline (app/services/application_packets.py:PACKET_TOOL_NAME) and has no
-# frontend tool id at all; it entered the browser union only so the backend
-# reporting union would accept it, which both widened the ingest contract (a
-# client could fabricate packet activation rows) and left the frontend union
-# behind. Same reasoning as the CV Studio ids in app/schemas/analytics.py:
-# backend telemetry needs a bounded identifier; the browser contract must not
-# gain one.
-BackendOnlyToolId = Literal["application-packet"]
-
-# Every tool identifier the backend reports on — the reporting taxonomy, not the
-# ingest contract. Nested Literals flatten (PEP 586), so this stays a flat
-# Literal and `OperationalToolId` in app/schemas/analytics.py keeps covering
-# every tool run exactly as before.
-ToolId = Literal[BrowserToolId, BackendOnlyToolId]
 AccessMode = Literal["authenticated", "guest_demo"]
 FailureCategory = Literal[
     "tool_request_failed",

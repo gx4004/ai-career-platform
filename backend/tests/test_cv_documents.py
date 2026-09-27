@@ -8,7 +8,6 @@ from app.models.tool_run import ToolRun
 from app.models.user import User
 from app.models.workspace import Workspace
 from app.routers.cv_documents import CV_QUALITY_MODEL_RUN_LIMIT, CV_TAILORING_MODEL_RUN_LIMIT
-from app.schemas.analytics import ActivationEventCreate
 from app.services.cv_tailoring import proposal_token
 from app.services.tool_runs import persist_tool_run
 
@@ -569,13 +568,6 @@ def test_deterministic_quality_does_not_consume_the_model_budget(
     assert model.status_code == 200, (
         "three deterministic runs must leave the single model allowance intact"
     )
-
-
-def test_studio_telemetry_allowlist_rejects_content_and_stable_identifiers():
-    assert ActivationEventCreate(event_name="studio_document_deleted").event_name == "studio_document_deleted"
-    for field in ("cv_content", "job_description", "document_id", "run_id", "title"):
-        with pytest.raises(Exception):
-            ActivationEventCreate(event_name="studio_document_deleted", **{field: "private"})
 
 
 def test_failed_model_quality_falls_back_and_still_consumes_document_allowance(

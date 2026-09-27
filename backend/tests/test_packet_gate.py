@@ -1,11 +1,9 @@
-"""R15 #184 trust-chain gate: reviewer gate + admin visibility.
+"""R15 #184 trust-chain gate: the reviewer gate.
 
 Covers the acceptance criteria from the parent spec (#179, D-097):
 
 * a packet with an unresolved fabrication finding is never queue-eligible;
-* reviewer findings surface with the packet by-reference;
-* gate state is emitted as ALLOWLISTED operational events (no content can ride
-  them) and is visible on the admin dashboard.
+* reviewer findings surface with the packet by-reference.
 
 The R8/R10 eval-report regression halt that used to sit alongside this gate was
 removed in the Sept 2026 reset (#319); only the owner-initiated pause (R15 #183,
@@ -19,20 +17,18 @@ from datetime import UTC, datetime
 import pytest
 from pydantic import ValidationError
 
-from app.auth.security import create_access_token, hash_password
+from app.auth.security import hash_password
 from app.models.application_packet import ApplicationPacket
 from app.models.cv_document import CvDocument, CvVariant
 from app.models.discovered_listing import DiscoveredListing
 from app.models.queue_rule import QueueRule
 from app.models.tool_run import ToolRun
 from app.models.user import User
-from app.schemas.analytics import ActivationEventCreate
 from app.schemas.discovery_recommendations import (
     DiscoveryRecommendation,
     DiscoveryRecommendationList,
     RecommendationAttribution,
 )
-from app.services.analytics import record_activation_event
 from app.services.application_packets import prepare_packets
 from app.services.packet_gate import is_queue_eligible
 
@@ -217,61 +213,3 @@ async def test_findings_surface_with_packet_by_reference(db, test_user, monkeypa
     assert review.tool_name == "application-reviewer"
     assert review.user_id == test_user.id
     assert isinstance(review.result_payload["findings"], list)
-
-
-# ── AC4: gate events are allowlisted — no content can ride them ──
-
-
-def test_gate_events_are_allowlisted(db):
-    # Valid, bounded gate events write cleanly.
-    record_activation_event(db, event_name="packet_queue_gate", operational_outcome="passed")
-
-    # An out-of-set outcome is rejected (bounded Literal).
-    with pytest.raises(ValidationError):
-        ActivationEventCreate(event_name="packet_queue_gate", operational_outcome="queued")
-
-    # Packet / listing / user / finding content can never ride a gate event —
-    # `extra="forbid"` rejects any field outside the allowlist.
-    for bad in ("listing_id", "packet_id", "finding_text", "cover_letter", "user_id"):
-        with pytest.raises(ValidationError):
-            ActivationEventCreate(
-                event_name="packet_queue_gate",
-                operational_outcome="blocked",
-                **{bad: "Globex Corporation"},
-            )
-
-
-# ── AC4: gate state is visible on the admin dashboard ──
-
-
-@pytest.fixture
-def admin_headers(db):
-    admin = User(
-        email="gate-admin@example.com",
-        hashed_password=hash_password("password123"),
-        full_name="Admin",
-        is_admin=True,
-    )
-    db.add(admin)
-    db.commit()
-    db.refresh(admin)
-    return {"Authorization": f"Bearer {create_access_token(admin.id)}"}
-
-
-def test_packet_gate_admin_endpoint_requires_admin(client, auth_headers):
-    assert client.get(f"{PREFIX}/admin/packet-gate").status_code == 401
-    assert client.get(f"{PREFIX}/admin/packet-gate", headers=auth_headers).status_code == 403
-
-
-def test_packet_gate_admin_endpoint_reports_state(client, admin_headers, db):
-    # Seed one of each allowlisted gate event.
-    record_activation_event(db, event_name="packet_queue_gate", operational_outcome="running")
-    record_activation_event(db, event_name="packet_queue_gate", operational_outcome="passed")
-    record_activation_event(db, event_name="packet_queue_gate", operational_outcome="blocked")
-
-    resp = client.get(f"{PREFIX}/admin/packet-gate", headers=admin_headers)
-    assert resp.status_code == 200
-    body = resp.json()
-    assert body["gate_running"] == 1
-    assert body["gate_passed"] == 1
-    assert body["gate_blocked"] == 1

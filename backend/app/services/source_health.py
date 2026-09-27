@@ -5,7 +5,6 @@ from datetime import UTC, datetime, timedelta
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from app.models.analytics_event import AnalyticsEvent
 from app.models.discovered_listing import DiscoveredListingAttribution
 from app.models.discovery_source import DiscoverySource
 from app.schemas.admin import AdminSourceHealthResponse, SourceFamilyHealth
@@ -30,21 +29,15 @@ SOURCE_STALENESS_THRESHOLD_DAYS = 7
 def aggregate_source_health(
     db: Session,
     *,
-    window_start: datetime,
-    window_end: datetime,
     now: datetime | None = None,
 ) -> AdminSourceHealthResponse:
     """Aggregate per-source-family operational health for the admin view (#177, D-053).
 
-    Read-only. Extends the same first-party operational path every other admin
-    view uses — no new analytics vendor. Every figure is a bounded per-family
-    aggregate:
+    Read-only. Every figure is a bounded per-family aggregate:
 
     * registry posture from ``discovery_sources`` (counts by family and state);
     * listings-store stock from ``discovered_listing_attributions`` (volume,
-      staleness, oldest/newest retrieval timestamps);
-    * windowed flow outcomes from allowlisted ``analytics_events``
-      (fetch success/failure/blocked, ingest/dedup, expiry).
+      staleness, oldest/newest retrieval timestamps).
 
     No listing content, listing id, full URL, source key/name, or user identifier
     is reachable from this response — only source-family strings and integer
@@ -98,41 +91,6 @@ def aggregate_source_health(
         .all()
     )
 
-    # ── Windowed flow outcomes (events) ──
-    flow_rows = (
-        db.query(
-            AnalyticsEvent.operational_dimension,
-            AnalyticsEvent.event_name,
-            AnalyticsEvent.operational_outcome,
-            func.count(AnalyticsEvent.id),
-        )
-        .filter(
-            # Window on the logical event time when known (occurred_at), falling
-            # back to server ingest time. In production occurred_at defaults to
-            # real-now so behaviour is unchanged; injected-clock callers (tests,
-            # backdated expiry runs) then window deterministically. Fixes a
-            # date-boundary flake where an expiry event stamped at wall-clock
-            # `created_at` fell outside a fixture window built from an earlier now.
-            func.coalesce(AnalyticsEvent.occurred_at, AnalyticsEvent.created_at)
-            >= window_start,
-            func.coalesce(AnalyticsEvent.occurred_at, AnalyticsEvent.created_at)
-            <= window_end,
-            AnalyticsEvent.event_name.in_(
-                (
-                    "discovery_source_fetch_outcome",
-                    "discovery_source_ingest_outcome",
-                    "discovery_source_expiry",
-                )
-            ),
-        )
-        .group_by(
-            AnalyticsEvent.operational_dimension,
-            AnalyticsEvent.event_name,
-            AnalyticsEvent.operational_outcome,
-        )
-        .all()
-    )
-
     families: dict[str, SourceFamilyHealth] = {
         family: SourceFamilyHealth(source_family=family) for family in SOURCE_FAMILIES
     }
@@ -163,28 +121,7 @@ def aggregate_source_health(
             continue
         health.stale_count = stale_count
 
-    for family, event_name, outcome, count in flow_rows:
-        health = families.get(family)
-        if health is None:
-            continue
-        if event_name == "discovery_source_fetch_outcome":
-            if outcome == "success":
-                health.fetch_success += count
-            elif outcome == "failure":
-                health.fetch_failure += count
-            elif outcome == "blocked":
-                health.fetch_blocked += count
-        elif event_name == "discovery_source_ingest_outcome":
-            if outcome == "ingested":
-                health.ingested += count
-            elif outcome == "deduplicated":
-                health.deduplicated += count
-        elif event_name == "discovery_source_expiry" and outcome == "expired":
-            health.expired += count
-
     return AdminSourceHealthResponse(
-        window_start=window_start.isoformat(),
-        window_end=window_end.isoformat(),
         staleness_threshold_days=SOURCE_STALENESS_THRESHOLD_DAYS,
         families=[families[family] for family in SOURCE_FAMILIES],
     )

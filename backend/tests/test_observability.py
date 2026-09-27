@@ -26,6 +26,20 @@ def test_malformed_model_output_is_not_written_to_logs(caplog):
 # ── R3 #78: the log seams themselves must be allowlisted, not caller-trusted ──
 
 
+def test_telemetry_endpoint_logs_the_event_to_stdout(client, caplog):
+    caplog.set_level(logging.INFO)
+
+    response = client.post(
+        "/api/v1/telemetry/events",
+        json={"event_name": "tool_run_succeeded", "tool_id": "resume", "saved": True},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"accepted": True}
+    line = next(r.message for r in caplog.records if '"frontend_telemetry"' in r.message)
+    assert json.loads(line)["tool_id"] == "resume"
+
+
 def test_frontend_telemetry_log_drops_fields_outside_the_ingestion_schema(caplog):
     """The log seam re-applies the allowlist instead of trusting its caller.
 

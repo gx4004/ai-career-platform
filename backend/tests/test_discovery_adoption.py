@@ -12,7 +12,6 @@ from pathlib import Path
 
 import pytest
 
-from app.models.analytics_event import AnalyticsEvent
 from app.models.campaign_event import CampaignEvent
 from app.models.campaign_listing import CampaignListing
 from app.models.discovered_listing import (
@@ -137,14 +136,6 @@ def test_adoption_copies_content_attribution_and_retrieval_date_and_records_firs
     assert len(events) == 1
     assert events[0].event_type == "listing_adopted"
     assert events[0].details == {"source_family": "licensed", "outcome": "attached"}
-
-    # Allowlisted, low-cardinality adoption telemetry only.
-    analytics = db.query(AnalyticsEvent).filter_by(
-        event_name="discovery_recommendation_adopted"
-    ).all()
-    assert len(analytics) == 1
-    assert analytics[0].operational_outcome == "adopted"
-    assert analytics[0].operational_dimension == "licensed"
 
 
 def test_adopting_the_same_listing_twice_reuses_the_same_campaign(db, test_user):

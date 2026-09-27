@@ -1,4 +1,4 @@
-"""R6 per-tool LLM cost estimation from actual token usage (issue #106).
+"""LLM cost estimation from actual token usage (issue #106, packet ceiling D-094).
 
 Covers the parent spec's cost-related acceptance criteria at the seam that owns
 them: the estimate derives from actual returned token counts and a per-model
@@ -39,6 +39,12 @@ def test_estimate_cost_varies_by_model():
     flash = estimate_cost("gemini-2.5-flash", 1_000_000, 1_000_000)
     lite = estimate_cost("gemini-2.5-flash-lite", 1_000_000, 1_000_000)
     assert lite < flash
+
+
+def test_anthropic_default_model_is_priced_at_its_own_rate():
+    # claude-haiku-4-5: input $1.00 / 1M, output $5.00 / 1M — not the Flash fallback.
+    cost = estimate_cost("claude-haiku-4-5", prompt_tokens=1_000_000, output_tokens=1_000_000)
+    assert cost == Decimal("6.00")
 
 
 def test_estimate_cost_is_not_a_flat_per_tool_guess():

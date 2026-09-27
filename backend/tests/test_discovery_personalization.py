@@ -3,7 +3,6 @@ from datetime import UTC, datetime
 import pytest
 
 from app.auth.security import create_access_token, hash_password
-from app.models.analytics_event import AnalyticsEvent
 from app.models.discovered_listing import (
     DiscoveredListing,
     DiscoveredListingAttribution,
@@ -343,42 +342,3 @@ def test_personalization_included_in_export_and_deletion_cascade(db, test_user):
     assert db.query(DiscoveryRecommendationReport).count() == 0
 
 
-def test_telemetry_carries_only_family_and_outcome(client, auth_headers, db, test_user):
-    now = datetime(2026, 7, 13, tzinfo=UTC)
-    source = _source("feed-a", family="employer_ats")
-    db.add(source)
-    db.commit()
-    listing = _listing(
-        db, source, title="Platform Engineer", description="Kubernetes work.", retrieved_at=now
-    )
-
-    client.post(
-        f"{PREFIX}/discovery/hidden-sources", json={"source_id": source.id}, headers=auth_headers
-    )
-    client.post(
-        f"{PREFIX}/discovery/dismissals", json={"listing_id": listing.id}, headers=auth_headers
-    )
-    client.post(
-        f"{PREFIX}/discovery/reports",
-        json={"listing_id": listing.id, "reason_category": "other", "reason": "noisy"},
-        headers=auth_headers,
-    )
-
-    events = (
-        db.query(AnalyticsEvent)
-        .filter(AnalyticsEvent.event_name == "discovery_personalization_changed")
-        .all()
-    )
-    outcomes = {e.operational_outcome for e in events}
-    assert outcomes == {"source_hidden", "recommendation_dismissed", "recommendation_reported"}
-    for event in events:
-        # Only the two allowlisted low-cardinality axes carry data.
-        assert event.operational_dimension == "employer_ats"
-        assert event.tool_id is None
-        assert event.failure_category is None
-        # No listing content, listing id, or reason leaked onto the row.
-        for value in vars(event).values():
-            if isinstance(value, str):
-                assert "Platform Engineer" not in value
-                assert listing.id not in value
-                assert "noisy" not in value

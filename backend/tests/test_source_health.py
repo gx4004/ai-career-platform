@@ -5,13 +5,11 @@ from pathlib import Path
 import pytest
 
 from app.auth.security import create_access_token, hash_password
-from app.models.analytics_event import AnalyticsEvent
 from app.models.discovered_listing import DiscoveredListingAttribution
 from app.models.discovery_source import DiscoverySource
 from app.models.user import User
 from app.schemas.discovered_listings import DiscoveredListingInput
 from app.schemas.discovery_sources import DiscoverySourceCreate, DiscoverySourceUpdate
-from app.services.analytics import safe_record_activation_event
 from app.services.discovered_listings import (
     expire_discovered_listings,
     store_discovered_listing,
@@ -72,10 +70,10 @@ def _activated_source(db, reviewer, *, key: str, host: str, retention_days: int 
     return source
 
 
-# ── Kill switch: immediate effect + operational event ──
+# ── Kill switch: immediate effect ──
 
 
-def test_kill_switch_trip_blocks_ingestion_immediately_and_records_event(db, client):
+def test_kill_switch_trip_blocks_ingestion_immediately(db, client):
     admin = _admin(db)
     source = _activated_source(db, admin, key="feed-a", host="feed-a.example")
     # Baseline: source is ingestible.
@@ -93,21 +91,8 @@ def test_kill_switch_trip_blocks_ingestion_immediately_and_records_event(db, cli
         require_ingestion_allowed(db, source.source_key, "feed")
     assert refused.value.reason == IngestionRefusal.KILL_SWITCHED
 
-    event = (
-        db.query(AnalyticsEvent)
-        .filter_by(event_name="discovery_source_kill_switch")
-        .order_by(AnalyticsEvent.created_at.desc())
-        .first()
-    )
-    assert event is not None
-    assert event.operational_dimension == "licensed"
-    assert event.operational_outcome == "kill_switch_enabled"
-    # No source key/name/url leaks onto the event row.
-    assert source.source_key not in str(event.__dict__)
-    assert source.display_name not in str(event.__dict__)
 
-
-def test_kill_switch_clear_re_enables_and_records_event(db, client):
+def test_kill_switch_clear_re_enables_ingestion(db, client):
     admin = _admin(db)
     source = _activated_source(db, admin, key="feed-a", host="feed-a.example")
     client.post(
@@ -124,15 +109,6 @@ def test_kill_switch_clear_re_enables_and_records_event(db, client):
 
     authorization = require_ingestion_allowed(db, source.source_key, "feed")
     assert authorization.source_id == source.id
-
-    outcomes = [
-        e.operational_outcome
-        for e in db.query(AnalyticsEvent)
-        .filter_by(event_name="discovery_source_kill_switch")
-        .order_by(AnalyticsEvent.created_at)
-        .all()
-    ]
-    assert outcomes == ["kill_switch_enabled", "kill_switch_disabled"]
 
 
 def test_kill_switch_clear_refused_before_terms_accepted(db, client):
@@ -190,20 +166,6 @@ def test_health_aggregates_compute_per_source_family(db, client):
     dup = store_discovered_listing(db, source_key="feed-b", body=DiscoveredListingInput(**second))
     assert dup.deduplicated is True
 
-    # Fetch outcomes are bounded family/outcome events.
-    safe_record_activation_event(
-        db,
-        event_name="discovery_source_fetch_outcome",
-        operational_dimension="licensed",
-        operational_outcome="success",
-    )
-    safe_record_activation_event(
-        db,
-        event_name="discovery_source_fetch_outcome",
-        operational_dimension="licensed",
-        operational_outcome="failure",
-    )
-
     response = client.get(f"{PREFIX}/admin/source-health", headers=_headers(admin))
     assert response.status_code == 200
     body = response.json()
@@ -215,17 +177,13 @@ def test_health_aggregates_compute_per_source_family(db, client):
     assert licensed["active_count"] == 2
     assert licensed["killed_count"] == 0
     assert licensed["listing_count"] == 2  # two attributions, one deduplicated listing
-    assert licensed["ingested"] == 1
-    assert licensed["deduplicated"] == 1
-    assert licensed["fetch_success"] == 1
-    assert licensed["fetch_failure"] == 1
 
     empty = next(f for f in body["families"] if f["source_family"] == "user_provided")
     assert empty["source_count"] == 0
     assert empty["listing_count"] == 0
 
 
-def test_health_counts_expiry_and_staleness(db):
+def test_health_counts_staleness_and_expiry(db):
     admin = _admin(db)
     _activated_source(db, admin, key="feed-a", host="feed-a.example", retention_days=5)
     now = datetime(2026, 7, 13, tzinfo=UTC)
@@ -237,12 +195,7 @@ def test_health_counts_expiry_and_staleness(db):
         retrieved_at=now - timedelta(days=10),
     )
     # Stale (older than the staleness threshold), not yet expired mid-run.
-    health = aggregate_source_health(
-        db,
-        window_start=now - timedelta(days=14),
-        window_end=now + timedelta(days=1),
-        now=now,
-    )
+    health = aggregate_source_health(db, now=now)
     licensed = next(f for f in health.families if f.source_family == "licensed")
     assert licensed.stale_count == 1
 
@@ -250,26 +203,17 @@ def test_health_counts_expiry_and_staleness(db):
     assert result.attributions_deleted == 1
     assert db.query(DiscoveredListingAttribution).count() == 0
 
-    after = aggregate_source_health(
-        db,
-        window_start=now - timedelta(days=14),
-        window_end=now + timedelta(days=1),
-        now=now,
-    )
+    after = aggregate_source_health(db, now=now)
     licensed_after = next(f for f in after.families if f.source_family == "licensed")
-    assert licensed_after.expired == 1
     assert licensed_after.listing_count == 0
+    assert licensed_after.stale_count == 0
 
 
 def test_killed_source_counts_in_registry_posture(db):
     admin = _admin(db)
     source = _activated_source(db, admin, key="feed-a", host="feed-a.example")
     update_source(db, source, DiscoverySourceUpdate(kill_switch=True))
-    health = aggregate_source_health(
-        db,
-        window_start=datetime(2026, 7, 1, tzinfo=UTC),
-        window_end=datetime(2026, 8, 1, tzinfo=UTC),
-    )
+    health = aggregate_source_health(db)
     licensed = next(f for f in health.families if f.source_family == "licensed")
     assert licensed.source_count == 1
     assert licensed.killed_count == 1

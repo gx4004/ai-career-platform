@@ -19,7 +19,6 @@ from app.schemas.discovery_personalization import (
     PersonalizationReportExport,
     RecommendationReportAck,
 )
-from app.services.analytics import safe_record_activation_event
 
 
 class DiscoverySourceNotFoundError(Exception):
@@ -30,27 +29,11 @@ class DiscoveredListingNotFoundError(Exception):
     """The referenced discovered listing does not exist."""
 
 
-def _record(db: Session, *, outcome: str, source_family: str | None) -> None:
-    """Emit an allowlisted personalization telemetry event (D-090).
-
-    Carries only the outcome class and — when the source family is unambiguous —
-    the source family. Never a listing id, listing content, run id, or reporter
-    identity. Best-effort: instrumentation must never break a user action.
-    """
-    fields: dict[str, str] = {
-        "event_name": "discovery_personalization_changed",
-        "operational_outcome": outcome,
-    }
-    if source_family is not None:
-        fields["operational_dimension"] = source_family
-    safe_record_activation_event(db, **fields)
-
-
 def _listing_source_family(listing: DiscoveredListing) -> str | None:
     """The source family of a listing's earliest attribution, or None if absent.
 
-    Used purely as the low-cardinality telemetry dimension for a dismissal; a
-    listing carries one family class per attribution and this is a stable pick.
+    Stored on a recommendation report; a listing carries one family class per
+    attribution and this is a stable pick.
     """
     families = sorted(
         {attribution.source.source_family for attribution in listing.attributions}
@@ -76,7 +59,6 @@ def hide_source(db: Session, user_id: str, source_id: str) -> HiddenSourceItem:
     if existing is None:
         db.add(DiscoveryHiddenSource(user_id=user_id, source_id=source_id))
         db.commit()
-        _record(db, outcome="source_hidden", source_family=source.source_family)
     return _hidden_item(source, _hidden_created_at(db, user_id, source_id))
 
 
@@ -91,14 +73,8 @@ def unhide_source(db: Session, user_id: str, source_id: str) -> None:
     )
     if row is None:
         return
-    source = db.query(DiscoverySource).filter(DiscoverySource.id == source_id).one_or_none()
     db.delete(row)
     db.commit()
-    _record(
-        db,
-        outcome="source_unhidden",
-        source_family=source.source_family if source is not None else None,
-    )
 
 
 def _hidden_created_at(db: Session, user_id: str, source_id: str):
@@ -143,11 +119,6 @@ def dismiss_recommendation(db: Session, user_id: str, listing_id: str) -> Dismis
     if existing is None:
         db.add(DiscoveryDismissedListing(user_id=user_id, listing_id=listing_id))
         db.commit()
-        _record(
-            db,
-            outcome="recommendation_dismissed",
-            source_family=_listing_source_family(listing),
-        )
     row = (
         db.query(DiscoveryDismissedListing)
         .filter(
@@ -170,16 +141,8 @@ def undismiss_recommendation(db: Session, user_id: str, listing_id: str) -> None
     )
     if row is None:
         return
-    listing = (
-        db.query(DiscoveredListing).filter(DiscoveredListing.id == listing_id).one_or_none()
-    )
     db.delete(row)
     db.commit()
-    _record(
-        db,
-        outcome="recommendation_undismissed",
-        source_family=_listing_source_family(listing) if listing is not None else None,
-    )
 
 
 # ── Error reports ──
@@ -211,7 +174,6 @@ def report_recommendation(
     db.add(report)
     db.commit()
     db.refresh(report)
-    _record(db, outcome="recommendation_reported", source_family=source_family)
     return RecommendationReportAck(
         id=report.id,
         listing_id=report.listing_id,
