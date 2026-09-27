@@ -75,10 +75,13 @@ def test_items_are_owner_isolated(client, auth_headers, test_user, second_user, 
     assert client.get(f"{PREFIX}/{foreign.id}", headers=auth_headers).status_code == 404
     assert (
         client.patch(
-            f"{PREFIX}/{foreign.id}", json={"kind": "project"}, headers=auth_headers
+            f"{PREFIX}/{foreign.id}",
+            json={"content": {"name": "Hijacked"}},
+            headers=auth_headers,
         ).status_code
         == 404
     )
+    assert client.post(f"{PREFIX}/{foreign.id}/confirm", headers=auth_headers).status_code == 404
     assert client.delete(f"{PREFIX}/{foreign.id}", headers=auth_headers).status_code == 404
 
 
@@ -105,20 +108,12 @@ def test_owner_can_delete_whole_profile_without_deleting_another_owners_items(
     db.add_all([*mine, foreign])
     db.commit()
 
-    commits = 0
-    original_commit = db.commit
-
-    def counted_commit():
-        nonlocal commits
-        commits += 1
-        original_commit()
-
-    monkeypatch.setattr(db, "commit", counted_commit)
+    commits = _count_commits(db, monkeypatch)
 
     response = client.delete(PREFIX, headers=auth_headers)
 
     assert response.status_code == 204
-    assert commits == 1
+    assert commits[0] == 1
     assert db.query(EvidenceItem).filter_by(user_id=test_user.id).count() == 0
     assert db.query(EvidenceItem).filter_by(user_id=second_user.id).one().id == foreign.id
 
@@ -132,6 +127,18 @@ def test_guests_have_no_profile_surface(client):
     assert client.post(PREFIX, json=_payload()).status_code in (401, 403)
 
 
+def _count_commits(db, monkeypatch) -> list[int]:
+    commits = [0]
+    original_commit = db.commit
+
+    def counted_commit():
+        commits[0] += 1
+        original_commit()
+
+    monkeypatch.setattr(db, "commit", counted_commit)
+    return commits
+
+
 def test_confirmation_requires_dedicated_explicit_user_action(client, auth_headers):
     direct = client.post(
         PREFIX,
@@ -140,7 +147,8 @@ def test_confirmation_requires_dedicated_explicit_user_action(client, auth_heade
     )
     assert direct.status_code == 422
 
-    created = client.post(PREFIX, json=_payload(), headers=auth_headers).json()
+    created = client.post(PREFIX, json=_payload(provenance="imported"), headers=auth_headers).json()
+    assert created["confirmation_state"] == "unconfirmed"
     update = client.patch(
         f"{PREFIX}/{created['id']}",
         json={"confirmation_state": "confirmed"},
@@ -148,27 +156,23 @@ def test_confirmation_requires_dedicated_explicit_user_action(client, auth_heade
     )
     assert update.status_code == 422
 
-    confirmed = client.post(
-        f"{PREFIX}/{created['id']}/confirmation",
-        json={"action": "confirm"},
-        headers=auth_headers,
-    )
+    confirmed = client.post(f"{PREFIX}/{created['id']}/confirm", headers=auth_headers)
     assert confirmed.status_code == 200
     assert confirmed.json()["confirmation_state"] == "confirmed"
 
-    rejected = client.post(
-        f"{PREFIX}/{created['id']}/confirmation",
-        json={"action": "reject"},
-        headers=auth_headers,
-    )
-    assert rejected.status_code == 200
-    assert rejected.json()["confirmation_state"] == "rejected"
+
+def test_rejecting_a_suggestion_deletes_it(client, auth_headers, db):
+    created = client.post(PREFIX, json=_payload(provenance="imported"), headers=auth_headers).json()
+
+    assert client.delete(f"{PREFIX}/{created['id']}", headers=auth_headers).status_code == 204
+
+    assert client.get(PREFIX, headers=auth_headers).json()["items"] == []
+    assert db.query(EvidenceItem).count() == 0
 
 
 def test_editing_an_item_confirms_it(client, auth_headers):
     # Correcting an item is the owner typing the fix themselves right now, so it
-    # lands confirmed with no extra confirm click (Phase 1b, #321) — editing no
-    # longer resets trust to unconfirmed.
+    # lands confirmed with no extra confirm click (Phase 1b, #321).
     created = client.post(
         PREFIX, json=_payload(provenance="imported"), headers=auth_headers
     ).json()
@@ -180,22 +184,26 @@ def test_editing_an_item_confirms_it(client, auth_headers):
     )
     assert edited.status_code == 200
     assert edited.json()["confirmation_state"] == "confirmed"
+    # The recorded origin survives the correction.
+    assert edited.json()["provenance"] == "imported"
 
 
-def test_editing_a_rejected_item_confirms_it(client, auth_headers):
-    created = client.post(PREFIX, json=_payload(), headers=auth_headers).json()
-    client.post(
-        f"{PREFIX}/{created['id']}/confirmation",
-        json={"action": "reject"},
-        headers=auth_headers,
-    )
-    edited = client.patch(
-        f"{PREFIX}/{created['id']}",
-        json={"content": {"statement": "A materially different synthetic claim."}},
-        headers=auth_headers,
-    )
-    assert edited.status_code == 200
-    assert edited.json()["confirmation_state"] == "confirmed"
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"provenance": "user-entered"},
+        {"kind": "project"},
+        {"content": {"statement": "Edited"}, "provenance": "user-entered"},
+    ],
+)
+def test_edits_cannot_relabel_an_items_kind_or_origin(client, auth_headers, change):
+    created = client.post(PREFIX, json=_payload(provenance="imported"), headers=auth_headers).json()
+
+    response = client.patch(f"{PREFIX}/{created['id']}", json=change, headers=auth_headers)
+
+    assert response.status_code == 422
+    [stored] = client.get(PREFIX, headers=auth_headers).json()["items"]
+    assert stored == created
 
 
 def test_import_and_inferred_provenance_still_start_unconfirmed(client, auth_headers):
@@ -206,51 +214,13 @@ def test_import_and_inferred_provenance_still_start_unconfirmed(client, auth_hea
         assert created["confirmation_state"] == "unconfirmed"
 
 
-def test_accept_all_confirms_every_unconfirmed_imported_item_only(
-    client, auth_headers, test_user, db
+def test_bulk_confirm_saves_only_the_owners_listed_items_in_one_commit(
+    client, auth_headers, second_user, db, monkeypatch
 ):
-    imported_one = client.post(
-        PREFIX, json=_payload(provenance="imported"), headers=auth_headers
-    ).json()
-    imported_two = client.post(
-        PREFIX, json=_payload(provenance="imported"), headers=auth_headers
-    ).json()
-    already_rejected = client.post(
-        PREFIX, json=_payload(provenance="imported"), headers=auth_headers
-    ).json()
-    client.post(
-        f"{PREFIX}/{already_rejected['id']}/confirmation",
-        json={"action": "reject"},
-        headers=auth_headers,
+    first, second, untouched = (
+        client.post(PREFIX, json=_payload(provenance="imported"), headers=auth_headers).json()
+        for _ in range(3)
     )
-    inferred = client.post(
-        PREFIX, json=_payload(provenance="inferred"), headers=auth_headers
-    ).json()
-
-    response = client.post(f"{PREFIX}/confirm-imported", headers=auth_headers)
-    assert response.status_code == 200
-    confirmed_ids = {item["id"] for item in response.json()["items"]}
-    assert confirmed_ids == {imported_one["id"], imported_two["id"]}
-
-    listed = {item["id"]: item["confirmation_state"] for item in client.get(PREFIX, headers=auth_headers).json()["items"]}
-    assert listed[imported_one["id"]] == "confirmed"
-    assert listed[imported_two["id"]] == "confirmed"
-    # A previously-rejected imported item is untouched by the bulk action.
-    assert listed[already_rejected["id"]] == "rejected"
-    # Non-imported provenance is untouched.
-    assert listed[inferred["id"]] == "unconfirmed"
-
-    # Calling it again with nothing left pending is a no-op, not an error.
-    again = client.post(f"{PREFIX}/confirm-imported", headers=auth_headers)
-    assert again.status_code == 200
-    assert again.json()["items"] == []
-
-
-def test_accept_all_is_owner_scoped_and_requires_auth(
-    client, auth_headers, test_user, second_user, db
-):
-    assert client.post(f"{PREFIX}/confirm-imported").status_code in (401, 403)
-
     foreign = EvidenceItem(
         user_id=second_user.id,
         kind="skill",
@@ -260,11 +230,24 @@ def test_accept_all_is_owner_scoped_and_requires_auth(
     )
     db.add(foreign)
     db.commit()
+    commits = _count_commits(db, monkeypatch)
 
-    response = client.post(f"{PREFIX}/confirm-imported", headers=auth_headers)
+    response = client.post(
+        f"{PREFIX}/confirm",
+        json={"ids": [first["id"], second["id"], foreign.id]},
+        headers=auth_headers,
+    )
+
     assert response.status_code == 200
-    assert response.json()["items"] == []
+    assert {item["id"] for item in response.json()["items"]} == {first["id"], second["id"]}
+    assert commits[0] == 1
+    states = {
+        item["id"]: item["confirmation_state"]
+        for item in client.get(PREFIX, headers=auth_headers).json()["items"]
+    }
+    assert states == {first["id"]: "confirmed", second["id"]: "confirmed", untouched["id"]: "unconfirmed"}
     assert db.query(EvidenceItem).filter_by(id=foreign.id).one().confirmation_state == "unconfirmed"
+    assert client.post(f"{PREFIX}/confirm", json={"ids": [first["id"]]}).status_code in (401, 403)
 
 
 def test_all_typed_kinds_and_provenance_values_are_accepted(client, auth_headers):
@@ -327,11 +310,6 @@ def test_account_deletion_reports_evidence_count_in_audit_log(
 
 def test_export_returns_full_schema_valid_profile(client, auth_headers):
     created = client.post(PREFIX, json=_payload(), headers=auth_headers).json()
-    client.post(
-        f"{PREFIX}/{created['id']}/confirmation",
-        json={"action": "confirm"},
-        headers=auth_headers,
-    )
 
     response = client.get(EXPORT, headers=auth_headers)
     assert response.status_code == 200

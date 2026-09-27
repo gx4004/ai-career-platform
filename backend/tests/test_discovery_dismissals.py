@@ -158,7 +158,8 @@ def test_preference_correction_changes_ranking_on_next_load(db, test_user):
     db.commit()
 
     before = rank_discovery_recommendations(db, test_user.id, now=now)
-    preference.confirmation_state = "rejected"
+    # Correcting a preference means deleting it (no rejected state, #372).
+    db.delete(preference)
     db.commit()
     after = rank_discovery_recommendations(db, test_user.id, now=now)
 

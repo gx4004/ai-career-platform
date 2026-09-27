@@ -2,7 +2,6 @@ import uuid
 from datetime import UTC, date, datetime
 
 from sqlalchemy import (
-    JSON,
     CheckConstraint,
     Date,
     DateTime,
@@ -19,8 +18,8 @@ class DevelopmentItem(Base):
     #199, D-112).
 
     Owner-scoped (a single per-user plan, like an Evidence Profile item — not
-    campaign-scoped). ``gap_kind``, ``response_kind``, and ``source_finding_id``
-    are snapshotted at creation so the item survives when the underlying gap
+    campaign-scoped). ``gap_kind`` and ``response_kind`` are snapshotted at
+    creation so the item survives when the underlying gap
     classification is later reconciled away (its FK is set null, not cascaded):
     the user's commitment to work on a gap outlives the transient reviewer
     finding that surfaced it.
@@ -57,9 +56,8 @@ class DevelopmentItem(Base):
         nullable=True,
         index=True,
     )
-    # NULL until completion produces an unconfirmed Evidence Profile proposal
-    # (R17 #201, D-113). Declining hard-deletes that item and clears this back to
-    # NULL, so a declined proposal leaves no trace in the profile.
+    # NULL until completion produces an Evidence Profile item (R17 #201, D-113).
+    # Deleting that item (rejecting the suggestion) clears this back to NULL.
     evidence_item_id: Mapped[str | None] = mapped_column(
         String,
         ForeignKey("evidence_items.id", ondelete="SET NULL"),
@@ -73,8 +71,6 @@ class DevelopmentItem(Base):
     )
     target_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     notes: Mapped[str | None] = mapped_column(String, nullable=True)
-    source_finding_id: Mapped[str | None] = mapped_column(String, nullable=True)
-    timeline: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
     )

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { BadgeCheck, Check, FileUp, Trash2, X } from 'lucide-react'
+import { BadgeCheck, Check, FileUp, Pencil, Trash2, X } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import {
   Dialog,
@@ -21,11 +21,12 @@ import {
 import { useSession } from '#/hooks/useSession'
 import { useResumeCarry } from '#/hooks/use-resume-carry'
 import {
-  confirmImportedEvidenceItems,
+  confirmEvidenceItem,
+  confirmEvidenceItems,
   deleteEvidenceProfile,
   deleteEvidenceItem,
+  importEvidenceFromResume,
   listEvidenceItems,
-  setEvidenceItemConfirmation,
   updateEvidenceItem,
 } from '#/lib/api/client'
 import { getDevelopmentPlan } from '#/lib/api/development'
@@ -41,7 +42,6 @@ import {
   CorrectEvidenceDialog,
   type CorrectionSubmit,
 } from '#/components/profile/CorrectEvidenceDialog'
-import { ResumeImportDialog } from '#/components/profile/ResumeImportDialog'
 import { SkillsToBuildSection } from '#/components/profile/SkillsToBuildSection'
 
 /** A short one-line preview of what a suggested item says, for the review list. */
@@ -54,11 +54,13 @@ function SuggestionRow({
   item,
   busy,
   onAccept,
+  onEdit,
   onReject,
 }: {
   item: EvidenceItem
   busy: boolean
   onAccept: (item: EvidenceItem) => void
+  onEdit: (item: EvidenceItem) => void
   onReject: (item: EvidenceItem) => void
 }) {
   return (
@@ -81,6 +83,15 @@ function SuggestionRow({
           size="sm"
           variant="ghost"
           disabled={busy}
+          onClick={() => onEdit(item)}
+          aria-label={`Edit: ${previewText(item)}`}
+        >
+          <Pencil size={14} />
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          disabled={busy}
           onClick={() => onReject(item)}
           aria-label={`Reject: ${previewText(item)}`}
         >
@@ -96,7 +107,7 @@ export function EvidenceProfilePage() {
   const queryClient = useQueryClient()
   const isAuthenticated = status === 'authenticated'
   const { hasResume, resumeText } = useResumeCarry()
-  const [importOpen, setImportOpen] = useState(false)
+  const [importNotice, setImportNotice] = useState<string | null>(null)
   const [pendingItemId, setPendingItemId] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
   const [correctTarget, setCorrectTarget] = useState<EvidenceItem | null>(null)
@@ -123,26 +134,44 @@ export function EvidenceProfilePage() {
     window.setTimeout(() => setActionError(null), 4000)
   }
 
-  async function invalidateEvidenceOnly() {
-    await queryClient.invalidateQueries({ queryKey: EVIDENCE_QUERY_KEY })
-  }
-
   async function invalidateProfileMutation() {
     await invalidateEvidenceCaches(queryClient, { rankingMayChange: true })
   }
 
-  const confirmationMutation = useMutation({
-    mutationFn: ({ id, action }: { id: string; action: 'confirm' | 'reject' }) =>
-      setEvidenceItemConfirmation(id, action),
+  // Import stores every extracted fact as a suggestion to review below; nothing
+  // is trusted until the owner accepts it (D-062).
+  const importMutation = useMutation({
+    mutationFn: () => importEvidenceFromResume(resumeText),
+    onSuccess: async ({ items: imported }) => {
+      setImportNotice(
+        imported.length === 0
+          ? 'We could not find any facts in your CV to suggest.'
+          : `Added ${imported.length} ${imported.length === 1 ? 'suggestion' : 'suggestions'} to review.`,
+      )
+      await queryClient.invalidateQueries({ queryKey: EVIDENCE_QUERY_KEY })
+    },
+    onError: (error) => reportError(error, 'Could not import from your CV.'),
+  })
+
+  const confirmMutation = useMutation({
+    mutationFn: (id: string) => confirmEvidenceItem(id),
     onSuccess: invalidateProfileMutation,
-    onError: (error) => reportError(error, 'Could not update the item.'),
+    onError: (error) => reportError(error, 'Could not save the item.'),
     onSettled: () => setPendingItemId(null),
   })
 
   const acceptAllMutation = useMutation({
-    mutationFn: () => confirmImportedEvidenceItems(),
+    mutationFn: (ids: string[]) => confirmEvidenceItems(ids),
     onSuccess: invalidateProfileMutation,
     onError: (error) => reportError(error, 'Could not accept all suggested items.'),
+  })
+
+  // Rejecting a suggestion deletes it; no rejected trace is kept.
+  const dismissMutation = useMutation({
+    mutationFn: (id: string) => deleteEvidenceItem(id),
+    onSuccess: invalidateProfileMutation,
+    onError: (error) => reportError(error, 'Could not remove the suggestion.'),
+    onSettled: () => setPendingItemId(null),
   })
 
   const correctionMutation = useMutation({
@@ -186,24 +215,29 @@ export function EvidenceProfilePage() {
   })
 
   const items = itemsQuery.data ?? []
-  const groups = useMemo(() => groupItemsByKind(items), [items])
   const counts = useMemo(() => countByState(items), [items])
+  // Suggestions are reviewed in one place; the grouped list shows saved facts.
   const suggestions = useMemo(
     () => items.filter((item) => item.confirmation_state === 'unconfirmed'),
     [items],
   )
-  const importedUnconfirmedCount = useMemo(
-    () => items.filter((item) => item.provenance === 'imported' && item.confirmation_state === 'unconfirmed').length,
+  const groups = useMemo(
+    () => groupItemsByKind(items.filter((item) => item.confirmation_state === 'confirmed')),
     [items],
   )
+  const canImport = hasResume && resumeText.length >= 50
 
   function handleConfirm(item: EvidenceItem) {
     setPendingItemId(item.id)
-    confirmationMutation.mutate({ id: item.id, action: 'confirm' })
+    confirmMutation.mutate(item.id)
   }
   function handleReject(item: EvidenceItem) {
     setPendingItemId(item.id)
-    confirmationMutation.mutate({ id: item.id, action: 'reject' })
+    dismissMutation.mutate(item.id)
+  }
+  function handleCorrect(item: EvidenceItem) {
+    setCorrectError(null)
+    setCorrectTarget(item)
   }
   function handleCorrectSubmit(payload: CorrectionSubmit) {
     if (!correctTarget) return
@@ -245,8 +279,13 @@ export function EvidenceProfilePage() {
           { label: 'Skills to build', value: developmentItemsQuery.data?.length ?? 0 },
         ]}
         actions={
-          <Button onClick={() => (hasResume && resumeText.length >= 50 ? setImportOpen(true) : undefined)} asChild={!(hasResume && resumeText.length >= 50)}>
-            {hasResume && resumeText.length >= 50 ? (
+          <Button
+            onClick={canImport ? () => importMutation.mutate() : undefined}
+            loading={importMutation.isPending}
+            disabled={importMutation.isPending}
+            asChild={!canImport}
+          >
+            {canImport ? (
               <>
                 <FileUp size={16} /> Import from your CV
               </>
@@ -264,19 +303,24 @@ export function EvidenceProfilePage() {
           {actionError}
         </p>
       ) : null}
+      {importNotice ? (
+        <p role="status" className="evidence-banner">
+          {importNotice}
+        </p>
+      ) : null}
 
       {suggestions.length > 0 ? (
         <WorkspacePanel
           kicker="Review"
           title="Suggestions to review"
-          description="Facts pulled from your CV or from a tool result. Nothing counts as saved until you accept it."
+          description="Facts pulled from your CV or from a tool result. Nothing counts as saved until you accept it; rejecting one removes it."
           actions={
-            importedUnconfirmedCount > 0 ? (
+            suggestions.length > 1 ? (
               <Button
                 variant="outline"
                 loading={acceptAllMutation.isPending}
                 disabled={acceptAllMutation.isPending}
-                onClick={() => acceptAllMutation.mutate()}
+                onClick={() => acceptAllMutation.mutate(suggestions.map((item) => item.id))}
               >
                 Accept all
               </Button>
@@ -290,6 +334,7 @@ export function EvidenceProfilePage() {
                 item={item}
                 busy={pendingItemId === item.id}
                 onAccept={handleConfirm}
+                onEdit={handleCorrect}
                 onReject={handleReject}
               />
             ))}
@@ -316,11 +361,11 @@ export function EvidenceProfilePage() {
           title="No facts yet"
           description="Your profile fills up as you import a CV or save a result from one of the tools. Anything added arrives as a suggestion until you accept it."
         />
-      ) : (
+      ) : groups.length > 0 ? (
         <WorkspacePanel
-          kicker="All facts"
+          kicker="Saved facts"
           title="Grouped by kind"
-          description="Correct a mistake, reject it, or delete anything that does not belong."
+          description="Correct a mistake, or delete anything that does not belong."
         >
           <div className="evidence-groups">
             {groups.map((group) => (
@@ -335,12 +380,7 @@ export function EvidenceProfilePage() {
                       key={item.id}
                       item={item}
                       busy={pendingItemId === item.id}
-                      onConfirm={handleConfirm}
-                      onReject={handleReject}
-                      onCorrect={(target) => {
-                        setCorrectError(null)
-                        setCorrectTarget(target)
-                      }}
+                      onCorrect={handleCorrect}
                       onDelete={setDeleteTarget}
                     />
                   ))}
@@ -349,7 +389,7 @@ export function EvidenceProfilePage() {
             ))}
           </div>
         </WorkspacePanel>
-      )}
+      ) : null}
 
       <SkillsToBuildSection />
 
@@ -371,15 +411,6 @@ export function EvidenceProfilePage() {
         >
           <></>
         </WorkspacePanel>
-      ) : null}
-
-      {importOpen ? (
-        <ResumeImportDialog
-          open={importOpen}
-          resumeText={resumeText}
-          onOpenChange={setImportOpen}
-          onImported={invalidateEvidenceOnly}
-        />
       ) : null}
 
       <CorrectEvidenceDialog

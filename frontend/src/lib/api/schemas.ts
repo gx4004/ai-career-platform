@@ -26,18 +26,14 @@ export const evidenceKindSchema = z.enum([
   'certification', 'preference', 'interview-evidence',
 ])
 export const evidenceProvenanceSchema = z.enum(['imported', 'inferred', 'user-entered'])
-export const evidenceConfirmationStateSchema = z.enum(['unconfirmed', 'confirmed', 'rejected'])
+export const evidenceConfirmationStateSchema = z.enum(['unconfirmed', 'confirmed'])
 export const evidenceItemCreateSchema = z.strictObject({
   kind: evidenceKindSchema,
   content: z.record(z.string(), z.unknown()).refine((value) => Object.keys(value).length > 0),
   provenance: evidenceProvenanceSchema,
 })
-export const evidenceItemUpdateSchema = evidenceItemCreateSchema
-  .partial()
-  .refine((value) => Object.keys(value).length > 0)
-export const evidenceConfirmationActionSchema = z.strictObject({
-  action: z.enum(['confirm', 'reject']),
-})
+// Updates are content-only: kind and provenance keep the item's recorded origin.
+export const evidenceItemUpdateSchema = evidenceItemCreateSchema.pick({ content: true })
 export const evidenceItemSchema = z.object({
   id: z.string(),
   kind: evidenceKindSchema,
@@ -134,31 +130,20 @@ export const discoveryPersonalizationExportSchema = z.strictObject({
 })
 export type DiscoveryDismissal = z.infer<typeof discoveryDismissalSchema>
 
-// R11 reviewable resume-import proposals (#146). A proposal is ephemeral — it is
-// never persisted server-side and carries no confirmation state. Resume-derived
-// proposals are always `imported`; accepting one goes through the normal
-// item-create path, which stores it `unconfirmed` (D-062).
+// R11 resume import (#146): extracted facts are stored as `imported`,
+// `unconfirmed` suggestions and reviewed on the profile (D-062).
 export const evidenceImportRequestSchema = z.strictObject({
   resume_text: z.string().min(50).max(50_000),
 })
-export const evidenceProposalSchema = z.object({
-  proposal_id: z.string(),
-  kind: evidenceKindSchema,
-  content: z.record(z.string(), z.unknown()),
-  provenance: z.literal('imported'),
-})
-export const evidenceImportProposalsSchema = z.object({
-  proposals: z.array(evidenceProposalSchema),
+export const evidenceItemIdsSchema = z.strictObject({
+  ids: z.array(z.string()).min(1).max(1000),
 })
 export type EvidenceItem = z.infer<typeof evidenceItemSchema>
-export type EvidenceProposal = z.infer<typeof evidenceProposalSchema>
-export type EvidenceImportRequest = z.infer<typeof evidenceImportRequestSchema>
 export type EvidenceKind = z.infer<typeof evidenceKindSchema>
 export type EvidenceProvenance = z.infer<typeof evidenceProvenanceSchema>
 export type EvidenceConfirmationState = z.infer<typeof evidenceConfirmationStateSchema>
 export type EvidenceItemCreate = z.infer<typeof evidenceItemCreateSchema>
 export type EvidenceItemUpdate = z.infer<typeof evidenceItemUpdateSchema>
-export type EvidenceConfirmationAction = z.infer<typeof evidenceConfirmationActionSchema>
 
 export const cvSectionKindSchema = z.enum([
   'summary', 'experience', 'achievements', 'skills', 'education', 'projects',

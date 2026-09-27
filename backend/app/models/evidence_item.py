@@ -20,7 +20,7 @@ class EvidenceItem(Base):
             name="ck_evidence_items_provenance",
         ),
         CheckConstraint(
-            "confirmation_state IN ('unconfirmed', 'confirmed', 'rejected')",
+            "confirmation_state IN ('unconfirmed', 'confirmed')",
             name="ck_evidence_items_confirmation_state",
         ),
     )

@@ -81,12 +81,6 @@
   background: color-mix(in srgb, var(--warning-soft) 60%, var(--surface-raised));
 }
 
-.evidence-card--rejected {
-  border-left-color: var(--destructive);
-  background: var(--surface-subtle);
-  opacity: 0.72;
-}
-
 .evidence-card__meta {
   display: flex;
   flex-wrap: wrap;
@@ -108,12 +102,6 @@
   background: var(--warning-soft);
   color: var(--warning);
   border-color: color-mix(in srgb, var(--warning) 30%, transparent);
-}
-
-.evidence-state--rejected {
-  background: var(--destructive-soft);
-  color: var(--destructive);
-  border-color: color-mix(in srgb, var(--destructive) 30%, transparent);
 }
 
 .evidence-card__content {
@@ -142,11 +130,6 @@
   font-size: 0.9rem;
   line-height: 1.45;
   overflow-wrap: anywhere;
-}
-
-.evidence-card--rejected .evidence-field__value {
-  text-decoration: line-through;
-  text-decoration-color: color-mix(in srgb, var(--destructive) 55%, transparent);
 }
 
 .evidence-card__actions {
@@ -262,88 +245,4 @@
   .evidence-suggestion__text {
     white-space: normal;
   }
-}
-
-/* R11 (#146) — reviewable resume-import proposals. The review dialog list;
-   the entry point is the hero's "Import from your CV" action. Proposals are
-   ephemeral: nothing here is persisted until the user accepts an item. */
-
-.evidence-import__dialog {
-  max-width: 34rem;
-}
-
-.evidence-import__list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  max-height: 22rem;
-  overflow-y: auto;
-  padding-right: 0.25rem;
-}
-
-.evidence-import__item {
-  border: 1px solid var(--border-soft);
-  border-radius: var(--radius-md);
-  padding: 0.85rem 1rem;
-  background: var(--surface-raised);
-}
-
-.evidence-import__item-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 0.5rem;
-}
-
-.evidence-import__kind {
-  font-size: 0.72rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--text-muted);
-}
-
-.evidence-import__content {
-  display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
-  margin-bottom: 0.75rem;
-}
-
-.evidence-import__field {
-  display: flex;
-  gap: 0.5rem;
-  font-size: 0.85rem;
-  line-height: 1.4;
-}
-
-.evidence-import__field dt {
-  flex-shrink: 0;
-  min-width: 5.5rem;
-  font-weight: 600;
-  color: var(--text-muted);
-}
-
-.evidence-import__field dd {
-  color: var(--text-strong);
-  word-break: break-word;
-}
-
-.evidence-import__actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
-
-.evidence-import__edit {
-  display: flex;
-  flex-direction: column;
-  gap: 0.6rem;
-}
-
-.evidence-import__empty {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  align-items: flex-start;
 }
