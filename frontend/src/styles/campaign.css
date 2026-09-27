@@ -524,7 +524,6 @@
 
 @media (max-width: 768px) {
   .camp-board { grid-template-columns: minmax(0, 1fr); gap: 0.75rem; }
-  .camp-page .workspace-hero__stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .camp-col { min-height: 0; }
   .camp-col--skeleton { min-height: 8rem; }
   .camp-col__empty { padding: 0.6rem; }
