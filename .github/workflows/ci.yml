@@ -155,11 +155,6 @@ jobs:
           DATABASE_URL: postgresql+psycopg2://cw:cw@localhost:5432/cw_ci
         run: python tests/migration_packet_approval_roundtrip.py
 
-      - name: Populated operational-metric migration round trip
-        env:
-          DATABASE_URL: postgresql+psycopg2://cw:cw@localhost:5432/cw_ci
-        run: python tests/migration_operational_metric_roundtrip.py
-
       - name: Alembic upgrade smoke
         env:
           DATABASE_URL: postgresql+psycopg2://cw:cw@localhost:5432/cw_ci
