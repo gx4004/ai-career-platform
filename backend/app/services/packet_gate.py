@@ -7,12 +7,6 @@ Quality Reviewer (:mod:`app.services.campaign_reviewer`) against them. A reviewe
 groundedness check built on :mod:`app.services.fabrication`). Any such finding leaves
 the packet ``gate_state == "blocked"`` — it is never queue-eligible.
 
-Every gate state transition (running / passed / blocked) is emitted through the
-shared operational-event seam as an ALLOWLISTED, low-cardinality event — no packet
-content, listing text/id, campaign/run id, finding text, or user identifier ever
-rides along (``ActivationEventCreate`` enforces this via ``extra="forbid"``). The
-admin dashboard reads these counts.
-
 This module also owns the owner-initiated global queue pause (R15 #183, below),
 which reuses the same ``pipeline_halts`` consultation seam under a per-user scope.
 """
@@ -22,14 +16,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
-from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from app.models.analytics_event import AnalyticsEvent
 from app.models.pipeline_halt import PipelineHalt
 from app.models.user import User
-from app.schemas.admin import AdminPacketGateResponse
-from app.services.analytics import safe_record_activation_event
 
 
 # The owner-initiated pause (R15 #183). Scoped per user — embedding the user id in
@@ -153,64 +143,3 @@ def resume_preparation(db: Session, user_id: str) -> HaltStatus:
         db.delete(row)
         db.commit()
     return HaltStatus(halted=False)
-
-
-# ── Per-run / per-packet event emission ──
-
-
-def emit_gate_running(db: Session) -> None:
-    """A preparation run started the trust-chain gate (pipeline-wide ``running``)."""
-    safe_record_activation_event(db, event_name="packet_queue_gate", operational_outcome="running")
-
-
-def emit_gate_outcome(db: Session, *, gate_state: str) -> None:
-    """Emit one packet's gate outcome (``passed`` / ``blocked``)."""
-    if gate_state not in ("passed", "blocked"):
-        return
-    safe_record_activation_event(
-        db,
-        event_name="packet_queue_gate",
-        level="warning" if gate_state == "blocked" else "info",
-        operational_outcome=gate_state,
-    )
-
-
-# ── Admin visibility (read-only) ──
-
-
-def aggregate_packet_gate(
-    db: Session,
-    *,
-    window_start: datetime,
-    window_end: datetime,
-) -> AdminPacketGateResponse:
-    """Aggregate gate state for the admin dashboard (D-097, read-only).
-
-    Extends the same first-party operational path every other admin view uses —
-    no new vendor. Windowed counts of the allowlisted per-packet gate events. No
-    packet content, listing text/id, run id, finding text, or user identifier is
-    reachable — only bounded outcome strings and integer counts.
-    """
-    rows = (
-        db.query(
-            AnalyticsEvent.event_name,
-            AnalyticsEvent.operational_outcome,
-            func.count(AnalyticsEvent.id),
-        )
-        .filter(
-            AnalyticsEvent.created_at >= window_start,
-            AnalyticsEvent.created_at <= window_end,
-            AnalyticsEvent.event_name == "packet_queue_gate",
-        )
-        .group_by(AnalyticsEvent.event_name, AnalyticsEvent.operational_outcome)
-        .all()
-    )
-    counts = {(name, outcome): count for name, outcome, count in rows}
-
-    return AdminPacketGateResponse(
-        window_start=window_start.isoformat(),
-        window_end=window_end.isoformat(),
-        gate_running=counts.get(("packet_queue_gate", "running"), 0),
-        gate_passed=counts.get(("packet_queue_gate", "passed"), 0),
-        gate_blocked=counts.get(("packet_queue_gate", "blocked"), 0),
-    )

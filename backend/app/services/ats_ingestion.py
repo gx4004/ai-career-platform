@@ -38,9 +38,8 @@ from app.config import settings
 from app.database import SessionLocal
 from app.models.discovery_source import DiscoverySource
 from app.schemas.discovered_listings import DiscoveredListingInput
-from app.services.analytics import safe_record_activation_event
 from app.services.discovered_listings import store_discovered_listing
-from app.services.discovery_sources import SourceIngestionRefused, require_ingestion_allowed
+from app.services.discovery_sources import require_ingestion_allowed
 from app.services.licensed_source_ingestion import (
     DISCOVERY_USER_AGENT,
     _claim_rate,
@@ -104,46 +103,34 @@ class ATSIngestSummary:
 async def ingest_ats_source(db: Session, *, source_key: str) -> ATSIngestOutcome:
     """Fetch and store one governed employer-ATS source's current listings."""
     source_row = db.query(DiscoverySource).filter_by(source_key=source_key).first()
-    source_family = source_row.source_family if source_row is not None else None
-    try:
-        authorization = require_ingestion_allowed(db, source_key, "ats_integration")
-        if authorization.source_family != "employer_ats":
-            raise ATSIngestionRefused("not_an_employer_ats_source")
-        provider = _PROVIDER_BY_API_HOST.get(urlparse(authorization.endpoint_url).hostname or "")
-        if provider is None:
-            raise ATSIngestionRefused("unrecognized_ats_provider")
-        slug = _extract_slug(provider, authorization.endpoint_url)
-        query = _QUERY_BY_PROVIDER[provider]
-        _validate_query(authorization, query)
+    authorization = require_ingestion_allowed(db, source_key, "ats_integration")
+    if authorization.source_family != "employer_ats":
+        raise ATSIngestionRefused("not_an_employer_ats_source")
+    provider = _PROVIDER_BY_API_HOST.get(urlparse(authorization.endpoint_url).hostname or "")
+    if provider is None:
+        raise ATSIngestionRefused("unrecognized_ats_provider")
+    slug = _extract_slug(provider, authorization.endpoint_url)
+    query = _QUERY_BY_PROVIDER[provider]
+    _validate_query(authorization, query)
 
-        policy_fingerprint = authorization.policy_fingerprint
-        _claim_rate(db, authorization.source_id, 1)
+    policy_fingerprint = authorization.policy_fingerprint
+    _claim_rate(db, authorization.source_id, 1)
 
-        # Re-check immediately before the network request, matching the
-        # licensed-source pattern: a kill switch flipped between the rate
-        # claim and the fetch halts this source only.
-        authorization = require_ingestion_allowed(db, source_key, "ats_integration")
-        if authorization.policy_fingerprint != policy_fingerprint:
-            raise ATSIngestionRefused("source_policy_changed_during_fetch")
+    # Re-check immediately before the network request, matching the
+    # licensed-source pattern: a kill switch flipped between the rate
+    # claim and the fetch halts this source only.
+    authorization = require_ingestion_allowed(db, source_key, "ats_integration")
+    if authorization.policy_fingerprint != policy_fingerprint:
+        raise ATSIngestionRefused("source_policy_changed_during_fetch")
 
-        content, _content_type = await _fetch_resource(
-            authorization.endpoint_url,
-            query,
-            _ATS_CONTENT_TYPES,
-            timeout_seconds=ATS_TIMEOUT_SECONDS,
-            max_bytes=ATS_MAX_RESPONSE_BYTES,
-            user_agent=DISCOVERY_USER_AGENT,
-        )
-    except (ATSIngestionRefused, SourceIngestionRefused):
-        if source_family is not None:
-            _record_ats_fetch_outcome(db, source_family, "blocked")
-        raise
-    except Exception:
-        if source_family is not None:
-            _record_ats_fetch_outcome(db, source_family, "failure")
-        raise
-
-    _record_ats_fetch_outcome(db, authorization.source_family, "success")
+    content, _content_type = await _fetch_resource(
+        authorization.endpoint_url,
+        query,
+        _ATS_CONTENT_TYPES,
+        timeout_seconds=ATS_TIMEOUT_SECONDS,
+        max_bytes=ATS_MAX_RESPONSE_BYTES,
+        user_agent=DISCOVERY_USER_AGENT,
+    )
 
     company = source_row.display_name
     retrieved_at = datetime.now(UTC)
@@ -291,15 +278,6 @@ async def run_ats_ingestion_off_loop(db: Session) -> ATSIngestSummary:
     again), so it is never accessed from two threads at once.
     """
     return await asyncio.to_thread(lambda: asyncio.run(run_ats_ingestion(db)))
-
-
-def _record_ats_fetch_outcome(db: Session, source_family: str, outcome: str) -> None:
-    safe_record_activation_event(
-        db,
-        event_name="discovery_source_fetch_outcome",
-        operational_dimension=source_family,
-        operational_outcome=outcome,
-    )
 
 
 def _extract_slug(provider: str, endpoint_url: str) -> str:

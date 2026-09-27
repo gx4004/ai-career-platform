@@ -261,11 +261,7 @@ def test_list_workspaces_issues_constant_statement_count(client, auth_headers, t
         captured: list[str] = []
 
         def _record(_conn, _cursor, statement, _params, _context, _executemany):
-            normalized = statement.lstrip().lower()
-            # Mirrors postgres_history_query_plans.py's capture filter: the
-            # handler's own query-timing sample writes to analytics_events and
-            # is instrumentation, not one of the read shapes under measurement.
-            if normalized.startswith("select") and "analytics_events" not in normalized:
+            if statement.lstrip().lower().startswith("select"):
                 captured.append(statement)
 
         event.listen(test_engine, "after_cursor_execute", _record)

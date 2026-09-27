@@ -1,8 +1,7 @@
-"""R15 #186 — queue lifecycle, audit, and telemetry boundaries.
+"""R15 #186 — queue lifecycle and audit.
 
-Covers the append-only queue audit log (D-098), the complete account-deletion
-cascade + export over every queue table (D-099), and the telemetry allowlist
-boundary that keeps rule values, draft text, and stop answers out of analytics.
+Covers the append-only queue audit log (D-098) and the complete account-deletion
+cascade + export over every queue table (D-099).
 """
 
 import inspect
@@ -18,7 +17,6 @@ from app.models.queue_audit_event import QueueAuditEvent
 from app.models.queue_rule import QueueRule, QueueSettings
 from app.models.user import User
 from app.models.workspace import Workspace
-from app.schemas.analytics import ActivationEventCreate
 from app.schemas.queue_rules import QueueRuleUpsert, QueueSettingsUpsert
 from app.services import queue_audit
 from app.services.data_export import export_career_data
@@ -179,32 +177,3 @@ def test_delete_queue_audit_events_is_owner_scoped(db):
     db.commit()
     assert list_queue_audit_events(db, drop.id) == []
     assert len(list_queue_audit_events(db, keep.id)) == 1
-
-
-# ── Telemetry boundary (allowlist rejects sensitive queue fields) ──
-
-
-def test_allowlist_permits_only_bounded_queue_gate_events():
-    # A bounded gate event is accepted.
-    ActivationEventCreate(event_name="packet_queue_gate", operational_outcome="passed")
-
-
-@pytest.mark.parametrize(
-    "forbidden",
-    [
-        {"role": "senior engineer"},  # rule value
-        {"cost_ceiling_usd": 500},  # rule value
-        {"cover_letter": "Dear team, ..."},  # draft text
-        {"draft_text": "tailored summary"},  # draft text
-        {"stop_answer": "US citizen"},  # stop answer
-        {"answer_text": "requires visa"},  # stop answer
-        {"packet_id": "pkt_123"},  # entity id / user data
-    ],
-)
-def test_allowlist_rejects_rule_values_draft_text_and_stop_answers(forbidden):
-    with pytest.raises(ValidationError):
-        ActivationEventCreate(
-            event_name="packet_queue_gate",
-            operational_outcome="passed",
-            **forbidden,
-        )

@@ -15,7 +15,7 @@ class ProviderConfigurationError(RuntimeError):
 
 
 def _record_usage(response: object, model: str) -> None:
-    """Record a provider response's actual token usage for R6 cost estimation.
+    """Record a provider response's actual token usage for the packet cost ceiling.
 
     Reads whichever usage shape the response carries: Vertex and google-genai
     attach `usage_metadata` (`prompt_token_count` / `candidates_token_count`);

@@ -25,9 +25,8 @@ export function AdminSourceHealthPage() {
       <h1 className="admin-page-title">Source Health</h1>
       <p className="admin-table-muted">
         Per-source-family operational health. Aggregate counts only — no listing
-        content, full URLs, or user data. Fetch, ingest, dedup, and expiry counts
-        cover the current window; registry posture, listing volume, and staleness are
-        current state.
+        content, full URLs, or user data. Registry posture, listing volume, and
+        staleness are current state.
         {data
           ? ` A listing is stale after ${data.staleness_threshold_days} days without a refresh.`
           : ''}
@@ -51,8 +50,6 @@ export function AdminSourceHealthPage() {
                 <th>Source family</th>
                 <th>Registry</th>
                 <th>Listings</th>
-                <th>Fetch outcomes</th>
-                <th>Ingest / dedup / expiry</th>
               </tr>
             </thead>
             <tbody>
@@ -77,20 +74,6 @@ export function AdminSourceHealthPage() {
                     <div className="admin-table-muted">
                       Oldest {formatDate(family.oldest_retrieved_at)} · Newest{' '}
                       {formatDate(family.newest_retrieved_at)}
-                    </div>
-                  </td>
-                  <td>
-                    <div className="admin-health-metrics">
-                      <Metric label="success" value={family.fetch_success} />
-                      <Metric label="failure" value={family.fetch_failure} />
-                      <Metric label="blocked" value={family.fetch_blocked} />
-                    </div>
-                  </td>
-                  <td>
-                    <div className="admin-health-metrics">
-                      <Metric label="ingested" value={family.ingested} />
-                      <Metric label="deduplicated" value={family.deduplicated} />
-                      <Metric label="expired" value={family.expired} />
                     </div>
                   </td>
                 </tr>

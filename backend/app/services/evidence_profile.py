@@ -10,7 +10,6 @@ from app.schemas.evidence_profile import (
     EvidenceItemUpdate,
     EvidenceProfileExport,
 )
-from app.services.analytics import safe_record_activation_event
 
 
 class EvidenceItemNotFoundError(Exception):
@@ -36,29 +35,6 @@ def _linked_development_item(
             DevelopmentItem.user_id == item.user_id,
         )
         .first()
-    )
-
-
-def _record_profile_event(
-    db: Session,
-    *,
-    event_name: str,
-    item: EvidenceItem,
-    confirmation_transition: str | None,
-) -> None:
-    """Emit one allowlisted profile-adoption event from the shared write seam (D-067).
-
-    Best-effort telemetry that must never break the user-facing profile action.
-    Carries only the three low-cardinality dimensions — item kind, provenance
-    class, and the resulting confirmation state of the transition — and never any
-    evidence content, employer/institution name, or stable content identifier.
-    """
-    safe_record_activation_event(
-        db,
-        event_name=event_name,
-        evidence_kind=item.kind,
-        evidence_provenance=item.provenance,
-        confirmation_transition=confirmation_transition,
     )
 
 
@@ -99,12 +75,6 @@ def create_evidence_item(
     item = stage_evidence_proposal(db, user_id, body, confirmation_state=confirmation_state)
     db.commit()
     db.refresh(item)
-    _record_profile_event(
-        db,
-        event_name="profile_item_created",
-        item=item,
-        confirmation_transition=item.confirmation_state,
-    )
     return item
 
 
@@ -132,18 +102,6 @@ def stage_evidence_proposal(
     return item
 
 
-def record_evidence_proposal_created(
-    db: Session, item: EvidenceItem, *, confirmation_transition: str = "unconfirmed"
-) -> None:
-    """Record the allowlisted adoption event after the caller commits its transaction."""
-    _record_profile_event(
-        db,
-        event_name="profile_item_created",
-        item=item,
-        confirmation_transition=confirmation_transition,
-    )
-
-
 def update_evidence_item(
     db: Session, item_id: str, user_id: str, body: EvidenceItemUpdate
 ) -> EvidenceItem:
@@ -159,12 +117,6 @@ def update_evidence_item(
     item.confirmation_state = "confirmed"
     db.commit()
     db.refresh(item)
-    _record_profile_event(
-        db,
-        event_name="profile_item_updated",
-        item=item,
-        confirmation_transition="confirmed",
-    )
     return item
 
 
@@ -195,12 +147,6 @@ def set_evidence_confirmation(
         ]
         db.delete(item)
         db.commit()
-        _record_profile_event(
-            db,
-            event_name="profile_item_rejected",
-            item=item,
-            confirmation_transition="rejected",
-        )
         return response
 
     if (
@@ -215,12 +161,6 @@ def set_evidence_confirmation(
     item.confirmation_state = "confirmed" if confirmed else "rejected"
     db.commit()
     db.refresh(item)
-    _record_profile_event(
-        db,
-        event_name="profile_item_confirmed" if confirmed else "profile_item_rejected",
-        item=item,
-        confirmation_transition=item.confirmation_state,
-    )
     return item
 
 
@@ -231,8 +171,7 @@ def confirm_all_imported_evidence(db: Session, user_id: str) -> list[EvidenceIte
     surface with a batch of same-origin proposals piling up. Imported items are
     never linked to a development item, so there is no dev-lifecycle timeline to
     update here (unlike :func:`set_evidence_confirmation`). One commit for the
-    whole batch, then one allowlisted event per item, mirroring
-    :func:`delete_evidence_profile`'s commit-then-emit shape.
+    whole batch.
     """
     items = (
         db.query(EvidenceItem)
@@ -247,27 +186,16 @@ def confirm_all_imported_evidence(db: Session, user_id: str) -> list[EvidenceIte
     for item in items:
         item.confirmation_state = "confirmed"
     db.commit()
-    for item in items:
-        db.refresh(item)
-        _record_profile_event(
-            db,
-            event_name="profile_item_confirmed",
-            item=item,
-            confirmation_transition="confirmed",
-        )
     return items
 
 
 def delete_evidence_item(db: Session, item_id: str, user_id: str) -> None:
     item = get_evidence_item(db, item_id, user_id)
-    kind, provenance = _prepare_evidence_item_deletion(db, item)
+    _prepare_evidence_item_deletion(db, item)
     db.commit()
-    _record_evidence_item_deleted(db, kind=kind, provenance=provenance)
 
 
-def _prepare_evidence_item_deletion(
-    db: Session, item: EvidenceItem
-) -> tuple[str, str]:
+def _prepare_evidence_item_deletion(db: Session, item: EvidenceItem) -> None:
     """Stage one item's owner-related cleanup without committing the transaction."""
     development_item = _linked_development_item(db, item)
     if development_item is not None:
@@ -281,38 +209,19 @@ def _prepare_evidence_item_deletion(
                 item.id,
             ),
         ]
-    # Capture the low-cardinality dimensions before the row is gone; deletion has
-    # no resulting confirmation state, so the transition dimension stays null.
-    kind, provenance = item.kind, item.provenance
     db.delete(item)
-    return kind, provenance
-
-
-def _record_evidence_item_deleted(
-    db: Session, *, kind: str, provenance: str
-) -> None:
-    safe_record_activation_event(
-        db,
-        event_name="profile_item_deleted",
-        evidence_kind=kind,
-        evidence_provenance=provenance,
-    )
 
 
 def delete_evidence_profile(db: Session, user_id: str) -> int:
     """Delete every owner-scoped profile item in one transaction (D-065).
 
     Development-item links and timelines are staged alongside the evidence-row
-    deletes, then one commit makes the whole erasure visible. Telemetry is emitted
-    only after that transaction succeeds and carries no content or identifiers.
+    deletes, then one commit makes the whole erasure visible.
     """
     items = list_evidence_items(db, user_id)
-    deleted_dimensions = [
-        _prepare_evidence_item_deletion(db, item) for item in items
-    ]
+    for item in items:
+        _prepare_evidence_item_deletion(db, item)
     db.commit()
-    for kind, provenance in deleted_dimensions:
-        _record_evidence_item_deleted(db, kind=kind, provenance=provenance)
     return len(items)
 
 

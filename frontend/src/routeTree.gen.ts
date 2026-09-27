@@ -33,12 +33,8 @@ import { Route as ResumeRouteImport } from './routes/resume'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as AdminIndexRouteImport } from './routes/admin/index'
-import { Route as AdminActivationRouteImport } from './routes/admin/activation'
-import { Route as AdminDevelopmentLoopRouteImport } from './routes/admin/development-loop'
 import { Route as AdminDiscoveryReportsRouteImport } from './routes/admin/discovery-reports'
 import { Route as AdminDiscoverySourcesRouteImport } from './routes/admin/discovery-sources'
-import { Route as AdminPacketGateRouteImport } from './routes/admin/packet-gate'
-import { Route as AdminProfileAdoptionRouteImport } from './routes/admin/profile-adoption'
 import { Route as AdminRunsRouteImport } from './routes/admin/runs'
 import { Route as AdminSourceHealthRouteImport } from './routes/admin/source-health'
 import { Route as AdminUsersRouteImport } from './routes/admin/users'
@@ -171,16 +167,6 @@ const AdminIndexRoute = AdminIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AdminRoute,
 } as any)
-const AdminActivationRoute = AdminActivationRouteImport.update({
-  id: '/activation',
-  path: '/activation',
-  getParentRoute: () => AdminRoute,
-} as any)
-const AdminDevelopmentLoopRoute = AdminDevelopmentLoopRouteImport.update({
-  id: '/development-loop',
-  path: '/development-loop',
-  getParentRoute: () => AdminRoute,
-} as any)
 const AdminDiscoveryReportsRoute = AdminDiscoveryReportsRouteImport.update({
   id: '/discovery-reports',
   path: '/discovery-reports',
@@ -189,16 +175,6 @@ const AdminDiscoveryReportsRoute = AdminDiscoveryReportsRouteImport.update({
 const AdminDiscoverySourcesRoute = AdminDiscoverySourcesRouteImport.update({
   id: '/discovery-sources',
   path: '/discovery-sources',
-  getParentRoute: () => AdminRoute,
-} as any)
-const AdminPacketGateRoute = AdminPacketGateRouteImport.update({
-  id: '/packet-gate',
-  path: '/packet-gate',
-  getParentRoute: () => AdminRoute,
-} as any)
-const AdminProfileAdoptionRoute = AdminProfileAdoptionRouteImport.update({
-  id: '/profile-adoption',
-  path: '/profile-adoption',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminRunsRoute = AdminRunsRouteImport.update({
@@ -284,12 +260,8 @@ export interface FileRoutesByFullPath {
   '/resume': typeof ResumeRoute
   '/settings': typeof SettingsRoute
   '/terms': typeof TermsRoute
-  '/admin/activation': typeof AdminActivationRoute
-  '/admin/development-loop': typeof AdminDevelopmentLoopRoute
   '/admin/discovery-reports': typeof AdminDiscoveryReportsRoute
   '/admin/discovery-sources': typeof AdminDiscoverySourcesRoute
-  '/admin/packet-gate': typeof AdminPacketGateRoute
-  '/admin/profile-adoption': typeof AdminProfileAdoptionRoute
   '/admin/runs': typeof AdminRunsRoute
   '/admin/source-health': typeof AdminSourceHealthRoute
   '/admin/users': typeof AdminUsersRoute
@@ -326,12 +298,8 @@ export interface FileRoutesByTo {
   '/resume': typeof ResumeRoute
   '/settings': typeof SettingsRoute
   '/terms': typeof TermsRoute
-  '/admin/activation': typeof AdminActivationRoute
-  '/admin/development-loop': typeof AdminDevelopmentLoopRoute
   '/admin/discovery-reports': typeof AdminDiscoveryReportsRoute
   '/admin/discovery-sources': typeof AdminDiscoverySourcesRoute
-  '/admin/packet-gate': typeof AdminPacketGateRoute
-  '/admin/profile-adoption': typeof AdminProfileAdoptionRoute
   '/admin/runs': typeof AdminRunsRoute
   '/admin/source-health': typeof AdminSourceHealthRoute
   '/admin/users': typeof AdminUsersRoute
@@ -370,12 +338,8 @@ export interface FileRoutesById {
   '/resume': typeof ResumeRoute
   '/settings': typeof SettingsRoute
   '/terms': typeof TermsRoute
-  '/admin/activation': typeof AdminActivationRoute
-  '/admin/development-loop': typeof AdminDevelopmentLoopRoute
   '/admin/discovery-reports': typeof AdminDiscoveryReportsRoute
   '/admin/discovery-sources': typeof AdminDiscoverySourcesRoute
-  '/admin/packet-gate': typeof AdminPacketGateRoute
-  '/admin/profile-adoption': typeof AdminProfileAdoptionRoute
   '/admin/runs': typeof AdminRunsRoute
   '/admin/source-health': typeof AdminSourceHealthRoute
   '/admin/users': typeof AdminUsersRoute
@@ -415,12 +379,8 @@ export interface FileRouteTypes {
     | '/resume'
     | '/settings'
     | '/terms'
-    | '/admin/activation'
-    | '/admin/development-loop'
     | '/admin/discovery-reports'
     | '/admin/discovery-sources'
-    | '/admin/packet-gate'
-    | '/admin/profile-adoption'
     | '/admin/runs'
     | '/admin/source-health'
     | '/admin/users'
@@ -457,12 +417,8 @@ export interface FileRouteTypes {
     | '/resume'
     | '/settings'
     | '/terms'
-    | '/admin/activation'
-    | '/admin/development-loop'
     | '/admin/discovery-reports'
     | '/admin/discovery-sources'
-    | '/admin/packet-gate'
-    | '/admin/profile-adoption'
     | '/admin/runs'
     | '/admin/source-health'
     | '/admin/users'
@@ -500,12 +456,8 @@ export interface FileRouteTypes {
     | '/resume'
     | '/settings'
     | '/terms'
-    | '/admin/activation'
-    | '/admin/development-loop'
     | '/admin/discovery-reports'
     | '/admin/discovery-sources'
-    | '/admin/packet-gate'
-    | '/admin/profile-adoption'
     | '/admin/runs'
     | '/admin/source-health'
     | '/admin/users'
@@ -724,20 +676,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminIndexRouteImport
       parentRoute: typeof AdminRoute
     }
-    '/admin/activation': {
-      id: '/admin/activation'
-      path: '/activation'
-      fullPath: '/admin/activation'
-      preLoaderRoute: typeof AdminActivationRouteImport
-      parentRoute: typeof AdminRoute
-    }
-    '/admin/development-loop': {
-      id: '/admin/development-loop'
-      path: '/development-loop'
-      fullPath: '/admin/development-loop'
-      preLoaderRoute: typeof AdminDevelopmentLoopRouteImport
-      parentRoute: typeof AdminRoute
-    }
     '/admin/discovery-reports': {
       id: '/admin/discovery-reports'
       path: '/discovery-reports'
@@ -750,20 +688,6 @@ declare module '@tanstack/react-router' {
       path: '/discovery-sources'
       fullPath: '/admin/discovery-sources'
       preLoaderRoute: typeof AdminDiscoverySourcesRouteImport
-      parentRoute: typeof AdminRoute
-    }
-    '/admin/packet-gate': {
-      id: '/admin/packet-gate'
-      path: '/packet-gate'
-      fullPath: '/admin/packet-gate'
-      preLoaderRoute: typeof AdminPacketGateRouteImport
-      parentRoute: typeof AdminRoute
-    }
-    '/admin/profile-adoption': {
-      id: '/admin/profile-adoption'
-      path: '/profile-adoption'
-      fullPath: '/admin/profile-adoption'
-      preLoaderRoute: typeof AdminProfileAdoptionRouteImport
       parentRoute: typeof AdminRoute
     }
     '/admin/runs': {
@@ -847,12 +771,8 @@ declare module '@tanstack/react-router' {
 }
 
 interface AdminRouteChildren {
-  AdminActivationRoute: typeof AdminActivationRoute
-  AdminDevelopmentLoopRoute: typeof AdminDevelopmentLoopRoute
   AdminDiscoveryReportsRoute: typeof AdminDiscoveryReportsRoute
   AdminDiscoverySourcesRoute: typeof AdminDiscoverySourcesRoute
-  AdminPacketGateRoute: typeof AdminPacketGateRoute
-  AdminProfileAdoptionRoute: typeof AdminProfileAdoptionRoute
   AdminRunsRoute: typeof AdminRunsRoute
   AdminSourceHealthRoute: typeof AdminSourceHealthRoute
   AdminUsersRoute: typeof AdminUsersRoute
@@ -860,12 +780,8 @@ interface AdminRouteChildren {
 }
 
 const AdminRouteChildren: AdminRouteChildren = {
-  AdminActivationRoute: AdminActivationRoute,
-  AdminDevelopmentLoopRoute: AdminDevelopmentLoopRoute,
   AdminDiscoveryReportsRoute: AdminDiscoveryReportsRoute,
   AdminDiscoverySourcesRoute: AdminDiscoverySourcesRoute,
-  AdminPacketGateRoute: AdminPacketGateRoute,
-  AdminProfileAdoptionRoute: AdminProfileAdoptionRoute,
   AdminRunsRoute: AdminRunsRoute,
   AdminSourceHealthRoute: AdminSourceHealthRoute,
   AdminUsersRoute: AdminUsersRoute,
