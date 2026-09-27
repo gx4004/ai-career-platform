@@ -1,7 +1,12 @@
 import pytest
 from pydantic import ValidationError
 
-from app.config import Settings, resolve_allowed_origins, validate_origin_config
+from app.config import (
+    Settings,
+    resolve_allowed_origins,
+    validate_autopilot_config,
+    validate_origin_config,
+)
 
 
 def test_only_accepted_hs256_token_algorithm_is_configurable():
@@ -145,3 +150,27 @@ def test_resolved_origins_trim_entries_and_append_frontend_url_once(monkeypatch)
         "https://www.example.com",
         "https://cdn.example.com",
     ]
+
+
+@pytest.mark.parametrize("environment", ["production", "staging"])
+def test_non_development_refuses_the_autopilot_experiment(monkeypatch, environment):
+    monkeypatch.setattr("app.config.settings.ENVIRONMENT", environment)
+    monkeypatch.setattr("app.config.settings.AUTOPILOT_EXPERIMENT_ENABLED", True)
+
+    with pytest.raises(RuntimeError, match="AUTOPILOT_EXPERIMENT_ENABLED"):
+        validate_autopilot_config()
+
+
+@pytest.mark.parametrize(
+    ("environment", "enabled"),
+    [
+        ("development", True),
+        ("development", False),
+        ("production", False),
+    ],
+)
+def test_autopilot_config_allows_local_use_and_hosted_off(monkeypatch, environment, enabled):
+    monkeypatch.setattr("app.config.settings.ENVIRONMENT", environment)
+    monkeypatch.setattr("app.config.settings.AUTOPILOT_EXPERIMENT_ENABLED", enabled)
+
+    validate_autopilot_config()
