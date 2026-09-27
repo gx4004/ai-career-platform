@@ -5,8 +5,8 @@ import { PageFrame } from '#/components/app/PageFrame'
 import { cn } from '#/lib/utils'
 
 /**
- * Shared shell for the workspace pages (CV Studio, Evidence, Campaigns,
- * Discovery, Queue). It carries the same visual language as the tool input
+ * Shared shell for the workspace pages (CV Studio, Evidence, Applications,
+ * Discovery). It carries the same visual language as the tool input
  * heroes — ice wash, grain, soft glow, rising text — so newer pages feel like
  * the original product instead of an admin console.
  */

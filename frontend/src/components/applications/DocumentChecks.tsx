@@ -4,15 +4,14 @@ import { Link } from '@tanstack/react-router'
 import { Check, CircleAlert, ClipboardCheck, ListPlus } from 'lucide-react'
 import { WorkspacePanel } from '#/components/app/WorkspacePage'
 import { Button } from '#/components/ui/button'
-import { classifyCampaignGaps, getCampaignGapResponse, reviewCampaign } from '#/lib/api/client'
+import { classifyApplicationGaps, getApplicationGapResponse, reviewApplication } from '#/lib/api/client'
 import { createDevelopmentItem } from '#/lib/api/development'
 import type { GapClassification } from '#/lib/api/gapClassificationSchemas'
-import type { CampaignDetail } from '#/lib/api/schemas'
 import { GAP_KIND_LABELS, RESPONSE_KIND_LABELS, commercialRelationshipLabel } from '#/lib/development/plan'
 import { DEVELOPMENT_PLAN_QUERY_KEY } from '#/lib/query/evidenceCaches'
 import { PROVENANCE_LABELS, contentEntries } from '#/lib/profile/evidence'
 
-type Finding = Awaited<ReturnType<typeof reviewCampaign>>['findings'][number]
+type Finding = Awaited<ReturnType<typeof reviewApplication>>['findings'][number]
 
 const CHECKS: Array<{ category: Finding['category']; title: string; detail: string }> = [
   { category: 'unsupported_claim', title: 'Everything you claim is backed up', detail: 'Numbers, names and results also appear in your CV or profile.' },
@@ -23,102 +22,85 @@ const CHECKS: Array<{ category: Finding['category']; title: string; detail: stri
   { category: 'document_defect', title: 'No placeholders or near-empty documents', detail: 'No leftover [Company] or TODO, and both documents have real content.' },
 ]
 
-/** Pre-application checklist: document readiness plus the rule-based content checks. */
-export function CampaignChecklist({ campaign }: { campaign: CampaignDetail }) {
+/** Rule-based content checks on what this application would send, plus next steps for gaps. */
+export function DocumentChecks({ applicationId }: { applicationId: string }) {
   const [hidden, setHidden] = useState<Set<string>>(() => new Set())
-  const classify = useMutation({ mutationFn: () => classifyCampaignGaps(campaign.id) })
+  const classify = useMutation({ mutationFn: () => classifyApplicationGaps(applicationId) })
   const review = useMutation({
-    mutationFn: () => reviewCampaign(campaign.id),
+    mutationFn: () => reviewApplication(applicationId),
     onSuccess: () => {
       setHidden(new Set())
       classify.reset()
     },
   })
   const findings = review.data?.findings.filter((item) => !hidden.has(item.id)) ?? []
-  const ready = [
-    { done: Boolean(campaign.listing), title: 'The job posting is attached', detail: 'Save the job from Job Discovery or import it in Job Match so there is something to check against.' },
-    { done: Boolean(campaign.selected_materials.cv_variant), title: "You've picked a CV version", detail: 'Choose one under Overview → Your documents.' },
-    { done: Boolean(campaign.selected_materials.cover_letter), title: "You've picked a cover letter", detail: 'Choose one under Overview → Your documents.' },
-  ]
 
   return (
-    <div className="camp-stack">
-      <WorkspacePanel kicker="Before you apply" title="Ready to send?" description="The basics every application needs.">
-        <ul className="camp-checks">
-          {ready.map((item) => (
-            <li key={item.title} className={item.done ? 'is-pass' : 'is-todo'}>
-              <CheckMark state={item.done ? 'pass' : 'todo'} />
+    <WorkspacePanel
+      kicker="Before you send"
+      title="Check your documents"
+      description="Quick rule-based checks on the CV and cover letter this application would send. Nothing is changed for you."
+      actions={
+        <Button variant="outline" onClick={() => review.mutate()} loading={review.isPending} disabled={review.isPending}>
+          <ClipboardCheck size={15} />
+          {review.isPending ? 'Checking…' : review.data ? 'Check again' : 'Run the checks'}
+        </Button>
+      }
+    >
+      {review.isError ? (
+        <p role="alert" className="camp-alert">
+          {review.error instanceof Error && review.error.message ? review.error.message : "The checks couldn't run. Try again."}
+        </p>
+      ) : null}
+      {review.data ? (
+        <p className="camp-muted" aria-live="polite">
+          {findings.length ? `${findings.length} thing${findings.length === 1 ? '' : 's'} to look at` : 'All clear. Nice work.'}
+        </p>
+      ) : null}
+      {findings.length > 0 ? (
+        <div className="camp-next-steps">
+          <p>Turn what the checks found into steps in your development plan. Nothing is added until you choose.</p>
+          <Button variant="outline" disabled={classify.isPending} onClick={() => classify.mutate()}>
+            <ListPlus size={15} />
+            {classify.isPending ? 'Working…' : 'Suggest next steps'}
+          </Button>
+        </div>
+      ) : null}
+      {classify.isError ? <p role="alert" className="camp-alert">Next steps couldn't be suggested. Nothing was added.</p> : null}
+      <ul className="camp-checks">
+        {CHECKS.map((check) => {
+          const matches = findings.filter((item) => item.category === check.category)
+          const state = !review.data ? 'idle' : matches.length ? 'warn' : 'pass'
+          return (
+            <li key={check.category} className={`is-${state}`}>
+              <CheckMark state={state} />
               <div>
-                <strong>{item.title}</strong>
-                {item.done ? null : <p>{item.detail}</p>}
+                <strong>{check.title}</strong>
+                <p>{check.detail}</p>
+                {matches.map((item) => (
+                  <article key={item.id} className="camp-finding">
+                    <p>{item.message}</p>
+                    <span className="camp-muted">Where: {where(item.locations)}</span>
+                    <FindingNextStep
+                      applicationId={applicationId}
+                      classification={classify.data?.classifications.find((candidate) => candidate.finding_id === item.id)}
+                      classificationComplete={classify.isSuccess}
+                    />
+                    <button type="button" className="camp-link-button" onClick={() => setHidden((current) => new Set(current).add(item.id))}>
+                      Hide
+                    </button>
+                  </article>
+                ))}
               </div>
             </li>
-          ))}
-        </ul>
-      </WorkspacePanel>
-
-      <WorkspacePanel
-        kicker="Content checks"
-        title="Check your documents"
-        description="Quick rule-based checks on your chosen CV and cover letter. Nothing is changed for you."
-        actions={
-          <Button onClick={() => review.mutate()} loading={review.isPending} disabled={review.isPending}>
-            <ClipboardCheck size={15} />
-            {review.isPending ? 'Checking…' : review.data ? 'Check again' : 'Run the checks'}
-          </Button>
-        }
-      >
-        {review.isError ? <p role="alert" className="camp-alert">The checks couldn't run. Try again.</p> : null}
-        {review.data ? (
-          <p className="camp-muted" aria-live="polite">
-            {findings.length ? `${findings.length} thing${findings.length === 1 ? '' : 's'} to look at` : 'All clear. Nice work.'}
-          </p>
-        ) : null}
-        {findings.length > 0 ? (
-          <div className="camp-next-steps">
-            <p>Turn what the checks found into steps in your development plan. Nothing is added until you choose.</p>
-            <Button variant="outline" disabled={classify.isPending} onClick={() => classify.mutate()}>
-              <ListPlus size={15} />
-              {classify.isPending ? 'Working…' : 'Suggest next steps'}
-            </Button>
-          </div>
-        ) : null}
-        {classify.isError ? <p role="alert" className="camp-alert">Next steps couldn't be suggested. Nothing was added.</p> : null}
-        <ul className="camp-checks">
-          {CHECKS.map((check) => {
-            const matches = findings.filter((item) => item.category === check.category)
-            const state = !review.data ? 'idle' : matches.length ? 'warn' : 'pass'
-            return (
-              <li key={check.category} className={`is-${state}`}>
-                <CheckMark state={state} />
-                <div>
-                  <strong>{check.title}</strong>
-                  <p>{check.detail}</p>
-                  {matches.map((item) => (
-                    <article key={item.id} className="camp-finding">
-                      <p>{item.message}</p>
-                      <span className="camp-muted">Where: {where(item.locations)}</span>
-                      <FindingNextStep
-                        campaignId={campaign.id}
-                        classification={classify.data?.classifications.find((candidate) => candidate.finding_id === item.id)}
-                        classificationComplete={classify.isSuccess}
-                      />
-                      <button type="button" className="camp-link-button" onClick={() => setHidden((current) => new Set(current).add(item.id))}>
-                        Hide
-                      </button>
-                    </article>
-                  ))}
-                </div>
-              </li>
-            )
-          })}
-        </ul>
-      </WorkspacePanel>
-    </div>
+          )
+        })}
+      </ul>
+    </WorkspacePanel>
   )
 }
 
-function CheckMark({ state }: { state: 'pass' | 'todo' | 'warn' | 'idle' }) {
+function CheckMark({ state }: { state: 'pass' | 'warn' | 'idle' }) {
   return (
     <span className={`camp-checkmark is-${state}`} aria-label={state === 'pass' ? 'Done' : state === 'idle' ? 'Not checked yet' : 'Needs a look'}>
       {state === 'pass' ? <Check size={14} aria-hidden="true" /> : state === 'idle' ? null : <CircleAlert size={14} aria-hidden="true" />}
@@ -132,23 +114,23 @@ function where(locations: string[]) {
 }
 
 function FindingNextStep({
-  campaignId,
+  applicationId,
   classification,
   classificationComplete,
 }: {
-  campaignId: string
+  applicationId: string
   classification: GapClassification | undefined
   classificationComplete: boolean
 }) {
   if (!classification) {
     return classificationComplete ? <p className="camp-muted">No next step to suggest for this one.</p> : null
   }
-  return <ClassifiedNextStep campaignId={campaignId} classification={classification} />
+  return <ClassifiedNextStep applicationId={applicationId} classification={classification} />
 }
 
-function ClassifiedNextStep({ campaignId, classification }: { campaignId: string; classification: GapClassification }) {
+function ClassifiedNextStep({ applicationId, classification }: { applicationId: string; classification: GapClassification }) {
   const queryClient = useQueryClient()
-  const response = useMutation({ mutationFn: () => getCampaignGapResponse(campaignId, classification.id) })
+  const response = useMutation({ mutationFn: () => getApplicationGapResponse(applicationId, classification.id) })
   const addToPlan = useMutation({
     mutationFn: () => createDevelopmentItem({ gap_classification_id: classification.id }),
     onSuccess: async () => {

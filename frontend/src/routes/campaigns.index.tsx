@@ -7,5 +7,5 @@ export const Route = createFileRoute('/campaigns/')({
   ssr: false,
   beforeLoad: requireUser,
   head: () => ({ meta: [{ title: 'Applications | Career Workbench' }] }),
-  component: lazyRouteComponent(() => import('#/pages/campaigns-page'), 'CampaignsPage'),
+  component: lazyRouteComponent(() => import('#/pages/applications-page'), 'ApplicationsPage'),
 })
