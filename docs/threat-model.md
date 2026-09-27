@@ -419,12 +419,12 @@ is dark; R12 export and erasure remain inside the cumulative R12 router gate.
 | Method | Path | Outcome gate | Rate limit |
 |--------|------|--------------|------------|
 | `GET` | `/evidence-profile/items` | R11 | — |
-| `POST` | `/evidence-profile/import/proposals` | R11 | 10/min + Model shared |
+| `POST` | `/evidence-profile/import` | R11 | 10/min + Model shared |
 | `POST` | `/evidence-profile/items` | R11 | — |
-| `POST` | `/evidence-profile/items/confirm-imported` | R11 | — |
+| `POST` | `/evidence-profile/items/confirm` | R11 | — |
 | `GET` | `/evidence-profile/items/{item_id}` | R11 | — |
 | `PATCH` | `/evidence-profile/items/{item_id}` | R11 | — |
-| `POST` | `/evidence-profile/items/{item_id}/confirmation` | R11 | — |
+| `POST` | `/evidence-profile/items/{item_id}/confirm` | R11 | — |
 | `DELETE` | `/evidence-profile/items/{item_id}` | R11 | — |
 | `GET` | `/evidence-profile/export` | — (owner lifecycle) | 5/min |
 | `DELETE` | `/evidence-profile/items` | — (owner lifecycle) | 5/min |
@@ -507,7 +507,7 @@ is dark; R12 export and erasure remain inside the cumulative R12 router gate.
 | `POST` | `/packets/{packet_id}/applied` | R15 | — |
 | `POST` | `/packets/{packet_id}/autofill` | `AUTOPILOT_EXPERIMENT_ENABLED` (local-only experiment; never submits) | one run per owner |
 
-#### R17 development loop (10)
+#### R17 development loop (8)
 
 | Method | Path | Outcome gate | Rate limit |
 |--------|------|--------------|------------|
@@ -519,8 +519,6 @@ is dark; R12 export and erasure remain inside the cumulative R12 router gate.
 | `POST` | `/development-plan` | R17 | — |
 | `PATCH` | `/development-plan/{item_id}` | R17 | — |
 | `DELETE` | `/development-plan/{item_id}` | R17 | — |
-| `POST` | `/development-plan/{item_id}/confirm-evidence` | R17 | — |
-| `POST` | `/development-plan/{item_id}/decline-evidence` | R17 | — |
 
 The Evidence Profile endpoints are authenticated-owner-only (`get_current_user`
 scopes every row to the caller; no anonymous profile rows exist — D-064). The

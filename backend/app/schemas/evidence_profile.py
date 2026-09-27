@@ -14,7 +14,7 @@ EvidenceKind = Literal[
     "interview-evidence",
 ]
 EvidenceProvenance = Literal["imported", "inferred", "user-entered"]
-ConfirmationState = Literal["unconfirmed", "confirmed", "rejected"]
+ConfirmationState = Literal["unconfirmed", "confirmed"]
 
 
 class EvidenceItemCreate(BaseModel):
@@ -26,27 +26,28 @@ class EvidenceItemCreate(BaseModel):
 
 
 class EvidenceItemUpdate(BaseModel):
+    """An owner-authored correction: content only.
+
+    ``kind`` and ``provenance`` are fixed at creation; accepting them here would
+    let a PATCH relabel an imported or inferred fact as ``user-entered`` and
+    falsify its recorded origin (D-062).
+    """
+
     model_config = ConfigDict(extra="forbid")
 
-    kind: EvidenceKind | None = None
-    content: dict[str, Any] | None = Field(default=None, min_length=1)
-    provenance: EvidenceProvenance | None = None
-
-    @model_validator(mode="after")
-    def require_change(self):
-        if self.kind is None and self.content is None and self.provenance is None:
-            raise ValueError("At least one editable field is required")
-        return self
+    content: dict[str, Any] = Field(min_length=1)
 
 
-class ConfirmationAction(BaseModel):
+class EvidenceItemIds(BaseModel):
+    """A bounded set of the owner's item ids for one bulk action."""
+
     model_config = ConfigDict(extra="forbid")
 
-    action: Literal["confirm", "reject"]
+    ids: list[str] = Field(min_length=1, max_length=1000)
 
 
 class EvidenceImportRequest(BaseModel):
-    """Request to derive reviewable proposals from an uploaded resume (R11, #146).
+    """Resume text to extract suggested evidence from (R11, #146).
 
     Bounds mirror the resume-analyzer request so the same parsed resume text can
     feed both surfaces. The endpoint is authenticated-only; guest uploads never
@@ -56,30 +57,6 @@ class EvidenceImportRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     resume_text: str = Field(min_length=50, max_length=50_000)
-
-
-class EvidenceProposal(BaseModel):
-    """One ephemeral, reviewable evidence proposal derived from resume parsing.
-
-    A proposal is not a stored item: it carries no confirmation state and is
-    never persisted by the proposal endpoint. Accepting it goes through the
-    normal item-create path, which stamps it `unconfirmed` with `imported`
-    provenance (D-062); discarding it simply drops this object.
-    """
-
-    model_config = ConfigDict(extra="forbid")
-
-    # Per-request handle for the review UI only — not a database id.
-    proposal_id: str
-    kind: EvidenceKind
-    content: dict[str, Any] = Field(min_length=1)
-    # Resume-derived proposals are always `imported`; the model may not propose
-    # `user-entered` or `inferred` provenance for extracted facts.
-    provenance: Literal["imported"] = "imported"
-
-
-class EvidenceImportProposalsResponse(BaseModel):
-    proposals: list[EvidenceProposal]
 
 
 class EvidenceItemResponse(BaseModel):
