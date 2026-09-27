@@ -2,6 +2,7 @@ from datetime import UTC, datetime
 
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
+from sqlalchemy.orm.attributes import set_committed_value
 
 from app.models.campaign_event import CampaignEvent
 from app.models.campaign_listing import CampaignListing
@@ -71,5 +72,7 @@ def attach_listing(
     db.commit()
     db.refresh(listing)
     if listing.retrieved_at.tzinfo is None:
-        listing.retrieved_at = listing.retrieved_at.replace(tzinfo=UTC)
+        # SQLite drops tzinfo. Normalize the loaded value without marking the row
+        # dirty, so a later commit in the same session never re-writes it.
+        set_committed_value(listing, "retrieved_at", listing.retrieved_at.replace(tzinfo=UTC))
     return listing
