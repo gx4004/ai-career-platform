@@ -2,6 +2,22 @@
 
 This module is launched directly by Playwright. It is not imported by the
 production application and exposes no runtime switch or HTTP control surface.
+
+Why this monkeypatches `complete_structured` directly instead of setting
+`LLM_PROVIDER=fake` (issue #357): `app/services/fake_llm.py` already provides
+schema-valid fixtures for these same six tools and would be the simpler
+seam, but `guest-tools.spec.ts` deliberately exercises the
+`[E2E_PROVIDER_FAILURE]` marker to assert each tool's *provider-unavailable*
+behavior (heuristic fallback for Resume/Job Match, explicit error for the
+generative tools). Going through `LLM_PROVIDER=fake` would route that failure
+through `ai_client.complete_structured`'s retry wrapper (`_with_retry`: 4
+retries, 5s->10s->20s->40s backoff, ~75s before giving up) since a
+provider-side exception there is indistinguishable from a transient Vertex
+error — turning a fast, deterministic failure test into a ~75s stall that
+risks the suite's timeouts. Patching `complete_structured` on each service
+module bypasses that retry wrapper entirely, so the failure path stays
+instant. Keep this monkeypatch until/unless the retry wrapper gains a
+fail-fast path for deterministic test failures.
 """
 
 import os

@@ -223,6 +223,72 @@ def test_list_workspaces_and_update_workspace(client, auth_headers, test_user, d
     assert payload["is_pinned"] is True
 
 
+def test_list_workspaces_issues_constant_statement_count(client, auth_headers, test_user, db):
+    """`list_workspaces` must not N+1 on workspace count (#357).
+
+    Each workspace's tool runs, campaign tasks, and current listing are all
+    eager-loaded, so the number of SELECTs the endpoint issues should stay the
+    same whether there is one workspace or many — never one extra query per
+    workspace (the `Workspace.listing` lazy-load this fixes) or per linked run.
+    """
+    from sqlalchemy import event
+
+    from app.models.campaign_listing import CampaignListing
+    from tests.conftest import engine as test_engine
+
+    def _make_workspace(index: int) -> None:
+        workspace = Workspace(user_id=test_user.id, label=f"Workspace {index}")
+        db.add(workspace)
+        db.commit()
+        db.refresh(workspace)
+
+        listing = CampaignListing(
+            workspace_id=workspace.id,
+            title="Staff Engineer",
+            company="Acme",
+            description="Own the platform roadmap.",
+        )
+        db.add(listing)
+        db.commit()
+        db.refresh(listing)
+        workspace.current_listing_id = listing.id
+        db.add(workspace)
+        db.commit()
+
+        _create_run(db, test_user.id, workspace_id=workspace.id, label=f"Run {index}")
+
+    def _count_select_statements() -> int:
+        captured: list[str] = []
+
+        def _record(_conn, _cursor, statement, _params, _context, _executemany):
+            normalized = statement.lstrip().lower()
+            # Mirrors postgres_history_query_plans.py's capture filter: the
+            # handler's own query-timing sample writes to analytics_events and
+            # is instrumentation, not one of the read shapes under measurement.
+            if normalized.startswith("select") and "analytics_events" not in normalized:
+                captured.append(statement)
+
+        event.listen(test_engine, "after_cursor_execute", _record)
+        try:
+            resp = client.get(f"{PREFIX}/workspaces", headers=auth_headers)
+        finally:
+            event.remove(test_engine, "after_cursor_execute", _record)
+        assert resp.status_code == 200
+        return len(captured)
+
+    _make_workspace(0)
+    small_count = _count_select_statements()
+
+    for index in range(1, 10):
+        _make_workspace(index)
+    large_count = _count_select_statements()
+
+    assert small_count == large_count, (
+        f"list_workspaces issued {small_count} SELECTs for 1 workspace but "
+        f"{large_count} for 10 — statement count must stay constant"
+    )
+
+
 def test_legacy_workspace_is_a_label_only_campaign(client, auth_headers, test_user, db):
     workspace = Workspace(user_id=test_user.id, label="Existing search", is_pinned=True)
     db.add(workspace)
