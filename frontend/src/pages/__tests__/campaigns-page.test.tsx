@@ -57,6 +57,17 @@ describe('CampaignsPage', () => {
     expect(screen.queryByText('Resume Analysis (84/100)')).toBeNull()
   })
 
+  it('opens with the page hero: title, purpose, Find jobs and compact counts', async () => {
+    renderBoard()
+    expect(screen.getByRole('heading', { level: 1, name: 'Your applications' })).toBeTruthy()
+    expect(screen.getByRole('link', { name: /find jobs/i }).getAttribute('href')).toBe('/discovery')
+    expect(await screen.findByText('4 in progress')).toBeTruthy()
+    expect(screen.getByText('1 interviewing')).toBeTruthy()
+    // No offers yet, so no "0 offers" chip — and no stat-tile row.
+    expect(screen.queryByText(/^\d+ offers?$/)).toBeNull()
+    expect(document.querySelector('.workspace-hero__stats')).toBeNull()
+  })
+
   it('moves a card to a later stage from its menu', async () => {
     api.updateHistoryWorkspace.mockResolvedValue({ ...items[0], status: 'applied', updated_at: '2026-09-24T10:00:00Z' })
     renderBoard()
