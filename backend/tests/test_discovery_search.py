@@ -3,10 +3,7 @@
 from datetime import UTC, datetime, timedelta
 
 from app.models.discovered_listing import DiscoveredListing, DiscoveredListingAttribution
-from app.models.discovery_personalization import (
-    DiscoveryDismissedListing,
-    DiscoveryHiddenSource,
-)
+from app.models.discovery_personalization import DiscoveryDismissedListing
 from app.models.discovery_source import DiscoverySource
 from app.models.evidence_item import EvidenceItem
 from app.services.discovery_adoption import adopt_recommendation
@@ -142,17 +139,14 @@ def test_text_search_treats_wildcards_literally(db, test_user):
     assert [item.title for item in page.items] == ["Engineer"]
 
 
-def test_hidden_dismissed_revoked_and_expired_listings_are_excluded(db, test_user):
+def test_dismissed_revoked_and_expired_listings_are_excluded(db, test_user):
     visible_source = _greenhouse(db, "visible")
-    hidden_source = _greenhouse(db, "hidden")
     killed_source = _greenhouse(db, "killed")
     visible = _listing(db, visible_source, title="Visible Role")
     dismissed = _listing(db, visible_source, title="Dismissed Role")
     _listing(db, visible_source, title="Expired Role", retrieved_at=NOW - timedelta(days=60))
-    _listing(db, hidden_source, title="Hidden Role")
     _listing(db, killed_source, title="Killed Role")
     killed_source.kill_switch = True
-    db.add(DiscoveryHiddenSource(user_id=test_user.id, source_id=hidden_source.id))
     db.add(DiscoveryDismissedListing(user_id=test_user.id, listing_id=dismissed.id))
     db.commit()
 

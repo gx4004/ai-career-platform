@@ -56,6 +56,10 @@ export const discoverySourceSchema = z.object({
   retention_days: z.number().int().positive(),
   kill_switch: z.boolean(),
   ingestion_allowed: z.boolean(),
+  // Latest ingestion run, stamped once per run (#369).
+  last_fetched_at: offsetDateTimeSchema.nullable(),
+  last_outcome: z.string().nullable(),
+  listing_count: z.number().int().nonnegative().nullable(),
   created_at: offsetDateTimeSchema,
   updated_at: offsetDateTimeSchema,
 })

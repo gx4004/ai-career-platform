@@ -54,7 +54,7 @@ describe('CV document schema (R12, #153)', () => {
       schema_version: 'career-data-export/v1', exported_at: '2026-07-12T10:00:00Z',
       item_count: 0, items: [],
       campaigns: { campaign_count: 0, campaigns: [] },
-      personalization: { hidden_sources: [], dismissals: [], reports: [] },
+      personalization: { dismissals: [] },
       queue_rules: { rules: [], settings: null },
       application_packets: { packets: [] },
       packet_stop_answers: { stop_answers: [] },

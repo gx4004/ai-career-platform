@@ -35,8 +35,8 @@ from app.models.discovery_source import DiscoverySource
 from app.models.user import User
 from app.schemas.discovery_sources import DiscoverySourceCreate, DiscoverySourceUpdate
 from app.services.ats_ingestion import _QUERY_BY_PROVIDER, _parse_provider_jobs
+from app.services.discovery_fetch import DISCOVERY_USER_AGENT, fetch_public_resource
 from app.services.discovery_sources import register_source, update_source
-from app.services.licensed_source_ingestion import DISCOVERY_USER_AGENT, _fetch_resource
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger("seed_ats_sources")
@@ -78,7 +78,7 @@ def _system_reviewer(db) -> User:
 async def _is_live(provider: str, endpoint_url: str) -> bool:
     query = _QUERY_BY_PROVIDER[provider]
     try:
-        content, _content_type = await _fetch_resource(
+        content, _content_type = await fetch_public_resource(
             endpoint_url,
             query,
             frozenset({"application/json"}),

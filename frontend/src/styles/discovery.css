@@ -192,33 +192,6 @@ select.disc-field {
   padding: 0.5rem 1.25rem 1.25rem;
 }
 
-/* Hidden companies */
-
-.disc-hidden {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.4rem;
-  font-size: var(--type-small);
-  color: var(--text-muted);
-}
-
-.disc-hidden button {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  padding: 0.2rem 0.6rem;
-  border-radius: var(--radius-pill);
-  border: 1px solid var(--border-soft);
-  background: #fff;
-  font: inherit;
-  font-size: var(--type-xs);
-  color: var(--text-body);
-  cursor: pointer;
-}
-
-.disc-hidden button:hover { border-color: var(--border-strong); color: var(--accent); }
-
 /* Results */
 
 .disc-results {

@@ -7,10 +7,6 @@ import {
   type DiscoverySource,
   type DiscoverySourceList,
 } from '#/lib/api/discoverySchemas'
-import {
-  adminDiscoveryReportListSchema,
-  type AdminDiscoveryReportList,
-} from '#/lib/api/schemas'
 
 export type { DiscoverySource, DiscoverySourceList } from '#/lib/api/discoverySchemas'
 
@@ -142,28 +138,6 @@ export type AdminHealth = {
   environment: string
 }
 
-// R14 per-source health — mirrors backend/app/schemas/admin.py
-// (SourceFamilyHealth / AdminSourceHealthResponse). Read-only current-state
-// aggregate; every figure is a bounded per-source-family count — no listing
-// content, full URL, source key/name, or user data (D-053).
-
-export type SourceFamilyHealth = {
-  source_family: string
-  source_count: number
-  active_count: number
-  killed_count: number
-  pending_terms_count: number
-  listing_count: number
-  stale_count: number
-  oldest_retrieved_at: string | null
-  newest_retrieved_at: string | null
-}
-
-export type AdminSourceHealth = {
-  staleness_threshold_days: number
-  families: SourceFamilyHealth[]
-}
-
 // API functions
 
 export function getAdminStats() {
@@ -206,15 +180,6 @@ export function getAdminRun(runId: string) {
 export async function getAdminDiscoverySources(): Promise<DiscoverySourceList> {
   const response = await adminRequest<unknown>('/admin/discovery-sources')
   return discoverySourceListSchema.parse(response)
-}
-
-export async function getAdminDiscoveryReports(): Promise<AdminDiscoveryReportList> {
-  const response = await adminRequest<unknown>('/admin/discovery-reports')
-  return adminDiscoveryReportListSchema.parse(response)
-}
-
-export function getAdminSourceHealth() {
-  return adminRequest<AdminSourceHealth>('/admin/source-health')
 }
 
 export async function setDiscoverySourceKillSwitch(
