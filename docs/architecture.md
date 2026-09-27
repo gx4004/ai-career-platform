@@ -123,7 +123,7 @@ Core entities:
 - Discovered listings store (R14 fixture-only foundation built dark; D-087, ADR 0008) — product-owned
   listings with source attribution, retrieval date, dedup, and per-source
   retention; distinct from campaign canonical listings. Registry, governed fixture
-  ingestion, ranking, personalization, and correction/report controls exist, but no
+  ingestion, ranking, and listing dismissals exist, but no
   real source is configured and activation still requires R13 plus per-source terms
   approval (D-084, D-120).
 - Application packet and approval snapshot (dark R15 build-ahead; D-093–D-099,
@@ -432,7 +432,7 @@ scaling decision is ever needed.
   no candidate budget and profile-to-corpus comparison work stays bounded.
 - Outbound source queries carry only minimal registry-declared parameters; profile
   content never leaves the product (D-089).
-- Personalization state (hidden sources, dismissals, reports) is owner-isolated
+- Listing dismissals are owner-isolated
   user data in the standard lifecycle and telemetry boundaries (D-090).
 - Recommendations become campaigns only by explicit user adoption; discovery never
   auto-creates campaigns, tasks, or reminders (D-091).

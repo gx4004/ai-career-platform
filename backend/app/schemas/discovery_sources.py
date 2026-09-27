@@ -1,4 +1,4 @@
-from datetime import UTC, date, datetime
+from datetime import UTC, datetime
 from typing import Literal
 from urllib.parse import urlparse
 
@@ -116,10 +116,13 @@ class DiscoverySourceResponse(BaseModel):
     retention_days: int
     kill_switch: bool
     ingestion_allowed: bool
+    last_fetched_at: datetime | None = None
+    last_outcome: str | None = None
+    listing_count: int | None = None
     created_at: datetime
     updated_at: datetime
 
-    @field_validator("terms_reviewed_at", "created_at", "updated_at")
+    @field_validator("terms_reviewed_at", "last_fetched_at", "created_at", "updated_at")
     @classmethod
     def require_offset(cls, value: datetime | None) -> datetime | None:
         if value is not None and value.tzinfo is None:
@@ -129,20 +132,6 @@ class DiscoverySourceResponse(BaseModel):
 
 class DiscoverySourceListResponse(BaseModel):
     items: list[DiscoverySourceResponse] = Field(default_factory=list)
-
-
-class LicensedSourceQuery(BaseModel):
-    """Minimal outbound discovery query; profile/history/identity fields do not exist."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    role: str | None = Field(default=None, min_length=1, max_length=120)
-    location: str | None = Field(default=None, min_length=1, max_length=120)
-    remote: bool | None = None
-    page: int | None = Field(default=None, ge=1, le=10_000)
-    cursor: str | None = Field(default=None, min_length=1, max_length=200)
-    limit: int | None = Field(default=None, ge=1, le=100)
-    posted_after: date | None = None
 
 
 def _validate_endpoint(value: str) -> str:

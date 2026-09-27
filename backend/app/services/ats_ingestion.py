@@ -2,10 +2,9 @@
 
 Three adapters — Greenhouse, Lever, Ashby — each a public, unauthenticated GET
 API intended for embedding on the employer's own careers site. Every fetch
-still goes through the same governance seam as the licensed path
-(`require_ingestion_allowed`, kill switch, terms review, rate limit, SSRF-safe
-`_fetch_resource`), so an `employer_ats` source is refused exactly like a
-licensed one unless an operator has reviewed and activated it.
+goes through the governance seam (`require_ingestion_allowed`, kill switch,
+terms review, rate limit, SSRF-safe `fetch_public_resource`), so an
+`employer_ats` source is refused unless an operator has reviewed and activated it.
 
 Design notes:
 - The provider is derived only from the governed source's own `endpoint_url`
@@ -18,7 +17,8 @@ Design notes:
   provider's own "apply here" link (which *can* be a custom domain) is carried
   separately as `apply_url`, which is not host-validated.
 - Each source is ingested in isolation (`run_ats_ingestion`): one dead board or
-  one malformed payload never stops the others.
+  one malformed payload never stops the others. Every run records the source's
+  `last_fetched_at` / `last_outcome` / `listing_count` for the admin sources table.
 """
 
 from __future__ import annotations
@@ -39,12 +39,10 @@ from app.database import SessionLocal
 from app.models.discovery_source import DiscoverySource
 from app.schemas.discovered_listings import DiscoveredListingInput
 from app.services.discovered_listings import store_discovered_listing
-from app.services.discovery_sources import require_ingestion_allowed
-from app.services.licensed_source_ingestion import (
-    DISCOVERY_USER_AGENT,
-    _claim_rate,
-    _fetch_resource,
-    _validate_query,
+from app.services.discovery_fetch import DISCOVERY_USER_AGENT, fetch_public_resource
+from app.services.discovery_sources import (
+    SourceIngestionAuthorization,
+    require_ingestion_allowed,
 )
 
 logger = logging.getLogger("app.ats_ingestion")
@@ -52,7 +50,7 @@ logger = logging.getLogger("app.ats_ingestion")
 ATS_TIMEOUT_SECONDS = 15.0
 # Greenhouse `content=true` inlines full HTML job descriptions for every open
 # role on the board; a large board can comfortably exceed the licensed path's
-# 2MB default, so ATS ingestion gets its own, deliberately wider cap.
+# 2MB fetch default, so ATS ingestion gets its own, deliberately wider cap.
 ATS_MAX_RESPONSE_BYTES = 10_000_000
 ATS_INGESTION_INTERVAL_SECONDS = 6 * 60 * 60
 ATS_INGESTION_INITIAL_DELAY_SECONDS = 60
@@ -116,14 +114,13 @@ async def ingest_ats_source(db: Session, *, source_key: str) -> ATSIngestOutcome
     policy_fingerprint = authorization.policy_fingerprint
     _claim_rate(db, authorization.source_id, 1)
 
-    # Re-check immediately before the network request, matching the
-    # licensed-source pattern: a kill switch flipped between the rate
-    # claim and the fetch halts this source only.
+    # Re-check immediately before the network request: a kill switch flipped
+    # between the rate claim and the fetch halts this source only.
     authorization = require_ingestion_allowed(db, source_key, "ats_integration")
     if authorization.policy_fingerprint != policy_fingerprint:
         raise ATSIngestionRefused("source_policy_changed_during_fetch")
 
-    content, _content_type = await _fetch_resource(
+    content, _content_type = await fetch_public_resource(
         authorization.endpoint_url,
         query,
         _ATS_CONTENT_TYPES,
@@ -203,7 +200,7 @@ async def run_ats_ingestion(db: Session) -> ATSIngestSummary:
     summary = ATSIngestSummary()
     for source_key in source_keys:
         try:
-            summary.outcomes.append(await ingest_ats_source(db, source_key=source_key))
+            outcome = await ingest_ats_source(db, source_key=source_key)
         except Exception as exc:  # noqa: BLE001 — one source's failure must not stop the rest
             summary.failures[source_key] = f"{type(exc).__name__}: {exc}"
             logger.warning(
@@ -211,7 +208,32 @@ async def run_ats_ingestion(db: Session) -> ATSIngestSummary:
                 source_key,
                 type(exc).__name__,
             )
+            _record_fetch_status(db, source_key, f"failed: {type(exc).__name__}", None)
+            continue
+        summary.outcomes.append(outcome)
+        _record_fetch_status(db, source_key, "ok", outcome.stored + outcome.deduplicated)
     return summary
+
+
+def _record_fetch_status(
+    db: Session, source_key: str, outcome: str, listing_count: int | None
+) -> None:
+    """Stamp one source's latest fetch result; a failed run keeps the last count."""
+    try:
+        db.rollback()
+        source = db.query(DiscoverySource).filter_by(source_key=source_key).one()
+        source.last_fetched_at = datetime.now(UTC)
+        source.last_outcome = outcome[:200]
+        if listing_count is not None:
+            source.listing_count = listing_count
+        db.commit()
+    except Exception as exc:  # noqa: BLE001 — status bookkeeping must not stop the run
+        db.rollback()
+        logger.warning(
+            "ats ingestion status update failed source_key=%s error_type=%s",
+            source_key,
+            type(exc).__name__,
+        )
 
 
 # ── Recurring scheduler (follows `app.services.retention`'s pattern) ──
@@ -268,16 +290,35 @@ def _run_ats_ingestion_once_sync() -> ATSIngestSummary | None:
         db.close()
 
 
-async def run_ats_ingestion_off_loop(db: Session) -> ATSIngestSummary:
-    """Run ingestion for an already-open session without blocking the event loop.
+def _validate_query(
+    authorization: SourceIngestionAuthorization,
+    query: dict[str, str | int | bool],
+) -> None:
+    if set(query) - set(authorization.allowed_query_parameters):
+        raise ATSIngestionRefused("query_parameter_not_allowed")
 
-    For a caller (the admin on-demand refresh) that already holds a
-    request-scoped `db`: the run happens in a worker thread with its own event
-    loop for the fetches, and `db` is used there and back on the main thread
-    only sequentially (this coroutine awaits the thread before touching it
-    again), so it is never accessed from two threads at once.
-    """
-    return await asyncio.to_thread(lambda: asyncio.run(run_ats_ingestion(db)))
+
+def _claim_rate(db: Session, source_id: str, request_count: int) -> None:
+    """Atomically claim a source's fixed-window request budget across replicas."""
+    now = datetime.now(UTC)
+    source = (
+        db.query(DiscoverySource)
+        .populate_existing()
+        .filter(DiscoverySource.id == source_id)
+        .with_for_update()
+        .one()
+    )
+    started_at = source.rate_window_started_at
+    if started_at is not None and started_at.tzinfo is None:
+        started_at = started_at.replace(tzinfo=UTC)
+    if started_at is None or (now - started_at).total_seconds() >= 60:
+        source.rate_window_started_at = now
+        source.rate_window_count = 0
+    if source.rate_window_count + request_count > source.rate_limit_per_minute:
+        db.rollback()
+        raise ATSIngestionRefused("source_rate_limit_exceeded")
+    source.rate_window_count += request_count
+    db.commit()
 
 
 def _extract_slug(provider: str, endpoint_url: str) -> str:

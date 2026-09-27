@@ -18,7 +18,6 @@ export function AdminDiscoverySourcesPage() {
       setDiscoverySourceKillSwitch(sourceId, tripped),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-discovery-sources'] })
-      queryClient.invalidateQueries({ queryKey: ['admin-source-health'] })
     },
   })
 
@@ -60,13 +59,14 @@ export function AdminDiscoverySourcesPage() {
                 <th>Terms review</th>
                 <th>Bounds</th>
                 <th>Ingestion</th>
+                <th>Last fetch</th>
                 <th>Kill switch</th>
               </tr>
             </thead>
             <tbody>
               {data.items.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="admin-table-muted">
+                  <td colSpan={7} className="admin-table-muted">
                     No discovery sources are registered. Ingestion remains disabled.
                   </td>
                 </tr>
@@ -120,6 +120,9 @@ export function AdminDiscoverySourcesPage() {
                     </div>
                   </td>
                   <td>
+                    <LastFetch source={source} />
+                  </td>
+                  <td>
                     <KillSwitchControl
                       source={source}
                       busy={pendingId === source.id}
@@ -136,6 +139,26 @@ export function AdminDiscoverySourcesPage() {
             </tbody>
           </table>
         )}
+      </div>
+    </div>
+  )
+}
+
+function LastFetch({ source }: { source: DiscoverySource }) {
+  if (!source.last_fetched_at) {
+    return <span className="admin-table-muted">Never fetched</span>
+  }
+  const failed = source.last_outcome !== 'ok'
+  return (
+    <div>
+      <strong className={failed ? 'admin-error-text' : undefined}>
+        {failed ? source.last_outcome : 'OK'}
+      </strong>
+      <div className="admin-table-muted">
+        {new Date(source.last_fetched_at).toLocaleString()}
+      </div>
+      <div className="admin-table-muted">
+        {source.listing_count ?? 0} listings
       </div>
     </div>
   )

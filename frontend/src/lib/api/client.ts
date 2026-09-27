@@ -38,10 +38,7 @@ import {
   evidenceImportRequestSchema,
   evidenceImportProposalsSchema,
   discoveryListingPageSchema,
-  discoveryPersonalizationSchema,
-  discoveryHiddenSourceSchema,
   discoveryDismissalSchema,
-  discoveryReportAckSchema,
   healthCheckSchema,
   importedJobSchema,
   importJobTextSchema,
@@ -465,26 +462,7 @@ export function adoptDiscoveryRecommendation(listingId: string) {
   })
 }
 
-// R14 #175 discovery correction controls. Every write is owner-scoped server-side.
-export function getDiscoveryPersonalization() {
-  return request('/discovery/personalization', {
-    method: 'GET',
-    schema: discoveryPersonalizationSchema,
-  })
-}
-
-export function hideDiscoverySource(sourceId: string) {
-  return request('/discovery/hidden-sources', {
-    method: 'POST',
-    body: { source_id: sourceId },
-    schema: discoveryHiddenSourceSchema,
-  })
-}
-
-export function unhideDiscoverySource(sourceId: string) {
-  return request<void>(`/discovery/hidden-sources/${sourceId}`, { method: 'DELETE' })
-}
-
+// R14 #175 listing dismissals. Every write is owner-scoped server-side.
 export function dismissDiscoveryRecommendation(listingId: string) {
   return request('/discovery/dismissals', {
     method: 'POST',
@@ -495,22 +473,6 @@ export function dismissDiscoveryRecommendation(listingId: string) {
 
 export function undismissDiscoveryRecommendation(listingId: string) {
   return request<void>(`/discovery/dismissals/${listingId}`, { method: 'DELETE' })
-}
-
-export function reportDiscoveryRecommendation(payload: {
-  listingId: string
-  reasonCategory: string
-  reason: string
-}) {
-  return request('/discovery/reports', {
-    method: 'POST',
-    body: {
-      listing_id: payload.listingId,
-      reason_category: payload.reasonCategory,
-      reason: payload.reason,
-    },
-    schema: discoveryReportAckSchema,
-  })
 }
 
 export function createEvidenceItem(payload: EvidenceItemCreate) {
