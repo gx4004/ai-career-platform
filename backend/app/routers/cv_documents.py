@@ -22,7 +22,6 @@ from app.schemas.cv_documents import (
     CvDocumentUpdate,
     CvImportAccept,
     CvImportProposal,
-    CvQualityRequest,
     CvQualityResponse,
     CvRenderModel,
     CvStyle,
@@ -57,11 +56,7 @@ from app.services.cv_documents import (
 )
 from app.services.cv_fonts import FONT_FAMILIES, FONTS_DIR
 from app.services.cv_parser_process import CvParserProcessRejected, parse_cv_import_isolated
-from app.services.cv_quality import (
-    analyze_cv_quality,
-    analyze_cv_quality_heuristic,
-    compute_ats_summary,
-)
+from app.services.cv_quality import analyze_cv_quality
 from app.services.cv_rendering import (
     ATS_SAFE_TEMPLATES,
     TEMPLATES,
@@ -78,11 +73,9 @@ from app.services.cv_tailoring import (
 )
 from app.services.cv_upload import CvUploadRejected, read_validated_cv_upload
 from app.services.evidence_profile import create_evidence_item
-from app.services.input_sanitizer import sanitize_user_input
 from app.services.tool_pipeline import run_tool_pipeline
 
 router = APIRouter()
-CV_QUALITY_MODEL_RUN_LIMIT = 10
 CV_TAILORING_MODEL_RUN_LIMIT = 10
 
 _TEMPLATE_CATALOG_META = {
@@ -374,70 +367,21 @@ def _render_and_validate(model: CvRenderModel, fmt: str) -> CvArtifactEvidence:
 async def quality(
     request: Request,
     document_id: str,
-    body: CvQualityRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    # A document check, not one of the six tools: it bypasses run_tool_pipeline()
-    # so autosave-driven checks never write ToolRuns or Workspaces (#362).
+    # A deterministic document check, not one of the six tools: it bypasses
+    # run_tool_pipeline() so autosave-driven checks never write ToolRuns (#362).
     try:
         document = get_document(db, document_id, current_user.id)
     except CvDocumentNotFoundError as error:
         _not_found(error)
-    sections = document.sections
-    text = "\n".join(
-        str(entry.get("body", ""))
-        for section in sections
-        if section.get("visible", True)
-        for entry in section.get("entries", [])
-    )
-    quota_document = document
-    if body.use_model:
-        quota_document = (
-            db.query(CvDocument)
-            .filter(CvDocument.id == document.id, CvDocument.user_id == current_user.id)
-            .with_for_update()
-            .one()
-        )
-        if quota_document.quality_model_runs >= CV_QUALITY_MODEL_RUN_LIMIT:
-            raise HTTPException(
-                status_code=429,
-                detail="This document has reached its model scoring limit. Deterministic checks remain available.",
-            )
-        # Consume before the provider call so concurrent and failed attempts
-        # remain bounded. PostgreSQL serializes this owner/document row lock.
-        quota_document.quality_model_runs += 1
-        db.commit()
-        result = await analyze_cv_quality(
-            sanitize_user_input(text), sections=sections, selected_checks=body.checks
-        )
-    else:
-        result = await analyze_cv_quality_heuristic(
-            text, sections=sections, selected_checks=body.checks
-        )
     style = _document_style(document)
-    if body.artifact_template is not None and body.artifact_format is not None:
-        model = build_render_model(document, body.artifact_template, style)
-        # ReportLab/fitz work is CPU-bound; keep it off the event loop.
-        evidence = await run_in_threadpool(_render_and_validate, model, body.artifact_format)
-        statuses = {
-            "text_layer": evidence.searchable_text,
-            "links": evidence.links,
-            "page_breaks": evidence.page_breaks,
-            "re_importability": evidence.re_importability,
-        }
-        for check in result["ats_checks"]:
-            if check["key"] in statuses:
-                check["status"] = statuses[check["key"]]
-                check["explanation"] = (
-                    f"Validated against the generated {body.artifact_format.upper()} artifact."
-                )
-                check["remediation"] = "Regenerate after editing if this artifact validation fails."
-    remaining = CV_QUALITY_MODEL_RUN_LIMIT - quota_document.quality_model_runs
-    ats_score, ats_fixes = compute_ats_summary(result["ats_checks"], style)
-    return CvQualityResponse(
-        **result, remaining_model_runs=remaining, ats_score=ats_score, ats_fixes=ats_fixes
-    )
+    model = build_render_model(document, style.template_id, style)
+    # ReportLab/fitz work is CPU-bound; keep it off the event loop.
+    evidence = await run_in_threadpool(_render_and_validate, model, "pdf")
+    result = analyze_cv_quality(document.sections, style, evidence)
+    return CvQualityResponse(**result)
 
 
 @router.patch("/{document_id}", response_model=CvDocumentResponse)

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  Check, ChevronDown, CloudOff, Download, FileSearch, FileText, FileUp, Layers, LayoutTemplate, ListTree,
+  Check, CheckCircle2, ChevronDown, CircleAlert, CloudOff, Download, FileSearch, FileText, FileUp, Layers, LayoutTemplate, ListTree,
   Loader2, MoreHorizontal, PenLine, Plus, Sparkles, Trash2,
 } from 'lucide-react'
 import { AppStatePanel } from '#/components/app/AppStatePanel'
@@ -16,17 +16,16 @@ import {
   listCvDocuments, restoreCvVariant, snapshotCvVariant, updateCvDocument,
 } from '#/lib/api/client'
 import type { CvDocument, CvSection, CvStyle, CvStyleCatalog, CvVariant } from '#/lib/api/schemas'
-import { FALLBACK_STYLE_CATALOG, TEMPLATE_NAMES, friendlyAtsFixes } from '#/lib/cv-studio/catalog'
+import { FALLBACK_STYLE_CATALOG, TEMPLATE_NAMES } from '#/lib/cv-studio/catalog'
 import { addSection, moveSection, moveSectionTo, toSavableSections } from '#/lib/cv-studio/editor'
 import { readWorkflowContext, writeWorkflowContext } from '#/lib/tools/drafts'
 import { cn } from '#/lib/utils'
 import { CreateCvDocumentDialog } from './CreateCvDocumentDialog'
-import { CvAtsPanel, useCvQuality } from './CvAtsPanel'
+import { CvAtsPanel, checklistSummary, useCvQuality } from './CvAtsPanel'
 import { CvDesignPanel } from './CvDesignPanel'
 import { CvImportDialog } from './CvImportDialog'
 import { CvOutline } from './CvOutline'
 import { CvPaper, ExactPdfDialog } from './CvPaperPreview'
-import { CvScoreRing, scoreGradient } from './CvScoreRing'
 import { CvSectionEditor } from './CvSectionEditor'
 import { CvTailorDialog } from './CvTailorDialog'
 import { CvVersionsPanel } from './CvVersionsPanel'
@@ -385,8 +384,8 @@ export function CvStudio() {
 
   const documents = listQuery.data.items
   const visibleSections = draft.sections.filter((section) => section.visible).length
-  const atsScore = quality.data?.ats_score
-  const atsFixCount = quality.data ? friendlyAtsFixes(quality.data).length : 0
+  const checks = quality.data?.checks
+  const checksPass = checks?.every((check) => check.passed) ?? false
   const remainingTailorRuns = draft.tailoring_model_run_limit - draft.tailoring_model_runs
   const templateName = TEMPLATE_NAMES[draft.style.template_id]
 
@@ -420,9 +419,9 @@ export function CvStudio() {
 
   const stats = [
     {
-      label: 'ATS score',
-      value: atsScore === undefined ? <span className="cvs-stat-pending">{quality.isError ? 'Unavailable' : 'Checking…'}</span> : (
-        <span className={`cvs-stat-score cvs-stat-score--${scoreGradient(atsScore).tone}`}>{atsScore}<small>/100</small></span>
+      label: 'ATS check',
+      value: checks === undefined ? <span className="cvs-stat-pending">{quality.isError ? 'Unavailable' : 'Checking…'}</span> : (
+        <span className={`cvs-stat-check cvs-stat-check--${checksPass ? 'pass' : 'fail'}`}>{checklistSummary(checks)}</span>
       ),
     },
     { label: 'Sections', value: `${visibleSections}`, hint: visibleSections === draft.sections.length ? 'All shown' : `${draft.sections.length - visibleSections} hidden` },
@@ -533,14 +532,12 @@ export function CvStudio() {
             <Button type="button" size="sm" variant="outline" disabled={dirty} onClick={() => setPdfOpen(true)}><FileSearch size={15} /> View exact PDF</Button>
           </div>
           <CvPaper name={draft.name} sections={draft.sections} style={draft.style} />
-          {atsScore !== undefined ? (
-            <a className="cvs-ats-mini" href="#cvs-ats-check">
-              <CvScoreRing score={atsScore} size={52} />
+          {checks !== undefined ? (
+            <a className={`cvs-ats-mini cvs-ats-mini--${checksPass ? 'pass' : 'fail'}`} href="#cvs-ats-check">
+              {checksPass ? <CheckCircle2 size={20} aria-hidden="true" /> : <CircleAlert size={20} aria-hidden="true" />}
               <span className="cvs-ats-mini__text">
-                <span className="cvs-ats-mini__title">ATS check<span className="sr-only">: {atsScore} out of 100.</span></span>
-                <span className="cvs-ats-mini__hint">
-                  {atsFixCount === 0 ? 'Reads cleanly. Nothing to fix.' : `${atsFixCount} ${atsFixCount === 1 ? 'fix' : 'fixes'} to make it safer`}
-                </span>
+                <span className="cvs-ats-mini__title">ATS check</span>
+                <span className="cvs-ats-mini__hint">{checklistSummary(checks)}</span>
               </span>
             </a>
           ) : null}
@@ -548,7 +545,7 @@ export function CvStudio() {
       </div>
 
       <div className="cvs-lower">
-        <WorkspacePanel id="cvs-ats-check" kicker="Quality" title="ATS check" description="How well application tracking systems can read your CV." className="cvs-lower__ats" delay={0.1}>
+        <WorkspacePanel id="cvs-ats-check" kicker="Quality" title="ATS check" description="Whether application tracking systems can read your CV." className="cvs-lower__ats" delay={0.1}>
           <CvAtsPanel
             documentId={draft.id} revision={qualityRevision} template={draft.style.template_id} atsMode={draft.style.ats_mode}
             onTurnOnAtsMode={() => { editStyle({ ats_mode: true }); setRailTab('design') }}

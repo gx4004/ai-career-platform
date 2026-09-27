@@ -266,23 +266,6 @@ async def test_cv_tailoring_fake_provider_targets_a_bullet_when_the_entry_has_bu
 
 
 @pytest.mark.asyncio
-async def test_cv_quality_fake_provider_is_not_degraded():
-    from app.services import cv_quality
-
-    result = await cv_quality.analyze_cv_quality(RESUME_TEXT, sections=_CV_SECTIONS)
-
-    # `analyze_cv_quality` falls back to `scoring_mode: "heuristic"` whenever
-    # `complete_structured` raises or the model omits a dimension score.
-    assert result["scoring_mode"] == "blended"
-    assert {item["key"] for item in result["dimensions"]} == {
-        "impact",
-        "clarity",
-        "completeness",
-        "structure",
-    }
-
-
-@pytest.mark.asyncio
 async def test_evidence_import_fake_provider_is_not_degraded():
     from app.services import evidence_import
 
