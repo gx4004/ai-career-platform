@@ -63,6 +63,35 @@ router = APIRouter()
 _ADMIN_RATE = "60/minute"
 
 
+def _resolve_admin_window(
+    start: datetime | None,
+    end: datetime | None,
+    *,
+    validate_order: bool = False,
+) -> tuple[datetime, datetime]:
+    """Resolve an admin aggregate view's `start`/`end` query params.
+
+    Shared by every admin window-aggregate endpoint (source-health,
+    activation, profile-adoption, development-loop, packet-gate): defaults to
+    a rolling `ACTIVATION_DEFAULT_WINDOW_DAYS`-day window ending now, and
+    treats naive bounds as UTC so comparison against the timezone-aware
+    `created_at` column is well defined on Postgres.
+    """
+    now = datetime.now(UTC)
+    window_end = end or now
+    window_start = start or (window_end - timedelta(days=ACTIVATION_DEFAULT_WINDOW_DAYS))
+    if window_start.tzinfo is None:
+        window_start = window_start.replace(tzinfo=UTC)
+    if window_end.tzinfo is None:
+        window_end = window_end.replace(tzinfo=UTC)
+    if validate_order and window_start > window_end:
+        raise HTTPException(
+            status_code=422,
+            detail="start must be before or equal to end",
+        )
+    return window_start, window_end
+
+
 # ── Discovery source governance (R14, issue #171) ──
 
 
@@ -117,13 +146,7 @@ def get_source_health(
     so comparison against the timezone-aware ``created_at`` column is well
     defined on Postgres.
     """
-    now = datetime.now(UTC)
-    window_end = end or now
-    window_start = start or (window_end - timedelta(days=ACTIVATION_DEFAULT_WINDOW_DAYS))
-    if window_start.tzinfo is None:
-        window_start = window_start.replace(tzinfo=UTC)
-    if window_end.tzinfo is None:
-        window_end = window_end.replace(tzinfo=UTC)
+    window_start, window_end = _resolve_admin_window(start, end)
 
     return aggregate_source_health(
         db,
@@ -455,13 +478,7 @@ def get_activation(
     UTC so comparison against the timezone-aware `created_at` column is well
     defined on Postgres.
     """
-    now = datetime.now(UTC)
-    window_end = end or now
-    window_start = start or (window_end - timedelta(days=ACTIVATION_DEFAULT_WINDOW_DAYS))
-    if window_start.tzinfo is None:
-        window_start = window_start.replace(tzinfo=UTC)
-    if window_end.tzinfo is None:
-        window_end = window_end.replace(tzinfo=UTC)
+    window_start, window_end = _resolve_admin_window(start, end)
 
     return aggregate_activation_metrics(
         db,
@@ -494,13 +511,7 @@ def get_profile_adoption(
     Naive window bounds are treated as UTC so comparison against the
     timezone-aware ``created_at`` column is well defined on Postgres.
     """
-    now = datetime.now(UTC)
-    window_end = end or now
-    window_start = start or (window_end - timedelta(days=ACTIVATION_DEFAULT_WINDOW_DAYS))
-    if window_start.tzinfo is None:
-        window_start = window_start.replace(tzinfo=UTC)
-    if window_end.tzinfo is None:
-        window_end = window_end.replace(tzinfo=UTC)
+    window_start, window_end = _resolve_admin_window(start, end)
 
     return aggregate_profile_adoption(
         db,
@@ -527,18 +538,7 @@ def get_development_loop(
     user identifier is stored by the event model, so none is reachable here
     (D-114). Naive bounds are interpreted as UTC, matching sibling admin views.
     """
-    now = datetime.now(UTC)
-    window_end = end or now
-    window_start = start or (window_end - timedelta(days=ACTIVATION_DEFAULT_WINDOW_DAYS))
-    if window_start.tzinfo is None:
-        window_start = window_start.replace(tzinfo=UTC)
-    if window_end.tzinfo is None:
-        window_end = window_end.replace(tzinfo=UTC)
-    if window_start > window_end:
-        raise HTTPException(
-            status_code=422,
-            detail="start must be before or equal to end",
-        )
+    window_start, window_end = _resolve_admin_window(start, end, validate_order=True)
 
     return aggregate_development_loop(
         db,
@@ -569,13 +569,7 @@ def get_packet_gate(
     treated as UTC so comparison against the timezone-aware ``created_at`` column
     is well defined on Postgres.
     """
-    now = datetime.now(UTC)
-    window_end = end or now
-    window_start = start or (window_end - timedelta(days=ACTIVATION_DEFAULT_WINDOW_DAYS))
-    if window_start.tzinfo is None:
-        window_start = window_start.replace(tzinfo=UTC)
-    if window_end.tzinfo is None:
-        window_end = window_end.replace(tzinfo=UTC)
+    window_start, window_end = _resolve_admin_window(start, end)
 
     return aggregate_packet_gate(
         db,
