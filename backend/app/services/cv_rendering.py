@@ -5,13 +5,8 @@ exporters. PDF bytes are stable through ReportLab's invariant mode. DOCX semanti
 content is deterministic; ZIP member timestamps/order are canonicalized so bytes
 are stable with a fixed python-docx version.
 
-Backward compatibility contract: ``build_render_model(document, template_id)``
-called without a ``style`` argument must reproduce byte-identical PDF/DOCX output
-for the three original templates (ats-essential, professional-editorial,
-technical-portfolio) against entries that carry only ``body`` text — this is
-covered by the golden pixel/layout snapshots in ``tests/test_cv_rendering.py``.
-All style/structured-entry behavior below is additive and only engages when a
-``style`` is supplied or an entry carries structured fields.
+Every render resolves a ``CvStyle``: a document without a saved style renders
+with ``CvStyle()`` defaults, the same tokens the browser preview uses.
 """
 
 from __future__ import annotations
@@ -59,27 +54,19 @@ URL_RE = re.compile(r"https?://[^\s<>()\[\]{}\"']*[^\s<>()\[\]{}\"'.,;:!?]")
 @dataclass(frozen=True)
 class Template:
     id: str
-    font: str
     accent: str
     body_size: int
     heading_size: int
     margin_mm: int
     section_gap: int
-    align: str
 
 
 TEMPLATES = {
-    "ats-essential": Template("ats-essential", "Helvetica", "#111827", 10, 13, 18, 6, "left"),
-    "professional-editorial": Template(
-        "professional-editorial", "Times-Roman", "#7C2D12", 10, 15, 20, 8, "left"
-    ),
-    "technical-portfolio": Template(
-        "technical-portfolio", "Courier", "#075985", 9, 12, 16, 7, "left"
-    ),
-    "modern-two-column": Template(
-        "modern-two-column", "Helvetica", "#1D4ED8", 9, 12, 14, 6, "left"
-    ),
-    "minimal-serif": Template("minimal-serif", "Times-Roman", "#374151", 10, 13, 20, 7, "left"),
+    "ats-essential": Template("ats-essential", "#111827", 10, 13, 18, 6),
+    "professional-editorial": Template("professional-editorial", "#7C2D12", 10, 15, 20, 8),
+    "technical-portfolio": Template("technical-portfolio", "#075985", 9, 12, 16, 7),
+    "modern-two-column": Template("modern-two-column", "#1D4ED8", 9, 12, 14, 6),
+    "minimal-serif": Template("minimal-serif", "#374151", 10, 13, 20, 7),
 }
 
 # Templates safe for strict ATS parsers without forcing ats_mode: single column,
@@ -88,9 +75,6 @@ ATS_SAFE_TEMPLATES = {"ats-essential", "professional-editorial", "technical-port
 
 DENSITY_SCALE = {"compact": 0.88, "normal": 1.0, "spacious": 1.15}
 DENSITY_GAP_SCALE = {"compact": 0.7, "normal": 1.0, "spacious": 1.4}
-
-_BUILTIN_BOLD = {"Helvetica": "Helvetica-Bold", "Times-Roman": "Times-Bold", "Courier": "Courier-Bold"}
-
 
 @dataclass(frozen=True)
 class EffectiveStyle:
@@ -105,34 +89,11 @@ class EffectiveStyle:
     heading_size: int
     margin_mm: int
     section_gap: int
-    align: str
     two_column: bool
 
 
-def resolve_effective_style(template_id: str, style: CvStyle | None) -> EffectiveStyle:
-    """Resolve template + style into the concrete tokens both renderers consume.
-
-    ``style is None`` is the legacy path: it must reproduce the exact per-template
-    defaults that existed before style customization shipped (no density/ats_mode
-    behavior at all), so unmodified callers keep byte-identical output.
-    """
-    if style is None:
-        t = TEMPLATES[template_id]
-        return EffectiveStyle(
-            layout_template_id=template_id,
-            font_name=t.font,
-            font_bold_name=_BUILTIN_BOLD.get(t.font, t.font),
-            font_docx_name=t.font,
-            accent=t.accent,
-            density="normal",
-            ats_mode=False,
-            body_size=t.body_size,
-            heading_size=t.heading_size,
-            margin_mm=t.margin_mm,
-            section_gap=t.section_gap,
-            align=t.align,
-            two_column=template_id == "modern-two-column",
-        )
+def resolve_effective_style(template_id: str, style: CvStyle) -> EffectiveStyle:
+    """Resolve template + style into the concrete tokens both renderers consume."""
     ats = style.ats_mode
     layout_id = "ats-essential" if ats else template_id
     t = TEMPLATES[layout_id]
@@ -157,7 +118,6 @@ def resolve_effective_style(template_id: str, style: CvStyle | None) -> Effectiv
         heading_size=max(10, round(t.heading_size * scale)),
         margin_mm=t.margin_mm,
         section_gap=max(3, round(t.section_gap * gap_scale)),
-        align=t.align,
         two_column=(not ats) and layout_id == "modern-two-column",
     )
 
@@ -169,7 +129,7 @@ def _clean(value) -> str | None:
     return text or None
 
 
-def build_render_model(document, template_id: str, style: CvStyle | None = None) -> CvRenderModel:
+def build_render_model(document, template_id: str, style: CvStyle) -> CvRenderModel:
     effective = resolve_effective_style(template_id, style)
     sections = []
     for section in sorted(document.sections, key=lambda item: (item["position"], item["id"])):
@@ -214,7 +174,6 @@ def build_render_model(document, template_id: str, style: CvStyle | None = None)
             "body_size_pt": effective.body_size,
             "heading_size_pt": effective.heading_size,
             "section_gap_pt": effective.section_gap,
-            "align": effective.align,
             "density": effective.density,
             "ats_mode": effective.ats_mode,
             "two_column": effective.two_column,
@@ -335,7 +294,7 @@ def entry_render_lines(entry) -> list[str]:
 
 def _entry_flow(entry, styles: dict[str, ParagraphStyle], content_width: float) -> list:
     if entry.heading is None:
-        # Legacy/freeform path — must stay byte-identical to the pre-style renderer.
+        # Freeform entry: one paragraph of body text.
         return [Paragraph(_markup(entry.text), styles["body"])]
     flow: list = []
     left = f"<b>{escape(entry.heading)}</b>"

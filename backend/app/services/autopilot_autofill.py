@@ -27,6 +27,7 @@ from sqlalchemy.orm import Session
 from app.models.application_packet import ApplicationPacket
 from app.models.packet_approval_snapshot import PacketApprovalSnapshot
 from app.models.user import User
+from app.schemas.cv_documents import CvStyle
 from app.services.application_packets import PacketNotFoundError
 from app.services.cv_rendering import build_render_model, render_pdf
 
@@ -403,7 +404,9 @@ def build_materials(db: Session, user: User, packet_id: str) -> AutofillMaterial
             name=variant.get("name") or "CV",
             sections=variant["sections"],
         )
-        resume_pdf = render_pdf(build_render_model(document, "ats-essential"))
+        resume_pdf = render_pdf(
+            build_render_model(document, "ats-essential", CvStyle(ats_mode=True))
+        )
     safe_name = re.sub(r"[^A-Za-z0-9]+", "-", user.full_name or "").strip("-")
     return AutofillMaterials(
         url=url,
