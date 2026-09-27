@@ -62,6 +62,27 @@ describe('AdminDiscoverySourcesPage', () => {
     expect(screen.getByText('Allowed')).toBeTruthy()
   })
 
+  it('renders an employer-ATS source with a provider-specific query parameter', async () => {
+    renderPage([
+      source({
+        id: 'source-ats-1',
+        source_key: 'employer-ats-greenhouse-figma',
+        display_name: 'Figma',
+        source_family: 'employer_ats',
+        allowed_behavior: 'ats_integration',
+        endpoint_url: 'https://boards-api.greenhouse.io/v1/boards/figma/jobs',
+        allowed_query_parameters: ['content'],
+        robots_policy: 'not_applicable',
+        rate_limit_per_minute: 20,
+        retention_days: 45,
+      }),
+    ])
+
+    expect(await screen.findByText('Figma')).toBeTruthy()
+    expect(screen.getByText('Query: content')).toBeTruthy()
+    expect(screen.getByText('Robots: not_applicable')).toBeTruthy()
+  })
+
   it('makes the all-disabled empty state explicit', async () => {
     renderPage([])
     expect(
