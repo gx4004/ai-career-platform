@@ -6,8 +6,8 @@ import { uniqueEmail } from './helpers/identity'
 /**
  * End-to-end journeys for the #326 polish pass, covering the three
  * cross-feature flows the task calls out: CV Studio's editor loop, Discovery
- * handing off to CV Studio and Campaigns, and the Queue's approve-to-apply
- * loop. Runs against the same deterministic-AI backend as the rest of
+ * handing off to CV Studio and Applications, and the Applications apply loop
+ * (#360: the Queue merged into Applications). Runs against the same deterministic-AI backend as the rest of
  * `frontend/e2e/` (see `backend/tests/e2e_server.py`).
  */
 
@@ -63,6 +63,12 @@ async function registerAndSeedCv(page: Page, prefix: string) {
     data: { name: 'Journey CV', sections: SECTIONS },
   })
   expect(created.ok(), await created.text()).toBe(true)
+  // Preparing an application drafts from a saved CV version.
+  const { id } = await created.json()
+  const variant = await page.request.post(`/api/v1/cv-documents/${id}/variants`, {
+    data: { name: 'Journey version', target_role: 'Engineer' },
+  })
+  expect(variant.ok(), await variant.text()).toBe(true)
   return email
 }
 
@@ -115,7 +121,7 @@ test.describe('Discovery hand-offs', () => {
     await expect(dialog.getByLabel('Job title')).toHaveValue(jobTitle)
   })
 
-  test('Add to campaign creates a campaign that appears on /campaigns', async ({ page }) => {
+  test('Add to applications opens a new application that can be prepared and shows on the board', async ({ page }) => {
     const email = await registerAndSeedCv(page, 'disc-adopt')
     execFileSync(pythonBin, ['-m', 'tests.seed_discovery_listings', email], {
       cwd: backendDir,
@@ -127,48 +133,53 @@ test.describe('Discovery hand-offs', () => {
     await expect(firstCard).toBeVisible({ timeout: 15_000 })
     const jobTitle = (await firstCard.locator('h3, .disc-card__title').first().textContent())?.trim() ?? ''
 
-    await firstCard.getByRole('button', { name: 'Add to campaign' }).click()
+    await firstCard.getByRole('button', { name: 'Add to applications' }).click()
     await page.waitForURL(/\/campaigns\/[^/]+$/, { timeout: 15_000 })
 
+    // Prepare drafts through the shared pipeline (deterministic AI in E2E).
+    await page.getByRole('button', { name: 'Prepare application' }).click()
+    await expect(page.getByRole('heading', { name: 'Ready to apply' })).toBeVisible({ timeout: 30_000 })
+
     await gotoHydrated(page, '/campaigns')
-    await expect(page.getByText(jobTitle, { exact: false }).first()).toBeVisible({ timeout: 15_000 })
+    const saved = page.locator('section', { has: page.getByRole('heading', { name: 'Saved', level: 2 }) })
+    await expect(saved.getByText(jobTitle, { exact: false }).first()).toBeVisible({ timeout: 15_000 })
+    await expect(saved.getByText('Ready to apply')).toBeVisible()
   })
 })
 
-test.describe('Queue approve-to-apply loop', () => {
-  test('an approved application has a safe apply link and can be marked applied', async ({ page }) => {
-    const email = await registerAndSeedCv(page, 'queue-apply')
-    execFileSync(pythonBin, ['-m', 'tests.seed_queue_packets', email], {
+test.describe('Applications apply loop', () => {
+  test('answer the open question, apply through a safe link, mark applied, and the card moves to Applied', async ({ page }) => {
+    const email = await registerAndSeedCv(page, 'apply-loop')
+    execFileSync(pythonBin, ['-m', 'tests.seed_campaigns', email], {
       cwd: backendDir,
       env: { ...process.env, DATABASE_URL: databaseUrl },
       stdio: 'pipe',
     })
-    await gotoHydrated(page, '/queue')
+    // The seed leaves exactly one prepared application with an unanswered question.
+    const board = await page.request.get('/api/v1/applications')
+    expect(board.ok(), await board.text()).toBe(true)
+    const { items } = (await board.json()) as { items: Array<{ id: string; title: string; open_question_count: number }> }
+    const target = items.find((item) => item.open_question_count > 0)
+    expect(target).toBeTruthy()
+    await gotoHydrated(page, `/campaigns/${target!.id}`)
 
-    // The seed leaves exactly one approved-and-not-yet-applied packet — it's
-    // the only card with a live "Mark as applied" action. Re-locating this
-    // card by heading text (rather than keeping the "has: Mark as applied"
-    // filter live) matters: that filter stops matching anything the moment
-    // the button it looks for is gone, which is the very state the
-    // post-click assertions need to inspect.
-    const approvedCardByAction = page.locator('.queue-card', { has: page.getByRole('button', { name: 'Mark as applied' }) })
-    await expect(approvedCardByAction).toBeVisible({ timeout: 15_000 })
-    // Each card fetches its own preview for the title and shows "Loading…" until then.
-    await expect(approvedCardByAction.locator('h3').first()).not.toHaveText('Loading…', { timeout: 15_000 })
-    const heading = (await approvedCardByAction.locator('h3').first().textContent())?.trim() ?? ''
-    expect(heading.length).toBeGreaterThan(0)
-    const approvedCard = page.locator('.queue-card', { hasText: heading })
+    const markApplied = page.getByRole('button', { name: 'Mark as applied' })
+    await expect(markApplied).toBeDisabled({ timeout: 15_000 })
+    await page.getByLabel('What are your salary expectations?').fill('€80–90k')
+    await page.getByRole('button', { name: 'Save answers' }).click()
+    await expect(page.getByRole('heading', { name: 'Ready to apply' })).toBeVisible({ timeout: 15_000 })
 
-    const applyLink = approvedCard.getByRole('link', { name: /Apply on company site/ })
-    await expect(applyLink).toBeVisible()
+    // The employer link opens in a new tab without leaking the opener; it is never followed here.
+    const applyLink = page.getByRole('link', { name: /Apply on company site/ })
     await expect(applyLink).toHaveAttribute('target', '_blank')
     await expect(applyLink).toHaveAttribute('rel', 'noopener noreferrer')
-    const href = await applyLink.getAttribute('href')
-    expect(href).toBeTruthy()
-    expect(href).not.toBe('#')
+    expect(await applyLink.getAttribute('href')).toMatch(/^https:\/\//)
 
-    await approvedCard.getByRole('button', { name: 'Mark as applied' }).click()
-    await expect(approvedCard.getByText('Applied', { exact: true })).toBeVisible({ timeout: 15_000 })
-    await expect(approvedCard.getByRole('button', { name: 'Mark as applied' })).toHaveCount(0)
+    await markApplied.click()
+    await expect(page.getByRole('heading', { name: /You applied on/ })).toBeVisible({ timeout: 15_000 })
+
+    await gotoHydrated(page, '/campaigns')
+    const applied = page.locator('section', { has: page.getByRole('heading', { name: 'Applied', level: 2 }) })
+    await expect(applied.getByRole('link', { name: target!.title })).toBeVisible({ timeout: 15_000 })
   })
 })

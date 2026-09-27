@@ -133,11 +133,11 @@ describe('DiscoveryPage', () => {
     expect(context?.jobDescription).toContain('Build Kubernetes services.')
   })
 
-  it('adds the job to a new campaign and opens it', async () => {
+  it('adds the job to Applications and opens it', async () => {
     renderPage()
     const card = await findCard()
 
-    fireEvent.click(within(card).getByRole('button', { name: /Add to campaign/ }))
+    fireEvent.click(within(card).getByRole('button', { name: /Add to applications/ }))
 
     await waitFor(() => expect(adoptRecommendation).toHaveBeenCalledWith('listing-1'))
     await waitFor(() =>

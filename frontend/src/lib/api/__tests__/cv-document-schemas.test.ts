@@ -53,13 +53,8 @@ describe('CV document schema (R12, #153)', () => {
     const parsed = careerDataExportSchema.parse({
       schema_version: 'career-data-export/v1', exported_at: '2026-07-12T10:00:00Z',
       item_count: 0, items: [],
-      campaigns: { campaign_count: 0, campaigns: [] },
+      applications: { application_count: 0, applications: [], preferences: null },
       personalization: { dismissals: [] },
-      queue_rules: { rules: [], settings: null },
-      application_packets: { packets: [] },
-      packet_stop_answers: { stop_answers: [] },
-      packet_approval_snapshots: { snapshots: [] },
-      queue_audit: { events: [] },
       development: {
         item_count: 0,
         items: [],

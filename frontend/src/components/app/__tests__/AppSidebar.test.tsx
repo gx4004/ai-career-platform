@@ -121,13 +121,13 @@ describe('AppSidebar', () => {
   it('shows discovery only to authenticated users', () => {
     const authenticated = renderSidebar()
     expect(screen.getByRole('link', { name: 'Discover' })).toBeTruthy()
-    expect(screen.getByRole('link', { name: 'Queue' })).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Applications' })).toBeTruthy()
     authenticated.unmount()
 
     mockSessionUser.current = null
     renderSidebar()
     expect(screen.queryByRole('link', { name: 'Discover' })).toBeNull()
-    expect(screen.queryByRole('link', { name: 'Queue' })).toBeNull()
+    expect(screen.queryByRole('link', { name: 'Applications' })).toBeNull()
   })
 
   it('groups the sidebar into Tools, Job search, and You', () => {
@@ -138,8 +138,8 @@ describe('AppSidebar', () => {
     expect(screen.getByText('You')).toBeTruthy()
     expect(screen.getByRole('link', { name: /resume analyzer/i }).getAttribute('href')).toBe('/resume')
     expect(screen.getByRole('link', { name: 'Discover' }).getAttribute('href')).toBe('/discovery')
-    expect(screen.getByRole('link', { name: 'Queue' }).getAttribute('href')).toBe('/queue')
-    expect(screen.getByRole('link', { name: 'Campaigns' }).getAttribute('href')).toBe('/campaigns')
+    expect(screen.getByRole('link', { name: 'Applications' }).getAttribute('href')).toBe('/campaigns')
+    expect(screen.queryByRole('link', { name: 'Queue' })).toBeNull()
     expect(screen.getByRole('link', { name: 'CV Studio' }).getAttribute('href')).toBe('/cv-studio')
     expect(screen.getByRole('link', { name: 'Profile' }).getAttribute('href')).toBe('/profile')
     expect(screen.getByRole('link', { name: 'History' }).getAttribute('href')).toBe('/history')
@@ -155,8 +155,8 @@ describe('AppSidebar', () => {
       )
     const icons = links.map(iconFor)
 
-    // Dashboard + 6 tools + Job search (3) + You (3) + Account + Settings.
-    expect(links).toHaveLength(15)
+    // Dashboard + 6 tools + Job search (2) + You (3) + Account + Settings.
+    expect(links).toHaveLength(14)
     expect(icons.every(Boolean)).toBe(true)
     expect(new Set(icons).size).toBe(links.length)
   })

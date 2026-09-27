@@ -1,5 +1,6 @@
-/* ── Applications (campaigns): pipeline board + application detail ──
-   Builds on workspace.css (hero, panels, empty state, status pills, fields). */
+/* ── Applications: the board, "prepare for me", and the one-page application ──
+   Builds on workspace.css (panels, empty state, status pills, fields) and the
+   shared PageHero (tool-input-hero). The route is still /campaigns. */
 
 .camp-alert {
   margin: 0;
@@ -14,6 +15,9 @@
 .camp-muted { margin: 0; color: var(--text-muted); font-size: var(--type-small); }
 
 .camp-link-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
   padding: 0;
   border: 0;
   background: none;
@@ -187,6 +191,11 @@
 .camp-card__next em { font-style: normal; color: var(--text-muted); }
 .camp-card__meta { margin: 0; color: var(--text-soft); font-size: var(--type-xs); }
 
+.camp-card__badges { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; }
+.camp-card__badges:empty { display: none; }
+.camp-card__badges .status-pill { display: inline-flex; align-items: center; gap: 0.25rem; }
+.camp-card__score { color: var(--text-muted); font-size: var(--type-xs); font-weight: 600; font-variant-numeric: tabular-nums; }
+
 /* ── Detail ── */
 
 .camp-back {
@@ -202,62 +211,6 @@
 }
 
 .camp-back:hover { color: var(--accent); }
-
-.camp-detail .workspace-hero__title { overflow-wrap: anywhere; }
-.camp-detail .workspace-hero__stat dd { font-size: 1.05rem; }
-.camp-detail .workspace-hero__stat dd .status-pill { font-size: var(--type-small); }
-
-.camp-tabs {
-  display: flex;
-  gap: 0.25rem;
-  padding: 0.25rem;
-  width: fit-content;
-  max-width: 100%;
-  overflow-x: auto;
-  scrollbar-width: none;
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--border-soft);
-  background: rgba(255, 255, 255, 0.85);
-  box-shadow: var(--shadow-soft);
-}
-
-.camp-tabs::-webkit-scrollbar { display: none; }
-
-.camp-tab {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  min-height: 2.25rem;
-  padding: 0 0.9rem;
-  border-radius: var(--radius-md);
-  color: var(--text-muted);
-  font-size: var(--type-small);
-  font-weight: 600;
-  transition: background var(--transition-fast), color var(--transition-fast), box-shadow var(--transition-fast);
-}
-
-.camp-tab:hover { color: var(--text-strong); }
-.camp-tab.is-active { background: var(--accent-soft); color: var(--accent); }
-.camp-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-
-.camp-tab__count {
-  padding: 0 0.4rem;
-  border-radius: var(--radius-pill);
-  background: var(--surface-focus);
-  color: var(--text-muted);
-  font-size: var(--type-xs);
-  font-variant-numeric: tabular-nums;
-}
-
-.camp-tab.is-active .camp-tab__count { background: #fff; color: var(--accent); }
-
-.camp-overview {
-  display: grid;
-  grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
-  gap: var(--zone-gap, 1.375rem);
-  align-items: start;
-}
 
 .camp-description {
   margin: 0 0 0.6rem;
@@ -289,10 +242,10 @@
   font-size: var(--type-small);
 }
 
-/* Forms + lists inside tabs */
+/* Forms + lists */
 
 .camp-form { display: flex; flex-direction: column; gap: 0.75rem; margin-bottom: 1.1rem; }
-.camp-form--row { flex-direction: row; flex-wrap: wrap; align-items: flex-end; }
+.camp-form__row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.75rem; }
 .camp-form__grow { flex: 1 1 12rem; min-width: 0; }
 .camp-form__submit { align-self: flex-start; }
 
@@ -320,13 +273,6 @@
   white-space: nowrap;
 }
 
-.camp-reminder { justify-content: space-between; color: var(--text-strong); font-size: var(--type-small); }
-.camp-reminder span { color: var(--text-muted); white-space: nowrap; }
-
-.camp-note { flex-wrap: wrap; }
-.camp-note p { flex: 1 1 100%; margin: 0; color: var(--text-body); line-height: 1.6; white-space: pre-wrap; }
-.camp-note .camp-muted { flex: 1; font-size: var(--type-xs); }
-
 .camp-icon-button {
   flex: none;
   display: grid;
@@ -341,40 +287,6 @@
 
 .camp-icon-button:hover { background: var(--destructive-soft); color: var(--destructive); }
 .camp-icon-button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-
-.camp-contacts {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
-  gap: 0.7rem;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.camp-contact {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.7rem;
-  padding: 0.85rem;
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--border-soft);
-  background: var(--surface-subtle);
-}
-
-.camp-contact > div { display: flex; flex-direction: column; gap: 0.1rem; flex: 1; min-width: 0; font-size: var(--type-small); overflow-wrap: anywhere; }
-.camp-contact strong { color: var(--text-strong); }
-.camp-contact .camp-icon-button { margin: -0.3rem -0.3rem 0 0; }
-
-.camp-contact__avatar {
-  flex: none;
-  display: grid;
-  place-items: center;
-  width: 2.2rem;
-  height: 2.2rem;
-  border-radius: 50%;
-  background: var(--accent-soft);
-  color: var(--accent);
-}
 
 /* Timeline */
 
@@ -408,7 +320,7 @@
 .camp-timeline strong { color: var(--text-strong); font-size: var(--type-small); }
 .camp-timeline .camp-muted { font-size: var(--type-xs); }
 
-.camp-sent { margin-top: 0.35rem; font-size: var(--type-small); }
+.camp-sent { font-size: var(--type-small); }
 .camp-sent summary { color: var(--accent); font-weight: 600; cursor: pointer; }
 
 .camp-sent dl {
@@ -512,6 +424,116 @@
 .camp-step__offer dd { margin: 0; }
 .camp-step__proposal { display: flex; flex-direction: column; gap: 0.35rem; padding: 0.6rem; border-radius: var(--radius-md); background: var(--surface-subtle); }
 
+/* ── Application page: two columns, one scroll ── */
+
+.camp-detail .page-hero .tool-input-hero-title { overflow-wrap: anywhere; }
+
+.camp-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
+  gap: var(--zone-gap, 1.375rem);
+  align-items: start;
+}
+
+/* Apply */
+
+.camp-apply { border-top: 3px solid var(--accent); }
+.camp-apply.is-applied { border-top-color: var(--success); }
+.camp-apply .workspace-panel__body { display: flex; flex-direction: column; gap: 0.9rem; }
+.camp-apply__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; }
+
+.camp-questions { display: flex; flex-direction: column; align-items: flex-start; gap: 0.75rem; }
+.camp-questions ol { display: flex; flex-direction: column; gap: 0.75rem; width: 100%; margin: 0; padding: 0; list-style: none; }
+.camp-questions li { display: flex; flex-direction: column; gap: 0.35rem; padding: 0.75rem 0.85rem; border-radius: var(--radius-md); border-left: 3px solid var(--warning); background: var(--surface-subtle); }
+.camp-questions li.is-answered { border-left-color: var(--success); }
+.camp-questions label { display: flex; align-items: center; gap: 0.4rem; color: var(--text-strong); font-size: var(--type-small); font-weight: 600; }
+.camp-questions label svg { color: var(--success); }
+
+.camp-autofill { display: flex; flex-direction: column; gap: 0.5rem; padding-top: 0.85rem; border-top: 1px dashed var(--border-soft); }
+.camp-autofill__row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; }
+.camp-autofill__row .camp-muted { flex: 1 1 16rem; }
+.camp-autofill__report { padding: 0.7rem 0.85rem; border-radius: var(--radius-md); background: var(--surface-blue); font-size: var(--type-small); }
+.camp-autofill__report p { margin: 0.15rem 0; }
+
+/* What you're sending: copyable drafts */
+
+.camp-copy { display: flex; flex-direction: column; gap: 0.35rem; padding: 0.7rem 0.85rem; border-radius: var(--radius-md); border: 1px solid var(--divider); background: var(--surface-subtle); }
+.camp-copy__head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; color: var(--text-muted); font-size: var(--type-xs); font-weight: 600; }
+.camp-copy p { margin: 0; color: var(--text-body); font-size: var(--type-small); line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
+
+.camp-copy__button {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.25rem 0.55rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-soft);
+  background: #fff;
+  color: var(--text-strong);
+  font-size: var(--type-xs);
+  font-weight: 600;
+}
+
+.camp-copy__button:hover { background: var(--accent-soft); border-color: var(--border-strong); }
+.camp-copy__button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* Activity + delete */
+
+.camp-activity summary { color: var(--accent); font-size: var(--type-small); font-weight: 600; cursor: pointer; }
+.camp-activity .camp-timeline { margin-top: 0.6rem; }
+
+.camp-delete {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  align-self: flex-start;
+  padding: 0.35rem 0.2rem;
+  color: var(--text-muted);
+  font-size: var(--type-small);
+  font-weight: 600;
+}
+
+.camp-delete:hover { color: var(--destructive); }
+.camp-delete:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: var(--radius-md); }
+
+/* ── Prepare applications for me ── */
+
+.camp-prefs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem 1.25rem; }
+.camp-prefs__field { display: flex; flex-direction: column; gap: 0.4rem; min-width: 0; }
+.camp-prefs__add { display: flex; gap: 0.5rem; }
+.camp-prefs__add input { flex: 1; min-width: 0; }
+.camp-prefs__row { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: flex-end; gap: 1.25rem; }
+.camp-prefs__check { display: inline-flex; align-items: center; gap: 0.5rem; min-height: 2.5rem; color: var(--text-strong); font-size: var(--type-small); cursor: pointer; }
+.camp-prefs__check input { width: 1.05rem; height: 1.05rem; accent-color: var(--accent); }
+.camp-prefs__cap { max-width: 10rem; }
+
+.camp-chips { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0; padding: 0; list-style: none; }
+
+.camp-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.2rem 0.3rem 0.2rem 0.65rem;
+  border-radius: var(--radius-pill);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: var(--type-xs);
+  font-weight: 600;
+}
+
+.camp-chip button { display: grid; place-items: center; width: 1.25rem; height: 1.25rem; border-radius: 50%; color: inherit; opacity: 0.7; }
+.camp-chip button:hover { opacity: 1; background: rgba(255, 255, 255, 0.7); }
+
+.camp-result {
+  margin: 1rem 0 0;
+  padding: 0.7rem 0.9rem;
+  border-radius: var(--radius-md);
+  background: var(--surface-blue);
+  color: var(--text-body);
+  font-size: var(--type-small);
+}
+
 /* ── Responsive ── */
 
 @media (max-width: 1180px) {
@@ -519,7 +541,8 @@
 }
 
 @media (max-width: 900px) {
-  .camp-overview { grid-template-columns: minmax(0, 1fr); }
+  .camp-layout { grid-template-columns: minmax(0, 1fr); }
+  .camp-prefs { grid-template-columns: minmax(0, 1fr); }
 }
 
 @media (max-width: 768px) {
@@ -528,11 +551,11 @@
   .camp-col--skeleton { min-height: 8rem; }
   .camp-col__empty { padding: 0.6rem; }
   .camp-card__move { width: var(--touch-target, 44px); height: var(--touch-target, 44px); margin: -0.4rem -0.4rem 0 0; }
-  .camp-detail .workspace-hero__stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .camp-tabs { flex-wrap: wrap; width: 100%; overflow: visible; }
-  .camp-tab { flex: 1 1 30%; justify-content: center; min-height: var(--touch-target, 44px); padding: 0 0.5rem; }
-  .camp-form--row { flex-direction: column; align-items: stretch; }
-  .camp-form--row > * { flex: none; }
+  .camp-form__row { flex-direction: column; align-items: stretch; }
+  .camp-apply__actions { flex-direction: column; align-items: stretch; }
+  .camp-apply__actions > * { min-height: var(--touch-target, 44px); }
+  .camp-questions > button { align-self: stretch; min-height: var(--touch-target, 44px); }
+  .camp-chip button { width: 1.75rem; height: 1.75rem; }
   .camp-form button[type='submit'] { min-height: var(--touch-target, 44px); }
   .camp-icon-button { width: var(--touch-target, 44px); height: var(--touch-target, 44px); }
   .camp-next-steps { flex-direction: column; align-items: stretch; }

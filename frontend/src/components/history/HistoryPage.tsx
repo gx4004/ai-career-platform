@@ -421,7 +421,7 @@ export function HistoryPage({
                       <div className="flex flex-wrap gap-2">
                         <Button variant="outline" asChild>
                           <Link to="/campaigns/$campaignId" params={{ campaignId: workspace.id }}>
-                            Open campaign
+                            Open application
                           </Link>
                         </Button>
                         <Button

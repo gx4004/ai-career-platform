@@ -1,25 +1,5 @@
 import { z } from 'zod'
 import { ApiError } from '#/lib/api/errors'
-import {
-  applicationPacketItemSchema,
-  applicationPacketListSchema,
-  autofillReportSchema,
-  packetApprovalResultSchema,
-  packetApprovalPreviewSchema,
-  packetApprovalRequestSchema,
-  packetPreparationResultSchema,
-  queueReviewStateSchema,
-  stopAnswerRequestSchema,
-  stopAnswerResultSchema,
-} from '#/lib/api/packetSchemas'
-import {
-  queueRuleItemSchema,
-  queueRuleListSchema,
-  queueRuleUpsertSchema,
-  queueSettingsResponseSchema,
-  queueSettingsUpsertSchema,
-} from '#/lib/api/queueSchemas'
-import type { QueueRuleType, QueueRuleUpsert, QueueSettingsUpsert } from '#/lib/api/queueSchemas'
 import { gapClassificationListResponseSchema } from '#/lib/api/gapClassificationSchemas'
 import { gapResponseOfferSchema } from '#/lib/api/gapResponseSchemas'
 import {
@@ -62,11 +42,15 @@ import {
   workspaceListSchema,
   workspaceSummarySchema,
   workspaceUpdateSchema,
-  campaignDetailSchema,
-  campaignMaterialSelectionSchema,
-  campaignTaskSchema, campaignNoteSchema, campaignContactSchema,
-  campaignReminderResponseSchema,
-  campaignReviewResponseSchema,
+  applicationDetailSchema,
+  applicationListSchema,
+  applicationPreferencesSchema,
+  applicationPreferencesUpdateSchema,
+  applicationReviewResponseSchema,
+  applicationTaskSchema,
+  applicationUpdateSchema,
+  autofillReportSchema,
+  bulkPrepareResultSchema,
   careerDataExportSchema,
   cvDocumentCreateSchema,
   cvDocumentListSchema,
@@ -91,7 +75,8 @@ import type {
   CvTemplateId,
   CvImportProposal,
   WorkspaceUpdate,
-  CampaignMaterialSelection,
+  ApplicationUpdate,
+  ApplicationPreferencesUpdate,
 } from '#/lib/api/schemas'
 
 export function listCvDocuments() {
@@ -449,14 +434,13 @@ export function searchDiscoveryListings(query: DiscoveryListingQuery = {}) {
   })
 }
 
-// R14 #176 explicit adoption: one user action turns a visible recommendation
-// into a campaign whose canonical listing carries the listing content,
-// attribution, and retrieval date. Returns the new campaign detail.
+// One explicit user action turns a visible recommendation into a saved
+// application carrying the listing, its apply link and retrieval date.
 export function adoptDiscoveryRecommendation(listingId: string) {
   return request(`/discovery/recommendations/${listingId}/adopt`, {
     method: 'POST',
     body: {},
-    schema: campaignDetailSchema,
+    schema: applicationDetailSchema,
   })
 }
 
@@ -684,49 +668,106 @@ export function updateHistoryWorkspace(
   })
 }
 
-export function getCampaign(workspaceId: string) {
-  return request(`/history/workspaces/${workspaceId}`, {
-    method: 'GET', schema: campaignDetailSchema,
+// ── Applications (/applications): the board, one application, its apply flow ──
+
+export function listApplications() {
+  return request('/applications', { method: 'GET', schema: applicationListSchema })
+}
+
+export function getApplication(applicationId: string) {
+  return request(`/applications/${applicationId}`, { method: 'GET', schema: applicationDetailSchema })
+}
+
+export function updateApplication(applicationId: string, payload: ApplicationUpdate) {
+  return request(`/applications/${applicationId}`, {
+    method: 'PATCH',
+    body: applicationUpdateSchema.parse(payload),
+    schema: applicationDetailSchema,
   })
 }
 
-export function deleteCampaign(workspaceId: string) {
-  return request(`/history/workspaces/${workspaceId}`, {
-    method: 'DELETE', schema: deletedResponseSchema,
+export function deleteApplication(applicationId: string) {
+  return request(`/applications/${applicationId}`, { method: 'DELETE', schema: deletedResponseSchema })
+}
+
+/** Draft a cover letter and screening answers; list what only the owner can answer. */
+export function prepareApplication(applicationId: string) {
+  return request(`/applications/${applicationId}/prepare`, {
+    method: 'POST', body: {}, schema: applicationDetailSchema,
   })
 }
 
-export function updateCampaignMaterials(
-  workspaceId: string,
-  payload: CampaignMaterialSelection,
-) {
-  return request(`/history/workspaces/${workspaceId}/materials`, {
-    method: 'PATCH', body: campaignMaterialSelectionSchema.parse(payload), schema: campaignDetailSchema,
+/** The full set of typed answers; a blank answer removes it. */
+export function saveApplicationAnswers(applicationId: string, answers: Record<string, string>) {
+  return request(`/applications/${applicationId}/answers`, {
+    method: 'PUT', body: { answers }, schema: applicationDetailSchema,
   })
 }
 
-export function createCampaignTask(workspaceId: string, payload: { title: string; deadline?: string | null }) { return request(`/history/workspaces/${workspaceId}/tasks`, { method: 'POST', body: payload, schema: campaignTaskSchema }) }
-export function updateCampaignTask(workspaceId: string, taskId: string, completed: boolean) { return request(`/history/workspaces/${workspaceId}/tasks/${taskId}`, { method: 'PATCH', body: { completed }, schema: campaignTaskSchema }) }
-export function deleteCampaignTask(workspaceId: string, taskId: string) { return request(`/history/workspaces/${workspaceId}/tasks/${taskId}`, { method: 'DELETE', schema: deletedResponseSchema }) }
-export function createCampaignNote(workspaceId: string, text: string) { return request(`/history/workspaces/${workspaceId}/notes`, { method: 'POST', body: { text }, schema: campaignNoteSchema }) }
-export function deleteCampaignNote(workspaceId: string, noteId: string) { return request(`/history/workspaces/${workspaceId}/notes/${noteId}`, { method: 'DELETE', schema: deletedResponseSchema }) }
-export function createCampaignContact(workspaceId: string, payload: { name: string; role?: string | null; channel?: string | null }) { return request(`/history/workspaces/${workspaceId}/contacts`, { method: 'POST', body: payload, schema: campaignContactSchema }) }
-export function deleteCampaignContact(workspaceId: string, contactId: string) { return request(`/history/workspaces/${workspaceId}/contacts/${contactId}`, { method: 'DELETE', schema: deletedResponseSchema }) }
-export function getCampaignReminders(workspaceId: string) { return request(`/history/workspaces/${workspaceId}/reminders`, { method: 'GET', schema: campaignReminderResponseSchema }) }
-export function updateCampaignReminderConsent(workspaceId: string, enabled: boolean) { return request(`/history/workspaces/${workspaceId}/reminders`, { method: 'PATCH', body: { enabled }, schema: campaignReminderResponseSchema }) }
-export function reviewCampaign(workspaceId: string) { return request(`/history/workspaces/${workspaceId}/review`, { method: 'POST', body: {}, schema: campaignReviewResponseSchema }) }
-export function classifyCampaignGaps(workspaceId: string) {
-  return request(`/history/workspaces/${workspaceId}/gap-classifications`, {
+/** The owner applied on the employer's site: freezes what was sent. */
+export function markApplicationApplied(applicationId: string) {
+  return request(`/applications/${applicationId}/applied`, {
+    method: 'POST', body: {}, schema: applicationDetailSchema,
+  })
+}
+
+/** Autopilot experiment: fill the form in a local browser. Never submits. */
+export function autofillApplication(applicationId: string) {
+  return request(`/applications/${applicationId}/autofill`, {
+    method: 'POST', body: {}, schema: autofillReportSchema,
+  })
+}
+
+export function reviewApplication(applicationId: string) {
+  return request(`/applications/${applicationId}/review`, {
+    method: 'POST', body: {}, schema: applicationReviewResponseSchema,
+  })
+}
+
+export function createApplicationTask(applicationId: string, payload: { title: string; deadline?: string | null }) {
+  return request(`/applications/${applicationId}/tasks`, { method: 'POST', body: payload, schema: applicationTaskSchema })
+}
+
+export function updateApplicationTask(applicationId: string, taskId: string, completed: boolean) {
+  return request(`/applications/${applicationId}/tasks/${taskId}`, {
+    method: 'PATCH', body: { completed }, schema: applicationTaskSchema,
+  })
+}
+
+export function deleteApplicationTask(applicationId: string, taskId: string) {
+  return request(`/applications/${applicationId}/tasks/${taskId}`, { method: 'DELETE', schema: deletedResponseSchema })
+}
+
+export function classifyApplicationGaps(applicationId: string) {
+  return request(`/applications/${applicationId}/gap-classifications`, {
     method: 'POST',
     body: {},
     schema: gapClassificationListResponseSchema,
   })
 }
-export function getCampaignGapResponse(workspaceId: string, classificationId: string) {
+
+export function getApplicationGapResponse(applicationId: string, classificationId: string) {
   return request(
-    `/history/workspaces/${workspaceId}/gap-classifications/${classificationId}/response`,
+    `/applications/${applicationId}/gap-classifications/${classificationId}/response`,
     { method: 'GET', schema: gapResponseOfferSchema },
   )
+}
+
+export function getApplicationPreferences() {
+  return request('/applications/preferences', { method: 'GET', schema: applicationPreferencesSchema })
+}
+
+export function saveApplicationPreferences(payload: ApplicationPreferencesUpdate) {
+  return request('/applications/preferences', {
+    method: 'PUT',
+    body: applicationPreferencesUpdateSchema.parse(payload),
+    schema: applicationPreferencesSchema,
+  })
+}
+
+/** "Prepare applications for me": adopt and prepare the best matches, up to the cap. */
+export function prepareApplicationsForMe() {
+  return request('/applications/prepare', { method: 'POST', body: {}, schema: bulkPrepareResultSchema })
 }
 
 export function requestPasswordReset(payload: { email: string }) {
@@ -764,142 +805,5 @@ export async function deleteAccount(confirmation: string): Promise<void> {
   await request<unknown>('/auth/me/delete', {
     method: 'POST',
     body: { confirmation },
-  })
-}
-
-// ── Application Approval Queue review surface (R15 #183) ──
-// Every write is owner-scoped and audited server-side. Accept is refused (409) while
-// any unresolved question remains (D-095); edit reopens materials under the existing
-// diff/confirmation rules (D-073); pause halts preparation immediately (ADR 0009).
-
-export function listPackets() {
-  return request('/packets', { method: 'GET', schema: applicationPacketListSchema })
-}
-
-export function getQueueState() {
-  return request('/packets/queue-state', { method: 'GET', schema: queueReviewStateSchema })
-}
-
-export function pauseQueue() {
-  return request('/packets/pause', {
-    method: 'POST',
-    body: {},
-    schema: queueReviewStateSchema,
-  })
-}
-
-export function resumeQueue() {
-  return request('/packets/resume', {
-    method: 'POST',
-    body: {},
-    schema: queueReviewStateSchema,
-  })
-}
-
-export function acceptPacket(packetId: string, expectedMaterialSha256: string) {
-  // Accepting freezes the immutable R15 snapshot and returns only a manual handoff.
-  return request(`/packets/${packetId}/accept`, {
-    method: 'POST',
-    body: packetApprovalRequestSchema.parse({
-      expected_material_sha256: expectedMaterialSha256,
-    }),
-    schema: packetApprovalResultSchema,
-  })
-}
-
-export function getPacketApprovalPreview(packetId: string) {
-  return request(`/packets/${packetId}/approval-preview`, {
-    method: 'GET',
-    schema: packetApprovalPreviewSchema,
-  })
-}
-
-export function skipPacket(packetId: string) {
-  return request(`/packets/${packetId}/skip`, {
-    method: 'POST',
-    body: {},
-    schema: applicationPacketItemSchema,
-  })
-}
-
-export function rejectPacket(packetId: string) {
-  return request(`/packets/${packetId}/reject`, {
-    method: 'POST',
-    body: {},
-    schema: applicationPacketItemSchema,
-  })
-}
-
-export function editPacket(packetId: string) {
-  return request(`/packets/${packetId}/edit`, {
-    method: 'POST',
-    body: {},
-    schema: applicationPacketItemSchema,
-  })
-}
-
-export function answerPacketStopQuestion(
-  packetId: string,
-  payload: { field: string; answer: string },
-) {
-  return request(`/packets/${packetId}/stop-answers`, {
-    method: 'POST',
-    body: stopAnswerRequestSchema.parse(payload),
-    schema: stopAnswerResultSchema,
-  })
-}
-
-export function markPacketApplied(packetId: string) {
-  return request(`/packets/${packetId}/applied`, {
-    method: 'POST',
-    body: {},
-    schema: applicationPacketItemSchema,
-  })
-}
-
-/** Autopilot experiment: fill the approved form in a local browser. Never submits. */
-export function autofillPacket(packetId: string) {
-  return request(`/packets/${packetId}/autofill`, {
-    method: 'POST',
-    body: {},
-    schema: autofillReportSchema,
-  })
-}
-
-// ── Queue rules — the filters a job must pass to become a packet (R15 #180) ──
-
-export function listQueueRules() {
-  return request('/queue/rules', { method: 'GET', schema: queueRuleListSchema })
-}
-
-export function upsertQueueRule(payload: QueueRuleUpsert) {
-  return request('/queue/rules', {
-    method: 'PUT',
-    body: queueRuleUpsertSchema.parse(payload),
-    schema: queueRuleItemSchema,
-  })
-}
-
-export function deleteQueueRule(ruleType: QueueRuleType) {
-  return request(`/queue/rules/${ruleType}`, { method: 'DELETE' })
-}
-
-export function getQueueSettings() {
-  return request('/queue/settings', { method: 'GET', schema: queueSettingsResponseSchema })
-}
-
-export function updateQueueSettings(payload: QueueSettingsUpsert) {
-  return request('/queue/settings', {
-    method: 'PUT',
-    body: queueSettingsUpsertSchema.parse(payload),
-    schema: queueSettingsResponseSchema,
-  })
-}
-
-export function preparePackets() {
-  return request('/packets/prepare', {
-    method: 'POST',
-    body: {},
-    schema: packetPreparationResultSchema,
   })
 }

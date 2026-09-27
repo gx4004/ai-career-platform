@@ -40,5 +40,6 @@ describe('browser telemetry tool_id contract', () => {
 
   it('excludes backend-only pipeline ids the browser can never produce', () => {
     expect(BROWSER_TOOL_IDS).not.toContain('application-packet')
+    expect(BROWSER_TOOL_IDS).not.toContain('application-drafts')
   })
 })

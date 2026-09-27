@@ -1,58 +1,54 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { ArrowRightLeft, CalendarClock, SearchX } from 'lucide-react'
+import { ArrowRightLeft, CalendarClock, CircleCheck, MessageCircleQuestion, SearchX } from 'lucide-react'
 import { PageHero } from '#/components/app/PageHero'
 import { StatusPill, WorkspaceEmpty, WorkspacePage } from '#/components/app/WorkspacePage'
-import { StageMenu } from '#/components/campaigns/StageMenu'
+import { PrepareForMePanel } from '#/components/applications/PrepareForMePanel'
+import { StageMenu } from '#/components/applications/StageMenu'
 import {
   STAGES,
-  campaignCompany,
-  campaignTitle,
+  STATUS_LABELS,
+  applicationTitle,
   formatDate,
   stageOf,
-  statusLabel,
-  stageTone,
   timeAgo,
-} from '#/components/campaigns/stages'
+} from '#/components/applications/stages'
 import { Button } from '#/components/ui/button'
-import { getHistoryWorkspaces, updateHistoryWorkspace } from '#/lib/api/client'
+import { listApplications, updateApplication } from '#/lib/api/client'
+import type { ApplicationCard, ApplicationList, ApplicationStatus } from '#/lib/api/schemas'
 import { getNavDestination } from '#/lib/navigation/navGroups'
-import type { CampaignStatus, WorkspaceList } from '#/lib/api/schemas'
+import { APPLICATION_BOARD_QUERY_KEY, invalidateApplications } from '#/lib/query/applicationCaches'
 
-type Campaign = WorkspaceList['items'][number]
-const QUERY_KEY = ['history-workspaces']
 const BoardIcon = getNavDestination('/campaigns').icon
 const DiscoverIcon = getNavDestination('/discovery').icon
 
-export function CampaignsPage() {
+export function ApplicationsPage() {
   const queryClient = useQueryClient()
   const [moveError, setMoveError] = useState<string | null>(null)
-  const query = useQuery({ queryKey: QUERY_KEY, queryFn: getHistoryWorkspaces })
+  const query = useQuery({ queryKey: APPLICATION_BOARD_QUERY_KEY, queryFn: listApplications })
   const move = useMutation({
-    mutationFn: ({ campaign, status }: { campaign: Campaign; status: CampaignStatus }) =>
-      updateHistoryWorkspace(campaign.id, { status }),
+    mutationFn: ({ card, status }: { card: ApplicationCard; status: ApplicationStatus }) =>
+      updateApplication(card.id, { status }),
     onMutate: () => setMoveError(null),
     onSuccess: (updated) => {
-      // The PATCH reply has no next task, so patch the status into the cached card.
-      queryClient.setQueryData<WorkspaceList>(QUERY_KEY, (current) =>
+      queryClient.setQueryData<ApplicationList>(APPLICATION_BOARD_QUERY_KEY, (current) =>
         current && {
           ...current,
           items: current.items.map((item) =>
-            item.id === updated.id ? { ...item, status: updated.status, updated_at: updated.updated_at } : item,
+            item.id === updated.id
+              ? { ...item, status: updated.status, applied_at: updated.applied_at, ready: updated.ready, updated_at: updated.updated_at }
+              : item,
           ),
         },
       )
-      void queryClient.invalidateQueries({ queryKey: QUERY_KEY })
+      void invalidateApplications(queryClient)
     },
-    onError: (_error, { campaign }) =>
-      setMoveError(`“${campaignTitle(campaign)}” couldn't be moved. Refresh the page and try again.`),
+    onError: (error, { card }) =>
+      setMoveError(`“${applicationTitle(card)}” couldn't be moved. ${error instanceof Error ? error.message : 'Try again.'}`),
   })
 
-  // Every tool run gets a workspace; only the ones aimed at a job belong on the board.
-  const items = (query.data?.items ?? []).filter(
-    (item) => item.role || item.company || item.listing || item.status || item.deadline,
-  )
+  const items = query.data?.items ?? []
   const byStage = (stage: string) => items.filter((item) => stageOf(item.status) === stage)
   const findJobs = <Button asChild><Link to="/discovery"><DiscoverIcon size={16} /> Find jobs</Link></Button>
 
@@ -83,7 +79,7 @@ export function CampaignsPage() {
         <WorkspaceEmpty
           icon={BoardIcon}
           title="No applications yet"
-          description="Save a job you like and it shows up here, ready to track from first draft to offer."
+          description="Add a job from Job Discovery, or let us prepare applications for you below."
           action={findJobs}
         />
       ) : (
@@ -99,12 +95,12 @@ export function CampaignsPage() {
                 </header>
                 {cards.length ? (
                   <ol className="camp-col__list">
-                    {cards.map((campaign) => (
-                      <li key={campaign.id}>
-                        <CampaignCard
-                          campaign={campaign}
-                          moving={move.isPending && move.variables?.campaign.id === campaign.id}
-                          onMove={(status) => move.mutate({ campaign, status })}
+                    {cards.map((card) => (
+                      <li key={card.id}>
+                        <BoardCard
+                          card={card}
+                          moving={move.isPending && move.variables?.card.id === card.id}
+                          onMove={(status) => move.mutate({ card, status })}
                         />
                       </li>
                     ))}
@@ -117,51 +113,65 @@ export function CampaignsPage() {
           })}
         </div>
       )}
+
+      <PrepareForMePanel />
     </WorkspacePage>
   )
 }
 
-function summaryChips(items: Campaign[], byStage: (stage: string) => Campaign[]) {
+function summaryChips(items: ApplicationCard[], byStage: (stage: string) => ApplicationCard[]) {
   const inProgress = items.filter((item) => stageOf(item.status) !== 'closed').length
+  const ready = items.filter((item) => item.ready).length
   const interviewing = byStage('interviewing').length
   const offers = byStage('offer').length
   return [
     `${inProgress} in progress`,
+    ...(ready ? [`${ready} ready to apply`] : []),
     ...(interviewing ? [`${interviewing} interviewing`] : []),
     ...(offers ? [`${offers} ${offers === 1 ? 'offer' : 'offers'}`] : []),
   ]
 }
 
-function CampaignCard({
-  campaign,
+function BoardCard({
+  card,
   moving,
   onMove,
 }: {
-  campaign: Campaign
+  card: ApplicationCard
   moving: boolean
-  onMove: (status: CampaignStatus) => void
+  onMove: (status: ApplicationStatus) => void
 }) {
-  const title = campaignTitle(campaign)
-  const company = campaignCompany(campaign)
-  const stageLabel = STAGES.find((stage) => stage.id === stageOf(campaign.status))?.label
-  const label = statusLabel(campaign.status)
-  const task = campaign.next_task
+  const title = applicationTitle(card)
+  const task = card.next_task
+  const closed = stageOf(card.status) === 'closed'
   return (
     <article className="camp-card" aria-busy={moving || undefined}>
       <div className="camp-card__top">
         <div className="camp-card__title">
-          <Link to="/campaigns/$campaignId" params={{ campaignId: campaign.id }} className="camp-card__link">
+          <Link to="/campaigns/$campaignId" params={{ campaignId: card.id }} className="camp-card__link">
             {title}
           </Link>
-          {company ? <span>{company}</span> : null}
+          {card.company ? <span>{card.company}</span> : null}
         </div>
-        <StageMenu status={campaign.status} onMove={onMove} disabled={moving}>
+        <StageMenu status={card.status} onMove={onMove} disabled={moving}>
           <button type="button" className="camp-card__move" aria-label={`Move ${title}`}>
             <ArrowRightLeft size={15} aria-hidden="true" />
           </button>
         </StageMenu>
       </div>
-      {label !== stageLabel ? <StatusPill tone={stageTone(campaign.status)}>{label}</StatusPill> : null}
+      <div className="camp-card__badges">
+        {closed ? <StatusPill>{STATUS_LABELS[card.status]}</StatusPill> : null}
+        {card.status === 'saved' && card.ready ? (
+          <StatusPill tone="positive"><CircleCheck size={12} aria-hidden="true" /> Ready to apply</StatusPill>
+        ) : null}
+        {card.status === 'saved' && card.open_question_count > 0 ? (
+          <StatusPill tone="warning">
+            <MessageCircleQuestion size={12} aria-hidden="true" />
+            {card.open_question_count === 1 ? '1 question' : `${card.open_question_count} questions`}
+          </StatusPill>
+        ) : null}
+        {card.match_score !== null ? <span className="camp-card__score">{card.match_score}% match</span> : null}
+      </div>
       {task ? (
         <p className="camp-card__next">
           <CalendarClock size={14} aria-hidden="true" />
@@ -170,13 +180,16 @@ function CampaignCard({
             {task.deadline ? <em> · due {formatDate(task.deadline)}</em> : null}
           </span>
         </p>
-      ) : campaign.deadline ? (
+      ) : card.deadline && card.status === 'saved' ? (
         <p className="camp-card__next">
           <CalendarClock size={14} aria-hidden="true" />
-          <span>Apply by {formatDate(campaign.deadline)}</span>
+          <span>Apply by {formatDate(card.deadline)}</span>
         </p>
       ) : null}
-      <p className="camp-card__meta">Last activity {timeAgo(campaign.last_activity_at ?? campaign.updated_at)}</p>
+      <p className="camp-card__meta">
+        {card.applied_at ? `Applied ${formatDate(card.applied_at)} · ` : ''}
+        Last activity {timeAgo(card.last_activity_at ?? card.updated_at)}
+      </p>
     </article>
   )
 }

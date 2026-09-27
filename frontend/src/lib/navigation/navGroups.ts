@@ -1,7 +1,6 @@
 import type { LucideIcon } from 'lucide-react'
 import {
   BadgeCheck,
-  ClipboardCheck,
   History as HistoryIcon,
   PanelsTopLeft,
   SquareKanban,
@@ -35,8 +34,7 @@ export const navGroups: NavGroup[] = [
     label: 'Job search',
     destinations: [
       { label: 'Discover', route: '/discovery', icon: Telescope },
-      { label: 'Queue', route: '/queue', icon: ClipboardCheck },
-      { label: 'Campaigns', route: '/campaigns', icon: SquareKanban },
+      { label: 'Applications', route: '/campaigns', icon: SquareKanban },
     ],
   },
   {

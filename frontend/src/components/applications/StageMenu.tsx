@@ -7,27 +7,29 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '#/components/ui/dropdown-menu'
-import type { CampaignStatus } from '#/lib/api/schemas'
-import { STATUS_LABELS, nextStatuses } from './stages'
+import type { ApplicationStatus } from '#/lib/api/schemas'
+import { STATUSES, STATUS_LABELS } from './stages'
 
-/** "Move to…" menu listing only the stages this application can still reach. */
+const CLOSING: ApplicationStatus[] = ['rejected', 'withdrawn']
+
+/** "Move to…" menu. Any stage can move to any other, including back. */
 export function StageMenu({
   status,
   onMove,
   disabled,
   children,
 }: {
-  status: CampaignStatus | null
-  onMove: (status: CampaignStatus) => void
+  status: ApplicationStatus
+  onMove: (status: ApplicationStatus) => void
   disabled?: boolean
   children: ReactNode
 }) {
-  const options = nextStatuses(status)
-  const open = options.filter((option) => option !== 'rejected' && option !== 'withdrawn')
-  const closing = options.filter((option) => option === 'rejected' || option === 'withdrawn')
+  const others = STATUSES.filter((option) => option !== status)
+  const open = others.filter((option) => !CLOSING.includes(option))
+  const closing = others.filter((option) => CLOSING.includes(option))
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild disabled={disabled || options.length === 0}>
+      <DropdownMenuTrigger asChild disabled={disabled}>
         {children}
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-52">

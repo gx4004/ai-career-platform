@@ -127,8 +127,8 @@ export function DiscoveryPage() {
   })
   const adopt = useMutation({
     mutationFn: (listingId: string) => adoptDiscoveryRecommendation(listingId),
-    onSuccess: (campaign) => {
-      navigate({ to: '/campaigns/$campaignId', params: { campaignId: campaign.id } })
+    onSuccess: (application) => {
+      navigate({ to: '/campaigns/$campaignId', params: { campaignId: application.id } })
     },
   })
 
@@ -278,7 +278,7 @@ export function DiscoveryPage() {
             )
           : null}
         {adopt.isError ? (
-          <p className="disc-error" role="alert">That job could not be added to a campaign. Try again.</p>
+          <p className="disc-error" role="alert">That job could not be added to your applications. Try again.</p>
         ) : null}
 
         {listings.isPending ? (
@@ -304,7 +304,7 @@ export function DiscoveryPage() {
             <WorkspaceEmpty
               icon={Compass}
               title="No jobs yet"
-              description="New openings are added every day. Check back soon."
+              description="New openings are added every day. Add the ones you like to Applications, where we help you prepare each one."
             />
           )
         ) : (
@@ -478,7 +478,7 @@ function JobActions({ listing, actions }: { listing: DiscoveryListing; actions: 
         onClick={() => actions.onAdopt(listing)}
         loading={actions.adoptingId === listing.listing_id}
       >
-        <FolderPlus size={14} aria-hidden="true" /> Add to campaign
+        <FolderPlus size={14} aria-hidden="true" /> Add to applications
       </Button>
       <Button asChild size="sm" variant="outline">
         <a href={listing.apply_url ?? listing.source_url} target="_blank" rel="noopener noreferrer">
