@@ -5,17 +5,24 @@ Browser tests run headless against the committed fixture forms in
 the fill step directly, which is what lets them use ``file://`` pages without
 touching the production host allowlist. The allowlist tests serve those same
 fixtures under an allowlisted URL (via ``route``) or from 127.0.0.1.
+
+The autouse ``hermetic`` guard enforces that: the experiment flag is off unless a
+test turns it on, a real browser launches only for tests that request the
+``browser`` fixture (and always headless), and any request to a host that is not
+a fixture fails the test.
 """
 
 from __future__ import annotations
 
-import re
 import threading
 import time
 from concurrent.futures import Future
+from contextlib import contextmanager
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from types import SimpleNamespace
+from urllib.parse import urlsplit
 
 import pytest
 
@@ -28,10 +35,8 @@ from app.services.autopilot_autofill import (
     AutofillMaterials,
     AutofillRefused,
     AutofillReport,
-    SubmitRefused,
     _open_form,
     _run,
-    _safe_click,
     _wait_for_owner,
     assert_allowed_apply_url,
     fill_application,
@@ -39,6 +44,12 @@ from app.services.autopilot_autofill import (
     start_autofill,
 )
 from tests.test_packet_approval_snapshot import _approvable_packet, approve_packet
+
+try:
+    import playwright.sync_api as _playwright_api
+    from playwright.sync_api import sync_playwright as _real_sync_playwright
+except ImportError:  # pragma: no cover — environment without Playwright
+    _playwright_api = None
 
 FIXTURES = Path(__file__).parent / "fixtures" / "autofill"
 PREFIX = "/api/v1"
@@ -58,6 +69,72 @@ MATERIALS = AutofillMaterials(
         ("Why do you want to work at Acme?", "Reliable systems matter to me."),
     ],
 )
+
+
+# ── Hermetic guard: no live site, no visible window, flag off by default ──
+
+_off_fixture_requests: list[str] = []
+
+
+def _is_fixture(url: str) -> bool:
+    parts = urlsplit(url)
+    return parts.scheme in {"file", "data", "about", "blob"} or parts.hostname == "127.0.0.1"
+
+
+def _abort_off_fixture(route) -> None:
+    """Registered first on every context, so a test's own ``route.fulfill`` wins."""
+    if _is_fixture(route.request.url):
+        route.fallback()
+    else:
+        _off_fixture_requests.append(route.request.url)
+        route.abort()
+
+
+class _GuardedBrowser:
+    """A real Chromium whose contexts refuse, and record, every non-fixture request."""
+
+    def __init__(self, browser):
+        self._browser = browser
+
+    def new_context(self, **kwargs):
+        context = self._browser.new_context(**kwargs)
+        context.route("**/*", _abort_off_fixture)
+        return context
+
+    def new_page(self, **kwargs):
+        return self.new_context(**kwargs).new_page()
+
+    def __getattr__(self, name):
+        return getattr(self._browser, name)
+
+
+@contextmanager
+def _guarded_playwright(opted_in: bool):
+    """Stands in for ``sync_playwright`` inside the worker thread (``_run``)."""
+    if not opted_in:
+        _off_fixture_requests.append("real browser launch without the browser fixture")
+        raise RuntimeError("This test did not opt in to a real browser.")
+    with _real_sync_playwright() as pw:
+
+        def launch(**_kwargs):  # always headless, whatever the caller asked for
+            return _GuardedBrowser(pw.chromium.launch(headless=True))
+
+        yield SimpleNamespace(chromium=SimpleNamespace(launch=launch))
+
+
+@pytest.fixture(autouse=True)
+def hermetic(request, monkeypatch):
+    # A local backend/.env may turn the experiment on; tests start with it off.
+    monkeypatch.setattr(settings, "AUTOPILOT_EXPERIMENT_ENABLED", False)
+    if _playwright_api is not None:
+        opted_in = "browser" in request.fixturenames
+        monkeypatch.setattr(
+            _playwright_api, "sync_playwright", partial(_guarded_playwright, opted_in)
+        )
+    _off_fixture_requests.clear()
+    yield
+    if _off_fixture_requests:
+        pytest.fail(f"Autopilot test left the fixtures: {_off_fixture_requests}")
 
 
 # ── Host allowlist ──
@@ -132,11 +209,8 @@ def test_one_run_at_a_time_per_owner_until_the_browser_is_gone(monkeypatch):
 
 def test_no_code_path_clicks_presses_or_submits():
     source = Path(autopilot_autofill.__file__).read_text()
-    # The one click lives inside _safe_click, which refuses submit controls.
-    assert source.count(".click(") == 1
-    assert re.search(r"def _safe_click\(.*?\n    locator\.click\(\)", source, re.S)
-    for forbidden in (".press(", "keyboard", ".submit(", "requestSubmit", "dispatch_event",
-                      "dispatchEvent", ".tap(", ".check("):
+    for forbidden in (".click(", ".press(", "keyboard", ".submit(", "requestSubmit",
+                      "dispatch_event", "dispatchEvent", ".tap(", ".check("):
         assert forbidden not in source, forbidden
 
 
@@ -145,20 +219,36 @@ def test_no_code_path_clicks_presses_or_submits():
 
 @pytest.fixture(scope="module")
 def browser():
-    try:
-        from playwright.sync_api import sync_playwright
-
-        manager = sync_playwright().start()
-    except Exception as exc:  # pragma: no cover — environment without Playwright
-        pytest.skip(f"Playwright unavailable: {exc}")
+    """The opt-in: a headless Chromium that can only reach fixtures."""
+    if _playwright_api is None:  # pragma: no cover — environment without Playwright
+        pytest.skip("Playwright unavailable")
+    manager = _real_sync_playwright().start()
     try:
         chromium = manager.chromium.launch(headless=True)
     except Exception as exc:  # pragma: no cover — Chromium binary not installed
         manager.stop()
         pytest.skip(f"Chromium not installed: {exc}")
-    yield chromium
+    yield _GuardedBrowser(chromium)
     chromium.close()
     manager.stop()
+
+
+def test_guard_stops_a_request_to_a_live_host(browser):
+    page = browser.new_page()
+    with pytest.raises(Exception):  # aborted before it leaves the machine
+        page.goto("https://jobs.lever.co/acme/123/apply")
+    assert _off_fixture_requests == ["https://jobs.lever.co/acme/123/apply"]
+    _off_fixture_requests.clear()  # seen and expected, so this test passes
+    page.close()
+
+
+def test_worker_cannot_launch_a_browser_without_opting_in():
+    result: Future = Future()
+    _run("user-7", MATERIALS, result, False)  # headed on a live URL: the old accident
+    with pytest.raises(RuntimeError, match="opt in"):
+        result.result(timeout=5)
+    assert _off_fixture_requests
+    _off_fixture_requests.clear()
 
 
 def _open(browser, name: str):
@@ -202,14 +292,14 @@ def test_fills_a_lever_form_and_does_not_submit(browser, tmp_path):
     assert page.input_value("input[name=phone]") == "+44 20 7946 0958"
     assert page.input_value("input[name='urls[LinkedIn]']") == "https://www.linkedin.com/in/ada"
     assert page.input_value("input[name='urls[Portfolio]']") == "https://ada.dev"
-    assert page.input_value("textarea[name='cards[abc][field0]']") == (
-        "Reliable systems matter to me."
-    )
     assert page.input_value("textarea[name=comments]") == "Dear Acme, I would like to join."
     assert page.eval_on_selector(
         "#resume-upload-input", "el => el.files[0].name"
     ) == "Ada-Lovelace-CV.pdf"
-    assert report.skipped == ["Current company"]
+    # An open-ended "why" question is a stop category: the owner writes it, even
+    # though a drafted answer to the same question exists.
+    assert page.input_value("textarea[name='cards[abc][field0]']") == ""
+    assert report.skipped == ["Current company", "Why do you want to work at Acme?"]
     assert page.evaluate("window.__submitted") is False
     page.close()
 
@@ -223,21 +313,31 @@ def test_blank_details_are_left_for_the_owner(browser, tmp_path):
     page.close()
 
 
-def test_safe_click_refuses_submit_controls(browser):
-    for name, selector in (
-        ("greenhouse.html", "#submit_app"),
-        ("lever.html", "button.template-btn-submit"),
-    ):
-        page = _open(browser, name)
-        with pytest.raises(SubmitRefused):
-            _safe_click(page.locator(selector))
-        assert page.evaluate("window.__submitted") is False
-        # Sanity check on the fixture: a real press of submit is detected
-        # (validation off, since the required fields are still empty).
-        page.evaluate("document.forms[0].noValidate = true")
-        page.locator(selector).click()
-        assert page.evaluate("window.__submitted") is True
-        page.close()
+def test_answers_go_only_to_the_question_they_best_match(browser, tmp_path):
+    page = browser.new_page()
+    page.set_content("""<form>
+      <label for="lang">What languages do you speak?</label><input id="lang">
+      <label for="notice">What is your notice period?</label><input id="notice">
+      <label for="pay">Salary expectations</label><input id="pay">
+    </form>""")
+    materials = AutofillMaterials(
+        url=MATERIALS.url,
+        answers=[
+            ("Age", "41"),  # whole words only: never inside "languages"
+            ("Notice period for your current role", "One month."),
+            ("What is your notice period?", "Two weeks."),  # the closer match wins
+            ("Expected salary?", "Drafted figure"),
+        ],
+    )
+
+    report = fill_application(page, materials, tmp_path)
+
+    assert page.input_value("#lang") == ""
+    assert page.input_value("#notice") == "Two weeks."
+    # A salary field only ever gets the owner's own answer, never a drafted one.
+    assert page.input_value("#pay") == ""
+    assert report.skipped == ["What languages do you speak?", "Salary expectations"]
+    page.close()
 
 
 @pytest.fixture
@@ -335,7 +435,11 @@ def autopilot_on(monkeypatch):
     monkeypatch.setattr(settings, "AUTOPILOT_EXPERIMENT_ENABLED", True)
 
 
-def test_flag_off_is_404(client, db, test_user, auth_headers):
+def test_flag_off_is_404(client, db, test_user, auth_headers, monkeypatch):
+    monkeypatch.setattr(settings, "AUTOPILOT_EXPERIMENT_ENABLED", False)
+    monkeypatch.setattr(
+        "app.routers.packets.start_autofill", lambda *a, **k: pytest.fail("browser opened")
+    )
     packet = _approved(db, test_user.id)
     response = client.post(f"{PREFIX}/packets/{packet.id}/autofill", headers=auth_headers)
     assert response.status_code == 404
@@ -378,9 +482,27 @@ def test_non_allowlisted_destination_is_refused(
         "app.routers.packets.start_autofill", lambda *a, **k: pytest.fail("browser opened")
     )
     packet = _approved(db, test_user.id, source_url="https://jobs.example/apply/1")
+    # A later re-ingest pointing the listing at an ATS does not change what was approved.
+    packet.listing.apply_url = "https://jobs.lever.co/acme/123"
+    db.commit()
     response = client.post(f"{PREFIX}/packets/{packet.id}/autofill", headers=auth_headers)
     assert response.status_code == 400
     assert "Greenhouse, Lever, or Ashby" in response.json()["detail"]
+
+
+def test_opens_the_approved_destination_not_the_live_listing_link(
+    client, db, test_user, auth_headers, autopilot_on, monkeypatch
+):
+    calls: list = []
+    monkeypatch.setattr("app.routers.packets.start_autofill", _fake_start(calls))
+    packet = _approved(db, test_user.id)
+    packet.listing.apply_url = "https://jobs.lever.co/someone-else/999"  # re-ingested later
+    db.commit()
+
+    response = client.post(f"{PREFIX}/packets/{packet.id}/autofill", headers=auth_headers)
+
+    assert response.status_code == 200
+    assert calls[0][1].url == "https://jobs.lever.co/acme/123"
 
 
 def test_a_page_that_moves_off_the_allowlist_is_a_400(

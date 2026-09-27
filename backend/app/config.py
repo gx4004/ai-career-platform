@@ -86,7 +86,7 @@ class Settings(BaseSettings):
     ATS_INGESTION_ENABLED: bool = False
     # Autopilot experiment (#325): opens a headed browser on the machine running
     # the backend, fills an approved application form, and stops before submit.
-    # Local-only; never enable on a hosted deployment.
+    # Local-only: `validate_autopilot_config` refuses it outside development.
     AUTOPILOT_EXPERIMENT_ENABLED: bool = False
 
     CAPTCHA_ENABLED: bool = False
@@ -131,6 +131,23 @@ def resolve_allowed_origins() -> list[str]:
     if frontend and frontend not in origins:
         origins.append(frontend)
     return origins
+
+
+def validate_autopilot_config() -> None:
+    """Refuse to boot outside development with the Autopilot experiment on.
+
+    `AUTOPILOT_EXPERIMENT_ENABLED` launches a headed browser on the machine
+    running the backend and types the owner's details into employer forms. On a
+    hosted deployment that browser would run on the server, not in front of the
+    owner, so it is a boot refusal, matching `validate_origin_config`.
+    """
+    if settings.ENVIRONMENT == "development":
+        return
+    if settings.AUTOPILOT_EXPERIMENT_ENABLED:
+        raise RuntimeError(
+            "AUTOPILOT_EXPERIMENT_ENABLED opens a browser on this machine and is "
+            f"only allowed in development, not {settings.ENVIRONMENT}."
+        )
 
 
 def validate_origin_config() -> None:
