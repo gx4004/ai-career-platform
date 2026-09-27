@@ -107,10 +107,10 @@ The recorded origin of an evidence item: `imported` (parsed from an uploaded
 document), `inferred` (proposed by tool or model output), or `user-entered`.
 
 **Confirmation state**
-The trust lifecycle of an evidence item: `unconfirmed` until an explicit user
-action marks it `confirmed` or `rejected`. No automated path may confirm. Only
-confirmed evidence may enter generation as locked fact; rejected evidence is
-excluded from all downstream use.
+The trust lifecycle of an evidence item: `unconfirmed` (a suggestion) until an
+explicit user action marks it `confirmed`. No automated path may confirm.
+Rejecting a suggestion deletes it. Only confirmed evidence may enter generation as
+locked fact.
 
 **Run-derived evidence**
 The existing per-run fields (for example `ResumeEvidence`, `evidence_used`,
@@ -267,9 +267,9 @@ produced, learning recommendation for missing skill. Tailoring is never offered
 for substance gaps, and no response fabricates.
 
 **Completion proposal**
-The R11 proposal created when a development item completes: an `unconfirmed`
-evidence item that only explicit user confirmation turns into reusable verified
-evidence. The development loop never writes confirmed evidence.
+The R11 item created when a development item completes. With the owner's own
+notes it is confirmed; otherwise it is an `unconfirmed` suggestion reviewed on the
+profile like any other.
 
 ## Branch roles
 

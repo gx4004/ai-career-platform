@@ -269,9 +269,9 @@ async def test_cv_tailoring_fake_provider_targets_a_bullet_when_the_entry_has_bu
 async def test_evidence_import_fake_provider_is_not_degraded():
     from app.services import evidence_import
 
-    proposals = await evidence_import.generate_import_proposals(RESUME_TEXT)
+    proposals = await evidence_import.extract_resume_evidence(RESUME_TEXT)
 
-    # `generate_import_proposals` degrades to `[]` on any LLM failure.
+    # `extract_resume_evidence` degrades to `[]` on any LLM failure.
     assert proposals
     for proposal in proposals:
         assert proposal.content

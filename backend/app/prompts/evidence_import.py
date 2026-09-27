@@ -1,6 +1,5 @@
 # Bump when the prompt template changes shape, the kind list, or the output
-# schema. R11 resume-import proposals are ephemeral (never cached or persisted),
-# so this version is documentation/observability only, not a cache key.
+# schema. R11 resume-import results are never cached, so this version is documentation/observability only, not a cache key.
 EVIDENCE_IMPORT_PROMPT_VERSION = "2026-07-11-v1"
 
 # The eight typed evidence kinds (ADR 0005, D-061). Kept in sync with the
@@ -21,9 +20,9 @@ def build_evidence_import_prompt(resume_text: str) -> tuple[str, str]:
     """Build the (system, user) prompt pair that turns resume text into typed
     evidence-item proposals for review.
 
-    The model only *proposes*; it never confirms. Every proposal is later stored
-    as an `unconfirmed` item with `imported` provenance through the existing
-    item-create path, and only an explicit user action can confirm it (D-062).
+    The model only *proposes*; it never confirms. Every proposal is stored as an
+    `unconfirmed` item with `imported` provenance, and only an explicit user
+    action can confirm it (D-062).
     """
     kinds = ", ".join(_KINDS)
     system = f"""You are an information-extraction assistant for a career workbench.

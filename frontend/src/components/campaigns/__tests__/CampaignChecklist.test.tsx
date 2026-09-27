@@ -8,7 +8,7 @@ const api = vi.hoisted(() => ({
   reviewCampaign: vi.fn(),
   classifyCampaignGaps: vi.fn(),
   getCampaignGapResponse: vi.fn(),
-  setEvidenceItemConfirmation: vi.fn(),
+  confirmEvidenceItem: vi.fn(),
 }))
 const createDevelopmentItem = vi.hoisted(() => vi.fn())
 
@@ -98,9 +98,7 @@ const developmentItem = {
   state: 'planned',
   target_date: null,
   notes: null,
-  source_finding_id: 'finding-1',
-  timeline: [{ event: 'created', state: 'planned' }],
-  evidence_proposal: null,
+  evidence_item_id: null,
   created_at: '2026-08-13T10:05:00Z',
   updated_at: '2026-08-13T10:05:00Z',
 }
@@ -127,7 +125,7 @@ describe('CampaignChecklist next-step path', () => {
       classifications: [classification],
     })
     api.getCampaignGapResponse.mockReset().mockResolvedValue(response)
-    api.setEvidenceItemConfirmation.mockReset()
+    api.confirmEvidenceItem.mockReset()
     createDevelopmentItem.mockReset().mockResolvedValue(developmentItem)
   })
 
@@ -173,7 +171,7 @@ describe('CampaignChecklist next-step path', () => {
     expect(within(finding).getByText(/Not saved yet/)).toBeTruthy()
     expect(within(finding).getByText('None disclosed')).toBeTruthy()
     expect(createDevelopmentItem).not.toHaveBeenCalled()
-    expect(api.setEvidenceItemConfirmation).not.toHaveBeenCalled()
+    expect(api.confirmEvidenceItem).not.toHaveBeenCalled()
 
     fireEvent.click(within(finding).getByRole('button', { name: 'Add to my development plan' }))
     await waitFor(() =>
@@ -185,7 +183,7 @@ describe('CampaignChecklist next-step path', () => {
       'textContent',
       'Added to your development plan.',
     )
-    expect(api.setEvidenceItemConfirmation).not.toHaveBeenCalled()
+    expect(api.confirmEvidenceItem).not.toHaveBeenCalled()
     expect(
       within(finding).getByRole('button', { name: 'Added to your plan' }),
     ).toHaveProperty('disabled', true)
