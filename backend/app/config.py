@@ -68,10 +68,6 @@ class Settings(BaseSettings):
     # Local-only: `validate_autopilot_config` refuses it outside development.
     AUTOPILOT_EXPERIMENT_ENABLED: bool = False
 
-    CAPTCHA_ENABLED: bool = False
-    CAPTCHA_SECRET_KEY: str = ""
-    CAPTCHA_VERIFY_URL: str = "https://www.google.com/recaptcha/api/siteverify"
-
     GOOGLE_CLIENT_ID: str = ""
     GOOGLE_CLIENT_SECRET: str = ""
     GOOGLE_REDIRECT_URI: str = ""
