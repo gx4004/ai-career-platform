@@ -21,7 +21,7 @@
   box-shadow: 0 2px 16px rgba(15,44,88,0.07), 0 0 0 1px rgba(186,214,255,0.4);
 }
 
-/* R13 campaign attach block inside .import-card (dark until VITE_R13_CAMPAIGNS_ENABLED). */
+/* R13 campaign attach block inside .import-card. */
 .import-card-attach {
   display: flex;
   align-items: center;

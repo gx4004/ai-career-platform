@@ -7,13 +7,6 @@ import {
   Megaphone,
   PanelsTopLeft,
 } from 'lucide-react'
-import {
-  isR11EvidenceProfileEnabled,
-  isR12CvStudioEnabled,
-  isR13CampaignsEnabled,
-  isR14DiscoveryEnabled,
-  isR15QueueEnabled,
-} from '#/lib/flags/featureFlags'
 import { tools } from '#/lib/tools/registry'
 
 /** One destination in a grouped nav section (sidebar + mobile tools sheet). */
@@ -21,8 +14,6 @@ export type NavDestination = {
   label: string
   route: string
   icon: LucideIcon
-  /** Omitted means always visible (subject to the surrounding auth gate). */
-  enabled?: () => boolean
 }
 
 export type NavGroup = {
@@ -42,17 +33,17 @@ export const navGroups: NavGroup[] = [
     id: 'job-search',
     label: 'Job search',
     destinations: [
-      { label: 'Discover', route: '/discovery', icon: Compass, enabled: isR14DiscoveryEnabled },
-      { label: 'Queue', route: '/queue', icon: ClipboardCheck, enabled: isR15QueueEnabled },
-      { label: 'Campaigns', route: '/campaigns', icon: Megaphone, enabled: isR13CampaignsEnabled },
+      { label: 'Discover', route: '/discovery', icon: Compass },
+      { label: 'Queue', route: '/queue', icon: ClipboardCheck },
+      { label: 'Campaigns', route: '/campaigns', icon: Megaphone },
     ],
   },
   {
     id: 'you',
     label: 'You',
     destinations: [
-      { label: 'CV Studio', route: '/cv-studio', icon: PanelsTopLeft, enabled: isR12CvStudioEnabled },
-      { label: 'Profile', route: '/profile', icon: BadgeCheck, enabled: isR11EvidenceProfileEnabled },
+      { label: 'CV Studio', route: '/cv-studio', icon: PanelsTopLeft },
+      { label: 'Profile', route: '/profile', icon: BadgeCheck },
       { label: 'History', route: '/history', icon: HistoryIcon },
     ],
   },

@@ -43,7 +43,6 @@ import {
 } from '#/components/profile/CorrectEvidenceDialog'
 import { ResumeImportDialog } from '#/components/profile/ResumeImportDialog'
 import { SkillsToBuildSection } from '#/components/profile/SkillsToBuildSection'
-import { isR17DevelopmentLoopEnabled } from '#/lib/flags/featureFlags'
 
 /** A short one-line preview of what a suggested item says, for the review list. */
 function previewText(item: EvidenceItem): string {
@@ -97,8 +96,6 @@ export function EvidenceProfilePage() {
   const queryClient = useQueryClient()
   const isAuthenticated = status === 'authenticated'
   const { hasResume, resumeText } = useResumeCarry()
-  const developmentLoopEnabled = isR17DevelopmentLoopEnabled()
-
   const [importOpen, setImportOpen] = useState(false)
   const [pendingItemId, setPendingItemId] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
@@ -118,7 +115,7 @@ export function EvidenceProfilePage() {
   const developmentItemsQuery = useQuery({
     queryKey: DEVELOPMENT_PLAN_QUERY_KEY,
     queryFn: async () => (await getDevelopmentPlan()).items,
-    enabled: isAuthenticated && developmentLoopEnabled,
+    enabled: isAuthenticated,
   })
 
   function reportError(error: unknown, fallback: string) {
@@ -245,9 +242,7 @@ export function EvidenceProfilePage() {
         stats={[
           { label: 'Saved facts', value: counts.confirmed },
           { label: 'Suggestions to review', value: counts.unconfirmed },
-          ...(developmentLoopEnabled
-            ? [{ label: 'Skills to build', value: developmentItemsQuery.data?.length ?? 0 }]
-            : []),
+          { label: 'Skills to build', value: developmentItemsQuery.data?.length ?? 0 },
         ]}
         actions={
           <Button onClick={() => (hasResume && resumeText.length >= 50 ? setImportOpen(true) : undefined)} asChild={!(hasResume && resumeText.length >= 50)}>
@@ -356,7 +351,7 @@ export function EvidenceProfilePage() {
         </WorkspacePanel>
       )}
 
-      {developmentLoopEnabled ? <SkillsToBuildSection /> : null}
+      <SkillsToBuildSection />
 
       {items.length > 0 ? (
         <WorkspacePanel
