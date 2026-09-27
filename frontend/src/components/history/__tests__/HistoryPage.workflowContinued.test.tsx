@@ -7,6 +7,7 @@ import { HistoryPage } from '#/components/history/HistoryPage'
 const trackTelemetryMock = vi.hoisted(() => vi.fn())
 const navigateMock = vi.hoisted(() => vi.fn())
 const getHistoryItemMock = vi.hoisted(() => vi.fn())
+const historyItems = vi.hoisted(() => ({ current: [] as unknown[] }))
 
 const run = {
   id: 'run-1',
@@ -48,7 +49,7 @@ vi.mock('#/hooks/useFavoriteToggle', () => ({
 
 vi.mock('#/hooks/useHistory', () => ({
   useHistory: () => ({
-    data: { items: [run], total: 1, page: 1, page_size: 12, has_more: false },
+    data: { items: historyItems.current, total: historyItems.current.length, page: 1, page_size: 12, has_more: false },
     isPending: false,
     isLoading: false,
     isError: false,
@@ -74,6 +75,7 @@ function renderPage() {
 
 describe('HistoryPage — workflow_continued telemetry (D-040)', () => {
   beforeEach(() => {
+    historyItems.current = [run]
     trackTelemetryMock.mockReset()
     navigateMock.mockReset().mockResolvedValue(undefined)
     getHistoryItemMock.mockReset().mockResolvedValue({
@@ -107,5 +109,18 @@ describe('HistoryPage — workflow_continued telemetry (D-040)', () => {
     await waitFor(() =>
       expect(navigateMock).toHaveBeenCalledWith({ to: '/job-match' }),
     )
+  })
+})
+
+describe('HistoryPage — runs saved by older CV Studio checks (#362)', () => {
+  it.each(['cv-quality', 'cv-tailoring'])('lists a %s run without tool actions', (toolName) => {
+    historyItems.current = [{ ...run, id: `legacy-${toolName}`, tool_name: toolName, label: 'Old check' }]
+
+    renderPage()
+
+    expect(screen.getByText(toolName)).toBeTruthy()
+    expect(screen.getByDisplayValue('Old check')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Continue' })).toBeNull()
+    expect(screen.queryByRole('link', { name: 'View →' })).toBeNull()
   })
 })

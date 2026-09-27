@@ -514,9 +514,7 @@ export function HistoryPage({
           <div className="history-grid">
             {listQuery.data.items.map((item) => {
               const tool = getToolByHistoryName(item.tool_name)
-              const route = tool
-                ? tool.resultRoute.replace('$historyId', item.id)
-                : '/history'
+              const route = tool?.resultRoute.replace('$historyId', item.id) ?? '/history'
 
               return (
                 <div
@@ -613,6 +611,9 @@ export function HistoryPage({
                           <Trash2 size={14} />
                         </Button>
                       </div>
+                      {/* Older CV Studio checks (cv-quality, cv-tailoring) saved runs
+                          that no tool result page can open (#362). */}
+                      {tool ? (
                       <div className="flex gap-2">
                         <Button
                           variant="outline"
@@ -651,6 +652,7 @@ export function HistoryPage({
                           <Link to={route}>View →</Link>
                         </Button>
                       </div>
+                      ) : null}
                     </div>
                   </div>
                 </div>
