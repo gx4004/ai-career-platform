@@ -82,7 +82,7 @@ def _install_fixture_transport(monkeypatch, handler):
 
     monkeypatch.setattr("app.services.outbound_target.socket.getaddrinfo", public_dns)
     monkeypatch.setattr(
-        "app.services.licensed_source_ingestion.httpx.AsyncHTTPTransport",
+        "app.services.discovery_fetch.httpx.AsyncHTTPTransport",
         lambda **_kwargs: httpx.MockTransport(handler),
     )
 
@@ -225,6 +225,32 @@ async def test_one_source_failure_does_not_stop_others(db, monkeypatch):
     assert bad.source_key in summary.failures
     assert bad.source_key not in outcome_keys
 
+    # Each run stamps the source's fetch status for the admin sources table.
+    db.refresh(good)
+    db.refresh(bad)
+    assert good.last_fetched_at is not None
+    assert good.last_outcome == "ok"
+    assert good.listing_count == 1
+    assert bad.last_fetched_at is not None
+    assert bad.last_outcome == "failed: HTTPStatusError"
+    assert bad.listing_count is None
+
+
+@pytest.mark.asyncio
+async def test_a_failed_run_keeps_the_last_listing_count(db, monkeypatch):
+    source = _activate_ats_source(db, _reviewer(db), provider="greenhouse", slug="examplecorp")
+    _install_fixture_transport(
+        monkeypatch, _json_handler(FIXTURES_DIR / "greenhouse_jobs.json")
+    )
+    await run_ats_ingestion(db)
+    _install_fixture_transport(monkeypatch, lambda request: httpx.Response(503))
+
+    await run_ats_ingestion(db)
+
+    db.refresh(source)
+    assert source.last_outcome == "failed: HTTPStatusError"
+    assert source.listing_count == 1
+
 
 @pytest.mark.asyncio
 async def test_ingest_refuses_a_killed_source(db, monkeypatch):
@@ -296,33 +322,32 @@ async def test_scheduler_runs_when_its_flag_is_enabled(monkeypatch):
     assert calls["count"] == 1
 
 
-def test_admin_refresh_requires_admin(client, db):
-    plain = User(
-        email="ats-refresh-user@example.com",
-        hashed_password=hash_password("password123"),
-        is_admin=False,
-    )
-    db.add(plain)
-    db.commit()
-    db.refresh(plain)
-
-    response = client.post(f"{PREFIX}/admin/discovery-sources/refresh", headers=_headers(plain))
-    assert response.status_code == 403
-
-
-def test_admin_refresh_runs_ingestion_now(client, db, monkeypatch):
-    admin = _reviewer(db, email="ats-refresh-admin@example.com")
+@pytest.mark.asyncio
+async def test_admin_sources_table_shows_fetch_status(client, db, monkeypatch):
+    admin = _reviewer(db, email="ats-status-admin@example.com")
     source = _activate_ats_source(db, admin, provider="greenhouse", slug="examplecorp")
     _install_fixture_transport(
         monkeypatch, _json_handler(FIXTURES_DIR / "greenhouse_jobs.json")
     )
 
-    response = client.post(f"{PREFIX}/admin/discovery-sources/refresh", headers=_headers(admin))
+    before = client.get(f"{PREFIX}/admin/discovery-sources", headers=_headers(admin)).json()
+    assert before["items"][0]["last_fetched_at"] is None
+    assert before["items"][0]["last_outcome"] is None
+
+    await run_ats_ingestion(db)
+
+    response = client.get(f"{PREFIX}/admin/discovery-sources", headers=_headers(admin))
     assert response.status_code == 200
-    body = response.json()
-    outcomes = {item["source_key"]: item for item in body["outcomes"]}
-    assert outcomes[source.source_key]["stored"] == 1
-    assert body["failures"] == {}
+    item = next(i for i in response.json()["items"] if i["source_key"] == source.source_key)
+    assert item["last_fetched_at"] is not None
+    assert item["last_outcome"] == "ok"
+    assert item["listing_count"] == 1
+
+
+def test_manual_refresh_endpoint_is_gone(client, db):
+    admin = _reviewer(db, email="ats-refresh-admin@example.com")
+    response = client.post(f"{PREFIX}/admin/discovery-sources/refresh", headers=_headers(admin))
+    assert response.status_code in {404, 405}
 
 
 def test_greenhouse_query_parameter_extension_present_in_schema():

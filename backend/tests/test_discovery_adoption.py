@@ -2,7 +2,7 @@
 
 Covers the hard invariants: adoption copies listing content + attribution +
 retrieval date into the campaign's canonical listing and records the adoption as
-the campaign's first event (D-091, D-078); dismissed, fully hidden, and expired
+the campaign's first event (D-091, D-078); dismissed and expired
 recommendations are refused; and no discovery code path other than the explicit,
 user-initiated adoption seam can create a campaign.
 """
@@ -18,10 +18,7 @@ from app.models.discovered_listing import (
     DiscoveredListing,
     DiscoveredListingAttribution,
 )
-from app.models.discovery_personalization import (
-    DiscoveryDismissedListing,
-    DiscoveryHiddenSource,
-)
+from app.models.discovery_personalization import DiscoveryDismissedListing
 from app.models.discovery_source import DiscoverySource
 from app.models.evidence_item import EvidenceItem
 from app.models.workspace import Workspace
@@ -229,27 +226,6 @@ def test_dismissed_recommendation_is_never_adopted(db, test_user):
     assert db.query(CampaignListing).count() == 0
 
 
-def test_recommendation_from_only_hidden_source_is_never_adopted(db, test_user):
-    source = _source("feed-a")
-    db.add(source)
-    db.commit()
-    listing, _ = _listing(
-        db,
-        source,
-        title="Senior Platform Engineer",
-        description="Build Kubernetes platform services with Python.",
-        retrieved_at=NOW,
-    )
-    _confirmed_skill(db, test_user.id)
-    db.add(DiscoveryHiddenSource(user_id=test_user.id, source_id=source.id))
-    db.commit()
-
-    with pytest.raises(RecommendationNotAdoptableError):
-        adopt_recommendation(db, test_user.id, listing.id, now=NOW)
-
-    assert db.query(Workspace).count() == 0
-
-
 def test_expired_recommendation_is_never_adopted(db, test_user):
     source = _source("feed-a", retention_days=30)
     db.add(source)
@@ -420,11 +396,11 @@ def test_no_discovery_read_or_ingest_path_creates_a_campaign():
         for path in services_dir.glob("*.py")
         if path.stem.startswith("discov") or "ingestion" in path.stem
     ]
-    # Sanity: the ranking, personalization, and ingestion modules are covered.
+    # Sanity: the ranking, dismissal, and ingestion modules are covered.
     covered = {path.stem for path in discovery_modules}
     assert "discovery_recommendations" in covered
     assert "discovery_personalization" in covered
-    assert "licensed_source_ingestion" in covered
+    assert "ats_ingestion" in covered
 
     offenders: dict[str, list[str]] = {}
     for path in discovery_modules:

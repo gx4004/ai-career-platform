@@ -1,7 +1,7 @@
 import type { CSSProperties } from 'react'
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
 import {
   ArrowUpRight,
@@ -14,7 +14,6 @@ import {
   SearchX,
   SlidersHorizontal,
   Sparkles,
-  Undo2,
   X,
 } from 'lucide-react'
 import {
@@ -34,17 +33,14 @@ import {
 import {
   adoptDiscoveryRecommendation,
   dismissDiscoveryRecommendation,
-  getDiscoveryPersonalization,
   searchDiscoveryListings,
   undismissDiscoveryRecommendation,
-  unhideDiscoverySource,
 } from '#/lib/api/client'
 import type { DiscoveryListing } from '#/lib/api/schemas'
 import { DISCOVERY_RECOMMENDATIONS_QUERY_KEY } from '#/lib/query/evidenceCaches'
 import { writeWorkflowContext } from '#/lib/tools/drafts'
 
 const PAGE_SIZE = 20
-const PERSONALIZATION_KEY = ['discovery', 'personalization']
 // Under the recommendations prefix so Evidence Profile edits (which change the
 // match scores) invalidate the search too.
 const LISTINGS_KEY = [...DISCOVERY_RECOMMENDATIONS_QUERY_KEY, 'listings']
@@ -110,15 +106,9 @@ export function DiscoveryPage() {
     getNextPageParam: (last) => (last.page * last.limit < last.total ? last.page + 1 : undefined),
     staleTime: 60_000,
   })
-  const personalization = useQuery({
-    queryKey: PERSONALIZATION_KEY,
-    queryFn: getDiscoveryPersonalization,
-    staleTime: 60_000,
-  })
 
   const refresh = () => {
     queryClient.invalidateQueries({ queryKey: LISTINGS_KEY })
-    queryClient.invalidateQueries({ queryKey: PERSONALIZATION_KEY })
   }
   const hide = useMutation({
     mutationFn: (listing: DiscoveryListing) => dismissDiscoveryRecommendation(listing.listing_id),
@@ -134,10 +124,6 @@ export function DiscoveryPage() {
       setHidden(null)
       refresh()
     },
-  })
-  const unhideCompany = useMutation({
-    mutationFn: (sourceId: string) => unhideDiscoverySource(sourceId),
-    onSuccess: refresh,
   })
   const adopt = useMutation({
     mutationFn: (listingId: string) => adoptDiscoveryRecommendation(listingId),
@@ -167,7 +153,6 @@ export function DiscoveryPage() {
     ).values(),
   ]
   const hasProfile = first?.has_profile ?? false
-  const hiddenCompanies = personalization.data?.hidden_sources ?? []
   const activeFilterCount = [
     filters.location, filters.company, filters.postedWithin, filters.remote ? 'remote' : '',
   ].filter(Boolean).length
@@ -251,23 +236,6 @@ export function DiscoveryPage() {
           </div>
         </SheetContent>
       </Sheet>
-
-      {hiddenCompanies.length > 0 ? (
-        <div className="disc-hidden" aria-label="Hidden companies">
-          <span>Hidden companies:</span>
-          {hiddenCompanies.map((source) => (
-            <button
-              key={source.source_id}
-              type="button"
-              onClick={() => unhideCompany.mutate(source.source_id)}
-              disabled={unhideCompany.isPending}
-              aria-label={`Show ${source.display_name} again`}
-            >
-              {source.display_name} <Undo2 size={12} aria-hidden="true" />
-            </button>
-          ))}
-        </div>
-      ) : null}
 
       <section className="disc-results" aria-label="Jobs">
         <div className="disc-results__head">

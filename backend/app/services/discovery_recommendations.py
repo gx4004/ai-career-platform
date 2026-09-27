@@ -25,10 +25,7 @@ from app.schemas.discovery_recommendations import (
     RecommendationSignal,
 )
 from app.services.ats_ingestion import _PROVIDER_BY_API_HOST
-from app.services.discovery_personalization import (
-    dismissed_listing_ids,
-    hidden_source_ids,
-)
+from app.services.discovery_personalization import dismissed_listing_ids
 from app.services.quality_signals import (
     compute_match_score,
     extract_job_keywords,
@@ -59,9 +56,8 @@ def rank_discovery_recommendations(
             preference_item_count=0,
         )
 
-    # Owner correction controls filter the feed on every read so a hide, dismiss,
-    # or preference change takes effect immediately on the next load (D-090, D-088).
-    hidden_sources = hidden_source_ids(db, user_id)
+    # Owner dismissals filter the feed on every read so a dismissal or preference
+    # change takes effect immediately on the next load (D-090, D-088).
     dismissed = dismissed_listing_ids(db, user_id)
 
     candidate_ids = [
@@ -69,7 +65,7 @@ def rank_discovery_recommendations(
     ]
     recommendations: list[DiscoveryRecommendation] = []
     for listing in _load_listings(db, candidate_ids):
-        live_attributions = _visible_attributions(listing, hidden_sources, now)
+        live_attributions = _visible_attributions(listing, now)
         if not live_attributions:
             continue
         recommendations.append(_rank_listing(listing, live_attributions, evidence, preferences))
@@ -99,7 +95,7 @@ def visible_recommendation(
     """One listing as this owner may currently see it, or None when it is hidden.
 
     Applies the same visibility rules as the ranked feed (not dismissed, at least
-    one live source that is still allowed and not hidden) without the feed's
+    one live source that is still allowed) without the feed's
     top-N cut, so any listing the search shows can be acted on. Scores 0 when the
     owner has no confirmed items.
     """
@@ -109,7 +105,7 @@ def visible_recommendation(
     listings = _load_listings(db, [listing_id])
     if not listings:
         return None
-    live_attributions = _visible_attributions(listings[0], hidden_source_ids(db, user_id), now)
+    live_attributions = _visible_attributions(listings[0], now)
     if not live_attributions:
         return None
     evidence, preferences = _confirmed_items(db, user_id)
@@ -139,8 +135,7 @@ def search_listings(
     now = now or datetime.now(UTC)
     evidence, preferences = _confirmed_items(db, user_id)
     has_profile = bool(evidence or preferences)
-    hidden_sources = hidden_source_ids(db, user_id)
-    visible = _visible_listing_clause(db, user_id, hidden_sources, now)
+    visible = _visible_listing_clause(db, user_id, now)
 
     filters = [visible]
     terms = (q or "").split()[:MAX_SEARCH_TERMS]
@@ -182,7 +177,7 @@ def search_listings(
         head = ordered_ids[:MAX_CANDIDATE_LISTINGS]
         for listing in _load_listings(db, head):
             loaded[listing.id] = listing
-            attributions = _visible_attributions(listing, hidden_sources, now)
+            attributions = _visible_attributions(listing, now)
             if attributions:
                 ranked[listing.id] = _rank_listing(listing, attributions, evidence, preferences)
         position = {listing_id: index for index, listing_id in enumerate(head)}
@@ -202,7 +197,7 @@ def search_listings(
     items: list[DiscoveryListingItem] = []
     for listing_id in page_ids:
         listing = loaded[listing_id]
-        attributions = _visible_attributions(listing, hidden_sources, now)
+        attributions = _visible_attributions(listing, now)
         if not attributions:
             continue
         recommendation = ranked.get(listing_id)
@@ -309,19 +304,17 @@ def _load_listings(db: Session, listing_ids: list[str]) -> list[DiscoveredListin
     )
 
 
-def _visible_attributions(listing, hidden_sources: set[str], now: datetime):
-    # A hidden source is removed from the listing's attributions; so is a source
-    # whose terms were revoked or kill switch was tripped after ingestion — that
+def _visible_attributions(listing, now: datetime):
+    # A source whose terms were revoked or kill switch was tripped after ingestion — that
     # governance state is re-checked on every read, not just at ingest time, so a
     # listing already sitting inside its retention window stops being
     # recommended/adoptable the moment the source is no longer allowed (ADR 0008).
-    # A listing left with no visible, live, allowed source drops out entirely.
+    # A listing left with no live, allowed source drops out entirely.
     return sorted(
         (
             attribution
             for attribution in listing.attributions
-            if attribution.source_id not in hidden_sources
-            and attribution.source.ingestion_allowed
+            if attribution.source.ingestion_allowed
             and _is_live(attribution.retrieved_at, attribution.source.retention_days, now)
         ),
         key=lambda item: (_as_utc(item.retrieved_at), item.source.display_name),
@@ -329,7 +322,7 @@ def _visible_attributions(listing, hidden_sources: set[str], now: datetime):
     )
 
 
-def _visible_listing_clause(db: Session, user_id: str, hidden_sources: set[str], now: datetime):
+def _visible_listing_clause(db: Session, user_id: str, now: datetime):
     """SQL twin of `_visible_attributions` plus the owner's dismissals."""
     live_source = (
         select(DiscoveredListingAttribution.id)
@@ -339,7 +332,6 @@ def _visible_listing_clause(db: Session, user_id: str, hidden_sources: set[str],
             DiscoveredListingAttribution.retrieved_at >= _live_cutoff(db, now),
             DiscoverySource.terms_status == "accepted",
             DiscoverySource.kill_switch.is_(False),
-            DiscoverySource.id.not_in(hidden_sources),
         )
     )
     dismissed = select(DiscoveryDismissedListing.listing_id).where(

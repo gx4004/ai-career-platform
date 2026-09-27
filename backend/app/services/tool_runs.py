@@ -56,8 +56,7 @@ def delete_all_user_data(db: Session, user_id: str) -> None:
             .delete(synchronize_session=False)
         )
     cv_documents_deleted = db.query(CvDocument).filter(CvDocument.user_id == user_id).delete()
-    # Discovery personalization (hidden sources, dismissals, error reports) is
-    # owner-scoped user data and joins the erasure cascade (D-090, R14 #175).
+    # Discovery dismissals are owner-scoped user data and joins the erasure cascade (D-090, R14 #175).
     delete_personalization(db, user_id)
     # Application Approval Queue rules, caps, and cost ceiling are owner-scoped user
     # data and join the erasure cascade (D-099, R15 #180).

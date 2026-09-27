@@ -229,7 +229,7 @@ Browser → POST /auth/password-reset/confirm {token, new_password}
 | 12 | Workspace/campaign target, schedule, tracking records, and transition history | High | `workspaces`, `campaign_listings`, `campaign_tasks`, `campaign_notes`, `campaign_contacts`, `campaign_events` | Until campaign/account deletion | Job-search intent, target employer, application timing, third-party contact data, and outcome-history exposure |
 | 13 | Queue rules, application intent, user-authored stop answers, and frozen approval bundles | High | `queue_rules`, `queue_settings`, `application_packets`, `packet_stop_answers`, `packet_approval_snapshots`, `campaign_submission_snapshots` | Until campaign/account deletion; rules/settings until account deletion | Exact CV, cover letter, target listing, compensation/work-authorization preferences, owner approval, and application-history exposure |
 | 14 | Discovery source governance records | Medium | `discovery_sources` | Until registry deletion | Source contracts, legal-review posture, operator identity, and operational ownership exposed |
-| 15 | Product-owned discovered listings and owner correction/report state | Medium-High | `discovered_listings`, `discovered_listing_attributions`, `discovery_hidden_sources`, `discovery_dismissed_listings`, `discovery_recommendation_reports` | Listings follow source retention; owner state until explicit/account deletion | Employer openings, acquisition sources, job-search preferences, report prose, and stale corpus exposure |
+| 15 | Product-owned discovered listings and owner dismissals | Medium-High | `discovered_listings`, `discovered_listing_attributions`, `discovery_dismissed_listings` | Listings follow source retention; owner state until explicit/account deletion | Employer openings, acquisition sources, job-search preferences, and stale corpus exposure |
 | 16 | Behavioral telemetry (event names, routes, timestamps) | Low | Log stdout, Sentry (if enabled) | 180-day durable-event window; processor retention otherwise deployment-defined | Usage pattern inference |
 | 17 | Sidebar state, language preference | None | `sidebar_state` cookie, `app_language` localStorage | 7 days / forever | None |
 
@@ -254,7 +254,7 @@ it does not assert that any dark outcome is active in a deployed environment.
 | R11 Evidence Profile | `evidence_items` | Owner-scoped; single-item and bulk erasure plus `career-data-export/v1`. |
 | R12 CV Studio | `cv_documents`, `cv_variants` | Owner-scoped; document/bulk erasure plus `career-data-export/v1`; variants are immutable snapshots. |
 | R13 campaigns | `campaign_listings`, `campaign_tasks`, `campaign_notes`, `campaign_contacts`, `campaign_submission_snapshots`, `campaign_events` | All rows belong through an owner-scoped workspace. Campaign/account deletion removes them; the structured export includes their portable owner content. |
-| R14 discovery | `discovery_sources`, `discovered_listings`, `discovered_listing_attributions`, `discovery_hidden_sources`, `discovery_dismissed_listings`, `discovery_recommendation_reports` | Registry/listing rows are product/admin data with source-governed retention. Hidden, dismissed, and report rows are owner-scoped and join export/account erasure. |
+| R14 discovery | `discovery_sources`, `discovered_listings`, `discovered_listing_attributions`, `discovery_dismissed_listings` | Registry/listing rows are product/admin data with source-governed retention. Dismissal rows are owner-scoped and join export/account erasure. |
 | R15 approval queue | `queue_rules`, `queue_settings`, `application_packets`, `packet_stop_answers`, `packet_approval_snapshots`, `queue_audit_events`, `pipeline_halts` | Rules, packets, answers, snapshots, and audit rows are owner-scoped and join account erasure/export. `pipeline_halts` also holds content-free pipeline-wide operational state; owner pause scopes are erased with the owner. |
 | R17 development loop | `gap_classifications`, `development_items` | Owner-scoped; item/classification erasure plus derived-offer and plan portability in `career-data-export/v1`. |
 
@@ -472,19 +472,15 @@ is dark; R12 export and erasure remain inside the cumulative R12 router gate.
 | `POST` | `/history/workspaces/{workspace_id}/contacts` | R13 | — |
 | `DELETE` | `/history/workspaces/{workspace_id}/contacts/{item_id}` | R13 | — |
 
-#### R14 discovery and correction (9)
+#### R14 discovery and dismissals (5)
 
 | Method | Path | Outcome gate | Rate limit |
 |--------|------|--------------|------------|
 | `GET` | `/discovery/listings` | R14 | — |
 | `GET` | `/discovery/recommendations` | R14 | — |
 | `POST` | `/discovery/recommendations/{listing_id}/adopt` | R14 | — |
-| `GET` | `/discovery/personalization` | R14 | — |
-| `POST` | `/discovery/hidden-sources` | R14 | — |
-| `DELETE` | `/discovery/hidden-sources/{source_id}` | R14 | — |
 | `POST` | `/discovery/dismissals` | R14 | — |
 | `DELETE` | `/discovery/dismissals/{listing_id}` | R14 | — |
-| `POST` | `/discovery/reports` | R14 | — |
 
 #### R15 approval queue (20)
 
@@ -531,7 +527,7 @@ scopes every row to the caller; no anonymous profile rows exist — D-064). The
 bulk export and erasure operations use a 5/min ceiling because they cross the
 largest owner-data lifecycle boundaries (#149, D-065); see §8.7.
 
-### 6.4 Admin Required (16 operations)
+### 6.4 Admin Required (13 operations)
 
 All chain `get_current_admin` through `get_current_user` and an `is_admin`
 check, and all use a 60/min route window. Admin governance and aggregate
@@ -541,10 +537,7 @@ remain governed by the cumulative gates above.
 | Method | Path | Domain | Rate limit |
 |--------|------|--------|------------|
 | `GET` | `/admin/discovery-sources` | R14 source governance | 60/min |
-| `GET` | `/admin/discovery-reports` | R14 owner-reported corrections | 60/min |
-| `GET` | `/admin/source-health` | R14 aggregate source health | 60/min |
 | `POST` | `/admin/discovery-sources/{source_id}/kill-switch` | R14 source control | 60/min |
-| `POST` | `/admin/discovery-sources/refresh` | R14 employer-ATS on-demand ingestion | 60/min |
 | `GET` | `/admin/users` | User administration | 60/min |
 | `GET` | `/admin/users/{user_id}` | User administration | 60/min |
 | `PATCH` | `/admin/users/{user_id}/admin` | Role administration | 60/min |

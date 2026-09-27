@@ -6,8 +6,6 @@ import { DiscoveryPage } from '#/pages/discovery-page'
 import { readWorkflowContext } from '#/lib/tools/drafts'
 
 const searchListings = vi.hoisted(() => vi.fn())
-const getPersonalization = vi.hoisted(() => vi.fn())
-const unhideSource = vi.hoisted(() => vi.fn())
 const dismissRecommendation = vi.hoisted(() => vi.fn())
 const undismissRecommendation = vi.hoisted(() => vi.fn())
 const adoptRecommendation = vi.hoisted(() => vi.fn())
@@ -15,8 +13,6 @@ const navigate = vi.hoisted(() => vi.fn())
 
 vi.mock('#/lib/api/client', () => ({
   searchDiscoveryListings: searchListings,
-  getDiscoveryPersonalization: getPersonalization,
-  unhideDiscoverySource: unhideSource,
   dismissDiscoveryRecommendation: dismissRecommendation,
   undismissDiscoveryRecommendation: undismissRecommendation,
   adoptDiscoveryRecommendation: adoptRecommendation,
@@ -57,9 +53,8 @@ function page(overrides: Record<string, unknown> = {}) {
   }
 }
 
-function renderPage(payload: unknown = page(), personalization: unknown = { hidden_sources: [], dismissals: [] }) {
+function renderPage(payload: unknown = page()) {
   searchListings.mockResolvedValue(payload)
-  getPersonalization.mockResolvedValue(personalization)
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(
     <QueryClientProvider client={client}>
@@ -73,7 +68,6 @@ const findCard = () => screen.findByRole('article', { name: 'Platform Engineer' 
 beforeEach(() => {
   vi.clearAllMocks()
   sessionStorage.clear()
-  unhideSource.mockResolvedValue(undefined)
   dismissRecommendation.mockResolvedValue({ listing_id: 'listing-1', created_at: '2026-09-20T00:00:00Z' })
   undismissRecommendation.mockResolvedValue(undefined)
   adoptRecommendation.mockResolvedValue({ id: 'campaign-9' })
@@ -210,19 +204,5 @@ describe('DiscoveryPage', () => {
     await waitFor(() =>
       expect(searchListings).toHaveBeenLastCalledWith(expect.objectContaining({ page: 2 })),
     )
-  })
-
-  it('lets users show a hidden company again', async () => {
-    renderPage(page(), {
-      hidden_sources: [{
-        source_id: 'source-1', source_key: 'employer-ats-greenhouse-acme', display_name: 'Acme',
-        source_family: 'employer_ats', created_at: '2026-09-20T00:00:00Z',
-      }],
-      dismissals: [],
-    })
-
-    fireEvent.click(await screen.findByRole('button', { name: 'Show Acme again' }))
-
-    await waitFor(() => expect(unhideSource).toHaveBeenCalledWith('source-1'))
   })
 })

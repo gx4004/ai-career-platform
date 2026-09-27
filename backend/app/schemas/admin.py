@@ -52,39 +52,6 @@ class AdminSetAdminRequest(BaseModel):
     is_admin: bool
 
 
-# ── R14 per-source health & kill switch (issue #177, parent #170, D-053/D-090) ──
-# Read-only current-state aggregate. Every figure is a bounded per-source-family
-# aggregate; no listing content, full URL, source key/name, or user identifier is
-# reachable from this view.
-
-
-class SourceFamilyHealth(BaseModel):
-    """Operational health for one source family (aggregate dimensions only, D-053).
-
-    Registry-posture counts (``source_count`` .. ``pending_terms_count``) and
-    listings-store stock (``listing_count``, ``stale_count``, and the oldest /
-    newest retrieval timestamps) are current-state figures. The retrieval
-    timestamps are the store's own retrieval dates, never a user timestamp.
-    """
-
-    source_family: str
-    source_count: int = 0
-    active_count: int = 0
-    killed_count: int = 0
-    pending_terms_count: int = 0
-    listing_count: int = 0
-    stale_count: int = 0
-    oldest_retrieved_at: str | None = None
-    newest_retrieved_at: str | None = None
-
-
-class AdminSourceHealthResponse(BaseModel):
-    """Per-source-family operational health for the admin Source Health view."""
-
-    staleness_threshold_days: int
-    families: list[SourceFamilyHealth] = []
-
-
 # Rebuild models that use forward references
 AdminUserDetailResponse.model_rebuild()
 AdminUserListResponse.model_rebuild()

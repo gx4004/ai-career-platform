@@ -77,6 +77,12 @@ class DiscoverySource(Base):
     kill_switch: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=True, server_default="1"
     )
+    # Latest ingestion run for this source, stamped once per run (#369).
+    last_fetched_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    last_outcome: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    listing_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
     )

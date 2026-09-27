@@ -4,16 +4,12 @@ import {
   Users,
   FileText,
   Database,
-  Flag,
-  HeartPulse,
   ArrowLeft,
 } from 'lucide-react'
 
 const NAV = [
   { to: '/admin', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/admin/discovery-sources', label: 'Discovery Sources', icon: Database },
-  { to: '/admin/source-health', label: 'Source Health', icon: HeartPulse },
-  { to: '/admin/discovery-reports', label: 'Recommendation Reports', icon: Flag },
   { to: '/admin/users', label: 'Users', icon: Users },
   { to: '/admin/runs', label: 'Runs', icon: FileText },
 ] as const

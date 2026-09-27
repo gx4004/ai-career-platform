@@ -33,10 +33,8 @@ import { Route as ResumeRouteImport } from './routes/resume'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as AdminIndexRouteImport } from './routes/admin/index'
-import { Route as AdminDiscoveryReportsRouteImport } from './routes/admin/discovery-reports'
 import { Route as AdminDiscoverySourcesRouteImport } from './routes/admin/discovery-sources'
 import { Route as AdminRunsRouteImport } from './routes/admin/runs'
-import { Route as AdminSourceHealthRouteImport } from './routes/admin/source-health'
 import { Route as AdminUsersRouteImport } from './routes/admin/users'
 import { Route as CampaignsIndexRouteImport } from './routes/campaigns.index'
 import { Route as CampaignsCampaignIdRouteImport } from './routes/campaigns.$campaignId'
@@ -167,11 +165,6 @@ const AdminIndexRoute = AdminIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AdminRoute,
 } as any)
-const AdminDiscoveryReportsRoute = AdminDiscoveryReportsRouteImport.update({
-  id: '/discovery-reports',
-  path: '/discovery-reports',
-  getParentRoute: () => AdminRoute,
-} as any)
 const AdminDiscoverySourcesRoute = AdminDiscoverySourcesRouteImport.update({
   id: '/discovery-sources',
   path: '/discovery-sources',
@@ -180,11 +173,6 @@ const AdminDiscoverySourcesRoute = AdminDiscoverySourcesRouteImport.update({
 const AdminRunsRoute = AdminRunsRouteImport.update({
   id: '/runs',
   path: '/runs',
-  getParentRoute: () => AdminRoute,
-} as any)
-const AdminSourceHealthRoute = AdminSourceHealthRouteImport.update({
-  id: '/source-health',
-  path: '/source-health',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminUsersRoute = AdminUsersRouteImport.update({
@@ -260,10 +248,8 @@ export interface FileRoutesByFullPath {
   '/resume': typeof ResumeRoute
   '/settings': typeof SettingsRoute
   '/terms': typeof TermsRoute
-  '/admin/discovery-reports': typeof AdminDiscoveryReportsRoute
   '/admin/discovery-sources': typeof AdminDiscoverySourcesRoute
   '/admin/runs': typeof AdminRunsRoute
-  '/admin/source-health': typeof AdminSourceHealthRoute
   '/admin/users': typeof AdminUsersRoute
   '/campaigns/$campaignId': typeof CampaignsCampaignIdRoute
   '/admin/': typeof AdminIndexRoute
@@ -298,10 +284,8 @@ export interface FileRoutesByTo {
   '/resume': typeof ResumeRoute
   '/settings': typeof SettingsRoute
   '/terms': typeof TermsRoute
-  '/admin/discovery-reports': typeof AdminDiscoveryReportsRoute
   '/admin/discovery-sources': typeof AdminDiscoverySourcesRoute
   '/admin/runs': typeof AdminRunsRoute
-  '/admin/source-health': typeof AdminSourceHealthRoute
   '/admin/users': typeof AdminUsersRoute
   '/campaigns/$campaignId': typeof CampaignsCampaignIdRoute
   '/admin': typeof AdminIndexRoute
@@ -338,10 +322,8 @@ export interface FileRoutesById {
   '/resume': typeof ResumeRoute
   '/settings': typeof SettingsRoute
   '/terms': typeof TermsRoute
-  '/admin/discovery-reports': typeof AdminDiscoveryReportsRoute
   '/admin/discovery-sources': typeof AdminDiscoverySourcesRoute
   '/admin/runs': typeof AdminRunsRoute
-  '/admin/source-health': typeof AdminSourceHealthRoute
   '/admin/users': typeof AdminUsersRoute
   '/campaigns/$campaignId': typeof CampaignsCampaignIdRoute
   '/admin/': typeof AdminIndexRoute
@@ -379,10 +361,8 @@ export interface FileRouteTypes {
     | '/resume'
     | '/settings'
     | '/terms'
-    | '/admin/discovery-reports'
     | '/admin/discovery-sources'
     | '/admin/runs'
-    | '/admin/source-health'
     | '/admin/users'
     | '/campaigns/$campaignId'
     | '/admin/'
@@ -417,10 +397,8 @@ export interface FileRouteTypes {
     | '/resume'
     | '/settings'
     | '/terms'
-    | '/admin/discovery-reports'
     | '/admin/discovery-sources'
     | '/admin/runs'
-    | '/admin/source-health'
     | '/admin/users'
     | '/campaigns/$campaignId'
     | '/admin'
@@ -456,10 +434,8 @@ export interface FileRouteTypes {
     | '/resume'
     | '/settings'
     | '/terms'
-    | '/admin/discovery-reports'
     | '/admin/discovery-sources'
     | '/admin/runs'
-    | '/admin/source-health'
     | '/admin/users'
     | '/campaigns/$campaignId'
     | '/admin/'
@@ -676,13 +652,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminIndexRouteImport
       parentRoute: typeof AdminRoute
     }
-    '/admin/discovery-reports': {
-      id: '/admin/discovery-reports'
-      path: '/discovery-reports'
-      fullPath: '/admin/discovery-reports'
-      preLoaderRoute: typeof AdminDiscoveryReportsRouteImport
-      parentRoute: typeof AdminRoute
-    }
     '/admin/discovery-sources': {
       id: '/admin/discovery-sources'
       path: '/discovery-sources'
@@ -695,13 +664,6 @@ declare module '@tanstack/react-router' {
       path: '/runs'
       fullPath: '/admin/runs'
       preLoaderRoute: typeof AdminRunsRouteImport
-      parentRoute: typeof AdminRoute
-    }
-    '/admin/source-health': {
-      id: '/admin/source-health'
-      path: '/source-health'
-      fullPath: '/admin/source-health'
-      preLoaderRoute: typeof AdminSourceHealthRouteImport
       parentRoute: typeof AdminRoute
     }
     '/admin/users': {
@@ -771,19 +733,15 @@ declare module '@tanstack/react-router' {
 }
 
 interface AdminRouteChildren {
-  AdminDiscoveryReportsRoute: typeof AdminDiscoveryReportsRoute
   AdminDiscoverySourcesRoute: typeof AdminDiscoverySourcesRoute
   AdminRunsRoute: typeof AdminRunsRoute
-  AdminSourceHealthRoute: typeof AdminSourceHealthRoute
   AdminUsersRoute: typeof AdminUsersRoute
   AdminIndexRoute: typeof AdminIndexRoute
 }
 
 const AdminRouteChildren: AdminRouteChildren = {
-  AdminDiscoveryReportsRoute: AdminDiscoveryReportsRoute,
   AdminDiscoverySourcesRoute: AdminDiscoverySourcesRoute,
   AdminRunsRoute: AdminRunsRoute,
-  AdminSourceHealthRoute: AdminSourceHealthRoute,
   AdminUsersRoute: AdminUsersRoute,
   AdminIndexRoute: AdminIndexRoute,
 }

@@ -31,7 +31,7 @@ describe('campaign contracts', () => {
       schema_version: 'career-data-export/v1', exported_at: '2026-07-13T10:00:00Z',
       item_count: 0, items: [],
       cv_documents: { schema_version: 'cv-documents-export/v1', exported_at: '2026-07-13T10:00:00Z', document_count: 0, documents: [] },
-      personalization: { hidden_sources: [], dismissals: [], reports: [] },
+      personalization: { dismissals: [] },
       queue_rules: { rules: [], settings: null },
       application_packets: { packets: [] },
       packet_stop_answers: { stop_answers: [] },
