@@ -6,7 +6,7 @@ from app.models.evidence_item import EvidenceItem
 from app.models.tool_run import ToolRun
 from app.models.user import User
 from app.models.workspace import Workspace
-from app.routers.cv_documents import CV_QUALITY_MODEL_RUN_LIMIT, CV_TAILORING_MODEL_RUN_LIMIT
+from app.routers.cv_documents import CV_TAILORING_MODEL_RUN_LIMIT
 from app.schemas.analytics import ActivationEventCreate
 from app.services.cv_tailoring import proposal_token
 from app.services.tool_runs import persist_tool_run
@@ -295,66 +295,14 @@ def test_export_is_owner_scoped_and_contains_recoverable_snapshots(
     assert payload["documents"][0]["variants"][0]["name"] == "Base"
 
 
-def test_owner_can_score_quality_and_rerun_one_named_ats_check(
-    client, auth_headers, confirmed_evidence
-):
-    sections = [
-        _section(confirmed_evidence.id),
-        {
-            "id": "section-skills",
-            "kind": "skills",
-            "title": "Skills",
-            "visible": True,
-            "position": 1,
-            "entries": [
-                {
-                    "id": "skill-one",
-                    "evidence_item_id": confirmed_evidence.id,
-                    "body": "Python, PostgreSQL, accessibility",
-                    "position": 0,
-                }
-            ],
-        },
-    ]
-    document = client.post(
-        PREFIX, json={"name": "Quality fixture", "sections": sections}, headers=auth_headers
-    ).json()
-
-    response = client.post(
-        f"{PREFIX}/{document['id']}/quality",
-        json={"use_model": False, "checks": ["section_structure"]},
-        headers=auth_headers,
-    )
-
-    assert response.status_code == 200
-    payload = response.json()
-    assert {dimension["key"] for dimension in payload["dimensions"]} == {
-        "impact",
-        "clarity",
-        "completeness",
-        "structure",
-    }
-    assert all(dimension["reasons"] for dimension in payload["dimensions"])
-    assert [check["key"] for check in payload["ats_checks"]] == ["section_structure"]
-    assert payload["ats_checks"][0]["remediation"]
-    assert payload["advisory_note"].startswith("Quality scores are directional")
-
-
 def test_quality_endpoint_is_authenticated_and_owner_isolated(
     client, auth_headers, db, second_user
 ):
     foreign = CvDocument(user_id=second_user.id, name="Private quality", sections=[])
     db.add(foreign)
     db.commit()
-    assert (
-        client.post(f"{PREFIX}/{foreign.id}/quality", json={"use_model": False}).status_code == 401
-    )
-    assert (
-        client.post(
-            f"{PREFIX}/{foreign.id}/quality", json={"use_model": False}, headers=auth_headers
-        ).status_code
-        == 404
-    )
+    assert client.post(f"{PREFIX}/{foreign.id}/quality").status_code == 401
+    assert client.post(f"{PREFIX}/{foreign.id}/quality", headers=auth_headers).status_code == 404
 
 
 def _fake_llm(monkeypatch, module: str, result: dict | Exception):
@@ -366,16 +314,6 @@ def _fake_llm(monkeypatch, module: str, result: dict | Exception):
         return result
 
     monkeypatch.setattr(f"app.services.{module}.complete_structured", complete)
-
-
-_MODEL_SCORES = {
-    "scores": [
-        {"key": "impact", "score": 70},
-        {"key": "clarity", "score": 70},
-        {"key": "completeness", "score": 70},
-        {"key": "structure", "score": 70},
-    ]
-}
 
 
 def _tailoring_change(evidence_id: str) -> dict:
@@ -400,56 +338,21 @@ def _run_and_workspace_counts(db, user_id: str) -> tuple[int, int]:
 
 
 def test_quality_checks_never_create_runs_or_campaigns(
-    client, auth_headers, db, test_user, confirmed_evidence, monkeypatch
+    client, auth_headers, db, test_user, confirmed_evidence
 ):
     """Autosave re-runs the check constantly; it must not fill the Campaigns board."""
-    _fake_llm(monkeypatch, "cv_quality", _MODEL_SCORES)
     document = client.post(
         PREFIX,
         json={"name": "Autosaved", "sections": [_section(confirmed_evidence.id)]},
         headers=auth_headers,
     ).json()
     url = f"{PREFIX}/{document['id']}/quality"
-    artifact_check = {"artifact_template": "ats-essential", "artifact_format": "pdf"}
 
-    responses = [
-        client.post(url, json={"use_model": False}, headers=auth_headers),
-        client.post(url, json={"use_model": False}, headers=auth_headers),
-        client.post(url, json={"use_model": False, **artifact_check}, headers=auth_headers),
-        client.post(url, json={"use_model": True}, headers=auth_headers),
-    ]
+    responses = [client.post(url, headers=auth_headers) for _ in range(3)]
 
-    assert [response.status_code for response in responses] == [200, 200, 200, 200]
-    validated = {
-        check["key"]: check["status"] for check in responses[2].json()["ats_checks"]
-    }
-    assert validated["text_layer"] == "pass"
+    assert [response.status_code for response in responses] == [200, 200, 200]
     assert _run_and_workspace_counts(db, test_user.id) == (0, 0)
     assert client.get("/api/v1/history/workspaces", headers=auth_headers).json()["items"] == []
-
-
-def test_model_quality_blends_scores_and_enforces_document_quota(
-    client, auth_headers, db, confirmed_evidence, monkeypatch
-):
-    _fake_llm(monkeypatch, "cv_quality", _MODEL_SCORES)
-    document = client.post(
-        PREFIX,
-        json={"name": "Bounded", "sections": [_section(confirmed_evidence.id)]},
-        headers=auth_headers,
-    ).json()
-    url = f"{PREFIX}/{document['id']}/quality"
-
-    blended = client.post(url, json={"use_model": True}, headers=auth_headers)
-    assert blended.status_code == 200
-    assert blended.json()["scoring_mode"] == "blended"
-    assert blended.json()["remaining_model_runs"] == CV_QUALITY_MODEL_RUN_LIMIT - 1
-
-    stored = db.query(CvDocument).filter(CvDocument.id == document["id"]).one()
-    stored.quality_model_runs = CV_QUALITY_MODEL_RUN_LIMIT
-    db.commit()
-    response = client.post(url, json={"use_model": True}, headers=auth_headers)
-    assert response.status_code == 429
-    assert "Deterministic checks remain available" in response.json()["detail"]
 
 
 def test_studio_telemetry_allowlist_rejects_content_and_stable_identifiers():
@@ -457,27 +360,6 @@ def test_studio_telemetry_allowlist_rejects_content_and_stable_identifiers():
     for field in ("cv_content", "job_description", "document_id", "run_id", "title"):
         with pytest.raises(Exception):
             ActivationEventCreate(event_name="studio_document_deleted", **{field: "private"})
-
-
-def test_failed_model_quality_falls_back_and_still_consumes_document_allowance(
-    client, auth_headers, db, confirmed_evidence, monkeypatch
-):
-    _fake_llm(monkeypatch, "cv_quality", RuntimeError("synthetic provider failure"))
-    document = client.post(
-        PREFIX,
-        json={"name": "Failed attempt", "sections": [_section(confirmed_evidence.id)]},
-        headers=auth_headers,
-    ).json()
-
-    response = client.post(
-        f"{PREFIX}/{document['id']}/quality", json={"use_model": True}, headers=auth_headers
-    )
-
-    assert response.status_code == 200
-    assert response.json()["scoring_mode"] == "heuristic"
-    db.expire_all()
-    stored = db.query(CvDocument).filter(CvDocument.id == document["id"]).one()
-    assert stored.quality_model_runs == 1
 
 
 def test_tailoring_returns_reviewable_provenance_without_creating_campaigns(

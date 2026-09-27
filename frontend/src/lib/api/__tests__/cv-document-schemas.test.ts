@@ -5,7 +5,6 @@ import {
   cvDocumentsExportSchema,
   careerDataExportSchema,
   cvQualityResponseSchema,
-  cvQualityRequestSchema,
   cvTailoringProposalSchema,
 } from '#/lib/api/schemas'
 
@@ -21,7 +20,7 @@ describe('CV document schema (R12, #153)', () => {
     const parsed = cvDocumentSchema.parse({
       id: 'document-1', name: 'Primary CV', sections: [section],
       created_at: '2026-07-12T12:00:00+02:00', updated_at: '2026-07-12T12:00:00+02:00',
-      quality_model_runs: 0, tailoring_model_runs: 0, quality_model_run_limit: 10, tailoring_model_run_limit: 10,
+      tailoring_model_runs: 0, tailoring_model_run_limit: 10,
       variants: [{
         id: 'variant-1', name: 'Base', target_role: null, sections: [section],
         created_at: '2026-07-12T12:00:00+02:00',
@@ -48,7 +47,7 @@ describe('CV document schema (R12, #153)', () => {
     const cv = {
       id: 'document-1', name: 'Portable', sections: [section],
       created_at: '2026-07-12T10:00:00Z', updated_at: '2026-07-12T10:00:00Z',
-      quality_model_runs: 2, tailoring_model_runs: 3, quality_model_run_limit: 10, tailoring_model_run_limit: 10,
+      tailoring_model_runs: 3, tailoring_model_run_limit: 10,
       variants: [{ id: 'variant-1', name: 'Base', target_role: null, sections: [section], created_at: '2026-07-12T10:00:00Z' }],
     }
     const parsed = careerDataExportSchema.parse({
@@ -74,10 +73,17 @@ describe('CV document schema (R12, #153)', () => {
     expect(parsed.cv_documents.documents[0].variants[0].name).toBe('Base')
   })
 
-  it('requires scoring quota visibility in every quality response', () => {
+  it('parses pass/fail checks and strips any legacy ATS score', () => {
+    const parsed = cvQualityResponseSchema.parse({
+      schema_version: 'cv-quality/v2', dimensions: [], advisory_note: 'Directional only.',
+      checks: [{ id: 'links', label: 'Links work', passed: true, detail: 'Links open.', fix: 'Check links.' }],
+      ats_score: 72,
+    })
+    expect(parsed.checks[0].passed).toBe(true)
+    expect(parsed).not.toHaveProperty('ats_score')
     expect(() => cvQualityResponseSchema.parse({
-      schema_version: 'cv-quality/v1', dimensions: [], ats_checks: [], scoring_mode: 'heuristic',
-      advisory_note: 'Directional only.', access_mode: 'authenticated', saved: true, locked_actions: [],
+      schema_version: 'cv-quality/v2', dimensions: [], advisory_note: 'x',
+      checks: [{ id: 'links', label: 'Links work', status: 'pass', detail: 'x', fix: 'x' }],
     })).toThrow()
   })
 
@@ -91,8 +97,4 @@ describe('CV document schema (R12, #153)', () => {
     expect(parsed.changes[0].support).toBe('confirmed')
   })
 
-  it('requires artifact template and format as a matched validation pair', () => {
-    expect(() => cvQualityRequestSchema.parse({ use_model: false, artifact_template: 'ats-essential' })).toThrow()
-    expect(cvQualityRequestSchema.parse({ use_model: false, artifact_template: 'ats-essential', artifact_format: 'pdf' }).artifact_format).toBe('pdf')
-  })
 })

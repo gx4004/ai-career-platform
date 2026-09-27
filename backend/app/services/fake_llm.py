@@ -642,24 +642,6 @@ def _cv_tailoring(system_prompt: str, user_prompt: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# CV Studio: Quality scoring — inline system prompt in app/services/cv_quality.py
-# ---------------------------------------------------------------------------
-
-_MARKER_CV_QUALITY = "Score CV editing quality by impact, clarity, completeness, and structure."
-
-
-def _cv_quality(system_prompt: str, user_prompt: str) -> dict:
-    return {
-        "scores": [
-            {"key": "impact", "score": 74},
-            {"key": "clarity", "score": 80},
-            {"key": "completeness", "score": 69},
-            {"key": "structure", "score": 77},
-        ]
-    }
-
-
-# ---------------------------------------------------------------------------
 # Evidence Profile import — marker from app/prompts/evidence_import.py
 # ---------------------------------------------------------------------------
 
@@ -768,7 +750,6 @@ def _application_packets(system_prompt: str, user_prompt: str) -> dict:
 
 _REGISTRY: list[tuple[str, Callable[[str, str], dict]]] = [
     (_MARKER_CV_TAILORING, _cv_tailoring),
-    (_MARKER_CV_QUALITY, _cv_quality),
     (_MARKER_EVIDENCE_IMPORT, _evidence_import),
     (_MARKER_APPLICATION_PACKETS, _application_packets),
     (_MARKER_RESUME, _resume_analyzer),
