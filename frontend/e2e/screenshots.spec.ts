@@ -272,7 +272,7 @@ test('capture authenticated + guest pages for visual review', async ({ page, bro
     }
 
     // Your profile seed: a few confirmed facts plus a couple of imported ones
-    // still awaiting review, so the hero stats, the grouped fact cards, and
+    // still awaiting review, so the hero chips, the grouped fact cards, and
     // the "Suggestions to review" panel all have something real to show.
     try {
       const confirmed = [
