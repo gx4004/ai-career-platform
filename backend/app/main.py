@@ -15,6 +15,7 @@ from starlette.responses import JSONResponse, Response
 from app.config import (
     resolve_allowed_origins,
     settings,
+    validate_autopilot_config,
     validate_llm_provider_config,
     validate_origin_config,
 )
@@ -330,6 +331,7 @@ if settings.SECRET_KEY == _DEFAULT_SECRET and settings.ENVIRONMENT != "developme
 validate_abuse_control_config()
 validate_origin_config()
 validate_llm_provider_config()
+validate_autopilot_config()
 
 if settings.LLM_PROVIDER.lower() == "vertex" and not settings.VERTEX_PROJECT_ID:
     logger.critical(

@@ -4,6 +4,7 @@ from pydantic import ValidationError
 from app.config import (
     Settings,
     resolve_allowed_origins,
+    validate_autopilot_config,
     validate_llm_provider_config,
     validate_origin_config,
 )
@@ -176,3 +177,25 @@ def test_llm_provider_config_allows_real_providers_and_local_fake(
     monkeypatch.setattr("app.config.settings.LLM_PROVIDER", provider)
 
     validate_llm_provider_config()
+@pytest.mark.parametrize("environment", ["production", "staging"])
+def test_non_development_refuses_the_autopilot_experiment(monkeypatch, environment):
+    monkeypatch.setattr("app.config.settings.ENVIRONMENT", environment)
+    monkeypatch.setattr("app.config.settings.AUTOPILOT_EXPERIMENT_ENABLED", True)
+
+    with pytest.raises(RuntimeError, match="AUTOPILOT_EXPERIMENT_ENABLED"):
+        validate_autopilot_config()
+
+
+@pytest.mark.parametrize(
+    ("environment", "enabled"),
+    [
+        ("development", True),
+        ("development", False),
+        ("production", False),
+    ],
+)
+def test_autopilot_config_allows_local_use_and_hosted_off(monkeypatch, environment, enabled):
+    monkeypatch.setattr("app.config.settings.ENVIRONMENT", environment)
+    monkeypatch.setattr("app.config.settings.AUTOPILOT_EXPERIMENT_ENABLED", enabled)
+
+    validate_autopilot_config()
