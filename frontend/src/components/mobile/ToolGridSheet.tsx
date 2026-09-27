@@ -1,6 +1,6 @@
 import { Link } from '@tanstack/react-router'
-import type { NavDestination } from '#/lib/navigation/routeMeta'
-import { navGroups } from '#/lib/navigation/routeMeta'
+import type { NavDestination } from '#/lib/navigation/navGroups'
+import { navGroups } from '#/lib/navigation/navGroups'
 import { toolList } from '#/lib/tools/registry'
 import {
   Sheet,
@@ -23,18 +23,6 @@ function DestinationLink({
   destination: NavDestination
   onNavigate: () => void
 }) {
-  // Campaigns has no registered route yet (built alongside this change by
-  // another agent), so it can't use the typed router Link.
-  if (destination.route === '/campaigns') {
-    return (
-      <a href={destination.route} className="mobile-tool-grid-item" onClick={onNavigate}>
-        <span className="mobile-tool-grid-icon">
-          <destination.icon size={22} />
-        </span>
-        <span className="mobile-tool-grid-label">{destination.label}</span>
-      </a>
-    )
-  }
   return (
     <Link to={destination.route} className="mobile-tool-grid-item" onClick={onNavigate}>
       <span className="mobile-tool-grid-icon">

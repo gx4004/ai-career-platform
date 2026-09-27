@@ -441,18 +441,38 @@
 
 [data-slot='sidebar'][data-state='collapsed'] .app-sidebar-shell [data-sidebar='group'] {
   padding-inline: 0.4rem;
-  padding-block: 0.3rem 0.45rem;
+  padding-block: 0.25rem;
 }
 
+/* Icon-only rail: 14 destinations must fit a 900px-tall viewport without
+   hiding History below the fold, so items are a touch tighter than the
+   expanded rows (career-workbench#358). */
 [data-slot='sidebar'][data-state='collapsed'] .app-sidebar-shell [data-sidebar='menu'] {
-  gap: 0.55rem;
+  gap: 0.3rem;
   align-items: center;
 }
 
+/* Group labels hide when collapsed, so a short visible rule marks where
+   Tools / Job search / You begin. shadcn only fades the label and pulls the
+   menu up over the rule with a negative margin; take it out of flow instead
+   (the tooltip still names each icon). */
+[data-slot='sidebar'][data-state='collapsed'] .app-sidebar-shell [data-sidebar='group-label'] {
+  display: none;
+}
+
+/* Short divider between collapsed groups. */
+[data-slot='sidebar'][data-state='collapsed'] .app-sidebar-shell [data-sidebar='separator'] {
+  flex: none;
+  width: 1.5rem;
+  height: 1px;
+  margin: 0.2rem auto;
+  background: rgba(214, 228, 255, 0.22);
+}
+
 [data-slot='sidebar'][data-state='collapsed'] .app-sidebar-menu-button {
-  width: 2.88rem !important;
-  height: 2.88rem !important;
-  min-height: 2.88rem;
+  width: 2.6rem !important;
+  height: 2.6rem !important;
+  min-height: 2.6rem;
   margin-inline: auto;
   padding: 0 !important;
   gap: 0 !important;

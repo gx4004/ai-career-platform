@@ -1,11 +1,15 @@
 import { useState, useEffect } from 'react'
 import { Link, useRouterState } from '@tanstack/react-router'
-import { Compass, Grid2x2, History, LayoutDashboard, UserRound } from 'lucide-react'
+import { Grid2x2, History, LayoutDashboard, UserRound } from 'lucide-react'
 import { useBreakpoint } from '#/hooks/use-breakpoint'
 import { ToolGridSheet } from '#/components/mobile/ToolGridSheet'
 import { isPublicRoute } from '#/lib/navigation/publicRoutes'
 import { toolList } from '#/lib/tools/registry'
 import { useSession } from '#/hooks/useSession'
+import { getNavDestination } from '#/lib/navigation/navGroups'
+
+// Same icon + label as the sidebar and tools sheet (shared navGroups).
+const discover = getNavDestination('/discovery')
 
 export function MobileNav() {
   const [toolsOpen, setToolsOpen] = useState(false)
@@ -60,8 +64,8 @@ export function MobileNav() {
             to="/discovery"
             className={`mobile-tab-item${isActive('/discovery') ? ' is-active' : ''}`}
           >
-            <Compass size={20} strokeWidth={isActive('/discovery') ? 2.2 : 1.8} />
-            <span>Discover</span>
+            <discover.icon size={20} strokeWidth={isActive('/discovery') ? 2.2 : 1.8} />
+            <span>{discover.label}</span>
           </Link>
         ) : null}
 

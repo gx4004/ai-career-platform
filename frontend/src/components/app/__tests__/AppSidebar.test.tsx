@@ -145,6 +145,40 @@ describe('AppSidebar', () => {
     expect(screen.getByRole('link', { name: 'History' }).getAttribute('href')).toBe('/history')
   })
 
+  it('gives every destination its own icon (no shared compass)', () => {
+    const { container } = renderSidebar(true)
+
+    const links = [...container.querySelectorAll<HTMLAnchorElement>('[data-sidebar="menu-button"]')]
+    const iconFor = (link: HTMLAnchorElement) =>
+      [...(link.querySelector('svg')?.classList ?? [])].find(
+        (name) => name.startsWith('lucide-') && name !== 'lucide-icon',
+      )
+    const icons = links.map(iconFor)
+
+    // Dashboard + 6 tools + Job search (3) + You (3) + Account + Settings.
+    expect(links).toHaveLength(15)
+    expect(icons.every(Boolean)).toBe(true)
+    expect(new Set(icons).size).toBe(links.length)
+  })
+
+  it('shows a visible text label for every destination when expanded', () => {
+    const { container } = renderSidebar(true)
+
+    for (const link of container.querySelectorAll('[data-sidebar="menu-button"]')) {
+      const label = link.querySelector('span')
+      expect(label?.textContent?.trim()).toBeTruthy()
+    }
+    expect(screen.getByText('Discover').tagName).toBe('SPAN')
+  })
+
+  it('names each icon in a tooltip when the sidebar is collapsed', async () => {
+    renderSidebar(false)
+
+    fireEvent.focus(screen.getByRole('link', { name: 'Discover' }))
+
+    expect(await screen.findByRole('tooltip', { name: 'Discover' })).toBeTruthy()
+  })
+
   it('keeps "You" destinations visible for guests, unlike "Job search"', () => {
     mockSessionUser.current = null
     renderSidebar()

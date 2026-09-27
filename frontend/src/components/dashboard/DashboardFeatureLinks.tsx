@@ -1,7 +1,8 @@
 import type { ComponentType } from 'react'
 import { Link } from '@tanstack/react-router'
-import { ArrowRight, Compass, Megaphone, PanelsTopLeft } from 'lucide-react'
+import { ArrowRight } from 'lucide-react'
 import { useSession } from '#/hooks/useSession'
+import { getNavDestination } from '#/lib/navigation/navGroups'
 
 type FeatureLink = {
   key: string
@@ -27,7 +28,7 @@ export function DashboardFeatureLinks() {
       label: 'CV Studio',
       copy: 'Build and tailor CV versions from your evidence.',
       route: '/cv-studio',
-      icon: PanelsTopLeft,
+      icon: getNavDestination('/cv-studio').icon,
     },
   ]
   if (isAuthenticated) {
@@ -36,13 +37,13 @@ export function DashboardFeatureLinks() {
       label: 'Discover jobs',
       copy: 'Browse live roles ranked against your profile.',
       route: '/discovery',
-      icon: Compass,
+      icon: getNavDestination('/discovery').icon,
     }, {
       key: 'campaigns',
       label: 'Your applications',
       copy: 'Track every application you have saved.',
       route: '/campaigns',
-      icon: Megaphone,
+      icon: getNavDestination('/campaigns').icon,
     })
   }
 
