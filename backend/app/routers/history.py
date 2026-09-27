@@ -4,7 +4,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from sqlalchemy import func
-from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.orm import Session, defer, selectinload
 
 from app.auth.security import get_current_user
 from app.database import get_db
@@ -164,7 +164,14 @@ def list_workspaces(
     query_started = perf_counter()
     workspaces = (
         db.query(Workspace)
-        .options(selectinload(Workspace.tool_runs), selectinload(Workspace.campaign_tasks))
+        .options(
+            # build_workspace_summary() only reads run id/created_at/tool_name from
+            # these, never result_payload, so defer it to skip the full JSON blob
+            # per run.
+            selectinload(Workspace.tool_runs).defer(ToolRun.result_payload),
+            selectinload(Workspace.campaign_tasks),
+            selectinload(Workspace.listing),
+        )
         .filter(Workspace.user_id == current_user.id)
         .order_by(Workspace.is_pinned.desc(), Workspace.updated_at.desc())
         .limit(limit)
@@ -847,8 +854,12 @@ def _workspace_runs_map(
     if not workspace_ids:
         return {}
 
+    # Sibling runs here only feed build_workspace_summary(), which reads
+    # id/created_at/tool_name — never result_payload — so defer that column to
+    # avoid pulling every linked run's full JSON payload per page.
     linked_runs = (
         db.query(ToolRun)
+        .options(defer(ToolRun.result_payload))
         .filter(ToolRun.user_id == user_id, ToolRun.workspace_id.in_(workspace_ids))
         .order_by(ToolRun.created_at.desc())
         .all()
