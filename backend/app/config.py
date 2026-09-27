@@ -58,31 +58,10 @@ class Settings(BaseSettings):
     RESULT_CACHE_MAX_ENTRIES: int = Field(default=512, gt=0)
     BLENDED_SCORING_ENABLED: bool = True
 
-    # ── R11 Evidence Profile injection (issue #147, D-063, ADR 0005) ──
-    # Master switch for injecting confirmed profile evidence through the shared
-    # pipeline. Ships dark (default False) to honor the still-open R1–R4 / R3
-    # gate (D-060) and match the repo's dark-ship pattern (#144 shipped dormant).
-    # When False, tools use today's inline-input behavior
-    # with no data loss (ADR 0005); an operator enables it once the gate closes.
-    # Even when True it is a no-op for guests and users with no profile items.
-    EVIDENCE_PROFILE_INJECTION_ENABLED: bool = False
-
-    # Build-ahead outcomes are code-complete but not production-authorized.
-    # These server-side switches are the authoritative exposure boundary; the
-    # frontend mirrors them only for navigation. Each defaults off and must be
-    # activated deliberately after its accepted roadmap gate closes.
-    R11_EVIDENCE_PROFILE_ENABLED: bool = False
-    R12_CV_STUDIO_ENABLED: bool = False
-    R13_CAMPAIGNS_ENABLED: bool = False
-    R14_DISCOVERY_ENABLED: bool = False
-    R15_QUEUE_ENABLED: bool = False
-    R17_DEVELOPMENT_LOOP_ENABLED: bool = False
-
     # Recurring employer-ATS ingestion (Greenhouse/Lever/Ashby public job-board
-    # APIs, #323). Independent of R14_DISCOVERY_ENABLED so it does not flip a
-    # network-fetching background loop on just because the discovery routes are
-    # exposed; both must be true for the scheduler to start (see
-    # `app.services.ats_ingestion.run_ats_ingestion_scheduler`). Ships dark.
+    # APIs, #323). Off by default so the always-on discovery routes never start a
+    # network-fetching background loop on their own (see
+    # `app.services.ats_ingestion.run_ats_ingestion_scheduler`).
     ATS_INGESTION_ENABLED: bool = False
     # Autopilot experiment (#325): opens a headed browser on the machine running
     # the backend, fills an approved application form, and stops before submit.

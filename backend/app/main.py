@@ -3,7 +3,7 @@ import logging
 from contextlib import asynccontextmanager, suppress
 
 import sentry_sdk
-from fastapi import Depends, FastAPI, Request, status
+from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import _rate_limit_exceeded_handler
@@ -13,12 +13,6 @@ from starlette.middleware.sessions import SessionMiddleware
 from starlette.responses import JSONResponse, Response
 
 from app.config import resolve_allowed_origins, settings, validate_origin_config
-from app.feature_gates import (
-    require_r12_enabled,
-    require_r14_enabled,
-    require_r15_enabled,
-    require_r17_enabled,
-)
 from app.limiter import (
     get_abuse_identity_type,
     limiter,
@@ -360,31 +354,26 @@ app.include_router(
     cv_documents.router,
     prefix=f"{prefix}/cv-documents",
     tags=["cv-documents"],
-    dependencies=[Depends(require_r12_enabled)],
 )
 app.include_router(
     development.router,
     prefix=f"{prefix}/development-plan",
     tags=["development"],
-    dependencies=[Depends(require_r17_enabled)],
 )
 app.include_router(
     discovery.router,
     prefix=f"{prefix}/discovery",
     tags=["discovery"],
-    dependencies=[Depends(require_r14_enabled)],
 )
 app.include_router(
     queue_rules.router,
     prefix=f"{prefix}/queue",
     tags=["queue"],
-    dependencies=[Depends(require_r15_enabled)],
 )
 app.include_router(
     packets.router,
     prefix=f"{prefix}/packets",
     tags=["packets"],
-    dependencies=[Depends(require_r15_enabled)],
 )
 app.include_router(telemetry.router, prefix=f"{prefix}/telemetry", tags=["telemetry"])
 app.include_router(admin.router, prefix=f"{prefix}/admin", tags=["admin"])
