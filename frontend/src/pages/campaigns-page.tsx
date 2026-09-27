@@ -22,7 +22,6 @@ import {
 import { Button } from '#/components/ui/button'
 import { getHistoryWorkspaces, updateHistoryWorkspace } from '#/lib/api/client'
 import type { CampaignStatus, WorkspaceList } from '#/lib/api/schemas'
-import { isR14DiscoveryEnabled } from '#/lib/flags/featureFlags'
 
 type Campaign = WorkspaceList['items'][number]
 const QUERY_KEY = ['history-workspaces']
@@ -56,9 +55,7 @@ export function CampaignsPage() {
     (item) => item.role || item.company || item.listing || item.status || item.deadline,
   )
   const byStage = (stage: string) => items.filter((item) => stageOf(item.status) === stage)
-  const findJobs = isR14DiscoveryEnabled()
-    ? <Button asChild><Link to="/discovery"><Compass size={16} /> Find jobs</Link></Button>
-    : <Button asChild><Link to="/job-match">Match a job</Link></Button>
+  const findJobs = <Button asChild><Link to="/discovery"><Compass size={16} /> Find jobs</Link></Button>
 
   return (
     <WorkspacePage wide className="camp-page">

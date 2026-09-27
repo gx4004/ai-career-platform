@@ -45,11 +45,8 @@ export function AppSidebar() {
   const isCollapsedDesktop = !isMobile && state === 'collapsed'
   const isDesktopToolRoute =
     !isMobile && toolList.some((tool) => pathname === tool.route)
-  const visibleGroup = (id: string) => {
-    const group = navGroups.find((candidate) => candidate.id === id)
-    if (!group) return []
-    return group.destinations.filter((item) => item.enabled?.() ?? true)
-  }
+  const visibleGroup = (id: string) =>
+    navGroups.find((candidate) => candidate.id === id)?.destinations ?? []
   // "Job search" stays owner-only, same as the old "Opportunities" group.
   // "You" (CV Studio, Profile, History) keeps rendering for guests, same as
   // the old "Career Tools" + footer items did before the regroup.

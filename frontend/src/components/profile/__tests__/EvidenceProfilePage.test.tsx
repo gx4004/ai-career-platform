@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { EvidenceItem } from '#/lib/api/schemas'
 import { EvidenceProfilePage } from '#/components/profile/EvidenceProfilePage'
 
@@ -101,7 +101,6 @@ function renderPage({ warmEvidenceConsumers = false } = {}) {
 
 describe('EvidenceProfilePage', () => {
   beforeEach(() => {
-    vi.stubEnv('VITE_R17_DEVELOPMENT_LOOP_ENABLED', 'true')
     sessionState.status = 'authenticated'
     listEvidenceItemsMock.mockReset().mockResolvedValue({ items })
     setConfirmationMock.mockReset().mockImplementation((id: string) => Promise.resolve(makeItem({ id })))
@@ -116,10 +115,6 @@ describe('EvidenceProfilePage', () => {
       items: [],
     })
     openAuthDialogMock.mockReset()
-  })
-
-  afterEach(() => {
-    vi.unstubAllEnvs()
   })
 
   it('renders items grouped by kind with source and trust state', async () => {
@@ -280,14 +275,7 @@ describe('EvidenceProfilePage', () => {
     },
   )
 
-  it('shows Skills to build only when the development flag is on', async () => {
-    vi.stubEnv('VITE_R17_DEVELOPMENT_LOOP_ENABLED', 'false')
-    const { unmount } = renderPage()
-    await screen.findByRole('region', { name: 'Experience' })
-    expect(screen.queryByRole('region', { name: 'Skills to build' })).toBeNull()
-    unmount()
-
-    vi.stubEnv('VITE_R17_DEVELOPMENT_LOOP_ENABLED', 'true')
+  it('shows the Skills to build section', async () => {
     renderPage()
     expect(await screen.findByRole('region', { name: 'Skills to build' })).toBeTruthy()
   })

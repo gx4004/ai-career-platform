@@ -8,7 +8,6 @@ from sqlalchemy.orm import Session, defer, selectinload
 
 from app.auth.security import get_current_user
 from app.database import get_db
-from app.feature_gates import outcome_enabled, require_r13_enabled, require_r17_enabled
 from app.limiter import limiter
 from app.models.application_packet import ApplicationPacket
 from app.models.campaign_event import CampaignEvent
@@ -177,7 +176,6 @@ def list_workspaces(
         .limit(limit)
         .all()
     )
-    campaigns_enabled = outcome_enabled("r13")
     last_events = dict(
         db.query(CampaignEvent.workspace_id, func.max(CampaignEvent.created_at))
         .filter(CampaignEvent.workspace_id.in_([workspace.id for workspace in workspaces]))
@@ -189,17 +187,16 @@ def list_workspaces(
         summary = build_workspace_summary(workspace, list(workspace.tool_runs))
         if summary is None:
             continue
-        if campaigns_enabled:
-            # Board cards: the soonest open task (undated ones after, in the order
-            # added) and the latest thing that happened to the application.
-            open_tasks = [task for task in workspace.campaign_tasks if not task.completed]
-            if open_tasks:
-                task = min(open_tasks, key=lambda item: (item.deadline is None, item.deadline or 0))
-                summary.next_task = CampaignNextTask(title=task.title, deadline=task.deadline)
-            last_event = last_events.get(workspace.id)
-            summary.last_activity_at = (
-                max(last_event, workspace.updated_at) if last_event else workspace.updated_at
-            )
+        # Board cards: the soonest open task (undated ones after, in the order
+        # added) and the latest thing that happened to the application.
+        open_tasks = [task for task in workspace.campaign_tasks if not task.completed]
+        if open_tasks:
+            task = min(open_tasks, key=lambda item: (item.deadline is None, item.deadline or 0))
+            summary.next_task = CampaignNextTask(title=task.title, deadline=task.deadline)
+        last_event = last_events.get(workspace.id)
+        summary.last_activity_at = (
+            max(last_event, workspace.updated_at) if last_event else workspace.updated_at
+        )
         items.append(summary)
     response = WorkspaceListResponse(items=items, total=len(items))
     record_database_query_timing(
@@ -211,7 +208,6 @@ def list_workspaces(
 @router.get("/workspaces/{workspace_id}", response_model=CampaignDetailResponse)
 def get_campaign(
     workspace_id: str,
-    _gate: None = Depends(require_r13_enabled),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -233,7 +229,6 @@ def get_campaign(
 def update_campaign_materials(
     workspace_id: str,
     body: CampaignMaterialSelectionRequest,
-    _gate: None = Depends(require_r13_enabled),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -246,7 +241,6 @@ def update_campaign_materials(
 def get_campaign_reminders(
     request: Request,
     workspace_id: str,
-    _gate: None = Depends(require_r13_enabled),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -258,7 +252,6 @@ def get_campaign_reminders(
 def update_campaign_reminders(
     workspace_id: str,
     body: CampaignReminderConsent,
-    _gate: None = Depends(require_r13_enabled),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -270,7 +263,6 @@ def update_campaign_reminders(
 async def review_campaign(
     request: Request,
     workspace_id: str,
-    _gate: None = Depends(require_r13_enabled),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -300,7 +292,6 @@ async def review_campaign(
             "cover_sha256": hashlib.sha256(clean_cover.encode()).hexdigest(),
             "cv_document_sha256": hashlib.sha256(cv_document_text.encode()).hexdigest(),
         },
-        require_evidence_profile=True,
     )
     return CampaignReviewResponse(**response)
 
@@ -319,7 +310,6 @@ def _serialize_gap_classifications(rows) -> GapClassificationListResponse:
 async def classify_campaign_gaps(
     request: Request,
     workspace_id: str,
-    _gate: None = Depends(require_r17_enabled),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -356,7 +346,6 @@ async def classify_campaign_gaps(
 )
 def get_campaign_gaps(
     workspace_id: str,
-    _gate: None = Depends(require_r17_enabled),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -372,7 +361,6 @@ def get_campaign_gaps(
 def delete_campaign_gap(
     workspace_id: str,
     classification_id: str,
-    _gate: None = Depends(require_r17_enabled),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> Response:
@@ -391,7 +379,6 @@ def delete_campaign_gap(
 def get_gap_response(
     workspace_id: str,
     classification_id: str,
-    _gate: None = Depends(require_r17_enabled),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -422,7 +409,6 @@ def get_gap_response(
 def create_campaign_task(
     workspace_id: str,
     body: CampaignTaskCreate,
-    _gate: None = Depends(require_r13_enabled),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -434,7 +420,6 @@ def update_campaign_task(
     workspace_id: str,
     item_id: str,
     body: CampaignTaskUpdate,
-    _gate: None = Depends(require_r13_enabled),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -463,7 +448,6 @@ def update_campaign_task(
 def delete_campaign_task(
     workspace_id: str,
     item_id: str,
-    _gate: None = Depends(require_r13_enabled),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -476,7 +460,6 @@ def delete_campaign_task(
 def create_campaign_note(
     workspace_id: str,
     body: CampaignNoteCreate,
-    _gate: None = Depends(require_r13_enabled),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -487,7 +470,6 @@ def create_campaign_note(
 def delete_campaign_note(
     workspace_id: str,
     item_id: str,
-    _gate: None = Depends(require_r13_enabled),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -500,7 +482,6 @@ def delete_campaign_note(
 def create_campaign_contact(
     workspace_id: str,
     body: CampaignContactCreate,
-    _gate: None = Depends(require_r13_enabled),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -511,7 +492,6 @@ def create_campaign_contact(
 def delete_campaign_contact(
     workspace_id: str,
     item_id: str,
-    _gate: None = Depends(require_r13_enabled),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -536,14 +516,6 @@ def _delete_campaign_record(
     return DeletedResponse(deleted=1)
 
 
-# `label` and `is_pinned` are core history controls that predate R13 and must keep
-# working while campaigns are dark. The remaining fields drive campaign state,
-# `CampaignEvent` rows, and R15/R16 submission snapshots, so this endpoint is gated
-# per field instead of wholesale — a route-level dependency would break pinning and
-# renaming for every user.
-_R13_WORKSPACE_FIELDS = frozenset({"company", "role", "status", "deadline"})
-
-
 @router.patch("/workspaces/{workspace_id}", response_model=WorkspaceSummary)
 def update_workspace(
     workspace_id: str,
@@ -551,9 +523,6 @@ def update_workspace(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    if body.model_fields_set & _R13_WORKSPACE_FIELDS and not outcome_enabled("r13"):
-        # Match the gate dependencies: a dark outcome is absent, not forbidden.
-        raise HTTPException(status_code=404, detail="Feature not available")
     if "status" in body.model_fields_set:
         workspace = (
             db.query(Workspace)

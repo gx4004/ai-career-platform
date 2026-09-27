@@ -8,7 +8,6 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.feature_gates import outcome_enabled
 from app.models.user import User
 from app.services.analytics import safe_record_activation_event
 from app.services.evidence_injection import load_profile_for_injection
@@ -44,7 +43,6 @@ async def run_tool_pipeline(
     current_user: User | None = None,
     db: Session,
     cache_extra_keys: dict[str, str] | None = None,
-    require_evidence_profile: bool = False,
 ) -> dict[str, Any]:
     """Run one tool and durably classify every failure after run start."""
     if current_user is not None:
@@ -73,7 +71,6 @@ async def run_tool_pipeline(
             current_user=current_user,
             db=db,
             cache_extra_keys=cache_extra_keys,
-            require_evidence_profile=require_evidence_profile,
         )
     except Exception as exc:
         access_mode = "authenticated" if current_user else "guest_demo"
@@ -125,7 +122,6 @@ async def _run_tool_pipeline_after_validation(
     current_user: User | None = None,
     db: Session,
     cache_extra_keys: dict[str, str] | None = None,
-    require_evidence_profile: bool = False,
 ) -> dict[str, Any]:
     """Shared pipeline: sanitize -> cache -> service -> fallback -> persist -> respond."""
     access_mode = "authenticated" if current_user else "guest_demo"
@@ -180,15 +176,12 @@ async def _run_tool_pipeline_after_validation(
     # Evidence Profile injection (R11, D-063 / ADR 0005). The shared pipeline is
     # the only seam that reads the profile — no tool router gains its own access
     # path. Authenticated-only; guests keep inline inputs and tab-scoped carry
-    # (D-064). Gated by a settings flag so injection can be disabled to restore
-    # today's inline-input behavior with no data loss (ADR 0005). A user with no
-    # confirmed/unconfirmed items yields an empty payload, so tools behave
-    # exactly as today until the user confirms evidence.
+    # (D-064). A user with no confirmed/unconfirmed items yields an empty
+    # payload, so tools behave exactly as with inline inputs until the user
+    # confirms evidence.
     cache_start = perf_counter()
     profile_version: str | None = None
-    if (
-        settings.EVIDENCE_PROFILE_INJECTION_ENABLED or require_evidence_profile
-    ) and outcome_enabled("r11") and current_user is not None:
+    if current_user is not None:
         evidence_payload, profile_version = load_profile_for_injection(db, current_user.id)
         if not evidence_payload.is_empty() and _accepts_evidence_profile(service_fn):
             service_kwargs["evidence_profile"] = evidence_payload

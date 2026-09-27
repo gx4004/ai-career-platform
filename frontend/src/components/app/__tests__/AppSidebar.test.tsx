@@ -113,14 +113,6 @@ function getBrandRowTrigger(container: HTMLElement) {
 
 describe('AppSidebar', () => {
   beforeEach(() => {
-    for (const flag of [
-      'VITE_R11_EVIDENCE_PROFILE_ENABLED',
-      'VITE_R12_CV_STUDIO_ENABLED',
-      'VITE_R13_CAMPAIGNS_ENABLED',
-      'VITE_R14_DISCOVERY_ENABLED',
-      'VITE_R15_QUEUE_ENABLED',
-      'VITE_R17_DEVELOPMENT_LOOP_ENABLED',
-    ]) vi.stubEnv(flag, 'true')
     mockPathname.current = '/dashboard'
     mockUseIsMobile.mockReturnValue(false)
     mockSessionUser.current = { id: 'u1', email: 'test@example.com', name: 'Test User' }
@@ -136,25 +128,6 @@ describe('AppSidebar', () => {
     renderSidebar()
     expect(screen.queryByRole('link', { name: 'Discover' })).toBeNull()
     expect(screen.queryByRole('link', { name: 'Queue' })).toBeNull()
-  })
-
-  it('keeps build-ahead navigation absent unless its complete dependency chain is on', () => {
-    for (const flag of [
-      'VITE_R11_EVIDENCE_PROFILE_ENABLED',
-      'VITE_R12_CV_STUDIO_ENABLED',
-      'VITE_R13_CAMPAIGNS_ENABLED',
-      'VITE_R14_DISCOVERY_ENABLED',
-      'VITE_R15_QUEUE_ENABLED',
-      'VITE_R17_DEVELOPMENT_LOOP_ENABLED',
-    ]) vi.stubEnv(flag, 'false')
-
-    renderSidebar()
-
-    expect(screen.queryByRole('link', { name: 'Profile' })).toBeNull()
-    expect(screen.queryByRole('link', { name: 'CV Studio' })).toBeNull()
-    expect(screen.queryByRole('link', { name: 'Discover' })).toBeNull()
-    expect(screen.queryByRole('link', { name: 'Queue' })).toBeNull()
-    expect(screen.queryByRole('link', { name: 'Campaigns' })).toBeNull()
   })
 
   it('groups the sidebar into Tools, Job search, and You', () => {

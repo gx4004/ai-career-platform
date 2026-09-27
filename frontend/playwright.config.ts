@@ -14,7 +14,7 @@ const backendUrl = `http://127.0.0.1:${backendPort}`
 export default defineConfig({
   testDir: './e2e',
   // The screenshots harness (frontend/e2e/screenshots.spec.ts) boots its own
-  // webServer pair with every outcome flag on and is run separately via
+  // webServer pair and is run separately via
   // `pnpm screenshots` / playwright.screenshots.config.ts — never here.
   testIgnore: '**/screenshots.spec.ts',
   fullyParallel: false,
@@ -55,14 +55,6 @@ export default defineConfig({
         CORS_ORIGINS: frontendUrl,
         FRONTEND_URL: frontendUrl,
         RESULT_CACHE_ENABLED: 'false',
-        // The product defaults build-ahead rounds off. This suite deliberately
-        // exercises the R11-R15 build-ahead surfaces (CV Studio, Discovery,
-        // Campaigns, Queue), so opt their dependency chain in.
-        R11_EVIDENCE_PROFILE_ENABLED: 'true',
-        R12_CV_STUDIO_ENABLED: 'true',
-        R13_CAMPAIGNS_ENABLED: 'true',
-        R14_DISCOVERY_ENABLED: 'true',
-        R15_QUEUE_ENABLED: 'true',
         E2E_BACKEND_PORT: backendPort,
       },
     },
@@ -78,11 +70,6 @@ export default defineConfig({
         // only the interactive app server needs normal development semantics.
         CI: '',
         VITE_API_URL: `${backendUrl}/api/v1`,
-        VITE_R11_EVIDENCE_PROFILE_ENABLED: 'true',
-        VITE_R12_CV_STUDIO_ENABLED: 'true',
-        VITE_R13_CAMPAIGNS_ENABLED: 'true',
-        VITE_R14_DISCOVERY_ENABLED: 'true',
-        VITE_R15_QUEUE_ENABLED: 'true',
       },
     },
   ],
