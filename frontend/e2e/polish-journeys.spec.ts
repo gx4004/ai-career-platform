@@ -77,19 +77,20 @@ test.describe('CV Studio editor loop', () => {
     await registerAndSeedCv(page, 'cv-journey')
     await gotoHydrated(page, '/cv-studio')
 
-    // Edit a bullet on the seeded (imported) role.
+    // Open the role from the paper and edit a bullet on the seeded (imported) role.
+    await page.getByRole('button', { name: 'Edit Experience' }).click()
     const bullet = page.getByLabel('Highlight 1 for Engineer')
     await expect(bullet).toBeVisible()
     await bullet.fill('Cut deploy time from 40 to 8 minutes.')
     await expect(page.getByTestId('save-status')).toContainText('Saved', { timeout: 15_000 })
 
     // Switch template.
-    await page.locator('#cvs-tab-design').click()
+    await page.getByRole('navigation', { name: 'Studio tools' }).getByRole('button', { name: /^Design/ }).click()
     await page.getByRole('radio', { name: /Modern Two-Column/ }).check({ force: true })
     // Switch font — the fixed template/font catalog always has more than one entry.
-    const fontRadios = page.locator('.cvs-font input[type="radio"]')
-    await expect(fontRadios.nth(1)).toBeAttached()
-    await fontRadios.nth(1).check({ force: true })
+    const fonts = page.locator('.cvs-font')
+    await fonts.nth(1).click()
+    await expect(fonts.nth(1).locator('input[type="radio"]')).toBeChecked()
     await expect(page.getByTestId('save-status')).toContainText('Saved', { timeout: 15_000 })
 
     // Export PDF — disabled while dirty, so the prior "Saved" wait matters.
