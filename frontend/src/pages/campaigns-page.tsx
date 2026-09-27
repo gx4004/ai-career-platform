@@ -1,13 +1,9 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { ArrowRightLeft, CalendarClock, Compass, SearchX, SquareKanban } from 'lucide-react'
-import {
-  StatusPill,
-  WorkspaceEmpty,
-  WorkspaceHero,
-  WorkspacePage,
-} from '#/components/app/WorkspacePage'
+import { ArrowRightLeft, CalendarClock, SearchX } from 'lucide-react'
+import { PageHero } from '#/components/app/PageHero'
+import { StatusPill, WorkspaceEmpty, WorkspacePage } from '#/components/app/WorkspacePage'
 import { StageMenu } from '#/components/campaigns/StageMenu'
 import {
   STAGES,
@@ -21,10 +17,13 @@ import {
 } from '#/components/campaigns/stages'
 import { Button } from '#/components/ui/button'
 import { getHistoryWorkspaces, updateHistoryWorkspace } from '#/lib/api/client'
+import { getNavDestination } from '#/lib/navigation/navGroups'
 import type { CampaignStatus, WorkspaceList } from '#/lib/api/schemas'
 
 type Campaign = WorkspaceList['items'][number]
 const QUERY_KEY = ['history-workspaces']
+const BoardIcon = getNavDestination('/campaigns').icon
+const DiscoverIcon = getNavDestination('/discovery').icon
 
 export function CampaignsPage() {
   const queryClient = useQueryClient()
@@ -55,22 +54,16 @@ export function CampaignsPage() {
     (item) => item.role || item.company || item.listing || item.status || item.deadline,
   )
   const byStage = (stage: string) => items.filter((item) => stageOf(item.status) === stage)
-  const findJobs = <Button asChild><Link to="/discovery"><Compass size={16} /> Find jobs</Link></Button>
+  const findJobs = <Button asChild><Link to="/discovery"><DiscoverIcon size={16} /> Find jobs</Link></Button>
 
   return (
     <WorkspacePage wide className="camp-page">
-      <WorkspaceHero
-        icon={SquareKanban}
-        eyebrow="Applications"
+      <PageHero
+        icon={BoardIcon}
         title="Your applications"
-        subtitle="Every job you're going for, from saved to offer. Open one to keep its documents, tasks and notes together."
-        actions={findJobs}
-        stats={query.data ? [
-          { label: 'In progress', value: items.filter((item) => stageOf(item.status) !== 'closed').length },
-          { label: 'Applied', value: byStage('applied').length },
-          { label: 'Interviewing', value: byStage('interviewing').length },
-          { label: 'Offers', value: byStage('offer').length },
-        ] : undefined}
+        purpose="Every job you're going for, from saved to offer."
+        action={findJobs}
+        chips={query.data ? summaryChips(items, byStage) : undefined}
       />
 
       {moveError ? <p className="camp-alert" role="alert">{moveError}</p> : null}
@@ -88,7 +81,7 @@ export function CampaignsPage() {
         />
       ) : items.length === 0 ? (
         <WorkspaceEmpty
-          icon={SquareKanban}
+          icon={BoardIcon}
           title="No applications yet"
           description="Save a job you like and it shows up here, ready to track from first draft to offer."
           action={findJobs}
@@ -126,6 +119,17 @@ export function CampaignsPage() {
       )}
     </WorkspacePage>
   )
+}
+
+function summaryChips(items: Campaign[], byStage: (stage: string) => Campaign[]) {
+  const inProgress = items.filter((item) => stageOf(item.status) !== 'closed').length
+  const interviewing = byStage('interviewing').length
+  const offers = byStage('offer').length
+  return [
+    `${inProgress} in progress`,
+    ...(interviewing ? [`${interviewing} interviewing`] : []),
+    ...(offers ? [`${offers} ${offers === 1 ? 'offer' : 'offers'}`] : []),
+  ]
 }
 
 function CampaignCard({
