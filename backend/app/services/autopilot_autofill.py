@@ -4,8 +4,7 @@ Local-only and off by default (``AUTOPILOT_EXPERIMENT_ENABLED``). A headed
 Chromium opens on the machine running the backend, so this only makes sense when
 the backend runs on the owner's own computer. It fills what it can and leaves
 the window open. It never submits: the only interactions are ``fill`` and
-``set_input_files``, and ``_safe_click`` (the one permitted click, currently
-unused) refuses anything that looks like a submit control.
+``set_input_files``; nothing is ever clicked or pressed.
 """
 
 from __future__ import annotations
@@ -29,6 +28,7 @@ from app.models.packet_approval_snapshot import PacketApprovalSnapshot
 from app.models.user import User
 from app.services.application_packets import PacketNotFoundError
 from app.services.cv_rendering import build_render_model, render_pdf
+from app.services.stop_classifier import classify_stop_category
 
 ALLOWED_HOSTS = frozenset(
     {"boards.greenhouse.io", "job-boards.greenhouse.io", "jobs.lever.co", "jobs.ashbyhq.com"}
@@ -36,7 +36,6 @@ ALLOWED_HOSTS = frozenset(
 ACTION_TIMEOUT_MS = 15_000
 REVIEW_WINDOW_SECONDS = 30 * 60  # the window closes itself after this
 _HIGHLIGHT = "el => { el.style.outline = '3px solid #f59e0b'; el.style.outlineOffset = '2px' }"
-_SUBMIT_TEXT = re.compile(r"submit|send application|apply now", re.IGNORECASE)
 _PHONE = re.compile(r"\+?\d[\d\s().-]{7,}\d")
 _URL = re.compile(r"https?://[^\s<>()\"']+[^\s<>()\"'.,;:!?]")
 
@@ -60,10 +59,6 @@ _DESCRIBE_CONTROLS = """() => [...document.querySelectorAll('input, textarea, se
 
 class AutofillRefused(Exception):
     """The destination is not a host the experiment may open."""
-
-
-class SubmitRefused(Exception):
-    """Something tried to click a submit control. Autopilot never submits."""
 
 
 class AutofillBusy(Exception):
@@ -135,19 +130,51 @@ def _norm(text: str) -> str:
     return " ".join(re.sub(r"[^a-z0-9 ]", " ", text.lower()).split())
 
 
+# Words too common to say two questions are the same question.
+_FILLER_WORDS = frozenset(
+    "a an and are at can do does for have how i if in is it of on or our please "
+    "the this to us we what when where which who why will with would you your".split()
+)
+ANSWER_MATCH_THRESHOLD = 0.8
+
+
+def _words(text: str) -> frozenset[str]:
+    return frozenset(_norm(text).split()) - _FILLER_WORDS
+
+
+def _match_score(label: str, question: str) -> float:
+    """How surely a form label asks the prepared question, from 0 to 1.
+
+    Whole words only, so "age" never matches "language". Near-identical wording
+    scores by character similarity; otherwise the shared words must cover both
+    sides, or one side's words (two or more) must all appear in the other.
+    """
+    label_words, question_words = _words(label), _words(question)
+    if not label_words or not question_words:
+        return 0.0
+    shared = label_words & question_words
+    overlap = len(shared) / len(label_words | question_words)
+    smaller = min(len(label_words), len(question_words))
+    if len(shared) == smaller >= 2:  # every word of the shorter one is in the longer
+        overlap = max(overlap, ANSWER_MATCH_THRESHOLD + 0.2 * overlap)
+    return max(overlap, SequenceMatcher(None, _norm(label), _norm(question)).ratio())
+
+
 def _answer_for(label: str, answers: list[tuple[str, str]]) -> str | None:
-    target = _norm(label)
-    if len(target) < 4:
+    """The drafted answer for the prepared question this label best matches.
+
+    A label the stop classifier flags (salary, work authorization, demographics
+    and so on) never gets a drafted answer, whatever it resembles: only the owner
+    answers those.
+    """
+    if classify_stop_category(label) is not None:
         return None
+    best_score, best_answer = 0.0, None
     for question, answer in answers:
-        prepared = _norm(question)
-        if prepared and (
-            prepared in target
-            or target in prepared
-            or SequenceMatcher(None, prepared, target).ratio() >= 0.8
-        ):
-            return answer
-    return None
+        score = _match_score(label, question)
+        if score >= ANSWER_MATCH_THRESHOLD and score > best_score:
+            best_score, best_answer = score, answer
+    return best_answer
 
 
 def _field_kind(control: dict) -> str | None:
@@ -174,19 +201,6 @@ def _field_kind(control: dict) -> str | None:
     if control["name"] == "name" or _norm(control["label"]) in {"name", "full name"}:
         return "full_name"
     return None
-
-
-def _safe_click(locator) -> None:
-    """The only permitted click. Refuses any submit-looking control."""
-    info = locator.evaluate(
-        "el => ({tag: el.tagName.toLowerCase(), type: (el.type || '').toLowerCase(),"
-        " text: el.innerText || el.value || ''})"
-    )
-    if info["type"] in {"submit", "image"} or (
-        info["tag"] in {"button", "input"} and _SUBMIT_TEXT.search(info["text"])
-    ):
-        raise SubmitRefused("Autopilot never presses submit. You do that yourself.")
-    locator.click()
 
 
 def fill_application(page, materials: AutofillMaterials, workdir: Path) -> AutofillReport:
@@ -376,10 +390,10 @@ def build_materials(db: Session, user: User, packet_id: str) -> AutofillMaterial
     if packet.decision != "accepted" or snapshot is None:
         raise PacketNotApprovedError(packet_id)
 
-    # Prefer the listing's own apply link; fall back to the approved destination.
-    listing_url = packet.listing.apply_url if packet.listing else None
-    url = next((c for c in (listing_url, snapshot.destination_url) if _allowed(c)), None)
-    if url is None:
+    # Open exactly the destination frozen at approval, never the listing's live
+    # apply link: re-ingestion rewrites that after the owner has approved.
+    url = snapshot.destination_url
+    if not _allowed(url):
         raise AutofillRefused(
             "Autopilot only opens Greenhouse, Lever, or Ashby application pages over https."
         )
