@@ -1,11 +1,6 @@
 import { z } from 'zod'
 import { API_URL } from '#/lib/api/client'
-import {
-  developmentResponseKindSchema,
-  developmentStateSchema,
-} from '#/lib/api/developmentSchemas'
 import { ApiError } from '#/lib/api/errors'
-import { gapKindSchema } from '#/lib/api/gapClassificationSchemas'
 import {
   discoverySourceListSchema,
   discoverySourceSchema,
@@ -147,124 +142,10 @@ export type AdminHealth = {
   environment: string
 }
 
-// R6 activation dashboard — mirrors backend/app/schemas/admin.py
-// (FunnelStepCount / FailureCategoryCount / ToolLatencyCost / AdminActivationResponse).
-
-export const adminAccessModeSchema = z.enum(['authenticated', 'guest_demo'])
-export const adminOperationalToolIdSchema = z.enum([
-  'resume',
-  'job-match',
-  'career',
-  'cover-letter',
-  'interview',
-  'portfolio',
-  'application-reviewer',
-  'application-packet',
-  'cv-quality',
-  'cv-tailoring',
-])
-const queryDateTimeSchema = z.string().refine(
-  value => !Number.isNaN(Date.parse(value)),
-  { message: 'Expected a valid date-time' },
-)
-export const adminActivationQuerySchema = z.object({
-  access_mode: adminAccessModeSchema.optional(),
-  tool_id: adminOperationalToolIdSchema.optional(),
-  start: queryDateTimeSchema.optional(),
-  end: queryDateTimeSchema.optional(),
-})
-const funnelStepCountSchema = z.object({
-  step: z.string(),
-  label: z.string(),
-  count: z.number().int().nonnegative(),
-})
-const failureCategoryCountSchema = z.object({
-  failure_category: z.string(),
-  count: z.number().int().nonnegative(),
-})
-const toolLatencyCostSchema = z.object({
-  tool_id: adminOperationalToolIdSchema,
-  runs: z.number().int().nonnegative(),
-  avg_duration_ms: z.number().nullable(),
-  total_cost_estimate: z.union([z.number(), z.string()]).nullable(),
-  avg_cost_estimate: z.union([z.number(), z.string()]).nullable(),
-})
-export const adminActivationSchema = z.object({
-  window_start: z.iso.datetime({ offset: true }),
-  window_end: z.iso.datetime({ offset: true }),
-  access_mode: adminAccessModeSchema.nullable(),
-  tool_id: adminOperationalToolIdSchema.nullable(),
-  funnel: z.array(funnelStepCountSchema),
-  failures: z.array(failureCategoryCountSchema),
-  tools: z.array(toolLatencyCostSchema),
-})
-export type AdminAccessMode = z.infer<typeof adminAccessModeSchema>
-export type AdminOperationalToolId = z.infer<typeof adminOperationalToolIdSchema>
-export type AdminActivation = z.infer<typeof adminActivationSchema>
-
-// R11 profile-adoption view — mirrors backend/app/schemas/admin.py
-// (ProfileKindCount / ProfileProvenanceCount / ProfileTransitionCount /
-// AdminProfileAdoptionResponse). Read-only aggregate over the same first-party
-// analytics store; every figure is a bounded low-cardinality count derived from
-// allowlisted profile events — no evidence content is reachable (D-067).
-
-export type ProfileKindCount = {
-  kind: string
-  count: number
-}
-
-export type ProfileProvenanceCount = {
-  provenance: string
-  count: number
-}
-
-export type ProfileTransitionCount = {
-  transition: string
-  count: number
-}
-
-export type AdminProfileAdoption = {
-  window_start: string
-  window_end: string
-  total_created: number
-  total_deleted: number
-  created_by_kind: ProfileKindCount[]
-  created_by_provenance: ProfileProvenanceCount[]
-  confirmation_transitions: ProfileTransitionCount[]
-}
-
-export const adminDevelopmentLoopSchema = z.strictObject({
-  window_start: z.iso.datetime({ offset: true }),
-  window_end: z.iso.datetime({ offset: true }),
-  total_items_created: z.number().int().nonnegative(),
-  total_items_deleted: z.number().int().nonnegative(),
-  total_state_transitions: z.number().int().nonnegative(),
-  created_by_gap_kind: z.array(
-    z.strictObject({
-      gap_kind: gapKindSchema,
-      count: z.number().int().nonnegative(),
-    }),
-  ),
-  created_by_response_kind: z.array(
-    z.strictObject({
-      response_kind: developmentResponseKindSchema,
-      count: z.number().int().nonnegative(),
-    }),
-  ),
-  state_transitions: z.array(
-    z.strictObject({
-      from_state: developmentStateSchema,
-      to_state: developmentStateSchema,
-      count: z.number().int().nonnegative(),
-    }),
-  ),
-})
-export type AdminDevelopmentLoop = z.infer<typeof adminDevelopmentLoopSchema>
-
 // R14 per-source health — mirrors backend/app/schemas/admin.py
-// (SourceFamilyHealth / AdminSourceHealthResponse). Read-only aggregate over the
-// same first-party operational path; every figure is a bounded per-source-family
-// count — no listing content, full URL, source key/name, or user data (D-053).
+// (SourceFamilyHealth / AdminSourceHealthResponse). Read-only current-state
+// aggregate; every figure is a bounded per-source-family count — no listing
+// content, full URL, source key/name, or user data (D-053).
 
 export type SourceFamilyHealth = {
   source_family: string
@@ -276,31 +157,11 @@ export type SourceFamilyHealth = {
   stale_count: number
   oldest_retrieved_at: string | null
   newest_retrieved_at: string | null
-  fetch_success: number
-  fetch_failure: number
-  fetch_blocked: number
-  ingested: number
-  deduplicated: number
-  expired: number
 }
 
 export type AdminSourceHealth = {
-  window_start: string
-  window_end: string
   staleness_threshold_days: number
   families: SourceFamilyHealth[]
-}
-
-// R15 packet-queue trust-chain gate — mirrors backend/app/schemas/admin.py
-// (AdminPacketGateResponse). Read-only aggregate over the same first-party
-// operational path; only bounded gate-event counts — no packet content,
-// listing text/id, run id, finding text, or user data (D-097).
-export type AdminPacketGate = {
-  window_start: string
-  window_end: string
-  gate_running: number
-  gate_passed: number
-  gate_blocked: number
 }
 
 // API functions
@@ -342,39 +203,6 @@ export function getAdminRun(runId: string) {
   return adminRequest<AdminRunDetail>(`/admin/runs/${runId}`)
 }
 
-export function getAdminActivation(
-  params: z.input<typeof adminActivationQuerySchema> = {},
-) {
-  const query = adminActivationQuerySchema.parse(params)
-  return adminRequest<AdminActivation>(
-    `/admin/activation${buildQs({
-      access_mode: query.access_mode,
-      tool_id: query.tool_id,
-      start: query.start,
-      end: query.end,
-    })}`,
-    {},
-    adminActivationSchema,
-  )
-}
-
-export function getAdminProfileAdoption(
-  params: { start?: string; end?: string } = {},
-) {
-  return adminRequest<AdminProfileAdoption>(
-    `/admin/profile-adoption${buildQs({ start: params.start, end: params.end })}`,
-  )
-}
-
-export async function getAdminDevelopmentLoop(
-  params: { start?: string; end?: string } = {},
-) {
-  const response = await adminRequest<unknown>(
-    `/admin/development-loop${buildQs({ start: params.start, end: params.end })}`,
-  )
-  return adminDevelopmentLoopSchema.parse(response)
-}
-
 export async function getAdminDiscoverySources(): Promise<DiscoverySourceList> {
   const response = await adminRequest<unknown>('/admin/discovery-sources')
   return discoverySourceListSchema.parse(response)
@@ -385,16 +213,8 @@ export async function getAdminDiscoveryReports(): Promise<AdminDiscoveryReportLi
   return adminDiscoveryReportListSchema.parse(response)
 }
 
-export function getAdminSourceHealth(params: { start?: string; end?: string } = {}) {
-  return adminRequest<AdminSourceHealth>(
-    `/admin/source-health${buildQs({ start: params.start, end: params.end })}`,
-  )
-}
-
-export function getAdminPacketGate(params: { start?: string; end?: string } = {}) {
-  return adminRequest<AdminPacketGate>(
-    `/admin/packet-gate${buildQs({ start: params.start, end: params.end })}`,
-  )
+export function getAdminSourceHealth() {
+  return adminRequest<AdminSourceHealth>('/admin/source-health')
 }
 
 export async function setDiscoverySourceKillSwitch(

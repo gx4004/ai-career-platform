@@ -1,7 +1,6 @@
 import pytest
 
 from app.auth.security import hash_password
-from app.models.analytics_event import AnalyticsEvent
 from app.models.campaign_event import CampaignEvent
 from app.models.cv_document import CvDocument, CvVariant
 from app.models.evidence_item import EvidenceItem
@@ -115,10 +114,6 @@ def test_owner_can_delete_whole_profile_without_deleting_another_owners_items(
         original_commit()
 
     monkeypatch.setattr(db, "commit", counted_commit)
-    monkeypatch.setattr(
-        "app.services.evidence_profile._record_evidence_item_deleted",
-        lambda *args, **kwargs: None,
-    )
 
     response = client.delete(PREFIX, headers=auth_headers)
 
@@ -452,76 +447,6 @@ def test_account_deletion_removes_campaign_fields(
     assert response.status_code == 204
     assert db.query(Workspace).filter_by(id=workspace_id).count() == 0
     assert db.query(CampaignEvent).filter_by(workspace_id=workspace_id).count() == 0
-
-
-# --- R11 profile-adoption telemetry emitted from the service seam (#150) ---
-
-
-def _profile_events(db):
-    return (
-        db.query(AnalyticsEvent)
-        .filter(AnalyticsEvent.event_name.like("profile_item_%"))
-        .order_by(AnalyticsEvent.created_at.asc())
-        .all()
-    )
-
-
-def test_profile_lifecycle_emits_allowlisted_events(client, auth_headers, db):
-    """Creating, editing, confirming, rejecting, and deleting an item each emit
-    exactly one allowlisted low-cardinality event from the shared write seam —
-    carrying kind, provenance, and the confirmation transition, never content."""
-    secret = "Led the migration at Acme Corp for MIT alumni."
-    created = client.post(
-        PREFIX,
-        json=_payload(kind="experience", provenance="imported", content={"statement": secret}),
-        headers=auth_headers,
-    ).json()
-    client.patch(
-        f"{PREFIX}/{created['id']}",
-        json={"content": {"statement": secret + " (revised)"}},
-        headers=auth_headers,
-    )
-    client.post(
-        f"{PREFIX}/{created['id']}/confirmation",
-        json={"action": "confirm"},
-        headers=auth_headers,
-    )
-    client.post(
-        f"{PREFIX}/{created['id']}/confirmation",
-        json={"action": "reject"},
-        headers=auth_headers,
-    )
-    client.delete(f"{PREFIX}/{created['id']}", headers=auth_headers)
-
-    events = _profile_events(db)
-    names = [e.event_name for e in events]
-    assert names == [
-        "profile_item_created",
-        "profile_item_updated",
-        "profile_item_confirmed",
-        "profile_item_rejected",
-        "profile_item_deleted",
-    ]
-
-    created_ev, updated_ev, confirmed_ev, rejected_ev, deleted_ev = events
-    assert (created_ev.evidence_kind, created_ev.evidence_provenance) == ("experience", "imported")
-    assert created_ev.confirmation_transition == "unconfirmed"
-    # Editing is the owner's own correction, so it confirms rather than resets
-    # (Phase 1b, #321).
-    assert updated_ev.confirmation_transition == "confirmed"
-    assert confirmed_ev.confirmation_transition == "confirmed"
-    assert rejected_ev.confirmation_transition == "rejected"
-    # Deletion has no resulting confirmation state, but still carries the kind.
-    assert deleted_ev.confirmation_transition is None
-    assert deleted_ev.evidence_kind == "experience"
-
-    # No evidence text, employer, or institution name ever reaches the store.
-    for event in events:
-        for value in vars(event).values():
-            assert secret not in str(value)
-            assert "Acme" not in str(value)
-            assert "MIT" not in str(value)
-            assert created["id"] != str(value)
 
 
 def test_export_requires_authentication(client):

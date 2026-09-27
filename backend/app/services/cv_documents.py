@@ -14,13 +14,9 @@ from app.schemas.cv_documents import (
     CvTailoringApply,
 )
 from app.schemas.evidence_profile import EvidenceItemCreate
-from app.services.analytics import safe_record_activation_event
 from app.services.campaign_materials import clear_selected_variants
 from app.services.cv_tailoring import read_change_field, write_change_field
-from app.services.evidence_profile import (
-    record_evidence_proposal_created,
-    stage_evidence_proposal,
-)
+from app.services.evidence_profile import stage_evidence_proposal
 
 
 class CvDocumentNotFoundError(Exception):
@@ -173,7 +169,6 @@ def create_document(db: Session, user_id: str, body: CvDocumentCreate) -> CvDocu
     document.variants.append(CvVariant(name="Base", sections=deepcopy(sections)))
     db.add(document)
     db.commit()
-    safe_record_activation_event(db, event_name="studio_document_created")
     return get_document(db, document.id, user_id)
 
 
@@ -184,7 +179,6 @@ def accept_import(db: Session, user_id: str, body: CvImportAccept) -> CvDocument
     if existing is not None:
         return existing
     sections = []
-    staged_items = []
     try:
         for section in body.sections:
             entries = []
@@ -200,7 +194,6 @@ def accept_import(db: Session, user_id: str, body: CvImportAccept) -> CvDocument
                             provenance="imported",
                         ),
                     )
-                    staged_items.append(item)
                 stored_entry = {
                     "id": entry.id,
                     "evidence_item_id": None if item is None else item.id,
@@ -233,9 +226,6 @@ def accept_import(db: Session, user_id: str, body: CvImportAccept) -> CvDocument
         document.variants.append(CvVariant(name="Base", sections=deepcopy(sections)))
         db.add(document)
         db.commit()
-        safe_record_activation_event(db, event_name="studio_document_created")
-        for item in staged_items:
-            record_evidence_proposal_created(db, item)
     except IntegrityError:
         db.rollback()
         existing = _query(db, user_id).filter(CvDocument.source_import_id == import_id).first()
@@ -265,7 +255,6 @@ def update_document(
     if style is not None:
         document.style = style.model_dump()
     db.commit()
-    safe_record_activation_event(db, event_name="studio_document_updated")
     return get_document(db, document.id, document.user_id)
 
 
@@ -362,7 +351,6 @@ def delete_document(db: Session, document: CvDocument) -> None:
     clear_selected_variants(db, document)
     db.delete(document)
     db.commit()
-    safe_record_activation_event(db, event_name="studio_document_deleted")
 
 
 def delete_documents(db: Session, user_id: str) -> int:
@@ -372,7 +360,6 @@ def delete_documents(db: Session, user_id: str) -> int:
         clear_selected_variants(db, document)
         db.delete(document)
     db.commit()
-    safe_record_activation_event(db, event_name="studio_documents_deleted")
     return count
 
 
@@ -381,5 +368,4 @@ def export_documents(db: Session, user_id: str) -> CvDocumentsExport:
     result = CvDocumentsExport(
         exported_at=datetime.now(UTC), document_count=len(documents), documents=documents
     )
-    safe_record_activation_event(db, event_name="studio_data_exported")
     return result

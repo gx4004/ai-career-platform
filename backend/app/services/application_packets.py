@@ -52,12 +52,7 @@ from app.services.packet_approval import (
     applied_at_by_packet,
     packet_item_with_true_unresolved,
 )
-from app.services.packet_gate import (
-    emit_gate_outcome,
-    emit_gate_running,
-    gate_state_for,
-    is_queue_paused,
-)
+from app.services.packet_gate import gate_state_for, is_queue_paused
 from app.services.queue_audit import record_queue_audit_event
 from app.services.queue_rules import matched_keywords_for_rule, select_admitted_candidates
 from app.services.stop_classifier import (
@@ -476,7 +471,6 @@ async def _run_reviewer_gate(
     )
     findings = review_response.get("findings") or []
     gate_state = gate_state_for(findings)
-    emit_gate_outcome(db, gate_state=gate_state)
     return review_response.get("history_id"), gate_state
 
 
@@ -532,9 +526,6 @@ async def prepare_packets(
 
     if not selection.prepares:
         return _empty_result(selection)
-
-    # A real preparation run is starting the trust-chain gate.
-    emit_gate_running(db)
 
     prepared: list[ApplicationPacket] = []
     skipped_existing = 0

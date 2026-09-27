@@ -11,10 +11,9 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.models.user import User
-from app.services.analytics import safe_record_activation_event
 from app.services.evidence_injection import load_profile_for_injection
 from app.services.input_sanitizer import sanitize_user_input
-from app.services.llm_cost import get_llm_cost, reset_llm_cost
+from app.services.llm_cost import reset_llm_cost
 from app.services.observability import (
     log_tool_run_completed,
     log_tool_run_failed,
@@ -100,19 +99,6 @@ async def run_tool_pipeline(
             duration_ms=failed_duration_ms,
             failure_category=exc.__class__.__name__,
         )
-        # Only the closed category is durable; exception class/message stays in
-        # the structured operational log. Cost reflects any completed provider
-        # call and remains absent for pre-provider failures.
-        safe_record_activation_event(
-            db,
-            event_name="tool_run_failed",
-            level="error",
-            tool_id=tool_name,
-            access_mode=access_mode,
-            duration_ms=failed_duration_ms,
-            cost_estimate=get_llm_cost(),
-            failure_category="tool_request_failed",
-        )
         raise
 
 
@@ -137,8 +123,8 @@ async def _run_tool_pipeline_after_validation(
     access_mode = "authenticated" if current_user else "guest_demo"
     linked_ids = linked_context_ids or []
     start = perf_counter()
-    # Clear any prior request's LLM cost so this run's estimate only reflects
-    # the provider calls it makes; stays None if none are reached (issue #106).
+    # Clear any prior request's LLM cost so this run's figure only reflects the
+    # provider calls it makes; the packet cost ceiling reads it (D-094).
     reset_llm_cost()
     _result_degraded.set(False)
 
@@ -146,17 +132,6 @@ async def _run_tool_pipeline_after_validation(
         tool_name=tool_name,
         access_mode=access_mode,
         linked_context_count=len(linked_ids),
-    )
-    # Backend-only metrics are written unconditionally — no client/cookie is
-    # involved, so the frontend consent gate does not apply (D-038). Only
-    # allowlisted dimensions cross the seam; linked_context_count stays in the
-    # stdout log above and is deliberately not persisted (not in the D-037
-    # allowlist).
-    safe_record_activation_event(
-        db,
-        event_name="tool_run_started",
-        tool_id=tool_name,
-        access_mode=access_mode,
     )
 
     # Sanitize
@@ -254,15 +229,6 @@ async def _run_tool_pipeline_after_validation(
         tool_name=tool_name,
         access_mode=access_mode,
         duration_ms=completed_duration_ms,
-        saved=run is not None,
-    )
-    safe_record_activation_event(
-        db,
-        event_name="tool_run_completed",
-        tool_id=tool_name,
-        access_mode=access_mode,
-        duration_ms=completed_duration_ms,
-        cost_estimate=get_llm_cost(),
         saved=run is not None,
     )
 

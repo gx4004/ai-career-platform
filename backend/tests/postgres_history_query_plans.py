@@ -429,10 +429,7 @@ def _captured_selects(engine: Engine) -> Iterator[list[tuple[str, object]]]:
     captured: list[tuple[str, object]] = []
 
     def record(_connection, _cursor, statement, parameters, _context, _executemany):
-        normalized = statement.lstrip().lower()
-        # The handlers also record their own timing sample; that write is
-        # instrumentation, not one of the read shapes under measurement.
-        if normalized.startswith("select") and "analytics_events" not in normalized:
+        if statement.lstrip().lower().startswith("select"):
             captured.append((statement, parameters))
 
     event.listen(engine, "after_cursor_execute", record)

@@ -13,10 +13,8 @@ from app.schemas.discovery_sources import (
     DiscoveryAllowedBehavior,
     LicensedSourceQuery,
 )
-from app.services.analytics import safe_record_activation_event
 from app.services.discovery_sources import (
     SourceIngestionAuthorization,
-    SourceIngestionRefused,
     require_ingestion_allowed,
 )
 from app.services.outbound_target import resolve_public_target
@@ -57,49 +55,36 @@ async def fetch_licensed_source(
     query: LicensedSourceQuery,
 ) -> LicensedSourceFetchResult:
     """Fetch one governed licensed API/feed without persisting a listing."""
-    source = db.query(DiscoverySource).filter_by(source_key=source_key).first()
-    source_family = source.source_family if source is not None else None
-    try:
-        authorization = require_ingestion_allowed(db, source_key, behavior)
-        _validate_licensed_authorization(authorization)
-        query_values = query.model_dump(mode="json", exclude_none=True)
-        _validate_query(authorization, query_values)
-        policy_fingerprint = authorization.policy_fingerprint
-        request_count = 2 if authorization.robots_policy == "required" else 1
-        _claim_rate(
-            db,
-            authorization.source_id,
-            request_count,
-        )
-        if authorization.robots_policy == "required":
-            robots_url = _robots_url(authorization.endpoint_url)
-            robots, _ = await _fetch_resource(robots_url, {}, _ROBOTS_CONTENT_TYPES)
-            parser = RobotFileParser()
-            parser.parse(robots.decode("utf-8", errors="replace").splitlines())
-            if not parser.can_fetch(DISCOVERY_USER_AGENT, authorization.endpoint_url):
-                raise LicensedSourceFetchRefused("robots_disallowed")
+    authorization = require_ingestion_allowed(db, source_key, behavior)
+    _validate_licensed_authorization(authorization)
+    query_values = query.model_dump(mode="json", exclude_none=True)
+    _validate_query(authorization, query_values)
+    policy_fingerprint = authorization.policy_fingerprint
+    request_count = 2 if authorization.robots_policy == "required" else 1
+    _claim_rate(
+        db,
+        authorization.source_id,
+        request_count,
+    )
+    if authorization.robots_policy == "required":
+        robots_url = _robots_url(authorization.endpoint_url)
+        robots, _ = await _fetch_resource(robots_url, {}, _ROBOTS_CONTENT_TYPES)
+        parser = RobotFileParser()
+        parser.parse(robots.decode("utf-8", errors="replace").splitlines())
+        if not parser.can_fetch(DISCOVERY_USER_AGENT, authorization.endpoint_url):
+            raise LicensedSourceFetchRefused("robots_disallowed")
 
-        # Re-check immediately before the governed source request so a kill
-        # switch flipped during the robots request halts this source only.
-        authorization = require_ingestion_allowed(db, source_key, behavior)
-        _validate_query(authorization, query_values)
-        if authorization.policy_fingerprint != policy_fingerprint:
-            raise LicensedSourceFetchRefused("source_policy_changed_during_fetch")
-        content, content_type = await _fetch_resource(
-            authorization.endpoint_url,
-            query_values,
-            _FETCH_CONTENT_TYPES,
-        )
-    except (LicensedSourceFetchRefused, SourceIngestionRefused):
-        if source_family is not None:
-            _record_fetch_outcome(db, source_family, "blocked")
-        raise
-    except Exception:
-        if source_family is not None:
-            _record_fetch_outcome(db, source_family, "failure")
-        raise
-
-    _record_fetch_outcome(db, authorization.source_family, "success")
+    # Re-check immediately before the governed source request so a kill
+    # switch flipped during the robots request halts this source only.
+    authorization = require_ingestion_allowed(db, source_key, behavior)
+    _validate_query(authorization, query_values)
+    if authorization.policy_fingerprint != policy_fingerprint:
+        raise LicensedSourceFetchRefused("source_policy_changed_during_fetch")
+    content, content_type = await _fetch_resource(
+        authorization.endpoint_url,
+        query_values,
+        _FETCH_CONTENT_TYPES,
+    )
     return LicensedSourceFetchResult(
         source_id=authorization.source_id,
         source_family=authorization.source_family,
@@ -217,10 +202,3 @@ def _robots_url(endpoint_url: str) -> str:
     return urlunparse((parsed.scheme, parsed.netloc, "/robots.txt", "", "", ""))
 
 
-def _record_fetch_outcome(db: Session, source_family: str, outcome: str) -> None:
-    safe_record_activation_event(
-        db,
-        event_name="discovery_source_fetch_outcome",
-        operational_dimension=source_family,
-        operational_outcome=outcome,
-    )

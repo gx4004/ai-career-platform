@@ -42,10 +42,7 @@ from app.routers import (
 )
 from app.services.ats_ingestion import run_ats_ingestion_scheduler
 from app.services.observability import configure_logging
-from app.services.retention import (
-    run_activation_prune_scheduler,
-    run_discovered_listing_expiry_scheduler,
-)
+from app.services.retention import run_discovered_listing_expiry_scheduler
 
 configure_logging()
 
@@ -54,25 +51,20 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Start the recurring activation-event retention prune (D-037, #107).
+    """Start the recurring discovered-listing expiry and ATS ingestion tasks.
 
     See `app.services.retention` for why an app-startup task is the chosen
-    mechanism. The task is cancelled cleanly on shutdown. `run_ats_ingestion_scheduler`
-    (#323) follows the same pattern but returns immediately as a no-op when its
-    own flags are off, so the task always exists but never fetches unless
-    deliberately enabled.
+    mechanism. Tasks are cancelled cleanly on shutdown. `run_ats_ingestion_scheduler`
+    (#323) returns immediately as a no-op when its own flags are off, so the task
+    always exists but never fetches unless deliberately enabled.
     """
-    prune_task = asyncio.create_task(run_activation_prune_scheduler())
     listing_expiry_task = asyncio.create_task(run_discovered_listing_expiry_scheduler())
     ats_ingestion_task = asyncio.create_task(run_ats_ingestion_scheduler())
     try:
         yield
     finally:
-        prune_task.cancel()
         listing_expiry_task.cancel()
         ats_ingestion_task.cancel()
-        with suppress(asyncio.CancelledError):
-            await prune_task
         with suppress(asyncio.CancelledError):
             await listing_expiry_task
         with suppress(asyncio.CancelledError):

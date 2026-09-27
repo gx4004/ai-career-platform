@@ -5,7 +5,6 @@ import pytest
 from pydantic import ValidationError
 
 from app.auth.security import hash_password
-from app.models.analytics_event import AnalyticsEvent
 from app.models.user import User
 from app.schemas.discovery_sources import (
     DiscoverySourceCreate,
@@ -209,32 +208,6 @@ async def test_kill_switch_halts_one_source_without_affecting_another(db, monkey
     )
     assert result.content == b'{"jobs": ["healthy"]}'
     assert [request.headers["host"] for request in requests] == ["healthy.example"]
-
-
-@pytest.mark.asyncio
-async def test_fetch_outcomes_use_only_source_family_and_bounded_class(db, monkeypatch):
-    source = _activate_source(
-        db,
-        _reviewer(db),
-        robots_policy="not_applicable",
-    )
-
-    def handler(request: httpx.Request):
-        return httpx.Response(503, request=request)
-
-    _install_fixture_transport(monkeypatch, handler)
-    with pytest.raises(httpx.HTTPStatusError):
-        await fetch_licensed_source(
-            db,
-            source_key=source.source_key,
-            behavior="feed",
-            query=LicensedSourceQuery(location="Warsaw"),
-        )
-
-    event = db.query(AnalyticsEvent).filter_by(event_name="discovery_source_fetch_outcome").one()
-    assert event.operational_dimension == "licensed"
-    assert event.operational_outcome == "failure"
-    assert source.source_key not in str(event.__dict__)
 
 
 @pytest.mark.asyncio

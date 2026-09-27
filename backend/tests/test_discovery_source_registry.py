@@ -4,10 +4,8 @@ import pytest
 from pydantic import ValidationError
 
 from app.auth.security import create_access_token, hash_password
-from app.models.analytics_event import AnalyticsEvent
 from app.models.user import User
 from app.schemas.discovery_sources import DiscoverySourceCreate, DiscoverySourceUpdate
-from app.services.analytics import record_activation_event
 from app.services.discovery_sources import (
     IngestionRefusal,
     SourceIngestionRefused,
@@ -116,45 +114,6 @@ def test_source_cannot_activate_before_accepted_terms_review(db):
     assert source.kill_switch is True
     with pytest.raises(ValueError, match="authenticated admin reviewer"):
         update_source(db, source, DiscoverySourceUpdate(terms_status="accepted"))
-
-
-def test_registry_changes_emit_only_bounded_family_and_outcome(db):
-    reviewer = _reviewer(db)
-    source = register_source(db, _source_body())
-    update_source(
-        db,
-        source,
-        DiscoverySourceUpdate(terms_status="accepted"),
-        actor=reviewer,
-    )
-    update_source(db, source, DiscoverySourceUpdate(kill_switch=False))
-
-    events = (
-        db.query(AnalyticsEvent)
-        .filter_by(event_name="discovery_source_registry_changed")
-        .order_by(AnalyticsEvent.created_at)
-        .all()
-    )
-    assert [event.operational_dimension for event in events] == [
-        "licensed",
-        "licensed",
-        "licensed",
-    ]
-    assert [event.operational_outcome for event in events] == [
-        "registered",
-        "terms_updated",
-        "kill_switch_disabled",
-    ]
-    assert source.source_key not in str([event.__dict__ for event in events])
-    assert source.display_name not in str([event.__dict__ for event in events])
-    with pytest.raises(ValidationError):
-        record_activation_event(
-            db,
-            event_name="discovery_source_registry_changed",
-            operational_dimension="licensed",
-            operational_outcome="registered",
-            source_key=source.source_key,
-        )
 
 
 def test_admin_registry_view_is_read_only_and_complete(client, db, admin_headers, auth_headers):
