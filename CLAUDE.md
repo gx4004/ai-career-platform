@@ -23,8 +23,7 @@ Direction and phases: `docs/roadmap.md` (umbrella #319).
 - **LLM**: Vertex AI Gemini 2.5 Flash (native async, single provider V1). Cheaper model for interview practice feedback.
 - **Auth**: JWT in HttpOnly cookies (access 30min + refresh 7day) + Google OAuth (authlib) + password reset (Resend)
 - **Deploy**: Full Railway (backend + frontend + Postgres). Same domain, path-based routing.
-- **Monitoring**: Railway metrics; Sentry remains inactive while its DSN is unset
-  and requires staging scrub evidence before activation (D-117)
+- **Monitoring**: Railway metrics; Sentry wiring removed (#352), re-add deliberately when deploying
 - **Package manager**: pnpm (not npm)
 
 ## Key Architecture Decisions

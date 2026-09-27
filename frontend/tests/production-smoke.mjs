@@ -14,7 +14,6 @@ const projectDir = fileURLToPath(new URL('..', import.meta.url))
 const clientDir = fileURLToPath(new URL('../dist/client/', import.meta.url))
 const buildEnvironment = {
   VITE_AUTOPILOT_EXPERIMENT_ENABLED: 'false',
-  VITE_SENTRY_DSN: '',
 }
 
 function assertBaselineSecurityHeaders(headers) {
