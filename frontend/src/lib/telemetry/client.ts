@@ -21,8 +21,7 @@ export type TelemetryEventName =
 // The tool ids a browser may report. Deliberately narrower than the backend's
 // full tool taxonomy: `application-packet` is generated only by the backend
 // packet pipeline (backend/app/services/application_packets.py PACKET_TOOL_NAME)
-// and no browser surface can start it, so accepting it here would let a client
-// fabricate packet activation rows. The backend ingest contract validates
+// and no browser surface can start it. The backend ingest contract validates
 // against the matching narrow enum — `BrowserToolId` in
 // backend/app/schemas/telemetry.py — and the two must agree member for member,
 // which __tests__/toolIdContract.test.ts and the backend

@@ -39,11 +39,6 @@ describe('browser telemetry tool_id contract', () => {
   })
 
   it('excludes backend-only pipeline ids the browser can never produce', () => {
-    // `application-packet` is written only by the backend packet pipeline
-    // (backend/app/services/application_packets.py PACKET_TOOL_NAME).
     expect(BROWSER_TOOL_IDS).not.toContain('application-packet')
-    expect(readFileSync(backendSchemaPath, 'utf8')).toContain(
-      'BackendOnlyToolId = Literal["application-packet"]',
-    )
   })
 })

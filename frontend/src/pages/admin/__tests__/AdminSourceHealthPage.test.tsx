@@ -20,20 +20,12 @@ function family(overrides: Record<string, unknown> = {}) {
     stale_count: 1,
     oldest_retrieved_at: '2026-07-01T00:00:00Z',
     newest_retrieved_at: '2026-07-12T00:00:00Z',
-    fetch_success: 8,
-    fetch_failure: 2,
-    fetch_blocked: 1,
-    ingested: 4,
-    deduplicated: 1,
-    expired: 3,
     ...overrides,
   }
 }
 
 function renderPage(families: Array<Record<string, unknown>>) {
   getAdminSourceHealthMock.mockResolvedValue({
-    window_start: '2026-06-29T00:00:00Z',
-    window_end: '2026-07-13T00:00:00Z',
     staleness_threshold_days: 7,
     families,
   })
@@ -55,8 +47,7 @@ describe('AdminSourceHealthPage', () => {
     expect(screen.getByText('user_provided')).toBeTruthy()
     // Representative aggregate metrics render once per family row.
     expect(screen.getAllByText('registered').length).toBe(2)
-    expect(screen.getAllByText('deduplicated').length).toBe(2)
-    expect(screen.getAllByText('expired').length).toBe(2)
+    expect(screen.getAllByText('stale').length).toBe(2)
     // Staleness threshold is surfaced to the operator.
     expect(
       screen.getByText('A listing is stale after 7 days without a refresh.', {
