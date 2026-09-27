@@ -43,7 +43,7 @@ from app.services.autopilot_autofill import (
     form_url,
     start_autofill,
 )
-from tests.test_packet_approval_snapshot import _approvable_packet, approve_packet
+from tests.test_applications import make_application
 
 try:
     import playwright.sync_api as _playwright_api
@@ -52,7 +52,7 @@ except ImportError:  # pragma: no cover — environment without Playwright
     _playwright_api = None
 
 FIXTURES = Path(__file__).parent / "fixtures" / "autofill"
-PREFIX = "/api/v1"
+PREFIX = "/api/v1/applications"
 MATERIALS = AutofillMaterials(
     url="https://jobs.lever.co/acme/123",
     first_name="Ada",
@@ -340,6 +340,24 @@ def test_answers_go_only_to_the_question_they_best_match(browser, tmp_path):
     page.close()
 
 
+def test_the_owners_own_answer_fills_a_stop_field(browser, tmp_path):
+    page = browser.new_page()
+    page.set_content("""<form>
+      <label for="pay">Salary expectations</label><input id="pay">
+    </form>""")
+    materials = AutofillMaterials(
+        url=MATERIALS.url,
+        answers=[("Expected salary?", "Drafted figure")],
+        owner_answers=[("What are your salary expectations?", "90k EUR")],
+    )
+
+    report = fill_application(page, materials, tmp_path)
+
+    assert page.input_value("#pay") == "90k EUR"
+    assert report.filled == ["Salary expectations"]
+    page.close()
+
+
 @pytest.fixture
 def fixture_server():
     """The fixture forms over plain http on 127.0.0.1: a host that is not allowlisted."""
@@ -414,10 +432,8 @@ def test_waiting_for_the_owner_ends_when_the_tab_closes_or_time_runs_out(browser
 # ── Endpoint ──
 
 
-def _approved(db, user_id: str, source_url: str | None = "https://jobs.lever.co/acme/123"):
-    packet = _approvable_packet(db, user_id, source_url=source_url)
-    approve_packet(db, user_id, packet.id)
-    return packet
+def _ready(db, user_id: str, apply_url: str | None = "https://jobs.lever.co/acme/123"):
+    return make_application(db, user_id, apply_url=apply_url, cv=True, drafts=True)
 
 
 def _fake_start(calls: list):
@@ -430,6 +446,12 @@ def _fake_start(calls: list):
     return fake
 
 
+def _no_browser(monkeypatch):
+    monkeypatch.setattr(
+        "app.routers.applications.start_autofill", lambda *a, **k: pytest.fail("browser opened")
+    )
+
+
 @pytest.fixture
 def autopilot_on(monkeypatch):
     monkeypatch.setattr(settings, "AUTOPILOT_EXPERIMENT_ENABLED", True)
@@ -437,22 +459,25 @@ def autopilot_on(monkeypatch):
 
 def test_flag_off_is_404(client, db, test_user, auth_headers, monkeypatch):
     monkeypatch.setattr(settings, "AUTOPILOT_EXPERIMENT_ENABLED", False)
-    monkeypatch.setattr(
-        "app.routers.packets.start_autofill", lambda *a, **k: pytest.fail("browser opened")
-    )
-    packet = _approved(db, test_user.id)
-    response = client.post(f"{PREFIX}/packets/{packet.id}/autofill", headers=auth_headers)
+    _no_browser(monkeypatch)
+    application = _ready(db, test_user.id)
+    response = client.post(f"{PREFIX}/{application.id}/autofill", headers=auth_headers)
     assert response.status_code == 404
 
 
-def test_fills_an_approved_packet_with_its_approved_materials(
+def test_fills_with_the_applications_chosen_materials_and_answers(
     client, db, test_user, auth_headers, autopilot_on, monkeypatch
 ):
     calls: list = []
-    monkeypatch.setattr("app.routers.packets.start_autofill", _fake_start(calls))
-    packet = _approved(db, test_user.id)
+    monkeypatch.setattr("app.routers.applications.start_autofill", _fake_start(calls))
+    application = _ready(db, test_user.id)
+    application.open_questions = [
+        {"key": "q-1", "question": "What are your salary expectations?", "category": "salary"}
+    ]
+    application.answers = {"q-1": "90k EUR"}
+    db.commit()
 
-    response = client.post(f"{PREFIX}/packets/{packet.id}/autofill", headers=auth_headers)
+    response = client.post(f"{PREFIX}/{application.id}/autofill", headers=auth_headers)
 
     assert response.status_code == 200
     assert response.json() == {
@@ -465,41 +490,47 @@ def test_fills_an_approved_packet_with_its_approved_materials(
     assert (materials.first_name, materials.last_name) == ("Test", "User")
     assert materials.email == "test@example.com"
     assert materials.cover_letter == "Original cover letter."
+    assert materials.answers == [("What is your notice period?", "Two weeks.")]
+    assert materials.owner_answers == [("What are your salary expectations?", "90k EUR")]
     assert materials.resume_pdf.startswith(b"%PDF")
     assert materials.resume_filename == "Test-User-CV.pdf"
 
 
-def test_pending_packet_is_refused(client, db, test_user, auth_headers, autopilot_on):
-    packet = _approvable_packet(db, test_user.id, source_url="https://jobs.lever.co/acme/1")
-    response = client.post(f"{PREFIX}/packets/{packet.id}/autofill", headers=auth_headers)
+def test_unanswered_open_questions_are_refused(
+    client, db, test_user, auth_headers, autopilot_on, monkeypatch
+):
+    _no_browser(monkeypatch)
+    application = _ready(db, test_user.id)
+    application.open_questions = [
+        {"key": "q-1", "question": "Do you need a visa?", "category": "work_authorization"}
+    ]
+    db.commit()
+    response = client.post(f"{PREFIX}/{application.id}/autofill", headers=auth_headers)
     assert response.status_code == 409
 
 
 def test_non_allowlisted_destination_is_refused(
     client, db, test_user, auth_headers, autopilot_on, monkeypatch
 ):
-    monkeypatch.setattr(
-        "app.routers.packets.start_autofill", lambda *a, **k: pytest.fail("browser opened")
-    )
-    packet = _approved(db, test_user.id, source_url="https://jobs.example/apply/1")
-    # A later re-ingest pointing the listing at an ATS does not change what was approved.
-    packet.listing.apply_url = "https://jobs.lever.co/acme/123"
-    db.commit()
-    response = client.post(f"{PREFIX}/packets/{packet.id}/autofill", headers=auth_headers)
+    _no_browser(monkeypatch)
+    application = _ready(db, test_user.id, apply_url="https://jobs.example/apply/1")
+    response = client.post(f"{PREFIX}/{application.id}/autofill", headers=auth_headers)
     assert response.status_code == 400
     assert "Greenhouse, Lever, or Ashby" in response.json()["detail"]
 
 
-def test_opens_the_approved_destination_not_the_live_listing_link(
+def test_once_applied_it_opens_the_frozen_destination_not_a_later_link(
     client, db, test_user, auth_headers, autopilot_on, monkeypatch
 ):
     calls: list = []
-    monkeypatch.setattr("app.routers.packets.start_autofill", _fake_start(calls))
-    packet = _approved(db, test_user.id)
-    packet.listing.apply_url = "https://jobs.lever.co/someone-else/999"  # re-ingested later
+    monkeypatch.setattr("app.routers.applications.start_autofill", _fake_start(calls))
+    application = _ready(db, test_user.id)
+    applied = client.post(f"{PREFIX}/{application.id}/applied", headers=auth_headers)
+    assert applied.status_code == 200
+    application.listing.apply_url = "https://jobs.lever.co/someone-else/999"  # edited later
     db.commit()
 
-    response = client.post(f"{PREFIX}/packets/{packet.id}/autofill", headers=auth_headers)
+    response = client.post(f"{PREFIX}/{application.id}/autofill", headers=auth_headers)
 
     assert response.status_code == 200
     assert calls[0][1].url == "https://jobs.lever.co/acme/123"
@@ -513,21 +544,19 @@ def test_a_page_that_moves_off_the_allowlist_is_a_400(
         future.set_exception(AutofillRefused("The application page moved. Nothing was filled."))
         return future
 
-    monkeypatch.setattr("app.routers.packets.start_autofill", refused)
-    packet = _approved(db, test_user.id)
-    response = client.post(f"{PREFIX}/packets/{packet.id}/autofill", headers=auth_headers)
+    monkeypatch.setattr("app.routers.applications.start_autofill", refused)
+    application = _ready(db, test_user.id)
+    response = client.post(f"{PREFIX}/{application.id}/autofill", headers=auth_headers)
     assert response.status_code == 400
     assert response.json()["detail"] == "The application page moved. Nothing was filled."
 
 
-def test_another_owners_packet_is_404(client, db, test_user, autopilot_on, monkeypatch):
-    monkeypatch.setattr(
-        "app.routers.packets.start_autofill", lambda *a, **k: pytest.fail("browser opened")
-    )
-    packet = _approved(db, test_user.id)
+def test_another_owners_application_is_404(client, db, test_user, autopilot_on, monkeypatch):
+    _no_browser(monkeypatch)
+    application = _ready(db, test_user.id)
     other = User(email="other@example.com", hashed_password=hash_password("password123"))
     db.add(other)
     db.commit()
     headers = {"Authorization": f"Bearer {create_access_token(other.id)}"}
-    response = client.post(f"{PREFIX}/packets/{packet.id}/autofill", headers=headers)
+    response = client.post(f"{PREFIX}/{application.id}/autofill", headers=headers)
     assert response.status_code == 404

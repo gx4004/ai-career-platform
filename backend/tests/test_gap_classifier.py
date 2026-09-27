@@ -25,7 +25,7 @@ from app.services.gap_classifier import (
 )
 from app.services.tool_runs import delete_all_user_data
 
-PREFIX = "/api/v1/history"
+PREFIX = "/api/v1/applications"
 FIXTURE = json.loads((Path(__file__).parent / "fixtures/application_reviewer.json").read_text())
 
 
@@ -312,13 +312,13 @@ def test_owner_can_immediately_delete_a_gap_and_its_derived_response(
         DevelopmentItemCreate(gap_classification_id=classification.id),
     )
     response_url = (
-        f"{PREFIX}/workspaces/{workspace.id}/gap-classifications/"
+        f"{PREFIX}/{workspace.id}/gap-classifications/"
         f"{classification.id}/response"
     )
     assert client.get(response_url, headers=auth_headers).status_code == 200
 
     deleted = client.delete(
-        f"{PREFIX}/workspaces/{workspace.id}/gap-classifications/{classification.id}",
+        f"{PREFIX}/{workspace.id}/gap-classifications/{classification.id}",
         headers=auth_headers,
     )
 
@@ -344,7 +344,7 @@ def test_gap_delete_is_owner_scoped(client, test_user, db):
     intruder = {"Authorization": f"Bearer {create_access_token(other.id)}"}
 
     response = client.delete(
-        f"{PREFIX}/workspaces/{workspace.id}/gap-classifications/{classification.id}",
+        f"{PREFIX}/{workspace.id}/gap-classifications/{classification.id}",
         headers=intruder,
     )
 
@@ -356,7 +356,7 @@ def test_classify_endpoint_persists_and_lists_honest_gap_kinds(client, auth_head
     workspace = _build_campaign(db, test_user.id, FIXTURE["trigger"])
 
     response = client.post(
-        f"{PREFIX}/workspaces/{workspace.id}/gap-classifications", headers=auth_headers
+        f"{PREFIX}/{workspace.id}/gap-classifications", headers=auth_headers
     )
     assert response.status_code == 200
     body = response.json()
@@ -373,7 +373,7 @@ def test_classify_endpoint_persists_and_lists_honest_gap_kinds(client, auth_head
 
     finding_ids = {item["finding_id"] for item in body["classifications"]}
     persisted = client.get(
-        f"{PREFIX}/workspaces/{workspace.id}/gap-classifications", headers=auth_headers
+        f"{PREFIX}/{workspace.id}/gap-classifications", headers=auth_headers
     )
     assert persisted.status_code == 200
     assert {item["finding_id"] for item in persisted.json()["classifications"]} == finding_ids
@@ -381,7 +381,7 @@ def test_classify_endpoint_persists_and_lists_honest_gap_kinds(client, auth_head
     # Re-running is idempotent: identical materials produce the same finding ids
     # and no duplicate rows.
     again = client.post(
-        f"{PREFIX}/workspaces/{workspace.id}/gap-classifications", headers=auth_headers
+        f"{PREFIX}/{workspace.id}/gap-classifications", headers=auth_headers
     )
     assert {item["finding_id"] for item in again.json()["classifications"]} == finding_ids
     assert db.query(GapClassification).filter_by(workspace_id=workspace.id).count() == len(
@@ -392,7 +392,7 @@ def test_classify_endpoint_persists_and_lists_honest_gap_kinds(client, auth_head
 def test_classify_endpoint_requires_a_listing(client, auth_headers, test_user, db):
     workspace = _workspace(db, test_user.id)
     response = client.post(
-        f"{PREFIX}/workspaces/{workspace.id}/gap-classifications", headers=auth_headers
+        f"{PREFIX}/{workspace.id}/gap-classifications", headers=auth_headers
     )
     assert response.status_code == 409
 
@@ -405,10 +405,10 @@ def test_classify_endpoint_is_owner_scoped(client, test_user, db):
     intruder_headers = {"Authorization": f"Bearer {create_access_token(other.id)}"}
 
     response = client.post(
-        f"{PREFIX}/workspaces/{workspace.id}/gap-classifications", headers=intruder_headers
+        f"{PREFIX}/{workspace.id}/gap-classifications", headers=intruder_headers
     )
     assert response.status_code == 404
     get_response = client.get(
-        f"{PREFIX}/workspaces/{workspace.id}/gap-classifications", headers=intruder_headers
+        f"{PREFIX}/{workspace.id}/gap-classifications", headers=intruder_headers
     )
     assert get_response.status_code == 404

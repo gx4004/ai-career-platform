@@ -375,8 +375,8 @@ def test_no_discovery_read_or_ingest_path_creates_a_campaign():
     """Hard invariant (D-091): only the explicit adoption seam creates campaigns.
 
     Every discovery service module *except* the adoption seam must never
-    instantiate a campaign, campaign event, campaign listing, task, note,
-    contact, reminder, or call the listing-attach helper. This is the code-level
+    instantiate an application, application event, listing, task or snapshot,
+    or call the listing-attach helper. This is the code-level
     proof that discovery creates nothing on its own — no scheduler, ingestion
     job, or ranking read can produce a commitment for the user.
     """
@@ -386,10 +386,8 @@ def test_no_discovery_read_or_ingest_path_creates_a_campaign():
         "CampaignEvent(",
         "CampaignListing(",
         "CampaignTask(",
-        "CampaignNote(",
-        "CampaignContact(",
+        "ApplicationSnapshot(",
         "attach_listing",
-        "reminders_enabled",
     )
     discovery_modules = [
         path
