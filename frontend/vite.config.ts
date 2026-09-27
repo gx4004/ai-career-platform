@@ -33,7 +33,6 @@ export default defineConfig({
             manualChunks(id) {
               if (!id.includes('node_modules')) return
               if (id.includes('framer-motion')) return 'vendor-framer'
-              if (id.includes('@sentry/')) return 'vendor-sentry'
               if (/[\\/]node_modules[\\/](react|react-dom|scheduler)[\\/]/.test(id)) {
                 return 'vendor-react'
               }

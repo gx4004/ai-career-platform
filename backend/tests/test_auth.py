@@ -345,19 +345,13 @@ async def test_password_reset_email_omits_reply_to_when_unset(monkeypatch):
     assert "reply_to" not in captured
 
 
-async def test_password_reset_email_failure_captures_sentry_without_logging_email(
+async def test_password_reset_email_failure_is_logged_without_email(
     monkeypatch, caplog
 ):
     from app.config import settings
     from app.services import email_service
 
-    captured: list[tuple[str, str]] = []
-
     monkeypatch.setattr(settings, "RESEND_API_KEY", "test-key")
-    monkeypatch.setattr(
-        "app.services.email_service.sentry_sdk.capture_message",
-        lambda message, level: captured.append((message, level)),
-    )
 
     def boom(to_email: str, reset_url: str) -> None:
         raise RuntimeError("resend down")
@@ -369,7 +363,7 @@ async def test_password_reset_email_failure_captures_sentry_without_logging_emai
     )
 
     assert result is False
-    assert captured == [("Password reset email delivery failed", "error")]
+    assert "error_type=RuntimeError" in caplog.text
     assert "user@example.com" not in caplog.text
 
 
