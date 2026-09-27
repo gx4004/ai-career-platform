@@ -45,7 +45,6 @@ export const PROVENANCE_DESCRIPTIONS: Record<EvidenceProvenance, string> = {
 export const STATE_LABELS: Record<EvidenceConfirmationState, string> = {
   unconfirmed: 'Suggested',
   confirmed: 'Saved',
-  rejected: 'Rejected',
 }
 
 export type EvidenceGroup = {
@@ -77,11 +76,10 @@ export type TrustCounts = {
   total: number
   confirmed: number
   unconfirmed: number
-  rejected: number
 }
 
 export function countByState(items: EvidenceItem[]): TrustCounts {
-  const counts: TrustCounts = { total: 0, confirmed: 0, unconfirmed: 0, rejected: 0 }
+  const counts: TrustCounts = { total: 0, confirmed: 0, unconfirmed: 0 }
   for (const item of items) {
     counts.total += 1
     counts[item.confirmation_state] += 1

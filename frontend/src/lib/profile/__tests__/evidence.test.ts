@@ -44,11 +44,10 @@ describe('countByState', () => {
     const counts = countByState([
       item({ id: '1', confirmation_state: 'confirmed' }),
       item({ id: '2', confirmation_state: 'unconfirmed' }),
-      item({ id: '3', confirmation_state: 'rejected' }),
-      item({ id: '4', confirmation_state: 'confirmed' }),
+      item({ id: '3', confirmation_state: 'confirmed' }),
     ])
 
-    expect(counts).toEqual({ total: 4, confirmed: 2, unconfirmed: 1, rejected: 1 })
+    expect(counts).toEqual({ total: 3, confirmed: 2, unconfirmed: 1 })
   })
 })
 

@@ -12,8 +12,6 @@ import {
 } from '#/components/ui/dialog'
 import { Skeleton } from '#/components/ui/skeleton'
 import {
-  confirmDevelopmentEvidence,
-  declineDevelopmentEvidence,
   deleteDevelopmentItem,
   getDevelopmentPlan,
   updateDevelopmentItem,
@@ -66,7 +64,11 @@ export function SkillsToBuildSection() {
   const stateMutation = useMutation({
     mutationFn: ({ id, state }: { id: string; state: DevelopmentState }) =>
       updateDevelopmentItem(id, { state }),
-    onSuccess: invalidate,
+    // Completing an item adds a fact or suggestion to the profile (R17 #201).
+    onSuccess: (_item, { state }) =>
+      state === 'completed'
+        ? invalidateEvidenceCaches(queryClient, { rankingMayChange: true })
+        : invalidate(),
     onError: (error) => reportError(error, 'Could not update the status.'),
     onSettled: () => setPendingItemId(null),
   })
@@ -96,20 +98,6 @@ export function SkillsToBuildSection() {
     onSettled: () => setPendingItemId(null),
   })
 
-  const evidenceMutation = useMutation({
-    mutationFn: ({ id, action }: { id: string; action: 'confirm' | 'decline' }) =>
-      action === 'confirm'
-        ? confirmDevelopmentEvidence(id)
-        : declineDevelopmentEvidence(id),
-    onSuccess: async (_item, { action }) => {
-      await invalidateEvidenceCaches(queryClient, {
-        rankingMayChange: action === 'confirm',
-      })
-    },
-    onError: (error) => reportError(error, 'Could not update the evidence proposal.'),
-    onSettled: () => setPendingItemId(null),
-  })
-
   const items = itemsQuery.data ?? []
   const groups = useMemo(() => groupItemsByResponseKind(items), [items])
   const counts = useMemo(() => countByState(items), [items])
@@ -127,10 +115,6 @@ export function SkillsToBuildSection() {
     if (!deleteTarget) return
     setPendingItemId(deleteTarget.id)
     deleteMutation.mutate(deleteTarget.id)
-  }
-  function handleEvidenceAction(item: DevelopmentItem, action: 'confirm' | 'decline') {
-    setPendingItemId(item.id)
-    evidenceMutation.mutate({ id: item.id, action })
   }
 
   if (!itemsQuery.isLoading && !itemsQuery.isError && items.length === 0) {
@@ -222,8 +206,6 @@ export function SkillsToBuildSection() {
                       setEditTarget(target)
                     }}
                     onDelete={setDeleteTarget}
-                    onConfirmEvidence={(target) => handleEvidenceAction(target, 'confirm')}
-                    onDeclineEvidence={(target) => handleEvidenceAction(target, 'decline')}
                   />
                 ))}
               </ul>

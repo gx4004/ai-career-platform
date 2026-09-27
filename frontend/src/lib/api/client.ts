@@ -34,9 +34,8 @@ import {
   evidenceItemSchema,
   evidenceItemCreateSchema,
   evidenceItemUpdateSchema,
-  evidenceConfirmationActionSchema,
   evidenceImportRequestSchema,
-  evidenceImportProposalsSchema,
+  evidenceItemIdsSchema,
   discoveryListingPageSchema,
   discoveryDismissalSchema,
   healthCheckSchema,
@@ -85,7 +84,6 @@ import {
   cvImportAcceptSchema,
 } from '#/lib/api/schemas'
 import type {
-  EvidenceConfirmationAction,
   EvidenceItemCreate,
   EvidenceItemUpdate,
   CvDocumentCreate,
@@ -490,22 +488,19 @@ export function updateEvidenceItem(
   })
 }
 
-export function setEvidenceItemConfirmation(
-  itemId: string,
-  action: EvidenceConfirmationAction['action'],
-) {
-  return request(`/evidence-profile/items/${itemId}/confirmation`, {
+// Save one suggestion. Rejecting a suggestion is deleteEvidenceItem.
+export function confirmEvidenceItem(itemId: string) {
+  return request(`/evidence-profile/items/${itemId}/confirm`, {
     method: 'POST',
-    body: evidenceConfirmationActionSchema.parse({ action }),
     schema: evidenceItemSchema,
   })
 }
 
-// Phase 1b (#321): confirm every still-unconfirmed imported item in one call.
-export function confirmImportedEvidenceItems() {
-  return request('/evidence-profile/items/confirm-imported', {
+// Save several suggestions in one server commit.
+export function confirmEvidenceItems(ids: string[]) {
+  return request('/evidence-profile/items/confirm', {
     method: 'POST',
-    body: {},
+    body: evidenceItemIdsSchema.parse({ ids }),
     schema: evidenceItemListSchema,
   })
 }
@@ -525,14 +520,13 @@ export function exportCareerData() {
   })
 }
 
-// R11 (#146): derive reviewable evidence proposals from parsed resume text.
-// Authenticated-only server-side (guests get 401/403). Proposals are ephemeral —
-// nothing is stored until the user accepts one via createEvidenceItem.
-export function requestEvidenceImportProposals(resumeText: string) {
-  return request('/evidence-profile/import/proposals', {
+// R11 (#146): extract facts from parsed resume text and store them as
+// suggestions to review on the profile. Authenticated-only server-side.
+export function importEvidenceFromResume(resumeText: string) {
+  return request('/evidence-profile/import', {
     method: 'POST',
     body: evidenceImportRequestSchema.parse({ resume_text: resumeText }),
-    schema: evidenceImportProposalsSchema,
+    schema: evidenceItemListSchema,
   })
 }
 

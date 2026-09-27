@@ -12,21 +12,13 @@ const item = {
   state: 'completed',
   target_date: null,
   notes: 'Completed a supervised Rust learning project.',
-  source_finding_id: 'finding-1',
-  timeline: [
-    { event: 'evidence_proposal_created', at: '2026-07-24T12:00:00Z' },
-  ],
-  evidence_proposal: {
-    id: 'evidence-1',
-    content: { statement: 'Completed a supervised Rust learning project.' },
-    confirmation_state: 'unconfirmed',
-  },
+  evidence_item_id: 'evidence-1',
   created_at: '2026-07-24T10:00:00Z',
   updated_at: '2026-07-24T12:00:00Z',
 }
 
 describe('development plan schemas', () => {
-  it('mirrors the completion proposal and UTC-aware backend response', () => {
+  it('mirrors the evidence link and UTC-aware backend response', () => {
     expect(developmentItemSchema.parse(item)).toEqual(item)
     expect(
       developmentPlanResponseSchema.parse({
@@ -36,9 +28,9 @@ describe('development plan schemas', () => {
     ).toEqual([item])
   })
 
-  it('rejects missing proposal state, invalid timestamps, and unknown fields', () => {
+  it('rejects a missing evidence link, invalid timestamps, and unknown fields', () => {
     expect(() => {
-      const { evidence_proposal: _, ...missingProposal } = item
+      const { evidence_item_id: _, ...missingProposal } = item
       developmentItemSchema.parse(missingProposal)
     }).toThrow()
     expect(() =>
