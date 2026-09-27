@@ -187,7 +187,9 @@ def test_docx_boundary_fixture_renders_every_template_without_orphaned_headings(
         assert rendered_pdf.exists(), "LibreOffice did not produce the expected PDF"
         with fitz.open(rendered_pdf) as pdf:
             assert pdf.page_count > 1
-            pages = [page.get_text() for page in pdf]
+            # LibreOffice's font substitution can leave glyph gaps (e.g. a "tt"
+            # ligature in "https") that PyMuPDF would otherwise read as spaces.
+            pages = [page.get_text(flags=fitz.TEXT_INHIBIT_SPACES) for page in pdf]
             assert all(page.strip() for page in pages)
             for section in build_render_model(document, template).sections:
                 assert any(
