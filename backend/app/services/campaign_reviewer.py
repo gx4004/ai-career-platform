@@ -29,16 +29,17 @@ def _flatten_sections(sections: list[dict]) -> str:
 
 
 def project_campaign_materials(campaign) -> tuple[str, str]:
-    """Project exactly the visible CV and submitted cover-letter document."""
+    """Project the visible CV and the cover letter the application would send.
+
+    The chosen cover letter wins; otherwise the prepared draft is checked.
+    """
     sections = campaign.selected_cv_variant.sections if campaign.selected_cv_variant else []
     cv = _flatten_sections(sections)
-    payload = (
-        campaign.selected_cover_letter_run.result_payload
-        if campaign.selected_cover_letter_run
-        else {}
-    )
-    cover = _cover_document_text(payload)
-    return cv, cover
+    if campaign.selected_cover_letter_run is not None:
+        return cv, cover_document_text(campaign.selected_cover_letter_run.result_payload or {})
+    drafts = campaign.drafts_run.result_payload if campaign.drafts_run is not None else None
+    cover = (drafts or {}).get("cover_letter") or {}
+    return cv, str(cover.get("body") or "")
 
 
 def project_cv_document_text(campaign) -> str:
@@ -54,7 +55,7 @@ def project_cv_document_text(campaign) -> str:
     return _flatten_sections(document.sections if document is not None else [])
 
 
-def _cover_document_text(payload: dict) -> str:
+def cover_document_text(payload: dict) -> str:
     full_text = payload.get("full_text")
     if isinstance(full_text, str) and full_text.strip():
         return full_text

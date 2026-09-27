@@ -6,13 +6,13 @@ from sqlalchemy.orm import Session
 from app.auth.security import get_current_user
 from app.database import get_db
 from app.models.user import User
+from app.schemas.applications import ApplicationDetail
 from app.schemas.discovery_personalization import DismissalCreate, DismissalItem
 from app.schemas.discovery_recommendations import (
     DiscoveryListingPage,
     DiscoveryRecommendationList,
 )
-from app.schemas.history import CampaignDetailResponse
-from app.services.campaign_materials import get_campaign_detail
+from app.services.applications import application_detail
 from app.services.discovery_adoption import (
     RecommendationNotAdoptableError,
     adopt_recommendation,
@@ -68,7 +68,7 @@ def list_recommendations(
 
 @router.post(
     "/recommendations/{listing_id}/adopt",
-    response_model=CampaignDetailResponse,
+    response_model=ApplicationDetail,
     status_code=status.HTTP_201_CREATED,
 )
 def adopt_recommendation_into_campaign(
@@ -76,11 +76,11 @@ def adopt_recommendation_into_campaign(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """One explicit user action turns one visible recommendation into a campaign.
+    """One explicit user action turns one visible recommendation into an application.
 
-    The listing content, its source attribution, and its retrieval date are
-    copied into the new campaign's canonical listing, and the adoption is the
-    campaign's first event (D-091, D-078). Dismissed or expired
+    The listing content, its source attribution, apply link and retrieval date are
+    copied into the new application's listing, and the adoption is its first
+    event (D-091, D-078). Dismissed or expired
     recommendations are absent from the feed and are refused here.
     """
     try:
@@ -90,7 +90,7 @@ def adopt_recommendation_into_campaign(
             status_code=404,
             detail="Recommendation is not available to adopt",
         ) from error
-    return get_campaign_detail(db, workspace, current_user.id)
+    return application_detail(db, workspace)
 
 
 # ── Dismissals (R14, issue #175) ──

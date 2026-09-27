@@ -14,7 +14,7 @@ from app.schemas.cv_documents import (
     CvTailoringApply,
 )
 from app.schemas.evidence_profile import EvidenceItemCreate
-from app.services.campaign_materials import clear_selected_variants
+from app.services.applications import clear_selected_variants
 from app.services.cv_tailoring import read_change_field, write_change_field
 from app.services.evidence_profile import stage_evidence_proposal
 
