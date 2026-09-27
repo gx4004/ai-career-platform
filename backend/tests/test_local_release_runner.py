@@ -88,7 +88,6 @@ def test_release_plan_covers_every_local_manual_gate_and_redacts_the_database_ur
         "docker run --rm career-workbench-backend:local-release id -u",
         "python3 tests/migration_stable_release_roundtrip.py",
         "python3 tests/migration_packet_approval_roundtrip.py",
-        "python3 tests/migration_operational_metric_roundtrip.py",
         "python3 -m alembic upgrade head",
         "pnpm exec playwright install chromium",
         "pnpm test:e2e:ci",

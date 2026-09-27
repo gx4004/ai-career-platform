@@ -69,8 +69,6 @@ def test_record_activation_event_accepts_backend_metrics(db):
         ("duration_ms", 86_400_001),
         ("cost_estimate", Decimal("-0.000001")),
         ("cost_estimate", Decimal("1000000")),
-        ("metric_value", Decimal("-0.000001")),
-        ("metric_value", Decimal("1000000")),
     ],
 )
 def test_record_activation_event_rejects_out_of_range_numeric_evidence(field, value):
@@ -81,13 +79,6 @@ def test_record_activation_event_rejects_out_of_range_numeric_evidence(field, va
         "saved": True,
         field: value,
     }
-    if field == "metric_value":
-        payload = {
-            "event_name": "r10_rate_limit_event",
-            "operational_dimension": "tools",
-            "operational_outcome": "account",
-            field: value,
-        }
 
     with pytest.raises(ValidationError):
         ActivationEventCreate(**payload)

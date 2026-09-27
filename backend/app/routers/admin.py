@@ -6,7 +6,6 @@
 # generation then fails for the whole app (#285). Real annotation objects
 # sidestep the lookup entirely. Covered by tests/test_openapi_schema.py.
 from datetime import UTC, datetime, timedelta
-from time import perf_counter
 from typing import Literal
 
 import sqlalchemy as sa
@@ -47,7 +46,6 @@ from app.services.analytics import (
     aggregate_activation_metrics,
     aggregate_development_loop,
     aggregate_profile_adoption,
-    record_database_query_timing,
 )
 from app.services.ats_ingestion import run_ats_ingestion_off_loop
 from app.services.discovery_personalization import list_admin_reports
@@ -318,7 +316,6 @@ def list_runs(
     admin: User = Depends(get_current_admin),
     db: Session = Depends(get_db),
 ):
-    query_started = perf_counter()
     query = db.query(ToolRun)
     if tool:
         query = query.filter(ToolRun.tool_name == tool)
@@ -353,13 +350,9 @@ def list_runs(
         for r in runs
     ]
 
-    response = AdminRunListResponse(
+    return AdminRunListResponse(
         items=items, total=total, page=page, page_size=page_size
     )
-    record_database_query_timing(
-        db, query_family="admin_runs", started_at=query_started
-    )
-    return response
 
 
 @router.get("/runs/{run_id}", response_model=AdminRunDetailResponse)
