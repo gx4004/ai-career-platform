@@ -1,4 +1,3 @@
-from app.models.analytics_event import AnalyticsEvent
 from app.models.application_packet import ApplicationPacket
 from app.models.campaign_event import CampaignEvent
 from app.models.campaign_listing import CampaignListing
@@ -28,7 +27,6 @@ __all__ = [
     "User",
     "ToolRun",
     "Workspace",
-    "AnalyticsEvent",
     "EvidenceItem",
     "GapClassification",
     "DevelopmentItem",

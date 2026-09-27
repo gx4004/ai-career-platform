@@ -1,40 +1,33 @@
-"""Per-tool-run LLM cost estimation from actual provider token usage (issue #106).
+"""Per-run LLM cost estimation from actual provider token usage (issue #106).
 
-R6 needs a per-tool LLM cost figure alongside the per-tool latency that #104
-already persists (D-038, parent spec #103). The estimate must derive from the
-*actual* token counts the model provider returns for each call, not a flat
-per-tool guess.
+The application-packet cost ceiling (D-094) is enforced against what a
+preparation run actually spends, so the estimate derives from the token counts
+the provider returns for each call, not a flat per-tool guess.
 
 The seam is a request-scoped accumulator, not a return value threaded through
-every service. `complete_structured` may be called more than once per tool run
-(e.g. interview generation), and its parsed-JSON result is persisted as the
-`ToolRun` payload — so cost must not ride along in that dict. Instead the LLM
-client records each call's usage into a `ContextVar` and the shared tool
-pipeline reads the accumulated total once, at completion or failure. Because a
-FastAPI request runs in its own task with a copied context, concurrent requests
-never share an accumulator; the pipeline also resets it at the start of every
-run for defence in depth.
+every service: the LLM client records each call's usage into a `ContextVar`, the
+shared tool pipeline resets it at the start of every run, and the packet
+pipeline reads it after each call. A FastAPI request runs in its own task with a
+copied context, so concurrent requests never share an accumulator.
 
 `None` means "no provider call consumed tokens" (cached result, or failure
-before the provider was reached) and is persisted as a null `cost_estimate`.
-A recorded value of exactly zero is still a real observation and is kept
-distinct from `None`.
+before the provider was reached).
 
-Rates are USD-per-million-token estimates for the single V1 provider (Vertex
-Gemini 2.5 Flash — see CLAUDE.md stack) used for cost *observability*, not
-billing reconciliation; they live here so a price change is a one-line edit.
+Rates are USD-per-million-token estimates, not billing reconciliation; they
+live here so a price change is a one-line edit.
 """
 from __future__ import annotations
 
 from contextvars import ContextVar
 from decimal import Decimal
 
-# USD per 1M tokens, as (input_rate, output_rate). Vertex Gemini 2.5 Flash is the
-# only active V1 provider; the lite tier is included because the interview
-# practice-feedback path may run on a cheaper model (`LLM_PRACTICE_MODEL`).
+# USD per 1M tokens, as (input_rate, output_rate). Gemini 2.5 Flash is the default
+# provider model; the lite tier covers a cheaper `LLM_PRACTICE_MODEL`, and
+# claude-haiku-4-5 is the `anthropic` provider's default for local development.
 _MODEL_RATES_PER_MTOK: dict[str, tuple[Decimal, Decimal]] = {
     "gemini-2.5-flash": (Decimal("0.30"), Decimal("2.50")),
     "gemini-2.5-flash-lite": (Decimal("0.10"), Decimal("0.40")),
+    "claude-haiku-4-5": (Decimal("1.00"), Decimal("5.00")),
 }
 # Fallback for an unrecognised model id (e.g. a future versioned id like
 # `gemini-2.5-flash-002`): reuse the standard Flash rate so an unknown model

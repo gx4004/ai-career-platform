@@ -15,8 +15,7 @@ class PipelineHalt(Base):
     the ``packet-preparation`` scope and :func:`prepare_packets` refuses to prepare
     until it is cleared. A row absent for a scope means preparation is running
     (not halted). Because this is operational state, it is deliberately excluded
-    from the account-deletion cascade and the owner data export (like the
-    ``analytics_events`` operational store).
+    from the account-deletion cascade and the owner data export.
     """
 
     __tablename__ = "pipeline_halts"

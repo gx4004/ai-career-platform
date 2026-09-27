@@ -16,7 +16,6 @@ from app.schemas.discovery_sources import (
     DiscoverySourceFamily,
     DiscoverySourceUpdate,
 )
-from app.services.analytics import safe_record_activation_event
 
 
 class IngestionRefusal(StrEnum):
@@ -72,7 +71,6 @@ def register_source(db: Session, body: DiscoverySourceCreate) -> DiscoverySource
     db.add(source)
     db.commit()
     db.refresh(source)
-    _record_registry_change(db, source, "registered")
     return source
 
 
@@ -98,12 +96,10 @@ def update_source(
     if changes.get("kill_switch") is False and next_terms_status != "accepted":
         raise ValueError("A source cannot activate before its terms review is accepted")
 
-    outcome = _change_outcome(source, changes)
     for field, value in changes.items():
         setattr(source, field, value)
     db.commit()
     db.refresh(source)
-    _record_registry_change(db, source, outcome)
     return source
 
 
@@ -120,9 +116,7 @@ def operate_source_kill_switch(
     every fetch/ingest read path re-reads via ``require_ingestion_allowed``, so a
     trip halts the next fetch with no deploy or restart. Clearing is refused
     unless the terms review is accepted (the same activation gate as
-    ``update_source``), so the kill switch can never be used to bypass D-084. The
-    change is recorded as a bounded operational event carrying only the source
-    family and the trip/clear outcome — never the source key, name, or URL.
+    ``update_source``), so the kill switch can never be used to bypass D-084.
     """
     if not actor.is_admin:
         raise ValueError("Kill-switch operations require an authenticated admin operator")
@@ -131,12 +125,6 @@ def operate_source_kill_switch(
     source.kill_switch = tripped
     db.commit()
     db.refresh(source)
-    safe_record_activation_event(
-        db,
-        event_name="discovery_source_kill_switch",
-        operational_dimension=source.source_family,
-        operational_outcome="kill_switch_enabled" if tripped else "kill_switch_disabled",
-    )
     return source
 
 
@@ -177,21 +165,4 @@ def require_ingestion_allowed(
         rate_limit_per_minute=source.rate_limit_per_minute,
         attribution_rule=source.attribution_rule,
         retention_days=source.retention_days,
-    )
-
-
-def _change_outcome(source: DiscoverySource, changes: dict) -> str:
-    if "kill_switch" in changes and changes["kill_switch"] != source.kill_switch:
-        return "kill_switch_enabled" if changes["kill_switch"] else "kill_switch_disabled"
-    if "terms_status" in changes:
-        return "terms_updated"
-    return "governance_updated"
-
-
-def _record_registry_change(db: Session, source: DiscoverySource, outcome: str) -> None:
-    safe_record_activation_event(
-        db,
-        event_name="discovery_source_registry_changed",
-        operational_dimension=source.source_family,
-        operational_outcome=outcome,
     )

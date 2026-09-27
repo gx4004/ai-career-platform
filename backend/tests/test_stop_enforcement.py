@@ -17,7 +17,6 @@ from app.models.packet_stop_answer import PacketStopAnswer
 from app.schemas.discovery_recommendations import (
     DiscoveryRecommendationList,
 )
-from app.services.analytics import record_activation_event
 from app.services.application_packets import (
     compose_packet_materials,
     get_packet,
@@ -356,44 +355,6 @@ async def test_stop_answer_rejects_field_not_on_packet(db, test_user, monkeypatc
     # 'salary' is not one of this packet's unresolved questions.
     with pytest.raises(StopAnswerError):
         store_stop_answer(db, test_user.id, packet.id, field="salary", answer="100k")
-
-
-# ── Telemetry exclusion (D-099) ──
-
-
-def test_stop_answer_text_cannot_ride_telemetry(db):
-    """No activation event may carry stop-answer or stop-question free text — the
-    allowlist rejects any such field before a row is written (extra='forbid')."""
-    for bad in ("stop_answer", "answer", "answer_text", "stop_question", "question", "field"):
-        with pytest.raises(ValidationError):
-            record_activation_event(db, event_name="tool_run_started", **{bad: "SECRET"})
-
-
-@pytest.mark.asyncio
-async def test_resolving_stop_writes_no_analytics_row(db, test_user, monkeypatch):
-    from app.models.analytics_event import AnalyticsEvent
-
-    desc = "Visa sponsorship available for this engineer role."
-    _add_listing(db, "l-tel", description=desc)
-    _add_cv_variant(db, test_user.id)
-    _patch_rank(monkeypatch, [_rec("l-tel", description=desc)])
-    _add_rule(db, test_user.id, "role", keywords=["engineer"])
-    await prepare_packets(db, test_user.id, compose_fn=_stub_compose)
-    packet = db.query(ApplicationPacket).one()
-
-    before = db.query(AnalyticsEvent).count()
-    store_stop_answer(
-        db, test_user.id, packet.id, field="work_authorization", answer="Sensitive answer text."
-    )
-    after = db.query(AnalyticsEvent).count()
-    # Storing a stop answer emits no telemetry at all, so the text cannot leak.
-    assert after == before
-    assert (
-        db.query(AnalyticsEvent)
-        .filter(AnalyticsEvent.event_name.like("%stop%"))
-        .count()
-        == 0
-    )
 
 
 # ── Deletion cascade + export (D-099) ──

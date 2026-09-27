@@ -27,7 +27,6 @@ from sqlalchemy.orm import Session
 
 from app.models.workspace import Workspace
 from app.schemas.discovery_recommendations import DiscoveryRecommendation
-from app.services.analytics import safe_record_activation_event
 from app.services.campaign_listings import attach_listing
 from app.services.discovery_recommendations import (
     rank_discovery_recommendations,
@@ -123,16 +122,6 @@ def adopt_recommendation(
         source_family=primary.source_family,
         retrieved_at=primary.retrieved_at,
         event_type="listing_adopted",
-    )
-
-    # Allowlisted, low-cardinality adoption telemetry (D-090): only the outcome
-    # class and the source family. Never listing content, URL, listing id, or
-    # run id. Best-effort — instrumentation must not break the user action.
-    safe_record_activation_event(
-        db,
-        event_name="discovery_recommendation_adopted",
-        operational_outcome="adopted",
-        operational_dimension=primary.source_family,
     )
 
     db.refresh(workspace)
