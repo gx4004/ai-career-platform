@@ -155,6 +155,8 @@ test.describe('Queue approve-to-apply loop', () => {
     // post-click assertions need to inspect.
     const approvedCardByAction = page.locator('.queue-card', { has: page.getByRole('button', { name: 'Mark as applied' }) })
     await expect(approvedCardByAction).toBeVisible({ timeout: 15_000 })
+    // Each card fetches its own preview for the title and shows "Loading…" until then.
+    await expect(approvedCardByAction.locator('h3').first()).not.toHaveText('Loading…', { timeout: 15_000 })
     const heading = (await approvedCardByAction.locator('h3').first().textContent())?.trim() ?? ''
     expect(heading.length).toBeGreaterThan(0)
     const approvedCard = page.locator('.queue-card', { hasText: heading })
