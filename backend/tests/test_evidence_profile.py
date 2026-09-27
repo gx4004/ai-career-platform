@@ -362,7 +362,7 @@ def test_export_is_owner_scoped(client, auth_headers, test_user, second_user, db
     assert export.items == []
 
 
-def test_export_includes_owner_scoped_campaign_fields(
+def test_export_includes_owner_scoped_application_fields(
     client, auth_headers, test_user, second_user, db
 ):
     db.add_all(
@@ -372,14 +372,14 @@ def test_export_includes_owner_scoped_campaign_fields(
                 label="My campaign",
                 company="Example Corp",
                 role="Platform Engineer",
-                status="planning",
+                status="saved",
             ),
             Workspace(
                 user_id=second_user.id,
                 label="Other campaign",
                 company="Private Corp",
                 role="Secret Role",
-                status="planning",
+                status="saved",
             ),
         ]
     )
@@ -389,19 +389,19 @@ def test_export_includes_owner_scoped_campaign_fields(
         client.get(EXPORT, headers=auth_headers).json()
     )
 
-    assert exported.campaigns.campaign_count == 1
-    assert exported.campaigns.campaigns[0].company == "Example Corp"
+    assert exported.applications.application_count == 1
+    assert exported.applications.applications[0].company == "Example Corp"
     assert "Private Corp" not in exported.model_dump_json()
 
 
-def test_account_deletion_removes_campaign_fields(
+def test_account_deletion_removes_application_fields(
     client, auth_headers, test_user, db
 ):
     workspace = Workspace(
         user_id=test_user.id,
         company="Delete Corp",
         role="Delete Role",
-        status="planning",
+        status="saved",
     )
     db.add(workspace)
     db.commit()
@@ -410,7 +410,7 @@ def test_account_deletion_removes_campaign_fields(
         CampaignEvent(
             workspace_id=workspace_id,
             event_type="status_changed",
-            details={"from": None, "to": "planning"},
+            details={"from": None, "to": "saved"},
         )
     )
     db.commit()

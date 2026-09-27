@@ -57,6 +57,7 @@ async def import_job_url(
             company=result.company_name,
             description=result.job_description,
             source_url=result.source_url or str(body.url),
+            apply_url=result.source_url or str(body.url),
             source_family=map_source_family(str(body.url)),
         )
         result.retrieved_at = listing.retrieved_at

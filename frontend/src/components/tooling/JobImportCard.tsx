@@ -68,21 +68,21 @@ export function JobImportCard({
             checked={attach}
             onChange={(event) => setAttach(event.target.checked)}
           />
-          Attach explicitly to a campaign
+          Attach to one of your applications
         </label>
         {attach ? (
-          <div className="import-card-panel grid gap-3" aria-label="Campaign listing attachment">
+          <div className="import-card-panel grid gap-3" aria-label="Application listing attachment">
             <div className="workspace-picker">
-              <label className="workspace-picker-label" htmlFor="campaign-listing-picker">Campaign</label>
+              <label className="workspace-picker-label" htmlFor="campaign-listing-picker">Application</label>
               <select
                 id="campaign-listing-picker"
                 className="workspace-picker-select"
                 value={campaignId}
                 onChange={(event) => setCampaignId(event.target.value)}
               >
-                <option value="">Select a campaign</option>
+                <option value="">Select an application</option>
                 {campaigns.data?.items.map((item) => (
-                  <option key={item.id} value={item.id}>{item.label || item.role || 'Untitled campaign'}</option>
+                  <option key={item.id} value={item.id}>{item.label || item.role || 'Untitled application'}</option>
                 ))}
               </select>
             </div>

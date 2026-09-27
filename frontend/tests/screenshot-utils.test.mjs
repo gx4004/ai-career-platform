@@ -34,7 +34,6 @@ test('static page manifest covers the requested surfaces', () => {
     'profile',
     'development-plan',
     'discovery',
-    'queue',
     'admin',
   ]) {
     assert.ok(names.has(expected), `manifest is missing "${expected}"`)

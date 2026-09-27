@@ -4,13 +4,12 @@ This is the SINGLE source of truth for deciding whether a screening/application
 field must be a *mandatory stop* — a field the system never drafts, that only the
 user's typed input can resolve — versus a field the generator may draft.
 
-ADR 0009 / D-095 make this classification server-authoritative: it is computed
-here from the field text alone, so no client-supplied label, flag, or override can
-reclassify a field or bypass a stop. The generator (``compose_packet_materials``)
-and the packet's listing scan (``compute_unresolved_questions``) both route through
-these functions, so there is exactly one classifier — this module absorbs the
-provisional stop-topic list #181 shipped inline (work-auth / compensation /
-relocation / eligibility), with no second copy anywhere.
+D-095 makes this classification server-authoritative: it is computed here from
+the field text alone, so no client-supplied label, flag, or override can
+reclassify a field or bypass a stop. The application drafts
+(``application_drafts``) and the Autopilot form filler both route through it, so
+there is exactly one classifier. Listing descriptions are not scanned: benefits
+and equal-opportunity boilerplate would raise a question on nearly every job.
 
 The exhaustive stop categories (issue #182):
 
@@ -169,18 +168,6 @@ _STOP_TERMS: dict[StopCategory, tuple[str, ...]] = {
     ),
 }
 
-_STOP_QUESTION_TEXT: dict[StopCategory, str] = {
-    "work_authorization": "Confirm your work-authorization / visa status for this role (only you can).",
-    "salary": "Provide your compensation expectation for this role (only you can).",
-    "relocation": "Confirm whether you are willing to relocate for this role (only you can).",
-    "eligibility": "Answer the eligibility requirement this listing sets (only you can).",
-    "demographic": "This asks for demographic information — answer it yourself if you choose to.",
-    "legal": "This asks a legal-history question — only you can answer it.",
-    "sensitive": "This asks for sensitive personal information — only you can provide it.",
-    "uncertain": "This field needs your own words; the system will not guess it for you.",
-}
-
-
 def classify_stop_category(text: str) -> StopCategory | None:
     """Classify one screening/application field; return its stop category or None.
 
@@ -195,33 +182,3 @@ def classify_stop_category(text: str) -> StopCategory | None:
         if any(keyword_present(term, text) for term in _STOP_TERMS[category]):
             return category
     return None
-
-
-def stop_categories_in(text: str) -> list[StopCategory]:
-    """Every stop category a block of text raises, in canonical order (deduped).
-
-    Used to scan a listing description for the mandatory stops it surfaces; a single
-    listing can raise several (e.g. both salary and relocation).
-    """
-    if not text:
-        return []
-    return [
-        category
-        for category in STOP_CATEGORIES
-        if any(keyword_present(term, text) for term in _STOP_TERMS[category])
-    ]
-
-
-def is_stop_category(value: str) -> bool:
-    """True when ``value`` names one of the mandatory-stop categories."""
-    return value in STOP_CATEGORIES
-
-
-def stop_question_text(category: StopCategory) -> str:
-    """The canonical, listing-content-free prompt shown for a stop category.
-
-    Deliberately generic so the packet's own ``unresolved_questions`` never copy
-    listing or draft text (D-093): the packet owns the derived question, not a copy
-    of the source field.
-    """
-    return _STOP_QUESTION_TEXT[category]

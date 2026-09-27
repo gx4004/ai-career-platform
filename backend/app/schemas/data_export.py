@@ -3,20 +3,13 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from app.schemas.application_packets import (
-    ApplicationPacketsExport,
-    PacketApprovalSnapshotsExport,
-    PacketStopAnswersExport,
-)
+from app.schemas.applications import ApplicationsExport
 from app.schemas.cv_documents import CvDocumentsExport
 from app.schemas.development import DevelopmentItemResponse
 from app.schemas.discovery_personalization import PersonalizationExport
 from app.schemas.evidence_profile import EvidenceItemResponse
 from app.schemas.gap_classification import GapClassificationRead
 from app.schemas.gap_response import GapResponseOffer
-from app.schemas.history import CampaignsExport
-from app.schemas.queue_audit import QueueAuditExport
-from app.schemas.queue_rules import QueueRulesExport
 
 
 class DevelopmentLoopExport(BaseModel):
@@ -57,13 +50,8 @@ class CareerDataExport(BaseModel):
     item_count: int = Field(ge=0)
     items: list[EvidenceItemResponse]
     cv_documents: CvDocumentsExport
-    campaigns: CampaignsExport
+    applications: ApplicationsExport
     personalization: PersonalizationExport
-    queue_rules: QueueRulesExport
-    application_packets: ApplicationPacketsExport
-    packet_stop_answers: PacketStopAnswersExport
-    packet_approval_snapshots: PacketApprovalSnapshotsExport
-    queue_audit: QueueAuditExport
     development: DevelopmentLoopExport
 
     @model_validator(mode="after")

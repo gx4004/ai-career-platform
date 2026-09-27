@@ -19,6 +19,7 @@ def attach_listing(
     description: str,
     source_url: str | None,
     source_family: str,
+    apply_url: str | None = None,
     retrieved_at: datetime | None = None,
     event_type: str = "listing_attached",
 ) -> CampaignListing:
@@ -36,6 +37,8 @@ def attach_listing(
         )
     if source_url is not None and len(source_url) > 2_048:
         raise HTTPException(status_code=422, detail="Listing source URL is too long")
+    if apply_url is not None and len(apply_url) > 2_048:
+        raise HTTPException(status_code=422, detail="Listing apply URL is too long")
 
     workspace = (
         db.query(Workspace)
@@ -43,7 +46,7 @@ def attach_listing(
         .first()
     )
     if workspace is None:
-        raise HTTPException(status_code=404, detail="Campaign not found")
+        raise HTTPException(status_code=404, detail="Application not found")
 
     outcome = "replaced" if workspace.listing is not None else "attached"
     if retrieved_at is None:
@@ -56,11 +59,15 @@ def attach_listing(
         company=normalized_company,
         description=normalized_description,
         source_url=source_url,
+        apply_url=apply_url,
         retrieved_at=retrieved_at,
     )
     db.add(listing)
     db.flush()
     workspace.current_listing_id = listing.id
+    if workspace.status is None:
+        # A workspace aimed at a job posting is an Application.
+        workspace.status = "saved"
     db.add(
         CampaignEvent(
             workspace_id=workspace.id,
