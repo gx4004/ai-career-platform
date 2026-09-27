@@ -21,7 +21,7 @@ async function measureOverflow(page: Page) {
   }))
 }
 
-test('CV Studio live preview fits 320/375px, follows the template and has a clean print surface', async ({ page }) => {
+test('CV Studio paper fits 320/375px, edits in a sheet, follows the template and prints without chrome', async ({ page }) => {
   // Initialize the application in its mobile shell. Resizing from Playwright's
   // desktop default and measuring immediately can sample the outgoing desktop
   // SidebarInset before React's breakpoint hook commits the mobile tree.
@@ -45,12 +45,19 @@ test('CV Studio live preview fits 320/375px, follows the template and has a clea
   expect(created.ok()).toBe(true)
   await gotoHydrated(page, '/cv-studio')
   await expect(page.locator('.app-main--mobile')).toBeVisible()
-  const views = page.getByRole('tablist', { name: 'Studio view' })
+  const toolbar = page.getByRole('navigation', { name: 'Studio tools' })
+
+  // Paper first on a phone: tapping a section opens its editor in a sheet.
+  await page.getByRole('button', { name: 'Edit Summary' }).click()
+  const sheet = page.getByRole('dialog', { name: 'Edit Summary' })
+  await sheet.getByLabel('Summary text').fill('Edited from the sheet.')
+  await expect(page.getByTestId('cv-paper')).toContainText('Edited from the sheet.')
+  await sheet.getByRole('button', { name: 'Close panel' }).click()
 
   for (const template of ['ATS Essential', 'Professional Editorial', 'Modern Two-Column']) {
-    await views.getByRole('tab', { name: 'Design' }).click()
-    await page.getByRole('radio', { name: new RegExp(template) }).check({ force: true })
-    await views.getByRole('tab', { name: 'Preview' }).click()
+    await toolbar.getByRole('button', { name: /^Design/ }).click()
+    await page.getByRole('dialog', { name: 'Design' }).getByRole('radio', { name: new RegExp(template) }).check({ force: true })
+    await page.getByRole('dialog', { name: 'Design' }).getByRole('button', { name: 'Close panel' }).click()
     await expect(page.getByTestId('cv-paper')).toBeVisible()
     for (const width of [320, 375]) {
       await page.setViewportSize({ width, height: 812 })
@@ -68,9 +75,9 @@ test('CV Studio live preview fits 320/375px, follows the template and has a clea
   await expect(page.getByTitle('Modern Two-Column PDF preview')).toBeVisible({ timeout: 30_000 })
   await page.keyboard.press('Escape')
 
-  await views.getByRole('tab', { name: 'Edit' }).click()
+  // Printing the page prints the paper, without the studio chrome around it.
   await page.emulateMedia({ media: 'print' })
-  await expect(page.locator('.cvs-preview-col')).toBeHidden()
-  await expect(page.getByLabel('CV sections')).toBeVisible()
+  await expect(toolbar).toBeHidden()
+  await expect(page.getByTestId('cv-paper')).toBeVisible()
   await page.emulateMedia({ media: 'screen' })
 })

@@ -144,7 +144,7 @@ export function CvSectionEditor({ section, onSections }: { section: CvSection; o
   }
 
   return (
-    <section id={`cv-section-${section.id}`} className={cn('cvs-section', !section.visible && 'is-hidden')} aria-labelledby={`${uid}-kind`} tabIndex={-1}>
+    <section className={cn('cvs-section', !section.visible && 'is-hidden')} aria-labelledby={`${uid}-kind`}>
       <header className="cvs-section__head">
         <input
           className="cvs-section__title" aria-label={`Section name for ${sectionLabels[section.kind]}`} value={section.title} maxLength={120}
