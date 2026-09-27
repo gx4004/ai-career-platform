@@ -131,9 +131,11 @@ An immutable, recoverable snapshot of a CV document, typically tailored to one
 target role. The base document and every prior variant remain restorable.
 
 **CV template**
-One of exactly three declarative initial layouts (ATS Essential, Professional
-Editorial, Technical/Portfolio) from which preview, DOCX, and PDF render
-deterministically from the same structured document.
+One of five declarative layouts (ATS Essential, Professional Editorial,
+Technical Portfolio, Modern Two-Column, Minimal Serif) from which preview, DOCX,
+and PDF render deterministically from the same structured document. The backend
+style catalog is the single source of template, font, palette and density values;
+the live preview looks them up rather than keeping its own copy.
 
 **ATS-aware check**
 A deterministic structural validation of a CV document or its exports — section
@@ -143,9 +145,10 @@ employment promise.
 
 **Tailored change**
 One proposed modification to a CV document, shown as a before/after diff carrying
-requirement and evidence provenance. It enters the document only through an
-explicit accept or edit action; a claim without confirmed supporting evidence
-requires an explicit user confirmation step.
+requirement and evidence provenance. It enters a new CV variant only through an
+explicit accept action (review is accept or reject; there is no free-text edit
+of a proposed change); a claim without confirmed supporting evidence requires an
+explicit user confirmation step.
 
 ## Application Campaigns and Reviewer (R13)
 

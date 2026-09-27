@@ -7,10 +7,9 @@ import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
 } from '#/components/ui/dialog'
 import { fetchCvArtifactBlob } from '#/lib/api/client'
-import type { CvSection, CvStyle } from '#/lib/api/schemas'
+import type { CvSection, CvStyle, CvStyleCatalog } from '#/lib/api/schemas'
 import { buildPreviewSections, resolvePreviewStyle, splitTwoColumn } from '#/lib/cv-studio/preview'
 import type { PreviewSection } from '#/lib/cv-studio/preview'
-import { TEMPLATE_NAMES } from '#/lib/cv-studio/catalog'
 
 /** A4 at CSS reference resolution: 297mm tall. */
 const PAGE_HEIGHT_PX = 297 * (96 / 25.4)
@@ -43,15 +42,18 @@ function PaperSection({ section }: { section: PreviewSection }) {
 }
 
 /**
- * Live HTML rendering of the unsaved draft, scaled to fit its column. It mirrors
- * the server renderer's tokens closely; the exported PDF remains the source of truth.
+ * Live HTML rendering of the unsaved draft, scaled to fit its column, using the
+ * design values from the backend style catalog; the exported PDF remains the source of truth.
  */
-export function CvPaper({ name, sections, style }: { name: string; sections: CvSection[]; style: CvStyle }) {
+export function CvPaper({ name, sections, style, catalog }: {
+  name: string; sections: CvSection[]; style: CvStyle; catalog: CvStyleCatalog
+}) {
   const frameRef = useRef<HTMLDivElement>(null)
   const paperRef = useRef<HTMLDivElement>(null)
   const [scale, setScale] = useState(1)
   const [paperHeight, setPaperHeight] = useState(PAGE_HEIGHT_PX)
-  const effective = resolvePreviewStyle(style)
+  const effective = resolvePreviewStyle(style, catalog)
+  const twoColumn = effective.sidebarKinds.length > 0
   const preview = buildPreviewSections(sections)
   const hasContent = preview.some((section) => section.entries.length > 0)
 
@@ -82,20 +84,20 @@ export function CvPaper({ name, sections, style }: { name: string; sections: CvS
   } as CSSProperties
   const title = <h2 className="cvp-title" style={{ textAlign: effective.titleAlign }}>{name.trim() || 'Untitled CV'}</h2>
   const pages = Math.max(1, Math.ceil((paperHeight - 1) / PAGE_HEIGHT_PX))
-  const { side, main } = splitTwoColumn(preview)
+  const { side, main } = splitTwoColumn(preview, effective.sidebarKinds)
 
   return (
     <div className="cvp">
       <div ref={frameRef} className="cvp-frame" style={{ height: paperHeight * scale }}>
         <div
           ref={paperRef}
-          className={`cvp-paper cvp-paper--${effective.layout}${effective.twoColumn ? ' cvp-paper--two-column' : ''}`}
+          className={`cvp-paper cvp-paper--${effective.layout}${twoColumn ? ' cvp-paper--two-column' : ''}`}
           style={paperStyle}
           data-testid="cv-paper"
           aria-label="Live preview of your CV"
           role="document"
         >
-          {effective.twoColumn ? (
+          {twoColumn ? (
             <div className="cvp-columns">
               <div className="cvp-side">{title}{side.map((section) => <PaperSection key={section.id} section={section} />)}</div>
               <div className="cvp-main">{main.map((section) => <PaperSection key={section.id} section={section} />)}</div>
@@ -123,18 +125,17 @@ function useObjectUrl(blob: Blob | undefined) {
 }
 
 /** The server-rendered PDF: exactly what "Export PDF" downloads. */
-export function ExactPdfDialog({ open, onOpenChange, documentId, documentName, revision, style }: {
-  open: boolean; onOpenChange: (open: boolean) => void; documentId: string; documentName: string; revision: string; style: CvStyle
+export function ExactPdfDialog({ open, onOpenChange, documentId, documentName, revision, style, templateName }: {
+  open: boolean; onOpenChange: (open: boolean) => void; documentId: string; documentName: string; revision: string
+  style: CvStyle; templateName: string
 }) {
-  const template = style.template_id
   const pdf = useQuery({
-    queryKey: ['cv-artifact', documentId, revision, template, JSON.stringify(style), 'pdf'],
-    queryFn: () => fetchCvArtifactBlob(documentId, template, 'pdf'),
+    queryKey: ['cv-artifact', documentId, revision, JSON.stringify(style), 'pdf'],
+    queryFn: () => fetchCvArtifactBlob(documentId, 'pdf'),
     enabled: open,
     staleTime: Infinity,
   })
   const url = useObjectUrl(pdf.data)
-  const templateName = TEMPLATE_NAMES[template]
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="cvs-pdf-dialog sm:max-w-3xl">

@@ -78,7 +78,6 @@ import {
   cvQualityResponseSchema,
   cvTailoringApplySchema,
   cvTailoringProposalSchema,
-  cvRenderModelSchema,
   cvStyleCatalogSchema,
   cvImportProposalSchema,
   cvImportAcceptSchema,
@@ -88,7 +87,6 @@ import type {
   EvidenceItemUpdate,
   CvDocumentCreate,
   CvDocumentUpdate,
-  CvTemplateId,
   CvImportProposal,
   WorkspaceUpdate,
   CampaignMaterialSelection,
@@ -147,10 +145,6 @@ export function scoreCvDocument(documentId: string) {
   })
 }
 
-export function getCvRenderModel(documentId: string, template: CvTemplateId) {
-  return request(`/cv-documents/${documentId}/render?template=${encodeURIComponent(template)}`, { method: 'GET', schema: cvRenderModelSchema })
-}
-
 export function getCvStyleCatalog() {
   return request('/cv-documents/style-catalog', { method: 'GET', schema: cvStyleCatalogSchema })
 }
@@ -172,31 +166,10 @@ export function acceptCvImport(proposal: CvImportProposal) {
   })
 }
 
-export interface CvRenderModelPreviewOverrides {
-  template_id?: CvTemplateId
-  font_id?: string
-  accent_color?: string
-  density?: string
-  ats_mode?: boolean
-}
-
-export function getCvRenderModelPreview(documentId: string, overrides: CvRenderModelPreviewOverrides = {}) {
-  const params = new URLSearchParams()
-  for (const [key, value] of Object.entries(overrides)) {
-    if (value !== undefined) params.set(key, String(value))
-  }
-  const query = params.toString()
-  return request(`/cv-documents/${documentId}/render-model${query ? `?${query}` : ''}`, {
-    method: 'GET', schema: cvRenderModelSchema,
-  })
-}
-
-export function cvArtifactUrl(documentId: string, template: CvTemplateId, format: 'docx' | 'pdf') {
-  return `${API_URL}/cv-documents/${encodeURIComponent(documentId)}/artifacts/${format}?template=${encodeURIComponent(template)}`
-}
-
-export async function fetchCvArtifactBlob(documentId: string, template: CvTemplateId, format: 'docx' | 'pdf', retry = false): Promise<Blob> {
-  const response = await fetch(cvArtifactUrl(documentId, template, format), {
+/** The saved CV rendered in its saved style: exactly what Export downloads. */
+export async function fetchCvArtifactBlob(documentId: string, format: 'docx' | 'pdf', retry = false): Promise<Blob> {
+  const url = `${API_URL}/cv-documents/${encodeURIComponent(documentId)}/artifacts/${format}`
+  const response = await fetch(url, {
     credentials: 'include', signal: AbortSignal.timeout(180_000),
   })
   if (response.status === 401 && !retry && Date.now() >= refreshCooldownUntil) {
@@ -204,7 +177,7 @@ export async function fetchCvArtifactBlob(documentId: string, template: CvTempla
       if (!refreshPromise) refreshPromise = silentRefresh()
       await refreshPromise
       refreshPromise = null
-      return fetchCvArtifactBlob(documentId, template, format, true)
+      return fetchCvArtifactBlob(documentId, format, true)
     } catch {
       refreshPromise = null
       refreshCooldownUntil = Date.now() + REFRESH_COOLDOWN_MS
@@ -221,11 +194,6 @@ export function tailorCvDocument(documentId: string, payload: { job_title: strin
 
 export function applyCvTailoring(documentId: string, payload: unknown) {
   return request(`/cv-documents/${documentId}/tailoring/apply`, { method: 'POST', body: cvTailoringApplySchema.parse(payload), schema: cvVariantSchema })
-}
-
-export function proposeCvTailoringEdit(documentId: string, payload: unknown) {
-  const parsed = cvTailoringApplySchema.pick({ request_id: true, job_title: true, proposal_token: true, changes: true }).extend({ change_id: z.string(), edited_after: z.string().min(1).max(5_000) }).parse(payload)
-  return request(`/cv-documents/${documentId}/tailoring/edit-proposals`, { method: 'POST', body: parsed, schema: evidenceItemSchema })
 }
 
 function trimTrailingSlash(value: string): string {

@@ -413,7 +413,8 @@ def test_review_rejects_without_mutating_and_accept_creates_immutable_variant(
         "evidence_item_ids": [confirmed_evidence.id],
         "support": "confirmed",
     }
-    invented_edit = _signed(
+    # Tailoring review is accept/reject only: there is no free-text "edit" action.
+    edit_decision = _signed(
         document["id"],
         test_user.id,
         {
@@ -421,32 +422,15 @@ def test_review_rejects_without_mutating_and_accept_creates_immutable_variant(
             "variant_name": "Invented edit",
             "job_title": "Platform Engineer",
             "changes": [change],
-            "decisions": [
-                {
-                    "change_id": "change-one",
-                    "action": "edit",
-                    "edited_after": "Managed a newly invented team of 90.",
-                }
-            ],
+            "decisions": [{"change_id": "change-one", "action": "edit"}],
         },
     )
     assert (
         client.post(
-            f"{PREFIX}/{document['id']}/tailoring/apply", json=invented_edit, headers=auth_headers
+            f"{PREFIX}/{document['id']}/tailoring/apply", json=edit_decision, headers=auth_headers
         ).status_code
         == 422
     )
-    edit_proposal = client.post(
-        f"{PREFIX}/{document['id']}/tailoring/edit-proposals",
-        json={
-            key: invented_edit[key]
-            for key in ("request_id", "job_title", "proposal_token", "changes")
-        }
-        | {"change_id": "change-one", "edited_after": "Managed a newly invented team of 90."},
-        headers=auth_headers,
-    )
-    assert edit_proposal.status_code == 201
-    assert edit_proposal.json()["confirmation_state"] == "unconfirmed"
     payload = _signed(
         document["id"],
         test_user.id,
@@ -618,57 +602,6 @@ def test_unsupported_tailoring_change_is_blocked_until_evidence_is_confirmed(
     )
     assert accepted.status_code == 201
     assert accepted.json()["sections"][0]["entries"][0]["body"] == "Managed a synthetic team of 50."
-
-
-@pytest.mark.parametrize(
-    ("section_kind", "evidence_kind"),
-    [
-        ("experience", "experience"),
-        ("achievements", "achievement"),
-        ("skills", "skill"),
-        ("education", "education"),
-        ("projects", "project"),
-        ("certifications", "certification"),
-    ],
-)
-def test_custom_tailoring_edits_stage_the_typed_r11_evidence_kind(
-    client, auth_headers, test_user, confirmed_evidence, section_kind, evidence_kind
-):
-    section = _section(confirmed_evidence.id)
-    section["kind"] = section_kind
-    document = client.post(
-        PREFIX, json={"name": section_kind, "sections": [section]}, headers=auth_headers
-    ).json()
-    change = {
-        "id": "typed-edit",
-        "section_id": "section-achievements",
-        "entry_id": "entry-one",
-        "before": "Improved a synthetic process by 20%.",
-        "after": "Improved a synthetic platform process by 20%.",
-        "job_requirement": "Relevant evidence",
-        "evidence_item_ids": [confirmed_evidence.id],
-        "support": "confirmed",
-    }
-    request = _signed(
-        document["id"],
-        test_user.id,
-        {
-            "request_id": "f5ac39c0-5a76-4e94-98f1-a0fd8b42a5b2",
-            "variant_name": "unused",
-            "job_title": "Target",
-            "changes": [change],
-            "decisions": [],
-        },
-    )
-    response = client.post(
-        f"{PREFIX}/{document['id']}/tailoring/edit-proposals",
-        json={key: request[key] for key in ("request_id", "job_title", "proposal_token", "changes")}
-        | {"change_id": "typed-edit", "edited_after": "New user-authored wording."},
-        headers=auth_headers,
-    )
-    assert response.status_code == 201
-    assert response.json()["kind"] == evidence_kind
-    assert response.json()["confirmation_state"] == "unconfirmed"
 
 
 def test_history_still_lists_runs_saved_by_earlier_quality_and_tailoring_checks(

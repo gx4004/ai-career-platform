@@ -1,59 +1,11 @@
-import type { CvSection, CvStyle, CvTemplateId } from '#/lib/api/schemas'
-import { CV_ACCENT_PALETTE } from '#/lib/api/schemas'
+import type { CvSection, CvStyle, CvStyleCatalog, CvTemplateId } from '#/lib/api/schemas'
 
 /**
- * Client mirror of `backend/app/services/cv_rendering.py`
- * (`TEMPLATES`, `resolve_effective_style`, `build_render_model`, `_entry_flow`).
- *
- * The browser preview renders the *unsaved* draft with these tokens so the
- * paper updates while the person types. The server-rendered PDF stays the
- * export of record; keep the numbers here in step with the backend table.
+ * The browser preview renders the *unsaved* draft so the paper updates while the
+ * person types. Every design value (sizes, margins, fonts, alignment, sidebar
+ * kinds, ATS-mode overrides) is looked up in the backend style catalog, the same
+ * table the PDF/DOCX renderer uses; the server-rendered PDF stays the export of record.
  */
-
-type TemplateTokens = {
-  /** Built-in PDF face the legacy template uses (only reached in ATS mode now). */
-  font: 'sans' | 'serif' | 'mono'
-  accent: string
-  bodyPt: number
-  headingPt: number
-  marginMm: number
-  sectionGapPt: number
-}
-
-export const TEMPLATE_TOKENS: Record<CvTemplateId, TemplateTokens> = {
-  'ats-essential': { font: 'sans', accent: '#111827', bodyPt: 10, headingPt: 13, marginMm: 18, sectionGapPt: 6 },
-  'professional-editorial': { font: 'serif', accent: '#7C2D12', bodyPt: 10, headingPt: 15, marginMm: 20, sectionGapPt: 8 },
-  'technical-portfolio': { font: 'mono', accent: '#075985', bodyPt: 9, headingPt: 12, marginMm: 16, sectionGapPt: 7 },
-  'modern-two-column': { font: 'sans', accent: '#1D4ED8', bodyPt: 9, headingPt: 12, marginMm: 14, sectionGapPt: 6 },
-  'minimal-serif': { font: 'serif', accent: '#374151', bodyPt: 10, headingPt: 13, marginMm: 20, sectionGapPt: 7 },
-}
-
-export const ATS_SAFE_TEMPLATES: ReadonlySet<CvTemplateId> = new Set([
-  'ats-essential', 'professional-editorial', 'technical-portfolio', 'minimal-serif',
-])
-
-const DENSITY_SCALE = { compact: 0.88, normal: 1, spacious: 1.15 } as const
-const DENSITY_GAP_SCALE = { compact: 0.7, normal: 1, spacious: 1.4 } as const
-
-/** Google Fonts equivalents of the OFL families bundled with the backend renderer. */
-export const FONT_STACKS: Record<CvStyle['font_id'], string> = {
-  lato: "'Lato', 'Helvetica Neue', Arial, sans-serif",
-  'pt-sans': "'PT Sans', 'Helvetica Neue', Arial, sans-serif",
-  'pt-serif': "'PT Serif', Georgia, 'Times New Roman', serif",
-  'crimson-text': "'Crimson Text', Georgia, 'Times New Roman', serif",
-  'ibm-plex-mono': "'IBM Plex Mono', 'SFMono-Regular', Menlo, monospace",
-}
-const ATS_FONT_STACK = "Helvetica, Arial, 'Liberation Sans', sans-serif"
-
-export const DEFAULT_STYLE: CvStyle = {
-  template_id: 'ats-essential', font_id: 'lato', accent_color: '#111827', density: 'normal', ats_mode: false,
-}
-
-export const ACCENT_NAMES: Record<(typeof CV_ACCENT_PALETTE)[number], string> = {
-  '#111827': 'Ink', '#7C2D12': 'Rust', '#075985': 'Ocean', '#166534': 'Forest',
-  '#6D28D9': 'Violet', '#B91C1C': 'Crimson', '#0F766E': 'Teal',
-}
-
 export type EffectivePreviewStyle = {
   layout: CvTemplateId
   fontStack: string
@@ -63,26 +15,28 @@ export type EffectivePreviewStyle = {
   marginMm: number
   sectionGapPt: number
   titleAlign: 'left' | 'center'
-  twoColumn: boolean
+  /** Section kinds in the sidebar column; empty for single-column layouts. */
+  sidebarKinds: CvSection['kind'][]
   atsMode: boolean
 }
 
-export function resolvePreviewStyle(style: CvStyle): EffectivePreviewStyle {
-  const ats = style.ats_mode
-  const layout: CvTemplateId = ats ? 'ats-essential' : style.template_id
-  const tokens = TEMPLATE_TOKENS[layout]
-  const density = ats ? 'normal' : style.density
+export function resolvePreviewStyle(style: CvStyle, catalog: CvStyleCatalog): EffectivePreviewStyle {
+  const ats = style.ats_mode ? catalog.ats_mode : null
+  const layout = ats?.template_id ?? style.template_id
+  const template = catalog.templates.find((item) => item.id === layout) ?? catalog.templates[0]
+  const sizes = template.sizes[ats?.density ?? style.density]
+  const font = catalog.fonts.find((item) => item.id === style.font_id) ?? catalog.fonts[0]
   return {
-    layout,
-    fontStack: ats ? ATS_FONT_STACK : FONT_STACKS[style.font_id],
-    accent: ats ? '#111827' : style.accent_color,
-    bodyPt: Math.max(8, Math.round(tokens.bodyPt * DENSITY_SCALE[density])),
-    headingPt: Math.max(10, Math.round(tokens.headingPt * DENSITY_SCALE[density])),
-    marginMm: tokens.marginMm,
-    sectionGapPt: Math.max(3, Math.round(tokens.sectionGapPt * DENSITY_GAP_SCALE[density])),
-    titleAlign: layout === 'professional-editorial' ? 'center' : 'left',
-    twoColumn: !ats && layout === 'modern-two-column',
-    atsMode: ats,
+    layout: template.id,
+    fontStack: ats?.css_family ?? font.css_family,
+    accent: ats?.accent ?? style.accent_color,
+    bodyPt: sizes.body_pt,
+    headingPt: sizes.heading_pt,
+    marginMm: template.margin_mm,
+    sectionGapPt: sizes.section_gap_pt,
+    titleAlign: template.title_align,
+    sidebarKinds: template.sidebar_kinds,
+    atsMode: Boolean(ats),
   }
 }
 
@@ -135,16 +89,13 @@ export function buildPreviewSections(sections: CvSection[]): PreviewSection[] {
     }))
 }
 
-const SIDEBAR_KINDS = new Set<CvSection['kind']>(['skills', 'certifications'])
-
-/** The two-column template's sidebar/main split, identical to `_render_pdf_two_column`. */
-export function splitTwoColumn(sections: PreviewSection[]) {
-  let side = sections.filter((section) => SIDEBAR_KINDS.has(section.kind))
-  let main = sections.filter((section) => !SIDEBAR_KINDS.has(section.kind))
+/** The two-column sidebar/main split, identical to the renderer's `_split_sidebar`. */
+export function splitTwoColumn(sections: PreviewSection[], sidebarKinds: CvSection['kind'][]) {
+  let side = sections.filter((section) => sidebarKinds.includes(section.kind))
+  let main = sections.filter((section) => !sidebarKinds.includes(section.kind))
   if (side.length === 0 && main.length > 0) {
     side = main.slice(0, 1)
     main = main.slice(1)
   }
   return { side, main }
 }
-
