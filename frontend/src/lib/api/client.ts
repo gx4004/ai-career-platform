@@ -250,7 +250,7 @@ async function silentRefresh(): Promise<void> {
   if (!res.ok) throw new Error('refresh failed')
 }
 
-async function request<T>(
+export async function request<T>(
   path: string,
   options: RequestOptions<T> = {},
   _isRetry = false,

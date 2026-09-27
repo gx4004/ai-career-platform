@@ -33,7 +33,6 @@ export const developmentPlanResponseSchema = z.strictObject({
   schema_version: z.literal('development-plan/v1'),
   items: z.array(developmentItemSchema),
 })
-export type DevelopmentPlanResponse = z.infer<typeof developmentPlanResponseSchema>
 
 // Request bodies. `target_date`/`notes` accept null to clear; omit to leave
 // unchanged (mirrors the backend model_fields_set semantics).

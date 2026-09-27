@@ -1,104 +1,84 @@
 import { useMemo, useState } from 'react'
+import { Link } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { BadgeCheck, Check, FileUp, Pencil, Trash2, X } from 'lucide-react'
+import { Badge } from '#/components/ui/badge'
 import { Button } from '#/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '#/components/ui/dialog'
 import { Skeleton } from '#/components/ui/skeleton'
 import { AppStatePanel } from '#/components/app/AppStatePanel'
-import {
-  WorkspaceEmpty,
-  WorkspaceHero,
-  WorkspacePage,
-  WorkspacePanel,
-} from '#/components/app/WorkspacePage'
+import { ConfirmDeleteDialog } from '#/components/app/ConfirmDeleteDialog'
+import { PageHero } from '#/components/app/PageHero'
+import { WorkspaceEmpty, WorkspacePage, WorkspacePanel } from '#/components/app/WorkspacePage'
 import { useSession } from '#/hooks/useSession'
 import { useResumeCarry } from '#/hooks/use-resume-carry'
 import {
   confirmEvidenceItem,
   confirmEvidenceItems,
-  deleteEvidenceProfile,
   deleteEvidenceItem,
+  deleteEvidenceProfile,
   importEvidenceFromResume,
   listEvidenceItems,
   updateEvidenceItem,
 } from '#/lib/api/client'
-import { getDevelopmentPlan } from '#/lib/api/development'
 import type { EvidenceItem } from '#/lib/api/schemas'
-import { contentEntries, countByState, groupItemsByKind } from '#/lib/profile/evidence'
 import {
-  DEVELOPMENT_PLAN_QUERY_KEY,
-  EVIDENCE_QUERY_KEY,
-  invalidateEvidenceCaches,
-} from '#/lib/query/evidenceCaches'
-import { EvidenceItemCard } from '#/components/profile/EvidenceItemCard'
-import {
-  CorrectEvidenceDialog,
-  type CorrectionSubmit,
-} from '#/components/profile/CorrectEvidenceDialog'
+  KIND_LABELS,
+  PROVENANCE_DESCRIPTIONS,
+  PROVENANCE_LABELS,
+  STATE_LABELS,
+  contentEntries,
+  countByState,
+  fieldLabel,
+  groupItemsByKind,
+} from '#/lib/profile/evidence'
+import { EVIDENCE_QUERY_KEY, invalidateEvidenceCaches } from '#/lib/query/evidenceCaches'
+import { EditFactDialog } from '#/components/profile/EditFactDialog'
+import { FactCard, type FactMenuItem } from '#/components/profile/FactCard'
 import { SkillsToBuildSection } from '#/components/profile/SkillsToBuildSection'
 
-/** A short one-line preview of what a suggested item says, for the review list. */
+/** The first non-empty value: how a fact is named in buttons and menus. */
 function previewText(item: EvidenceItem): string {
-  const entries = contentEntries(item.content)
-  return entries.find((entry) => entry.value)?.value || 'No details recorded'
+  return contentEntries(item.content).find((entry) => entry.value)?.value || 'No details recorded'
 }
 
-function SuggestionRow({
+function EvidenceCard({
   item,
   busy,
-  onAccept,
-  onEdit,
-  onReject,
+  showKind,
+  primary,
+  menu,
 }: {
   item: EvidenceItem
   busy: boolean
-  onAccept: (item: EvidenceItem) => void
-  onEdit: (item: EvidenceItem) => void
-  onReject: (item: EvidenceItem) => void
+  showKind: boolean
+  primary: React.ReactNode
+  menu: FactMenuItem[]
 }) {
+  const state = item.confirmation_state
   return (
-    <li className="evidence-suggestion">
-      <div className="evidence-suggestion__body">
-        <span className="evidence-suggestion__kind">{item.kind}</span>
-        <p className="evidence-suggestion__text">{previewText(item)}</p>
-      </div>
-      <div className="evidence-suggestion__actions">
-        <Button
-          size="sm"
-          variant="outline"
-          disabled={busy}
-          onClick={() => onAccept(item)}
-          aria-label={`Accept: ${previewText(item)}`}
-        >
-          <Check size={14} />
-        </Button>
-        <Button
-          size="sm"
-          variant="ghost"
-          disabled={busy}
-          onClick={() => onEdit(item)}
-          aria-label={`Edit: ${previewText(item)}`}
-        >
-          <Pencil size={14} />
-        </Button>
-        <Button
-          size="sm"
-          variant="ghost"
-          disabled={busy}
-          onClick={() => onReject(item)}
-          aria-label={`Reject: ${previewText(item)}`}
-        >
-          <X size={14} />
-        </Button>
-      </div>
-    </li>
+    <FactCard
+      tone={state}
+      busy={busy}
+      meta={
+        <>
+          {showKind ? <span className="fact-card__kind">{KIND_LABELS[item.kind]}</span> : null}
+          <Badge variant="outline" className={`fact-badge fact-badge--${state}`}>
+            {STATE_LABELS[state]}
+          </Badge>
+          <Badge variant="ghost" title={PROVENANCE_DESCRIPTIONS[item.provenance]}>
+            {PROVENANCE_LABELS[item.provenance]}
+          </Badge>
+        </>
+      }
+      fields={contentEntries(item.content).map(({ key, value }) => ({
+        key,
+        label: fieldLabel(key),
+        value: value || '—',
+      }))}
+      primary={primary}
+      menu={menu}
+      menuLabel={`More actions: ${previewText(item)}`}
+    />
   )
 }
 
@@ -110,8 +90,8 @@ export function EvidenceProfilePage() {
   const [importNotice, setImportNotice] = useState<string | null>(null)
   const [pendingItemId, setPendingItemId] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
-  const [correctTarget, setCorrectTarget] = useState<EvidenceItem | null>(null)
-  const [correctError, setCorrectError] = useState<string | null>(null)
+  const [editTarget, setEditTarget] = useState<EvidenceItem | null>(null)
+  const [editError, setEditError] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<EvidenceItem | null>(null)
   const [purgeOpen, setPurgeOpen] = useState(false)
 
@@ -121,25 +101,17 @@ export function EvidenceProfilePage() {
     enabled: isAuthenticated,
   })
 
-  // Shares its cache with SkillsToBuildSection's own query below (same query
-  // key), so this only costs a stat on the hero — not a second network call.
-  const developmentItemsQuery = useQuery({
-    queryKey: DEVELOPMENT_PLAN_QUERY_KEY,
-    queryFn: async () => (await getDevelopmentPlan()).items,
-    enabled: isAuthenticated,
-  })
-
   function reportError(error: unknown, fallback: string) {
     setActionError(error instanceof Error ? error.message : fallback)
     window.setTimeout(() => setActionError(null), 4000)
   }
 
-  async function invalidateProfileMutation() {
+  async function invalidateProfile() {
     await invalidateEvidenceCaches(queryClient, { rankingMayChange: true })
   }
 
-  // Import stores every extracted fact as a suggestion to review below; nothing
-  // is trusted until the owner accepts it (D-062).
+  // Import stores every extracted fact as a suggestion; nothing is trusted
+  // until the owner saves it (D-062).
   const importMutation = useMutation({
     mutationFn: () => importEvidenceFromResume(resumeText),
     onSuccess: async ({ items: imported }) => {
@@ -153,70 +125,56 @@ export function EvidenceProfilePage() {
     onError: (error) => reportError(error, 'Could not import from your CV.'),
   })
 
-  const confirmMutation = useMutation({
+  const saveMutation = useMutation({
     mutationFn: (id: string) => confirmEvidenceItem(id),
-    onSuccess: invalidateProfileMutation,
-    onError: (error) => reportError(error, 'Could not save the item.'),
+    onSuccess: invalidateProfile,
+    onError: (error) => reportError(error, 'Could not save the suggestion.'),
     onSettled: () => setPendingItemId(null),
   })
 
-  const acceptAllMutation = useMutation({
+  const saveAllMutation = useMutation({
     mutationFn: (ids: string[]) => confirmEvidenceItems(ids),
-    onSuccess: invalidateProfileMutation,
-    onError: (error) => reportError(error, 'Could not accept all suggested items.'),
+    onSuccess: invalidateProfile,
+    onError: (error) => reportError(error, 'Could not save every suggestion.'),
   })
 
-  // Rejecting a suggestion deletes it; no rejected trace is kept.
+  // Dismissing a suggestion deletes it; no trace is kept.
   const dismissMutation = useMutation({
     mutationFn: (id: string) => deleteEvidenceItem(id),
-    onSuccess: invalidateProfileMutation,
-    onError: (error) => reportError(error, 'Could not remove the suggestion.'),
+    onSuccess: invalidateProfile,
+    onError: (error) => reportError(error, 'Could not dismiss the suggestion.'),
     onSettled: () => setPendingItemId(null),
   })
 
-  const correctionMutation = useMutation({
-    mutationFn: async ({ id, content }: { id: string; content: Record<string, unknown> }) => {
-      // Saving a correction is the owner typing it themselves right now, so the
-      // API marks it Saved directly (Phase 1b, #321) — no extra confirm click.
-      await updateEvidenceItem(id, { content })
-    },
-    onSuccess: () => {
-      setCorrectTarget(null)
-      setCorrectError(null)
+  // An edit is the owner typing it, so the API saves it directly (#321).
+  const editMutation = useMutation({
+    mutationFn: ({ id, content }: { id: string; content: Record<string, unknown> }) =>
+      updateEvidenceItem(id, { content }),
+    onSuccess: async () => {
+      setEditTarget(null)
+      await invalidateProfile()
     },
     onError: (error) =>
-      setCorrectError(error instanceof Error ? error.message : 'Could not save the correction.'),
-    onSettled: invalidateProfileMutation,
+      setEditError(error instanceof Error ? error.message : 'Could not save your changes.'),
   })
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => deleteEvidenceItem(id),
-    onSuccess: async () => {
-      setDeleteTarget(null)
-      await invalidateProfileMutation()
-    },
-    onError: (error) => {
-      setDeleteTarget(null)
-      reportError(error, 'Could not delete the item.')
-    },
-    onSettled: () => setPendingItemId(null),
+    onSuccess: invalidateProfile,
+    onError: (error) => reportError(error, 'Could not delete the fact.'),
+    onSettled: () => setDeleteTarget(null),
   })
 
   const purgeMutation = useMutation({
     mutationFn: () => deleteEvidenceProfile(),
-    onSuccess: async () => {
-      setPurgeOpen(false)
-      await invalidateProfileMutation()
-    },
-    onError: (error) => {
-      setPurgeOpen(false)
-      reportError(error, 'Could not delete the profile.')
-    },
+    onSuccess: invalidateProfile,
+    onError: (error) => reportError(error, 'Could not delete the profile.'),
+    onSettled: () => setPurgeOpen(false),
   })
 
   const items = itemsQuery.data ?? []
   const counts = useMemo(() => countByState(items), [items])
-  // Suggestions are reviewed in one place; the grouped list shows saved facts.
+  // Suggestions are listed once, here; the kind groups show saved facts only.
   const suggestions = useMemo(
     () => items.filter((item) => item.confirmation_state === 'unconfirmed'),
     [items],
@@ -227,33 +185,20 @@ export function EvidenceProfilePage() {
   )
   const canImport = hasResume && resumeText.length >= 50
 
-  function handleConfirm(item: EvidenceItem) {
+  function openEditor(item: EvidenceItem) {
+    setEditError(null)
+    setEditTarget(item)
+  }
+  function withPending(item: EvidenceItem, run: (id: string) => void) {
     setPendingItemId(item.id)
-    confirmMutation.mutate(item.id)
-  }
-  function handleReject(item: EvidenceItem) {
-    setPendingItemId(item.id)
-    dismissMutation.mutate(item.id)
-  }
-  function handleCorrect(item: EvidenceItem) {
-    setCorrectError(null)
-    setCorrectTarget(item)
-  }
-  function handleCorrectSubmit(payload: CorrectionSubmit) {
-    if (!correctTarget) return
-    correctionMutation.mutate({ id: correctTarget.id, content: payload.content })
-  }
-  function handleDeleteConfirmed() {
-    if (!deleteTarget) return
-    setPendingItemId(deleteTarget.id)
-    deleteMutation.mutate(deleteTarget.id)
+    run(item.id)
   }
 
   if (!isAuthenticated) {
     return (
       <AppStatePanel
         title="Your profile"
-        description="Sign in to see the facts about your experience that CV Studio and the tools reuse — confirm what you stand behind, and remove anything you do not."
+        description="Sign in to see the facts about your experience that CV Studio and the tools reuse — save what you stand behind, and remove anything you do not."
         scene="loginWorkflow"
         actions={[
           {
@@ -266,76 +211,89 @@ export function EvidenceProfilePage() {
     )
   }
 
+  const heroChips = itemsQuery.data
+    ? [
+        `${counts.confirmed} saved ${counts.confirmed === 1 ? 'fact' : 'facts'}`,
+        ...(counts.unconfirmed > 0 ? [`${counts.unconfirmed} to review`] : []),
+      ]
+    : undefined
+
   return (
-    <WorkspacePage className="evidence-page">
-      <WorkspaceHero
+    <WorkspacePage>
+      <PageHero
         icon={BadgeCheck}
-        eyebrow="Your workspace"
         title="Your profile"
-        subtitle="Facts about your experience that CV Studio and the tools reuse."
-        stats={[
-          { label: 'Saved facts', value: counts.confirmed },
-          { label: 'Suggestions to review', value: counts.unconfirmed },
-          { label: 'Skills to build', value: developmentItemsQuery.data?.length ?? 0 },
-        ]}
-        actions={
-          <Button
-            onClick={canImport ? () => importMutation.mutate() : undefined}
-            loading={importMutation.isPending}
-            disabled={importMutation.isPending}
-            asChild={!canImport}
-          >
-            {canImport ? (
-              <>
-                <FileUp size={16} /> Import from your CV
-              </>
-            ) : (
-              <a href="/resume">
-                <FileUp size={16} /> Upload a CV to import from
-              </a>
-            )}
-          </Button>
+        purpose="The facts about you that CV Studio and the tools reuse."
+        chips={heroChips}
+        action={
+          canImport ? (
+            <Button loading={importMutation.isPending} onClick={() => importMutation.mutate()}>
+              <FileUp size={16} /> Import from your CV
+            </Button>
+          ) : (
+            <Button asChild>
+              <Link to="/resume">
+                <FileUp size={16} /> Upload a CV
+              </Link>
+            </Button>
+          )
         }
       />
 
       {actionError ? (
-        <p role="alert" className="evidence-banner evidence-banner--error">
+        <p role="alert" className="profile-banner profile-banner--error">
           {actionError}
         </p>
       ) : null}
       {importNotice ? (
-        <p role="status" className="evidence-banner">
+        <p role="status" className="profile-banner">
           {importNotice}
         </p>
       ) : null}
 
       {suggestions.length > 0 ? (
         <WorkspacePanel
-          kicker="Review"
-          title="Suggestions to review"
-          description="Facts pulled from your CV or from a tool result. Nothing counts as saved until you accept it; rejecting one removes it."
+          kicker="To review"
+          title="Suggestions"
+          description="Pulled from your CV or a tool result. Nothing counts until you save it; dismissing one removes it."
           actions={
             suggestions.length > 1 ? (
               <Button
                 variant="outline"
-                loading={acceptAllMutation.isPending}
-                disabled={acceptAllMutation.isPending}
-                onClick={() => acceptAllMutation.mutate(suggestions.map((item) => item.id))}
+                loading={saveAllMutation.isPending}
+                onClick={() => saveAllMutation.mutate(suggestions.map((item) => item.id))}
               >
-                Accept all
+                Save all
               </Button>
             ) : null
           }
         >
-          <ul className="evidence-suggestions">
+          <ul className="fact-list" aria-label="Suggestions to review">
             {suggestions.map((item) => (
-              <SuggestionRow
+              <EvidenceCard
                 key={item.id}
                 item={item}
+                showKind
                 busy={pendingItemId === item.id}
-                onAccept={handleConfirm}
-                onEdit={handleCorrect}
-                onReject={handleReject}
+                primary={
+                  <Button
+                    size="sm"
+                    disabled={pendingItemId === item.id}
+                    aria-label={`Save: ${previewText(item)}`}
+                    onClick={() => withPending(item, saveMutation.mutate)}
+                  >
+                    <Check size={14} /> Save
+                  </Button>
+                }
+                menu={[
+                  { label: 'Edit', icon: Pencil, onSelect: () => openEditor(item) },
+                  {
+                    label: 'Dismiss',
+                    icon: X,
+                    destructive: true,
+                    onSelect: () => withPending(item, dismissMutation.mutate),
+                  },
+                ]}
               />
             ))}
           </ul>
@@ -343,45 +301,65 @@ export function EvidenceProfilePage() {
       ) : null}
 
       {itemsQuery.isLoading ? (
-        <div className="evidence-groups" aria-hidden="true">
+        <div className="fact-groups" aria-hidden="true">
           {[0, 1, 2].map((n) => (
-            <Skeleton key={n} className="evidence-skeleton" />
+            <Skeleton key={n} className="fact-skeleton" />
           ))}
         </div>
       ) : itemsQuery.isError ? (
-        <div className="evidence-empty">
-          <p>We could not load your profile.</p>
-          <Button variant="outline" onClick={() => itemsQuery.refetch()}>
-            Try again
-          </Button>
-        </div>
+        <WorkspaceEmpty
+          icon={BadgeCheck}
+          title="We could not load your profile"
+          action={
+            <Button variant="outline" onClick={() => itemsQuery.refetch()}>
+              Try again
+            </Button>
+          }
+        />
       ) : items.length === 0 ? (
         <WorkspaceEmpty
           icon={BadgeCheck}
           title="No facts yet"
-          description="Your profile fills up as you import a CV or save a result from one of the tools. Anything added arrives as a suggestion until you accept it."
+          description="Your profile fills up as you import a CV or save a result from one of the tools. Anything added arrives as a suggestion until you save it."
         />
       ) : groups.length > 0 ? (
         <WorkspacePanel
           kicker="Saved facts"
-          title="Grouped by kind"
-          description="Correct a mistake, or delete anything that does not belong."
+          title="What you stand behind"
+          description="CV Studio and the tools only use saved facts. Edit one to correct it."
         >
-          <div className="evidence-groups">
+          <div className="fact-groups">
             {groups.map((group) => (
-              <section key={group.kind} className="evidence-group" aria-label={group.label}>
-                <h3 className="evidence-group__title">
+              <section key={group.kind} className="fact-group" aria-label={group.label}>
+                <h3 className="fact-group__title">
                   {group.label}
-                  <span className="evidence-group__count">{group.items.length}</span>
+                  <span className="fact-group__count">{group.items.length}</span>
                 </h3>
-                <ul className="evidence-group__list">
+                <ul className="fact-list">
                   {group.items.map((item) => (
-                    <EvidenceItemCard
+                    <EvidenceCard
                       key={item.id}
                       item={item}
-                      busy={pendingItemId === item.id}
-                      onCorrect={handleCorrect}
-                      onDelete={setDeleteTarget}
+                      showKind={false}
+                      busy={pendingItemId === item.id || deleteTarget?.id === item.id}
+                      primary={
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          aria-label={`Edit: ${previewText(item)}`}
+                          onClick={() => openEditor(item)}
+                        >
+                          <Pencil size={14} /> Edit
+                        </Button>
+                      }
+                      menu={[
+                        {
+                          label: 'Delete',
+                          icon: Trash2,
+                          destructive: true,
+                          onSelect: () => setDeleteTarget(item),
+                        },
+                      ]}
                     />
                   ))}
                 </ul>
@@ -395,7 +373,7 @@ export function EvidenceProfilePage() {
 
       {items.length > 0 ? (
         <WorkspacePanel
-          className="evidence-danger"
+          className="profile-danger"
           title="Delete your whole profile"
           description="Permanently removes every fact above. This takes effect immediately and cannot be undone."
           actions={
@@ -413,85 +391,33 @@ export function EvidenceProfilePage() {
         </WorkspacePanel>
       ) : null}
 
-      <CorrectEvidenceDialog
-        item={correctTarget}
-        open={correctTarget !== null}
-        submitting={correctionMutation.isPending}
-        error={correctError}
-        onOpenChange={(open) => {
-          if (!open) {
-            setCorrectTarget(null)
-            setCorrectError(null)
-          }
-        }}
-        onSubmit={handleCorrectSubmit}
+      <EditFactDialog
+        item={editTarget}
+        submitting={editMutation.isPending}
+        error={editError}
+        onClose={() => setEditTarget(null)}
+        onSubmit={(content) => editTarget && editMutation.mutate({ id: editTarget.id, content })}
       />
 
-      <Dialog
+      <ConfirmDeleteDialog
         open={deleteTarget !== null}
-        onOpenChange={(open) => !deleteMutation.isPending && !open && setDeleteTarget(null)}
-      >
-        <DialogContent showCloseButton={!deleteMutation.isPending}>
-          <DialogHeader>
-            <DialogTitle>Delete this item?</DialogTitle>
-            <DialogDescription>
-              This permanently removes the item from your profile. It takes effect immediately
-              and cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setDeleteTarget(null)}
-              disabled={deleteMutation.isPending}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="outline"
-              className="settings-btn--destructive"
-              loading={deleteMutation.isPending}
-              onClick={handleDeleteConfirmed}
-            >
-              <Trash2 size={14} className="mr-1.5" />
-              Delete item
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        title="Delete this fact?"
+        description="This permanently removes it from your profile. It takes effect immediately and cannot be undone."
+        confirmLabel="Delete fact"
+        pending={deleteMutation.isPending}
+        onCancel={() => setDeleteTarget(null)}
+        onConfirm={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
+      />
 
-      <Dialog
+      <ConfirmDeleteDialog
         open={purgeOpen}
-        onOpenChange={(open) => !purgeMutation.isPending && setPurgeOpen(open)}
-      >
-        <DialogContent showCloseButton={!purgeMutation.isPending}>
-          <DialogHeader>
-            <DialogTitle>Delete your entire profile?</DialogTitle>
-            <DialogDescription>
-              This permanently removes all {counts.total} {counts.total === 1 ? 'fact' : 'facts'}.
-              It happens immediately — we do not keep a backup — and cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setPurgeOpen(false)}
-              disabled={purgeMutation.isPending}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="outline"
-              className="settings-btn--destructive"
-              loading={purgeMutation.isPending}
-              onClick={() => purgeMutation.mutate()}
-            >
-              <Trash2 size={14} className="mr-1.5" />
-              Delete everything
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        title="Delete your entire profile?"
+        description={`This permanently removes all ${counts.total} ${counts.total === 1 ? 'fact' : 'facts'}. It happens immediately — we do not keep a backup — and cannot be undone.`}
+        confirmLabel="Delete everything"
+        pending={purgeMutation.isPending}
+        onCancel={() => setPurgeOpen(false)}
+        onConfirm={() => purgeMutation.mutate()}
+      />
     </WorkspacePage>
   )
 }

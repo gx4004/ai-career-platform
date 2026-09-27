@@ -1,42 +1,53 @@
-/* Your profile ("Evidence Profile") — the facts CV Studio and the tools reuse
-   (R11, #145; redesigned onto the shared workspace shell in #324). State
-   legibility is carried by color + label + border, never color alone (WCAG). */
+/* Your profile — saved facts, suggestions to review and skills to build all use
+   one card (FactCard.tsx). State is carried by label + border + tint, never
+   colour alone (WCAG). */
 
-.evidence-banner {
+.profile-banner {
   padding: 0.75rem 1rem;
   border-radius: var(--radius-lg);
   font-size: 0.875rem;
 }
 
-.evidence-banner--error {
+.profile-banner--error {
   background: var(--destructive-soft);
   color: var(--destructive);
   border: 1px solid color-mix(in srgb, var(--destructive) 22%, transparent);
 }
 
-.evidence-groups {
+.profile-danger .workspace-panel__title {
+  color: var(--destructive);
+}
+
+.fact-groups {
   display: flex;
   flex-direction: column;
   gap: 1.75rem;
 }
 
-.evidence-skeleton {
+.fact-skeleton {
   height: 8rem;
   border-radius: var(--radius-xl);
 }
 
-.evidence-group__title {
+.fact-group__title {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  margin-bottom: 0.85rem;
   font-family: var(--font-display);
   font-size: 1.05rem;
   font-weight: 620;
   color: var(--text-strong);
-  margin-bottom: 0.85rem;
 }
 
-.evidence-group__count {
+.fact-group__description {
+  max-width: 44rem;
+  margin: -0.5rem 0 0.85rem;
+  color: var(--text-muted);
+  font-size: var(--type-small);
+}
+
+.fact-group__count {
   display: inline-grid;
   place-items: center;
   min-width: 1.4rem;
@@ -46,20 +57,20 @@
   background: var(--surface-subtle);
   border: 1px solid var(--border-soft);
   font-size: var(--type-xs);
-  color: var(--text-muted);
   font-weight: 600;
+  color: var(--text-muted);
 }
 
-.evidence-group__list {
+.fact-list {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(20rem, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));
   gap: 1rem;
   list-style: none;
   padding: 0;
   margin: 0;
 }
 
-.evidence-card {
+.fact-card {
   display: flex;
   flex-direction: column;
   gap: 0.85rem;
@@ -72,177 +83,171 @@
   transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
 }
 
-.evidence-card--confirmed {
+.fact-card--confirmed,
+.fact-card--completed {
   border-left-color: var(--success);
 }
 
-.evidence-card--unconfirmed {
+.fact-card--unconfirmed {
   border-left-color: var(--warning);
   background: color-mix(in srgb, var(--warning-soft) 60%, var(--surface-raised));
 }
 
-.evidence-card__meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-  align-items: center;
+.fact-card--in_progress {
+  border-left-color: var(--accent);
+  background: color-mix(in srgb, var(--accent-soft, var(--surface-subtle)) 45%, var(--surface-raised));
 }
 
-.evidence-state {
+.fact-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.fact-card__kind {
+  margin-right: 0.2rem;
+  font-size: var(--type-xs);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.fact-badge {
   font-weight: 600;
 }
 
-.evidence-state--confirmed {
+.fact-badge--confirmed,
+.fact-badge--completed {
   background: var(--success-soft);
   color: var(--success);
   border-color: color-mix(in srgb, var(--success) 30%, transparent);
 }
 
-.evidence-state--unconfirmed {
+.fact-badge--unconfirmed {
   background: var(--warning-soft);
   color: var(--warning);
   border-color: color-mix(in srgb, var(--warning) 30%, transparent);
 }
 
-.evidence-card__content {
+.fact-badge--planned {
+  background: var(--surface-subtle);
+  color: var(--text-muted);
+  border-color: var(--border-strong);
+}
+
+.fact-badge--in_progress {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+.fact-card__fields {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
   margin: 0;
 }
 
-.evidence-field {
+.fact-field {
   display: flex;
   flex-direction: column;
   gap: 0.1rem;
 }
 
-.evidence-field__key {
+.fact-field__key {
   font-size: var(--type-xs);
-  text-transform: uppercase;
   letter-spacing: 0.04em;
+  text-transform: uppercase;
   color: var(--text-muted);
 }
 
-.evidence-field__value {
+.fact-field__value {
   margin: 0;
   color: var(--text-strong);
   font-size: 0.9rem;
   line-height: 1.45;
   overflow-wrap: anywhere;
+  white-space: pre-wrap;
 }
 
-.evidence-card__actions {
-  display: flex;
-  flex-wrap: wrap;
+.fact-card--completed .fact-field__value {
+  color: var(--text-muted);
+}
+
+.fact-card__note {
+  display: inline-flex;
+  align-items: center;
   gap: 0.4rem;
+  width: fit-content;
+  padding: 0.35rem 0.65rem;
+  border-radius: var(--radius-pill);
+  background: var(--success-soft);
+  color: var(--success);
+  font-size: var(--type-small);
+  font-weight: 600;
+}
+
+.fact-card__actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
   margin-top: auto;
   padding-top: 0.35rem;
 }
 
-.evidence-action--confirm {
-  color: var(--success);
-  border-color: color-mix(in srgb, var(--success) 35%, transparent);
-}
-
-.evidence-action--danger {
-  color: var(--destructive);
-}
-
-.evidence-empty {
+.fact-card__control {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.75rem;
-  padding: 2.5rem 1.5rem;
-  border-radius: var(--radius-2xl);
-  background: var(--surface-subtle);
-  border: 1px dashed var(--border-strong);
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 0.55rem;
+  min-width: 0;
 }
 
-.evidence-danger .workspace-panel__title {
-  color: var(--destructive);
+.fact-card__control-label {
+  font-size: var(--type-xs);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
 }
 
-.evidence-correct__editor {
-  font-family: var(--font-mono, ui-monospace, monospace);
-  font-size: 0.82rem;
-  line-height: 1.5;
+.fact-select {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 12rem;
+  height: 2rem;
+  padding: 0 0.6rem;
+  border-radius: var(--radius-md, 10px);
+  border: 1px solid var(--border);
+  background: var(--surface, #fff);
+  color: var(--text-strong);
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.fact-select:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+.fact-select:disabled {
+  cursor: wait;
+  opacity: 0.6;
 }
 
 @media (max-width: 640px) {
-  .evidence-group__list {
+  .fact-list {
     grid-template-columns: 1fr;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .evidence-card {
+  .fact-card {
     transition: none;
-  }
-}
-
-/* Suggestions to review — imported/inferred facts waiting for a decision. A
-   compact list so "Accept all" plus per-item accept/reject stay scannable
-   even with a dozen suggestions (unlike the full evidence-card grid below). */
-
-.evidence-suggestions {
-  display: flex;
-  flex-direction: column;
-  gap: 0.6rem;
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-
-.evidence-suggestion {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 0.7rem 0.9rem;
-  border-radius: var(--radius-lg);
-  background: color-mix(in srgb, var(--warning-soft) 55%, var(--surface-raised));
-  border: 1px solid color-mix(in srgb, var(--warning) 22%, var(--border-soft));
-}
-
-.evidence-suggestion__body {
-  display: flex;
-  align-items: baseline;
-  gap: 0.55rem;
-  min-width: 0;
-}
-
-.evidence-suggestion__kind {
-  flex-shrink: 0;
-  font-size: var(--type-xs);
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--text-muted);
-}
-
-.evidence-suggestion__text {
-  margin: 0;
-  color: var(--text-strong);
-  font-size: 0.875rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.evidence-suggestion__actions {
-  flex-shrink: 0;
-  display: flex;
-  gap: 0.35rem;
-}
-
-@media (max-width: 640px) {
-  .evidence-suggestion {
-    flex-wrap: wrap;
-  }
-
-  .evidence-suggestion__text {
-    white-space: normal;
   }
 }
