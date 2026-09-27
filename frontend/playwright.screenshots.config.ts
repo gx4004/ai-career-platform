@@ -5,20 +5,9 @@ import { VIEWPORTS } from './e2e/screenshot-utils.mjs'
 
 // A separate config (not a second project in playwright.config.ts) because
 // this harness needs its own webServer pair: distinct ports, a dedicated
-// database, and every R11-R17 outcome flag forced on so every gated surface
-// (CV Studio, campaigns, discovery, queue, development plan) is visible to
-// capture instead of gated off. `testMatch` keeps it scoped to exactly one
-// spec file, so `pnpm test:e2e` / `pnpm test:e2e:ci` never pick this up.
+// database. `testMatch` keeps it scoped to exactly one spec file, so
+// `pnpm test:e2e` / `pnpm test:e2e:ci` never pick this up.
 const env = resolveScreenshotsEnv()
-
-const enabledOutcomeFlags = {
-  R11_EVIDENCE_PROFILE_ENABLED: 'true',
-  R12_CV_STUDIO_ENABLED: 'true',
-  R13_CAMPAIGNS_ENABLED: 'true',
-  R14_DISCOVERY_ENABLED: 'true',
-  R15_QUEUE_ENABLED: 'true',
-  R17_DEVELOPMENT_LOOP_ENABLED: 'true',
-}
 
 export default defineConfig({
   testDir: './e2e',
@@ -61,8 +50,6 @@ export default defineConfig({
         CORS_ORIGINS: env.frontendUrl,
         FRONTEND_URL: env.frontendUrl,
         RESULT_CACHE_ENABLED: 'false',
-        EVIDENCE_PROFILE_INJECTION_ENABLED: 'true',
-        ...enabledOutcomeFlags,
         E2E_BACKEND_PORT: env.backendPort,
       },
     },
@@ -78,12 +65,6 @@ export default defineConfig({
         CI: '',
         E2E_BACKEND_PORT: env.backendPort,
         VITE_API_URL: `${env.backendUrl}/api/v1`,
-        VITE_R11_EVIDENCE_PROFILE_ENABLED: 'true',
-        VITE_R12_CV_STUDIO_ENABLED: 'true',
-        VITE_R13_CAMPAIGNS_ENABLED: 'true',
-        VITE_R14_DISCOVERY_ENABLED: 'true',
-        VITE_R15_QUEUE_ENABLED: 'true',
-        VITE_R17_DEVELOPMENT_LOOP_ENABLED: 'true',
       },
     },
   ],

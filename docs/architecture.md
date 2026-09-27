@@ -204,12 +204,10 @@ must not make unrelated core flows unavailable.
 
 ## Build-Ahead Activation Boundary
 
-R11–R17 implementation is provisional code, not a production entitlement. Dedicated
-user API families are protected by server-authoritative, default-off outcome flags;
-downstream flags also require every upstream flag. The frontend mirrors that chain
-for routes and navigation, but it is never the security boundary. Core six-tool and
-history routes remain independent. Account-wide export and deletion continue to own
-recovery and erasure if build-ahead data exists while an outcome is dark.
+The R11–R17 outcome flags were removed (#351, owner decision 2026-09-27): every
+product area is always on. Only the Autopilot experiment (`AUTOPILOT_EXPERIMENT_ENABLED`)
+and recurring ATS ingestion (`ATS_INGESTION_ENABLED`) keep default-off switches.
+Tools use confirmed Evidence Profile facts through the shared pipeline by default.
 
 R9 has one candidate-neutral, server-authoritative result-access seam shared by live
 tool responses, saved-result delivery, and server-generated exports. Its default-off

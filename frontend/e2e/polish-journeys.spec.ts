@@ -8,9 +8,7 @@ import { uniqueEmail } from './helpers/identity'
  * cross-feature flows the task calls out: CV Studio's editor loop, Discovery
  * handing off to CV Studio and Campaigns, and the Queue's approve-to-apply
  * loop. Runs against the same deterministic-AI backend as the rest of
- * `frontend/e2e/` (see `backend/tests/e2e_server.py`); `playwright.config.ts`
- * turns on every R11-R15 outcome flag so CV Studio, Discovery, Campaigns and
- * Queue are all reachable here.
+ * `frontend/e2e/` (see `backend/tests/e2e_server.py`).
  */
 
 const backendDir = fileURLToPath(new URL('../../backend/', import.meta.url))

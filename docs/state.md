@@ -17,7 +17,8 @@ in `docs/roadmap.md` (umbrella issue #319).
   deletion) remains from the old set.
 - `main` and `deploy` are untouched thesis-era branches; Railway is not paid for.
   No release or promotion is planned in this run.
-- Locally all R11–R17 feature flags are switched on via gitignored `.env` files.
+- All product areas are always on (R11–R17 outcome flags removed, #351); only
+  `AUTOPILOT_EXPERIMENT_ENABLED` and `ATS_INGESTION_ENABLED` remain off by default.
 - Vertex AI is not configured locally (placeholder project id); local AI runs use
   `LLM_PROVIDER=fake` or `anthropic` once available.
 

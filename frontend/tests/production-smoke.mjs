@@ -12,20 +12,8 @@ import { stopChild, waitForListeningPort } from './server-process.mjs'
 
 const projectDir = fileURLToPath(new URL('..', import.meta.url))
 const clientDir = fileURLToPath(new URL('../dist/client/', import.meta.url))
-const defaultDarkEnvironment = {
-  VITE_R7_CONTEXT_CARRY: 'false',
-  VITE_R7_ENTRY_CHOICE: 'false',
-  VITE_R7_NEXT_BEST_ACTION: 'false',
-  VITE_R7_RESULTS_NUDGE: 'false',
-  VITE_R7_SAMPLE_QUICKFILL: 'false',
-  VITE_R7_VALUE_SPECIFIC_SIGNUP: 'false',
-  VITE_R11_EVIDENCE_PROFILE_ENABLED: 'false',
-  VITE_R12_CV_STUDIO_ENABLED: 'false',
-  VITE_R13_CAMPAIGNS_ENABLED: 'false',
-  VITE_R14_DISCOVERY_ENABLED: 'false',
-  VITE_R15_QUEUE_ENABLED: 'false',
-  VITE_R16_SUBMISSION_FOUNDATION_ENABLED: 'false',
-  VITE_R17_DEVELOPMENT_LOOP_ENABLED: 'false',
+const buildEnvironment = {
+  VITE_AUTOPILOT_EXPERIMENT_ENABLED: 'false',
   VITE_SENTRY_DSN: '',
 }
 
@@ -70,7 +58,7 @@ async function close(server) {
 async function runBuild(apiUrl) {
   const child = spawn('pnpm', ['build'], {
     cwd: projectDir,
-    env: { ...process.env, ...defaultDarkEnvironment, VITE_API_URL: apiUrl },
+    env: { ...process.env, ...buildEnvironment, VITE_API_URL: apiUrl },
     stdio: 'inherit',
   })
   const [code, signal] = await once(child, 'exit')
@@ -179,7 +167,7 @@ try {
     cwd: projectDir,
     env: {
       ...process.env,
-      ...defaultDarkEnvironment,
+      ...buildEnvironment,
       PORT: '0',
       VITE_API_URL: apiUrl,
     },
