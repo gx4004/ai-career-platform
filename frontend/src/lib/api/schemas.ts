@@ -279,8 +279,7 @@ export const cvDocumentSchema = z.object({
     density: 'normal' as const, ats_mode: false,
   })),
   created_at: z.iso.datetime({ offset: true }), updated_at: z.iso.datetime({ offset: true }),
-  quality_model_runs: z.number().int().nonnegative(), tailoring_model_runs: z.number().int().nonnegative(),
-  quality_model_run_limit: z.literal(10), tailoring_model_run_limit: z.literal(10),
+  tailoring_model_runs: z.number().int().nonnegative(), tailoring_model_run_limit: z.literal(10),
   variants: z.array(cvVariantSchema),
 })
 export const cvDocumentListSchema = z.object({ items: z.array(cvDocumentSchema) })
@@ -402,21 +401,10 @@ export const cvTailoringApplySchema = z.strictObject({
 export type CvTailoringProposal = z.infer<typeof cvTailoringProposalSchema>
 export type CvTailoringChange = z.infer<typeof cvTailoringChangeSchema>
 
-export const cvAtsCheckKeySchema = z.enum([
-  'section_structure', 'text_layer', 'links', 'page_breaks', 're_importability',
-])
 export const cvTemplateIdSchema = z.enum([
   'ats-essential', 'professional-editorial', 'technical-portfolio',
   'modern-two-column', 'minimal-serif',
 ])
-export const cvQualityRequestSchema = z.strictObject({
-  use_model: z.boolean().default(false),
-  checks: z.array(cvAtsCheckKeySchema).min(1).max(5).optional(),
-  artifact_template: cvTemplateIdSchema.optional(),
-  artifact_format: z.enum(['docx', 'pdf']).optional(),
-}).refine((value) => Boolean(value.artifact_template) === Boolean(value.artifact_format), {
-  message: 'artifact_template and artifact_format must be supplied together',
-})
 export const cvRenderModelSchema = z.object({
   schema_version: z.literal('cv-render/v1'), document_id: z.string(), document_name: z.string(), template_id: cvTemplateIdSchema,
   page: z.object({ width_mm: z.number().int(), height_mm: z.number().int(), margin_mm: z.number().int() }),
@@ -435,22 +423,17 @@ export const cvRenderModelSchema = z.object({
 export type CvTemplateId = z.infer<typeof cvTemplateIdSchema>
 export type CvRenderModel = z.infer<typeof cvRenderModelSchema>
 export const cvQualityResponseSchema = z.object({
-  schema_version: z.literal('cv-quality/v1'),
+  schema_version: z.literal('cv-quality/v2'),
   dimensions: z.array(z.object({
     key: z.enum(['impact', 'clarity', 'completeness', 'structure']),
     label: z.string(), score: z.number().min(0).max(100),
     reasons: z.array(z.string()).min(1).max(4), remediation: z.string(),
   })),
-  ats_checks: z.array(z.object({
-    key: cvAtsCheckKeySchema, label: z.string(), status: z.enum(['pass', 'fail', 'review', 'not_run']),
-    explanation: z.string(), remediation: z.string(),
+  checks: z.array(z.object({
+    id: z.enum(['sections', 'reads_back', 'links', 'page_breaks', 'layout']),
+    label: z.string(), passed: z.boolean(), detail: z.string(), fix: z.string(),
   })),
-  scoring_mode: z.enum(['heuristic', 'blended']), advisory_note: z.string(),
-  remaining_model_runs: z.number().int().nonnegative(),
-  history_id: z.string().nullable().optional(), access_mode: z.literal('authenticated'),
-  saved: z.boolean(), locked_actions: z.array(z.string()),
-  ats_score: z.number().int().min(0).max(100).default(0),
-  ats_fixes: z.array(z.string()).default([]),
+  advisory_note: z.string(),
 })
 export const cvStyleCatalogSchema = z.object({
   templates: z.array(z.object({
@@ -461,7 +444,6 @@ export const cvStyleCatalogSchema = z.object({
   densities: z.array(cvDensitySchema),
 })
 export type CvStyleCatalog = z.infer<typeof cvStyleCatalogSchema>
-export type CvAtsCheckKey = z.infer<typeof cvAtsCheckKeySchema>
 export type CvQualityResponse = z.infer<typeof cvQualityResponseSchema>
 
 export const cvImportClaimSchema = z.strictObject({

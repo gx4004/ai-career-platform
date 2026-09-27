@@ -361,7 +361,6 @@ def test_export_includes_schema_valid_documents_and_immutable_variants(
         "Base",
         "Target role",
     ]
-    assert exported.cv_documents.documents[0].quality_model_runs == 0
     assert exported.cv_documents.documents[0].tailoring_model_runs == 0
     assert "proposal_token" not in exported.model_dump_json()
 

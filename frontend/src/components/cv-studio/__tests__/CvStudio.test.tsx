@@ -31,20 +31,19 @@ const style = { template_id: 'ats-essential' as const, font_id: 'lato' as const,
 const document: CvDocument = {
   id: 'd1', name: 'Principal CV', sections: [experience, skills], style,
   created_at: '2026-07-12T10:00:00Z', updated_at: '2026-07-12T10:00:00Z',
-  quality_model_runs: 0, tailoring_model_runs: 0, quality_model_run_limit: 10, tailoring_model_run_limit: 10,
+  tailoring_model_runs: 0, tailoring_model_run_limit: 10,
   variants: [{ id: 'v1', name: 'Base', target_role: null, sections: [experience], created_at: '2026-07-12T10:00:00Z' }],
 }
 const quality = {
-  schema_version: 'cv-quality/v1', scoring_mode: 'heuristic', remaining_model_runs: 10,
-  advisory_note: 'Directional guidance.',
+  schema_version: 'cv-quality/v2', advisory_note: 'Directional guidance.',
   dimensions: [{ key: 'impact', label: 'Evidence of impact', score: 64, reasons: ['Two entries include outcomes.'], remediation: 'Add truthful measurements.' }],
-  ats_checks: [
-    { key: 'section_structure', label: 'Section structure', status: 'pass', explanation: 'Found typed sections.', remediation: 'Add Experience and Skills.' },
-    { key: 'page_breaks', label: 'Page-break risk', status: 'fail', explanation: 'Validated against the generated PDF artifact.', remediation: 'Regenerate after editing if this artifact validation fails.' },
+  checks: [
+    { id: 'sections', label: 'Clear section headings', passed: true, detail: 'Application systems look for standard sections.', fix: 'Add Experience and Skills.' },
+    { id: 'page_breaks', label: 'Tidy page breaks', passed: false, detail: 'Each section starts with its first entry.', fix: 'An entry splits across pages. Shorten it or move it so it fits on one page.' },
+    { id: 'layout', label: 'Single-column layout', passed: false, detail: 'Single-column layouts read in order.', fix: 'Your template uses two columns.' },
   ],
-  history_id: 'h1', access_mode: 'authenticated', saved: true, locked_actions: [],
-  ats_score: 72, ats_fixes: ['Regenerate after editing if this artifact validation fails.'],
 }
+const passingQuality = { ...quality, checks: quality.checks.map((check) => ({ ...check, passed: true })) }
 let clickedDownload = ''
 
 function view() {
@@ -238,25 +237,24 @@ describe('CV Studio design', { timeout: 15_000 }, () => {
 })
 
 describe('CV Studio quality, exports and versions', { timeout: 15_000 }, () => {
-  it('shows the ATS score, plain fixes and tucks detailed checks under Advanced checks', async () => {
+  it('summarises failing checks with their fixes and shows no score or AI review', async () => {
     view()
-    expect(await screen.findByRole('img', { name: 'ATS score: 72 out of 100' })).toBeTruthy()
-    expect(screen.getByText('An entry splits across pages. Shorten it or move it so it fits on one page.')).toBeTruthy()
-    expect(api.scoreCvDocument).toHaveBeenCalledWith('d1', { use_model: false, artifact_template: 'ats-essential', artifact_format: 'pdf' })
-    const advanced = screen.getByText('Advanced checks').closest('details')!
-    expect(within(advanced).getByText('Clear section headings')).toBeTruthy()
-    expect(within(advanced).getByText('Needs a fix')).toBeTruthy()
+    expect((await screen.findAllByText('2 to fix')).length).toBeGreaterThan(0)
+    expect(api.scoreCvDocument).toHaveBeenCalledWith('d1')
+    const checklist = screen.getByRole('list', { name: 'Checks' })
+    expect(within(checklist).getByText('Clear section headings')).toBeTruthy()
+    expect(within(checklist).getByText('An entry splits across pages. Shorten it or move it so it fits on one page.')).toBeTruthy()
+    expect(within(checklist).getAllByText('Fix')).toHaveLength(2)
+    expect(screen.getByRole('button', { name: /Turn on ATS-friendly mode/ })).toBeTruthy()
+    expect(window.document.body.textContent).not.toMatch(/\/100|ATS score|second opinion|AI review/i)
     expect(window.document.body.textContent).not.toMatch(/deterministic|preflight|immutable|canonical/i)
   })
 
-  it('reports the AI review limit while the checks stay available', async () => {
-    api.scoreCvDocument
-      .mockResolvedValueOnce(quality)
-      .mockRejectedValueOnce(new Error('This document has reached its model scoring limit.'))
+  it('says every check passes when the CV is clean', async () => {
+    api.scoreCvDocument.mockResolvedValue(passingQuality)
     view()
-    fireEvent.click(await screen.findByRole('button', { name: /Ask AI for a second opinion/ }))
-    expect((await screen.findByRole('alert')).textContent).toContain('used all AI reviews')
-    expect(screen.getByText('Clear section headings')).toBeTruthy()
+    expect((await screen.findAllByText('All 3 checks pass')).length).toBeGreaterThan(0)
+    expect(screen.queryByRole('button', { name: /Turn on ATS-friendly mode/ })).toBeNull()
   })
 
   it('exports the PDF with the chosen template and opens the exact server PDF', async () => {

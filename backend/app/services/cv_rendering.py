@@ -602,19 +602,19 @@ def validate_artifact(model: CvRenderModel, artifact: bytes, fmt: str) -> CvArti
                 )
             artifact_links = {link.get("uri") for page in rendered for link in page.get_links()}
     else:
+        # DOCX has no fixed pagination: its keepNext markers are always
+        # written, so a page-break check here could never fail.
         with zipfile.ZipFile(io.BytesIO(artifact)) as package:
-            document_xml = package.read("word/document.xml")
             relationships = package.read("word/_rels/document.xml.rels")
-        page_breaks_ok = b"w:keepNext" in document_xml and b"w:sectPr" in document_xml
+        page_breaks_ok = None
         artifact_links = {link for link in links if link.encode() in relationships}
     return CvArtifactEvidence(
         template_id=model.template_id,
         format=fmt,
-        searchable_text="pass" if content_equivalent else "fail",
+        reads_back="pass" if content_equivalent else "fail",
         links="pass"
         if all(link in extracted and link in artifact_links for link in links)
         else "fail",
-        page_breaks="pass" if page_breaks_ok else "fail",
-        re_importability="pass" if content_equivalent else "fail",
+        page_breaks=None if page_breaks_ok is None else ("pass" if page_breaks_ok else "fail"),
         canonical_hash=model.canonical_hash,
     )
