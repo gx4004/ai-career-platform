@@ -1,7 +1,7 @@
 """PostgreSQL round-trip for the #322 cv_documents.style migration.
 
-Not wired into the hardcoded release-runner/CI command lists (tests/test_ci_workflow.py,
-tests/test_local_release_runner.py) — that list change is a deliberate, separately
+Not wired into the hardcoded release-runner command list
+(tests/test_local_release_runner.py) — that list change is a deliberate, separately
 reviewed edit to shared release infra, out of scope for this PR. Run directly:
 
     DATABASE_URL=postgresql://user@localhost:5432/db python tests/migration_cv_style_roundtrip.py
