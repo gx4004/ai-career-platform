@@ -8,7 +8,6 @@ import { classifyCampaignGaps, getCampaignGapResponse, reviewCampaign } from '#/
 import { createDevelopmentItem } from '#/lib/api/development'
 import type { GapClassification } from '#/lib/api/gapClassificationSchemas'
 import type { CampaignDetail } from '#/lib/api/schemas'
-import { isR17DevelopmentLoopEnabled } from '#/lib/flags/featureFlags'
 import { GAP_KIND_LABELS, RESPONSE_KIND_LABELS, commercialRelationshipLabel } from '#/lib/development/plan'
 import { DEVELOPMENT_PLAN_QUERY_KEY } from '#/lib/query/evidenceCaches'
 import { PROVENANCE_LABELS, contentEntries } from '#/lib/profile/evidence'
@@ -27,7 +26,6 @@ const CHECKS: Array<{ category: Finding['category']; title: string; detail: stri
 /** Pre-application checklist: document readiness plus the rule-based content checks. */
 export function CampaignChecklist({ campaign }: { campaign: CampaignDetail }) {
   const [hidden, setHidden] = useState<Set<string>>(() => new Set())
-  const developmentLoopEnabled = isR17DevelopmentLoopEnabled()
   const classify = useMutation({ mutationFn: () => classifyCampaignGaps(campaign.id) })
   const review = useMutation({
     mutationFn: () => reviewCampaign(campaign.id),
@@ -76,7 +74,7 @@ export function CampaignChecklist({ campaign }: { campaign: CampaignDetail }) {
             {findings.length ? `${findings.length} thing${findings.length === 1 ? '' : 's'} to look at` : 'All clear. Nice work.'}
           </p>
         ) : null}
-        {developmentLoopEnabled && findings.length > 0 ? (
+        {findings.length > 0 ? (
           <div className="camp-next-steps">
             <p>Turn what the checks found into steps in your development plan. Nothing is added until you choose.</p>
             <Button variant="outline" disabled={classify.isPending} onClick={() => classify.mutate()}>
@@ -100,13 +98,11 @@ export function CampaignChecklist({ campaign }: { campaign: CampaignDetail }) {
                     <article key={item.id} className="camp-finding">
                       <p>{item.message}</p>
                       <span className="camp-muted">Where: {where(item.locations)}</span>
-                      {developmentLoopEnabled ? (
-                        <FindingNextStep
-                          campaignId={campaign.id}
-                          classification={classify.data?.classifications.find((candidate) => candidate.finding_id === item.id)}
-                          classificationComplete={classify.isSuccess}
-                        />
-                      ) : null}
+                      <FindingNextStep
+                        campaignId={campaign.id}
+                        classification={classify.data?.classifications.find((candidate) => candidate.finding_id === item.id)}
+                        classificationComplete={classify.isSuccess}
+                      />
                       <button type="button" className="camp-link-button" onClick={() => setHidden((current) => new Set(current).add(item.id))}>
                         Hide
                       </button>

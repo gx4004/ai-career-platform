@@ -7,7 +7,6 @@ from typing import Any
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
-from app.feature_gates import outcome_enabled
 from app.models.campaign_event import CampaignEvent
 from app.models.campaign_listing import CampaignListing
 from app.models.campaign_snapshot import CampaignSubmissionSnapshot
@@ -276,15 +275,14 @@ def build_workspace_summary(
         reverse=True,
     )
     last_run = ordered_runs[0] if ordered_runs else None
-    campaigns_enabled = outcome_enabled("r13")
     return WorkspaceSummary(
         id=workspace.id,
         label=workspace.label,
         is_pinned=workspace.is_pinned,
-        company=workspace.company if campaigns_enabled else None,
-        role=workspace.role if campaigns_enabled else None,
-        status=workspace.status if campaigns_enabled else None,
-        deadline=_as_utc(workspace.deadline) if campaigns_enabled else None,
+        company=workspace.company,
+        role=workspace.role,
+        status=workspace.status,
+        deadline=_as_utc(workspace.deadline),
         listing=(
             CampaignListingResponse(
                 title=workspace.listing.title,
@@ -293,7 +291,7 @@ def build_workspace_summary(
                 source_url=workspace.listing.source_url,
                 retrieved_at=_as_utc(workspace.listing.retrieved_at),
             )
-            if campaigns_enabled and workspace.listing is not None
+            if workspace.listing is not None
             else None
         ),
         linked_run_ids=[run.id for run in ordered_runs],

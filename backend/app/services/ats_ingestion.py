@@ -36,7 +36,6 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.database import SessionLocal
-from app.feature_gates import outcome_enabled
 from app.models.discovery_source import DiscoverySource
 from app.schemas.discovered_listings import DiscoveredListingInput
 from app.services.analytics import safe_record_activation_event
@@ -237,11 +236,10 @@ async def run_ats_ingestion_scheduler(
 ) -> None:
     """Run ATS ingestion shortly after startup, then every `interval_seconds`.
 
-    Gated by both the R14 discovery outcome flag and `ATS_INGESTION_ENABLED`
-    (default False) — a dead loop when either is off, so enabling discovery
-    routes alone never starts a background network-fetching task.
+    Gated by `ATS_INGESTION_ENABLED` (default False) — a dead loop when off, so
+    the discovery routes never start a background network-fetching task alone.
     """
-    if not (outcome_enabled("r14") and settings.ATS_INGESTION_ENABLED):
+    if not settings.ATS_INGESTION_ENABLED:
         return
     await asyncio.sleep(initial_delay_seconds)
     while True:

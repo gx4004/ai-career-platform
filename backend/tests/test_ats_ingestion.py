@@ -263,18 +263,16 @@ async def test_ingest_refuses_a_non_employer_ats_source(db):
 
 
 @pytest.mark.asyncio
-async def test_scheduler_is_a_no_op_when_its_flags_are_off(monkeypatch):
-    # Both ATS_INGESTION_ENABLED and R14_DISCOVERY_ENABLED default False; the
-    # scheduler must return immediately rather than looping/sleeping forever.
+async def test_scheduler_is_a_no_op_when_its_flag_is_off(monkeypatch):
+    # ATS_INGESTION_ENABLED defaults False; the scheduler must return immediately rather than looping/sleeping forever.
     await run_ats_ingestion_scheduler()
 
 
 @pytest.mark.asyncio
-async def test_scheduler_runs_when_both_flags_are_enabled(monkeypatch):
+async def test_scheduler_runs_when_its_flag_is_enabled(monkeypatch):
     from app.config import settings
 
     monkeypatch.setattr(settings, "ATS_INGESTION_ENABLED", True)
-    monkeypatch.setattr(settings, "R14_DISCOVERY_ENABLED", True)
 
     calls = {"count": 0}
 

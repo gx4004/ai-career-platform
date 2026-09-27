@@ -473,7 +473,6 @@ async def _run_reviewer_gate(
             "cover_sha256": hashlib.sha256(clean_cover.encode()).hexdigest(),
             "cv_document_sha256": hashlib.sha256(cv_document_text.encode()).hexdigest(),
         },
-        require_evidence_profile=True,
     )
     findings = review_response.get("findings") or []
     gate_state = gate_state_for(findings)
@@ -610,7 +609,6 @@ async def prepare_packets(
             workspace_id=campaign_id,
             current_user=user,
             db=db,
-            require_evidence_profile=True,
         )
         drafts_run_id = response.get("history_id")
         # Read the drafts run's spend before the reviewer's own pipeline run resets
