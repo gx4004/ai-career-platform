@@ -3,6 +3,7 @@ from typing import Literal
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, UploadFile, status
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
@@ -83,6 +84,7 @@ from app.services.cv_tailoring import (
 )
 from app.services.cv_upload import CvUploadRejected, read_validated_cv_upload
 from app.services.evidence_profile import create_evidence_item
+from app.services.input_sanitizer import sanitize_user_input
 from app.services.tool_pipeline import run_tool_pipeline
 
 router = APIRouter()
@@ -111,8 +113,9 @@ _TEMPLATE_CATALOG_META = {
 }
 
 
-def _document_style(document: CvDocument) -> CvStyle | None:
-    return CvStyle(**document.style) if document.style else None
+def _document_style(document: CvDocument) -> CvStyle:
+    """The saved style, or the defaults the preview shows for an unstyled CV."""
+    return CvStyle(**(document.style or {}))
 
 
 _INVALID_IMPORT = (
@@ -262,7 +265,8 @@ def preview_render(
     db: Session = Depends(get_db),
 ):
     try:
-        return build_render_model(get_document(db, document_id, current_user.id), template)
+        document = get_document(db, document_id, current_user.id)
+        return build_render_model(document, template, _document_style(document))
     except CvDocumentNotFoundError as error:
         _not_found(error)
 
@@ -363,8 +367,12 @@ def artifact_evidence(
     except CvDocumentNotFoundError as error:
         _not_found(error)
     model = build_render_model(document, template, _document_style(document))
-    artifact = render_pdf(model) if format == "pdf" else render_docx(model)
-    return validate_artifact(model, artifact, format)
+    return _render_and_validate(model, format)
+
+
+def _render_and_validate(model: CvRenderModel, fmt: str) -> CvArtifactEvidence:
+    artifact = render_pdf(model) if fmt == "pdf" else render_docx(model)
+    return validate_artifact(model, artifact, fmt)
 
 
 async def _waive_model_budget_for_deterministic_quality(body: CvQualityRequest) -> None:
@@ -393,6 +401,8 @@ async def quality(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    # A document check, not one of the six tools: it bypasses run_tool_pipeline()
+    # so autosave-driven checks never write ToolRuns or Workspaces (#362).
     try:
         document = get_document(db, document_id, current_user.id)
     except CvDocumentNotFoundError as error:
@@ -404,7 +414,7 @@ async def quality(
         if section.get("visible", True)
         for entry in section.get("entries", [])
     )
-    service = analyze_cv_quality_heuristic
+    quota_document = document
     if body.use_model:
         quota_document = (
             db.query(CvDocument)
@@ -417,30 +427,22 @@ async def quality(
                 status_code=429,
                 detail="This document has reached its model scoring limit. Deterministic checks remain available.",
             )
-        # Consume before the provider pipeline so concurrent and failed attempts
+        # Consume before the provider call so concurrent and failed attempts
         # remain bounded. PostgreSQL serializes this owner/document row lock.
         quota_document.quality_model_runs += 1
         db.commit()
-        service = analyze_cv_quality
-    result = await run_tool_pipeline(
-        tool_name="cv-quality",
-        service_fn=service,
-        service_kwargs={"resume_text": text, "sections": sections, "selected_checks": body.checks},
-        label_fn=lambda _: f"CV quality {'model' if body.use_model else 'check'} · {document.id}",
-        resume_text=text,
-        current_user=current_user,
-        db=db,
-        cache_extra_keys={
-            "document_id": document.id,
-            "updated_at": document.updated_at.isoformat(),
-            "mode": "model" if body.use_model else "heuristic",
-            "checks": ",".join(body.checks or []),
-        },
-    )
+        result = await analyze_cv_quality(
+            sanitize_user_input(text), sections=sections, selected_checks=body.checks
+        )
+    else:
+        result = await analyze_cv_quality_heuristic(
+            text, sections=sections, selected_checks=body.checks
+        )
+    style = _document_style(document)
     if body.artifact_template is not None and body.artifact_format is not None:
-        model = build_render_model(document, body.artifact_template, _document_style(document))
-        artifact = render_pdf(model) if body.artifact_format == "pdf" else render_docx(model)
-        evidence = validate_artifact(model, artifact, body.artifact_format)
+        model = build_render_model(document, body.artifact_template, style)
+        # ReportLab/fitz work is CPU-bound; keep it off the event loop.
+        evidence = await run_in_threadpool(_render_and_validate, model, body.artifact_format)
         statuses = {
             "text_layer": evidence.searchable_text,
             "links": evidence.links,
@@ -454,10 +456,8 @@ async def quality(
                     f"Validated against the generated {body.artifact_format.upper()} artifact."
                 )
                 check["remediation"] = "Regenerate after editing if this artifact validation fails."
-    remaining = CV_QUALITY_MODEL_RUN_LIMIT - (
-        quota_document.quality_model_runs if body.use_model else document.quality_model_runs
-    )
-    ats_score, ats_fixes = compute_ats_summary(result["ats_checks"], _document_style(document))
+    remaining = CV_QUALITY_MODEL_RUN_LIMIT - quota_document.quality_model_runs
+    ats_score, ats_fixes = compute_ats_summary(result["ats_checks"], style)
     safe_record_activation_event(db, event_name="studio_quality_checked")
     return CvQualityResponse(
         **result, remaining_model_runs=remaining, ats_score=ats_score, ats_fixes=ats_fixes
@@ -522,6 +522,9 @@ async def tailor(
         job_description=body.job_description,
         current_user=current_user,
         db=db,
+        # The proposal token carries everything apply needs; a ToolRun would
+        # only open a new Workspace (campaign) per tailoring run (#362).
+        persist_run=False,
         cache_extra_keys={
             "document_id": document.id,
             "updated_at": document.updated_at.isoformat(),
