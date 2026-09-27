@@ -23,6 +23,8 @@ export default defineConfig({
   // Keep local execution serial for easier debugging and lower laptop load.
   workers: process.env.CI ? 2 : 1,
   retries: 0,
+  // Two workers plus bcrypt signups and SSR hydration regularly exceed the 5s default.
+  expect: { timeout: 15_000 },
   reporter: process.env.CI ? 'github' : 'list',
   use: {
     baseURL: frontendUrl,

@@ -175,6 +175,7 @@ for (const tool of guestTools) {
       sessionStorage.removeItem(`cw:demo-result:${id}`)
     }, demoId)
     await page.reload()
+    await page.locator('html[data-hydrated="true"]').waitFor()
 
     await expect(page.getByText('Demo expired')).toBeVisible()
     await expect(page.getByRole('link', { name: 'Run the tool again' })).toBeVisible()

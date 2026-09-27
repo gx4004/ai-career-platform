@@ -274,7 +274,7 @@ _EXPECTED_STATEMENT_COUNTS = {
     "history_list": 4,
     "history_list_last_page": 4,
     "history_list_search": 4,
-    "workspace_list": 2,
+    "workspace_list": 4,
     "admin_runs": 3,
     "admin_runs_deep_page": 3,
     "admin_runs_by_tool": 3,
@@ -308,6 +308,18 @@ _RECORDED_PLANS: dict[tuple[str, int], Recorded] = {
     ),
     ("workspace_list", 0): Recorded(scan="index", sort="in_memory"),
     ("workspace_list", 1): Recorded(scan="index", sort="in_memory"),
+    ("workspace_list", 2): Recorded(
+        scan="sequential",
+        sort="in_memory",
+        note="campaign board eager load (#324); the fixture seeds no campaign_tasks, "
+        "so the planner scans the empty table",
+    ),
+    ("workspace_list", 3): Recorded(
+        scan="index",
+        estimate_error=20,
+        note="campaign board last-activity lookup (#324); the fixture seeds no "
+        "campaign_events, so any estimate is off against zero actual rows",
+    ),
     ("admin_runs", 0): Recorded(
         scan="sequential",
         note="unfiltered count reads every tool_runs page on every admin page view",
