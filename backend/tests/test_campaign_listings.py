@@ -177,10 +177,10 @@ def test_listing_is_exported_and_account_deletion_removes_it(client, auth_header
     exported = CareerDataExport.model_validate(
         client.get("/api/v1/evidence-profile/export", headers=auth_headers).json()
     )
-    listing = exported.campaigns.campaigns[0].listing
+    listing = exported.applications.applications[0].listing
     assert listing is not None
     assert listing.description == "Build reliable Python systems for customers."
-    assert [item.title for item in exported.campaigns.campaigns[0].listing_revisions] == [
+    assert [item.title for item in exported.applications.applications[0].listing_revisions] == [
         "Engineer"
     ]
 
@@ -254,7 +254,7 @@ def test_owner_can_delete_campaign_and_listing_immediately(client, auth_headers,
         )
     )
     db.commit()
-    response = client.delete(f"/api/v1/history/workspaces/{workspace.id}", headers=auth_headers)
+    response = client.delete(f"/api/v1/applications/{workspace.id}", headers=auth_headers)
     assert response.status_code == 200
     assert response.json() == {"deleted": 1}
     assert db.query(Workspace).filter_by(id=workspace.id).first() is None
