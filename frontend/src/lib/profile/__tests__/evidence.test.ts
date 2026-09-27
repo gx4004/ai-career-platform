@@ -1,11 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import type { EvidenceItem } from '#/lib/api/schemas'
 import {
+  applyFieldEdits,
   contentEntries,
-  contentToEditableText,
   countByState,
   groupItemsByKind,
-  parseEditableText,
 } from '#/lib/profile/evidence'
 
 function item(overrides: Partial<EvidenceItem>): EvidenceItem {
@@ -62,27 +61,16 @@ describe('contentEntries', () => {
   })
 })
 
-describe('parseEditableText / contentToEditableText round trip', () => {
-  it('parses a valid JSON object', () => {
-    const text = contentToEditableText({ title: 'Engineer' })
-    const parsed = parseEditableText(text)
-    expect(parsed).toEqual({ ok: true, value: { title: 'Engineer' } })
+describe('applyFieldEdits', () => {
+  it('writes edited text back, drops cleared fields and keeps untouched non-text values', () => {
+    const content = { title: 'Engineer', company: 'Acme', years: 4 }
+    expect(applyFieldEdits(content, { title: 'Staff Engineer', company: '  ', years: '4' })).toEqual({
+      ok: true,
+      value: { title: 'Staff Engineer', years: 4 },
+    })
   })
 
-  it('rejects empty input', () => {
-    expect(parseEditableText('   ')).toEqual({ ok: false, error: 'Content cannot be empty.' })
-  })
-
-  it('rejects invalid JSON', () => {
-    expect(parseEditableText('{not json')).toMatchObject({ ok: false })
-  })
-
-  it('rejects a non-object JSON value', () => {
-    expect(parseEditableText('[1,2]')).toMatchObject({ ok: false })
-    expect(parseEditableText('"hi"')).toMatchObject({ ok: false })
-  })
-
-  it('rejects an empty object', () => {
-    expect(parseEditableText('{}')).toMatchObject({ ok: false })
+  it('refuses to save a fact with every field cleared', () => {
+    expect(applyFieldEdits({ title: 'Engineer' }, { title: '' })).toMatchObject({ ok: false })
   })
 })

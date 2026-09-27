@@ -1,18 +1,20 @@
 import uuid
 from datetime import UTC, datetime
+from typing import get_args
 
 from sqlalchemy import JSON, CheckConstraint, DateTime, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
+from app.schemas.evidence_profile import EvidenceKind
 
 
 class EvidenceItem(Base):
     __tablename__ = "evidence_items"
     __table_args__ = (
         CheckConstraint(
-            "kind IN ('experience', 'achievement', 'skill', 'education', 'project', "
-            "'certification', 'preference', 'interview-evidence')",
+            # One kind list: the EvidenceKind literal (ADR 0005, D-061).
+            "kind IN (" + ", ".join(f"'{kind}'" for kind in get_args(EvidenceKind)) + ")",
             name="ck_evidence_items_kind",
         ),
         CheckConstraint(

@@ -17,7 +17,6 @@ import { Route as CookiesRouteImport } from './routes/cookies'
 import { Route as CoverLetterRouteImport } from './routes/cover-letter'
 import { Route as CvStudioRouteImport } from './routes/cv-studio'
 import { Route as DashboardRouteImport } from './routes/dashboard'
-import { Route as DevelopmentPlanRouteImport } from './routes/development-plan'
 import { Route as DiscoveryRouteImport } from './routes/discovery'
 import { Route as HistoryRouteImport } from './routes/history'
 import { Route as ImprintRouteImport } from './routes/imprint'
@@ -83,11 +82,6 @@ const CvStudioRoute = CvStudioRouteImport.update({
 const DashboardRoute = DashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DevelopmentPlanRoute = DevelopmentPlanRouteImport.update({
-  id: '/development-plan',
-  path: '/development-plan',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DiscoveryRoute = DiscoveryRouteImport.update({
@@ -233,7 +227,6 @@ export interface FileRoutesByFullPath {
   '/cover-letter': typeof CoverLetterRoute
   '/cv-studio': typeof CvStudioRoute
   '/dashboard': typeof DashboardRoute
-  '/development-plan': typeof DevelopmentPlanRoute
   '/discovery': typeof DiscoveryRoute
   '/history': typeof HistoryRoute
   '/imprint': typeof ImprintRoute
@@ -269,7 +262,6 @@ export interface FileRoutesByTo {
   '/cover-letter': typeof CoverLetterRoute
   '/cv-studio': typeof CvStudioRoute
   '/dashboard': typeof DashboardRoute
-  '/development-plan': typeof DevelopmentPlanRoute
   '/discovery': typeof DiscoveryRoute
   '/history': typeof HistoryRoute
   '/imprint': typeof ImprintRoute
@@ -307,7 +299,6 @@ export interface FileRoutesById {
   '/cover-letter': typeof CoverLetterRoute
   '/cv-studio': typeof CvStudioRoute
   '/dashboard': typeof DashboardRoute
-  '/development-plan': typeof DevelopmentPlanRoute
   '/discovery': typeof DiscoveryRoute
   '/history': typeof HistoryRoute
   '/imprint': typeof ImprintRoute
@@ -346,7 +337,6 @@ export interface FileRouteTypes {
     | '/cover-letter'
     | '/cv-studio'
     | '/dashboard'
-    | '/development-plan'
     | '/discovery'
     | '/history'
     | '/imprint'
@@ -382,7 +372,6 @@ export interface FileRouteTypes {
     | '/cover-letter'
     | '/cv-studio'
     | '/dashboard'
-    | '/development-plan'
     | '/discovery'
     | '/history'
     | '/imprint'
@@ -419,7 +408,6 @@ export interface FileRouteTypes {
     | '/cover-letter'
     | '/cv-studio'
     | '/dashboard'
-    | '/development-plan'
     | '/discovery'
     | '/history'
     | '/imprint'
@@ -457,7 +445,6 @@ export interface RootRouteChildren {
   CoverLetterRoute: typeof CoverLetterRoute
   CvStudioRoute: typeof CvStudioRoute
   DashboardRoute: typeof DashboardRoute
-  DevelopmentPlanRoute: typeof DevelopmentPlanRoute
   DiscoveryRoute: typeof DiscoveryRoute
   HistoryRoute: typeof HistoryRoute
   ImprintRoute: typeof ImprintRoute
@@ -538,13 +525,6 @@ declare module '@tanstack/react-router' {
       path: '/dashboard'
       fullPath: '/dashboard'
       preLoaderRoute: typeof DashboardRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/development-plan': {
-      id: '/development-plan'
-      path: '/development-plan'
-      fullPath: '/development-plan'
-      preLoaderRoute: typeof DevelopmentPlanRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/discovery': {
@@ -757,7 +737,6 @@ const rootRouteChildren: RootRouteChildren = {
   CoverLetterRoute: CoverLetterRoute,
   CvStudioRoute: CvStudioRoute,
   DashboardRoute: DashboardRoute,
-  DevelopmentPlanRoute: DevelopmentPlanRoute,
   DiscoveryRoute: DiscoveryRoute,
   HistoryRoute: HistoryRoute,
   ImprintRoute: ImprintRoute,

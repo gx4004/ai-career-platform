@@ -39,7 +39,6 @@ export const STATIC_PAGES = [
   { name: 'account', path: '/account', auth: 'user' },
   { name: 'cv-studio', path: '/cv-studio', auth: 'user' },
   { name: 'profile', path: '/profile', auth: 'user' },
-  { name: 'development-plan', path: '/development-plan', auth: 'user' },
   { name: 'discovery', path: '/discovery', auth: 'user' },
   { name: 'queue', path: '/queue', auth: 'user' },
   { name: 'admin', path: '/admin', auth: 'admin' },

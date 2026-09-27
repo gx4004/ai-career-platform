@@ -32,7 +32,6 @@ test('static page manifest covers the requested surfaces', () => {
     'account',
     'cv-studio',
     'profile',
-    'development-plan',
     'discovery',
     'queue',
     'admin',

@@ -1,19 +1,10 @@
+from typing import get_args
+
+from app.schemas.evidence_profile import EvidenceKind
+
 # Bump when the prompt template changes shape, the kind list, or the output
 # schema. R11 resume-import results are never cached, so this version is documentation/observability only, not a cache key.
 EVIDENCE_IMPORT_PROMPT_VERSION = "2026-07-11-v1"
-
-# The eight typed evidence kinds (ADR 0005, D-061). Kept in sync with the
-# EvidenceKind literal in app/schemas/evidence_profile.py.
-_KINDS = (
-    "experience",
-    "achievement",
-    "skill",
-    "education",
-    "project",
-    "certification",
-    "preference",
-    "interview-evidence",
-)
 
 
 def build_evidence_import_prompt(resume_text: str) -> tuple[str, str]:
@@ -24,7 +15,7 @@ def build_evidence_import_prompt(resume_text: str) -> tuple[str, str]:
     `unconfirmed` item with `imported` provenance, and only an explicit user
     action can confirm it (D-062).
     """
-    kinds = ", ".join(_KINDS)
+    kinds = ", ".join(get_args(EvidenceKind))
     system = f"""You are an information-extraction assistant for a career workbench.
 
 IMPORTANT SAFETY RULES:
