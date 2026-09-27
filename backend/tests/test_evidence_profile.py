@@ -51,10 +51,6 @@ def test_owner_can_crud_evidence_items(client, auth_headers, test_user, db):
     assert updated.status_code == 200
     assert updated.json()["content"]["statement"].endswith("25%.")
 
-    fetched = client.get(f"{PREFIX}/{item['id']}", headers=auth_headers)
-    assert fetched.status_code == 200
-    assert fetched.json() == updated.json()
-
     deleted = client.delete(f"{PREFIX}/{item['id']}", headers=auth_headers)
     assert deleted.status_code == 204
     assert db.query(EvidenceItem).count() == 0
@@ -72,7 +68,6 @@ def test_items_are_owner_isolated(client, auth_headers, test_user, second_user, 
     db.commit()
 
     assert client.get(PREFIX, headers=auth_headers).json()["items"] == []
-    assert client.get(f"{PREFIX}/{foreign.id}", headers=auth_headers).status_code == 404
     assert (
         client.patch(
             f"{PREFIX}/{foreign.id}",

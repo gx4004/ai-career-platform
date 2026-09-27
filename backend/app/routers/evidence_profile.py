@@ -22,7 +22,6 @@ from app.services.evidence_profile import (
     create_evidence_item,
     delete_evidence_item,
     delete_evidence_items,
-    get_evidence_item,
     list_evidence_items,
     stage_evidence_items,
     update_evidence_item,
@@ -115,18 +114,6 @@ def delete_profile(
     """Immediately erase the owner's whole Evidence Profile atomically (D-065)."""
     delete_evidence_items(db, current_user.id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
-
-
-@router.get("/items/{item_id}", response_model=EvidenceItemResponse)
-def get_item(
-    item_id: str,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    try:
-        return get_evidence_item(db, item_id, current_user.id)
-    except EvidenceItemNotFoundError as error:
-        _not_found_as_http(error)
 
 
 @router.patch("/items/{item_id}", response_model=EvidenceItemResponse)

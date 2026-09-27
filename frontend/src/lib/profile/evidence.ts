@@ -1,22 +1,15 @@
-import type {
-  EvidenceConfirmationState,
-  EvidenceItem,
-  EvidenceKind,
-  EvidenceProvenance,
+import {
+  evidenceKindSchema,
+  type EvidenceConfirmationState,
+  type EvidenceItem,
+  type EvidenceKind,
+  type EvidenceProvenance,
 } from '#/lib/api/schemas'
 export { EVIDENCE_QUERY_KEY } from '#/lib/query/evidenceCaches'
 
-// Canonical display order for the eight evidence kinds (ADR 0005, D-061).
-export const KIND_ORDER: readonly EvidenceKind[] = [
-  'experience',
-  'achievement',
-  'skill',
-  'education',
-  'project',
-  'certification',
-  'preference',
-  'interview-evidence',
-]
+// Display order for the eight evidence kinds is the schema's own order
+// (ADR 0005, D-061), so the kind list lives in one place.
+export const KIND_ORDER: readonly EvidenceKind[] = evidenceKindSchema.options
 
 export const KIND_LABELS: Record<EvidenceKind, string> = {
   experience: 'Experience',
@@ -112,37 +105,38 @@ function stringifyValue(value: unknown): string {
   }
 }
 
-/** Pretty-print content for the correction editor. */
-export function contentToEditableText(content: Record<string, unknown>): string {
-  return JSON.stringify(content, null, 2)
+/** "start_date" / "startDate" → "Start date": a readable label for a content key. */
+export function fieldLabel(key: string): string {
+  const words = key
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .replace(/[_-]+/g, ' ')
+    .trim()
+    .toLowerCase()
+  return words ? words[0].toUpperCase() + words.slice(1) : key
 }
 
-export type ParsedContent =
+export type FieldEdit =
   | { ok: true; value: Record<string, unknown> }
   | { ok: false; error: string }
 
 /**
- * Parse the correction editor text back into a content record. Enforces the
- * same shape the backend requires: a non-empty JSON object (D-061 content is a
- * typed record, never a bare scalar or array).
+ * Fold the edit dialog's per-field text back into a content record. A cleared
+ * field is dropped; a non-text value the owner left untouched keeps its
+ * original shape. The backend requires at least one field (D-061).
  */
-export function parseEditableText(text: string): ParsedContent {
-  const trimmed = text.trim()
-  if (trimmed.length === 0) {
-    return { ok: false, error: 'Content cannot be empty.' }
+export function applyFieldEdits(
+  content: Record<string, unknown>,
+  values: Record<string, string>,
+): FieldEdit {
+  const next: Record<string, unknown> = {}
+  for (const { key, value: original } of contentEntries(content)) {
+    const edited = (values[key] ?? original).trim()
+    if (!edited) continue
+    const raw = content[key]
+    next[key] = typeof raw !== 'string' && edited === original ? raw : edited
   }
-  let parsed: unknown
-  try {
-    parsed = JSON.parse(trimmed)
-  } catch {
-    return { ok: false, error: 'Content must be valid JSON.' }
+  if (Object.keys(next).length === 0) {
+    return { ok: false, error: 'Fill in at least one field.' }
   }
-  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    return { ok: false, error: 'Content must be a JSON object of fields.' }
-  }
-  const record = parsed as Record<string, unknown>
-  if (Object.keys(record).length === 0) {
-    return { ok: false, error: 'Content must contain at least one field.' }
-  }
-  return { ok: true, value: record }
+  return { ok: true, value: next }
 }

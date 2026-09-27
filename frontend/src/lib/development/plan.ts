@@ -7,8 +7,8 @@ import type { GapKind } from '#/lib/api/gapClassificationSchemas'
 import type { GapCommercialRelationship } from '#/lib/api/gapResponseSchemas'
 
 // R17 #199 development-plan presentation helpers. Mirrors lib/profile/evidence.ts:
-// stable label maps, a grouping that preserves canonical order, and per-state
-// counts. Items are grouped by response_kind (a stable derived property) rather
+// stable label maps and a grouping that preserves canonical order.
+// Items are grouped by response_kind (a stable derived property) rather
 // than by state, so an item never jumps groups when the user advances it.
 
 export const STATE_ORDER: readonly DevelopmentState[] = [
@@ -95,22 +95,6 @@ export function groupItemsByResponseKind(items: DevelopmentItem[]): DevelopmentG
     description: RESPONSE_KIND_DESCRIPTIONS[kind],
     items: byKind.get(kind) ?? [],
   }))
-}
-
-export type StateCounts = {
-  total: number
-  planned: number
-  in_progress: number
-  completed: number
-}
-
-export function countByState(items: DevelopmentItem[]): StateCounts {
-  const counts: StateCounts = { total: 0, planned: 0, in_progress: 0, completed: 0 }
-  for (const item of items) {
-    counts.total += 1
-    counts[item.state] += 1
-  }
-  return counts
 }
 
 /**

@@ -10,10 +10,10 @@ no trace of its content (D-062).
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, get_args
 
 from app.prompts.evidence_import import build_evidence_import_prompt
-from app.schemas.evidence_profile import EvidenceItemCreate
+from app.schemas.evidence_profile import EvidenceItemCreate, EvidenceKind
 from app.services.ai_client import complete_structured
 from app.services.input_sanitizer import sanitize_user_input
 
@@ -21,18 +21,7 @@ logger = logging.getLogger(__name__)
 
 # Closed set of typed kinds a suggestion may carry (ADR 0005, D-061). Mirrors the
 # EvidenceKind literal so a hallucinated kind is dropped rather than proposed.
-_VALID_KINDS = frozenset(
-    {
-        "experience",
-        "achievement",
-        "skill",
-        "education",
-        "project",
-        "certification",
-        "preference",
-        "interview-evidence",
-    }
-)
+_VALID_KINDS = frozenset(get_args(EvidenceKind))
 
 # Upper bound on suggestions stored from one import. Matches the prompt cap
 # and keeps the reviewable list bounded regardless of what the model returns.
