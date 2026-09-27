@@ -274,11 +274,7 @@ _EXPECTED_STATEMENT_COUNTS = {
     "history_list": 4,
     "history_list_last_page": 4,
     "history_list_search": 4,
-    # +1 from #357: selectinload(Workspace.listing) added to list_workspaces to
-    # stop the per-row lazy `Workspace.listing` touch (up to one extra query per
-    # workspace, per page). The added statement's plan facts below are not yet
-    # verified against a live Postgres run.
-    "workspace_list": 3,
+    "workspace_list": 2,
     "admin_runs": 3,
     "admin_runs_deep_page": 3,
     "admin_runs_by_tool": 3,
@@ -312,12 +308,6 @@ _RECORDED_PLANS: dict[tuple[str, int], Recorded] = {
     ),
     ("workspace_list", 0): Recorded(scan="index", sort="in_memory"),
     ("workspace_list", 1): Recorded(scan="index", sort="in_memory"),
-    # New in #357: selectinload(Workspace.listing) is a scalar many-to-one PK
-    # lookup with no ORDER BY, so no sort is expected. Not yet measured on a
-    # live Postgres run; re-record if the next release-gate run disagrees.
-    ("workspace_list", 2): Recorded(
-        scan="index", note="unverified — added by #357, needs a live Postgres re-record"
-    ),
     ("admin_runs", 0): Recorded(
         scan="sequential",
         note="unfiltered count reads every tool_runs page on every admin page view",
