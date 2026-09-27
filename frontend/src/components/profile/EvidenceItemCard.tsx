@@ -1,4 +1,4 @@
-import { Check, Pencil, Trash2, X } from 'lucide-react'
+import { Pencil, Trash2 } from 'lucide-react'
 import { Badge } from '#/components/ui/badge'
 import { Button } from '#/components/ui/button'
 import { cn } from '#/lib/utils'
@@ -13,15 +13,11 @@ import {
 export function EvidenceItemCard({
   item,
   busy,
-  onConfirm,
-  onReject,
   onCorrect,
   onDelete,
 }: {
   item: EvidenceItem
   busy: boolean
-  onConfirm: (item: EvidenceItem) => void
-  onReject: (item: EvidenceItem) => void
   onCorrect: (item: EvidenceItem) => void
   onDelete: (item: EvidenceItem) => void
 }) {
@@ -60,30 +56,6 @@ export function EvidenceItemCard({
       </dl>
 
       <div className="evidence-card__actions">
-        {state !== 'confirmed' ? (
-          <Button
-            size="sm"
-            variant="outline"
-            className="evidence-action evidence-action--confirm"
-            disabled={busy}
-            onClick={() => onConfirm(item)}
-          >
-            <Check size={14} />
-            {state === 'rejected' ? 'Restore & save' : 'Accept'}
-          </Button>
-        ) : null}
-        {state !== 'rejected' ? (
-          <Button
-            size="sm"
-            variant="ghost"
-            className="evidence-action"
-            disabled={busy}
-            onClick={() => onReject(item)}
-          >
-            <X size={14} />
-            Reject
-          </Button>
-        ) : null}
         <Button
           size="sm"
           variant="ghost"

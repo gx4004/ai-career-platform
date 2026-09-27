@@ -1,7 +1,7 @@
 """Merge the approval queue and packets into Applications (#359).
 
 Revision ID: a3f1c7e9b2d4
-Revises: c4d8e1f3a5b7
+Revises: b6d1f3a8c5e9
 Create Date: 2026-09-28
 
 An Application is the ``workspaces`` row. It gains the prepared drafts, the
@@ -23,7 +23,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "a3f1c7e9b2d4"
-down_revision: Union[str, None] = "c4d8e1f3a5b7"
+down_revision: Union[str, None] = "b6d1f3a8c5e9"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
