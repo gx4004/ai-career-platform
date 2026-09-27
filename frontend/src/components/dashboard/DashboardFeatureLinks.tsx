@@ -1,11 +1,6 @@
 import type { ComponentType } from 'react'
 import { Link } from '@tanstack/react-router'
 import { ArrowRight, Compass, Megaphone, PanelsTopLeft } from 'lucide-react'
-import {
-  isR12CvStudioEnabled,
-  isR13CampaignsEnabled,
-  isR14DiscoveryEnabled,
-} from '#/lib/flags/featureFlags'
 import { useSession } from '#/hooks/useSession'
 
 type FeatureLink = {
@@ -18,36 +13,31 @@ type FeatureLink = {
 
 /**
  * Compact discoverability row for the build-ahead outcomes (CV Studio,
- * Discovery, Campaigns) that otherwise only surface in the sidebar. Renders
- * nothing when every linked feature is flagged off, and Discover/Your
- * applications stay hidden for guests since both routes redirect to login
+ * Discovery, Campaigns) that otherwise only surface in the sidebar.
+ * Discover/Your applications stay hidden for guests since both routes redirect to login
  * (see src/routes/discovery.tsx, src/routes/campaigns.index.tsx).
  */
 export function DashboardFeatureLinks() {
   const { status } = useSession()
   const isAuthenticated = status === 'authenticated'
 
-  const links: FeatureLink[] = []
-  if (isR12CvStudioEnabled()) {
-    links.push({
+  const links: FeatureLink[] = [
+    {
       key: 'cv-studio',
       label: 'CV Studio',
       copy: 'Build and tailor CV versions from your evidence.',
       route: '/cv-studio',
       icon: PanelsTopLeft,
-    })
-  }
-  if (isAuthenticated && isR14DiscoveryEnabled()) {
+    },
+  ]
+  if (isAuthenticated) {
     links.push({
       key: 'discovery',
       label: 'Discover jobs',
       copy: 'Browse live roles ranked against your profile.',
       route: '/discovery',
       icon: Compass,
-    })
-  }
-  if (isAuthenticated && isR13CampaignsEnabled()) {
-    links.push({
+    }, {
       key: 'campaigns',
       label: 'Your applications',
       copy: 'Track every application you have saved.',
@@ -55,8 +45,6 @@ export function DashboardFeatureLinks() {
       icon: Megaphone,
     })
   }
-
-  if (links.length === 0) return null
 
   return (
     <section className="dash-card dash-card--features">

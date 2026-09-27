@@ -6,7 +6,6 @@ import { ToolGridSheet } from '#/components/mobile/ToolGridSheet'
 import { isPublicRoute } from '#/lib/navigation/publicRoutes'
 import { toolList } from '#/lib/tools/registry'
 import { useSession } from '#/hooks/useSession'
-import { isR14DiscoveryEnabled } from '#/lib/flags/featureFlags'
 
 export function MobileNav() {
   const [toolsOpen, setToolsOpen] = useState(false)
@@ -56,7 +55,7 @@ export function MobileNav() {
           <span>History</span>
         </Link>
 
-        {user && isR14DiscoveryEnabled() ? (
+        {user ? (
           <Link
             to="/discovery"
             className={`mobile-tab-item${isActive('/discovery') ? ' is-active' : ''}`}

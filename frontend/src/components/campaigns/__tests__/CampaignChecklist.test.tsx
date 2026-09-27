@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { CampaignChecklist } from '#/components/campaigns/CampaignChecklist'
 import type { CampaignDetail } from '#/lib/api/schemas'
 
@@ -105,19 +105,6 @@ const developmentItem = {
   updated_at: '2026-08-13T10:05:00Z',
 }
 
-function setOutcomeFlags(r17Enabled: boolean) {
-  for (const flag of [
-    'VITE_R11_EVIDENCE_PROFILE_ENABLED',
-    'VITE_R12_CV_STUDIO_ENABLED',
-    'VITE_R13_CAMPAIGNS_ENABLED',
-    'VITE_R14_DISCOVERY_ENABLED',
-    'VITE_R15_QUEUE_ENABLED',
-  ]) {
-    vi.stubEnv(flag, 'true')
-  }
-  vi.stubEnv('VITE_R17_DEVELOPMENT_LOOP_ENABLED', String(r17Enabled))
-}
-
 function renderReviewer(campaign: CampaignDetail = baseCampaign) {
   const queryClient = new QueryClient({
     defaultOptions: {
@@ -144,21 +131,7 @@ describe('CampaignChecklist next-step path', () => {
     createDevelopmentItem.mockReset().mockResolvedValue(developmentItem)
   })
 
-  afterEach(() => vi.unstubAllEnvs())
-
-  it('keeps classification and development actions dark when only R17 itself is off (#321: flags are independent)', async () => {
-    setOutcomeFlags(false)
-    renderReviewer()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Run the checks' }))
-    expect(await screen.findByText(review.findings[0].message)).toBeTruthy()
-    expect(screen.queryByRole('button', { name: 'Suggest next steps' })).toBeNull()
-    expect(api.classifyCampaignGaps).not.toHaveBeenCalled()
-  })
-
-  it('surfaces classification and development actions from R17 alone, regardless of every other outcome flag', async () => {
-    setOutcomeFlags(true)
-    vi.stubEnv('VITE_R13_CAMPAIGNS_ENABLED', 'false')
+  it('surfaces classification and development actions once the checks find something', async () => {
     renderReviewer()
 
     fireEvent.click(screen.getByRole('button', { name: 'Run the checks' }))
@@ -167,7 +140,6 @@ describe('CampaignChecklist next-step path', () => {
   })
 
   it('requires explicit review, classification, response inspection, and plan creation', async () => {
-    setOutcomeFlags(true)
     renderReviewer()
 
     expect(api.classifyCampaignGaps).not.toHaveBeenCalled()
@@ -221,7 +193,6 @@ describe('CampaignChecklist next-step path', () => {
 
   it('links the named first-party next step for a gap it cannot close', async () => {
     api.getCampaignGapResponse.mockResolvedValue(produceEvidenceResponse)
-    setOutcomeFlags(true)
     renderReviewer()
 
     fireEvent.click(screen.getByRole('button', { name: 'Run the checks' }))
@@ -248,7 +219,6 @@ describe('CampaignChecklist next-step path', () => {
       ...response,
       commercial_relationship: 'affiliate' as never,
     })
-    setOutcomeFlags(true)
     renderReviewer()
 
     fireEvent.click(screen.getByRole('button', { name: 'Run the checks' }))
@@ -268,10 +238,7 @@ describe('CampaignChecklist next-step path', () => {
 describe('CampaignChecklist', () => {
   beforeEach(() => {
     api.reviewCampaign.mockReset().mockResolvedValue(review)
-    setOutcomeFlags(false)
   })
-
-  afterEach(() => vi.unstubAllEnvs())
 
   function item(title: string) {
     return screen.getByText(title).closest('li') as HTMLElement

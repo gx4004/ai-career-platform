@@ -53,14 +53,11 @@ export function ToolGridSheet({
   const close = () => onOpenChange(false)
   // Mirrors the sidebar's grouping: Tools always shows, "Job search" is
   // owner-only (same gate the old flat grid used), "You" (CV Studio,
-  // Profile, History) shows for anyone once its own flags allow it.
+  // Profile, History) shows for anyone.
   const groups = navGroups.map((group) => ({
     ...group,
-    destinations: group.destinations.filter((item) => {
-      if (!(item.enabled?.() ?? true)) return false
-      if (group.id === 'job-search') return showAuthenticatedLinks
-      return true
-    }),
+    destinations:
+      group.id === 'job-search' && !showAuthenticatedLinks ? [] : group.destinations,
   }))
 
   return (

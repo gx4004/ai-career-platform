@@ -37,7 +37,6 @@ async function openTab(name: string) {
 
 describe('CampaignPage', () => {
   beforeEach(() => {
-    vi.stubEnv('VITE_R13_CAMPAIGNS_ENABLED', 'true')
     vi.clearAllMocks()
   })
 
