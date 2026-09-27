@@ -99,11 +99,10 @@ def test_backend_only_ids_stay_inside_the_reporting_taxonomy():
 @pytest.mark.parametrize("tool_id", get_args(BackendOnlyToolId))
 def test_backend_activation_events_still_accept_backend_only_tool_ids(tool_id):
     event = ActivationEventCreate(
-        event_name="r10_generation_phase",
+        event_name="tool_run_completed",
         tool_id=tool_id,
         access_mode="authenticated",
         duration_ms=1,
-        operational_dimension="provider",
     )
 
     assert event.tool_id == tool_id

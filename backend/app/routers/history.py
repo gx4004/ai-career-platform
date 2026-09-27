@@ -1,5 +1,4 @@
 import hashlib
-from time import perf_counter
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
@@ -46,7 +45,6 @@ from app.schemas.history import (
     WorkspaceSummary,
     WorkspaceUpdateRequest,
 )
-from app.services.analytics import record_database_query_timing
 from app.services.campaign_materials import (
     clear_selected_run,
     get_campaign_detail,
@@ -118,7 +116,6 @@ def list_history(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    query_started = perf_counter()
     query = (
         db.query(ToolRun)
         .options(selectinload(ToolRun.workspace))
@@ -141,17 +138,13 @@ def list_history(
     )
     workspace_runs = _workspace_runs_map(db, current_user.id, items)
 
-    response = ToolRunListResponse(
+    return ToolRunListResponse(
         items=[_summary(r, workspace_runs.get(r.workspace_id, [])) for r in items],
         total=total,
         page=page,
         page_size=page_size,
         has_more=(page * page_size) < total,
     )
-    record_database_query_timing(
-        db, query_family="history_list", started_at=query_started
-    )
-    return response
 
 
 @router.get("/workspaces", response_model=WorkspaceListResponse)
@@ -160,7 +153,6 @@ def list_workspaces(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    query_started = perf_counter()
     workspaces = (
         db.query(Workspace)
         .options(selectinload(Workspace.tool_runs), selectinload(Workspace.campaign_tasks))
@@ -191,11 +183,7 @@ def list_workspaces(
             max(last_event, workspace.updated_at) if last_event else workspace.updated_at
         )
         items.append(summary)
-    response = WorkspaceListResponse(items=items, total=len(items))
-    record_database_query_timing(
-        db, query_family="workspace_list", started_at=query_started
-    )
-    return response
+    return WorkspaceListResponse(items=items, total=len(items))
 
 
 @router.get("/workspaces/{workspace_id}", response_model=CampaignDetailResponse)
@@ -204,18 +192,8 @@ def get_campaign(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    # Heaviest owner-scoped read in the router (#141): one campaign fans out
-    # into an owner-wide CV-variant join, an owner-wide cover-letter/interview
-    # run scan, a submission-record join, and six collection loads. Sampled the
-    # same way as the list families — one bounded family label plus a duration,
-    # no id, no listing/company/note content, no statement text (D-053).
-    query_started = perf_counter()
-    workspace = _get_workspace(db, workspace_id, current_user.id)
-    response = get_campaign_detail(db, workspace, current_user.id)
-    record_database_query_timing(
-        db, query_family="campaign_detail", started_at=query_started
-    )
-    return response
+    workspace =_get_workspace(db, workspace_id, current_user.id)
+    return get_campaign_detail(db, workspace, current_user.id)
 
 
 @router.patch("/workspaces/{workspace_id}/materials", response_model=CampaignDetailResponse)
@@ -631,13 +609,9 @@ def get_history_item(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    # The single busiest authenticated read: every result page load lands here,
-    # and it costs a run lookup plus a re-query of every sibling run in the same
-    # campaign. Left uninstrumented the trigger could not see it at all (#141).
-    query_started = perf_counter()
     run = _get_run(db, history_id, current_user.id)
     workspace_runs = _workspace_runs_map(db, current_user.id, [run])
-    response = ToolRunDetail(
+    return ToolRunDetail(
         id=run.id,
         tool_name=run.tool_name,
         label=run.label,
@@ -657,10 +631,6 @@ def get_history_item(
         # saved before this, without rewriting stored evidence.
         result_payload=attach_premium_outputs(run.tool_name, run.result_payload),
     )
-    record_database_query_timing(
-        db, query_family="history_detail", started_at=query_started
-    )
-    return response
 
 
 @router.get("/{run_id}/export/pdf")

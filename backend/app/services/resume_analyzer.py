@@ -17,6 +17,7 @@ from app.services.quality_signals import (
     detect_sector,
     severity_from_score,
 )
+from app.services.tool_pipeline import mark_result_degraded
 
 logger = logging.getLogger(__name__)
 
@@ -331,6 +332,7 @@ async def analyze_resume(
             "error_type=%s",
             type(exc).__name__,
         )
+        mark_result_degraded()
         return _build_heuristic_fallback(prepass, heuristic_breakdown, heuristic_overall, generated_at)
 
     # Blended scoring: heuristic 40% + LLM 60%

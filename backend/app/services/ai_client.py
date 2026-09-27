@@ -6,7 +6,6 @@ from contextlib import suppress
 
 from app.config import Settings, settings
 from app.services.llm_cost import record_llm_usage
-from app.services.provider_incident import reset_provider_incident, set_provider_incident
 
 logger = logging.getLogger(__name__)
 
@@ -122,14 +121,6 @@ async def complete_structured(
             raise ValueError(f"Unsupported LLM provider: {provider}")
 
     result = await _with_retry(_dispatch)
-
-    # A run that retried and then succeeded is not a user-visible incident
-    # (D-055). Failed attempts record their category as they go, so clearing it
-    # on success is what lets the shared pipeline read the accumulator on its
-    # success path and know that a surviving category means the caller swallowed
-    # a terminal failure and returned a degraded result.
-    reset_provider_incident()
-
     logger.info("LLM response provider=%s  model=%s  keys=%s", provider, model, list(result.keys()))
     return result
 
@@ -171,16 +162,12 @@ async def _call_vertex(system_prompt: str, user_prompt: str, model_name: str | N
         )
     except TimeoutError:
         logger.error("Vertex AI request timed out after %ds", _LLM_TIMEOUT_SECONDS)
-        # R10 provider-incident category (#136, D-055) — closed-set label only,
-        # never the raw exception message.
-        set_provider_incident("timeout")
         raise TimeoutError(
             f"AI request timed out after {_LLM_TIMEOUT_SECONDS}s. Please try again."
         ) from None
     except genai_errors.ClientError as exc:
         if exc.code == 429:
             logger.error("Vertex AI quota exceeded")
-            set_provider_incident("quota")
             raise RuntimeError(
                 "AI service quota exceeded. Please try again in a few minutes."
             ) from None
@@ -188,31 +175,25 @@ async def _call_vertex(system_prompt: str, user_prompt: str, model_name: str | N
             logger.error(
                 "Vertex AI permission denied for project=%s", settings.VERTEX_PROJECT_ID
             )
-            set_provider_incident("permission")
             raise ProviderConfigurationError(
                 "AI service configuration error. Please contact support."
             ) from None
         logger.error("Vertex AI call failed status=%d", exc.code)
-        set_provider_incident("unavailable")
         raise RuntimeError("AI service temporarily unavailable. Please try again.") from None
     except auth_exceptions.GoogleAuthError as exc:
         logger.error("Vertex AI credentials unavailable error_type=%s", type(exc).__name__)
-        set_provider_incident("permission")
         raise ProviderConfigurationError(
             "AI service configuration error. Please contact support."
         ) from None
     except genai_errors.ServerError as exc:
         logger.error("Vertex AI call failed error_type=%s", type(exc).__name__)
-        set_provider_incident("unavailable")
         raise RuntimeError("AI service temporarily unavailable. Please try again.") from None
     except Exception as exc:  # noqa: BLE001 — transport failures have no SDK type
         # The Gen AI SDK does not wrap httpx transport failures (DNS, TLS, refused
         # connection, reset) into an APIError, so an unreachable provider escaped
-        # as a raw httpx error: no retry, and no `r10_provider_incident` evidence
-        # for the D-055 fallback trigger. The removed `GoogleAPICallError` base
+        # as a raw httpx error with no retry. The removed `GoogleAPICallError` base
         # class used to cover these. Only the error type is logged.
         logger.error("Vertex AI transport failure error_type=%s", type(exc).__name__)
-        set_provider_incident("unavailable")
         raise RuntimeError("AI service temporarily unavailable. Please try again.") from None
     finally:
         if async_client is not None:
@@ -252,13 +233,11 @@ async def _call_google_genai(system_prompt: str, user_prompt: str, model_name: s
         )
     except TimeoutError:
         logger.error("Google AI request timed out after %ds", _LLM_TIMEOUT_SECONDS)
-        set_provider_incident("timeout")
         raise TimeoutError(
             f"AI request timed out after {_LLM_TIMEOUT_SECONDS}s. Please try again."
         ) from None
     except Exception as exc:
         logger.error("Google AI call failed error_type=%s", type(exc).__name__)
-        set_provider_incident("unavailable")
         raise RuntimeError("AI service temporarily unavailable. Please try again.") from None
 
     # Record actual token usage before parsing: the tokens were consumed even if
@@ -274,7 +253,6 @@ async def _call_anthropic(system_prompt: str, user_prompt: str, model_name: str 
 
     if not settings.ANTHROPIC_API_KEY:
         logger.error("Anthropic API key is not configured")
-        set_provider_incident("permission")
         raise ProviderConfigurationError(
             "AI service configuration error. Please contact support."
         )
@@ -305,7 +283,6 @@ async def _call_anthropic(system_prompt: str, user_prompt: str, model_name: str 
         )
     except TimeoutError:
         logger.error("Anthropic request timed out after %ds", _LLM_TIMEOUT_SECONDS)
-        set_provider_incident("timeout")
         raise TimeoutError(
             f"AI request timed out after {_LLM_TIMEOUT_SECONDS}s. Please try again."
         ) from None
@@ -314,27 +291,22 @@ async def _call_anthropic(system_prompt: str, user_prompt: str, model_name: str 
         # caught ahead of it. Same mapping as Vertex's 401/403 ClientError
         # branch — an unrecoverable config fault, never retried.
         logger.error("Anthropic auth/permission failure error_type=%s", type(exc).__name__)
-        set_provider_incident("permission")
         raise ProviderConfigurationError(
             "AI service configuration error. Please contact support."
         ) from None
     except anthropic.RateLimitError:
         logger.error("Anthropic rate limit exceeded")
-        set_provider_incident("quota")
         raise RuntimeError(
             "AI service quota exceeded. Please try again in a few minutes."
         ) from None
     except anthropic.APIStatusError as exc:
         logger.error("Anthropic call failed status=%s", exc.status_code)
-        set_provider_incident("unavailable")
         raise RuntimeError("AI service temporarily unavailable. Please try again.") from None
     except anthropic.APIConnectionError as exc:
         logger.error("Anthropic connection failure error_type=%s", type(exc).__name__)
-        set_provider_incident("unavailable")
         raise RuntimeError("AI service temporarily unavailable. Please try again.") from None
     except Exception as exc:  # noqa: BLE001 — an unmapped SDK/transport failure
         logger.error("Anthropic transport failure error_type=%s", type(exc).__name__)
-        set_provider_incident("unavailable")
         raise RuntimeError("AI service temporarily unavailable. Please try again.") from None
     finally:
         with suppress(Exception):
@@ -367,12 +339,10 @@ def _safe_parse_json(content: str | None, provider: str) -> dict:
     """Parse LLM response text into a dict, with markdown-fence fallback."""
     if not content:
         logger.error("LLM returned empty content  provider=%s", provider)
-        # Same provider failure mode as unparseable content, and the sibling
-        # branch below already records it (#136, D-055). Raised as RuntimeError,
+        # Raised as RuntimeError,
         # not ValueError, so `_with_retry` treats an empty response as the
         # transient provider fault it is — bare ValueError is reserved for the
         # unsupported-provider configuration error, which never recovers.
-        set_provider_incident("malformed")
         raise RuntimeError(f"LLM provider '{provider}' returned empty content")
 
     try:
@@ -390,7 +360,4 @@ def _safe_parse_json(content: str | None, provider: str) -> dict:
                 json_str = parts[1].split("```")[0].strip()
                 return json.loads(json_str)
         logger.error("Failed to parse LLM response as JSON provider=%s", provider)
-        # R10 provider-incident category (#136, D-055): a malformed structured
-        # response is a distinct provider failure mode from timeout/quota/etc.
-        set_provider_incident("malformed")
         raise

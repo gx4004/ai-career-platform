@@ -11,6 +11,7 @@ from app.services.quality_signals import (
     compute_match_score,
     job_match_verdict,
 )
+from app.services.tool_pipeline import mark_result_degraded
 
 logger = logging.getLogger(__name__)
 
@@ -238,6 +239,7 @@ async def match_job(
             "error_type=%s",
             type(exc).__name__,
         )
+        mark_result_degraded()
         result = {}
 
     requirements = _normalize_requirements(result, prepass.matched_keywords, prepass.missing_keywords)

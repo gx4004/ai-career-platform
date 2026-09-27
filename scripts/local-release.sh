@@ -370,9 +370,6 @@ run_with_database DATABASE_URL "$database_url" '<disposable-postgresql-url>' \
   "Populated packet-approval migration round trip" backend \
   python3 tests/migration_packet_approval_roundtrip.py
 run_with_database DATABASE_URL "$database_url" '<disposable-postgresql-url>' \
-  "Populated operational-metric migration round trip" backend \
-  python3 tests/migration_operational_metric_roundtrip.py
-run_with_database DATABASE_URL "$database_url" '<disposable-postgresql-url>' \
   "Alembic upgrade smoke" backend \
   python3 -m alembic upgrade head
 

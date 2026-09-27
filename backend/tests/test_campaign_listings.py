@@ -6,7 +6,6 @@ from app.models.user import User
 from app.models.workspace import Workspace
 from app.schemas.data_export import CareerDataExport
 from app.schemas.tools import ImportedJobResponse
-from app.services.import_source import set_import_outcome
 
 
 def _workspace(db, user_id: str) -> Workspace:
@@ -85,7 +84,6 @@ def test_url_import_reuses_scraper_and_attaches_listing(
 
     async def fake_scrape(url: str) -> ImportedJobResponse:
         called.append(url)
-        set_import_outcome("success")
         return ImportedJobResponse(
             job_title="Backend Engineer",
             company_name="Example Corp",
@@ -124,7 +122,6 @@ def test_failed_url_import_preserves_current_listing(
     db.commit()
 
     async def failed_scrape(url: str) -> ImportedJobResponse:
-        set_import_outcome("failure")
         return ImportedJobResponse(
             job_description="Could not extract the job description. Please copy and paste it.",
             source_url=url,
@@ -148,7 +145,6 @@ def test_incomplete_url_import_does_not_invent_canonical_fields(
     workspace = _workspace(db, test_user.id)
 
     async def incomplete_scrape(url: str) -> ImportedJobResponse:
-        set_import_outcome("success")
         return ImportedJobResponse(
             job_title=None,
             company_name=None,

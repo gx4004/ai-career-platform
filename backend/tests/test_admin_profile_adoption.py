@@ -111,7 +111,7 @@ def test_profile_adoption_ignores_non_profile_events(client, db, admin_headers):
     """Activation/operational events in the same table never leak into the
     profile-adoption aggregate."""
     _event(db, event_name="tool_run_completed", tool_id="resume", access_mode="guest_demo")
-    _event(db, event_name="r10_cache_outcome", operational_outcome="hit")
+    _event(db, event_name="packet_queue_gate", operational_outcome="passed")
 
     body = client.get(ENDPOINT, headers=admin_headers).json()
     assert body["total_created"] == 0
