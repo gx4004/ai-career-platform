@@ -91,26 +91,6 @@ def test_password_inputs_reject_invalid_unicode_as_validation_errors(client):
         assert "\\ud800" not in response.text
 
 
-def test_registration_fails_closed_when_captcha_secret_is_missing(client, monkeypatch):
-    from app.config import settings
-
-    monkeypatch.setattr(settings, "CAPTCHA_ENABLED", True)
-    monkeypatch.setattr(settings, "CAPTCHA_SECRET_KEY", "")
-
-    response = client.post(
-        f"{PREFIX}/register",
-        json={
-            "email": "captcha@example.com",
-            "password": "secret123",
-            "tos_accepted": True,
-            "captcha_token": "browser-token",
-        },
-    )
-
-    assert response.status_code == 400
-    assert response.json() == {"detail": "CAPTCHA verification failed"}
-
-
 def test_login(client, test_user):
     resp = client.post(
         f"{PREFIX}/login",

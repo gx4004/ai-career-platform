@@ -812,7 +812,6 @@ export const registerRequestSchema = z.object({
   email: z.email(),
   password: newPasswordSchema,
   full_name: z.string().nullable().optional(),
-  captcha_token: z.string().nullable().optional(),
   tos_accepted: z.boolean().refine(value => value, {
     message: 'You must accept the Terms of Service',
   }),
