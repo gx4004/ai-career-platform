@@ -30,6 +30,9 @@ function source(overrides: Record<string, unknown> = {}) {
     retention_days: 30,
     kill_switch: false,
     ingestion_allowed: true,
+    last_fetched_at: null,
+    last_outcome: null,
+    listing_count: null,
     created_at: '2026-07-13T00:00:00Z',
     updated_at: '2026-07-13T00:00:00Z',
     ...overrides,
@@ -81,6 +84,34 @@ describe('AdminDiscoverySourcesPage', () => {
     expect(await screen.findByText('Figma')).toBeTruthy()
     expect(screen.getByText('Query: content')).toBeTruthy()
     expect(screen.getByText('Robots: not_applicable')).toBeTruthy()
+  })
+
+  it('shows each source\'s last fetch status', async () => {
+    renderPage([
+      source({
+        id: 'ok-source',
+        display_name: 'Healthy Board',
+        last_fetched_at: '2026-09-27T06:00:00Z',
+        last_outcome: 'ok',
+        listing_count: 42,
+      }),
+      source({
+        id: 'failed-source',
+        source_key: 'failed-board',
+        display_name: 'Dead Board',
+        last_fetched_at: '2026-09-27T06:00:00Z',
+        last_outcome: 'failed: HTTPStatusError',
+        listing_count: 7,
+      }),
+      source({ id: 'new-source', source_key: 'new-board', display_name: 'New Board' }),
+    ])
+
+    expect(await screen.findByText('Healthy Board')).toBeTruthy()
+    expect(screen.getByText('OK')).toBeTruthy()
+    expect(screen.getByText('42 listings')).toBeTruthy()
+    expect(screen.getByText('failed: HTTPStatusError')).toBeTruthy()
+    expect(screen.getByText('7 listings')).toBeTruthy()
+    expect(screen.getByText('Never fetched')).toBeTruthy()
   })
 
   it('makes the all-disabled empty state explicit', async () => {

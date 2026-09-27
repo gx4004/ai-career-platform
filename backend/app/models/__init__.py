@@ -6,11 +6,7 @@ from app.models.campaign_tracking import CampaignContact, CampaignNote, Campaign
 from app.models.cv_document import CvDocument, CvVariant
 from app.models.development_item import DevelopmentItem
 from app.models.discovered_listing import DiscoveredListing, DiscoveredListingAttribution
-from app.models.discovery_personalization import (
-    DiscoveryDismissedListing,
-    DiscoveryHiddenSource,
-    DiscoveryRecommendationReport,
-)
+from app.models.discovery_personalization import DiscoveryDismissedListing
 from app.models.discovery_source import DiscoverySource
 from app.models.evidence_item import EvidenceItem
 from app.models.gap_classification import GapClassification
@@ -35,9 +31,7 @@ __all__ = [
     "DiscoverySource",
     "DiscoveredListing",
     "DiscoveredListingAttribution",
-    "DiscoveryHiddenSource",
     "DiscoveryDismissedListing",
-    "DiscoveryRecommendationReport",
     "QueueRule",
     "QueueSettings",
     "QueueAuditEvent",

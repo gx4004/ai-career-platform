@@ -10,8 +10,8 @@ reminder (D-091).
 The refusal rule is delegated to the feed's visibility rules: adoption adopts
 only a listing the user can currently see — in the ranked feed, or found through
 job search under the same rules. A dismissed listing, a listing left with no
-visible source (every source hidden), and an expired listing are never visible,
-so they can never be adopted implicitly (respects the #175 personalization store, D-090).
+allowed source, and an expired listing are never visible, so they can never be
+adopted implicitly (respects the #175 dismissals, D-090).
 
 That refusal is evaluated on every call, including re-adoption of a listing this
 owner already holds a campaign for. Adoption is idempotent, but idempotency
@@ -37,8 +37,8 @@ from app.services.discovery_recommendations import (
 class RecommendationNotAdoptableError(Exception):
     """The listing is not in the user's current visible, live recommendation feed.
 
-    Covers an unknown listing id and any listing the personalization store or
-    expiry has removed from the feed (dismissed, all sources hidden, expired).
+    Covers an unknown listing id and any listing a dismissal, source governance
+    or expiry has removed from the feed.
     Adoption refuses uniformly rather than revealing which reason applies.
     """
 
@@ -58,7 +58,7 @@ def adopt_recommendation(
     """
     # Governance is checked BEFORE the idempotent return, not after. Ranking
     # re-checks source governance on every read (#273), so a listing whose
-    # source has since been revoked, expired, or been hidden or dismissed is
+    # source has since been revoked or expired, or that was dismissed, is
     # refused even when this owner adopted it earlier. Ordering these the other
     # way would let a prior adoption grant standing access to a listing
     # governance now refuses — idempotency outranking governance.

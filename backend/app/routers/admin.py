@@ -23,22 +23,16 @@ from app.schemas.admin import (
     AdminRunItem,
     AdminRunListResponse,
     AdminSetAdminRequest,
-    AdminSourceHealthResponse,
     AdminStatsResponse,
     AdminUserDetailResponse,
     AdminUserItem,
     AdminUserListResponse,
 )
-from app.schemas.ats_ingestion import ATSIngestionRefreshResponse
-from app.schemas.discovery_personalization import AdminRecommendationReportList
 from app.schemas.discovery_sources import (
     DiscoverySourceListResponse,
     DiscoverySourceResponse,
 )
-from app.services.ats_ingestion import run_ats_ingestion_off_loop
-from app.services.discovery_personalization import list_admin_reports
 from app.services.discovery_sources import operate_source_kill_switch
-from app.services.source_health import aggregate_source_health
 
 router = APIRouter()
 
@@ -63,39 +57,7 @@ def list_discovery_sources(
     return DiscoverySourceListResponse(items=items)
 
 
-@router.get("/discovery-reports", response_model=AdminRecommendationReportList)
-@limiter.limit(_ADMIN_RATE)
-def list_discovery_reports(
-    request: Request,
-    admin: User = Depends(get_current_admin),
-    db: Session = Depends(get_db),
-):
-    """Recommendation error reports for review (R14, #175).
-
-    Read-only. Each row carries the product listing snapshot, the closed-set
-    reason category, and the reporter's own reason text — never the reporter's
-    identity or any Evidence Profile content (D-090).
-    """
-    return list_admin_reports(db)
-
-
-# ── Per-source health & kill switch (R14, issue #177) ──
-
-
-@router.get("/source-health", response_model=AdminSourceHealthResponse)
-@limiter.limit(_ADMIN_RATE)
-def get_source_health(
-    request: Request,
-    admin: User = Depends(get_current_admin),
-    db: Session = Depends(get_db),
-):
-    """Read-only per-source-family operational health (#177, D-053).
-
-    Registry posture plus listings-store volume and staleness, aggregated per
-    source family. No listing content, full URL, source key/name, or user
-    identifier is reachable.
-    """
-    return aggregate_source_health(db)
+# ── Per-source kill switch (R14, issue #177) ──
 
 
 @router.post(
@@ -130,29 +92,6 @@ def operate_kill_switch(
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     return source
-
-
-@router.post("/discovery-sources/refresh", response_model=ATSIngestionRefreshResponse)
-@limiter.limit(_ADMIN_RATE)
-async def refresh_ats_sources(
-    request: Request,
-    admin: User = Depends(get_current_admin),
-    db: Session = Depends(get_db),
-):
-    """Run employer-ATS ingestion now, on demand (#323).
-
-    Admin-gated exactly like every other endpoint here. Reuses the same
-    per-source governance and isolation as the scheduled run: one source's
-    failure never fails this request, it is reported per source instead. Runs
-    off the event loop (`run_ats_ingestion_off_loop`) so this request's
-    potentially multi-minute ingestion pass never blocks every other request
-    on this process.
-    """
-    summary = await run_ats_ingestion_off_loop(db)
-    return ATSIngestionRefreshResponse(
-        outcomes=summary.outcomes,
-        failures=summary.failures,
-    )
 
 
 # ── Users ──
