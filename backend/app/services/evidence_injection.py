@@ -8,8 +8,7 @@ Trust rules (D-062):
 - ``confirmed`` items become *locked facts* — the generation may reframe their
   wording but must never alter, drop, invent, or extend them.
 - ``unconfirmed`` items appear at most as explicit gaps/suggestions, never as
-  facts.
-- ``rejected`` items are excluded entirely and never reach a prompt.
+  facts. A rejected suggestion is deleted, so it never reaches a prompt.
 
 The profile version returned here participates in the result cache key, so any
 edit to the profile invalidates cached results (ADR 0005).
@@ -59,15 +58,14 @@ def _item_view(item: EvidenceItem) -> dict:
 
 
 def build_evidence_payload(items: list[EvidenceItem]) -> EvidencePayload:
-    """Split items by confirmation state; rejected items are dropped entirely."""
+    """Split items by confirmation state into locked facts and gaps."""
     locked_facts: list[dict] = []
     gaps: list[dict] = []
     for item in items:
         if item.confirmation_state == "confirmed":
             locked_facts.append(_item_view(item))
-        elif item.confirmation_state == "unconfirmed":
+        else:
             gaps.append(_item_view(item))
-        # 'rejected' items are excluded from all downstream use (D-062).
     return EvidencePayload(locked_facts=locked_facts, gaps=gaps)
 
 
@@ -75,7 +73,7 @@ def compute_profile_version(items: list[EvidenceItem]) -> str:
     """Derive a profile version from data already on each item.
 
     The digest covers the multiset of ``(id, updated_at)`` pairs, so any create,
-    edit, confirm, reject, or delete changes it — no schema column or migration
+    edit, confirm, or delete changes it — no schema column or migration
     is required. Editing the profile therefore changes the cache key (ADR 0005).
     """
     if not items:

@@ -154,8 +154,8 @@ def _requirement_keyword(trace: list[str]) -> str:
 def _profile_kinds_mentioning(keyword: str, payload: EvidencePayload | None) -> list[str]:
     """Kinds of the confirmed/unconfirmed profile items that mention the keyword.
 
-    A rejected item is already excluded from :class:`EvidencePayload`, so a gap the
-    user explicitly rejected never counts. The item ``kind`` — not a keyword
+    A rejected suggestion is deleted, so it never reaches :class:`EvidencePayload`
+    and never counts. The item ``kind`` — not a keyword
     lexicon — is what distinguishes a *demonstrated* requirement from a bare skill
     claim, so the substance split stays honest for skills no lexicon would list.
     """

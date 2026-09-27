@@ -231,8 +231,8 @@ def test_preference_correction_changes_ranking_on_next_load(db, test_user):
     before = rank_discovery_recommendations(db, test_user.id, now=now)
     assert before.preference_item_count == 1
 
-    # Correct the preference by rejecting it — the next load must reflect it.
-    preference.confirmation_state = "rejected"
+    # Correct the preference by rejecting (deleting) it — the next load must reflect it.
+    db.delete(preference)
     db.commit()
 
     after = rank_discovery_recommendations(db, test_user.id, now=now)

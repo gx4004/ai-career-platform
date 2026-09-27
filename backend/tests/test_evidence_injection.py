@@ -20,7 +20,7 @@ JD = "Seeking a backend engineer with distributed-systems experience and strong 
 
 
 def _seed_profile(db, user_id: str) -> None:
-    """One confirmed, one unconfirmed, one rejected item with unique markers."""
+    """One confirmed and one unconfirmed item with unique markers."""
     db.add_all(
         [
             EvidenceItem(
@@ -36,13 +36,6 @@ def _seed_profile(db, user_id: str) -> None:
                 content={"role": "UNCONFIRMED_MARKER_ROLE"},
                 provenance="inferred",
                 confirmation_state="unconfirmed",
-            ),
-            EvidenceItem(
-                user_id=user_id,
-                kind="achievement",
-                content={"statement": "REJECTED_MARKER_CLAIM"},
-                provenance="imported",
-                confirmation_state="rejected",
             ),
         ]
     )
@@ -75,12 +68,10 @@ async def test_pipeline_injects_payload_split_by_confirmation_state(db, test_use
     assert payload is not None
     locked = str(payload.locked_facts)
     gaps = str(payload.gaps)
-    # Confirmed → locked facts; unconfirmed → gaps; rejected → excluded entirely.
+    # Confirmed → locked facts; unconfirmed → gaps.
     assert "CONFIRMED_MARKER_RUST" in locked
     assert "UNCONFIRMED_MARKER_ROLE" not in locked
     assert "UNCONFIRMED_MARKER_ROLE" in gaps
-    assert "REJECTED_MARKER_CLAIM" not in locked
-    assert "REJECTED_MARKER_CLAIM" not in gaps
 
 
 @pytest.mark.asyncio
@@ -200,7 +191,6 @@ async def test_resume_prompt_composition_by_state(db, test_user, monkeypatch):
     assert "Unconfirmed profile items" in prompt
     assert "UNCONFIRMED_MARKER_ROLE" in prompt
     # Rejected evidence never reaches the prompt.
-    assert "REJECTED_MARKER_CLAIM" not in prompt
 
 
 @pytest.mark.asyncio
@@ -237,4 +227,3 @@ async def test_cover_letter_prompt_composition_by_state(db, test_user, monkeypat
     assert "CONFIRMED_MARKER_RUST" in prompt
     assert "Unconfirmed profile items" in prompt
     assert "UNCONFIRMED_MARKER_ROLE" in prompt
-    assert "REJECTED_MARKER_CLAIM" not in prompt

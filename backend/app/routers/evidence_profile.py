@@ -7,25 +7,24 @@ from app.limiter import limiter
 from app.models.user import User
 from app.schemas.data_export import CareerDataExport
 from app.schemas.evidence_profile import (
-    ConfirmationAction,
-    EvidenceImportProposalsResponse,
     EvidenceImportRequest,
     EvidenceItemCreate,
+    EvidenceItemIds,
     EvidenceItemListResponse,
     EvidenceItemResponse,
     EvidenceItemUpdate,
 )
 from app.services.data_export import export_career_data
-from app.services.evidence_import import generate_import_proposals
+from app.services.evidence_import import extract_resume_evidence
 from app.services.evidence_profile import (
     EvidenceItemNotFoundError,
-    confirm_all_imported_evidence,
+    confirm_evidence_items,
     create_evidence_item,
     delete_evidence_item,
-    delete_evidence_profile,
+    delete_evidence_items,
     get_evidence_item,
     list_evidence_items,
-    set_evidence_confirmation,
+    stage_evidence_items,
     update_evidence_item,
 )
 
@@ -58,26 +57,25 @@ def export_profile(
     return export_career_data(db, current_user.id)
 
 
-@router.post("/import/proposals", response_model=EvidenceImportProposalsResponse)
+@router.post(
+    "/import", response_model=EvidenceItemListResponse, status_code=status.HTTP_201_CREATED
+)
 @limiter.limit("10/minute")
-async def propose_import(
+async def import_from_resume(
     request: Request,
     body: EvidenceImportRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Derive reviewable evidence proposals from an uploaded resume (R11, #146).
+    """Extract facts from an uploaded resume and store them as suggestions (R11, #146).
 
-    Authenticated-owner-only: ``get_current_user`` rejects guests with 401/403, so
-    guest uploads never trigger proposals or any profile write (D-064). Proposals
-    are derived from the resume text and returned for review only — this endpoint
-    persists nothing, so a proposal the user discards or skips leaves no
-    server-side trace of its content. Accepting a proposal is a separate call to
-    ``POST /items`` that stores it `unconfirmed` with `imported` provenance
-    (D-062).
+    Authenticated-owner-only: ``get_current_user`` rejects guests, so guest uploads
+    never write to a profile (D-064). Every extracted fact lands `unconfirmed` with
+    `imported` provenance, so nothing is trusted until the owner saves it on the
+    profile; dismissing a suggestion deletes it (D-062).
     """
-    proposals = await generate_import_proposals(body.resume_text)
-    return EvidenceImportProposalsResponse(proposals=proposals)
+    extracted = await extract_resume_evidence(body.resume_text)
+    return EvidenceItemListResponse(items=stage_evidence_items(db, current_user.id, extracted))
 
 
 @router.post("/items", response_model=EvidenceItemResponse, status_code=status.HTTP_201_CREATED)
@@ -97,15 +95,14 @@ def create_item(
     )
 
 
-@router.post("/items/confirm-imported", response_model=EvidenceItemListResponse)
-def confirm_imported_items(
+@router.post("/items/confirm", response_model=EvidenceItemListResponse)
+def confirm_items(
+    body: EvidenceItemIds,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Bulk-confirm every still-unconfirmed imported item at once (#321)."""
-    return EvidenceItemListResponse(
-        items=confirm_all_imported_evidence(db, current_user.id)
-    )
+    """Save (confirm) the listed suggestions in one commit (D-062)."""
+    return EvidenceItemListResponse(items=confirm_evidence_items(db, current_user.id, body.ids))
 
 
 @router.delete("/items", status_code=status.HTTP_204_NO_CONTENT)
@@ -116,7 +113,7 @@ def delete_profile(
     db: Session = Depends(get_db),
 ):
     """Immediately erase the owner's whole Evidence Profile atomically (D-065)."""
-    delete_evidence_profile(db, current_user.id)
+    delete_evidence_items(db, current_user.id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -145,19 +142,17 @@ def update_item(
         _not_found_as_http(error)
 
 
-@router.post("/items/{item_id}/confirmation", response_model=EvidenceItemResponse)
-def set_confirmation(
+@router.post("/items/{item_id}/confirm", response_model=EvidenceItemResponse)
+def confirm_item(
     item_id: str,
-    body: ConfirmationAction,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    try:
-        return set_evidence_confirmation(
-            db, item_id, current_user.id, confirmed=body.action == "confirm"
-        )
-    except EvidenceItemNotFoundError as error:
-        _not_found_as_http(error)
+    """Save one suggestion. Rejecting a suggestion is ``DELETE /items/{id}``."""
+    confirmed = confirm_evidence_items(db, current_user.id, [item_id])
+    if not confirmed:
+        raise HTTPException(status_code=404, detail="Evidence item not found")
+    return confirmed[0]
 
 
 @router.delete("/items/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
