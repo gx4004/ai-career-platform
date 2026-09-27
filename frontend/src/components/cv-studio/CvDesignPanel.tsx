@@ -1,33 +1,7 @@
 import { useId } from 'react'
-import type { CSSProperties } from 'react'
 import { Check, ShieldCheck } from 'lucide-react'
-import type { CvStyle, CvStyleCatalog, CvTemplateId } from '#/lib/api/schemas'
+import type { CvStyle, CvStyleCatalog } from '#/lib/api/schemas'
 import { cn } from '#/lib/utils'
-
-/** A tiny CSS drawing of each template's layout, tinted with the chosen accent. */
-function TemplateThumb({ id, accent }: { id: CvTemplateId; accent: string }) {
-  return (
-    <span
-      className={`cvs-thumb cvs-thumb--${id}`}
-      style={{ '--thumb-accent': accent } as CSSProperties}
-      aria-hidden="true"
-    >
-      {id === 'modern-two-column' ? (
-        <>
-          <span className="cvs-thumb__side"><i className="cvs-thumb__name" /><i /><i /><i className="cvs-thumb__rule" /><i /><i /></span>
-          <span className="cvs-thumb__main"><i className="cvs-thumb__rule" /><i /><i /><i /><i className="cvs-thumb__rule" /><i /><i /></span>
-        </>
-      ) : (
-        <>
-          <i className="cvs-thumb__name" />
-          <i className="cvs-thumb__rule" /><i /><i /><i className="cvs-thumb__short" />
-          <i className="cvs-thumb__rule" /><i /><i /><i className="cvs-thumb__short" />
-          <i className="cvs-thumb__rule" /><i /><i className="cvs-thumb__short" />
-        </>
-      )}
-    </span>
-  )
-}
 
 export function CvDesignPanel({ style, catalog, onChange }: {
   style: CvStyle; catalog: CvStyleCatalog; onChange: (patch: Partial<CvStyle>) => void
@@ -61,7 +35,7 @@ export function CvDesignPanel({ style, catalog, onChange }: {
       <fieldset className="cvs-design__group" disabled={locked}>
         <legend>Template</legend>
         {lockedNote}
-        <div className="cvs-template-grid">
+        <div className="cvs-template-list">
           {catalog.templates.map((template) => {
             const selected = style.template_id === template.id
             return (
@@ -71,11 +45,14 @@ export function CvDesignPanel({ style, catalog, onChange }: {
                   aria-describedby={`cv-template-${template.id}-desc`}
                   onChange={() => onChange({ template_id: template.id })}
                 />
-                <TemplateThumb id={template.id} accent={style.accent_color} />
-                <span className="cvs-template__name">{template.name}</span>
-                <span id={`cv-template-${template.id}-desc`} className="cvs-template__desc">{template.description}</span>
-                {template.ats_safe ? <span className="cvs-badge cvs-badge--safe">ATS-safe</span> : <span className="cvs-badge">Two columns</span>}
-                {selected ? <span className="cvs-template__check" aria-hidden="true"><Check size={12} strokeWidth={3} /></span> : null}
+                <span className="cvs-template__check" aria-hidden="true">{selected ? <Check size={12} strokeWidth={3} /> : null}</span>
+                <span className="cvs-template__text">
+                  <span className="cvs-template__name">
+                    {template.name}
+                    {template.ats_safe ? <span className="cvs-badge cvs-badge--safe">ATS-safe</span> : <span className="cvs-badge">Two columns</span>}
+                  </span>
+                  <span id={`cv-template-${template.id}-desc`} className="cvs-template__desc">{template.description}</span>
+                </span>
               </label>
             )
           })}
