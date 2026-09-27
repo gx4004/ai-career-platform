@@ -82,11 +82,11 @@ def test_docx_and_pdf_are_byte_stable_and_validate_for_every_template(db, test_u
         assert docx == render_docx(model)
         assert pdf == render_pdf(model)
         assert validate_artifact(model, docx, "docx").model_dump(
-            exclude={"format"}
-        ) == validate_artifact(model, pdf, "pdf").model_dump(exclude={"format"})
-        assert validate_artifact(model, pdf, "pdf").searchable_text == "pass"
+            exclude={"format", "page_breaks"}
+        ) == validate_artifact(model, pdf, "pdf").model_dump(exclude={"format", "page_breaks"})
+        assert validate_artifact(model, docx, "docx").page_breaks is None
+        assert validate_artifact(model, pdf, "pdf").reads_back == "pass"
         assert validate_artifact(model, pdf, "pdf").links == "pass"
-        assert validate_artifact(model, pdf, "pdf").re_importability == "pass"
         with fitz.open(stream=pdf, filetype="pdf") as parsed:
             assert "Synthetic CV" in "".join(page.get_text() for page in parsed)
             assert any(
@@ -280,8 +280,7 @@ def test_structured_entry_scores_the_same_as_its_plain_text_equivalent(db, test_
         model = _model(document, "ats-essential")
         for fmt, artifact in (("pdf", render_pdf(model)), ("docx", render_docx(model))):
             evidence = validate_artifact(model, artifact, fmt)
-            assert evidence.searchable_text == "pass", fmt
-            assert evidence.re_importability == "pass", fmt
+            assert evidence.reads_back == "pass", fmt
             if fmt == "pdf":
                 assert evidence.page_breaks == "pass"
 
@@ -321,32 +320,6 @@ def test_font_route_serves_only_allowlisted_bundled_filenames_with_long_cache(cl
     traversal = client.get("/api/v1/cv-documents/fonts/..%2Fcv_documents.py")
     assert traversal.status_code == 404
     assert client.get("/api/v1/cv-documents/fonts/Comic-Sans.ttf").status_code == 404
-
-
-def test_quality_artifact_checks_only_promote_after_real_validation(
-    client, auth_headers, db, test_user
-):
-    document = _document(db, test_user)
-    url = f"/api/v1/cv-documents/{document.id}/quality"
-    checks = ["text_layer", "links", "page_breaks", "re_importability"]
-    baseline = client.post(
-        url, json={"use_model": False, "checks": checks}, headers=auth_headers
-    ).json()
-    assert {check["status"] for check in baseline["ats_checks"]} == {"not_run"}
-    validated = client.post(
-        url,
-        json={
-            "use_model": False,
-            "checks": checks,
-            "artifact_template": "ats-essential",
-            "artifact_format": "pdf",
-        },
-        headers=auth_headers,
-    ).json()
-    assert {check["status"] for check in validated["ats_checks"]} == {"pass"}
-    assert all(
-        "generated PDF artifact" in check["explanation"] for check in validated["ats_checks"]
-    )
 
 
 def test_export_filename_is_ascii_and_bounded(client, auth_headers, db, test_user):

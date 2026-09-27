@@ -8,7 +8,6 @@ import fitz
 from app.schemas.cv_documents import CvDocumentCreate, CvStyle
 from app.services.cv_documents import create_document
 from app.services.cv_fonts import FONT_FAMILIES, register_fonts
-from app.services.cv_quality import compute_ats_summary
 from app.services.cv_rendering import (
     ATS_SAFE_TEMPLATES,
     TEMPLATES,
@@ -199,24 +198,6 @@ def test_modern_two_column_template_renders_pdf_with_sidebar(db, test_user):
     assert docx
 
 
-# --- ATS summary ------------------------------------------------------------
-
-
-def test_compute_ats_summary_rewards_ats_mode_and_penalizes_unsafe_template():
-    checks = [
-        {"key": "section_structure", "status": "pass", "remediation": "x"},
-        {"key": "text_layer", "status": "not_run", "remediation": "y"},
-    ]
-    ats_score, _ = compute_ats_summary(checks, CvStyle(ats_mode=True))
-    unsafe_score, fixes = compute_ats_summary(
-        checks, CvStyle(template_id="modern-two-column", ats_mode=False)
-    )
-    safe_score, _ = compute_ats_summary(checks, CvStyle(template_id="ats-essential", ats_mode=False))
-    assert ats_score > safe_score >= unsafe_score
-    assert any("ATS" in fix or "single-column" in fix for fix in fixes)
-    assert "modern-two-column" not in ATS_SAFE_TEMPLATES
-
-
 # --- Router: style catalog, PATCH style, render-model -----------------------
 
 
@@ -287,33 +268,3 @@ def test_artifact_export_honors_saved_style(client, auth_headers, db, test_user)
     )
     assert response.status_code == 200
     assert response.headers["x-cv-canonical-hash"]
-
-
-def test_quality_response_includes_ats_score_and_fixes(client, auth_headers, db, test_user):
-    document = _structured_document(db, test_user)
-    baseline = client.post(
-        f"{PREFIX}/{document.id}/quality", json={"use_model": False}, headers=auth_headers
-    ).json()
-    assert 0 <= baseline["ats_score"] <= 100
-    assert isinstance(baseline["ats_fixes"], list)
-
-    client.patch(
-        f"{PREFIX}/{document.id}",
-        json={"style": {"template_id": "modern-two-column", "ats_mode": False}},
-        headers=auth_headers,
-    )
-    unsafe = client.post(
-        f"{PREFIX}/{document.id}/quality", json={"use_model": False}, headers=auth_headers
-    ).json()
-    assert unsafe["ats_score"] < baseline["ats_score"]
-    assert unsafe["ats_fixes"]
-
-    client.patch(
-        f"{PREFIX}/{document.id}",
-        json={"style": {"template_id": "modern-two-column", "ats_mode": True}},
-        headers=auth_headers,
-    )
-    forced = client.post(
-        f"{PREFIX}/{document.id}/quality", json={"use_model": False}, headers=auth_headers
-    ).json()
-    assert forced["ats_score"] >= baseline["ats_score"]

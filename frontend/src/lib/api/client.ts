@@ -79,7 +79,6 @@ import {
   cvDocumentUpdateSchema,
   cvVariantCreateSchema,
   cvVariantSchema,
-  cvQualityRequestSchema,
   cvQualityResponseSchema,
   cvTailoringApplySchema,
   cvTailoringProposalSchema,
@@ -94,7 +93,6 @@ import type {
   EvidenceItemUpdate,
   CvDocumentCreate,
   CvDocumentUpdate,
-  CvAtsCheckKey,
   CvTemplateId,
   CvImportProposal,
   WorkspaceUpdate,
@@ -148,12 +146,9 @@ export function restoreCvVariant(documentId: string, variantId: string) {
   })
 }
 
-export function scoreCvDocument(
-  documentId: string,
-  payload: { use_model: boolean; checks?: CvAtsCheckKey[]; artifact_template?: CvTemplateId; artifact_format?: 'docx' | 'pdf' },
-) {
+export function scoreCvDocument(documentId: string) {
   return request(`/cv-documents/${documentId}/quality`, {
-    method: 'POST', body: cvQualityRequestSchema.parse(payload), schema: cvQualityResponseSchema,
+    method: 'POST', body: {}, schema: cvQualityResponseSchema,
   })
 }
 

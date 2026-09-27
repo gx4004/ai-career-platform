@@ -19,9 +19,7 @@ CvSectionKind = Literal[
     "custom",
 ]
 CvQualityDimensionKey = Literal["impact", "clarity", "completeness", "structure"]
-CvAtsCheckKey = Literal[
-    "section_structure", "text_layer", "links", "page_breaks", "re_importability"
-]
+CvCheckId = Literal["sections", "reads_back", "links", "page_breaks", "layout"]
 CvTemplateId = Literal[
     "ats-essential",
     "professional-editorial",
@@ -135,9 +133,7 @@ class CvDocumentResponse(BaseModel):
     style: CvStyle
     created_at: datetime
     updated_at: datetime
-    quality_model_runs: int = Field(ge=0)
     tailoring_model_runs: int = Field(ge=0)
-    quality_model_run_limit: Literal[10] = 10
     tailoring_model_run_limit: Literal[10] = 10
     variants: list[CvVariantResponse]
 
@@ -185,25 +181,13 @@ class CvArtifactEvidence(BaseModel):
     schema_version: Literal["cv-artifact-evidence/v1"] = "cv-artifact-evidence/v1"
     template_id: CvTemplateId
     format: CvArtifactFormat
-    searchable_text: Literal["pass", "fail"]
+    # One content-equivalence comparison: the text layer is readable and the
+    # own-parser re-import returns the same sections in order.
+    reads_back: Literal["pass", "fail"]
     links: Literal["pass", "fail"]
-    page_breaks: Literal["pass", "fail"]
-    re_importability: Literal["pass", "fail"]
+    # PDF only: DOCX has no fixed pagination to inspect.
+    page_breaks: Literal["pass", "fail"] | None = None
     canonical_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
-
-
-class CvQualityRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    use_model: bool = False
-    checks: list[CvAtsCheckKey] | None = Field(default=None, min_length=1, max_length=5)
-    artifact_template: CvTemplateId | None = None
-    artifact_format: CvArtifactFormat | None = None
-
-    @model_validator(mode="after")
-    def complete_artifact_selection(self):
-        if (self.artifact_template is None) != (self.artifact_format is None):
-            raise ValueError("artifact_template and artifact_format must be supplied together")
-        return self
 
 
 class CvQualityDimension(BaseModel):
@@ -214,27 +198,19 @@ class CvQualityDimension(BaseModel):
     remediation: str
 
 
-class CvAtsCheck(BaseModel):
-    key: CvAtsCheckKey
+class CvCheck(BaseModel):
+    id: CvCheckId
     label: str
-    status: Literal["pass", "fail", "review", "not_run"]
-    explanation: str
-    remediation: str
+    passed: bool
+    detail: str
+    fix: str
 
 
 class CvQualityResponse(BaseModel):
-    schema_version: Literal["cv-quality/v1"] = "cv-quality/v1"
+    schema_version: Literal["cv-quality/v2"] = "cv-quality/v2"
     dimensions: list[CvQualityDimension]
-    ats_checks: list[CvAtsCheck]
-    scoring_mode: Literal["heuristic", "blended"]
+    checks: list[CvCheck]
     advisory_note: str
-    remaining_model_runs: int = Field(ge=0)
-    history_id: str | None = None
-    access_mode: Literal["authenticated"] = "authenticated"
-    saved: bool = True
-    locked_actions: list[str] = Field(default_factory=list)
-    ats_score: int = Field(ge=0, le=100, default=0)
-    ats_fixes: list[str] = Field(default_factory=list)
 
 
 class CvTailoringRequest(BaseModel):

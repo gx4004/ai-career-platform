@@ -1,6 +1,6 @@
-import pytest
+from app.services.cv_quality import score_cv_quality
 
-from app.services.cv_quality import analyze_cv_quality, score_cv_quality
+PREFIX = "/api/v1/cv-documents"
 
 
 def _section(kind, title, entries, position):
@@ -53,43 +53,71 @@ def test_hand_authored_thin_synthetic_fixture_lands_in_low_bands():
     assert 0 <= scores["clarity"] <= 45
 
 
-@pytest.mark.asyncio
-async def test_blended_path_keeps_every_synthetic_dimension_in_expected_band(monkeypatch):
-    sections = [
-        _section("summary", "Summary", ["Engineer focused on reliable systems."], 0),
-        _section("experience", "Experience", ["Reduced test latency by 28% across 8 services."], 1),
-        _section("skills", "Skills", ["Python, SQL, AWS, TypeScript"], 2),
-        _section("education", "Education", ["Synthetic University"], 3),
+def _clean_sections():
+    return [
+        _section("summary", "Summary", ["Platform engineer building reliable services."], 0),
+        _section(
+            "experience",
+            "Experience",
+            ["Reduced processing time by 34% for 12 teams. See https://example.com/work"],
+            1,
+        ),
+        _section("skills", "Skills", ["Python, TypeScript, PostgreSQL"], 2),
     ]
 
-    async def complete(*_):
-        return {
-            "scores": [
-                {"key": "impact", "score": 80},
-                {"key": "clarity", "score": 76},
-                {"key": "completeness", "score": 82},
-                {"key": "structure", "score": 84},
-            ]
-        }
 
-    monkeypatch.setattr("app.services.cv_quality.complete_structured", complete)
-    result = await analyze_cv_quality("Synthetic CV", sections=sections)
-    scores = {item["key"]: item["score"] for item in result["dimensions"]}
-    assert result["scoring_mode"] == "blended"
-    assert all(
-        60 <= scores[key] <= 90 for key in ("impact", "clarity", "completeness", "structure")
+def _check(client, auth_headers, sections, style=None):
+    document = client.post(
+        PREFIX, json={"name": "Checklist CV", "sections": sections}, headers=auth_headers
+    ).json()
+    if style is not None:
+        client.patch(f"{PREFIX}/{document['id']}", json={"style": style}, headers=auth_headers)
+    response = client.post(f"{PREFIX}/{document['id']}/quality", headers=auth_headers)
+    assert response.status_code == 200
+    return response.json()
+
+
+def test_clean_cv_passes_every_check_and_exposes_no_score(client, auth_headers):
+    payload = _check(client, auth_headers, _clean_sections())
+
+    assert payload["schema_version"] == "cv-quality/v2"
+    assert [c["id"] for c in payload["checks"]] == [
+        "sections",
+        "reads_back",
+        "links",
+        "page_breaks",
+        "layout",
+    ]
+    assert all(c["passed"] for c in payload["checks"])
+    assert all(c["label"] and c["detail"] and c["fix"] for c in payload["checks"])
+    # CONTEXT.md: never a universal ATS score, and no LLM second opinion.
+    for removed in ("ats_score", "ats_fixes", "ats_checks", "scoring_mode", "remaining_model_runs"):
+        assert removed not in payload
+    assert all("score" not in check and "status" not in check for check in payload["checks"])
+
+
+def test_cv_with_known_problems_fails_exactly_those_checks(client, auth_headers):
+    no_standard_sections = [_section("custom", "About", ["Worked on things."], 0)]
+    payload = _check(
+        client,
+        auth_headers,
+        no_standard_sections,
+        style={"template_id": "modern-two-column", "ats_mode": False},
     )
 
+    failed = {c["id"] for c in payload["checks"] if not c["passed"]}
+    # No Experience/Skills sections, and a two-column PDF that reads back out
+    # of order; links and page breaks are still fine.
+    assert failed == {"sections", "reads_back", "layout"}
+    assert all(c["fix"] for c in payload["checks"] if not c["passed"])
 
-@pytest.mark.asyncio
-async def test_incomplete_model_scores_fall_back_to_explainable_heuristics(monkeypatch):
-    sections = [_section("custom", "About", ["Worked on things."], 0)]
 
-    async def incomplete(*_):
-        return {"scores": [{"key": "impact", "score": 99}]}
+def test_ats_mode_clears_the_two_column_layout_failure(client, auth_headers):
+    payload = _check(
+        client,
+        auth_headers,
+        _clean_sections(),
+        style={"template_id": "modern-two-column", "ats_mode": True},
+    )
 
-    monkeypatch.setattr("app.services.cv_quality.complete_structured", incomplete)
-    result = await analyze_cv_quality("Synthetic CV", sections=sections)
-    assert result["scoring_mode"] == "heuristic"
-    assert len(result["dimensions"]) == 4
-    assert all(item["reasons"] and item["remediation"] for item in result["dimensions"])
+    assert all(c["passed"] for c in payload["checks"])
