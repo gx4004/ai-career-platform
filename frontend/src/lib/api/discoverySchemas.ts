@@ -27,30 +27,17 @@ export const discoveryRobotsPolicySchema = z.enum([
   'not_applicable',
 ])
 
-export const discoveryQueryParameterSchema = z.enum([
-  'role',
-  'location',
-  'remote',
-  'page',
-  'cursor',
-  'limit',
-  'posted_after',
-])
-
 const offsetDateTimeSchema = z.iso.datetime({ offset: true })
-const endpointUrlSchema = z
-  .url()
-  .startsWith('https://')
-  .refine((value) => {
-    const parsed = new URL(value)
-    return !parsed.username && !parsed.password && !parsed.search && !parsed.hash
-  }, 'Endpoint cannot contain credentials, query, or fragment')
 
-const allowedQueryParametersSchema = z
-  .array(discoveryQueryParameterSchema)
-  .max(7)
-  .refine((items) => new Set(items).size === items.length, 'Query parameters must be unique')
-
+// This is a read-only response schema: `allowed_query_parameters` and
+// `endpoint_url` describe whatever a source was registered with server-side
+// (backend/app/schemas/discovery_sources.py: DiscoverySourceResponse). The
+// backend already enforces its own input rules (closed query-parameter set,
+// https-only endpoint, no credentials/query/fragment, uniqueness) on write;
+// re-validating those rules here on a read rejects real data instead of
+// merely mirroring shape, e.g. employer-ATS sources whose
+// `allowed_query_parameters` include provider switches like `content`,
+// `mode`, or `includeCompensation` (see backend/app/scripts/ats_sources.json).
 export const discoverySourceSchema = z.object({
   id: z.string(),
   source_key: z.string(),
@@ -61,8 +48,8 @@ export const discoverySourceSchema = z.object({
   terms_reviewed_at: offsetDateTimeSchema.nullable(),
   terms_reviewed_by: z.string().nullable(),
   allowed_behavior: discoveryAllowedBehaviorSchema,
-  endpoint_url: endpointUrlSchema.nullable(),
-  allowed_query_parameters: allowedQueryParametersSchema.nullable(),
+  endpoint_url: z.string().nullable(),
+  allowed_query_parameters: z.array(z.string()).nullable(),
   robots_policy: discoveryRobotsPolicySchema.nullable(),
   rate_limit_per_minute: z.number().int().positive(),
   attribution_rule: z.string(),
