@@ -29,21 +29,6 @@ class Settings(BaseSettings):
     FRONTEND_URL: str = "http://localhost:3000"
 
     ENVIRONMENT: str = "development"
-    TRUST_PROXY_HEADERS: bool = False
-    TRUSTED_PROXY_CIDRS: str = ""
-    RATE_LIMIT_STORAGE_URI: str = "memory://"
-    RATE_LIMIT_KEY_PREFIX: str = "career-workbench"
-    ABUSE_IDENTITY_HMAC_KEY: str = ""
-    MODEL_COST_LIMIT: str = "30/hour"
-    MODEL_SOURCE_COST_LIMIT: str = "60/hour"
-    RESOURCE_IMPORT_LIMIT: str = "60/hour"
-    RESOURCE_SOURCE_LIMIT: str = "120/hour"
-    AUTH_FAILURE_WINDOW_SECONDS: int = 900
-    AUTH_PROGRESSIVE_DELAY_AFTER: int = 3
-    AUTH_PROGRESSIVE_DELAY_CAP_SECONDS: float = 4.0
-    ACCOUNT_ACTION_WINDOW_SECONDS: int = 3600
-    ACCOUNT_PROGRESSIVE_DELAY_AFTER: int = 3
-    ACCOUNT_PROGRESSIVE_DELAY_CAP_SECONDS: float = 2.0
 
     RESULT_CACHE_TTL_SECONDS: int = 3600
     RESULT_CACHE_ENABLED: bool = True
@@ -52,8 +37,7 @@ class Settings(BaseSettings):
     # cover letter, ~63 KB (~84 KB resident) for a 12-question interview set —
     # the service-clamped worst case. A full 512-entry cache of those worst-case
     # payloads measured ~35 MB RSS in one Uvicorn worker (~8 MB for typical
-    # payloads), while still holding a full TTL window for ~17 users running at
-    # the 30/hour MODEL_COST_LIMIT.
+    # payloads).
     RESULT_CACHE_MAX_ENTRIES: int = Field(default=512, gt=0)
     BLENDED_SCORING_ENABLED: bool = True
 

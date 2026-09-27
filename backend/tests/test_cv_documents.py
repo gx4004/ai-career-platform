@@ -1,7 +1,6 @@
 import pytest
 
 from app.auth.security import hash_password
-from app.limiter import limiter
 from app.models.cv_document import CvDocument, CvVariant
 from app.models.evidence_item import EvidenceItem
 from app.models.tool_run import ToolRun
@@ -451,124 +450,6 @@ def test_model_quality_blends_scores_and_enforces_document_quota(
     response = client.post(url, json={"use_model": True}, headers=auth_headers)
     assert response.status_code == 429
     assert "Deterministic checks remain available" in response.json()["detail"]
-
-
-def test_model_quality_enforces_the_shared_account_cost_limit_across_documents(
-    client, auth_headers, confirmed_evidence, monkeypatch
-):
-    """The per-document quota is a separate, unrelated cap. CV Studio's model
-    calls must also count against the same shared per-account/per-source LLM
-    cost budget every other tool enforces, or a user can bypass it entirely by
-    spreading calls across many documents.
-    """
-    monkeypatch.setattr("app.limiter.settings.MODEL_COST_LIMIT", "1/minute")
-    limiter._storage.reset()
-    _fake_llm(monkeypatch, "cv_quality", _MODEL_SCORES)
-    first_document = client.post(
-        PREFIX,
-        json={"name": "First", "sections": [_section(confirmed_evidence.id)]},
-        headers=auth_headers,
-    ).json()
-    second_document = client.post(
-        PREFIX,
-        json={"name": "Second", "sections": [_section(confirmed_evidence.id)]},
-        headers=auth_headers,
-    ).json()
-
-    first = client.post(
-        f"{PREFIX}/{first_document['id']}/quality", json={"use_model": True}, headers=auth_headers
-    )
-    second = client.post(
-        f"{PREFIX}/{second_document['id']}/quality", json={"use_model": True}, headers=auth_headers
-    )
-
-    assert first.status_code == 200
-    assert second.status_code == 429
-
-
-def test_tailoring_enforces_the_shared_account_cost_limit_across_documents(
-    client, auth_headers, confirmed_evidence, monkeypatch
-):
-    monkeypatch.setattr("app.limiter.settings.MODEL_COST_LIMIT", "1/minute")
-    limiter._storage.reset()
-    _fake_llm(monkeypatch, "cv_tailoring", {"changes": []})
-    first_document = client.post(
-        PREFIX,
-        json={"name": "First", "sections": [_section(confirmed_evidence.id)]},
-        headers=auth_headers,
-    ).json()
-    second_document = client.post(
-        PREFIX,
-        json={"name": "Second", "sections": [_section(confirmed_evidence.id)]},
-        headers=auth_headers,
-    ).json()
-    payload = {"job_description": "We need a synthetic engineer.", "job_title": "Engineer"}
-
-    first = client.post(
-        f"{PREFIX}/{first_document['id']}/tailoring", json=payload, headers=auth_headers
-    )
-    second = client.post(
-        f"{PREFIX}/{second_document['id']}/tailoring", json=payload, headers=auth_headers
-    )
-
-    assert first.status_code == 200
-    assert second.status_code == 429
-
-
-def test_deterministic_quality_survives_an_exhausted_model_budget(
-    client, auth_headers, confirmed_evidence, monkeypatch
-):
-    """A spent LLM budget must not take the free heuristic checks offline.
-
-    The shared cost cap exists to bound provider spend. Deterministic scoring
-    reaches no provider, so gating it behind that cap would let one expensive
-    mode disable an unrelated free one.
-    """
-    monkeypatch.setattr("app.limiter.settings.MODEL_COST_LIMIT", "1/minute")
-    limiter._storage.reset()
-    _fake_llm(monkeypatch, "cv_quality", _MODEL_SCORES)
-    document = client.post(
-        PREFIX,
-        json={"name": "First", "sections": [_section(confirmed_evidence.id)]},
-        headers=auth_headers,
-    ).json()
-    url = f"{PREFIX}/{document['id']}/quality"
-
-    spend = client.post(url, json={"use_model": True}, headers=auth_headers)
-    exhausted = client.post(url, json={"use_model": True}, headers=auth_headers)
-    deterministic = client.post(url, json={"use_model": False}, headers=auth_headers)
-
-    assert spend.status_code == 200
-    assert exhausted.status_code == 429, "the model budget should be spent by now"
-    assert deterministic.status_code == 200, (
-        "deterministic scoring spends no provider budget and must remain "
-        "available after the model budget is exhausted"
-    )
-
-
-def test_deterministic_quality_does_not_consume_the_model_budget(
-    client, auth_headers, confirmed_evidence, monkeypatch
-):
-    """Heuristic runs must not draw down the allowance reserved for model runs."""
-    monkeypatch.setattr("app.limiter.settings.MODEL_COST_LIMIT", "1/minute")
-    limiter._storage.reset()
-    _fake_llm(monkeypatch, "cv_quality", _MODEL_SCORES)
-    document = client.post(
-        PREFIX,
-        json={"name": "First", "sections": [_section(confirmed_evidence.id)]},
-        headers=auth_headers,
-    ).json()
-    url = f"{PREFIX}/{document['id']}/quality"
-
-    deterministic = [
-        client.post(url, json={"use_model": False}, headers=auth_headers) for _ in range(3)
-    ]
-    model = client.post(url, json={"use_model": True}, headers=auth_headers)
-
-    assert [response.status_code for response in deterministic] == [200, 200, 200]
-    assert model.status_code == 200, (
-        "three deterministic runs must leave the single model allowance intact"
-    )
 
 
 def test_studio_telemetry_allowlist_rejects_content_and_stable_identifiers():

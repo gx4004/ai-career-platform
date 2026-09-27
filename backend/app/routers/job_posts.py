@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.auth.security import get_current_user, get_optional_current_user
 from app.database import get_db
-from app.limiter import limiter, resource_abuse_limits
+from app.limiter import limiter
 from app.models.user import User
 from app.schemas.tools import ImportedJobResponse, ImportJobTextRequest, ImportJobUrlRequest
 from app.services.campaign_listings import attach_listing
@@ -19,7 +19,6 @@ router = APIRouter()
 
 @router.post("/import-url", response_model=ImportedJobResponse)
 @limiter.limit("10/minute")
-@resource_abuse_limits
 async def import_job_url(
     request: Request,
     body: ImportJobUrlRequest,

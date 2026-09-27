@@ -17,10 +17,7 @@ from app.config import (
     validate_autopilot_config,
     validate_llm_provider_config,
 )
-from app.limiter import (
-    limiter,
-    validate_abuse_control_config,
-)
+from app.limiter import limiter
 from app.routers import (
     admin,
     auth,
@@ -196,7 +193,6 @@ if settings.SECRET_KEY == _DEFAULT_SECRET and settings.ENVIRONMENT != "developme
         f"Generate one with: python -c \"import secrets; print(secrets.token_urlsafe(64))\""
     )
 
-validate_abuse_control_config()
 validate_llm_provider_config()
 validate_autopilot_config()
 

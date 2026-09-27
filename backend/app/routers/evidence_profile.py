@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.auth.security import get_current_user
 from app.database import get_db
-from app.limiter import limiter, model_abuse_limits
+from app.limiter import limiter
 from app.models.user import User
 from app.schemas.data_export import CareerDataExport
 from app.schemas.evidence_profile import (
@@ -60,7 +60,6 @@ def export_profile(
 
 @router.post("/import/proposals", response_model=EvidenceImportProposalsResponse)
 @limiter.limit("10/minute")
-@model_abuse_limits
 async def propose_import(
     request: Request,
     body: EvidenceImportRequest,

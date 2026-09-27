@@ -6,7 +6,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.auth.security import create_access_token, hash_password
 from app.database import Base, get_db
-from app.limiter import _reset_abuse_state_for_tests
+from app.limiter import limiter
 from app.main import app
 from app.models.user import User
 
@@ -22,7 +22,7 @@ TestSession = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 @pytest.fixture(autouse=True)
 def setup_db():
-    _reset_abuse_state_for_tests()
+    limiter.reset()
     Base.metadata.create_all(bind=engine)
     yield
     Base.metadata.drop_all(bind=engine)
