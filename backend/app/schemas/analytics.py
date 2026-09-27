@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from decimal import Decimal
-from typing import Literal, get_args
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -23,28 +23,6 @@ from app.schemas.telemetry import (
     ToolId,
 )
 
-# ── R10 operational-event allowlist (issue #136, parent #135, D-053) ──
-# The R10 scaling-trigger scorecard extends the same first-party operational
-# path R6 already owns. These are backend-generated, low-cardinality dimensions
-# emitted at authoritative backend boundaries (cache lookup, provider incident,
-# job import). Like every other dimension in this file they are constrained to a
-# closed Literal set, so `extra="forbid"` on the write seam rejects raw
-# resume/JD/generated content, full URLs/hostnames, provider exception messages,
-# cache keys, SQL parameters, email/IP, and stable user/run/workspace IDs.
-
-# Backend-only R10 event names. Kept separate from the frontend telemetry
-# taxonomy (`TelemetryEventName`) because no client may emit these — they are
-# written only by the server at the boundary that observes the outcome.
-R10EventName = Literal[
-    "r10_cache_outcome",
-    "r10_provider_incident",
-    "r10_import_outcome",
-    "r10_rate_limit_event",
-    "r10_generation_phase",
-    "r10_database_query",
-    "r10_database_snapshot",
-]
-
 # The shared pipeline also serves CV Studio operations that are not accepted by
 # browser telemetry. Their backend telemetry still needs a bounded identifier;
 # widening the browser ToolId contract would expose server-only operation names.
@@ -52,155 +30,6 @@ OperationalToolId = ToolId | Literal[
     "cv-quality",
     "cv-tailoring",
 ]
-
-# Cache lookup/write outcome at the shared tool-pipeline seam (ADR 0004). No
-# cache key or payload ever crosses the boundary — only the outcome class.
-CacheOutcome = Literal["hit", "miss", "write", "failure"]
-
-# Provider incident category (D-055). One event is emitted per user-visible
-# provider failure — internal retries are collapsed into a single incident, not
-# counted separately — and only the category crosses the boundary, never the
-# raw provider exception message.
-ProviderIncidentCategory = Literal[
-    "timeout",
-    "quota",
-    "unavailable",
-    "permission",
-    "malformed",
-]
-
-# Allowlisted job-import source family (D-059). The raw hostname/path/query is
-# mapped locally to one of these bounded families and then discarded before any
-# analytics row is written; `other` stays one bounded catch-all category.
-ImportSourceFamily = Literal[
-    "greenhouse",
-    "lever",
-    "workday",
-    "ashby",
-    "smartrecruiters",
-    "other",
-]
-
-# Bounded job-import failure categories (#142, D-059). Mirrors
-# `ProviderIncidentCategory`: one closed, content-free, low-cardinality set,
-# derived only from branches `job_scraper` can actually distinguish today. Never
-# a URL, never a hostname — the allowlisted source family is the only
-# host-derived label and it rides on `operational_dimension` — and never an
-# exception, status line, or source message. The values carry a `failure_`
-# prefix because they share the single outcome column with the classes below.
-#   - `failure_blocked`     — the fetch was refused: the source answered
-#                             401/403/407/429/451, or the outbound guard rejected
-#                             the target or a redirect hop.
-#   - `failure_timeout`     — the fetch exceeded the tier's timeout budget.
-#   - `failure_unavailable` — no usable response arrived: a connection/transport
-#                             error, another non-2xx status, or the redirect
-#                             limit was exhausted.
-#   - `failure_unparseable` — a response arrived that cannot be turned into a
-#                             posting: unsupported content type, over-size body,
-#                             or HTML the parser rejected.
-#   - `failure_empty`       — fetch and parse both worked, but the page carried
-#                             no description text at all.
-ImportFailureCategory = Literal[
-    "failure_blocked",
-    "failure_timeout",
-    "failure_unavailable",
-    "failure_unparseable",
-    "failure_empty",
-]
-
-# Job-import attempt outcome. Whether the fetch and the parse *worked* is
-# recorded separately from whether the result was *substantive* (#142): a page
-# that parses into a short description is a low-quality success, not a failed
-# import, and recording it as a failure biases the very source-concentration
-# evidence D-059 decides from.
-#   - `success`             — the first-tier HTTP fetch parsed a substantive
-#                             posting.
-#   - `success_low_quality` — the first-tier fetch and parse both worked, but the
-#                             page yielded a short description.
-#   - `fallback`            — the bounded Playwright fallback produced the result.
-#   - `failure`             — an import failed with no distinguishable category
-#                             (e.g. the endpoint rejected the URL before any tier
-#                             ran); the categories above carry every failure the
-#                             scraper itself observed.
-ImportOutcome = Literal[
-    "success",
-    "success_low_quality",
-    "fallback",
-    "failure",
-    ImportFailureCategory,
-]
-
-# Coarse failure class for consumers that ask "did this import fail?" rather than
-# "why" — the one outcome column now carries both axes.
-IMPORT_FAILURE_OUTCOMES = frozenset({"failure", *get_args(ImportFailureCategory)})
-
-# A coalesced rate-limit event retains only a stable route family and whether
-# the threshold bucket contained authenticated accounts, guests, or both. Raw
-# paths, IPs, account IDs, tokens, limiter keys, and exception details have no
-# accepted field.
-RateLimitRouteFamily = Literal[
-    "auth",
-    "tools",
-    "imports",
-    "history",
-    "profile",
-    "cv_studio",
-    "campaigns",
-    "discovery",
-    "queue",
-    "admin",
-    "telemetry",
-    "other",
-]
-RateLimitIdentityType = Literal["account", "guest", "mixed"]
-GenerationPhase = Literal["sanitize", "cache", "provider", "persist", "finalize"]
-# Closed set of read paths the database-growth trigger (#141) can see. The
-# trigger is blind to anything absent here, so the set has to cover the heaviest
-# reads and not only the convenient ones. Each value names a *route family* —
-# never a table, a statement, an owner, or a row identifier. The sampled
-# duration is the only measurement that crosses the boundary (D-053).
-#   - `history_list`    — paginated run list (`GET /history`).
-#   - `workspace_list`  — campaign/workspace list (`GET /history/workspaces`).
-#   - `admin_runs`      — admin run browser (`GET /admin/runs`).
-#   - `campaign_detail` — one campaign read (`GET /history/workspaces/{id}`):
-#                         an owner-wide CV-variant join, an owner-wide
-#                         cover-letter/interview run scan, a submission-record
-#                         join, and six per-campaign collection loads.
-#   - `history_detail`  — one run read (`GET /history/{id}`): the run row plus a
-#                         re-query of every sibling run in the same campaign.
-DatabaseQueryFamily = Literal[
-    "history_list",
-    "workspace_list",
-    "admin_runs",
-    "campaign_detail",
-    "history_detail",
-]
-DatabaseMetric = Literal["storage_pct", "pool_checkout_ratio"]
-
-_R10_EVENT_NAMES = frozenset(get_args(R10EventName))
-_R10_ROUTE_FAMILIES = frozenset(get_args(RateLimitRouteFamily))
-_R10_IDENTITY_TYPES = frozenset(get_args(RateLimitIdentityType))
-_R10_PHASES = frozenset(get_args(GenerationPhase))
-_R10_QUERY_FAMILIES = frozenset(get_args(DatabaseQueryFamily))
-_R10_DATABASE_METRICS = frozenset(get_args(DatabaseMetric))
-_R10_PROVIDER_CATEGORIES = frozenset(get_args(ProviderIncidentCategory))
-_R10_IMPORT_FAMILIES = frozenset(get_args(ImportSourceFamily))
-_R10_CACHE_OUTCOMES = frozenset(get_args(CacheOutcome))
-_R10_IMPORT_OUTCOMES = frozenset(get_args(ImportOutcome))
-# Import-specific outcome values (#142). `success`/`fallback`/`failure` stay
-# shared with the discovery source-health outcomes, but the quality class and the
-# failure categories describe one event only.
-_IMPORT_EXCLUSIVE_OUTCOMES = frozenset(
-    {"success_low_quality", *get_args(ImportFailureCategory)}
-)
-_R10_DIMENSIONS = frozenset().union(
-    _R10_ROUTE_FAMILIES,
-    _R10_PHASES,
-    _R10_QUERY_FAMILIES,
-    _R10_DATABASE_METRICS,
-    _R10_PROVIDER_CATEGORIES,
-    _R10_IMPORT_FAMILIES,
-)
 
 # R14 source-registry events never carry a source key/name. The family and
 # governance transition are the only bounded dimensions that cross telemetry.
@@ -212,7 +41,7 @@ DiscoveryRegistryOutcome = Literal[
     "kill_switch_enabled",
     "kill_switch_disabled",
 ]
-DiscoveryFetchOutcome = Literal["blocked"]
+DiscoveryFetchOutcome = Literal["success", "failure", "blocked"]
 # R14 #177 per-source health flow outcomes. Only the outcome class rides on the
 # event; the source family rides on `operational_dimension`. No listing content,
 # listing id, full URL, or user data is ever attached.
@@ -249,31 +78,17 @@ PacketGateOutcome = Literal["running", "passed", "blocked", "halted", "cleared"]
 PacketGateHaltReason = Literal["fabrication_regression", "packet_quality_regression"]
 
 # The two reused generic operational columns. `operational_dimension` holds the
-# primary category/family for an event (provider incident category or import
-# source family); `operational_outcome` holds the outcome class (cache outcome
-# or import outcome). Which axis a value belongs to is unambiguous from
-# `event_name`, so aggregation never has to disambiguate a bare string.
-OperationalDimension = (
-    ProviderIncidentCategory
-    | ImportSourceFamily
-    | RateLimitRouteFamily
-    | GenerationPhase
-    | DatabaseQueryFamily
-    | DatabaseMetric
-    | DiscoverySourceFamily
-    | PacketGateHaltReason
-)
+# primary category/family for an event; `operational_outcome` holds the outcome
+# class. Which axis a value belongs to is unambiguous from `event_name`.
+OperationalDimension = DiscoverySourceFamily | PacketGateHaltReason
 OperationalOutcome = (
-    CacheOutcome
-    | ImportOutcome
-    | DiscoveryRegistryOutcome
+    DiscoveryRegistryOutcome
     | DiscoveryFetchOutcome
     | DiscoveryIngestOutcome
     | DiscoveryExpiryOutcome
     | DiscoveryPersonalizationOutcome
     | DiscoveryAdoptionOutcome
     | PacketGateOutcome
-    | RateLimitIdentityType
 )
 
 # ── R11 profile-adoption allowlist (issue #150, parent #143, D-067) ──
@@ -344,12 +159,10 @@ _DEVELOPMENT_LOOP_EVENT_NAMES = frozenset(
 # of every event name already firing today: the frontend-telemetry taxonomy
 # (`TelemetryEventName`) plus the backend-only tool-run outcome event, which the
 # server logs as `tool_run_completed` (the frontend's client-observed twin is
-# `tool_run_succeeded`), plus the backend-only R10 operational events (#136) and
-# the backend-only R11 profile-adoption events (#150).
+# `tool_run_succeeded`), plus the backend-only feature events below.
 ActivationEventName = (
     TelemetryEventName
     | Literal["tool_run_completed"]
-    | R10EventName
     | ProfileEventName
     | StudioEventName
     | DiscoveryEventName
@@ -366,9 +179,8 @@ class ActivationEventCreate(BaseModel):
     traces, raw log lines) is rejected exactly the way the ingestion endpoint
     already rejects unknown fields. Adds the two backend-computed operational
     metrics — `duration_ms` and `cost_estimate` — which no client reports, and
-    the two low-cardinality R10 operational dimensions (`operational_dimension`,
-    `operational_outcome`) and bounded numeric evidence that carry scaling-trigger
-    evidence (#136, D-053).
+    the two low-cardinality operational dimensions (`operational_dimension`,
+    `operational_outcome`) used by discovery and packet-gate events.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -384,9 +196,6 @@ class ActivationEventCreate(BaseModel):
     session_status: SessionStatus | None = None
     duration_ms: int | None = Field(default=None, ge=0, le=86_400_000)
     cost_estimate: Decimal | None = Field(
-        default=None, ge=0, le=Decimal("999999.999999")
-    )
-    metric_value: Decimal | None = Field(
         default=None, ge=0, le=Decimal("999999.999999")
     )
     operational_dimension: OperationalDimension | None = None
@@ -405,132 +214,6 @@ class ActivationEventCreate(BaseModel):
     development_state_from: DevelopmentState | None = None
     development_state_to: DevelopmentState | None = None
     occurred_at: datetime | None = None
-
-    @model_validator(mode="after")
-    def validate_r10_event_shape(self):
-        """Bind every R10 dimension to its one authoritative event shape."""
-        if (
-            self.event_name != "r10_import_outcome"
-            and self.operational_outcome in _IMPORT_EXCLUSIVE_OUTCOMES
-        ):
-            raise ValueError(
-                "import quality/failure classes are valid only for import outcome events"
-            )
-        if self.event_name not in _R10_EVENT_NAMES:
-            if (
-                self.operational_dimension in _R10_DIMENSIONS
-                or self.operational_outcome in _R10_IDENTITY_TYPES
-                or self.metric_value is not None
-            ):
-                raise ValueError("R10 dimensions are valid only for matching R10 events")
-            return self
-
-        allowed_fields = {
-            "r10_cache_outcome": {"operational_outcome"},
-            "r10_provider_incident": {
-                "tool_id",
-                "access_mode",
-                "operational_dimension",
-            },
-            "r10_import_outcome": {
-                "duration_ms",
-                "operational_dimension",
-                "operational_outcome",
-            },
-            "r10_rate_limit_event": {
-                "operational_dimension",
-                "operational_outcome",
-                "metric_value",
-            },
-            "r10_generation_phase": {
-                "tool_id",
-                "access_mode",
-                "duration_ms",
-                "operational_dimension",
-            },
-            "r10_database_query": {"duration_ms", "operational_dimension"},
-            "r10_database_snapshot": {"metric_value", "operational_dimension"},
-        }[self.event_name]
-        field_values = {
-            "tool_id": self.tool_id,
-            "access_mode": self.access_mode,
-            "saved": self.saved,
-            "failure_category": self.failure_category,
-            "export_format": self.export_format,
-            "has_feedback": self.has_feedback,
-            "session_status": self.session_status,
-            "duration_ms": self.duration_ms,
-            "cost_estimate": self.cost_estimate,
-            "metric_value": self.metric_value,
-            "operational_dimension": self.operational_dimension,
-            "operational_outcome": self.operational_outcome,
-            "evidence_kind": self.evidence_kind,
-            "evidence_provenance": self.evidence_provenance,
-            "confirmation_transition": self.confirmation_transition,
-            "development_gap_kind": self.development_gap_kind,
-            "development_response_kind": self.development_response_kind,
-            "development_state_from": self.development_state_from,
-            "development_state_to": self.development_state_to,
-            "occurred_at": self.occurred_at,
-        }
-        unexpected = sorted(
-            name
-            for name, value in field_values.items()
-            if value is not None and name not in allowed_fields
-        )
-        expected_level = "error" if self.event_name == "r10_provider_incident" else "info"
-        if unexpected or self.level != expected_level:
-            raise ValueError(
-                f"{self.event_name} contains fields outside its bounded event shape"
-            )
-
-        if self.event_name == "r10_cache_outcome":
-            valid = self.operational_outcome in _R10_CACHE_OUTCOMES
-        elif self.event_name == "r10_provider_incident":
-            valid = (
-                self.tool_id is not None
-                and self.access_mode is not None
-                and self.operational_dimension in _R10_PROVIDER_CATEGORIES
-            )
-        elif self.event_name == "r10_import_outcome":
-            valid = (
-                self.operational_dimension in _R10_IMPORT_FAMILIES
-                and self.operational_outcome in _R10_IMPORT_OUTCOMES
-                and self.duration_ms is not None
-            )
-        elif self.event_name == "r10_rate_limit_event":
-            valid = (
-                self.operational_dimension in _R10_ROUTE_FAMILIES
-                and self.operational_outcome in _R10_IDENTITY_TYPES
-                and self.metric_value is not None
-                and self.metric_value >= 1
-            )
-        elif self.event_name == "r10_generation_phase":
-            valid = (
-                self.tool_id is not None
-                and self.access_mode is not None
-                and self.operational_dimension in _R10_PHASES
-                and self.duration_ms is not None
-            )
-        elif self.event_name == "r10_database_query":
-            valid = (
-                self.operational_dimension in _R10_QUERY_FAMILIES
-                and self.duration_ms is not None
-            )
-        else:
-            valid = (
-                self.operational_dimension in _R10_DATABASE_METRICS
-                and self.metric_value is not None
-                and self.metric_value >= 0
-            )
-        if not valid:
-            raise ValueError(f"{self.event_name} is missing its required bounded fields")
-
-        if self.operational_dimension == "storage_pct" and self.metric_value > 100:
-            raise ValueError("storage percentage cannot exceed 100")
-        if self.operational_dimension == "pool_checkout_ratio" and self.metric_value > 1:
-            raise ValueError("pool checkout ratio cannot exceed 1")
-        return self
 
     @model_validator(mode="after")
     def validate_development_event_shape(self):

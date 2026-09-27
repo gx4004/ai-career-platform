@@ -20,7 +20,6 @@ from app.config import (
     validate_origin_config,
 )
 from app.limiter import (
-    get_abuse_identity_type,
     limiter,
     validate_abuse_control_config,
 )
@@ -48,10 +47,6 @@ from app.routers import (
 )
 from app.services.ats_ingestion import run_ats_ingestion_scheduler
 from app.services.observability import configure_logging
-from app.services.rate_limit_events import (
-    collect_rate_limit_evidence,
-    rate_limit_route_family,
-)
 from app.services.retention import (
     run_activation_prune_scheduler,
     run_discovered_listing_expiry_scheduler,
@@ -116,24 +111,6 @@ if settings.SENTRY_DSN:
     )
 
 logger = logging.getLogger(__name__)
-_rate_limit_evidence_tasks: set[asyncio.Task] = set()
-RATE_LIMIT_EVIDENCE_MAX_TASKS = 64
-
-
-def schedule_rate_limit_evidence(*, route_family: str, identity_type: str) -> None:
-    """Collect coalesced evidence off-loop with bounded task bookkeeping."""
-    if len(_rate_limit_evidence_tasks) >= RATE_LIMIT_EVIDENCE_MAX_TASKS:
-        logger.warning("rate_limit_evidence_dropped reason=task_capacity")
-        return
-    task = asyncio.create_task(
-        asyncio.to_thread(
-            collect_rate_limit_evidence,
-            route_family=route_family,
-            identity_type=identity_type,
-        )
-    )
-    _rate_limit_evidence_tasks.add(task)
-    task.add_done_callback(_rate_limit_evidence_tasks.discard)
 
 
 @asynccontextmanager
@@ -187,23 +164,7 @@ async def request_validation_error_handler(
 app.add_exception_handler(RequestValidationError, request_validation_error_handler)
 
 
-async def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded):
-    identity_type = get_abuse_identity_type(request)
-    route_family = rate_limit_route_family(request.url.path)
-    try:
-        schedule_rate_limit_evidence(
-            route_family=route_family,
-            identity_type=identity_type,
-        )
-    except Exception as error:  # defensive: evidence must not replace the 429
-        logger.warning(
-            "rate_limit_evidence_schedule_failed error_type=%s",
-            type(error).__name__,
-        )
-    return _rate_limit_exceeded_handler(request, exc)
-
-
-app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 
 JSON_BODY_LIMIT_BYTES = 1_048_576

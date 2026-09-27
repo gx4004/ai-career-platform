@@ -75,7 +75,6 @@ def test_manual_backend_gate_keeps_cumulative_and_concurrency_proofs() -> None:
     expected_commands = (
         "python tests/migration_stable_release_roundtrip.py",
         "python tests/migration_packet_approval_roundtrip.py",
-        "python tests/migration_operational_metric_roundtrip.py",
     )
     for command in expected_commands:
         assert command in workflow_text
