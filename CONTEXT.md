@@ -222,6 +222,12 @@ work authorization, uncertain or free-form — that the system never drafts from
 inference. Only explicit user input resolves a stop, and an unresolved question
 blocks packet approval.
 
+**Application details**
+The owner's one-time contact details and typed standing answers (work
+authorization, sponsorship, notice, salary, relocation). Standing answers count
+as explicit user input for a stop; Autopilot fills forms from them and never
+guesses contact details from CV text.
+
 **Packet approval**
 The explicit user action that freezes an immutable packet snapshot and hands the
 user to the official destination to submit themselves. No R15 code path performs,

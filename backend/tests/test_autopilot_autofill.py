@@ -35,11 +35,13 @@ from app.services.autopilot_autofill import (
     AutofillMaterials,
     AutofillRefused,
     AutofillReport,
+    FillDecision,
     _open_form,
     _run,
     _wait_for_owner,
     assert_allowed_apply_url,
     fill_application,
+    fill_decision,
     form_url,
     start_autofill,
 )
@@ -61,13 +63,18 @@ MATERIALS = AutofillMaterials(
     phone="+44 20 7946 0958",
     linkedin="https://www.linkedin.com/in/ada",
     website="https://ada.dev",
+    location="London, UK",
     resume_pdf=b"%PDF-1.4 fixture",
     resume_filename="Ada-Lovelace-CV.pdf",
     cover_letter="Dear Acme, I would like to join.",
     answers=[
         ("Notice period?", "Two weeks."),
         ("Why do you want to work at Acme?", "Reliable systems matter to me."),
+        # Drafted answers to stop questions: must never be typed anywhere.
+        ("What are your salary expectations?", "Drafted figure"),
+        ("Will you require visa sponsorship?", "Yes"),
     ],
+    standing_answers={"work_authorization": "Yes", "visa_sponsorship": "No"},
 )
 
 
@@ -214,6 +221,103 @@ def test_no_code_path_clicks_presses_or_submits():
         assert forbidden not in source, forbidden
 
 
+# ── Fill policy: label → decision (#374) ──
+
+POLICY_MATERIALS = AutofillMaterials(
+    url=MATERIALS.url,
+    first_name="Ada",
+    last_name="King Lovelace",
+    email="ada@example.com",
+    phone="+44 20 7946 0958",
+    linkedin="https://www.linkedin.com/in/ada",
+    website="https://ada.dev",
+    location="London, UK",
+    resume_pdf=b"%PDF",
+    cover_letter="Dear Acme.",
+    answers=[
+        ("What is your favourite programming language?", "Python"),
+        ("Expected salary?", "Drafted figure"),
+        ("What is your notice period?", "Two weeks."),
+        ("Why do you want to work at Acme?", "Drafted why"),
+    ],
+    owner_answers=[("Do you have a security clearance?", "No"), ("Gender", "Female")],
+    standing_answers={
+        "work_authorization": "Yes",
+        "visa_sponsorship": "No",
+        "salary_expectation": "90k EUR",
+        "relocation": "Yes",
+        "notice_period": "One month",
+    },
+)
+YES_NO = ["--", "Yes", "No"]
+
+
+def _control(label, tag="input", type="text", name="", options=()):
+    return {"tag": tag, "type": type, "name": name, "id": "", "label": label,
+            "options": list(options)}
+
+
+@pytest.mark.parametrize(
+    ("control", "expected"),
+    [
+        # Contact fields: only from the owner's application details.
+        (_control("Email", type="email"), ("contact:email", "ada@example.com")),
+        (_control("First Name"), ("contact:first_name", "Ada")),
+        (_control("Last Name"), ("contact:last_name", "King Lovelace")),
+        (_control("Full name", name="name"), ("contact:full_name", "Ada King Lovelace")),
+        (_control("Phone"), ("contact:phone", "+44 20 7946 0958")),
+        (_control("LinkedIn Profile"), ("contact:linkedin", "https://www.linkedin.com/in/ada")),
+        (_control("Portfolio URL"), ("contact:website", "https://ada.dev")),
+        (_control("Location (City)"), ("contact:location", "London, UK")),
+        (_control("Phone interview availability", tag="textarea"), ("needs_you", "")),
+        # Stop questions: this application's typed answer, then a standing answer.
+        (_control("Do you have a security clearance?"), ("typed", "No")),
+        (_control("What are your salary expectations?"),
+         ("standing:salary_expectation", "90k EUR")),
+        (_control("Expected salary?"), ("standing:salary_expectation", "90k EUR")),
+        (_control("What is your current salary?"), ("needs_you", "")),
+        (_control("Are you legally authorized to work here?"),
+         ("standing:work_authorization", "Yes")),
+        (_control("Are you willing to relocate?"), ("standing:relocation", "Yes")),
+        (_control("Why do you want to work at Acme?", tag="textarea"), ("needs_you", "")),
+        # Dropdowns: exact option match only.
+        (_control("Will you require visa sponsorship?", tag="select", options=YES_NO),
+         ("standing:visa_sponsorship", "No")),
+        (_control("Are you legally authorized to work here?", tag="select",
+                  options=["--", "Yes, I am", "No"]), ("needs_you", "")),
+        (_control("What is your favourite programming language?", tag="select",
+                  options=["Python", "Go"]), ("needs_you", "")),
+        # Drafted answers: non-stop text questions only; typed standing answers win.
+        (_control("What is your favourite programming language?"), ("drafted", "Python")),
+        (_control("What is your notice period?"), ("standing:notice_period", "One month")),
+        # Never, whatever anyone typed.
+        (_control("Gender", tag="select", options=["Male", "Female"]), ("never:eeo", "")),
+        (_control("Are you a protected veteran?", tag="select", options=YES_NO),
+         ("never:eeo", "")),
+        (_control("Voluntary Self-Identification: Race"), ("never:eeo", "")),
+        (_control("I agree to the privacy policy", type="checkbox"), ("never:consent", "")),
+        (_control("Do you have a driving licence?", type="checkbox"), ("needs_you", "")),
+        (_control("", tag="textarea", name="g-recaptcha-response"), ("never:captcha", "")),
+        (_control("Submit application", type="submit"), ("never:control", "")),
+        # Files and the cover letter.
+        (_control("Resume/CV", type="file"), ("resume", "file")),
+        (_control("Cover Letter", type="file"), ("cover_file", "file")),
+        (_control("Additional information", tag="textarea"), ("cover_text", "Dear Acme.")),
+    ],
+    ids=lambda value: value["label"] or value["name"] if isinstance(value, dict) else None,
+)
+def test_fill_policy(control, expected):
+    assert fill_decision(control, POLICY_MATERIALS) == FillDecision(*expected)
+
+
+def test_without_typed_answers_a_stop_question_is_left_for_the_owner():
+    materials = AutofillMaterials(
+        url=MATERIALS.url, answers=[("What are your salary expectations?", "Drafted figure")]
+    )
+    decision = fill_decision(_control("What are your salary expectations?"), materials)
+    assert decision == FillDecision("needs_you")
+
+
 # ── Browser tests against local fixture forms (headless) ──
 
 
@@ -269,16 +373,55 @@ def test_fills_a_greenhouse_form_and_does_not_submit(browser, tmp_path):
     assert page.input_value("#question_1") == "https://www.linkedin.com/in/ada"
     assert page.input_value("#question_2") == "https://ada.dev"
     assert page.input_value("#question_3") == "Two weeks."
+    assert page.input_value("#question_7") == "London, UK"
     assert page.eval_on_selector("#resume", "el => el.files[0].name") == "Ada-Lovelace-CV.pdf"
     assert page.eval_on_selector("#cover_letter", "el => el.files[0].name") == (
         "Cover-letter.txt"
     )
-    # The work-authorization choice is the owner's: left empty and highlighted.
-    assert report.skipped == ["Are you legally authorized to work in the country? *"]
-    assert "3px" in page.eval_on_selector("#question_4", "el => el.style.outline")
+    # Stop questions get only the owner's typed standing answers, exact options only.
+    assert page.input_value("#question_4") == "1"  # work authorization: "Yes"
+    assert page.input_value("#question_5") == "0"  # sponsorship: "No", not the drafted "Yes"
+    assert page.input_value("#question_6") == ""  # salary: no typed answer, drafted never used
+    assert page.input_value("#question_8") == ""  # relocation: no typed answer
+    # EEO, consent and CAPTCHA are never touched.
+    assert page.input_value("#gender") == ""
+    assert page.input_value("#veteran_status") == ""
+    assert page.is_checked("#consent") is False
+    assert page.input_value("#g-recaptcha-response") == ""
+    assert report.skipped == [
+        "What are your salary expectations?",
+        "Are you open to relocation?",
+        "Gender",
+        "Veteran Status",
+        "I agree to the processing of my data as described in the privacy policy",
+    ]
+    assert "3px" in page.eval_on_selector("#gender", "el => el.style.outline")
     assert "First Name *" in report.filled and "Resume/CV *" in report.filled
     assert page.evaluate("window.__submitted") is False
     assert page.url.startswith("file://")
+    page.close()
+
+
+def test_typed_answers_fill_stop_fields_but_never_eeo_or_consent(browser, tmp_path):
+    page = _open(browser, "greenhouse.html")
+    materials = AutofillMaterials(
+        url=MATERIALS.url,
+        owner_answers=[
+            ("What are your salary expectations?", "95k EUR"),  # this application's answer
+            ("Gender", "Female"),
+            ("Do you consent to the privacy policy?", "Yes"),
+        ],
+        standing_answers={"salary_expectation": "90k EUR", "relocation": "Yes"},
+    )
+
+    report = fill_application(page, materials, tmp_path)
+
+    assert page.input_value("#question_6") == "95k EUR"  # per-application beats standing
+    assert page.input_value("#question_8") == "Yes"
+    assert page.input_value("#gender") == ""
+    assert page.is_checked("#consent") is False
+    assert "Gender" in report.skipped
+    assert page.evaluate("window.__submitted") is False
     page.close()
 
 
@@ -476,6 +619,21 @@ def test_fills_with_the_applications_chosen_materials_and_answers(
     ]
     application.answers = {"q-1": "90k EUR"}
     db.commit()
+    saved = client.put(
+        f"{PREFIX}/details",
+        json={
+            "full_name": "Ada King Lovelace",
+            "email": "ada@example.com",
+            "phone": "+44 20 7946 0958",
+            "linkedin": "https://www.linkedin.com/in/ada",
+            "website": "https://ada.dev",
+            "location": "London, UK",
+            "visa_sponsorship": "No",
+            "notice_period": "One month",
+        },
+        headers=auth_headers,
+    )
+    assert saved.status_code == 200
 
     response = client.post(f"{PREFIX}/{application.id}/autofill", headers=auth_headers)
 
@@ -487,13 +645,42 @@ def test_fills_with_the_applications_chosen_materials_and_answers(
     }
     user_id, materials = calls[0]
     assert user_id == test_user.id
-    assert (materials.first_name, materials.last_name) == ("Test", "User")
-    assert materials.email == "test@example.com"
+    assert (materials.first_name, materials.last_name) == ("Ada", "King Lovelace")
+    assert (materials.email, materials.phone) == ("ada@example.com", "+44 20 7946 0958")
+    assert (materials.linkedin, materials.website) == (
+        "https://www.linkedin.com/in/ada",
+        "https://ada.dev",
+    )
+    assert materials.location == "London, UK"
+    assert materials.standing_answers == {"visa_sponsorship": "No", "notice_period": "One month"}
     assert materials.cover_letter == "Original cover letter."
     assert materials.answers == [("What is your notice period?", "Two weeks.")]
     assert materials.owner_answers == [("What are your salary expectations?", "90k EUR")]
     assert materials.resume_pdf.startswith(b"%PDF")
-    assert materials.resume_filename == "Test-User-CV.pdf"
+    assert materials.resume_filename == "Ada-King-Lovelace-CV.pdf"
+
+
+def test_without_saved_details_only_the_account_name_and_email_are_used(
+    client, db, test_user, auth_headers, autopilot_on, monkeypatch
+):
+    calls: list = []
+    monkeypatch.setattr("app.routers.applications.start_autofill", _fake_start(calls))
+    application = _ready(db, test_user.id)
+
+    response = client.post(f"{PREFIX}/{application.id}/autofill", headers=auth_headers)
+
+    assert response.status_code == 200
+    materials = calls[0][1]
+    assert (materials.first_name, materials.last_name) == ("Test", "User")
+    assert materials.email == "test@example.com"
+    # Nothing is guessed from the CV text.
+    assert (materials.phone, materials.linkedin, materials.website, materials.location) == (
+        "",
+        "",
+        "",
+        "",
+    )
+    assert materials.standing_answers == {}
 
 
 def test_unanswered_open_questions_are_refused(

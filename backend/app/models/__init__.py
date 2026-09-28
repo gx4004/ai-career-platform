@@ -1,3 +1,4 @@
+from app.models.application_details import ApplicationDetails
 from app.models.application_preferences import ApplicationPreferences
 from app.models.application_snapshot import ApplicationSnapshot
 from app.models.campaign_event import CampaignEvent
@@ -27,6 +28,7 @@ __all__ = [
     "DiscoveredListing",
     "DiscoveredListingAttribution",
     "DiscoveryDismissedListing",
+    "ApplicationDetails",
     "ApplicationPreferences",
     "ApplicationSnapshot",
     "CampaignEvent",

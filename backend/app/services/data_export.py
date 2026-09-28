@@ -17,6 +17,7 @@ from app.schemas.applications import (
 )
 from app.schemas.data_export import CareerDataExport, DevelopmentLoopExport
 from app.schemas.gap_classification import GapClassificationRead
+from app.services.application_details import export_details
 from app.services.applications import snapshot_response
 from app.services.cv_documents import export_documents
 from app.services.development import export_development_plan
@@ -75,6 +76,7 @@ def export_applications(db: Session, user_id: str) -> ApplicationsExport:
         preferences=(
             ApplicationPreferencesResponse.model_validate(preferences) if preferences else None
         ),
+        details=export_details(db, user_id),
     )
 
 

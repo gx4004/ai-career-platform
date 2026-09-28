@@ -3,8 +3,10 @@
 Local-only and off by default (``AUTOPILOT_EXPERIMENT_ENABLED``). A headed
 Chromium opens on the machine running the backend, so this only makes sense when
 the backend runs on the owner's own computer. It fills what it can and leaves
-the window open. It never submits: the only interactions are ``fill`` and
-``set_input_files``; nothing is ever clicked or pressed.
+the window open. It never submits: the only interactions are ``fill``,
+``select_option`` and ``set_input_files``; nothing is ever clicked or pressed.
+
+What goes into which field is decided in one place, :func:`fill_decision`.
 """
 
 from __future__ import annotations
@@ -18,9 +20,10 @@ from dataclasses import dataclass, field
 from difflib import SequenceMatcher
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Literal
 from urllib.parse import urlsplit
 
-from app.models.user import User
+from app.schemas.applications import ApplicationDetailsResponse
 from app.schemas.cv_documents import CvStyle
 from app.services.cv_rendering import build_render_model, render_pdf
 from app.services.stop_classifier import classify_stop_category
@@ -31,8 +34,6 @@ ALLOWED_HOSTS = frozenset(
 ACTION_TIMEOUT_MS = 15_000
 REVIEW_WINDOW_SECONDS = 30 * 60  # the window closes itself after this
 _HIGHLIGHT = "el => { el.style.outline = '3px solid #f59e0b'; el.style.outlineOffset = '2px' }"
-_PHONE = re.compile(r"\+?\d[\d\s().-]{7,}\d")
-_URL = re.compile(r"https?://[^\s<>()\"']+[^\s<>()\"'.,;:!?]")
 
 # Tags every form control and returns what a person would read as its label.
 _DESCRIBE_CONTROLS = """() => [...document.querySelectorAll('input, textarea, select')].map((el, i) => {
@@ -43,11 +44,14 @@ _DESCRIBE_CONTROLS = """() => [...document.querySelectorAll('input, textarea, se
     || (box && box.querySelector('label, .application-label, legend') || {}).innerText
     || el.placeholder || el.name || el.id || '';
   const style = getComputedStyle(el);
+  const type = (el.type || '').toLowerCase();
   return {
-    idx: i, tag: el.tagName.toLowerCase(), type: (el.type || '').toLowerCase(),
+    idx: i, tag: el.tagName.toLowerCase(), type,
     name: el.name || '', id: el.id || '', label: label.replace(/\\s+/g, ' ').trim(),
+    options: el.tagName === 'SELECT' ? [...el.options].map(o => o.text.trim()) : [],
     visible: style.display !== 'none' && style.visibility !== 'hidden' && el.offsetParent !== null,
-    empty: el.type === 'file' ? el.files.length === 0 : !el.value,
+    empty: type === 'file' ? el.files.length === 0
+      : (type === 'checkbox' || type === 'radio') ? !el.checked : !el.value,
   };
 })"""
 
@@ -60,22 +64,38 @@ class AutofillBusy(Exception):
     """This owner already has a fill running."""
 
 
+StandingTopic = Literal[
+    "work_authorization", "visa_sponsorship", "notice_period", "salary_expectation", "relocation"
+]
+STANDING_TOPICS: tuple[StandingTopic, ...] = (
+    "work_authorization",
+    "visa_sponsorship",
+    "notice_period",
+    "salary_expectation",
+    "relocation",
+)
+
+
 @dataclass
 class AutofillMaterials:
     url: str
+    # Contact details, exactly as the owner typed them in their application details.
     first_name: str = ""
     last_name: str = ""
     email: str = ""
     phone: str = ""
     linkedin: str = ""
     website: str = ""
+    location: str = ""
     resume_pdf: bytes = b""
     resume_filename: str = "CV.pdf"
     cover_letter: str = ""
-    # Drafted screening answers, never used on a stop field.
+    # Drafted screening answers: only ever for questions that are not stops.
     answers: list[tuple[str, str]] = field(default_factory=list)
-    # The owner's own typed answers: the only thing that may fill a stop field.
+    # The owner's typed answers to this application's open questions.
     owner_answers: list[tuple[str, str]] = field(default_factory=list)
+    # The owner's typed standing answers, by topic, from their application details.
+    standing_answers: dict[str, str] = field(default_factory=dict)
 
     @property
     def full_name(self) -> str:
@@ -115,17 +135,160 @@ def form_url(url: str) -> str:
     return url
 
 
-def contact_from_text(text: str) -> tuple[str, str, str]:
-    """(phone, linkedin, website) found in the CV text, blank when absent."""
-    phone_match = _PHONE.search(text)
-    links = _URL.findall(text)
-    linkedin = next((link for link in links if "linkedin.com" in link), "")
-    website = next((link for link in links if "linkedin.com" not in link), "")
-    return (phone_match.group(0).strip() if phone_match else ""), linkedin, website
+# ── Fill policy: what may go into which field ──
 
 
 def _norm(text: str) -> str:
     return " ".join(re.sub(r"[^a-z0-9 ]", " ", text.lower()).split())
+
+
+def _mentions(text: str, terms: tuple[str, ...]) -> bool:
+    """Whole-word (or whole-phrase) match on normalised text."""
+    padded = f" {_norm(text)} "
+    return any(f" {term} " in padded for term in terms)
+
+
+# Always the human's act, whatever the owner typed anywhere.
+_EEO_TERMS = (
+    "gender", "sex", "race", "racial", "ethnicity", "ethnic", "hispanic", "latino",
+    "veteran", "disability", "disabled", "sexual orientation", "transgender", "pronoun",
+    "pronouns", "self identification", "self identify", "voluntary self", "eeo",
+    "equal employment", "equal opportunity", "lgbtq",
+)
+_CONSENT_TERMS = (
+    "consent", "i agree", "agree to", "privacy policy", "privacy notice", "terms",
+    "acknowledge", "acknowledgement", "gdpr", "data processing", "i certify", "i confirm",
+    "i understand", "i accept",
+)
+_SKIPPED_TYPES = frozenset({"hidden", "submit", "button", "image", "reset"})
+_SELECT_TAG = "select"
+
+
+@dataclass(frozen=True)
+class FillDecision:
+    """What happens to one form control.
+
+    ``source`` names the rule: ``contact:<field>``, ``resume``, ``cover_file``,
+    ``cover_text``, ``typed``, ``standing:<topic>``, ``drafted``, ``needs_you``
+    or ``never:<why>``. Only a decision with a ``value`` (or a file source) is
+    written; everything else is left for the owner.
+    """
+
+    source: str
+    value: str = ""
+
+
+_NEEDS_YOU = FillDecision("needs_you")
+
+
+def standing_topic(label: str) -> StandingTopic | None:
+    """Which standing answer, if any, answers this question."""
+    category = classify_stop_category(label)
+    if _mentions(label, ("sponsor", "sponsorship", "visa")):
+        return "visa_sponsorship"
+    if category in {"work_authorization", "eligibility"} and _mentions(
+        label,
+        ("authorized", "authorised", "authorization", "authorisation", "right to work",
+         "eligible to work", "work permit", "legally"),
+    ):
+        return "work_authorization"
+    if category == "salary" and not _mentions(
+        label, ("current", "history", "previous", "last", "present")
+    ):
+        return "salary_expectation"
+    if category == "relocation":
+        return "relocation"
+    if _mentions(
+        label,
+        ("notice period", "notice", "earliest start", "start date", "when can you start",
+         "available to start"),
+    ):
+        return "notice_period"
+    return None
+
+
+def _contact_kind(control: dict) -> str | None:
+    """Which contact field a single-line input or select is, from its name, id and label."""
+    key = _norm(f"{control['name']} {control['id']} {control['label']}".replace("_", " "))
+    if "first name" in key or "given name" in key:
+        return "first_name"
+    if "last name" in key or "surname" in key or "family name" in key:
+        return "last_name"
+    if control["type"] == "email" or re.search(r"\bemail\b", key):
+        return "email"
+    if control["type"] == "tel" or re.search(r"\b(phone|mobile)\b", key):
+        return "phone"
+    if "linkedin" in key:
+        return "linkedin"
+    if re.search(r"\b(website|portfolio|github|personal site)\b", key):
+        return "website"
+    if re.search(r"\b(city|location)\b", key):
+        return "location"
+    if control["name"] == "name" or _norm(control["label"]) in {"name", "full name"}:
+        return "full_name"
+    return None
+
+
+def _exact_option(value: str, options: list[str]) -> str | None:
+    wanted = _norm(value)
+    return next((option for option in options if wanted and _norm(option) == wanted), None)
+
+
+def fill_decision(control: dict, materials: AutofillMaterials) -> FillDecision:
+    """The fill policy, for one control (#374).
+
+    - Never: EEO / voluntary self-identification, consent boxes, CAPTCHAs,
+      buttons and submit controls, whatever anyone typed.
+    - Contact fields come only from the owner's application details.
+    - A stop-category question (salary, visa, relocation…) gets only an answer
+      the owner typed: this application's answer first, then a standing answer.
+    - Drafted answers go only into non-stop free-text questions.
+    - Dropdowns are set only on an exact option match; checkboxes and radios are
+      never set.
+    """
+    tag, kind = control["tag"], control["type"]
+    label = control["label"] or control["name"] or ""
+    key = f"{control['name']} {control['id']} {label}".replace("_", " ")
+    if kind in _SKIPPED_TYPES:
+        return FillDecision("never:control")
+    if "captcha" in key.lower():
+        return FillDecision("never:captcha")
+    if _mentions(key, _EEO_TERMS):
+        return FillDecision("never:eeo")
+    if _mentions(key, _CONSENT_TERMS):
+        return FillDecision("never:consent")
+    if kind in {"checkbox", "radio"}:
+        return _NEEDS_YOU
+    if kind == "file":
+        if "cover" in _norm(key):
+            return FillDecision("cover_file", "file") if materials.cover_letter else _NEEDS_YOU
+        if re.search(r"resume|\bcv\b", _norm(key)):
+            return FillDecision("resume", "file") if materials.resume_pdf else _NEEDS_YOU
+        return _NEEDS_YOU
+    if tag == "textarea" and re.search(r"cover|comments|additional information", _norm(key)):
+        if not materials.cover_letter:
+            return _NEEDS_YOU
+        return FillDecision("cover_text", materials.cover_letter)
+
+    is_stop = classify_stop_category(label) is not None
+    decision = _NEEDS_YOU
+    contact = None if (is_stop or tag == "textarea") else _contact_kind(control)
+    if contact:
+        value = materials.full_name if contact == "full_name" else getattr(materials, contact)
+        decision = FillDecision(f"contact:{contact}", value)
+    elif (owned := _best_answer(label, materials.owner_answers)) is not None:
+        decision = FillDecision("typed", owned)
+    elif (topic := standing_topic(label)) and materials.standing_answers.get(topic):
+        decision = FillDecision(f"standing:{topic}", materials.standing_answers[topic])
+    elif not is_stop and tag != _SELECT_TAG:
+        drafted = _best_answer(label, materials.answers)
+        if drafted is not None:
+            decision = FillDecision("drafted", drafted)
+
+    if tag == _SELECT_TAG and decision.value:
+        option = _exact_option(decision.value, control.get("options") or [])
+        decision = FillDecision(decision.source, option) if option else _NEEDS_YOU
+    return decision if decision.value else _NEEDS_YOU
 
 
 # Words too common to say two questions are the same question.
@@ -167,51 +330,6 @@ def _best_answer(label: str, answers: list[tuple[str, str]]) -> str | None:
     return best_answer
 
 
-def _answer_for(
-    label: str,
-    answers: list[tuple[str, str]],
-    owner_answers: list[tuple[str, str]] = (),
-) -> str | None:
-    """The answer for the question this label best matches.
-
-    The owner's own typed answers come first. A label the stop classifier flags
-    (salary, work authorization, demographics and so on) never gets a drafted
-    answer, whatever it resembles: only the owner answers those.
-    """
-    owned = _best_answer(label, list(owner_answers))
-    if owned is not None:
-        return owned
-    if classify_stop_category(label) is not None:
-        return None
-    return _best_answer(label, answers)
-
-
-def _field_kind(control: dict) -> str | None:
-    """Which standard field a control is, from its name, id, label, and type."""
-    key = _norm(f"{control['name']} {control['id']} {control['label']}".replace("_", " "))
-    if control["type"] == "file":
-        if "cover" in key:
-            return "cover_file"
-        return "resume" if re.search(r"resume|\bcv\b", key) else None
-    if control["tag"] == "textarea" and re.search(r"cover|comments|additional information", key):
-        return "cover_text"
-    if "first name" in key:
-        return "first_name"
-    if "last name" in key or "surname" in key:
-        return "last_name"
-    if control["type"] == "email" or "email" in key:
-        return "email"
-    if control["type"] == "tel" or "phone" in key:
-        return "phone"
-    if "linkedin" in key:
-        return "linkedin"
-    if re.search(r"website|portfolio|github|personal site", key):
-        return "website"
-    if control["name"] == "name" or _norm(control["label"]) in {"name", "full name"}:
-        return "full_name"
-    return None
-
-
 def fill_application(page, materials: AutofillMaterials, workdir: Path) -> AutofillReport:
     """Fill the open form. Never checks the host (the caller did) and never submits."""
     report = AutofillReport(url=page.url)
@@ -222,43 +340,27 @@ def fill_application(page, materials: AutofillMaterials, workdir: Path) -> Autof
     cover_path = workdir / "Cover-letter.txt"
     cover_path.write_text(materials.cover_letter, encoding="utf-8")
 
-    values = {
-        "first_name": materials.first_name,
-        "last_name": materials.last_name,
-        "full_name": materials.full_name,
-        "email": materials.email,
-        "phone": materials.phone,
-        "linkedin": materials.linkedin,
-        "website": materials.website,
-        "cover_text": materials.cover_letter,
-    }
-    controls = page.evaluate(_DESCRIBE_CONTROLS)
     cover_done = False
-    for control in controls:
-        if control["type"] in {"hidden", "submit", "button", "image", "reset"}:
-            continue
+    for control in page.evaluate(_DESCRIBE_CONTROLS):
         if not control["visible"] and control["type"] != "file":
+            continue
+        decision = fill_decision(control, materials)
+        if decision.source in {"never:control", "never:captcha"}:  # not even highlighted
             continue
         locator = page.locator(f'[data-cw-autofill="{control["idx"]}"]')
         label = control["label"] or control["name"] or "Unlabelled field"
-        kind = _field_kind(control)
-        typeable = control["tag"] == "textarea" or (
-            control["tag"] == "input" and control["type"] not in {"checkbox", "radio", "file"}
-        )
-        if kind == "resume" and materials.resume_pdf:
+        if decision.source == "resume":
             locator.set_input_files(str(resume_path))
-        elif kind == "cover_file" and materials.cover_letter and not cover_done:
-            locator.set_input_files(str(cover_path))
+        elif decision.source in {"cover_file", "cover_text"} and not cover_done:
+            if decision.source == "cover_file":
+                locator.set_input_files(str(cover_path))
+            else:
+                locator.fill(decision.value)
             cover_done = True
-        elif kind == "cover_text" and materials.cover_letter and not cover_done:
-            locator.fill(materials.cover_letter)
-            cover_done = True
-        elif kind in values and values[kind] and typeable:
-            locator.fill(values[kind])
-        elif kind is None and typeable and (
-            answer := _answer_for(label, materials.answers, materials.owner_answers)
-        ):
-            locator.fill(answer)
+        elif decision.value and control["tag"] == _SELECT_TAG:
+            locator.select_option(label=decision.value)
+        elif decision.value and decision.source not in {"cover_file", "cover_text"}:
+            locator.fill(decision.value)
         else:
             if control["empty"] and control["visible"]:
                 locator.evaluate(_HIGHLIGHT)
@@ -369,6 +471,7 @@ def start_autofill(user_id: str, materials: AutofillMaterials, *, headless: bool
 # ── Materials: exactly what the application will send ──
 
 
+
 def _allowed(url: str | None) -> bool:
     try:
         assert_allowed_apply_url(url or "")
@@ -377,12 +480,14 @@ def _allowed(url: str | None) -> bool:
     return True
 
 
-def build_materials(user: User, content: dict) -> AutofillMaterials:
-    """Collect what to fill from the application's content, in the request thread.
+def build_materials(details: ApplicationDetailsResponse, content: dict) -> AutofillMaterials:
+    """Collect what to fill, in the request thread.
 
-    ``content`` is the application's frozen snapshot once it is marked applied,
-    otherwise its current materials (``applications.application_content``). The
-    worker thread never touches the database.
+    Contact details and standing answers come only from the owner's application
+    details, never from CV text. ``content`` is the application's frozen
+    snapshot once it is marked applied, otherwise its current materials
+    (``applications.application_content``). The worker thread never touches the
+    database.
     """
     listing = content.get("listing") or {}
     url = listing.get("apply_url") or ""
@@ -392,15 +497,7 @@ def build_materials(user: User, content: dict) -> AutofillMaterials:
         )
 
     variant = content.get("cv_variant") or {}
-    first, _, last = (user.full_name or "").strip().rpartition(" ")
-    if not first:
-        first, last = last, ""
-    cv_text = " ".join(
-        " ".join([str(entry.get("body", "")), *map(str, entry.get("bullets") or [])])
-        for section in variant.get("sections") or []
-        for entry in section.get("entries") or []
-    )
-    phone, linkedin, website = contact_from_text(cv_text)
+    first, _, last = details.full_name.strip().partition(" ")
     resume_pdf = b""
     if variant.get("sections"):
         document = SimpleNamespace(
@@ -411,15 +508,16 @@ def build_materials(user: User, content: dict) -> AutofillMaterials:
         resume_pdf = render_pdf(
             build_render_model(document, "ats-essential", CvStyle(ats_mode=True))
         )
-    safe_name = re.sub(r"[^A-Za-z0-9]+", "-", user.full_name or "").strip("-")
+    safe_name = re.sub(r"[^A-Za-z0-9]+", "-", details.full_name).strip("-")
     return AutofillMaterials(
         url=url,
         first_name=first,
-        last_name=last,
-        email=user.email,
-        phone=phone,
-        linkedin=linkedin,
-        website=website,
+        last_name=last.strip(),
+        email=details.email,
+        phone=details.phone,
+        linkedin=details.linkedin,
+        website=details.website,
+        location=details.location,
         resume_pdf=resume_pdf,
         resume_filename=f"{safe_name}-CV.pdf" if safe_name else "CV.pdf",
         cover_letter=str((content.get("cover_letter") or {}).get("text") or ""),
@@ -433,4 +531,7 @@ def build_materials(user: User, content: dict) -> AutofillMaterials:
             for item in content.get("answers") or []
             if isinstance(item, dict) and item.get("answer")
         ],
+        standing_answers={
+            topic: getattr(details, topic) for topic in STANDING_TOPICS if getattr(details, topic)
+        },
     )
