@@ -20,6 +20,8 @@ from app.models.user import User
 from app.schemas.applications import (
     AnswersUpdate,
     ApplicationDetail,
+    ApplicationDetailsBody,
+    ApplicationDetailsResponse,
     ApplicationList,
     ApplicationPreferencesBody,
     ApplicationPreferencesResponse,
@@ -34,6 +36,7 @@ from app.schemas.applications import (
 from app.schemas.gap_classification import GapClassificationListResponse, GapClassificationRead
 from app.schemas.gap_response import GapResponseOffer
 from app.schemas.history import DeletedResponse
+from app.services import application_details
 from app.services import applications as service
 from app.services.autopilot_autofill import (
     AutofillBusy,
@@ -107,6 +110,24 @@ def put_preferences(
     db: Session = Depends(get_db),
 ):
     return service.save_preferences(db, current_user.id, body)
+
+
+@router.get("/details", response_model=ApplicationDetailsResponse)
+def get_details(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Contact details and standing answers the owner typed for application forms."""
+    return application_details.get_details(db, current_user)
+
+
+@router.put("/details", response_model=ApplicationDetailsResponse)
+def put_details(
+    body: ApplicationDetailsBody,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    return application_details.save_details(db, current_user.id, body)
 
 
 @router.post("/prepare", response_model=BulkPrepareResult)
@@ -218,8 +239,9 @@ def autofill(
         )
     snapshot = service.snapshot_response(workspace.snapshot)
     content = snapshot.content if snapshot else service.application_content(workspace)
+    details = application_details.get_details(db, current_user)
     try:
-        report = start_autofill(current_user.id, build_materials(current_user, content))
+        report = start_autofill(current_user.id, build_materials(details, content))
     except AutofillRefused as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
     except AutofillBusy as error:
