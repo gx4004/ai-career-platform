@@ -115,7 +115,8 @@ test.describe('Discovery hand-offs', () => {
     const jobTitle = (await firstCard.locator('h3, .disc-card__title').first().textContent())?.trim() ?? ''
     expect(jobTitle.length).toBeGreaterThan(0)
 
-    await firstCard.getByRole('button', { name: 'Tailor my CV' }).click()
+    await firstCard.getByRole('button', { name: /^More actions for / }).click()
+    await page.getByRole('menuitem', { name: 'Tailor my CV' }).click()
     await page.waitForURL(/\/cv-studio$/)
     const dialog = page.getByRole('dialog', { name: 'Tailor to a job' })
     await expect(dialog).toBeVisible({ timeout: 15_000 })
