@@ -16,6 +16,7 @@ import {
   evidenceItemUpdateSchema,
   evidenceImportRequestSchema,
   evidenceItemIdsSchema,
+  discoveryListingDetailSchema,
   discoveryListingPageSchema,
   discoveryDismissalSchema,
   healthCheckSchema,
@@ -399,6 +400,13 @@ export function searchDiscoveryListings(query: DiscoveryListingQuery = {}) {
   return request(`/discovery/listings${search ? `?${search}` : ''}`, {
     method: 'GET',
     schema: discoveryListingPageSchema,
+  })
+}
+
+export function getDiscoveryListing(listingId: string) {
+  return request(`/discovery/listings/${encodeURIComponent(listingId)}`, {
+    method: 'GET',
+    schema: discoveryListingDetailSchema,
   })
 }
 

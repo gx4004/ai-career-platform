@@ -23,8 +23,6 @@ function source(overrides: Record<string, unknown> = {}) {
     terms_reviewed_by: 'Legal Reviewer',
     allowed_behavior: 'feed',
     endpoint_url: 'https://fixture.example/jobs',
-    allowed_query_parameters: ['role', 'location'],
-    robots_policy: 'required',
     rate_limit_per_minute: 12,
     attribution_rule: 'Show source name and original link',
     retention_days: 30,
@@ -56,34 +54,11 @@ describe('AdminDiscoverySourcesPage', () => {
     expect(await screen.findByText('Licensed Example Feed')).toBeTruthy()
     expect(screen.getByText('Discovery Operations')).toBeTruthy()
     expect(screen.getByText('https://fixture.example/jobs')).toBeTruthy()
-    expect(screen.getByText('Query: role, location')).toBeTruthy()
-    expect(screen.getByText('Robots: required')).toBeTruthy()
     expect(screen.getByText('accepted')).toBeTruthy()
     expect(screen.getByText('Legal Reviewer', { exact: false })).toBeTruthy()
     expect(screen.getByText('12/minute')).toBeTruthy()
     expect(screen.getByText('Retain 30 days')).toBeTruthy()
     expect(screen.getByText('Allowed')).toBeTruthy()
-  })
-
-  it('renders an employer-ATS source with a provider-specific query parameter', async () => {
-    renderPage([
-      source({
-        id: 'source-ats-1',
-        source_key: 'employer-ats-greenhouse-figma',
-        display_name: 'Figma',
-        source_family: 'employer_ats',
-        allowed_behavior: 'ats_integration',
-        endpoint_url: 'https://boards-api.greenhouse.io/v1/boards/figma/jobs',
-        allowed_query_parameters: ['content'],
-        robots_policy: 'not_applicable',
-        rate_limit_per_minute: 20,
-        retention_days: 45,
-      }),
-    ])
-
-    expect(await screen.findByText('Figma')).toBeTruthy()
-    expect(screen.getByText('Query: content')).toBeTruthy()
-    expect(screen.getByText('Robots: not_applicable')).toBeTruthy()
   })
 
   it('shows each source\'s last fetch status', async () => {

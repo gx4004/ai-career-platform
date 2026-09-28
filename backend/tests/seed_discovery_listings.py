@@ -135,8 +135,6 @@ def main(argv: list[str]) -> int:
                     terms_reviewed_by="screenshots-harness",
                     allowed_behavior="ats_integration",
                     endpoint_url=ENDPOINTS[provider].format(slug=slug),
-                    allowed_query_parameters=[],
-                    robots_policy="not_applicable",
                     rate_limit_per_minute=10,
                     attribution_rule="Show the company name, the source name and the original link",
                     retention_days=45,

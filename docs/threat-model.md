@@ -473,7 +473,7 @@ is dark; R12 export and erasure remain inside the cumulative R12 router gate.
 | Method | Path | Outcome gate | Rate limit |
 |--------|------|--------------|------------|
 | `GET` | `/discovery/listings` | R14 | — |
-| `GET` | `/discovery/recommendations` | R14 | — |
+| `GET` | `/discovery/listings/{listing_id}` | R14 | — |
 | `POST` | `/discovery/recommendations/{listing_id}/adopt` | R14 | — |
 | `POST` | `/discovery/dismissals` | R14 | — |
 | `DELETE` | `/discovery/dismissals/{listing_id}` | R14 | — |

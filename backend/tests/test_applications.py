@@ -23,11 +23,8 @@ from app.models.cv_document import CvDocument, CvVariant
 from app.models.tool_run import ToolRun
 from app.models.user import User
 from app.models.workspace import Workspace
-from app.schemas.discovery_recommendations import (
-    DiscoveryRecommendation,
-    DiscoveryRecommendationList,
-)
 from app.services.data_export import export_career_data
+from app.services.discovery_recommendations import Match, VisibleListing
 from app.services.tool_runs import delete_all_user_data
 from tests.conftest import engine
 
@@ -542,53 +539,42 @@ def test_delete_removes_the_application_and_its_children(client, db, test_user, 
 # ── Bulk "prepare applications for me" ──
 
 
-def _rec(listing_id: str, title: str, *, location=None, remote=None, score=70):
-    return DiscoveryRecommendation(
-        listing_id=listing_id,
-        title=title,
-        company=f"{listing_id} Inc",
-        description=f"{title} at {listing_id}. Ship useful software with a small team.",
-        location=location,
-        remote=remote,
-        apply_url=f"https://jobs.lever.co/{listing_id}/1",
-        score=score,
-        rationale=[],
-        attributions=[
-            {
-                "source_id": "source-1",
-                "source_name": "Lever",
-                "source_family": "employer_ats",
-                "source_url": f"https://jobs.lever.co/{listing_id}",
-                "retrieved_at": datetime(2026, 9, 20, tzinfo=UTC),
-            }
-        ],
-    )
-
-
 @pytest.fixture
-def feed(monkeypatch):
-    """A ranked feed; counts how often the feed is ranked."""
-    state = {
-        "items": [
-            _rec("l-1", "Backend Engineer", location="Berlin", score=90),
-            _rec("l-2", "Python Developer", remote=True, score=85),
-            _rec("l-3", "Backend Engineer", location="Tokyo", score=80),
-            _rec("l-4", "Designer", location="Berlin", score=75),
-            _rec("l-5", "Senior Backend Engineer", location="Berlin", score=60),
-        ],
-        "ranked": 0,
-    }
-
-    def rank(db, user_id, **_kwargs):
-        state["ranked"] += 1
-        return DiscoveryRecommendationList(
-            items=state["items"], confirmed_item_count=1, preference_item_count=0
+def feed(monkeypatch, discovery):
+    """A ranked feed of real, visible listings; counts how often it is ranked."""
+    source = discovery.source("feed", provider="lever")
+    rows = []
+    for listing_id, title, location, remote, score in [
+        ("l-1", "Backend Engineer", "Berlin", None, 90),
+        ("l-2", "Python Developer", None, True, 85),
+        ("l-3", "Backend Engineer", "Tokyo", None, 80),
+        ("l-4", "Designer", "Berlin", None, 75),
+        ("l-5", "Senior Backend Engineer", "Berlin", None, 60),
+    ]:
+        listing = discovery.listing(
+            source,
+            listing_id=listing_id,
+            title=title,
+            company=f"{listing_id} Inc",
+            description=f"{title} at {listing_id}. Ship useful software with a small team.",
+            location=location,
+            remote=remote,
+            apply_url=f"https://jobs.lever.co/{listing_id}/1",
         )
+        rows.append((listing, score))
+    state = {"ranked": 0}
 
-    monkeypatch.setattr("app.services.applications.rank_discovery_recommendations", rank)
+    def ranked(_db, _user_id, **_kwargs):
+        state["ranked"] += 1
+        return [
+            VisibleListing(listing, listing.attributions[0], Match(score, ()))
+            for listing, score in rows
+        ]
+
+    monkeypatch.setattr("app.services.applications.best_matches", ranked)
     monkeypatch.setattr(
-        "app.services.discovery_adoption.rank_discovery_recommendations",
-        lambda *a, **k: pytest.fail("adoption re-ranked the feed"),
+        "app.services.discovery_adoption.visible_listing",
+        lambda *a, **k: pytest.fail("adoption re-read a listing bulk prepare already ranked"),
     )
     return state
 
@@ -732,29 +718,6 @@ def test_tasks_create_complete_delete(client, db, test_user, auth_headers):
     assert ["task_created", "task_completed", "task_deleted"] == [
         e for e in events if e.startswith("task_")
     ]
-
-
-# ── Discovery adoption ──
-
-
-def test_adopting_a_recommendation_returns_a_saved_application(
-    client, db, test_user, auth_headers, monkeypatch
-):
-    rec = _rec("l-9", "Platform Engineer", score=77)
-    monkeypatch.setattr(
-        "app.services.discovery_adoption.rank_discovery_recommendations",
-        lambda *a, **k: DiscoveryRecommendationList(
-            items=[rec], confirmed_item_count=1, preference_item_count=0
-        ),
-    )
-    response = client.post(
-        "/api/v1/discovery/recommendations/l-9/adopt", headers=auth_headers
-    )
-    assert response.status_code == 201
-    body = response.json()
-    assert body["status"] == "saved" and body["match_score"] == 77
-    assert body["listing"]["apply_url"] == "https://jobs.lever.co/l-9/1"
-    assert client.get(PREFIX, headers=auth_headers).json()["total"] == 1
 
 
 # ── Export and account deletion ──

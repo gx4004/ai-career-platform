@@ -1,12 +1,30 @@
+"""Job Discovery: which listings an owner can see, and how well each one fits.
+
+One visibility rule, applied in SQL everywhere (search, detail, adoption, bulk
+prepare): a listing is visible to an owner when it has at least one attribution
+inside its source's retention window from a source whose terms are accepted and
+kill switch is clear, and the owner has not dismissed it. Governance is re-read
+on every request, so revoking or killing a source hides its listings at once
+(ADR 0008, D-090).
+
+Scoring is deterministic keyword overlap with the owner's confirmed Evidence
+Profile items: 80% confirmed evidence, 20% confirmed preferences. The owner's
+items are prepared once per request (``MatchProfile``), and scores are cached per
+profile fingerprint and listing, so a page request scores only listings it has
+not seen for that profile.
+"""
+
 from __future__ import annotations
 
 import hashlib
+import json
+from collections import OrderedDict
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any, Literal
-from urllib.parse import urlparse
 
-from sqlalchemy import and_, case, exists, func, or_, select, text
-from sqlalchemy.orm import Session, selectinload
+from sqlalchemy import and_, exists, func, or_, select, text
+from sqlalchemy.orm import Session, contains_eager
 
 from app.models.discovered_listing import (
     DiscoveredListing,
@@ -16,100 +34,59 @@ from app.models.discovery_personalization import DiscoveryDismissedListing
 from app.models.discovery_source import DiscoverySource
 from app.models.evidence_item import EvidenceItem
 from app.schemas.discovery_recommendations import (
+    DiscoveryListingDetail,
     DiscoveryListingItem,
     DiscoveryListingPage,
-    DiscoveryListingStats,
-    DiscoveryRecommendation,
-    DiscoveryRecommendationList,
-    RecommendationAttribution,
-    RecommendationSignal,
 )
-from app.services.ats_ingestion import _PROVIDER_BY_API_HOST
-from app.services.discovery_personalization import dismissed_listing_ids
+from app.services.ats_providers import provider_for_endpoint
 from app.services.quality_signals import (
     compute_match_score,
     extract_job_keywords,
     keyword_present,
 )
 
-MAX_RECOMMENDATIONS = 50
-MAX_CANDIDATE_LISTINGS = 500
+# Best match scores the newest this-many filtered listings; older matches
+# follow newest-first, so pagination still covers every visible listing.
+MAX_SCORED_CANDIDATES = 500
+BEST_MATCHES_LIMIT = 50
 MAX_SEARCH_TERMS = 8
-NEW_THIS_WEEK_DAYS = 7
+PREVIEW_CHARS = 240
 
 SearchSort = Literal["best_match", "newest"]
 
 
-def rank_discovery_recommendations(
-    db: Session,
-    user_id: str,
-    *,
-    now: datetime | None = None,
-) -> DiscoveryRecommendationList:
-    """Rank live canonical listings against owner-confirmed deterministic signals."""
-    now = now or datetime.now(UTC)
-    evidence, preferences = _confirmed_items(db, user_id)
-    if not evidence and not preferences:
-        return DiscoveryRecommendationList(
-            items=[],
-            confirmed_item_count=0,
-            preference_item_count=0,
-        )
-
-    # Owner dismissals filter the feed on every read so a dismissal or preference
-    # change takes effect immediately on the next load (D-090, D-088).
-    dismissed = dismissed_listing_ids(db, user_id)
-
-    candidate_ids = [
-        listing_id for listing_id in _live_candidate_ids(db, now) if listing_id not in dismissed
-    ]
-    recommendations: list[DiscoveryRecommendation] = []
-    for listing in _load_listings(db, candidate_ids):
-        live_attributions = _visible_attributions(listing, now)
-        if not live_attributions:
-            continue
-        recommendations.append(_rank_listing(listing, live_attributions, evidence, preferences))
-
-    recommendations.sort(
-        key=lambda item: (
-            -item.score,
-            item.company.casefold(),
-            item.title.casefold(),
-            item.listing_id,
-        )
-    )
-    return DiscoveryRecommendationList(
-        items=recommendations[:MAX_RECOMMENDATIONS],
-        confirmed_item_count=len(evidence) + len(preferences),
-        preference_item_count=len(preferences),
-    )
+@dataclass(frozen=True)
+class Match:
+    score: int
+    matched_keywords: tuple[str, ...]
 
 
-def visible_recommendation(
-    db: Session,
-    user_id: str,
-    listing_id: str,
-    *,
-    now: datetime | None = None,
-) -> DiscoveryRecommendation | None:
-    """One listing as this owner may currently see it, or None when it is hidden.
+@dataclass(frozen=True)
+class MatchProfile:
+    """An owner's confirmed items, prepared once per request for scoring."""
 
-    Applies the same visibility rules as the ranked feed (not dismissed, at least
-    one live source that is still allowed) without the feed's
-    top-N cut, so any listing the search shows can be acted on. Scores 0 when the
-    owner has no confirmed items.
-    """
-    now = now or datetime.now(UTC)
-    if listing_id in dismissed_listing_ids(db, user_id):
-        return None
-    listings = _load_listings(db, [listing_id])
-    if not listings:
-        return None
-    live_attributions = _visible_attributions(listings[0], now)
-    if not live_attributions:
-        return None
-    evidence, preferences = _confirmed_items(db, user_id)
-    return _rank_listing(listings[0], live_attributions, evidence, preferences)
+    fingerprint: str
+    evidence_text: str | None
+    preference_keywords: tuple[tuple[str, ...], ...]
+
+    @property
+    def has_items(self) -> bool:
+        return self.evidence_text is not None or bool(self.preference_keywords)
+
+
+@dataclass(frozen=True)
+class VisibleListing:
+    """One listing as its owner may currently see it."""
+
+    listing: DiscoveredListing
+    # The freshest live attribution from an allowed source.
+    attribution: DiscoveredListingAttribution
+    # None when the owner has no confirmed items to score against.
+    match: Match | None
+
+    @property
+    def listing_id(self) -> str:
+        return self.listing.id
 
 
 def search_listings(
@@ -126,20 +103,183 @@ def search_listings(
     limit: int = 20,
     now: datetime | None = None,
 ) -> DiscoveryListingPage:
-    """Filter every listing this owner can see; score against confirmed items if any.
+    """One page of the listings this owner can see, filtered and ordered in SQL.
 
-    Filtering, counting and "newest" ordering happen in SQL. "Best match" scores
-    the newest MAX_CANDIDATE_LISTINGS filtered matches and ranks them first; any
-    older matches follow newest-first, so pagination always covers the full set.
+    Issues a fixed number of statements whatever the listing count. ``companies``
+    (the filter options) is returned on page 1 only.
     """
     now = now or datetime.now(UTC)
-    evidence, preferences = _confirmed_items(db, user_id)
-    has_profile = bool(evidence or preferences)
-    visible = _visible_listing_clause(db, user_id, now)
+    profile = load_match_profile(db, user_id)
+    visible = visible_listing_clause(db, user_id, now)
+    filters = _search_filters(
+        q=q,
+        location=location,
+        remote=remote,
+        company=company,
+        posted_within_days=posted_within_days,
+        now=now,
+    )
+    matching = select(DiscoveredListing.id).where(visible, *filters)
+    total = db.scalar(select(func.count()).select_from(matching.subquery())) or 0
 
-    filters = [visible]
-    terms = (q or "").split()[:MAX_SEARCH_TERMS]
-    for term in terms:
+    effective_sort: SearchSort = sort if profile.has_items else "newest"
+    offset = (page - 1) * limit
+    if effective_sort == "best_match":
+        page_ids = _best_match_page(db, profile, matching, offset=offset, limit=limit)
+    else:
+        page_ids = _newest_ids(db, matching, offset=offset, limit=limit)
+
+    visible_rows = _load_visible(db, page_ids, profile, now)
+    return DiscoveryListingPage(
+        items=[_listing_item(visible_rows[i]) for i in page_ids if i in visible_rows],
+        total=total,
+        page=page,
+        limit=limit,
+        sort=effective_sort,
+        has_profile=profile.has_items,
+        companies=(
+            list(
+                db.scalars(
+                    select(DiscoveredListing.company)
+                    .where(visible)
+                    .distinct()
+                    .order_by(DiscoveredListing.company)
+                )
+            )
+            if page == 1
+            else None
+        ),
+    )
+
+
+def listing_detail(
+    db: Session, user_id: str, listing_id: str, *, now: datetime | None = None
+) -> DiscoveryListingDetail | None:
+    row = visible_listing(db, user_id, listing_id, now=now)
+    if row is None:
+        return None
+    item = _listing_item(row)
+    return DiscoveryListingDetail(**item.model_dump(), description=row.listing.description)
+
+
+def visible_listing(
+    db: Session,
+    user_id: str,
+    listing_id: str,
+    *,
+    now: datetime | None = None,
+) -> VisibleListing | None:
+    """One listing as this owner may currently see it, or None when it is hidden."""
+    now = now or datetime.now(UTC)
+    is_visible = db.scalar(
+        select(DiscoveredListing.id).where(
+            DiscoveredListing.id == listing_id,
+            visible_listing_clause(db, user_id, now),
+        )
+    )
+    if is_visible is None:
+        return None
+    return _load_visible(db, [listing_id], load_match_profile(db, user_id), now).get(listing_id)
+
+
+def best_matches(
+    db: Session,
+    user_id: str,
+    *,
+    limit: int = BEST_MATCHES_LIMIT,
+    now: datetime | None = None,
+) -> list[VisibleListing]:
+    """The owner's top visible listings by match; empty without confirmed items."""
+    now = now or datetime.now(UTC)
+    profile = load_match_profile(db, user_id)
+    if not profile.has_items:
+        return []
+    matching = select(DiscoveredListing.id).where(visible_listing_clause(db, user_id, now))
+    page_ids = _best_match_page(db, profile, matching, offset=0, limit=limit)
+    rows = _load_visible(db, page_ids, profile, now)
+    return [rows[listing_id] for listing_id in page_ids if listing_id in rows]
+
+
+def visible_listing_clause(db: Session, user_id: str, now: datetime):
+    """The one visibility rule, as a SQL condition on ``DiscoveredListing``."""
+    live_source = (
+        select(DiscoveredListingAttribution.id)
+        .join(DiscoverySource, DiscoveredListingAttribution.source_id == DiscoverySource.id)
+        .where(DiscoveredListingAttribution.listing_id == DiscoveredListing.id, _live(db, now))
+    )
+    dismissed = select(DiscoveryDismissedListing.listing_id).where(
+        DiscoveryDismissedListing.user_id == user_id
+    )
+    return and_(exists(live_source), DiscoveredListing.id.not_in(dismissed))
+
+
+def load_match_profile(db: Session, user_id: str) -> MatchProfile:
+    items = list(
+        db.scalars(
+            select(EvidenceItem)
+            .where(
+                EvidenceItem.user_id == user_id,
+                EvidenceItem.confirmation_state == "confirmed",
+            )
+            .order_by(EvidenceItem.created_at, EvidenceItem.id)
+        )
+    )
+    evidence = [_content_text(item.content) for item in items if item.kind != "preference"]
+    preferences = [
+        tuple(extract_job_keywords(_content_text(item.content), limit=8))
+        for item in items
+        if item.kind == "preference"
+    ]
+    fingerprint = hashlib.sha256(
+        json.dumps(
+            [[item.id, item.kind, item.content] for item in items],
+            sort_keys=True,
+            default=str,
+        ).encode()
+    ).hexdigest()
+    return MatchProfile(
+        fingerprint=fingerprint,
+        evidence_text="\n".join(evidence) if evidence else None,
+        preference_keywords=tuple(preferences),
+    )
+
+
+def score_listing(profile: MatchProfile, listing: DiscoveredListing) -> Match:
+    listing_text = f"{listing.title}\n{listing.company}\n{listing.description}"
+    matched: list[str] = []
+    evidence_score = preference_score = 0
+
+    if profile.evidence_text is not None:
+        keywords = _listing_keywords(listing.content_sha256, listing_text)
+        evidence_matches = [k for k in keywords if keyword_present(k, profile.evidence_text)]
+        evidence_score = compute_match_score(
+            evidence_matches, [k for k in keywords if k not in evidence_matches]
+        )
+        matched.extend(evidence_matches)
+
+    if profile.preference_keywords:
+        wanted = list(dict.fromkeys(k for item in profile.preference_keywords for k in item))
+        preference_matches = [k for k in wanted if keyword_present(k, listing_text)]
+        preference_score = compute_match_score(
+            preference_matches, [k for k in wanted if k not in preference_matches]
+        )
+        matched.extend(preference_matches)
+
+    if profile.evidence_text is not None and profile.preference_keywords:
+        score = round(evidence_score * 0.8 + preference_score * 0.2)
+    elif profile.evidence_text is not None:
+        score = evidence_score
+    else:
+        score = preference_score
+    return Match(score=max(0, min(100, score)), matched_keywords=tuple(dict.fromkeys(matched)))
+
+
+# ── Internals ──
+
+
+def _search_filters(*, q, location, remote, company, posted_within_days, now) -> list:
+    filters = []
+    for term in (q or "").split()[:MAX_SEARCH_TERMS]:
         pattern = _like_pattern(term)
         filters.append(
             or_(
@@ -158,115 +298,103 @@ def search_listings(
         filters.append(DiscoveredListing.company == company)
     if posted_within_days:
         filters.append(DiscoveredListing.posted_at >= now - timedelta(days=posted_within_days))
+    return filters
 
-    ordered_ids = [
-        listing_id
-        for (listing_id,) in db.query(DiscoveredListing.id)
-        .filter(and_(*filters))
+
+_NEWEST_FIRST = (
+    DiscoveredListing.posted_at.desc().nulls_last(),
+    DiscoveredListing.created_at.desc(),
+    DiscoveredListing.id,
+)
+
+
+def _newest_ids(db: Session, matching, *, offset: int, limit: int) -> list[str]:
+    if limit <= 0:
+        return []
+    return list(db.scalars(matching.order_by(*_NEWEST_FIRST).offset(offset).limit(limit)))
+
+
+def _best_match_page(
+    db: Session, profile: MatchProfile, matching, *, offset: int, limit: int
+) -> list[str]:
+    """Score the newest candidates, then page through them and the newest-first tail."""
+    head = list(db.scalars(matching.order_by(*_NEWEST_FIRST).limit(MAX_SCORED_CANDIDATES)))
+    scores = _scores(db, profile, head)
+    position = {listing_id: index for index, listing_id in enumerate(head)}
+    head.sort(key=lambda listing_id: (-scores[listing_id].score, position[listing_id]))
+    page_ids = head[offset : offset + limit]
+    if len(head) == MAX_SCORED_CANDIDATES and len(page_ids) < limit:
+        page_ids += _newest_ids(
+            db,
+            matching,
+            offset=max(offset, MAX_SCORED_CANDIDATES),
+            limit=limit - len(page_ids),
+        )
+    return page_ids
+
+
+def _load_visible(
+    db: Session, listing_ids: list[str], profile: MatchProfile, now: datetime
+) -> dict[str, VisibleListing]:
+    """The listings plus their freshest live attribution, in two statements."""
+    if not listing_ids:
+        return {}
+    listings = {
+        listing.id: listing
+        for listing in db.scalars(
+            select(DiscoveredListing).where(DiscoveredListing.id.in_(listing_ids))
+        )
+    }
+    freshest: dict[str, DiscoveredListingAttribution] = {}
+    for attribution in db.scalars(
+        select(DiscoveredListingAttribution)
+        .join(DiscoverySource, DiscoveredListingAttribution.source_id == DiscoverySource.id)
+        .options(contains_eager(DiscoveredListingAttribution.source))
+        .where(DiscoveredListingAttribution.listing_id.in_(listing_ids), _live(db, now))
         .order_by(
-            DiscoveredListing.posted_at.desc().nulls_last(),
-            DiscoveredListing.created_at.desc(),
-            DiscoveredListing.id,
+            DiscoveredListingAttribution.retrieved_at.desc(),
+            DiscoverySource.display_name.desc(),
         )
-    ]
-
-    ranked: dict[str, DiscoveryRecommendation] = {}
-    loaded: dict[str, DiscoveredListing] = {}
-    effective_sort: SearchSort = sort if has_profile else "newest"
-    if effective_sort == "best_match":
-        head = ordered_ids[:MAX_CANDIDATE_LISTINGS]
-        for listing in _load_listings(db, head):
-            loaded[listing.id] = listing
-            attributions = _visible_attributions(listing, now)
-            if attributions:
-                ranked[listing.id] = _rank_listing(listing, attributions, evidence, preferences)
-        position = {listing_id: index for index, listing_id in enumerate(head)}
-        head.sort(
-            key=lambda listing_id: (
-                -(ranked[listing_id].score if listing_id in ranked else -1),
-                position[listing_id],
-            )
-        )
-        ordered_ids = head + ordered_ids[MAX_CANDIDATE_LISTINGS:]
-
-    offset = (page - 1) * limit
-    page_ids = ordered_ids[offset : offset + limit]
-    missing = [listing_id for listing_id in page_ids if listing_id not in loaded]
-    loaded.update({listing.id: listing for listing in _load_listings(db, missing)})
-
-    items: list[DiscoveryListingItem] = []
-    for listing_id in page_ids:
-        listing = loaded[listing_id]
-        attributions = _visible_attributions(listing, now)
-        if not attributions:
-            continue
-        recommendation = ranked.get(listing_id)
-        if recommendation is None and has_profile:
-            recommendation = _rank_listing(listing, attributions, evidence, preferences)
-        items.append(_listing_item(listing, attributions[0], recommendation))
-
-    return DiscoveryListingPage(
-        items=items,
-        total=len(ordered_ids),
-        page=page,
-        limit=limit,
-        sort=effective_sort,
-        has_profile=has_profile,
-        stats=_listing_stats(db, visible, now),
-        companies=[
-            name
-            for (name,) in db.query(DiscoveredListing.company)
-            .filter(visible)
-            .distinct()
-            .order_by(DiscoveredListing.company)
-        ],
-    )
+    ):
+        freshest.setdefault(attribution.listing_id, attribution)
+    scores = _scores(db, profile, list(listings), loaded=listings) if profile.has_items else {}
+    return {
+        listing_id: VisibleListing(listing, freshest[listing_id], scores.get(listing_id))
+        for listing_id, listing in listings.items()
+        if listing_id in freshest
+    }
 
 
-def _listing_item(
-    listing: DiscoveredListing,
-    attribution: DiscoveredListingAttribution,
-    recommendation: DiscoveryRecommendation | None,
-) -> DiscoveryListingItem:
-    matched: list[str] = []
-    if recommendation is not None:
-        for signal in recommendation.rationale:
-            matched.extend(signal.matched_keywords)
+def _listing_item(row: VisibleListing) -> DiscoveryListingItem:
+    listing = row.listing
     return DiscoveryListingItem(
         listing_id=listing.id,
         title=listing.title,
         company=listing.company,
-        description=listing.description,
+        preview=_preview(listing.description),
         location=listing.location,
         remote=listing.remote,
         posted_at=listing.posted_at,
         apply_url=listing.apply_url,
         department=listing.department,
-        score=recommendation.score if recommendation is not None else None,
-        matched_keywords=list(dict.fromkeys(matched)),
-        source_name=_source_label(attribution.source),
-        source_url=attribution.source_url,
+        score=row.match.score if row.match else None,
+        matched_keywords=list(row.match.matched_keywords) if row.match else [],
+        source_name=_source_label(row.attribution.source),
+        source_url=row.attribution.source_url,
     )
 
 
-def _listing_stats(db: Session, visible, now: datetime) -> DiscoveryListingStats:
-    week_ago = now - timedelta(days=NEW_THIS_WEEK_DAYS)
-    jobs, companies, new_this_week = (
-        db.query(
-            func.count(DiscoveredListing.id),
-            func.count(func.distinct(DiscoveredListing.company)),
-            func.count(case((DiscoveredListing.posted_at >= week_ago, 1))),
-        )
-        .filter(visible)
-        .one()
-    )
-    return DiscoveryListingStats(jobs=jobs, companies=companies, new_this_week=new_this_week)
+def _preview(description: str) -> str:
+    collapsed = " ".join(description[: PREVIEW_CHARS * 4].split())
+    if len(collapsed) <= PREVIEW_CHARS:
+        return collapsed
+    return collapsed[:PREVIEW_CHARS].rstrip() + "…"
 
 
 def _source_label(source: DiscoverySource) -> str:
     """The job board a listing came from, for the per-card attribution line."""
-    provider = _PROVIDER_BY_API_HOST.get(urlparse(source.endpoint_url or "").hostname or "")
-    return provider.title() if provider else source.display_name
+    provider = provider_for_endpoint(source.endpoint_url)
+    return provider.label if provider else source.display_name
 
 
 def _like_pattern(value: str) -> str:
@@ -274,201 +402,63 @@ def _like_pattern(value: str) -> str:
     return f"%{escaped}%"
 
 
-def _confirmed_items(db: Session, user_id: str):
-    confirmed_items = (
-        db.query(EvidenceItem)
-        .filter(
-            EvidenceItem.user_id == user_id,
-            EvidenceItem.confirmation_state == "confirmed",
-        )
-        .order_by(EvidenceItem.created_at, EvidenceItem.id)
-        .all()
-    )
-    preferences = [item for item in confirmed_items if item.kind == "preference"]
-    evidence = [item for item in confirmed_items if item.kind != "preference"]
-    return evidence, preferences
-
-
-def _load_listings(db: Session, listing_ids: list[str]) -> list[DiscoveredListing]:
-    if not listing_ids:
-        return []
-    return (
-        db.query(DiscoveredListing)
-        .options(
-            selectinload(DiscoveredListing.attributions).selectinload(
-                DiscoveredListingAttribution.source
-            )
-        )
-        .filter(DiscoveredListing.id.in_(listing_ids))
-        .all()
+def _live(db: Session, now: datetime):
+    """An attribution inside its source's retention, from an allowed source."""
+    if db.bind is not None and db.bind.dialect.name == "postgresql":
+        cutoff = now - (DiscoverySource.retention_days * text("INTERVAL '1 day'"))
+    else:
+        cutoff = func.datetime(now, func.printf("-%d days", DiscoverySource.retention_days))
+    return and_(
+        DiscoveredListingAttribution.retrieved_at >= cutoff,
+        DiscoverySource.terms_status == "accepted",
+        DiscoverySource.kill_switch.is_(False),
     )
 
 
-def _visible_attributions(listing, now: datetime):
-    # A source whose terms were revoked or kill switch was tripped after ingestion — that
-    # governance state is re-checked on every read, not just at ingest time, so a
-    # listing already sitting inside its retention window stops being
-    # recommended/adoptable the moment the source is no longer allowed (ADR 0008).
-    # A listing left with no live, allowed source drops out entirely.
-    return sorted(
-        (
-            attribution
-            for attribution in listing.attributions
-            if attribution.source.ingestion_allowed
-            and _is_live(attribution.retrieved_at, attribution.source.retention_days, now)
-        ),
-        key=lambda item: (_as_utc(item.retrieved_at), item.source.display_name),
-        reverse=True,
-    )
-
-
-def _visible_listing_clause(db: Session, user_id: str, now: datetime):
-    """SQL twin of `_visible_attributions` plus the owner's dismissals."""
-    live_source = (
-        select(DiscoveredListingAttribution.id)
-        .join(DiscoverySource, DiscoveredListingAttribution.source_id == DiscoverySource.id)
-        .where(
-            DiscoveredListingAttribution.listing_id == DiscoveredListing.id,
-            DiscoveredListingAttribution.retrieved_at >= _live_cutoff(db, now),
-            DiscoverySource.terms_status == "accepted",
-            DiscoverySource.kill_switch.is_(False),
-        )
-    )
-    dismissed = select(DiscoveryDismissedListing.listing_id).where(
-        DiscoveryDismissedListing.user_id == user_id
-    )
-    return and_(exists(live_source), DiscoveredListing.id.not_in(dismissed))
-
-
-# Keyword extraction is the expensive step of scoring (~3 ms for a real ATS
-# description) and depends only on the listing text, so it is memoized by a hash
-# of that text. Bounded by a crude clear; listings are a few thousand rows.
+# Scores depend only on the owner's confirmed items and the listing's immutable
+# text (a canonical listing's text is its content hash), so they are cached per
+# profile fingerprint. Bounded to the most recently used profiles.
+_SCORE_CACHE: OrderedDict[str, dict[str, Match]] = OrderedDict()
+_SCORE_CACHE_PROFILES = 64
+# Keyword extraction is the expensive step (~3 ms for a real ATS description)
+# and depends only on the listing text; shared across profiles.
 _KEYWORD_CACHE: dict[str, list[str]] = {}
 _KEYWORD_CACHE_MAX = 20_000
 
 
-def _listing_keywords(listing_text: str) -> list[str]:
-    key = hashlib.sha256(listing_text.encode()).hexdigest()
-    keywords = _KEYWORD_CACHE.get(key)
+def _scores(
+    db: Session,
+    profile: MatchProfile,
+    listing_ids: list[str],
+    *,
+    loaded: dict[str, DiscoveredListing] | None = None,
+) -> dict[str, Match]:
+    cache = _SCORE_CACHE.get(profile.fingerprint)
+    if cache is None:
+        cache = _SCORE_CACHE[profile.fingerprint] = {}
+        while len(_SCORE_CACHE) > _SCORE_CACHE_PROFILES:
+            _SCORE_CACHE.popitem(last=False)
+    else:
+        _SCORE_CACHE.move_to_end(profile.fingerprint)
+    missing = [listing_id for listing_id in listing_ids if listing_id not in cache]
+    if missing:
+        listings = (
+            [loaded[listing_id] for listing_id in missing]
+            if loaded is not None
+            else db.scalars(select(DiscoveredListing).where(DiscoveredListing.id.in_(missing)))
+        )
+        for listing in listings:
+            cache[listing.id] = score_listing(profile, listing)
+    return {listing_id: cache[listing_id] for listing_id in listing_ids if listing_id in cache}
+
+
+def _listing_keywords(content_sha256: str, listing_text: str) -> list[str]:
+    keywords = _KEYWORD_CACHE.get(content_sha256)
     if keywords is None:
         if len(_KEYWORD_CACHE) >= _KEYWORD_CACHE_MAX:
             _KEYWORD_CACHE.clear()
-        keywords = _KEYWORD_CACHE[key] = extract_job_keywords(listing_text, limit=12)
+        keywords = _KEYWORD_CACHE[content_sha256] = extract_job_keywords(listing_text, limit=12)
     return keywords
-
-
-def _rank_listing(listing, attributions, evidence, preferences) -> DiscoveryRecommendation:
-    listing_text = f"{listing.title}\n{listing.company}\n{listing.description}"
-    listing_keywords = _listing_keywords(listing_text)
-    evidence_matches, evidence_ids = _match_listing_keywords(listing_keywords, evidence)
-    missing = [keyword for keyword in listing_keywords if keyword not in evidence_matches]
-    evidence_score = compute_match_score(evidence_matches, missing) if evidence else 0
-
-    preference_matches, preference_ids = _match_preference_keywords(listing_text, preferences)
-    if preferences:
-        preference_keywords = _keywords_for_items(preferences)
-        preference_score = compute_match_score(
-            preference_matches,
-            [keyword for keyword in preference_keywords if keyword not in preference_matches],
-        )
-    else:
-        preference_score = 0
-
-    if evidence and preferences:
-        score = round((evidence_score * 0.8) + (preference_score * 0.2))
-    elif evidence:
-        score = evidence_score
-    else:
-        score = preference_score
-
-    rationale: list[RecommendationSignal] = []
-    if evidence:
-        rationale.append(
-            RecommendationSignal(
-                kind="confirmed_evidence",
-                label=(
-                    "Confirmed evidence overlaps this listing"
-                    if evidence_matches
-                    else "No confirmed evidence overlap detected"
-                ),
-                matched_keywords=evidence_matches,
-                evidence_item_ids=evidence_ids,
-                score=evidence_score,
-            )
-        )
-    if preferences:
-        rationale.append(
-            RecommendationSignal(
-                kind="preference",
-                label=(
-                    "Confirmed preferences align with this listing"
-                    if preference_matches
-                    else "No confirmed preference overlap detected"
-                ),
-                matched_keywords=preference_matches,
-                evidence_item_ids=preference_ids,
-                score=preference_score,
-            )
-        )
-    attribution_models = [
-        RecommendationAttribution(
-            source_id=attribution.source.id,
-            source_name=attribution.source.display_name,
-            source_family=attribution.source.source_family,
-            source_url=attribution.source_url,
-            retrieved_at=attribution.retrieved_at,
-        )
-        for attribution in attributions
-    ]
-    return DiscoveryRecommendation(
-        listing_id=listing.id,
-        title=listing.title,
-        company=listing.company,
-        description=listing.description,
-        location=listing.location,
-        remote=listing.remote,
-        posted_at=listing.posted_at,
-        apply_url=listing.apply_url,
-        department=listing.department,
-        score=max(0, min(100, score)),
-        rationale=rationale,
-        attributions=attribution_models,
-    )
-
-
-def _match_listing_keywords(keywords: list[str], items: list[EvidenceItem]):
-    matched: list[str] = []
-    item_ids: list[str] = []
-    for keyword in keywords:
-        matching_ids = [
-            item.id for item in items if keyword_present(keyword, _content_text(item.content))
-        ]
-        if matching_ids:
-            matched.append(keyword)
-            item_ids.extend(matching_ids)
-    return matched, list(dict.fromkeys(item_ids))
-
-
-def _match_preference_keywords(listing_text: str, items: list[EvidenceItem]):
-    matched: list[str] = []
-    item_ids: list[str] = []
-    for item in items:
-        item_matched = [
-            keyword
-            for keyword in extract_job_keywords(_content_text(item.content), limit=8)
-            if keyword_present(keyword, listing_text)
-        ]
-        if item_matched:
-            matched.extend(item_matched)
-            item_ids.append(item.id)
-    return list(dict.fromkeys(matched)), item_ids
-
-
-def _keywords_for_items(items: list[EvidenceItem]) -> list[str]:
-    keywords: list[str] = []
-    for item in items:
-        keywords.extend(extract_job_keywords(_content_text(item.content), limit=8))
-    return list(dict.fromkeys(keywords))
 
 
 def _content_text(value: Any) -> str:
@@ -479,37 +469,3 @@ def _content_text(value: Any) -> str:
     if value is None or isinstance(value, bool):
         return ""
     return str(value)
-
-
-def _as_utc(value: datetime) -> datetime:
-    return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
-
-
-def _is_live(retrieved_at: datetime, retention_days: int, now: datetime) -> bool:
-    return _as_utc(retrieved_at) >= now - timedelta(days=retention_days)
-
-
-def _live_cutoff(db: Session, now: datetime):
-    if db.bind is not None and db.bind.dialect.name == "postgresql":
-        return now - (DiscoverySource.retention_days * text("INTERVAL '1 day'"))
-    return func.datetime(
-        now,
-        func.printf("-%d days", DiscoverySource.retention_days),
-    )
-
-
-def _live_candidate_ids(db: Session, now: datetime) -> list[str]:
-    latest_retrieval = func.max(DiscoveredListingAttribution.retrieved_at)
-    rows = (
-        db.query(DiscoveredListingAttribution.listing_id)
-        .join(
-            DiscoverySource,
-            DiscoveredListingAttribution.source_id == DiscoverySource.id,
-        )
-        .filter(DiscoveredListingAttribution.retrieved_at >= _live_cutoff(db, now))
-        .group_by(DiscoveredListingAttribution.listing_id)
-        .order_by(latest_retrieval.desc(), DiscoveredListingAttribution.listing_id)
-        .limit(MAX_CANDIDATE_LISTINGS)
-        .all()
-    )
-    return [listing_id for (listing_id,) in rows]

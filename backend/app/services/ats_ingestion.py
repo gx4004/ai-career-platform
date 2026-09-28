@@ -1,24 +1,21 @@
-"""Real listing ingestion from public employer-ATS job-board APIs (#323).
+"""Listing ingestion from public employer-ATS job-board APIs (#323).
 
-Three adapters — Greenhouse, Lever, Ashby — each a public, unauthenticated GET
-API intended for embedding on the employer's own careers site. Every fetch
-goes through the governance seam (`require_ingestion_allowed`, kill switch,
-terms review, rate limit, SSRF-safe `fetch_public_resource`), so an
-`employer_ats` source is refused unless an operator has reviewed and activated it.
+Three adapters (Greenhouse, Lever, Ashby), each a public, unauthenticated GET
+API intended for embedding on the employer's own careers site. A source is
+fetched only while ``DiscoverySource.ingestion_allowed`` holds, re-read right
+before the GET, and only through the SSRF-safe ``fetch_public_resource``.
 
-Design notes:
-- The provider is derived only from the governed source's own `endpoint_url`
-  host (never from anything a caller supplies), so ingestion can only ever
-  reach one of the three fixed provider API hosts below.
-- A listing's *attribution* `source_url` is always built on the provider's own
-  hosted-board host (`boards.greenhouse.io` / `jobs.lever.co` /
-  `jobs.ashbyhq.com`) — never the employer's custom careers domain — so
-  `discovered_listings._canonical_source_url`'s host check still holds. The
-  provider's own "apply here" link (which *can* be a custom domain) is carried
-  separately as `apply_url`, which is not host-validated.
-- Each source is ingested in isolation (`run_ats_ingestion`): one dead board or
-  one malformed payload never stops the others. Every run records the source's
-  `last_fetched_at` / `last_outcome` / `listing_count` for the admin sources table.
+- The provider is derived only from the source's own ``endpoint_url`` host, so
+  ingestion can only reach one of the three fixed provider API hosts.
+- A listing's attribution ``source_url`` is built on the provider's hosted-board
+  host; the provider's "apply here" link (which can be a custom domain) is
+  carried separately as ``apply_url``.
+- Each source is stored and committed as one batch, in isolation: one dead board
+  or malformed payload never stops the others. Every run stamps the source's
+  ``last_fetched_at`` / ``last_outcome`` / ``listing_count``.
+
+Two triggers: the recurring scheduler (``ATS_INGESTION_ENABLED``) and the
+``python -m app.scripts.ingest_ats_sources`` CLI. Both call ``run_ats_ingestion``.
 """
 
 from __future__ import annotations
@@ -38,39 +35,21 @@ from app.config import settings
 from app.database import SessionLocal
 from app.models.discovery_source import DiscoverySource
 from app.schemas.discovered_listings import DiscoveredListingInput
-from app.services.discovered_listings import store_discovered_listing
+from app.services.ats_providers import board_slug, provider_for_endpoint
+from app.services.discovered_listings import store_source_listings
 from app.services.discovery_fetch import DISCOVERY_USER_AGENT, fetch_public_resource
-from app.services.discovery_sources import (
-    SourceIngestionAuthorization,
-    require_ingestion_allowed,
-)
+from app.services.discovery_sources import require_ingestion_allowed
 
 logger = logging.getLogger("app.ats_ingestion")
 
 ATS_TIMEOUT_SECONDS = 15.0
 # Greenhouse `content=true` inlines full HTML job descriptions for every open
-# role on the board; a large board can comfortably exceed the licensed path's
-# 2MB fetch default, so ATS ingestion gets its own, deliberately wider cap.
+# role on the board, so a large board needs a wide response cap.
 ATS_MAX_RESPONSE_BYTES = 10_000_000
 ATS_INGESTION_INTERVAL_SECONDS = 6 * 60 * 60
 ATS_INGESTION_INITIAL_DELAY_SECONDS = 60
 
 _ATS_CONTENT_TYPES = frozenset({"application/json"})
-
-_PROVIDER_BY_API_HOST = {
-    "boards-api.greenhouse.io": "greenhouse",
-    "api.lever.co": "lever",
-    "api.ashbyhq.com": "ashby",
-}
-# One fixed, deliberate query per provider — never derived from user input.
-# These parameter names must also be present in the governing source's
-# `allowed_query_parameters` (checked via `_validate_query` below) so a source
-# row can never silently drift from what it was reviewed for.
-_QUERY_BY_PROVIDER = {
-    "greenhouse": {"content": "true"},
-    "lever": {"mode": "json"},
-    "ashby": {"includeCompensation": "false"},
-}
 
 
 class ATSIngestionRefused(RuntimeError):
@@ -89,7 +68,6 @@ class ATSIngestOutcome:
     stored: int
     deduplicated: int
     skipped: int
-    errored: int
 
 
 @dataclass
@@ -98,181 +76,94 @@ class ATSIngestSummary:
     failures: dict[str, str] = field(default_factory=dict)
 
 
-async def ingest_ats_source(db: Session, *, source_key: str) -> ATSIngestOutcome:
-    """Fetch and store one governed employer-ATS source's current listings."""
-    source_row = db.query(DiscoverySource).filter_by(source_key=source_key).first()
-    authorization = require_ingestion_allowed(db, source_key, "ats_integration")
-    if authorization.source_family != "employer_ats":
+def ingest_ats_source(db: Session, source: DiscoverySource) -> ATSIngestOutcome:
+    """Fetch one allowed employer-ATS source and store its listings in one commit."""
+    provider = provider_for_endpoint(source.endpoint_url)
+    if source.source_family != "employer_ats" or provider is None:
         raise ATSIngestionRefused("not_an_employer_ats_source")
-    provider = _PROVIDER_BY_API_HOST.get(urlparse(authorization.endpoint_url).hostname or "")
-    if provider is None:
-        raise ATSIngestionRefused("unrecognized_ats_provider")
-    slug = _extract_slug(provider, authorization.endpoint_url)
-    query = _QUERY_BY_PROVIDER[provider]
-    _validate_query(authorization, query)
+    slug = board_slug(provider, source.endpoint_url or "")
+    if slug is None:
+        raise ATSIngestionRefused("invalid_endpoint_path")
 
-    policy_fingerprint = authorization.policy_fingerprint
-    _claim_rate(db, authorization.source_id, 1)
-
-    # Re-check immediately before the network request: a kill switch flipped
-    # between the rate claim and the fetch halts this source only.
-    authorization = require_ingestion_allowed(db, source_key, "ats_integration")
-    if authorization.policy_fingerprint != policy_fingerprint:
-        raise ATSIngestionRefused("source_policy_changed_during_fetch")
-
-    content, _content_type = await fetch_public_resource(
-        authorization.endpoint_url,
-        query,
+    # Re-read immediately before the network request: a kill switch tripped
+    # since the run started halts this source's fetch.
+    require_ingestion_allowed(db, source)
+    content, _content_type = fetch_public_resource(
+        source.endpoint_url,
+        provider.query,
         _ATS_CONTENT_TYPES,
         timeout_seconds=ATS_TIMEOUT_SECONDS,
         max_bytes=ATS_MAX_RESPONSE_BYTES,
         user_agent=DISCOVERY_USER_AGENT,
     )
-
-    company = source_row.display_name
     retrieved_at = datetime.now(UTC)
     try:
-        raw_jobs = _parse_provider_jobs(provider, content)
+        raw_jobs = _parse_provider_jobs(provider.name, content)
     except (json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
         logger.warning(
             "ats ingestion malformed payload provider=%s error_type=%s",
-            provider,
+            provider.name,
             type(exc).__name__,
         )
         raw_jobs = []
 
-    stored = deduplicated = skipped = errored = 0
+    bodies: list[DiscoveredListingInput] = []
+    skipped = 0
     for raw_job in raw_jobs:
         try:
-            listing_input = _map_provider_job(provider, raw_job, company=company, slug=slug)
+            bodies.append(
+                _map_provider_job(provider.name, raw_job, company=source.display_name, slug=slug)
+            )
         except _SkipListing:
             skipped += 1
-            continue
-        try:
-            result = store_discovered_listing(
-                db,
-                source_key=source_key,
-                body=listing_input,
-                retrieved_at=retrieved_at,
-            )
-        except Exception as exc:  # noqa: BLE001 — one bad listing must not stop the batch
-            errored += 1
-            try:
-                db.rollback()
-            except Exception:  # noqa: BLE001
-                pass
-            logger.warning(
-                "ats ingestion listing store failed provider=%s error_type=%s",
-                provider,
-                type(exc).__name__,
-            )
-            continue
-        if result.deduplicated:
-            deduplicated += 1
-        else:
-            stored += 1
-
-    return ATSIngestOutcome(
-        source_key=source_key,
-        provider=provider,
+    counts = store_source_listings(db, source, bodies, retrieved_at=retrieved_at)
+    outcome = ATSIngestOutcome(
+        source_key=source.source_key,
+        provider=provider.name,
         fetched=len(raw_jobs),
-        stored=stored,
-        deduplicated=deduplicated,
-        skipped=skipped,
-        errored=errored,
+        stored=counts.stored,
+        deduplicated=counts.deduplicated,
+        skipped=skipped + counts.skipped,
     )
+    _stamp(source, "ok", counts.stored + counts.deduplicated)
+    db.commit()
+    return outcome
 
 
-async def run_ats_ingestion(db: Session) -> ATSIngestSummary:
-    """Ingest every kill-switch-clear, terms-accepted employer-ATS source.
-
-    Each source is isolated: one provider outage or one malformed board never
-    stops the rest.
-    """
-    source_keys = [
-        row.source_key
-        for row in db.query(DiscoverySource)
+def run_ats_ingestion(db: Session) -> ATSIngestSummary:
+    """Ingest every allowed employer-ATS source, each in isolation."""
+    sources = [
+        source
+        for source in db.query(DiscoverySource)
         .filter(DiscoverySource.source_family == "employer_ats")
         .order_by(DiscoverySource.source_key)
         .all()
-        if row.ingestion_allowed
+        if source.ingestion_allowed
     ]
     summary = ATSIngestSummary()
-    for source_key in source_keys:
+    for source in sources:
+        source_key = source.source_key
         try:
-            outcome = await ingest_ats_source(db, source_key=source_key)
+            summary.outcomes.append(ingest_ats_source(db, source))
         except Exception as exc:  # noqa: BLE001 — one source's failure must not stop the rest
+            db.rollback()
             summary.failures[source_key] = f"{type(exc).__name__}: {exc}"
             logger.warning(
                 "ats ingestion source failed source_key=%s error_type=%s",
                 source_key,
                 type(exc).__name__,
             )
-            _record_fetch_status(db, source_key, f"failed: {type(exc).__name__}", None)
-            continue
-        summary.outcomes.append(outcome)
-        _record_fetch_status(db, source_key, "ok", outcome.stored + outcome.deduplicated)
+            # A failed run keeps the source's last listing count.
+            _stamp(source, f"failed: {type(exc).__name__}", None)
+            db.commit()
     return summary
 
 
-def _record_fetch_status(
-    db: Session, source_key: str, outcome: str, listing_count: int | None
-) -> None:
-    """Stamp one source's latest fetch result; a failed run keeps the last count."""
-    try:
-        db.rollback()
-        source = db.query(DiscoverySource).filter_by(source_key=source_key).one()
-        source.last_fetched_at = datetime.now(UTC)
-        source.last_outcome = outcome[:200]
-        if listing_count is not None:
-            source.listing_count = listing_count
-        db.commit()
-    except Exception as exc:  # noqa: BLE001 — status bookkeeping must not stop the run
-        db.rollback()
-        logger.warning(
-            "ats ingestion status update failed source_key=%s error_type=%s",
-            source_key,
-            type(exc).__name__,
-        )
-
-
-# ── Recurring scheduler (follows `app.services.retention`'s pattern) ──
-
-
-async def run_ats_ingestion_scheduler(
-    interval_seconds: int = ATS_INGESTION_INTERVAL_SECONDS,
-    initial_delay_seconds: int = ATS_INGESTION_INITIAL_DELAY_SECONDS,
-) -> None:
-    """Run ATS ingestion shortly after startup, then every `interval_seconds`.
-
-    Gated by `ATS_INGESTION_ENABLED` (default False) — a dead loop when off, so
-    the discovery routes never start a background network-fetching task alone.
-    """
-    if not settings.ATS_INGESTION_ENABLED:
-        return
-    await asyncio.sleep(initial_delay_seconds)
-    while True:
-        await _run_ats_ingestion_once()
-        await asyncio.sleep(interval_seconds)
-
-
-async def _run_ats_ingestion_once() -> ATSIngestSummary | None:
-    """Run one full ingestion pass off the event loop.
-
-    `run_ats_ingestion` mixes real network I/O (async, wants the loop) with
-    hundreds of synchronous DB writes (`store_discovered_listing`'s
-    queries/commits) that would otherwise block every other request on this
-    process for however long the run takes — minutes against a fully seeded
-    source list. `asyncio.to_thread` moves the whole pass to a worker thread,
-    where `asyncio.run` gives it its own event loop for the fetches.
-    """
-    return await asyncio.to_thread(_run_ats_ingestion_once_sync)
-
-
-def _run_ats_ingestion_once_sync() -> ATSIngestSummary | None:
+def run_ats_ingestion_once() -> ATSIngestSummary | None:
+    """One full pass on its own session; never raises (scheduler and CLI entry)."""
     db = SessionLocal()
     try:
-        summary = asyncio.run(run_ats_ingestion(db))
+        summary = run_ats_ingestion(db)
         logger.info(
             "ats ingestion run sources=%d failures=%d",
             len(summary.outcomes),
@@ -280,59 +171,35 @@ def _run_ats_ingestion_once_sync() -> ATSIngestSummary | None:
         )
         return summary
     except Exception as exc:  # noqa: BLE001 — a scheduled run must not crash the loop
-        try:
-            db.rollback()
-        except Exception:  # noqa: BLE001
-            pass
+        db.rollback()
         logger.warning("ats ingestion run failed error_type=%s", type(exc).__name__)
         return None
     finally:
         db.close()
 
 
-def _validate_query(
-    authorization: SourceIngestionAuthorization,
-    query: dict[str, str | int | bool],
+async def run_ats_ingestion_scheduler(
+    interval_seconds: int = ATS_INGESTION_INTERVAL_SECONDS,
+    initial_delay_seconds: int = ATS_INGESTION_INITIAL_DELAY_SECONDS,
 ) -> None:
-    if set(query) - set(authorization.allowed_query_parameters):
-        raise ATSIngestionRefused("query_parameter_not_allowed")
+    """Run ingestion shortly after startup, then every ``interval_seconds``.
+
+    A no-op unless ``ATS_INGESTION_ENABLED``. Each pass runs in a worker thread so
+    its fetches and writes never block the event loop.
+    """
+    if not settings.ATS_INGESTION_ENABLED:
+        return
+    await asyncio.sleep(initial_delay_seconds)
+    while True:
+        await asyncio.to_thread(run_ats_ingestion_once)
+        await asyncio.sleep(interval_seconds)
 
 
-def _claim_rate(db: Session, source_id: str, request_count: int) -> None:
-    """Atomically claim a source's fixed-window request budget across replicas."""
-    now = datetime.now(UTC)
-    source = (
-        db.query(DiscoverySource)
-        .populate_existing()
-        .filter(DiscoverySource.id == source_id)
-        .with_for_update()
-        .one()
-    )
-    started_at = source.rate_window_started_at
-    if started_at is not None and started_at.tzinfo is None:
-        started_at = started_at.replace(tzinfo=UTC)
-    if started_at is None or (now - started_at).total_seconds() >= 60:
-        source.rate_window_started_at = now
-        source.rate_window_count = 0
-    if source.rate_window_count + request_count > source.rate_limit_per_minute:
-        db.rollback()
-        raise ATSIngestionRefused("source_rate_limit_exceeded")
-    source.rate_window_count += request_count
-    db.commit()
-
-
-def _extract_slug(provider: str, endpoint_url: str) -> str:
-    path_segment = {
-        "greenhouse": "boards",
-        "lever": "postings",
-        "ashby": "job-board",
-    }[provider]
-    parts = [part for part in urlparse(endpoint_url).path.split("/") if part]
-    try:
-        index = parts.index(path_segment)
-        return parts[index + 1]
-    except (ValueError, IndexError) as exc:
-        raise ATSIngestionRefused("invalid_endpoint_path") from exc
+def _stamp(source: DiscoverySource, outcome: str, listing_count: int | None) -> None:
+    source.last_fetched_at = datetime.now(UTC)
+    source.last_outcome = outcome[:200]
+    if listing_count is not None:
+        source.listing_count = listing_count
 
 
 def _parse_provider_jobs(provider: str, content: bytes) -> list[dict]:

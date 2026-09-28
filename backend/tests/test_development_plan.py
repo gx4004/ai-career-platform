@@ -5,11 +5,6 @@ from pydantic import ValidationError
 
 from app.auth.security import create_access_token, hash_password
 from app.models.development_item import DevelopmentItem
-from app.models.discovered_listing import (
-    DiscoveredListing,
-    DiscoveredListingAttribution,
-)
-from app.models.discovery_source import DiscoverySource
 from app.models.evidence_item import EvidenceItem
 from app.models.gap_classification import GapClassification
 from app.models.user import User
@@ -30,7 +25,7 @@ from app.services.development import (
     list_development_items,
     update_development_item,
 )
-from app.services.discovery_recommendations import rank_discovery_recommendations
+from app.services.discovery_recommendations import best_matches
 from app.services.evidence_injection import load_profile_for_injection
 from app.services.tool_runs import delete_all_user_data
 
@@ -55,47 +50,6 @@ def _classification(db, user_id, *, gap_kind="missing_skill", finding_id="f1", l
     db.add(row)
     db.commit()
     return row
-
-
-def _governed_listing(db, *, title: str, description: str):
-    source = DiscoverySource(
-        source_key="r17-completion-feed",
-        display_name="R17 Completion Feed",
-        source_family="licensed",
-        owner="Discovery Operations",
-        terms_status="accepted",
-        terms_reviewed_at=datetime(2026, 7, 1, tzinfo=UTC),
-        terms_reviewed_by="reviewer@example.com",
-        allowed_behavior="feed",
-        endpoint_url="https://r17.example/jobs",
-        allowed_query_parameters=["role"],
-        robots_policy="not_applicable",
-        rate_limit_per_minute=10,
-        attribution_rule="Show source and link",
-        retention_days=30,
-        kill_switch=False,
-    )
-    db.add(source)
-    db.flush()
-    listing = DiscoveredListing(
-        content_sha256="2" * 64,
-        title=title,
-        company="Synthetic Systems",
-        description=description,
-    )
-    db.add(listing)
-    db.flush()
-    db.add(
-        DiscoveredListingAttribution(
-            listing_id=listing.id,
-            source_id=source.id,
-            source_listing_key="r17-completion-1",
-            source_url="https://r17.example/jobs/1",
-            retrieved_at=datetime.now(UTC),
-        )
-    )
-    db.commit()
-    return listing
 
 
 # --- service: creation snapshots the honest response and gap kind --------------
@@ -392,10 +346,9 @@ def test_endpoint_full_lifecycle(client, auth_headers, test_user, db):
 
 
 def test_confirmed_completion_reaches_tailoring_and_recommendation_grounding(
-    client, auth_headers, test_user, db, monkeypatch
+    client, auth_headers, test_user, db, monkeypatch, discovery
 ):
-    listing = _governed_listing(
-        db,
+    listing = discovery.listing(
         title="Platform Engineer",
         description="Build Kubernetes services and deployment automation.",
     )
@@ -432,11 +385,9 @@ def test_confirmed_completion_reaches_tailoring_and_recommendation_grounding(
             "content": {"statement": "Built a Kubernetes deployment controller."},
         }
     ]
-    recommendations = rank_discovery_recommendations(db, test_user.id)
-    assert [recommendation.listing_id for recommendation in recommendations.items] == [
-        listing.id
-    ]
-    assert recommendations.items[0].rationale[0].evidence_item_ids == [evidence_id]
+    recommendations = best_matches(db, test_user.id)
+    assert [recommendation.listing_id for recommendation in recommendations] == [listing.id]
+    assert "Kubernetes" in recommendations[0].match.matched_keywords
 
     # Exercise the actual CV-tailoring endpoint and shared tool pipeline, not
     # only the profile loader. The generated change is accepted as confirmed
