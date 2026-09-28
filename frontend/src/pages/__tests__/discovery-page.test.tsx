@@ -9,6 +9,7 @@ const searchListings = vi.hoisted(() => vi.fn())
 const dismissRecommendation = vi.hoisted(() => vi.fn())
 const undismissRecommendation = vi.hoisted(() => vi.fn())
 const adoptRecommendation = vi.hoisted(() => vi.fn())
+const getListing = vi.hoisted(() => vi.fn())
 const navigate = vi.hoisted(() => vi.fn())
 
 vi.mock('#/lib/api/client', () => ({
@@ -16,6 +17,7 @@ vi.mock('#/lib/api/client', () => ({
   dismissDiscoveryRecommendation: dismissRecommendation,
   undismissDiscoveryRecommendation: undismissRecommendation,
   adoptDiscoveryRecommendation: adoptRecommendation,
+  getDiscoveryListing: getListing,
 }))
 
 vi.mock('@tanstack/react-router', () => ({
@@ -27,7 +29,7 @@ const LISTING = {
   listing_id: 'listing-1',
   title: 'Platform Engineer',
   company: 'Acme Systems',
-  description: 'Build Kubernetes services.\n\nWork with Python every day.',
+  preview: 'Build Kubernetes services. Work with Python every day.',
   location: 'Berlin, Germany',
   remote: true,
   posted_at: new Date(Date.now() - 3 * 86_400_000).toISOString(),
@@ -47,7 +49,6 @@ function page(overrides: Record<string, unknown> = {}) {
     limit: 20,
     sort: 'best_match',
     has_profile: true,
-    stats: { jobs: 5820, companies: 48, new_this_week: 614 },
     companies: ['Acme Systems', 'Stripe'],
     ...overrides,
   }
@@ -71,16 +72,19 @@ beforeEach(() => {
   dismissRecommendation.mockResolvedValue({ listing_id: 'listing-1', created_at: '2026-09-20T00:00:00Z' })
   undismissRecommendation.mockResolvedValue(undefined)
   adoptRecommendation.mockResolvedValue({ id: 'campaign-9' })
+  getListing.mockResolvedValue({
+    ...LISTING,
+    description: 'Build Kubernetes services.\n\nWork with Python every day.',
+  })
 })
 
 describe('DiscoveryPage', () => {
-  it('shows the stats and a job card with match, meta and attribution', async () => {
+  it('shows a job card with match, meta, preview and attribution', async () => {
     renderPage()
     const card = await findCard()
 
     expect(screen.getByRole('heading', { name: 'Discover jobs' })).toBeTruthy()
-    expect(screen.getByText('5,820')).toBeTruthy()
-    expect(screen.getByText('614')).toBeTruthy()
+    expect(within(card).getByText(LISTING.preview)).toBeTruthy()
     expect(within(card).getByLabelText('82% match')).toBeTruthy()
     expect(within(card).getByText('Berlin, Germany')).toBeTruthy()
     expect(within(card).getByText('Remote')).toBeTruthy()
@@ -127,10 +131,11 @@ describe('DiscoveryPage', () => {
 
     fireEvent.click(within(card).getByRole('button', { name: /Tailor my CV/ }))
 
-    expect(navigate).toHaveBeenCalledWith({ to: '/cv-studio' })
+    await waitFor(() => expect(navigate).toHaveBeenCalledWith({ to: '/cv-studio' }))
+    expect(getListing).toHaveBeenCalledWith('listing-1')
     const context = readWorkflowContext()
     expect(context?.targetRole).toBe('Platform Engineer')
-    expect(context?.jobDescription).toContain('Build Kubernetes services.')
+    expect(context?.jobDescription).toContain('Build Kubernetes services.\n\nWork with Python')
   })
 
   it('adds the job to Applications and opens it', async () => {
@@ -159,14 +164,16 @@ describe('DiscoveryPage', () => {
     await waitFor(() => expect(undismissRecommendation).toHaveBeenCalledWith('listing-1'))
   })
 
-  it('opens the full description as plain text in a details panel', async () => {
-    renderPage(page({ items: [{ ...LISTING, description: '<b>Bold</b> claim' }] }))
+  it('fetches the full description and shows it as plain text in a details panel', async () => {
+    getListing.mockResolvedValue({ ...LISTING, description: '<b>Bold</b> claim' })
+    renderPage()
     const card = await findCard()
 
     fireEvent.click(within(card).getByRole('button', { name: 'Platform Engineer' }))
 
     const dialog = await screen.findByRole('dialog')
-    expect(within(dialog).getByText('<b>Bold</b> claim')).toBeTruthy()
+    expect(await within(dialog).findByText('<b>Bold</b> claim')).toBeTruthy()
+    expect(getListing).toHaveBeenCalledWith('listing-1')
     expect(dialog.querySelector('b')).toBeNull()
   })
 
@@ -190,7 +197,7 @@ describe('DiscoveryPage', () => {
   })
 
   it('shows a first-run empty state when there are no jobs at all', async () => {
-    renderPage(page({ items: [], total: 0, stats: { jobs: 0, companies: 0, new_this_week: 0 } }))
+    renderPage(page({ items: [], total: 0, companies: [] }))
 
     expect(await screen.findByText('No jobs yet')).toBeTruthy()
   })

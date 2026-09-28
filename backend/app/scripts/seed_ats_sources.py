@@ -23,7 +23,6 @@ actor of record.
 
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 import secrets
@@ -34,7 +33,8 @@ from app.database import SessionLocal
 from app.models.discovery_source import DiscoverySource
 from app.models.user import User
 from app.schemas.discovery_sources import DiscoverySourceCreate, DiscoverySourceUpdate
-from app.services.ats_ingestion import _QUERY_BY_PROVIDER, _parse_provider_jobs
+from app.services.ats_ingestion import _parse_provider_jobs
+from app.services.ats_providers import PROVIDERS
 from app.services.discovery_fetch import DISCOVERY_USER_AGENT, fetch_public_resource
 from app.services.discovery_sources import register_source, update_source
 
@@ -44,11 +44,6 @@ logger = logging.getLogger("seed_ats_sources")
 DATA_FILE = Path(__file__).parent / "ats_sources.json"
 SEED_REVIEWER_EMAIL = "ats-seed-reviewer@system.internal"
 
-_ENDPOINT_BY_PROVIDER = {
-    "greenhouse": "https://boards-api.greenhouse.io/v1/boards/{slug}/jobs",
-    "lever": "https://api.lever.co/v0/postings/{slug}",
-    "ashby": "https://api.ashbyhq.com/posting-api/job-board/{slug}",
-}
 _TIMEOUT_SECONDS = 15.0
 _MAX_RESPONSE_BYTES = 10_000_000
 
@@ -75,12 +70,11 @@ def _system_reviewer(db) -> User:
     return reviewer
 
 
-async def _is_live(provider: str, endpoint_url: str) -> bool:
-    query = _QUERY_BY_PROVIDER[provider]
+def _is_live(provider: str, endpoint_url: str) -> bool:
     try:
-        content, _content_type = await fetch_public_resource(
+        content, _content_type = fetch_public_resource(
             endpoint_url,
-            query,
+            PROVIDERS[provider].query,
             frozenset({"application/json"}),
             timeout_seconds=_TIMEOUT_SECONDS,
             max_bytes=_MAX_RESPONSE_BYTES,
@@ -97,7 +91,6 @@ async def _is_live(provider: str, endpoint_url: str) -> bool:
 
 
 def _register_active(db, reviewer: User, *, source_key: str, entry: dict, endpoint_url: str):
-    query_param = next(iter(_QUERY_BY_PROVIDER[entry["provider"]]))
     source = register_source(
         db,
         DiscoverySourceCreate(
@@ -107,8 +100,6 @@ def _register_active(db, reviewer: User, *, source_key: str, entry: dict, endpoi
             owner="Discovery Operations",
             allowed_behavior="ats_integration",
             endpoint_url=endpoint_url,
-            allowed_query_parameters=[query_param],
-            robots_policy="not_applicable",
             rate_limit_per_minute=20,
             attribution_rule=(
                 "Show the company name, the source name "
@@ -121,7 +112,7 @@ def _register_active(db, reviewer: User, *, source_key: str, entry: dict, endpoi
     update_source(db, source, DiscoverySourceUpdate(kill_switch=False))
 
 
-async def main() -> None:
+def main() -> None:
     candidates = json.loads(DATA_FILE.read_text())["sources"]
     db = SessionLocal()
     registered = already_present = dead = invalid = 0
@@ -131,7 +122,7 @@ async def main() -> None:
         for entry in candidates:
             provider = entry.get("provider")
             slug = entry.get("slug")
-            if provider not in _ENDPOINT_BY_PROVIDER or not slug:
+            if provider not in PROVIDERS or not slug:
                 logger.info("skip (invalid entry): %r", entry)
                 invalid += 1
                 continue
@@ -139,9 +130,9 @@ async def main() -> None:
             if source_key in existing_keys:
                 already_present += 1
                 continue
-            endpoint_url = _ENDPOINT_BY_PROVIDER[provider].format(slug=slug)
+            endpoint_url = PROVIDERS[provider].endpoint_template.format(slug=slug)
             logger.info("checking %s (%s/%s)...", entry["display_name"], provider, slug)
-            if not await _is_live(provider, endpoint_url):
+            if not _is_live(provider, endpoint_url):
                 dead += 1
                 continue
             _register_active(db, reviewer, source_key=source_key, entry=entry, endpoint_url=endpoint_url)
@@ -161,4 +152,4 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
