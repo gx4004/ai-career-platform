@@ -49,11 +49,10 @@ from app.schemas.applications import (
     SnapshotResponse,
     TaskCreate,
 )
-from app.schemas.discovery_recommendations import DiscoveryRecommendation
 from app.services.application_drafts import DRAFTS_TOOL_NAME, compose_application_drafts
 from app.services.campaign_reviewer import cover_document_text
 from app.services.discovery_adoption import adopt_recommendation
-from app.services.discovery_recommendations import rank_discovery_recommendations
+from app.services.discovery_recommendations import VisibleListing, best_matches
 from app.services.quality_signals import keyword_present
 
 SNAPSHOT_SCHEMA_VERSION = "application-snapshot/v1"
@@ -756,7 +755,8 @@ async def prepare_application(
     db.refresh(workspace)
 
 
-def _passes_preferences(rec: DiscoveryRecommendation, prefs: ApplicationPreferences) -> bool:
+def _passes_preferences(row: VisibleListing, prefs: ApplicationPreferences) -> bool:
+    rec = row.listing
     text = f"{rec.title}\n{rec.company}\n{rec.description}"
     if not any(keyword_present(keyword, text) for keyword in prefs.keywords or []):
         return False
@@ -788,8 +788,7 @@ async def prepare_for_me(
     if not _owner_has_cv(db, user.id):
         return BulkPrepareResult(reason="no_cv", max_per_run=max_per_run)
 
-    feed = rank_discovery_recommendations(db, user.id, now=now)
-    matches = [rec for rec in feed.items if _passes_preferences(rec, prefs)]
+    matches = [row for row in best_matches(db, user.id, now=now) if _passes_preferences(row, prefs)]
     existing = {
         workspace.discovery_listing_id: workspace
         for workspace in db.query(Workspace).filter(
@@ -812,7 +811,7 @@ async def prepare_for_me(
             skipped += 1
             continue
         if workspace is None:
-            workspace = adopt_recommendation(db, user.id, rec.listing_id, recommendation=rec)
+            workspace = adopt_recommendation(db, user.id, rec.listing_id, visible=rec)
         await prepare_application(db, user, workspace, compose_fn=compose_fn)
         prepared.append(workspace)
     return BulkPrepareResult(

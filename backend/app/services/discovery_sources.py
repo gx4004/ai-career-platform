@@ -1,62 +1,25 @@
+"""The discovery source registry (ADR 0008).
+
+A source records its owner, terms review, allowed behaviour, declared rate,
+attribution rule, retention and kill switch. Enforcement is one rule:
+``DiscoverySource.ingestion_allowed`` (terms accepted and kill switch clear),
+re-read immediately before every fetch so a tripped kill switch halts the next
+fetch with no restart.
+"""
+
 from __future__ import annotations
 
-from dataclasses import dataclass
 from datetime import UTC, datetime
-from enum import StrEnum
 
 from sqlalchemy.orm import Session
 
 from app.models.discovery_source import DiscoverySource
 from app.models.user import User
-from app.schemas.discovery_sources import (
-    DiscoveryAllowedBehavior,
-    DiscoveryQueryParameter,
-    DiscoveryRobotsPolicy,
-    DiscoverySourceCreate,
-    DiscoverySourceFamily,
-    DiscoverySourceUpdate,
-)
+from app.schemas.discovery_sources import DiscoverySourceCreate, DiscoverySourceUpdate
 
 
-class IngestionRefusal(StrEnum):
-    UNREGISTERED = "unregistered"
-    TERMS_NOT_ACCEPTED = "terms_not_accepted"
-    KILL_SWITCHED = "kill_switched"
-    BEHAVIOR_NOT_ALLOWED = "behavior_not_allowed"
-    CONFIG_INCOMPLETE = "config_incomplete"
-
-
-class SourceIngestionRefused(RuntimeError):
-    def __init__(self, reason: IngestionRefusal):
-        self.reason = reason
-        super().__init__(reason.value)
-
-
-@dataclass(frozen=True)
-class SourceIngestionAuthorization:
-    source_id: str
-    source_key: str
-    source_family: DiscoverySourceFamily
-    allowed_behavior: DiscoveryAllowedBehavior
-    endpoint_url: str
-    allowed_query_parameters: tuple[DiscoveryQueryParameter, ...]
-    robots_policy: DiscoveryRobotsPolicy
-    rate_limit_per_minute: int
-    attribution_rule: str
-    retention_days: int
-
-    @property
-    def policy_fingerprint(self) -> tuple:
-        return (
-            self.source_family,
-            self.allowed_behavior,
-            self.endpoint_url,
-            self.allowed_query_parameters,
-            self.robots_policy,
-            self.rate_limit_per_minute,
-            self.attribution_rule,
-            self.retention_days,
-        )
+class SourceNotAllowedError(RuntimeError):
+    """The source's terms are not accepted, or its kill switch is tripped."""
 
 
 def register_source(db: Session, body: DiscoverySourceCreate) -> DiscoverySource:
@@ -112,11 +75,8 @@ def operate_source_kill_switch(
 ) -> DiscoverySource:
     """Trip or clear a source's kill switch as an immediate operator action.
 
-    Runtime-effective: this only flips the persisted ``kill_switch`` column that
-    every fetch/ingest read path re-reads via ``require_ingestion_allowed``, so a
-    trip halts the next fetch with no deploy or restart. Clearing is refused
-    unless the terms review is accepted (the same activation gate as
-    ``update_source``), so the kill switch can never be used to bypass D-084.
+    Clearing is refused unless the terms review is accepted (the same activation
+    gate as ``update_source``), so the kill switch can never bypass D-084.
     """
     if not actor.is_admin:
         raise ValueError("Kill-switch operations require an authenticated admin operator")
@@ -128,41 +88,8 @@ def operate_source_kill_switch(
     return source
 
 
-def require_ingestion_allowed(
-    db: Session,
-    source_key: str,
-    behavior: DiscoveryAllowedBehavior,
-) -> SourceIngestionAuthorization:
-    """Return the governed source or refuse before any network or ingest work."""
-    source = (
-        db.query(DiscoverySource)
-        .populate_existing()
-        .filter(DiscoverySource.source_key == source_key)
-        .first()
-    )
-    if source is None:
-        raise SourceIngestionRefused(IngestionRefusal.UNREGISTERED)
-    if source.terms_status != "accepted":
-        raise SourceIngestionRefused(IngestionRefusal.TERMS_NOT_ACCEPTED)
-    if source.kill_switch:
-        raise SourceIngestionRefused(IngestionRefusal.KILL_SWITCHED)
-    if source.allowed_behavior != behavior:
-        raise SourceIngestionRefused(IngestionRefusal.BEHAVIOR_NOT_ALLOWED)
-    if (
-        source.endpoint_url is None
-        or source.allowed_query_parameters is None
-        or source.robots_policy is None
-    ):
-        raise SourceIngestionRefused(IngestionRefusal.CONFIG_INCOMPLETE)
-    return SourceIngestionAuthorization(
-        source_id=source.id,
-        source_key=source.source_key,
-        source_family=source.source_family,
-        allowed_behavior=source.allowed_behavior,
-        endpoint_url=source.endpoint_url,
-        allowed_query_parameters=tuple(source.allowed_query_parameters),
-        robots_policy=source.robots_policy,
-        rate_limit_per_minute=source.rate_limit_per_minute,
-        attribution_rule=source.attribution_rule,
-        retention_days=source.retention_days,
-    )
+def require_ingestion_allowed(db: Session, source: DiscoverySource) -> None:
+    """Re-read the source's governance state and refuse before any network work."""
+    db.refresh(source)
+    if not source.ingestion_allowed:
+        raise SourceNotAllowedError(source.source_key)

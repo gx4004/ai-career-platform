@@ -1,7 +1,7 @@
 import type { CSSProperties } from 'react'
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
 import {
   ArrowUpRight,
@@ -33,6 +33,7 @@ import {
 import {
   adoptDiscoveryRecommendation,
   dismissDiscoveryRecommendation,
+  getDiscoveryListing,
   searchDiscoveryListings,
   undismissDiscoveryRecommendation,
 } from '#/lib/api/client'
@@ -44,6 +45,12 @@ const PAGE_SIZE = 20
 // Under the recommendations prefix so Evidence Profile edits (which change the
 // match scores) invalidate the search too.
 const LISTINGS_KEY = [...DISCOVERY_RECOMMENDATIONS_QUERY_KEY, 'listings']
+// List responses carry a short preview; the full description is fetched on demand.
+const detailQuery = (listingId: string) => ({
+  queryKey: [...LISTINGS_KEY, 'detail', listingId],
+  queryFn: () => getDiscoveryListing(listingId),
+  staleTime: 5 * 60_000,
+})
 
 const POSTED_WITHIN = [
   { value: '', label: 'Any time' },
@@ -132,12 +139,16 @@ export function DiscoveryPage() {
     },
   })
 
-  const tailor = (listing: DiscoveryListing) => {
+  const tailor = async (listing: DiscoveryListing) => {
+    const description = await queryClient
+      .fetchQuery(detailQuery(listing.listing_id))
+      .then((detail) => detail.description)
+      .catch(() => listing.preview)
     // The workflow context is the tab-scoped handoff every tool already reads
     // its job title and description from.
     writeWorkflowContext({
       targetRole: listing.title,
-      jobDescription: `${listing.title} at ${listing.company}\n\n${listing.description}`,
+      jobDescription: `${listing.title} at ${listing.company}\n\n${description}`,
       // Tells CV Studio to open its tailor dialog prefilled on arrival (#324).
       tailorPending: true,
       updatedAt: Date.now(),
@@ -175,11 +186,6 @@ export function DiscoveryPage() {
         eyebrow="Job discovery"
         title="Discover jobs"
         subtitle="Real openings posted on company career sites, checked against the skills you confirmed in your profile."
-        stats={[
-          { label: 'Jobs available', value: formatCount(first?.stats.jobs) },
-          { label: 'Companies', value: formatCount(first?.stats.companies) },
-          { label: 'New this week', value: formatCount(first?.stats.new_this_week) },
-        ]}
       />
 
       {first && !hasProfile ? (
@@ -396,7 +402,7 @@ function FilterFields({
 
 type CardActions = {
   onOpen: (listing: DiscoveryListing) => void
-  onTailor: (listing: DiscoveryListing) => void
+  onTailor: (listing: DiscoveryListing) => Promise<void>
   onAdopt: (listing: DiscoveryListing) => void
   onHide: (listing: DiscoveryListing) => void
   adoptingId?: string
@@ -419,7 +425,7 @@ function JobCard({ listing, actions }: { listing: DiscoveryListing; actions: Car
           </div>
           <MatchScore listing={listing} />
         </div>
-        <p className="disc-card__preview">{preview(listing.description)}</p>
+        <p className="disc-card__preview">{listing.preview}</p>
         {listing.matched_keywords.length > 0 ? (
           <p className="disc-card__skills">
             <span>Matches your profile:</span>
@@ -438,6 +444,7 @@ function JobCard({ listing, actions }: { listing: DiscoveryListing; actions: Car
 }
 
 function JobDetails({ listing, actions }: { listing: DiscoveryListing; actions: CardActions }) {
+  const detail = useQuery(detailQuery(listing.listing_id))
   return (
     <div className="disc-drawer__inner">
       <SheetHeader className="disc-drawer__head">
@@ -453,7 +460,9 @@ function JobDetails({ listing, actions }: { listing: DiscoveryListing; actions: 
         <MatchScore listing={listing} detailed />
       </SheetHeader>
       {/* Plain text on purpose: listing descriptions come from third-party boards. */}
-      <div className="disc-drawer__description">{listing.description}</div>
+      <div className="disc-drawer__description" aria-busy={detail.isPending}>
+        {detail.data?.description ?? (detail.isError ? listing.preview : 'Loading the full description…')}
+      </div>
       <div className="disc-drawer__footer">
         <JobActions listing={listing} actions={actions} />
         <span className="disc-card__via">
@@ -468,7 +477,7 @@ function JobDetails({ listing, actions }: { listing: DiscoveryListing; actions: 
 function JobActions({ listing, actions }: { listing: DiscoveryListing; actions: CardActions }) {
   return (
     <div className="disc-actions">
-      <Button type="button" size="sm" onClick={() => actions.onTailor(listing)}>
+      <Button type="button" size="sm" onClick={() => void actions.onTailor(listing)}>
         <Sparkles size={14} aria-hidden="true" /> Tailor my CV
       </Button>
       <Button
@@ -535,11 +544,6 @@ function CompanyAvatar({ name }: { name: string }) {
       {name.trim().charAt(0).toUpperCase() || '?'}
     </span>
   )
-}
-
-function preview(description: string): string {
-  const text = description.replace(/\s+/g, ' ').trim()
-  return text.length > 240 ? `${text.slice(0, 240).trimEnd()}…` : text
 }
 
 function relativeDays(value: string | null, now = Date.now()): string | null {

@@ -188,45 +188,6 @@ export const evidenceItemSchema = z.object({
 })
 export const evidenceItemListSchema = z.object({ items: z.array(evidenceItemSchema) })
 
-export const discoveryRecommendationSignalSchema = z.strictObject({
-  kind: z.enum(['confirmed_evidence', 'preference']),
-  label: z.string(),
-  matched_keywords: z.array(z.string()),
-  evidence_item_ids: z.array(z.string()),
-  score: z.number().int().min(0).max(100),
-})
-export const discoveryRecommendationAttributionSchema = z.strictObject({
-  source_id: z.string(),
-  source_name: z.string(),
-  source_family: z.enum([
-    'licensed', 'employer_ats', 'public_career_page', 'user_provided',
-  ]),
-  source_url: z.string().url().max(2_048).refine((value) => value.startsWith('https://')),
-  retrieved_at: z.iso.datetime({ offset: true }),
-})
-export const discoveryRecommendationSchema = z.strictObject({
-  listing_id: z.string(),
-  title: z.string(),
-  company: z.string(),
-  description: z.string(),
-  // ATS-sourced fields (#323). Null for listings without them.
-  location: z.string().nullable().default(null),
-  remote: z.boolean().nullable().default(null),
-  posted_at: z.iso.datetime({ offset: true }).nullable().default(null),
-  apply_url: z.string().url().max(2_048).refine((value) => value.startsWith('https://')).nullable().default(null),
-  department: z.string().nullable().default(null),
-  score: z.number().int().min(0).max(100),
-  rationale: z.array(discoveryRecommendationSignalSchema),
-  attributions: z.array(discoveryRecommendationAttributionSchema).min(1),
-})
-export const discoveryRecommendationListSchema = z.strictObject({
-  items: z.array(discoveryRecommendationSchema),
-  confirmed_item_count: z.number().int().nonnegative(),
-  preference_item_count: z.number().int().nonnegative(),
-})
-export type DiscoveryRecommendation = z.infer<typeof discoveryRecommendationSchema>
-export type DiscoveryRecommendationList = z.infer<typeof discoveryRecommendationListSchema>
-
 // Job search (#323). Mirrors DiscoveryListingPage in
 // backend/app/schemas/discovery_recommendations.py.
 const httpsUrlSchema = z.string().url().max(2_048).refine((value) => value.startsWith('https://'))
@@ -234,7 +195,8 @@ export const discoveryListingSchema = z.strictObject({
   listing_id: z.string(),
   title: z.string(),
   company: z.string(),
-  description: z.string(),
+  // A short excerpt; the full description comes from the detail endpoint.
+  preview: z.string(),
   location: z.string().nullable().default(null),
   remote: z.boolean().nullable().default(null),
   posted_at: z.iso.datetime({ offset: true }).nullable().default(null),
@@ -252,15 +214,15 @@ export const discoveryListingPageSchema = z.strictObject({
   limit: z.number().int().positive(),
   sort: z.enum(['best_match', 'newest']),
   has_profile: z.boolean(),
-  stats: z.strictObject({
-    jobs: z.number().int().nonnegative(),
-    companies: z.number().int().nonnegative(),
-    new_this_week: z.number().int().nonnegative(),
-  }),
-  companies: z.array(z.string()),
+  // Company filter options; page 1 only.
+  companies: z.array(z.string()).nullable().default(null),
+})
+export const discoveryListingDetailSchema = discoveryListingSchema.extend({
+  description: z.string(),
 })
 export type DiscoveryListing = z.infer<typeof discoveryListingSchema>
 export type DiscoveryListingPage = z.infer<typeof discoveryListingPageSchema>
+export type DiscoveryListingDetail = z.infer<typeof discoveryListingDetailSchema>
 
 // R14 #175 discovery dismissals. Mirrors
 // backend/app/schemas/discovery_personalization.py.

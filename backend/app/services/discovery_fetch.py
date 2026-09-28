@@ -11,7 +11,7 @@ _TIMEOUT_SECONDS = 10.0
 _MAX_RESPONSE_BYTES = 2_000_000
 
 
-async def fetch_public_resource(
+def fetch_public_resource(
     url: str,
     query: dict[str, str | int | bool],
     allowed_content_types: frozenset[str],
@@ -28,8 +28,8 @@ async def fetch_public_resource(
     type is not allowed or its body exceeds ``max_bytes``.
     """
     target = resolve_public_target(url)
-    transport = httpx.AsyncHTTPTransport(retries=0)
-    async with httpx.AsyncClient(
+    transport = httpx.HTTPTransport(retries=0)
+    with httpx.Client(
         follow_redirects=False,
         timeout=timeout_seconds,
         transport=transport,
@@ -46,7 +46,7 @@ async def fetch_public_resource(
             },
             extensions={"sni_hostname": target.hostname},
         )
-        response = await client.send(request, stream=True)
+        response = client.send(request, stream=True)
         try:
             response.raise_for_status()
             content_type = (
@@ -58,10 +58,10 @@ async def fetch_public_resource(
             if content_length and int(content_length) > max_bytes:
                 raise httpx.HTTPError("Discovery response is too large")
             body = bytearray()
-            async for chunk in response.aiter_bytes():
+            for chunk in response.iter_bytes():
                 body.extend(chunk)
                 if len(body) > max_bytes:
                     raise httpx.HTTPError("Discovery response is too large")
             return bytes(body), content_type
         finally:
-            await response.aclose()
+            response.close()

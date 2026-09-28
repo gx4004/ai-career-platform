@@ -9,8 +9,8 @@ from app.models.user import User
 from app.schemas.applications import ApplicationDetail
 from app.schemas.discovery_personalization import DismissalCreate, DismissalItem
 from app.schemas.discovery_recommendations import (
+    DiscoveryListingDetail,
     DiscoveryListingPage,
-    DiscoveryRecommendationList,
 )
 from app.services.applications import application_detail
 from app.services.discovery_adoption import (
@@ -22,10 +22,7 @@ from app.services.discovery_personalization import (
     dismiss_recommendation,
     undismiss_recommendation,
 )
-from app.services.discovery_recommendations import (
-    rank_discovery_recommendations,
-    search_listings,
-)
+from app.services.discovery_recommendations import listing_detail, search_listings
 
 router = APIRouter()
 
@@ -58,12 +55,17 @@ def list_listings(
     )
 
 
-@router.get("/recommendations", response_model=DiscoveryRecommendationList)
-def list_recommendations(
+@router.get("/listings/{listing_id}", response_model=DiscoveryListingDetail)
+def get_listing(
+    listing_id: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    return rank_discovery_recommendations(db, current_user.id)
+    """One visible listing with its full description."""
+    detail = listing_detail(db, current_user.id, listing_id)
+    if detail is None:
+        raise HTTPException(status_code=404, detail="Listing not found")
+    return detail
 
 
 @router.post(
@@ -76,12 +78,12 @@ def adopt_recommendation_into_campaign(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """One explicit user action turns one visible recommendation into an application.
+    """One explicit user action turns one visible listing into an application.
 
     The listing content, its source attribution, apply link and retrieval date are
     copied into the new application's listing, and the adoption is its first
-    event (D-091, D-078). Dismissed or expired
-    recommendations are absent from the feed and are refused here.
+    event (D-091, D-078). Hidden listings (dismissed, expired, source not
+    allowed) are refused.
     """
     try:
         workspace = adopt_recommendation(db, current_user.id, listing_id)
