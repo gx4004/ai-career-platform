@@ -123,6 +123,25 @@ export const applicationPreferencesUpdateSchema = z.strictObject({
   remote: z.boolean(),
   max_per_run: z.number().int().min(1).max(10),
 })
+const applicationDetailsFields = {
+  full_name: z.string().max(200),
+  email: z.string().max(320),
+  phone: z.string().max(50),
+  linkedin: z.string().max(500),
+  website: z.string().max(500),
+  location: z.string().max(200),
+  work_authorization: z.string().max(1000),
+  visa_sponsorship: z.string().max(1000),
+  notice_period: z.string().max(1000),
+  salary_expectation: z.string().max(1000),
+  relocation: z.string().max(1000),
+}
+/** The owner's contact details and standing answers for application forms (#374). */
+export const applicationDetailsSchema = z.object({
+  ...applicationDetailsFields,
+  is_default: z.boolean().default(false),
+})
+export const applicationDetailsUpdateSchema = z.strictObject(applicationDetailsFields)
 export const bulkPrepareResultSchema = z.object({
   reason: z.enum(['prepared', 'no_preferences', 'no_cv']),
   prepared: z.array(applicationCardSchema).default([]),
@@ -162,6 +181,7 @@ export const applicationsExportSchema = z.strictObject({
     events: z.array(applicationEventSchema.omit({ provenance: true })).default([]),
   })),
   preferences: applicationPreferencesSchema.nullable().default(null),
+  details: applicationDetailsSchema.nullable().default(null),
 }).refine((value) => value.application_count === value.applications.length)
 
 export const evidenceKindSchema = z.enum([
@@ -1137,6 +1157,8 @@ export type ApplicationTask = z.infer<typeof applicationTaskSchema>
 export type ApplicationEvent = z.infer<typeof applicationEventSchema>
 export type ApplicationPreferences = z.infer<typeof applicationPreferencesSchema>
 export type ApplicationPreferencesUpdate = z.input<typeof applicationPreferencesUpdateSchema>
+export type ApplicationDetails = z.infer<typeof applicationDetailsSchema>
+export type ApplicationDetailsUpdate = z.input<typeof applicationDetailsUpdateSchema>
 export type BulkPrepareResult = z.infer<typeof bulkPrepareResultSchema>
 export type AutofillReport = z.infer<typeof autofillReportSchema>
 export type ApplicationReviewFinding = z.infer<typeof applicationReviewFindingSchema>

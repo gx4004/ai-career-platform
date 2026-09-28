@@ -13,6 +13,7 @@ from app.models.tool_run import ToolRun
 from app.models.user import User
 from app.models.workspace import Workspace
 from app.schemas.history import ListingResponse, WorkspaceSummary
+from app.services.application_details import delete_details as delete_application_details
 from app.services.applications import delete_application_data
 from app.services.development import delete_development_items
 from app.services.discovery_personalization import delete_personalization
@@ -60,6 +61,7 @@ def delete_all_user_data(db: Session, user_id: str) -> None:
     runs_deleted = db.query(ToolRun).filter(ToolRun.user_id == user_id).delete()
     # Applications' tasks, snapshots, events, listings and preferences.
     delete_application_data(db, user_id)
+    delete_application_details(db, user_id)
     workspaces_deleted = db.query(Workspace).filter(Workspace.user_id == user_id).delete()
     users_deleted = db.query(User).filter(User.id == user_id).delete()
     db.commit()

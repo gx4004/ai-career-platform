@@ -269,6 +269,30 @@ class ApplicationPreferencesResponse(ApplicationPreferencesBody):
     is_default: bool = False
 
 
+class ApplicationDetailsBody(BaseModel):
+    """The owner's own contact details and standing answers, typed once (#374)."""
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    full_name: str = Field(default="", max_length=200)
+    email: str = Field(default="", max_length=320)
+    phone: str = Field(default="", max_length=50)
+    linkedin: str = Field(default="", max_length=500)
+    website: str = Field(default="", max_length=500)
+    location: str = Field(default="", max_length=200)
+    work_authorization: str = Field(default="", max_length=1000)
+    visa_sponsorship: str = Field(default="", max_length=1000)
+    notice_period: str = Field(default="", max_length=1000)
+    salary_expectation: str = Field(default="", max_length=1000)
+    relocation: str = Field(default="", max_length=1000)
+
+
+class ApplicationDetailsResponse(ApplicationDetailsBody):
+    model_config = ConfigDict(extra="forbid", from_attributes=True)
+    # True until the owner saves once; name and email then come from the account.
+    is_default: bool = False
+
+
 class BulkPrepareResult(BaseModel):
     # ``prepared``: ran. ``no_preferences``: no keywords saved, nothing ran.
     # ``no_cv``: the owner has no CV yet, nothing ran.
@@ -331,6 +355,7 @@ class ApplicationsExport(BaseModel):
     application_count: int = Field(ge=0)
     applications: list[ApplicationExportItem]
     preferences: ApplicationPreferencesResponse | None = None
+    details: ApplicationDetailsResponse | None = None
 
     @model_validator(mode="after")
     def application_count_matches(self):
