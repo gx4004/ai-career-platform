@@ -151,7 +151,7 @@ export function CvStudio() {
     await run('The version could not be restored.', async () => {
       replace(await restoreCvVariant(draft.id, variantId))
       await documentQuery.refetch()
-      setNotice('Version restored. Your CV now matches it.')
+      setNotice('Version restored. Your previous CV is kept in your versions.')
     })
   }
 

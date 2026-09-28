@@ -128,6 +128,12 @@ def test_owner_can_create_edit_snapshot_and_restore_without_mutating_variants(
     )
     assert restored.status_code == 200
     assert restored.json()["sections"] == _with_response_defaults(edited_sections)
+    # The unsaved "Later draft." was kept as a version before being replaced.
+    kept = restored.json()["variants"][-1]
+    assert kept["name"] == "Before restoring Platform role"
+    assert kept["sections"] == _with_response_defaults(
+        [_section(confirmed_evidence.id, body="Later draft.")]
+    )
 
     base_restored = client.post(
         f"{PREFIX}/{created['id']}/variants/{base_id}/restore",
@@ -135,6 +141,8 @@ def test_owner_can_create_edit_snapshot_and_restore_without_mutating_variants(
     )
     assert base_restored.status_code == 200
     assert base_restored.json()["sections"] == _with_response_defaults([_section(confirmed_evidence.id)])
+    # The replaced CV already matched a saved version, so no duplicate was added.
+    assert len(base_restored.json()["variants"]) == 3
 
     fetched = client.get(f"{PREFIX}/{created['id']}", headers=auth_headers).json()
     snapshots = {variant["id"]: variant for variant in fetched["variants"]}
@@ -523,7 +531,112 @@ def test_tailoring_change_can_target_a_specific_bullet(
     assert response.status_code == 201
     entry = response.json()["sections"][0]["entries"][0]
     assert entry["bullets"] == ["Improved platform delivery by 20%.", "Led a synthetic migration."]
-    assert entry["body"] == "Senior Engineer"
+    # body is derived from the bullets, so it follows the tailored bullet.
+    assert entry["body"] == "Improved platform delivery by 20%.\nLed a synthetic migration."
+
+
+def _bulleted_section(bullets, *, body="Stale text"):
+    return {
+        "id": "section-experience",
+        "kind": "experience",
+        "title": "Experience",
+        "visible": True,
+        "position": 0,
+        "entries": [
+            {
+                "id": "entry-one",
+                "evidence_item_id": None,
+                "body": body,
+                "position": 0,
+                "heading": "Senior Engineer",
+                "bullets": bullets,
+            }
+        ],
+    }
+
+
+def test_saved_entry_body_is_derived_from_its_bullets(client, auth_headers):
+    document = client.post(
+        PREFIX,
+        json={"name": "Bulleted", "sections": [_bulleted_section(["Shipped A.", " ", "Led B."])]},
+        headers=auth_headers,
+    ).json()
+    assert document["sections"][0]["entries"][0]["body"] == "Shipped A.\nLed B."
+
+    patched = client.patch(
+        f"{PREFIX}/{document['id']}",
+        json={"sections": [_bulleted_section(["Shipped C."], body="Shipped A.\nLed B.")]},
+        headers=auth_headers,
+    ).json()
+    assert patched["sections"][0]["entries"][0]["body"] == "Shipped C."
+
+    freeform = [_section("unused", body="A free description.")]
+    freeform[0]["entries"][0]["evidence_item_id"] = None
+    patched = client.patch(
+        f"{PREFIX}/{document['id']}", json={"sections": freeform}, headers=auth_headers
+    ).json()
+    assert patched["sections"][0]["entries"][0]["body"] == "A free description."
+
+
+def test_tailoring_cannot_rewrite_the_derived_body_of_a_bulleted_entry(
+    client, auth_headers, test_user
+):
+    document = client.post(
+        PREFIX,
+        json={"name": "Bulleted", "sections": [_bulleted_section(["Shipped A."])]},
+        headers=auth_headers,
+    ).json()
+    payload = _signed(
+        document["id"],
+        test_user.id,
+        {
+            "request_id": "0b7a4f4e-58d5-4a0f-9d3e-1b3c5f0e2a11",
+            "variant_name": "Body tailored",
+            "job_title": "Platform Engineer",
+            "changes": [
+                {
+                    "id": "change-one",
+                    "section_id": "section-experience",
+                    "entry_id": "entry-one",
+                    "field": "body",
+                    "before": "Shipped A.",
+                    "after": "Shipped A for the platform.",
+                    "job_requirement": "Platform delivery",
+                    "evidence_item_ids": [],
+                    "support": "document",
+                }
+            ],
+            "decisions": [{"change_id": "change-one", "action": "accept"}],
+        },
+    )
+    response = client.post(
+        f"{PREFIX}/{document['id']}/tailoring/apply", json=payload, headers=auth_headers
+    )
+    assert response.status_code == 422
+    assert len(client.get(f"{PREFIX}/{document['id']}", headers=auth_headers).json()["variants"]) == 1
+
+
+def test_each_restore_keeps_the_replaced_cv_under_a_unique_name(client, auth_headers):
+    document = client.post(
+        PREFIX,
+        json={"name": "Restorable", "sections": [_bulleted_section(["Original."])]},
+        headers=auth_headers,
+    ).json()
+    base_id = document["variants"][0]["id"]
+    url = f"{PREFIX}/{document['id']}"
+
+    for draft in ("First draft.", "Second draft."):
+        client.patch(url, json={"sections": [_bulleted_section([draft])]}, headers=auth_headers)
+        restored = client.post(f"{url}/variants/{base_id}/restore", headers=auth_headers)
+        assert restored.status_code == 200
+        assert restored.json()["sections"][0]["entries"][0]["bullets"] == ["Original."]
+
+    variants = client.get(url, headers=auth_headers).json()["variants"]
+    assert [(v["name"], v["sections"][0]["entries"][0]["bullets"]) for v in variants] == [
+        ("Base", ["Original."]),
+        ("Before restoring Base", ["First draft."]),
+        ("Before restoring Base (2)", ["Second draft."]),
+    ]
 
 
 def test_unsupported_tailoring_change_is_blocked_until_evidence_is_confirmed(

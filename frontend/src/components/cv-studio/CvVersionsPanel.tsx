@@ -59,7 +59,7 @@ export function CvVersionsPanel({ variants, busy, onSave, onRestore }: {
               </div>
               {confirming === variant.id ? (
                 <span className="cvs-version__confirm">
-                  <span>Replace your current CV?</span>
+                  <span>Replace your current CV? We’ll keep it in your versions.</span>
                   <Button type="button" size="sm" variant="ghost" disabled={restoring !== null} onClick={() => setConfirming(null)}>Cancel</Button>
                   <Button type="button" size="sm" loading={restoring === variant.id} onClick={() => void restore(variant.id)}>Restore</Button>
                 </span>
