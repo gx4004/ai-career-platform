@@ -18,7 +18,6 @@ CvSectionKind = Literal[
     "interview-evidence",
     "custom",
 ]
-CvQualityDimensionKey = Literal["impact", "clarity", "completeness", "structure"]
 CvCheckId = Literal["sections", "reads_back", "links", "page_breaks", "layout"]
 CvTemplateId = Literal[
     "ats-essential",
@@ -62,7 +61,27 @@ class CvStyle(BaseModel):
         return value
 
 
-class CvEntry(BaseModel):
+def entry_body_from_bullets(bullets: list[str]) -> str | None:
+    """An entry's ``body`` when it has bullet points: the filled bullets, one per line.
+
+    Bullets are the single source of an entry's text once it has any; ``body``
+    is derived from them so tailoring and rendering never see two versions.
+    Returns None for an entry without filled bullets (its ``body`` is its own).
+    """
+    filled = [bullet.strip() for bullet in bullets if bullet.strip()]
+    return "\n".join(filled) if filled else None
+
+
+class _BodyFollowsBullets:
+    @model_validator(mode="after")
+    def _derive_body(self):
+        derived = entry_body_from_bullets(self.bullets)
+        if derived is not None:
+            self.body = derived
+        return self
+
+
+class CvEntry(_BodyFollowsBullets, BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     id: str = Field(min_length=1, max_length=100)
@@ -192,14 +211,6 @@ class CvArtifactEvidence(BaseModel):
     page_breaks: Literal["pass", "fail"]
 
 
-class CvQualityDimension(BaseModel):
-    key: CvQualityDimensionKey
-    label: str
-    score: int = Field(ge=0, le=100)
-    reasons: list[str] = Field(min_length=1, max_length=4)
-    remediation: str
-
-
 class CvCheck(BaseModel):
     id: CvCheckId
     label: str
@@ -209,10 +220,8 @@ class CvCheck(BaseModel):
 
 
 class CvQualityResponse(BaseModel):
-    schema_version: Literal["cv-quality/v2"] = "cv-quality/v2"
-    dimensions: list[CvQualityDimension]
+    schema_version: Literal["cv-quality/v3"] = "cv-quality/v3"
     checks: list[CvCheck]
-    advisory_note: str
 
 
 class CvTailoringRequest(BaseModel):
@@ -288,7 +297,7 @@ class CvImportClaim(BaseModel):
     provenance: Literal["imported"]
 
 
-class CvImportEntry(BaseModel):
+class CvImportEntry(_BodyFollowsBullets, BaseModel):
     model_config = ConfigDict(extra="forbid")
     id: str = Field(min_length=1, max_length=100)
     body: str = Field(min_length=1, max_length=5_000)

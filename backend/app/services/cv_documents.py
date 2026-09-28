@@ -336,10 +336,30 @@ def apply_tailoring(db: Session, document: CvDocument, body: CvTailoringApply) -
     return variant
 
 
+def _free_variant_name(document: CvDocument, base: str) -> str:
+    """``base`` (fitted to 120 characters), numbered if a version already uses it."""
+    taken = {variant.name for variant in document.variants}
+    for number in range(1, len(taken) + 2):
+        suffix = "" if number == 1 else f" ({number})"
+        name = base[: 120 - len(suffix)] + suffix
+        if name not in taken:
+            return name
+    raise AssertionError("unreachable: more candidates than taken names")
+
+
 def restore_variant(db: Session, document: CvDocument, variant_id: str) -> CvDocument:
     variant = next((item for item in document.variants if item.id == variant_id), None)
     if variant is None:
         raise CvDocumentNotFoundError
+    # Restoring overwrites the working CV, so keep it as a version first unless
+    # an identical version already exists. Server-side so no client can skip it.
+    if not any(item.sections == document.sections for item in document.variants):
+        document.variants.append(
+            CvVariant(
+                name=_free_variant_name(document, f"Before restoring {variant.name}"),
+                sections=deepcopy(document.sections),
+            )
+        )
     document.sections = deepcopy(variant.sections)
     db.commit()
     return get_document(db, document.id, document.user_id)

@@ -128,7 +128,8 @@ document.
 
 **CV variant**
 An immutable, recoverable snapshot of a CV document, typically tailored to one
-target role. The base document and every prior variant remain restorable.
+target role. The base document and every prior variant remain restorable;
+restoring one first keeps the replaced document as a variant.
 
 **CV template**
 One of five declarative layouts (ATS Essential, Professional Editorial,

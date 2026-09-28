@@ -60,10 +60,14 @@ export function useCvDraft(enabled: boolean, onSaveError: (message: string) => v
           const merged = { ...saved, name: draft.name, sections: draft.sections, style: draft.style }
           queryClient.setQueryData(['cv-studio', 'document', draft.id], merged)
           setDraft(merged)
+          // The PATCH response is the saved document: patch the list in place
+          // instead of refetching every CV with all of its versions.
+          queryClient.setQueryData<{ items: CvDocument[] }>(LIST_KEY, (current) => current && {
+            items: current.items.map((item) => item.id === saved.id ? saved : item),
+          })
         }
         setDirty(false)
         setSaveState('saved')
-        await queryClient.invalidateQueries({ queryKey: LIST_KEY })
       } catch (error) {
         if (generation !== saveGeneration.current) return
         setSaveState('error')

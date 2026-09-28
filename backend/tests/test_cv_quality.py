@@ -1,5 +1,3 @@
-from app.services.cv_quality import score_cv_quality
-
 PREFIX = "/api/v1/cv-documents"
 
 
@@ -15,42 +13,6 @@ def _section(kind, title, entries, position):
             for i, body in enumerate(entries)
         ],
     }
-
-
-def test_hand_authored_strong_synthetic_fixture_lands_in_expected_bands():
-    sections = [
-        _section(
-            "summary", "Summary", ["Platform engineer building reliable accessible services."], 0
-        ),
-        _section(
-            "experience",
-            "Experience",
-            [
-                "Reduced synthetic processing time by 34% for 12 internal teams.",
-                "Built an accessible workflow used by 1,800 test accounts.",
-                "Improved release reliability from 91% to 98% in a sandbox.",
-            ],
-            1,
-        ),
-        _section("skills", "Skills", ["Python, TypeScript, PostgreSQL, AWS, accessibility"], 2),
-        _section("education", "Education", ["Synthetic Institute — BSc Computer Science"], 3),
-    ]
-    scores = {item["key"]: item["score"] for item in score_cv_quality(sections)}
-    assert 75 <= scores["impact"] <= 100
-    assert 70 <= scores["structure"] <= 100
-    assert 65 <= scores["completeness"] <= 100
-    assert 65 <= scores["clarity"] <= 100
-
-
-def test_hand_authored_thin_synthetic_fixture_lands_in_low_bands():
-    scores = {
-        item["key"]: item["score"]
-        for item in score_cv_quality([_section("custom", "About", ["Worked on things."], 0)])
-    }
-    assert 0 <= scores["impact"] <= 45
-    assert 0 <= scores["structure"] <= 45
-    assert 0 <= scores["completeness"] <= 45
-    assert 0 <= scores["clarity"] <= 45
 
 
 def _clean_sections():
@@ -80,7 +42,7 @@ def _check(client, auth_headers, sections, style=None):
 def test_clean_cv_passes_every_check_and_exposes_no_score(client, auth_headers):
     payload = _check(client, auth_headers, _clean_sections())
 
-    assert payload["schema_version"] == "cv-quality/v2"
+    assert payload["schema_version"] == "cv-quality/v3"
     assert [c["id"] for c in payload["checks"]] == [
         "sections",
         "reads_back",
@@ -91,7 +53,16 @@ def test_clean_cv_passes_every_check_and_exposes_no_score(client, auth_headers):
     assert all(c["passed"] for c in payload["checks"])
     assert all(c["label"] and c["detail"] and c["fix"] for c in payload["checks"])
     # CONTEXT.md: never a universal ATS score, and no LLM second opinion.
-    for removed in ("ats_score", "ats_fixes", "ats_checks", "scoring_mode", "remaining_model_runs"):
+    # Nor the deterministic 0-100 writing-quality numbers the studio no longer shows.
+    for removed in (
+        "ats_score",
+        "ats_fixes",
+        "ats_checks",
+        "scoring_mode",
+        "remaining_model_runs",
+        "dimensions",
+        "advisory_note",
+    ):
         assert removed not in payload
     assert all("score" not in check and "status" not in check for check in payload["checks"])
 

@@ -36,8 +36,7 @@ const document: CvDocument = {
   variants: [{ id: 'v1', name: 'Base', target_role: null, sections: [experience], created_at: '2026-07-12T10:00:00Z' }],
 }
 const quality = {
-  schema_version: 'cv-quality/v2', advisory_note: 'Directional guidance.',
-  dimensions: [{ key: 'impact', label: 'Evidence of impact', score: 64, reasons: ['Two entries include outcomes.'], remediation: 'Add truthful measurements.' }],
+  schema_version: 'cv-quality/v3',
   checks: [
     { id: 'sections', label: 'Clear section headings', passed: true, detail: 'Application systems look for standard sections.', fix: 'Add Experience and Skills.' },
     { id: 'page_breaks', label: 'Tidy page breaks', passed: false, detail: 'Each section starts with its first entry.', fix: 'An entry splits across pages. Shorten it or move it so it fits on one page.' },
@@ -203,6 +202,18 @@ describe('CV Studio paper and section editor', { timeout: 15_000 }, () => {
     expect(within(paper()).getByText('Newest edit')).toBeTruthy()
   })
 
+  it('updates the CV list from the autosave response without refetching every CV', async () => {
+    const other = { ...document, id: 'd2', name: 'Research CV' }
+    api.listCvDocuments.mockResolvedValue({ items: [document, other] })
+    view()
+    fireEvent.change(await screen.findByLabelText('Document name'), { target: { value: 'Renamed CV' } })
+    await waitFor(() => expect(saveStatus().textContent).toContain('Saved'), { timeout: 1500 })
+    const switcher = screen.getByLabelText('Your CVs')
+    expect(within(switcher).getByRole('option', { name: 'Renamed CV' })).toBeTruthy()
+    expect(within(switcher).getByRole('option', { name: 'Research CV' })).toBeTruthy()
+    expect(api.listCvDocuments).toHaveBeenCalledTimes(1)
+  })
+
   it('opens a section’s editor in a bottom sheet on a phone', async () => {
     window.innerWidth = 375
     view()
@@ -338,7 +349,7 @@ describe('CV Studio ATS check, exports and versions', { timeout: 15_000 }, () =>
     await waitFor(() => expect(api.snapshotCvVariant).toHaveBeenCalledWith('d1', 'Design roles'))
     expect(await screen.findByText('Saved “Design roles” to your versions.')).toBeTruthy()
     fireEvent.click(within(panel()).getByRole('button', { name: 'Restore Base' }))
-    expect(within(panel()).getByText('Replace your current CV?')).toBeTruthy()
+    expect(within(panel()).getByText('Replace your current CV? We’ll keep it in your versions.')).toBeTruthy()
     fireEvent.click(within(panel()).getByRole('button', { name: 'Restore' }))
     await waitFor(() => expect(api.restoreCvVariant).toHaveBeenCalledWith('d1', 'v1'))
     expect((await screen.findByRole('alert')).textContent).toContain('Restore unavailable')

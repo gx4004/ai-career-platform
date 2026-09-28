@@ -454,17 +454,11 @@ export const cvTemplateIdSchema = z.enum([
 ])
 export type CvTemplateId = z.infer<typeof cvTemplateIdSchema>
 export const cvQualityResponseSchema = z.object({
-  schema_version: z.literal('cv-quality/v2'),
-  dimensions: z.array(z.object({
-    key: z.enum(['impact', 'clarity', 'completeness', 'structure']),
-    label: z.string(), score: z.number().min(0).max(100),
-    reasons: z.array(z.string()).min(1).max(4), remediation: z.string(),
-  })),
+  schema_version: z.literal('cv-quality/v3'),
   checks: z.array(z.object({
     id: z.enum(['sections', 'reads_back', 'links', 'page_breaks', 'layout']),
     label: z.string(), passed: z.boolean(), detail: z.string(), fix: z.string(),
   })),
-  advisory_note: z.string(),
 })
 // GET /cv-documents/style-catalog: the backend's single source of CV design
 // values. The live preview looks sizes, fonts and names up here.

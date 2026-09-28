@@ -44,14 +44,15 @@ describe('CV Studio contracts', () => {
     expect(parsed.cv_documents.documents[0].variants[0].name).toBe('Base')
   })
 
-  it('parses pass/fail checks and strips any legacy ATS score', () => {
+  it('parses pass/fail checks and strips any legacy score', () => {
     const parsed = cvQualityResponseSchema.parse({
-      schema_version: 'cv-quality/v2', dimensions: [], advisory_note: 'Directional only.',
+      schema_version: 'cv-quality/v3', dimensions: [{ key: 'impact', score: 64 }],
       checks: [{ id: 'links', label: 'Links work', passed: true, detail: 'Links open.', fix: 'Check links.' }],
       ats_score: 72,
     })
     expect(parsed.checks[0].passed).toBe(true)
     expect(parsed).not.toHaveProperty('ats_score')
+    expect(parsed).not.toHaveProperty('dimensions')
   })
 
   it('reviews a tailored change by accepting or rejecting it, never by free-text edit', () => {
