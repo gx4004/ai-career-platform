@@ -45,6 +45,8 @@ import {
   workspaceUpdateSchema,
   applicationDetailSchema,
   applicationListSchema,
+  applicationDetailsSchema,
+  applicationDetailsUpdateSchema,
   applicationPreferencesSchema,
   applicationPreferencesUpdateSchema,
   applicationReviewResponseSchema,
@@ -75,6 +77,7 @@ import type {
   CvImportProposal,
   WorkspaceUpdate,
   ApplicationUpdate,
+  ApplicationDetailsUpdate,
   ApplicationPreferencesUpdate,
 } from '#/lib/api/schemas'
 
@@ -738,6 +741,18 @@ export function saveApplicationPreferences(payload: ApplicationPreferencesUpdate
     method: 'PUT',
     body: applicationPreferencesUpdateSchema.parse(payload),
     schema: applicationPreferencesSchema,
+  })
+}
+
+export function getApplicationDetails() {
+  return request('/applications/details', { method: 'GET', schema: applicationDetailsSchema })
+}
+
+export function saveApplicationDetails(payload: ApplicationDetailsUpdate) {
+  return request('/applications/details', {
+    method: 'PUT',
+    body: applicationDetailsUpdateSchema.parse(payload),
+    schema: applicationDetailsSchema,
   })
 }
 

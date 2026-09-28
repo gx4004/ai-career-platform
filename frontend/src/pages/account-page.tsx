@@ -3,6 +3,7 @@ import { Briefcase, KeyRound, LogOut, Shield, User } from 'lucide-react'
 import { Badge } from '#/components/ui/badge'
 import { Button } from '#/components/ui/button'
 import { AppStatePanel } from '#/components/app/AppStatePanel'
+import { ApplicationDetailsCard } from '#/components/applications/ApplicationDetailsCard'
 import { PageFrame } from '#/components/app/PageFrame'
 import { useSession } from '#/hooks/useSession'
 
@@ -87,6 +88,8 @@ export function AccountPage() {
             </Button>
           </div>
         </div>
+
+        <ApplicationDetailsCard />
 
         {/* Connected Providers */}
         <div className="account-card">
