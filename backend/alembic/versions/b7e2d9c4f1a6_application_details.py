@@ -1,7 +1,7 @@
 """Application details: contact details and standing answers (#374).
 
 Revision ID: b7e2d9c4f1a6
-Revises: a3f1c7e9b2d4
+Revises: b7e2d9f4a1c6
 Create Date: 2026-09-28
 
 One row per owner. Autopilot fills application forms from it instead of
@@ -14,7 +14,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "b7e2d9c4f1a6"
-down_revision: Union[str, None] = "a3f1c7e9b2d4"
+down_revision: Union[str, None] = "b7e2d9f4a1c6"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
