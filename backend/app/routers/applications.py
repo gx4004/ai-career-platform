@@ -38,9 +38,10 @@ from app.schemas.gap_response import GapResponseOffer
 from app.schemas.history import DeletedResponse
 from app.services import application_details
 from app.services import applications as service
-from app.services.autopilot_autofill import (
+from app.services.autopilot import (
     AutofillBusy,
     AutofillRefused,
+    FormNotFound,
     build_materials,
     start_autofill,
 )
@@ -256,6 +257,8 @@ def autofill(
         ) from error
     except AutofillRefused as error:  # the page moved to a site Autopilot does not fill
         raise HTTPException(status_code=400, detail=str(error)) from error
+    except FormNotFound as error:  # the window has already closed
+        raise HTTPException(status_code=502, detail=str(error)) from error
     except Exception as error:  # noqa: BLE001 — Playwright missing or the page failed
         raise HTTPException(
             status_code=502,
@@ -264,7 +267,9 @@ def autofill(
                 "computer with a browser installed (python -m playwright install chromium)."
             ),
         ) from error
-    return AutofillReport(filled=result.filled, skipped=result.skipped, url=result.url)
+    return AutofillReport(
+        filled=result.filled, skipped=result.skipped, mismatched=result.mismatched, url=result.url
+    )
 
 
 @router.post("/{application_id}/review", response_model=ReviewResponse)
