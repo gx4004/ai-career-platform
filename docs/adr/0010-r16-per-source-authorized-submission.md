@@ -1,6 +1,6 @@
 # 0010. Submission is a per-source authorized act on approved packet snapshots
 
-**Status:** accepted
+**Status:** superseded (Sept 2026 reset, #319): the R16 trusted-submission code (source gate, authorization grants, submission engine, envelope, stop events, submission records) was removed and no submission automation is planned; the product prepares and the owner applies (see ADR 0009). Kept as the record of the per-source legal-authorization requirements any future submission work must meet.
 **Date:** 2026-07-10
 
 ## Context

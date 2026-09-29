@@ -102,15 +102,11 @@ export function CookiePolicyPage() {
         of a pending or assumed choice.
       </p>
 
-      <h2>4. Error monitoring (Sentry)</h2>
+      <h2>4. Error monitoring</h2>
       <p>
-        Sentry error monitoring is inactive by default. If we enable it after completing privacy-scrubbing checks,
-        crashes may send a minimal diagnostic event to Sentry to help us fix the bug. Sentry does not set tracking
-        cookies for this processing. See Sentry’s{' '}
-        <a href="https://sentry.io/privacy/" target="_blank" rel="noreferrer" className="legal-page__link">
-          privacy policy
-        </a>{' '}
-        for details.
+        We do not use a third-party error-monitoring service. Crashes and bugs are diagnosed from our own
+        first-party logs and the diagnostic telemetry described above, and no third-party service sets cookies
+        for this purpose.
       </p>
 
       <h2>5. Managing cookies</h2>

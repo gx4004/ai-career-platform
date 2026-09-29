@@ -5,6 +5,11 @@
 **Horizon:** product excellence through CV Studio, application campaigns, job
 discovery, and approval-controlled application automation
 
+> **Sept 2026 reset note:** this is the long-term strategy as written in July 2026.
+> Where it differs from the code, `roadmap.md`, ADR 0009 and D-126 to D-131 win: the
+> Approval Queue was merged into Applications (no separate approval step), trusted
+> submission (Level C) was removed and is not planned, and the product runs locally only.
+
 ## Product Ambition
 
 Career Workbench should become a premium, evidence-grounded job-search operating

@@ -1,6 +1,6 @@
 # 0007. Workspaces evolve in place into Application Campaigns
 
-**Status:** accepted
+**Status:** accepted; amended 2026-09-30. The in-place `Workspace` decision stands. Since the Sept 2026 reset the campaign is called an **Application** in the product, its statuses are `saved, applied, interviewing, offer, rejected, withdrawn` (any move allowed, "ready to apply" derived), and the bounded tracking is tasks plus one free-text `notes` field. Separate notes and contacts tables, reminders and the pre-`applied` planning statuses described below were not kept; there is no third-party contact data and no reminder channel.
 **Date:** 2026-07-10
 
 ## Context
