@@ -41,15 +41,19 @@ Tracked on GitHub: umbrella #319.
 
 ## Autopilot experiment (#325)
 
-Off by default: `AUTOPILOT_EXPERIMENT_ENABLED` (backend) and
-`VITE_AUTOPILOT_EXPERIMENT_ENABLED` (frontend). On an approved queue card, "Fill
-the form for me (experimental)" opens the listing's Greenhouse, Lever, or Ashby
-form in a browser on the machine running the backend, so it only makes sense
-locally. It fills name, email, phone, links, the tailored CV PDF, the cover
-letter, and screening answers whose labels match, highlights the rest, and
-stops. It never presses submit; the owner reviews the open window and submits.
-Only https pages on those three hosts are opened. Tests use local fixture forms
-only, never live employer sites.
+Off by default: `AUTOPILOT_EXPERIMENT_ENABLED` (backend, refused outside
+development) and `VITE_AUTOPILOT_EXPERIMENT_ENABLED` (frontend). On an
+application page, "Fill the form for me (experimental)" opens the listing's
+Greenhouse, Lever, or Ashby form in a browser on the machine running the
+backend, so it only makes sense locally. The button shows only when the server
+reports `autofill_supported` for that application (flag on and a fillable
+destination). It fills the owner's typed contact details, the tailored CV PDF,
+the cover letter, and screening answers whose labels match, highlights the rest,
+and stops. It never presses submit; the owner reviews the open window and
+submits. The run is a background job with status and cancel; when it ends, one
+"Autopilot filled N fields" entry is logged in the application's activity with
+field labels and counts only, never values. Only https pages on those three
+hosts are opened. Tests use local fixture forms only, never live employer sites.
 
 Each ATS has one adapter (`backend/app/services/autopilot/adapters.py`) pinned by
 a hand-built fixture in `backend/tests/fixtures/autofill/`. Fixtures cannot prove
