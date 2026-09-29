@@ -65,6 +65,10 @@ function renderPage(payload: unknown = page()) {
 }
 
 const findCard = () => screen.findByRole('article', { name: 'Platform Engineer' }, { timeout: 5_000 })
+const openMenu = async (card: HTMLElement) => {
+  fireEvent.keyDown(within(card).getByRole('button', { name: 'More actions for Platform Engineer' }), { key: 'Enter' })
+  return screen.findByRole('menu')
+}
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -79,7 +83,7 @@ beforeEach(() => {
 })
 
 describe('DiscoveryPage', () => {
-  it('shows a job card with match, meta, preview and attribution', async () => {
+  it('shows a compact job card with match, meta, preview and attribution', async () => {
     renderPage()
     const card = await findCard()
 
@@ -93,14 +97,80 @@ describe('DiscoveryPage', () => {
     expect(within(card).getByText('via Greenhouse')).toBeTruthy()
   })
 
-  it('opens the apply link in a new tab without leaking the opener', async () => {
+  it('gives each card one primary action and keeps the rest in its overflow menu', async () => {
     renderPage()
     const card = await findCard()
 
-    const apply = within(card).getByRole('link', { name: /Apply on company site/ })
+    const buttons = within(card).getAllByRole('button').map((button) => button.textContent?.trim() || button.getAttribute('aria-label'))
+    expect(buttons).toEqual(['Platform Engineer', 'Add to applications', 'More actions for Platform Engineer'])
+    expect(within(card).queryByRole('link')).toBeNull()
+
+    const menu = await openMenu(card)
+    expect(within(menu).getAllByRole('menuitem').map((item) => item.textContent?.trim())).toEqual([
+      'Tailor my CV',
+      'Apply on company site',
+      'Hide this job',
+    ])
+    const apply = within(menu).getByRole('menuitem', { name: /Apply on company site/ })
     expect(apply.getAttribute('href')).toBe('https://jobs.example/apply/1')
     expect(apply.getAttribute('target')).toBe('_blank')
     expect(apply.getAttribute('rel')).toContain('noopener')
+  })
+
+  it('adds the job to Applications and opens it', async () => {
+    renderPage()
+    const card = await findCard()
+
+    fireEvent.click(within(card).getByRole('button', { name: /Add to applications/ }))
+
+    await waitFor(() => expect(adoptRecommendation).toHaveBeenCalledWith('listing-1'))
+    await waitFor(() =>
+      expect(navigate).toHaveBeenCalledWith({
+        to: '/campaigns/$campaignId',
+        params: { campaignId: 'campaign-9' },
+      }),
+    )
+  })
+
+  it('hides a job from the overflow menu and offers undo', async () => {
+    renderPage()
+    const menu = await openMenu(await findCard())
+
+    fireEvent.click(within(menu).getByRole('menuitem', { name: 'Hide this job' }))
+
+    await waitFor(() => expect(dismissRecommendation).toHaveBeenCalledWith('listing-1'))
+    fireEvent.click(await screen.findByRole('button', { name: 'Undo' }))
+    await waitFor(() => expect(undismissRecommendation).toHaveBeenCalledWith('listing-1'))
+  })
+
+  it('hands the job to CV Studio through the workflow context', async () => {
+    renderPage()
+    const menu = await openMenu(await findCard())
+
+    fireEvent.click(within(menu).getByRole('menuitem', { name: 'Tailor my CV' }))
+
+    await waitFor(() => expect(navigate).toHaveBeenCalledWith({ to: '/cv-studio' }))
+    expect(getListing).toHaveBeenCalledWith('listing-1')
+    const context = readWorkflowContext()
+    expect(context?.targetRole).toBe('Platform Engineer')
+    expect(context?.jobDescription).toContain('Build Kubernetes services.\n\nWork with Python')
+  })
+
+  it('loads the full description as plain text in the details drawer, with every action', async () => {
+    getListing.mockResolvedValue({ ...LISTING, description: '<b>Bold</b> claim' })
+    renderPage()
+    const card = await findCard()
+
+    fireEvent.click(within(card).getByRole('button', { name: 'Platform Engineer' }))
+
+    const dialog = await screen.findByRole('dialog')
+    expect(await within(dialog).findByText('<b>Bold</b> claim')).toBeTruthy()
+    expect(getListing).toHaveBeenCalledWith('listing-1')
+    expect(dialog.querySelector('b')).toBeNull()
+    for (const name of [/Add to applications/, /Tailor my CV/, /^Hide$/]) {
+      expect(within(dialog).getByRole('button', { name })).toBeTruthy()
+    }
+    expect(within(dialog).getByRole('link', { name: /Apply on company site/ })).toBeTruthy()
   })
 
   it('sends filter changes to the search endpoint', async () => {
@@ -125,59 +195,34 @@ describe('DiscoveryPage', () => {
     )
   })
 
-  it('hands the job to CV Studio through the workflow context', async () => {
-    renderPage()
-    const card = await findCard()
-
-    fireEvent.click(within(card).getByRole('button', { name: /Tailor my CV/ }))
-
-    await waitFor(() => expect(navigate).toHaveBeenCalledWith({ to: '/cv-studio' }))
-    expect(getListing).toHaveBeenCalledWith('listing-1')
-    const context = readWorkflowContext()
-    expect(context?.targetRole).toBe('Platform Engineer')
-    expect(context?.jobDescription).toContain('Build Kubernetes services.\n\nWork with Python')
-  })
-
-  it('adds the job to Applications and opens it', async () => {
-    renderPage()
-    const card = await findCard()
-
-    fireEvent.click(within(card).getByRole('button', { name: /Add to applications/ }))
-
-    await waitFor(() => expect(adoptRecommendation).toHaveBeenCalledWith('listing-1'))
-    await waitFor(() =>
-      expect(navigate).toHaveBeenCalledWith({
-        to: '/campaigns/$campaignId',
-        params: { campaignId: 'campaign-9' },
-      }),
+  it('pages through results with numbered pagination', async () => {
+    searchListings.mockImplementation(async ({ page: number }: { page: number }) =>
+      page({ total: 25, limit: 10, page: number, companies: number === 1 ? ['Acme Systems'] : null }),
     )
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={client}>
+        <DiscoveryPage />
+      </QueryClientProvider>,
+    )
+    await findCard()
+    const pages = screen.getByRole('navigation', { name: 'Pages' })
+    expect(within(pages).getByRole('button', { name: 'Page 1' }).getAttribute('aria-current')).toBe('page')
+    expect(within(pages).getByRole('button', { name: 'Page 3' })).toBeTruthy()
+
+    fireEvent.click(within(pages).getByRole('button', { name: 'Page 3' }))
+
+    await waitFor(() =>
+      expect(searchListings).toHaveBeenLastCalledWith(expect.objectContaining({ page: 3, limit: 10 })),
+    )
+    await waitFor(() =>
+      expect(within(pages).getByRole('button', { name: 'Page 3' }).getAttribute('aria-current')).toBe('page'),
+    )
+    // Company options come from page 1 and survive paging.
+    expect(within(screen.getAllByLabelText('Company')[0]).getByRole('option', { name: 'Acme Systems' })).toBeTruthy()
   })
 
-  it('hides a job and offers undo', async () => {
-    renderPage()
-    const card = await findCard()
-
-    fireEvent.click(within(card).getByRole('button', { name: 'Hide Platform Engineer' }))
-
-    await waitFor(() => expect(dismissRecommendation).toHaveBeenCalledWith('listing-1'))
-    fireEvent.click(await screen.findByRole('button', { name: 'Undo' }))
-    await waitFor(() => expect(undismissRecommendation).toHaveBeenCalledWith('listing-1'))
-  })
-
-  it('fetches the full description and shows it as plain text in a details panel', async () => {
-    getListing.mockResolvedValue({ ...LISTING, description: '<b>Bold</b> claim' })
-    renderPage()
-    const card = await findCard()
-
-    fireEvent.click(within(card).getByRole('button', { name: 'Platform Engineer' }))
-
-    const dialog = await screen.findByRole('dialog')
-    expect(await within(dialog).findByText('<b>Bold</b> claim')).toBeTruthy()
-    expect(getListing).toHaveBeenCalledWith('listing-1')
-    expect(dialog.querySelector('b')).toBeNull()
-  })
-
-  it('shows unscored jobs and a profile nudge when the user has no confirmed skills', async () => {
+  it('shows unscored jobs and points to the profile when the user has no confirmed skills', async () => {
     renderPage(page({ has_profile: false, sort: 'newest', items: [{ ...LISTING, score: null, matched_keywords: [] }] }))
     const card = await findCard()
 
@@ -200,16 +245,5 @@ describe('DiscoveryPage', () => {
     renderPage(page({ items: [], total: 0, companies: [] }))
 
     expect(await screen.findByText('No jobs yet')).toBeTruthy()
-  })
-
-  it('loads the next page on demand', async () => {
-    renderPage(page({ total: 45 }))
-    await findCard()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Show more jobs' }))
-
-    await waitFor(() =>
-      expect(searchListings).toHaveBeenLastCalledWith(expect.objectContaining({ page: 2 })),
-    )
   })
 })
