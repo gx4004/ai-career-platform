@@ -50,6 +50,17 @@ stops. It never presses submit; the owner reviews the open window and submits.
 Only https pages on those three hosts are opened. Tests use local fixture forms
 only, never live employer sites.
 
+Each ATS has one adapter (`backend/app/services/autopilot/adapters.py`) pinned by
+a hand-built fixture in `backend/tests/fixtures/autofill/`. Fixtures cannot prove
+a live page still matches, so after an ATS redesign the owner checks by hand (on
+their own application, never in automated tests):
+
+1. Open the apply page and run the fill; the banner appears and nothing is sent.
+2. Name, email, phone, links and the resume are filled (green outline).
+3. EEO, consent, salary and eligibility questions are empty and amber.
+4. Every value still reads the same after the ATS finished parsing the resume.
+5. If a field is wrong, fix the adapter selector and its fixture together.
+
 ## Deferred (not in this run)
 
 Deployment and release evidence, payments/premium tier, launch market and legal
