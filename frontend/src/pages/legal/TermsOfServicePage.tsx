@@ -76,8 +76,7 @@ export function TermsOfServicePage() {
 
       <h2>7. Third-party services</h2>
       <p>
-        The Service relies on third-party providers (Google, Resend, and Railway). Optional protections and error
-        monitoring may also use Google reCAPTCHA or Sentry when those integrations are enabled. Your use of features
+        The Service relies on third-party providers (Google, Resend, and Railway). Your use of features
         powered by those providers may also be governed by their own terms and privacy policies. We are not
         responsible for the content or practices of third-party services.
       </p>

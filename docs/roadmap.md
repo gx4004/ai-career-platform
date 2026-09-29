@@ -17,8 +17,9 @@ issues were closed as superseded; their built code is carried forward.
   entries, customise it (templates, fonts, colours, density, section order), keep
   an ATS-safe mode, tailor it to a job, export PDF/DOCX.
 - Job Discovery shows real listings from public employer job boards
-  (Greenhouse, Lever, Ashby — public GET APIs only). The Approval Queue prepares
-  an application and hands off to the employer's apply page.
+  (Greenhouse, Lever, Ashby — public GET APIs only). Applications (the former
+  Campaigns and Approval Queue, merged) prepare the materials and hand off to the
+  employer's apply page; the owner applies.
 - Autopilot is an experiment: local browser-assisted form filling that always
   stops before submit. It never submits on its own.
 - AI provider is pluggable: `fake` for local demo, `anthropic` (Claude Haiku 4.5)
