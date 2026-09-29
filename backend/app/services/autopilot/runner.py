@@ -320,6 +320,8 @@ class AutofillRun:
 
     def review(self, report: AutofillReport, deadline: float) -> None:
         with self._lock:
+            if self.state in {"failed", "closed"}:
+                return  # cancelled while the last field was being filled
             self.report, self.review_deadline, self.state = report, deadline, "review"
 
     def close(self, kind: str | None = None, message: str | None = None) -> None:
