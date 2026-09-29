@@ -52,7 +52,7 @@ import {
   applicationReviewResponseSchema,
   applicationTaskSchema,
   applicationUpdateSchema,
-  autofillReportSchema,
+  autofillRunStatusSchema,
   bulkPrepareResultSchema,
   careerDataExportSchema,
   cvDocumentCreateSchema,
@@ -690,11 +690,20 @@ export function markApplicationApplied(applicationId: string) {
   })
 }
 
-/** Autopilot experiment: fill the form in a local browser. Never submits. */
+/** Autopilot experiment: start filling the form in a local browser. Never submits. */
 export function autofillApplication(applicationId: string) {
   return request(`/applications/${applicationId}/autofill`, {
-    method: 'POST', body: {}, schema: autofillReportSchema,
+    method: 'POST', body: {}, schema: autofillRunStatusSchema,
   })
+}
+
+export function getAutofillStatus(applicationId: string) {
+  return request(`/applications/${applicationId}/autofill`, { method: 'GET', schema: autofillRunStatusSchema })
+}
+
+/** Cancel the run and close its browser window. */
+export function cancelAutofill(applicationId: string) {
+  return request(`/applications/${applicationId}/autofill`, { method: 'DELETE', schema: autofillRunStatusSchema })
 }
 
 export function reviewApplication(applicationId: string) {

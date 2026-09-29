@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import threading
 import time
-from concurrent.futures import Future
 from contextlib import contextmanager
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
@@ -41,9 +40,14 @@ from app.services.autopilot.policy import (
 )
 from app.services.autopilot.runner import (
     AutofillReport,
+    AutofillRun,
+    BrowserUnavailable,
     FormNotFound,
+    JobClosed,
+    RunCancelled,
     _run,
     _wait_for_owner,
+    cancel_run,
     open_form,
     start_autofill,
 )
@@ -239,21 +243,18 @@ def test_form_url_is_built_from_board_and_job_id(candidates, expected):
 def test_start_refuses_a_non_allowlisted_url_before_opening_anything(monkeypatch):
     monkeypatch.setattr(runner, "_run", lambda *a: pytest.fail("browser opened"))
     with pytest.raises(AutofillRefused):
-        start_autofill("user-1", AutofillMaterials(url="https://careers.acme.example/apply"))
+        start_autofill("user-1", "app-1", AutofillMaterials(url="https://careers.acme.example/apply"))
 
 
 def test_one_run_at_a_time_per_owner_until_the_browser_is_gone(monkeypatch):
     # The stub never finishes, like a browser window the owner still has open.
     monkeypatch.setattr(runner, "_run", lambda *a: None)
-    first = start_autofill("user-1", AutofillMaterials(url=LEVER))
-    start_autofill("user-2", AutofillMaterials(url=LEVER))
-    first.set_result(AutofillReport(url=LEVER))  # the fill is done...
-    with pytest.raises(AutofillBusy):  # ...but the window is still open
-        start_autofill("user-1", AutofillMaterials(url=LEVER))
-    runner._release("user-1")  # what _run does once the browser closes
-    start_autofill("user-1", AutofillMaterials(url=LEVER))
-    runner._release("user-1")
-    runner._release("user-2")
+    first = start_autofill("user-1", "app-1", AutofillMaterials(url=LEVER))
+    start_autofill("user-2", "app-2", AutofillMaterials(url=LEVER))
+    with pytest.raises(AutofillBusy):
+        start_autofill("user-1", "app-3", AutofillMaterials(url=LEVER))
+    first.done.set()  # what _run does once the browser has closed
+    start_autofill("user-1", "app-3", AutofillMaterials(url=LEVER))
 
 
 # ── Never submits: static guard over every Autopilot module ──
@@ -612,50 +613,123 @@ def test_a_redirect_off_the_allowlist_is_refused_and_nothing_is_filled(
     context.close()
 
 
-# ── The worker thread ──
+# ── The background run ──
+
+
+def _wait(run: AutofillRun, state: str, timeout: float = 60) -> dict:
+    deadline = time.monotonic() + timeout
+    while run.snapshot()["state"] != state and time.monotonic() < deadline:
+        time.sleep(0.05)
+    return run.snapshot()
+
+
+def _work(run: AutofillRun, materials: AutofillMaterials, headless: bool = True) -> None:
+    """``_run`` as the app runs it: in its own thread (Playwright's sync API needs one)."""
+    worker = threading.Thread(target=_run, args=(run, materials, headless))
+    worker.start()
+    worker.join(timeout=60)
+    assert not worker.is_alive()
 
 
 def test_worker_cannot_launch_a_browser_without_opting_in():
-    result: Future = Future()
-    _run("user-7", MATERIALS, result, False)  # headed on a live URL: the old accident
-    with pytest.raises(RuntimeError, match="opt in"):
-        result.result(timeout=5)
+    run = AutofillRun("app-1", LEVER)
+    _work(run, MATERIALS, False)  # headed on a live URL: the old accident
+    assert run.snapshot()["state"] == "failed"
+    assert run.done.is_set()
     assert _off_fixture_requests
     _off_fixture_requests.clear()
 
 
-def test_a_run_fills_the_form_and_frees_the_owner(browser):
-    result = start_autofill("user-8", MATERIALS, headless=True)
-    report = result.result(timeout=60)
-    assert "Email✱" in report.filled and report.mismatched == []
-    deadline = time.monotonic() + 30
-    while "user-8" in runner._busy and time.monotonic() < deadline:
-        time.sleep(0.05)
-    assert "user-8" not in runner._busy
+def test_a_run_returns_at_once_fills_the_form_and_frees_the_owner(browser):
+    run = start_autofill("user-8", "app-1", MATERIALS, headless=True)
+    assert run.done.wait(60)
+    status = run.snapshot()
+    assert "Email✱" in status["report"]["filled"] and status["report"]["mismatched"] == []
+    assert status["state"] == "closed"  # headless: nothing left for the owner to review
+    start_autofill("user-8", "app-2", MATERIALS, headless=True).done.wait(60)
+
+
+def test_the_owner_can_cancel_a_run_in_review_and_the_window_closes(browser):
+    run = start_autofill("user-10", "app-1", MATERIALS, headless=False)
+    assert _wait(run, "review")["report"]["filled"]
+    assert run.snapshot()["seconds_left"] > 0
+    cancel_run("user-10", "app-1")
+    assert run.done.is_set()
+    status = run.snapshot()
+    assert (status["state"], status["kind"]) == ("closed", "cancelled")
+    assert status["report"]["filled"]  # what was filled stays on record
+
+
+def test_a_cancel_stops_the_fill_before_anything_more_is_typed(browser, tmp_path):
+    page = browser.new_page()
+    cancelled = threading.Event()
+    cancelled.set()
+    with pytest.raises(RunCancelled):
+        open_form(page, MATERIALS, tmp_path, cancelled)
+    assert page.evaluate("document.querySelector('input[name=email]')?.value || ''") == ""
+    page.close()
+
+
+def test_the_review_window_says_when_it_closed_itself(browser, monkeypatch):
+    monkeypatch.setattr(runner, "REVIEW_WINDOW_SECONDS", 0.5)
+    run = start_autofill("user-11", "app-1", MATERIALS, headless=False)
+    assert run.done.wait(30)
+    status = run.snapshot()
+    assert (status["state"], status["kind"]) == ("closed", "window_expired")
+    assert "30 minutes" in status["message"]
+
+
+def test_waiting_for_the_owner_ends_when_the_tab_closes_or_time_runs_out(browser):
+    page = browser.new_page()
+    started = time.monotonic()
+    deadline = started + 0.5
+    assert _wait_for_owner(page, browser, deadline=deadline) == "expired"
+    assert time.monotonic() - started < 10
+    page.close()
+    assert _wait_for_owner(page, browser) == "closed"  # already closed: returns at once
 
 
 def test_worker_refuses_an_off_list_page_then_closes_and_frees_the_owner(browser, monkeypatch):
-    monkeypatch.setattr(runner, "fill_form", lambda *a: pytest.fail("filled anyway"))
+    monkeypatch.setattr(runner, "fill_form", lambda *a, **k: pytest.fail("filled anyway"))
     local = AutofillMaterials(**{**MATERIALS.__dict__, "url": (FIXTURES / "lever.html").as_uri()})
-    runner._busy.add("user-9")
-    result: Future = Future()
-    worker = threading.Thread(target=_run, args=("user-9", local, result, True))
-    worker.start()
-    with pytest.raises(AutofillRefused):
-        result.result(timeout=60)
-    worker.join(timeout=30)
-    assert not worker.is_alive()
-    assert "user-9" not in runner._busy
+    run = AutofillRun("app-1", local.url)
+    _work(run, local)
+    status = run.snapshot()
+    assert (status["state"], status["kind"]) == ("failed", "page_moved")
+    assert status["next_step"] == "Open the apply page yourself."
+    assert run.done.is_set()
 
 
-def test_waiting_for_the_owner_ends_when_the_tab_closes_or_time_runs_out(browser, monkeypatch):
-    page = browser.new_page()
-    monkeypatch.setattr(runner, "REVIEW_WINDOW_SECONDS", 0.5)
-    started = time.monotonic()
-    _wait_for_owner(page, browser)  # nobody closes it: gives up after the limit
-    assert time.monotonic() - started < 10
-    page.close()
-    _wait_for_owner(page, browser)  # already closed: returns at once
+@pytest.mark.parametrize(
+    ("error", "kind"),
+    [
+        (AutofillRefused("moved"), "page_moved"),
+        (JobClosed("gone"), "job_closed"),
+        (FormNotFound("no form"), "form_not_found"),
+        (BrowserUnavailable(), "browser_unavailable"),
+        (type("TimeoutError", (Exception,), {})(), "timed_out"),
+        (RuntimeError("boom"), "unexpected_error"),
+    ],
+)
+def test_each_failure_kind_gets_a_message_and_a_next_step(browser, monkeypatch, error, kind):
+    def broken(*_args, **_kwargs):
+        raise error
+
+    monkeypatch.setattr(runner, "open_form", broken)
+    run = AutofillRun("app-1", LEVER)
+    _work(run, MATERIALS)
+    status = run.snapshot()
+    assert (status["state"], status["kind"]) == ("failed", kind)
+    assert status["message"] and "yourself" in status["next_step"]
+
+
+def test_a_closed_job_page_is_reported_as_closed(browser, tmp_path):
+    context = browser.new_context()
+    context.route(LEVER, lambda route: route.fulfill(status=404, body="<p>Gone</p>",
+                                                     content_type="text/html"))
+    with pytest.raises(JobClosed):
+        open_form(context.new_page(), MATERIALS, tmp_path)
+    context.close()
 
 
 # ── Endpoint ──
@@ -666,22 +740,16 @@ def _ready(db, user_id: str, apply_url: str | None = "https://jobs.lever.co/acme
 
 
 def _fake_start(calls: list):
-    def fake(user_id, materials, **_kwargs):
-        calls.append((user_id, materials))
-        future: Future = Future()
-        future.set_result(AutofillReport(
-            url=materials.url, filled=["Email"], skipped=["Pronouns"], mismatched=["Phone"]
-        ))
-        return future
-
-    return fake
-
-
-def _failing_start(error: Exception):
-    def fake(*_args, **_kwargs):
-        future: Future = Future()
-        future.set_exception(error)
-        return future
+    def fake(user_id, application_id, materials, **_kwargs):
+        calls.append((user_id, application_id, materials))
+        run = AutofillRun(application_id, materials.url)
+        run.review(
+            AutofillReport(
+                url=materials.url, filled=["Email"], skipped=["Pronouns"], mismatched=["Phone"]
+            ),
+            time.monotonic() + 1800,
+        )
+        return run
 
     return fake
 
@@ -734,15 +802,17 @@ def test_fills_with_the_applications_chosen_materials_and_answers(
 
     response = client.post(f"{PREFIX}/{application.id}/autofill", headers=auth_headers)
 
-    assert response.status_code == 200
-    assert response.json() == {
+    assert response.status_code == 202  # accepted: the fill runs in the background
+    body = response.json()
+    assert body["state"] == "review" and 1700 < body["seconds_left"] <= 1800
+    assert body["report"] == {
         "filled": ["Email"],
         "skipped": ["Pronouns"],
         "mismatched": ["Phone"],
         "url": LEVER,
     }
-    user_id, materials = calls[0]
-    assert user_id == test_user.id
+    user_id, application_id, materials = calls[0]
+    assert (user_id, application_id) == (test_user.id, application.id)
     assert (materials.first_name, materials.last_name) == ("Ada", "King Lovelace")
     assert (materials.email, materials.phone) == ("ada@example.com", "+44 20 7946 0958")
     assert (materials.linkedin, materials.website) == (
@@ -767,8 +837,8 @@ def test_without_saved_details_only_the_account_name_and_email_are_used(
 
     response = client.post(f"{PREFIX}/{application.id}/autofill", headers=auth_headers)
 
-    assert response.status_code == 200
-    materials = calls[0][1]
+    assert response.status_code == 202
+    materials = calls[0][2]
     assert (materials.first_name, materials.last_name) == ("Test", "User")
     assert materials.email == "test@example.com"
     # Nothing is guessed from the CV text.
@@ -793,8 +863,8 @@ def test_a_greenhouse_employer_link_opens_the_hosted_greenhouse_form(
 
     response = client.post(f"{PREFIX}/{application.id}/autofill", headers=auth_headers)
 
-    assert response.status_code == 200
-    assert calls[0][1].url == GH_LEGACY
+    assert response.status_code == 202
+    assert calls[0][2].url == GH_LEGACY
 
 
 def test_unanswered_open_questions_are_refused(
@@ -835,25 +905,72 @@ def test_once_applied_it_opens_the_frozen_form_not_a_later_link(
 
     response = client.post(f"{PREFIX}/{application.id}/autofill", headers=auth_headers)
 
-    assert response.status_code == 200
-    assert calls[0][1].url == LEVER
+    assert response.status_code == 202
+    assert calls[0][2].url == LEVER
 
 
-@pytest.mark.parametrize(
-    ("error", "status_code"),
-    [
-        (AutofillRefused("The application page moved. Nothing was filled."), 400),
-        (FormNotFound("The application form did not appear on that page."), 502),
-    ],
-)
-def test_a_failed_fill_says_what_happened(
-    client, db, test_user, auth_headers, autopilot_on, monkeypatch, error, status_code
+def test_a_second_run_while_one_is_open_is_refused(
+    client, db, test_user, auth_headers, autopilot_on, monkeypatch
 ):
-    monkeypatch.setattr("app.routers.applications.start_autofill", _failing_start(error))
+    def busy(*_args, **_kwargs):
+        raise AutofillBusy
+
+    monkeypatch.setattr("app.routers.applications.start_autofill", busy)
     application = _ready(db, test_user.id)
     response = client.post(f"{PREFIX}/{application.id}/autofill", headers=auth_headers)
-    assert response.status_code == status_code
-    assert response.json()["detail"] == str(error)
+    assert response.status_code == 409
+
+
+def test_status_is_idle_until_a_run_then_reports_failures_with_a_next_step(
+    client, db, test_user, auth_headers, autopilot_on, monkeypatch
+):
+    application = _ready(db, test_user.id)
+    url = f"{PREFIX}/{application.id}/autofill"
+    assert client.get(url, headers=auth_headers).json() == {
+        "state": "idle", "kind": None, "message": None, "next_step": None,
+        "seconds_left": None, "report": None,
+    }
+
+    run = AutofillRun(application.id, LEVER)
+    run.fail(FormNotFound("The application form did not appear on that page."))
+    monkeypatch.setitem(runner._runs, test_user.id, run)
+    status = client.get(url, headers=auth_headers).json()
+    assert (status["state"], status["kind"]) == ("failed", "form_not_found")
+    assert status["message"] == "The application form did not appear on that page."
+    assert status["next_step"] == "Open the apply page yourself."
+
+    other = _ready(db, test_user.id)  # the run belongs to a different application
+    assert client.get(f"{PREFIX}/{other.id}/autofill", headers=auth_headers).json()["state"] == "idle"
+
+
+def test_delete_cancels_the_run_and_closes_the_window(
+    client, db, test_user, auth_headers, autopilot_on, monkeypatch
+):
+    application = _ready(db, test_user.id)
+    run = AutofillRun(application.id, LEVER)
+    run.done.set()  # the worker has nothing left to wind down
+    monkeypatch.setitem(runner._runs, test_user.id, run)
+
+    response = client.delete(f"{PREFIX}/{application.id}/autofill", headers=auth_headers)
+
+    assert response.status_code == 200
+    assert (response.json()["state"], response.json()["kind"]) == ("closed", "cancelled")
+    assert run.cancel.is_set()
+
+
+@pytest.mark.parametrize("method", ["get", "delete"])
+def test_status_and_cancel_follow_the_flag_and_the_owner(
+    client, db, test_user, auth_headers, autopilot_on, monkeypatch, method
+):
+    application = _ready(db, test_user.id)
+    url = f"{PREFIX}/{application.id}/autofill"
+    other = User(email="other@example.com", hashed_password=hash_password("password123"))
+    db.add(other)
+    db.commit()
+    stranger = {"Authorization": f"Bearer {create_access_token(other.id)}"}
+    assert getattr(client, method)(url, headers=stranger).status_code == 404
+    monkeypatch.setattr(settings, "AUTOPILOT_EXPERIMENT_ENABLED", False)
+    assert getattr(client, method)(url, headers=auth_headers).status_code == 404
 
 
 def test_another_owners_application_is_404(client, db, test_user, autopilot_on, monkeypatch):
