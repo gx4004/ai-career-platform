@@ -169,6 +169,8 @@ class ApplicationDetail(ApplicationCard):
     tasks: list[TaskResponse] = Field(default_factory=list)
     events: list[EventResponse] = Field(default_factory=list)
     snapshot: SnapshotResponse | None = None
+    # Autopilot is on and the form is a Greenhouse, Lever or Ashby page it may open.
+    autofill_supported: bool = False
 
 
 class ApplicationUpdate(BaseModel):

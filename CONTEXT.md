@@ -209,6 +209,13 @@ authorization, sponsorship, notice, salary, relocation). Standing answers count
 as explicit user input for a stop; Autopilot fills forms from them and never
 guesses contact details from CV text.
 
+**Autopilot**
+An experimental, development-only action on an application page that opens the
+employer's Greenhouse, Lever or Ashby form in a local browser and fills it from the
+owner's application details, chosen CV and cover letter, and drafted or typed
+answers. It never submits; the owner reviews the window and presses submit. Its
+outcome is logged on the application as labels and counts only.
+
 The submission boundary: the product prepares, the owner applies. Nothing in the
 product submits an application (ADR 0009).
 
