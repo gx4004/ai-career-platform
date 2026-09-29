@@ -1,15 +1,14 @@
-"""Autopilot experiment: fill an approved form, never submit (#325).
+"""Autopilot experiment: fill an approved form, never submit (#325, #375).
 
 Browser tests run headless against the committed fixture forms in
-``tests/fixtures/autofill/`` only — never against a live employer site. They call
-the fill step directly, which is what lets them use ``file://`` pages without
-touching the production host allowlist. The allowlist tests serve those same
-fixtures under an allowlisted URL (via ``route``) or from 127.0.0.1.
+``tests/fixtures/autofill/`` only, served under the real ATS host names by
+Playwright routing. Nothing here ever reaches a live site.
 
 The autouse ``hermetic`` guard enforces that: the experiment flag is off unless a
 test turns it on, a real browser launches only for tests that request the
-``browser`` fixture (and always headless), and any request to a host that is not
-a fixture fails the test.
+``browser`` fixture (and always headless), every browser context serves the
+fixtures under their real URLs and refuses anything else, and any non-GET
+request (a submission, an upload POST) is recorded and fails the test.
 """
 
 from __future__ import annotations
@@ -29,20 +28,23 @@ import pytest
 from app.auth.security import create_access_token, hash_password
 from app.config import settings
 from app.models.user import User
-from app.services import autopilot_autofill
-from app.services.autopilot_autofill import (
+from app.services import autopilot
+from app.services.autopilot import runner
+from app.services.autopilot.policy import (
     AutofillBusy,
     AutofillMaterials,
     AutofillRefused,
-    AutofillReport,
     FillDecision,
-    _open_form,
+    assert_allowed_apply_url,
+    ats_form_url,
+    fill_decision,
+)
+from app.services.autopilot.runner import (
+    AutofillReport,
+    FormNotFound,
     _run,
     _wait_for_owner,
-    assert_allowed_apply_url,
-    fill_application,
-    fill_decision,
-    form_url,
+    open_form,
     start_autofill,
 )
 from tests.test_applications import make_application
@@ -55,8 +57,23 @@ except ImportError:  # pragma: no cover — environment without Playwright
 
 FIXTURES = Path(__file__).parent / "fixtures" / "autofill"
 PREFIX = "/api/v1/applications"
+GH_LEGACY = "https://boards.greenhouse.io/embed/job_app?for=acme&token=1001"
+GH_MOVED = "https://boards.greenhouse.io/embed/job_app?for=acme&token=1002"
+GH_JOB_BOARDS = "https://job-boards.greenhouse.io/embed/job_app?for=acme&token=1002"
+LEVER = "https://jobs.lever.co/acme/123/apply"
+ASHBY = "https://jobs.ashbyhq.com/acme/4f7e2c1a-0000-4000-8000-000000000001/application"
+# The fixtures, under the real URLs the form-URL builder produces.
+FIXTURE_PAGES = {
+    GH_LEGACY: "greenhouse_legacy.html",
+    GH_JOB_BOARDS: "greenhouse_job_boards.html",
+    LEVER: "lever.html",
+    ASHBY: "ashby.html",
+}
+# Greenhouse sends a board that moved to the new layout on to job-boards.
+FIXTURE_REDIRECTS = {GH_MOVED: GH_JOB_BOARDS}
+
 MATERIALS = AutofillMaterials(
-    url="https://jobs.lever.co/acme/123",
+    url=LEVER,
     first_name="Ada",
     last_name="Lovelace",
     email="ada@example.com",
@@ -78,34 +95,48 @@ MATERIALS = AutofillMaterials(
 )
 
 
-# ── Hermetic guard: no live site, no visible window, flag off by default ──
+# ── Hermetic guard: fixtures only, no visible window, flag off by default ──
 
 _off_fixture_requests: list[str] = []
+_sent_requests: list[str] = []  # any non-GET: a submission or an upload
 
 
-def _is_fixture(url: str) -> bool:
+def _is_local(url: str) -> bool:
     parts = urlsplit(url)
     return parts.scheme in {"file", "data", "about", "blob"} or parts.hostname == "127.0.0.1"
 
 
-def _abort_off_fixture(route) -> None:
-    """Registered first on every context, so a test's own ``route.fulfill`` wins."""
-    if _is_fixture(route.request.url):
+def _serve_fixtures(route) -> None:
+    """Registered first on every context, so a test's own ``route`` wins."""
+    request, url = route.request, route.request.url
+    if request.method not in {"GET", "HEAD"}:
+        _sent_requests.append(f"{request.method} {url}")
+        route.abort()
+    elif url in FIXTURE_REDIRECTS:
+        # Not a 302: Chromium follows a fulfilled redirect on the real network,
+        # bypassing this route. A scripted move is a new, intercepted navigation.
+        route.fulfill(
+            body=f'<script>location.replace("{FIXTURE_REDIRECTS[url]}")</script>',
+            content_type="text/html",
+        )
+    elif url in FIXTURE_PAGES:
+        route.fulfill(path=FIXTURES / FIXTURE_PAGES[url], content_type="text/html")
+    elif _is_local(url):
         route.fallback()
     else:
-        _off_fixture_requests.append(route.request.url)
+        _off_fixture_requests.append(url)
         route.abort()
 
 
 class _GuardedBrowser:
-    """A real Chromium whose contexts refuse, and record, every non-fixture request."""
+    """A real Chromium whose contexts serve only the fixtures."""
 
     def __init__(self, browser):
         self._browser = browser
 
     def new_context(self, **kwargs):
         context = self._browser.new_context(**kwargs)
-        context.route("**/*", _abort_off_fixture)
+        context.route("**/*", _serve_fixtures)
         return context
 
     def new_page(self, **kwargs):
@@ -139,12 +170,13 @@ def hermetic(request, monkeypatch):
             _playwright_api, "sync_playwright", partial(_guarded_playwright, opted_in)
         )
     _off_fixture_requests.clear()
+    _sent_requests.clear()
     yield
-    if _off_fixture_requests:
-        pytest.fail(f"Autopilot test left the fixtures: {_off_fixture_requests}")
+    if _off_fixture_requests or _sent_requests:
+        pytest.fail(f"Autopilot test left the fixtures: {_off_fixture_requests + _sent_requests}")
 
 
-# ── Host allowlist ──
+# ── URL policy: allowlist and the frozen form URL ──
 
 
 @pytest.mark.parametrize(
@@ -178,53 +210,69 @@ def test_other_hosts_are_refused(url):
         assert_allowed_apply_url(url)
 
 
-def test_form_url_points_at_the_hosted_form():
-    assert form_url("https://jobs.lever.co/acme/123") == "https://jobs.lever.co/acme/123/apply"
-    assert form_url("https://jobs.lever.co/acme/123/apply") == (
-        "https://jobs.lever.co/acme/123/apply"
-    )
-    assert form_url("https://jobs.ashbyhq.com/acme/abc") == (
-        "https://jobs.ashbyhq.com/acme/abc/application"
-    )
-    assert form_url("https://boards.greenhouse.io/acme/jobs/1") == (
-        "https://boards.greenhouse.io/acme/jobs/1"
-    )
+@pytest.mark.parametrize(
+    ("candidates", "expected"),
+    [
+        # Greenhouse: always the hosted form from board + job id, never the employer link.
+        (("https://boards.greenhouse.io/acme/jobs/1001",
+          "https://careers.acme.example/jobs?gh_jid=1001"), GH_LEGACY),
+        (("https://job-boards.greenhouse.io/acme/jobs/1002",), GH_MOVED),
+        ((None, "https://boards.greenhouse.io/embed/job_app?for=acme&token=1001"), GH_LEGACY),
+        (("https://jobs.lever.co/acme/123",), LEVER),
+        (("https://jobs.lever.co/acme/123/apply",), LEVER),
+        (("https://jobs.ashbyhq.com/acme/4f7e2c1a-0000-4000-8000-000000000001",), ASHBY),
+        # Nothing an ATS form can be built from.
+        (("https://careers.acme.example/jobs?gh_jid=1001",), None),
+        (("https://boards.greenhouse.io/acme",), None),
+        (("https://boards.greenhouse.io/acme/jobs/not-a-number",), None),
+        (("http://jobs.lever.co/acme/123",), None),
+        (("https://jobs.eu.lever.co/acme/123",), None),
+        ((None, None), None),
+    ],
+)
+def test_form_url_is_built_from_board_and_job_id(candidates, expected):
+    assert ats_form_url(*candidates) == expected
+    if expected:
+        assert_allowed_apply_url(expected)
 
 
 def test_start_refuses_a_non_allowlisted_url_before_opening_anything(monkeypatch):
-    monkeypatch.setattr(autopilot_autofill, "_run", lambda *a: pytest.fail("browser opened"))
+    monkeypatch.setattr(runner, "_run", lambda *a: pytest.fail("browser opened"))
     with pytest.raises(AutofillRefused):
         start_autofill("user-1", AutofillMaterials(url="https://careers.acme.example/apply"))
 
 
 def test_one_run_at_a_time_per_owner_until_the_browser_is_gone(monkeypatch):
     # The stub never finishes, like a browser window the owner still has open.
-    monkeypatch.setattr(autopilot_autofill, "_run", lambda *a: None)
-    first = start_autofill("user-1", AutofillMaterials(url=MATERIALS.url))
-    start_autofill("user-2", AutofillMaterials(url=MATERIALS.url))
-    first.set_result(AutofillReport(url=MATERIALS.url))  # the fill is done...
+    monkeypatch.setattr(runner, "_run", lambda *a: None)
+    first = start_autofill("user-1", AutofillMaterials(url=LEVER))
+    start_autofill("user-2", AutofillMaterials(url=LEVER))
+    first.set_result(AutofillReport(url=LEVER))  # the fill is done...
     with pytest.raises(AutofillBusy):  # ...but the window is still open
-        start_autofill("user-1", AutofillMaterials(url=MATERIALS.url))
-    autopilot_autofill._release("user-1")  # what _run does once the browser closes
-    start_autofill("user-1", AutofillMaterials(url=MATERIALS.url))
-    autopilot_autofill._release("user-1")
-    autopilot_autofill._release("user-2")
+        start_autofill("user-1", AutofillMaterials(url=LEVER))
+    runner._release("user-1")  # what _run does once the browser closes
+    start_autofill("user-1", AutofillMaterials(url=LEVER))
+    runner._release("user-1")
+    runner._release("user-2")
 
 
-# ── Never submits: static guard ──
+# ── Never submits: static guard over every Autopilot module ──
 
 
 def test_no_code_path_clicks_presses_or_submits():
-    source = Path(autopilot_autofill.__file__).read_text()
-    for forbidden in (".click(", ".press(", "keyboard", ".submit(", "requestSubmit",
-                      "dispatch_event", "dispatchEvent", ".tap(", ".check("):
-        assert forbidden not in source, forbidden
+    package = Path(autopilot.__file__).parent
+    for module in package.glob("*.py"):
+        source = module.read_text()
+        for forbidden in (".click(", ".press(", "keyboard", ".submit(", "requestSubmit",
+                          "dispatch_event", "dispatchEvent", ".tap(", ".check(",
+                          "set_checked", ".type("):
+            assert forbidden not in source, f"{module.name}: {forbidden}"
 
 
-# ── Fill policy: label → decision (#374) ──
+# ── Fill policy: label → decision ──
 
 POLICY_MATERIALS = AutofillMaterials(
-    url=MATERIALS.url,
+    url=LEVER,
     first_name="Ada",
     last_name="King Lovelace",
     email="ada@example.com",
@@ -239,8 +287,14 @@ POLICY_MATERIALS = AutofillMaterials(
         ("Expected salary?", "Drafted figure"),
         ("What is your notice period?", "Two weeks."),
         ("Why do you want to work at Acme?", "Drafted why"),
+        ("Age", "41"),
     ],
-    owner_answers=[("Do you have a security clearance?", "No"), ("Gender", "Female")],
+    owner_answers=[
+        ("Do you have a security clearance?", "No"),
+        ("What are your salary expectations?", "95k EUR"),
+        ("Gender", "Female"),
+        ("Do you consent to the privacy policy?", "Yes"),
+    ],
     standing_answers={
         "work_authorization": "Yes",
         "visa_sponsorship": "No",
@@ -252,9 +306,9 @@ POLICY_MATERIALS = AutofillMaterials(
 YES_NO = ["--", "Yes", "No"]
 
 
-def _control(label, tag="input", type="text", name="", options=()):
+def _control(label, tag="input", type="text", name="", options=(), **extra):
     return {"tag": tag, "type": type, "name": name, "id": "", "label": label,
-            "options": list(options)}
+            "options": list(options), **extra}
 
 
 @pytest.mark.parametrize(
@@ -269,38 +323,51 @@ def _control(label, tag="input", type="text", name="", options=()):
         (_control("LinkedIn Profile"), ("contact:linkedin", "https://www.linkedin.com/in/ada")),
         (_control("Portfolio URL"), ("contact:website", "https://ada.dev")),
         (_control("Location (City)"), ("contact:location", "London, UK")),
+        (_control("Your name", contact="full_name"), ("contact:full_name", "Ada King Lovelace")),
         (_control("Phone interview availability", tag="textarea"), ("needs_you", "")),
         # Stop questions: this application's typed answer, then a standing answer.
         (_control("Do you have a security clearance?"), ("typed", "No")),
-        (_control("What are your salary expectations?"),
-         ("standing:salary_expectation", "90k EUR")),
+        (_control("What are your salary expectations?"), ("typed", "95k EUR")),
         (_control("Expected salary?"), ("standing:salary_expectation", "90k EUR")),
         (_control("What is your current salary?"), ("needs_you", "")),
         (_control("Are you legally authorized to work here?"),
          ("standing:work_authorization", "Yes")),
         (_control("Are you willing to relocate?"), ("standing:relocation", "Yes")),
         (_control("Why do you want to work at Acme?", tag="textarea"), ("needs_you", "")),
-        # Dropdowns: exact option match only.
+        # Drafted answers: non-stop text questions, best whole-word match only.
+        (_control("What is your favourite programming language?"), ("drafted", "Python")),
+        (_control("What languages do you speak?"), ("needs_you", "")),  # never "Age"
+        (_control("What is your notice period?"), ("standing:notice_period", "One month")),
+        # Choices: exact option only. A dropdown is set; the rest need a click, so
+        # the owner is pointed at the option.
         (_control("Will you require visa sponsorship?", tag="select", options=YES_NO),
          ("standing:visa_sponsorship", "No")),
         (_control("Are you legally authorized to work here?", tag="select",
                   options=["--", "Yes, I am", "No"]), ("needs_you", "")),
         (_control("What is your favourite programming language?", tag="select",
                   options=["Python", "Go"]), ("needs_you", "")),
-        # Drafted answers: non-stop text questions only; typed standing answers win.
-        (_control("What is your favourite programming language?"), ("drafted", "Python")),
-        (_control("What is your notice period?"), ("standing:notice_period", "One month")),
+        (_control("Are you legally authorized to work here?", type="radio",
+                  options=["Yes", "No"]), ("pick:standing:work_authorization", "Yes")),
+        (_control("Will you require visa sponsorship?", type="combobox", options=[]),
+         ("needs_you", "")),
+        (_control("Location (City)", type="combobox"), ("needs_you", "")),
+        (_control("Which offices could you work from?", type="checkbox",
+                  options=["London", "Berlin"]), ("needs_you", "")),
+        (_control("Do you have a driving licence?", type="checkbox"), ("needs_you", "")),
         # Never, whatever anyone typed.
         (_control("Gender", tag="select", options=["Male", "Female"]), ("never:eeo", "")),
         (_control("Are you a protected veteran?", tag="select", options=YES_NO),
          ("never:eeo", "")),
         (_control("Voluntary Self-Identification: Race"), ("never:eeo", "")),
+        (_control("Your name", name="eeo[disabilitySignature]"), ("never:eeo", "")),
         (_control("I agree to the privacy policy", type="checkbox"), ("never:consent", "")),
-        (_control("Do you have a driving licence?", type="checkbox"), ("needs_you", "")),
+        (_control("Do you consent to the privacy policy?", type="radio",
+                  options=["Yes", "No"]), ("never:consent", "")),
         (_control("", tag="textarea", name="g-recaptcha-response"), ("never:captcha", "")),
         (_control("Submit application", type="submit"), ("never:control", "")),
-        # Files and the cover letter.
-        (_control("Resume/CV", type="file"), ("resume", "file")),
+        # Files: the resume only where the adapter says; the cover letter by slot or label.
+        (_control("Resume/CV", type="file", slot="resume"), ("resume", "file")),
+        (_control("Autofill from resume", type="file"), ("needs_you", "")),
         (_control("Cover Letter", type="file"), ("cover_file", "file")),
         (_control("Additional information", tag="textarea"), ("cover_text", "Dear Acme.")),
     ],
@@ -312,13 +379,13 @@ def test_fill_policy(control, expected):
 
 def test_without_typed_answers_a_stop_question_is_left_for_the_owner():
     materials = AutofillMaterials(
-        url=MATERIALS.url, answers=[("What are your salary expectations?", "Drafted figure")]
+        url=LEVER, answers=[("What are your salary expectations?", "Drafted figure")]
     )
     decision = fill_decision(_control("What are your salary expectations?"), materials)
     assert decision == FillDecision("needs_you")
 
 
-# ── Browser tests against local fixture forms (headless) ──
+# ── Browser: each ATS fixture, served under its real host ──
 
 
 @pytest.fixture(scope="module")
@@ -337,168 +404,182 @@ def browser():
     manager.stop()
 
 
+# Reads a control as a person would, and whether Autopilot marked it for the owner.
+_READ = """el => el.type === 'file' ? ((el.files[0] || {}).name || '')
+  : (el.type === 'checkbox' || el.type === 'radio') ? (el.checked ? 'checked' : '')
+  : el.tagName === 'SELECT' ? (el.selectedIndex > 0 ? el.selectedOptions[0].text.trim() : '')
+  : el.value"""
+_OWN_STATE = "el => el.getAttribute('data-cw-state')"
+# The outermost mark wins: a question marked needs-you may hold a suggested option.
+_STATE = """el => { let s = ''; for (let n = el; n; n = n.parentElement)
+  if (n.hasAttribute('data-cw-state')) s = n.getAttribute('data-cw-state'); return s }"""
+
+CONTRACTS = [
+    pytest.param(
+        GH_LEGACY, GH_LEGACY,
+        {
+            "#first_name": "Ada", "#last_name": "Lovelace", "#email": "ada@example.com",
+            "#phone": "+44 20 7946 0958", "#job_application_location": "London, UK",
+            "#job_application_answers_attributes_0_text_value": "https://www.linkedin.com/in/ada",
+            "#job_application_answers_attributes_1_text_value": "https://ada.dev",
+            "#job_application_answers_attributes_2_text_value": "Two weeks.",
+            "#job_application_answers_attributes_3_boolean_value": "Yes",
+            "#job_application_answers_attributes_4_boolean_value": "No",
+            "#s3_upload_for_resume input": "Ada-Lovelace-CV.pdf",
+            "#s3_upload_for_cover_letter input": "Cover-letter.txt",
+        },
+        [
+            "#job_application_answers_attributes_5_text_value",  # salary: no typed answer
+            "#custom_fields input[type=checkbox]",
+            "#job_application_answers_attributes_7_text_value",  # relocation
+            "#job_application_gender", "#job_application_hispanic_ethnicity",
+            "#job_application_veteran_status", "#job_application_disability_status",
+            "#gdpr_consent",
+        ],
+        id="greenhouse-legacy",
+    ),
+    pytest.param(
+        GH_MOVED, GH_JOB_BOARDS,
+        {
+            "#first_name": "Ada", "#last_name": "Lovelace", "#preferred_name": "Ada",
+            "#email": "ada@example.com", "#phone": "+44 20 7946 0958",
+            "#question_2001": "https://www.linkedin.com/in/ada",
+            "#question_2002": "https://ada.dev",
+            "#resume": "Ada-Lovelace-CV.pdf", "#cover_letter": "Cover-letter.txt",
+        },
+        [
+            # Comboboxes are never typed into, even with an owner's answer.
+            "#country", "#candidate-location", "#question_2003", "#question_2004",
+            "#question_2005", "#question_2006_1",
+            "#gender", "#hispanic_ethnicity", "#veteran_status", "#disability_status",
+            "#gdpr_demographic_data_consent_given_1",
+        ],
+        id="greenhouse-job-boards",
+    ),
+    pytest.param(
+        LEVER, LEVER,
+        {
+            "input[name=name]": "Ada Lovelace", "input[name=email]": "ada@example.com",
+            "input[name=phone]": "+44 20 7946 0958", "#location-input": "London, UK",
+            "input[name='urls[LinkedIn]']": "https://www.linkedin.com/in/ada",
+            "input[name='urls[Portfolio]']": "https://ada.dev",
+            "select[name='cards[abc][field1]']": "No",
+            "textarea[name=comments]": "Dear Acme, I would like to join.",
+            "#resume-upload-input": "Ada-Lovelace-CV.pdf",
+        },
+        [
+            "input[name=org]", "input[name='cards[abc][field0]']",
+            "textarea[name='cards[abc][field2]']",
+            "select[name='eeo[gender]']", "select[name='eeo[race]']",
+            "select[name='eeo[veteran]']", "select[name='eeo[disability]']",
+            "input[name='eeo[disabilitySignature]']", "input[name='consent[store]']",
+        ],
+        id="lever",
+    ),
+    pytest.param(
+        ASHBY, ASHBY,
+        {
+            # Filled after the resume upload, so the parser's guess is replaced.
+            "#_systemfield_name": "Ada Lovelace", "#_systemfield_email": "ada@example.com",
+            "[id='8c1f0e1a']": "+44 20 7946 0958", "#a2b3c4d5": "https://www.linkedin.com/in/ada",
+            "#notice-1": "Two weeks.",
+            "#_systemfield_resume": "Ada-Lovelace-CV.pdf", "#cover-1": "Cover-letter.txt",
+            "#_autofill_resume": "",  # never the parse-and-overwrite box
+        },
+        [
+            "#loc-1", "input[name=auth-1]", "input[name=visa-1]", "input[name=heard-1]",
+            "#why-1", "input[name=eeo-gender]", "input[name=eeo-race]",
+            "input[name=eeo-veteran]", "input[name=consent-1]",
+        ],
+        id="ashby",
+    ),
+]
+
+
+@pytest.mark.parametrize(("url", "final_url", "values", "needs_you"), CONTRACTS)
+def test_fixture_contract(browser, tmp_path, url, final_url, values, needs_you):
+    context = browser.new_context()
+    page = context.new_page()
+    materials = AutofillMaterials(**{**MATERIALS.__dict__, "url": url})
+
+    report = open_form(page, materials, tmp_path)
+
+    assert page.url == final_url
+    for selector, expected in values.items():
+        assert page.eval_on_selector(selector, _READ) == expected, selector
+    for selector in needs_you:  # EEO, consent and unanswered questions: empty, highlighted
+        assert page.eval_on_selector(selector, _READ) == "", selector
+        assert page.eval_on_selector(selector, _STATE) == "needs-you", selector
+    assert report.mismatched == []
+    assert len(report.filled) == len([v for v in values.values() if v])
+    assert page.evaluate("window.__submitted") is False
+    assert _sent_requests == []
+    banner = page.inner_text("[data-cw-banner]")
+    assert f"filled {len(report.filled)} field" in banner and "press Submit yourself" in banner
+    context.close()
+
+
+def test_a_choice_that_needs_a_click_points_at_the_owners_answer(browser, tmp_path):
+    page = browser.new_page()
+    report = open_form(page, MATERIALS, tmp_path)  # Lever
+    question = "li:has(input[name='cards[abc][field0]'])"
+    assert "Are you legally authorized to work in the UK?✱ (pick: Yes)" in report.skipped
+    assert page.eval_on_selector(f"{question} label:has(input[value=Yes])", _OWN_STATE) == (
+        "suggested"
+    )
+    assert page.eval_on_selector_all(f"{question} input", "els => els.some(e => e.checked)") is (
+        False
+    )
+    page.close()
+
+
+def test_a_value_the_form_rejects_is_reported_not_counted(browser, tmp_path):
+    # A phone field that strips everything but digits, as some React inputs do.
+    rejecting = (FIXTURES / "ashby.html").read_text().replace(
+        "</body>",
+        "<script>document.getElementById('8c1f0e1a').addEventListener('input',"
+        " e => { e.target.value = e.target.value.replace(/\\D/g, '') })</script></body>",
+    )
+    context = browser.new_context()
+    context.route(ASHBY, lambda route: route.fulfill(body=rejecting, content_type="text/html"))
+    page = context.new_page()
+
+    report = open_form(page, AutofillMaterials(**{**MATERIALS.__dict__, "url": ASHBY}), tmp_path)
+
+    assert report.mismatched == ["Phone Number"]
+    assert "Phone Number" not in report.filled
+    assert page.eval_on_selector("[id='8c1f0e1a']", _STATE) == "mismatch"
+    context.close()
+
+
+def test_the_no_submission_check_would_see_a_submission(browser):
+    page = browser.new_page()
+    page.goto(LEVER)
+    page.evaluate("const f = document.getElementById('application-form'); f.noValidate = true; f.requestSubmit()")
+    page.wait_for_function("window.__submitted === true")
+    page.wait_for_timeout(200)
+    assert _sent_requests == [f"POST {LEVER}"]
+    _sent_requests.clear()  # seen and expected, so this test passes
+    page.close()
+
+
 def test_guard_stops_a_request_to_a_live_host(browser):
     page = browser.new_page()
     with pytest.raises(Exception):  # aborted before it leaves the machine
-        page.goto("https://jobs.lever.co/acme/123/apply")
-    assert _off_fixture_requests == ["https://jobs.lever.co/acme/123/apply"]
-    _off_fixture_requests.clear()  # seen and expected, so this test passes
-    page.close()
-
-
-def test_worker_cannot_launch_a_browser_without_opting_in():
-    result: Future = Future()
-    _run("user-7", MATERIALS, result, False)  # headed on a live URL: the old accident
-    with pytest.raises(RuntimeError, match="opt in"):
-        result.result(timeout=5)
-    assert _off_fixture_requests
+        page.goto("https://jobs.lever.co/someone-else/999/apply")
+    assert _off_fixture_requests == ["https://jobs.lever.co/someone-else/999/apply"]
     _off_fixture_requests.clear()
-
-
-def _open(browser, name: str):
-    page = browser.new_page()
-    page.goto((FIXTURES / name).as_uri())
-    return page
-
-
-def test_fills_a_greenhouse_form_and_does_not_submit(browser, tmp_path):
-    page = _open(browser, "greenhouse.html")
-
-    report = fill_application(page, MATERIALS, tmp_path)
-
-    assert page.input_value("#first_name") == "Ada"
-    assert page.input_value("#last_name") == "Lovelace"
-    assert page.input_value("#email") == "ada@example.com"
-    assert page.input_value("#phone") == "+44 20 7946 0958"
-    assert page.input_value("#question_1") == "https://www.linkedin.com/in/ada"
-    assert page.input_value("#question_2") == "https://ada.dev"
-    assert page.input_value("#question_3") == "Two weeks."
-    assert page.input_value("#question_7") == "London, UK"
-    assert page.eval_on_selector("#resume", "el => el.files[0].name") == "Ada-Lovelace-CV.pdf"
-    assert page.eval_on_selector("#cover_letter", "el => el.files[0].name") == (
-        "Cover-letter.txt"
-    )
-    # Stop questions get only the owner's typed standing answers, exact options only.
-    assert page.input_value("#question_4") == "1"  # work authorization: "Yes"
-    assert page.input_value("#question_5") == "0"  # sponsorship: "No", not the drafted "Yes"
-    assert page.input_value("#question_6") == ""  # salary: no typed answer, drafted never used
-    assert page.input_value("#question_8") == ""  # relocation: no typed answer
-    # EEO, consent and CAPTCHA are never touched.
-    assert page.input_value("#gender") == ""
-    assert page.input_value("#veteran_status") == ""
-    assert page.is_checked("#consent") is False
-    assert page.input_value("#g-recaptcha-response") == ""
-    assert report.skipped == [
-        "What are your salary expectations?",
-        "Are you open to relocation?",
-        "Gender",
-        "Veteran Status",
-        "I agree to the processing of my data as described in the privacy policy",
-    ]
-    assert "3px" in page.eval_on_selector("#gender", "el => el.style.outline")
-    assert "First Name *" in report.filled and "Resume/CV *" in report.filled
-    assert page.evaluate("window.__submitted") is False
-    assert page.url.startswith("file://")
     page.close()
 
 
-def test_typed_answers_fill_stop_fields_but_never_eeo_or_consent(browser, tmp_path):
-    page = _open(browser, "greenhouse.html")
-    materials = AutofillMaterials(
-        url=MATERIALS.url,
-        owner_answers=[
-            ("What are your salary expectations?", "95k EUR"),  # this application's answer
-            ("Gender", "Female"),
-            ("Do you consent to the privacy policy?", "Yes"),
-        ],
-        standing_answers={"salary_expectation": "90k EUR", "relocation": "Yes"},
-    )
-
-    report = fill_application(page, materials, tmp_path)
-
-    assert page.input_value("#question_6") == "95k EUR"  # per-application beats standing
-    assert page.input_value("#question_8") == "Yes"
-    assert page.input_value("#gender") == ""
-    assert page.is_checked("#consent") is False
-    assert "Gender" in report.skipped
-    assert page.evaluate("window.__submitted") is False
-    page.close()
-
-
-def test_fills_a_lever_form_and_does_not_submit(browser, tmp_path):
-    page = _open(browser, "lever.html")
-
-    report = fill_application(page, MATERIALS, tmp_path)
-
-    assert page.input_value("input[name=name]") == "Ada Lovelace"
-    assert page.input_value("input[name=email]") == "ada@example.com"
-    assert page.input_value("input[name=phone]") == "+44 20 7946 0958"
-    assert page.input_value("input[name='urls[LinkedIn]']") == "https://www.linkedin.com/in/ada"
-    assert page.input_value("input[name='urls[Portfolio]']") == "https://ada.dev"
-    assert page.input_value("textarea[name=comments]") == "Dear Acme, I would like to join."
-    assert page.eval_on_selector(
-        "#resume-upload-input", "el => el.files[0].name"
-    ) == "Ada-Lovelace-CV.pdf"
-    # An open-ended "why" question is a stop category: the owner writes it, even
-    # though a drafted answer to the same question exists.
-    assert page.input_value("textarea[name='cards[abc][field0]']") == ""
-    assert report.skipped == ["Current company", "Why do you want to work at Acme?"]
-    assert page.evaluate("window.__submitted") is False
-    page.close()
-
-
-def test_blank_details_are_left_for_the_owner(browser, tmp_path):
-    page = _open(browser, "lever.html")
-    report = fill_application(page, AutofillMaterials(url=MATERIALS.url), tmp_path)
-    assert report.filled == []
-    assert "Full name✱" in report.skipped
-    assert page.evaluate("window.__submitted") is False
-    page.close()
-
-
-def test_answers_go_only_to_the_question_they_best_match(browser, tmp_path):
-    page = browser.new_page()
-    page.set_content("""<form>
-      <label for="lang">What languages do you speak?</label><input id="lang">
-      <label for="notice">What is your notice period?</label><input id="notice">
-      <label for="pay">Salary expectations</label><input id="pay">
-    </form>""")
-    materials = AutofillMaterials(
-        url=MATERIALS.url,
-        answers=[
-            ("Age", "41"),  # whole words only: never inside "languages"
-            ("Notice period for your current role", "One month."),
-            ("What is your notice period?", "Two weeks."),  # the closer match wins
-            ("Expected salary?", "Drafted figure"),
-        ],
-    )
-
-    report = fill_application(page, materials, tmp_path)
-
-    assert page.input_value("#lang") == ""
-    assert page.input_value("#notice") == "Two weeks."
-    # A salary field only ever gets the owner's own answer, never a drafted one.
-    assert page.input_value("#pay") == ""
-    assert report.skipped == ["What languages do you speak?", "Salary expectations"]
-    page.close()
-
-
-def test_the_owners_own_answer_fills_a_stop_field(browser, tmp_path):
-    page = browser.new_page()
-    page.set_content("""<form>
-      <label for="pay">Salary expectations</label><input id="pay">
-    </form>""")
-    materials = AutofillMaterials(
-        url=MATERIALS.url,
-        answers=[("Expected salary?", "Drafted figure")],
-        owner_answers=[("What are your salary expectations?", "90k EUR")],
-    )
-
-    report = fill_application(page, materials, tmp_path)
-
-    assert page.input_value("#pay") == "90k EUR"
-    assert report.filled == ["Salary expectations"]
-    page.close()
+def test_a_page_without_a_known_form_is_reported(browser, tmp_path):
+    context = browser.new_context()
+    context.route(LEVER, lambda route: route.fulfill(body="<p>This job is closed.</p>",
+                                                     content_type="text/html"))
+    page = context.new_page()
+    with pytest.raises(FormNotFound):
+        open_form(page, AutofillMaterials(**{**MATERIALS.__dict__, "url": LEVER}), tmp_path)
+    context.close()
 
 
 @pytest.fixture
@@ -512,46 +593,51 @@ def fixture_server():
     server.shutdown()
 
 
-def test_opens_an_allowlisted_page_and_fills_it(browser, tmp_path):
-    context = browser.new_context()
-    context.route(
-        "https://jobs.lever.co/**", lambda route: route.fulfill(path=FIXTURES / "lever.html")
-    )
-    page = context.new_page()
-    report = _open_form(page, MATERIALS, tmp_path)
-    assert page.url == "https://jobs.lever.co/acme/123/apply"
-    assert "Email✱" in report.filled
-    assert page.evaluate("window.__submitted") is False
-    context.close()
-
-
 def test_a_redirect_off_the_allowlist_is_refused_and_nothing_is_filled(
     browser, tmp_path, fixture_server
 ):
     context = browser.new_context()
     context.route(
-        "https://boards.greenhouse.io/**",
+        GH_LEGACY,
         lambda route: route.fulfill(
-            status=302, headers={"location": f"{fixture_server}/greenhouse.html"}
+            status=302, headers={"location": f"{fixture_server}/greenhouse_legacy.html"}
         ),
     )
     page = context.new_page()
-    materials = AutofillMaterials(**{**MATERIALS.__dict__, "url": "https://boards.greenhouse.io/acme/jobs/1"})
     with pytest.raises(AutofillRefused):
-        _open_form(page, materials, tmp_path)
+        open_form(page, AutofillMaterials(**{**MATERIALS.__dict__, "url": GH_LEGACY}), tmp_path)
     assert not page.url.startswith("https://boards.greenhouse.io")
     assert page.evaluate("document.querySelector('#first_name')?.value || ''") == ""
     assert list(tmp_path.iterdir()) == []  # not even the CV was written out
     context.close()
 
 
+# ── The worker thread ──
+
+
+def test_worker_cannot_launch_a_browser_without_opting_in():
+    result: Future = Future()
+    _run("user-7", MATERIALS, result, False)  # headed on a live URL: the old accident
+    with pytest.raises(RuntimeError, match="opt in"):
+        result.result(timeout=5)
+    assert _off_fixture_requests
+    _off_fixture_requests.clear()
+
+
+def test_a_run_fills_the_form_and_frees_the_owner(browser):
+    result = start_autofill("user-8", MATERIALS, headless=True)
+    report = result.result(timeout=60)
+    assert "Email✱" in report.filled and report.mismatched == []
+    deadline = time.monotonic() + 30
+    while "user-8" in runner._busy and time.monotonic() < deadline:
+        time.sleep(0.05)
+    assert "user-8" not in runner._busy
+
+
 def test_worker_refuses_an_off_list_page_then_closes_and_frees_the_owner(browser, monkeypatch):
-    """The thread body end to end: the navigation guard stops a non-allowlisted page."""
-    monkeypatch.setattr(
-        autopilot_autofill, "fill_application", lambda *a: pytest.fail("filled anyway")
-    )
+    monkeypatch.setattr(runner, "fill_form", lambda *a: pytest.fail("filled anyway"))
     local = AutofillMaterials(**{**MATERIALS.__dict__, "url": (FIXTURES / "lever.html").as_uri()})
-    autopilot_autofill._busy.add("user-9")
+    runner._busy.add("user-9")
     result: Future = Future()
     worker = threading.Thread(target=_run, args=("user-9", local, result, True))
     worker.start()
@@ -559,12 +645,12 @@ def test_worker_refuses_an_off_list_page_then_closes_and_frees_the_owner(browser
         result.result(timeout=60)
     worker.join(timeout=30)
     assert not worker.is_alive()
-    assert "user-9" not in autopilot_autofill._busy
+    assert "user-9" not in runner._busy
 
 
 def test_waiting_for_the_owner_ends_when_the_tab_closes_or_time_runs_out(browser, monkeypatch):
     page = browser.new_page()
-    monkeypatch.setattr(autopilot_autofill, "REVIEW_WINDOW_SECONDS", 0.5)
+    monkeypatch.setattr(runner, "REVIEW_WINDOW_SECONDS", 0.5)
     started = time.monotonic()
     _wait_for_owner(page, browser)  # nobody closes it: gives up after the limit
     assert time.monotonic() - started < 10
@@ -583,7 +669,18 @@ def _fake_start(calls: list):
     def fake(user_id, materials, **_kwargs):
         calls.append((user_id, materials))
         future: Future = Future()
-        future.set_result(AutofillReport(url=materials.url, filled=["Email"], skipped=["Pronouns"]))
+        future.set_result(AutofillReport(
+            url=materials.url, filled=["Email"], skipped=["Pronouns"], mismatched=["Phone"]
+        ))
+        return future
+
+    return fake
+
+
+def _failing_start(error: Exception):
+    def fake(*_args, **_kwargs):
+        future: Future = Future()
+        future.set_exception(error)
         return future
 
     return fake
@@ -641,7 +738,8 @@ def test_fills_with_the_applications_chosen_materials_and_answers(
     assert response.json() == {
         "filled": ["Email"],
         "skipped": ["Pronouns"],
-        "url": "https://jobs.lever.co/acme/123",
+        "mismatched": ["Phone"],
+        "url": LEVER,
     }
     user_id, materials = calls[0]
     assert user_id == test_user.id
@@ -683,6 +781,22 @@ def test_without_saved_details_only_the_account_name_and_email_are_used(
     assert materials.standing_answers == {}
 
 
+def test_a_greenhouse_employer_link_opens_the_hosted_greenhouse_form(
+    client, db, test_user, auth_headers, autopilot_on, monkeypatch
+):
+    calls: list = []
+    monkeypatch.setattr("app.routers.applications.start_autofill", _fake_start(calls))
+    application = _ready(db, test_user.id)
+    application.listing.source_url = "https://boards.greenhouse.io/acme/jobs/1001"
+    application.listing.apply_url = "https://careers.acme.example/jobs?gh_jid=1001"
+    db.commit()
+
+    response = client.post(f"{PREFIX}/{application.id}/autofill", headers=auth_headers)
+
+    assert response.status_code == 200
+    assert calls[0][1].url == GH_LEGACY
+
+
 def test_unanswered_open_questions_are_refused(
     client, db, test_user, auth_headers, autopilot_on, monkeypatch
 ):
@@ -696,7 +810,7 @@ def test_unanswered_open_questions_are_refused(
     assert response.status_code == 409
 
 
-def test_non_allowlisted_destination_is_refused(
+def test_non_ats_destination_is_refused(
     client, db, test_user, auth_headers, autopilot_on, monkeypatch
 ):
     _no_browser(monkeypatch)
@@ -706,7 +820,7 @@ def test_non_allowlisted_destination_is_refused(
     assert "Greenhouse, Lever, or Ashby" in response.json()["detail"]
 
 
-def test_once_applied_it_opens_the_frozen_destination_not_a_later_link(
+def test_once_applied_it_opens_the_frozen_form_not_a_later_link(
     client, db, test_user, auth_headers, autopilot_on, monkeypatch
 ):
     calls: list = []
@@ -714,28 +828,32 @@ def test_once_applied_it_opens_the_frozen_destination_not_a_later_link(
     application = _ready(db, test_user.id)
     applied = client.post(f"{PREFIX}/{application.id}/applied", headers=auth_headers)
     assert applied.status_code == 200
-    application.listing.apply_url = "https://jobs.lever.co/someone-else/999"  # edited later
+    assert applied.json()["snapshot"]["content"]["listing"]["form_url"] == LEVER
+    application.listing.source_url = "https://jobs.lever.co/someone-else/999"  # edited later
+    application.listing.apply_url = "https://jobs.lever.co/someone-else/999"
     db.commit()
 
     response = client.post(f"{PREFIX}/{application.id}/autofill", headers=auth_headers)
 
     assert response.status_code == 200
-    assert calls[0][1].url == "https://jobs.lever.co/acme/123"
+    assert calls[0][1].url == LEVER
 
 
-def test_a_page_that_moves_off_the_allowlist_is_a_400(
-    client, db, test_user, auth_headers, autopilot_on, monkeypatch
+@pytest.mark.parametrize(
+    ("error", "status_code"),
+    [
+        (AutofillRefused("The application page moved. Nothing was filled."), 400),
+        (FormNotFound("The application form did not appear on that page."), 502),
+    ],
+)
+def test_a_failed_fill_says_what_happened(
+    client, db, test_user, auth_headers, autopilot_on, monkeypatch, error, status_code
 ):
-    def refused(*_args, **_kwargs):
-        future: Future = Future()
-        future.set_exception(AutofillRefused("The application page moved. Nothing was filled."))
-        return future
-
-    monkeypatch.setattr("app.routers.applications.start_autofill", refused)
+    monkeypatch.setattr("app.routers.applications.start_autofill", _failing_start(error))
     application = _ready(db, test_user.id)
     response = client.post(f"{PREFIX}/{application.id}/autofill", headers=auth_headers)
-    assert response.status_code == 400
-    assert response.json()["detail"] == "The application page moved. Nothing was filled."
+    assert response.status_code == status_code
+    assert response.json()["detail"] == str(error)
 
 
 def test_another_owners_application_is_404(client, db, test_user, autopilot_on, monkeypatch):
