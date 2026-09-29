@@ -57,6 +57,19 @@ _READ_BACK = """(el) => el.type === 'file' ? ((el.files[0] || {}).name || '')
   : el.value"""
 
 
+# A fixed note at the top of the page: what happened and whose turn it is.
+_BANNER = """(a) => {
+  document.querySelectorAll('[data-cw-banner]').forEach(n => n.remove());
+  const bar = document.createElement('div');
+  bar.setAttribute('data-cw-banner', '');
+  bar.setAttribute('role', 'status');
+  bar.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:2147483647;padding:10px 16px;'
+    + 'background:#0f172a;color:#fff;font:14px/1.4 system-ui,sans-serif;text-align:center';
+  bar.textContent = a.text;
+  document.body.appendChild(bar);
+}"""
+
+
 class FormNotFound(Exception):
     """The page opened, but no application form Autopilot knows appeared on it."""
 
@@ -157,6 +170,13 @@ def fill_form(page, adapter: Adapter, materials: AutofillMaterials, workdir: Pat
     return report
 
 
+def banner_text(report: AutofillReport) -> str:
+    text = f"Career Workbench filled {len(report.filled)} field{'s' * (len(report.filled) != 1)}."
+    if report.skipped or report.mismatched:
+        text += " Amber and red fields need you."
+    return f"{text} Check everything, then press Submit yourself. This window closes itself in 30 minutes."
+
+
 def open_form(page, materials: AutofillMaterials, workdir: Path) -> AutofillReport:
     """Open the frozen form URL and fill it, only while the page stays on an allowlisted host.
 
@@ -188,6 +208,8 @@ def open_form(page, materials: AutofillMaterials, workdir: Path) -> AutofillRepo
             "The application page moved to a site Autopilot does not fill. Nothing was filled."
         )
     report = fill_form(page, _find_adapter(page), materials, workdir)
+    page.evaluate(_BANNER, {"text": banner_text(report)})
+    page.bring_to_front()
     page.unroute("**/*", guard)  # From here on the owner is in charge of the window.
     return report
 

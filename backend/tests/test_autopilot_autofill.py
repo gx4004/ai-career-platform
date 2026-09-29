@@ -113,7 +113,12 @@ def _serve_fixtures(route) -> None:
         _sent_requests.append(f"{request.method} {url}")
         route.abort()
     elif url in FIXTURE_REDIRECTS:
-        route.fulfill(status=302, headers={"location": FIXTURE_REDIRECTS[url]})
+        # Not a 302: Chromium follows a fulfilled redirect on the real network,
+        # bypassing this route. A scripted move is a new, intercepted navigation.
+        route.fulfill(
+            body=f'<script>location.replace("{FIXTURE_REDIRECTS[url]}")</script>',
+            content_type="text/html",
+        )
     elif url in FIXTURE_PAGES:
         route.fulfill(path=FIXTURES / FIXTURE_PAGES[url], content_type="text/html")
     elif _is_local(url):
@@ -404,7 +409,10 @@ _READ = """el => el.type === 'file' ? ((el.files[0] || {}).name || '')
   : (el.type === 'checkbox' || el.type === 'radio') ? (el.checked ? 'checked' : '')
   : el.tagName === 'SELECT' ? (el.selectedIndex > 0 ? el.selectedOptions[0].text.trim() : '')
   : el.value"""
-_STATE = "el => (el.closest('[data-cw-state]') || {getAttribute: () => ''}).getAttribute('data-cw-state')"
+_OWN_STATE = "el => el.getAttribute('data-cw-state')"
+# The outermost mark wins: a question marked needs-you may hold a suggested option.
+_STATE = """el => { let s = ''; for (let n = el; n; n = n.parentElement)
+  if (n.hasAttribute('data-cw-state')) s = n.getAttribute('data-cw-state'); return s }"""
 
 CONTRACTS = [
     pytest.param(
@@ -473,7 +481,7 @@ CONTRACTS = [
         {
             # Filled after the resume upload, so the parser's guess is replaced.
             "#_systemfield_name": "Ada Lovelace", "#_systemfield_email": "ada@example.com",
-            "#8c1f0e1a": "+44 20 7946 0958", "#a2b3c4d5": "https://www.linkedin.com/in/ada",
+            "[id='8c1f0e1a']": "+44 20 7946 0958", "#a2b3c4d5": "https://www.linkedin.com/in/ada",
             "#notice-1": "Two weeks.",
             "#_systemfield_resume": "Ada-Lovelace-CV.pdf", "#cover-1": "Cover-letter.txt",
             "#_autofill_resume": "",  # never the parse-and-overwrite box
@@ -506,6 +514,8 @@ def test_fixture_contract(browser, tmp_path, url, final_url, values, needs_you):
     assert len(report.filled) == len([v for v in values.values() if v])
     assert page.evaluate("window.__submitted") is False
     assert _sent_requests == []
+    banner = page.inner_text("[data-cw-banner]")
+    assert f"filled {len(report.filled)} field" in banner and "press Submit yourself" in banner
     context.close()
 
 
@@ -514,7 +524,7 @@ def test_a_choice_that_needs_a_click_points_at_the_owners_answer(browser, tmp_pa
     report = open_form(page, MATERIALS, tmp_path)  # Lever
     question = "li:has(input[name='cards[abc][field0]'])"
     assert "Are you legally authorized to work in the UK?✱ (pick: Yes)" in report.skipped
-    assert page.eval_on_selector(f"{question} label:has(input[value=Yes])", _STATE) == (
+    assert page.eval_on_selector(f"{question} label:has(input[value=Yes])", _OWN_STATE) == (
         "suggested"
     )
     assert page.eval_on_selector_all(f"{question} input", "els => els.some(e => e.checked)") is (
@@ -538,14 +548,14 @@ def test_a_value_the_form_rejects_is_reported_not_counted(browser, tmp_path):
 
     assert report.mismatched == ["Phone Number"]
     assert "Phone Number" not in report.filled
-    assert page.eval_on_selector("#8c1f0e1a", _STATE) == "mismatch"
+    assert page.eval_on_selector("[id='8c1f0e1a']", _STATE) == "mismatch"
     context.close()
 
 
 def test_the_no_submission_check_would_see_a_submission(browser):
     page = browser.new_page()
     page.goto(LEVER)
-    page.evaluate("document.getElementById('application-form').requestSubmit()")
+    page.evaluate("const f = document.getElementById('application-form'); f.noValidate = true; f.requestSubmit()")
     page.wait_for_function("window.__submitted === true")
     page.wait_for_timeout(200)
     assert _sent_requests == [f"POST {LEVER}"]
