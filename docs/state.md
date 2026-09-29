@@ -1,6 +1,6 @@
 # Career Workbench — Current State
 
-**Snapshot date:** 2026-09-24 (Sept 2026 reset)
+**Snapshot date:** 2026-09-30 (Sept 2026 reset; integration branch `integration/chapter2-narrowing`, PR #402)
 **Confidence:** code- and local-verification-informed; no deployed environment
 
 This file records current posture, blockers, and risks. GitHub Issues, pull
@@ -20,7 +20,10 @@ in `docs/roadmap.md` (umbrella issue #319).
 - All product areas are always on (R11–R17 outcome flags removed, #351); only
   `AUTOPILOT_EXPERIMENT_ENABLED` and `ATS_INGESTION_ENABLED` remain off by default.
 - Vertex AI is not configured locally (placeholder project id); local AI runs use
-  `LLM_PROVIDER=fake` or `anthropic` once available.
+  `LLM_PROVIDER=fake` or `anthropic`. The backend refuses `fake` outside development.
+- The chapter2 narrowing work (`docs/handoff-2026-09-29.md`) removes the R15 queue,
+  R16 submission code, contacts, reminders, Sentry/CAPTCHA wiring and the R8/R10
+  harnesses; Approval Queue merged into Applications (ADR 0009, D-126 to D-131).
 
 ## Branch and Release Posture
 
@@ -51,29 +54,21 @@ in `docs/roadmap.md` (umbrella issue #319).
 - Cookie authentication, Google OAuth, password reset, history, workspaces,
   favorites, labels, revisions, deletion, exports, admin, telemetry, quotas, and
   deployment assets.
-- Evidence Profile foundations with provenance, review, explicit confirmation,
-  downstream confirmed-evidence reuse, export, deletion, and bounded telemetry.
-- CV Studio foundations with structured import/editing, explainable scoring,
-  evidence-grounded tailoring, immutable variants, three render templates,
-  validated DOCX/PDF export, quotas, and lifecycle controls.
-- Campaign foundations with canonical listings, exact material selection, bounded
-  tasks/notes/contacts, append-only events, consented in-product reminders,
-  immutable application snapshots, and an advisory reviewer.
-- Job-discovery foundations with registry enforcement, fixture-only bounded
-  ingestion, listing deduplication/expiry, explainable ranking, user controls,
-  explicit campaign adoption, and source health/kill controls. No real source is
-  registered or active.
-- Approval-queue foundations with owner rules, caps, mandatory stops, reviewer and
-  regression gates, explicit review controls, immutable approval snapshots,
-  duplicate prevention, audit, and manual official-destination handoff. R15 never
-  submits, schedules, or retries an outward act.
-- Trusted-submission foundations with credential-free grant metadata, four-gate
-  authorization, idempotency, terminal stop-and-return, a default-on safety
-  envelope, immutable confirmation/audit, compatibility containment, and
-  quality-first metrics. Only local fixture adapters exist.
-- Career-development foundations with four explainable gap kinds, honest response
-  mapping, bounded development items, explicit completion-to-unconfirmed-evidence,
-  export/erasure, and aggregate-only telemetry.
+- Evidence Profile with provenance, review, explicit confirmation, downstream
+  confirmed-evidence reuse, export and deletion.
+- CV Studio: structured import/editing, five render templates, preview-led editor,
+  evidence-grounded tailoring, immutable variants, DOCX/PDF export, and a
+  pass/fail ATS check with no score (D-126).
+- Applications (former Campaigns and Approval Queue): current listing, selected
+  materials, prepared drafts with mandatory stops, tasks and notes, append-only
+  timeline, an immutable applied snapshot, and an advisory reviewer. Nothing
+  submits; the owner applies (ADR 0009).
+- Job Discovery from public Greenhouse, Lever and Ashby job-board APIs through the
+  source registry (terms review is an open owner item, #368), listing dedup/expiry,
+  explainable ranking, user controls and explicit adoption into Applications.
+- Career development: four gap kinds, honest response mapping, bounded development
+  items, completion into unconfirmed evidence, export and erasure.
+- Autopilot: experimental, development-only, never submits.
 
 ## Immediate Objective
 
@@ -95,90 +90,45 @@ lands as a PR into `chapter2` after local gates pass.
   and a high-severity production audit gate now live in the repository, while
   secret scanning, push protection, and code scanning still require GitHub
   repository settings or an accepted workflow decision.
-- **Build-ahead activation remains unaccepted.** R11–R17 user API families and
-  frontend routes/navigation are now protected by matching default-off,
-  dependency-ordered flags. This closes accidental exposure but does not accept any
-  outcome gate; activation still requires the recorded evidence and owner decision.
+- **Hosted launch hardening is deferred.** Proxy-aware rate-limit keys and shared
+  limiter storage were removed (#355); there is no Sentry, CAPTCHA or analytics
+  vendor (D-129). These must be redesigned deliberately, with matching legal-page
+  changes, before any hosted launch.
 - **Sensitive browser state.** Four `sessionStorage` keys retain resume text, job
   descriptions, or generated output for shipped tab-scoped workflows. Logout,
   deletion, and manual reset clear the current tab and are regression-tested; an
   independently open tab retains its deliberately isolated copy until it performs
   the same action or closes.
 - **Source legality and authorization.** Fixture support is not permission for a
-  real source. Keep every discovery/submission source absent, pending, or killed
-  until accepted terms review and compatibility ownership exist. D-026 prohibitions
+  real source. Keep every discovery source pending or killed until its terms
+  review is accepted (#368). D-026 prohibitions
   on unauthorized scraping, CAPTCHA bypass, copied sessions, credentials, and mass
   auto-apply remain permanent.
 - **Activation evidence absent.** Code and synthetic fixtures cannot establish
   demand, retention, packet quality, recurring gap classes, provider reliability,
   or a scaling trigger.
-- **R10 thresholds remain incomplete.** Rate-limit pressure has an encoded sustained
-  threshold, while perceived-generation elevation and representative database query/
-  pool pressure remain evidence-only until owners accept material-elevation and p95/
-  capacity budgets. Railway storage evidence is deployment-dependent.
-- **Telemetry naming debt.** Backend stdout/Sentry still uses raw exception class
-  names under `failure_category`; durable analytics independently enforces the
-  closed allowlist. Any future analytics granularity must add an explicit enum,
-  never persist raw class names.
+- **Telemetry naming debt.** Backend stdout still uses raw exception class names
+  under `failure_category`; nothing is persisted. Any future persisted analytics must
+  add an explicit enum, never raw class names.
 
 ## Verification Baseline
 
-### Historical merged baseline — PR #316
-
-The PR #316 release body at `cd2986b3` recorded this historical local verification
-baseline:
-
-- backend: Ruff clean; 1,011 tests passed;
-- frontend: typecheck clean; 478 Vitest tests plus 5 Node tests passed; client and
-  SSR production builds passed;
-- dependency integrity: `pnpm audit --prod` reports no known production
-  vulnerabilities; `pip check` reports a consistent environment; `pip-audit`
-  reports no known vulnerabilities after the narrow documented ignore for the
-  unfixed optional `ecdsa` EC-path advisory that is unreachable under the enforced
-  HS256-only JWT contract;
-- PostgreSQL: populated packet-approval, trusted-submission, and operational-metric
-  upgrade/downgrade/upgrade round trips passed; a fresh database reached
-  `c4a8e2f6b1d9`; the two-worker submission-concurrency check passed;
-- browser: the fresh-database Playwright gate passed 52/52;
-- independent cumulative specification, standards, security/privacy, migration,
-  and operational-readiness reviews found and fixed every actionable local issue,
-  including dark-route data exposure, injection gating, Unicode/UTF-8 contract
-  drift, Sentry leakage, pre-parse body bounds, privacy-control reachability,
-  rate-limit/database evidence amplification, scorecard semantics, migration
-  round trips, and full-suite synchronization drift;
-- hosted CI and Docker were deliberately not run for `cd2986b3`: Actions was
-  manual-only by owner policy, and Docker is unavailable locally.
-
-### Current local candidate — verification in progress
-
-The post-merge local candidate has final frontend evidence but does not yet have a
-complete cumulative release result:
-
-- runtime: Node 22.23.2;
-- frontend dependencies: `pnpm audit --prod` reports no known vulnerabilities;
-- frontend code and tests: typecheck passed; 517 Vitest tests plus 5 Node tests
-  passed;
-- frontend production process: the real client and SSR production build-and-serve
-  smoke passed;
-- backend, PostgreSQL, and E2E cumulative verification is in progress; no totals are
-  recorded yet and the PR #316 totals must not be copied forward;
-- hosted Actions has not been dispatched and remains manual-only; current container
-  evidence remains uncollected because Docker is unavailable locally.
-
-Neither baseline verifies the deployed environment or closes an activation gate.
+The last full local release gate (`scripts/local-release.sh`, before the final four
+integration PRs) was green: ruff, 658 pytest, typecheck, 413 vitest, build, alembic
+on a fresh database, and 54/54 Playwright. Later PRs passed their own unit tests and
+typecheck. A final full gate and screenshot pass is the last step before PR #402
+merges (`docs/handoff-2026-09-29.md`). Hosted CI is manual-dispatch only and Docker
+is not used locally; nothing here verifies a deployed environment.
 
 ## Constraints Until Decided
 
 - Do not promote `chapter2`, mutate `deploy`, or run production migrations without
   explicit release ownership and current backup/rollback evidence.
-- Do not add monetization, a provider fallback, streaming, stronger challenge, a
-  database optimization, or source specialization before its accepted decision or
-  R10 trigger.
-- Do not activate or promote R11–R17 capabilities until each accepted evidence,
-  legal/terms, release-quality, and production gate closes in dependency order.
-- Do not register a real discovery or submission source without its accepted terms
-  review; never bypass access controls or store third-party credentials/session
-  state.
+- Do not add monetization, a provider fallback, streaming, or a CAPTCHA without an
+  explicit owner decision.
+- Do not register a discovery source as accepted without its terms review; never
+  bypass access controls or store third-party credentials/session state. Do not add
+  submission automation (D-128).
 - Do not treat implementation completion, synthetic fixtures, or green CI as
   product-outcome evidence.
 

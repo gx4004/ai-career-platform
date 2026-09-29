@@ -9,7 +9,7 @@ which document owns which kind of fact and how updates happen.
 | Document | Owns | Update trigger |
 |---|---|---|
 | `state.md` | Current posture, active objective, risks, blockers, verification snapshots | Reality changed: status, blockers, or newly discovered drift |
-| `roadmap.md` | Outcomes, priorities, acceptance gates (R0–R18) | An outcome changes state or a gate is accepted/deferred |
+| `roadmap.md` | Current direction and phases (Sept 2026 reset; the R0–R18 outcome roadmap is retired) | An outcome changes state or a gate is accepted/deferred |
 | `spec.md` | Product contract and scope: what the product promises users | The product contract changes |
 | `architecture.md` | System boundaries, data flow, engineering invariants | The system contract or an invariant changes |
 | `threat-model.md` | Trust boundaries, assets, data flows, attack surface, abuse cases, privacy failure modes, open production unknowns (D-UNK) | Security/privacy posture changes or an unknown is resolved |
