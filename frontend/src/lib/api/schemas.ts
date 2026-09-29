@@ -97,6 +97,7 @@ export const applicationDetailSchema = applicationCardSchema.extend({
   tasks: z.array(applicationTaskSchema).default([]),
   events: z.array(applicationEventSchema).default([]),
   snapshot: applicationSnapshotSchema.nullable().default(null),
+  autofill_supported: z.boolean().default(false),
 })
 export const applicationUpdateSchema = z.strictObject({
   label: z.string().max(200).nullable().optional(),

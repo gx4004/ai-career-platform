@@ -19,6 +19,7 @@ from typing import Any
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, joinedload, load_only
 
+from app.config import settings
 from app.models.application_preferences import ApplicationPreferences
 from app.models.application_snapshot import ApplicationSnapshot
 from app.models.campaign_event import CampaignEvent
@@ -50,7 +51,7 @@ from app.schemas.applications import (
     TaskCreate,
 )
 from app.services.application_drafts import DRAFTS_TOOL_NAME, compose_application_drafts
-from app.services.autopilot.policy import ats_form_url
+from app.services.autopilot.policy import ats_form_url, is_allowed
 from app.services.campaign_reviewer import cover_document_text
 from app.services.discovery_adoption import adopt_recommendation
 from app.services.discovery_recommendations import VisibleListing, best_matches
@@ -303,6 +304,54 @@ def _drafts(workspace: Workspace) -> ApplicationDrafts | None:
     )
 
 
+def autofill_supported(workspace: Workspace) -> bool:
+    """Autopilot is on and this application's form is one it may open.
+
+    Once applied, the form frozen in the snapshot counts, as that is what it opens.
+    """
+    if not settings.AUTOPILOT_EXPERIMENT_ENABLED:
+        return False
+    listing = workspace.listing
+    url = None
+    if workspace.snapshot is not None:
+        frozen = (json.loads(workspace.snapshot.content_json).get("listing") or {})
+        url = frozen.get("form_url") or ats_form_url(
+            frozen.get("source_url"), frozen.get("apply_url")
+        )
+    elif listing is not None:
+        url = ats_form_url(listing.source_url, listing.apply_url)
+    return is_allowed(url)
+
+
+def record_autofill(db: Session, workspace: Workspace, status: dict) -> None:
+    """Log an Autopilot outcome on the application: labels and counts, never values."""
+
+    def labels(items: list[str]) -> list[str]:
+        # A choice the owner must make is reported as "Label (pick: answer)".
+        return [item.split(" (pick:")[0] for item in items]
+
+    report = status.get("report") or {}
+    filled = labels(report.get("filled") or [])
+    needs_you = labels(report.get("skipped") or [])
+    check = labels(report.get("mismatched") or [])
+    record_event(
+        db,
+        workspace.id,
+        "autofill",
+        {
+            "outcome": "failed" if status.get("state") == "failed" else "filled",
+            "kind": status.get("kind"),
+            "filled_count": len(filled),
+            "needs_you_count": len(needs_you),
+            "check_count": len(check),
+            "filled": filled,
+            "needs_you": needs_you,
+            "check": check,
+        },
+        provenance="system",
+    )
+
+
 def snapshot_response(snapshot: ApplicationSnapshot | None) -> SnapshotResponse | None:
     if snapshot is None:
         return None
@@ -368,6 +417,7 @@ def application_detail(db: Session, workspace: Workspace) -> ApplicationDetail:
             for event in reversed(recent_events)
         ],
         snapshot=snapshot_response(workspace.snapshot),
+        autofill_supported=autofill_supported(workspace),
     )
 
 
