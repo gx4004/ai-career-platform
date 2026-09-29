@@ -310,6 +310,17 @@ class AutofillReport(BaseModel):
     url: str
 
 
+class AutofillRunStatus(BaseModel):
+    """Where a background Autopilot run stands. ``idle`` means none for this application."""
+
+    state: Literal["idle", "running", "review", "failed", "closed"]
+    kind: str | None = None  # why it failed or closed, e.g. job_closed, form_not_found
+    message: str | None = None
+    next_step: str | None = None
+    seconds_left: int | None = None  # of the review window, while state is review
+    report: AutofillReport | None = None
+
+
 class RunExport(BaseModel):
     id: str
     tool_name: str

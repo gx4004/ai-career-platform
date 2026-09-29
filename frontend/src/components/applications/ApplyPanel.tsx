@@ -1,15 +1,17 @@
 import { useState } from 'react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowUpRight, Check, CircleCheck, RefreshCw, Sparkles, Wand2 } from 'lucide-react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { ArrowUpRight, Check, CircleCheck, RefreshCw, Sparkles, Wand2, X } from 'lucide-react'
 import { WorkspacePanel } from '#/components/app/WorkspacePage'
 import { Button } from '#/components/ui/button'
 import {
   autofillApplication,
+  cancelAutofill,
+  getAutofillStatus,
   markApplicationApplied,
   prepareApplication,
   saveApplicationAnswers,
 } from '#/lib/api/client'
-import type { ApplicationDetail } from '#/lib/api/schemas'
+import type { ApplicationDetail, AutofillRunStatus } from '#/lib/api/schemas'
 import { isAutopilotExperimentEnabled } from '#/lib/flags/featureFlags'
 import { applicationQueryKey, invalidateApplications } from '#/lib/query/applicationCaches'
 import { applyLink, formatDate } from './stages'
@@ -175,20 +177,49 @@ function QuestionsForm({
 }
 
 // Autopilot experiment (#325): local-only, off by default, stops before submit.
+// The fill runs in the background; this polls its status and can cancel it.
 function AutofillBlock({ applicationId, blocked }: { applicationId: string; blocked: boolean }) {
-  const autofill = useMutation({ mutationFn: () => autofillApplication(applicationId) })
-  const report = autofill.data
+  const queryClient = useQueryClient()
+  const key = ['autofill', applicationId]
+  const status = useQuery({
+    queryKey: key,
+    queryFn: () => getAutofillStatus(applicationId),
+    refetchInterval: (query) => (['running', 'review'].includes(query.state.data?.state ?? '') ? 2000 : false),
+  })
+  const store = (next: AutofillRunStatus) => queryClient.setQueryData(key, next)
+  const start = useMutation({ mutationFn: () => autofillApplication(applicationId), onSuccess: store })
+  const cancel = useMutation({ mutationFn: () => cancelAutofill(applicationId), onSuccess: store })
+
+  const run = status.data
+  const state = run?.state ?? 'idle'
+  const active = state === 'running' || state === 'review'
+  const report = run?.report
+  const error = start.error ?? cancel.error
   return (
     <div className="camp-autofill">
       <div className="camp-autofill__row">
-        <Button variant="outline" size="sm" onClick={() => autofill.mutate()} loading={autofill.isPending} disabled={blocked || autofill.isPending}>
-          <Wand2 size={14} aria-hidden="true" /> Fill the form for me (experimental)
-        </Button>
+        {active ? (
+          <Button variant="outline" size="sm" onClick={() => cancel.mutate()} loading={cancel.isPending} disabled={cancel.isPending}>
+            <X size={14} aria-hidden="true" /> {state === 'running' ? 'Cancel' : 'Close the window'}
+          </Button>
+        ) : (
+          <Button variant="outline" size="sm" onClick={() => start.mutate()} loading={start.isPending} disabled={blocked || start.isPending}>
+            <Wand2 size={14} aria-hidden="true" /> Fill the form for me (experimental)
+          </Button>
+        )}
         <p className="camp-muted">
-          Opens the employer's form in a browser on this computer and fills what it can. You check it and press submit yourself.
+          {state === 'running'
+            ? 'Opening the employer’s form on this computer and filling it. Nothing is submitted.'
+            : state === 'review'
+              ? `The form is open in a browser window. Check it and press submit yourself. The window closes itself in ${Math.max(1, Math.ceil((run?.seconds_left ?? 0) / 60))} min.`
+              : 'Opens the employer’s form in a browser on this computer and fills what it can. You check it and press submit yourself.'}
         </p>
       </div>
-      {autofill.isError ? <p className="camp-alert" role="alert">{errorMessage(autofill.error, 'Could not fill the form.')}</p> : null}
+      {error ? <p className="camp-alert" role="alert">{errorMessage(error, 'Could not fill the form.')}</p> : null}
+      {state === 'failed' ? (
+        <p className="camp-alert" role="alert">{run?.message} {run?.next_step}</p>
+      ) : null}
+      {state === 'closed' && run?.message ? <p className="camp-muted" role="status">{run.message}</p> : null}
       {report ? (
         <div className="camp-autofill__report" role="status">
           <p><strong>Filled:</strong> {report.filled.length ? report.filled.join(', ') : 'nothing'}</p>
