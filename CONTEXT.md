@@ -21,39 +21,30 @@ AI-powered job-search workspace with six tools:
 6. Portfolio Planner
 
 ## Current operating mode
-Thesis demo mode: all results are visible and ad gating is bypassed.
+Local-only, feature-first (Sept 2026 reset, `docs/roadmap.md`): all results are visible, there is no ad gate, and every product area is always on. Autopilot is the one experimental, development-only switch.
 
-## Analytics & instrumentation
+## Telemetry
 
 **Frontend telemetry**
 Client-observed behavioral events sent via `trackTelemetry()` to
 `POST /api/v1/telemetry/events`. Consent-gated (skipped if the user declined
-cookies); strict allowlist schema, never carries resume/JD/generated content.
+cookies); strict allowlist schema, never carries resume/JD/generated content. The
+backend writes each event to structured stdout only; nothing is persisted and no
+third-party analytics or error-monitoring vendor receives it.
 
-**Backend metrics**
-Server-computed operational data (per-tool duration, LLM cost estimate) written
-directly by the backend in the same request path that already runs the tool —
-not client-reported, so cookie consent does not gate it.
+**Backend run logs**
+Server-written structured log lines for each tool run (start, completion,
+duration, categorized failure), produced in the same request path as the tool.
+They are not client-reported, so cookie consent does not gate them, and they
+carry no resume, job-description or generated content.
 
-**Activation event**
-Any event in the R6 taxonomy spanning landing → tool start → tool completion →
-connected next step → signup → revisit/export, used to measure where users find
-value or abandon the workflow.
-
-## Output quality evaluation (R8)
-
-**Eval fixture**
-A small, hand-authored synthetic resume/job-description pair used to test tool
-output — never sampled or derived from real user content (see
-`docs/adr/0002-r8-eval-fixture-data-source.md`).
-
-**Calibration miss**
-For Resume Analyzer/Job Match only: a fixture whose actual blended score
-(`compute_blended_score`) falls outside its pre-assigned expected score band.
+## Fabrication check
 
 **Fabrication candidate**
-For the four generative tools: a proper-noun/employer/quantified claim present
-in generated output that cannot be traced back to the source resume text.
+A proper-noun/employer/quantified claim present in generated output that cannot be
+traced back to the source resume text or confirmed evidence. The live check
+(`services/fabrication.py`) is used by the Application Reviewer. The R8 eval
+harness that once scored fixtures was removed in the Sept 2026 reset (D-125).
 
 ## Monetization experimentation (R9)
 
@@ -75,25 +66,13 @@ browser unlock flag or provider UI state is never an entitlement.
 The unchanged full-access experience against which an R9 treatment is measured and
 which remains available as the accessible, non-deceptive fallback.
 
-## Reliability and cost scaling (R10)
+## Source family
 
-**Scaling trigger**
-A predeclared, sustained operational threshold that authorizes evaluation of one R10
-response. A trigger is evidence for review, not automatic permission to deploy the
-candidate response.
-
-**Reliability response**
-One bounded, reversible change selected for a fired scaling trigger. Independent
-responses are not bundled into a general scaling platform.
-
-**Provider incident**
-A time-bounded period in which the generation provider causes user-visible tool
-failures or latency-budget breaches, grouped without raw provider exceptions or user
-content.
-
-**Source family**
-An allowlisted job-import category such as a supported ATS family or `other`, used for
-aggregate reliability evidence without retaining a full hostname, path, or query.
+An allowlisted job-source category (`licensed`, `employer_ats`,
+`public_career_page`, `user_provided`) used to label discovery sources and
+listings and for aggregate reliability signals without retaining a full hostname,
+path, or query. The R10 scaling-trigger vocabulary was removed with its scorecard
+(D-125).
 
 ## Evidence Profile (R11)
 
@@ -151,30 +130,36 @@ explicit accept action (review is accept or reject; there is no free-text edit
 of a proposed change); a claim without confirmed supporting evidence requires an
 explicit user confirmation step.
 
-## Application Campaigns and Reviewer (R13)
+## Applications and Reviewer
 
-**Application campaign**
-A `Workspace` evolved in place: one container per target company and role holding
-the canonical listing, selected materials, bounded tracking (status, tasks, notes,
-minimal contacts), and an activity timeline. Every pre-R13 workspace remains a
-valid label-only campaign.
+**Application**
+A `Workspace` row once it targets a job (it has a status or a job posting); the
+product surface is the Applications page (formerly Campaigns, with the Approval
+Queue merged in). One container per target company and role holding the current
+listing, the selected CV variant and cover letter, prepared drafts, open
+questions and answers, tasks, one free-text notes field, and an activity
+timeline. Statuses are `saved`, `applied`, `interviewing`, `offer`, `rejected`,
+`withdrawn`; any move is allowed and "ready to apply" is derived, never stored.
+Code still says `Workspace`, `campaign_*` and `/campaigns` in places.
 
 **Canonical listing**
-The persisted job posting a campaign targets — title, company, description, source
-URL, and retrieval date — stored as owner-isolated user content. Telemetry about
-listings stays source-family aggregates only.
+The persisted job posting an application targets - title, company, description,
+source URL, and retrieval date - stored as owner-isolated user content.
+Telemetry about listings stays source-family aggregates only.
 
 **Campaign event**
-One append-only record of campaign activity (status change, material selection,
-note, task action) from which the activity timeline derives. Events are never
-updated or deleted by product code.
+One append-only record of activity on an application (status change, material
+selection, task action) from which the activity timeline derives. Events are
+never updated or deleted by product code.
 
-**Submitted-application snapshot**
-An immutable bundle referencing the exact material versions at applied time,
-unaffected by later edits.
+**Applied snapshot**
+The single immutable record written when an application is marked applied: the
+exact listing and material content that was sent, with a SHA-256 digest. Later
+edits to the CV or cover letter never change it. This is the only freeze point;
+there is no separate approval step.
 
 **Reviewer finding**
-One advisory result from the Application Quality Reviewer pass — an unsupported
+One advisory result from the Application Quality Reviewer pass - an unsupported
 claim with its failed evidence trace, a missed listing requirement, a
 cross-document contradiction, generic writing, or a document defect. Findings are
 editable advice; they are never auto-applied and never create or confirm evidence.
@@ -203,24 +188,20 @@ The registry-declared minimal parameters a source query may carry (for example
 role keywords and location). Profile text, employer history, and identity never
 leave the product.
 
-## Application Approval Queue (R15)
+## Preparing Applications
 
-**Application packet**
-A prepared application composition referencing existing entities — campaign,
-listing, selected CV variant, optional cover letter, screening-answer drafts,
-match rationale, and an explicit unresolved-questions list. Packets never copy
-material content freestanding.
-
-**Queue rule**
-A user-defined filter (role, location, compensation, work authorization, quality
-threshold) plus volume caps and cost ceilings that a listing must pass before any
-packet is prepared. No rules, no queue.
+**Prepared drafts**
+The cover letter and screening-answer drafts generated for one application from
+the CV text and confirmed Evidence Profile items only. "Prepare for me" does this
+across adopted discovery listings that match the owner's preferences (keywords,
+locations, remote), at most ten per click.
 
 **Mandatory stop**
-A field category — sensitive, legal, eligibility, relocation, demographic, salary,
-work authorization, uncertain or free-form — that the system never drafts from
-inference. Only explicit user input resolves a stop, and an unresolved question
-blocks packet approval.
+A field category - sensitive, legal, eligibility, relocation, demographic, salary,
+work authorization, uncertain or free-form - that the system never drafts from
+inference. It is classified by one server-side function and becomes an open
+question only the owner's typed answer resolves. An application with unresolved
+open questions is not ready to apply.
 
 **Application details**
 The owner's one-time contact details and typed standing answers (work
@@ -228,34 +209,8 @@ authorization, sponsorship, notice, salary, relocation). Standing answers count
 as explicit user input for a stop; Autopilot fills forms from them and never
 guesses contact details from CV text.
 
-**Packet approval**
-The explicit user action that freezes an immutable packet snapshot and hands the
-user to the official destination to submit themselves. No R15 code path performs,
-schedules, or retries a submission; submission automation exists only behind R16's
-per-source authorization contract.
-
-## Trusted Autopilot (R16)
-
-**Submission source**
-A discovery-registry source additionally holding accepted legal/terms approval for
-submission and a maintained compatibility contract. Only submission sources may
-receive automated applications, and each has its own kill switch.
-
-**Submission authorization**
-The user's granular, explicit, per-source, revocable grant that permits automated
-submission, implemented only with authentication the source provides for this
-purpose — never stored third-party passwords or copied session state.
-
-**Submission record**
-The append-only audit of one idempotent submission: the exact user-visible packet
-snapshot, per-field record, outcome, and confirmation. The product's copies follow
-the standard lifecycle; the employer's copy is beyond recall, and the product says
-so honestly.
-
-**Compatibility contract**
-The documented fields, formats, and error semantics of one submission source, with
-automated breakage detection. A broken contract trips the source kill switch and
-degrades to the Level B human handoff.
+The submission boundary: the product prepares, the owner applies. Nothing in the
+product submits an application (ADR 0009).
 
 ## Career Development Loop (R17)
 

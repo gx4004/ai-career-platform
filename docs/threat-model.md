@@ -1,13 +1,46 @@
 # Career Workbench — Threat Model
 
 **Status:** canonical baseline
-**Last reviewed:** 2026-08-13
+**Last reviewed:** 2026-09-30 (Sept 2026 reset supersession notice added; sections not named in it are still the 2026-08-13 baseline)
 **Source:** executable code, configuration, and intended Railway topology
 
 This document establishes the evidence baseline for R3: Privacy, Security, and
 Abuse Gate. Every claim cites an exact file path and function or line number.
 Where production facts are unknown from code alone, they are recorded in §14
 as ready-for-human decisions.
+
+---
+
+## Sept 2026 reset: what supersedes this baseline
+
+The product is now local-only (`docs/roadmap.md`). The sections below were written
+against an earlier, larger codebase, and the following facts override them wherever
+they disagree. Code always wins (`docs/README.md` precedence).
+
+- **No Sentry, CAPTCHA or analytics vendor.** Sentry and CAPTCHA wiring was removed
+  (#352, D-129); PostHog was never a processor (D-118). Errors go to structured
+  stdout logs; frontend telemetry goes to the product's own backend and is written
+  to stdout only, never persisted. Read every Sentry/`SENTRY_DSN`/reCAPTCHA/
+  `_scrub_sentry_event` reference below as historical.
+- **Rate limiting is simple.** SlowAPI per-route limits, in-process memory, keyed by
+  the immediate client address (`backend/app/limiter.py`). HMAC-pseudonymized keys,
+  `RATE_LIMIT_STORAGE_URI`, `TRUST_PROXY_HEADERS`/`TRUSTED_PROXY_CIDRS`, account
+  counters and abuse-evidence rows were removed (#355) and must be redesigned before
+  any hosted launch; D-UNK-1 and §6.6 describe the removed design.
+- **R13 contacts, reminders, R15 approval queue and R16 trusted submission are
+  gone** (D-127, D-128, D-130; ADR 0009 amended, ADR 0010 superseded). The
+  authoritative description of application data is the section "Applications,
+  discovery and autofill data" near the end of this document. Operation counts
+  (127 operations, 37 tables) and the migration head in the Verification Record
+  are stale.
+- **The R8 eval harness, R10 scorecard and `analytics_events` table were removed**
+  (D-125); §8 and §10 references to durable analytics events, scorecards and the
+  admin development-loop view are historical.
+- **All product areas are always on** (#351, D-131); "dark" and "default-dark"
+  wording below is historical. Autopilot is the only experimental switch
+  (`AUTOPILOT_EXPERIMENT_ENABLED`, development only).
+- **LLM provider is configurable** (`vertex` default, `google`, `anthropic`,
+  `fake`), one per deployment. `fake` is refused outside development.
 
 ---
 
@@ -64,17 +97,15 @@ Both Dockerfiles run the application as a dedicated non-root user.
 The `start.sh` script uses `RUN_MIGRATIONS` to choose which instance applies
 migrations and fails startup if that migration command fails. It does not provide
 cross-instance migration locking; deployment orchestration must ensure only one
-instance migrates. Rate-limit and abuse counter storage is shared outside
-development; the result cache remains local:
+instance migrates. Rate-limit counters and the result cache are both in-process
+(local-only product; see the reset notice):
 
 | Subsystem | Current | Multi-Instance Impact |
 |-----------|---------|-----------------------|
-| Rate limiter and abuse counters | `RATE_LIMIT_STORAGE_URI`; non-shared storage rejected outside development | Shared counters when the deployment supplies a supported distributed backend |
-| Result cache | In-memory Python dict | Fragmented — no cache sharing between instances |
+| Rate limiter | SlowAPI in-memory storage keyed by client address | Per-process counters; not multi-instance safe |
+| Result cache | In-memory Python dict | Fragmented - no cache sharing between instances |
 
 — `backend/app/services/result_cache.py` (docstring acknowledges this)
-— `backend/app/limiter.py:validate_abuse_control_config`,
-`backend/app/limiter.py:AbuseCounterStore`
 
 ---
 
@@ -95,7 +126,6 @@ Browser ──────► Frontend SSR (serve.mjs, :3000) ──────
                                                            │
                                                            ├──► Google OAuth
                                                            │
-                                                           └──► Sentry (opt-in)
 ```
 
 ### 2.2 Boundary Definitions
@@ -230,7 +260,7 @@ Browser → POST /auth/password-reset/confirm {token, new_password}
 | 13 | Queue rules, application intent, user-authored stop answers, and frozen approval bundles | High | `queue_rules`, `queue_settings`, `application_packets`, `packet_stop_answers`, `packet_approval_snapshots`, `campaign_submission_snapshots` | Until campaign/account deletion; rules/settings until account deletion | Exact CV, cover letter, target listing, compensation/work-authorization preferences, owner approval, and application-history exposure |
 | 14 | Discovery source governance records | Medium | `discovery_sources` | Until registry deletion | Source contracts, legal-review posture, operator identity, and operational ownership exposed |
 | 15 | Product-owned discovered listings and owner dismissals | Medium-High | `discovered_listings`, `discovered_listing_attributions`, `discovery_dismissed_listings` | Listings follow source retention; owner state until explicit/account deletion | Employer openings, acquisition sources, job-search preferences, and stale corpus exposure |
-| 16 | Behavioral telemetry (event names, routes, timestamps) | Low | Log stdout, Sentry (if enabled) | 180-day durable-event window; processor retention otherwise deployment-defined | Usage pattern inference |
+| 16 | Behavioral telemetry (event names, routes, timestamps) | Low | Log stdout only (nothing persisted in the database) | Log retention is deployment-defined | Usage pattern inference |
 | 17 | Sidebar state, language preference | None | `sidebar_state` cookie, `app_language` localStorage | 7 days / forever | None |
 
 ### 4.1 Guest-Specific Storage Note
@@ -555,19 +585,11 @@ review. OAuth navigation, providers, logout, and health are also unrate-limited.
 
 ### 6.6 Rate-Limit Identity
 
-When `TRUST_PROXY_HEADERS=False` (the default), the limiter uses the immediate TCP
-peer. When enabled, it trusts `X-Forwarded-For` only if the immediate peer is in
-the explicit `TRUSTED_PROXY_CIDRS` allowlist, then walks the chain right-to-left
-until the first untrusted address. Private/loopback peers receive no implicit
-trust. Production values remain unknown — see D-UNK-1
-(`backend/app/limiter.py:_get_client_ip`,
-`backend/tests/test_limiter.py:test_limiter_walks_trusted_proxy_chain_from_right_to_left`).
-
-Keys are HMAC-pseudonymized. Abuse-sensitive model and import/upload routes enforce
-both verified-account/guest identity and independent source-IP windows. Login,
-registration, and password reset use source limits plus pseudonymized account/email
-counters. Route/model/resource windows expire with their declared limit; account
-actions expire after one hour and login-failure counters after 15 minutes.
+The limiter keys on the immediate client address (`get_remote_address`) with
+in-process SlowAPI storage (`backend/app/limiter.py`). It is intentionally simple for
+the local-only product: behind a proxy every request would share one key, and state
+is per process. A hosted launch needs shared storage and proxy-aware keys, redesigned
+then (see the reset notice at the top).
 
 ---
 
@@ -992,7 +1014,7 @@ in the existing single transaction, reports separate document and variant counts
 the deletion audit, and retains PostgreSQL `ON DELETE CASCADE` as a second line of
 defense. Studio telemetry uses closed event names only: the write schema rejects CV
 content, job/evidence/generated text, titles, and document/run identifiers. The
-existing request/Sentry scrubbing boundary still applies. R12 #155 adds an authenticated `/cv-studio` route over
+existing request-logging boundary still applies. R12 #155 adds an authenticated `/cv-studio` route over
 these owner-scoped APIs. Guest and unresolved sessions never start document
 queries; a guest receives the existing sign-in intent instead. The editor keeps
 content in React/query memory only, serializes autosave writes to prevent stale
@@ -1093,7 +1115,7 @@ available for export/deletion, and quota counters remain durable.
 | What is sent | Recipient email + reset URL containing JWT token |
 | Auth mechanism | `RESEND_API_KEY` env var |
 | Network path | HTTPS to `api.resend.com` |
-| Failure mode | Background task; generic failure category is logged and sent to Sentry without recipient, reset URL, or provider exception text; user always sees success |
+| Failure mode | Background task; generic failure category is logged without recipient, reset URL, or provider exception text; user always sees success |
 
 — `backend/app/services/email_service.py`
 
@@ -1109,15 +1131,12 @@ available for export/deletion, and quota counters remain durable.
 
 — `backend/app/routers/google_auth.py`
 
-### 9.5 Sentry
+### 9.5 Sentry (removed)
 
-| Concern | Detail |
-|---------|--------|
-| What is captured | Code-path stack traces without local variables and scrubbed request metadata; performance transactions are disabled because they bypass error-event scrubbing |
-| What is scrubbed | Request body, cookies, query strings, auth/cookie headers, entire user context, exception/message content, unsafe contexts, frame variables, all backend breadcrumbs, and frontend fetch/XHR breadcrumb bodies |
-| Opt-in behavior | Sentry SDK only initializes if `SENTRY_DSN` env var is set (empty by default) |
-| Backend scrubbing | `_scrub_sentry_event()` in `backend/app/main.py` |
-| Frontend scrubbing | Tested `beforeSend` + `beforeBreadcrumb` hooks — `frontend/src/lib/observability/sentryPrivacy.ts` |
+No Sentry SDK is installed in the backend or frontend and no `SENTRY_DSN` setting
+exists (#352, D-129). Nothing in this section applies; an earlier revision documented
+scrubbing hooks that no longer exist. Re-adding error monitoring needs a new decision
+and a matching legal-page update.
 
 ### 9.6 Railway PostgreSQL
 
@@ -1232,7 +1251,7 @@ authoritative access seam (D-048, ADR 0003); it may not reuse a client-only gate
 
 | Rank | Failure Mode | Affected Asset | Current Protection | Gap |
 |------|-------------|----------------|-------------------|-----|
-| 1 | **Resume/JD leakage via logs or error reports** | Resume text, generated content | Sentry drops bodies, breadcrumb payloads, query strings, credentials, user context, raw exception values, unsafe contexts, and frame variables; provider chains are suppressed; telemetry rejects unknown/content fields; model/import/email/OAuth failures log only generic categories | Scrubbed stack traces still expose code paths; processor enablement and retention remain unverified |
+| 1 | **Resume/JD leakage via logs or error reports** | Resume text, generated content | logs never include bodies, query strings, credentials or raw provider exception chains; telemetry rejects unknown/content fields; model/import/email/OAuth failures log only generic categories | No third-party error processor exists; log retention is deployment-defined |
 | 2 | **Generated content accessible to wrong user** | ToolRun results | User-scoped cache keys; DB queries filter by `user_id` | In-memory cache key includes user scope; no cross-user access observed in code — confidence is high but only code-audit, not penetration-test, verified |
 | 3 | **Browser storage persistence after logout** | sessionStorage data | Explicit logout (including local cleanup after server failure), successful account deletion, and the settings reset clear tool drafts, workflow context, demo results, and resume carry in the current tab; tab close also clears them | Another already-open tab retains its independent tab-scoped copy until that tab logs out, resets, or closes; cross-tab synchronization is deliberately absent under D-011 |
 | 4 | **Password reset link exposure** | Reset token | New links use a fragment that is scrubbed after hydration; single-use password-hash-derived signing invalidates the token on password change | Legacy query-token links remain accepted temporarily for rollout compatibility and are scrubbed client-side |
@@ -1245,7 +1264,7 @@ authoritative access seam (D-048, ADR 0003); it may not reuse a client-only gate
 
 | # | Gap | Current | Intended | Risk | Owned By |
 |---|-----|---------|----------|------|----------|
-| 1 | Distributed limiter deployment unverified | Code rejects local storage outside development | Configure and capacity-test shared storage | Misconfiguration prevents startup; backend outage fails limited routes closed | #76 / #81 |
+| 1 | Limiter is per-process and address-keyed | SlowAPI in-memory storage keyed by immediate client address | Shared storage and proxy-aware keys before any hosted launch | Per-process counters; one key behind a proxy | Deferred (roadmap) |
 | 2 | In-memory result cache | Python dict, process-local | Redis or similar shared cache if scaling requires it | Fragmented caches in multi-instance; lost on restart | R10 |
 | 3 | Docker runtime users | Frontend runs as the base image's `node` user; backend runs as dedicated UID 10001 with owned application and Playwright files | Non-root user with minimal capabilities | Image-build verification remains required where Docker is available | #81 |
 | 4 | No dormant-account TTL cleanup | Data persists indefinitely while an account exists; deletion is user-initiated only | Accepted as final posture (D-031) — no automated cleanup planned | None; user-initiated erasure satisfies GDPR right-to-erasure | #74 (resolved) |
@@ -1254,7 +1273,7 @@ authoritative access seam (D-048, ADR 0003); it may not reuse a client-only gate
 | 7 | No email verification on password registration | Account immediately usable | Email verification before first tool use | Spam accounts, wrong-email lockouts | #75 |
 | 8 | Low-cost endpoints remain unlimited | `GET /auth/me`, `POST /auth/logout`, `GET /auth/providers`, history GET/PATCH/DELETE | Add limits only if availability evidence shows abuse | Broad limiting can degrade normal authenticated navigation | R10 |
 | 9 | Password reset URL exposure | New links use `#token=...`; the page consumes and scrubs fragment and legacy query tokens | Remove legacy query compatibility after the reset-token lifetime and rollout window | Old links can retain tokens in pre-existing browser history | #75 |
-| 10 | CAPTCHA coverage is registration-only | Evidence can identify route-specific abuse, but the existing challenge contract covers registration | Add a reviewed challenge contract only to the attacked flow | Unconditional CAPTCHA harms access; unsupported activation would break clients | #76 follow-up if threshold triggers |
+| 10 | No CAPTCHA | None exists in the code (D-129) | Decide only if abuse evidence appears after a hosted launch | Automated signups | Deferred |
 | 11 | Login error message distinction | "Invalid email or password" (ambiguous) | Same message for both cases (no enumeration) | Registration says "Email already registered" — enables enumeration | #75 |
 | 12 | Dormant client ad/unlock path removed | `AdGatedLock`/`useAd`/`useAdUnlock`/`AdCountdownTimer`, their CSS, the `ad-unlocked:{runId}` key, and the ad/countdown telemetry names + `unlock_method` field are deleted; result content renders directly with no vendor script for any consent state (R9 #127) | Any future monetization uses the server-authoritative access seam with explicit candidate-specific consent, never a client-only gate (D-048, ADR 0003) | None from this path today; future agents must not revive a bypassable client gate | R9 / D-051 (resolved) |
 
@@ -1271,7 +1290,7 @@ pending human decision: both halves of D-UNK-5 were decided the same day
 
 | ID | Question | Impact | Required For |
 |----|----------|--------|--------------|
-| D-UNK-1 | What are the production values for `TRUST_PROXY_HEADERS` and `TRUSTED_PROXY_CIDRS`? | Rate limiter IP resolution depends on correct proxy trust | #76 |
+| D-UNK-1 | Superseded by the local-only reset: proxy-aware limiter keys were removed (#355). Revisit before any hosted launch. | Rate limiter IP resolution behind a proxy | Hosted launch |
 | D-UNK-2 | What is the Railway PostgreSQL connection pool ceiling? | Current `pool_size=20, max_overflow=10` may need adjustment | #76 |
 | D-UNK-3 | Is the production deployment 1 replica or more? | Affects cache and rate limiter correctness | #76, #81 |
 | D-UNK-8 | What is the scope of the Google Cloud service account / API key permissions? | Limits blast radius of credential compromise | #79 |
@@ -1282,7 +1301,7 @@ pending human decision: both halves of D-UNK-5 were decided the same day
 
 | ID | Resolution |
 |----|-----------|
-| D-UNK-4 | Resolved 2026-07-10 by D-117: production launches with `SENTRY_DSN` unset; enabling Sentry later requires R5 staging scrub verification first. |
+| D-UNK-4 | Resolved 2026-07-10 by D-117, then superseded 2026-09-30 by D-129: Sentry is not in the code at all. |
 | D-UNK-5 (product side) | Resolved 2026-07-10 by D-118: PostHog is not activated and is not a processor going forward; remnant proxy/configuration is removed as cleanup. |
 | D-UNK-5 (historical data) | Resolved 2026-07-10 by D-119: delete the historical PostHog cloud project data without export; user console action tracked by #208. |
 | D-UNK-6 | Retention periods accepted 2026-07-07: primary data indefinite until user deletion (D-031), logs use Railway-managed retention (D-033), Sentry events use processor-managed retention (D-034), deletion-audit is the existing structured log line (D-035). |
@@ -1301,7 +1320,7 @@ blocked only by their listed dependencies — all other context is available her
 | #75 — Auth, cookie, CORS, OAuth, CSRF posture | §§2,6,7 — Trust boundaries, API surface, session model | **Partially blocked:** code/default-development posture characterized; deployed origins, CORS/OAuth values, TLS, and staging browser evidence remain under D-UNK-10 |
 | #76 — Distributed abuse and ATO controls | §§6,11,13 — API surface with rate limits, abuse cases, gaps #1,#2,#8,#10 | Unblocked (code evidence complete) |
 | #77 — Browser storage minimization | §§4,5,12 — Asset inventory, storage inventory, privacy failure modes | Unblocked (code evidence complete) |
-| #78 — Telemetry, Sentry, logs, deletion audit | §§10,12,13 — Observability, privacy failures, gaps #6 | Unblocked (code evidence complete; D-UNK-3 may affect) |
+| #78 — Telemetry, logs, deletion audit | §§10,12,13 — Observability, privacy failures, gaps #6 | Unblocked (code evidence complete; D-UNK-3 may affect) |
 | #79 — Upload boundaries & parser resource limits | §8.5 — File upload handling | Unblocked (code evidence complete) |
 | #80 — Scraper SSRF hardening | §§8.6,9.2 — Scraper implementation, Playwright integration | Unblocked (code evidence complete) |
 | #81 — Deployment-compatible security headers | §§1,13 — Topology, gap inventory (#3, #6) | Frontend response implementation locally verified; production compatibility remains blocked by D-UNK-1, D-UNK-3, D-UNK-9, D-UNK-10 |
@@ -1368,327 +1387,62 @@ and incomplete results produced by counting source decorators.
 
 ---
 
-# R13 third-party campaign contacts
+# Applications, discovery and autofill data
 
-Campaign contacts contain third-party personal data deliberately bounded to a
-name, role, and contact channel. They are stored only inside an authenticated,
-owner-isolated campaign; they are included in the owner's career-data export and
-are deleted with the contact, campaign, or account. Contact values, note text,
-company names, and task titles are prohibited from telemetry and campaign-event
-details. Timeline events retain only opaque record identifiers and
-low-cardinality actions so deleting a contact removes its personal fields.
+**Application content.** An application (a `Workspace` with a status or posting)
+holds the job listing (current and prior revisions in `campaign_listings`), the
+selected CV variant and cover-letter/interview run ids, prepared drafts (a `ToolRun`),
+open questions, the owner's typed answers, tasks, one free-text notes field, and an
+append-only `campaign_events` timeline. All of it is owner-scoped in every query and
+is sensitive career content: it joins the account-deletion cascade
+(`delete_all_user_data`), immediate user-initiated deletion, and the machine-readable
+exports. There is no contact table and no reminder feature, so no third-party
+personal data is stored and no notification channel exists (D-130). Timeline events
+carry only low-cardinality types and ids, never listing text, answers or notes.
 
-Campaign reminder consent is owner-scoped and off by default. The application
-derives approaching deadlines only when the authenticated campaign page requests
-them, suppresses repeat surfacing for one hour, and stores no delivery queue.
-Revocation clears the last-surface timestamp immediately. No reminder code imports
-or calls the email service, and no push-notification integration exists; password
-reset remains the only transactional-email boundary.
+**Applied snapshot.** Marking an application applied writes one
+`application_snapshots` row: canonical JSON of the listing and materials as sent, plus
+its SHA-256. It deliberately duplicates sensitive content, has no update endpoint,
+is reachable only through owner-scoped application detail/export, and is deleted with
+the application or account. There is no separate approval step (D-127).
 
-Submitted-application snapshots intentionally duplicate sensitive listing and
-generated-material content to preserve what was sent. They are created only at
-the owner-authorized `applied` transition, remain reachable only through the
-owner-scoped campaign detail/export paths, and have no update endpoint. Campaign
-and account deletion remove snapshot rows explicitly and through database
-cascades. Timeline events contain only the opaque snapshot id; snapshot content,
-company names, and digest values never enter telemetry.
+**Application details and preferences.** `application_details` stores the owner's
+contact details and typed standing answers (work authorization, sponsorship, notice,
+salary, relocation); `application_preferences` stores prepare-for-me keywords,
+locations, remote preference and a per-click cap (max 10). Both are owner-unique rows
+that are deleted with the account. Standing answers are the only source Autopilot
+uses for sensitive fields; contact details are never guessed from CV text.
 
-Application-reviewer findings are sensitive derived campaign content persisted
-through the existing authenticated `ToolRun` lifecycle. The reviewer reads only
-owner-scoped campaign materials and injected confirmed evidence, returns advice,
-and exposes no mutation path into documents or Evidence Profile state. Durable
-analytics receives only the closed `application-reviewer` tool id and aggregate
-run outcome/latency; claims, traces, locations, listing text, and findings remain
-outside telemetry.
+**Mandatory stops.** Sensitive, legal, eligibility, relocation, demographic, salary,
+work-authorization and uncertain fields are classified by one server-side function
+(`stop_classifier`); no client input can reclassify a field. They are never drafted
+and become open questions only the owner's answer resolves (D-095).
 
-The R14 discovery-source registry is an admin-only governance surface and contains
-no user profile or listing content. New entries start terms-pending with the kill
-switch on. The authoritative enforcement seam rejects unregistered,
-terms-unaccepted, and killed sources before any future adapter can perform network
-or persistence work. No registry mutation HTTP endpoint or active source ships in
-#171. Operational events retain only the closed source-family and registry-outcome
-classes; source keys, display names, owners, attribution text, and review identities
-remain outside telemetry.
+**Reviewer findings.** The Application Reviewer is an advisory pass through the shared
+pipeline over owner-scoped materials and confirmed evidence; results persist as
+`ToolRun` rows and no path writes back into documents or the Evidence Profile.
 
-The dark licensed-source adapter adds no route, scheduler, credential, or real
-source. A registry row must declare a credential-free HTTPS endpoint, allowed
-behavior, robots applicability, and a subset of the closed minimal query keys
-(`role`, `location`, `remote`, pagination, and freshness). The outbound query model
-forbids extra fields, so profile text, employer history, identity, and arbitrary
-parameter names cannot cross the boundary. Fetches reuse DNS-pinned public-IP
-resolution to block SSRF/rebinding, reject redirects and unsupported or oversized
-responses, carry `CareerWorkbenchDiscovery/1.0`, and consult robots when declared.
-The per-source request budget is claimed under a database row lock, and the kill
-switch is re-read immediately before the source request. Synthetic transports only
-exercise this behavior in tests; no third-party host is contacted. Telemetry stores
-only `licensed` plus `success`, `failure`, or `blocked`, never endpoints, queries,
-responses, source keys, or legal-review content.
-The process pins `httpx`/`httpcore` request logging at warning level because their
-INFO request line contains query strings; bounded search parameters therefore do
-not leak through ordinary outbound-library logs.
+**Discovery.** The `discovery_sources` registry is an admin-only governance surface
+holding no user data. New entries start terms-pending with the kill switch on, and
+`ingestion_allowed` is re-read before each fetch. Ingestion reaches only the fixed
+Greenhouse, Lever and Ashby public API hosts (derived from the source endpoint) via
+the SSRF-safe fetcher, carries no profile data, and fetches only public job-board
+data. Provider-terms review is an open owner item (#368). `discovered_listings` and
+attributions hold public job data with no user foreign key; a daily job expires
+them per retention rule. Personalization rows (hidden sources, dismissals,
+corrections, reports) are owner data in the standard lifecycle.
 
-The dark R16 #189 submission-source gate adds no outward-act route, credentials,
-authorization grant, scheduler, or real source. A one-to-one governance row can
-extend an R14 registry entry with a separate legal/terms review, a documented
-compatibility contract (bounded field mappings, closed formats, and closed error
-semantics), explicit promotion provenance, and a default-on submission kill
-switch. Promotion is refused unless both the existing discovery terms review and
-the submission legal/terms review are accepted and the compatibility contract is
-verified. Clearing the submission kill switch additionally requires the R14
-discovery kill switch to be clear. The authoritative server seam re-reads the
-source plus its governance row and refuses unregistered, terms-failed,
-discovery-killed, non-promoted, legal-unaccepted, contract-unverified, and
-submission-killed sources before any future submission integration can act.
+**Autopilot (experimental, out of scope of this section).** It runs only with
+`AUTOPILOT_EXPERIMENT_ENABLED`, which the backend refuses to boot with outside
+development. Its threat notes are kept with the Autopilot work.
 
-All #189 integration evidence is a hand-authored synthetic local JSON fixture; it
-contacts no employer system and confers no legal approval. The admin registry is
-read-only for these fields. Promotion and kill events retain only the closed
-source-family and transition outcome; source keys, endpoints, contract contents,
-reviewer identities, and free text have no analytics field. The current-task
-build-ahead authorization permits this dark enforcement foundation only: D-100,
-the remaining user/packet/envelope gates, and every D-026 prohibition still govern
-production activation.
-
-The dark R16 #190 user gate stores only non-secret evidence that a future trusted
-source adapter completed one of two explicitly allowlisted OAuth flows with the
-user's consent for the fixed submission scope. There is no source adapter,
-callback route, public grant-creation route, credential vault, token/session
-column, provider account identifier, submission worker, or network act in #190.
-Recording a grant first re-runs the complete #189 source gate; arbitrary queue use
-cannot infer authorization. The account surface lists only the caller's active
-records and revocation filters by both caller and grant id, returning the same
-idempotent response for absent or other-owner ids to avoid existence disclosure.
-
-Revocation physically deletes the grant. Every future queued/in-flight attempt
-must pin the exact grant id and re-read it at dispatch plus immediately before each
-outward act and retry. Re-authorizing creates a new id, so an old queued attempt
-cannot pass via an ABA revoke/re-grant sequence. This is the only honest
-"immediate" guarantee available before #191 builds an engine: #190 supplies and
-tests the mandatory database checkpoint but does not claim to interrupt an HTTP
-request already accepted by a third party. Grants join the machine-readable owner
-export and explicit account-erasure transaction, with FK cascade as defense in
-depth. No authorization transition enters telemetry or logs.
-
-A future source callback remains a new security boundary: it must independently
-validate source identity, redirect binding, state/PKCE, replay prevention, and the
-provider's explicit submission scope before it may call the internal recording
-seam. #190's bounded callback-result type is not proof of those checks and cannot
-be exposed directly as an HTTP request body.
-
-The dark #191 engine is an internal boundary with no HTTP route or real adapter.
-It re-reads source governance, the exact pinned grant, and an injected envelope
-checkpoint at dispatch and immediately before the outward adapter call. Packet
-content is accepted only from an owner-scoped immutable approval row whose exact
-stored bytes match its SHA-256, with empty frozen unresolved-question and
-unsupported-claim sets. Compatibility paths can only select scalar values already
-inside those frozen bytes; missing required paths and declared format mismatches
-fail closed. A durable unique dispatch claim is row-locked across the adapter act
-to serialize concurrent workers. The deterministic snapshot/source idempotency key
-also crosses the adapter's required source-native idempotency boundary, so a process
-restart after an ambiguous response still converges on one logical submission. The
-claim freezes the exact grant, complete contract digest, contract version, canonical
-fields and their digest, snapshot digest, and accepted response-code set before the
-first act. Retry keeps those request bytes frozen, but fails closed until the current
-maintained contract exactly matches the frozen digest and every mutable governance
-gate passes again. Final governance, source, and grant rows are locked in
-writer-compatible order through the adapter boundary.
-Records retain submitted values as
-sensitive owner data and never enter telemetry. A production adapter remains
-forbidden until #193 supplies the authoritative envelope; the only implementation
-used by #191 tests is a local in-memory fixture that contacts no employer system.
-
-The dark #192 stop boundary treats only an adapter-proven pre-commit CAPTCHA,
-authentication request, uncertainty, source rejection, changed form, or other
-explicit pre-commit stop observation as a terminal outcome for that
-owner/snapshot/source key. The event is created while the packet, immutable snapshot,
-and dispatch claim remain locked; every concurrent worker and later restart returns
-the same fixed explanation and the snapshot's frozen official Level B destination
-without another adapter call. The accepted packet and approval snapshot are not
-rewritten. Stop persistence contains only ids, closed reason, bounded source code,
-and contract version/digest—never provider prose, CAPTCHA content, auth details, or
-submitted values—and joins owner export, campaign deletion, and account erasure.
-The terminal handoff is permitted only when the adapter proves it stopped before
-commit, and its non-null official destination and source identity exactly match the
-frozen approval snapshot. A timeout, unknown response, or invalid confirmation after
-a possible outward act remains on frozen source-native idempotent reconciliation and
-never invites a potentially duplicate manual submission.
-The complete content-free terminal-stop stream feeds #195's breakage seam without
-exposing source content. Only an explicit compatibility-mismatch observation trips
-the source automatically; challenges, authentication requests, uncertainty, and
-validation rejection still stop and hand back but do not falsely invalidate the
-reviewed contract.
-
-The dark #193 envelope closes the otherwise-injected fourth gate. Its singleton
-global kill switch fails closed when absent and cannot be cleared until a bounded
-playbook version, evidence reference, operator identity, and explicit roles,
-rollback, and communication confirmations are appended to immutable rehearsal
-history. Each source has strict per-owner/per-source minute attempt limits,
-rolling-24-hour logical-claim volume limits, and an hourly attempt anomaly threshold;
-retrying one ambiguous idempotency claim records another content-free attempt but
-does not inflate logical volume. The engine checks the owner pause, global
-control, and source policy at dispatch, durably commits a conservative attempt
-reservation, then reacquires the complete lock chain and rechecks every mutable gate
-immediately before the adapter boundary. A process crash may conservatively consume
-budget but cannot erase a possible outward attempt. Revalidation binds the exact
-reservation to owner/source and the active minute window; an aged reservation stops
-before the adapter and must be replaced on retry. Concurrent source attempts serialize on the
-same policy row. Anomaly telemetry contains only source family, the closed anomaly
-outcome, and server time—never user/packet/source ids, URLs, claims, provider prose,
-or submitted fields. Operators can trip global and per-source controls without a
-deploy, owners see fixed block reasons and only their own bounded usage (never exact
-shared-source totals), and every environment starts globally killed. Tripping the
-global control invalidates the active rehearsal proof without deleting history, so
-recovery must append a fresh rehearsal before clearing. The documented rehearsal is dark implementation
-evidence only; it does not satisfy D-100 or authorize a real source.
-
-The dark #194 audit surface does not create a submission endpoint. A successful
-fixture-driven act appends its immutable submission record and a campaign timeline
-link in one transaction, so neither proof can exist without the other. Timeline
-metadata is content-free: only the record and exact approval-snapshot identifiers
-are present. The authenticated campaign response filters by both owner and campaign,
-then exposes the submitted values only beside the immutable approval snapshot and
-its digest; authorization-grant and idempotency internals are omitted from that UI
-contract. The complete record remains in the owner's machine-readable export.
-Confirmed owner-facing campaign deletion or account deletion removes product-held
-records, claims, attempts, events, and snapshots, but the UI states plainly that
-deletion cannot withdraw the copy
-already held by an employer. This prevents the product from becoming an opaque
-submission proxy while avoiding the false promise that a local erasure can reverse
-an external act.
-
-The dark #195 compatibility monitor compares a strict observed contract with the
-reviewed stored contract; it never fetches a form or accepts arbitrary provider
-content. Mismatch containment is sticky and fail closed: the contract becomes
-`broken`, promotion is removed, and the submission kill switch is tripped before
-another act; the bounded breakage audit commits atomically with that containment.
-Recovery requires a new reviewed contract plus explicit re-promotion
-and kill-switch clearance. Events contain only the allowlisted source family and
-closed compatibility/quality outcome. Backend validation rejects packet content,
-submitted fields, source keys, user ids, and provider prose; the frontend strict
-aggregate schema rejects the same drift. The admin page reports rates with sample
-context but has no mutation control, so neither raw volume nor a favorable metric
-can weaken the four gates. This limits abuse of the product as a submission proxy:
-contract drift stops the source, authorization remains non-secret and per-source,
-and immutable audit/confirmation evidence cannot be rewritten to hide an outward
-act. Duplicate prevention is bounded by confirmed-plus-prevented logical attempts,
-while identifier-free repeated outcome observations saturate at 100%, so duplicate
-traffic cannot overflow or disable the read-only quality view.
-
-Discovered listings are non-user product data in dedicated canonical and source-
-attribution tables; neither table carries a user/workspace key or references
-`campaign_listings`. Source URLs are restricted to the governed endpoint host and
-stored without query or fragment. Conservative normalized-content hashing collapses
-known identical postings while preserving each source attribution; near misses stay
-separate. The daily retention job deletes an attribution once it exceeds that
-source registry row's current retention days and removes the canonical listing only
-when no attribution remains. Source deletion is restricted while attribution rows
-exist, preventing silent orphaning or loss of the rule that owns the data.
-
-The recommendation feed is an authenticated, owner-personalized transient read.
-Ranking runs server-side against confirmed owner Evidence Profile items; rejected
-and unconfirmed items are excluded, and no profile or preference content is sent to
-discovery sources. The response includes only the owner's own evidence-item ids,
-matched deterministic keywords and scores needed to audit the rank, plus governed
-listing attribution. It persists no recommendation or search-intent state in #174;
-the owner-isolated lifecycle for future hide, dismiss, correction, and report state
-remains governed by D-090 and #175.
-
-# R15 Application Approval Queue (queue data, D-094–D-099)
-
-The Application Approval Queue introduces three classes of sensitive owner data and
-one automation boundary, all owner-scoped and server-authoritative. **Queue rules**
-(`queue_rules`, `queue_settings`) hold the user's role/location/**compensation**/
-**work-authorization**/quality filters plus volume caps and a cost ceiling. Every
-rule is applied server-side before a listing can become a packet, so no client
-change can admit a candidate the rules exclude; with no rules defined the queue
-prepares nothing, and caps/ceilings default to bounded values so admission is never
-silently unlimited. **Application packets** (`application_packets`) encode
-**application intent** by reference only (D-093, ADR 0009): campaign, listing, CV
-variant, and draft `ToolRun` foreign keys — never copied material content. **Stop
-answers** (`packet_stop_answers`) store the user's typed responses to mandatory-stop
-questions (work authorization, compensation, relocation, eligibility, demographic,
-legal, and other sensitive fields); the system never drafts these, and only the
-user's input resolves them (D-095). A packet with any unresolved stop question is
-not approvable server-side. Approval is allowed only while its decision is
-`pending` and, under the packet row lock, revalidates that the required discovered
-listing and CV variant still exist. A deleted reference becomes a non-answerable
-`missing_material` stop that requires packet re-preparation.
-
-At guarded acceptance, **packet approval snapshots**
-(`packet_approval_snapshots`) deliberately cross the reference-only boundary once:
-they copy the exact resolved listing, CV variant, drafts, deterministic rationale,
-the exact resolved stop-answer values, and authoritative empty unresolved set into
-canonical JSON with a SHA-256 digest (D-096). The listing object is the packet's
-product-owned discovered listing plus source attributions; the manual handoff uses
-only the exact discovered-listing attribution pinned when the packet was prepared,
-so later campaign edits or newly deduplicated sources cannot redirect it. The
-owner/packet and owner/normalized-role uniqueness constraints make
-the once-only and same-role duplicate rules structural; the packet role comes from
-its discovered listing rather than mutable campaign labels. Submission capture
-likewise uses its canonical listing when one exists and editable labels only for a
-listing-less campaign. Any campaign for the same role that already reached
-submission is checked as the second duplicate axis. Approval and campaign
-submission-snapshot capture serialize their cross-table
-checks on the same owner row, preventing concurrent same-role records from bypassing
-the rule. Terminal queue actions lock the packet row too. Approval/account erasure
-use packet→campaign→owner ordering, and campaign deletion locks dependent packets
-before its workspace row, preventing FK lock inversion. Decision, snapshot,
-append-only queue audit, and `packet_approved`
-campaign event commit in one transaction. Those audit/timeline rows carry entity
-references and low-cardinality decision state only; the stable content digest stays
-inside the sensitive approval snapshot rather than becoming a high-cardinality
-audit attribute. Campaign submission snapshots freeze their role key at capture;
-later workspace edits cannot rewrite the duplicate identity, and pre-#185 rows are
-backfilled only from their immutable listing bytes using the runtime's exact
-whitespace-collapse plus Unicode `casefold` normalization (listing-less, malformed,
-or non-object legacy rows receive a campaign-specific fallback rather than a
-guess). Product code exposes no snapshot update
-or per-row deletion seam, and PostgreSQL rejects `UPDATE` on the table; account
-erasure or deletion of the owning campaign may remove the row, and the full snapshot
-joins the owner's machine-readable export.
-
-Because no by-value historical evidence exists for the queue's older decision-only
-accept path, the snapshot migration resets those legacy `accepted` rows to `pending`
-instead of fabricating a backfill. Downgrade resets snapshot-backed decisions before
-dropping the immutable records. This intentionally fails closed and requires the
-owner to approve again after either transition.
-
-The trust chain gates queueing: the R13 reviewer runs on each prepared packet, and a
-packet carrying any unresolved fabrication finding is never queued (D-097); a
-regression-eval failure halts preparation pipeline-wide until cleared. No
-client-callable outward-submission endpoint exists: §6 lists only queue decisions
-and R16 authorization/safety/governance inspection or control, while the
-fixture-backed internal engine remains unrouted (test-verified, ADR 0009).
-Approval returns a manual handoff only. The client renders an external
-link only for a credential-free HTTPS destination and requires the user's click;
-unsafe or missing stored URLs are retained inside the immutable audit content but
-never become a clickable handoff.
-
-The queue's React Query entries include the authenticated owner id. Logout, session
-expiry, and account deletion purge the queue query root, and the mounted queue clears
-answer drafts, errors, and manual-handoff state when the owner changes or the session
-expires, preventing one account's application intent or destination from appearing
-to the next account in the same browser.
-
-Every queue action is an **append-only audit event** (`queue_audit_events`, D-098)
-written through a single seam that exposes no update or delete-by-id path; the only
-removal is the account-deletion cascade. Audit `details` carry only low-cardinality
-classes (rule dimension, gate/stop-category, packet id by reference) — never rule
-values, draft text, or stop answers. **Telemetry** stays inside the `extra="forbid"`
-allowlist: gate/halt operational events retain only closed outcome classes and the
-source of a halt; allowlist tests reject any event carrying rule values, draft text,
-or stop-answer content. **Erasure and portability**: account deletion cascades over
-every queue table — rules, settings, packets, stop answers, and audit history — and
-all of it joins `career-data-export/v1` (D-099).
-
-— `backend/app/models/queue_rule.py`, `application_packet.py`,
-`packet_stop_answer.py`, `packet_approval_snapshot.py`, `queue_audit_event.py`,
-`pipeline_halt.py`;
-`backend/app/services/queue_rules.py`, `application_packets.py`, `packet_approval.py`,
-`packet_approval_snapshot.py`, `packet_gate.py`, `queue_audit.py`;
-`backend/app/schemas/analytics.py` (allowlist);
-`backend/tests/test_queue_audit.py`, `test_queue_rules.py`, `test_stop_enforcement.py`,
-`test_packet_gate.py`, `test_packet_approval_snapshot.py`
+— `backend/app/models/workspace.py`, `application_snapshot.py`,
+`application_details.py`, `application_preferences.py`, `campaign_listing.py`,
+`campaign_event.py`, `campaign_task.py`, `discovery_source.py`,
+`discovered_listing.py`;
+`backend/app/services/applications.py`, `application_drafts.py`, `stop_classifier.py`,
+`campaign_reviewer.py`, `ats_ingestion.py`, `discovery_sources.py`, `retention.py`,
+`tool_runs.py`
 
 ### 8.11 Development-Loop Sensitive Data
 
@@ -1712,19 +1466,12 @@ offers derived from them, with count/length invariants in both Pydantic and Zod.
 After classification erasure, its recommendation can no longer be derived and
 no ghost recommendation row remains (D-114).
 
-**Telemetry and admin boundary.** Create, state-transition, and delete seams
-emit backend-only events with only four closed dimensions: gap kind, response
-kind, prior state, and next state. `ActivationEventCreate(extra="forbid")`
-rejects gap descriptions, notes, recommendation content, classification/item
-ids, and user ids; the `analytics_events` model has no columns for them. The
-admin-only `/admin/development-loop` view groups these events into lifecycle,
-gap-kind, response-kind, and state-transition counts over a bounded time
-window. It exposes no row-level or user-level drill-down.
+**Telemetry.** No development-loop telemetry is persisted: there is no analytics table
+and no admin view for this feature. Gap descriptions, notes and recommendation
+content never appear in logs.
 
 — `backend/app/models/gap_classification.py`,
-`backend/app/models/development_item.py`,
-`backend/app/models/analytics_event.py`;
-`backend/app/services/development.py`, `data_export.py`, `analytics.py`;
-`backend/app/schemas/analytics.py`, `data_export.py`;
-`backend/tests/test_development_loop_analytics.py`,
-`test_development_plan.py`
+`backend/app/models/development_item.py`;
+`backend/app/services/development.py`, `data_export.py`;
+`backend/app/schemas/data_export.py`;
+`backend/tests/test_development_plan.py`
