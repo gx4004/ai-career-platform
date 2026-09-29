@@ -155,6 +155,14 @@ export const autofillReportSchema = z.object({
   mismatched: z.array(z.string()).default([]),
   url: z.string(),
 })
+export const autofillRunStatusSchema = z.object({
+  state: z.enum(['idle', 'running', 'review', 'failed', 'closed']),
+  kind: z.string().nullable().default(null),
+  message: z.string().nullable().default(null),
+  next_step: z.string().nullable().default(null),
+  seconds_left: z.number().int().nullable().default(null),
+  report: autofillReportSchema.nullable().default(null),
+})
 const runExportSchema = z.object({
   id: z.string(), tool_name: z.string(), label: z.string().nullable(),
   parent_run_id: z.string().nullable(), result_payload: z.record(z.string(), z.unknown()),
@@ -1124,6 +1132,7 @@ export type ApplicationDetails = z.infer<typeof applicationDetailsSchema>
 export type ApplicationDetailsUpdate = z.input<typeof applicationDetailsUpdateSchema>
 export type BulkPrepareResult = z.infer<typeof bulkPrepareResultSchema>
 export type AutofillReport = z.infer<typeof autofillReportSchema>
+export type AutofillRunStatus = z.infer<typeof autofillRunStatusSchema>
 export type ApplicationReviewFinding = z.infer<typeof applicationReviewFindingSchema>
 export type ResumeResult = z.infer<typeof resumeResultSchema>
 export type JobMatchResult = z.infer<typeof jobMatchResultSchema>
