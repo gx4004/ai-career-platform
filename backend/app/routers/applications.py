@@ -26,7 +26,7 @@ from app.schemas.applications import (
     ApplicationPreferencesBody,
     ApplicationPreferencesResponse,
     ApplicationUpdate,
-    AutofillReport,
+    AutofillRunStatus,
     BulkPrepareResult,
     ReviewResponse,
     TaskCreate,
@@ -41,8 +41,9 @@ from app.services import applications as service
 from app.services.autopilot import (
     AutofillBusy,
     AutofillRefused,
-    FormNotFound,
     build_materials,
+    cancel_run,
+    get_run,
     start_autofill,
 )
 from app.services.campaign_reviewer import (
@@ -63,9 +64,6 @@ from app.services.input_sanitizer import sanitize_user_input
 from app.services.tool_pipeline import run_tool_pipeline
 
 router = APIRouter()
-
-AUTOFILL_TIMEOUT_SECONDS = 90
-
 
 @contextmanager
 def _errors() -> Iterator[None]:
@@ -221,18 +219,27 @@ def mark_applied(
     return service.application_detail(db, workspace)
 
 
-@router.post("/{application_id}/autofill", response_model=AutofillReport)
+def _autofill_status(run) -> AutofillRunStatus:
+    return AutofillRunStatus(**(run.snapshot() if run else {"state": "idle"}))
+
+
+def _autofill_enabled() -> None:
+    if not settings.AUTOPILOT_EXPERIMENT_ENABLED:
+        raise HTTPException(status_code=404, detail="Not found")
+
+
+@router.post("/{application_id}/autofill", response_model=AutofillRunStatus, status_code=202)
 def autofill(
     application_id: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Open the application form in a browser on this computer and fill it.
+    """Start filling the application form in a browser on this computer.
 
-    Never submits: the owner reviews the open window and presses submit themselves.
+    Returns at once; poll ``GET`` for progress. Never submits: the owner reviews the
+    open window and presses submit themselves.
     """
-    if not settings.AUTOPILOT_EXPERIMENT_ENABLED:
-        raise HTTPException(status_code=404, detail="Not found")
+    _autofill_enabled()
     workspace = _load(db, current_user, application_id)
     if service.unanswered_questions(workspace):
         raise HTTPException(
@@ -242,34 +249,38 @@ def autofill(
     content = snapshot.content if snapshot else service.application_content(workspace)
     details = application_details.get_details(db, current_user)
     try:
-        report = start_autofill(current_user.id, build_materials(details, content))
+        run = start_autofill(current_user.id, application_id, build_materials(details, content))
     except AutofillRefused as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
     except AutofillBusy as error:
         raise HTTPException(
             status_code=409, detail="A form is already being filled. Finish that one first."
         ) from error
-    try:
-        result = report.result(timeout=AUTOFILL_TIMEOUT_SECONDS)
-    except TimeoutError as error:
-        raise HTTPException(
-            status_code=504, detail="The form took too long. Check the open browser window."
-        ) from error
-    except AutofillRefused as error:  # the page moved to a site Autopilot does not fill
-        raise HTTPException(status_code=400, detail=str(error)) from error
-    except FormNotFound as error:  # the window has already closed
-        raise HTTPException(status_code=502, detail=str(error)) from error
-    except Exception as error:  # noqa: BLE001 — Playwright missing or the page failed
-        raise HTTPException(
-            status_code=502,
-            detail=(
-                "Could not fill the form. This only works when the app runs on your own "
-                "computer with a browser installed (python -m playwright install chromium)."
-            ),
-        ) from error
-    return AutofillReport(
-        filled=result.filled, skipped=result.skipped, mismatched=result.mismatched, url=result.url
-    )
+    return _autofill_status(run)
+
+
+@router.get("/{application_id}/autofill", response_model=AutofillRunStatus)
+def autofill_status(
+    application_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Status and report of the latest fill for this application."""
+    _autofill_enabled()
+    _load(db, current_user, application_id)
+    return _autofill_status(get_run(current_user.id, application_id))
+
+
+@router.delete("/{application_id}/autofill", response_model=AutofillRunStatus)
+def autofill_cancel(
+    application_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Cancel the fill and close its browser window."""
+    _autofill_enabled()
+    _load(db, current_user, application_id)
+    return _autofill_status(cancel_run(current_user.id, application_id))
 
 
 @router.post("/{application_id}/review", response_model=ReviewResponse)

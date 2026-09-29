@@ -6,7 +6,7 @@ import { ApplicationPage } from '../ApplicationPage'
 
 const api = vi.hoisted(() => ({
   getApplication: vi.fn(), updateApplication: vi.fn(), deleteApplication: vi.fn(),
-  prepareApplication: vi.fn(), saveApplicationAnswers: vi.fn(), markApplicationApplied: vi.fn(), autofillApplication: vi.fn(),
+  prepareApplication: vi.fn(), saveApplicationAnswers: vi.fn(), markApplicationApplied: vi.fn(), autofillApplication: vi.fn(), getAutofillStatus: vi.fn(), cancelAutofill: vi.fn(),
   createApplicationTask: vi.fn(), updateApplicationTask: vi.fn(), deleteApplicationTask: vi.fn(),
   reviewApplication: vi.fn(), classifyApplicationGaps: vi.fn(), getApplicationGapResponse: vi.fn(),
 }))
@@ -57,6 +57,7 @@ describe('ApplicationPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     flags.autopilot = false
+    api.getAutofillStatus.mockResolvedValue({ state: 'idle' })
   })
 
   it('shows every section on one page under the shared hero', async () => {
@@ -125,6 +126,41 @@ describe('ApplicationPage', () => {
     flags.autopilot = true
     renderPage()
     expect((await screen.findByRole('button', { name: /Fill the form for me/ })).hasAttribute('disabled')).toBe(true)
+  })
+
+  it('runs the Autopilot fill in the background: polls, shows the report, and can be cancelled', async () => {
+    flags.autopilot = true
+    api.getApplication.mockResolvedValue(answered)
+    api.autofillApplication.mockResolvedValue({
+      state: 'review', seconds_left: 1500,
+      report: { filled: ['Email'], skipped: ['Pronouns'], mismatched: [], url: 'https://jobs.lever.co/acme/123/apply' },
+    })
+    api.cancelAutofill.mockResolvedValue({ state: 'closed', kind: 'cancelled', message: 'The run was cancelled and the window closed.' })
+    renderPage()
+
+    fireEvent.click(await screen.findByRole('button', { name: /Fill the form for me/ }))
+    await waitFor(() => expect(api.autofillApplication).toHaveBeenCalledWith('app-1'))
+    expect(await screen.findByText(/Nothing was submitted/)).toBeTruthy()
+    expect(screen.getByText('Email')).toBeTruthy()
+    expect(screen.getByText(/closes itself in 25 min/)).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close the window' }))
+    await waitFor(() => expect(api.cancelAutofill).toHaveBeenCalledWith('app-1'))
+    expect(await screen.findByText('The run was cancelled and the window closed.')).toBeTruthy()
+    expect(screen.getByRole('button', { name: /Fill the form for me/ })).toBeTruthy()
+  })
+
+  it('says what went wrong with the Autopilot fill and what to do next', async () => {
+    flags.autopilot = true
+    api.getApplication.mockResolvedValue(answered)
+    api.getAutofillStatus.mockResolvedValue({
+      state: 'failed', kind: 'job_closed',
+      message: 'The employer’s page says this job is no longer there.', next_step: 'Open the apply page yourself.',
+    })
+    renderPage()
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toContain('no longer there')
+    expect(alert.textContent).toContain('Open the apply page yourself.')
   })
 
   it('saves the chosen CV version, notes and a new task', async () => {

@@ -12,15 +12,25 @@ from app.services.autopilot.policy import (
     AutofillRefused,
     ats_form_url,
 )
-from app.services.autopilot.runner import AutofillReport, FormNotFound, start_autofill
+from app.services.autopilot.runner import (
+    AutofillReport,
+    AutofillRun,
+    FormNotFound,
+    cancel_run,
+    get_run,
+    start_autofill,
+)
 
 __all__ = [
     "AutofillBusy",
     "AutofillMaterials",
     "AutofillRefused",
     "AutofillReport",
+    "AutofillRun",
     "FormNotFound",
     "ats_form_url",
     "build_materials",
+    "cancel_run",
+    "get_run",
     "start_autofill",
 ]
