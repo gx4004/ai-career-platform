@@ -305,7 +305,8 @@ class BulkPrepareResult(BaseModel):
 
 class AutofillReport(BaseModel):
     filled: list[str]
-    skipped: list[str]
+    skipped: list[str]  # left for the owner, highlighted in the form
+    mismatched: list[str] = Field(default_factory=list)  # written, but did not stick
     url: str
 
 

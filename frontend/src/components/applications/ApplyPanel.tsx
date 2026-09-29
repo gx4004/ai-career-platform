@@ -193,6 +193,7 @@ function AutofillBlock({ applicationId, blocked }: { applicationId: string; bloc
         <div className="camp-autofill__report" role="status">
           <p><strong>Filled:</strong> {report.filled.length ? report.filled.join(', ') : 'nothing'}</p>
           {report.skipped.length ? <p><strong>Fill these yourself (highlighted in the form):</strong> {report.skipped.join(', ')}</p> : null}
+          {report.mismatched.length ? <p><strong>Check these (the form changed what was typed):</strong> {report.mismatched.join(', ')}</p> : null}
           <p>Nothing was submitted. Check the browser window and press submit when you're happy.</p>
         </div>
       ) : null}

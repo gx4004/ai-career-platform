@@ -1,0 +1,158 @@
+<!doctype html>
+<!-- Hand-built fixture shaped like a legacy boards.greenhouse.io hosted form
+     (embed/job_app). Structure only; never a copy of a live page. Tests serve it
+     under the real host via Playwright routing. -->
+<html>
+<head><meta charset="utf-8"><title>Job Application for Backend Engineer at Acme</title></head>
+<body>
+<script>
+  window.__submitted = false;
+  function cwSubmit(url) {  // any submission is recorded twice: flag and POST
+    window.__submitted = true;
+    fetch(url, {method: 'POST', body: 'submitted'}).catch(() => {});
+    return false;
+  }
+</script>
+<div id="application">
+<form id="application_form" action="https://boards.greenhouse.io/embed/acme/jobs/1001" method="post"
+      enctype="multipart/form-data" onsubmit="return cwSubmit(this.action)">
+  <input type="hidden" name="utf8" value="✓">
+  <input type="hidden" name="authenticity_token" value="fixture">
+  <div id="main_fields">
+    <div class="field">
+      <label for="first_name">First Name <span class="asterisk">*</span></label>
+      <input type="text" id="first_name" name="job_application[first_name]" aria-required="true">
+    </div>
+    <div class="field">
+      <label for="last_name">Last Name <span class="asterisk">*</span></label>
+      <input type="text" id="last_name" name="job_application[last_name]" aria-required="true">
+    </div>
+    <div class="field">
+      <label for="email">Email <span class="asterisk">*</span></label>
+      <input type="text" id="email" name="job_application[email]" aria-required="true">
+    </div>
+    <div class="field">
+      <label for="phone">Phone</label>
+      <input type="text" id="phone" name="job_application[phone]">
+    </div>
+    <div class="field">
+      <label for="job_application_location">Location (City)</label>
+      <input type="text" id="job_application_location" name="job_application[location]" autocomplete="off">
+    </div>
+    <div id="resume_fieldset" class="field">
+      <label>Resume/CV <span class="asterisk">*</span></label>
+      <input type="hidden" name="job_application[resume_url]" id="resume_url">
+      <div class="attach-or-paste"><a href="#" data-source="attach">Attach</a> or
+        <a href="#" data-source="paste">enter manually</a></div>
+      <textarea id="resume_text" name="job_application[resume_text]" style="display:none"></textarea>
+      <span id="resume_filename"></span>
+    </div>
+    <div id="cover_letter_fieldset" class="field">
+      <label>Cover Letter</label>
+      <input type="hidden" name="job_application[cover_letter_url]" id="cover_letter_url">
+      <div class="attach-or-paste"><a href="#" data-source="attach">Attach</a> or
+        <a href="#" data-source="paste">enter manually</a></div>
+      <textarea id="cover_letter_text" name="job_application[cover_letter_text]" style="display:none"></textarea>
+    </div>
+  </div>
+  <div id="custom_fields">
+    <div class="field">
+      <label>LinkedIn Profile
+        <input type="text" id="job_application_answers_attributes_0_text_value"
+               name="job_application[answers_attributes][0][text_value]">
+      </label>
+    </div>
+    <div class="field">
+      <label>Website
+        <input type="text" id="job_application_answers_attributes_1_text_value"
+               name="job_application[answers_attributes][1][text_value]">
+      </label>
+    </div>
+    <div class="field">
+      <label>What is your notice period? <span class="asterisk">*</span>
+        <input type="text" id="job_application_answers_attributes_2_text_value"
+               name="job_application[answers_attributes][2][text_value]">
+      </label>
+    </div>
+    <div class="field">
+      <label for="job_application_answers_attributes_3_boolean_value">Are you legally authorized to work in the country? <span class="asterisk">*</span></label>
+      <select id="job_application_answers_attributes_3_boolean_value"
+              name="job_application[answers_attributes][3][boolean_value]">
+        <option value="">--</option><option value="1">Yes</option><option value="0">No</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="job_application_answers_attributes_4_boolean_value">Will you now or in the future require visa sponsorship? <span class="asterisk">*</span></label>
+      <select id="job_application_answers_attributes_4_boolean_value"
+              name="job_application[answers_attributes][4][boolean_value]">
+        <option value="">--</option><option value="1">Yes</option><option value="0">No</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>What are your salary expectations?
+        <input type="text" id="job_application_answers_attributes_5_text_value"
+               name="job_application[answers_attributes][5][text_value]">
+      </label>
+    </div>
+    <div class="field">
+      <label>Which of our offices could you work from?</label>
+      <label><input type="checkbox" name="job_application[answers_attributes][6][answer_selected_options_attributes][0][question_option_id]" value="11"> London</label>
+      <label><input type="checkbox" name="job_application[answers_attributes][6][answer_selected_options_attributes][1][question_option_id]" value="12"> Berlin</label>
+    </div>
+    <div class="field">
+      <label for="job_application_answers_attributes_7_text_value">Are you open to relocation?</label>
+      <select id="job_application_answers_attributes_7_text_value"
+              name="job_application[answers_attributes][7][text_value]">
+        <option value="">--</option><option>Yes</option><option>No</option>
+      </select>
+    </div>
+  </div>
+  <div id="eeoc_fields">
+    <h3>Voluntary Self-Identification</h3>
+    <div class="field">
+      <label for="job_application_gender">Gender</label>
+      <select id="job_application_gender" name="job_application[gender]">
+        <option value="">Please select</option><option value="1">Male</option>
+        <option value="2">Female</option><option value="3">Decline To Self Identify</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="job_application_hispanic_ethnicity">Are you Hispanic/Latino?</label>
+      <select id="job_application_hispanic_ethnicity" name="job_application[hispanic_ethnicity]">
+        <option value="">Please select</option><option value="Yes">Yes</option><option value="No">No</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="job_application_veteran_status">Veteran Status</label>
+      <select id="job_application_veteran_status" name="job_application[veteran_status]">
+        <option value="">Please select</option><option value="1">I am not a protected veteran</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="job_application_disability_status">Disability Status</label>
+      <select id="job_application_disability_status" name="job_application[disability_status]">
+        <option value="">Please select</option><option value="1">No, I do not have a disability</option>
+      </select>
+    </div>
+  </div>
+  <div class="field" id="data_compliance">
+    <input type="checkbox" id="gdpr_consent" name="job_application[data_compliance][gdpr_consent_given]">
+    <label for="gdpr_consent">I agree to the processing of my data as described in the privacy policy</label>
+  </div>
+  <textarea id="g-recaptcha-response" name="g-recaptcha-response" style="display:none"></textarea>
+  <div id="submit_buttons"><input type="button" id="submit_app" value="Submit Application"
+       onclick="document.getElementById('application_form').requestSubmit()"></div>
+</form>
+</div>
+<!-- Uploads go through their own small forms, outside the application form. -->
+<form id="s3_upload_for_resume" action="https://s3.amazonaws.com/grnhse-fixture" method="post"
+      enctype="multipart/form-data" onsubmit="return cwSubmit(this.action)">
+  <input type="file" name="file" style="display:none"
+         onchange="document.getElementById('resume_filename').textContent = this.files[0].name">
+</form>
+<form id="s3_upload_for_cover_letter" action="https://s3.amazonaws.com/grnhse-fixture" method="post"
+      enctype="multipart/form-data" onsubmit="return cwSubmit(this.action)">
+  <input type="file" name="file" style="display:none">
+</form>
+</body>
+</html>

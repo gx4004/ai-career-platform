@@ -152,6 +152,7 @@ export const bulkPrepareResultSchema = z.object({
 export const autofillReportSchema = z.object({
   filled: z.array(z.string()),
   skipped: z.array(z.string()),
+  mismatched: z.array(z.string()).default([]),
   url: z.string(),
 })
 const runExportSchema = z.object({

@@ -50,6 +50,7 @@ from app.schemas.applications import (
     TaskCreate,
 )
 from app.services.application_drafts import DRAFTS_TOOL_NAME, compose_application_drafts
+from app.services.autopilot.policy import ats_form_url
 from app.services.campaign_reviewer import cover_document_text
 from app.services.discovery_adoption import adopt_recommendation
 from app.services.discovery_recommendations import VisibleListing, best_matches
@@ -498,6 +499,8 @@ def application_content(workspace: Workspace, *, applied_at: datetime | None = N
                 "description": listing.description,
                 "source_url": listing.source_url,
                 "apply_url": listing.apply_url,
+                # The ATS form Autopilot opens, built from the board and job id.
+                "form_url": ats_form_url(listing.source_url, listing.apply_url),
                 "retrieved_at": _as_utc(listing.retrieved_at).isoformat(),
             }
             if listing
