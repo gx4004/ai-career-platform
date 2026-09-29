@@ -531,7 +531,7 @@ is dark; R12 export and erasure remain inside the cumulative R12 router gate.
 | `POST` | `/packets/{packet_id}/reject` | R15 | — |
 | `POST` | `/packets/{packet_id}/edit` | R15 | — |
 | `POST` | `/packets/{packet_id}/applied` | R15 | — |
-| `POST` | `/packets/{packet_id}/autofill` | `AUTOPILOT_EXPERIMENT_ENABLED` (local-only experiment; never submits) | one run per owner |
+| `POST`, `GET`, `DELETE` | `/applications/{application_id}/autofill` | `AUTOPILOT_EXPERIMENT_ENABLED` (local-only experiment; never submits) | one run per owner |
 
 #### R17 development loop (8)
 
@@ -1432,9 +1432,21 @@ attributions hold public job data with no user foreign key; a daily job expires
 them per retention rule. Personalization rows (hidden sources, dismissals,
 corrections, reports) are owner data in the standard lifecycle.
 
-**Autopilot (experimental, out of scope of this section).** It runs only with
-`AUTOPILOT_EXPERIMENT_ENABLED`, which the backend refuses to boot with outside
-development. Its threat notes are kept with the Autopilot work.
+**Autopilot (experimental).** It runs only with `AUTOPILOT_EXPERIMENT_ENABLED`,
+which the backend refuses to boot with outside development; with the flag off the
+`/applications/{id}/autofill` routes return 404. It opens a visible browser on the
+backend machine, so it is never a hosted feature. Guarantees, each covered by a
+test: only https pages on the Greenhouse, Lever and Ashby hosts are opened (no
+userinfo or port; off-list navigations and redirects are refused before anything
+is typed); the destination is the form frozen with the application, built from the
+board token and job id, never a later-edited link; the code never clicks, presses
+or submits, and EEO, consent and stop-category fields are left for the owner unless
+the owner typed the answer; contact details come only from the owner's application
+details; the browser context is fresh, with no cookies or credentials; one run per
+owner. The run report is logged on the application as labels and counts only, so no
+typed value (salary, visa, contact data) is written to the activity log. The
+server exposes `autofill_supported` per application so the UI offers the action only
+where it can work. Live employer sites are never used by tests.
 
 — `backend/app/models/workspace.py`, `application_snapshot.py`,
 `application_details.py`, `application_preferences.py`, `campaign_listing.py`,

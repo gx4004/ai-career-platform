@@ -982,3 +982,68 @@ def test_another_owners_application_is_404(client, db, test_user, autopilot_on, 
     headers = {"Authorization": f"Bearer {create_access_token(other.id)}"}
     response = client.post(f"{PREFIX}/{application.id}/autofill", headers=headers)
     assert response.status_code == 404
+
+
+# ── On the application: support flag and the logged report ──
+
+
+def _detail(client, auth_headers, application):
+    response = client.get(f"{PREFIX}/{application.id}", headers=auth_headers)
+    assert response.status_code == 200
+    return response.json()
+
+
+def test_the_application_says_whether_autopilot_can_fill_its_form(
+    client, db, test_user, auth_headers, monkeypatch
+):
+    application = _ready(db, test_user.id)
+    monkeypatch.setattr(settings, "AUTOPILOT_EXPERIMENT_ENABLED", False)
+    assert _detail(client, auth_headers, application)["autofill_supported"] is False
+
+    monkeypatch.setattr(settings, "AUTOPILOT_EXPERIMENT_ENABLED", True)
+    assert _detail(client, auth_headers, application)["autofill_supported"] is True
+
+    elsewhere = _ready(db, test_user.id, apply_url="https://jobs.example/apply/1")
+    assert _detail(client, auth_headers, elsewhere)["autofill_supported"] is False
+
+
+def test_the_report_is_logged_once_on_the_application_without_values(
+    client, db, test_user, auth_headers, autopilot_on, monkeypatch
+):
+    application = _ready(db, test_user.id)
+    run = AutofillRun(application.id, LEVER)
+    run.review(
+        AutofillReport(
+            filled=["Email"],
+            skipped=["Salary (pick: 90k EUR)", "Pronouns"],
+            mismatched=["Phone"],
+            url=LEVER,
+        ),
+        time.monotonic() + 1800,
+    )
+    monkeypatch.setitem(runner._runs, test_user.id, run)
+    url = f"{PREFIX}/{application.id}/autofill"
+
+    for _ in range(2):  # polling again does not log again
+        assert client.get(url, headers=auth_headers).status_code == 200
+
+    events = [e for e in _detail(client, auth_headers, application)["events"] if e["event_type"] == "autofill"]
+    assert len(events) == 1
+    details = events[0]["details"]
+    assert (details["filled_count"], details["needs_you_count"], details["check_count"]) == (1, 2, 1)
+    assert details["needs_you"] == ["Salary", "Pronouns"]
+    assert "90k" not in str(events[0])
+
+
+def test_a_failed_run_is_logged_with_its_kind(
+    client, db, test_user, auth_headers, autopilot_on, monkeypatch
+):
+    application = _ready(db, test_user.id)
+    run = AutofillRun(application.id, LEVER)
+    run.fail(FormNotFound("The application form did not appear on that page."))
+    monkeypatch.setitem(runner._runs, test_user.id, run)
+
+    client.get(f"{PREFIX}/{application.id}/autofill", headers=auth_headers)
+
+    (event,) = [e for e in _detail(client, auth_headers, application)["events"] if e["event_type"] == "autofill"]
+    assert (event["details"]["outcome"], event["details"]["kind"]) == ("failed", "form_not_found")

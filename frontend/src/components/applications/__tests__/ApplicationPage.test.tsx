@@ -41,7 +41,7 @@ const drafts = {
   screening_answers: [{ question: 'Notice period?', answer: 'Two weeks.', support: 'document', evidence_item_ids: [] }],
 }
 const prepared = { ...saved, prepared: true, drafts, open_questions: [SALARY], open_question_count: 1 }
-const answered = { ...prepared, ready: true, open_question_count: 0, open_questions: [{ ...SALARY, answered: true }], answers: { 'q-salary': '€90k' } }
+const answered = { ...prepared, autofill_supported: true, ready: true, open_question_count: 0, open_questions: [{ ...SALARY, answered: true }], answers: { 'q-salary': '€90k' } }
 const applied = {
   ...answered, status: 'applied', applied_at: '2026-09-21T09:00:00Z', ready: false,
   snapshot: { id: 's-1', content: { listing: { title: 'Platform Engineer', company: 'Northstar Labs' }, cv_variant: { name: 'Platform roles' }, cover_letter: { source: 'prepared' }, answers: [{ question: SALARY.question, answer: '€90k' }] }, content_sha256: 'a'.repeat(64), created_at: '2026-09-21T09:00:00Z' },
@@ -117,15 +117,23 @@ describe('ApplicationPage', () => {
   })
 
   it('offers the Autopilot fill only when the experiment is on, and never before questions are answered', async () => {
-    api.getApplication.mockResolvedValue(prepared)
+    api.getApplication.mockResolvedValue({ ...prepared, autofill_supported: true })
     const { unmount } = renderPage()
     await applyPanel()
     expect(screen.queryByRole('button', { name: /Fill the form for me/ })).toBeNull()
     unmount()
 
     flags.autopilot = true
-    renderPage()
+    api.getApplication.mockResolvedValue({ ...prepared, autofill_supported: true })
+    const second = renderPage()
     expect((await screen.findByRole('button', { name: /Fill the form for me/ })).hasAttribute('disabled')).toBe(true)
+    second.unmount()
+
+    // A destination Autopilot cannot open (server says so) gets no button at all.
+    api.getApplication.mockResolvedValue({ ...prepared, autofill_supported: false })
+    renderPage()
+    await applyPanel()
+    expect(screen.queryByRole('button', { name: /Fill the form for me/ })).toBeNull()
   })
 
   it('runs the Autopilot fill in the background: polls, shows the report, and can be cancelled', async () => {

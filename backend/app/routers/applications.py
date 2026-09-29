@@ -219,8 +219,12 @@ def mark_applied(
     return service.application_detail(db, workspace)
 
 
-def _autofill_status(run) -> AutofillRunStatus:
-    return AutofillRunStatus(**(run.snapshot() if run else {"state": "idle"}))
+def _autofill_status(db: Session, workspace, run) -> AutofillRunStatus:
+    status = run.snapshot() if run else {"state": "idle"}
+    if run is not None and run.claim_log():
+        service.record_autofill(db, workspace, status)  # once per run, on the application
+        db.commit()
+    return AutofillRunStatus(**status)
 
 
 def _autofill_enabled() -> None:
@@ -256,7 +260,7 @@ def autofill(
         raise HTTPException(
             status_code=409, detail="A form is already being filled. Finish that one first."
         ) from error
-    return _autofill_status(run)
+    return _autofill_status(db, workspace, run)
 
 
 @router.get("/{application_id}/autofill", response_model=AutofillRunStatus)
@@ -267,8 +271,8 @@ def autofill_status(
 ):
     """Status and report of the latest fill for this application."""
     _autofill_enabled()
-    _load(db, current_user, application_id)
-    return _autofill_status(get_run(current_user.id, application_id))
+    workspace = _load(db, current_user, application_id)
+    return _autofill_status(db, workspace, get_run(current_user.id, application_id))
 
 
 @router.delete("/{application_id}/autofill", response_model=AutofillRunStatus)
@@ -279,8 +283,8 @@ def autofill_cancel(
 ):
     """Cancel the fill and close its browser window."""
     _autofill_enabled()
-    _load(db, current_user, application_id)
-    return _autofill_status(cancel_run(current_user.id, application_id))
+    workspace = _load(db, current_user, application_id)
+    return _autofill_status(db, workspace, cancel_run(current_user.id, application_id))
 
 
 @router.post("/{application_id}/review", response_model=ReviewResponse)

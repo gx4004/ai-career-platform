@@ -272,6 +272,7 @@ const EVENT_LABELS: Record<string, string> = {
   answers_saved: 'Answers saved',
   applied: 'Marked as applied',
   applied_undone: 'Moved back from Applied',
+  autofill: 'Form filled by Autopilot',
   task_created: 'Task added',
   task_completed: 'Task done',
   task_reopened: 'Task reopened',
@@ -282,6 +283,12 @@ function eventLabel(event: ApplicationEvent) {
   if (event.event_type === 'status_changed') {
     const to = event.details.to as ApplicationStatus | undefined
     return to && STATUS_LABELS[to] ? `Moved to ${STATUS_LABELS[to]}` : 'Stage changed'
+  }
+  if (event.event_type === 'autofill') {
+    if (event.details.outcome === 'failed') return 'Autopilot could not fill the form'
+    const filled = Number(event.details.filled_count ?? 0)
+    const left = Number(event.details.needs_you_count ?? 0)
+    return `Autopilot filled ${filled} field${filled === 1 ? '' : 's'}, ${left} left for you`
   }
   return EVENT_LABELS[event.event_type] ?? 'Updated'
 }

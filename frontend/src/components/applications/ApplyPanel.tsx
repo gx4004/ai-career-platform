@@ -119,7 +119,7 @@ export function ApplyPanel({ application }: { application: ApplicationDetail }) 
         <p className="camp-alert" role="alert">{errorMessage(failed.error, 'That didn’t go through. Try again.')}</p>
       ) : null}
 
-      {isAutopilotExperimentEnabled() && link ? (
+      {isAutopilotExperimentEnabled() && application.autofill_supported ? (
         <AutofillBlock applicationId={application.id} blocked={unanswered.length > 0} />
       ) : null}
     </WorkspacePanel>

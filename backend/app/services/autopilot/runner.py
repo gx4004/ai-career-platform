@@ -304,6 +304,7 @@ class AutofillRun:
         self.next_step: str | None = None
         self.report: AutofillReport | None = None
         self.review_deadline: float | None = None
+        self._logged = False
         self.cancel = threading.Event()  # asks the worker to stop and close the window
         self.done = threading.Event()  # set only once the browser is gone
         self._lock = threading.Lock()
@@ -326,6 +327,14 @@ class AutofillRun:
 
     def close(self, kind: str | None = None, message: str | None = None) -> None:
         self._end("closed", kind, message, None)
+
+    def claim_log(self) -> bool:
+        """True once, when there is an outcome worth recording on the application."""
+        with self._lock:
+            if self._logged or (self.report is None and self.state != "failed"):
+                return False
+            self._logged = True
+            return True
 
     def snapshot(self) -> dict:
         with self._lock:
