@@ -43,7 +43,12 @@ class CvDocument(Base):
 
 class CvVariant(Base):
     __tablename__ = "cv_variants"
-    __table_args__ = (UniqueConstraint("document_id", "name", name="uq_cv_variants_document_name"),)
+    __table_args__ = (
+        UniqueConstraint("document_id", "name", name="uq_cv_variants_document_name"),
+        UniqueConstraint(
+            "document_id", "tailoring_request_id", name="uq_cv_variants_document_tailoring_request"
+        ),
+    )
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     document_id: Mapped[str] = mapped_column(
