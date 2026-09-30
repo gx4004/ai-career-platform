@@ -126,7 +126,11 @@ describe('ApplicationPage', () => {
     flags.autopilot = true
     api.getApplication.mockResolvedValue({ ...prepared, autofill_supported: true })
     const second = renderPage()
-    expect((await screen.findByRole('button', { name: /Fill the form for me/ })).hasAttribute('disabled')).toBe(true)
+    const fill = await screen.findByRole('button', { name: 'Fill the form for me' })
+    expect(fill.hasAttribute('disabled')).toBe(true)
+    expect(screen.getByText('Experimental')).toBeTruthy()
+    expect(screen.getByText('Answer the questions above first.')).toBeTruthy()
+    expect(screen.getByRole('button', { name: /Mark as applied/ }).getAttribute('aria-describedby')).toBe('camp-applied-hint')
     second.unmount()
 
     // A destination Autopilot cannot open (server says so) gets no button at all.

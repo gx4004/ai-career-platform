@@ -43,15 +43,6 @@ export function PrepareForMePanel() {
       title="Prepare applications for me"
       description="Tell us what you're looking for. We pick the best matching jobs from Job Discovery and draft each application. You still check and send every one yourself."
       className="camp-prepare"
-      actions={
-        <Button
-          onClick={() => prepare.mutate()}
-          loading={prepare.isPending}
-          disabled={!prefs || prepare.isPending || save.isPending}
-        >
-          <Sparkles size={15} aria-hidden="true" /> {prepare.isPending ? 'Preparing…' : 'Prepare applications'}
-        </Button>
-      }
     >
       {preferences.isPending ? <p className="camp-muted">Loading your preferences…</p> : null}
       {preferences.isError ? <p className="camp-alert" role="alert">Your preferences couldn't be loaded.</p> : null}
@@ -63,6 +54,20 @@ export function PrepareForMePanel() {
         </p>
       ) : null}
       {prepare.data ? <PrepareResult result={prepare.data} /> : null}
+      <div className="camp-prepare__footer">
+        <Button
+          className="camp-prepare__submit"
+          onClick={() => prepare.mutate()}
+          loading={prepare.isPending}
+          disabled={!prefs || prepare.isPending || save.isPending}
+          aria-describedby={prefs && prefs.keywords.length === 0 ? 'camp-prepare-hint' : undefined}
+        >
+          <Sparkles size={15} aria-hidden="true" /> {prepare.isPending ? 'Preparing…' : 'Prepare applications'}
+        </Button>
+        {prefs && prefs.keywords.length === 0 ? (
+          <p id="camp-prepare-hint" className="camp-muted">Add at least one keyword so we know which jobs to prepare.</p>
+        ) : null}
+      </div>
     </WorkspacePanel>
   )
 }

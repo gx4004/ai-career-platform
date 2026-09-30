@@ -124,11 +124,15 @@ function summaryChips(items: ApplicationCard[], byStage: (stage: string) => Appl
   const ready = items.filter((item) => item.ready).length
   const interviewing = byStage('interviewing').length
   const offers = byStage('offer').length
+  // At most three chips; the column headers still carry every count.
   return [
     `${inProgress} in progress`,
     ...(ready ? [`${ready} ready to apply`] : []),
-    ...(interviewing ? [`${interviewing} interviewing`] : []),
-    ...(offers ? [`${offers} ${offers === 1 ? 'offer' : 'offers'}`] : []),
+    ...(interviewing
+      ? [`${interviewing} interviewing`]
+      : offers
+        ? [`${offers} ${offers === 1 ? 'offer' : 'offers'}`]
+        : []),
   ]
 }
 

@@ -12,8 +12,9 @@
   max-width: var(--shell-max, 74rem);
   margin-inline: auto;
   padding-block: 1.5rem 3rem;
-  /* The ambient glow below bleeds past the page on purpose; clip it so it never
-     adds a horizontal scrollbar (clip, unlike hidden, keeps sticky children working). */
+  /* Clip stray horizontal overflow (clip, unlike hidden, keeps sticky children
+     working). The ambient glow below stays inside this box and fades out before
+     its edges, so the clip never cuts it into a visible rectangle. */
   overflow-x: clip;
 }
 
@@ -24,7 +25,7 @@
 .workspace-page::before {
   content: '';
   position: absolute;
-  inset: -2rem -30vw auto;
+  inset: -2rem 0 auto;
   height: 26rem;
   background:
     radial-gradient(ellipse 60% 70% at 50% 0%, rgba(186, 214, 255, 0.5) 0%, transparent 70%),

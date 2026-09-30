@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowUpRight, Check, CircleCheck, RefreshCw, Sparkles, Wand2, X } from 'lucide-react'
-import { WorkspacePanel } from '#/components/app/WorkspacePage'
+import { StatusPill, WorkspacePanel } from '#/components/app/WorkspacePage'
 import { Button } from '#/components/ui/button'
 import {
   autofillApplication,
@@ -104,6 +104,7 @@ export function ApplyPanel({ application }: { application: ApplicationDetail }) 
           loading={applied.isPending}
           disabled={applied.isPending || unanswered.length > 0}
           title={unanswered.length ? 'Answer the open questions first' : undefined}
+          aria-describedby={unanswered.length ? 'camp-applied-hint' : undefined}
         >
           <Check size={15} aria-hidden="true" /> Mark as applied
         </Button>
@@ -113,6 +114,7 @@ export function ApplyPanel({ application }: { application: ApplicationDetail }) 
           </Button>
         ) : null}
       </div>
+      {unanswered.length > 0 ? <p id="camp-applied-hint" className="camp-muted">Answer the questions above first.</p> : null}
       {!link ? <p className="camp-muted">No link to the employer's form was saved with this job. Apply wherever you found it.</p> : null}
 
       {failed ? (
@@ -203,11 +205,12 @@ function AutofillBlock({ applicationId, blocked }: { applicationId: string; bloc
             <X size={14} aria-hidden="true" /> {state === 'running' ? 'Cancel' : 'Close the window'}
           </Button>
         ) : (
-          <Button variant="outline" size="sm" onClick={() => start.mutate()} loading={start.isPending} disabled={blocked || start.isPending}>
-            <Wand2 size={14} aria-hidden="true" /> Fill the form for me (experimental)
+          <Button className="camp-autofill__button" variant="outline" size="sm" onClick={() => start.mutate()} loading={start.isPending} disabled={blocked || start.isPending}>
+            <Wand2 size={14} aria-hidden="true" /> Fill the form for me
           </Button>
         )}
         <p className="camp-muted">
+          <StatusPill tone="warning">Experimental</StatusPill>{' '}
           {state === 'running'
             ? 'Opening the employer’s form on this computer and filling it. Nothing is submitted.'
             : state === 'review'

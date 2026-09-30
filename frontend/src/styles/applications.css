@@ -501,12 +501,16 @@
 
 .camp-prefs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem 1.25rem; }
 .camp-prefs__field { display: flex; flex-direction: column; gap: 0.4rem; min-width: 0; }
-.camp-prefs__add { display: flex; gap: 0.5rem; }
-.camp-prefs__add input { flex: 1; min-width: 0; }
+.camp-prefs__add { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.camp-prefs__add input { flex: 1 1 10rem; min-width: 0; }
 .camp-prefs__row { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: flex-end; gap: 1.25rem; }
 .camp-prefs__check { display: inline-flex; align-items: center; gap: 0.5rem; min-height: 2.5rem; color: var(--text-strong); font-size: var(--type-small); cursor: pointer; }
 .camp-prefs__check input { width: 1.05rem; height: 1.05rem; accent-color: var(--accent); }
 .camp-prefs__cap { max-width: 10rem; }
+.camp-prefs__row .workspace-field { margin: 0; }
+.camp-prefs__row .workspace-input { min-height: 2.5rem; }
+.camp-prepare__footer { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; margin-top: 1.1rem; }
+.camp-autofill__row .status-pill { margin-right: 0.35rem; vertical-align: 0.05em; }
 
 .camp-chips { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0; padding: 0; list-style: none; }
 
@@ -552,6 +556,13 @@
   .camp-col__empty { padding: 0.6rem; }
   .camp-card__move { width: var(--touch-target, 44px); height: var(--touch-target, 44px); margin: -0.4rem -0.4rem 0 0; }
   .camp-form__row { flex-direction: column; align-items: stretch; }
+  .camp-form__grow { flex: 0 0 auto; }
+  .camp-col__empty { display: none; }
+  .camp-prepare__submit, .camp-autofill__button { width: 100%; min-height: var(--touch-target, 44px); }
+  .camp-prefs__check { min-height: var(--touch-target, 44px); }
+  .camp-prefs__row .workspace-input { min-height: var(--touch-target, 44px); }
+  .camp-prefs__cap { max-width: none; flex: 1 1 100%; }
+  .camp-prefs__add .button, .camp-prefs__add button { min-height: var(--touch-target, 44px); }
   .camp-apply__actions { flex-direction: column; align-items: stretch; }
   .camp-apply__actions > * { min-height: var(--touch-target, 44px); }
   .camp-questions > button { align-self: stretch; min-height: var(--touch-target, 44px); }

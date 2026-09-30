@@ -62,7 +62,7 @@ function StatusSelect({
 
 /**
  * "Skills to build" — the R17 development plan on the profile page (#321).
- * Items are created from a campaign's gap checklist, so the empty state points
+ * Items are created from an application's gap checklist, so the empty state points
  * there.
  */
 export function SkillsToBuildSection() {
@@ -158,10 +158,10 @@ export function SkillsToBuildSection() {
         <WorkspaceEmpty
           icon={Sprout}
           title="Nothing to build yet"
-          description="When a campaign's gap check finds something to work on, add it from the campaign and it shows up here."
+          description="When an application's gap check finds something to work on, add it from the application and it shows up here."
           action={
             <Button variant="outline" asChild>
-              <Link to="/campaigns">Open Campaigns</Link>
+              <Link to="/campaigns">Open applications</Link>
             </Button>
           }
         />
