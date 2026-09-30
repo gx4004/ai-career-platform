@@ -37,8 +37,8 @@ describe('application contracts', () => {
     expect(detail.listing?.apply_url).toBe('https://careers.example.com/apply')
   })
 
-  it('knows only the six statuses; history edits are label and pin only', () => {
-    expect(applicationStatusSchema.options).toEqual(['saved', 'applied', 'interviewing', 'offer', 'rejected', 'withdrawn'])
+  it('knows only the seven statuses; history edits are label and pin only', () => {
+    expect(applicationStatusSchema.options).toEqual(['saved', 'applied', 'no_reply', 'interviewing', 'offer', 'rejected', 'withdrawn'])
     expect(applicationStatusSchema.safeParse('planning').success).toBe(false)
     expect(applicationUpdateSchema.safeParse({}).success).toBe(false)
     expect(applicationUpdateSchema.safeParse({ deadline: '2026-08-15T16:00:00' }).success).toBe(false)
