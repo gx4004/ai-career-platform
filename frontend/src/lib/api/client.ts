@@ -47,6 +47,7 @@ import {
   workspaceUpdateSchema,
   applicationDetailSchema,
   applicationListSchema,
+  whatsWorkingSchema,
   applicationDetailsSchema,
   applicationDetailsUpdateSchema,
   applicationPreferencesSchema,
@@ -668,6 +669,10 @@ export function updateHistoryWorkspace(
 
 export function listApplications() {
   return request('/applications', { method: 'GET', schema: applicationListSchema })
+}
+
+export function getApplicationInsights() {
+  return request('/applications/insights', { method: 'GET', schema: whatsWorkingSchema })
 }
 
 export function getApplication(applicationId: string) {

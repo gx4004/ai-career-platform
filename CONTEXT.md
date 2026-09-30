@@ -149,6 +149,21 @@ Derived, never stored: an application still `applied` 21 days or more after
 changes automatically; a late reply can still move on from `no_reply`.
 Code still says `Workspace`, `campaign_*` and `/campaigns` in places.
 
+**Reply / reply rate**
+A *reply* is an applied application that reached `interviewing` or `offer` at any
+point (read from its status-change events), so one later rejected or withdrawn
+still counts; a rejection with no interview does not. An application withdrawn
+before any reply leaves the count entirely. *Reply rate* is replies divided by
+applied applications, still-waiting ones included, and is always shown with its
+n ("3 of 8").
+
+**What's working**
+The Applications page card that splits reply rate by source, company, kind of role
+(a title keyword family), remote vs on-site, and skills fit when saved. Each
+dimension is its own list, never blended into one score. A segment shows a rate
+only from 3 applications; below that it says "Not enough data yet (n
+applications)". Plain counts, no ML.
+
 **Today plan**
 The dashboard's answer to "what should I do today?", from `GET /api/v1/today`. Two
 lists, never blended: *best matches* (the top five visible Discovery listings by

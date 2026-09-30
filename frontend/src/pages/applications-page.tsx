@@ -5,6 +5,7 @@ import { ArrowRightLeft, CalendarClock, CircleCheck, MessageCircleQuestion, Pin,
 import { PageHero } from '#/components/app/PageHero'
 import { StatusPill, WorkspaceEmpty, WorkspacePage } from '#/components/app/WorkspacePage'
 import { PrepareForMePanel } from '#/components/applications/PrepareForMePanel'
+import { WhatsWorkingPanel } from '#/components/applications/WhatsWorkingPanel'
 import { StageMenu } from '#/components/applications/StageMenu'
 import {
   STAGES,
@@ -114,6 +115,8 @@ export function ApplicationsPage() {
           })}
         </div>
       )}
+
+      <WhatsWorkingPanel />
 
       <PrepareForMePanel />
     </WorkspacePage>

@@ -55,6 +55,32 @@ export const applicationListSchema = z.object({
   items: z.array(applicationCardSchema),
   total: z.number(),
 })
+// "What's working" (#416): reply rate by segment, each with its sample size.
+export const insightSegmentSchema = z.object({
+  label: z.string(),
+  applied: z.number().int().nonnegative(),
+  replied: z.number().int().nonnegative(),
+  reply_rate: z.number().int().min(0).max(100).nullable().default(null),
+  enough_data: z.boolean(),
+})
+export const insightsDimensionSchema = z.object({
+  key: z.enum(['source', 'company', 'role_family', 'work_mode', 'skills_fit']),
+  title: z.string(),
+  segments: z.array(insightSegmentSchema),
+  hidden_count: z.number().int().nonnegative().default(0),
+})
+export const whatsWorkingSchema = z.object({
+  overall: z.object({
+    applied: z.number().int().nonnegative(),
+    replied: z.number().int().nonnegative(),
+    reply_rate: z.number().int().min(0).max(100).nullable().default(null),
+  }),
+  min_segment_size: z.number().int().positive(),
+  dimensions: z.array(insightsDimensionSchema),
+})
+export type WhatsWorking = z.infer<typeof whatsWorkingSchema>
+export type InsightsDimension = z.infer<typeof insightsDimensionSchema>
+export type InsightSegment = z.infer<typeof insightSegmentSchema>
 const cvVariantReferenceSchema = z.object({
   id: z.string(), document_id: z.string(), document_name: z.string(), name: z.string(),
   target_role: z.string().nullable().default(null), created_at: offsetDateTime,

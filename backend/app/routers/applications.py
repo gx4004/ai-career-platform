@@ -32,12 +32,14 @@ from app.schemas.applications import (
     TaskCreate,
     TaskResponse,
     TaskUpdate,
+    WhatsWorking,
 )
 from app.schemas.gap_classification import GapClassificationListResponse, GapClassificationRead
 from app.schemas.gap_response import GapResponseOffer
 from app.schemas.history import DeletedResponse
 from app.services import application_details
 from app.services import applications as service
+from app.services.application_insights import whats_working
 from app.services.autopilot import (
     AutofillBusy,
     AutofillRefused,
@@ -92,6 +94,15 @@ def list_applications(
     db: Session = Depends(get_db),
 ):
     return service.list_applications(db, current_user.id)
+
+
+@router.get("/insights", response_model=WhatsWorking)
+def get_insights(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """What's working: reply rate overall and by segment, each with its sample size."""
+    return whats_working(db, current_user.id)
 
 
 @router.get("/preferences", response_model=ApplicationPreferencesResponse)

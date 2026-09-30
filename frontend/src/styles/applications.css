@@ -619,3 +619,85 @@
   from { background-position: 200% 0, 0 0; }
   to { background-position: -200% 0, 0 0; }
 }
+
+/* ── What's working: reply-rate insights ── */
+
+.camp-insights__overall {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  margin: 0 0 1.1rem;
+  color: var(--text-muted);
+  font-size: var(--type-small);
+}
+
+.camp-insights__overall strong {
+  color: var(--text-strong);
+  font-size: 2rem;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.camp-insights__empty p { margin: 0 0 0.4rem; color: var(--text-strong); }
+.camp-insights__empty .camp-muted { max-width: 46rem; }
+
+.camp-insights__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
+  gap: 1.1rem;
+}
+
+.camp-insights__group {
+  min-width: 0;
+  padding: 0.85rem 0.95rem;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-soft);
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.camp-insights__group h3 {
+  margin: 0 0 0.5rem;
+  color: var(--text-strong);
+  font-size: var(--type-small);
+  font-weight: 700;
+}
+
+.camp-insights__group ul { margin: 0; padding: 0; list-style: none; }
+.camp-insights__group .camp-muted { margin-top: 0.4rem; font-size: var(--type-xs); }
+
+.camp-insights__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(3rem, 5rem) auto;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.35rem 0;
+  font-size: var(--type-small);
+}
+
+.camp-insights__label { min-width: 0; overflow-wrap: anywhere; color: var(--text-body); }
+
+.camp-insights__track { display: block; }
+.camp-insights__track .score-bar__fill { display: block; }
+
+.camp-insights__value {
+  color: var(--text-strong);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.camp-insights__value small { color: var(--text-muted); font-size: var(--type-xs); font-weight: 500; }
+
+.camp-insights__thin {
+  grid-column: 2 / -1;
+  color: var(--text-muted);
+  font-size: var(--type-xs);
+  text-align: right;
+}
+
+@media (max-width: 640px) {
+  .camp-insights__row { grid-template-columns: minmax(0, 1fr) auto; }
+  .camp-insights__track { display: none; }
+  .camp-insights__thin { grid-column: 2; }
+}
