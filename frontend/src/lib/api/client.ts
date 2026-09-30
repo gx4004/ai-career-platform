@@ -16,6 +16,7 @@ import {
   evidenceItemUpdateSchema,
   evidenceImportRequestSchema,
   evidenceItemIdsSchema,
+  discoveryDeepMatchSchema,
   discoveryListingDetailSchema,
   discoveryListingPageSchema,
   discoveryDismissalSchema,
@@ -410,6 +411,16 @@ export function getDiscoveryListing(listingId: string) {
   return request(`/discovery/listings/${encodeURIComponent(listingId)}`, {
     method: 'GET',
     schema: discoveryListingDetailSchema,
+  })
+}
+
+// Runs Job Match on one listing with the owner's newest CV, once; a listing that
+// already has a deep match returns it instead of running again.
+export function startDiscoveryDeepMatch(listingId: string) {
+  return request(`/discovery/listings/${encodeURIComponent(listingId)}/deep-match`, {
+    method: 'POST',
+    body: {},
+    schema: discoveryDeepMatchSchema,
   })
 }
 

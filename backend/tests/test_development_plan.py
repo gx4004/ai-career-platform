@@ -387,7 +387,7 @@ def test_confirmed_completion_reaches_tailoring_and_recommendation_grounding(
     ]
     recommendations = best_matches(db, test_user.id)
     assert [recommendation.listing_id for recommendation in recommendations] == [listing.id]
-    assert "Kubernetes" in recommendations[0].match.matched_keywords
+    assert "Kubernetes" in recommendations[0].match.matched_skills
 
     # Exercise the actual CV-tailoring endpoint and shared tool pipeline, not
     # only the profile loader. The generated change is accepted as confirmed

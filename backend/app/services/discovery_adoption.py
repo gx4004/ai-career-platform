@@ -84,7 +84,7 @@ def adopt_recommendation(
         company=listing.company,
         role=listing.title,
         status="saved",
-        match_score=visible.match.score if visible.match else None,
+        match_score=visible.match.skills_fit if visible.match else None,
         discovery_listing_id=listing_id,
     )
     try:

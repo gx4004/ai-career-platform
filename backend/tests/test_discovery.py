@@ -56,10 +56,12 @@ def test_without_a_profile_listings_are_newest_first_unscored_with_a_preview(
 
     body = client.get(LISTINGS, headers=auth_headers).json()
 
-    assert body["sort"] == "newest" and body["has_profile"] is False
+    assert body["sort"] == "newest" and body["has_evidence"] is False
     assert [item["title"] for item in body["items"]] == ["Newer", "Older"]
     newer = body["items"][0]
-    assert newer["score"] is None and newer["matched_keywords"] == []
+    assert newer["skills_fit"] is None and newer["matched_skills"] == []
+    assert newer["missing_skills"] == [] and newer["preference_hits"] == []
+    assert "score" not in newer and "matched_keywords" not in newer
     assert newer["source_name"] == "Greenhouse"
     assert newer["source_url"].startswith("https://boards.greenhouse.io/")
     # Cards get a short preview; the full description comes from the detail.
@@ -76,11 +78,11 @@ def test_best_match_ranks_confirmed_evidence_overlap_above_newer_listings(
 
     body = client.get(LISTINGS, headers=auth_headers).json()
 
-    assert body["sort"] == "best_match" and body["has_profile"] is True
+    assert body["sort"] == "best_match" and body["has_evidence"] is True
     assert [item["title"] for item in body["items"]] == ["Platform Engineer", "Accountant"]
     best, other = body["items"]
-    assert best["score"] > other["score"]
-    assert "Kubernetes" in best["matched_keywords"]
+    assert best["skills_fit"] > other["skills_fit"]
+    assert "Kubernetes" in best["matched_skills"]
     assert _titles(client, auth_headers, sort="newest") == ["Accountant", "Platform Engineer"]
 
 
@@ -96,8 +98,9 @@ def test_company_and_title_words_are_not_shown_as_matched_keywords(
 
     item = client.get(LISTINGS, headers=auth_headers).json()["items"][0]
 
-    assert "Kubernetes" in item["matched_keywords"]
-    assert not {"Labs", "Engineers", "Platform"} & set(item["matched_keywords"])
+    assert "Kubernetes" in item["matched_skills"]
+    shown = set(item["matched_skills"]) | set(item["missing_skills"])
+    assert not {"Labs", "Engineers", "Platform"} & shown
 
 
 def test_changing_confirmed_items_rescores_on_the_next_load(
@@ -106,13 +109,13 @@ def test_changing_confirmed_items_rescores_on_the_next_load(
     discovery.listing(title="Remote Platform Engineer", description="Fully remote " + K8S)
     discovery.evidence(test_user.id, "Kubernetes")
     preference = discovery.evidence(test_user.id, "remote", kind="preference")
-    before = client.get(LISTINGS, headers=auth_headers).json()["items"][0]["score"]
+    before = client.get(LISTINGS, headers=auth_headers).json()["items"][0]["preference_hits"]
 
     db.delete(preference)
     db.commit()
-    after = client.get(LISTINGS, headers=auth_headers).json()["items"][0]["score"]
+    after = client.get(LISTINGS, headers=auth_headers).json()["items"][0]["preference_hits"]
 
-    assert before != after
+    assert before == ["Remote"] and after == []
 
 
 def test_filters_combine_text_location_remote_company_and_recency(
@@ -244,6 +247,189 @@ def test_listing_page_issues_a_bounded_number_of_statements(
 
     assert many == few
     assert many <= 10
+
+
+# ── Skills fit and preference hits are separate signals ──
+
+
+def _only(client, headers):
+    return client.get(LISTINGS, headers=headers).json()["items"][0]
+
+
+def test_preferences_never_change_skills_fit(client, auth_headers, test_user, discovery):
+    discovery.evidence(test_user.id, "Kubernetes")
+    discovery.listing(description="Remote " + K8S)
+    without = _only(client, auth_headers)
+
+    discovery.evidence(test_user.id, "remote", kind="preference")
+    with_preference = _only(client, auth_headers)
+
+    assert without["preference_hits"] == []
+    assert with_preference["preference_hits"] == ["Remote"]
+    assert with_preference["skills_fit"] == without["skills_fit"]
+    assert "Remote" not in with_preference["matched_skills"]
+
+
+def test_missing_skills_are_the_listing_keywords_the_evidence_lacks(
+    client, auth_headers, test_user, discovery
+):
+    discovery.evidence(test_user.id, "Kubernetes")
+    discovery.listing(description="Kubernetes and Terraform and Python for every team.")
+
+    item = _only(client, auth_headers)
+
+    assert "Kubernetes" in item["matched_skills"]
+    assert {"Terraform", "Python"} <= set(item["missing_skills"])
+    assert not set(item["matched_skills"]) & set(item["missing_skills"])
+
+
+def test_ranking_uses_skills_fit_and_preference_hits_break_ties(
+    client, auth_headers, test_user, discovery
+):
+    discovery.evidence(test_user.id, "Kubernetes")
+    discovery.evidence(test_user.id, "remote", kind="preference")
+    discovery.listing(title="Newer no hit", description="Startup " + K8S, posted_days_ago=1)
+    discovery.listing(title="Older with hit", description="Remote " + K8S, posted_days_ago=8)
+    discovery.listing(title="Weaker fit", description="Remote, Terraform and Java.", posted_days_ago=0)
+
+    assert _titles(client, auth_headers) == ["Older with hit", "Newer no hit", "Weaker fit"]
+
+
+def test_preferences_alone_show_hits_but_no_skills_fit(
+    client, auth_headers, test_user, discovery
+):
+    discovery.evidence(test_user.id, "remote", kind="preference")
+    discovery.listing(description="Remote " + K8S)
+
+    body = client.get(LISTINGS, headers=auth_headers).json()
+
+    assert body["has_evidence"] is False and body["sort"] == "newest"
+    assert body["items"][0]["skills_fit"] is None
+    assert body["items"][0]["preference_hits"] == ["Remote"]
+
+
+# ── Deep match ──
+
+DEEP = "/api/v1/discovery/listings/{}/deep-match"
+JOB_MATCH = "/api/v1/job-match/match"
+MATCH_OUTPUT = {
+    "requirements": [
+        {
+            "requirement": "Kubernetes",
+            "importance": "must",
+            "status": "matched",
+            "resume_evidence": "Ran clusters.",
+            "suggested_fix": "Keep it visible.",
+        }
+    ],
+    "tailoring_actions": [],
+    "interview_focus": ["Clusters"],
+    "recruiter_summary": "Solid platform match.",
+}
+
+
+@pytest.fixture
+def cv(db, test_user):
+    from tests.test_applications import make_cv
+
+    return make_cv(db, test_user.id)
+
+
+def _deep(client, headers, listing_id):
+    return client.post(DEEP.format(listing_id), headers=headers)
+
+
+def test_deep_match_runs_job_match_once_and_reopening_shows_it(
+    client, auth_headers, db, cv, mock_ai_result, discovery
+):
+    from app.models.tool_run import ToolRun
+
+    mock_ai_result(MATCH_OUTPUT)
+    listing = discovery.listing(description=K8S)
+    assert client.get(f"{LISTINGS}/{listing.id}", headers=auth_headers).json()["deep_match"] is None
+
+    first = _deep(client, auth_headers, listing.id)
+    again = _deep(client, auth_headers, listing.id)
+
+    assert first.status_code == 200 and again.status_code == 200
+    assert first.json()["history_id"] == again.json()["history_id"]
+    runs = db.query(ToolRun).filter_by(tool_name="job-match").all()
+    assert len(runs) == 1
+    detail = client.get(f"{LISTINGS}/{listing.id}", headers=auth_headers).json()
+    assert detail["deep_match"]["history_id"] == runs[0].id
+    assert detail["deep_match"]["match_score"] == runs[0].result_payload["match_score"]
+
+
+def test_deep_match_is_grounded_in_the_cv_and_the_listing_text(
+    client, auth_headers, cv, monkeypatch, discovery
+):
+    seen = {}
+
+    from app.services.job_matcher import match_job as real
+
+    async def fake_match(resume_text, job_description, **kwargs):
+        seen.update(resume=resume_text, job=job_description)
+        return await real(resume_text, job_description, **kwargs)
+
+    monkeypatch.setattr("app.services.discovery_deep_match.match_job", fake_match)
+    listing = discovery.listing(title="Platform Engineer", company="Acme", description=K8S)
+
+    assert _deep(client, auth_headers, listing.id).status_code == 200
+
+    assert "Platform Engineer" in seen["job"] and K8S in seen["job"]
+    assert seen["resume"].strip()
+
+
+def test_regenerating_the_deep_match_follows_the_revision_chain(
+    client, auth_headers, db, cv, mock_ai_result, discovery
+):
+    mock_ai_result(MATCH_OUTPUT)
+    listing = discovery.listing(description=K8S)
+    first = _deep(client, auth_headers, listing.id).json()
+
+    regenerated = client.post(
+        JOB_MATCH,
+        json={
+            "resume_text": "Experience\n- Ran Kubernetes clusters for production platforms daily.",
+            "job_description": K8S,
+            "parent_run_id": first["history_id"],
+        },
+        headers=auth_headers,
+    ).json()
+
+    detail = client.get(f"{LISTINGS}/{listing.id}", headers=auth_headers).json()
+    assert regenerated["history_id"] != first["history_id"]
+    assert detail["deep_match"]["history_id"] == regenerated["history_id"]
+    assert _deep(client, auth_headers, listing.id).json()["history_id"] == regenerated["history_id"]
+
+
+def test_deep_match_needs_a_cv_and_a_visible_listing(
+    client, auth_headers, db, test_user, discovery, mock_ai_result
+):
+    mock_ai_result(MATCH_OUTPUT)
+    listing = discovery.listing(description=K8S)
+    assert _deep(client, {}, listing.id).status_code == 401
+    assert _deep(client, auth_headers, "missing").status_code == 404
+
+    no_cv = _deep(client, auth_headers, listing.id)
+    assert no_cv.status_code == 409 and "CV" in no_cv.json()["detail"]
+
+    from tests.test_applications import make_cv
+
+    make_cv(db, test_user.id)
+    client.post(DISMISSALS, json={"listing_id": listing.id}, headers=auth_headers)
+    assert _deep(client, auth_headers, listing.id).status_code == 404
+
+
+def test_deep_match_is_owner_scoped(client, auth_headers, db, cv, mock_ai_result, discovery):
+    mock_ai_result(MATCH_OUTPUT)
+    listing = discovery.listing(description=K8S)
+    _deep(client, auth_headers, listing.id)
+    other = discovery.user_headers("other@example.com")
+
+    detail = client.get(f"{LISTINGS}/{listing.id}", headers=other).json()
+
+    assert detail["deep_match"] is None
 
 
 # ── Dismissals ──
