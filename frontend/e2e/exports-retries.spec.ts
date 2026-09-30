@@ -203,7 +203,7 @@ test('retry recovers from a transient request failure without duplicating the ru
   expect(attempts).toBe(3)
 
   await gotoHydrated(page, '/history')
-  await expect(page.locator('.page-hero__chips')).toContainText('1 run')
+  await expect(page.locator('.page-header__meta')).toContainText('1 run')
 })
 
 test('malformed success responses explain that the service returned an unexpected result', async ({
