@@ -1433,6 +1433,7 @@ body.tool-fullscreen-open .mobile-nav-pill {
 }
 
 .tool-input-hero-chip {
+  cursor: default; /* informational, not interactive */
   font-size: 0.72rem;
   font-weight: 600;
   padding: 0.28rem 0.78rem;

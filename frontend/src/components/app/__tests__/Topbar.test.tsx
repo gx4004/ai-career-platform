@@ -134,4 +134,18 @@ describe('Topbar', () => {
     expect(pill?.textContent).toBe(label)
     expect(pill?.querySelector('svg')).toBeTruthy()
   })
+
+  it('shows the tool name, not "Result", as the mobile title on result pages', () => {
+    const originalWidth = window.innerWidth
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 375 })
+    mockUseIsMobile.mockReturnValue(true)
+    mockPathname.current = '/job-match/result/demo-run'
+
+    try {
+      const { container } = renderTopbar()
+      expect(container.querySelector('.topbar-mobile-title')?.textContent).toBe('Job Match')
+    } finally {
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: originalWidth })
+    }
+  })
 })
