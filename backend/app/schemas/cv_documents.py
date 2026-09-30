@@ -18,10 +18,7 @@ CvSectionKind = Literal[
     "interview-evidence",
     "custom",
 ]
-CvQualityDimensionKey = Literal["impact", "clarity", "completeness", "structure"]
-CvAtsCheckKey = Literal[
-    "section_structure", "text_layer", "links", "page_breaks", "re_importability"
-]
+CvCheckId = Literal["sections", "reads_back", "links", "page_breaks", "layout"]
 CvTemplateId = Literal[
     "ats-essential",
     "professional-editorial",
@@ -33,17 +30,18 @@ CvArtifactFormat = Literal["docx", "pdf"]
 CvFontId = Literal["lato", "pt-sans", "pt-serif", "crimson-text", "ibm-plex-mono"]
 CvDensity = Literal["compact", "normal", "spacious"]
 
-# Curated palette so accent colors stay readable and print-safe. Any hex outside
-# this set is rejected rather than silently normalized.
-CV_ACCENT_PALETTE: tuple[str, ...] = (
-    "#111827",
-    "#7C2D12",
-    "#075985",
-    "#166534",
-    "#6D28D9",
-    "#B91C1C",
-    "#0F766E",
-)
+# Curated palette (color -> display name) so accent colors stay readable and
+# print-safe. Any hex outside this set is rejected rather than silently normalized.
+CV_ACCENT_NAMES: dict[str, str] = {
+    "#111827": "Ink",
+    "#7C2D12": "Rust",
+    "#075985": "Ocean",
+    "#166534": "Forest",
+    "#6D28D9": "Violet",
+    "#B91C1C": "Crimson",
+    "#0F766E": "Teal",
+}
+CV_ACCENT_PALETTE: tuple[str, ...] = tuple(CV_ACCENT_NAMES)
 
 
 class CvStyle(BaseModel):
@@ -53,7 +51,6 @@ class CvStyle(BaseModel):
     font_id: CvFontId = "lato"
     accent_color: str = Field(default="#111827", pattern=r"^#[0-9a-fA-F]{6}$")
     density: CvDensity = "normal"
-    section_order: list[str] | None = Field(default=None, max_length=50)
     ats_mode: bool = False
 
     @field_validator("accent_color")
@@ -64,7 +61,27 @@ class CvStyle(BaseModel):
         return value
 
 
-class CvEntry(BaseModel):
+def entry_body_from_bullets(bullets: list[str]) -> str | None:
+    """An entry's ``body`` when it has bullet points: the filled bullets, one per line.
+
+    Bullets are the single source of an entry's text once it has any; ``body``
+    is derived from them so tailoring and rendering never see two versions.
+    Returns None for an entry without filled bullets (its ``body`` is its own).
+    """
+    filled = [bullet.strip() for bullet in bullets if bullet.strip()]
+    return "\n".join(filled) if filled else None
+
+
+class _BodyFollowsBullets:
+    @model_validator(mode="after")
+    def _derive_body(self):
+        derived = entry_body_from_bullets(self.bullets)
+        if derived is not None:
+            self.body = derived
+        return self
+
+
+class CvEntry(_BodyFollowsBullets, BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     id: str = Field(min_length=1, max_length=100)
@@ -135,9 +152,7 @@ class CvDocumentResponse(BaseModel):
     style: CvStyle
     created_at: datetime
     updated_at: datetime
-    quality_model_runs: int = Field(ge=0)
     tailoring_model_runs: int = Field(ge=0)
-    quality_model_run_limit: Literal[10] = 10
     tailoring_model_run_limit: Literal[10] = 10
     variants: list[CvVariantResponse]
 
@@ -152,15 +167,21 @@ class CvDocumentListResponse(BaseModel):
 
 
 class CvRenderEntry(BaseModel):
+    """One entry as it renders: every derived display value is computed once in
+    ``build_render_model`` so the PDF, DOCX and validation code never re-derive it."""
+
     id: str
     text: str
     links: list[str] = Field(default_factory=list)
     heading: str | None = None
     subheading: str | None = None
     location: str | None = None
-    start_date: str | None = None
-    end_date: str | None = None
+    # "start – end", or None when neither date is set.
+    dates: str | None = None
     bullets: list[str] = Field(default_factory=list)
+    # The body paragraph that renders, if any: a freeform entry's text, or a
+    # structured entry's text when it has no bullets and says more than its heading.
+    paragraph: str | None = None
 
 
 class CvRenderSection(BaseModel):
@@ -171,70 +192,36 @@ class CvRenderSection(BaseModel):
 
 
 class CvRenderModel(BaseModel):
-    schema_version: Literal["cv-render/v1"] = "cv-render/v1"
-    document_id: str
+    """Internal render input shared by the PDF and DOCX exporters (not an API response)."""
+
     document_name: str
     template_id: CvTemplateId
-    page: dict[str, int]
+    margin_mm: int
     tokens: dict[str, str | int | bool]
     sections: list[CvRenderSection]
-    canonical_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
 
 
 class CvArtifactEvidence(BaseModel):
-    schema_version: Literal["cv-artifact-evidence/v1"] = "cv-artifact-evidence/v1"
-    template_id: CvTemplateId
-    format: CvArtifactFormat
-    searchable_text: Literal["pass", "fail"]
+    """What re-reading a rendered PDF proves about it (internal to the quality check)."""
+
+    # One content-equivalence comparison: the text layer is readable and the
+    # own-parser re-import returns the same sections in order.
+    reads_back: Literal["pass", "fail"]
     links: Literal["pass", "fail"]
     page_breaks: Literal["pass", "fail"]
-    re_importability: Literal["pass", "fail"]
-    canonical_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
 
 
-class CvQualityRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    use_model: bool = False
-    checks: list[CvAtsCheckKey] | None = Field(default=None, min_length=1, max_length=5)
-    artifact_template: CvTemplateId | None = None
-    artifact_format: CvArtifactFormat | None = None
-
-    @model_validator(mode="after")
-    def complete_artifact_selection(self):
-        if (self.artifact_template is None) != (self.artifact_format is None):
-            raise ValueError("artifact_template and artifact_format must be supplied together")
-        return self
-
-
-class CvQualityDimension(BaseModel):
-    key: CvQualityDimensionKey
+class CvCheck(BaseModel):
+    id: CvCheckId
     label: str
-    score: int = Field(ge=0, le=100)
-    reasons: list[str] = Field(min_length=1, max_length=4)
-    remediation: str
-
-
-class CvAtsCheck(BaseModel):
-    key: CvAtsCheckKey
-    label: str
-    status: Literal["pass", "fail", "review", "not_run"]
-    explanation: str
-    remediation: str
+    passed: bool
+    detail: str
+    fix: str
 
 
 class CvQualityResponse(BaseModel):
-    schema_version: Literal["cv-quality/v1"] = "cv-quality/v1"
-    dimensions: list[CvQualityDimension]
-    ats_checks: list[CvAtsCheck]
-    scoring_mode: Literal["heuristic", "blended"]
-    advisory_note: str
-    remaining_model_runs: int = Field(ge=0)
-    history_id: str | None = None
-    access_mode: Literal["authenticated"] = "authenticated"
-    saved: bool = True
-    locked_actions: list[str] = Field(default_factory=list)
-    ats_score: int = Field(ge=0, le=100, default=0)
-    ats_fixes: list[str] = Field(default_factory=list)
+    schema_version: Literal["cv-quality/v3"] = "cv-quality/v3"
+    checks: list[CvCheck]
 
 
 class CvTailoringRequest(BaseModel):
@@ -290,14 +277,7 @@ class CvTailoringProposal(BaseModel):
 class CvTailoringDecision(BaseModel):
     model_config = ConfigDict(extra="forbid")
     change_id: str
-    action: Literal["accept", "reject", "edit"]
-    edited_after: str | None = Field(default=None, min_length=1, max_length=5_000)
-
-    @model_validator(mode="after")
-    def edit_requires_text(self):
-        if (self.action == "edit") != (self.edited_after is not None):
-            raise ValueError("edited_after is required only for edit decisions")
-        return self
+    action: Literal["accept", "reject"]
 
 
 class CvTailoringApply(BaseModel):
@@ -310,16 +290,6 @@ class CvTailoringApply(BaseModel):
     decisions: list[CvTailoringDecision] = Field(max_length=50)
 
 
-class CvTailoringEditProposal(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    request_id: UUID
-    job_title: str = Field(min_length=1, max_length=200)
-    proposal_token: str = Field(min_length=64, max_length=64)
-    changes: list[CvTailoringChange] = Field(max_length=50)
-    change_id: str
-    edited_after: str = Field(min_length=1, max_length=5_000)
-
-
 class CvImportClaim(BaseModel):
     model_config = ConfigDict(extra="forbid")
     kind: EvidenceKind
@@ -327,7 +297,7 @@ class CvImportClaim(BaseModel):
     provenance: Literal["imported"]
 
 
-class CvImportEntry(BaseModel):
+class CvImportEntry(_BodyFollowsBullets, BaseModel):
     model_config = ConfigDict(extra="forbid")
     id: str = Field(min_length=1, max_length=100)
     body: str = Field(min_length=1, max_length=5_000)
@@ -391,21 +361,55 @@ class CvDocumentsExport(BaseModel):
         return self
 
 
+class CvStyleSizes(BaseModel):
+    body_pt: int
+    heading_pt: int
+    section_gap_pt: int
+
+
 class CvStyleCatalogTemplate(BaseModel):
     id: CvTemplateId
     name: str
     description: str
     ats_safe: bool
+    title_align: Literal["left", "center"]
+    margin_mm: int
+    # Section kinds placed in the sidebar; empty for single-column templates.
+    sidebar_kinds: list[CvSectionKind]
+    sizes: dict[CvDensity, CvStyleSizes]
 
 
 class CvStyleCatalogFont(BaseModel):
     id: CvFontId
     name: str
     category: str
+    css_family: str
+
+
+class CvStyleCatalogColor(BaseModel):
+    value: str
+    name: str
+
+
+class CvStyleCatalogDensity(BaseModel):
+    id: CvDensity
+    name: str
+
+
+class CvStyleCatalogAtsMode(BaseModel):
+    """What ATS-friendly mode forces, whatever the saved template/font/accent/density."""
+
+    template_id: CvTemplateId
+    density: CvDensity
+    accent: str
+    css_family: str
 
 
 class CvStyleCatalog(BaseModel):
+    """The single source of CV design values; the frontend preview looks these up."""
+
     templates: list[CvStyleCatalogTemplate]
     fonts: list[CvStyleCatalogFont]
-    palette: list[str] = Field(default_factory=lambda: list(CV_ACCENT_PALETTE))
-    densities: list[CvDensity] = Field(default_factory=lambda: ["compact", "normal", "spacious"])
+    palette: list[CvStyleCatalogColor]
+    densities: list[CvStyleCatalogDensity]
+    ats_mode: CvStyleCatalogAtsMode

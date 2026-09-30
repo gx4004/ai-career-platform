@@ -9,7 +9,7 @@ from typing import Any
 from pydantic import TypeAdapter, ValidationError
 
 from app.config import settings
-from app.schemas.cv_documents import CvTailoringChange
+from app.schemas.cv_documents import CvTailoringChange, entry_body_from_bullets
 from app.services.ai_client import complete_structured
 from app.services.evidence_injection import EvidencePayload, render_evidence_section
 
@@ -21,10 +21,11 @@ def read_change_field(entry: dict, field: str) -> str | None:
 
     ``field`` is ``"body"`` or ``"bullets[<index>]"`` (#322) — shared by
     generation (stale-``before`` detection) and application (write target)
-    so both agree on what a change actually addresses.
+    so both agree on what a change actually addresses. An entry with bullets
+    derives its ``body`` from them, so only its bullets are change targets.
     """
     if field == "body":
-        return entry.get("body")
+        return None if entry_body_from_bullets(entry.get("bullets") or []) else entry.get("body")
     match = _BULLET_FIELD_RE.match(field)
     if not match:
         return None
@@ -34,8 +35,13 @@ def read_change_field(entry: dict, field: str) -> str | None:
 
 
 def write_change_field(entry: dict, field: str, value: str) -> None:
-    """Write ``value`` into an entry's tailoring-change target ``field``."""
+    """Write ``value`` into an entry's tailoring-change target ``field``.
+
+    Rewriting a bullet re-derives ``body`` so the two never drift apart.
+    """
     if field == "body":
+        if entry_body_from_bullets(entry.get("bullets") or []):
+            raise ValueError("An entry with bullets is changed through its bullets")
         entry["body"] = value
         return
     match = _BULLET_FIELD_RE.match(field)
@@ -46,6 +52,7 @@ def write_change_field(entry: dict, field: str, value: str) -> None:
     if not (0 <= index < len(bullets)):
         raise ValueError(f"Tailoring change field out of range: {field!r}")
     bullets[index] = value
+    entry["body"] = entry_body_from_bullets(bullets) or entry["body"]
 
 
 def proposal_token(

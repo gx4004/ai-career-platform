@@ -214,17 +214,15 @@ export function LoginForm({
             </button>
           </div>
         </div>
-        <div className="min-h-[2.5rem]">
-          {authError ? (
-            <div
-              role="alert"
-              className="flex items-start gap-2.5 rounded-lg border border-destructive/25 bg-destructive/5 px-3 py-2.5 text-destructive"
-            >
-              <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-              <p className="text-sm leading-relaxed">{authError}</p>
-            </div>
-          ) : null}
-        </div>
+        {authError ? (
+          <div
+            role="alert"
+            className="flex items-start gap-2.5 rounded-lg border border-destructive/25 bg-destructive/5 px-3 py-2.5 text-destructive"
+          >
+            <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+            <p className="text-sm leading-relaxed">{authError}</p>
+          </div>
+        ) : null}
         <Button
           type="submit"
           size="lg"

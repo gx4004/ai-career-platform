@@ -204,14 +204,11 @@ async def test_vertex_maps_permission_failure_without_exposing_provider_detail(m
             calls.append("close")
 
     monkeypatch.setattr(genai, "Client", lambda **_kwargs: FakeClient())
-    incident = Mock()
-    monkeypatch.setattr(mod, "set_provider_incident", incident)
 
     with pytest.raises(mod.ProviderConfigurationError, match="AI service configuration error") as error:
         await mod._call_vertex(SYSTEM, USER)
 
     assert "private-project" not in str(error.value)
-    incident.assert_called_once_with("permission")
     assert calls == ["async-close", "close"]
 
 
@@ -224,7 +221,6 @@ async def test_vertex_constructor_auth_failure_is_safe_and_not_retried(monkeypat
 
     monkeypatch.setattr(mod.settings, "LLM_PROVIDER", "vertex")
     attempts = 0
-    incident = Mock()
 
     def missing_credentials(**_kwargs):
         nonlocal attempts
@@ -232,14 +228,12 @@ async def test_vertex_constructor_auth_failure_is_safe_and_not_retried(monkeypat
         raise auth_exceptions.DefaultCredentialsError("private credential detail")
 
     monkeypatch.setattr(genai, "Client", missing_credentials)
-    monkeypatch.setattr(mod, "set_provider_incident", incident)
 
     with pytest.raises(mod.ProviderConfigurationError) as error:
         await complete_structured(SYSTEM, USER)
 
     assert attempts == 1
     assert "private credential detail" not in str(error.value)
-    incident.assert_called_once_with("permission")
 
 
 @pytest.mark.asyncio
@@ -285,14 +279,10 @@ async def test_vertex_refresh_auth_failure_is_safe_and_not_retried(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_vertex_transport_failure_retries_and_records_an_incident(monkeypatch):
-    """A network-level provider outage must retry and leave #138 evidence.
-
-    ``google-genai`` does not wrap httpx transport failures into ``APIError``, so
-    without an explicit catch an unreachable provider escaped as a raw
-    ``httpx.ConnectError``: never retried and never recorded as a provider
-    incident, leaving the D-055 fallback trigger blind to real outages.
-    """
+async def test_vertex_transport_failure_retries(monkeypatch):
+    """``google-genai`` does not wrap httpx transport failures into ``APIError``,
+    so without an explicit catch an unreachable provider escaped as a raw
+    ``httpx.ConnectError`` and was never retried."""
     import httpx
     from google import genai
 
@@ -302,8 +292,6 @@ async def test_vertex_transport_failure_retries_and_records_an_incident(monkeypa
     monkeypatch.setattr(mod.settings, "VERTEX_PROJECT_ID", "test-project")
 
     attempts = 0
-    incidents = []
-    monkeypatch.setattr(mod, "set_provider_incident", incidents.append)
 
     class FakeModels:
         async def generate_content(self, **_kwargs):
@@ -330,7 +318,6 @@ async def test_vertex_transport_failure_retries_and_records_an_incident(monkeypa
 
     # Retried like any other transient provider failure, then surfaced safely.
     assert attempts == 5
-    assert incidents == ["unavailable"] * 5
     assert "AI service temporarily unavailable" in str(error.value)
     # The raw transport detail never reaches the user-facing message.
     assert "10.0.0.1" not in str(error.value)
@@ -539,14 +526,11 @@ async def test_anthropic_authentication_error_maps_to_configuration_error_not_re
 
     import app.services.ai_client as mod
 
-    incidents: list[str] = []
-    monkeypatch.setattr(mod, "set_provider_incident", incidents.append)
 
     with pytest.raises(mod.ProviderConfigurationError, match="AI service configuration error") as excinfo:
         await complete_structured(SYSTEM, USER)
 
     assert len(fake_client.messages.calls) == 1
-    assert incidents == ["permission"]
     assert "invalid x-api-key" not in str(excinfo.value)
     assert fake_client.closed is True
 
@@ -583,15 +567,12 @@ async def test_anthropic_rate_limit_error_is_retried_as_runtimeerror(monkeypatch
 
     import app.services.ai_client as mod
 
-    incidents: list[str] = []
-    monkeypatch.setattr(mod, "set_provider_incident", incidents.append)
 
     with pytest.raises(RuntimeError, match="AI service quota exceeded"):
         await complete_structured(SYSTEM, USER)
 
     # Retried like Vertex's ResourceExhausted/429 branch.
     assert len(fake_client.messages.calls) == 5
-    assert incidents == ["quota"] * 5
 
 
 @pytest.mark.asyncio
@@ -630,27 +611,6 @@ async def test_anthropic_connection_error_is_retried_and_hides_transport_detail(
     assert len(fake_client.messages.calls) == 5
     assert "AI service temporarily unavailable" in str(excinfo.value)
     assert "10.0.0.1" not in str(excinfo.value)
-
-
-@pytest.mark.asyncio
-async def test_anthropic_records_usage_through_the_shared_cost_accumulator(monkeypatch):
-    import anthropic as anthropic_sdk
-
-    from app.services import llm_cost
-
-    monkeypatch.setattr("app.services.ai_client.settings.LLM_PROVIDER", "anthropic")
-    monkeypatch.setattr("app.services.ai_client.settings.ANTHROPIC_API_KEY", "sk-ant-test")
-    monkeypatch.setattr("app.services.ai_client.settings.LLM_MODEL", "claude-sonnet-5")
-
-    llm_cost.reset_llm_cost()
-    usage = _FakeAnthropicUsage(input_tokens=1000, output_tokens=200)
-    fake_client = _FakeAsyncAnthropic(response=_FakeAnthropicResponse('{"ok": true}', usage=usage))
-    _install_fake_anthropic_client(monkeypatch, anthropic_sdk, fake_client)
-
-    await complete_structured(SYSTEM, USER)
-
-    total = llm_cost._llm_cost_total.get()
-    assert total == llm_cost.estimate_cost("claude-sonnet-5", 1000, 200)
 
 
 @pytest.mark.asyncio

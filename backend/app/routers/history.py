@@ -1,42 +1,13 @@
-import hashlib
-from time import perf_counter
-from typing import Any
-
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
-from sqlalchemy import func
-from sqlalchemy.orm import Session, selectinload
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from sqlalchemy.orm import Session, defer, selectinload
 
 from app.auth.security import get_current_user
 from app.database import get_db
-from app.feature_gates import outcome_enabled, require_r13_enabled, require_r17_enabled
 from app.limiter import limiter
-from app.models.application_packet import ApplicationPacket
-from app.models.campaign_event import CampaignEvent
-from app.models.campaign_tracking import CampaignContact, CampaignNote, CampaignTask
-from app.models.gap_classification import GapClassification
 from app.models.tool_run import ToolRun
 from app.models.user import User
 from app.models.workspace import Workspace
-from app.schemas.gap_classification import (
-    GapClassificationListResponse,
-    GapClassificationRead,
-)
-from app.schemas.gap_response import GapResponseOffer
 from app.schemas.history import (
-    CampaignContactCreate,
-    CampaignContactResponse,
-    CampaignDetailResponse,
-    CampaignMaterialSelectionRequest,
-    CampaignNextTask,
-    CampaignNoteCreate,
-    CampaignNoteResponse,
-    CampaignReminderConsent,
-    CampaignReminderResponse,
-    CampaignReviewResponse,
-    CampaignStatus,
-    CampaignTaskCreate,
-    CampaignTaskResponse,
-    CampaignTaskUpdate,
     DeletedResponse,
     FavoriteRequest,
     RunUpdateRequest,
@@ -47,66 +18,12 @@ from app.schemas.history import (
     WorkspaceSummary,
     WorkspaceUpdateRequest,
 )
-from app.services.analytics import record_database_query_timing
-from app.services.campaign_materials import (
-    clear_selected_run,
-    get_campaign_detail,
-    update_material_selections,
-)
-from app.services.campaign_reminders import claim_due_reminders, set_reminder_consent
-from app.services.campaign_reviewer import (
-    project_campaign_materials,
-    project_cv_document_text,
-    review_campaign_materials,
-)
-from app.services.campaign_snapshots import (
-    DuplicateRoleSubmissionError,
-    capture_submission_snapshot,
-)
-from app.services.campaign_tracking import add_contact, add_note, add_task, record_event
-from app.services.evidence_injection import load_profile_for_injection
-from app.services.gap_classifier import (
-    GapClassificationNotFoundError,
-    classify_findings,
-    delete_gap_classification,
-    list_gap_classifications,
-    persist_gap_classifications,
-)
-from app.services.gap_response import map_gap_to_response
-from app.services.input_sanitizer import sanitize_user_input
+from app.services.application_drafts import DRAFTS_TOOL_NAME
+from app.services.applications import clear_selected_run
 from app.services.premium_outputs import attach_premium_outputs
-from app.services.tool_pipeline import run_tool_pipeline
 from app.services.tool_runs import build_workspace_summary, derive_saved_run_metadata
 
 router = APIRouter()
-TRACKING_DELETE_CONFIG = {
-    CampaignTask: ("Task", "task_deleted", "task_id"),
-    CampaignNote: ("Note", "note_deleted", "note_id"),
-    CampaignContact: ("Contact", "contact_deleted", "contact_id"),
-}
-
-# Status only moves forward along the ladder; a user may skip steps (e.g. log an
-# application that was already sent), and any open campaign may close as
-# rejected or withdrawn. accepted, rejected and withdrawn are final.
-_STATUS_LADDER = [
-    CampaignStatus.PLANNING,
-    CampaignStatus.PREPARING,
-    CampaignStatus.APPLIED,
-    CampaignStatus.INTERVIEWING,
-    CampaignStatus.OFFER,
-    CampaignStatus.ACCEPTED,
-]
-_CLOSED_STATUSES = {CampaignStatus.REJECTED, CampaignStatus.WITHDRAWN}
-CAMPAIGN_STATUS_TRANSITIONS: dict[CampaignStatus | None, set[CampaignStatus]] = {
-    None: set(_STATUS_LADDER) | _CLOSED_STATUSES,
-    **{
-        status: set(_STATUS_LADDER[index + 1 :]) | _CLOSED_STATUSES
-        for index, status in enumerate(_STATUS_LADDER[:-1])
-    },
-    CampaignStatus.ACCEPTED: set(),
-    CampaignStatus.REJECTED: set(),
-    CampaignStatus.WITHDRAWN: set(),
-}
 
 
 @router.get("", response_model=ToolRunListResponse)
@@ -119,7 +36,6 @@ def list_history(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    query_started = perf_counter()
     query = (
         db.query(ToolRun)
         .options(selectinload(ToolRun.workspace))
@@ -128,6 +44,10 @@ def list_history(
 
     if tool:
         query = query.filter(ToolRun.tool_name == tool)
+    else:
+        # Application drafts are an internal artefact of Applications; they are
+        # opened from the application page, never listed as saved runs.
+        query = query.filter(ToolRun.tool_name != DRAFTS_TOOL_NAME)
     if favorite is not None:
         query = query.filter(ToolRun.is_favorite == favorite)
     if q:
@@ -142,17 +62,13 @@ def list_history(
     )
     workspace_runs = _workspace_runs_map(db, current_user.id, items)
 
-    response = ToolRunListResponse(
+    return ToolRunListResponse(
         items=[_summary(r, workspace_runs.get(r.workspace_id, [])) for r in items],
         total=total,
         page=page,
         page_size=page_size,
         has_more=(page * page_size) < total,
     )
-    record_database_query_timing(
-        db, query_family="history_list", started_at=query_started
-    )
-    return response
 
 
 @router.get("/workspaces", response_model=WorkspaceListResponse)
@@ -161,380 +77,23 @@ def list_workspaces(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    query_started = perf_counter()
+    """Workspaces for the history page and workspace pickers (the board is /applications)."""
     workspaces = (
         db.query(Workspace)
-        .options(selectinload(Workspace.tool_runs), selectinload(Workspace.campaign_tasks))
+        .options(
+            # build_workspace_summary() only reads run id/created_at/tool_name.
+            selectinload(Workspace.tool_runs).load_only(
+                ToolRun.id, ToolRun.created_at, ToolRun.tool_name, ToolRun.workspace_id
+            ),
+            selectinload(Workspace.listing),
+        )
         .filter(Workspace.user_id == current_user.id)
         .order_by(Workspace.is_pinned.desc(), Workspace.updated_at.desc())
         .limit(limit)
         .all()
     )
-    campaigns_enabled = outcome_enabled("r13")
-    last_events = dict(
-        db.query(CampaignEvent.workspace_id, func.max(CampaignEvent.created_at))
-        .filter(CampaignEvent.workspace_id.in_([workspace.id for workspace in workspaces]))
-        .group_by(CampaignEvent.workspace_id)
-        .all()
-    )
-    items = []
-    for workspace in workspaces:
-        summary = build_workspace_summary(workspace, list(workspace.tool_runs))
-        if summary is None:
-            continue
-        if campaigns_enabled:
-            # Board cards: the soonest open task (undated ones after, in the order
-            # added) and the latest thing that happened to the application.
-            open_tasks = [task for task in workspace.campaign_tasks if not task.completed]
-            if open_tasks:
-                task = min(open_tasks, key=lambda item: (item.deadline is None, item.deadline or 0))
-                summary.next_task = CampaignNextTask(title=task.title, deadline=task.deadline)
-            last_event = last_events.get(workspace.id)
-            summary.last_activity_at = (
-                max(last_event, workspace.updated_at) if last_event else workspace.updated_at
-            )
-        items.append(summary)
-    response = WorkspaceListResponse(items=items, total=len(items))
-    record_database_query_timing(
-        db, query_family="workspace_list", started_at=query_started
-    )
-    return response
-
-
-@router.get("/workspaces/{workspace_id}", response_model=CampaignDetailResponse)
-def get_campaign(
-    workspace_id: str,
-    _gate: None = Depends(require_r13_enabled),
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    # Heaviest owner-scoped read in the router (#141): one campaign fans out
-    # into an owner-wide CV-variant join, an owner-wide cover-letter/interview
-    # run scan, a submission-record join, and six collection loads. Sampled the
-    # same way as the list families — one bounded family label plus a duration,
-    # no id, no listing/company/note content, no statement text (D-053).
-    query_started = perf_counter()
-    workspace = _get_workspace(db, workspace_id, current_user.id)
-    response = get_campaign_detail(db, workspace, current_user.id)
-    record_database_query_timing(
-        db, query_family="campaign_detail", started_at=query_started
-    )
-    return response
-
-
-@router.patch("/workspaces/{workspace_id}/materials", response_model=CampaignDetailResponse)
-def update_campaign_materials(
-    workspace_id: str,
-    body: CampaignMaterialSelectionRequest,
-    _gate: None = Depends(require_r13_enabled),
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    workspace = _get_workspace(db, workspace_id, current_user.id)
-    return update_material_selections(db, workspace, current_user.id, body)
-
-
-@router.get("/workspaces/{workspace_id}/reminders", response_model=CampaignReminderResponse)
-@limiter.limit("10/minute")
-def get_campaign_reminders(
-    request: Request,
-    workspace_id: str,
-    _gate: None = Depends(require_r13_enabled),
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    _get_workspace(db, workspace_id, current_user.id)
-    return claim_due_reminders(db, workspace_id, current_user.id)
-
-
-@router.patch("/workspaces/{workspace_id}/reminders", response_model=CampaignReminderResponse)
-def update_campaign_reminders(
-    workspace_id: str,
-    body: CampaignReminderConsent,
-    _gate: None = Depends(require_r13_enabled),
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    return set_reminder_consent(db, _get_workspace(db, workspace_id, current_user.id), body.enabled)
-
-
-@router.post("/workspaces/{workspace_id}/review", response_model=CampaignReviewResponse)
-@limiter.limit("10/minute")
-async def review_campaign(
-    request: Request,
-    workspace_id: str,
-    _gate: None = Depends(require_r13_enabled),
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    workspace = _get_workspace(db, workspace_id, current_user.id)
-    if workspace.listing is None:
-        raise HTTPException(status_code=409, detail="Attach a canonical listing before review")
-    cv_text, cover_text = project_campaign_materials(workspace)
-    cv_document_text = project_cv_document_text(workspace)
-    clean_cover = sanitize_user_input(cover_text)
-    response = await run_tool_pipeline(
-        tool_name="application-reviewer",
-        service_fn=review_campaign_materials,
-        service_kwargs={
-            "resume_text": cv_text,
-            "job_description": workspace.listing.description,
-            "cover_text": clean_cover,
-            "cv_document_text": cv_document_text,
-        },
-        label_fn=lambda result: f"Application review ({len(result['findings'])} findings)",
-        resume_text=cv_text,
-        job_description=workspace.listing.description,
-        workspace_id=workspace.id,
-        current_user=current_user,
-        db=db,
-        cache_extra_keys={
-            "reviewer_version": "v2",
-            "cover_sha256": hashlib.sha256(clean_cover.encode()).hexdigest(),
-            "cv_document_sha256": hashlib.sha256(cv_document_text.encode()).hexdigest(),
-        },
-        require_evidence_profile=True,
-    )
-    return CampaignReviewResponse(**response)
-
-
-def _serialize_gap_classifications(rows) -> GapClassificationListResponse:
-    return GapClassificationListResponse(
-        classifications=[GapClassificationRead.model_validate(row) for row in rows]
-    )
-
-
-@router.post(
-    "/workspaces/{workspace_id}/gap-classifications",
-    response_model=GapClassificationListResponse,
-)
-@limiter.limit("10/minute")
-async def classify_campaign_gaps(
-    request: Request,
-    workspace_id: str,
-    _gate: None = Depends(require_r17_enabled),
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    """Classify the campaign's advisory reviewer findings into honest gap kinds.
-
-    Deterministic and idempotent: it runs the reviewer, labels each recognized
-    finding (R17 #198, D-109), and reconciles the persisted set to match. No LLM
-    call and no second judgment path over the materials.
-    """
-    workspace = _get_workspace(db, workspace_id, current_user.id)
-    if workspace.listing is None:
-        raise HTTPException(
-            status_code=409, detail="Attach a canonical listing before classifying gaps"
-        )
-    cv_text, cover_text = project_campaign_materials(workspace)
-    cv_document_text = project_cv_document_text(workspace)
-    clean_cover = sanitize_user_input(cover_text)
-    payload, _ = load_profile_for_injection(db, current_user.id)
-    review = await review_campaign_materials(
-        resume_text=cv_text,
-        job_description=workspace.listing.description,
-        cover_text=clean_cover,
-        evidence_profile=payload,
-        cv_document_text=cv_document_text,
-    )
-    classifications = classify_findings(review["findings"], payload)
-    rows = persist_gap_classifications(db, current_user.id, workspace_id, classifications)
-    return _serialize_gap_classifications(rows)
-
-
-@router.get(
-    "/workspaces/{workspace_id}/gap-classifications",
-    response_model=GapClassificationListResponse,
-)
-def get_campaign_gaps(
-    workspace_id: str,
-    _gate: None = Depends(require_r17_enabled),
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    _get_workspace(db, workspace_id, current_user.id)
-    rows = list_gap_classifications(db, current_user.id, workspace_id)
-    return _serialize_gap_classifications(rows)
-
-
-@router.delete(
-    "/workspaces/{workspace_id}/gap-classifications/{classification_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
-)
-def delete_campaign_gap(
-    workspace_id: str,
-    classification_id: str,
-    _gate: None = Depends(require_r17_enabled),
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-) -> Response:
-    _get_workspace(db, workspace_id, current_user.id)
-    try:
-        delete_gap_classification(db, current_user.id, workspace_id, classification_id)
-    except GapClassificationNotFoundError:
-        raise HTTPException(status_code=404, detail="Gap classification not found") from None
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
-
-
-@router.get(
-    "/workspaces/{workspace_id}/gap-classifications/{classification_id}/response",
-    response_model=GapResponseOffer,
-)
-def get_gap_response(
-    workspace_id: str,
-    classification_id: str,
-    _gate: None = Depends(require_r17_enabled),
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    """The single honest response for one classified gap (R17 #200, D-110).
-
-    Read-only: it names the truthful next action and, for uncaptured evidence, the
-    proposal body the user would submit to the R11 create path — it never writes
-    to the Evidence Profile.
-    """
-    _get_workspace(db, workspace_id, current_user.id)
-    classification = (
-        db.query(GapClassification)
-        .filter(
-            GapClassification.id == classification_id,
-            GapClassification.workspace_id == workspace_id,
-            GapClassification.user_id == current_user.id,
-        )
-        .first()
-    )
-    if classification is None:
-        raise HTTPException(status_code=404, detail="Gap classification not found")
-    return map_gap_to_response(classification)
-
-
-@router.post(
-    "/workspaces/{workspace_id}/tasks", response_model=CampaignTaskResponse, status_code=201
-)
-def create_campaign_task(
-    workspace_id: str,
-    body: CampaignTaskCreate,
-    _gate: None = Depends(require_r13_enabled),
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    return add_task(db, _get_workspace(db, workspace_id, current_user.id), body)
-
-
-@router.patch("/workspaces/{workspace_id}/tasks/{item_id}", response_model=CampaignTaskResponse)
-def update_campaign_task(
-    workspace_id: str,
-    item_id: str,
-    body: CampaignTaskUpdate,
-    _gate: None = Depends(require_r13_enabled),
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    _get_workspace(db, workspace_id, current_user.id)
-    item = (
-        db.query(CampaignTask)
-        .filter(CampaignTask.id == item_id, CampaignTask.workspace_id == workspace_id)
-        .first()
-    )
-    if item is None:
-        raise HTTPException(status_code=404, detail="Task not found")
-    if item.completed != body.completed:
-        item.completed = body.completed
-        record_event(
-            db,
-            workspace_id,
-            "task_completed" if body.completed else "task_reopened",
-            {"task_id": item.id},
-        )
-        db.commit()
-        db.refresh(item)
-    return item
-
-
-@router.delete("/workspaces/{workspace_id}/tasks/{item_id}", response_model=DeletedResponse)
-def delete_campaign_task(
-    workspace_id: str,
-    item_id: str,
-    _gate: None = Depends(require_r13_enabled),
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    return _delete_campaign_record(db, current_user.id, workspace_id, item_id, CampaignTask)
-
-
-@router.post(
-    "/workspaces/{workspace_id}/notes", response_model=CampaignNoteResponse, status_code=201
-)
-def create_campaign_note(
-    workspace_id: str,
-    body: CampaignNoteCreate,
-    _gate: None = Depends(require_r13_enabled),
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    return add_note(db, _get_workspace(db, workspace_id, current_user.id), body)
-
-
-@router.delete("/workspaces/{workspace_id}/notes/{item_id}", response_model=DeletedResponse)
-def delete_campaign_note(
-    workspace_id: str,
-    item_id: str,
-    _gate: None = Depends(require_r13_enabled),
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    return _delete_campaign_record(db, current_user.id, workspace_id, item_id, CampaignNote)
-
-
-@router.post(
-    "/workspaces/{workspace_id}/contacts", response_model=CampaignContactResponse, status_code=201
-)
-def create_campaign_contact(
-    workspace_id: str,
-    body: CampaignContactCreate,
-    _gate: None = Depends(require_r13_enabled),
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    return add_contact(db, _get_workspace(db, workspace_id, current_user.id), body)
-
-
-@router.delete("/workspaces/{workspace_id}/contacts/{item_id}", response_model=DeletedResponse)
-def delete_campaign_contact(
-    workspace_id: str,
-    item_id: str,
-    _gate: None = Depends(require_r13_enabled),
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    return _delete_campaign_record(db, current_user.id, workspace_id, item_id, CampaignContact)
-
-
-def _delete_campaign_record(
-    db: Session,
-    user_id: str,
-    workspace_id: str,
-    item_id: str,
-    model: Any,
-) -> DeletedResponse:
-    label, event_type, detail_key = TRACKING_DELETE_CONFIG[model]
-    _get_workspace(db, workspace_id, user_id)
-    item = db.query(model).filter_by(id=item_id, workspace_id=workspace_id).first()
-    if item is None:
-        raise HTTPException(status_code=404, detail=f"{label} not found")
-    record_event(db, workspace_id, event_type, {detail_key: item.id})
-    db.delete(item)
-    db.commit()
-    return DeletedResponse(deleted=1)
-
-
-# `label` and `is_pinned` are core history controls that predate R13 and must keep
-# working while campaigns are dark. The remaining fields drive campaign state,
-# `CampaignEvent` rows, and R15/R16 submission snapshots, so this endpoint is gated
-# per field instead of wholesale — a route-level dependency would break pinning and
-# renaming for every user.
-_R13_WORKSPACE_FIELDS = frozenset({"company", "role", "status", "deadline"})
+    items = [build_workspace_summary(workspace, list(workspace.tool_runs)) for workspace in workspaces]
+    return WorkspaceListResponse(items=items, total=len(items))
 
 
 @router.patch("/workspaces/{workspace_id}", response_model=WorkspaceSummary)
@@ -544,116 +103,14 @@ def update_workspace(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    if body.model_fields_set & _R13_WORKSPACE_FIELDS and not outcome_enabled("r13"):
-        # Match the gate dependencies: a dark outcome is absent, not forbidden.
-        raise HTTPException(status_code=404, detail="Feature not available")
-    if "status" in body.model_fields_set:
-        workspace = (
-            db.query(Workspace)
-            .filter(Workspace.id == workspace_id, Workspace.user_id == current_user.id)
-            .with_for_update()
-            .first()
-        )
-        if workspace is None:
-            raise HTTPException(status_code=404, detail="Workspace not found")
-    else:
-        workspace = _get_workspace(db, workspace_id, current_user.id)
-    if body.label is not None:
-        workspace.label = body.label.strip() or None
+    workspace = _get_workspace(db, workspace_id, current_user.id)
+    if "label" in body.model_fields_set:
+        workspace.label = (body.label or "").strip() or None
     if body.is_pinned is not None:
         workspace.is_pinned = body.is_pinned
-    if "company" in body.model_fields_set:
-        workspace.company = body.company.strip() if body.company and body.company.strip() else None
-    if "role" in body.model_fields_set:
-        workspace.role = body.role.strip() if body.role and body.role.strip() else None
-    if "deadline" in body.model_fields_set:
-        previous_deadline = workspace.deadline
-        workspace.deadline = body.deadline
-        if previous_deadline != body.deadline:
-            db.add(
-                CampaignEvent(
-                    workspace_id=workspace.id,
-                    event_type="deadline_changed",
-                    details={
-                        "from": previous_deadline.isoformat() if previous_deadline else None,
-                        "to": body.deadline.isoformat() if body.deadline else None,
-                    },
-                )
-            )
-    if "status" in body.model_fields_set:
-        transition = _apply_campaign_status_transition(workspace, body.status)
-        if transition is not None:
-            previous, requested = transition
-            if requested == CampaignStatus.APPLIED:
-                try:
-                    capture_submission_snapshot(db, workspace)
-                except DuplicateRoleSubmissionError as exc:
-                    raise HTTPException(status_code=409, detail=str(exc)) from None
-            db.add(
-                CampaignEvent(
-                    workspace_id=workspace.id,
-                    event_type="status_changed",
-                    details={
-                        "from": previous.value if previous else None,
-                        "to": requested.value,
-                    },
-                )
-            )
     db.commit()
     db.refresh(workspace)
     return build_workspace_summary(workspace, list(workspace.tool_runs))
-
-
-@router.delete("/workspaces/{workspace_id}", response_model=DeletedResponse)
-def delete_workspace(
-    workspace_id: str,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    _get_workspace(db, workspace_id, current_user.id)
-    # Approval and account erasure lock/delete packets before their campaign.
-    # Match that order so PostgreSQL cannot deadlock approval against this
-    # campaign cascade (approval holds packet while requesting workspace).
-    (
-        db.query(ApplicationPacket)
-        .filter(
-            ApplicationPacket.user_id == current_user.id,
-            ApplicationPacket.campaign_id == workspace_id,
-        )
-        .order_by(ApplicationPacket.id.asc())
-        .with_for_update()
-        .all()
-    )
-    workspace = (
-        db.query(Workspace)
-        .filter(
-            Workspace.id == workspace_id,
-            Workspace.user_id == current_user.id,
-        )
-        .with_for_update()
-        .one_or_none()
-    )
-    if workspace is None:
-        raise HTTPException(status_code=404, detail="Workspace not found")
-    db.delete(workspace)
-    db.commit()
-    return DeletedResponse(deleted=1)
-
-
-def _apply_campaign_status_transition(
-    workspace: Workspace, requested: CampaignStatus | None
-) -> tuple[CampaignStatus | None, CampaignStatus] | None:
-    current = CampaignStatus(workspace.status) if workspace.status else None
-    if requested is None or requested == current:
-        return None
-    if requested not in CAMPAIGN_STATUS_TRANSITIONS[current]:
-        current_label = current.value if current else "legacy-null"
-        raise HTTPException(
-            status_code=409,
-            detail=f"Campaign status cannot transition from {current_label} to {requested.value}",
-        )
-    workspace.status = requested.value
-    return current, requested
 
 
 @router.get("/{history_id}", response_model=ToolRunDetail)
@@ -662,13 +119,9 @@ def get_history_item(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    # The single busiest authenticated read: every result page load lands here,
-    # and it costs a run lookup plus a re-query of every sibling run in the same
-    # campaign. Left uninstrumented the trigger could not see it at all (#141).
-    query_started = perf_counter()
     run = _get_run(db, history_id, current_user.id)
     workspace_runs = _workspace_runs_map(db, current_user.id, [run])
-    response = ToolRunDetail(
+    return ToolRunDetail(
         id=run.id,
         tool_name=run.tool_name,
         label=run.label,
@@ -688,10 +141,6 @@ def get_history_item(
         # saved before this, without rewriting stored evidence.
         result_payload=attach_premium_outputs(run.tool_name, run.result_payload),
     )
-    record_database_query_timing(
-        db, query_family="history_detail", started_at=query_started
-    )
-    return response
 
 
 @router.get("/{run_id}/export/pdf")
@@ -762,7 +211,7 @@ def delete_history_item(
             )
             .count()
         )
-        if remaining == 0 and not _has_campaign_data(workspace):
+        if remaining == 0 and not _has_application_data(workspace):
             db.delete(workspace)
     db.commit()
     return DeletedResponse(deleted=1)
@@ -810,7 +259,7 @@ def _get_run(db: Session, history_id: str, user_id: str) -> ToolRun:
     return run
 
 
-def _has_campaign_data(workspace: Workspace) -> bool:
+def _has_application_data(workspace: Workspace) -> bool:
     return any(
         value is not None
         for value in (
@@ -818,10 +267,11 @@ def _has_campaign_data(workspace: Workspace) -> bool:
             workspace.role,
             workspace.status,
             workspace.deadline,
-            workspace.listing,
+            workspace.current_listing_id,
             workspace.selected_cv_variant_id,
             workspace.selected_cover_letter_run_id,
             workspace.selected_interview_run_id,
+            workspace.notes,
         )
     )
 
@@ -829,7 +279,7 @@ def _has_campaign_data(workspace: Workspace) -> bool:
 def _get_workspace(db: Session, workspace_id: str, user_id: str) -> Workspace:
     workspace = (
         db.query(Workspace)
-        .options(selectinload(Workspace.tool_runs))
+        .options(selectinload(Workspace.tool_runs).defer(ToolRun.result_payload))
         .filter(Workspace.id == workspace_id, Workspace.user_id == user_id)
         .first()
     )
@@ -847,8 +297,12 @@ def _workspace_runs_map(
     if not workspace_ids:
         return {}
 
+    # Sibling runs here only feed build_workspace_summary(), which reads
+    # id/created_at/tool_name — never result_payload — so defer that column to
+    # avoid pulling every linked run's full JSON payload per page.
     linked_runs = (
         db.query(ToolRun)
+        .options(defer(ToolRun.result_payload))
         .filter(ToolRun.user_id == user_id, ToolRun.workspace_id.in_(workspace_ids))
         .order_by(ToolRun.created_at.desc())
         .all()

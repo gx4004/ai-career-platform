@@ -75,10 +75,10 @@ export function moveEntry(sections: CvSection[], sectionId: string, index: numbe
 const filledBullets = (entry: CvEntry) => (entry.bullets ?? []).map((bullet) => bullet.trim()).filter(Boolean)
 
 /**
- * `body` stays the canonical text of an entry: tailoring matches suggestions
- * against it and quality scoring reads it. For a card with bullet points the
- * rule is `body = bullets joined by newlines`; without bullets, `body` is the
- * free description the person typed.
+ * Mirrors the server rule so the live preview matches what is saved: for a
+ * card with bullet points `body = bullets joined by newlines` (the backend
+ * derives it the same way); without bullets, `body` is the free description
+ * the person typed.
  */
 function syncBody(entry: CvEntry): CvEntry {
   const bullets = filledBullets(entry)

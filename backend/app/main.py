@@ -2,8 +2,7 @@ import asyncio
 import logging
 from contextlib import asynccontextmanager, suppress
 
-import sentry_sdk
-from fastapi import Depends, FastAPI, Request, status
+from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import _rate_limit_exceeded_handler
@@ -12,20 +11,16 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.responses import JSONResponse, Response
 
-from app.config import resolve_allowed_origins, settings, validate_origin_config
-from app.feature_gates import (
-    require_r12_enabled,
-    require_r14_enabled,
-    require_r15_enabled,
-    require_r17_enabled,
+from app.config import (
+    resolve_allowed_origins,
+    settings,
+    validate_autopilot_config,
+    validate_llm_provider_config,
 )
-from app.limiter import (
-    get_abuse_identity_type,
-    limiter,
-    validate_abuse_control_config,
-)
+from app.limiter import limiter
 from app.routers import (
     admin,
+    applications,
     auth,
     career,
     cover_letter,
@@ -40,123 +35,35 @@ from app.routers import (
     interview,
     job_match,
     job_posts,
-    packets,
     portfolio,
-    queue_rules,
     resume,
     telemetry,
 )
 from app.services.ats_ingestion import run_ats_ingestion_scheduler
 from app.services.observability import configure_logging
-from app.services.rate_limit_events import (
-    collect_rate_limit_evidence,
-    rate_limit_route_family,
-)
-from app.services.retention import (
-    run_activation_prune_scheduler,
-    run_discovered_listing_expiry_scheduler,
-)
+from app.services.retention import run_discovered_listing_expiry_scheduler
 
 configure_logging()
 
-_SENSITIVE_HEADERS = {"authorization", "cookie", "set-cookie", "x-csrf-token"}
-SENTRY_TRACES_SAMPLE_RATE = 0.0
-
-
-def _strip_query(value: str) -> str:
-    cuts = [value.find(ch) for ch in ("?", "#")]
-    candidates = [c for c in cuts if c >= 0]
-    return value[: min(candidates)] if candidates else value
-
-
-def _scrub_sentry_event(event, _hint):
-    request = event.get("request")
-    if isinstance(request, dict):
-        request.pop("data", None)
-        request.pop("cookies", None)
-        request.pop("query_string", None)
-        url = request.get("url")
-        if isinstance(url, str):
-            request["url"] = _strip_query(url)
-        headers = request.get("headers")
-        if isinstance(headers, dict):
-            for key in list(headers.keys()):
-                if key.lower() in _SENSITIVE_HEADERS:
-                    headers[key] = "[scrubbed]"
-    event.pop("user", None)
-    for key in ("message", "logentry", "contexts", "extra", "breadcrumbs"):
-        event.pop(key, None)
-    exception = event.get("exception")
-    if isinstance(exception, dict):
-        values = exception.get("values")
-        if isinstance(values, list):
-            for value in values:
-                if not isinstance(value, dict):
-                    continue
-                value["value"] = "[scrubbed]"
-                stacktrace = value.get("stacktrace")
-                if not isinstance(stacktrace, dict):
-                    continue
-                frames = stacktrace.get("frames")
-                if isinstance(frames, list):
-                    for frame in frames:
-                        if isinstance(frame, dict):
-                            frame.pop("vars", None)
-    return event
-
-
-if settings.SENTRY_DSN:
-    sentry_sdk.init(
-        dsn=settings.SENTRY_DSN,
-        environment=settings.ENVIRONMENT,
-        traces_sample_rate=SENTRY_TRACES_SAMPLE_RATE,
-        send_default_pii=False,
-        include_local_variables=False,
-        before_send=_scrub_sentry_event,
-    )
-
 logger = logging.getLogger(__name__)
-_rate_limit_evidence_tasks: set[asyncio.Task] = set()
-RATE_LIMIT_EVIDENCE_MAX_TASKS = 64
-
-
-def schedule_rate_limit_evidence(*, route_family: str, identity_type: str) -> None:
-    """Collect coalesced evidence off-loop with bounded task bookkeeping."""
-    if len(_rate_limit_evidence_tasks) >= RATE_LIMIT_EVIDENCE_MAX_TASKS:
-        logger.warning("rate_limit_evidence_dropped reason=task_capacity")
-        return
-    task = asyncio.create_task(
-        asyncio.to_thread(
-            collect_rate_limit_evidence,
-            route_family=route_family,
-            identity_type=identity_type,
-        )
-    )
-    _rate_limit_evidence_tasks.add(task)
-    task.add_done_callback(_rate_limit_evidence_tasks.discard)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Start the recurring activation-event retention prune (D-037, #107).
+    """Start the recurring discovered-listing expiry and ATS ingestion tasks.
 
     See `app.services.retention` for why an app-startup task is the chosen
-    mechanism. The task is cancelled cleanly on shutdown. `run_ats_ingestion_scheduler`
-    (#323) follows the same pattern but returns immediately as a no-op when its
-    own flags are off, so the task always exists but never fetches unless
-    deliberately enabled.
+    mechanism. Tasks are cancelled cleanly on shutdown. `run_ats_ingestion_scheduler`
+    (#323) returns immediately as a no-op when its own flags are off, so the task
+    always exists but never fetches unless deliberately enabled.
     """
-    prune_task = asyncio.create_task(run_activation_prune_scheduler())
     listing_expiry_task = asyncio.create_task(run_discovered_listing_expiry_scheduler())
     ats_ingestion_task = asyncio.create_task(run_ats_ingestion_scheduler())
     try:
         yield
     finally:
-        prune_task.cancel()
         listing_expiry_task.cancel()
         ats_ingestion_task.cancel()
-        with suppress(asyncio.CancelledError):
-            await prune_task
         with suppress(asyncio.CancelledError):
             await listing_expiry_task
         with suppress(asyncio.CancelledError):
@@ -187,34 +94,15 @@ async def request_validation_error_handler(
 app.add_exception_handler(RequestValidationError, request_validation_error_handler)
 
 
-async def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded):
-    identity_type = get_abuse_identity_type(request)
-    route_family = rate_limit_route_family(request.url.path)
-    try:
-        schedule_rate_limit_evidence(
-            route_family=route_family,
-            identity_type=identity_type,
-        )
-    except Exception as error:  # defensive: evidence must not replace the 429
-        logger.warning(
-            "rate_limit_evidence_schedule_failed error_type=%s",
-            type(error).__name__,
-        )
-    return _rate_limit_exceeded_handler(request, exc)
-
-
-app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 
 JSON_BODY_LIMIT_BYTES = 1_048_576
 MULTIPART_BODY_LIMIT_BYTES = 11_010_048
-# Bound middleware bookkeeping even when a peer emits endless empty/tiny ASGI
-# frames. Normal servers deliver request bodies in much larger chunks.
-REQUEST_BODY_MAX_CHUNKS = 4_096
 
 
 class RequestSizeLimitMiddleware:
-    """Reject oversized request bodies before Starlette parses or buffers them."""
+    """Reject request bodies whose declared Content-Length exceeds the limit."""
 
     def __init__(self, app):
         self.app = app
@@ -241,33 +129,7 @@ class RequestSizeLimitMiddleware:
                 await self._reject(send)
                 return
 
-        buffered = []
-        size = 0
-        chunk_count = 0
-        while True:
-            message = await receive()
-            if message["type"] == "http.disconnect":
-                return
-            if message["type"] != "http.request":
-                continue
-            chunk_count += 1
-            if chunk_count > REQUEST_BODY_MAX_CHUNKS:
-                await self._reject(send)
-                return
-            size += len(message.get("body", b""))
-            if size > limit:
-                await self._reject(send)
-                return
-            buffered.append(message)
-            if not message.get("more_body", False):
-                break
-
-        messages = iter(buffered)
-
-        async def replay_receive():
-            return next(messages, {"type": "http.disconnect"})
-
-        await self.app(scope, replay_receive, send)
+        await self.app(scope, receive, send)
 
     @staticmethod
     async def _reject(send):
@@ -322,8 +184,8 @@ if settings.SECRET_KEY == _DEFAULT_SECRET and settings.ENVIRONMENT != "developme
         f"Generate one with: python -c \"import secrets; print(secrets.token_urlsafe(64))\""
     )
 
-validate_abuse_control_config()
-validate_origin_config()
+validate_llm_provider_config()
+validate_autopilot_config()
 
 if settings.LLM_PROVIDER.lower() == "vertex" and not settings.VERTEX_PROJECT_ID:
     logger.critical(
@@ -360,31 +222,21 @@ app.include_router(
     cv_documents.router,
     prefix=f"{prefix}/cv-documents",
     tags=["cv-documents"],
-    dependencies=[Depends(require_r12_enabled)],
 )
 app.include_router(
     development.router,
     prefix=f"{prefix}/development-plan",
     tags=["development"],
-    dependencies=[Depends(require_r17_enabled)],
 )
 app.include_router(
     discovery.router,
     prefix=f"{prefix}/discovery",
     tags=["discovery"],
-    dependencies=[Depends(require_r14_enabled)],
 )
 app.include_router(
-    queue_rules.router,
-    prefix=f"{prefix}/queue",
-    tags=["queue"],
-    dependencies=[Depends(require_r15_enabled)],
-)
-app.include_router(
-    packets.router,
-    prefix=f"{prefix}/packets",
-    tags=["packets"],
-    dependencies=[Depends(require_r15_enabled)],
+    applications.router,
+    prefix=f"{prefix}/applications",
+    tags=["applications"],
 )
 app.include_router(telemetry.router, prefix=f"{prefix}/telemetry", tags=["telemetry"])
 app.include_router(admin.router, prefix=f"{prefix}/admin", tags=["admin"])

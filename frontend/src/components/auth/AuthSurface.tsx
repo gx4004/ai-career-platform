@@ -26,7 +26,7 @@ export function AuthSurface({
             {view === 'register' ? 'Create your workspace account' : 'Sign in to your workspace'}
           </h1>
           <p className="auth-intro-copy">
-            Save runs, favorites, and progress across all six tools.
+            Save your runs, favorites and progress across every tool.
           </p>
         </div>
       </div>
@@ -37,8 +37,8 @@ export function AuthSurface({
         className="auth-surface-tabs"
       >
         <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="login">Sign In</TabsTrigger>
-          <TabsTrigger value="register">Create Account</TabsTrigger>
+          <TabsTrigger value="login">Sign in</TabsTrigger>
+          <TabsTrigger value="register">Create account</TabsTrigger>
         </TabsList>
         <TabsContent value="login" className="mt-4">
           <LoginForm onSuccess={onSuccess} />
@@ -47,10 +47,6 @@ export function AuthSurface({
           <RegisterForm onSuccess={onSuccess} />
         </TabsContent>
       </Tabs>
-
-      <p className="small-copy muted-copy auth-surface-note">
-        No account needed to browse — continue as guest from the top link.
-      </p>
     </div>
   )
 }

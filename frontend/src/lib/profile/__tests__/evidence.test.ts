@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import type { EvidenceItem } from '#/lib/api/schemas'
 import {
+  applyFieldEdits,
   contentEntries,
-  contentToEditableText,
+  KIND_SINGULAR_LABELS,
   countByState,
+  factDisplay,
   groupItemsByKind,
-  parseEditableText,
 } from '#/lib/profile/evidence'
 
 function item(overrides: Partial<EvidenceItem>): EvidenceItem {
@@ -44,11 +45,10 @@ describe('countByState', () => {
     const counts = countByState([
       item({ id: '1', confirmation_state: 'confirmed' }),
       item({ id: '2', confirmation_state: 'unconfirmed' }),
-      item({ id: '3', confirmation_state: 'rejected' }),
-      item({ id: '4', confirmation_state: 'confirmed' }),
+      item({ id: '3', confirmation_state: 'confirmed' }),
     ])
 
-    expect(counts).toEqual({ total: 4, confirmed: 2, unconfirmed: 1, rejected: 1 })
+    expect(counts).toEqual({ total: 3, confirmed: 2, unconfirmed: 1 })
   })
 })
 
@@ -63,27 +63,36 @@ describe('contentEntries', () => {
   })
 })
 
-describe('parseEditableText / contentToEditableText round trip', () => {
-  it('parses a valid JSON object', () => {
-    const text = contentToEditableText({ title: 'Engineer' })
-    const parsed = parseEditableText(text)
-    expect(parsed).toEqual({ ok: true, value: { title: 'Engineer' } })
+describe('applyFieldEdits', () => {
+  it('writes edited text back, drops cleared fields and keeps untouched non-text values', () => {
+    const content = { title: 'Engineer', company: 'Acme', years: 4 }
+    expect(applyFieldEdits(content, { title: 'Staff Engineer', company: '  ', years: '4' })).toEqual({
+      ok: true,
+      value: { title: 'Staff Engineer', years: 4 },
+    })
   })
 
-  it('rejects empty input', () => {
-    expect(parseEditableText('   ')).toEqual({ ok: false, error: 'Content cannot be empty.' })
+  it('refuses to save a fact with every field cleared', () => {
+    expect(applyFieldEdits({ title: 'Engineer' }, { title: '' })).toMatchObject({ ok: false })
+  })
+})
+
+describe('factDisplay', () => {
+  it('uses the value as the title for single-field kinds, with no field label', () => {
+    const result = factDisplay(item({ kind: 'skill', content: { text: 'TypeScript' } }))
+    expect(result.title).toBe('TypeScript')
+    expect(result.fields).toEqual([])
+    expect(factDisplay(item({ kind: 'achievement', content: { achievements: 'Cut latency 40%' } })).title).toBe('Cut latency 40%')
   })
 
-  it('rejects invalid JSON', () => {
-    expect(parseEditableText('{not json')).toMatchObject({ ok: false })
+  it('keeps labelled fields for multi-field kinds', () => {
+    const result = factDisplay(item({ kind: 'experience', content: { job_title: 'Engineer', company: 'Acme' } }))
+    expect(result.title).toBeNull()
+    expect(result.fields.map((field) => field.label)).toEqual(['Job title', 'Company'])
   })
 
-  it('rejects a non-object JSON value', () => {
-    expect(parseEditableText('[1,2]')).toMatchObject({ ok: false })
-    expect(parseEditableText('"hi"')).toMatchObject({ ok: false })
-  })
-
-  it('rejects an empty object', () => {
-    expect(parseEditableText('{}')).toMatchObject({ ok: false })
+  it('has a singular label for every kind', () => {
+    expect(KIND_SINGULAR_LABELS.skill).toBe('Skill')
+    expect(KIND_SINGULAR_LABELS.achievement).toBe('Achievement')
   })
 })

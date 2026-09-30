@@ -116,4 +116,36 @@ describe('Topbar', () => {
     expect(container.querySelector('.topbar--compact')).toBeTruthy()
     expect(screen.getByText('History')).toBeTruthy()
   })
+
+  it.each([
+    ['/campaigns', 'Applications'],
+    ['/campaigns/abc-123', 'Applications'],
+    ['/discovery', 'Discover'],
+    ['/cv-studio', 'CV Studio'],
+    ['/profile', 'Profile'],
+    ['/account', 'Account'],
+    ['/settings', 'Settings'],
+  ])('shows a page pill for %s', (path, label) => {
+    mockPathname.current = path
+
+    const { container } = renderTopbar()
+
+    const pill = container.querySelector('.topbar-tool-pill')
+    expect(pill?.textContent).toBe(label)
+    expect(pill?.querySelector('svg')).toBeTruthy()
+  })
+
+  it('shows the tool name, not "Result", as the mobile title on result pages', () => {
+    const originalWidth = window.innerWidth
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 375 })
+    mockUseIsMobile.mockReturnValue(true)
+    mockPathname.current = '/job-match/result/demo-run'
+
+    try {
+      const { container } = renderTopbar()
+      expect(container.querySelector('.topbar-mobile-title')?.textContent).toBe('Job Match')
+    } finally {
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: originalWidth })
+    }
+  })
 })

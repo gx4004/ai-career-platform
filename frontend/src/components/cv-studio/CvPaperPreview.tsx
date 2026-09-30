@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import type { CSSProperties } from 'react'
+import type { CSSProperties, KeyboardEvent } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Download, FileSearch } from 'lucide-react'
 import { Button } from '#/components/ui/button'
@@ -7,17 +7,26 @@ import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
 } from '#/components/ui/dialog'
 import { fetchCvArtifactBlob } from '#/lib/api/client'
-import type { CvSection, CvStyle } from '#/lib/api/schemas'
+import type { CvSection, CvStyle, CvStyleCatalog } from '#/lib/api/schemas'
 import { buildPreviewSections, resolvePreviewStyle, splitTwoColumn } from '#/lib/cv-studio/preview'
 import type { PreviewSection } from '#/lib/cv-studio/preview'
-import { TEMPLATE_NAMES } from '#/lib/cv-studio/catalog'
 
 /** A4 at CSS reference resolution: 297mm tall. */
 const PAGE_HEIGHT_PX = 297 * (96 / 25.4)
 
-function PaperSection({ section }: { section: PreviewSection }) {
+type EditTarget = { activeId?: string; onEdit?: (sectionId: string) => void }
+
+/** A section on the paper. With `onEdit` it is the way into its editor: click, Enter or Space. */
+function PaperSection({ section, activeId, onEdit }: { section: PreviewSection } & EditTarget) {
+  const editable = onEdit ? {
+    role: 'button', tabIndex: 0, 'aria-label': `Edit ${section.title || 'section'}`, 'aria-pressed': activeId === section.id,
+    onClick: () => onEdit(section.id),
+    onKeyDown: (event: KeyboardEvent<HTMLElement>) => {
+      if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onEdit(section.id) }
+    },
+  } : {}
   return (
-    <section className="cvp-section">
+    <section className={`cvp-section${onEdit ? ' cvp-section--editable' : ''}`} data-section-id={section.id} {...editable}>
       <h3 className="cvp-section__title">{section.title}</h3>
       {section.entries.map((entry) => (
         <div className="cvp-entry" key={entry.id}>
@@ -43,15 +52,19 @@ function PaperSection({ section }: { section: PreviewSection }) {
 }
 
 /**
- * Live HTML rendering of the unsaved draft, scaled to fit its column. It mirrors
- * the server renderer's tokens closely; the exported PDF remains the source of truth.
+ * Live HTML rendering of the unsaved draft, scaled to fit its column (never
+ * above 100%), using the design values from the backend style catalog; the
+ * exported PDF remains the source of truth. Each section is a way into its editor.
  */
-export function CvPaper({ name, sections, style }: { name: string; sections: CvSection[]; style: CvStyle }) {
+export function CvPaper({ name, sections, style, catalog, activeId, onEdit }: {
+  name: string; sections: CvSection[]; style: CvStyle; catalog: CvStyleCatalog
+} & EditTarget) {
   const frameRef = useRef<HTMLDivElement>(null)
   const paperRef = useRef<HTMLDivElement>(null)
   const [scale, setScale] = useState(1)
   const [paperHeight, setPaperHeight] = useState(PAGE_HEIGHT_PX)
-  const effective = resolvePreviewStyle(style)
+  const effective = resolvePreviewStyle(style, catalog)
+  const twoColumn = effective.sidebarKinds.length > 0
   const preview = buildPreviewSections(sections)
   const hasContent = preview.some((section) => section.entries.length > 0)
 
@@ -82,31 +95,31 @@ export function CvPaper({ name, sections, style }: { name: string; sections: CvS
   } as CSSProperties
   const title = <h2 className="cvp-title" style={{ textAlign: effective.titleAlign }}>{name.trim() || 'Untitled CV'}</h2>
   const pages = Math.max(1, Math.ceil((paperHeight - 1) / PAGE_HEIGHT_PX))
-  const { side, main } = splitTwoColumn(preview)
+  const { side, main } = splitTwoColumn(preview, effective.sidebarKinds)
 
   return (
     <div className="cvp">
       <div ref={frameRef} className="cvp-frame" style={{ height: paperHeight * scale }}>
         <div
           ref={paperRef}
-          className={`cvp-paper cvp-paper--${effective.layout}${effective.twoColumn ? ' cvp-paper--two-column' : ''}`}
+          className={`cvp-paper cvp-paper--${effective.layout}${twoColumn ? ' cvp-paper--two-column' : ''}`}
           style={paperStyle}
           data-testid="cv-paper"
           aria-label="Live preview of your CV"
           role="document"
         >
-          {effective.twoColumn ? (
+          {twoColumn ? (
             <div className="cvp-columns">
-              <div className="cvp-side">{title}{side.map((section) => <PaperSection key={section.id} section={section} />)}</div>
-              <div className="cvp-main">{main.map((section) => <PaperSection key={section.id} section={section} />)}</div>
+              <div className="cvp-side">{title}{side.map((section) => <PaperSection key={section.id} section={section} activeId={activeId} onEdit={onEdit} />)}</div>
+              <div className="cvp-main">{main.map((section) => <PaperSection key={section.id} section={section} activeId={activeId} onEdit={onEdit} />)}</div>
             </div>
           ) : (
-            <>{title}{preview.map((section) => <PaperSection key={section.id} section={section} />)}</>
+            <>{title}{preview.map((section) => <PaperSection key={section.id} section={section} activeId={activeId} onEdit={onEdit} />)}</>
           )}
           {!hasContent ? <p className="cvp-placeholder">Your CV appears here as you write.</p> : null}
         </div>
       </div>
-      <p className="cvp-footnote">{pages === 1 ? '1 page' : `About ${pages} pages`} · live preview</p>
+      <p className="cvp-footnote">{pages === 1 ? '1 page' : `About ${pages} pages`} · live preview<span className="cvp-footnote__hint cvp-footnote__hint--touch"> · tap a section to edit</span><span className="cvp-footnote__hint cvp-footnote__hint--pointer"> · click a section to edit</span></p>
     </div>
   )
 }
@@ -123,18 +136,17 @@ function useObjectUrl(blob: Blob | undefined) {
 }
 
 /** The server-rendered PDF: exactly what "Export PDF" downloads. */
-export function ExactPdfDialog({ open, onOpenChange, documentId, documentName, revision, style }: {
-  open: boolean; onOpenChange: (open: boolean) => void; documentId: string; documentName: string; revision: string; style: CvStyle
+export function ExactPdfDialog({ open, onOpenChange, documentId, documentName, revision, style, templateName }: {
+  open: boolean; onOpenChange: (open: boolean) => void; documentId: string; documentName: string; revision: string
+  style: CvStyle; templateName: string
 }) {
-  const template = style.template_id
   const pdf = useQuery({
-    queryKey: ['cv-artifact', documentId, revision, template, JSON.stringify(style), 'pdf'],
-    queryFn: () => fetchCvArtifactBlob(documentId, template, 'pdf'),
+    queryKey: ['cv-artifact', documentId, revision, JSON.stringify(style), 'pdf'],
+    queryFn: () => fetchCvArtifactBlob(documentId, 'pdf'),
     enabled: open,
     staleTime: Infinity,
   })
   const url = useObjectUrl(pdf.data)
-  const templateName = TEMPLATE_NAMES[template]
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="cvs-pdf-dialog sm:max-w-3xl">

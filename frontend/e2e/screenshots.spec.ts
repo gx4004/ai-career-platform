@@ -255,7 +255,7 @@ test('capture authenticated + guest pages for visual review', async ({ page, bro
     // every other e2e spec uses) before relying on it for every page below.
     await page.goto('/login', { waitUntil: 'domcontentloaded' }).catch(() => {})
     await page
-      .getByRole('heading', { name: 'You are already signed in' })
+      .getByRole('heading', { name: "You're already signed in" })
       .waitFor({ timeout: 10_000 })
       .catch((error) => console.warn('[screenshots] auth cookie check inconclusive:', describeError(error)))
 
@@ -272,7 +272,7 @@ test('capture authenticated + guest pages for visual review', async ({ page, bro
     }
 
     // Your profile seed: a few confirmed facts plus a couple of imported ones
-    // still awaiting review, so the hero stats, the grouped fact cards, and
+    // still awaiting review, so the hero chips, the grouped fact cards, and
     // the "Suggestions to review" panel all have something real to show.
     try {
       const confirmed = [
@@ -297,19 +297,6 @@ test('capture authenticated + guest pages for visual review', async ({ page, bro
       console.warn('[screenshots] profile seed skipped (page shows its empty state):', describeError(error))
     }
     await capturePage(page, 'desktop', 'profile', '/profile', results)
-    // Application Queue seed: a pending application, an approved-not-yet-applied
-    // one, and an approved-and-applied one, so both queue sections and both
-    // approved-card states have something real to show.
-    try {
-      execFileSync(env.pythonBin, ['-m', 'tests.seed_queue_packets', email], {
-        cwd: env.backendDir,
-        env: { ...process.env, DATABASE_URL: env.databaseUrl },
-        stdio: 'pipe',
-      })
-    } catch (error) {
-      console.warn('[screenshots] queue seed skipped (page shows its empty state):', describeError(error))
-    }
-
     // --- Desktop authenticated pages -----------------------------------------
     for (const p of userPages) {
       await capturePage(page, 'desktop', p.name, p.path, results)
@@ -339,8 +326,8 @@ test('capture authenticated + guest pages for visual review', async ({ page, bro
       results.push({ name: 'resume-result', viewport: 'desktop', status: 'failed', error: describeError(error) })
     }
 
-    // Job Match seed: any successful run creates a workspace ("campaign") —
-    // this is the cheapest way to get a real campaign detail page to shoot.
+    // Job Match seed: any successful run creates a workspace — the fallback
+    // application page to shoot if the applications seed below is unavailable.
     let campaignPath: string | null = null
     try {
       const matched = await page.request.post('/api/v1/job-match/match', {
@@ -379,9 +366,10 @@ test('capture authenticated + guest pages for visual review', async ({ page, bro
     }
     await capturePage(page, 'desktop', 'cv-studio', '/cv-studio', results)
 
-    // Applications board seed: six applications across every stage (after the
-    // CV seed so the featured one can point at a real CV version). Its detail
-    // page replaces the bare job-match workspace as the campaign-detail shot.
+    // Applications seed: six applications across every stage, two of them
+    // prepared (one ready, one with an open question). Runs after the CV seed
+    // so the featured one can point at a real CV version; its page replaces the
+    // bare job-match workspace as the campaign-detail shot.
     try {
       const featured = execFileSync(env.pythonBin, ['-m', 'tests.seed_campaigns', email], {
         cwd: env.backendDir,
@@ -396,12 +384,6 @@ test('capture authenticated + guest pages for visual review', async ({ page, bro
 
     if (campaignPath) {
       await capturePage(page, 'desktop', 'campaign-detail', campaignPath, results)
-      // The detail page is tabbed; shoot the busiest tabs too.
-      for (const tab of ['Tasks', 'Timeline', 'Checklist']) {
-        const clicked = await page.getByRole('tab', { name: new RegExp(`^${tab}`) }).click({ timeout: 5_000 }).then(() => true, () => false)
-        if (clicked) await shootCurrentPage(page, 'desktop', `campaign-detail-${tab.toLowerCase()}`, results)
-        else skip(results, `campaign-detail-${tab.toLowerCase()}`, 'desktop', `${tab} tab not found`)
-      }
     } else {
       skip(results, 'campaign-detail', 'desktop', 'no workspace/campaign could be seeded')
     }

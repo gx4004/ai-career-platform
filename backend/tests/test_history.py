@@ -1,14 +1,9 @@
-import ast
-from pathlib import Path
-
 import pytest
 from pydantic import ValidationError
 
-from app.models.campaign_event import CampaignEvent
-from app.models.cv_document import CvDocument, CvVariant
 from app.models.tool_run import ToolRun
 from app.models.workspace import Workspace
-from app.schemas.history import CampaignStatus, ToolRunSummary
+from app.schemas.history import ToolRunSummary
 
 PREFIX = "/api/v1/history"
 
@@ -157,7 +152,7 @@ def test_delete_last_run_preserves_workspace_with_campaign_data(
         label="Campaign",
         company="Example Corp",
         role="Engineer",
-        status="planning",
+        status="saved",
     )
     db.add(workspace)
     db.commit()
@@ -223,300 +218,66 @@ def test_list_workspaces_and_update_workspace(client, auth_headers, test_user, d
     assert payload["is_pinned"] is True
 
 
-def test_legacy_workspace_is_a_label_only_campaign(client, auth_headers, test_user, db):
-    workspace = Workspace(user_id=test_user.id, label="Existing search", is_pinned=True)
-    db.add(workspace)
-    db.commit()
-    db.refresh(workspace)
+def test_list_workspaces_issues_constant_statement_count(client, auth_headers, test_user, db):
+    """`list_workspaces` must not N+1 on workspace count (#357).
 
-    response = client.get(f"{PREFIX}/workspaces", headers=auth_headers)
+    Each workspace's tool runs, campaign tasks, and current listing are all
+    eager-loaded, so the number of SELECTs the endpoint issues should stay the
+    same whether there is one workspace or many — never one extra query per
+    workspace (the `Workspace.listing` lazy-load this fixes) or per linked run.
+    """
+    from sqlalchemy import event
 
-    assert response.status_code == 200
-    campaign = response.json()["items"][0]
-    assert campaign["id"] == workspace.id
-    assert campaign["label"] == "Existing search"
-    assert campaign["is_pinned"] is True
-    assert campaign["company"] is None
-    assert campaign["role"] is None
-    assert campaign["status"] is None
-    assert campaign["deadline"] is None
+    from app.models.campaign_listing import CampaignListing
+    from tests.conftest import engine as test_engine
 
+    def _make_workspace(index: int) -> None:
+        workspace = Workspace(user_id=test_user.id, label=f"Workspace {index}")
+        db.add(workspace)
+        db.commit()
+        db.refresh(workspace)
 
-def test_workspace_list_shows_the_soonest_open_task(client, auth_headers, test_user, db):
-    workspace = Workspace(user_id=test_user.id, label="Board card")
-    db.add(workspace)
-    db.commit()
-    db.refresh(workspace)
-    tasks = f"{PREFIX}/workspaces/{workspace.id}/tasks"
-
-    assert client.get(f"{PREFIX}/workspaces", headers=auth_headers).json()["items"][0][
-        "next_task"
-    ] is None
-    client.post(tasks, json={"title": "Undated"}, headers=auth_headers)
-    later = {"title": "Later", "deadline": "2026-09-20T12:00:00Z"}
-    client.post(tasks, json=later, headers=auth_headers)
-    sooner = client.post(
-        tasks, json={"title": "Sooner", "deadline": "2026-09-10T12:00:00Z"}, headers=auth_headers
-    ).json()
-    client.patch(f"{tasks}/{sooner['id']}", json={"completed": True}, headers=auth_headers)
-
-    listed = client.get(f"{PREFIX}/workspaces", headers=auth_headers).json()["items"][0]
-    assert listed["next_task"]["title"] == "Later"
-    # Adding tasks is activity even though the workspace row itself did not change.
-    assert listed["last_activity_at"] >= listed["updated_at"]
-
-
-def test_owner_can_update_and_read_campaign_fields(client, auth_headers, test_user, db):
-    workspace = Workspace(user_id=test_user.id, label="Target")
-    db.add(workspace)
-    db.commit()
-    db.refresh(workspace)
-
-    response = client.patch(
-        f"{PREFIX}/workspaces/{workspace.id}",
-        json={
-            "company": "Example Corp",
-            "role": "Platform Engineer",
-            "status": "planning",
-            "deadline": "2026-08-15T16:00:00Z",
-        },
-        headers=auth_headers,
-    )
-
-    assert response.status_code == 200
-    payload = response.json()
-    assert payload["company"] == "Example Corp"
-    assert payload["role"] == "Platform Engineer"
-    assert payload["status"] == "planning"
-    assert payload["deadline"] == "2026-08-15T16:00:00Z"
-    listed = client.get(f"{PREFIX}/workspaces", headers=auth_headers).json()["items"][0]
-    assert listed["company"] == "Example Corp"
-    assert listed["role"] == "Platform Engineer"
-    assert listed["status"] == "planning"
-
-
-def test_campaign_fields_are_owner_only(client, auth_headers, test_user, db):
-    from app.auth.security import hash_password
-    from app.models.user import User
-
-    second_user = User(email="campaign-owner@example.com", hashed_password=hash_password("pass"))
-    db.add(second_user)
-    db.flush()
-    workspace = Workspace(user_id=second_user.id, label="Private target")
-    db.add(workspace)
-    db.commit()
-    db.refresh(workspace)
-
-    response = client.patch(
-        f"{PREFIX}/workspaces/{workspace.id}",
-        json={"company": "Not mine", "status": "planning"},
-        headers=auth_headers,
-    )
-
-    assert response.status_code == 404
-
-
-def test_campaign_status_lifecycle_is_enforced_server_side(client, auth_headers, test_user, db):
-    workspace = Workspace(user_id=test_user.id, label="Lifecycle")
-    db.add(workspace)
-    db.commit()
-    db.refresh(workspace)
-    endpoint = f"{PREFIX}/workspaces/{workspace.id}"
-
-    def move(status):
-        return client.patch(endpoint, json={"status": status}, headers=auth_headers).status_code
-
-    # Forward moves may skip steps (the pipeline board drops a saved job straight
-    # into Applied); backward moves and moves out of a closed stage never pass.
-    assert move("planning") == 200
-    assert move("applied") == 200
-    assert move("preparing") == 409
-    assert move("planning") == 409
-    assert move("offer") == 200
-    assert move("rejected") == 200
-    assert move("interviewing") == 409
-    assert move("withdrawn") == 409
-    assert (
-        client.patch(endpoint, json={"status": "custom-stage"}, headers=auth_headers).status_code
-        == 422
-    )
-    assert (
-        client.patch(
-            endpoint,
-            json={"deadline": "2026-08-15T16:00:00"},
-            headers=auth_headers,
-        ).status_code
-        == 422
-    )
-
-    assert [status.value for status in CampaignStatus] == [
-        "planning",
-        "preparing",
-        "applied",
-        "interviewing",
-        "offer",
-        "accepted",
-        "rejected",
-        "withdrawn",
-    ]
-    events = db.query(CampaignEvent).filter_by(workspace_id=workspace.id).all()
-    assert [
-        (event.event_type, event.details)
-        for event in events
-        if event.event_type == "status_changed"
-    ] == [
-        ("status_changed", {"from": None, "to": "planning"}),
-        ("status_changed", {"from": "planning", "to": "applied"}),
-        ("status_changed", {"from": "applied", "to": "offer"}),
-        ("status_changed", {"from": "offer", "to": "rejected"}),
-    ]
-    assert [event.event_type for event in events].count("submission_snapshot_created") == 1
-
-
-def test_campaign_deadline_changes_are_append_only(client, auth_headers, test_user, db):
-    workspace = Workspace(user_id=test_user.id)
-    db.add(workspace)
-    db.commit()
-    endpoint = f"{PREFIX}/workspaces/{workspace.id}"
-
-    for deadline in ("2026-08-15T16:00:00Z", "2026-08-20T16:00:00Z", None):
-        assert (
-            client.patch(endpoint, json={"deadline": deadline}, headers=auth_headers).status_code
-            == 200
+        listing = CampaignListing(
+            workspace_id=workspace.id,
+            title="Staff Engineer",
+            company="Acme",
+            description="Own the platform roadmap.",
         )
+        db.add(listing)
+        db.commit()
+        db.refresh(listing)
+        workspace.current_listing_id = listing.id
+        db.add(workspace)
+        db.commit()
 
-    events = db.query(CampaignEvent).filter_by(workspace_id=workspace.id).all()
-    assert [event.event_type for event in events] == [
-        "deadline_changed",
-        "deadline_changed",
-        "deadline_changed",
-    ]
-    assert events[-1].details["to"] is None
+        _create_run(db, test_user.id, workspace_id=workspace.id, label=f"Run {index}")
 
+    def _count_select_statements() -> int:
+        captured: list[str] = []
 
-def test_campaign_detail_selects_exact_immutable_material_versions(
-    client, auth_headers, test_user, db
-):
-    workspace = Workspace(user_id=test_user.id, company="Northstar Labs", role="Platform Engineer")
-    document = CvDocument(user_id=test_user.id, name="Platform CV", sections=[])
-    db.add_all([workspace, document])
-    db.flush()
-    variant = CvVariant(document_id=document.id, name="Northstar variant", sections=[])
-    cover_parent = ToolRun(user_id=test_user.id, tool_name="cover-letter", label="Cover v1")
-    cover_revision = ToolRun(
-        user_id=test_user.id, tool_name="cover-letter", label="Cover v2", parent_run=cover_parent
+        def _record(_conn, _cursor, statement, _params, _context, _executemany):
+            if statement.lstrip().lower().startswith("select"):
+                captured.append(statement)
+
+        event.listen(test_engine, "after_cursor_execute", _record)
+        try:
+            resp = client.get(f"{PREFIX}/workspaces", headers=auth_headers)
+        finally:
+            event.remove(test_engine, "after_cursor_execute", _record)
+        assert resp.status_code == 200
+        return len(captured)
+
+    _make_workspace(0)
+    small_count = _count_select_statements()
+
+    for index in range(1, 10):
+        _make_workspace(index)
+    large_count = _count_select_statements()
+
+    assert small_count == large_count, (
+        f"list_workspaces issued {small_count} SELECTs for 1 workspace but "
+        f"{large_count} for 10 — statement count must stay constant"
     )
-    interview = ToolRun(user_id=test_user.id, tool_name="interview", label="Interview prep")
-    db.add_all([variant, cover_parent, cover_revision, interview])
-    db.commit()
-
-    response = client.patch(
-        f"{PREFIX}/workspaces/{workspace.id}/materials",
-        json={
-            "cv_variant_id": variant.id,
-            "cover_letter_run_id": cover_revision.id,
-            "interview_run_id": interview.id,
-        },
-        headers=auth_headers,
-    )
-
-    assert response.status_code == 200
-    payload = response.json()
-    assert payload["selected_materials"]["cv_variant"]["id"] == variant.id
-    assert payload["selected_materials"]["cover_letter"]["id"] == cover_revision.id
-    assert payload["selected_materials"]["cover_letter"]["parent_run_id"] == cover_parent.id
-    assert payload["selected_materials"]["interview"]["id"] == interview.id
-    assert {item["id"] for item in payload["available_materials"]["cover_letters"]} == {
-        cover_parent.id,
-        cover_revision.id,
-    }
-    events = db.query(CampaignEvent).filter_by(workspace_id=workspace.id).all()
-    assert [(event.event_type, event.details) for event in events] == [
-        ("material_selection_changed", {"material_type": "cv_variant", "action": "selected"}),
-        ("material_selection_changed", {"material_type": "cover_letter", "action": "selected"}),
-        ("material_selection_changed", {"material_type": "interview", "action": "selected"}),
-    ]
-
-    detail = client.get(f"{PREFIX}/workspaces/{workspace.id}", headers=auth_headers)
-    assert detail.status_code == 200
-    assert detail.json()["selected_materials"] == payload["selected_materials"]
-    exported_campaign = client.get("/api/v1/evidence-profile/export", headers=auth_headers).json()[
-        "campaigns"
-    ]["campaigns"][0]
-    assert exported_campaign["selected_cover_letter"]["id"] == cover_revision.id
-    assert exported_campaign["selected_cover_letter"]["result_payload"] == {}
-    assert exported_campaign["selected_interview"]["id"] == interview.id
-
-
-def test_campaign_material_selection_rejects_foreign_and_wrong_type_refs(
-    client, auth_headers, test_user, db
-):
-    from app.auth.security import hash_password
-    from app.models.user import User
-
-    other = User(email="private-materials@example.com", hashed_password=hash_password("pass"))
-    workspace = Workspace(user_id=test_user.id)
-    wrong_type = ToolRun(user_id=test_user.id, tool_name="resume")
-    foreign_cover = ToolRun(user=other, tool_name="cover-letter")
-    db.add_all([other, workspace, wrong_type, foreign_cover])
-    db.commit()
-
-    endpoint = f"{PREFIX}/workspaces/{workspace.id}/materials"
-    assert (
-        client.patch(
-            endpoint, json={"cover_letter_run_id": wrong_type.id}, headers=auth_headers
-        ).status_code
-        == 422
-    )
-    assert (
-        client.patch(
-            endpoint, json={"cover_letter_run_id": foreign_cover.id}, headers=auth_headers
-        ).status_code
-        == 422
-    )
-    assert db.query(CampaignEvent).filter_by(workspace_id=workspace.id).count() == 0
-
-
-def test_campaign_material_selection_can_be_cleared_with_content_free_event(
-    client, auth_headers, test_user, db
-):
-    workspace = Workspace(user_id=test_user.id)
-    run = ToolRun(user_id=test_user.id, tool_name="interview", label="Private prep title")
-    db.add_all([workspace, run])
-    db.commit()
-    endpoint = f"{PREFIX}/workspaces/{workspace.id}/materials"
-    assert (
-        client.patch(endpoint, json={"interview_run_id": run.id}, headers=auth_headers).status_code
-        == 200
-    )
-    response = client.patch(endpoint, json={"interview_run_id": None}, headers=auth_headers)
-    assert response.status_code == 200
-    assert response.json()["selected_materials"]["interview"] is None
-    events = db.query(CampaignEvent).filter_by(workspace_id=workspace.id).all()
-    assert events[-1].details == {"material_type": "interview", "action": "cleared"}
-    assert "Private prep title" not in str(events[-1].details)
-
-
-def test_selected_material_deletion_clears_reference_without_deleting_campaign(
-    client, auth_headers, test_user, db
-):
-    workspace = Workspace(user_id=test_user.id, status="planning")
-    run = ToolRun(user_id=test_user.id, tool_name="cover-letter")
-    db.add_all([workspace, run])
-    db.commit()
-    assert (
-        client.patch(
-            f"{PREFIX}/workspaces/{workspace.id}/materials",
-            json={"cover_letter_run_id": run.id},
-            headers=auth_headers,
-        ).status_code
-        == 200
-    )
-
-    assert client.delete(f"{PREFIX}/{run.id}", headers=auth_headers).status_code == 200
-    db.expire_all()
-    remaining = db.query(Workspace).filter_by(id=workspace.id).one()
-    assert remaining.selected_cover_letter_run_id is None
 
 
 def test_pagination(client, auth_headers, test_user, db):
@@ -557,214 +318,6 @@ def test_user_isolation(client, auth_headers, test_user, db):
     assert data["items"][0]["label"] == "My run"
 
 
-def test_campaign_tracking_is_append_only_exportable_and_content_free(
-    client, auth_headers, test_user, db
-):
-    workspace = Workspace(user_id=test_user.id, label="Target")
-    db.add(workspace)
-    db.commit()
-    db.refresh(workspace)
-
-    task = client.post(
-        f"{PREFIX}/workspaces/{workspace.id}/tasks",
-        json={"title": "Send application", "deadline": "2026-08-15T16:00:00Z"},
-        headers=auth_headers,
-    )
-    note = client.post(
-        f"{PREFIX}/workspaces/{workspace.id}/notes",
-        json={"text": "Private hiring-manager observation"},
-        headers=auth_headers,
-    )
-    contact = client.post(
-        f"{PREFIX}/workspaces/{workspace.id}/contacts",
-        json={"name": "Alex Example", "role": "Recruiter", "channel": "alex@example.test"},
-        headers=auth_headers,
-    )
-    assert (task.status_code, note.status_code, contact.status_code) == (201, 201, 201)
-    assert (
-        client.patch(
-            f"{PREFIX}/workspaces/{workspace.id}/tasks/{task.json()['id']}",
-            json={"completed": True},
-            headers=auth_headers,
-        ).status_code
-        == 200
-    )
-
-    detail = client.get(f"{PREFIX}/workspaces/{workspace.id}", headers=auth_headers).json()
-    assert [event["event_type"] for event in detail["events"]] == [
-        "task_created",
-        "note_added",
-        "contact_added",
-        "task_completed",
-    ]
-    serialized_events = str(detail["events"])
-    assert "Private hiring-manager" not in serialized_events
-    assert "Alex Example" not in serialized_events
-    assert "Send application" not in serialized_events
-    exported = client.get("/api/v1/evidence-profile/export", headers=auth_headers).json()[
-        "campaigns"
-    ]["campaigns"][0]
-    assert exported["tasks"][0]["title"] == "Send application"
-    assert exported["notes"][0]["text"].startswith("Private")
-    assert exported["contacts"][0]["name"] == "Alex Example"
-
-
-def test_campaign_tracking_rejects_foreign_campaign(client, auth_headers, db):
-    from app.auth.security import hash_password
-    from app.models.user import User
-
-    other = User(email="tracking-owner@example.com", hashed_password=hash_password("pass"))
-    db.add(other)
-    db.flush()
-    workspace = Workspace(user_id=other.id, label="Private")
-    db.add(workspace)
-    db.commit()
-    assert (
-        client.post(
-            f"{PREFIX}/workspaces/{workspace.id}/contacts",
-            json={"name": "Hidden"},
-            headers=auth_headers,
-        ).status_code
-        == 404
-    )
-
-
-def test_campaign_reminders_are_default_off_consent_driven_and_revocable(
-    client, auth_headers, test_user, db
-):
-    from datetime import UTC, datetime, timedelta
-
-    from app.models.campaign_tracking import CampaignTask
-
-    workspace = Workspace(user_id=test_user.id, deadline=datetime.now(UTC) + timedelta(days=2))
-    db.add(workspace)
-    db.flush()
-    db.add(
-        CampaignTask(
-            workspace_id=workspace.id,
-            title="Follow up",
-            deadline=datetime.now(UTC) + timedelta(days=1),
-        )
-    )
-    db.commit()
-    endpoint = f"{PREFIX}/workspaces/{workspace.id}/reminders"
-    assert client.get(endpoint, headers=auth_headers).json() == {
-        "enabled": False,
-        "items": [],
-        "next_surface_at": None,
-    }
-    assert client.patch(endpoint, json={"enabled": True}, headers=auth_headers).status_code == 200
-    first = client.get(endpoint, headers=auth_headers).json()
-    assert [item["kind"] for item in first["items"]] == ["task_deadline", "campaign_deadline"]
-    second = client.get(endpoint, headers=auth_headers).json()
-    assert second["items"] == []
-    assert second["next_surface_at"] is not None
-    for _ in range(7):
-        assert client.get(endpoint, headers=auth_headers).status_code == 200
-    assert client.get(endpoint, headers=auth_headers).status_code == 429
-    revoked = client.patch(endpoint, json={"enabled": False}, headers=auth_headers)
-    assert revoked.json() == {"enabled": False, "items": [], "next_surface_at": None}
-    db.refresh(workspace)
-    assert workspace.reminders_enabled is False
-    assert workspace.reminders_last_surfaced_at is None
-
-
-def test_campaign_reminders_are_owner_isolated(client, auth_headers, db):
-    from app.auth.security import hash_password
-    from app.models.user import User
-
-    other = User(email="reminder-owner@example.com", hashed_password=hash_password("pass"))
-    db.add(other)
-    db.flush()
-    workspace = Workspace(user_id=other.id)
-    db.add(workspace)
-    db.commit()
-    assert (
-        client.patch(
-            f"{PREFIX}/workspaces/{workspace.id}/reminders",
-            json={"enabled": True},
-            headers=auth_headers,
-        ).status_code
-        == 404
-    )
-
-
-def test_applied_transition_captures_immutable_submission_snapshot(
-    client, auth_headers, test_user, db
-):
-    from app.models.campaign_listing import CampaignListing
-    from app.models.campaign_snapshot import CampaignSubmissionSnapshot
-    from app.models.cv_document import CvDocument, CvVariant
-    from app.models.tool_run import ToolRun
-
-    workspace = Workspace(user_id=test_user.id, status="planning")
-    document = CvDocument(user_id=test_user.id, name="CV", sections=[])
-    cover = ToolRun(
-        user_id=test_user.id,
-        tool_name="cover-letter",
-        label="Letter",
-        result_payload={"body": "Original letter"},
-    )
-    db.add_all([workspace, document, cover])
-    db.flush()
-    original_section = {
-        "id": "summary",
-        "kind": "summary",
-        "title": "Summary",
-        "visible": True,
-        "position": 0,
-        "entries": [
-            {"id": "entry", "evidence_item_id": None, "body": "Original CV", "position": 0}
-        ],
-    }
-    variant = CvVariant(document_id=document.id, name="Applied CV", sections=[original_section])
-    listing = CampaignListing(
-        workspace_id=workspace.id,
-        title="Engineer",
-        company="Example",
-        description="Original listing",
-    )
-    db.add_all([variant, listing])
-    db.flush()
-    workspace.current_listing_id = listing.id
-    workspace.selected_cv_variant_id = variant.id
-    workspace.selected_cover_letter_run_id = cover.id
-    db.commit()
-    endpoint = f"{PREFIX}/workspaces/{workspace.id}"
-    assert (
-        client.patch(endpoint, json={"status": "preparing"}, headers=auth_headers).status_code
-        == 200
-    )
-    assert (
-        client.patch(endpoint, json={"status": "applied"}, headers=auth_headers).status_code == 200
-    )
-    snapshot = db.query(CampaignSubmissionSnapshot).filter_by(workspace_id=workspace.id).one()
-    original_bytes = snapshot.content_json.encode()
-    original_digest = snapshot.content_sha256
-    variant.sections = [
-        {**original_section, "entries": [{**original_section["entries"][0], "body": "Changed CV"}]}
-    ]
-    cover.result_payload = {"body": "Changed letter"}
-    listing.description = "Changed listing"
-    db.commit()
-    db.expire_all()
-    unchanged = db.query(CampaignSubmissionSnapshot).filter_by(id=snapshot.id).one()
-    assert unchanged.content_json.encode() == original_bytes
-    assert unchanged.content_sha256 == original_digest
-    detail = client.get(endpoint, headers=auth_headers).json()
-    assert (
-        detail["submission_snapshots"][0]["content"]["cover_letter"]["result_payload"]["body"]
-        == "Original letter"
-    )
-    assert "submission_snapshot_created" in [event["event_type"] for event in detail["events"]]
-    exported = client.get("/api/v1/evidence-profile/export", headers=auth_headers).json()[
-        "campaigns"
-    ]["campaigns"][0]
-    assert exported["submission_snapshots"][0]["content_sha256"] == original_digest
-    assert client.delete(endpoint, headers=auth_headers).status_code == 200
-    assert db.query(CampaignSubmissionSnapshot).filter_by(id=snapshot.id).count() == 0
-
-
 def test_tool_run_summary_access_mode_is_constrained_to_the_frontend_enum():
     """access_mode must mirror the frontend Zod enum, not accept any string.
 
@@ -781,174 +334,6 @@ def test_tool_run_summary_access_mode_is_constrained_to_the_frontend_enum():
 
     with pytest.raises(ValidationError):
         ToolRunSummary(**base, access_mode="something_else")
-
-
-BACKEND_ROOT = Path(__file__).resolve().parents[1]
-
-#: Packages that actually put a message on the wire. A module importing one of
-#: these is an email sender whatever its helper happens to be called.
-EMAIL_TRANSPORT_PACKAGES = frozenset(
-    {"resend", "smtplib", "aiosmtplib", "email", "sendgrid", "postmarker", "mailjet_rest"}
-)
-#: Settings only an email path reads. This catches a sender that talks to the
-#: provider over plain HTTP instead of importing its SDK.
-EMAIL_SETTINGS_MARKERS = ("RESEND", "SMTP", "MAIL")
-
-
-def _app_modules() -> dict[str, ast.Module]:
-    """Parse every module in the app package, keyed by its dotted import name."""
-
-    modules = {}
-    for path in sorted((BACKEND_ROOT / "app").rglob("*.py")):
-        parts = list(path.relative_to(BACKEND_ROOT).with_suffix("").parts)
-        if parts[-1] == "__init__":
-            parts.pop()
-        modules[".".join(parts)] = ast.parse(path.read_text())
-    return modules
-
-
-def _imported_names(tree: ast.Module) -> set[str]:
-    """Every dotted name the module imports, including imports inside functions.
-
-    Function-local imports matter here: the one known sender defers ``import
-    resend`` into its send helper, and the history router defers its PDF import.
-    """
-
-    names: set[str] = set()
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Import):
-            names.update(alias.name for alias in node.names)
-        elif isinstance(node, ast.ImportFrom) and node.module:
-            names.add(node.module)
-            names.update(f"{node.module}.{alias.name}" for alias in node.names)
-    return names
-
-
-def _owning_module(name: str, modules: dict[str, ast.Module]) -> str | None:
-    """Map an imported name onto the app module that defines it, if any."""
-
-    while name:
-        if name in modules:
-            return name
-        name = name.rpartition(".")[0]
-    return None
-
-
-def _email_sender_modules(modules: dict[str, ast.Module]) -> set[str]:
-    senders = set()
-    for name, tree in modules.items():
-        if any(
-            imported.partition(".")[0] in EMAIL_TRANSPORT_PACKAGES
-            for imported in _imported_names(tree)
-        ):
-            senders.add(name)
-            continue
-        for node in ast.walk(tree):
-            if (
-                isinstance(node, ast.Attribute)
-                and node.attr.isupper()
-                and any(marker in node.attr for marker in EMAIL_SETTINGS_MARKERS)
-            ):
-                senders.add(name)
-                break
-    return senders
-
-
-def _reachable(seeds: set[str], modules: dict[str, ast.Module]) -> set[str]:
-    seen: set[str] = set()
-    pending = [seed for seed in seeds if seed in modules]
-    while pending:
-        current = pending.pop()
-        if current in seen:
-            continue
-        seen.add(current)
-        for imported in _imported_names(modules[current]):
-            owner = _owning_module(imported, modules)
-            if owner is not None and owner not in seen:
-                pending.append(owner)
-    return seen
-
-
-def _campaign_seed_modules(modules: dict[str, ast.Module]) -> set[str]:
-    """Campaign/reminder services plus whatever the campaign endpoints call.
-
-    Endpoint seeds come from the router's own decorators, so a new
-    ``/workspaces`` route is covered the moment it is added.
-    """
-
-    seeds = {
-        name
-        for name in modules
-        if name.startswith("app.services.campaign_") or "reminder" in name
-    }
-    router = modules["app.routers.history"]
-    bindings: dict[str, str] = {}
-    for node in ast.walk(router):
-        if isinstance(node, ast.Import):
-            for alias in node.names:
-                bindings[alias.asname or alias.name.partition(".")[0]] = alias.name
-        elif isinstance(node, ast.ImportFrom) and node.module:
-            for alias in node.names:
-                bindings[alias.asname or alias.name] = f"{node.module}.{alias.name}"
-    for node in router.body:
-        if not isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
-            continue
-        routed = any(
-            isinstance(decorator, ast.Call)
-            and decorator.args
-            and isinstance(decorator.args[0], ast.Constant)
-            and str(decorator.args[0].value).startswith("/workspaces")
-            for decorator in node.decorator_list
-        )
-        if not routed:
-            continue
-        for used in ast.walk(node):
-            if isinstance(used, ast.Name) and used.id in bindings:
-                owner = _owning_module(bindings[used.id], modules)
-                if owner is not None:
-                    seeds.add(owner)
-    return seeds
-
-
-def test_no_campaign_or_reminder_path_reaches_an_email_sender():
-    """R13 promises in-product reminders only, so no campaign path may send email.
-
-    The check walks the static import graph out of the campaign and reminder
-    services and every ``/workspaces`` endpoint in the history router, then
-    asserts nothing reachable is an email sender. Senders are discovered rather
-    than named: a module counts as one when it imports an email transport
-    package or reads an email-only setting, so renaming the send helper or
-    routing through a new indirect caller still trips this.
-
-    What it does not prove: it is static. A sender reached through importlib, a
-    runtime registry, or a bare HTTP call with an inline API key would slip
-    past, and it says nothing about mail sent by infrastructure outside the app
-    package. It also proves nothing about what the reminder payload contains —
-    the surfacing behaviour is covered by the reminder API tests above.
-    """
-
-    modules = _app_modules()
-    senders = _email_sender_modules(modules)
-    assert senders, "no email sender found at all — the transport list has gone stale"
-
-    # Positive control: the same walk must be able to reach a sender from the
-    # routers that do send mail, otherwise the campaign result below would pass
-    # for the wrong reason.
-    from_routers = _reachable({name for name in modules if name.startswith("app.routers.")}, modules)
-    assert senders & from_routers, "the import walk cannot reach any sender — walk is broken"
-
-    seeds = _campaign_seed_modules(modules)
-    assert {
-        "app.services.campaign_reminders",
-        "app.services.campaign_tracking",
-        "app.services.campaign_materials",
-    } <= seeds, f"campaign seed discovery found too little: {sorted(seeds)}"
-
-    reachable = _reachable(seeds, modules)
-    assert not senders & reachable, (
-        "a campaign or reminder path can reach an email sender: "
-        f"{sorted(senders & reachable)}"
-    )
 
 
 def test_saved_run_detail_carries_the_export_affordance(client, db, test_user, auth_headers):
@@ -972,3 +357,34 @@ def test_saved_run_detail_carries_the_export_affordance(client, db, test_user, a
     # Enrichment is a read-time projection, not a rewrite of stored evidence.
     db.refresh(run)
     assert "exportable_sections" not in (run.result_payload or {})
+
+
+def test_list_hides_internal_application_drafts_and_keeps_counts_correct(
+    client, auth_headers, test_user, db
+):
+    """Application drafts are an internal artefact of Applications (opened from
+    the application page); they must not appear in the run list, its total or
+    pagination, nor in the favorites count."""
+    _create_run(db, test_user.id, label="Resume A")
+    _create_run(db, test_user.id, tool_name="job-match", label="Match B", is_favorite=True)
+    for i in range(3):
+        _create_run(
+            db,
+            test_user.id,
+            tool_name="application-drafts",
+            label=f"Draft {i}",
+            is_favorite=True,
+        )
+
+    data = client.get(f"{PREFIX}?page_size=1", headers=auth_headers).json()
+    assert data["total"] == 2
+    assert data["has_more"] is True
+    assert all(item["tool_name"] != "application-drafts" for item in data["items"])
+
+    page_two = client.get(f"{PREFIX}?page=2&page_size=1", headers=auth_headers).json()
+    assert len(page_two["items"]) == 1
+    assert page_two["has_more"] is False
+
+    favorites = client.get(f"{PREFIX}?favorite=true", headers=auth_headers).json()
+    assert favorites["total"] == 1
+    assert favorites["items"][0]["label"] == "Match B"

@@ -11,33 +11,28 @@ per-source summary and exits non-zero only if every source failed.
 
 from __future__ import annotations
 
-import asyncio
 import logging
 
-from app.database import SessionLocal
-from app.services.ats_ingestion import run_ats_ingestion
+from app.services.ats_ingestion import run_ats_ingestion_once
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger("ingest_ats_sources")
 
 
-async def main() -> int:
-    db = SessionLocal()
-    try:
-        summary = await run_ats_ingestion(db)
-    finally:
-        db.close()
+def main() -> int:
+    summary = run_ats_ingestion_once()
+    if summary is None:
+        return 1
 
     for outcome in summary.outcomes:
         logger.info(
-            "%s (%s): fetched=%d stored=%d deduplicated=%d skipped=%d errored=%d",
+            "%s (%s): fetched=%d stored=%d deduplicated=%d skipped=%d",
             outcome.source_key,
             outcome.provider,
             outcome.fetched,
             outcome.stored,
             outcome.deduplicated,
             outcome.skipped,
-            outcome.errored,
         )
     for source_key, error in summary.failures.items():
         logger.warning("%s: FAILED - %s", source_key, error)
@@ -53,4 +48,4 @@ async def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(asyncio.run(main()))
+    raise SystemExit(main())

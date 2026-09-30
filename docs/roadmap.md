@@ -17,8 +17,9 @@ issues were closed as superseded; their built code is carried forward.
   entries, customise it (templates, fonts, colours, density, section order), keep
   an ATS-safe mode, tailor it to a job, export PDF/DOCX.
 - Job Discovery shows real listings from public employer job boards
-  (Greenhouse, Lever, Ashby — public GET APIs only). The Approval Queue prepares
-  an application and hands off to the employer's apply page.
+  (Greenhouse, Lever, Ashby — public GET APIs only). Applications (the former
+  Campaigns and Approval Queue, merged) prepare the materials and hand off to the
+  employer's apply page; the owner applies.
 - Autopilot is an experiment: local browser-assisted form filling that always
   stops before submit. It never submits on its own.
 - AI provider is pluggable: `fake` for local demo, `anthropic` (Claude Haiku 4.5)
@@ -40,15 +41,30 @@ Tracked on GitHub: umbrella #319.
 
 ## Autopilot experiment (#325)
 
-Off by default: `AUTOPILOT_EXPERIMENT_ENABLED` (backend) and
-`VITE_AUTOPILOT_EXPERIMENT_ENABLED` (frontend). On an approved queue card, "Fill
-the form for me (experimental)" opens the listing's Greenhouse, Lever, or Ashby
-form in a browser on the machine running the backend, so it only makes sense
-locally. It fills name, email, phone, links, the tailored CV PDF, the cover
-letter, and screening answers whose labels match, highlights the rest, and
-stops. It never presses submit; the owner reviews the open window and submits.
-Only https pages on those three hosts are opened. Tests use local fixture forms
-only, never live employer sites.
+Off by default: `AUTOPILOT_EXPERIMENT_ENABLED` (backend, refused outside
+development) and `VITE_AUTOPILOT_EXPERIMENT_ENABLED` (frontend). On an
+application page, "Fill the form for me (experimental)" opens the listing's
+Greenhouse, Lever, or Ashby form in a browser on the machine running the
+backend, so it only makes sense locally. The button shows only when the server
+reports `autofill_supported` for that application (flag on and a fillable
+destination). It fills the owner's typed contact details, the tailored CV PDF,
+the cover letter, and screening answers whose labels match, highlights the rest,
+and stops. It never presses submit; the owner reviews the open window and
+submits. The run is a background job with status and cancel; when it ends, one
+"Autopilot filled N fields" entry is logged in the application's activity with
+field labels and counts only, never values. Only https pages on those three
+hosts are opened. Tests use local fixture forms only, never live employer sites.
+
+Each ATS has one adapter (`backend/app/services/autopilot/adapters.py`) pinned by
+a hand-built fixture in `backend/tests/fixtures/autofill/`. Fixtures cannot prove
+a live page still matches, so after an ATS redesign the owner checks by hand (on
+their own application, never in automated tests):
+
+1. Open the apply page and run the fill; the banner appears and nothing is sent.
+2. Name, email, phone, links and the resume are filled (green outline).
+3. EEO, consent, salary and eligibility questions are empty and amber.
+4. Every value still reads the same after the ATS finished parsing the resume.
+5. If a field is wrong, fix the adapter selector and its fixture together.
 
 ## Deferred (not in this run)
 

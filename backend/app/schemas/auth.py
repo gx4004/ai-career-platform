@@ -27,7 +27,6 @@ class RegisterRequest(BaseModel):
     email: EmailStr
     password: str
     full_name: str | None = None
-    captcha_token: str | None = None
     tos_accepted: bool  # Required field, no default
 
     @field_validator("password")

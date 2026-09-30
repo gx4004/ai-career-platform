@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useNavigate } from '@tanstack/react-router'
+import { Link, useNavigate } from '@tanstack/react-router'
 import { AlertCircle, Clock, Copy, Download, FileText, Loader2, RefreshCw, Star, Undo2, X } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { FadeIn, FadeUp } from '#/components/ui/motion'
@@ -312,9 +312,10 @@ export function ToolResultScreen({
                 </button>
               )}
               <div className="result-hero__actions">
-                <a href={resolvedTool.route} className="result-hero__btn-text">Run again</a>
+                <Link to={resolvedTool.route} className="result-hero__btn-text result-hero__btn-text--ghost">New input</Link>
                 <button
-                  className="result-hero__btn-text"
+                  className="result-hero__btn-text result-hero__btn-text--primary"
+                  aria-expanded={regenOpen}
                   onClick={() => setRegenOpen((v) => !v)}
                   title="Re-generate with feedback"
                 >
@@ -329,7 +330,7 @@ export function ToolResultScreen({
                 >
                   <Copy size={13} aria-hidden="true" />
                 </button>
-                {exportableSections.length > 0 ? (
+                {exportableSections.length > 0 && !definition.download ? (
                   <button
                     className="result-hero__btn"
                     onClick={() => handleExport('txt')}
@@ -339,6 +340,8 @@ export function ToolResultScreen({
                     <Download size={13} aria-hidden="true" />
                   </button>
                 ) : definition.download ? (
+                  // Tools with their own download (Cover Letter) export the
+                  // on-page, possibly edited text rather than the raw payload.
                   <button
                     className="result-hero__btn"
                     onClick={() => {
@@ -352,7 +355,11 @@ export function ToolResultScreen({
                   </button>
                 ) : null}
                 {(resolvedTool.id === 'cover-letter' || resolvedTool.id === 'interview') && status === 'authenticated' && historyId && (
-                  <button className="result-hero__btn-text" onClick={() => exportPdf(historyId)} title="Export PDF">
+                  <button
+                    className="result-hero__btn-text"
+                    onClick={() => exportPdf(historyId)}
+                    title={resolvedTool.id === 'cover-letter' ? 'Export PDF of the generated letter (edits not included)' : 'Export PDF'}
+                  >
                     <FileText size={12} />
                     PDF
                   </button>

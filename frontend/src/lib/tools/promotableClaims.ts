@@ -58,7 +58,7 @@ export function getPromotableClaims(
         return {
           key: `interview-${index}`,
           kind: 'interview-evidence',
-          label: truncate(prompt),
+          label: `Q: ${truncate(prompt, 90)} · ${truncate(answer, 60)}`,
           content,
         }
       })

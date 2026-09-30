@@ -113,14 +113,6 @@ function getBrandRowTrigger(container: HTMLElement) {
 
 describe('AppSidebar', () => {
   beforeEach(() => {
-    for (const flag of [
-      'VITE_R11_EVIDENCE_PROFILE_ENABLED',
-      'VITE_R12_CV_STUDIO_ENABLED',
-      'VITE_R13_CAMPAIGNS_ENABLED',
-      'VITE_R14_DISCOVERY_ENABLED',
-      'VITE_R15_QUEUE_ENABLED',
-      'VITE_R17_DEVELOPMENT_LOOP_ENABLED',
-    ]) vi.stubEnv(flag, 'true')
     mockPathname.current = '/dashboard'
     mockUseIsMobile.mockReturnValue(false)
     mockSessionUser.current = { id: 'u1', email: 'test@example.com', name: 'Test User' }
@@ -129,32 +121,13 @@ describe('AppSidebar', () => {
   it('shows discovery only to authenticated users', () => {
     const authenticated = renderSidebar()
     expect(screen.getByRole('link', { name: 'Discover' })).toBeTruthy()
-    expect(screen.getByRole('link', { name: 'Queue' })).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Applications' })).toBeTruthy()
     authenticated.unmount()
 
     mockSessionUser.current = null
     renderSidebar()
     expect(screen.queryByRole('link', { name: 'Discover' })).toBeNull()
-    expect(screen.queryByRole('link', { name: 'Queue' })).toBeNull()
-  })
-
-  it('keeps build-ahead navigation absent unless its complete dependency chain is on', () => {
-    for (const flag of [
-      'VITE_R11_EVIDENCE_PROFILE_ENABLED',
-      'VITE_R12_CV_STUDIO_ENABLED',
-      'VITE_R13_CAMPAIGNS_ENABLED',
-      'VITE_R14_DISCOVERY_ENABLED',
-      'VITE_R15_QUEUE_ENABLED',
-      'VITE_R17_DEVELOPMENT_LOOP_ENABLED',
-    ]) vi.stubEnv(flag, 'false')
-
-    renderSidebar()
-
-    expect(screen.queryByRole('link', { name: 'Profile' })).toBeNull()
-    expect(screen.queryByRole('link', { name: 'CV Studio' })).toBeNull()
-    expect(screen.queryByRole('link', { name: 'Discover' })).toBeNull()
-    expect(screen.queryByRole('link', { name: 'Queue' })).toBeNull()
-    expect(screen.queryByRole('link', { name: 'Campaigns' })).toBeNull()
+    expect(screen.queryByRole('link', { name: 'Applications' })).toBeNull()
   })
 
   it('groups the sidebar into Tools, Job search, and You', () => {
@@ -165,11 +138,45 @@ describe('AppSidebar', () => {
     expect(screen.getByText('You')).toBeTruthy()
     expect(screen.getByRole('link', { name: /resume analyzer/i }).getAttribute('href')).toBe('/resume')
     expect(screen.getByRole('link', { name: 'Discover' }).getAttribute('href')).toBe('/discovery')
-    expect(screen.getByRole('link', { name: 'Queue' }).getAttribute('href')).toBe('/queue')
-    expect(screen.getByRole('link', { name: 'Campaigns' }).getAttribute('href')).toBe('/campaigns')
+    expect(screen.getByRole('link', { name: 'Applications' }).getAttribute('href')).toBe('/campaigns')
+    expect(screen.queryByRole('link', { name: 'Queue' })).toBeNull()
     expect(screen.getByRole('link', { name: 'CV Studio' }).getAttribute('href')).toBe('/cv-studio')
     expect(screen.getByRole('link', { name: 'Profile' }).getAttribute('href')).toBe('/profile')
     expect(screen.getByRole('link', { name: 'History' }).getAttribute('href')).toBe('/history')
+  })
+
+  it('gives every destination its own icon (no shared compass)', () => {
+    const { container } = renderSidebar(true)
+
+    const links = [...container.querySelectorAll<HTMLAnchorElement>('[data-sidebar="menu-button"]')]
+    const iconFor = (link: HTMLAnchorElement) =>
+      [...(link.querySelector('svg')?.classList ?? [])].find(
+        (name) => name.startsWith('lucide-') && name !== 'lucide-icon',
+      )
+    const icons = links.map(iconFor)
+
+    // Dashboard + 6 tools + Job search (2) + You (3) + Account + Settings.
+    expect(links).toHaveLength(14)
+    expect(icons.every(Boolean)).toBe(true)
+    expect(new Set(icons).size).toBe(links.length)
+  })
+
+  it('shows a visible text label for every destination when expanded', () => {
+    const { container } = renderSidebar(true)
+
+    for (const link of container.querySelectorAll('[data-sidebar="menu-button"]')) {
+      const label = link.querySelector('span')
+      expect(label?.textContent?.trim()).toBeTruthy()
+    }
+    expect(screen.getByText('Discover').tagName).toBe('SPAN')
+  })
+
+  it('names each icon in a tooltip when the sidebar is collapsed', async () => {
+    renderSidebar(false)
+
+    fireEvent.focus(screen.getByRole('link', { name: 'Discover' }))
+
+    expect(await screen.findByRole('tooltip', { name: 'Discover' })).toBeTruthy()
   })
 
   it('keeps "You" destinations visible for guests, unlike "Job search"', () => {

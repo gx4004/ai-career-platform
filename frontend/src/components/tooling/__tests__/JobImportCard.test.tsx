@@ -34,28 +34,19 @@ describe('JobImportCard', () => {
     importJobTextMock.mockReset()
     getHistoryWorkspacesMock.mockReset()
     getHistoryWorkspacesMock.mockResolvedValue({ items: [], total: 0 })
-    vi.unstubAllEnvs()
   })
 
-  describe('R13 campaign attachment (dark until the full R11-R13 chain is on)', () => {
-    it('hides the attach-to-campaign block while R13 is dark (default)', () => {
-      renderCard()
-      expect(screen.queryByLabelText(/Attach explicitly to a campaign/i)).toBeNull()
-      expect(getHistoryWorkspacesMock).not.toHaveBeenCalled()
-    })
+  describe('R13 campaign attachment', () => {
 
-    it('keeps populate-only import by default and exposes explicit campaign attachment once R13 is enabled', async () => {
-      vi.stubEnv('VITE_R11_EVIDENCE_PROFILE_ENABLED', 'true')
-      vi.stubEnv('VITE_R12_CV_STUDIO_ENABLED', 'true')
-      vi.stubEnv('VITE_R13_CAMPAIGNS_ENABLED', 'true')
+    it('keeps populate-only import by default and exposes explicit campaign attachment', async () => {
       getHistoryWorkspacesMock.mockResolvedValue({
         items: [{ id: 'ws-1', label: 'Example campaign' }], total: 1,
       })
       renderCard()
       expect(getHistoryWorkspacesMock).not.toHaveBeenCalled()
-      fireEvent.click(screen.getByLabelText(/Attach explicitly to a campaign/i))
+      fireEvent.click(screen.getByLabelText(/Attach to one of your applications/i))
       expect(await screen.findByRole('option', { name: 'Example campaign' })).toBeTruthy()
-      fireEvent.change(screen.getByLabelText('Campaign'), { target: { value: 'ws-1' } })
+      fireEvent.change(screen.getByLabelText('Application'), { target: { value: 'ws-1' } })
       fireEvent.change(screen.getByLabelText('Job title'), { target: { value: 'Engineer' } })
       fireEvent.change(screen.getByLabelText('Company'), { target: { value: 'Example Corp' } })
       fireEvent.change(screen.getByLabelText('Job description'), { target: { value: 'A sufficiently detailed pasted listing description.' } })

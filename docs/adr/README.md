@@ -49,5 +49,5 @@ What becomes easier, what becomes harder, rollback posture.
 - [0006. CV documents are structured entities referencing Evidence Profile facts](0006-r12-cv-document-model.md) — accepted 2026-07-10
 - [0007. Workspaces evolve in place into Application Campaigns](0007-r13-workspaces-become-campaigns.md) — accepted 2026-07-10
 - [0008. Discovery sources are registry-gated with bounded, attributable ingestion](0008-r14-registry-gated-discovery.md) — accepted 2026-07-10
-- [0009. The approval queue prepares packets; submission stays human](0009-r15-queue-prepares-submission-stays-human.md) — accepted 2026-07-10
-- [0010. Submission is a per-source authorized act on approved packet snapshots](0010-r16-per-source-authorized-submission.md) — accepted 2026-07-10
+- [0009. Applications prepare materials; submission stays human](0009-r15-queue-prepares-submission-stays-human.md) — accepted 2026-07-10, amended 2026-09-30
+- [0010. Submission is a per-source authorized act on approved packet snapshots](0010-r16-per-source-authorized-submission.md) — superseded 2026-09-30 (submission code removed in the Sept 2026 reset)

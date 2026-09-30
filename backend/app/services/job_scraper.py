@@ -4,9 +4,7 @@ from dataclasses import dataclass
 import httpx
 from bs4 import BeautifulSoup
 
-from app.schemas.analytics import ImportFailureCategory
 from app.schemas.tools import ImportedJobResponse
-from app.services.import_source import set_import_outcome
 from app.services.outbound_target import resolve_public_target
 
 logger = logging.getLogger(__name__)
@@ -19,14 +17,13 @@ logger = logging.getLogger(__name__)
 # helper below, so this is the only identity either tier presents.
 IMPORT_USER_AGENT = "CareerWorkbenchImport/1.0"
 
-# A description shorter than this is not a substantive posting. It still does not
-# make the import a *failure* — see `scrape_job_posting` (#142).
+# A description shorter than this is not a substantive posting, so the bounded
+# fallback tier gets a chance before the paste path.
 _SUBSTANTIVE_DESCRIPTION_CHARS = 100
 
-# Status codes that mean "this source refused the fetch" rather than "this fetch
-# went wrong". Kept separate so the recorded failure category distinguishes an
-# access control from an outage (#142).
-_BLOCKED_STATUS_CODES = frozenset({401, 403, 407, 429, 451})
+# Returned as the description when no tier produced a posting: the user is asked
+# to paste the listing instead.
+PASTE_FALLBACK_DESCRIPTION = "Could not extract the job description. Please copy and paste it."
 
 _BS4_TIMEOUT = 5.0
 _PLAYWRIGHT_TIMEOUT_MS = 10_000
@@ -56,34 +53,7 @@ class _FetchedResource:
 
 
 class _UnparseableResponseError(httpx.HTTPError):
-    """A response arrived, but it cannot be turned into a job posting.
-
-    A dedicated exception type — not a message match — so the recorded import
-    failure category is derived from the branch that produced it and never from
-    a message string (#142, D-059).
-    """
-
-
-def _classify_fetch_failure(exc: BaseException) -> ImportFailureCategory:
-    """Map one fetch failure onto a bounded, content-free failure category.
-
-    Only the exception *type*, and for a status error the status code, is
-    inspected — never a message, URL, host, or response body — so nothing
-    beyond the closed category set can reach the recorded evidence.
-    """
-    if isinstance(exc, ValueError):
-        # `resolve_public_target` refused the target or a redirect hop: this
-        # fetch is blocked by our own outbound policy.
-        return "failure_blocked"
-    if isinstance(exc, httpx.TimeoutException):
-        return "failure_timeout"
-    if isinstance(exc, _UnparseableResponseError):
-        return "failure_unparseable"
-    if isinstance(exc, httpx.HTTPStatusError):
-        if exc.response.status_code in _BLOCKED_STATUS_CODES:
-            return "failure_blocked"
-        return "failure_unavailable"
-    return "failure_unavailable"
+    """A response arrived, but it cannot be turned into a job posting."""
 
 
 def _validate_url(url: str) -> None:
@@ -224,16 +194,7 @@ def _parse_job_data(html: str, url: str) -> ImportedJobResponse:
 
 
 async def scrape_job_posting(url: str) -> ImportedJobResponse:
-    """Import one job posting, recording what actually happened as evidence.
-
-    The recorded R10 import outcome (#136, D-059) separates two questions the
-    source-concentration trigger must not conflate (#142): did the fetch and the
-    parse *work*, and was the result *substantive*. A page that fetches and
-    parses but yields a short description is a low-quality success — the user
-    still gets the same fallback behaviour as before, but the evidence no longer
-    counts that source as a failed import. Every failure the scraper can actually
-    tell apart is recorded with its bounded category instead of a bare failure.
-    """
+    """Import one job posting: httpx + BS4, then Playwright, then the paste fallback."""
     _validate_url(url)
 
     html: str | None = None
@@ -242,7 +203,6 @@ async def scrape_job_posting(url: str) -> ImportedJobResponse:
     try:
         html = await _fetch_with_httpx(url)
     except Exception as exc:
-        set_import_outcome(_classify_fetch_failure(exc))
         logger.info(
             "BS4 scrape failed; trying Playwright fallback error_type=%s",
             type(exc).__name__,
@@ -251,7 +211,6 @@ async def scrape_job_posting(url: str) -> ImportedJobResponse:
         try:
             result = _parse_job_data(html, url)
         except Exception as exc:
-            set_import_outcome("failure_unparseable")
             logger.info(
                 "BS4 parse failed; trying Playwright fallback error_type=%s",
                 type(exc).__name__,
@@ -260,40 +219,26 @@ async def scrape_job_posting(url: str) -> ImportedJobResponse:
         else:
             description = result.job_description or ""
             if len(description) > _SUBSTANTIVE_DESCRIPTION_CHARS:
-                set_import_outcome("success")
                 return result
-            # The fetch and the parse both worked; only the substance is
-            # missing. Record the quality honestly — a thin page is a
-            # low-quality success, an empty one is the source returning nothing
-            # — and keep the user-facing behaviour identical: try the bounded
-            # fallback tier, then the paste path.
-            set_import_outcome(
-                "success_low_quality" if description.strip() else "failure_empty"
-            )
+            # A thin page: try the bounded fallback tier, then the paste path.
             html = None
 
     # Tier 2: Playwright fallback (10s timeout)
     if html is None:
         try:
             html = await _fetch_with_playwright(url)
-            result = _parse_job_data(html, url)
-            # R10 import outcome: the bounded Playwright fallback produced it.
-            set_import_outcome("fallback")
-            return result
+            return _parse_job_data(html, url)
         except Exception as exc:
-            # The first tier already recorded what it observed about this
-            # source; a failing fallback must not overwrite that evidence.
             logger.info(
                 "Playwright scrape also failed error_type=%s",
                 type(exc).__name__,
             )
 
-    # Tier 3: Graceful paste fallback — no tier yielded a usable posting. The
-    # outcome recorded by tier 1 already describes why, so it stands.
+    # Tier 3: Graceful paste fallback — no tier yielded a usable posting.
     return ImportedJobResponse(
         job_title=None,
         company_name=None,
-        job_description="Could not extract the job description. Please copy and paste it.",
+        job_description=PASTE_FALLBACK_DESCRIPTION,
         source_url=url,
     )
 

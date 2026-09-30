@@ -24,7 +24,7 @@ async function gotoHydrated(page: Page, path: string) {
 async function register(page: Page, identity: string) {
   const email = uniqueEmail(identity.toLowerCase().replaceAll(' ', '-'))
   await gotoHydrated(page, '/login')
-  await page.getByRole('tab', { name: 'Create Account' }).click()
+  await page.getByRole('tab', { name: 'Create account' }).click()
   await page.locator('#register-name').fill(identity)
   await page.locator('#register-email').fill(email)
   await page.locator('#register-password').fill(password)
@@ -36,7 +36,7 @@ async function register(page: Page, identity: string) {
   await page.getByRole('button', { name: 'Create free account' }).click()
   const response = await responsePromise
   expect(response.ok()).toBe(true)
-  await expect(page.getByRole('heading', { name: 'You are already signed in' })).toBeVisible({
+  await expect(page.getByRole('heading', { name: "You're already signed in" })).toBeVisible({
     timeout: 15_000,
   })
   return email
@@ -65,7 +65,7 @@ test.beforeEach(async ({ context }) => {
   })
 })
 
-test('history filtering, favorites, detail, and labels work through the UI', async ({
+test('history filtering, favorites, rename and open work through the UI', async ({
   page,
 }) => {
   test.setTimeout(90_000)
@@ -79,37 +79,30 @@ test('history filtering, favorites, detail, and labels work through the UI', asy
   expect(id2Resp.ok()).toBe(true)
 
   await gotoHydrated(page, '/history')
-  await page.getByRole('button', { name: 'Resume', exact: true }).click()
-  await expect(page.getByLabel(/Label Resume Analyzer run/)).toHaveCount(2)
+  const filters = page.getByRole('group', { name: 'Filter by tool' })
+  await filters.getByRole('button', { name: 'Resume', exact: true }).click()
+  await expect(page.getByRole('link', { name: /^Open (?!Applications$)/ })).toHaveCount(2)
 
-  const labelInput = page.getByLabel(/Label Resume Analyzer run/).first()
-  await labelInput.fill('Backend application')
-  await page.getByRole('button', { name: 'Save label' }).first().click()
-  await expect(labelInput).toHaveValue('Backend application')
+  await page.getByRole('button', { name: /^Rename / }).first().click()
+  await page.getByRole('textbox', { name: /^Rename / }).fill('Backend application')
+  await page.getByRole('textbox', { name: /^Rename / }).press('Enter')
+  await expect(page.getByText('Backend application')).toBeVisible()
 
   await page.getByRole('button', { name: 'Add to favorites' }).first().click()
-  await page.getByRole('button', { name: /Favorites/ }).click()
-  await expect(page.getByLabel(/Label Resume Analyzer run/)).toHaveCount(1)
+  await filters.getByRole('button', { name: /Favorites/ }).click()
+  await expect(page.getByRole('link', { name: /^Open (?!Applications$)/ })).toHaveCount(1)
 
-  await page.getByRole('link', { name: 'View →' }).click()
+  await page.getByRole('link', { name: /^Open (?!Applications$)/ }).click()
   await expect(page).toHaveURL(new RegExp(`/resume/result/${id1}|/resume/result/`))
 })
 
-test('workspace listing, labeling, and pinning work through the UI', async ({ page }) => {
+test('continuing a run from history carries its context to the next tool', async ({ page }) => {
   test.setTimeout(60_000)
   await register(page, 'WS Full')
   await submitResume(page)
 
   await gotoHydrated(page, '/history')
-  const workspaceName = page.getByPlaceholder('Name this workspace').first()
-  await workspaceName.fill('My labeled workspace')
-  await page.getByRole('button', { name: 'Save name' }).first().click()
-  await expect(workspaceName).toHaveValue('My labeled workspace')
-
-  await page.getByRole('button', { name: 'Pin workspace' }).first().click()
-  await expect(page.getByText('My labeled workspace').first()).toBeVisible()
-
-  await page.getByRole('button', { name: 'Resume later' }).first().click()
+  await page.getByRole('button', { name: /^Continue: / }).first().click()
   await expect(page).toHaveURL(/\/job-match$/)
   const status = page.locator('.tool-status-inline')
   await expect(status).toBeVisible()
@@ -155,29 +148,27 @@ test('deleting one run preserves its workspace and deleting the final run remove
   await expect(page).toHaveURL(/\/resume\/result\/[^/]+$/)
 
   await gotoHydrated(page, '/history')
-  await expect(page.getByRole('button', { name: 'Delete this saved run' })).toHaveCount(2)
-  const originalRunCard = page.locator('.history-card').filter({
+  await expect(page.getByRole('button', { name: /^Delete / })).toHaveCount(2)
+  const originalRunRow = page.locator('.run-row').filter({
     has: page.locator(`a[href="/resume/result/${firstId}"]`),
   })
-  await originalRunCard.getByRole('button', { name: 'Delete this saved run' }).click()
+  await originalRunRow.getByRole('button', { name: /^Delete / }).click()
   await page.getByRole('button', { name: 'Delete run' }).click()
-  await expect(page.getByRole('button', { name: 'Delete this saved run' })).toHaveCount(1)
-  await expect(page.getByPlaceholder('Name this workspace')).toHaveCount(1)
+  await expect(page.getByRole('button', { name: /^Delete / })).toHaveCount(1)
 
   await gotoHydrated(page, `/resume/result/${firstId}`)
   await expect(page.getByRole('heading', { name: 'This saved result is no longer available' })).toBeVisible()
   await page.getByRole('link', { name: 'Back to history' }).click()
-  await expect(page.getByRole('button', { name: 'Delete this saved run' })).toHaveCount(1)
+  await expect(page.getByRole('button', { name: /^Delete / })).toHaveCount(1)
 
-  await page.getByRole('button', { name: 'Delete this saved run' }).click()
+  await page.getByRole('button', { name: /^Delete / }).click()
   await page.getByRole('button', { name: 'Delete run' }).click()
-  await expect(page.getByText(/no runs found/i)).toBeVisible()
-  await expect(page.getByPlaceholder('Name this workspace')).toHaveCount(0)
+  await expect(page.getByText(/no runs yet/i)).toBeVisible()
 })
 
 test('empty state renders when no runs exist', async ({ page }) => {
   test.setTimeout(60_000)
   await register(page, 'Empty')
   await gotoHydrated(page, '/history')
-  await expect(page.getByText(/no runs found/i)).toBeVisible()
+  await expect(page.getByText(/no runs yet/i)).toBeVisible()
 })

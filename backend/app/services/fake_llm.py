@@ -6,7 +6,7 @@ the heuristic-only fallback). This module gives local development and demos a
 believable stand-in: every caller's prompt shape is matched by a small marker
 substring each prompt builder already puts at the top of its system prompt
 (see ``app/prompts/*.py`` and the inline system prompts in
-``app/services/{cv_tailoring,cv_quality,application_packets}.py``), and the
+``app/services/{cv_tailoring,cv_quality,application_drafts}.py``), and the
 matching builder below returns realistic, schema-valid JSON built from the
 caller's own ``user_prompt`` content where that content is available (e.g.
 CV Studio tailoring must cite the entry text verbatim, so the fixture reads it
@@ -642,24 +642,6 @@ def _cv_tailoring(system_prompt: str, user_prompt: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# CV Studio: Quality scoring — inline system prompt in app/services/cv_quality.py
-# ---------------------------------------------------------------------------
-
-_MARKER_CV_QUALITY = "Score CV editing quality by impact, clarity, completeness, and structure."
-
-
-def _cv_quality(system_prompt: str, user_prompt: str) -> dict:
-    return {
-        "scores": [
-            {"key": "impact", "score": 74},
-            {"key": "clarity", "score": 80},
-            {"key": "completeness", "score": 69},
-            {"key": "structure", "score": 77},
-        ]
-    }
-
-
-# ---------------------------------------------------------------------------
 # Evidence Profile import — marker from app/prompts/evidence_import.py
 # ---------------------------------------------------------------------------
 
@@ -726,14 +708,14 @@ def _evidence_import(system_prompt: str, user_prompt: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Application Packets: cover letter + screening drafts — inline system prompt
-# in app/services/application_packets.py compose_packet_materials
+# Application drafts: cover letter + screening answers — SYSTEM_PROMPT
+# in app/services/application_drafts.py
 # ---------------------------------------------------------------------------
 
-_MARKER_APPLICATION_PACKETS = "You prepare an application packet's cover letter and screening-answer drafts."
+_MARKER_APPLICATION_DRAFTS = "You prepare an application's cover letter and screening-answer drafts."
 
 
-def _application_packets(system_prompt: str, user_prompt: str) -> dict:
+def _application_drafts(system_prompt: str, user_prompt: str) -> dict:
     role_line = _line_after(user_prompt, "# Role\n") or "this role"
     return {
         "cover_letter": {
@@ -768,9 +750,8 @@ def _application_packets(system_prompt: str, user_prompt: str) -> dict:
 
 _REGISTRY: list[tuple[str, Callable[[str, str], dict]]] = [
     (_MARKER_CV_TAILORING, _cv_tailoring),
-    (_MARKER_CV_QUALITY, _cv_quality),
     (_MARKER_EVIDENCE_IMPORT, _evidence_import),
-    (_MARKER_APPLICATION_PACKETS, _application_packets),
+    (_MARKER_APPLICATION_DRAFTS, _application_drafts),
     (_MARKER_RESUME, _resume_analyzer),
     (_MARKER_JOB_MATCH, _job_matcher),
     (_MARKER_COVER_LETTER, _cover_letter),

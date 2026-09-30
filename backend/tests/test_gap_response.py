@@ -7,7 +7,7 @@ from app.models.workspace import Workspace
 from app.schemas.development import RESPONSE_FOR_GAP
 from app.services.gap_response import map_gap_to_response
 
-PREFIX = "/api/v1/history"
+PREFIX = "/api/v1/applications"
 
 SUBSTANCE_KINDS = ["uncaptured_evidence", "evidence_not_yet_produced", "missing_skill"]
 
@@ -164,7 +164,7 @@ def _persist_classification(db, user_id, *, gap_kind="missing_skill", finding_id
 def test_endpoint_returns_the_honest_offer(client, auth_headers, test_user, db):
     row = _persist_classification(db, test_user.id, gap_kind="missing_skill")
     response = client.get(
-        f"{PREFIX}/workspaces/{row.workspace_id}/gap-classifications/{row.id}/response",
+        f"{PREFIX}/{row.workspace_id}/gap-classifications/{row.id}/response",
         headers=auth_headers,
     )
     assert response.status_code == 200
@@ -182,7 +182,7 @@ def test_endpoint_unknown_classification_is_404(client, auth_headers, test_user,
     db.add(workspace)
     db.commit()
     response = client.get(
-        f"{PREFIX}/workspaces/{workspace.id}/gap-classifications/nope/response",
+        f"{PREFIX}/{workspace.id}/gap-classifications/nope/response",
         headers=auth_headers,
     )
     assert response.status_code == 404
@@ -195,7 +195,7 @@ def test_endpoint_is_owner_scoped(client, test_user, db):
     db.commit()
     intruder = {"Authorization": f"Bearer {create_access_token(other.id)}"}
     response = client.get(
-        f"{PREFIX}/workspaces/{row.workspace_id}/gap-classifications/{row.id}/response",
+        f"{PREFIX}/{row.workspace_id}/gap-classifications/{row.id}/response",
         headers=intruder,
     )
     assert response.status_code == 404

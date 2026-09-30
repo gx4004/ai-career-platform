@@ -25,7 +25,7 @@ const EXPECTED_CSP = [
   "object-src 'none'",
   "frame-ancestors 'none'",
   "form-action 'self'",
-  "connect-src 'self' https://api.example.test https://example.ingest.sentry.io",
+  "connect-src 'self' https://api.example.test",
   "font-src 'self' https://fonts.gstatic.com",
   "frame-src 'self' blob:",
   "img-src 'self' data: blob:",
@@ -48,7 +48,6 @@ async function startFixture(t, env = {}, { serverModule = DEFAULT_SERVER_MODULE 
       ...process.env,
       PORT: '0',
       VITE_API_URL: 'https://api.example.test/api/v1',
-      VITE_SENTRY_DSN: 'https://public@example.ingest.sentry.io/1',
       ...env,
     },
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -117,7 +116,7 @@ test('frontend responses apply deployment-compatible security headers', async (t
   assert.match(asset.headers.get('content-security-policy'), /default-src 'self'/)
   assert.match(
     html.headers.get('content-security-policy'),
-    /connect-src 'self' https:\/\/api\.example\.test https:\/\/example\.ingest\.sentry\.io/,
+    /connect-src 'self' https:\/\/api\.example\.test(;|$)/,
   )
   assert.match(
     html.headers.get('content-security-policy'),
@@ -165,7 +164,7 @@ test('SSR failures log the error shape without the message or stack', async (t) 
   assert.doesNotMatch(
     logged,
     /rendering failed for/,
-    'SSR log leaked the error message to stdout, which Sentry scrubbing does not cover',
+    'SSR log leaked the error message to stdout, which is not scrubbed',
   )
   assert.doesNotMatch(logged, /\bat .*serve\.mjs/, 'SSR log leaked a stack trace to stdout')
 })

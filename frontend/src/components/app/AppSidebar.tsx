@@ -29,7 +29,8 @@ import {
 import { cn } from '#/lib/utils'
 import { toolList } from '#/lib/tools/registry'
 import { toolAccentStyle } from '#/lib/tools/styleUtils'
-import { navGroups } from '#/lib/navigation/routeMeta'
+import { navGroups } from '#/lib/navigation/navGroups'
+import type { NavDestination } from '#/lib/navigation/navGroups'
 
 const accountNavItems = [
   { label: 'Account', icon: UserRound, route: '/account' },
@@ -45,11 +46,8 @@ export function AppSidebar() {
   const isCollapsedDesktop = !isMobile && state === 'collapsed'
   const isDesktopToolRoute =
     !isMobile && toolList.some((tool) => pathname === tool.route)
-  const visibleGroup = (id: string) => {
-    const group = navGroups.find((candidate) => candidate.id === id)
-    if (!group) return []
-    return group.destinations.filter((item) => item.enabled?.() ?? true)
-  }
+  const visibleGroup = (id: string) =>
+    navGroups.find((candidate) => candidate.id === id)?.destinations ?? []
   // "Job search" stays owner-only, same as the old "Opportunities" group.
   // "You" (CV Studio, Profile, History) keeps rendering for guests, same as
   // the old "Career Tools" + footer items did before the regroup.
@@ -142,70 +140,8 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
-        {jobSearchDestinations.length > 0 ? (
-          <>
-            <SidebarSeparator />
-            <SidebarGroup>
-              <SidebarGroupLabel>Job search</SidebarGroupLabel>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  {jobSearchDestinations.map((item) => (
-                    <SidebarMenuItem key={item.route}>
-                      <SidebarMenuButton
-                        asChild
-                        tooltip={item.label}
-                        isActive={pathname.startsWith(item.route)}
-                        className="app-sidebar-menu-button"
-                      >
-                        {/* Campaigns has no registered route yet (built alongside
-                            this change by another agent), so it can't use the
-                            typed router Link. */}
-                        {item.route === '/campaigns' ? (
-                          <a href={item.route}>
-                            <item.icon className="app-sidebar-item-icon" />
-                            <span>{item.label}</span>
-                          </a>
-                        ) : (
-                          <Link to={item.route}>
-                            <item.icon className="app-sidebar-item-icon" />
-                            <span>{item.label}</span>
-                          </Link>
-                        )}
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  ))}
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
-          </>
-        ) : null}
-        {youDestinations.length > 0 ? (
-          <>
-            <SidebarSeparator />
-            <SidebarGroup>
-              <SidebarGroupLabel>You</SidebarGroupLabel>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  {youDestinations.map((item) => (
-                    <SidebarMenuItem key={item.route}>
-                      <SidebarMenuButton
-                        asChild
-                        tooltip={item.label}
-                        isActive={pathname.startsWith(item.route)}
-                        className="app-sidebar-menu-button"
-                      >
-                        <Link to={item.route}>
-                          <item.icon className="app-sidebar-item-icon" />
-                          <span>{item.label}</span>
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  ))}
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
-          </>
-        ) : null}
+        <NavGroupSection label="Job search" destinations={jobSearchDestinations} pathname={pathname} />
+        <NavGroupSection label="You" destinations={youDestinations} pathname={pathname} />
       </SidebarContent>
       <SidebarFooter className="app-sidebar-footer">
         <SidebarSeparator />
@@ -251,5 +187,44 @@ export function AppSidebar() {
       </SidebarFooter>
       {isDesktopToolRoute ? null : <SidebarRail />}
     </Sidebar>
+  )
+}
+
+function NavGroupSection({
+  label,
+  destinations,
+  pathname,
+}: {
+  label: string
+  destinations: NavDestination[]
+  pathname: string
+}) {
+  if (destinations.length === 0) return null
+  return (
+    <>
+      <SidebarSeparator />
+      <SidebarGroup>
+        <SidebarGroupLabel>{label}</SidebarGroupLabel>
+        <SidebarGroupContent>
+          <SidebarMenu>
+            {destinations.map((item) => (
+              <SidebarMenuItem key={item.route}>
+                <SidebarMenuButton
+                  asChild
+                  tooltip={item.label}
+                  isActive={pathname.startsWith(item.route)}
+                  className="app-sidebar-menu-button"
+                >
+                  <Link to={item.route}>
+                    <item.icon className="app-sidebar-item-icon" />
+                    <span>{item.label}</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            ))}
+          </SidebarMenu>
+        </SidebarGroupContent>
+      </SidebarGroup>
+    </>
   )
 }

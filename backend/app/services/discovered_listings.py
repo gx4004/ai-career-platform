@@ -1,14 +1,24 @@
+"""The product-owned discovered-listing store (ADR 0008).
+
+Canonical listings are deduplicated by a hash of their normalized title, company
+and description; each source posting is an attribution row keyed by
+``(source_id, source_listing_key)``. Ingestion writes one source's whole payload
+per call and commits once. There is one scheduler loop in one process, so no two
+writers ever store for the same source at the same time.
+"""
+
 from __future__ import annotations
 
 import hashlib
 import json
 import re
 import unicodedata
+import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from urllib.parse import urlparse, urlunparse
 
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy import delete, exists, select, update
 from sqlalchemy.orm import Session
 
 from app.models.discovered_listing import (
@@ -17,15 +27,16 @@ from app.models.discovered_listing import (
 )
 from app.models.discovery_source import DiscoverySource
 from app.schemas.discovered_listings import DiscoveredListingInput
-from app.services.analytics import safe_record_activation_event
-from app.services.discovery_sources import require_ingestion_allowed
+from app.services.ats_providers import listing_host_for_api_host
+
+_MUTABLE_FIELDS = ("location", "remote", "posted_at", "apply_url", "department")
 
 
 @dataclass(frozen=True)
-class ListingStoreResult:
-    listing: DiscoveredListing
-    attribution: DiscoveredListingAttribution
-    deduplicated: bool
+class StoreCounts:
+    stored: int
+    deduplicated: int
+    skipped: int
 
 
 @dataclass(frozen=True)
@@ -34,209 +45,135 @@ class ListingExpiryResult:
     listings_deleted: int
 
 
-def store_discovered_listing(
+def store_source_listings(
     db: Session,
+    source: DiscoverySource,
+    bodies: list[DiscoveredListingInput],
     *,
-    source_key: str,
-    body: DiscoveredListingInput,
-    retrieved_at: datetime | None = None,
-) -> ListingStoreResult:
-    source = (
-        db.query(DiscoverySource)
-        .filter_by(source_key=source_key)
-        .with_for_update()
-        .one()
-    )
-    require_ingestion_allowed(db, source_key, source.allowed_behavior)
-    source_family = source.source_family
-    source_url = _canonical_source_url(
-        body.source_url, source.endpoint_url or "", source_family
-    )
-    digest = listing_content_sha256(body.title, body.company, body.description)
-    listing = db.query(DiscoveredListing).filter_by(content_sha256=digest).first()
-    deduplicated = listing is not None
-    if listing is None:
-        listing = DiscoveredListing(
-            content_sha256=digest,
-            title=body.title.strip(),
-            company=body.company.strip(),
-            description=body.description.strip(),
-            location=_stripped_or_none(body.location),
-            remote=body.remote,
-            posted_at=body.posted_at,
-            apply_url=body.apply_url,
-            department=_stripped_or_none(body.department),
-        )
-        try:
-            with db.begin_nested():
-                db.add(listing)
-                db.flush()
-        except IntegrityError:
-            # Another ingestion worker can win the unique-content race between
-            # our lookup and insert. Reuse its canonical row rather than
-            # failing or creating a parallel listing.
-            listing = db.query(DiscoveredListing).filter_by(content_sha256=digest).one()
-            deduplicated = True
-    attribution = (
-        db.query(DiscoveredListingAttribution)
-        .filter_by(source_id=source.id, source_listing_key=body.source_listing_key)
-        .with_for_update()
-        .first()
-    )
-    # Refresh mutable, non-hashed fields (location/remote/posted_at/apply_url/
-    # department) only when this store is either the listing's first write or
-    # a re-fetch of the *same* posting (same source + source_listing_key). A
-    # content-hash dedup hit from a *different* key — e.g. the same
-    # title/company/description posted for several offices — must not let
-    # whichever posting happens to be processed last silently overwrite the
-    # canonical row's location/apply_url with an unrelated office's.
-    is_same_posting_refresh = attribution is not None and attribution.listing_id == listing.id
-    if not deduplicated or is_same_posting_refresh:
-        listing.location = _stripped_or_none(body.location)
-        listing.remote = body.remote
-        listing.posted_at = body.posted_at
-        listing.apply_url = body.apply_url
-        listing.department = _stripped_or_none(body.department)
+    retrieved_at: datetime,
+) -> StoreCounts:
+    """Upsert one source's current listings in a fixed number of statements.
 
-    previous_listing_id: str | None = None
-    if attribution is None:
-        attribution = DiscoveredListingAttribution(
-            listing_id=listing.id,
-            source_id=source.id,
-            source_listing_key=body.source_listing_key,
-            source_url=source_url,
-            retrieved_at=retrieved_at or datetime.now(UTC),
-        )
-        try:
-            with db.begin_nested():
-                db.add(attribution)
-                db.flush()
-        except IntegrityError:
-            # A parallel refresh of the same source record won the unique-key
-            # race. Treat it as the existing attribution and update it below.
-            attribution = (
-                db.query(DiscoveredListingAttribution)
-                .filter_by(source_id=source.id, source_listing_key=body.source_listing_key)
-                .with_for_update()
-                .one()
+    ``stored`` counts new canonical listings; ``deduplicated`` counts postings
+    whose content already had a canonical listing. An unchanged posting only has
+    its retrieval date bumped, in one UPDATE for the whole source. The caller
+    commits.
+    """
+    by_key = {body.source_listing_key: body for body in bodies}
+    digests = {
+        key: listing_content_sha256(body.title, body.company, body.description)
+        for key, body in by_key.items()
+    }
+    attributions = {
+        row.source_listing_key: row
+        for row in db.scalars(
+            select(DiscoveredListingAttribution).where(
+                DiscoveredListingAttribution.source_id == source.id
             )
-            previous_listing_id = attribution.listing_id
-            attribution.listing = listing
-            attribution.source_url = source_url
-            attribution.retrieved_at = retrieved_at or datetime.now(UTC)
-    else:
-        previous_listing_id = attribution.listing_id
-        attribution.listing = listing
-        attribution.source_url = source_url
-        attribution.retrieved_at = retrieved_at or datetime.now(UTC)
-    db.flush()
-    if previous_listing_id is not None and previous_listing_id != listing.id:
-        previous_listing = (
-            db.query(DiscoveredListing)
-            .filter_by(id=previous_listing_id)
-            .with_for_update()
-            .one_or_none()
         )
-        has_attribution = (
-            db.query(DiscoveredListingAttribution.id)
-            .filter_by(listing_id=previous_listing_id)
-            .first()
-            is not None
-        )
-        if previous_listing is not None and not has_attribution:
-            db.delete(previous_listing)
-    db.commit()
-    db.refresh(listing)
-    db.refresh(attribution)
-    # Bounded per-source-family ingest outcome for the operator health view
-    # (#177). Recorded after the store commit so it never rides the ingestion
-    # transaction; carries only the family and the dedup outcome class.
-    safe_record_activation_event(
-        db,
-        event_name="discovery_source_ingest_outcome",
-        operational_dimension=source_family,
-        operational_outcome="deduplicated" if deduplicated else "ingested",
+    }
+    listings = (
+        {
+            row.content_sha256: row
+            for row in db.scalars(
+                select(DiscoveredListing).where(
+                    DiscoveredListing.content_sha256.in_(set(digests.values()))
+                )
+            )
+        }
+        if digests
+        else {}
     )
-    return ListingStoreResult(listing, attribution, deduplicated)
+
+    stored = deduplicated = skipped = 0
+    unchanged: list[str] = []
+    moved_from: set[str] = set()
+    for key, body in by_key.items():
+        try:
+            source_url = _canonical_source_url(body.source_url, source)
+        except ValueError:
+            skipped += 1
+            continue
+        listing = listings.get(digests[key])
+        attribution = attributions.get(key)
+        if listing is None:
+            stored += 1
+            listing = DiscoveredListing(
+                id=str(uuid.uuid4()),
+                content_sha256=digests[key],
+                title=body.title.strip(),
+                company=body.company.strip(),
+                description=body.description.strip(),
+            )
+            _set_mutable_fields(listing, body)
+            db.add(listing)
+            listings[digests[key]] = listing
+        else:
+            deduplicated += 1
+            # Refresh location/apply link/etc. only on a re-fetch of the same
+            # posting: the same text posted for another office must not
+            # overwrite this canonical row's office.
+            if attribution is not None and attribution.listing_id == listing.id:
+                _set_mutable_fields(listing, body)
+
+        if attribution is None:
+            db.add(
+                DiscoveredListingAttribution(
+                    listing_id=listing.id,
+                    source_id=source.id,
+                    source_listing_key=key,
+                    source_url=source_url,
+                    retrieved_at=retrieved_at,
+                )
+            )
+        elif attribution.listing_id == listing.id and attribution.source_url == source_url:
+            unchanged.append(attribution.id)
+        else:
+            if attribution.listing_id != listing.id:
+                moved_from.add(attribution.listing_id)
+            attribution.listing_id = listing.id
+            attribution.source_url = source_url
+            attribution.retrieved_at = retrieved_at
+    db.flush()
+
+    if unchanged:
+        db.execute(
+            update(DiscoveredListingAttribution)
+            .where(DiscoveredListingAttribution.id.in_(unchanged))
+            .values(retrieved_at=retrieved_at)
+            .execution_options(synchronize_session=False)
+        )
+    if moved_from:
+        db.execute(
+            delete(DiscoveredListing)
+            .where(DiscoveredListing.id.in_(moved_from), ~_has_attribution())
+            .execution_options(synchronize_session=False)
+        )
+    return StoreCounts(stored=stored, deduplicated=deduplicated, skipped=skipped)
 
 
 def expire_discovered_listings(db: Session, *, now: datetime | None = None) -> ListingExpiryResult:
+    """Delete attributions past their source's retention, then orphaned listings."""
     now = now or datetime.now(UTC)
-    expired_attributions: list[DiscoveredListingAttribution] = []
-    governed_sources = (
-        db.query(DiscoverySource)
-        .order_by(DiscoverySource.id)
-        .populate_existing()
-        .with_for_update()
-        .all()
-    )
-    sources_by_id = {source.id: source for source in governed_sources}
-    governed_attributions = []
-    if sources_by_id:
-        # Match store's source -> attribution -> canonical lock order to avoid
-        # deadlocks while re-reading the rows that determine expiry.
-        governed_attributions = (
-            db.query(DiscoveredListingAttribution)
-            .filter(DiscoveredListingAttribution.source_id.in_(sources_by_id))
-            .order_by(
-                DiscoveredListingAttribution.source_id,
-                DiscoveredListingAttribution.id,
+    attributions_deleted = 0
+    for source_id, retention_days in db.execute(
+        select(DiscoverySource.id, DiscoverySource.retention_days)
+    ):
+        attributions_deleted += db.execute(
+            delete(DiscoveredListingAttribution)
+            .where(
+                DiscoveredListingAttribution.source_id == source_id,
+                DiscoveredListingAttribution.retrieved_at < now - timedelta(days=retention_days),
             )
-            .populate_existing()
-            .with_for_update()
-            .all()
-        )
-    for attribution in governed_attributions:
-        source = sources_by_id[attribution.source_id]
-        retrieved_at = attribution.retrieved_at
-        if retrieved_at.tzinfo is None:
-            retrieved_at = retrieved_at.replace(tzinfo=UTC)
-        if retrieved_at < now - timedelta(days=source.retention_days):
-            expired_attributions.append(attribution)
-
-    expired_families = [
-        sources_by_id[item.source_id].source_family for item in expired_attributions
-    ]
-    affected_listing_ids = {item.listing_id for item in expired_attributions}
-    locked_listings = []
-    if affected_listing_ids:
-        # Parent row locks serialize expiry/deletion with FK-backed attribution
-        # inserts, preventing a newly inserted attribution from being cascaded
-        # away with a canonical row we observed as orphaned.
-        locked_listings = (
-            db.query(DiscoveredListing)
-            .filter(DiscoveredListing.id.in_(affected_listing_ids))
-            .with_for_update()
-            .all()
-        )
-    for attribution in expired_attributions:
-        db.delete(attribution)
-    db.flush()
-    listings_deleted = 0
-    for candidate in locked_listings:
-        has_attribution = (
-            db.query(DiscoveredListingAttribution.id)
-            .filter_by(listing_id=candidate.id)
-            .first()
-            is not None
-        )
-        if not has_attribution:
-            db.delete(candidate)
-            listings_deleted += 1
+            .execution_options(synchronize_session=False)
+        ).rowcount
+    listings_deleted = db.execute(
+        delete(DiscoveredListing)
+        .where(~_has_attribution())
+        .execution_options(synchronize_session=False)
+    ).rowcount
     db.commit()
-    # Bounded per-source-family expiry outcomes for the operator health view
-    # (#177). Emitted after the expiry transaction commits so instrumentation
-    # never holds the row locks; one event per expired attribution carries only
-    # the family and the `expired` outcome class — no listing content or id.
-    for family in expired_families:
-        safe_record_activation_event(
-            db,
-            event_name="discovery_source_expiry",
-            operational_dimension=family,
-            operational_outcome="expired",
-            occurred_at=now,
-        )
-    return ListingExpiryResult(len(expired_attributions), listings_deleted)
+    return ListingExpiryResult(attributions_deleted, listings_deleted)
 
 
 def listing_content_sha256(title: str, company: str, description: str) -> str:
@@ -252,35 +189,43 @@ def listing_content_sha256(title: str, company: str, description: str) -> str:
     return hashlib.sha256(canonical.encode()).hexdigest()
 
 
+def _has_attribution():
+    return exists().where(DiscoveredListingAttribution.listing_id == DiscoveredListing.id)
+
+
+def _set_mutable_fields(listing: DiscoveredListing, body: DiscoveredListingInput) -> None:
+    values = {
+        "location": _stripped_or_none(body.location),
+        "remote": body.remote,
+        "posted_at": body.posted_at,
+        "apply_url": body.apply_url,
+        "department": _stripped_or_none(body.department),
+    }
+    for field in _MUTABLE_FIELDS:
+        if getattr(listing, field) != values[field]:
+            setattr(listing, field, values[field])
+
+
 def _normalize(value: str) -> str:
     value = unicodedata.normalize("NFKC", value).casefold()
     return re.sub(r"\s+", " ", re.sub(r"[^\w\s]", " ", value)).strip()
 
 
-# Employer-ATS governance rows point `endpoint_url` at the provider's JSON API
-# host (e.g. `boards-api.greenhouse.io`), but each posting's public, shareable
-# URL lives on a separate hosted-board host the same provider operates (e.g.
-# `boards.greenhouse.io`) — never on the employer's own custom careers domain,
-# which `ats_ingestion` never uses as `source_url` (#323). This is a closed
-# allowlist, not a pass-through: an attribution URL for an `employer_ats`
-# source must land on exactly the hosted-board host paired with its API host.
-_EMPLOYER_ATS_LISTING_HOST_BY_API_HOST = {
-    "boards-api.greenhouse.io": "boards.greenhouse.io",
-    "api.lever.co": "jobs.lever.co",
-    "api.ashbyhq.com": "jobs.ashbyhq.com",
-}
+def _canonical_source_url(value: str, source: DiscoverySource) -> str:
+    """The posting's public link, which must sit on the source's own board host.
 
-
-def _canonical_source_url(value: str, endpoint_url: str, source_family: str = "") -> str:
+    An employer-ATS source's API host (``boards-api.greenhouse.io``) pairs with
+    exactly one hosted-board host (``boards.greenhouse.io``); any other source
+    must link to its endpoint's own host.
+    """
     parsed = urlparse(value)
-    endpoint = urlparse(endpoint_url)
-    if parsed.username or parsed.password:
-        raise ValueError("Listing attribution URL must belong to the governed source host")
-    if source_family == "employer_ats":
-        allowed_host = _EMPLOYER_ATS_LISTING_HOST_BY_API_HOST.get(endpoint.hostname or "")
-        if allowed_host is None or parsed.hostname != allowed_host:
-            raise ValueError("Listing attribution URL must belong to the governed source host")
-    elif parsed.hostname != endpoint.hostname:
+    endpoint_host = urlparse(source.endpoint_url or "").hostname or ""
+    allowed_host = (
+        listing_host_for_api_host(endpoint_host)
+        if source.source_family == "employer_ats"
+        else endpoint_host
+    )
+    if parsed.username or parsed.password or not allowed_host or parsed.hostname != allowed_host:
         raise ValueError("Listing attribution URL must belong to the governed source host")
     return urlunparse((parsed.scheme, parsed.netloc, parsed.path or "/", "", "", ""))
 

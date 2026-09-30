@@ -1,23 +1,17 @@
 from pathlib import Path
-from typing import Literal
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, UploadFile, status
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.auth.security import get_current_user
 from app.database import get_db
-from app.limiter import (
-    limiter,
-    model_abuse_limits,
-    waivable_model_abuse_limits,
-    waive_model_budget,
-)
+from app.limiter import limiter
 from app.models.cv_document import CvDocument
 from app.models.user import User
 from app.schemas.cv_documents import (
-    CvArtifactEvidence,
     CvArtifactFormat,
     CvDocumentCreate,
     CvDocumentListResponse,
@@ -26,23 +20,15 @@ from app.schemas.cv_documents import (
     CvDocumentUpdate,
     CvImportAccept,
     CvImportProposal,
-    CvQualityRequest,
     CvQualityResponse,
-    CvRenderModel,
     CvStyle,
     CvStyleCatalog,
-    CvStyleCatalogFont,
-    CvStyleCatalogTemplate,
     CvTailoringApply,
-    CvTailoringEditProposal,
     CvTailoringProposal,
     CvTailoringRequest,
-    CvTemplateId,
     CvVariantCreate,
     CvVariantResponse,
 )
-from app.schemas.evidence_profile import EvidenceItemCreate, EvidenceItemResponse
-from app.services.analytics import safe_record_activation_event
 from app.services.cv_documents import (
     CvDocumentNotFoundError,
     DuplicateVariantNameError,
@@ -62,57 +48,28 @@ from app.services.cv_documents import (
 )
 from app.services.cv_fonts import FONT_FAMILIES, FONTS_DIR
 from app.services.cv_parser_process import CvParserProcessRejected, parse_cv_import_isolated
-from app.services.cv_quality import (
-    analyze_cv_quality,
-    analyze_cv_quality_heuristic,
-    compute_ats_summary,
-)
+from app.services.cv_quality import analyze_cv_quality
 from app.services.cv_rendering import (
-    ATS_SAFE_TEMPLATES,
-    TEMPLATES,
     build_render_model,
     render_docx,
     render_pdf,
+    style_catalog,
     validate_artifact,
 )
 from app.services.cv_tailoring import (
     generate_cv_tailoring,
     proposal_token,
-    read_change_field,
     verify_proposal_token,
 )
 from app.services.cv_upload import CvUploadRejected, read_validated_cv_upload
-from app.services.evidence_profile import create_evidence_item
 from app.services.tool_pipeline import run_tool_pipeline
 
 router = APIRouter()
-CV_QUALITY_MODEL_RUN_LIMIT = 10
 CV_TAILORING_MODEL_RUN_LIMIT = 10
 
-_TEMPLATE_CATALOG_META = {
-    "ats-essential": ("ATS Essential", "Single-column, minimal styling built for applicant tracking systems."),
-    "professional-editorial": (
-        "Professional Editorial",
-        "A refined single-column layout with warm serif section headings.",
-    ),
-    "technical-portfolio": (
-        "Technical Portfolio",
-        "Monospace-accented layout suited to engineering and technical roles.",
-    ),
-    "modern-two-column": (
-        "Modern Two-Column",
-        "A sidebar column for contact/skills next to a wide main column. PDF only — "
-        "DOCX exports degrade to a single column.",
-    ),
-    "minimal-serif": (
-        "Minimal Serif",
-        "A quiet, minimal serif layout with generous whitespace.",
-    ),
-}
-
-
-def _document_style(document: CvDocument) -> CvStyle | None:
-    return CvStyle(**document.style) if document.style else None
+def _document_style(document: CvDocument) -> CvStyle:
+    """The saved style, or the defaults the preview shows for an unstyled CV."""
+    return CvStyle(**(document.style or {}))
 
 
 _INVALID_IMPORT = (
@@ -198,21 +155,8 @@ def create(
 
 
 @router.get("/style-catalog", response_model=CvStyleCatalog)
-def style_catalog(current_user: User = Depends(get_current_user)):
-    templates = [
-        CvStyleCatalogTemplate(
-            id=template_id,
-            name=_TEMPLATE_CATALOG_META[template_id][0],
-            description=_TEMPLATE_CATALOG_META[template_id][1],
-            ats_safe=template_id in ATS_SAFE_TEMPLATES,
-        )
-        for template_id in TEMPLATES
-    ]
-    fonts = [
-        CvStyleCatalogFont(id=family.id, name=family.name, category=family.category)
-        for family in FONT_FAMILIES.values()
-    ]
-    return CvStyleCatalog(templates=templates, fonts=fonts)
+def get_style_catalog(current_user: User = Depends(get_current_user)):
+    return style_catalog()
 
 
 # Strict allowlist of the bundled OFL TTFs — never an arbitrary filesystem path.
@@ -254,56 +198,6 @@ def get_one(
         _not_found(error)
 
 
-@router.get("/{document_id}/render", response_model=CvRenderModel)
-def preview_render(
-    document_id: str,
-    template: CvTemplateId,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    try:
-        return build_render_model(get_document(db, document_id, current_user.id), template)
-    except CvDocumentNotFoundError as error:
-        _not_found(error)
-
-
-@router.get("/{document_id}/render-model", response_model=CvRenderModel)
-def render_model_preview(
-    document_id: str,
-    template_id: CvTemplateId | None = None,
-    font_id: str | None = None,
-    accent_color: str | None = None,
-    density: str | None = None,
-    ats_mode: bool | None = None,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    """Live-preview render model: an unsaved style can be tried via query params.
-
-    Falls back field-by-field to the document's saved style (or the default style
-    when none is saved), so the UI can preview a single changed control without
-    resending the whole style object.
-    """
-    try:
-        document = get_document(db, document_id, current_user.id)
-    except CvDocumentNotFoundError as error:
-        _not_found(error)
-    base = document.style or {}
-    overrides = {
-        "template_id": template_id,
-        "font_id": font_id,
-        "accent_color": accent_color,
-        "density": density,
-        "ats_mode": ats_mode,
-    }
-    merged = {**base, **{k: v for k, v in overrides.items() if v is not None}}
-    try:
-        style = CvStyle(**merged)
-    except Exception as error:
-        raise HTTPException(status_code=422, detail="Invalid style override") from error
-    return build_render_model(document, style.template_id, style)
-
-
 def _safe_filename(name: str, template: str, extension: str) -> str:
     base = "".join(
         character if character.isascii() and (character.isalnum() or character in "-_") else "-"
@@ -319,149 +213,55 @@ def export_artifact(
     request: Request,
     document_id: str,
     format: CvArtifactFormat,
-    template: CvTemplateId,
-    disposition: Literal["attachment", "inline"] = "attachment",
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """Export the saved CV in its saved style (the same bytes "View exact PDF" shows)."""
     try:
         document = get_document(db, document_id, current_user.id)
     except CvDocumentNotFoundError as error:
         _not_found(error)
 
-    model = build_render_model(document, template, _document_style(document))
+    style = _document_style(document)
+    model = build_render_model(document, style.template_id, style)
     artifact = render_pdf(model) if format == "pdf" else render_docx(model)
     media_type = (
         "application/pdf"
         if format == "pdf"
         else "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
     )
+    filename = _safe_filename(document.name, style.template_id, format)
     return Response(
         content=artifact,
         media_type=media_type,
         headers={
-            "Content-Disposition": f'{disposition}; filename="{_safe_filename(document.name, template, format)}"',
+            "Content-Disposition": f'attachment; filename="{filename}"',
             "X-Content-Type-Options": "nosniff",
             "Cache-Control": "private, no-store",
-            "X-CV-Canonical-Hash": model.canonical_hash,
         },
     )
 
 
-@router.get("/{document_id}/artifacts/{format}/evidence", response_model=CvArtifactEvidence)
-@limiter.limit("10/minute")
-def artifact_evidence(
-    request: Request,
-    document_id: str,
-    format: CvArtifactFormat,
-    template: CvTemplateId,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    try:
-        document = get_document(db, document_id, current_user.id)
-    except CvDocumentNotFoundError as error:
-        _not_found(error)
-    model = build_render_model(document, template, _document_style(document))
-    artifact = render_pdf(model) if format == "pdf" else render_docx(model)
-    return validate_artifact(model, artifact, format)
-
-
-async def _waive_model_budget_for_deterministic_quality(body: CvQualityRequest) -> None:
-    """Keep deterministic quality checks off the shared LLM cost budget.
-
-    ``/quality`` serves two modes from one route. Only ``use_model`` reaches a
-    provider; the heuristic mode is local computation and must stay available
-    even once the account's model budget is spent. Runs as a dependency because
-    the limits are evaluated on entry to the handler, before its body executes.
-    """
-    if not body.use_model:
-        waive_model_budget()
-
-
-@router.post(
-    "/{document_id}/quality",
-    response_model=CvQualityResponse,
-    dependencies=[Depends(_waive_model_budget_for_deterministic_quality)],
-)
+@router.post("/{document_id}/quality", response_model=CvQualityResponse)
 @limiter.limit("20/minute")
-@waivable_model_abuse_limits
 async def quality(
     request: Request,
     document_id: str,
-    body: CvQualityRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    # A deterministic document check, not one of the six tools: it bypasses
+    # run_tool_pipeline() so autosave-driven checks never write ToolRuns (#362).
     try:
         document = get_document(db, document_id, current_user.id)
     except CvDocumentNotFoundError as error:
         _not_found(error)
-    sections = document.sections
-    text = "\n".join(
-        str(entry.get("body", ""))
-        for section in sections
-        if section.get("visible", True)
-        for entry in section.get("entries", [])
-    )
-    service = analyze_cv_quality_heuristic
-    if body.use_model:
-        quota_document = (
-            db.query(CvDocument)
-            .filter(CvDocument.id == document.id, CvDocument.user_id == current_user.id)
-            .with_for_update()
-            .one()
-        )
-        if quota_document.quality_model_runs >= CV_QUALITY_MODEL_RUN_LIMIT:
-            raise HTTPException(
-                status_code=429,
-                detail="This document has reached its model scoring limit. Deterministic checks remain available.",
-            )
-        # Consume before the provider pipeline so concurrent and failed attempts
-        # remain bounded. PostgreSQL serializes this owner/document row lock.
-        quota_document.quality_model_runs += 1
-        db.commit()
-        service = analyze_cv_quality
-    result = await run_tool_pipeline(
-        tool_name="cv-quality",
-        service_fn=service,
-        service_kwargs={"resume_text": text, "sections": sections, "selected_checks": body.checks},
-        label_fn=lambda _: f"CV quality {'model' if body.use_model else 'check'} · {document.id}",
-        resume_text=text,
-        current_user=current_user,
-        db=db,
-        cache_extra_keys={
-            "document_id": document.id,
-            "updated_at": document.updated_at.isoformat(),
-            "mode": "model" if body.use_model else "heuristic",
-            "checks": ",".join(body.checks or []),
-        },
-    )
-    if body.artifact_template is not None and body.artifact_format is not None:
-        model = build_render_model(document, body.artifact_template, _document_style(document))
-        artifact = render_pdf(model) if body.artifact_format == "pdf" else render_docx(model)
-        evidence = validate_artifact(model, artifact, body.artifact_format)
-        statuses = {
-            "text_layer": evidence.searchable_text,
-            "links": evidence.links,
-            "page_breaks": evidence.page_breaks,
-            "re_importability": evidence.re_importability,
-        }
-        for check in result["ats_checks"]:
-            if check["key"] in statuses:
-                check["status"] = statuses[check["key"]]
-                check["explanation"] = (
-                    f"Validated against the generated {body.artifact_format.upper()} artifact."
-                )
-                check["remediation"] = "Regenerate after editing if this artifact validation fails."
-    remaining = CV_QUALITY_MODEL_RUN_LIMIT - (
-        quota_document.quality_model_runs if body.use_model else document.quality_model_runs
-    )
-    ats_score, ats_fixes = compute_ats_summary(result["ats_checks"], _document_style(document))
-    safe_record_activation_event(db, event_name="studio_quality_checked")
-    return CvQualityResponse(
-        **result, remaining_model_runs=remaining, ats_score=ats_score, ats_fixes=ats_fixes
-    )
+    style = _document_style(document)
+    model = build_render_model(document, style.template_id, style)
+    # ReportLab/fitz work is CPU-bound; keep it off the event loop.
+    evidence = await run_in_threadpool(lambda: validate_artifact(model, render_pdf(model)))
+    result = analyze_cv_quality(document.sections, style, evidence)
+    return CvQualityResponse(**result)
 
 
 @router.patch("/{document_id}", response_model=CvDocumentResponse)
@@ -483,7 +283,6 @@ def update(
 
 @router.post("/{document_id}/tailoring", response_model=CvTailoringProposal)
 @limiter.limit("20/minute")
-@model_abuse_limits
 async def tailor(
     request: Request,
     document_id: str,
@@ -522,10 +321,9 @@ async def tailor(
         job_description=body.job_description,
         current_user=current_user,
         db=db,
-        # Tailoring is an explicit consumer of confirmed profile evidence. This
-        # path must remain useful even while optional injection into legacy
-        # one-shot tools is dark by default (D-063, D-113).
-        require_evidence_profile=True,
+        # The proposal token carries everything apply needs; a ToolRun would
+        # only open a new Workspace (campaign) per tailoring run (#362).
+        persist_run=False,
         cache_extra_keys={
             "document_id": document.id,
             "updated_at": document.updated_at.isoformat(),
@@ -535,7 +333,6 @@ async def tailor(
     result["remaining_regenerations"] = (
         CV_TAILORING_MODEL_RUN_LIMIT - quota_document.tailoring_model_runs
     )
-    safe_record_activation_event(db, event_name="studio_tailoring_generated")
     result["request_id"] = uuid4()
     result["proposal_token"] = proposal_token(
         str(result["request_id"]), document.id, current_user.id, body.job_title, result["changes"]
@@ -574,63 +371,6 @@ def apply_tailoring_review(
         ) from error
     except DuplicateVariantNameError as error:
         raise HTTPException(status_code=409, detail="Variant name already exists") from error
-
-
-@router.post(
-    "/{document_id}/tailoring/edit-proposals",
-    response_model=EvidenceItemResponse,
-    status_code=status.HTTP_201_CREATED,
-)
-def propose_tailoring_edit(
-    document_id: str,
-    body: CvTailoringEditProposal,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    changes = [change.model_dump(exclude_defaults=True) for change in body.changes]
-    if not verify_proposal_token(
-        body.proposal_token,
-        str(body.request_id),
-        document_id,
-        current_user.id,
-        body.job_title,
-        changes,
-    ):
-        raise HTTPException(status_code=422, detail="Tailoring proposal is invalid or stale")
-    document = get_document(db, document_id, current_user.id)
-    change = next((item for item in body.changes if item.id == body.change_id), None)
-    if (
-        change is None
-        or change.support == "unsupported"
-        or body.edited_after in {change.before, change.after}
-    ):
-        raise HTTPException(
-            status_code=422, detail="Only new edited wording requires evidence confirmation"
-        )
-    section = next((item for item in document.sections if item["id"] == change.section_id), None)
-    if section is None or not any(
-        entry["id"] == change.entry_id and read_change_field(entry, change.field) == change.before
-        for entry in section["entries"]
-    ):
-        raise HTTPException(status_code=422, detail="Tailoring proposal is invalid or stale")
-    evidence_kind = {
-        "experience": "experience",
-        "achievements": "achievement",
-        "skills": "skill",
-        "education": "education",
-        "projects": "project",
-        "certifications": "certification",
-        "interview-evidence": "interview-evidence",
-        "summary": "achievement",
-        "custom": "achievement",
-    }[section["kind"]]
-    return create_evidence_item(
-        db,
-        current_user.id,
-        EvidenceItemCreate(
-            kind=evidence_kind, content={"statement": body.edited_after}, provenance="user-entered"
-        ),
-    )
 
 
 @router.delete("/{document_id}", status_code=status.HTTP_204_NO_CONTENT)

@@ -1,59 +1,74 @@
-# 0009. The approval queue prepares packets; submission stays human
+# 0009. Applications prepare materials; submission stays human
 
-**Status:** accepted (dark prerequisite implementation restored under #185; activation remains gated)
-**Date:** 2026-07-10
+**Status:** accepted; amended 2026-09 (Sept 2026 reset, #319/#360): the separate
+approval queue and approval step described in the original decision were removed
+**Date:** 2026-07-10 (amended 2026-09-30)
 
 ## Context
 
-R15 requires the system to discover suitable jobs (via the R14 registry-gated
-pipeline) and prepare complete application packets for explicit user review. The
-product direction defines progressive automation trust levels: Copilot (user
-submits), Approval Queue (system prepares, user reviews and submits), and
-source-specific Trusted Autopilot (system submits under strict authorization,
-R16). The pressure to blur the queue into submission is predictable — a reviewed
-packet is one click from sent — and the prohibited-automation list (unattended
-mass submission, unauthorized platform automation, circumvention, credential use,
-uncertain answers without approval) is already accepted product law (D-026,
-Pillar 7).
+The original R15 decision separated the system's job (discover jobs and prepare
+complete application materials) from the user's job (review and submit). The
+pressure to blur the two is predictable: a prepared application is one click from
+sent, and the prohibited-automation list (unattended mass submission,
+unauthorized platform automation, circumvention, credential use, uncertain
+answers without user input) is accepted product law (D-026, Pillar 7).
+
+R15 originally implemented that boundary as a second surface, an approval queue of
+"packets" with queue rules, caps, a per-packet approval decision, and an
+immutable approval snapshot. In the Sept 2026 reset the owner merged the queue
+into Campaigns, now called **Applications** (#360), and removed the separate
+approval step. The submission boundary itself was not weakened.
 
 ## Decision
 
-R15's approval queue is preparation-only. A packet is a composition referencing
-existing entities — the campaign, its canonical or discovered listing, the selected
-CV variant, an optional cover letter, screening-answer drafts, the match rationale,
-and an explicit list of unresolved questions. The queue filters candidates through
-user-defined rules, prepares packets within user-set volume caps and cost ceilings,
-and stops. Sensitive, legal, eligibility, relocation, demographic, salary,
-work-authorization, and uncertain fields are mandatory stops that only explicit
-user input can resolve; an unresolved question blocks approval. Approval freezes an
-immutable packet snapshot and hands the user to the official destination to submit
-themselves. No R15 code path performs, schedules, or retries a submission;
-submission automation exists only behind R16's per-source authorization contract.
+The boundary is now: **the product prepares; the owner applies.**
+
+- An Application (a `Workspace` row that has a status or a job posting) holds the
+  posting, the chosen CV variant and cover letter, prepared drafts, open
+  questions, answers, tasks, notes and an activity log. Materials are references
+  to existing entities, not copies.
+- "Prepare" (one application, or "prepare for me" across adopted discovery
+  listings, capped at `MAX_PREPARE_PER_RUN` = 10 per click and filtered by the
+  owner's keywords, locations and remote preference) produces a cover letter and
+  screening-answer drafts through the shared tool pipeline, from the CV text and
+  confirmed Evidence Profile items only.
+- Sensitive, legal, eligibility, relocation, demographic, salary,
+  work-authorization and uncertain fields are mandatory stops, classified by one
+  server-side function (`stop_classifier`). They are never drafted; they become
+  open questions only the owner's typed answer resolves. The owner's standing
+  answers (application details) count as that explicit input.
+- There is no approval step. Marking an application **applied** is the single
+  freeze point: it writes one immutable snapshot (`application_snapshot`) of
+  exactly what was sent, with a SHA-256 digest, and later CV or cover-letter
+  edits never change it. The status move itself is the owner's own act; nothing in
+  the product performs, schedules or retries a submission.
+- The experimental Autopilot (`AUTOPILOT_EXPERIMENT_ENABLED`, development only)
+  may fill a form in a browser on the owner's machine, but never clicks, presses
+  or submits; the owner reviews the open window and submits. Its behavior is
+  documented with the Autopilot work, not here.
 
 ## Alternatives Considered
 
-- **"Approve = submit" in one step** — rejected: collapses Level B into Level C
-  without R16's per-source legal approval, granular revocable authorization,
-  idempotency, and incident controls; one ambiguous click would perform an outward
-  legal act.
-- **Auto-filling sensitive/uncertain answers from inference with a review flag** —
-  rejected: the accepted trust model (D-062, D-073) forbids unverified claims
-  entering user-facing materials by default; demographic and eligibility answers
-  are exactly where inference errors do the most harm.
-- **Preparing packets without user-defined rules (rank-everything)** — rejected:
-  packet preparation spends generation cost and user attention; unbounded
-  preparation becomes spam pressure and cost exposure with no user mandate.
-- **Mutable packets after approval** — rejected: the approved snapshot is the
-  user's record of what they reviewed; later edits would erase it (consistent with
-  D-079's snapshot posture).
+- **"Prepare = submit" in one step** - rejected: one ambiguous click would perform
+  an outward legal act on the owner's behalf, with no per-source terms review or
+  revocable authorization.
+- **Auto-filling sensitive/uncertain answers from inference** - rejected: the
+  trust model (D-062, D-073) forbids unverified claims in user-facing materials.
+- **A separate approval queue with per-packet approval snapshots** - built first
+  (R15), then rejected in the reset: it duplicated the Applications tracker, made
+  the owner approve the same materials twice, and was the largest single source of
+  code for no extra safety, since the freeze at "applied" records what was sent.
+- **Mutable materials after applying** - rejected: the snapshot is the owner's
+  record of what was sent (consistent with D-079).
 
 ## Consequences
 
-- The R15/R16 boundary is structural: R16 can build submission on top of approved
-  packet snapshots without reworking the queue.
-- Mandatory stops make packet completeness measurable: a packet is either fully
-  user-resolved or visibly blocked.
-- Preparation cost is bounded and user-governed before any automation exists.
-- Rollback posture: nothing ships until R14 lands and quality evidence supports
-  packet generation; afterward disabling the queue leaves campaigns, discovery,
-  and manual flows untouched.
+- One surface (Applications) instead of two; the `/queue` route only redirects.
+- The R15 packet, queue-rule, approval-snapshot, audit-event and pipeline-halt
+  tables and the R16 trusted-submission tables no longer exist. Submission
+  automation is not a roadmap item; if it is ever revisited it needs a new
+  decision with per-source legal review.
+- Mandatory stops remain structural: an application with unresolved open
+  questions is visibly not ready.
+- Rollback posture: disabling preparation leaves tracking, discovery and manual
+  flows untouched.

@@ -7,28 +7,19 @@ from typing import Any
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
-from app.feature_gates import outcome_enabled
-from app.models.campaign_event import CampaignEvent
-from app.models.campaign_listing import CampaignListing
-from app.models.campaign_snapshot import CampaignSubmissionSnapshot
-from app.models.campaign_tracking import CampaignContact, CampaignNote, CampaignTask
 from app.models.cv_document import CvDocument, CvVariant
 from app.models.evidence_item import EvidenceItem
 from app.models.tool_run import ToolRun
 from app.models.user import User
 from app.models.workspace import Workspace
-from app.schemas.history import CampaignListingResponse, WorkspaceSummary
-from app.services.application_packets import delete_application_packets
+from app.schemas.history import ListingResponse, WorkspaceSummary
+from app.services.application_details import delete_details as delete_application_details
+from app.services.applications import delete_application_data
 from app.services.development import delete_development_items
 from app.services.discovery_personalization import delete_personalization
 from app.services.gap_classifier import delete_gap_classifications
 from app.services.observability import log_user_account_deleted
-from app.services.packet_approval import delete_packet_stop_answers
-from app.services.packet_approval_snapshot import delete_packet_approval_snapshots
-from app.services.packet_gate import delete_queue_pause_state
 from app.services.premium_outputs import attach_premium_outputs
-from app.services.queue_audit import delete_queue_audit_events
-from app.services.queue_rules import delete_queue_rules
 from app.services.workspaces import resolve_workspace, touch_workspace
 
 logger = logging.getLogger(__name__)
@@ -57,31 +48,8 @@ def delete_all_user_data(db: Session, user_id: str) -> None:
             .delete(synchronize_session=False)
         )
     cv_documents_deleted = db.query(CvDocument).filter(CvDocument.user_id == user_id).delete()
-    # Discovery personalization (hidden sources, dismissals, error reports) is
-    # owner-scoped user data and joins the erasure cascade (D-090, R14 #175).
+    # Discovery dismissals are owner-scoped user data and joins the erasure cascade (D-090, R14 #175).
     delete_personalization(db, user_id)
-    # Application Approval Queue rules, caps, and cost ceiling are owner-scoped user
-    # data and join the erasure cascade (D-099, R15 #180).
-    delete_queue_rules(db, user_id)
-    # The append-only queue audit log is owner-scoped user data; this cascade is
-    # its ONLY deletion path, preserving the append-only guarantee (D-098/D-099,
-    # R15 #186).
-    delete_queue_audit_events(db, user_id)
-    # Approval snapshots are immutable by-value records (D-096/D-099). Account
-    # erasure explicitly removes them before their packet/campaign foreign keys,
-    # including in SQLite tests where FK cascades are disabled. Deleting an
-    # individual campaign is their other bounded removal path.
-    delete_packet_approval_snapshots(db, user_id)
-    # Stop answers are owner-scoped sensitive content the user typed (D-099, R15 #182).
-    # Deleted before their packets so the FK to application_packets is removed first.
-    delete_packet_stop_answers(db, user_id)
-    # A user's own queue-pause state is owner-scoped data (unlike the pipeline-wide
-    # regression halt, which is operational state and stays out of this cascade).
-    delete_queue_pause_state(db, user_id)
-    # Prepared application packets are owner-scoped sensitive content (they encode
-    # application intent) and join the erasure cascade (D-099, R15 #181). Deleted
-    # before campaigns so their FK to workspaces is removed first.
-    delete_application_packets(db, user_id)
     # R17 development items are the user's own owner-scoped development plan and
     # join the erasure cascade (D-114). Deleted before their gap classifications so
     # the SET NULL FK is resolved first.
@@ -91,18 +59,9 @@ def delete_all_user_data(db: Session, user_id: str) -> None:
     delete_gap_classifications(db, user_id)
     evidence_deleted = db.query(EvidenceItem).filter(EvidenceItem.user_id == user_id).delete()
     runs_deleted = db.query(ToolRun).filter(ToolRun.user_id == user_id).delete()
-    workspace_ids = [row.id for row in db.query(Workspace.id).filter(Workspace.user_id == user_id)]
-    if workspace_ids:
-        for model in (CampaignTask, CampaignNote, CampaignContact, CampaignSubmissionSnapshot):
-            db.query(model).filter(model.workspace_id.in_(workspace_ids)).delete(
-                synchronize_session=False
-            )
-        db.query(CampaignListing).filter(CampaignListing.workspace_id.in_(workspace_ids)).delete(
-            synchronize_session=False
-        )
-        db.query(CampaignEvent).filter(CampaignEvent.workspace_id.in_(workspace_ids)).delete(
-            synchronize_session=False
-        )
+    # Applications' tasks, snapshots, events, listings and preferences.
+    delete_application_data(db, user_id)
+    delete_application_details(db, user_id)
     workspaces_deleted = db.query(Workspace).filter(Workspace.user_id == user_id).delete()
     users_deleted = db.query(User).filter(User.id == user_id).delete()
     db.commit()
@@ -276,24 +235,24 @@ def build_workspace_summary(
         reverse=True,
     )
     last_run = ordered_runs[0] if ordered_runs else None
-    campaigns_enabled = outcome_enabled("r13")
     return WorkspaceSummary(
         id=workspace.id,
         label=workspace.label,
         is_pinned=workspace.is_pinned,
-        company=workspace.company if campaigns_enabled else None,
-        role=workspace.role if campaigns_enabled else None,
-        status=workspace.status if campaigns_enabled else None,
-        deadline=_as_utc(workspace.deadline) if campaigns_enabled else None,
+        company=workspace.company,
+        role=workspace.role,
+        status=workspace.status,
+        deadline=_as_utc(workspace.deadline),
         listing=(
-            CampaignListingResponse(
+            ListingResponse(
                 title=workspace.listing.title,
                 company=workspace.listing.company,
                 description=workspace.listing.description,
                 source_url=workspace.listing.source_url,
+                apply_url=workspace.listing.apply_url,
                 retrieved_at=_as_utc(workspace.listing.retrieved_at),
             )
-            if campaigns_enabled and workspace.listing is not None
+            if workspace.listing is not None
             else None
         ),
         linked_run_ids=[run.id for run in ordered_runs],

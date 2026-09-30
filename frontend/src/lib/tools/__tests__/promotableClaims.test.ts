@@ -12,7 +12,7 @@ describe('getPromotableClaims', () => {
     expect(claims).toHaveLength(2)
     expect(claims[0]).toMatchObject({
       kind: 'interview-evidence',
-      label: 'Tell me about a hard bug.',
+      label: 'Q: Tell me about a hard bug. · I traced a race condition…',
       content: { question: 'Tell me about a hard bug.', answer: 'I traced a race condition…', focus_area: 'debugging' },
     })
     // focus_area is optional — omitted when absent rather than stored empty.

@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { getAdminStats, getAdminHealth } from '#/lib/api/admin'
 import type { AdminStats, AdminHealth } from '#/lib/api/admin'
+import { toolLabel } from './toolLabel'
 
 export function AdminDashboardPage() {
   const stats = useQuery<AdminStats>({
@@ -18,30 +19,24 @@ export function AdminDashboardPage() {
     <div>
       <h1 className="admin-page-title">Dashboard</h1>
 
-      {stats.isError && (
-        <p className="admin-error-text" style={{ marginBottom: '1rem' }}>
-          Failed to load stats.
-        </p>
-      )}
-
       <div className="admin-stat-grid">
-        <StatCard label="Total Users" value={stats.data?.total_users} loading={stats.isLoading} error={stats.isError} />
-        <StatCard label="Total Runs" value={stats.data?.total_runs} loading={stats.isLoading} error={stats.isError} />
-        <StatCard label="Runs Today" value={stats.data?.runs_today} loading={stats.isLoading} error={stats.isError} />
+        <StatCard label="Total users" value={stats.data?.total_users} loading={stats.isLoading} error={stats.isError} />
+        <StatCard label="Total runs" value={stats.data?.total_runs} loading={stats.isLoading} error={stats.isError} />
+        <StatCard label="Runs today" value={stats.data?.runs_today} loading={stats.isLoading} error={stats.isError} />
         <StatCard label="Active Users (7d)" value={stats.data?.active_users_7d} loading={stats.isLoading} error={stats.isError} />
       </div>
 
       <div className="admin-info-grid">
         <div className="admin-info-panel">
-          <div className="admin-info-panel-title">Runs by Tool</div>
+          <div className="admin-info-panel-title">Runs by tool</div>
           {stats.isLoading && <p className="admin-table-muted">Loading…</p>}
-          {stats.isError && <p className="admin-table-muted admin-error-text">Failed to load.</p>}
+          {stats.isError && <Retry what="stats" onRetry={() => void stats.refetch()} />}
           {stats.data?.runs_by_tool &&
             Object.entries(stats.data.runs_by_tool)
               .sort(([, a], [, b]) => b - a)
               .map(([tool, count]) => (
                 <div key={tool} className="admin-info-row">
-                  <span className="admin-info-row-label">{tool}</span>
+                  <span className="admin-info-row-label">{toolLabel(tool)}</span>
                   <span className="admin-info-row-value">{count}</span>
                 </div>
               ))}
@@ -51,9 +46,9 @@ export function AdminDashboardPage() {
         </div>
 
         <div className="admin-info-panel">
-          <div className="admin-info-panel-title">System Health</div>
+          <div className="admin-info-panel-title">System health</div>
           {health.isLoading && <p className="admin-table-muted">Loading…</p>}
-          {health.isError && <p className="admin-table-muted admin-error-text">Failed to load.</p>}
+          {health.isError && <Retry what="health" onRetry={() => void health.refetch()} />}
           {health.data && (
             <>
               <div className="admin-info-row">
@@ -63,7 +58,7 @@ export function AdminDashboardPage() {
                 </span>
               </div>
               <div className="admin-info-row">
-                <span className="admin-info-row-label">LLM Provider</span>
+                <span className="admin-info-row-label">LLM provider</span>
                 <span className="admin-info-row-value">
                   {health.data.llm_provider} / {health.data.llm_model}
                 </span>
@@ -85,6 +80,17 @@ export function AdminDashboardPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+function Retry({ what, onRetry }: { what: string; onRetry: () => void }) {
+  return (
+    <p className="admin-table-muted admin-error-text" role="alert">
+      Couldn't load {what}.{' '}
+      <button type="button" className="admin-toolbar-btn" onClick={onRetry}>
+        Try again
+      </button>
+    </p>
   )
 }
 

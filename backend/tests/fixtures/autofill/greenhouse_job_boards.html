@@ -1,0 +1,145 @@
+<!doctype html>
+<!-- Hand-built fixture shaped like the new job-boards.greenhouse.io form (React,
+     react-select comboboxes whose menus render only when opened). Structure only;
+     never a copy of a live page. Tests serve it under the real host. -->
+<html>
+<head><meta charset="utf-8"><title>Job Application for Backend Engineer at Acme</title>
+<style>.visually-hidden{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}</style>
+</head>
+<body>
+<script>
+  window.__submitted = false;
+  function cwSubmit(url) {
+    window.__submitted = true;
+    fetch(url, {method: 'POST', body: 'submitted'}).catch(() => {});
+    return false;
+  }
+</script>
+<div class="application--container">
+<form id="application-form" class="application--form" novalidate
+      action="https://job-boards.greenhouse.io/embed/job_app?for=acme&token=1002"
+      onsubmit="return cwSubmit(this.action)">
+  <div class="application--questions">
+    <div class="text-input-wrapper"><div class="input-wrapper">
+      <label id="first_name-label" for="first_name" class="label">First Name<span aria-hidden="true">*</span></label>
+      <input id="first_name" class="input input__single-line" aria-required="true" type="text" maxlength="255">
+    </div></div>
+    <div class="text-input-wrapper"><div class="input-wrapper">
+      <label id="last_name-label" for="last_name" class="label">Last Name<span aria-hidden="true">*</span></label>
+      <input id="last_name" class="input input__single-line" aria-required="true" type="text" maxlength="255">
+    </div></div>
+    <div class="text-input-wrapper"><div class="input-wrapper">
+      <label id="preferred_name-label" for="preferred_name" class="label">Preferred First Name</label>
+      <input id="preferred_name" class="input input__single-line" type="text" maxlength="255">
+    </div></div>
+    <div class="text-input-wrapper"><div class="input-wrapper">
+      <label id="email-label" for="email" class="label">Email<span aria-hidden="true">*</span></label>
+      <input id="email" class="input input__single-line" aria-required="true" type="text" maxlength="255">
+    </div></div>
+    <div class="phone-input">
+      <div class="select__container">
+        <label id="country-label" for="country" class="label">Country</label>
+        <div class="select-shell"><div class="select__control"><div class="select__value-container">
+          <div class="select__placeholder">Select...</div>
+          <div class="select__input-container"><input id="country" class="select__input" role="combobox"
+               aria-autocomplete="list" aria-expanded="false" aria-haspopup="true"
+               aria-labelledby="country-label" type="text" autocomplete="off"></div>
+        </div></div></div>
+      </div>
+      <div class="input-wrapper">
+        <label id="phone-label" for="phone" class="label">Phone</label>
+        <input id="phone" class="input input__single-line" type="tel" maxlength="255">
+      </div>
+    </div>
+    <div class="select__container">
+      <label id="candidate-location-label" for="candidate-location" class="label">Location (City)</label>
+      <div class="select-shell"><div class="select__control"><div class="select__value-container">
+        <div class="select__input-container"><input id="candidate-location" class="select__input" role="combobox"
+             aria-autocomplete="list" aria-expanded="false" aria-labelledby="candidate-location-label"
+             type="text" autocomplete="off"></div>
+      </div></div></div>
+    </div>
+    <div class="file-upload" role="group" aria-labelledby="upload-label-resume">
+      <div id="upload-label-resume" class="label upload-label">Resume/CV<span aria-hidden="true">*</span></div>
+      <div class="file-upload__wrapper">
+        <button type="button" class="btn btn--pill">Attach</button>
+        <button type="button" class="btn btn--pill">Dropbox</button>
+        <button type="button" class="btn btn--pill">Enter manually</button>
+        <input id="resume" class="visually-hidden" type="file" accept=".pdf,.doc,.docx,.txt,.rtf">
+      </div>
+    </div>
+    <div class="file-upload" role="group" aria-labelledby="upload-label-cover_letter">
+      <div id="upload-label-cover_letter" class="label upload-label">Cover Letter</div>
+      <div class="file-upload__wrapper">
+        <button type="button" class="btn btn--pill">Attach</button>
+        <input id="cover_letter" class="visually-hidden" type="file" accept=".pdf,.doc,.docx,.txt,.rtf">
+      </div>
+    </div>
+    <div class="text-input-wrapper"><div class="input-wrapper">
+      <label id="question_2001-label" for="question_2001" class="label">LinkedIn Profile</label>
+      <input id="question_2001" class="input input__single-line" type="text" maxlength="255">
+    </div></div>
+    <div class="text-input-wrapper"><div class="input-wrapper">
+      <label id="question_2002-label" for="question_2002" class="label">Website</label>
+      <input id="question_2002" class="input input__single-line" type="text" maxlength="255">
+    </div></div>
+    <div class="text-input-wrapper"><div class="input-wrapper">
+      <label id="question_2003-label" for="question_2003" class="label">Why do you want to work at Acme?<span aria-hidden="true">*</span></label>
+      <textarea id="question_2003" class="input input__multi-line" aria-required="true"></textarea>
+    </div></div>
+    <div class="select__container">
+      <label id="question_2004-label" for="question_2004" class="label">Are you legally authorized to work in the United Kingdom?<span aria-hidden="true">*</span></label>
+      <div class="select-shell"><div class="select__control"><div class="select__value-container">
+        <div class="select__placeholder">Select...</div>
+        <div class="select__input-container"><input id="question_2004" class="select__input" role="combobox"
+             aria-autocomplete="list" aria-expanded="false" aria-haspopup="true" aria-required="true"
+             aria-labelledby="question_2004-label" type="text" autocomplete="off"></div>
+      </div></div></div>
+    </div>
+    <div class="select__container">
+      <label id="question_2005-label" for="question_2005" class="label">Will you now or in the future require visa sponsorship?<span aria-hidden="true">*</span></label>
+      <div class="select-shell"><div class="select__control"><div class="select__value-container">
+        <div class="select__input-container"><input id="question_2005" class="select__input" role="combobox"
+             aria-autocomplete="list" aria-expanded="false" aria-haspopup="true" aria-required="true"
+             aria-labelledby="question_2005-label" type="text" autocomplete="off"></div>
+      </div></div></div>
+    </div>
+    <fieldset class="checkbox__wrapper">
+      <legend class="label">Which of our offices could you work from?</legend>
+      <div class="checkbox__input"><input type="checkbox" id="question_2006_1" name="question_2006[]" value="1"><label for="question_2006_1">London</label></div>
+      <div class="checkbox__input"><input type="checkbox" id="question_2006_2" name="question_2006[]" value="2"><label for="question_2006_2">Berlin</label></div>
+    </fieldset>
+  </div>
+  <div class="eeoc__container">
+    <h3 class="section-header">Voluntary Self-Identification</h3>
+    <div class="select__container">
+      <label id="gender-label" for="gender" class="label">Gender</label>
+      <input id="gender" class="select__input" role="combobox" aria-autocomplete="list"
+             aria-labelledby="gender-label" type="text" autocomplete="off">
+    </div>
+    <div class="select__container">
+      <label id="hispanic_ethnicity-label" for="hispanic_ethnicity" class="label">Are you Hispanic/Latino?</label>
+      <input id="hispanic_ethnicity" class="select__input" role="combobox" aria-autocomplete="list"
+             aria-labelledby="hispanic_ethnicity-label" type="text" autocomplete="off">
+    </div>
+    <div class="select__container">
+      <label id="veteran_status-label" for="veteran_status" class="label">Veteran Status</label>
+      <input id="veteran_status" class="select__input" role="combobox" aria-autocomplete="list"
+             aria-labelledby="veteran_status-label" type="text" autocomplete="off">
+    </div>
+    <div class="select__container">
+      <label id="disability_status-label" for="disability_status" class="label">Disability Status</label>
+      <input id="disability_status" class="select__input" role="combobox" aria-autocomplete="list"
+             aria-labelledby="disability_status-label" type="text" autocomplete="off">
+    </div>
+  </div>
+  <div class="checkbox">
+    <input type="checkbox" id="gdpr_demographic_data_consent_given_1">
+    <label for="gdpr_demographic_data_consent_given_1">I consent to Acme processing my data as described in the privacy notice</label>
+  </div>
+  <textarea id="g-recaptcha-response" name="g-recaptcha-response" style="display:none"></textarea>
+  <div class="application--submit"><button type="submit" class="btn btn--pill">Submit application</button></div>
+</form>
+</div>
+</body>
+</html>

@@ -1,7 +1,7 @@
 # Career Workbench — Architecture
 
 **Status:** canonical baseline
-**Last reviewed:** 2026-08-13
+**Last reviewed:** 2026-09-30 (Sept 2026 reset: local-only, feature-first; see `roadmap.md`)
 
 ## System Context
 
@@ -19,12 +19,13 @@ Browser
               ├── shared tool execution pipeline
               ├── SQLAlchemy + Alembic
               ├── PostgreSQL in production
-              ├── Vertex AI / Gemini
-              └── Sentry + structured telemetry
+              ├── LLM provider (`LLM_PROVIDER`: Vertex AI / Gemini by default)
+              └── structured stdout logs and telemetry
 ```
 
-Production is intended to run on Railway with frontend, backend, and PostgreSQL.
-Deployment topology must be re-verified before public launch.
+The product currently runs locally only (Sept 2026 reset). A Railway topology (frontend,
+backend, PostgreSQL) remains the eventual target; hosted-launch hardening and
+deployment evidence are deferred and must be redone before any public launch.
 
 ## Frontend Boundaries
 
@@ -104,63 +105,36 @@ Core entities:
 - `Workspace` — groups related application/career work.
 - `ToolRun` — immutable result snapshot with tool, inputs/metadata, output, ownership,
   optional workspace, and optional parent revision.
-- `EvidenceItem` (R11 foundation built dark under explicit owner override; D-061,
-  ADR 0005) — per-user typed evidence with provenance and confirmation state.
-  Authenticated CRUD, reviewed import, recovery export/erasure, profile UI, and
-  shared-pipeline injection exist behind the server-authoritative R11 gate; the
-  recovery controls stay reachable while R11 is dark. D-060's production-activation
-  gate remains closed under the narrow build-ahead clarification D-120.
-- CV document (R12 foundation built dark under owner override; D-069, ADR 0006) —
-  per-user structured document whose claims reference Evidence Profile items, with
-  one working draft plus immutable recoverable variants. The authenticated import
-  API is also dark: review proposals are transient and only explicit acceptance
-  atomically creates the document and imported/unconfirmed profile items. Acceptance
-  retries are owner-scoped and idempotent. D-068's activation gate remains closed.
-- Application campaign (R13 foundation built dark; D-077, ADR 0007) — `Workspace` evolved in
-  place with optional campaign fields and dependent owner-scoped tables (listing,
-  events, tasks, notes, contacts), reminders, reviewer, and submitted-version
-  recovery. Activation remains behind D-076 and the dependency chain (D-120).
-- Discovered listings store (R14 fixture-only foundation built dark; D-087, ADR 0008) — product-owned
-  listings with source attribution, retrieval date, dedup, and per-source
-  retention; distinct from campaign canonical listings. Registry, governed fixture
-  ingestion, ranking, personalization, and correction/report controls exist, but no
-  real source is configured and activation still requires R13 plus per-source terms
-  approval (D-084, D-120).
-- Application packet and approval snapshot (dark R15 build-ahead; D-093–D-099,
-  ADR 0009) — a reference-only composition plus a write-once by-value freeze at
-  guarded acceptance. The snapshot stores the packet-referenced discovered listing
-  and its attributions, resolved stop-answer values, CV variant, drafts, rationale,
-  the exact source attribution pinned when the packet was prepared for its manual
-  handoff, and authoritative empty unresolved set with
-  a canonical SHA-256; production activation remains behind D-092.
-- Submission record (dark R16 #191/#194 foundation; D-103, D-107, ADR 0010) — immutable proof
-  of one idempotent packet-snapshot/source submission with exact frozen-content and
-  submitted-field digests. The owner-scoped campaign view reconstructs every field
-  beside the exact retained approval snapshot; its system timeline event contains
-  only record/snapshot identifiers and commits atomically with the record. Product
-  copies export and erase through confirmed campaign/account deletion, while the UI
-  states that deletion cannot withdraw the employer's copy. Only the internal fixture-driven
-  engine exists; real adapters and activation remain behind D-100.
-- Submission stop event (dark R16 #192 foundation; D-102, D-105, ADR 0010) —
-  terminal owner/snapshot/source proof that a challenge, authentication request,
-  uncertainty, source rejection, or compatibility mismatch returned control to
-  the owner. The display-ready result uses fixed copy and the frozen approval
-  snapshot's official Level B destination; a second worker or restart returns the
-  same stop without calling the adapter. Events contain only closed categories and
-  an optional bounded source code, join export/erasure, and provide #195's
-  content-free contract-breakage input.
-- Submission authorization grant (dark R16 #190 foundation; D-101, D-107,
-  ADR 0010) — one owner/source record proving a future trusted adapter completed
-  a source-provided OAuth flow with explicit consent. The row contains only a
-  closed mechanism, fixed submission scope, and timestamp: no provider credential,
-  token, session, subject identifier, or callback payload. Active grants are
-  owner-visible, exportable, immediately revocable, and account-deletion scoped.
-- Classified gap and development item (R17 foundation built ahead under explicit
-  current-task authorization; D-108–D-114) — deterministic reviewer-gap records
-  and bounded tracked responses are persisted owner-scoped. Completion feeds the
-  R11 unconfirmed-proposal path only; lifecycle export/erasure and content-free
-  aggregate telemetry are implemented. Production activation remains closed
-  until campaign evidence supports the loop (D-108).
+- `EvidenceItem` (D-061, ADR 0005) - per-user typed evidence with provenance and
+  confirmation state. Authenticated CRUD, reviewed import, export/erasure, the
+  profile UI and shared-pipeline injection are always on.
+- CV document (D-069, ADR 0006) - per-user structured document whose claims
+  reference Evidence Profile items, with one working draft plus immutable
+  recoverable variants. Import proposals are transient; only explicit acceptance
+  atomically creates the document and imported/unconfirmed profile items.
+- Application (ADR 0007, ADR 0009) - the `Workspace` row once it has a status or
+  a job posting. Optional application columns (company, role, status, deadline,
+  selected CV variant / cover letter / interview run, prepared-drafts run, open
+  questions, answers, notes, applied time) plus owner-scoped dependent tables:
+  `campaign_listings` (current and prior listing revisions), `campaign_events`
+  (append-only timeline), `campaign_tasks`, and `application_snapshots` (one
+  immutable by-value record written when marked applied). Owner-level rows:
+  `application_preferences` (prepare-for-me keywords/locations/remote/max per run)
+  and `application_details` (contact details and typed standing answers).
+- Discovered listings store (D-087, ADR 0008) - product-owned listings with source
+  attribution, retrieval date, dedup and per-source retention, fed from the
+  `discovery_sources` registry (Greenhouse, Lever and Ashby public job-board APIs
+  through the recurring scheduler or the `ingest_ats_sources` CLI). Distinct from
+  an application's canonical listing. Owner-scoped personalization rows (hidden
+  sources, dismissals, corrections, reports) live beside it.
+- Classified gap and development item (D-108 to D-114) - deterministic
+  reviewer-gap records and bounded tracked responses, owner-scoped. Completion
+  feeds the Evidence Profile unconfirmed-proposal path (confirmed only when the
+  owner supplied the text).
+
+The R13 contacts/reminders, R15 packet/queue and R16 submission tables described in
+earlier revisions of this document no longer exist (D-127, D-128, D-130); the
+current schema is defined by the models in `backend/app/models/` and the Alembic head.
 
 Persistence invariants:
 
@@ -192,51 +166,47 @@ and resume carry while preserving consent, onboarding, and non-sensitive UI stat
 
 ## External Integrations
 
-- Vertex AI / Gemini for model generation.
+- An LLM provider chosen by `LLM_PROVIDER`: `vertex` (default, Gemini), `google`
+  (API key), `anthropic`, or `fake` (deterministic local fixtures; boot refuses it
+  outside development). One provider per deployment, no fallback.
 - BeautifulSoup with Playwright fallback for supported job imports.
 - Resend for password-reset email.
 - Google OAuth for sign-in.
-- Sentry for scrubbed error monitoring when explicitly enabled after staging verification.
+- Public Greenhouse, Lever and Ashby job-board APIs (unauthenticated GET only,
+  through the SSRF-safe fetcher) for discovery listings.
 - Railway for intended hosting and database.
+
+There is no Sentry, CAPTCHA, analytics or advertising integration in the code (D-129).
 
 Each integration must fail with an actionable product state. Optional integrations
 must not make unrelated core flows unavailable.
 
-## Build-Ahead Activation Boundary
+## Feature Switches
 
-R11–R17 implementation is provisional code, not a production entitlement. Dedicated
-user API families are protected by server-authoritative, default-off outcome flags;
-downstream flags also require every upstream flag. The frontend mirrors that chain
-for routes and navigation, but it is never the security boundary. Core six-tool and
-history routes remain independent. Account-wide export and deletion continue to own
-recovery and erasure if build-ahead data exists while an outcome is dark.
+The R11-R17 outcome flags were removed (#351, D-131): every product area is always
+on. Only the Autopilot experiment (`AUTOPILOT_EXPERIMENT_ENABLED`; the backend
+refuses to boot with it outside development) and recurring ATS ingestion
+(`ATS_INGESTION_ENABLED`) keep default-off switches.
+Tools use confirmed Evidence Profile facts through the shared pipeline by default.
 
-R9 has one candidate-neutral, server-authoritative result-access seam shared by live
-tool responses, saved-result delivery, and server-generated exports. Its default-off
-contract can express only the complete control experience; enabling the seam before a
-candidate is selected still grants full access. Existing persisted result payloads are
-not rewritten: the decision is evaluated at delivery time, and the frontend schema
-defaults legacy payloads to the same full-control state. Candidate eligibility,
-treatments, withheld fields, lifetime, expiry, and revocation remain deliberately
-unimplemented until #128 and #129 supply an accepted product and legal contract.
+Results are fully visible: there is no ad gate and no result-access seam in the code.
+Any future monetized access must be decided server-side (D-048, ADR 0003) and may not
+reuse a client-only gate.
 
-Provider fallback is not active. It may be introduced only after sustained provider-
-incident evidence and after the alternative passes a quality evaluation plus privacy,
-processor, cost, latency, and tool-specific failure review (D-055). Requests are not
-hedged across providers by default.
+Provider fallback is not active: exactly one provider is configured per deployment
+and requests are never hedged across providers (D-055).
 
 ## Frontend Response Security
 
 The production frontend server, not the API, owns browser document and static-asset
-security headers. It emits a CSP derived from the configured API and optional Sentry
-origin, denies framing and object embedding, and restricts fonts to the
+security headers. It emits a CSP derived from the configured API origin, denies framing and object embedding, and restricts fonts to the
 bundled files plus the Google Fonts hosts currently referenced by the root route.
 The policy retains inline script/style compatibility because the SSR wrapper and
 current UI emit inline content.
 
 COOP is `same-origin` and CORP is `same-origin`. COEP is intentionally omitted:
 the product does not require cross-origin isolation, and enabling it would require
-separate compatibility evidence for Google Fonts, monitoring, downloads, and OAuth.
+separate compatibility evidence for Google Fonts, downloads, and OAuth.
 HSTS is emitted only when `SECURITY_HSTS_ENABLED=true` and Railway reports an
 HTTPS-forwarded request. The switch remains off until production domain ownership
 and end-to-end TLS are verified. It does not claim `includeSubDomains` or preload
@@ -244,55 +214,35 @@ until the full subdomain inventory is also verified.
 
 ## Observability
 
-Tool execution emits start, completion, duration, access mode, save state, and
-categorized failures. Monitoring must not include raw resumes, job descriptions,
-generated content, cookies, auth headers, tokens, email/IP addresses, full imported
-URLs, raw provider exceptions, stable run/workspace identifiers, or frontend error
-messages. Frontend telemetry is an extra-forbidden allowlist with no route or
-stable run/workspace fields and only explicit low-cardinality dimensions. Both Sentry SDKs drop request content,
-credentials, query strings, breadcrumb bodies, raw exception messages, unsafe
-contexts, and the entire user context; the backend also disables local-variable
-capture and provider boundaries suppress raw exception chains. Sentry performance
-transactions are disabled because their separate envelope hooks bypass ordinary
-error-event scrubbing; product latency evidence stays in first-party telemetry.
+Tool execution emits structured stdout log lines for start, completion, duration and
+categorized failures. Logs and telemetry must not include raw resumes, job
+descriptions, generated content, cookies, auth headers, tokens, email/IP addresses,
+full imported URLs, raw provider exceptions, stable run/workspace identifiers, or
+frontend error messages. Frontend telemetry is an extra-forbidden allowlist with no
+route or stable run/workspace fields and only explicit low-cardinality dimensions;
+it is consent-gated in the browser and the backend only writes it to stdout
+(`POST /api/v1/telemetry/events`, nothing persisted). No third-party monitoring
+service receives any of it (D-129).
 
 Mutating HTTP requests are bounded at the ASGI receive seam before framework
 parsing: JSON bodies may not exceed 1 MiB, multipart transport may not exceed
 11,010,048 bytes, and no body may exceed 4,096 receive chunks. Upload parsing then
 applies the stricter 10 MB document and archive/content checks.
 
-Operational questions should be answerable without reconstructing sensitive content.
-R10 scaling evidence extends this boundary with allowlisted aggregate dimensions for
-topology, cache outcome, provider incident category, phase latency, database health,
-abuse/cost pressure, and job-import source family (D-053). Full URLs and raw provider
-errors remain forbidden. The shared pipeline records actual sanitize, cache, provider,
-persist, and finalize durations; the browser records a bounded loader-abandonment duration
-only when a pending loader is left. These are evidence inputs, not a progress
-transport, and no material-elevation threshold has been accepted for #139.
-Representative history, workspace, and admin-run reads likewise persist only a
-closed query-family name and duration; SQL text, parameters, user content, and
-identifiers never enter telemetry. The R10 scaling-trigger scorecard that once
-aggregated this evidence into a dashboard was removed in the Sept 2026 reset
-(#319) as unused speculative infrastructure — no production traffic ever
-approached a trigger threshold. The underlying `analytics_events` rows and
-their emission sites are unchanged and remain available for direct query if a
-scaling decision is ever needed.
+Operational questions should be answerable from logs without reconstructing
+sensitive content. The R8 eval harness and the R10 scaling scorecard were removed
+(D-125) and there is no `analytics_events` table.
 
-## Scaling Response Boundaries
+## Scaling Posture
 
-- R10 responses are independently trigger-gated; no general infrastructure rewrite
-  is authorized merely because traffic may grow (D-052).
-- The first perceived-latency response is real server phase progress, not simulated
-  timers or partial token persistence. Tool responses and `ToolRun` rows remain final,
-  validated JSON snapshots (D-056).
-- Abuse escalation preserves D-029's account/source quotas and reviewed per-flow
-  challenge contracts; there is no global automatic CAPTCHA response (D-057).
-- Database responses follow observed query plans and capacity evidence. Primary user
-  data is not pruned for capacity without a new decision superseding D-031 (D-058).
-- Job-import adapters require concentrated allowlisted source-family evidence, terms
-  review, a source-specific kill switch, and the existing paste fallback (D-059).
+Local-only for now. There is a single process and an in-process result cache; no
+scaling response is authorized. The R10 trigger scorecard was removed (D-125); if the
+product is ever hosted for many users, shared limiter storage, proxy-aware limiter
+keys and cache coordination must be designed then, with evidence. Job-import
+adapters require terms review, a source-specific kill switch, and the existing paste
+fallback (D-059).
 
-## Evidence Profile Boundaries (R11, foundation built dark)
+## Evidence Profile Boundaries (R11)
 
 - The Evidence Profile is a persisted, authenticated-only, user-scoped store; guest
   flows keep tab-scoped carry and inline inputs, and no anonymous profile rows exist
@@ -311,7 +261,7 @@ scaling decision is ever needed.
   allowlisted low-cardinality profile events, never evidence text or stable content
   identifiers (D-067).
 
-## CV Studio Boundaries (R12, built ahead; activation deferred)
+## CV Studio Boundaries (R12)
 
 - The CV document is its own persisted structured entity; it is never stored as
   `ToolRun` payloads or freeform rich text, and its claims reference Evidence
@@ -322,13 +272,14 @@ scaling decision is ever needed.
 - The studio is a structured-section editor session surface with a seventh registry
   entry; existing tool priorities are not renumbered and the six tools never depend
   on CV documents (D-071).
-- Quality scoring extends the deterministic-plus-blend mechanism; ATS compatibility
-  is deterministic structural checks only — no universal ATS score or outcome
-  promise (D-072).
+- ATS compatibility is a set of deterministic pass/fail structural checks with fix
+  hints, and there is no CV quality score or universal ATS score or outcome promise
+  (D-126, superseding D-072).
 - Tailoring writes only diff-reviewed changes with requirement/evidence provenance;
   unsupported claims need an explicit user confirmation step (D-073).
 - Preview, DOCX, and PDF render deterministically from one document plus one of
-  three declarative templates, gated by visual, text-layer, link, page-break, and
+  one of five declarative templates (ATS Essential, Professional Editorial,
+  Technical Portfolio, Modern Two-Column, Minimal Serif), gated by visual, text-layer, link, page-break, and
   own-parser re-import validation (D-074).
   `cv-render/v1` is the normalized source for all three targets. Its canonical hash
   covers normalized visible content, ordering, page geometry, and template tokens.
@@ -337,14 +288,14 @@ scaling decision is ever needed.
   the pinned runtime dependency set. Cross-runtime compatibility is defined as
   canonical render-hash equality plus equivalent own-parser section-entry content,
   because different office/PDF engines may serialize equivalent packages differently.
-  Artifact ATS checks remain `not_run` until an actual DOCX/PDF is generated and
-  inspected; only generated-artifact evidence may promote them to pass/fail.
+  The ATS checks run against the PDF rendered from the saved style and report
+  pass/fail with a fix hint; they never produce a score (D-126).
   Browser preview embeds that same authenticated PDF artifact rather than
   reimplementing template layout in CSS, so multi-page boundaries and links are
   identical to the downloaded PDF. Automated PDF snapshots compare text-block
   coordinates at 0.1-point tolerance and fixed-DPI rendered pixel hashes. DOCX
   package semantics plus mandatory LibreOffice/Poppler pagination inspection in
-  CI cover the editable artifact.
+  the local release gate cover the editable artifact.
 - Model-backed studio calls run through the shared pipeline with bounded
   per-document regeneration quotas; CV content joins the sensitive-content
   lifecycle and allowlisted-telemetry boundaries (D-075).
@@ -354,258 +305,79 @@ scaling decision is ever needed.
   variants separately in its existing transactional audit. Studio telemetry carries
   closed event names only and no content, titles, or stable document/run identifiers.
 
-## Campaign and Reviewer Boundaries (R13, built ahead; activation deferred)
+## Application and Reviewer Boundaries (R13, amended by ADR 0009)
 
-- Campaigns are the `Workspace` entity evolved additively; existing workspaces stay
-  valid label-only campaigns and the implicit creation path keeps working (D-077,
-  ADR 0007). The shipped foundation adds nullable company, role, status, and
-  timezone-aware deadline fields. Status is server-enforced as
-  `planning → preparing → applied → interviewing → offer → accepted`, with
-  `rejected` and `withdrawn` terminal exits. Moves are forward-only but may skip
-  steps (the pipeline board moves a saved job straight to `applied`); legacy null
-  rows may enter at any stage. Deployment is expand-compatible: older application code ignores the
-  nullable columns. The migration downgrade removes only the new columns and
-  therefore discards campaign-field values; application rollback should normally
-  leave the additive schema in place. Status and deadline mutations atomically add
-  minimal append-only campaign events so the later #165 timeline can extend the
-  event vocabulary without losing earlier history; product code exposes no event
-  update or delete path.
-- Each campaign now has at most one authoritative current canonical listing with
-  title, company, bounded description, optional source URL, and server-owned UTC
-  retrieval time. URL attachment reuses the existing SSRF-resistant pinned fetcher;
-  authenticated paste attachment accepts no URL or source-family field. Re-attachment
-  atomically advances `Workspace.current_listing_id` to a new immutable revision and
-  appends a content-free `listing_attached` event. Current and prior listing content
-  is owner-isolated, exported, and cascade-deleted; telemetry
-  remains allowlisted source-family/outcome only (D-078, D-059, D-079, D-083).
-  The existing import card keeps populate-only behavior by default and exposes an
-  explicit authenticated campaign picker for URL or pasted attachment; it never
-  auto-attaches tool input.
-- Campaign history is append-only events; material links reference immutable
-  versions; the submitted snapshot is an immutable bundle (D-079, D-010).
-- The campaign detail API resolves owner-scoped selectable material metadata without
-  copying document content: `selected_cv_variant_id` targets an immutable `CvVariant`,
-  while cover-letter and interview IDs target exact immutable `ToolRun` revisions and
-  are validated against their expected tool names. Selection events contain only the
-  bounded material kind and selected/cleared action; nullable foreign keys use
-  `ON DELETE SET NULL` so existing immediate material deletion remains compatible.
-- Tracking is bounded to the job-search domain — fixed status lifecycle, tasks,
-  notes, minimal contacts; no generic CRM features (D-080).
-- Reminders are in-product, consented, rate-limited, and revocable; email/push
-  channels need a future decision extending the password-reset-only email boundary
-  (D-081).
+- Applications are the `Workspace` entity evolved additively; existing workspaces
+  stay valid, and the implicit creation path keeps working (D-077, ADR 0007).
+  Status is server-enforced as one of `saved, applied, interviewing, offer,
+  rejected, withdrawn`; any move is allowed, a move to `applied` goes through
+  mark-applied, and moving back to `saved` after applying is refused. "Ready to
+  apply" is derived, never stored (D-130). Status and deadline changes atomically
+  append campaign events; product code exposes no event update or delete path.
+- Each application has at most one authoritative current listing with title,
+  company, bounded description, optional source URL and a server-owned UTC
+  retrieval time. URL attachment reuses the SSRF-resistant pinned fetcher; paste
+  attachment accepts no URL or source-family field. Re-attachment atomically
+  advances `Workspace.current_listing_id` to a new immutable revision. Listing
+  content is owner-isolated, exported and cascade-deleted; telemetry stays
+  source-family/outcome only (D-078, D-059, D-079).
+- Material links reference immutable versions: `selected_cv_variant_id` targets a
+  `CvVariant`, cover-letter and interview ids target exact `ToolRun` revisions
+  validated against their tool names; nullable foreign keys use `ON DELETE SET
+  NULL`.
+- Preparing runs the drafts service through `run_tool_pipeline()` from CV text and
+  confirmed evidence only. Mandatory-stop fields (D-095) are classified by one
+  server-side `stop_classifier` and become open questions only the owner's answer
+  resolves. "Prepare for me" is bounded to ten applications per click and to the
+  owner's saved preferences (D-127).
+- Marking applied writes exactly one `application_snapshots` row: canonical JSON
+  of what was sent plus its SHA-256. It has no update path; later edits never
+  change it (D-079, ADR 0009). Nothing in the product submits an application.
+- Tracking is bounded to the job-search domain: tasks with optional deadlines and
+  one notes field. No contacts, no reminders, no third-party personal data (D-130).
 - The reviewer is a separate advisory pass through the shared pipeline; it
   implements the D-043 fabrication tracer against confirmed evidence and never
   auto-applies findings or creates/confirms evidence (D-082).
-- Campaign content, including contacts (third-party personal data), joins the
-  sensitive-content lifecycle and allowlisted-telemetry boundaries (D-083).
+- Application content is owner-isolated sensitive content in the standard
+  lifecycle: immediate deletion, account-deletion cascade, `career-data-export/v1`
+  and allowlisted telemetry (D-083).
+- The former `/queue` route only redirects to Applications (#360).
 
-## Discovery Boundaries (R14, fixture-only foundation built dark)
+## Discovery Boundaries (R14)
 
-- The persisted discovery-source registry documents owner, terms status and review
-  record, allowed behavior, rate limit, attribution rule, retention rule, and kill
-  switch. Its single enforcement seam refuses unregistered, terms-unaccepted, or
-  killed sources before ingestion; no source entry or adapter is active yet
-  (D-084, D-085, ADR 0008).
-- Licensed API/feed fetch policy is registry-declared: one credential-free HTTPS
-  endpoint, a closed subset of minimal role/location/pagination parameters, robots
-  applicability, and an atomic database-backed request window. The dark adapter
-  DNS-pins public targets, rejects redirects, identifies itself, rechecks the kill
-  switch before the source request, and returns bounded bytes for the dark
-  listings-store layer; no real source or ingestion schedule is configured (#172,
-  D-086, D-089).
-- Discovery operationalizes D-026: robots.txt honored, honest identifying user
-  agent in every tier, no unauthorized scraping, circumvention, or credential or
-  session use (D-086).
-- Discovered listings persist with attribution and retrieval date into product-
-  owned canonical rows plus one-to-many source attributions. A daily job expires
-  each attribution under its source's current retention rule and removes orphaned
-  canonical rows. These tables have no workspace/user foreign key and remain
-  separate from campaign canonical listings (D-087, D-078, #173).
+- The `discovery_sources` registry records owner, terms review status and date,
+  allowed behavior, declared rate, attribution and retention rules, and a kill
+  switch. One rule, `DiscoverySource.ingestion_allowed` (terms accepted and kill
+  switch clear), is re-read immediately before every fetch, so a tripped kill switch
+  stops the next fetch without a restart (D-084, D-085, ADR 0008). Sources start
+  terms-pending with the kill switch on; the admin API registers them
+  (`/admin/discovery-sources`).
+- Ingestion (`ats_ingestion.py`) supports three employer-ATS adapters, Greenhouse,
+  Lever and Ashby, each a public unauthenticated GET API. The provider is derived
+  only from the source's own endpoint host, requests go through the SSRF-safe
+  `fetch_public_resource`, and each source is fetched and committed in isolation.
+  Triggers are the opt-in scheduler (`ATS_INGESTION_ENABLED`) and the
+  `ingest_ats_sources` CLI. Discovery uses no credentials or session state (D-026, D-086). Whether each provider's terms permit use is an
+  owner review item (#368) that must be settled before the registry entries are
+  marked accepted.
+- Discovered listings persist with attribution and retrieval date into product-owned
+  canonical rows plus one-to-many source attributions, deduplicated by content hash.
+  A daily background job expires each attribution under its source's retention rule
+  and removes orphaned canonical rows. These tables have no workspace/user foreign
+  key and remain separate from an application's canonical listing (D-087, D-078).
 - Ranking uses confirmed Evidence Profile items and preferences via deterministic
-  keyword-overlap primitives first. The authenticated recommendation endpoint
-  re-evaluates source retention at read time, emits each canonical listing once,
-  and returns the matched keyword, owner evidence-item references, component
-  scores, source attribution, and retrieval date that explain its rank. The
-  responsive account-only surface exposes the trace plus hide, correct, and report
-  controls without changing the six single-shot tools (D-088, #174–#175).
-  Each request selects at most 500 canonical candidates by their latest currently
-  live attribution and returns at most 50 ranked results, so expired rows consume
-  no candidate budget and profile-to-corpus comparison work stays bounded.
+  keyword overlap. Each request scores at most 500 candidate listings and returns at
+  most 50 results, each with its matched keywords, owner evidence references and
+  source attribution (D-088). The account-only surface exposes hide, correct and
+  report controls.
 - Outbound source queries carry only minimal registry-declared parameters; profile
   content never leaves the product (D-089).
-- Personalization state (hidden sources, dismissals, reports) is owner-isolated
+- Listing dismissals are owner-isolated
   user data in the standard lifecycle and telemetry boundaries (D-090).
-- Recommendations become campaigns only by explicit user adoption; discovery never
-  auto-creates campaigns, tasks, or reminders (D-091).
+- Recommendations become applications only by explicit user adoption; discovery never
+  auto-creates applications or tasks (D-091).
 
-## Approval Queue Boundaries (R15, built ahead; activation deferred)
-
-- Packets are compositions referencing existing entities; approval freezes an
-  immutable by-value snapshot with a canonical SHA-256. Snapshot, decision,
-  queue-audit row, and campaign-timeline link commit atomically (D-093, D-096,
-  ADR 0009); PostgreSQL rejects snapshot-row updates while account/campaign
-  erasure may still delete them.
-- Approval is available only from `pending` and revalidates the packet's live
-  discovered-listing and CV-variant references under a row lock. A missing
-  required reference becomes a non-answerable `missing_material` stop and the UI
-  directs the owner to re-prepare; concurrent edit/skip/reject actions lock the
-  same packet row, so no terminal decision can split from its snapshot.
-- Upgrade from the pre-snapshot queue fails closed: legacy `accepted` decisions are
-  reset to `pending` because their historical material values cannot be truthfully
-  reconstructed. Downgrade likewise resets snapshot-backed decisions before
-  dropping the snapshot table, so no accepted-without-evidence state is stranded.
-- Preparation runs only inside user-defined rules, volume caps, and cost ceilings
-  (D-094).
-- Sensitive, legal, eligibility, relocation, demographic, salary,
-  work-authorization, and uncertain fields are server-enforced mandatory stops;
-  unresolved questions block approval (D-095).
-- No R15 code path performs, schedules, or retries a submission; acceptance returns
-  an HTTPS-only, user-driven link to the official destination, and unsafe or absent
-  URLs produce instructions without a link. Submission automation exists only
-  behind R16's per-source authorization contract (D-096).
-- Every packet passes the D-082 reviewer with zero unresolved fabrication findings
-  before queueing (D-097).
-- Queue actions are append-only audit events. Approval is terminal and structurally
-  unique per packet and per normalized owner/company/role, with the existing
-  submitted-campaign check as the second duplicate axis. Campaign submission
-  snapshots freeze that normalized role identity at capture, while packet approval
-  derives it from the packet's discovered listing. Submission capture likewise
-  prefers its canonical campaign listing; editable campaign labels are used only
-  for listing-less campaigns. Both immutable-record paths serialize their
-  cross-table duplicate check on the owner row. Approval and erasure use
-  packet→campaign→owner ordering; individual campaign deletion locks its packet rows
-  before the campaign, so neither campaign nor account erasure can invert those
-  foreign-key locks (D-098).
-- Rules, packets, drafts, and audit events are owner-isolated sensitive content in
-  the standard lifecycle and telemetry boundaries (D-099).
-- Browser queue queries are owner-keyed; logout, session expiry, and account deletion
-  purge the whole queue cache, while a mounted queue clears answer drafts and manual
-  handoff state on owner change or expiry.
-
-## Trusted Submission Boundaries (R16, dark #189–#195 foundation; activation deferred)
-
-- Submission exists only behind four independent gates: source (terms approval +
-  compatibility contract), user (granular revocable authorization), packet
-  (approved snapshot, zero unresolved questions or unsupported claims), and
-  envelope (limits, anomaly detection, rehearsed incident controls) (D-100–D-104,
-  ADR 0010).
-- No stored third-party passwords, copied session state, or inferred
-  authorization; only source-provided authentication mechanisms (D-101, D-026).
-- Challenges, CAPTCHAs, uncertainty, or contract mismatches stop the attempt and
-  return the accepted packet via its frozen Level B handoff — never a workaround
-  or automatic retry. The approved decision and immutable snapshot remain intact;
-  “return to queue” means control returns to the owner on that accepted packet,
-  not that approval history is rewritten (D-102).
-- Submissions are idempotent with duplicate prevention; audit is append-only with
-  per-field reconstructability and user-inspectable confirmation (D-103).
-- Contract observations are compared exactly with the reviewed compatibility
-  contract. A mismatch marks the contract broken, demotes the source, trips its
-  kill switch, and degrades to human handoff. Restoring contract bytes does not
-  reactivate the source: an admin must explicitly re-promote and clear the switch
-  after review (D-105).
-- The built-ahead #189 source gate extends each R14 registry row with at most one
-  submission-governance record. It persists a separate submission legal/terms
-  review, a strictly validated compatibility contract (fields, formats, error
-  semantics), explicit promotion provenance, and a default-on submission kill
-  switch. The authoritative `require_submission_allowed()` seam re-reads all
-  source facts and refuses unless R14 terms are accepted, both discovery and
-  submission kill switches are clear, the submission review is accepted, the
-  contract is verified, and the source is promoted. No real registry entry,
-  credentials, network adapter, user authorization, or submission route ships in
-  #189; local synthetic fixtures are contract tests, never legal approval.
-- Promotion and submission-kill telemetry reuses the first-party operational
-  store with source-family plus closed transition classes only. Source keys,
-  contract bodies, endpoints, and reviewer identities remain outside analytics.
-  This build-ahead is not evidence for D-100 and does not authorize activation.
-- The built-ahead #190 user gate is one active grant per owner and governed source.
-  Only the internal `record_submission_authorization()` seam exists; there is no
-  HTTP grant-creation route or source OAuth adapter. The seam first re-evaluates
-  #189 and accepts a strict callback result containing only one of two
-  source-provided OAuth mechanism classes, the fixed `submit_applications` scope,
-  and literal consent. The database has no credential, token, session, provider
-  subject, or arbitrary metadata column.
-- Listing and revocation are authenticated and owner-scoped. Revocation physically
-  removes the exact grant. Future queued/in-flight work must pin that grant id and
-  call `require_active_submission_authorization()` at dispatch and immediately
-  before every outward act or retry; a later re-grant creates a different id and
-  cannot revive stale work. #190 supplies this dark user-gate checkpoint, not a
-  scheduler, integration, callback endpoint, queue, or submission engine.
-- The dark #191 engine has no router, scheduler, credential exchange, or real
-  adapter. Its internal orchestration accepts only an approved immutable snapshot
-  and requires the source, exact grant id, packet, and injected authoritative
-  envelope checkpoints both at dispatch and immediately before the adapter act.
-  Submitted fields are resolved only from compatibility-contract paths into the
-  frozen snapshot and checked against declared formats. A durable unique dispatch
-  claim serializes concurrent workers; a deterministic packet-snapshot/source key
-  also crosses the adapter's required source-native idempotency boundary so retries
-  and process restarts remain one logical submission. The claim freezes the grant,
-  canonical fields, digests, contract version, and accepted response codes before
-  the first act, so an ambiguous retry cannot be rewritten by later governance.
-  The immutable record pins the exact
-  snapshot digest, contract version, submitted-field digest, and fixture
-  confirmation. Only a local synthetic adapter exists; #193 must supply the real
-  envelope before any adapter can be registered.
-- The dark #192 stop boundary adds a typed adapter stop result and an immutable
-  terminal event unique per snapshot/source. It is rechecked under the #191 claim
-  lock, preventing a concurrent worker or restart from invoking the adapter after
-  a stop. User-facing explanations come only from a closed engine mapping and the
-  handoff URL only from the frozen snapshot; provider prose, CAPTCHA material,
-  auth details, and submitted fields are never copied into a stop event. #195 owns
-  thresholds, operational events, and automatic kill-switch actuation.
-  Submission is refused before an adapter call unless that non-null HTTPS handoff
-  destination and its source identity are frozen to the selected governed source.
-  Ambiguous post-act timeouts or invalid/unknown confirmations do not become terminal
-  handoffs; they retain the exact durable claim for source-native reconciliation.
-- The dark #193 envelope is the engine's authoritative fourth checkpoint. A singleton
-  global kill switch defaults on; clearing it requires a recorded incident-playbook
-  rehearsal. Strict per-source policies bound each owner and each source by rolling
-  minute append-only adapter-attempt counts and rolling 24-hour logical-claim
-  volume, with a separate hourly attempt anomaly threshold. Retries of one frozen
-  idempotency claim are separate rate/anomaly attempts but one logical volume unit.
-  The engine consults the owner queue pause plus global control and source policy at
-  dispatch, durably commits a conservative attempt reservation, then reacquires the
-  complete lock chain and rechecks every mutable gate immediately before its adapter
-  boundary. A process crash can therefore over-count an attempt but cannot erase an
-  outward-call reservation or bypass retry throttling. The second check binds the
-  exact reservation ID to owner/source and the active minute window; an aged
-  reservation fails closed and a later retry must reserve again.
-  Anomalies emit only source family and a closed outcome. Owners can inspect their
-  exact owner-only bounded usage and a closed block reason; shared-source counts stay
-  internal. Rehearsals append immutable evidence references plus explicit roles,
-  rollback, and communication confirmations. Tripping the global control consumes
-  the active proof without deleting its history, so recovery requires a fresh
-  rehearsal before admins can clear it again. Admins can configure
-  limits and trip global/source controls without a deploy. No public submit route,
-  scheduler, credential flow, real adapter, or activation is added.
-- The dark #194 confirmation surface commits one append-only system campaign event
-  in the same transaction as each immutable submission record. Event details carry
-  only the record and approval-snapshot identifiers; submitted values remain solely
-  in the owner-scoped record. Authenticated campaign detail reconstructs every
-  submitted field beside the exact immutable approval bytes and digest, without
-  exposing grant or idempotency internals. The owner can confirm campaign deletion
-  to remove the product record, event, claims, and snapshot through the existing
-  ordered lifecycle; the UI explicitly states that this cannot recall the employer-held application.
-  The machine-readable export includes the audit record, timeline link, and the
-  content-free attempt ledger.
-- The dark #195 monitor accepts only strict local/adapter contract observations;
-  it has no network fetcher or generic browser seam. Contract-check telemetry is
-  source family plus `compatible`/`broken` only. Successful and idempotently
-  prevented fixture submissions emit only source family plus a closed quality
-  outcome. The admin quality view aggregates response, packet-edit, duplicate,
-  and complaint rates per allowlisted family. Duplicate prevention uses prevented
-  attempts over confirmed-plus-prevented logical attempts, so repeated safe retries
-  remain bounded instead of breaking the response contract. Other outcome rates
-  saturate at 100% because the privacy-safe event stream intentionally carries no
-  submission identifier for entity deduplication. Confirmation count is labeled only
-  as sample context, and the response shape exposes no control mutation, source
-  key, user/packet id, contract body, or submitted value. Quality and user
-  outcomes govern review; neither this dashboard nor raw volume can activate a
-  source or loosen a control (D-105–D-107).
-- Submission records follow the standard lifecycle for product copies, with the
-  employer-copy limitation stated honestly (D-107).
-
-## Development Loop Boundaries (R17 built ahead; activation deferred)
+## Development Loop Boundaries (R17)
 
 - Gaps classify into exactly four explainable kinds built on the reviewer's
   requirement and evidence traces (D-109, D-082).
@@ -618,47 +390,19 @@ scaling decision is ever needed.
   confirmation creates reusable evidence (D-113, D-062).
 - Development data (a record of the user's gaps) is owner-isolated sensitive
   content in the standard lifecycle and telemetry boundaries (D-114).
-- The implementation foundation is present on `chapter2`, including authenticated
-  lifecycle routes and aggregate-only admin reporting; that build-ahead does not
-  satisfy the evidence gate or authorize production activation (D-108).
+- The feature is always on locally (D-131). Lifecycle routes are authenticated and
+  owner-scoped; there is no aggregate admin reporting view.
 
 ## Abuse Controls
 
-Availability monitoring and abuse enforcement are separate: `/health` remains
-unlimited for Railway probes, while abuse-sensitive auth, model, upload, import,
-telemetry, export, and admin routes use bounded request limits. Outside development,
-rate-limit state must use shared storage configured by `RATE_LIMIT_STORAGE_URI`;
-process-local memory is rejected at startup.
-
-Limiter keys are HMAC-pseudonymized. A verified access-token subject supplies the
-account dimension; explicitly trusted proxy hops supply the source-IP dimension.
-Model and import/upload work enforce both dimensions independently. Login,
-registration, and reset retain source limits and add pseudonymized account/email
-counters. Raw account IDs, email addresses, tokens, and IPs are not written to
-limiter storage.
-
-Per-route burst limits are supplemented by shared model-cost and import/upload
-ceilings. Route, model, and resource windows expire after their declared minute/hour
-window; account-action counters expire after one hour. Failed-login counters expire
-after 15 minutes, introduce a bounded delay after the third failure, never hard-lock
-an account, and reset after successful login. Registration/reset account pressure
-also delays but never suppresses the action. For an incident-wide reset, operators
-rotate `RATE_LIMIT_KEY_PREFIX`; abandoned keys expire naturally. Production code
-does not issue a datastore-global reset, and no relational migration exists.
-
-Rate-limit rejection counts use shared limiter storage and coalesce into at most one
-threshold evidence row per bounded route family and 15-minute bucket. The row keeps
-only the threshold count and whether pressure was account, guest, or mixed—never raw
-paths, identities, IPs, or limiter keys. The scorecard fires review when one family
-reaches at least 50 rejections in each of three consecutive completed windows, or
-when provider cost alerts fire. CAPTCHA is not enabled automatically. The existing flag protects
-registration only; challenging a different attacked flow requires a reviewed
-frontend/backend contract for that flow
-before activation. This keeps CAPTCHA evidence-triggered rather than unconditional.
-
-Rollback is configuration-first: raise bounded limits or disable the shared
-decorators in a code revert. Never fall back to per-process storage in production,
-because that silently weakens multi-instance enforcement.
+Availability probing and abuse enforcement are separate: `/health` is unlimited,
+while abuse-sensitive auth, model, upload, import, telemetry, export and admin routes
+carry per-route SlowAPI limits (`backend/app/limiter.py`). Because the product is
+local-only, the limiter uses in-process memory keyed by the immediate client
+address. Proxy-aware keys, per-account pseudonymized counters and shared storage
+were removed (#355) and must be redesigned before any hosted launch. There is no
+CAPTCHA (D-129). Mutating requests are also bounded by the ASGI body-size limits
+described under Observability.
 
 ## Contract Change Checklist
 
@@ -678,12 +422,6 @@ For a database change:
 4. Check data ownership and deletion behavior.
 5. Update this document if the domain model or invariant changed.
 
-The `c4a8e2f6b1d9` operational-metric migration is expand-compatible: old code
-ignores its nullable column and existing rows receive `NULL`. Roll back application
-code first (or forward-fix) while retaining the column. Before an optional database
-downgrade, drain all code that writes `metric_value`; downgrading preserves event
-rows but intentionally discards collected metric samples.
-
 ## Release Shape
 
 A release candidate should pass:
@@ -695,5 +433,5 @@ cd backend && alembic upgrade head
 ```
 
 It also needs manual smoke coverage of guest, authenticated, connected workflow,
-history, export, account, and admin authorization paths. Exact release gates live in
-`docs/roadmap.md`.
+history, export, account, and admin authorization paths. The full local gate is `scripts/local-release.sh` (see `docs/handoff-2026-09-29.md`);
+hosted CI is manual-dispatch only.

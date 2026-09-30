@@ -22,35 +22,10 @@ export const discoveryAllowedBehaviorSchema = z.enum([
   'paste',
 ])
 
-export const discoveryRobotsPolicySchema = z.enum([
-  'required',
-  'not_applicable',
-])
-
-export const discoveryQueryParameterSchema = z.enum([
-  'role',
-  'location',
-  'remote',
-  'page',
-  'cursor',
-  'limit',
-  'posted_after',
-])
-
 const offsetDateTimeSchema = z.iso.datetime({ offset: true })
-const endpointUrlSchema = z
-  .url()
-  .startsWith('https://')
-  .refine((value) => {
-    const parsed = new URL(value)
-    return !parsed.username && !parsed.password && !parsed.search && !parsed.hash
-  }, 'Endpoint cannot contain credentials, query, or fragment')
 
-const allowedQueryParametersSchema = z
-  .array(discoveryQueryParameterSchema)
-  .max(7)
-  .refine((items) => new Set(items).size === items.length, 'Query parameters must be unique')
-
+// Read-only response schema mirroring DiscoverySourceResponse in
+// backend/app/schemas/discovery_sources.py. Input rules are enforced on write.
 export const discoverySourceSchema = z.object({
   id: z.string(),
   source_key: z.string(),
@@ -61,14 +36,16 @@ export const discoverySourceSchema = z.object({
   terms_reviewed_at: offsetDateTimeSchema.nullable(),
   terms_reviewed_by: z.string().nullable(),
   allowed_behavior: discoveryAllowedBehaviorSchema,
-  endpoint_url: endpointUrlSchema.nullable(),
-  allowed_query_parameters: allowedQueryParametersSchema.nullable(),
-  robots_policy: discoveryRobotsPolicySchema.nullable(),
+  endpoint_url: z.string().nullable(),
   rate_limit_per_minute: z.number().int().positive(),
   attribution_rule: z.string(),
   retention_days: z.number().int().positive(),
   kill_switch: z.boolean(),
   ingestion_allowed: z.boolean(),
+  // Latest ingestion run, stamped once per run (#369).
+  last_fetched_at: offsetDateTimeSchema.nullable(),
+  last_outcome: z.string().nullable(),
+  listing_count: z.number().int().nonnegative().nullable(),
   created_at: offsetDateTimeSchema,
   updated_at: offsetDateTimeSchema,
 })

@@ -1,62 +1,4 @@
-import type { LucideIcon } from 'lucide-react'
-import {
-  BadgeCheck,
-  ClipboardCheck,
-  Compass,
-  History as HistoryIcon,
-  Megaphone,
-  PanelsTopLeft,
-} from 'lucide-react'
-import {
-  isR11EvidenceProfileEnabled,
-  isR12CvStudioEnabled,
-  isR13CampaignsEnabled,
-  isR14DiscoveryEnabled,
-  isR15QueueEnabled,
-} from '#/lib/flags/featureFlags'
 import { tools } from '#/lib/tools/registry'
-
-/** One destination in a grouped nav section (sidebar + mobile tools sheet). */
-export type NavDestination = {
-  label: string
-  route: string
-  icon: LucideIcon
-  /** Omitted means always visible (subject to the surrounding auth gate). */
-  enabled?: () => boolean
-}
-
-export type NavGroup = {
-  id: string
-  label: string
-  destinations: NavDestination[]
-}
-
-/**
- * Shared source of truth for the owner-workspace nav groups so the sidebar
- * and the mobile tools sheet render the same structure instead of drifting.
- * The six tools live in their own "Tools" group built straight from
- * `toolList` (canonical priority order) at each call site.
- */
-export const navGroups: NavGroup[] = [
-  {
-    id: 'job-search',
-    label: 'Job search',
-    destinations: [
-      { label: 'Discover', route: '/discovery', icon: Compass, enabled: isR14DiscoveryEnabled },
-      { label: 'Queue', route: '/queue', icon: ClipboardCheck, enabled: isR15QueueEnabled },
-      { label: 'Campaigns', route: '/campaigns', icon: Megaphone, enabled: isR13CampaignsEnabled },
-    ],
-  },
-  {
-    id: 'you',
-    label: 'You',
-    destinations: [
-      { label: 'CV Studio', route: '/cv-studio', icon: PanelsTopLeft, enabled: isR12CvStudioEnabled },
-      { label: 'Profile', route: '/profile', icon: BadgeCheck, enabled: isR11EvidenceProfileEnabled },
-      { label: 'History', route: '/history', icon: HistoryIcon },
-    ],
-  },
-]
 
 type RouteMeta = {
   title: string
@@ -117,35 +59,25 @@ export function getRouteMeta(pathname: string): RouteMeta {
     }
   }
 
-  if (pathname === '/queue') {
-    return {
-      title: 'Application Queue',
-      description: 'Review each prepared packet, then accept, edit, skip, or reject it — or pause all preparation.',
-      sectionLabel: 'Job search',
-      breadcrumbs: ['Dashboard', 'Application Queue'],
-      topbarVariant: 'compact',
-    }
-  }
-
   if (pathname === '/campaigns') {
     return {
-      title: 'Campaigns',
-      description: 'Track applications you have saved from Job Discovery.',
+      title: 'Applications',
+      description: 'Every job you are going for, from saved to offer.',
       sectionLabel: 'Job search',
-      breadcrumbs: ['Dashboard', 'Campaigns'],
+      breadcrumbs: ['Dashboard', 'Applications'],
       topbarVariant: 'compact',
     }
   }
 
-  // Detail tabs (/campaigns/$id, /campaigns/$id?tab=…) fall through to here;
+  // Application pages (/campaigns/$id) fall through to here;
   // without this the topbar breadcrumb renders nothing at all (career-
   // workbench#326) since the 'standard' fallback variant only shows on mobile.
   if (pathname.startsWith('/campaigns/')) {
     return {
       title: 'Application',
-      description: 'Documents, tasks, notes, and the timeline for this application.',
+      description: 'Apply, documents, tasks, notes and activity for this application.',
       sectionLabel: 'Job search',
-      breadcrumbs: ['Dashboard', 'Campaigns', 'Application'],
+      breadcrumbs: ['Dashboard', 'Applications', 'Application'],
       topbarVariant: 'compact',
     }
   }

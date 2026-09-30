@@ -5,7 +5,7 @@ from pathlib import Path
 from app.services.campaign_reviewer import review_campaign_materials
 from app.services.evidence_injection import EvidencePayload
 
-PREFIX = "/api/v1/history"
+PREFIX = "/api/v1/applications"
 
 FIXTURE = json.loads((Path(__file__).parent / "fixtures/application_reviewer.json").read_text())
 
@@ -173,7 +173,7 @@ def test_campaign_reviewer_runs_through_pipeline_without_mutating_sources(
     workspace.selected_cv_variant_id = variant.id
     workspace.selected_cover_letter_run_id = cover.id
     db.commit()
-    response = client.post(f"{PREFIX}/workspaces/{workspace.id}/review", headers=auth_headers)
+    response = client.post(f"{PREFIX}/{workspace.id}/review", headers=auth_headers)
     assert response.status_code == 200
     assert response.json()["schema_version"] == "application-reviewer/v1"
     assert response.json()["findings"] == []
@@ -196,7 +196,7 @@ def test_campaign_reviewer_runs_through_pipeline_without_mutating_sources(
     }
     db.commit()
     changed_response = client.post(
-        f"{PREFIX}/workspaces/{workspace.id}/review", headers=auth_headers
+        f"{PREFIX}/{workspace.id}/review", headers=auth_headers
     )
     assert changed_response.status_code == 200
     assert changed_response.json()["findings"]

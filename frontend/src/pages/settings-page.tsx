@@ -7,12 +7,11 @@ import {
   Clock,
   Compass,
   Download,
-  Globe,
   HardDrive,
+  Settings,
   RotateCcw,
   Trash2,
 } from 'lucide-react'
-import { useTranslation } from 'react-i18next'
 import { Button } from '#/components/ui/button'
 import {
   Dialog,
@@ -24,14 +23,13 @@ import {
 } from '#/components/ui/dialog'
 import { Input } from '#/components/ui/input'
 import { Label } from '#/components/ui/label'
-import { PageFrame } from '#/components/app/PageFrame'
+import { PageHero } from '#/components/app/PageHero'
+import { WorkspacePage } from '#/components/app/WorkspacePage'
 import { OnboardingDialog } from '#/components/onboarding/OnboardingDialog'
 import { useOnboarding } from '#/hooks/useOnboarding'
 import { useSession } from '#/hooks/useSession'
 import { deleteAccount, deleteEvidenceProfile, exportCareerData } from '#/lib/api/client'
-import { changeLanguage } from '#/lib/i18n'
 import { clearSensitiveBrowserData } from '#/lib/privacy/browserData'
-import { QUEUE_QUERY_ROOT } from '#/lib/api/queueCache'
 import { EVIDENCE_QUERY_KEY } from '#/lib/profile/evidence'
 import { invalidateEvidenceCaches } from '#/lib/query/evidenceCaches'
 
@@ -40,7 +38,6 @@ export function SettingsPage() {
   const onboarding = useOnboarding()
   const { health, status, user } = useSession()
   const [cleared, setCleared] = useState(false)
-  const { t, i18n } = useTranslation()
   const isOnline = health?.status === 'ok'
 
   // Account-deletion dialog state. The Privacy Policy promises a working
@@ -88,7 +85,7 @@ export function SettingsPage() {
       // sessionStorage state so a stale tab doesn't think the user is
       // still signed in, then exit to the landing page.
       clearSensitiveBrowserData()
-      queryClient.removeQueries({ queryKey: QUEUE_QUERY_ROOT })
+      queryClient.clear()
       window.location.assign('/')
     } catch (error) {
       setDeleteError(
@@ -139,14 +136,9 @@ export function SettingsPage() {
   }
 
   return (
-    <PageFrame>
+    <WorkspacePage>
+      <PageHero icon={Settings} title="Settings" purpose="Your tour, local data and workspace status." />
       <div className="content-max settings-layout">
-        <header className="settings-header">
-          <p className="settings-header-subtitle">
-            Manage your local workspace, onboarding preferences, and system diagnostics.
-          </p>
-        </header>
-
         <section className="settings-section">
           <div className="settings-panel">
             <div className="settings-row">
@@ -156,7 +148,7 @@ export function SettingsPage() {
               <div className="settings-info">
                 <h2 className="settings-title">Onboarding</h2>
                 <p className="settings-description">
-                  Replay the welcome tour to revisit the platform introduction and tool overview.
+                  Replay the welcome tour.
                 </p>
               </div>
               <div className="settings-action">
@@ -181,14 +173,16 @@ export function SettingsPage() {
               <div className="settings-info">
                 <h2 className="settings-title">Local workspace data</h2>
                 <p className="settings-description">
-                  Clear locally cached drafts, guest demos, and workflow context to restart the guided flow.
-                  {cleared && <span className="settings-cleared-msg"> Local drafts and demo state were cleared.</span>}
+                  Clear cached drafts, guest demos and workflow context on this device.
+                </p>
+                <p role="status" className="settings-cleared-msg">
+                  {cleared ? 'Local drafts and demo state were cleared.' : ''}
                 </p>
               </div>
               <div className="settings-action">
                 <Button
                   variant="outline"
-                  className="settings-btn settings-btn--destructive"
+                  className="settings-btn"
                   onClick={() => {
                     clearSensitiveBrowserData()
                     setCleared(true)
@@ -206,7 +200,7 @@ export function SettingsPage() {
               <div className="settings-info">
                 <h2 className="settings-title">Saved workspace history</h2>
                 <p className="settings-description">
-                  Authenticated results live in the workspace timeline. Review, favorite, pin, and delete saved runs there.
+                  Review, favorite, pin and delete saved runs in the timeline.
                 </p>
               </div>
               <div className="settings-action">
@@ -215,69 +209,25 @@ export function SettingsPage() {
                 </Button>
               </div>
             </div>
-
-            <div className="settings-row">
-              <div className="settings-row-icon">
-                <Globe size={18} />
-              </div>
-              <div className="settings-info">
-                <h2 className="settings-title">{t('settings.language')}</h2>
-                <p className="settings-description">
-                  {t('settings.languageDescription')}
-                </p>
-              </div>
-              <div className="settings-action">
-                <select
-                  id="settings-language-select"
-                  className="settings-language-select"
-                  value={i18n.language}
-                  onChange={(e) => changeLanguage(e.target.value)}
-                  aria-label={t('settings.language')}
-                >
-                  <option value="en">English</option>
-                  <option value="tr">Türkçe</option>
-                </select>
-              </div>
-            </div>
           </div>
         </section>
 
         <section className="settings-section">
-          <div className="settings-panel settings-status-panel">
-            <div className="settings-status-header">
+          <div className="settings-panel">
+            <div className="settings-row">
               <div className="settings-row-icon">
                 <Activity size={18} />
               </div>
               <div className="settings-info">
-                <div className="flex items-center gap-2.5">
-                  <h2 className="settings-title">System Diagnostics</h2>
-                  <span className={`settings-status-dot ${isOnline ? 'is-online' : 'is-offline'}`} />
-                </div>
-                <p className="settings-description">
-                  {isOnline ? 'All systems operational — API is reachable.' : 'API connectivity could not be confirmed.'}
-                </p>
+                <h2 className="settings-title">Connection</h2>
               </div>
-            </div>
-
-            <div className="settings-status-grid">
-              <div className="settings-status-item">
-                <span className="settings-status-label">API Status</span>
-                <span className={`settings-status-value ${!isOnline ? 'is-offline' : ''}`}>
-                  {isOnline ? 'Online & Healthy' : 'Unknown / Offline'}
-                </span>
-              </div>
-              <div className="settings-status-item">
-                <span className="settings-status-label">Service</span>
-                <span className="settings-status-value">{health?.service || 'Backend API'}</span>
-              </div>
-              <div className="settings-status-item">
-                <span className="settings-status-label">Environment</span>
-                <span className="settings-status-value">{health?.environment || 'development'}</span>
-              </div>
-              <div className="settings-status-item" style={{ gridColumn: '1 / -1' }}>
-                <span className="settings-status-label">Last Checked</span>
-                <span className="settings-status-value">
-                  {health?.time ? new Date(health.time).toLocaleString() : 'Unavailable'}
+              <div className="settings-action">
+                <span className="settings-status">
+                  <span
+                    className={`settings-status-dot ${isOnline ? 'is-online' : 'is-offline'}`}
+                    aria-hidden="true"
+                  />
+                  {isOnline ? 'Connected' : "Can't reach the server"}
                 </span>
               </div>
             </div>
@@ -286,21 +236,25 @@ export function SettingsPage() {
 
         {isAuthenticated && (
           <section className="settings-section">
+            <h2 className="settings-section-heading">Data and privacy</h2>
             <div className="settings-panel">
               <div className="settings-row">
                 <div className="settings-row-icon">
                   <Download size={18} />
                 </div>
                 <div className="settings-info">
-                  <h2 className="settings-title">Export career data</h2>
+                  <h3 className="settings-title">Export career data</h3>
                   <p className="settings-description">
-                    Download all structured career data in a machine-readable JSON file.
-                    This recovery control remains available while preview features are hidden.
+                    Download everything you saved as a JSON file.
                   </p>
+                  {exportError ? (
+                    <p role="alert" className="settings-error">{exportError}</p>
+                  ) : null}
                 </div>
                 <div className="settings-action">
                   <Button
                     variant="outline"
+                    className="settings-btn"
                     onClick={() => void handleCareerDataExport()}
                     loading={dataAction === 'export'}
                   >
@@ -310,13 +264,13 @@ export function SettingsPage() {
                 </div>
               </div>
               <div className="settings-row">
-                <div className="settings-row-icon" style={{ color: 'var(--destructive)' }}>
+                <div className="settings-row-icon settings-row-icon--danger">
                   <Trash2 size={18} />
                 </div>
                 <div className="settings-info">
-                  <h2 className="settings-title">Delete evidence profile</h2>
+                  <h3 className="settings-title">Delete evidence profile</h3>
                   <p className="settings-description">
-                    Permanently erase saved Evidence Profile items without deleting your account.
+                    Erase saved Evidence Profile items without deleting your account.
                   </p>
                 </div>
                 <div className="settings-action">
@@ -332,19 +286,14 @@ export function SettingsPage() {
                   </Button>
                 </div>
               </div>
-              {exportError ? <p role="alert" className="small-copy" style={{ color: 'var(--destructive)' }}>{exportError}</p> : null}
               <div className="settings-row">
-                <div
-                  className="settings-row-icon"
-                  style={{ color: 'var(--destructive)' }}
-                >
+                <div className="settings-row-icon settings-row-icon--danger">
                   <AlertTriangle size={18} />
                 </div>
                 <div className="settings-info">
-                  <h2 className="settings-title">Delete account</h2>
+                  <h3 className="settings-title">Delete account</h3>
                   <p className="settings-description">
-                    Permanently delete your account, every saved tool run, and every workspace.
-                    This cannot be undone. We will not retain a backup.
+                    Permanently delete your account, saved runs and workspaces. This cannot be undone.
                   </p>
                 </div>
                 <div className="settings-action">
@@ -397,11 +346,7 @@ export function SettingsPage() {
             />
           </div>
           {deleteError ? (
-            <p
-              role="alert"
-              className="small-copy"
-              style={{ color: 'var(--destructive)' }}
-            >
+            <p role="alert" className="small-copy settings-error">
               {deleteError}
             </p>
           ) : null}
@@ -439,7 +384,7 @@ export function SettingsPage() {
             </DialogDescription>
           </DialogHeader>
           {profileDeleteError ? (
-            <p role="alert" className="small-copy" style={{ color: 'var(--destructive)' }}>
+            <p role="alert" className="small-copy settings-error">
               {profileDeleteError}
             </p>
           ) : null}
@@ -458,6 +403,6 @@ export function SettingsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </PageFrame>
+    </WorkspacePage>
   )
 }

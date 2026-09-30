@@ -1,6 +1,4 @@
 import { createFileRoute, lazyRouteComponent } from '@tanstack/react-router'
-import { isR12CvStudioEnabled } from '#/lib/flags/featureFlags'
-import { requireEnabledOutcome } from '#/lib/flags/outcomeGuard'
 
 // The live paper preview uses the exact bundled OFL faces the PDF/DOCX
 // renderer uses, served by the API itself (@font-face rules in
@@ -8,7 +6,6 @@ import { requireEnabledOutcome } from '#/lib/flags/outcomeGuard'
 // Fonts (#322).
 
 export const Route = createFileRoute('/cv-studio')({
-  beforeLoad: () => requireEnabledOutcome(isR12CvStudioEnabled()),
   head: () => ({
     meta: [{ title: 'CV Studio | Career Workbench' }],
   }),

@@ -1,24 +1,17 @@
-"""Canonical CV rendering and deterministic artifact generation.
+"""Canonical CV rendering, deterministic artifact generation and the style catalog.
 
-The JSON render model is the single source consumed by browser preview and both
-exporters. PDF bytes are stable through ReportLab's invariant mode. DOCX semantic
-content is deterministic; ZIP member timestamps/order are canonicalized so bytes
-are stable with a fixed python-docx version.
+``TEMPLATES`` and the density/ATS constants below are the single source of CV
+design values: both exporters read them here, and the browser preview reads them
+through ``style_catalog()`` (``GET /cv-documents/style-catalog``).
 
-Backward compatibility contract: ``build_render_model(document, template_id)``
-called without a ``style`` argument must reproduce byte-identical PDF/DOCX output
-for the three original templates (ats-essential, professional-editorial,
-technical-portfolio) against entries that carry only ``body`` text — this is
-covered by the golden pixel/layout snapshots in ``tests/test_cv_rendering.py``.
-All style/structured-entry behavior below is additive and only engages when a
-``style`` is supplied or an entry carries structured fields.
+PDF bytes are stable through ReportLab's invariant mode. DOCX semantic content is
+deterministic; ZIP member timestamps/order are canonicalized so bytes are stable
+with a fixed python-docx version.
 """
 
 from __future__ import annotations
 
-import hashlib
 import io
-import json
 import re
 import zipfile
 from dataclasses import dataclass
@@ -43,14 +36,25 @@ from reportlab.platypus import (
     KeepTogether,
     PageTemplate,
     Paragraph,
-    SimpleDocTemplate,
     Spacer,
     Table,
     TableStyle,
 )
 
-from app.schemas.cv_documents import CvArtifactEvidence, CvRenderModel, CvStyle
-from app.services.cv_fonts import docx_font_name, pdf_font_names
+from app.schemas.cv_documents import (
+    CV_ACCENT_NAMES,
+    CvArtifactEvidence,
+    CvRenderModel,
+    CvStyle,
+    CvStyleCatalog,
+    CvStyleCatalogAtsMode,
+    CvStyleCatalogColor,
+    CvStyleCatalogDensity,
+    CvStyleCatalogFont,
+    CvStyleCatalogTemplate,
+    CvStyleSizes,
+)
+from app.services.cv_fonts import FONT_FAMILIES, css_family, docx_font_name, pdf_font_names
 from app.services.cv_parser import parse_cv_import
 
 URL_RE = re.compile(r"https?://[^\s<>()\[\]{}\"']*[^\s<>()\[\]{}\"'.,;:!?]")
@@ -58,38 +62,117 @@ URL_RE = re.compile(r"https?://[^\s<>()\[\]{}\"']*[^\s<>()\[\]{}\"'.,;:!?]")
 
 @dataclass(frozen=True)
 class Template:
-    id: str
-    font: str
-    accent: str
+    name: str
+    description: str
     body_size: int
     heading_size: int
     margin_mm: int
     section_gap: int
-    align: str
+    title_align: str = "left"
+    # Section kinds rendered in a sidebar column; empty means single column.
+    sidebar_kinds: tuple[str, ...] = ()
+
+    @property
+    def two_column(self) -> bool:
+        return bool(self.sidebar_kinds)
+
+    @property
+    def ats_safe(self) -> bool:
+        """Safe for strict ATS parsers without ATS mode: single column, so the
+        reading order is the order the person wrote."""
+        return not self.two_column
 
 
-TEMPLATES = {
-    "ats-essential": Template("ats-essential", "Helvetica", "#111827", 10, 13, 18, 6, "left"),
+TEMPLATES: dict[str, Template] = {
+    "ats-essential": Template(
+        "ATS Essential",
+        "Single-column, minimal styling built for applicant tracking systems.",
+        10, 13, 18, 6,
+    ),
     "professional-editorial": Template(
-        "professional-editorial", "Times-Roman", "#7C2D12", 10, 15, 20, 8, "left"
+        "Professional Editorial",
+        "A refined single-column layout with warm serif section headings.",
+        10, 15, 20, 8,
+        title_align="center",
     ),
     "technical-portfolio": Template(
-        "technical-portfolio", "Courier", "#075985", 9, 12, 16, 7, "left"
+        "Technical Portfolio",
+        "Monospace-accented layout suited to engineering and technical roles.",
+        9, 12, 16, 7,
     ),
     "modern-two-column": Template(
-        "modern-two-column", "Helvetica", "#1D4ED8", 9, 12, 14, 6, "left"
+        "Modern Two-Column",
+        "A sidebar column for contact/skills next to a wide main column. PDF only — "
+        "DOCX exports degrade to a single column.",
+        9, 12, 14, 6,
+        sidebar_kinds=("skills", "certifications"),
     ),
-    "minimal-serif": Template("minimal-serif", "Times-Roman", "#374151", 10, 13, 20, 7, "left"),
+    "minimal-serif": Template(
+        "Minimal Serif",
+        "A quiet, minimal serif layout with generous whitespace.",
+        10, 13, 20, 7,
+    ),
 }
 
-# Templates safe for strict ATS parsers without forcing ats_mode: single column,
-# no sidebar, no decorative structure that could scramble reading order.
-ATS_SAFE_TEMPLATES = {"ats-essential", "professional-editorial", "technical-portfolio", "minimal-serif"}
+ATS_SAFE_TEMPLATES = frozenset(tid for tid, template in TEMPLATES.items() if template.ats_safe)
 
-DENSITY_SCALE = {"compact": 0.88, "normal": 1.0, "spacious": 1.15}
-DENSITY_GAP_SCALE = {"compact": 0.7, "normal": 1.0, "spacious": 1.4}
+# density -> (display name, type scale, section-gap scale)
+DENSITIES: dict[str, tuple[str, float, float]] = {
+    "compact": ("Compact", 0.88, 0.7),
+    "normal": ("Balanced", 1.0, 1.0),
+    "spacious": ("Roomy", 1.15, 1.4),
+}
 
-_BUILTIN_BOLD = {"Helvetica": "Helvetica-Bold", "Times-Roman": "Times-Bold", "Courier": "Courier-Bold"}
+# What ATS-friendly mode forces, whatever the saved style says.
+ATS_TEMPLATE_ID = "ats-essential"
+ATS_DENSITY = "normal"
+ATS_ACCENT = "#111827"
+ATS_PDF_FONT = ("Helvetica", "Helvetica-Bold")
+ATS_CSS_FAMILY = "Helvetica, Arial, 'Liberation Sans', sans-serif"
+
+
+def template_sizes(template: Template, density: str) -> CvStyleSizes:
+    _, scale, gap_scale = DENSITIES[density]
+    return CvStyleSizes(
+        body_pt=max(8, round(template.body_size * scale)),
+        heading_pt=max(10, round(template.heading_size * scale)),
+        section_gap_pt=max(3, round(template.section_gap * gap_scale)),
+    )
+
+
+def style_catalog() -> CvStyleCatalog:
+    return CvStyleCatalog(
+        templates=[
+            CvStyleCatalogTemplate(
+                id=template_id,
+                name=template.name,
+                description=template.description,
+                ats_safe=template.ats_safe,
+                title_align=template.title_align,
+                margin_mm=template.margin_mm,
+                sidebar_kinds=list(template.sidebar_kinds),
+                sizes={density: template_sizes(template, density) for density in DENSITIES},
+            )
+            for template_id, template in TEMPLATES.items()
+        ],
+        fonts=[
+            CvStyleCatalogFont(
+                id=family.id,
+                name=family.name,
+                category=family.category,
+                css_family=css_family(family.id),
+            )
+            for family in FONT_FAMILIES.values()
+        ],
+        palette=[CvStyleCatalogColor(value=value, name=name) for value, name in CV_ACCENT_NAMES.items()],
+        densities=[CvStyleCatalogDensity(id=d, name=name) for d, (name, _, _) in DENSITIES.items()],
+        ats_mode=CvStyleCatalogAtsMode(
+            template_id=ATS_TEMPLATE_ID,
+            density=ATS_DENSITY,
+            accent=ATS_ACCENT,
+            css_family=ATS_CSS_FAMILY,
+        ),
+    )
 
 
 @dataclass(frozen=True)
@@ -105,46 +188,22 @@ class EffectiveStyle:
     heading_size: int
     margin_mm: int
     section_gap: int
-    align: str
     two_column: bool
 
 
-def resolve_effective_style(template_id: str, style: CvStyle | None) -> EffectiveStyle:
-    """Resolve template + style into the concrete tokens both renderers consume.
-
-    ``style is None`` is the legacy path: it must reproduce the exact per-template
-    defaults that existed before style customization shipped (no density/ats_mode
-    behavior at all), so unmodified callers keep byte-identical output.
-    """
-    if style is None:
-        t = TEMPLATES[template_id]
-        return EffectiveStyle(
-            layout_template_id=template_id,
-            font_name=t.font,
-            font_bold_name=_BUILTIN_BOLD.get(t.font, t.font),
-            font_docx_name=t.font,
-            accent=t.accent,
-            density="normal",
-            ats_mode=False,
-            body_size=t.body_size,
-            heading_size=t.heading_size,
-            margin_mm=t.margin_mm,
-            section_gap=t.section_gap,
-            align=t.align,
-            two_column=template_id == "modern-two-column",
-        )
+def resolve_effective_style(template_id: str, style: CvStyle) -> EffectiveStyle:
+    """Resolve template + style into the concrete tokens both renderers consume."""
     ats = style.ats_mode
-    layout_id = "ats-essential" if ats else template_id
-    t = TEMPLATES[layout_id]
+    layout_id = ATS_TEMPLATE_ID if ats else template_id
+    template = TEMPLATES[layout_id]
     if ats:
-        font_name, font_bold, font_docx, accent = "Helvetica", "Helvetica-Bold", "Helvetica", "#111827"
+        (font_name, font_bold), font_docx, accent = ATS_PDF_FONT, ATS_PDF_FONT[0], ATS_ACCENT
     else:
         font_name, font_bold = pdf_font_names(style.font_id)
         font_docx = docx_font_name(style.font_id)
         accent = style.accent_color
-    density = "normal" if ats else style.density
-    scale = DENSITY_SCALE[density]
-    gap_scale = DENSITY_GAP_SCALE[density]
+    density = ATS_DENSITY if ats else style.density
+    sizes = template_sizes(template, density)
     return EffectiveStyle(
         layout_template_id=layout_id,
         font_name=font_name,
@@ -153,12 +212,11 @@ def resolve_effective_style(template_id: str, style: CvStyle | None) -> Effectiv
         accent=accent,
         density=density,
         ats_mode=ats,
-        body_size=max(8, round(t.body_size * scale)),
-        heading_size=max(10, round(t.heading_size * scale)),
-        margin_mm=t.margin_mm,
-        section_gap=max(3, round(t.section_gap * gap_scale)),
-        align=t.align,
-        two_column=(not ats) and layout_id == "modern-two-column",
+        body_size=sizes.body_pt,
+        heading_size=sizes.heading_pt,
+        margin_mm=template.margin_mm,
+        section_gap=sizes.section_gap_pt,
+        two_column=template.two_column,
     )
 
 
@@ -169,44 +227,53 @@ def _clean(value) -> str | None:
     return text or None
 
 
-def build_render_model(document, template_id: str, style: CvStyle | None = None) -> CvRenderModel:
+def _render_entry(entry: dict) -> dict:
+    text = " ".join(str(entry["body"]).split())
+    heading = _clean(entry.get("heading"))
+    bullets = [cleaned for b in entry.get("bullets") or [] if (cleaned := _clean(b))]
+    dates = " – ".join(
+        part for part in (_clean(entry.get("start_date")), _clean(entry.get("end_date"))) if part
+    )
+    if heading is None:
+        # Freeform entry: one paragraph of body text.
+        paragraph, bullets = text or None, []
+    else:
+        paragraph = text if not bullets and text and text != heading else None
+    return {
+        "id": entry["id"],
+        "text": text,
+        # Only text that renders as marked-up body can carry a clickable link.
+        "links": URL_RE.findall(" ".join(filter(None, [paragraph, *bullets]))),
+        "heading": heading,
+        "subheading": _clean(entry.get("subheading")) if heading else None,
+        "location": _clean(entry.get("location")) if heading else None,
+        "dates": (dates or None) if heading else None,
+        "bullets": bullets,
+        "paragraph": paragraph,
+    }
+
+
+def build_render_model(document, template_id: str, style: CvStyle) -> CvRenderModel:
     effective = resolve_effective_style(template_id, style)
-    sections = []
-    for section in sorted(document.sections, key=lambda item: (item["position"], item["id"])):
-        if not section.get("visible", True):
-            continue
-        entries = []
-        for entry in sorted(section["entries"], key=lambda item: (item["position"], item["id"])):
-            text = " ".join(str(entry["body"]).split())
-            bullets = [cleaned for b in entry.get("bullets") or [] if (cleaned := _clean(b))]
-            link_source = " ".join([text, *bullets]) if bullets else text
-            entries.append(
-                {
-                    "id": entry["id"],
-                    "text": text,
-                    "links": URL_RE.findall(link_source),
-                    "heading": _clean(entry.get("heading")),
-                    "subheading": _clean(entry.get("subheading")),
-                    "location": _clean(entry.get("location")),
-                    "start_date": _clean(entry.get("start_date")),
-                    "end_date": _clean(entry.get("end_date")),
-                    "bullets": bullets,
-                }
-            )
-        sections.append(
-            {
-                "id": section["id"],
-                "kind": section["kind"],
-                "title": section["title"].strip(),
-                "entries": entries,
-            }
-        )
-    canonical = {
-        "document_id": document.id,
-        "document_name": document.name.strip(),
-        "template_id": effective.layout_template_id,
-        "page": {"width_mm": 210, "height_mm": 297, "margin_mm": effective.margin_mm},
-        "tokens": {
+    template = TEMPLATES[effective.layout_template_id]
+    sections = [
+        {
+            "id": section["id"],
+            "kind": section["kind"],
+            "title": section["title"].strip(),
+            "entries": [
+                _render_entry(entry)
+                for entry in sorted(section["entries"], key=lambda item: (item["position"], item["id"]))
+            ],
+        }
+        for section in sorted(document.sections, key=lambda item: (item["position"], item["id"]))
+        if section.get("visible", True)
+    ]
+    return CvRenderModel(
+        document_name=document.name.strip(),
+        template_id=effective.layout_template_id,
+        margin_mm=effective.margin_mm,
+        tokens={
             "font": effective.font_name,
             "font_bold": effective.font_bold_name,
             "font_docx": effective.font_docx_name,
@@ -214,17 +281,34 @@ def build_render_model(document, template_id: str, style: CvStyle | None = None)
             "body_size_pt": effective.body_size,
             "heading_size_pt": effective.heading_size,
             "section_gap_pt": effective.section_gap,
-            "align": effective.align,
-            "density": effective.density,
-            "ats_mode": effective.ats_mode,
+            "title_align": template.title_align,
             "two_column": effective.two_column,
         },
-        "sections": sections,
-    }
-    digest = hashlib.sha256(
-        json.dumps(canonical, sort_keys=True, separators=(",", ":")).encode()
-    ).hexdigest()
-    return CvRenderModel(**canonical, canonical_hash=digest)
+        sections=sections,
+    )
+
+
+def entry_render_lines(entry) -> list[str]:
+    """The literal text lines an entry renders as, in rendering order.
+
+    ``validate_artifact`` checks the re-read PDF against exactly these lines
+    rather than the unrendered body, so a structured entry that renders as
+    "heading + bullets" is judged on what is on the page (#322).
+    """
+    if entry.heading is None:
+        return [entry.paragraph] if entry.paragraph else []
+    head_line = entry.heading
+    if entry.subheading:
+        head_line += f" — {entry.subheading}"
+    if entry.dates:
+        head_line += f" {entry.dates}"
+    lines = [head_line]
+    if entry.location:
+        lines.append(entry.location)
+    lines.extend(entry.bullets)
+    if entry.paragraph:
+        lines.append(entry.paragraph)
+    return lines
 
 
 def _markup(text: str) -> str:
@@ -244,7 +328,7 @@ def _markup(text: str) -> str:
 def _pdf_styles(model: CvRenderModel) -> dict[str, ParagraphStyle]:
     tokens = model.tokens
     font = str(tokens["font"])
-    font_bold = str(tokens.get("font_bold", font))
+    font_bold = str(tokens["font_bold"])
     accent = str(tokens["accent"])
     body_size = int(tokens["body_size_pt"])
     heading_size = int(tokens["heading_size_pt"])
@@ -265,7 +349,7 @@ def _pdf_styles(model: CvRenderModel) -> dict[str, ParagraphStyle]:
         parent=heading,
         fontSize=heading_size + 6,
         leading=heading_size + 9,
-        alignment=TA_CENTER if model.template_id == "professional-editorial" else TA_LEFT,
+        alignment=TA_CENTER if tokens["title_align"] == "center" else TA_LEFT,
         spaceAfter=10,
     )
     entry_heading = ParagraphStyle(
@@ -286,13 +370,7 @@ def _pdf_styles(model: CvRenderModel) -> dict[str, ParagraphStyle]:
         textColor=HexColor("#4B5563"),
         spaceAfter=2,
     )
-    bullet = ParagraphStyle(
-        "bullet",
-        parent=body,
-        leftIndent=10,
-        bulletIndent=0,
-        spaceAfter=2,
-    )
+    bullet = ParagraphStyle("bullet", parent=body, leftIndent=10, bulletIndent=0, spaceAfter=2)
     return {
         "heading": heading,
         "body": body,
@@ -304,125 +382,74 @@ def _pdf_styles(model: CvRenderModel) -> dict[str, ParagraphStyle]:
     }
 
 
-def entry_render_lines(entry) -> list[str]:
-    """The literal text lines an entry renders as, in rendering order.
-
-    Single source of truth for what a structured entry (heading/subheading/
-    location/dates/bullets) actually puts on the page: ``_entry_flow`` and
-    ``_add_docx_structured_entry`` render exactly these lines (with their own
-    formatting), and ``validate_artifact`` checks against exactly these lines
-    instead of the unrendered ``entry.text`` — so a structured entry that
-    renders as "heading + bullets" is no longer judged against its plain body
-    (#322). A legacy/freeform entry (no heading) returns ``[entry.text]``.
-    """
-    if entry.heading is None:
-        return [entry.text] if entry.text else []
-    head_line = entry.heading
-    if entry.subheading:
-        head_line += f" — {entry.subheading}"
-    date_range = " – ".join(part for part in (entry.start_date, entry.end_date) if part)
-    if date_range:
-        head_line += f" {date_range}"
-    lines = [head_line]
-    if entry.location:
-        lines.append(entry.location)
-    if entry.bullets:
-        lines.extend(entry.bullets)
-    elif entry.text and entry.text != entry.heading:
-        lines.append(entry.text)
-    return lines
+_FLUSH_TABLE = TableStyle(
+    [
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 0),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+        ("TOPPADDING", (0, 0), (-1, -1), 0),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+    ]
+)
 
 
 def _entry_flow(entry, styles: dict[str, ParagraphStyle], content_width: float) -> list:
-    if entry.heading is None:
-        # Legacy/freeform path — must stay byte-identical to the pre-style renderer.
-        return [Paragraph(_markup(entry.text), styles["body"])]
     flow: list = []
-    left = f"<b>{escape(entry.heading)}</b>"
-    if entry.subheading:
-        left += f" — {escape(entry.subheading)}"
-    date_range = " – ".join(part for part in (entry.start_date, entry.end_date) if part)
-    if date_range:
-        row = Table(
-            [
+    if entry.heading is not None:
+        left = f"<b>{escape(entry.heading)}</b>"
+        if entry.subheading:
+            left += f" — {escape(entry.subheading)}"
+        if entry.dates:
+            row = Table(
                 [
-                    Paragraph(left, styles["entry_heading"]),
-                    Paragraph(escape(date_range), styles["entry_heading_right"]),
-                ]
-            ],
-            colWidths=[content_width * 0.7, content_width * 0.3],
-        )
-        row.setStyle(
-            TableStyle(
-                [
-                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                    ("LEFTPADDING", (0, 0), (-1, -1), 0),
-                    ("RIGHTPADDING", (0, 0), (-1, -1), 0),
-                    ("TOPPADDING", (0, 0), (-1, -1), 0),
-                    ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
-                ]
+                    [
+                        Paragraph(left, styles["entry_heading"]),
+                        Paragraph(escape(entry.dates), styles["entry_heading_right"]),
+                    ]
+                ],
+                colWidths=[content_width * 0.7, content_width * 0.3],
             )
-        )
-        flow.append(row)
-    else:
-        flow.append(Paragraph(left, styles["entry_heading"]))
-    if entry.location:
-        flow.append(Paragraph(escape(entry.location), styles["entry_meta"]))
-    for bullet_text in entry.bullets:
-        flow.append(Paragraph(f"&bull;&nbsp;{_markup(bullet_text)}", styles["bullet"]))
-    if not entry.bullets and entry.text and entry.text != entry.heading:
-        flow.append(Paragraph(_markup(entry.text), styles["body"]))
+            row.setStyle(_FLUSH_TABLE)
+            flow.append(row)
+        else:
+            flow.append(Paragraph(left, styles["entry_heading"]))
+        if entry.location:
+            flow.append(Paragraph(escape(entry.location), styles["entry_meta"]))
+        for bullet_text in entry.bullets:
+            flow.append(Paragraph(f"&bull;&nbsp;{_markup(bullet_text)}", styles["bullet"]))
+    if entry.paragraph:
+        flow.append(Paragraph(_markup(entry.paragraph), styles["body"]))
     return flow
 
 
+def _split_sidebar(sections, sidebar_kinds) -> tuple[list, list]:
+    """The two-column sidebar/main split (mirrored by the preview's ``splitTwoColumn``)."""
+    side = [s for s in sections if s.kind in sidebar_kinds]
+    main = [s for s in sections if s.kind not in sidebar_kinds]
+    if not side and main:
+        side, main = main[:1], main[1:]
+    return side, main
+
+
 def render_pdf(model: CvRenderModel) -> bytes:
-    tokens = model.tokens
-    margin_mm = int(model.page["margin_mm"])
-    section_gap = int(tokens["section_gap_pt"])
-    styles = _pdf_styles(model)
-    if bool(tokens.get("two_column", False)):
-        return _render_pdf_two_column(model, styles, margin_mm, section_gap)
-    return _render_pdf_single_column(model, styles, margin_mm, section_gap)
-
-
-def _render_pdf_single_column(model, styles, margin_mm, section_gap) -> bytes:
-    out = io.BytesIO()
-    doc = SimpleDocTemplate(
-        out,
-        pagesize=A4,
-        leftMargin=margin_mm * mm,
-        rightMargin=margin_mm * mm,
-        topMargin=margin_mm * mm,
-        bottomMargin=margin_mm * mm,
-        invariant=1,
-        title=model.document_name,
-        author="Career Workbench",
-        creator="Career Workbench",
-    )
-    content_width = A4[0] - 2 * margin_mm * mm
-    story = [Paragraph(escape(model.document_name), styles["title"])]
-    for section in model.sections:
-        flow = [Paragraph(escape(section.title), styles["heading"])]
-        for entry in section.entries:
-            flow.extend(_entry_flow(entry, styles, content_width))
-        story.extend([KeepTogether(flow), Spacer(1, section_gap)])
-    doc.build(story)
-    return out.getvalue()
-
-
-def _render_pdf_two_column(model, styles, margin_mm, section_gap) -> bytes:
-    out = io.BytesIO()
     page_w, page_h = A4
-    m = margin_mm * mm
-    sidebar_w = 58 * mm
-    gap = 6 * mm
-    main_x = m + sidebar_w + gap
-    side_frame = Frame(
-        m, m, sidebar_w, page_h - 2 * m, id="side", leftPadding=0, rightPadding=6, topPadding=0
-    )
-    main_frame = Frame(
-        main_x, m, page_w - main_x - m, page_h - 2 * m, id="main", leftPadding=0, topPadding=0
-    )
+    m = model.margin_mm * mm
+    height = page_h - 2 * m
+    if model.tokens["two_column"]:
+        sidebar_w = 58 * mm
+        main_x = m + sidebar_w + 6 * mm
+        main_w = page_w - main_x - m
+        frames = [
+            Frame(m, m, sidebar_w, height, id="side", leftPadding=0, rightPadding=6, topPadding=0),
+            Frame(main_x, m, main_w, height, id="main", leftPadding=0, topPadding=0),
+        ]
+        side, main = _split_sidebar(model.sections, TEMPLATES[model.template_id].sidebar_kinds)
+        columns = [(side, sidebar_w), (main, main_w)]
+    else:
+        frames = [Frame(m, m, page_w - 2 * m, height, id="normal")]
+        columns = [(model.sections, page_w - 2 * m)]
+
+    out = io.BytesIO()
     doc = BaseDocTemplate(
         out,
         pagesize=A4,
@@ -435,39 +462,32 @@ def _render_pdf_two_column(model, styles, margin_mm, section_gap) -> bytes:
         author="Career Workbench",
         creator="Career Workbench",
     )
-    doc.addPageTemplates([PageTemplate(id="two-col", frames=[side_frame, main_frame])])
-    sidebar_kinds = {"skills", "certifications"}
-    side_sections = [s for s in model.sections if s.kind in sidebar_kinds]
-    main_sections = [s for s in model.sections if s.kind not in sidebar_kinds]
-    if not side_sections and main_sections:
-        side_sections, main_sections = main_sections[:1], main_sections[1:]
+    doc.addPageTemplates([PageTemplate(id="cv", frames=frames)])
+    styles = _pdf_styles(model)
+    section_gap = int(model.tokens["section_gap_pt"])
     story: list = [Paragraph(escape(model.document_name), styles["title"])]
-    for section in side_sections:
-        flow = [Paragraph(escape(section.title), styles["heading"])]
-        for entry in section.entries:
-            flow.extend(_entry_flow(entry, styles, sidebar_w))
-        story.extend([KeepTogether(flow), Spacer(1, section_gap)])
-    story.append(FrameBreak())
-    for section in main_sections:
-        flow = [Paragraph(escape(section.title), styles["heading"])]
-        for entry in section.entries:
-            flow.extend(_entry_flow(entry, styles, page_w - main_x - m))
-        story.extend([KeepTogether(flow), Spacer(1, section_gap)])
+    for index, (sections, width) in enumerate(columns):
+        if index:
+            story.append(FrameBreak())
+        for section in sections:
+            flow = [Paragraph(escape(section.title), styles["heading"])]
+            for entry in section.entries:
+                flow.extend(_entry_flow(entry, styles, width))
+            story.extend([KeepTogether(flow), Spacer(1, section_gap)])
     doc.build(story)
     return out.getvalue()
 
 
 def render_docx(model: CvRenderModel) -> bytes:
     tokens = model.tokens
-    font = str(tokens.get("font_docx", tokens["font"]))
-    accent = str(tokens["accent"])
+    font = str(tokens["font_docx"])
+    accent = RGBColor.from_string(str(tokens["accent"])[1:])
     body_size = int(tokens["body_size_pt"])
     heading_size = int(tokens["heading_size_pt"])
-    margin_mm = int(model.page["margin_mm"])
     doc = Document()
     section = doc.sections[0]
     section.top_margin = section.bottom_margin = section.left_margin = section.right_margin = (
-        Inches(margin_mm / 25.4)
+        Inches(model.margin_mm / 25.4)
     )
     core = doc.core_properties
     core.title = model.document_name
@@ -477,15 +497,14 @@ def render_docx(model: CvRenderModel) -> bytes:
     normal.font.name = font
     normal.font.size = Pt(body_size)
     title = doc.add_paragraph()
-    title.alignment = 1 if model.template_id == "professional-editorial" else 0
+    title.alignment = 1 if tokens["title_align"] == "center" else 0
     run = title.add_run(model.document_name)
     run.bold = True
     run.font.name = font
     run.font.size = Pt(heading_size + 6)
-    run.font.color.rgb = RGBColor.from_string(accent[1:])
-    content_width_in = (
-        8.27 - 2 * margin_mm / 25.4
-    )  # A4 width in inches minus margins, for the date tab stop
+    run.font.color.rgb = accent
+    # A4 width in inches minus margins, for the right-aligned date tab stop.
+    content_width_in = 8.27 - 2 * model.margin_mm / 25.4
     for rendered_section in model.sections:
         p = doc.add_paragraph()
         p.paragraph_format.keep_with_next = True
@@ -493,19 +512,9 @@ def render_docx(model: CvRenderModel) -> bytes:
         r.bold = True
         r.font.name = font
         r.font.size = Pt(heading_size)
-        r.font.color.rgb = RGBColor.from_string(accent[1:])
+        r.font.color.rgb = accent
         for entry in rendered_section.entries:
-            if entry.heading is None:
-                p = doc.add_paragraph()
-                p.paragraph_format.keep_together = True
-                cursor = 0
-                for match in URL_RE.finditer(entry.text):
-                    p.add_run(entry.text[cursor : match.start()])
-                    _add_hyperlink(p, match.group())
-                    cursor = match.end()
-                p.add_run(entry.text[cursor:])
-                continue
-            _add_docx_structured_entry(doc, entry, font, content_width_in)
+            _add_docx_entry(doc, entry, font, content_width_in)
     raw = io.BytesIO()
     doc.save(raw)
     source = zipfile.ZipFile(io.BytesIO(raw.getvalue()))
@@ -520,36 +529,38 @@ def render_docx(model: CvRenderModel) -> bytes:
     return final.getvalue()
 
 
-def _add_docx_structured_entry(doc, entry, font: str, content_width_in: float) -> None:
-    heading_line = doc.add_paragraph()
-    heading_line.paragraph_format.keep_with_next = True
-    date_range = " – ".join(part for part in (entry.start_date, entry.end_date) if part)
-    if date_range:
-        heading_line.paragraph_format.tab_stops.add_tab_stop(
-            Inches(content_width_in), WD_TAB_ALIGNMENT.RIGHT
-        )
-    heading_run = heading_line.add_run(entry.heading)
-    heading_run.bold = True
-    heading_run.font.name = font
-    if entry.subheading:
-        sub_run = heading_line.add_run(f" — {entry.subheading}")
-        sub_run.font.name = font
-    if date_range:
-        date_run = heading_line.add_run(f"\t{date_range}")
-        date_run.font.name = font
-    if entry.location:
-        location_p = doc.add_paragraph()
-        location_run = location_p.add_run(entry.location)
-        location_run.italic = True
-        location_run.font.name = font
-    for bullet_text in entry.bullets:
-        bullet_p = doc.add_paragraph(style="List Bullet")
-        bullet_run = bullet_p.add_run(bullet_text)
-        bullet_run.font.name = font
-    if not entry.bullets and entry.text and entry.text != entry.heading:
-        body_p = doc.add_paragraph()
-        body_run = body_p.add_run(entry.text)
-        body_run.font.name = font
+def _add_run(paragraph, text: str, font: str, *, bold=False, italic=False) -> None:
+    run = paragraph.add_run(text)
+    run.bold = bold or None
+    run.italic = italic or None
+    run.font.name = font
+
+
+def _add_docx_entry(doc, entry, font: str, content_width_in: float) -> None:
+    if entry.heading is not None:
+        heading_line = doc.add_paragraph()
+        heading_line.paragraph_format.keep_with_next = True
+        _add_run(heading_line, entry.heading, font, bold=True)
+        if entry.subheading:
+            _add_run(heading_line, f" — {entry.subheading}", font)
+        if entry.dates:
+            heading_line.paragraph_format.tab_stops.add_tab_stop(
+                Inches(content_width_in), WD_TAB_ALIGNMENT.RIGHT
+            )
+            _add_run(heading_line, f"\t{entry.dates}", font)
+        if entry.location:
+            _add_run(doc.add_paragraph(), entry.location, font, italic=True)
+        for bullet_text in entry.bullets:
+            _add_run(doc.add_paragraph(style="List Bullet"), bullet_text, font)
+    if entry.paragraph:
+        p = doc.add_paragraph()
+        p.paragraph_format.keep_together = True
+        cursor = 0
+        for match in URL_RE.finditer(entry.paragraph):
+            _add_run(p, entry.paragraph[cursor : match.start()], font)
+            _add_hyperlink(p, match.group())
+            cursor = match.end()
+        _add_run(p, entry.paragraph[cursor:], font)
 
 
 def _add_hyperlink(paragraph, url: str) -> None:
@@ -578,16 +589,12 @@ def _normalize_text(value: str) -> str:
     return " ".join(str(value).split())
 
 
-def _strip_bullet_marker(value: str) -> str:
-    """Drop a leading bullet glyph a PDF's extracted text carries as literal
-    characters (rendered via ``&bull;&nbsp;`` in ``_entry_flow``) so it never
-    changes the *content* comparison in ``validate_artifact`` — DOCX bullets
-    use paragraph-level list formatting and never carry the glyph at all."""
-    return _BULLET_MARKER_RE.sub("", value)
+def validate_artifact(model: CvRenderModel, pdf: bytes) -> CvArtifactEvidence:
+    """Re-read a rendered PDF and report what it proves: content reads back in
+    order, links are real, and every section shares a page with its first entry."""
+    import fitz
 
-
-def validate_artifact(model: CvRenderModel, artifact: bytes, fmt: str) -> CvArtifactEvidence:
-    parsed = parse_cv_import(artifact, f"cv.{fmt}", fmt)
+    parsed = parse_cv_import(pdf, "cv.pdf", "pdf")
     # A structured entry renders as several lines (heading, location, one per
     # bullet); own-parser re-import produces one entry per rendered line, so
     # comparing per-section joined text (rather than an exact per-entry list)
@@ -602,60 +609,43 @@ def validate_artifact(model: CvRenderModel, artifact: bytes, fmt: str) -> CvArti
         )
         for section in model.sections
     ]
+    # The PDF's "&bull;" glyph is extracted as a literal character; drop it so
+    # it never changes the content comparison.
     actual_structure = [
         (
             section.kind,
             section.title,
             _normalize_text(
-                " ".join(_strip_bullet_marker(entry.body) for entry in section.entries)
+                " ".join(_BULLET_MARKER_RE.sub("", entry.body) for entry in section.entries)
             ),
         )
         for section in parsed.sections
     ]
     if actual_structure and actual_structure[0][2] == _normalize_text(model.document_name):
         actual_structure = actual_structure[1:]
-    content_equivalent = expected_structure == actual_structure
     links = [
         link for section in model.sections for entry in section.entries for link in entry.links
     ]
     extracted = "\n".join(e.body for s in parsed.sections for e in s.entries)
-    if fmt == "pdf":
-        import fitz
-
-        with fitz.open(stream=artifact, filetype="pdf") as rendered:
-            page_lines = [page.get_text().splitlines() for page in rendered]
-            page_text = [" ".join(" ".join(lines).split()) for lines in page_lines]
-            page_breaks_ok = rendered.page_count > 0 and all(page_lines)
-            for section in model.sections:
-                if not section.entries:
-                    continue
-                # Checked per rendered line (not one joined block): a bullet
-                # line's literal "•" glyph in the extracted text would
-                # otherwise break a contiguous substring match even though
-                # KeepTogether already guarantees the whole entry shares a
-                # page with its heading (#322).
-                first_lines = [
-                    _normalize_text(line) for line in entry_render_lines(section.entries[0])
-                ]
-                page_breaks_ok = page_breaks_ok and any(
-                    section.title in text and all(line in text for line in first_lines)
-                    for text in page_text
-                )
-            artifact_links = {link.get("uri") for page in rendered for link in page.get_links()}
-    else:
-        with zipfile.ZipFile(io.BytesIO(artifact)) as package:
-            document_xml = package.read("word/document.xml")
-            relationships = package.read("word/_rels/document.xml.rels")
-        page_breaks_ok = b"w:keepNext" in document_xml and b"w:sectPr" in document_xml
-        artifact_links = {link for link in links if link.encode() in relationships}
+    with fitz.open(stream=pdf, filetype="pdf") as rendered:
+        page_lines = [page.get_text().splitlines() for page in rendered]
+        page_text = [" ".join(" ".join(lines).split()) for lines in page_lines]
+        page_breaks_ok = rendered.page_count > 0 and all(page_lines)
+        for section in model.sections:
+            if not section.entries:
+                continue
+            # Checked per rendered line (not one joined block): a bullet line's
+            # literal "•" glyph would otherwise break a contiguous substring match.
+            first_lines = [_normalize_text(line) for line in entry_render_lines(section.entries[0])]
+            page_breaks_ok = page_breaks_ok and any(
+                section.title in text and all(line in text for line in first_lines)
+                for text in page_text
+            )
+        artifact_links = {link.get("uri") for page in rendered for link in page.get_links()}
     return CvArtifactEvidence(
-        template_id=model.template_id,
-        format=fmt,
-        searchable_text="pass" if content_equivalent else "fail",
+        reads_back="pass" if expected_structure == actual_structure else "fail",
         links="pass"
         if all(link in extracted and link in artifact_links for link in links)
         else "fail",
         page_breaks="pass" if page_breaks_ok else "fail",
-        re_importability="pass" if content_equivalent else "fail",
-        canonical_hash=model.canonical_hash,
     )

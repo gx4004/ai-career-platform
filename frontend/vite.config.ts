@@ -33,7 +33,6 @@ export default defineConfig({
             manualChunks(id) {
               if (!id.includes('node_modules')) return
               if (id.includes('framer-motion')) return 'vendor-framer'
-              if (id.includes('@sentry/')) return 'vendor-sentry'
               if (/[\\/]node_modules[\\/](react|react-dom|scheduler)[\\/]/.test(id)) {
                 return 'vendor-react'
               }
@@ -55,6 +54,12 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     setupFiles: './src/test/setup.ts',
+    // jsdom renders of the big screens (CV Studio, Applications, the sidebar)
+    // and getByRole over them take 1-4s when the machine is loaded (e.g.
+    // pytest running alongside); the 5s default flaked. These are ceilings for
+    // slow runs, not waits: passing tests never sleep, so it costs nothing.
+    testTimeout: 20_000,
+    hookTimeout: 20_000,
     exclude: [...configDefaults.exclude, 'e2e/**', 'tests/**'],
   },
 })

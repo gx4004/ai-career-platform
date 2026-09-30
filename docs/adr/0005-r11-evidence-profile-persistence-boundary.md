@@ -25,13 +25,20 @@ The Evidence Profile is a persisted, server-side entity scoped to one
 authenticated user: a collection of typed evidence items (experience, achievement,
 skill, education, project, certification, preference, reusable interview
 evidence). Every item carries provenance (`imported`, `inferred`, `user-entered`)
-and a confirmation state (`unconfirmed`, `confirmed`, `rejected`). Confirmation is
+and a confirmation state (`unconfirmed`, `confirmed`). Confirmation is
 reachable only through an explicit user action; automated paths may write items
 only as `unconfirmed`. The profile ships as its own table(s) with an Alembic
 migration, a matched Pydantic/Zod schema pair, membership in the account-deletion
 cascade, and a self-serve machine-readable export. Tools consume the profile only
 through the shared pipeline seam, where confirmed items become locked prompt facts
 and unconfirmed items are at most explicit gaps or suggestions.
+
+**Amended 2026-09-28 (#372):** there is no `rejected` state. Rejecting a
+suggestion deletes it, so nothing the owner dismissed lingers or reaches a
+prompt. Resume import stores extracted facts directly as `unconfirmed`
+suggestions; nothing is trusted until the owner saves it, and the profile is the
+one place suggestions are reviewed. Corrections change content only; an item's
+kind and provenance are fixed at creation.
 
 ## Alternatives Considered
 

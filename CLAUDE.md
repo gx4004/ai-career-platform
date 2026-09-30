@@ -12,19 +12,18 @@ visible with no ad gate; no future monetization candidate is selected or
 authorized.
 
 **Sept 2026 reset:** local-only, feature-first. Beyond the six tools the product
-includes CV Studio (flagship), Evidence Profile, Campaigns, Job Discovery,
-Approval Queue, and an experimental Autopilot. New or redesigned pages must match
+includes CV Studio (flagship), Evidence Profile, Applications (the former
+Campaigns and Approval Queue, merged), Job Discovery, and an experimental Autopilot. New or redesigned pages must match
 the original visual language (dashboard, tool input heroes, result pages).
 Direction and phases: `docs/roadmap.md` (umbrella #319).
 
 ## Stack
 - **Frontend**: React 19 + TanStack Start/Router + Vite 7 + Tailwind 4 + Radix/shadcn + Framer Motion
 - **Backend**: FastAPI + SQLAlchemy + Alembic + Railway Postgres
-- **LLM**: Vertex AI Gemini 2.5 Flash (native async, single provider V1). Cheaper model for interview practice feedback.
+- **LLM**: one provider per deployment, chosen by `LLM_PROVIDER`: `vertex` (default, Gemini 2.5 Flash), `google` (API key), `anthropic` (Claude Haiku 4.5), or `fake` (deterministic local fixtures; the backend refuses to boot with it outside development). No fallback between providers. Cheaper model for interview practice feedback.
 - **Auth**: JWT in HttpOnly cookies (access 30min + refresh 7day) + Google OAuth (authlib) + password reset (Resend)
 - **Deploy**: Full Railway (backend + frontend + Postgres). Same domain, path-based routing.
-- **Monitoring**: Railway metrics; Sentry remains inactive while its DSN is unset
-  and requires staging scrub evidence before activation (D-117)
+- **Monitoring**: structured stdout logs and Railway metrics. No Sentry, CAPTCHA or analytics vendor exists in the code (wiring removed in #352); re-add deliberately, with a legal-page update, before any hosted launch
 - **Package manager**: pnpm (not npm)
 
 ## Key Architecture Decisions
@@ -32,7 +31,7 @@ Direction and phases: `docs/roadmap.md` (umbrella #319).
 |----------|-----------|
 | TanStack Start, not Next.js | Lighter opinions, better router DX |
 | Heuristic blend scoring only Resume + Job Match | Generative tools can't produce meaningful heuristic scores |
-| Single LLM provider (Gemini Flash) | No multi-provider abstraction needed V1 |
+| One configured LLM provider, no fallback | Provider is a setting (`LLM_PROVIDER`); requests are never hedged across providers |
 | BS4 + Playwright fallback for scraping | Best effort at JS sites, graceful paste fallback |
 | SameSite=Lax cookies, no CSRF tokens | Sufficient for SPA + JSON API |
 | No client-side ad/unlock path | Dormant ad gate + `ad-unlocked` sessionStorage contract removed (R9 #127, D-051); any future monetized access must be server-authoritative (D-048) |
@@ -91,7 +90,7 @@ cd backend && alembic upgrade head        # Run migrations
 - Every tool router endpoint calls `run_tool_pipeline()` — don't bypass it for new tools
 - CSS architecture: no CSS modules, plain CSS files in `styles/` with BEM-ish naming
 - Hybrid theme: dark sidebar/topbar + light content area. No dark mode toggle.
-- Tool input pages: dark-to-light gradient hero (tool-input-hero) with per-tool animations + chips, form surface below
+- Tool input pages: light hero (`tool-input-hero`: transparent over the light content area with a faint grain and a soft accent glow, not a gradient) with per-tool animations + chips, form surface below
 - Result pages: premium redesign with dark hero variant (Resume/Job Match), heroExtra sections, midSection (Fix First cards), per-tool views
 - Deploy: Railway watches `deploy`. Promote reviewed release commits deliberately from
   `chapter2` to `main`, then to `deploy`; never push experimental work directly to
@@ -138,7 +137,7 @@ Review gate is OFF — Codex does not automatically review Claude's output. Requ
 - Don't add i18n translations (EN only V1, infrastructure stays)
 - Don't implement premium/subscription tier (V1.1)
 - Don't add affiliate links (V1.1)
-- Don't add CAPTCHA/Turnstile unless the accepted R10 abuse/cost trigger fires
+- Don't add CAPTCHA/Turnstile without an explicit owner decision (none exists in the code today)
 - Don't implement real AdSense SDK (placeholder until approved)
 - Don't re-introduce a client ad gate (dormant path removed in R9 #127; results are fully free; any future access gate must be server-authoritative per D-048)
 - Don't send welcome or account-deletion confirmation emails (V1.1; password-reset is the only transactional email V1)
