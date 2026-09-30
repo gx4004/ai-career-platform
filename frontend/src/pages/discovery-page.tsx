@@ -473,33 +473,40 @@ function JobCard({ listing, actions }: { listing: DiscoveryListing; actions: Car
           <span className="disc-card__via">via {listing.source_name}</span>
           <div className="disc-card__actions">
             <AdoptButton listing={listing} actions={actions} />
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button type="button" size="icon-sm" variant="ghost" aria-label={`More actions for ${listing.title}`}>
-                  <MoreHorizontal size={16} aria-hidden="true" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuItem onSelect={() => void actions.onTailor(listing)}>
-                  <Sparkles aria-hidden="true" /> Tailor my CV
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <a href={listing.apply_url ?? listing.source_url} target="_blank" rel="noopener noreferrer">
-                    <ArrowUpRight aria-hidden="true" /> Apply on company site
-                  </a>
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onSelect={() => actions.onHide(listing)}
-                  disabled={actions.hidingId === listing.listing_id}
-                >
-                  <EyeOff aria-hidden="true" /> Hide this job
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <JobOverflowMenu listing={listing} actions={actions} />
           </div>
         </div>
       </div>
     </article>
+  )
+}
+
+/** Secondary job actions, shared by feed cards and the detail drawer. */
+function JobOverflowMenu({ listing, actions }: { listing: DiscoveryListing; actions: CardActions }) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button type="button" size="icon-sm" variant="ghost" aria-label={`More actions for ${listing.title}`}>
+          <MoreHorizontal size={16} aria-hidden="true" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-56">
+        <DropdownMenuItem onSelect={() => void actions.onTailor(listing)}>
+          <Sparkles aria-hidden="true" /> Tailor my CV
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <a href={listing.apply_url ?? listing.source_url} target="_blank" rel="noopener noreferrer">
+            <ArrowUpRight aria-hidden="true" /> Apply on company site
+          </a>
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onSelect={() => actions.onHide(listing)}
+          disabled={actions.hidingId === listing.listing_id}
+        >
+          <EyeOff aria-hidden="true" /> Hide this job
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
 
@@ -574,23 +581,7 @@ function JobDetails({ listing, actions }: { listing: DiscoveryListing; actions: 
           >
             <FolderPlus size={14} aria-hidden="true" /> Add to applications
           </Button>
-          <Button type="button" size="sm" variant="outline" onClick={() => void actions.onTailor(listing)}>
-            <Sparkles size={14} aria-hidden="true" /> Tailor my CV
-          </Button>
-          <Button asChild size="sm" variant="outline">
-            <a href={listing.apply_url ?? listing.source_url} target="_blank" rel="noopener noreferrer">
-              Apply on company site <ArrowUpRight size={14} aria-hidden="true" />
-            </a>
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="ghost"
-            onClick={() => actions.onHide(listing)}
-            disabled={actions.hidingId === listing.listing_id}
-          >
-            <EyeOff size={14} aria-hidden="true" /> Hide
-          </Button>
+          <JobOverflowMenu listing={listing} actions={actions} />
         </div>
         <span className="disc-card__via">
           via {listing.source_name} ·{' '}

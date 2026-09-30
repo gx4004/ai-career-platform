@@ -174,10 +174,19 @@ describe('DiscoveryPage', () => {
     expect(await within(dialog).findByText('<b>Bold</b> claim')).toBeTruthy()
     expect(getListing).toHaveBeenCalledWith('listing-1')
     expect(dialog.querySelector('b')).toBeNull()
-    for (const name of [/Deep match/, /Add to applications/, /Tailor my CV/, /^Hide$/]) {
-      expect(within(dialog).getByRole('button', { name })).toBeTruthy()
-    }
-    expect(within(dialog).getByRole('link', { name: /Apply on company site/ })).toBeTruthy()
+    // One primary, one secondary, the rest in the overflow menu.
+    const footer = dialog.querySelector('.disc-drawer__actions') as HTMLElement
+    expect(within(footer).getAllByRole('button').map((b) => b.textContent?.trim() || b.getAttribute('aria-label'))).toEqual([
+      'Deep match',
+      'Add to applications',
+      'More actions for Platform Engineer',
+    ])
+    const menu = await openMenu(dialog)
+    expect(within(menu).getAllByRole('menuitem').map((item) => item.textContent?.trim())).toEqual([
+      'Tailor my CV',
+      'Apply on company site',
+      'Hide this job',
+    ])
   })
 
   it('shows matched and missing skills and runs a deep match from the drawer', async () => {

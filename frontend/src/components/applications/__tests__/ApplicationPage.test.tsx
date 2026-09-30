@@ -65,7 +65,7 @@ describe('ApplicationPage', () => {
     renderPage()
     expect(await screen.findByRole('heading', { level: 1, name: 'Platform Engineer' })).toBeTruthy()
     expect(document.querySelector('.page-hero')).toBeTruthy()
-    expect(screen.getByText('82% match')).toBeTruthy()
+    expect(screen.getByText('82% skills fit when saved')).toBeTruthy()
     for (const title of ["What you're sending", 'Check your documents', 'Job description', 'Tasks', 'Notes', 'Activity']) {
       expect(screen.getByRole('heading', { name: title })).toBeTruthy()
     }
