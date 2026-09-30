@@ -1,38 +1,25 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useEffect, useRef, useState } from 'react'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
-import { Pin, Search, Star, Trash2 } from 'lucide-react'
-import { Badge } from '#/components/ui/badge'
+import { History, Pencil, Search, Star, Trash2 } from 'lucide-react'
 import { Button } from '#/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '#/components/ui/dialog'
 import { Input } from '#/components/ui/input'
-import { Skeleton } from '#/components/ui/skeleton'
+import { PageHero } from '#/components/app/PageHero'
 import { PageFrame } from '#/components/app/PageFrame'
 import { AppStatePanel } from '#/components/app/AppStatePanel'
+import { ConfirmDeleteDialog } from '#/components/app/ConfirmDeleteDialog'
+import { RunRow, RunRowSkeleton, formatRunDate } from '#/components/dashboard/RunRow'
 import { SceneVisual } from '#/components/illustrations/SceneVisual'
-import { useCountUp } from '#/hooks/useCountUp'
 import { useFavoriteToggle } from '#/hooks/useFavoriteToggle'
 import { useHistory } from '#/hooks/useHistory'
 import { useSession } from '#/hooks/useSession'
-import {
-  deleteHistoryItem,
-  getHistoryItem,
-  getHistoryWorkspaces,
-  updateHistoryItem,
-  updateHistoryWorkspace,
-} from '#/lib/api/client'
+import { deleteHistoryItem, getHistoryItem, updateHistoryItem } from '#/lib/api/client'
+import type { ToolRunSummary } from '#/lib/api/schemas'
 import { writeWorkflowContext } from '#/lib/tools/drafts'
+import { historyRunHref, historyToolDisplay } from '#/lib/tools/historyToolLabel'
 import { getNextStepToolId } from '#/lib/tools/runMetadata'
 import { deriveWorkflowUpdateFromHistoryItem } from '#/lib/tools/workflowContext'
 import { getToolByHistoryName, toolList } from '#/lib/tools/registry'
-import { toolAccentStyle } from '#/lib/tools/styleUtils'
 import { trackTelemetry } from '#/lib/telemetry/client'
 
 export type HistorySearchState = {
@@ -41,6 +28,12 @@ export type HistorySearchState = {
   q?: string
   page?: number
   page_size?: number
+}
+
+const DEFAULT_PAGE_SIZE = 10
+
+function runLabel(item: ToolRunSummary) {
+  return item.label || item.metadata.primary_recommendation_title || 'Untitled run'
 }
 
 export function HistoryPage({
@@ -53,8 +46,10 @@ export function HistoryPage({
   const navigate = useNavigate()
   const { status, openAuthDialog } = useSession()
   const queryClient = useQueryClient()
+  const authenticated = status === 'authenticated'
   const page = search.page ?? 1
-  const pageSize = search.page_size ?? 12
+  const pageSize = search.page_size ?? DEFAULT_PAGE_SIZE
+  const hasFilters = Boolean(search.tool || search.favorite || search.q)
 
   const [searchInput, setSearchInput] = useState(search.q ?? '')
   useEffect(() => {
@@ -71,75 +66,40 @@ export function HistoryPage({
 
   const listQuery = useHistory(
     {
-      ...search,
+      tool: search.tool,
+      q: search.q,
+      // An absent filter must stay absent: `favorite=false` means "not starred".
+      favorite: search.favorite ? true : undefined,
       page,
       page_size: pageSize,
     },
-    status === 'authenticated',
+    authenticated,
   )
-  const statsQuery = useHistory({ page: 1, page_size: 100 }, status === 'authenticated')
-  const favoritesQuery = useHistory(
-    { page: 1, page_size: 1, favorite: true },
-    status === 'authenticated',
-  )
-  const workspaceQuery = useQuery({
-    queryKey: ['history-workspaces'],
-    queryFn: getHistoryWorkspaces,
-    enabled: status === 'authenticated',
-  })
+  const favoritesQuery = useHistory({ page: 1, page_size: 1, favorite: true }, authenticated)
   const favoriteToggle = useFavoriteToggle()
   const [actionError, setActionError] = useState<string | null>(null)
   const [continuingId, setContinuingId] = useState<string | null>(null)
-  const [workspaceDrafts, setWorkspaceDrafts] = useState<Record<string, string>>({})
-  const [runDrafts, setRunDrafts] = useState<Record<string, string>>({})
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editDraft, setEditDraft] = useState('')
   const [deleteCandidate, setDeleteCandidate] = useState<{ id: string; label: string } | null>(null)
+
   const deleteMutation = useMutation({
     mutationFn: deleteHistoryItem,
     onSuccess: async (_response, historyId) => {
       setDeleteCandidate(null)
       queryClient.removeQueries({ queryKey: ['tool-run', historyId], exact: true })
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['history-page'] }),
-        queryClient.invalidateQueries({ queryKey: ['history-workspaces'] }),
-      ])
-    },
-    onError: (error) => {
-      const msg = error instanceof Error ? error.message : 'Failed to delete run.'
-      setActionError(msg)
-      setTimeout(() => setActionError(null), 3000)
-    },
-  })
-  const workspaceMutation = useMutation({
-    mutationFn: ({
-      workspaceId,
-      label,
-      isPinned,
-    }: {
-      workspaceId: string
-      label?: string | null
-      isPinned?: boolean
-    }) =>
-      updateHistoryWorkspace(workspaceId, {
-        label,
-        is_pinned: isPinned,
-      }),
-    onSuccess: async (workspace) => {
-      setWorkspaceDrafts((current) => ({
-        ...current,
-        [workspace.id]: workspace.label || '',
-      }))
-      await queryClient.invalidateQueries({ queryKey: ['history-workspaces'] })
       await queryClient.invalidateQueries({ queryKey: ['history-page'] })
     },
     onError: (error) => {
-      setActionError(error instanceof Error ? error.message : 'Failed to update workspace.')
+      setActionError(error instanceof Error ? error.message : 'Failed to delete run.')
     },
   })
-  const runMutation = useMutation({
+  const renameMutation = useMutation({
     mutationFn: ({ historyId, label }: { historyId: string; label: string }) =>
       updateHistoryItem(historyId, label),
-    onSuccess: async (run) => {
-      setRunDrafts((current) => ({ ...current, [run.id]: run.label || '' }))
+    onSuccess: async () => {
+      setEditingId(null)
+      setActionError(null)
       await queryClient.invalidateQueries({ queryKey: ['history-page'] })
     },
     onError: (error) => {
@@ -147,32 +107,51 @@ export function HistoryPage({
     },
   })
 
-  const totalPages = Math.max(
-    1,
-    Math.ceil((listQuery.data?.total ?? 0) / pageSize),
-  )
-  const toolCount = useMemo(
-    () =>
-      new Set(statsQuery.data?.items.map((item) => item.tool_name) || []).size,
-    [statsQuery.data?.items],
-  )
-  const totalRuns = useCountUp(statsQuery.data?.total || 0, status === 'authenticated')
-  const totalFavorites = useCountUp(
-    favoritesQuery.data?.total || 0,
-    status === 'authenticated',
-  )
-  const totalTools = useCountUp(toolCount, status === 'authenticated')
-  const workspaces = workspaceQuery.data?.items || []
-  const featuredWorkspace = workspaces[0] || null
-  const pinnedWorkspaces = workspaces.filter((item) => item.is_pinned).slice(0, 3)
-  const recentChain = (listQuery.data?.items || []).slice(0, 3)
-  const favoriteRuns = (listQuery.data?.items || []).filter((item) => item.is_favorite).slice(0, 3)
+  const total = listQuery.data?.total ?? 0
+  const totalPages = Math.max(1, Math.ceil(total / pageSize))
 
-  if (status !== 'authenticated') {
+  function clearFilters() {
+    if (searchDebounceRef.current !== null) {
+      window.clearTimeout(searchDebounceRef.current)
+      searchDebounceRef.current = null
+    }
+    setSearchInput('')
+    onSearchChange({ tool: undefined, favorite: undefined, q: undefined, page: 1 })
+  }
+
+  async function continueRun(item: ToolRunSummary) {
+    try {
+      setContinuingId(item.id)
+      const detail = await getHistoryItem(item.id)
+      const currentTool = getToolByHistoryName(detail.tool_name)
+      if (!currentTool) return
+      const nextToolId = getNextStepToolId(currentTool.id, detail.metadata)
+      writeWorkflowContext({
+        ...deriveWorkflowUpdateFromHistoryItem(detail),
+        updatedAt: Date.now(),
+      })
+      // Funnel: user moved from a completed run to its connected next-best
+      // tool (D-040). tool_id is the tool being continued from.
+      trackTelemetry({
+        event_name: 'workflow_continued',
+        tool_id: currentTool.id,
+        access_mode: 'authenticated',
+      })
+      await navigate({
+        to: toolList.find((candidate) => candidate.id === nextToolId)?.route || currentTool.route,
+      })
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Failed to continue this workflow.')
+    } finally {
+      setContinuingId(null)
+    }
+  }
+
+  if (!authenticated) {
     return (
       <AppStatePanel
         title="Pick up where you left off"
-        description="Your saved runs, favorites, and workflow chains live here — sign in to unlock your full workspace history."
+        description="Your saved runs and favorites live here — sign in to unlock your full history."
         scene="dashboardHero"
         actions={[
           {
@@ -185,115 +164,36 @@ export function HistoryPage({
     )
   }
 
+  const chips =
+    listQuery.data && favoritesQuery.data
+      ? [
+          `${listQuery.data.total} ${listQuery.data.total === 1 ? 'run' : 'runs'}`,
+          `${favoritesQuery.data.total} starred`,
+        ]
+      : undefined
+  const items = listQuery.data?.items ?? []
+  const errorMessage = actionError ?? (favoriteToggle.error
+    ? favoriteToggle.error instanceof Error
+      ? favoriteToggle.error.message
+      : 'Failed to update favorite.'
+    : null)
+
   return (
-    <PageFrame>
+    <PageFrame className="history-page">
       <section className="history-layout content-max">
-        <div className="grid gap-2">
-          <p className="eyebrow">Workspace timeline</p>
-          <h1 className="page-title">Workspace Timeline</h1>
-          <p className="muted-copy">
-            Follow recent workflow chains, reopen strong runs, and jump back into the next best step.
-          </p>
-        </div>
-        <div className="history-stats">
-          {[
-            ['Total Runs', totalRuns],
-            ['Favorites', totalFavorites],
-            ['Tools Used', totalTools],
-          ].map(([label, value]) => (
-            <div key={label} className="h-stat-card p-5">
-              <p className="eyebrow mb-2">{label}</p>
-              <p className="display-lg">{value}</p>
-            </div>
-          ))}
-        </div>
-        <div className="history-grid">
-          <div className="section-card grid gap-3 p-5">
-            <p className="eyebrow">Resume latest workspace</p>
-            {featuredWorkspace ? (
-              <>
-                <p className="section-title">
-                  {featuredWorkspace.label || 'Untitled workspace'}
-                </p>
-                <p className="small-copy muted-copy">
-                  {featuredWorkspace.last_active_tool
-                    ? `Latest artifact: ${featuredWorkspace.last_active_tool}`
-                    : 'Resume the next actionable step in this workspace.'}
-                </p>
-                <Button
-                  className="button-hero-primary"
-                  disabled={
-                    !featuredWorkspace.last_active_result_id ||
-                    continuingId === featuredWorkspace.last_active_result_id
-                  }
-                  onClick={async () => {
-                    if (!featuredWorkspace.last_active_result_id) return
-                    try {
-                      setContinuingId(featuredWorkspace.last_active_result_id)
-                      const detail = await getHistoryItem(featuredWorkspace.last_active_result_id)
-                      const currentTool = getToolByHistoryName(detail.tool_name)
-                      if (!currentTool) return
-                      const nextToolId = getNextStepToolId(currentTool.id, detail.metadata)
-                      writeWorkflowContext({
-                        ...deriveWorkflowUpdateFromHistoryItem(detail),
-                        updatedAt: Date.now(),
-                      })
-                      trackTelemetry({
-                        event_name: 'workspace_resumed',
-                        tool_id: currentTool.id,
-                        access_mode: 'authenticated',
-                        saved: true,
-                      })
-                      await navigate({ to: toolList.find((tool) => tool.id === nextToolId)?.route || '/resume' })
-                    } catch (error) {
-                      setActionError(error instanceof Error ? error.message : 'Failed to resume workflow.')
-                    } finally {
-                      setContinuingId(null)
-                    }
-                  }}
-                >
-                  {continuingId === featuredWorkspace.last_active_result_id ? 'Opening…' : 'Resume later'}
-                </Button>
-              </>
-            ) : (
-              <p className="small-copy muted-copy">Your first saved workspace will appear here.</p>
-            )}
-          </div>
-          <div className="section-card grid gap-3 p-5">
-            <p className="eyebrow">Pinned workspaces</p>
-            {pinnedWorkspaces.length ? (
-              pinnedWorkspaces.map((workspace) => (
-                <div key={workspace.id} className="grid gap-1">
-                  <p>{workspace.label || 'Pinned workspace'}</p>
-                  <p className="small-copy muted-copy">
-                    {workspace.last_active_tool || 'No latest artifact'} • {workspace.linked_run_ids.length} linked {workspace.linked_run_ids.length === 1 ? 'run' : 'runs'}
-                  </p>
-                </div>
-              ))
-            ) : (
-              <p className="small-copy muted-copy">Pin a workspace to keep it at the top.</p>
-            )}
-          </div>
-          <div className="section-card grid gap-3 p-5">
-            <p className="eyebrow">Recent chain</p>
-            {recentChain.length ? (
-              recentChain.map((item) => (
-                <div key={item.id} className="grid gap-1">
-                  <p>{item.label || item.metadata.primary_recommendation_title || 'Saved run'}</p>
-                  <p className="small-copy muted-copy">
-                    {item.metadata.summary_headline || item.tool_name}
-                  </p>
-                </div>
-              ))
-            ) : (
-              <p className="small-copy muted-copy">Recent workflow steps will appear here.</p>
-            )}
-          </div>
-        </div>
-        <div className="history-filter-row">
-          <div className="relative min-w-[18rem] flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" size={16} />
+        <PageHero
+          icon={History}
+          title="History"
+          purpose="Every analysis you have saved, newest first. Reopen a result or continue to the next tool."
+          chips={chips}
+        />
+
+        <div className="history-toolbar">
+          <div className="history-toolbar__search">
+            <Search className="history-toolbar__search-icon" size={16} aria-hidden />
             <Input
+              type="search"
+              aria-label="Search saved runs by label"
               value={searchInput}
               onChange={(event) => {
                 const next = event.target.value
@@ -309,11 +209,12 @@ export function HistoryPage({
               className="pl-10"
             />
           </div>
-          <div className="history-pill-row" role="status" aria-label="Active filters">
+          <div className="history-pill-row" role="group" aria-label="Filter by tool">
             {toolList.map((tool) => (
               <button
                 key={tool.id}
                 type="button"
+                aria-pressed={search.tool === tool.id}
                 className={`history-pill${search.tool === tool.id ? ' is-active' : ''}`}
                 onClick={() =>
                   onSearchChange({
@@ -323,351 +224,208 @@ export function HistoryPage({
                 }
               >
                 <span
-                  className="inline-block size-2 rounded-full"
+                  className="history-pill__dot"
                   style={{ background: tool.accent }}
+                  aria-hidden
                 />
                 <span>{tool.shortLabel}</span>
               </button>
             ))}
             <button
               type="button"
+              aria-pressed={Boolean(search.favorite)}
               className={`history-pill${search.favorite ? ' is-active' : ''}`}
-              onClick={() => onSearchChange({ favorite: !search.favorite, page: 1 })}
+              onClick={() => onSearchChange({ favorite: search.favorite ? undefined : true, page: 1 })}
             >
-              ⭐ Favorites
+              <Star size={12} fill={search.favorite ? 'currentColor' : 'none'} aria-hidden />
+              <span>Favorites</span>
             </button>
           </div>
+          {hasFilters ? (
+            <button type="button" className="history-toolbar__clear" onClick={clearFilters}>
+              Clear filters
+            </button>
+          ) : null}
         </div>
-        {actionError ? (
-          <div className="small-copy section-card p-3" style={{ color: 'var(--destructive)' }}>
-            {actionError}
+        <p className="history-applications-link small-copy muted-copy">
+          Looking for your applications? <Link to="/campaigns">Open Applications</Link>
+        </p>
+
+        {errorMessage ? (
+          <div className="history-alert small-copy" role="alert">
+            {errorMessage}
           </div>
         ) : null}
-        {favoriteToggle.error ? (
-          <div className="small-copy section-card p-3" style={{ color: 'var(--destructive)' }}>
-            {favoriteToggle.error instanceof Error ? favoriteToggle.error.message : 'Failed to update favorite.'}
+
+        {listQuery.isPending ? (
+          <div className="run-list history-list" aria-hidden>
+            {Array.from({ length: 6 }, (_, i) => (
+              <RunRowSkeleton key={i} />
+            ))}
           </div>
-        ) : null}
-        <div className="section-card grid gap-4 p-5">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="grid gap-1">
-              <p className="eyebrow">Reusable workspaces</p>
-              <h2 className="section-title">Artifact chains you can return to</h2>
-              <p className="small-copy muted-copy">
-                Group related runs, pin the important ones, and resume from the latest actionable result.
-              </p>
+        ) : listQuery.isError ? (
+          <div className="section-card history-empty" role="alert">
+            <p className="section-title">We couldn&apos;t load your history</p>
+            <p className="muted-copy">Check your connection and try again.</p>
+            <div>
+              <Button variant="outline" onClick={() => void listQuery.refetch()}>
+                Retry
+              </Button>
             </div>
           </div>
-          {workspaceQuery.isPending ? (
-            <div className="history-grid">
-              {Array.from({ length: 3 }).map((_, index) => (
-                <div key={index} className="history-card">
-                  <div className="grid gap-3">
-                    <Skeleton className="h-5 w-32 rounded" />
-                    <Skeleton className="h-4 w-48 rounded" />
-                    <Skeleton className="h-10 w-full rounded" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : workspaces.length ? (
-            <div className="history-grid">
-              {workspaces.map((workspace) => (
-                <div key={workspace.id} className="history-card">
-                  <div className="grid gap-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="grid gap-2 flex-1">
+        ) : items.length ? (
+          <div className="run-list history-list">
+            {items.map((item) => {
+              const display = historyToolDisplay(item.tool_name)
+              const href = historyRunHref(item)
+              const label = runLabel(item)
+              const registryTool = display.kind === 'tool' ? getToolByHistoryName(item.tool_name) : null
+              const nextTool = registryTool
+                ? toolList.find(
+                    (candidate) =>
+                      candidate.id === getNextStepToolId(registryTool.id, item.metadata),
+                  )
+                : null
+              const workspaceLabel = item.workspace?.label
+              const editing = editingId === item.id
+
+              const note =
+                display.kind === 'cv-studio'
+                  ? 'Older CV Studio run'
+                  : display.kind === 'application-drafts'
+                    ? 'Application draft'
+                    : null
+              const notes =
+                note || (workspaceLabel && workspaceLabel !== label) ? (
+                  <>
+                    {note ? <span className="run-row-note">{note}</span> : null}
+                    {workspaceLabel && workspaceLabel !== label ? (
+                      <span className="run-row-note">Workspace: {workspaceLabel}</span>
+                    ) : null}
+                  </>
+                ) : null
+
+              return (
+                <RunRow
+                  key={item.id}
+                  mode="actions"
+                  href={href}
+                  tool={display}
+                  label={label}
+                  date={formatRunDate(item.created_at)}
+                  showFavoriteStar={item.is_favorite}
+                  summary={item.metadata.summary_headline}
+                  notes={notes}
+                  editor={
+                    editing ? (
+                      <form
+                        className="history-rename"
+                        onSubmit={(event) => {
+                          event.preventDefault()
+                          renameMutation.mutate({ historyId: item.id, label: editDraft.trim() })
+                        }}
+                      >
                         <Input
-                          value={workspaceDrafts[workspace.id] ?? workspace.label ?? ''}
-                          onChange={(event) =>
-                            setWorkspaceDrafts((current) => ({
-                              ...current,
-                              [workspace.id]: event.target.value,
-                            }))
-                          }
-                          placeholder="Name this workspace"
+                          autoFocus
+                          aria-label={`Rename ${label}`}
+                          value={editDraft}
+                          maxLength={200}
+                          onChange={(event) => setEditDraft(event.target.value)}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Escape') {
+                              event.preventDefault()
+                              setEditingId(null)
+                            }
+                          }}
                         />
-                        <p className="small-copy muted-copy">
-                          {workspace.last_active_tool || 'No active tool'} • {workspace.linked_run_ids.length} linked {workspace.linked_run_ids.length === 1 ? 'run' : 'runs'}
-                        </p>
-                      </div>
+                        <Button type="submit" size="sm" disabled={renameMutation.isPending}>
+                          Save
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setEditingId(null)}
+                        >
+                          Cancel
+                        </Button>
+                      </form>
+                    ) : undefined
+                  }
+                  actions={
+                    <>
                       <Button
-                        variant="outline"
+                        variant="ghost"
                         size="icon-sm"
-                        className="button-toolbar-utility"
-                        aria-label={workspace.is_pinned ? 'Unpin workspace' : 'Pin workspace'}
-                        disabled={workspaceMutation.isPending}
+                        className="history-icon-button"
+                        aria-label={item.is_favorite ? 'Remove from favorites' : 'Add to favorites'}
+                        aria-pressed={item.is_favorite}
                         onClick={() =>
-                          workspaceMutation.mutate({
-                            workspaceId: workspace.id,
-                            isPinned: !workspace.is_pinned,
+                          favoriteToggle.mutate({
+                            historyId: item.id,
+                            isFavorite: !item.is_favorite,
                           })
                         }
                       >
-                        <Pin
-                          size={16}
-                          fill={workspace.is_pinned ? 'currentColor' : 'none'}
-                        />
+                        <Star size={15} fill={item.is_favorite ? 'currentColor' : 'none'} />
                       </Button>
-                    </div>
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <div className="chip-grid">
-                        {workspace.linked_run_ids.slice(0, 4).map((runId) => (
-                          <Badge key={runId} variant="outline">
-                            {runId.slice(0, 8)}
-                          </Badge>
-                        ))}
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        <Button variant="outline" asChild>
-                          <Link to="/campaigns/$campaignId" params={{ campaignId: workspace.id }}>
-                            Open application
-                          </Link>
-                        </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        className="history-icon-button"
+                        aria-label={`Rename ${label}`}
+                        onClick={() => {
+                          setActionError(null)
+                          setEditingId(item.id)
+                          setEditDraft(item.label ?? '')
+                        }}
+                      >
+                        <Pencil size={15} />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        className="history-icon-button history-icon-button--danger"
+                        aria-label={`Delete ${label}`}
+                        disabled={deleteMutation.isPending && deleteMutation.variables === item.id}
+                        onClick={() => setDeleteCandidate({ id: item.id, label })}
+                      >
+                        <Trash2 size={15} />
+                      </Button>
+                      {nextTool ? (
                         <Button
                           variant="outline"
-                          disabled={workspaceMutation.isPending}
-                          onClick={() =>
-                            workspaceMutation.mutate({
-                              workspaceId: workspace.id,
-                              label: workspaceDrafts[workspace.id] ?? workspace.label ?? '',
-                            })
-                          }
-                        >
-                          Save name
-                        </Button>
-                        <Button
-                          className="button-hero-primary"
-                          disabled={!workspace.last_active_result_id || continuingId === workspace.last_active_result_id}
-                          onClick={async () => {
-                            if (!workspace.last_active_result_id) return
-                            try {
-                              setContinuingId(workspace.last_active_result_id)
-                              const detail = await getHistoryItem(workspace.last_active_result_id)
-                              const currentTool = getToolByHistoryName(detail.tool_name)
-                              if (!currentTool) return
-                              const nextToolId = getNextStepToolId(currentTool.id, detail.metadata)
-                              writeWorkflowContext({
-                                ...deriveWorkflowUpdateFromHistoryItem(detail),
-                                updatedAt: Date.now(),
-                              })
-                              await navigate({ to: toolList.find((tool) => tool.id === nextToolId)?.route || '/resume' })
-                            } catch (error) {
-                              setActionError(error instanceof Error ? error.message : 'Failed to continue this workspace.')
-                            } finally {
-                              setContinuingId(null)
-                            }
-                          }}
-                        >
-                          {continuingId === workspace.last_active_result_id ? 'Opening…' : 'Resume later'}
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="small-copy muted-copy">Save related runs to see workspace chains here.</p>
-          )}
-        </div>
-        <div className="section-card grid gap-3 p-5">
-          <p className="eyebrow">Saved favorites</p>
-          {favoriteRuns.length ? (
-            favoriteRuns.map((item) => (
-              <div key={item.id} className="grid gap-1">
-                <p>{item.label || item.metadata.primary_recommendation_title || 'Favorite run'}</p>
-                <p className="small-copy muted-copy">
-                  {item.metadata.summary_headline || 'Marked as a favorite for quick return.'}
-                </p>
-              </div>
-            ))
-          ) : (
-            <p className="small-copy muted-copy">Favorite a run to pin it here for faster return.</p>
-          )}
-        </div>
-        {listQuery.isPending ? (
-          <div className="history-grid">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="section-card grid gap-4 p-5">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="grid gap-2 flex-1">
-                    <div className="flex items-center gap-2">
-                      <Skeleton className="size-4 rounded-full" />
-                      <Skeleton className="h-5 w-20 rounded" />
-                      <Skeleton className="h-4 w-16 rounded" />
-                    </div>
-                    <Skeleton className="h-4 w-3/4 rounded" />
-                  </div>
-                </div>
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex gap-2">
-                    <Skeleton className="size-8 rounded" />
-                    <Skeleton className="size-8 rounded" />
-                  </div>
-                  <Skeleton className="h-9 w-20 rounded" />
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : listQuery.data?.items.length ? (
-          <div className="history-grid">
-            {listQuery.data.items.map((item) => {
-              const tool = getToolByHistoryName(item.tool_name)
-              const route = tool?.resultRoute.replace('$historyId', item.id) ?? '/history'
-
-              return (
-                <div
-                  key={item.id}
-                  className="history-card"
-                  style={toolAccentStyle(tool?.accent || 'var(--accent)')}
-                >
-                  <div className="grid gap-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="grid gap-2">
-                        <div className="flex items-center gap-2">
-                          {tool ? (
-                            <tool.icon size={16} style={{ color: tool.accent }} />
-                          ) : null}
-                          <Badge variant="outline">{tool?.shortLabel || item.tool_name}</Badge>
-                          {item.metadata.schema_version ? (
-                            <Badge variant="outline">{item.metadata.schema_version}</Badge>
-                          ) : null}
-                          <span className="small-copy muted-copy">
-                            {new Date(item.created_at).toLocaleDateString()}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Input
-                            aria-label={`Label ${tool?.label || item.tool_name} run`}
-                            value={runDrafts[item.id] ?? item.label ?? ''}
-                            placeholder="Label this saved run"
-                            onChange={(event) =>
-                              setRunDrafts((current) => ({
-                                ...current,
-                                [item.id]: event.target.value,
-                              }))
-                            }
-                          />
-                          <Button
-                            variant="outline"
-                            disabled={runMutation.isPending}
-                            onClick={() =>
-                              runMutation.mutate({
-                                historyId: item.id,
-                                label: runDrafts[item.id] ?? item.label ?? '',
-                              })
-                            }
-                          >
-                            Save label
-                          </Button>
-                        </div>
-                        {item.metadata.primary_recommendation_title ? (
-                          <p className="small-copy">{item.metadata.primary_recommendation_title}</p>
-                        ) : null}
-                        {item.workspace?.label ? (
-                          <p className="small-copy muted-copy">Workspace: {item.workspace.label}</p>
-                        ) : null}
-                        {item.metadata.summary_headline ? (
-                          <p className="small-copy muted-copy">{item.metadata.summary_headline}</p>
-                        ) : null}
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="flex gap-2">
-                        <Button
-                          variant="outline"
-                          size="icon-sm"
-                          className="button-toolbar-utility"
-                          aria-label={item.is_favorite ? 'Remove from favorites' : 'Add to favorites'}
-                          onClick={() =>
-                            favoriteToggle.mutate({
-                              historyId: item.id,
-                              isFavorite: !item.is_favorite,
-                            })
-                          }
-                        >
-                          <Star
-                            size={14}
-                            fill={item.is_favorite ? 'currentColor' : 'none'}
-                          />
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="icon-sm"
-                          className="button-destructive-soft"
-                          aria-label="Delete this saved run"
-                          onClick={() =>
-                            setDeleteCandidate({
-                              id: item.id,
-                              label:
-                                item.label ||
-                                item.metadata.primary_recommendation_title ||
-                                'Untitled run',
-                            })
-                          }
-                          disabled={deleteMutation.isPending && deleteMutation.variables === item.id}
-                        >
-                          <Trash2 size={14} />
-                        </Button>
-                      </div>
-                      {/* Older CV Studio checks (cv-quality, cv-tailoring) saved runs
-                          that no tool result page can open (#362). */}
-                      {tool ? (
-                      <div className="flex gap-2">
-                        <Button
-                          variant="outline"
-                          className="button-toolbar-utility"
-                          onClick={async () => {
-                            try {
-                              setContinuingId(item.id)
-                              const detail = await getHistoryItem(item.id)
-                              const currentTool = getToolByHistoryName(detail.tool_name)
-                              if (!currentTool) return
-                              const nextToolId = getNextStepToolId(currentTool.id, detail.metadata)
-                              writeWorkflowContext({
-                                ...deriveWorkflowUpdateFromHistoryItem(detail),
-                                updatedAt: Date.now(),
-                              })
-                              // Funnel: user moved from a completed run to its
-                              // connected next-best tool (D-040). tool_id is the
-                              // tool being continued from.
-                              trackTelemetry({
-                                event_name: 'workflow_continued',
-                                tool_id: currentTool.id,
-                                access_mode: 'authenticated',
-                              })
-                              await navigate({ to: toolList.find((candidate) => candidate.id === nextToolId)?.route || route })
-                            } catch (error) {
-                              setActionError(error instanceof Error ? error.message : 'Failed to continue this workflow.')
-                            } finally {
-                              setContinuingId(null)
-                            }
-                          }}
+                          size="sm"
+                          className="history-continue"
                           disabled={continuingId === item.id}
+                          onClick={() => void continueRun(item)}
                         >
-                          {continuingId === item.id ? 'Opening…' : 'Continue'}
+                          {continuingId === item.id ? 'Opening…' : `Continue: ${nextTool.shortLabel}`}
                         </Button>
-                        <Button asChild>
-                          <Link to={route}>View →</Link>
-                        </Button>
-                      </div>
                       ) : null}
-                    </div>
-                  </div>
-                </div>
+                    </>
+                  }
+                />
               )
             })}
           </div>
+        ) : hasFilters ? (
+          <div className="section-card history-empty">
+            <p className="section-title">No runs match these filters</p>
+            <p className="muted-copy">Try a different tool or search, or clear the filters.</p>
+            <div>
+              <Button variant="outline" onClick={clearFilters}>
+                Clear filters
+              </Button>
+            </div>
+          </div>
         ) : (
-          <div className="section-card grid gap-4 p-8 text-center">
+          <div className="section-card history-empty">
             <div className="mx-auto w-full max-w-md">
               <SceneVisual scene="emptyPlanning" />
             </div>
-            <p className="section-title">No runs found</p>
-            <p className="muted-copy">
-              Try a broader filter or start a fresh analysis to populate history.
-            </p>
+            <p className="section-title">No runs yet</p>
+            <p className="muted-copy">Run a tool and your saved results will show up here.</p>
             <div>
               <Button asChild className="button-hero-primary" size="lg">
                 <Link to="/resume">Start with Resume</Link>
@@ -675,70 +433,46 @@ export function HistoryPage({
             </div>
           </div>
         )}
-        <div className="history-pagination">
-          <Button
-            variant="outline"
-            className="button-toolbar-utility"
-            disabled={page <= 1}
-            onClick={() => onSearchChange({ page: page - 1 })}
-          >
-            Previous
-          </Button>
-          <span className="small-copy muted-copy">
-            Page {page} of {totalPages}
-          </span>
-          <Button
-            variant="outline"
-            className="button-toolbar-utility"
-            disabled={page >= totalPages}
-            onClick={() => onSearchChange({ page: page + 1 })}
-          >
-            Next
-          </Button>
-        </div>
+
+        {totalPages > 1 ? (
+          <nav className="history-pagination" aria-label="History pages">
+            <Button
+              variant="outline"
+              className="button-toolbar-utility"
+              disabled={page <= 1}
+              onClick={() => onSearchChange({ page: page - 1 })}
+            >
+              Previous
+            </Button>
+            <span className="small-copy muted-copy">
+              Page {page} of {totalPages}
+            </span>
+            <Button
+              variant="outline"
+              className="button-toolbar-utility"
+              disabled={page >= totalPages}
+              onClick={() => onSearchChange({ page: page + 1 })}
+            >
+              Next
+            </Button>
+          </nav>
+        ) : null}
       </section>
-      <Dialog
+      <ConfirmDeleteDialog
         open={deleteCandidate !== null}
-        onOpenChange={(open) => {
-          if (!open && !deleteMutation.isPending) {
-            setDeleteCandidate(null)
-          }
+        title="Delete this saved run?"
+        description={
+          deleteCandidate
+            ? `"${deleteCandidate.label}" will be permanently removed from your history. This cannot be undone.`
+            : 'This run will be permanently removed.'
+        }
+        confirmLabel={deleteMutation.isPending ? 'Deleting…' : 'Delete run'}
+        pending={deleteMutation.isPending}
+        onCancel={() => setDeleteCandidate(null)}
+        onConfirm={() => {
+          if (deleteCandidate) deleteMutation.mutate(deleteCandidate.id)
         }}
-      >
-        <DialogContent showCloseButton={!deleteMutation.isPending}>
-          <DialogHeader>
-            <DialogTitle>Delete this saved run?</DialogTitle>
-            <DialogDescription>
-              {deleteCandidate
-                ? `"${deleteCandidate.label}" will be permanently removed from your workspace timeline. This cannot be undone.`
-                : 'This run will be permanently removed.'}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setDeleteCandidate(null)}
-              disabled={deleteMutation.isPending}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="outline"
-              className="button-destructive-soft"
-              onClick={() => {
-                if (deleteCandidate) {
-                  deleteMutation.mutate(deleteCandidate.id)
-                }
-              }}
-              loading={deleteMutation.isPending}
-              disabled={!deleteCandidate || deleteMutation.isPending}
-            >
-              <Trash2 size={14} className="mr-1.5" />
-              {deleteMutation.isPending ? 'Deleting…' : 'Delete run'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      />
     </PageFrame>
   )
 }

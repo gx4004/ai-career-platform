@@ -16,7 +16,7 @@ type NavbarState = 'light' | 'dark'
 const SCROLL_THRESHOLD = 60
 
 export function LandingTubelightNavbar({
-  items = [],
+  items: allItems = [],
   sectionIds = [],
   ctaLabel = 'Get started',
   ctaTo,
@@ -34,6 +34,8 @@ export function LandingTubelightNavbar({
   brand?: ReactNode
   className?: string
 }) {
+  // An item with neither `to` nor `href` would render a dead `#` link.
+  const items = allItems.filter((item) => item.to || item.href)
   const [isOpen, setIsOpen] = useState(false)
   const [navState, setNavState] = useState<NavbarState>('light')
   const [activeTab, setActiveTab] = useState<string | null>(null)
@@ -124,9 +126,7 @@ export function LandingTubelightNavbar({
 
     return to ? (
       <Link to={to} className={cls} onClick={onClick}>{label}</Link>
-    ) : (
-      <a href="#" className={cls} onClick={onClick}>{label}</a>
-    )
+    ) : null
   }
 
   return (
@@ -169,12 +169,12 @@ export function LandingTubelightNavbar({
                   </Link>
                 ) : (
                   <a
-                    href={item.href ?? '#'}
+                    href={item.href as string}
                     className={cn(
                       'relative z-10 landing-experiment-navbar-link',
                       active && 'landing-experiment-navbar-link--active',
                     )}
-                    onClick={(e) => handleAnchorClick(e, item.href ?? '#')}
+                    onClick={(e) => handleAnchorClick(e, item.href as string)}
                   >
                     {item.label}
                   </a>
@@ -244,9 +244,9 @@ export function LandingTubelightNavbar({
                       </Link>
                     ) : (
                       <a
-                        href={item.href ?? '#'}
+                        href={item.href as string}
                         className="flex items-center gap-3 text-lg font-medium text-[var(--text-strong)] hover:text-[var(--accent)]"
-                        onClick={(e) => handleAnchorClick(e, item.href ?? '#', toggleMenu)}
+                        onClick={(e) => handleAnchorClick(e, item.href as string, toggleMenu)}
                       >
                         <Icon className="h-5 w-5 text-[var(--text-muted)]" />
                         {item.label}

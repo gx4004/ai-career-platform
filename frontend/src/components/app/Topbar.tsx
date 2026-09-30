@@ -1,9 +1,10 @@
 import { useLayoutEffect, useRef } from 'react'
 import { Link, useRouterState } from '@tanstack/react-router'
-import { LayoutDashboard, History, UserRound, Settings } from 'lucide-react'
+import { LayoutDashboard } from 'lucide-react'
 import { SessionMenu } from '#/components/auth/SessionMenu'
 import { SidebarTrigger } from '#/components/ui/sidebar'
 import { AppBrandLockup } from '#/components/app/AppBrandLockup'
+import { getPagePill } from '#/lib/navigation/pagePill'
 import { getRouteMeta } from '#/lib/navigation/routeMeta'
 import { toolList } from '#/lib/tools/registry'
 import { useBreakpoint } from '#/hooks/use-breakpoint'
@@ -22,12 +23,7 @@ export function Topbar() {
   const headerRef = useRef<HTMLElement | null>(null)
 
   // Page icon/label for non-tool compact pages (pill style, same as tool pages)
-  const pageIcons: Record<string, { icon: typeof LayoutDashboard; label: string }> = {
-    '/history': { icon: History, label: 'History' },
-    '/account': { icon: UserRound, label: 'Account' },
-    '/settings': { icon: Settings, label: 'Settings' },
-  }
-  const pagePill = pageIcons[pathname]
+  const pagePill = getPagePill(pathname)
 
   useLayoutEffect(() => {
     const el = headerRef.current
