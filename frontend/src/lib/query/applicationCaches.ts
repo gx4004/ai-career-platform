@@ -3,6 +3,7 @@ import type { QueryClient } from '@tanstack/react-query'
 const ROOT = 'applications'
 
 export const APPLICATION_BOARD_QUERY_KEY = [ROOT, 'board'] as const
+export const APPLICATION_INSIGHTS_QUERY_KEY = [ROOT, 'insights'] as const
 export const APPLICATION_PREFERENCES_QUERY_KEY = [ROOT, 'preferences'] as const
 export const APPLICATION_DETAILS_QUERY_KEY = [ROOT, 'details'] as const
 
