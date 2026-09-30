@@ -22,6 +22,44 @@ export const KIND_LABELS: Record<EvidenceKind, string> = {
   'interview-evidence': 'Interview evidence',
 }
 
+export const KIND_SINGULAR_LABELS: Record<EvidenceKind, string> = {
+  experience: 'Experience',
+  achievement: 'Achievement',
+  skill: 'Skill',
+  education: 'Education',
+  project: 'Project',
+  certification: 'Certification',
+  preference: 'Preference',
+  'interview-evidence': 'Interview evidence',
+}
+
+// Kinds whose content is one value: the value is the card title and the
+// field label ("Text", "Achievements") would only repeat the kind.
+const SINGLE_FIELD_KINDS: ReadonlySet<EvidenceKind> = new Set(['skill', 'achievement'])
+
+/**
+ * A fact's card body. Single-field kinds return a title only (no field label);
+ * multi-field kinds return labelled fields.
+ */
+export function factDisplay(item: EvidenceItem): {
+  title: string | null
+  fields: { key: string; label: string; value: string }[]
+} {
+  const entries = contentEntries(item.content)
+  const filled = entries.filter((entry) => entry.value)
+  if (SINGLE_FIELD_KINDS.has(item.kind) && filled.length === 1) {
+    return { title: filled[0].value, fields: [] }
+  }
+  return {
+    title: null,
+    fields: entries.map(({ key, value }) => ({
+      key,
+      label: fieldLabel(key),
+      value: value || '—',
+    })),
+  }
+}
+
 // Source is a factual origin label; it never implies the user vouched for it.
 export const PROVENANCE_LABELS: Record<EvidenceProvenance, string> = {
   imported: 'Imported',

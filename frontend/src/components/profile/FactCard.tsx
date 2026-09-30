@@ -24,6 +24,7 @@ export type FactMenuItem = {
  */
 export function FactCard({
   tone,
+  title,
   meta,
   fields,
   primary,
@@ -34,6 +35,8 @@ export function FactCard({
 }: {
   /** State modifier: confirmed | unconfirmed | planned | in_progress | completed. */
   tone: string
+  /** Single-value facts show the value as the card title instead of a field. */
+  title?: ReactNode
   meta: ReactNode
   fields: FactField[]
   primary: ReactNode
@@ -47,6 +50,8 @@ export function FactCard({
     <li className={cn('fact-card', `fact-card--${tone}`)} data-state={tone} aria-busy={busy || undefined}>
       <div className="fact-card__meta">{meta}</div>
 
+      {title ? <p className="fact-card__title">{title}</p> : null}
+
       {fields.length > 0 ? (
         <dl className="fact-card__fields">
           {fields.map((field) => (
@@ -56,7 +61,7 @@ export function FactCard({
             </div>
           ))}
         </dl>
-      ) : (
+      ) : title ? null : (
         <p className="small-copy muted-copy">No details recorded.</p>
       )}
 

@@ -3,7 +3,9 @@ import type { EvidenceItem } from '#/lib/api/schemas'
 import {
   applyFieldEdits,
   contentEntries,
+  KIND_SINGULAR_LABELS,
   countByState,
+  factDisplay,
   groupItemsByKind,
 } from '#/lib/profile/evidence'
 
@@ -72,5 +74,25 @@ describe('applyFieldEdits', () => {
 
   it('refuses to save a fact with every field cleared', () => {
     expect(applyFieldEdits({ title: 'Engineer' }, { title: '' })).toMatchObject({ ok: false })
+  })
+})
+
+describe('factDisplay', () => {
+  it('uses the value as the title for single-field kinds, with no field label', () => {
+    const result = factDisplay(item({ kind: 'skill', content: { text: 'TypeScript' } }))
+    expect(result.title).toBe('TypeScript')
+    expect(result.fields).toEqual([])
+    expect(factDisplay(item({ kind: 'achievement', content: { achievements: 'Cut latency 40%' } })).title).toBe('Cut latency 40%')
+  })
+
+  it('keeps labelled fields for multi-field kinds', () => {
+    const result = factDisplay(item({ kind: 'experience', content: { job_title: 'Engineer', company: 'Acme' } }))
+    expect(result.title).toBeNull()
+    expect(result.fields.map((field) => field.label)).toEqual(['Job title', 'Company'])
+  })
+
+  it('has a singular label for every kind', () => {
+    expect(KIND_SINGULAR_LABELS.skill).toBe('Skill')
+    expect(KIND_SINGULAR_LABELS.achievement).toBe('Achievement')
   })
 })
