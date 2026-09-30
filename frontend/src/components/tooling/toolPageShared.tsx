@@ -4,7 +4,6 @@ import { Button } from '#/components/ui/button'
 import { CinematicLoader } from '#/components/tooling/CinematicLoader'
 import { GuestSaveBanner } from '#/components/tooling/GuestSaveBanner'
 import { ToolFullScreen } from '#/components/tooling/ToolFullScreen'
-import { ToolHeroIllustration } from '#/components/tooling/ToolHeroIllustration'
 import { WorkflowHandoffBanner } from '#/components/tooling/WorkflowHandoffBanner'
 import { useSession } from '#/hooks/useSession'
 import { useToolDraft } from '#/hooks/useToolDraft'
@@ -100,20 +99,19 @@ export function ToolInputHero({
   const chips = toolHeroChips[toolId]
 
   return (
-    <div className="tool-input-hero">
-      <div className="tool-input-hero-illust">
-        <ToolHeroIllustration toolId={toolId} accent={tool.accent} loading={false} />
+    <header className="page-header page-header--tool">
+      <div className="page-header__text">
+        <h1 className="page-header__title">{tool.label}</h1>
+        <p className="page-header__purpose">{subtitle}</p>
+        {chips.length > 0 && (
+          <ul className="page-header__meta">
+            {chips.map((chip) => (
+              <li key={chip}>{chip}</li>
+            ))}
+          </ul>
+        )}
       </div>
-      <h1 className="tool-input-hero-title">{tool.label}</h1>
-      <p className="tool-input-hero-subtitle">{subtitle}</p>
-      {chips.length > 0 && (
-        <div className="tool-input-hero-chips">
-          {chips.map((chip) => (
-            <span key={chip} className="tool-input-hero-chip">{chip}</span>
-          ))}
-        </div>
-      )}
-    </div>
+    </header>
   )
 }
 

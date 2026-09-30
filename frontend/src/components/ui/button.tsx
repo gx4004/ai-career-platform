@@ -8,7 +8,7 @@ import { cn } from "#/lib/utils"
 const buttonVariants = cva(
   [
     // base layout + typography
-    "group/button relative inline-flex shrink-0 items-center justify-center rounded-lg border border-transparent bg-clip-padding text-sm font-medium whitespace-nowrap select-none outline-none",
+    "group/button relative inline-flex shrink-0 items-center justify-center rounded-md border border-transparent bg-clip-padding text-sm font-medium whitespace-nowrap select-none outline-none",
     // motion — tactile press, spring-like feel with Tailwind easing
     "transition-[background-color,border-color,box-shadow,color,transform] duration-150 ease-[cubic-bezier(0.2,0.8,0.2,1)]",
     "active:duration-75 active:ease-out",
@@ -29,26 +29,21 @@ const buttonVariants = cva(
         default: [
           // premium primary: layered shadow, top-edge highlight, active press
           "bg-primary text-primary-foreground",
-          "shadow-[0_1px_0_0_rgba(255,255,255,0.12)_inset,0_1px_2px_0_rgba(12,17,29,0.10),0_8px_20px_-6px_rgba(12,17,29,0.35)]",
-          "hover:bg-primary/92",
-          "hover:shadow-[0_1px_0_0_rgba(255,255,255,0.16)_inset,0_2px_6px_0_rgba(12,17,29,0.12),0_14px_28px_-10px_rgba(12,17,29,0.45)]",
-          "active:scale-[0.985]",
+          "shadow-[0_1px_2px_0_rgba(24,24,27,0.08)]",
+          "hover:bg-primary/90",
         ].join(" "),
         outline: [
           "border-border bg-background text-foreground",
           "hover:bg-muted hover:text-foreground",
           "aria-expanded:bg-muted aria-expanded:text-foreground",
-          "shadow-[0_1px_0_0_rgba(255,255,255,0.6)_inset,0_1px_2px_0_rgba(16,24,40,0.04)]",
-          "hover:shadow-[0_1px_0_0_rgba(255,255,255,0.7)_inset,0_1px_2px_0_rgba(16,24,40,0.05),0_8px_20px_-8px_rgba(16,24,40,0.12)]",
-          "active:scale-[0.985]",
+          "bg-surface-raised shadow-[0_1px_2px_0_rgba(24,24,27,0.04)]",
           "dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
         ].join(" "),
         secondary: [
           "bg-secondary text-secondary-foreground",
           "hover:bg-secondary/88",
           "aria-expanded:bg-secondary aria-expanded:text-secondary-foreground",
-          "shadow-[0_1px_0_0_rgba(255,255,255,0.45)_inset,0_1px_2px_0_rgba(16,24,40,0.04)]",
-          "active:scale-[0.985]",
+
         ].join(" "),
         ghost: [
           "text-foreground",
@@ -60,8 +55,7 @@ const buttonVariants = cva(
           "bg-destructive/10 text-destructive",
           "hover:bg-destructive/16 hover:text-destructive",
           "focus-visible:border-destructive/40 focus-visible:ring-destructive/25",
-          "shadow-[0_1px_0_0_rgba(255,255,255,0.4)_inset]",
-          "active:scale-[0.985]",
+
           "dark:bg-destructive/20 dark:hover:bg-destructive/30 dark:focus-visible:ring-destructive/40",
         ].join(" "),
         link: "text-primary underline-offset-4 hover:underline",

@@ -1,0 +1,336 @@
+/*
+ * Work-tool design layer (2026-09-30 overhaul).
+ *
+ * Dense, left-aligned, neutral: light sidebar, slim topbar, one-row page
+ * headers, flat surfaces. Loaded after every other stylesheet so it wins
+ * over the older hero/glow rules while pages are moved over one by one.
+ */
+
+body,
+.app-main {
+  background: var(--background);
+  font-feature-settings: 'cv11', 'ss01';
+  -webkit-font-smoothing: antialiased;
+}
+
+.app-main {
+  background-image: none;
+}
+
+/* ── Sidebar ───────────────────────────────────────────────────────── */
+
+.app-sidebar-shell [data-slot='sidebar-inner'],
+[data-slot='sidebar'][data-state='expanded'] .app-sidebar-shell [data-slot='sidebar-inner'],
+[data-slot='sidebar'][data-state='collapsed'] .app-sidebar-shell [data-slot='sidebar-inner'] {
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  background: var(--sidebar);
+  border-right: 1px solid var(--sidebar-border);
+}
+
+.app-sidebar-header {
+  padding: 0.75rem 0.75rem 0.5rem;
+}
+
+.app-sidebar-brand-row,
+[data-slot='sidebar'][data-state='expanded'] .app-sidebar-brand-link,
+[data-slot='sidebar'][data-state='expanded'] .app-sidebar-brand-toggle,
+.app-sidebar-brand-link,
+.app-sidebar-brand-toggle {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+.app-sidebar-brand-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-height: 2rem;
+}
+
+.app-sidebar-brand-link {
+  padding: 0.25rem !important;
+  min-height: 0 !important;
+}
+
+.app-sidebar-brand-link .cw-brand-wordmark {
+  width: 8.5rem;
+  margin: 0;
+  filter: brightness(0.35) saturate(1.4);
+}
+
+.app-sidebar-brand-row.is-collapsed .cw-brand-mark,
+.app-sidebar-brand-link .cw-brand-mark {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
+.app-sidebar-brand-toggle {
+  width: 1.75rem !important;
+  height: 1.75rem !important;
+  color: var(--text-soft) !important;
+  border-radius: var(--radius-md) !important;
+}
+
+.app-sidebar-brand-toggle:hover {
+  background: rgba(24, 24, 27, 0.06) !important;
+  color: var(--text-strong) !important;
+}
+
+[data-slot='sidebar'] .app-sidebar-shell [data-sidebar='group'] {
+  padding: 0.25rem 0.5rem;
+}
+
+[data-slot='sidebar'] .app-sidebar-shell [data-sidebar='group'] + [data-sidebar='group'] {
+  margin-top: 0.5rem;
+}
+
+[data-slot='sidebar'] .app-sidebar-shell [data-sidebar='group-label'],
+[data-slot='sidebar'][data-state='expanded'] [data-sidebar='group-label'] {
+  padding: 0 0.5rem 0.25rem;
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--text-soft);
+}
+
+[data-slot='sidebar'] .app-sidebar-shell [data-sidebar='menu'] {
+  gap: 1px;
+}
+
+.app-sidebar-menu-button,
+[data-slot='sidebar'][data-state='collapsed'] .app-sidebar-menu-button {
+  min-height: 1.875rem;
+  height: 1.875rem;
+  gap: 0.6rem;
+  padding: 0 0.5rem;
+  border: 0 !important;
+  border-radius: var(--radius-md);
+  background: transparent !important;
+  box-shadow: none !important;
+  color: var(--sidebar-foreground) !important;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+.app-sidebar-menu-button:hover,
+.app-sidebar-menu-button:focus-visible {
+  background: rgba(24, 24, 27, 0.05) !important;
+  color: var(--text-strong) !important;
+}
+
+[data-slot='sidebar'] [data-sidebar='menu-button'][data-active='true'].app-sidebar-menu-button,
+[data-slot='sidebar'][data-state='expanded'] [data-sidebar='menu-button'][data-active='true'],
+[data-slot='sidebar'][data-state='collapsed'] [data-sidebar='menu-button'][data-active='true'].app-sidebar-menu-button {
+  background: var(--surface-raised) !important;
+  color: var(--text-strong) !important;
+  box-shadow: 0 0 0 1px var(--border-soft), 0 1px 2px rgba(24, 24, 27, 0.05) !important;
+}
+
+.app-sidebar-item-icon,
+[data-slot='sidebar'][data-state='collapsed'] .app-sidebar-menu-button .app-sidebar-item-icon {
+  width: 1rem;
+  height: 1rem;
+  stroke-width: 1.75;
+  color: var(--text-muted);
+}
+
+[data-active='true'] > .app-sidebar-item-icon {
+  color: var(--text-strong);
+}
+
+.app-sidebar-footer {
+  padding: 0.5rem 0.75rem 0.75rem;
+}
+
+.app-sidebar-legal__link,
+.app-sidebar-legal__sep {
+  color: var(--text-soft);
+  font-size: 0.72rem;
+}
+
+/* ── Topbar ────────────────────────────────────────────────────────── */
+
+.topbar {
+  background: rgba(255, 255, 255, 0.85);
+  border-bottom: 1px solid var(--border-soft);
+  color: var(--text-body);
+  backdrop-filter: saturate(180%) blur(8px);
+}
+
+.topbar-inner,
+.topbar-inner--compact {
+  min-height: 3rem;
+  padding-block: 0.4rem;
+}
+
+.topbar-tool-pill {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  color: var(--text-strong);
+  gap: 0.45rem;
+  font-size: 0.8125rem;
+}
+
+.topbar-tool-pill svg {
+  width: 0.95rem;
+  height: 0.95rem;
+  color: var(--text-muted);
+}
+
+.topbar-tool-pill-text {
+  font-weight: 500;
+}
+
+.topbar .button-session-avatar {
+  height: 2rem;
+  padding-inline: 0.35rem 0.5rem;
+  color: var(--text-body);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+
+.topbar .button-session-avatar:hover {
+  background: rgba(24, 24, 27, 0.05);
+  color: var(--text-strong);
+}
+
+.topbar .avatar-ring {
+  width: 1.5rem;
+  height: 1.5rem;
+  box-shadow: none;
+  font-size: 0.65rem;
+}
+
+/* ── Page header (replaces the centred hero on every in-app page) ─── */
+
+.page-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem 1.5rem;
+  flex-wrap: wrap;
+  width: 100%;
+  padding: 0 0 1rem;
+  margin: 0 0 1.25rem;
+  border-bottom: 1px solid var(--border-soft);
+  text-align: left;
+  background: none;
+}
+
+.page-header__text {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.page-header__title {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: var(--type-page-title);
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.015em;
+  color: var(--text-strong);
+}
+
+.page-header__purpose {
+  margin: 0;
+  max-width: 44rem;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.page-header__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 0.5rem;
+  margin: 0.15rem 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.page-header__meta li + li::before {
+  content: '·';
+  margin-right: 0.5rem;
+  color: var(--text-soft);
+}
+
+.page-header__action {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+/* ── Tool input pages: ordinary pages, no glow ─────────────────────── */
+
+.tool-fullscreen,
+.tool-fullscreen--hero-flow {
+  background: var(--background) !important;
+  background-image: none !important;
+}
+
+.tool-fullscreen::before,
+.tool-fullscreen::after,
+.tool-fullscreen--hero-flow::before,
+.tool-fullscreen--hero-flow::after {
+  display: none;
+}
+
+.page-header--tool {
+  max-width: 64rem;
+  margin: 0 auto 1.25rem;
+  padding: 1.5rem var(--space-page-x) 1rem;
+  border-bottom: 0;
+}
+
+.page-header--tool + * {
+  margin-top: 0;
+}
+
+/* ── Controls: flat, no lift-on-hover ───────────────────────────────── */
+
+[data-slot='button']:hover,
+[data-slot='button']:focus-visible,
+.button-hero-primary:hover,
+.button-hero-primary:focus-visible,
+.button-surface-secondary:hover,
+.button-surface-secondary:focus-visible {
+  transform: none;
+}
+
+.button-hero-primary:hover svg,
+.button-hero-primary:focus-visible svg {
+  transform: none;
+}
+
+.button-hero-primary,
+.page-header__action [data-slot='button'] {
+  box-shadow: 0 1px 2px rgba(24, 24, 27, 0.08);
+}
+
+/* ── Surfaces: hairline borders instead of floating shadows ────────── */
+
+.surface-card,
+.surface-panel {
+  border-color: var(--border-soft);
+  box-shadow: var(--shadow-soft);
+}
