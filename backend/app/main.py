@@ -38,6 +38,7 @@ from app.routers import (
     portfolio,
     resume,
     telemetry,
+    today,
 )
 from app.services.ats_ingestion import run_ats_ingestion_scheduler
 from app.services.observability import configure_logging
@@ -238,5 +239,6 @@ app.include_router(
     prefix=f"{prefix}/applications",
     tags=["applications"],
 )
+app.include_router(today.router, prefix=f"{prefix}/today", tags=["today"])
 app.include_router(telemetry.router, prefix=f"{prefix}/telemetry", tags=["telemetry"])
 app.include_router(admin.router, prefix=f"{prefix}/admin", tags=["admin"])
