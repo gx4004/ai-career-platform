@@ -138,8 +138,15 @@ product surface is the Applications page (formerly Campaigns, with the Approval
 Queue merged in). One container per target company and role holding the current
 listing, the selected CV variant and cover letter, prepared drafts, open
 questions and answers, tasks, one free-text notes field, and an activity
-timeline. Statuses are `saved`, `applied`, `interviewing`, `offer`, `rejected`,
-`withdrawn`; any move is allowed and "ready to apply" is derived, never stored.
+timeline. Statuses are `saved`, `applied`, `no_reply`, `interviewing`, `offer`,
+`rejected`, `withdrawn`; any move is allowed except that `no_reply` needs a
+currently `applied` application, and "ready to apply" is derived, never stored.
+Every status change stamps `status_changed_at` and appends a timeline event.
+
+**No-reply suggestion**
+Derived, never stored: an application still `applied` 21 days or more after
+`applied_at` shows "No reply yet?" with one action, Mark no reply. Status never
+changes automatically; a late reply can still move on from `no_reply`.
 Code still says `Workspace`, `campaign_*` and `/campaigns` in places.
 
 **Canonical listing**

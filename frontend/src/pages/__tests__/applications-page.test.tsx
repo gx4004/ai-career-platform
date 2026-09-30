@@ -75,6 +75,24 @@ describe('ApplicationsPage', () => {
     expect(screen.getByText('5 in progress')).toBeTruthy()
   })
 
+  it('offers Mark no reply on a stale applied card and chips every non-zero status', async () => {
+    const stale = [
+      { ...base, id: 'a-7', title: 'Cloud Engineer', company: 'Vale', status: 'applied', applied_at: '2026-09-01T10:00:00Z', no_reply_suggested: true },
+      { ...base, id: 'a-8', title: 'QA Engineer', company: 'Dune', status: 'no_reply', applied_at: '2026-08-01T10:00:00Z' },
+    ]
+    api.listApplications.mockResolvedValue({ items: stale, total: 2 })
+    api.updateApplication.mockResolvedValue({ ...stale[0], status: 'no_reply' })
+    renderBoard()
+    const card = (await screen.findByText('Cloud Engineer')).closest('article') as HTMLElement
+    expect(within(card).getByText('No reply yet?')).toBeTruthy()
+    expect(screen.getByText('1 applied')).toBeTruthy()
+    expect(screen.getByText('1 no reply')).toBeTruthy()
+    const parked = (screen.getByText('QA Engineer')).closest('article') as HTMLElement
+    expect(within(parked).queryByText('No reply yet?')).toBeNull()
+    fireEvent.click(within(card).getByRole('button', { name: 'Mark no reply' }))
+    await waitFor(() => expect(api.updateApplication).toHaveBeenCalledWith('a-7', { status: 'no_reply' }))
+  })
+
   it('marks pinned applications on the board', async () => {
     const pinned = [{ ...items[0], is_pinned: true }, ...items.slice(1)]
     api.listApplications.mockResolvedValue({ items: pinned, total: pinned.length })

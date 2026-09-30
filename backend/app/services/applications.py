@@ -13,7 +13,7 @@ from __future__ import annotations
 import hashlib
 import json
 from collections.abc import Awaitable, Callable
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import func, or_
@@ -111,6 +111,23 @@ def is_ready(workspace: Workspace) -> bool:
     )
 
 
+NO_REPLY_AFTER = timedelta(days=21)
+
+
+def _now() -> datetime:
+    return datetime.now(UTC)
+
+
+def no_reply_suggested(workspace: Workspace) -> bool:
+    """Applied and still waiting 21 days on. Only a prompt: nothing changes by itself."""
+    applied_at = _as_utc(workspace.applied_at)
+    return (
+        workspace.status == ApplicationStatus.APPLIED
+        and applied_at is not None
+        and _now() - applied_at >= NO_REPLY_AFTER
+    )
+
+
 def record_event(
     db: Session, workspace_id: str, event_type: str, details: dict, *, provenance: str = "user"
 ) -> None:
@@ -141,6 +158,8 @@ def _card(
         status=workspace.status or ApplicationStatus.SAVED,
         deadline=_as_utc(workspace.deadline),
         applied_at=_as_utc(workspace.applied_at),
+        status_changed_at=_as_utc(workspace.status_changed_at),
+        no_reply_suggested=no_reply_suggested(workspace),
         match_score=workspace.match_score,
         prepared=workspace.drafts_run_id is not None,
         ready=is_ready(workspace),
@@ -183,6 +202,7 @@ def list_applications(db: Session, user_id: str) -> ApplicationList:
                 Workspace.status,
                 Workspace.deadline,
                 Workspace.applied_at,
+                Workspace.status_changed_at,
                 Workspace.match_score,
                 Workspace.drafts_run_id,
                 Workspace.open_questions,
@@ -469,13 +489,19 @@ def _apply_update(db: Session, workspace: Workspace, body: ApplicationUpdate) ->
 
 
 def set_status(db: Session, workspace: Workspace, status: str) -> None:
-    """Any stage may move to any other. Applied always goes through mark-as-applied."""
+    """Any stage may move to any other. Applied always goes through mark-as-applied.
+
+    The one refusal: "no reply" only makes sense for an application that is
+    still Applied.
+    """
     if status == "applied":
         mark_applied(db, workspace, move=True)
         return
     current = workspace.status
     if status == current:
         return
+    if status == "no_reply" and current != "applied":
+        raise ApplicationConflict("Only an applied application can be marked no reply.")
     if status == "saved" and workspace.applied_at is not None:
         # Undo a mis-click: the application was not sent after all.
         if workspace.snapshot is not None:
@@ -483,6 +509,7 @@ def set_status(db: Session, workspace: Workspace, status: str) -> None:
         workspace.applied_at = None
         record_event(db, workspace.id, "applied_undone", {})
     workspace.status = status
+    workspace.status_changed_at = _now()
     record_event(db, workspace.id, "status_changed", {"from": current, "to": status})
 
 
@@ -495,7 +522,7 @@ def mark_applied(db: Session, workspace: Workspace, *, move: bool = False) -> No
     if workspace.applied_at is None:
         if unanswered_questions(workspace):
             raise ApplicationConflict("Answer the open questions before marking this applied.")
-        applied_at = datetime.now(UTC)
+        applied_at = _now()
         content = application_content(workspace, applied_at=applied_at)
         content_json = json.dumps(
             content, sort_keys=True, separators=(",", ":"), ensure_ascii=False
@@ -513,6 +540,7 @@ def mark_applied(db: Session, workspace: Workspace, *, move: bool = False) -> No
     current = workspace.status
     if current != "applied" and (move or current in (None, "saved")):
         workspace.status = "applied"
+        workspace.status_changed_at = _now()
         record_event(db, workspace.id, "status_changed", {"from": current, "to": "applied"})
 
 

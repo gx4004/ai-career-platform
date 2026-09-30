@@ -10,7 +10,7 @@ import { gapClassificationSchema, gapKindSchema } from '#/lib/api/gapClassificat
 const offsetDateTime = z.iso.datetime({ offset: true })
 
 export const applicationStatusSchema = z.enum([
-  'saved', 'applied', 'interviewing', 'offer', 'rejected', 'withdrawn',
+  'saved', 'applied', 'no_reply', 'interviewing', 'offer', 'rejected', 'withdrawn',
 ])
 export type ApplicationStatus = z.infer<typeof applicationStatusSchema>
 export const applicationListingSchema = z.strictObject({
@@ -40,6 +40,8 @@ export const applicationCardSchema = z.object({
   status: applicationStatusSchema,
   deadline: offsetDateTime.nullable().default(null),
   applied_at: offsetDateTime.nullable().default(null),
+  status_changed_at: offsetDateTime.nullable().default(null),
+  no_reply_suggested: z.boolean().default(false),
   match_score: z.number().int().nullable().default(null),
   prepared: z.boolean().default(false),
   ready: z.boolean().default(false),
