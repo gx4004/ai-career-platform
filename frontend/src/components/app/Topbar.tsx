@@ -9,6 +9,13 @@ import { toolList } from '#/lib/tools/registry'
 import { useBreakpoint } from '#/hooks/use-breakpoint'
 import { cn } from '#/lib/utils'
 
+/** Result routes end in a generic "Result" crumb; on mobile show the tool name instead. */
+function mobileBreadcrumbTitle(breadcrumbs: string[]) {
+  const last = breadcrumbs[breadcrumbs.length - 1]
+  if (last === 'Result' && breadcrumbs.length > 1) return breadcrumbs[breadcrumbs.length - 2]
+  return last
+}
+
 export function Topbar() {
   const pathname = useRouterState({
     select: (state) => state.location.pathname,
@@ -53,7 +60,7 @@ export function Topbar() {
     ? 'Your Workspace'
     : entryTool
       ? entryTool.label
-      : meta.breadcrumbs[meta.breadcrumbs.length - 1] || meta.title
+      : mobileBreadcrumbTitle(meta.breadcrumbs) || meta.title
 
   return (
     <header

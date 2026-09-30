@@ -1,6 +1,15 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import { resultDefinitions } from '#/lib/tools/resultDefinitions'
+import {
+  FixFirstStrip,
+  fixFirstTone,
+  formatLetterDate,
+  resultDefinitions,
+  roleFitLabel,
+  truncateLabel,
+  uniqueRequirementCount,
+} from '#/lib/tools/resultDefinitions'
+import { runToolLabel } from '#/components/dashboard/RunList'
 import { tools } from '#/lib/tools/registry'
 import type { ToolRunDetail } from '#/lib/api/schemas'
 
@@ -402,5 +411,105 @@ describe('resultDefinitions', () => {
     expect(screen.getByText(/Presentation tips/i)).toBeTruthy()
     expect(screen.getAllByText(/Operational Intake Service/i).length).toBeGreaterThan(0)
     expect(screen.getByText(/Strategy/i)).toBeTruthy()
+  })
+})
+
+describe('cover letter helpers', () => {
+  const now = new Date('2026-09-30T12:00:00Z')
+
+  it('formats a valid ISO timestamp as a long date', () => {
+    expect(formatLetterDate('2026-03-13T10:00:00Z', now)).toBe('March 13, 2026')
+  })
+
+  it('falls back to today for invalid or empty values', () => {
+    expect(formatLetterDate('not a date', now)).toBe('September 30, 2026')
+    expect(formatLetterDate('', now)).toBe('September 30, 2026')
+    expect(formatLetterDate(undefined, now)).toBe('September 30, 2026')
+  })
+
+  it('counts unique requirements across opening, body points and closing', () => {
+    expect(
+      uniqueRequirementCount({
+        opening: { requirementsUsed: ['React', 'Testing'] },
+        bodyPoints: [{ requirementsUsed: ['react', 'APIs'] }, { requirementsUsed: [] }],
+        closing: { requirementsUsed: ['Testing', ' '] },
+      }),
+    ).toBe(3)
+    expect(
+      uniqueRequirementCount({ opening: { requirementsUsed: [] }, bodyPoints: [], closing: { requirementsUsed: [] } }),
+    ).toBe(0)
+  })
+
+  it('copies and downloads the edited letter, not the generated one', () => {
+    const payload = {
+      opening: { text: 'Dear team,' },
+      body_points: [{ text: 'Original body.' }],
+      closing: { text: 'Thanks.' },
+      generated_at: '2026-03-13T10:00:00Z',
+    }
+    const item = makeItem('cover-letter', payload)
+    const definition = resultDefinitions['cover-letter']
+    render(<>{definition.render(payload, item, tools['cover-letter'])}</>)
+
+    fireEvent.change(screen.getByLabelText('Body paragraph 1'), { target: { value: 'Edited body.' } })
+
+    expect(definition.copyText(payload, item)).toContain('Edited body.')
+    expect(definition.copyText(payload, item)).not.toContain('Original body.')
+    expect(definition.download?.(payload, item)?.content).toContain('Edited body.')
+    expect(screen.getByText('March 13, 2026')).toBeTruthy()
+    expect(screen.getByLabelText('Opening paragraph')).toBeTruthy()
+    expect(screen.getByLabelText('Closing paragraph')).toBeTruthy()
+  })
+})
+
+describe('FixFirstStrip', () => {
+  const actions = [
+    { title: 'A', action: 'do a', priority: 'high' },
+    { title: 'B', action: 'do b', priority: 'medium' },
+  ]
+
+  it('exposes the card count so 2 cards fill the row', () => {
+    const { container } = render(<FixFirstStrip actions={actions} />)
+    const strip = container.querySelector('.fix-first-strip') as HTMLElement
+    expect(strip.style.getPropertyValue('--fix-count')).toBe('2')
+    expect(screen.getByText('Fix these first')).toBeTruthy()
+  })
+
+  it('renders nothing without actions', () => {
+    const { container } = render(<FixFirstStrip actions={[]} />)
+    expect(container.firstChild).toBeNull()
+  })
+
+  it('derives tint and label from priority, not position', () => {
+    expect(fixFirstTone('high').text).toBe('#dc2626')
+    expect(fixFirstTone('medium').text).toBe('#b45309')
+    expect(fixFirstTone('low').text).toBe('#2563eb')
+    render(<FixFirstStrip actions={[{ title: 'Low first', action: 'x', priority: 'low' }, { title: 'High second', action: 'y', priority: 'high' }]} />)
+    expect(screen.getByText('Nice to have')).toBeTruthy()
+    expect(screen.getByText('High priority')).toBeTruthy()
+  })
+
+  it('omits the priority footer when showFooter is false', () => {
+    render(<FixFirstStrip actions={actions} showFooter={false} />)
+    expect(screen.queryByText('High priority')).toBeNull()
+  })
+})
+
+describe('label helpers', () => {
+  it('truncates long role labels', () => {
+    expect(truncateLabel('Senior Engineer')).toBe('Senior Engineer')
+    expect(truncateLabel('x'.repeat(80)).length).toBeLessThanOrEqual(60)
+    expect(truncateLabel('x'.repeat(80)).endsWith('…')).toBe(true)
+  })
+
+  it('prefixes role labels without doubling the placeholder', () => {
+    expect(roleFitLabel('the target role')).toBe('Target role')
+    expect(roleFitLabel('Backend Engineer')).toBe('Target role: Backend Engineer')
+  })
+
+  it('labels non-registry run names', () => {
+    expect(runToolLabel('application-drafts')).toBe('Application drafts')
+    expect(runToolLabel('resume', 'Resume')).toBe('Resume')
+    expect(runToolLabel('mystery')).toBe('mystery')
   })
 })
