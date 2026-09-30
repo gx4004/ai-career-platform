@@ -9,7 +9,7 @@ import {
 
 const NAV = [
   { to: '/admin', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/admin/discovery-sources', label: 'Discovery Sources', icon: Database },
+  { to: '/admin/discovery-sources', label: 'Discovery sources', icon: Database },
   { to: '/admin/users', label: 'Users', icon: Users },
   { to: '/admin/runs', label: 'Runs', icon: FileText },
 ] as const
@@ -21,7 +21,7 @@ export function AdminLayout() {
     <div className="admin-layout">
       <aside className="admin-sidebar">
         <div className="admin-sidebar-brand">
-          <span className="admin-sidebar-brand-label">Admin Panel</span>
+          <span className="admin-sidebar-brand-label">Admin panel</span>
         </div>
         <nav className="admin-sidebar-nav">
           {NAV.map((item) => {

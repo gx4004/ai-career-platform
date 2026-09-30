@@ -84,6 +84,22 @@ def test_best_match_ranks_confirmed_evidence_overlap_above_newer_listings(
     assert _titles(client, auth_headers, sort="newest") == ["Accountant", "Platform Engineer"]
 
 
+def test_company_and_title_words_are_not_shown_as_matched_keywords(
+    client, auth_headers, test_user, discovery
+):
+    discovery.evidence(test_user.id, "Kubernetes Labs Engineers Platform")
+    discovery.listing(
+        title="Platform Engineer",
+        company="Acme Labs",
+        description="Labs Engineers Platform " + K8S,
+    )
+
+    item = client.get(LISTINGS, headers=auth_headers).json()["items"][0]
+
+    assert "Kubernetes" in item["matched_keywords"]
+    assert not {"Labs", "Engineers", "Platform"} & set(item["matched_keywords"])
+
+
 def test_changing_confirmed_items_rescores_on_the_next_load(
     client, auth_headers, db, test_user, discovery
 ):

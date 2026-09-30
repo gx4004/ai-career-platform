@@ -4,6 +4,7 @@ import { X } from 'lucide-react'
 import { getAdminRuns, getAdminRun } from '#/lib/api/admin'
 import type { AdminRunListResponse, AdminRunDetail } from '#/lib/api/admin'
 import { toolList } from '#/lib/tools/registry'
+import { toolLabel } from './toolLabel'
 
 const TOOL_IDS = toolList.map((t) => t.id)
 
@@ -17,7 +18,7 @@ export function AdminRunsPage() {
     setSelectedRunId(null)
   }, [toolFilter])
 
-  const { data, isLoading, isError } = useQuery<AdminRunListResponse>({
+  const { data, isLoading, isError, refetch } = useQuery<AdminRunListResponse>({
     queryKey: ['admin-runs', page, toolFilter],
     queryFn: () => getAdminRuns({ page, page_size: 20, tool: toolFilter || undefined }),
     staleTime: 30_000,
@@ -74,7 +75,10 @@ export function AdminRunsPage() {
             {isError && (
               <tr>
                 <td colSpan={4} className="admin-table-muted" style={{ textAlign: 'center', color: '#dc2626' }}>
-                  Failed to load runs.
+                  Couldn't load runs.{' '}
+                  <button type="button" className="admin-toolbar-btn" onClick={() => void refetch()}>
+                    Try again
+                  </button>
                 </td>
               </tr>
             )}
@@ -85,7 +89,7 @@ export function AdminRunsPage() {
                 onClick={() => setSelectedRunId(run.id)}
               >
                 <td>
-                  <span className="admin-badge admin-badge--tool">{run.tool_name}</span>
+                  <span className="admin-badge admin-badge--tool">{toolLabel(run.tool_name)}</span>
                 </td>
                 <td className="admin-table-muted">{run.user_email || run.user_id.slice(0, 8)}</td>
                 <td className="admin-table-muted">{run.label || '—'}</td>
@@ -127,7 +131,7 @@ export function AdminRunsPage() {
         <div className="admin-modal-backdrop" onClick={() => setSelectedRunId(null)}>
           <div className="admin-modal-panel" onClick={(e) => e.stopPropagation()}>
             <div className="admin-modal-header">
-              <h2 className="admin-modal-title">Run Detail</h2>
+              <h2 className="admin-modal-title">Run detail</h2>
               <button className="admin-icon-btn" onClick={() => setSelectedRunId(null)}>
                 <X size={20} />
               </button>
@@ -169,7 +173,7 @@ export function AdminRunsPage() {
                   )}
                 </div>
 
-                <div className="admin-modal-section-label">Result Payload</div>
+                <div className="admin-modal-section-label">Result payload</div>
                 <pre className="admin-json-viewer">
                   {JSON.stringify(runDetail.data.result_payload, null, 2)}
                 </pre>
