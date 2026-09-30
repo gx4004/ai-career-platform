@@ -18,7 +18,13 @@ let sessionStatus: 'guest' | 'authenticated' = 'guest'
 
 vi.mock('@tanstack/react-router', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@tanstack/react-router')>()
-  return { ...actual, useNavigate: () => navigateMock }
+  return {
+    ...actual,
+    useNavigate: () => navigateMock,
+    Link: ({ to, children, ...props }: { to: string; children: React.ReactNode }) => (
+      <a href={to} {...props}>{children}</a>
+    ),
+  }
 })
 
 vi.mock('#/hooks/useSession', () => ({
