@@ -92,7 +92,6 @@
     padding-inline: 1rem;
   }
 
-  .history-stats,
   .dashboard-runs-grid {
     grid-template-columns: 1fr;
   }

@@ -52,7 +52,7 @@ export function DashboardFeatureLinks() {
       <div className="grid gap-3">
         <div className="grid gap-0.5">
           <p className="eyebrow">More in your workspace</p>
-          <h2 className="section-title">Pick up the next step</h2>
+          <h2 className="section-title">{isAuthenticated ? 'Pick up the next step' : 'Explore'}</h2>
         </div>
         <div className="dashboard-feature-grid">
           {links.map(({ key, label, copy, route, icon: Icon }) => (

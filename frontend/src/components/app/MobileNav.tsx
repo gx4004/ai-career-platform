@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link, useRouterState } from '@tanstack/react-router'
-import { Grid2x2, History, LayoutDashboard, UserRound } from 'lucide-react'
+import { Grid2x2, History, LayoutDashboard, LogIn, UserRound } from 'lucide-react'
 import { useBreakpoint } from '#/hooks/use-breakpoint'
 import { ToolGridSheet } from '#/components/mobile/ToolGridSheet'
 import { isPublicRoute } from '#/lib/navigation/publicRoutes'
@@ -13,7 +13,7 @@ const discover = getNavDestination('/discovery')
 
 export function MobileNav() {
   const [toolsOpen, setToolsOpen] = useState(false)
-  const { user } = useSession()
+  const { user, openAuthDialog } = useSession()
   const bp = useBreakpoint()
   const pathname = useRouterState({
     select: (state) => state.location.pathname,
@@ -67,7 +67,18 @@ export function MobileNav() {
             <discover.icon size={20} strokeWidth={isActive('/discovery') ? 2.2 : 1.8} />
             <span>{discover.label}</span>
           </Link>
-        ) : null}
+        ) : (
+          // /discovery needs an account, so guests get a Sign in tab in the same
+          // slot. It keeps the bar at five tabs so widths do not jump on sign-in.
+          <button
+            type="button"
+            className="mobile-tab-item"
+            onClick={() => openAuthDialog({ to: '/discovery', reason: 'discovery' })}
+          >
+            <LogIn size={20} strokeWidth={1.8} />
+            <span>Sign in</span>
+          </button>
+        )}
 
         {/* Points at /account, not /profile — "Account" avoids colliding with
             the "You → Profile" nav destination (career facts, /profile). */}

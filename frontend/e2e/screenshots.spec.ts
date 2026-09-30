@@ -255,7 +255,7 @@ test('capture authenticated + guest pages for visual review', async ({ page, bro
     // every other e2e spec uses) before relying on it for every page below.
     await page.goto('/login', { waitUntil: 'domcontentloaded' }).catch(() => {})
     await page
-      .getByRole('heading', { name: 'You are already signed in' })
+      .getByRole('heading', { name: "You're already signed in" })
       .waitFor({ timeout: 10_000 })
       .catch((error) => console.warn('[screenshots] auth cookie check inconclusive:', describeError(error)))
 

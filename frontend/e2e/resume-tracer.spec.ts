@@ -43,13 +43,13 @@ async function submitResume(page: import('@playwright/test').Page) {
 
 async function register(page: import('@playwright/test').Page, prefix: string) {
   await gotoHydrated(page, '/login')
-  await page.getByRole('tab', { name: 'Create Account' }).click()
+  await page.getByRole('tab', { name: 'Create account' }).click()
   await page.locator('#register-name').fill('R2 Test User')
   await page.locator('#register-email').fill(uniqueEmail(prefix))
   await page.locator('#register-password').fill('correct-horse-battery-staple')
   await page.locator('#register-tos').check()
   await page.getByRole('button', { name: 'Create free account' }).click()
-  await expect(page.getByRole('heading', { name: 'You are already signed in' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: "You're already signed in" })).toBeVisible()
 }
 
 test('guest resume result stays transient after account creation', async ({ page }) => {
@@ -59,7 +59,7 @@ test('guest resume result stays transient after account creation', async ({ page
   await register(page, 'guest-tracer')
   await page.goto('/history')
 
-  await expect(page.getByText('No runs found')).toBeVisible()
+  await expect(page.getByText('No runs yet')).toBeVisible()
 })
 
 test('authenticated resume result persists and can be revisited', async ({ page }) => {
@@ -70,7 +70,7 @@ test('authenticated resume result persists and can be revisited', async ({ page 
   const resultUrl = page.url()
 
   await page.goto('/history')
-  await expect(page.getByText(/Resume Analysis/).first()).toBeVisible()
+  await expect(page.getByRole('link', { name: /^Open / }).first()).toBeVisible()
 
   await page.goto(resultUrl)
   await expect(page.getByRole('img', { name: /Resume score:/ })).toBeVisible()
