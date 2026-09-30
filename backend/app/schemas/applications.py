@@ -77,6 +77,36 @@ class ApplicationList(BaseModel):
     total: int
 
 
+class InsightSegment(BaseModel):
+    label: str
+    applied: int = Field(ge=0)
+    replied: int = Field(ge=0)
+    # Percent, or None until the segment has enough applications to mean anything.
+    reply_rate: int | None = Field(default=None, ge=0, le=100)
+    enough_data: bool
+
+
+class InsightsDimension(BaseModel):
+    key: Literal["source", "company", "role_family", "work_mode", "skills_fit"]
+    title: str
+    segments: list[InsightSegment]
+    hidden_count: int = Field(default=0, ge=0)
+
+
+class InsightsSummary(BaseModel):
+    applied: int = Field(ge=0)
+    replied: int = Field(ge=0)
+    reply_rate: int | None = Field(default=None, ge=0, le=100)
+
+
+class WhatsWorking(BaseModel):
+    """Reply rate overall and per segment. Signals stay separate, each with its n."""
+
+    overall: InsightsSummary
+    min_segment_size: int
+    dimensions: list[InsightsDimension]
+
+
 class CvVariantReference(BaseModel):
     id: str
     document_id: str
