@@ -87,7 +87,7 @@ beforeEach(() => {
 })
 
 describe('DiscoveryPage', () => {
-  it('shows a compact job card with match, meta, preview and attribution', async () => {
+  it('shows a compact job row with match, meta, preview and attribution', async () => {
     renderPage()
     const card = await findCard()
 
@@ -97,19 +97,18 @@ describe('DiscoveryPage', () => {
     expect(within(card).getByText('Berlin, Germany')).toBeTruthy()
     expect(within(card).getByText('Remote')).toBeTruthy()
     expect(within(card).getByText('Posted 3 days ago')).toBeTruthy()
-    expect(within(card).getByText('Kubernetes')).toBeTruthy()
     expect(within(card).getByText('via Greenhouse')).toBeTruthy()
     // Preference hits are their own signal, not folded into the fit number.
     expect(within(card).getByLabelText('Matches your preferences').textContent).toBe('Startup')
     expect(within(card).queryByText(/\d+% match/)).toBeNull()
   })
 
-  it('gives each card one primary action and keeps the rest in its overflow menu', async () => {
+  it('gives each row its actions and keeps the rest in its overflow menu', async () => {
     renderPage()
     const card = await findCard()
 
     const buttons = within(card).getAllByRole('button').map((button) => button.textContent?.trim() || button.getAttribute('aria-label'))
-    expect(buttons).toEqual(['Platform Engineer', 'Add to applications', 'More actions for Platform Engineer'])
+    expect(buttons).toEqual(['Platform Engineer', 'Deep match', 'Add to applications', 'More actions for Platform Engineer'])
     expect(within(card).queryByRole('link')).toBeNull()
 
     const menu = await openMenu(card)

@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react'
 import { render, screen } from '@testing-library/react'
-import { Clock } from 'lucide-react'
 import { describe, expect, it, vi } from 'vitest'
 import { RunList } from '#/components/dashboard/RunList'
 import { formatRunDate } from '#/components/dashboard/RunRow'
@@ -25,9 +24,7 @@ const base = { label: 'A run', created_at: new Date().toISOString(), is_favorite
 function renderList(viewAllTo?: '/history') {
   return render(
     <RunList
-      eyebrow="Recent"
       title="Pick up"
-      emptyIcon={Clock}
       emptyText="empty"
       unauthText="unauth"
       queryParams={{ page: 1, page_size: 3 }}

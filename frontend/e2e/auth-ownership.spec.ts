@@ -137,7 +137,7 @@ test('cookie auth persists owner runs and isolates every protected run and works
 
     await signIn(ownerPage, ownerEmail)
     await gotoHydrated(ownerPage, `/resume/result/${historyId}`)
-    await expect(ownerPage.locator('.result-hero')).toBeVisible()
+    await expect(ownerPage.locator('.result-header')).toBeVisible()
     await expectNoAuthTokensInStorage(ownerPage)
 
     await register(otherPage, 'R2 Other')

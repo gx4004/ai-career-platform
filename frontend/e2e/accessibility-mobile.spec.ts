@@ -380,6 +380,6 @@ test('320px mobile view does not hide primary actions behind missing affordances
   expect(visible, '/resume: no interactive element visible at 320px').toBe(true)
 
   await gotoHydrated(page, '/dashboard')
-  visible = await page.locator('a[href="/resume"], .dash-hero-dark-drop-wrap').first().isVisible().catch(() => false)
+  visible = await page.locator('a[href="/resume"], .dash-upload').first().isVisible().catch(() => false)
   expect(visible, '/dashboard: primary link not visible at 320px').toBe(true)
 })

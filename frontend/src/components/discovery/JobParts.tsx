@@ -1,4 +1,3 @@
-import type { CSSProperties } from 'react'
 import type { DiscoveryListing } from '#/lib/api/schemas'
 
 /** Skills fit with its sample size, shared by Discovery and the dashboard. */
@@ -16,12 +15,9 @@ export function SkillsFit({ listing }: { listing: DiscoveryListing }) {
   )
 }
 
-const AVATAR_HUES = [211, 199, 226, 187, 240, 172]
-
 export function CompanyAvatar({ name }: { name: string }) {
-  const hue = AVATAR_HUES[[...name].reduce((sum, char) => sum + char.charCodeAt(0), 0) % AVATAR_HUES.length]
   return (
-    <span className="disc-avatar" style={{ '--avatar-hue': hue } as CSSProperties} aria-hidden="true">
+    <span className="disc-avatar" aria-hidden="true">
       {name.trim().charAt(0).toUpperCase() || '?'}
     </span>
   )

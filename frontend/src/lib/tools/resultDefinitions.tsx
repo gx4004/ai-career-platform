@@ -1,26 +1,17 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import {
-  AlertCircle,
-  ArrowRight,
-  CheckCircle2,
-  ChevronRight,
-  Copy,
-  Download,
-  FileEdit,
-  Hash,
-  Info,
-  Lightbulb,
-  MessageSquare,
-  Settings,
-  Star,
-  Target,
-  TrendingUp,
-  Zap,
-} from 'lucide-react'
-import { ScrollReveal, AnimatedNumber } from '#/components/ui/motion'
+import { Copy, Download, Zap } from 'lucide-react'
+import { Button } from '#/components/ui/button'
 import { AutoGrowTextarea } from '#/components/tooling/AutoGrowTextarea'
 import { InterviewPracticeMode } from '#/components/tooling/InterviewPracticeMode'
+import {
+  Badge,
+  Field,
+  MiniBar,
+  ResultSection,
+  SeverityBadge,
+  TokenList,
+} from '#/components/tooling/ResultParts'
 import type { ToolRunDetail } from '#/lib/api/schemas'
 import type { ToolDefinition, ToolId } from '#/lib/tools/registry'
 
@@ -276,18 +267,6 @@ function toObjectArray(value: unknown): AnyObject[] {
   return value.filter(
     (item): item is AnyObject => Boolean(item) && typeof item === 'object',
   )
-}
-
-function scoreColor(score: number) {
-  if (score >= 70) return '#22c55e'
-  if (score >= 41) return '#f59e0b'
-  return '#ef4444'
-}
-
-function statusTone(status: 'matched' | 'partial' | 'missing') {
-  if (status === 'matched') return 'var(--success)'
-  if (status === 'partial') return 'var(--warning)'
-  return 'var(--destructive)'
 }
 
 function normalizeResumePayload(payload: AnyObject): ResumeResultPayload {
@@ -579,528 +558,266 @@ function normalizeInterviewPayload(payload: AnyObject): InterviewResultPayload {
   }
 }
 
-/* ── Shared helpers ── */
+/* ── Shared: fix-first list ── */
 
+export type TopAction = { title: string; action: string; priority: string }
 
-function scoreGradient(score: number) {
-  if (score >= 70) return { start: '#16a34a', end: '#4ade80' }
-  if (score >= 41) return { start: '#d97706', end: '#fbbf24' }
-  return { start: '#dc2626', end: '#f87171' }
-}
-
-function ScoreCircleSvg({
-  score,
-  size = 88,
-  variant = 'hero',
-  ariaLabel,
-}: {
-  score: number
-  size?: number
-  variant?: 'hero' | 'breakdown'
-  ariaLabel?: string
-}) {
-  const isLarge = size >= 140
-  const sw = isLarge ? 12 : 5
-  const swActive = isLarge ? 12 : 5.5
-  const r = (size / 2) - (isLarge ? 12 : 6)
-  const circumference = 2 * Math.PI * r
-  const offset = circumference - (score / 100) * circumference
-  const grad = scoreGradient(score)
-  const uid = `sg-${size}-${score}`
-
-  return (
-    <div
-      className={`result-hero__score${variant === 'breakdown' ? ' result-hero__score--breakdown' : ''}${isLarge ? ' result-hero__score--large' : ''}`}
-      style={{ width: size, height: size }}
-      role={ariaLabel ? 'img' : undefined}
-      aria-label={ariaLabel}
-    >
-      <svg viewBox={`0 0 ${size} ${size}`} style={{ transform: 'rotate(-90deg)', position: 'absolute', inset: 0 }}>
-        <defs>
-          <linearGradient id={uid} x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stopColor={grad.start} />
-            <stop offset="100%" stopColor={grad.end} />
-          </linearGradient>
-          <filter id={`${uid}-glow`}>
-            <feGaussianBlur stdDeviation={isLarge ? 5 : 3} result="blur" />
-            <feMerge>
-              <feMergeNode in="blur" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
-        </defs>
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="currentColor" opacity={isLarge ? 0.1 : 0.06} strokeWidth={sw} />
-        <circle
-          cx={size / 2} cy={size / 2} r={r} fill="none"
-          stroke={`url(#${uid})`}
-          strokeWidth={swActive}
-          strokeDasharray={circumference}
-          strokeDashoffset={offset}
-          strokeLinecap="round"
-          filter={`url(#${uid}-glow)`}
-          style={{ transition: 'stroke-dashoffset 1.2s cubic-bezier(0.16, 1, 0.3, 1)' }}
-        />
-      </svg>
-      <div className={`result-hero__score-content${variant === 'breakdown' ? ' result-hero__score-content--breakdown' : ''}`}>
-        <AnimatedNumber value={score} className="result-hero__score-num" />
-        {isLarge && <span className="result-hero__score-sub">/ 100</span>}
-      </div>
-    </div>
-  )
-}
-
-const FIX_FIRST_ICONS = [FileEdit, Hash, TrendingUp] as const
-// Tint follows priority (not card position): high = rose, medium = amber, low = blue.
-const FIX_FIRST_TONES: Record<string, { bg: string; text: string }> = {
-  high: { bg: '#fee2e2', text: '#dc2626' },
-  medium: { bg: '#fef3c7', text: '#b45309' },
-  low: { bg: '#dbeafe', text: '#2563eb' },
-}
-const FIX_FIRST_LABELS: Record<string, string> = {
-  high: 'High priority',
-  medium: 'Worth fixing',
-  low: 'Nice to have',
-}
-
-export function fixFirstTone(priority: string) {
-  return FIX_FIRST_TONES[priority] ?? FIX_FIRST_TONES.medium
-}
-
-// `showFooter` is false only on Job Match: its cards sit directly under the
-// score hero, where the priority label would repeat the hero's own framing.
-export function FixFirstStrip({ actions, showFooter = true }: { actions: Array<{ title: string; action: string; priority: string }>; showFooter?: boolean }) {
+/** Numbered list of the highest-value actions, each with a severity text badge. */
+export function FixFirstList({ actions }: { actions: TopAction[] }) {
   const items = actions.slice(0, 3)
   if (items.length === 0) return null
 
   return (
-    <div className="fix-first-section stagger-entrance">
-      <div className="fix-first-eyebrow">Fix these first</div>
-      <div
-        className="fix-first-strip"
-        style={{ '--fix-count': items.length } as React.CSSProperties}
-      >
-        {items.map((a, i) => {
-          const Icon = FIX_FIRST_ICONS[i] || FileEdit
-          const tone = fixFirstTone(a.priority)
-          return (
-            <div key={`${a.title}-${i}`} className="fix-first-card">
-              <div className="fix-first-card__icon" style={{ background: tone.bg }}>
-                <Icon size={18} style={{ color: tone.text }} />
-              </div>
-              <div className="fix-first-card__content">
-                <div className="fix-first-card__title">{a.title}</div>
-                <div className="fix-first-card__desc">{a.action}</div>
-                {showFooter && (
-                  <div className="fix-first-card__footer">
-                    <span className="fix-first-card__priority" style={{ color: tone.text }}>
-                      {FIX_FIRST_LABELS[a.priority] || a.priority}
-                    </span>
-                  </div>
-                )}
-              </div>
+    <ResultSection title="Fix first">
+      <ol className="rlist rlist--numbered">
+        {items.map((a, i) => (
+          <li key={`${a.title}-${i}`} className="rlist__item">
+            <div className="rlist__row">
+              <span className="rlist__title">{a.title}</span>
+              <SeverityBadge level={a.priority} />
             </div>
-          )
-        })}
-      </div>
-    </div>
+            <p className="rlist__text">{a.action}</p>
+          </li>
+        ))}
+      </ol>
+    </ResultSection>
   )
 }
 
-function ResumeHeroExtra({ payload }: { payload: AnyObject }) {
-  const result = normalizeResumePayload(payload)
-  if (result.scoreBreakdown.length === 0) return null
-
-  return (
-    <div className="hero-breakdown-grid" style={{ position: 'relative' }}>
-      {result.scoreBreakdown.map((item) => (
-        <div key={item.key} className="hero-breakdown-item">
-          <span className="hero-breakdown-label">{item.label}</span>
-          <span className="hero-breakdown-value">{item.score}%</span>
-          <div className="hero-breakdown-bar">
-            <div
-              className="hero-breakdown-fill"
-              style={{
-                width: `${item.score}%`,
-                background: scoreColor(item.score),
-              }}
-            />
-          </div>
-        </div>
-      ))}
-    </div>
-  )
+function RoleFitLevel({ score }: { score: number }) {
+  if (score >= 70) return <Badge tone="success">High match</Badge>
+  if (score >= 40) return <Badge tone="warning">Moderate</Badge>
+  return <Badge tone="danger">Low match</Badge>
 }
+
+/* ── Resume ── */
 
 function ResumeResultView({ payload }: { payload: AnyObject }) {
   const result = normalizeResumePayload(payload)
   const { evidence } = result
   const hasKeywords = evidence.matchedKeywords.length > 0 || evidence.missingKeywords.length > 0
-  const hasRightColumn = Boolean(result.roleFit)
-  const matchLevel = result.roleFit
-    ? result.roleFit.fitScore >= 70 ? 'High match' : result.roleFit.fitScore >= 40 ? 'Moderate' : 'Low match'
-    : null
+  const hasFeedback = result.strengths.length > 0 || result.issues.length > 0
 
   return (
-    <div className={hasRightColumn ? 'resume-body-grid' : 'resume-body-single'}>
-      {/* ── Left column ── */}
-      <div className="resume-body-left">
-        {/* Detailed Feedback card */}
-        <ScrollReveal>
-        <div className="feedback-card">
-          <div className="feedback-card__header">
-            <span className="feedback-card__header-title">Detailed feedback</span>
-          </div>
-          <div className="feedback-card__body">
-            {/* Strengths */}
-            {result.strengths.length > 0 && (
-              <div>
-                <div className="feedback-eyebrow feedback-eyebrow--success">Major strengths</div>
-                {result.strengths.slice(0, 4).map((s) => (
-                  <div key={s} className="feedback-strength">
-                    <CheckCircle2 size={20} fill="var(--success)" stroke="white" strokeWidth={2} className="feedback-strength__icon" />
-                    <div>
-                      <div className="feedback-strength__title">{s}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Issues */}
-            {result.issues.length > 0 && (
-              <div className="feedback-issues">
-                <div className="feedback-eyebrow feedback-eyebrow--danger">Refinement areas</div>
-                {result.issues.map((issue) => (
-                  <div
-                    key={issue.id}
-                    className={`feedback-issue${issue.severity === 'medium' ? ' feedback-issue--medium' : issue.severity === 'low' ? ' feedback-issue--low' : ''}`}
-                  >
-                    <div className="feedback-issue__title">{issue.title}</div>
-                    <div className="feedback-issue__grid">
-                      <div className="feedback-issue__box">
-                        <span className="feedback-issue__box-label">Why it matters</span>
-                        <p className="feedback-issue__box-text">{issue.whyItMatters}</p>
-                      </div>
-                      <div className="feedback-issue__box">
-                        <span className="feedback-issue__box-label">Fix</span>
-                        <p className="feedback-issue__box-text">{issue.fix}</p>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-        </ScrollReveal>
-
-        {/* Keyword Optimization card */}
-        {hasKeywords && (
-          <ScrollReveal>
-          <div className="keyword-card">
-            <div className="keyword-card__header">
-              <span className="keyword-card__title">Keyword optimization</span>
-              <div className="keyword-card__badges">
-                {evidence.matchedKeywords.length > 0 && (
-                  <span className="keyword-card__badge keyword-card__badge--matched">
-                    {evidence.matchedKeywords.length} matched
-                  </span>
-                )}
-                {evidence.missingKeywords.length > 0 && (
-                  <span className="keyword-card__badge keyword-card__badge--missing">
-                    {evidence.missingKeywords.length} missing
-                  </span>
-                )}
-              </div>
-            </div>
-            <div className="chip-wrap" style={{ gap: '0.5rem' }}>
-              {evidence.matchedKeywords.map((k) => (
-                <span key={k} className="keyword-chip--accent">{k}</span>
+    <>
+      {result.scoreBreakdown.length > 0 && (
+        <ResultSection title="Score breakdown">
+          <table className="rtable rtable--bars">
+            <thead className="sr-only">
+              <tr>
+                <th scope="col">Category</th>
+                <th scope="col">Score</th>
+                <th scope="col">Value</th>
+              </tr>
+            </thead>
+            <tbody>
+              {result.scoreBreakdown.map((item) => (
+                <tr key={item.key}>
+                  <th scope="row">{item.label}</th>
+                  <td className="rtable__bar">
+                    <MiniBar value={item.score} />
+                  </td>
+                  <td className="rtable__num">{item.score}%</td>
+                </tr>
               ))}
-            </div>
-            {evidence.missingKeywords.length > 0 && (
-              <div className="keyword-missing-box">
-                <div className="keyword-missing-label">Add these to rank higher</div>
-                <div className="chip-wrap" style={{ gap: '0.5rem' }}>
-                  {evidence.missingKeywords.map((k) => (
-                    <span key={k} className="keyword-chip--missing">+ {k}</span>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-          </ScrollReveal>
-        )}
-      </div>
-
-      {/* ── Right column (only when content exists) ── */}
-      {hasRightColumn && (
-      <div className="resume-body-right">
-        {result.roleFit && (
-          <ScrollReveal>
-          <div className="rolefit-card">
-            <div className="rolefit-card__header">
-              <span className="rolefit-card__title">Role fit</span>
-              {matchLevel && <span className="rolefit-card__badge">{matchLevel}</span>}
-            </div>
-            <div className="rolefit-bar">
-              <div className="rolefit-bar__header">
-                <span className="rolefit-bar__label" title={result.roleFit.targetRoleLabel}>
-                  {roleFitLabel(result.roleFit.targetRoleLabel)}
-                </span>
-                <span className="rolefit-bar__value">{result.roleFit.fitScore}%</span>
-              </div>
-              <div className="rolefit-bar__track">
-                <div
-                  className="rolefit-bar__fill"
-                  style={{
-                    width: `${result.roleFit.fitScore}%`,
-                    background: result.roleFit.fitScore >= 70 ? 'var(--accent)' : result.roleFit.fitScore >= 40 ? 'var(--warning)' : 'var(--destructive)',
-                  }}
-                />
-              </div>
-            </div>
-            {result.roleFit.rationale && (
-              <p className="rs__meta" style={{ marginTop: '1rem' }}>{result.roleFit.rationale}</p>
-            )}
-          </div>
-          </ScrollReveal>
-        )}
-      </div>
+            </tbody>
+          </table>
+        </ResultSection>
       )}
-    </div>
+
+      {hasFeedback && (
+        <ResultSection title="Detailed feedback">
+          {result.strengths.length > 0 && (
+            <>
+              <h3 className="rs-sub">Major strengths</h3>
+              <ul className="rlist rlist--bullets">
+                {result.strengths.slice(0, 4).map((s) => (
+                  <li key={s}>{s}</li>
+                ))}
+              </ul>
+            </>
+          )}
+          {result.issues.length > 0 && (
+            <>
+              <h3 className="rs-sub">Refinement areas</h3>
+              <ol className="rlist rlist--numbered">
+                {result.issues.map((issue) => (
+                  <li key={issue.id} className="rlist__item">
+                    <div className="rlist__row">
+                      <span className="rlist__title">{issue.title}</span>
+                      <SeverityBadge level={issue.severity} />
+                    </div>
+                    <dl className="rfields">
+                      <Field label="Why it matters">{issue.whyItMatters}</Field>
+                      <Field label="Fix">{issue.fix}</Field>
+                    </dl>
+                  </li>
+                ))}
+              </ol>
+            </>
+          )}
+        </ResultSection>
+      )}
+
+      {hasKeywords && (
+        <ResultSection
+          title="Keyword optimization"
+          meta={
+            <>
+              {evidence.matchedKeywords.length} matched
+              {evidence.missingKeywords.length > 0 ? ` · ${evidence.missingKeywords.length} missing` : ''}
+            </>
+          }
+        >
+          <TokenList items={evidence.matchedKeywords} tone="success" />
+          {evidence.missingKeywords.length > 0 && (
+            <>
+              <h3 className="rs-sub">Add these to rank higher</h3>
+              <TokenList items={evidence.missingKeywords} tone="warning" prefix="+ " />
+            </>
+          )}
+        </ResultSection>
+      )}
+
+      {result.roleFit && (
+        <ResultSection title="Role fit" meta={<RoleFitLevel score={result.roleFit.fitScore} />}>
+          <div className="rfit">
+            <span className="rfit__label" title={result.roleFit.targetRoleLabel}>
+              {roleFitLabel(result.roleFit.targetRoleLabel)}
+            </span>
+            <MiniBar value={result.roleFit.fitScore} />
+            <span className="rfit__value">{result.roleFit.fitScore}%</span>
+          </div>
+          {result.roleFit.rationale && <p className="rs-text">{result.roleFit.rationale}</p>}
+        </ResultSection>
+      )}
+    </>
   )
 }
 
-function JobMatchHeroExtra({ payload }: { payload: AnyObject }) {
-  const result = normalizeJobMatchPayload(payload)
-  const met = result.requirements.filter((r) => r.status === 'matched').length
-  const totalReqs = result.requirements.length
+/* ── Job match ── */
 
-  return (
-    <div className="hero-stat-strip">
-      {totalReqs > 0 && (
-        <>
-          <div className="hero-stat-strip__item">
-            <CheckCircle2 size={16} style={{ color: '#22c55e' }} />
-            <span>{met}/{totalReqs} requirements met</span>
-          </div>
-          <div className="hero-stat-strip__divider" />
-        </>
-      )}
-      <div className="hero-stat-strip__item">
-        <Hash size={16} style={{ color: '#22c55e' }} />
-        <span>{result.matchedKeywords.length} keywords matched</span>
-      </div>
-      <div className="hero-stat-strip__divider" />
-      <div className="hero-stat-strip__item">
-        <TrendingUp size={16} style={{ color: '#ef4444' }} />
-        <span>{result.missingKeywords.length} missing</span>
-      </div>
-    </div>
-  )
+function requirementStatusBadge(status: 'matched' | 'partial' | 'missing') {
+  if (status === 'matched') return <Badge tone="success">Matched</Badge>
+  if (status === 'partial') return <Badge tone="warning">Partial</Badge>
+  return <Badge tone="danger">Missing</Badge>
 }
 
 function JobMatchView({ payload }: { payload: AnyObject }) {
   const result = normalizeJobMatchPayload(payload)
-  const hasRightContent = result.recruiterSummary || result.interviewFocus.length > 0
+  const met = result.requirements.filter((r) => r.status === 'matched').length
 
   return (
-    <div className={hasRightContent ? 'resume-body-grid' : 'resume-body-single'}>
-      {/* ── Left column ── */}
-      <div className="resume-body-left">
-        {/* Requirements card */}
-        {result.requirements.length > 0 && (
-        <ScrollReveal>
-        <div className="feedback-card">
-          <div className="feedback-card__header">
-            <span className="feedback-card__header-title">Detailed requirements</span>
-            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>
-              {result.requirements.filter((r) => r.status === 'matched').length} of {result.requirements.length} met
-            </span>
-          </div>
-          <div className="feedback-card__body" style={{ padding: 0 }}>
-            {result.requirements.map((item, index) => (
-              <div
-                key={`${item.requirement}-${index}`}
-                style={{
-                  padding: '1.25rem 1.5rem',
-                  borderBottom: index < result.requirements.length - 1 ? '1px solid var(--divider)' : 'none',
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                  <span style={{
-                    width: '0.625rem', height: '0.625rem', borderRadius: '50%', flexShrink: 0,
-                    background: statusTone(item.status),
-                  }} />
-                  <span style={{ flex: 1, fontWeight: 600, color: 'var(--text-strong)', fontSize: '0.9375rem' }}>
-                    {item.requirement}
-                  </span>
-                  <span className="chip chip--neutral" style={{ fontSize: '0.625rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                    {item.importance}
-                  </span>
-                </div>
-                {item.resumeEvidence && item.status === 'matched' && (
-                  <div style={{
-                    marginTop: '0.75rem', marginLeft: '1.375rem',
-                    background: 'var(--surface-subtle)', borderRadius: 'var(--radius-md)',
-                    padding: '0.75rem', border: '1px solid var(--divider)',
-                  }}>
-                    <span style={{ fontSize: '0.625rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', display: 'block', marginBottom: '0.25rem' }}>
-                      Resume evidence
-                    </span>
-                    <p style={{ fontSize: '0.8125rem', color: 'var(--text-body)', lineHeight: 1.5 }}>{item.resumeEvidence}</p>
-                  </div>
-                )}
-                {item.suggestedFix && item.status !== 'matched' && (
-                  <div style={{
-                    marginTop: '0.75rem', marginLeft: '1.375rem',
-                    borderLeft: `2px solid ${statusTone(item.status)}`, paddingLeft: '1rem',
-                  }}>
-                    <span style={{ fontSize: '0.625rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', color: statusTone(item.status), display: 'block', marginBottom: '0.25rem' }}>
-                      Suggested fix
-                    </span>
-                    <p style={{ fontSize: '0.8125rem', color: 'var(--text-body)', lineHeight: 1.5 }}>{item.suggestedFix}</p>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-        </ScrollReveal>
-        )}
-
-        {/* Tailoring Actions */}
-        {result.tailoringActions.length > 0 && (
-          <ScrollReveal>
-          <div className="feedback-card">
-            <div className="feedback-card__header">
-              <span className="feedback-card__header-title">Tailoring actions</span>
-            </div>
-            <div className="feedback-card__body">
-              {result.tailoringActions.map((a, i) => (
-                <div
-                  key={`${a.keyword}-${i}`}
-                  className="step-card"
-                  style={{ '--step-color': 'var(--accent)' } as React.CSSProperties}
-                >
-                  <div className="step-card__num">{i + 1}</div>
-                  <div className="step-card__body">
-                    <div className="step-card__title">{a.keyword} <span className="chip chip--neutral" style={{ fontSize: '0.625rem', marginLeft: '0.375rem' }}>{a.section}</span></div>
-                    <div className="step-card__desc">{a.action}</div>
-                  </div>
-                </div>
+    <>
+      {result.requirements.length > 0 && (
+        <ResultSection title="Detailed requirements" meta={`${met} of ${result.requirements.length} met`}>
+          <table className="rtable rtable--requirements">
+            <thead>
+              <tr>
+                <th scope="col">Requirement</th>
+                <th scope="col">Status</th>
+                <th scope="col">Detail</th>
+              </tr>
+            </thead>
+            <tbody>
+              {result.requirements.map((item, index) => (
+                <tr key={`${item.requirement}-${index}`}>
+                  <th scope="row">
+                    <span className="rtable__name">{item.requirement}</span>
+                    <span className="rtable__sub">{item.importance === 'must' ? 'Must have' : 'Preferred'}</span>
+                  </th>
+                  <td>{requirementStatusBadge(item.status)}</td>
+                  <td>
+                    {item.resumeEvidence && item.status === 'matched' && (
+                      <p className="rtable__note">
+                        <span className="rtable__note-label">Resume evidence</span>
+                        {item.resumeEvidence}
+                      </p>
+                    )}
+                    {item.suggestedFix && item.status !== 'matched' && (
+                      <p className="rtable__note">
+                        <span className="rtable__note-label">Suggested fix</span>
+                        {item.suggestedFix}
+                      </p>
+                    )}
+                  </td>
+                </tr>
               ))}
-            </div>
-          </div>
-          </ScrollReveal>
-        )}
-
-        {/* Keywords */}
-        {(result.matchedKeywords.length > 0 || result.missingKeywords.length > 0) && (
-          <ScrollReveal>
-          <div className="keyword-card">
-            <div className="keyword-card__header">
-              <span className="keyword-card__title">Keyword breakdown</span>
-              <div className="keyword-card__badges">
-                {result.matchedKeywords.length > 0 && (
-                  <span className="keyword-card__badge keyword-card__badge--matched">
-                    {result.matchedKeywords.length} matched
-                  </span>
-                )}
-                {result.missingKeywords.length > 0 && (
-                  <span className="keyword-card__badge keyword-card__badge--missing">
-                    {result.missingKeywords.length} missing
-                  </span>
-                )}
-              </div>
-            </div>
-            <div className="chip-wrap" style={{ gap: '0.5rem' }}>
-              {result.matchedKeywords.map((k) => (
-                <span key={k} className="keyword-chip--accent">{k}</span>
-              ))}
-            </div>
-            {result.missingKeywords.length > 0 && (
-              <div className="keyword-missing-box">
-                <div className="keyword-missing-label">Add these to rank higher</div>
-                <div className="chip-wrap" style={{ gap: '0.5rem' }}>
-                  {result.missingKeywords.map((k) => (
-                    <span key={k.keyword} className="keyword-chip--missing">+ {k.keyword}</span>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-          </ScrollReveal>
-        )}
-      </div>
-
-      {/* ── Right column ── */}
-      {hasRightContent && (
-      <div className="resume-body-right">
-        {result.recruiterSummary && (
-          <ScrollReveal>
-          <div className="jm-recruiter-card">
-            <div className="jm-recruiter-card__header">
-              <span className="jm-recruiter-card__title">Recruiter summary</span>
-              <span className="jm-recruiter-card__badge">How they see you</span>
-            </div>
-            <p className="jm-recruiter-card__body">{result.recruiterSummary}</p>
-          </div>
-          </ScrollReveal>
-        )}
-        {result.interviewFocus.length > 0 && (
-          <ScrollReveal>
-          <div className="jm-interview-card">
-            <div className="jm-interview-card__header">Interview prep</div>
-            <div className="jm-interview-card__items">
-              {result.interviewFocus.map((f) => (
-                <span key={f} className="jm-interview-card__item">{f}</span>
-              ))}
-            </div>
-          </div>
-          </ScrollReveal>
-        )}
-      </div>
+            </tbody>
+          </table>
+        </ResultSection>
       )}
-    </div>
+
+      {result.tailoringActions.length > 0 && (
+        <ResultSection title="Tailoring actions">
+          <ol className="rlist rlist--numbered">
+            {result.tailoringActions.map((a, i) => (
+              <li key={`${a.keyword}-${i}`} className="rlist__item">
+                <div className="rlist__row">
+                  <span className="rlist__title">{a.keyword}</span>
+                  <Badge>{a.section}</Badge>
+                </div>
+                <p className="rlist__text">{a.action}</p>
+              </li>
+            ))}
+          </ol>
+        </ResultSection>
+      )}
+
+      {(result.matchedKeywords.length > 0 || result.missingKeywords.length > 0) && (
+        <ResultSection
+          title="Keyword breakdown"
+          meta={
+            <>
+              {result.matchedKeywords.length} matched
+              {result.missingKeywords.length > 0 ? ` · ${result.missingKeywords.length} missing` : ''}
+            </>
+          }
+        >
+          <TokenList items={result.matchedKeywords} tone="success" />
+          {result.missingKeywords.length > 0 && (
+            <>
+              <h3 className="rs-sub">Add these to rank higher</h3>
+              <TokenList items={result.missingKeywords.map((k) => k.keyword)} tone="warning" prefix="+ " />
+            </>
+          )}
+        </ResultSection>
+      )}
+
+      {result.recruiterSummary && (
+        <ResultSection title="Recruiter summary" meta="How they see you">
+          <p className="rs-text">{result.recruiterSummary}</p>
+        </ResultSection>
+      )}
+
+      {result.interviewFocus.length > 0 && (
+        <ResultSection title="Interview prep">
+          <ul className="rlist rlist--bullets">
+            {result.interviewFocus.map((f) => (
+              <li key={f}>{f}</li>
+            ))}
+          </ul>
+        </ResultSection>
+      )}
+    </>
   )
 }
 
-function CoverLetterHeroExtra({ payload }: { payload: AnyObject }) {
-  const result = normalizeCoverLetterPayload(payload)
-  const wordCount = result.fullText.split(/\s+/).filter(Boolean).length
-  const reqCount = uniqueRequirementCount(result)
+/* ── Cover letter ── */
 
-  return (
-    <div className="hero-stat-strip">
-      <div className="hero-stat-strip__item">
-        <span className="hero-stat-strip__label">Tone</span>
-        <span className="hero-stat-strip__value">{result.toneUsed}</span>
-      </div>
-      <div className="hero-stat-strip__divider" />
-      <div className="hero-stat-strip__item">
-        <span className="hero-stat-strip__label">Length</span>
-        <span className="hero-stat-strip__value">{wordCount} words</span>
-      </div>
-      {reqCount > 0 && (
-        <>
-          <div className="hero-stat-strip__divider" />
-          <div className="hero-stat-strip__item">
-            <span className="hero-stat-strip__label">Tailored for</span>
-            <span className="hero-stat-strip__value">{reqCount} requirements</span>
-          </div>
-        </>
-      )}
-    </div>
-  )
+const COVER_NOTE_LABELS: Record<string, string> = {
+  tone: 'Tone',
+  evidence: 'Evidence',
+  keyword: 'Keyword',
+  gap: 'Gap',
 }
 
 function CoverLetterView({ payload, item }: { payload: AnyObject; item?: ToolRunDetail }) {
   const result = normalizeCoverLetterPayload(payload)
   const [openingText, setOpeningText] = useState(result.opening.text)
-  const [bodyTexts, setBodyTexts] = useState(result.bodyPoints.map((item) => item.text))
+  const [bodyTexts, setBodyTexts] = useState(result.bodyPoints.map((p) => p.text))
   const [closingText, setClosingText] = useState(result.closing.text)
+  const [copied, setCopied] = useState(false)
 
   const compiledText = useMemo(
     () => composeCoverLetterText({ opening: openingText, bodyPoints: bodyTexts, closing: closingText }),
@@ -1122,146 +839,99 @@ function CoverLetterView({ payload, item }: { payload: AnyObject; item?: ToolRun
     'Closing',
   ]
 
-  async function handleCopy() { await navigator.clipboard.writeText(compiledText) }
+  async function handleCopy() {
+    await navigator.clipboard.writeText(compiledText)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1200)
+  }
   function handleDownload() {
     const blob = new Blob([compiledText], { type: 'text/plain;charset=utf-8' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
-    a.href = url; a.download = 'cover-letter.txt'; a.click()
+    a.href = url
+    a.download = 'cover-letter.txt'
+    a.click()
     URL.revokeObjectURL(url)
   }
 
   return (
-    <div className="cl-body-grid">
-      {/* Left: Document card */}
-      <ScrollReveal>
-      <div className="cl-document">
-        <div className="cl-document__annotations" aria-hidden="true" />
-        <div className="cl-document__inner">
-          <div className="cl-document__header">
-            <div className="cl-document__date">{formatLetterDate(result.generatedAt)}</div>
+    <>
+      <ResultSection
+        title="Letter"
+        meta="Editable. Copy and download use your edits."
+        actions={
+          <>
+            <Button type="button" variant="outline" size="sm" onClick={handleCopy}>
+              <Copy /> {copied ? 'Copied' : 'Copy full text'}
+            </Button>
+            <Button type="button" variant="outline" size="sm" onClick={handleDownload}>
+              <Download /> Download TXT
+            </Button>
+          </>
+        }
+      >
+        <div className="rletter">
+          <div className="rletter__date">{formatLetterDate(result.generatedAt)}</div>
+          <div className="rletter__para">
+            <span className="rletter__label" aria-hidden="true">{annotationLabels[0]}</span>
+            <AutoGrowTextarea
+              className="rletter__textarea"
+              aria-label="Opening paragraph"
+              value={openingText}
+              onChange={(e) => setOpeningText(e.target.value)}
+            />
           </div>
-          <div className="cl-document__paragraphs">
-            <div className="cl-document__para-wrapper">
-              <span className="cl-document__annotation-label" aria-hidden="true">{annotationLabels[0]}</span>
+          {result.bodyPoints.map((_p, index) => (
+            <div key={`body-${index}`} className="rletter__para">
+              <span className="rletter__label" aria-hidden="true">{annotationLabels[index + 1]}</span>
               <AutoGrowTextarea
-                className="cl-document__textarea"
-                aria-label="Opening paragraph"
-                value={openingText}
-                onChange={(e) => setOpeningText(e.target.value)}
+                className="rletter__textarea"
+                aria-label={`Body paragraph ${index + 1}`}
+                value={bodyTexts[index] || ''}
+                onChange={(e) => setBodyTexts((c) => c.map((t, i) => (i === index ? e.target.value : t)))}
               />
             </div>
-            {result.bodyPoints.map((_item, index) => (
-              <div key={`body-${index}`} className="cl-document__para-wrapper">
-                <span className="cl-document__annotation-label" aria-hidden="true">{annotationLabels[index + 1]}</span>
-                <AutoGrowTextarea
-                  className="cl-document__textarea"
-                  aria-label={`Body paragraph ${index + 1}`}
-                  value={bodyTexts[index] || ''}
-                  onChange={(e) => setBodyTexts((c) => c.map((t, i) => i === index ? e.target.value : t))}
-                />
-              </div>
-            ))}
-          </div>
-          <div className="cl-document__signoff cl-document__para-wrapper">
-            <span className="cl-document__annotation-label" aria-hidden="true">{annotationLabels[annotationLabels.length - 1]}</span>
+          ))}
+          <div className="rletter__para">
+            <span className="rletter__label" aria-hidden="true">{annotationLabels[annotationLabels.length - 1]}</span>
             <AutoGrowTextarea
-              className="cl-document__textarea"
+              className="rletter__textarea"
               aria-label="Closing paragraph"
               value={closingText}
               onChange={(e) => setClosingText(e.target.value)}
             />
-            <p className="cl-document__signature-hint">Sincerely,<br />[Your name]</p>
+            <p className="rletter__sign">
+              Sincerely,
+              <br />
+              [Your name]
+            </p>
           </div>
         </div>
-      </div>
-      </ScrollReveal>
+      </ResultSection>
 
-      {/* Right: Sidebar */}
-      <div className="cl-sidebar">
-        {/* Customization notes */}
-        {result.customizationNotes.length > 0 && (
-          <div className="cl-notes-card">
-            <div className="cl-notes-card__header">
-              <Settings size={16} className="cl-notes-card__icon" />
-              <span className="cl-notes-card__title">Customization notes</span>
-            </div>
-            <div className="cl-notes-card__list">
-              {result.customizationNotes.map((n, i) => {
-                const CatIcon =
-                  n.category === 'tone' ? MessageSquare :
-                  n.category === 'evidence' ? Star :
-                  n.category === 'keyword' ? Hash :
-                  n.category === 'gap' ? AlertCircle :
-                  CheckCircle2
-                return (
-                  <div key={`${n.note}-${i}`} className="cl-notes-card__item">
-                    <CatIcon size={15} className="cl-notes-card__check" />
-                    <span>{n.note}</span>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        )}
+      {result.customizationNotes.length > 0 && (
+        <ResultSection title="Customization notes">
+          <ul className="rlist rlist--plain">
+            {result.customizationNotes.map((n, i) => (
+              <li key={`${n.note}-${i}`} className="rlist__item rlist__item--inline">
+                <Badge>{COVER_NOTE_LABELS[n.category] ?? n.category}</Badge>
+                <span>{n.note}</span>
+              </li>
+            ))}
+          </ul>
+        </ResultSection>
+      )}
 
-        {/* Action card */}
-        <div className="cl-action-card">
-          <div className="cl-action-card__title">Ready to apply?</div>
-          <div className="cl-action-card__desc">Copies your edited letter, including changes you made above.</div>
-          <div className="cl-action-card__buttons">
-            <button className="cl-action-card__btn cl-action-card__btn--primary" onClick={handleCopy}>
-              <Copy size={15} /> Copy full text
-            </button>
-            <button className="cl-action-card__btn cl-action-card__btn--secondary" onClick={handleDownload}>
-              <Download size={15} /> Download TXT
-            </button>
-          </div>
-        </div>
-
-        {/* Letter strategy */}
-        {result.opening.whyThisParagraph && (
-          <div className="cl-strategy">
-            <div className="cl-strategy__eyebrow">
-              <Lightbulb size={12} />
-              <span>Letter strategy</span>
-            </div>
-            <p className="cl-strategy__text">{result.opening.whyThisParagraph}</p>
-          </div>
-        )}
-      </div>
-    </div>
+      {result.opening.whyThisParagraph && (
+        <ResultSection title="Letter strategy">
+          <p className="rs-text">{result.opening.whyThisParagraph}</p>
+        </ResultSection>
+      )}
+    </>
   )
 }
 
-function InterviewHeroExtra({ payload }: { payload: AnyObject }) {
-  const result = normalizeInterviewPayload(payload)
-  const practiceCount = result.questions.filter((q) => q.practiceFirst).length
-  return (
-    <div className="iv-hero-strip">
-      <div className="iv-hero-stat">
-        <span className="iv-hero-stat__label">Questions</span>
-        <span className="iv-hero-stat__value iv-hero-stat__value--accent">{result.questions.length}</span>
-      </div>
-      <div className="iv-hero-stat">
-        <span className="iv-hero-stat__label">Focus areas</span>
-        <span className="iv-hero-stat__value">{result.focusAreas.length}</span>
-      </div>
-      {practiceCount > 0 && (
-        <div className="iv-hero-stat">
-          <span className="iv-hero-stat__label">Practice first</span>
-          <span className="iv-hero-stat__value iv-hero-stat__value--warning">{practiceCount}</span>
-        </div>
-      )}
-      {result.weakSignals.length > 0 && (
-        <div className="iv-hero-stat">
-          <span className="iv-hero-stat__label">Weak signals</span>
-          <span className="iv-hero-stat__value iv-hero-stat__value--warning">{result.weakSignals.length}</span>
-        </div>
-      )}
-    </div>
-  )
-}
+/* ── Interview ── */
 
 function InterviewView({ payload }: { payload: AnyObject }) {
   const result = normalizeInterviewPayload(payload)
@@ -1288,178 +958,114 @@ function InterviewView({ payload }: { payload: AnyObject }) {
     )
   }
 
-  function categoryColor(area: string) {
-    const lower = area.toLowerCase()
-    if (lower.includes('behav') || lower.includes('star')) return 'iv-qcard__category--behavioral'
-    if (lower.includes('tech') || lower.includes('system') || lower.includes('design')) return 'iv-qcard__category--technical'
-    if (lower.includes('lead') || lower.includes('growth') || lower.includes('manag')) return 'iv-qcard__category--leadership'
-    return 'iv-qcard__category--default'
-  }
-
   return (
-    <div className="iv-body-grid">
-      {/* Left: Question cards */}
-      <ScrollReveal>
-      <div className="iv-questions">
-        <div className="iv-questions__header">
-          <h2 className="iv-questions__title">
-            <CheckCircle2 size={18} className="iv-questions__title-icon" />
-            Question breakdown
-          </h2>
-          <div className="iv-questions__filters">
-            <button
-              className={`iv-questions__filter-btn${!showWeakestFirst ? ' iv-questions__filter-btn--active' : ''}`}
-              onClick={() => setShowWeakestFirst(false)}
-            >All</button>
-            <button
-              className={`iv-questions__filter-btn${showWeakestFirst ? ' iv-questions__filter-btn--active' : ''}`}
-              onClick={() => setShowWeakestFirst(true)}
-            >Weakest</button>
-          </div>
-        </div>
-
-        {visibleQuestions.map((item, index) => (
-          <div key={`${index}-${item.question}`} className={`iv-qcard${item.practiceFirst ? ' iv-qcard--practice' : ''}`}>
-            <div className="iv-qcard__inner">
-              <div className="iv-qcard__top">
-                <div className="iv-qcard__meta">
-                  <span className={`iv-qcard__category ${categoryColor(item.focusArea)}`}>
-                    {item.focusArea}
-                  </span>
-                  <h3 className="iv-qcard__question">&ldquo;{item.question}&rdquo;</h3>
-                </div>
-                <div className="iv-qcard__score">
-                  {item.practiceFirst ? (
-                    <>
-                      <div className="iv-qcard__score-icon iv-qcard__score-icon--warn">
-                        <Info size={14} />
-                      </div>
-                    </>
-                  ) : (
-                    <div className="iv-qcard__score-icon iv-qcard__score-icon--good">
-                      <CheckCircle2 size={14} />
-                    </div>
-                  )}
-                </div>
+    <>
+      <ResultSection
+        title="Question breakdown"
+        meta={`${result.questions.length} questions`}
+        actions={
+          <>
+            <div className="rseg" role="group" aria-label="Question order">
+              <button
+                type="button"
+                className={`rseg__btn${!showWeakestFirst ? ' rseg__btn--active' : ''}`}
+                aria-pressed={!showWeakestFirst}
+                onClick={() => setShowWeakestFirst(false)}
+              >
+                All
+              </button>
+              <button
+                type="button"
+                className={`rseg__btn${showWeakestFirst ? ' rseg__btn--active' : ''}`}
+                aria-pressed={showWeakestFirst}
+                onClick={() => setShowWeakestFirst(true)}
+              >
+                Weakest
+              </button>
+            </div>
+            <Button type="button" variant="outline" size="sm" title="Rehearse weak responses" onClick={() => setPracticeMode(true)}>
+              <Zap /> Practice mode
+            </Button>
+          </>
+        }
+      >
+        <ol className="rlist rlist--numbered">
+          {visibleQuestions.map((q, index) => (
+            <li key={`${index}-${q.question}`} className="rlist__item">
+              <div className="rlist__row">
+                <span className="rlist__title">{q.question}</span>
+                <Badge>{q.focusArea}</Badge>
+                {q.practiceFirst && <Badge tone="warning">Practice first</Badge>}
               </div>
-
-              {/* Answer or suggestion box */}
-              {item.practiceFirst ? (
+              {q.practiceFirst ? (
                 <>
-                  <div className="iv-qcard__suggestion">
-                    <Lightbulb size={16} className="iv-qcard__suggestion-icon" />
-                    <div className="iv-qcard__suggestion-text">
-                      <strong>Focus area:</strong> {item.whyAsked}
-                    </div>
-                  </div>
-                  {item.answer ? (
-                    <details className="iv-qcard__sample">
-                      <summary className="iv-qcard__sample-toggle">Show sample answer</summary>
-                      <p className="iv-qcard__answer-text iv-qcard__answer-text--muted">{item.answer}</p>
+                  <p className="rlist__text">
+                    <strong>Focus area:</strong> {q.whyAsked}
+                  </p>
+                  {q.answer ? (
+                    <details className="rdetails">
+                      <summary>Show sample answer</summary>
+                      <p className="rlist__text">{q.answer}</p>
                     </details>
                   ) : null}
                 </>
-              ) : item.answer ? (
-                <div className="iv-qcard__answer">
-                  <p className="iv-qcard__answer-text">{item.answer}</p>
-                </div>
+              ) : q.answer ? (
+                <p className="rlist__text">{q.answer}</p>
               ) : null}
-
-              {/* Key points as chips */}
-              {item.keyPoints.length > 0 && (
-                <div className="iv-qcard__chips">
-                  {item.keyPoints.slice(0, 3).map((p) => (
-                    <span key={p} className={`iv-qcard__chip${item.practiceFirst ? ' iv-qcard__chip--warn' : ''}`}>
-                      <CheckCircle2 size={12} /> {p}
-                    </span>
+              {q.keyPoints.length > 0 && (
+                <ul className="rlist rlist--bullets rlist--tight">
+                  {q.keyPoints.slice(0, 3).map((p) => (
+                    <li key={p}>{p}</li>
                   ))}
-                </div>
+                </ul>
               )}
-            </div>
-          </div>
-        ))}
-      </div>
-      </ScrollReveal>
+            </li>
+          ))}
+        </ol>
+      </ResultSection>
 
-      {/* Right: Sidebar */}
-      <div className="iv-sidebar">
-        {/* Competency Map */}
-        {result.focusAreas.length > 0 && (
-          <div className="iv-competency-card">
-            <div className="iv-competency-card__dark">
-              <div className="iv-competency-card__title">Focus areas</div>
-              <div className="iv-competency-card__bars">
-                {result.focusAreas.map((area, i) => {
-                  const barClass = area.practiceFirst ? 'iv-competency-bar__fill--warn' : i === 0 ? 'iv-competency-bar__fill--good' : 'iv-competency-bar__fill--ok'
-                  return (
-                    <div key={area.title} className="iv-competency-bar">
-                      <div className="iv-competency-bar__header">
-                        <span className="iv-competency-bar__label">{area.title}</span>
-                      </div>
-                      <div className="iv-competency-bar__track">
-                        <div
-                          className={`iv-competency-bar__fill ${barClass}`}
-                          style={{ width: area.practiceFirst ? '45%' : `${85 - i * 8}%` }}
-                        />
-                      </div>
-                      <p style={{ fontSize: '0.6875rem', color: '#c7d4e1', lineHeight: 1.5, marginTop: '0.25rem' }}>
-                        {area.reason}
-                      </p>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Weak signals */}
-        {result.weakSignals.length > 0 && (
-          <div className="iv-weak-signals-card">
-            <div className="iv-weak-signals-card__title">Weak signals</div>
-            <div className="iv-weak-signals-card__list">
-              {result.weakSignals.map((w) => (
-                <div key={w.title} className={`iv-weak-signal iv-weak-signal--${w.severity}`}>
-                  <div className="iv-weak-signal__header">
-                    <span className="iv-weak-signal__title">{w.title}</span>
-                    <span className={`iv-weak-signal__badge iv-weak-signal__badge--${w.severity}`}>
-                      {w.severity}
-                    </span>
-                  </div>
-                  <p className="iv-weak-signal__action">{w.prepAction}</p>
+      {result.focusAreas.length > 0 && (
+        <ResultSection title="Focus areas">
+          <ul className="rlist rlist--plain">
+            {result.focusAreas.map((area) => (
+              <li key={area.title} className="rlist__item">
+                <div className="rlist__row">
+                  <span className="rlist__title">{area.title}</span>
+                  {area.practiceFirst && <Badge tone="warning">Practice first</Badge>}
                 </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Next actions */}
-        <div className="iv-next-actions">
-          <div className="iv-next-actions__title">Next actions</div>
-          <div className="iv-next-action" onClick={() => setPracticeMode(true)}>
-            <div className="iv-next-action__icon"><Zap size={16} /></div>
-            <div className="iv-next-action__body">
-              <div className="iv-next-action__name">Practice mode</div>
-              <div className="iv-next-action__desc">Rehearse weak responses</div>
-            </div>
-            <ChevronRight size={14} className="iv-next-action__arrow" />
-          </div>
-        </div>
-
-        {/* Interviewer notes */}
-        {result.interviewerNotes.length > 0 && (
-          <div className="iv-notes-card">
-            <div className="iv-notes-card__title">Interviewer notes</div>
-            {result.interviewerNotes.map((n) => (
-              <div key={n} className="iv-notes-card__item">
-                <CheckCircle2 size={14} className="iv-notes-card__check" />
-                <span>{n}</span>
-              </div>
+                <p className="rlist__text">{area.reason}</p>
+              </li>
             ))}
-          </div>
-        )}
-      </div>
-    </div>
+          </ul>
+        </ResultSection>
+      )}
+
+      {result.weakSignals.length > 0 && (
+        <ResultSection title="Weak signals">
+          <ul className="rlist rlist--plain">
+            {result.weakSignals.map((w) => (
+              <li key={w.title} className="rlist__item">
+                <div className="rlist__row">
+                  <span className="rlist__title">{w.title}</span>
+                  <SeverityBadge level={w.severity} />
+                </div>
+                <p className="rlist__text">{w.prepAction}</p>
+              </li>
+            ))}
+          </ul>
+        </ResultSection>
+      )}
+
+      {result.interviewerNotes.length > 0 && (
+        <ResultSection title="Interviewer notes">
+          <ul className="rlist rlist--bullets">
+            {result.interviewerNotes.map((n) => (
+              <li key={n}>{n}</li>
+            ))}
+          </ul>
+        </ResultSection>
+      )}
+    </>
   )
 }
 
@@ -1572,39 +1178,7 @@ function normalizePortfolioPayload(payload: AnyObject): PortfolioResultPayload {
   }
 }
 
-function CareerHeroExtra({ payload }: { payload: AnyObject }) {
-  const result = normalizeCareerPayload(payload)
-  const score = result.recommendedDirection.fitScore
-  const gapCount = result.skillGaps.length
-  const timeline = result.recommendedDirection.transitionTimeline
-
-  return (
-    <div className="hero-stat-strip">
-      <div className="hero-stat-strip__item">
-        <span className="hero-stat-strip__label">Fit score</span>
-        <span className="hero-stat-strip__value">{score}%</span>
-      </div>
-      {timeline && (
-        <>
-          <div className="hero-stat-strip__divider" />
-          <div className="hero-stat-strip__item">
-            <span className="hero-stat-strip__label">Timeline</span>
-            <span className="hero-stat-strip__value">{timeline}</span>
-          </div>
-        </>
-      )}
-      {gapCount > 0 && (
-        <>
-          <div className="hero-stat-strip__divider" />
-          <div className="hero-stat-strip__item">
-            <span className="hero-stat-strip__label">Skill gaps</span>
-            <span className="hero-stat-strip__value">{gapCount} to close</span>
-          </div>
-        </>
-      )}
-    </div>
-  )
-}
+/* ── Career ── */
 
 function CareerView({ payload }: { payload: AnyObject }) {
   const result = normalizeCareerPayload(payload)
@@ -1612,191 +1186,117 @@ function CareerView({ payload }: { payload: AnyObject }) {
   const altPaths = result.paths.filter((p) => p.roleTitle.toLowerCase() !== recommendedRole)
   // _normalize_paths sorts by fit_score, so paths[0] is the highest-fit
   // option — not necessarily the LLM's recommended direction. Source the
-  // strength chips from the path that matches the headline, falling back to
+  // strengths from the path that matches the headline, falling back to
   // paths[0] only when no match exists.
   const recommendedPath =
     result.paths.find((p) => p.roleTitle.toLowerCase() === recommendedRole) ?? result.paths[0]
+  const strengths = recommendedPath?.strengthsToLeverage.slice(0, 3) ?? []
+  const tip =
+    result.recommendedDirection.confidence === 'high'
+      ? 'Your profile strongly matches this direction. Focus on closing the remaining skill gaps to maximize your timeline.'
+      : result.recommendedDirection.confidence === 'medium'
+        ? 'The fit is solid but needs sharper proof. Pick the highest-urgency gap and build one concrete example before applying.'
+        : 'Document your cross-team wins and build visible proof points to strengthen your candidacy.'
 
   return (
-    <div className="cp-body-grid">
-      {/* Left: Main content */}
-      <ScrollReveal>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-        {/* Primary recommended path */}
-        <div className="cp-primary-card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem' }}>
-            <div>
-              <div className="cp-primary-card__badge">Recommended path</div>
-              <div className="cp-primary-card__title">{result.recommendedDirection.roleTitle}</div>
-            </div>
-            <span className="cp-primary-card__timeline">{result.recommendedDirection.transitionTimeline}</span>
-          </div>
+    <>
+      <ResultSection title="Recommended path" meta={result.recommendedDirection.transitionTimeline}>
+        <p className="rs-lead">{result.recommendedDirection.roleTitle}</p>
+        <h3 className="rs-sub">Why this is your ideal next step</h3>
+        <p className="rs-text">{result.recommendedDirection.whyNow}</p>
+        {strengths.length > 0 && (
+          <ul className="rlist rlist--bullets">
+            {strengths.map((s) => (
+              <li key={s}>{s}</li>
+            ))}
+          </ul>
+        )}
+        {result.targetSkills.length > 0 && (
+          <>
+            <h3 className="rs-sub">Skills to develop next</h3>
+            <TokenList items={result.targetSkills} tone="accent" />
+          </>
+        )}
+        {result.currentSkills.length > 0 && (
+          <>
+            <h3 className="rs-sub">Skills you already bring</h3>
+            <TokenList items={result.currentSkills} />
+          </>
+        )}
+      </ResultSection>
 
-          <div className="cp-primary-card__body">
-            <div>
-              <div className="cp-primary-card__why-title">Why this is your ideal next step</div>
-              <p className="cp-primary-card__why-text">{result.recommendedDirection.whyNow}</p>
-              <div className="cp-primary-card__benefits">
-                {recommendedPath?.strengthsToLeverage.slice(0, 3).map((s) => (
-                  <div key={s} className="cp-primary-card__benefit">
-                    <TrendingUp size={14} className="cp-primary-card__benefit-icon" />
-                    <span>{s}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {(result.targetSkills.length > 0 || result.currentSkills.length > 0) && (
-            <div className="cp-skills-block">
-              {result.targetSkills.length > 0 && (
-                <div className="cp-skills-row">
-                  <div className="cp-skills-row__label">Skills to develop next</div>
-                  <div className="cp-skills-row__chips">
-                    {result.targetSkills.map((skill) => (
-                      <span key={skill} className="cp-skill-chip cp-skill-chip--target">{skill}</span>
-                    ))}
-                  </div>
+      {result.nextSteps.length > 0 && (
+        <ResultSection title={`The ${result.nextSteps.length}-step roadmap`}>
+          <ol className="rlist rlist--numbered">
+            {result.nextSteps.map((step, i) => (
+              <li key={`${step.timeframe}-${i}`} className="rlist__item">
+                <div className="rlist__row">
+                  <span className="rlist__title">{step.timeframe}</span>
                 </div>
-              )}
-              {result.currentSkills.length > 0 && (
-                <div className="cp-skills-row cp-skills-row--secondary">
-                  <div className="cp-skills-row__label">Skills you already bring</div>
-                  <div className="cp-skills-row__chips">
-                    {result.currentSkills.map((skill) => (
-                      <span key={skill} className="cp-skill-chip cp-skill-chip--current">{skill}</span>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
+                <p className="rlist__text">{step.action}</p>
+              </li>
+            ))}
+          </ol>
+        </ResultSection>
+      )}
 
-          {/* Numbered roadmap */}
-          {result.nextSteps.length > 0 && (
-            <div className="cp-roadmap">
-              <div className="cp-roadmap__title">The {result.nextSteps.length}-step roadmap</div>
-              <div className="cp-roadmap__steps">
-                {result.nextSteps.map((step, i) => (
-                  <div key={`${step.timeframe}-${i}`} className="cp-roadmap__step">
-                    <div className={`cp-roadmap__num ${i < 2 ? 'cp-roadmap__num--filled' : 'cp-roadmap__num--outline'}`}>{i + 1}</div>
-                    <div className="cp-roadmap__step-body">
-                      <div className="cp-roadmap__step-title">{step.timeframe}</div>
-                      <div className="cp-roadmap__step-desc">{step.action}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Skill gaps table */}
-        {result.skillGaps.length > 0 && (
-          <div className="cp-gaps-card">
-            <div className="cp-gaps-card__header">
-              <span className="cp-gaps-card__title">Critical skill gaps</span>
-              <span className="cp-gaps-card__count">{result.skillGaps.length} gaps</span>
-            </div>
+      {result.skillGaps.length > 0 && (
+        <ResultSection title="Critical skill gaps" meta={`${result.skillGaps.length} gaps`}>
+          <ul className="rlist rlist--plain">
             {result.skillGaps.map((g) => (
-              <div key={g.skill} className="cp-gap-row">
-                <div className={`cp-gap-row__dot cp-gap-row__dot--${g.urgency}`} />
-                <div className="cp-gap-row__body">
-                  <div className="cp-gap-row__skill">{g.skill}</div>
-                  <div className="cp-gap-row__desc">{g.whyItMatters}</div>
-                  <div className="cp-gap-row__action">
-                    <ArrowRight size={12} className="cp-gap-row__action-icon" />
-                    <span>{g.howToBuild}</span>
-                  </div>
+              <li key={g.skill} className="rlist__item">
+                <div className="rlist__row">
+                  <span className="rlist__title">{g.skill}</span>
+                  <SeverityBadge level={g.urgency} />
                 </div>
-              </div>
+                <dl className="rfields">
+                  <Field label="Why it matters">{g.whyItMatters}</Field>
+                  <Field label="How to build">{g.howToBuild}</Field>
+                </dl>
+              </li>
             ))}
-          </div>
-        )}
-      </div>
-      </ScrollReveal>
+          </ul>
+        </ResultSection>
+      )}
 
-      {/* Right: Sidebar */}
-      <div className="cp-sidebar">
-        {/* Alternative paths */}
-        {altPaths.length > 0 && (
-          <div className="cp-alt-paths">
-            <div className="cp-alt-paths__title">Alternative paths</div>
-            {altPaths.map((p, idx) => (
-              <div key={p.roleTitle} className="cp-alt-card">
-                <div className="cp-alt-card__header">
-                  <span className="cp-alt-card__rank">#{idx + 1} alt</span>
-                  <span className="cp-alt-card__score" style={{ color: scoreColor(p.fitScore) }}>{p.fitScore}%</span>
-                </div>
-                <div className="cp-alt-card__name">{p.roleTitle}</div>
-                <div className="cp-alt-card__score-bar">
-                  <div className="cp-alt-card__score-fill" style={{ width: `${p.fitScore}%`, background: scoreColor(p.fitScore) }} />
-                </div>
-                <p className="cp-alt-card__desc">{p.rationale}</p>
-                <div className="cp-alt-card__footer">
-                  <span className="cp-alt-card__timeline">{p.transitionTimeline}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+      {altPaths.length > 0 && (
+        <ResultSection title="Alternative paths">
+          <table className="rtable rtable--paths">
+            <thead>
+              <tr>
+                <th scope="col">Role</th>
+                <th scope="col">Fit</th>
+                <th scope="col">Timeline</th>
+                <th scope="col">Rationale</th>
+              </tr>
+            </thead>
+            <tbody>
+              {altPaths.map((p) => (
+                <tr key={p.roleTitle}>
+                  <th scope="row">
+                    <span className="rtable__name">{p.roleTitle}</span>
+                  </th>
+                  <td className="rtable__fit">
+                    <span className="rtable__num">{p.fitScore}%</span>
+                    <MiniBar value={p.fitScore} />
+                  </td>
+                  <td>{p.transitionTimeline}</td>
+                  <td>{p.rationale}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </ResultSection>
+      )}
 
-        {/* Pro tip */}
-        <div className="cp-tip-card">
-          <div className="cp-tip-card__eyebrow">
-            <Lightbulb size={12} />
-            <span>Pro tip</span>
-          </div>
-          <p className="cp-tip-card__text">
-            {result.recommendedDirection.confidence === 'high'
-              ? 'Your profile strongly matches this direction. Focus on closing the remaining skill gaps to maximize your timeline.'
-              : result.recommendedDirection.confidence === 'medium'
-                ? 'The fit is solid but needs sharper proof. Pick the highest-urgency gap and build one concrete example before applying.'
-                : 'Document your cross-team wins and build visible proof points to strengthen your candidacy.'}
-          </p>
-        </div>
-      </div>
-    </div>
+      <ResultSection title="Note">
+        <p className="rs-text">{tip}</p>
+      </ResultSection>
+    </>
   )
 }
 
-function PortfolioHeroExtra({ payload }: { payload: AnyObject }) {
-  const result = normalizePortfolioPayload(payload)
-  const projectCount = result.projects.length
-  const hasSequence = result.sequencePlan.length > 0
-
-  return (
-    <div className="hero-stat-strip">
-      <div className="hero-stat-strip__item">
-        <span className="hero-stat-strip__label">Projects</span>
-        <span className="hero-stat-strip__value">{projectCount} in sequence</span>
-      </div>
-      {result.targetRole && (
-        <>
-          <div className="hero-stat-strip__divider" />
-          <div className="hero-stat-strip__item">
-            <span className="hero-stat-strip__label">Target role</span>
-            <span className="hero-stat-strip__value">{result.targetRole}</span>
-          </div>
-        </>
-      )}
-      {hasSequence && (
-        <>
-          <div className="hero-stat-strip__divider" />
-          <div className="hero-stat-strip__item">
-            <span className="hero-stat-strip__label">Start with</span>
-            <span
-              className="hero-stat-strip__value hero-stat-strip__value--clamp"
-              title={result.recommendedStartProject}
-            >
-              {result.recommendedStartProject}
-            </span>
-          </div>
-        </>
-      )}
-    </div>
-  )
-}
+/* ── Portfolio ── */
 
 function PortfolioView({ payload }: { payload: AnyObject }) {
   const result = normalizePortfolioPayload(payload)
@@ -1824,131 +1324,70 @@ function PortfolioView({ payload }: { payload: AnyObject }) {
   const allDeliverables = result.projects.flatMap((p) => p.deliverables).filter((d, i, arr) => arr.indexOf(d) === i).slice(0, 5)
 
   return (
-    <div className="pf-body-grid">
-      {/* Left: Build sequence */}
-      <ScrollReveal>
-      <div className="pf-sequence">
-        <h3 className="pf-sequence__title">
-          <Hash size={18} className="pf-sequence__title-icon" />
-          The build sequence
-        </h3>
-        <div className="pf-sequence__items">
-          {orderedSteps.map(({ step, project }, i) => {
+    <>
+      <ResultSection title="Strategy">
+        <p className="rs-lead">{result.strategy.headline}</p>
+        <p className="rs-text">{result.strategy.focus}</p>
+      </ResultSection>
+
+      <ResultSection title="The build sequence" meta={`${orderedSteps.length} projects`}>
+        <ol className="rlist rlist--numbered">
+          {orderedSteps.map(({ step, project }) => {
             const isStart = isStartProject(project.projectTitle)
             return (
-              <div key={project.projectTitle} className="pf-sequence-item">
-                <div className={`pf-sequence-item__num ${isStart ? 'pf-sequence-item__num--start' : 'pf-sequence-item__num--default'}`}>
-                  {step.order || i + 1}
+              <li key={project.projectTitle} className="rlist__item" value={step.order || undefined}>
+                <div className="rlist__row">
+                  <span className="rlist__title">{project.projectTitle}</span>
+                  {isStart && <Badge tone="accent">Start here</Badge>}
+                  <span className="rlist__meta">
+                    {project.complexity}
+                    {project.estimatedTimeline ? ` · ${project.estimatedTimeline}` : ''}
+                  </span>
                 </div>
-                <div className="pf-project-card">
-                  {step.reason && (
-                    <div className="pf-project-card__sequence-reason">
-                      <span className="pf-project-card__sequence-reason-label">Why this slot</span>
-                      <span className="pf-project-card__sequence-reason-text">{step.reason}</span>
-                    </div>
-                  )}
-                  <div className="pf-project-card__top">
-                    <div>
-                      <div className="pf-project-card__title-row">
-                        {isStart && <span className="pf-project-card__start-badge">Start here</span>}
-                        <span className="pf-project-card__title">{project.projectTitle}</span>
-                      </div>
-                      <p className="pf-project-card__desc">{project.description}</p>
-                    </div>
-                    <div className="pf-project-card__meta">
-                      <div className="pf-project-card__meta-item">
-                        <div className="pf-project-card__meta-label">Complexity</div>
-                        <div className="pf-project-card__meta-value">{project.complexity}</div>
-                      </div>
-                      {project.estimatedTimeline && (
-                        <div className="pf-project-card__meta-item">
-                          <div className="pf-project-card__meta-label">Timeline</div>
-                          <div className="pf-project-card__meta-value">{project.estimatedTimeline}</div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="pf-project-card__why" style={{ borderLeftColor: isStart ? 'var(--accent)' : i === 1 ? '#16a34a' : '#d97706' }}>
-                    <div className="pf-project-card__why-title">Why this project</div>
-                    <p className="pf-project-card__why-text">{project.whyThisProject}</p>
-                  </div>
-
-                  {project.skills.length > 0 && (
-                    <div className="pf-project-card__skills">
-                      {project.skills.slice(0, 4).map((s) => (
-                        <span key={s} className="pf-skill-chip">{s}</span>
+                <p className="rlist__text">{project.description}</p>
+                <dl className="rfields">
+                  {step.reason && <Field label="Why this slot">{step.reason}</Field>}
+                  <Field label="Why this project">{project.whyThisProject}</Field>
+                </dl>
+                {project.skills.length > 0 && <TokenList items={project.skills.slice(0, 4)} />}
+                {project.hiringSignals.length > 0 && (
+                  <>
+                    <h3 className="rs-sub">What this proves to hiring teams</h3>
+                    <ul className="rlist rlist--bullets rlist--tight">
+                      {project.hiringSignals.slice(0, 3).map((signal) => (
+                        <li key={signal}>{signal}</li>
                       ))}
-                    </div>
-                  )}
-
-                  {project.hiringSignals.length > 0 && (
-                    <div className="pf-project-card__signals">
-                      <div className="pf-project-card__signals-title">What this proves to hiring teams</div>
-                      <ul className="pf-project-card__signals-list">
-                        {project.hiringSignals.slice(0, 3).map((signal) => (
-                          <li key={signal} className="pf-project-card__signals-item">
-                            <CheckCircle2 size={12} className="pf-project-card__signals-icon" />
-                            <span>{signal}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                </div>
-              </div>
+                    </ul>
+                  </>
+                )}
+              </li>
             )
           })}
-        </div>
-      </div>
-      </ScrollReveal>
+        </ol>
+      </ResultSection>
 
-      {/* Right: Sidebar */}
-      <div className="pf-sidebar">
-        {/* Presentation tips */}
-        {result.presentationTips.length > 0 && (
-          <div className="pf-tips-card">
-            <div className="pf-tips-card__title">
-              <Lightbulb size={16} className="pf-tips-card__title-icon" />
-              Presentation tips
-            </div>
-            <div className="pf-tips-card__list">
-              {result.presentationTips.map((tip, i) => (
-                <div key={tip} className="pf-tips-card__item">
-                  <div className="pf-tips-card__item-label">Tip {i + 1}</div>
-                  <p className="pf-tips-card__item-text">{tip}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+      {result.presentationTips.length > 0 && (
+        <ResultSection title="Presentation tips">
+          <ol className="rlist rlist--numbered">
+            {result.presentationTips.map((tip) => (
+              <li key={tip} className="rlist__item">
+                <p className="rlist__text">{tip}</p>
+              </li>
+            ))}
+          </ol>
+        </ResultSection>
+      )}
 
-        {/* Deliverables checklist */}
-        {allDeliverables.length > 0 && (
-          <div className="pf-deliverables-card">
-            <div className="pf-deliverables-card__title">Key deliverables</div>
-            <div className="pf-deliverables-card__list">
-              {allDeliverables.map((d) => (
-                <div key={d} className="pf-deliverables-card__item">
-                  <CheckCircle2 size={14} className="pf-deliverables-card__check" />
-                  <span>{d}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Strategy card */}
-        <div className="pf-strategy-card">
-          <div className="pf-strategy-card__header">
-            <Target size={15} className="pf-strategy-card__icon" />
-            <span className="pf-strategy-card__title">Strategy</span>
-          </div>
-          <p className="pf-strategy-card__headline">{result.strategy.headline}</p>
-          <p className="pf-strategy-card__focus">{result.strategy.focus}</p>
-        </div>
-      </div>
-    </div>
+      {allDeliverables.length > 0 && (
+        <ResultSection title="Key deliverables">
+          <ul className="rlist rlist--bullets">
+            {allDeliverables.map((d) => (
+              <li key={d}>{d}</li>
+            ))}
+          </ul>
+        </ResultSection>
+      )}
+    </>
   )
 }
 
@@ -2049,6 +1488,12 @@ function portfolioCopyText(payload: AnyObject) {
   ]
   return lines.join('\n')
 }
+/** What the report header shows above the content: one score and a few facts. */
+export type ResultSummary = {
+  score?: { value: number; label: string; unit: '/100' | '%' }
+  facts: Array<{ label: string; value: string }>
+  note?: string
+}
 
 export type ResultDefinition = {
   copyText: (payload: AnyObject, item: ToolRunDetail) => string
@@ -2057,47 +1502,50 @@ export type ResultDefinition = {
     content: string
   } | null
   render: (payload: AnyObject, item: ToolRunDetail, tool: ToolDefinition) => ReactNode
-  heroMetric?: (payload: AnyObject) => ReactNode
-  insightStrip?: (payload: AnyObject) => { label: string; value: string; color?: string }[]
-  heroVariant?: 'dark' | 'default'
-  heroExtra?: (payload: AnyObject) => ReactNode
-  /** Content rendered between hero and main content card (e.g. Fix First strip) */
-  midSection?: (payload: AnyObject) => ReactNode
+  summary: (payload: AnyObject) => ResultSummary
+  topActions: (payload: AnyObject) => TopAction[]
+}
+
+function fact(label: string, value: string | number | null | undefined) {
+  const text = value === null || value === undefined ? '' : String(value).trim()
+  return text ? [{ label, value: text }] : []
 }
 
 export const resultDefinitions: Record<ToolId, ResultDefinition> = {
   resume: {
     copyText: (payload) => resumeCopyText(payload),
-    heroVariant: 'dark',
-    heroMetric: (payload) => {
+    summary: (payload) => {
       const r = normalizeResumePayload(payload)
-      return (
-        <ScoreCircleSvg
-          score={r.overallScore}
-          size={192}
-          ariaLabel={`Resume score: ${r.overallScore} out of 100`}
-        />
-      )
+      return {
+        score: { value: r.overallScore, label: 'Resume score', unit: '/100' },
+        facts: [
+          ...fact('Verdict', r.summary.verdict),
+          ...(r.roleFit ? fact('Role fit', `${r.roleFit.fitScore}%`) : []),
+          ...fact('Issues', r.issues.length || ''),
+        ],
+        note: r.summary.confidence_note,
+      }
     },
-    heroExtra: (payload) => <ResumeHeroExtra payload={payload} />,
-    midSection: (payload) => <FixFirstStrip actions={normalizeResumePayload(payload).topActions} />,
+    topActions: (payload) => normalizeResumePayload(payload).topActions,
     render: (payload) => <ResumeResultView payload={payload} />,
   },
   'job-match': {
     copyText: (payload) => jobMatchCopyText(payload),
-    heroVariant: 'dark',
-    heroMetric: (payload) => {
+    summary: (payload) => {
       const r = normalizeJobMatchPayload(payload)
-      return (
-        <ScoreCircleSvg
-          score={r.matchScore}
-          size={192}
-          ariaLabel={`Job match score: ${r.matchScore} out of 100`}
-        />
-      )
+      const met = r.requirements.filter((req) => req.status === 'matched').length
+      return {
+        score: { value: r.matchScore, label: 'Match score', unit: '/100' },
+        facts: [
+          ...fact('Verdict', r.verdict.charAt(0).toUpperCase() + r.verdict.slice(1)),
+          ...(r.requirements.length > 0 ? fact('Requirements met', `${met}/${r.requirements.length}`) : []),
+          ...fact('Keywords matched', r.matchedKeywords.length),
+          ...fact('Missing', r.missingKeywords.length),
+        ],
+        note: r.summary.confidence_note,
+      }
     },
-    heroExtra: (payload) => <JobMatchHeroExtra payload={payload} />,
-    midSection: (payload) => <FixFirstStrip actions={normalizeJobMatchPayload(payload).topActions} showFooter={false} />,
+    topActions: (payload) => normalizeJobMatchPayload(payload).topActions,
     render: (payload) => <JobMatchView payload={payload} />,
   },
   'cover-letter': {
@@ -2106,28 +1554,70 @@ export const resultDefinitions: Record<ToolId, ResultDefinition> = {
       filename: `${item.label || 'cover-letter'}.txt`,
       content: coverLetterTextFor(payload, item),
     }),
-    heroExtra: (payload) => <CoverLetterHeroExtra payload={payload} />,
-    midSection: (payload) => <FixFirstStrip actions={normalizeCoverLetterPayload(payload).topActions} />,
+    summary: (payload) => {
+      const r = normalizeCoverLetterPayload(payload)
+      const wordCount = r.fullText.split(/\s+/).filter(Boolean).length
+      const reqCount = uniqueRequirementCount(r)
+      return {
+        facts: [
+          ...fact('Tone', r.toneUsed),
+          ...fact('Length', `${wordCount} words`),
+          ...(reqCount > 0 ? fact('Tailored for', `${reqCount} requirements`) : []),
+        ],
+        note: r.summary.confidence_note,
+      }
+    },
+    topActions: (payload) => normalizeCoverLetterPayload(payload).topActions,
     render: (payload, item) => <CoverLetterView payload={payload} item={item} />,
   },
   interview: {
     copyText: (payload) => interviewCopyText(payload),
-    heroVariant: 'dark',
-    heroExtra: (payload) => <InterviewHeroExtra payload={payload} />,
-    midSection: (payload) => <FixFirstStrip actions={normalizeInterviewPayload(payload).topActions} />,
+    summary: (payload) => {
+      const r = normalizeInterviewPayload(payload)
+      const practiceCount = r.questions.filter((q) => q.practiceFirst).length
+      return {
+        facts: [
+          ...fact('Questions', r.questions.length),
+          ...fact('Focus areas', r.focusAreas.length),
+          ...(practiceCount > 0 ? fact('Practice first', practiceCount) : []),
+          ...(r.weakSignals.length > 0 ? fact('Weak signals', r.weakSignals.length) : []),
+        ],
+        note: r.summary.confidence_note,
+      }
+    },
+    topActions: (payload) => normalizeInterviewPayload(payload).topActions,
     render: (payload) => <InterviewView payload={payload} />,
   },
   career: {
     copyText: (payload) => careerCopyText(payload),
-    heroVariant: 'dark',
-    heroExtra: (payload) => <CareerHeroExtra payload={payload} />,
-    midSection: (payload) => <FixFirstStrip actions={normalizeCareerPayload(payload).topActions} />,
+    summary: (payload) => {
+      const r = normalizeCareerPayload(payload)
+      return {
+        score: { value: r.recommendedDirection.fitScore, label: 'Fit score', unit: '%' },
+        facts: [
+          ...fact('Timeline', r.recommendedDirection.transitionTimeline),
+          ...(r.skillGaps.length > 0 ? fact('Skill gaps', `${r.skillGaps.length} to close`) : []),
+        ],
+        note: r.summary.confidence_note,
+      }
+    },
+    topActions: (payload) => normalizeCareerPayload(payload).topActions,
     render: (payload) => <CareerView payload={payload} />,
   },
   portfolio: {
     copyText: (payload) => portfolioCopyText(payload),
-    heroExtra: (payload) => <PortfolioHeroExtra payload={payload} />,
-    midSection: (payload) => <FixFirstStrip actions={normalizePortfolioPayload(payload).topActions} />,
+    summary: (payload) => {
+      const r = normalizePortfolioPayload(payload)
+      return {
+        facts: [
+          ...fact('Projects', `${r.projects.length} in sequence`),
+          ...fact('Target role', r.targetRole),
+          ...(r.sequencePlan.length > 0 ? fact('Start with', r.recommendedStartProject) : []),
+        ],
+        note: r.summary.confidence_note,
+      }
+    },
+    topActions: (payload) => normalizePortfolioPayload(payload).topActions,
     render: (payload) => <PortfolioView payload={payload} />,
   },
 }

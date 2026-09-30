@@ -1,15 +1,8 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
-import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
-import {
-  FileSearch, Brain, BarChart3, CheckCircle2,
-  Target, PenTool, MessageSquare, Compass, FolderOpen,
-  ClipboardList, Lightbulb, Briefcase, Map, Layers,
-} from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ToolId } from '#/lib/tools/registry'
 import { trackTelemetry } from '#/lib/telemetry/client'
 
 type Stage = {
-  icon: typeof FileSearch
   label: string
   duration: number
 }
@@ -27,67 +20,67 @@ type Stage = {
 //      render time instead, purely as a "more is coming" affordance; it is
 //      never present in the announcement, which already states the
 //      substantiated claim explicitly ("Typical step: ...").
-//   2. They are always rendered under the `STEPS_FRAME` caption below, which
-//      marks the whole list as typical rather than observed.
+//   2. They are always rendered under the `STEPS_FRAME_ONE` prefix below, which
+//      marks the step as typical rather than observed.
 //
 // The only claim this component can substantiate is "a request is in flight and
 // has not returned yet" — that is `STATUS_WORKING`, and it is the message that
 // actually reaches assistive technology as a status.
 const TOOL_STAGES: Record<ToolId, Stage[]> = {
   resume: [
-    { icon: FileSearch, label: 'Reading your resume', duration: 1500 },
-    { icon: Brain, label: 'Analyzing sections', duration: 2000 },
-    { icon: BarChart3, label: 'Calculating your score', duration: 2000 },
-    { icon: Lightbulb, label: 'Preparing improvement tips', duration: 1500 },
-    { icon: CheckCircle2, label: 'Finalizing results', duration: 1000 },
+    { label: 'Reading your resume', duration: 1500 },
+    { label: 'Analyzing sections', duration: 2000 },
+    { label: 'Calculating your score', duration: 2000 },
+    { label: 'Preparing improvement tips', duration: 1500 },
+    { label: 'Finalizing results', duration: 1000 },
   ],
   'job-match': [
-    { icon: FileSearch, label: 'Reading your resume', duration: 1200 },
-    { icon: ClipboardList, label: 'Extracting requirements', duration: 2000 },
-    { icon: Target, label: 'Matching qualifications', duration: 2000 },
-    { icon: BarChart3, label: 'Calculating fit score', duration: 1500 },
-    { icon: CheckCircle2, label: 'Preparing report', duration: 1000 },
+    { label: 'Reading your resume', duration: 1200 },
+    { label: 'Extracting requirements', duration: 2000 },
+    { label: 'Matching qualifications', duration: 2000 },
+    { label: 'Calculating fit score', duration: 1500 },
+    { label: 'Preparing report', duration: 1000 },
   ],
   'cover-letter': [
-    { icon: FileSearch, label: 'Preparing context', duration: 1500 },
-    { icon: Target, label: 'Mapping requirements', duration: 1500 },
-    { icon: PenTool, label: 'Writing your letter', duration: 2500 },
-    { icon: Lightbulb, label: 'Final refinements', duration: 1500 },
-    { icon: CheckCircle2, label: 'Finishing up', duration: 1000 },
+    { label: 'Preparing context', duration: 1500 },
+    { label: 'Mapping requirements', duration: 1500 },
+    { label: 'Writing your letter', duration: 2500 },
+    { label: 'Final refinements', duration: 1500 },
+    { label: 'Finishing up', duration: 1000 },
   ],
   interview: [
-    { icon: Brain, label: 'Analyzing the role', duration: 1500 },
-    { icon: MessageSquare, label: 'Selecting questions', duration: 2000 },
-    { icon: Lightbulb, label: 'Building answer frameworks', duration: 2000 },
-    { icon: ClipboardList, label: 'Preparing practice plan', duration: 1500 },
-    { icon: CheckCircle2, label: 'Finishing up', duration: 1000 },
+    { label: 'Analyzing the role', duration: 1500 },
+    { label: 'Selecting questions', duration: 2000 },
+    { label: 'Building answer frameworks', duration: 2000 },
+    { label: 'Preparing practice plan', duration: 1500 },
+    { label: 'Finishing up', duration: 1000 },
   ],
   career: [
-    { icon: Compass, label: 'Analyzing your career', duration: 1500 },
-    { icon: Map, label: 'Evaluating paths', duration: 2000 },
-    { icon: Briefcase, label: 'Identifying skill gaps', duration: 2000 },
-    { icon: Lightbulb, label: 'Preparing recommendations', duration: 1500 },
-    { icon: CheckCircle2, label: 'Finishing up', duration: 1000 },
+    { label: 'Analyzing your career', duration: 1500 },
+    { label: 'Evaluating paths', duration: 2000 },
+    { label: 'Identifying skill gaps', duration: 2000 },
+    { label: 'Preparing recommendations', duration: 1500 },
+    { label: 'Finishing up', duration: 1000 },
   ],
   portfolio: [
-    { icon: Layers, label: 'Mapping your skills', duration: 1500 },
-    { icon: FolderOpen, label: 'Selecting projects', duration: 2000 },
-    { icon: Map, label: 'Building roadmap', duration: 2000 },
-    { icon: Lightbulb, label: 'Preparing presentation tips', duration: 1500 },
-    { icon: CheckCircle2, label: 'Finishing up', duration: 1000 },
+    { label: 'Mapping your skills', duration: 1500 },
+    { label: 'Selecting projects', duration: 2000 },
+    { label: 'Building roadmap', duration: 2000 },
+    { label: 'Preparing presentation tips', duration: 1500 },
+    { label: 'Finishing up', duration: 1000 },
   ],
 }
 
 const DEFAULT_STAGES: Stage[] = [
-  { icon: FileSearch, label: 'Parsing', duration: 1500 },
-  { icon: Brain, label: 'Analyzing', duration: 2500 },
-  { icon: BarChart3, label: 'Generating insights', duration: 2000 },
+  { label: 'Parsing', duration: 1500 },
+  { label: 'Analyzing', duration: 2500 },
+  { label: 'Generating insights', duration: 2000 },
   // Was "Almost done…" — a remaining-time claim the client cannot make.
-  { icon: CheckCircle2, label: 'Finishing up', duration: 1500 },
+  { label: 'Finishing up', duration: 1500 },
 ]
 
 /** Caption that marks the stage list as indicative rather than observed. */
-const STEPS_FRAME = 'Typical steps'
+const STEPS_FRAME_ONE = 'Typical step'
 /** The only substantiated claim: a request is in flight. */
 const STATUS_WORKING = 'Working on your results…'
 const STATUS_READY = 'Results are ready.'
@@ -96,14 +89,12 @@ const MIN_DISPLAY_MS = 3000
 const MIN_PHASES_SHOWN = 2
 
 export function CinematicLoader({
-  accent,
   toolId,
   stages: customStages,
   mutationDone,
   onReady,
   accessMode,
 }: {
-  accent?: string
   toolId?: ToolId
   stages?: Array<{ label: string }>
   /** Signal that the data mutation has resolved */
@@ -124,11 +115,6 @@ export function CinematicLoader({
     }
     return DEFAULT_STAGES
   }, [customStages, toolId])
-
-  // The CSS keyframe loops in tooling-fullscreen.css are silenced by the
-  // `prefers-reduced-motion` block there; Framer Motion animations are JS, so
-  // they need this hook to honour the same user preference.
-  const reduceMotion = useReducedMotion()
 
   const [stageIndex, setStageIndex] = useState(0)
   const startTimeRef = useRef(Date.now())
@@ -211,14 +197,12 @@ export function CinematicLoader({
     ? stageIndex
     : Math.min(stageIndex, Math.max(totalStages - 2, 0))
   const stage = displayStages[displayedStageIndex]
-  const Icon = stage.icon
   const progress = mutationDone
     ? 100
     : displayedStageIndex >= totalStages - 2
       ? 90
       : ((displayedStageIndex + 1) / totalStages) * 100
 
-  const statusLabel = mutationDone ? STATUS_READY : STATUS_WORKING
   // Spoken form of what the screen shows: the substantiated claim first, then
   // the current step explicitly marked as typical (see the STEPS_FRAME comment).
   const announcement = mutationDone
@@ -226,75 +210,32 @@ export function CinematicLoader({
     : `Working on your results. Typical step: ${stage.label}.`
 
   return (
-    <motion.div
+    <div
       className="cinematic-loader"
-      style={{ '--tool-accent': accent } as CSSProperties}
       data-progress={Math.round(progress)}
       data-stage-index={displayedStageIndex}
-      initial={reduceMotion ? false : { opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: -10 }}
-      transition={reduceMotion ? { duration: 0 } : { duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
     >
       {/*
         Accessibility contract (WCAG 2.2 4.1.3 Status Messages).
 
         - This <p> is the ONLY node this component exposes to assistive
-          technology, and it is a stable element: it is never keyed and never
-          sits inside `AnimatePresence`, so React rewrites its text in place. A
-          stage change therefore produces exactly one announcement, and a
-          re-render that changes no stage produces none. Marking the visible
-          stage line as the live region instead would announce twice per stage,
-          because `AnimatePresence` keeps the exiting copy mounted alongside the
-          entering one.
-        - `role="status"` (with `aria-live`/`aria-atomic` spelled out, matching
-          WorkflowHandoffBanner) is polite, so it never interrupts the user.
+          technology, and it is a stable element (never keyed, never inside an
+          animation wrapper), so React rewrites its text in place and a stage
+          change produces exactly one polite announcement.
         - Deliberately no `aria-busy` on the root: `aria-busy="true"` on an
-          ancestor of a live region instructs AT to withhold updates until it
-          flips to false, and this loader unmounts on completion rather than
-          flipping, so the announcements could be swallowed entirely. The
-          explicit "Working on your results" wording states the in-progress
-          condition without that risk.
-        - Everything else below is decoration for this message and is
-          `aria-hidden`, so the scanner, the eight filler doc lines and the two
-          momentarily-overlapping stage copies are not read out.
+          ancestor of a live region tells AT to withhold updates until it flips
+          to false, and this loader unmounts on completion rather than flipping.
+        - The visible line below is `aria-hidden` so it is not read twice.
       */}
       <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">
         {announcement}
       </p>
 
-      <div className="cinematic-scanner" aria-hidden="true">
-        <div className="cinematic-doc">
-          <div className="cinematic-doc-lines">
-            {Array.from({ length: 8 }).map((_, i) => (
-              <div key={i} className="cinematic-doc-line" style={{ width: `${60 + Math.random() * 30}%` }} />
-            ))}
-          </div>
-          <div className="cinematic-scan-beam" />
-        </div>
-      </div>
-
-      <div className="cinematic-message" aria-hidden="true">
-        <p className="cinematic-status">{statusLabel}</p>
-
-        <div className="cinematic-stage">
-          <span className="cinematic-stage-hint">{STEPS_FRAME}</span>
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={displayedStageIndex}
-              className="cinematic-stage-content"
-              initial={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: -8 }}
-              transition={{ duration: reduceMotion ? 0 : 0.25 }}
-            >
-              <Icon size={20} style={{ color: accent }} />
-              {/* Decorative-only ellipsis (see the D-056 comment above): the
-                  aria-live announcement never carries this. */}
-              <span>{stage.label}…</span>
-            </motion.div>
-          </AnimatePresence>
-        </div>
+      <div className="cinematic-line" aria-hidden="true">
+        <span className="tool-spinner" />
+        {/* Decorative-only ellipsis (see the D-056 comment above): the
+            aria-live announcement never carries this. */}
+        <span className="cinematic-status">{mutationDone ? STATUS_READY : `${STATUS_WORKING} ${STEPS_FRAME_ONE}: ${stage.label}…`}</span>
       </div>
 
       {/*
@@ -305,13 +246,8 @@ export function CinematicLoader({
         client cannot observe — exactly what D-056 forbids.
       */}
       <div className="cinematic-progress" role="progressbar" aria-label="Generating results">
-        <motion.div
-          className="cinematic-progress-bar"
-          initial={{ width: 0 }}
-          animate={{ width: `${progress}%` }}
-          transition={reduceMotion ? { duration: 0 } : { duration: 0.6, ease: 'easeOut' }}
-        />
+        <div className="cinematic-progress-bar" style={{ width: `${progress}%` }} />
       </div>
-    </motion.div>
+    </div>
   )
 }

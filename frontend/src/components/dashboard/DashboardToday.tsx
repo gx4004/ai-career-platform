@@ -1,10 +1,9 @@
 import { Link, useNavigate } from '@tanstack/react-router'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowUpRight, CalendarClock, Compass, FolderPlus, Hourglass, MessagesSquare, Sparkles, UserRoundCheck } from 'lucide-react'
+import { ArrowUpRight, CalendarClock, FolderPlus, Hourglass, MessagesSquare } from 'lucide-react'
 import type { ComponentType } from 'react'
 import { CompanyAvatar, SkillsFit } from '#/components/discovery/JobParts'
 import { Button } from '#/components/ui/button'
-import { ScrollFadeUp } from '#/components/ui/motion'
 import { useToday } from '#/hooks/useToday'
 import { adoptDiscoveryRecommendation } from '#/lib/api/client'
 import type { DiscoveryListing, TodayActionItem, TodayPlan } from '#/lib/api/schemas'
@@ -18,8 +17,8 @@ export function DashboardToday() {
   if (today.isPending) {
     return (
       <div className="today-grid" role="status" aria-label="Loading today">
-        <div className="dash-card dash-card--runs today-card today-card--skeleton" />
-        <div className="dash-card dash-card--runs today-card today-card--skeleton" />
+        <div className="today-skeleton" />
+        <div className="today-skeleton" />
       </div>
     )
   }
@@ -45,14 +44,10 @@ function BestMatches({ plan }: { plan: TodayPlan }) {
   })
 
   return (
-    <ScrollFadeUp>
-      <section className="dash-card dash-card--runs today-card" aria-labelledby="today-matches">
-        <div className="dash-card-head">
-          <div className="grid gap-0.5">
-            <p className="eyebrow">Today</p>
-            <h2 className="section-title" id="today-matches">Best matches to add</h2>
-          </div>
-          <Link to="/discovery" className="dash-card-head-link">Discover jobs</Link>
+    <section className="dash-section" aria-labelledby="today-matches">
+        <div className="dash-section__head">
+          <h2 className="dash-section__title" id="today-matches">Best matches to add</h2>
+          <Link to="/discovery" className="dash-section__link">Discover jobs</Link>
         </div>
         {plan.best_matches.length > 0 ? (
           <ol className="today-list">
@@ -72,8 +67,7 @@ function BestMatches({ plan }: { plan: TodayPlan }) {
         {adopt.isError ? (
           <p className="today-error" role="alert">That job could not be added. Try again.</p>
         ) : null}
-      </section>
-    </ScrollFadeUp>
+    </section>
   )
 }
 
@@ -96,7 +90,7 @@ function MatchRow({ listing, adding, onAdd }: { listing: DiscoveryListing; addin
         </p>
       </div>
       <SkillsFit listing={listing} />
-      <Button type="button" size="sm" onClick={onAdd} loading={adding} aria-label={`Add ${listing.title} to applications`}>
+      <Button type="button" variant="outline" size="sm" onClick={onAdd} loading={adding} aria-label={`Add ${listing.title} to applications`}>
         <FolderPlus size={14} aria-hidden="true" /> Add
       </Button>
     </article>
@@ -107,7 +101,6 @@ function MatchesEmpty({ plan }: { plan: TodayPlan }) {
   if (!plan.has_sources) {
     return (
       <EmptyBlock
-        icon={Compass}
         title="No job boards yet"
         description={<>Connect employer boards (<code>python -m app.scripts.seed_ats_sources</code>) and their openings show up here.</>}
         action={<Button asChild variant="outline" size="sm"><Link to="/discovery">Open Discover</Link></Button>}
@@ -117,16 +110,14 @@ function MatchesEmpty({ plan }: { plan: TodayPlan }) {
   if (!plan.has_evidence) {
     return (
       <EmptyBlock
-        icon={UserRoundCheck}
         title="Confirm your skills first"
         description="Once you confirm evidence in your profile, the jobs that fit your skills best appear here."
-        action={<Button asChild size="sm"><Link to="/profile">Confirm evidence</Link></Button>}
+        action={<Button asChild variant="outline" size="sm"><Link to="/profile">Confirm evidence</Link></Button>}
       />
     )
   }
   return (
     <EmptyBlock
-      icon={Sparkles}
       title="You have seen every match"
       description="Every visible job is already in your applications or hidden. New openings appear daily."
       action={<Button asChild variant="outline" size="sm"><Link to="/discovery">Browse all jobs</Link></Button>}
@@ -152,14 +143,10 @@ function reasonText(item: TodayActionItem): string {
 function NeedsAction({ plan }: { plan: TodayPlan }) {
   const hidden = plan.needs_action_total - plan.needs_action.length
   return (
-    <ScrollFadeUp>
-      <section className="dash-card dash-card--runs today-card" aria-labelledby="today-actions">
-        <div className="dash-card-head">
-          <div className="grid gap-0.5">
-            <p className="eyebrow">Applications</p>
-            <h2 className="section-title" id="today-actions">Needs action</h2>
-          </div>
-          <Link to="/campaigns" className="dash-card-head-link">View all</Link>
+      <section className="dash-section" aria-labelledby="today-actions">
+        <div className="dash-section__head">
+          <h2 className="dash-section__title" id="today-actions">Needs action</h2>
+          <Link to="/campaigns" className="dash-section__link">View all</Link>
         </div>
         {plan.needs_action.length > 0 ? (
           <>
@@ -173,12 +160,12 @@ function NeedsAction({ plan }: { plan: TodayPlan }) {
                       params={{ campaignId: item.application_id }}
                       className={`today-action today-action--${tone}`}
                     >
-                      <span className="today-action__icon" aria-hidden="true"><Icon size={16} /></span>
+                      <span className="today-action__icon" aria-hidden="true"><Icon size={14} /></span>
                       <span className="today-action__body">
                         <strong>{item.title}</strong>
                         <small>{item.company ? `${item.company} · ` : ''}{reasonText(item)}</small>
                       </span>
-                      <ArrowUpRight size={15} className="today-action__go" aria-hidden="true" />
+                      <ArrowUpRight size={13} className="today-action__go" aria-hidden="true" />
                     </Link>
                   </li>
                 )
@@ -192,30 +179,25 @@ function NeedsAction({ plan }: { plan: TodayPlan }) {
           </>
         ) : (
           <EmptyBlock
-            icon={Sparkles}
             title="Nothing needs you today"
             description="Interviews, close deadlines and applications waiting 21 days without a reply show up here."
           />
         )}
       </section>
-    </ScrollFadeUp>
   )
 }
 
 function EmptyBlock({
-  icon: Icon,
   title,
   description,
   action,
 }: {
-  icon: ComponentType<{ size: number }>
   title: string
   description: React.ReactNode
   action?: React.ReactNode
 }) {
   return (
     <div className="today-empty">
-      <span className="empty-state-mini-icon" aria-hidden="true"><Icon size={18} /></span>
       <p className="today-empty__title">{title}</p>
       <p className="today-empty__text">{description}</p>
       {action}

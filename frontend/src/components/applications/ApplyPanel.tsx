@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowUpRight, Check, CircleCheck, RefreshCw, Sparkles, Wand2, X } from 'lucide-react'
-import { StatusPill, WorkspacePanel } from '#/components/app/WorkspacePage'
+import { Badge, Panel } from './Panel'
 import { Button } from '#/components/ui/button'
 import {
   autofillApplication,
@@ -51,7 +51,7 @@ export function ApplyPanel({ application }: { application: ApplicationDetail }) 
 
   if (application.applied_at) {
     return (
-      <WorkspacePanel kicker="Apply" title={`You applied on ${formatDate(application.applied_at)}`} description="What you sent is saved below, exactly as it was when you marked it applied." className="camp-apply is-applied">
+      <Panel title={`You applied on ${formatDate(application.applied_at)}`} description="What you sent is saved below, exactly as it was when you marked it applied." className="camp-apply is-applied">
         {application.no_reply_suggested ? (
           <div className="camp-nudge">
             <span>No reply yet?</span>
@@ -67,7 +67,7 @@ export function ApplyPanel({ application }: { application: ApplicationDetail }) 
             </Button>
           </div>
         ) : null}
-      </WorkspacePanel>
+      </Panel>
     )
   }
 
@@ -86,7 +86,7 @@ export function ApplyPanel({ application }: { application: ApplicationDetail }) 
   const primary = !prepared ? 'prepare' : unanswered.length ? 'answer' : link ? 'apply' : 'applied'
 
   return (
-    <WorkspacePanel kicker="Apply" title={title} description={description} className="camp-apply">
+    <Panel title={title} description={description} className="camp-apply">
       {application.open_questions.length ? (
         <QuestionsForm
           key={`${application.drafts?.run_id ?? ''}:${JSON.stringify(application.answers)}`}
@@ -136,7 +136,7 @@ export function ApplyPanel({ application }: { application: ApplicationDetail }) 
       {isAutopilotExperimentEnabled() && application.autofill_supported ? (
         <AutofillBlock applicationId={application.id} blocked={unanswered.length > 0} />
       ) : null}
-    </WorkspacePanel>
+    </Panel>
   )
 }
 
@@ -222,7 +222,7 @@ function AutofillBlock({ applicationId, blocked }: { applicationId: string; bloc
           </Button>
         )}
         <p className="camp-muted">
-          <StatusPill tone="warning">Experimental</StatusPill>{' '}
+          <Badge tone="warning">Experimental</Badge>{' '}
           {state === 'running'
             ? 'Opening the employer’s form on this computer and filling it. Nothing is submitted.'
             : state === 'review'

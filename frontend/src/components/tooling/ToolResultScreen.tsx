@@ -3,7 +3,6 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { AlertCircle, Clock, Copy, Download, FileText, Loader2, RefreshCw, Star, Undo2, X } from 'lucide-react'
 import { Button } from '#/components/ui/button'
-import { FadeIn, FadeUp } from '#/components/ui/motion'
 import { ScoreTooltip } from '#/components/tooling/ScoreTooltip'
 import { AppStatePanel } from '#/components/app/AppStatePanel'
 import { ClaimPromotionSection } from '#/components/profile/ClaimPromotionSection'
@@ -20,34 +19,17 @@ import {
   readExportableSections,
   sanitizeDownloadTitle,
 } from '#/lib/tools/exports'
-import { resultDefinitions } from '#/lib/tools/resultDefinitions'
+import { FixFirstList, resultDefinitions } from '#/lib/tools/resultDefinitions'
 import { deriveWorkflowUpdateFromHistoryItem } from '#/lib/tools/workflowContext'
 import { getToolByHistoryName, tools } from '#/lib/tools/registry'
 import type { ToolId } from '#/lib/tools/registry'
-import { toolAccentStyle } from '#/lib/tools/styleUtils'
 import { trackTelemetry } from '#/lib/telemetry/client'
-import { ToolHeroIllustration } from './ToolHeroIllustration'
+import { MiniBar, ResultToc, scoreTone } from './ResultParts'
 
-function getStripGradient(value: number) {
-  if (value >= 70) {
-    return {
-      start: '#15803d',
-      end: '#4ade80',
-      glow: '#22c55e',
-    }
-  }
-  if (value >= 41) {
-    return {
-      start: '#c2410c',
-      end: '#fbbf24',
-      glow: '#f59e0b',
-    }
-  }
-  return {
-    start: '#b91c1c',
-    end: '#fb7185',
-    glow: '#ef4444',
-  }
+function formatRunDate(iso: string | null | undefined) {
+  const parsed = iso ? new Date(iso) : null
+  if (!parsed || Number.isNaN(parsed.getTime())) return ''
+  return parsed.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
 }
 
 function downloadTextFile(filename: string, content: string, mimeType = 'text/plain;charset=utf-8') {
@@ -78,6 +60,7 @@ export function ToolResultScreen({
   const [showUndo, setShowUndo] = useState(true)
   const [bannerDismissed, setBannerDismissed] = useState(false)
   const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const bodyRef = useRef<HTMLDivElement | null>(null)
   const queryClient = useQueryClient()
   const demoItem = useMemo(() => getTransientResult(historyId), [historyId])
   const cachedItem = queryClient.getQueryData(['tool-run', historyId]) as ReturnType<typeof getTransientResult> | undefined
@@ -240,8 +223,11 @@ export function ToolResultScreen({
     void navigate({ to: `${resolvedTool.route}?${params.toString()}` })
   }
 
-  const heroMetric = definition.heroMetric?.(payload)
-  const insightStrip = definition.insightStrip?.(payload)
+  const summaryInfo = definition.summary(payload)
+  const topActions = definition.topActions(payload)
+  const runDate = formatRunDate(item.created_at)
+  const headline = typeof summary.headline === 'string' ? summary.headline : resolvedTool.resultTitle
+  const runLabel = item.label && item.label.trim() ? item.label.trim() : ''
 
   async function handleCopy() {
     await navigator.clipboard.writeText(definition.copyText(payload, item!))
@@ -274,235 +260,221 @@ export function ToolResultScreen({
 
   return (
     <PageFrame>
-      <section className="result-shell" style={toolAccentStyle(resolvedTool.accent)}>
-        {/* ── Hero ── */}
-        <FadeIn delay={0.05}>
-        <div className={`result-hero${definition.heroVariant === 'dark' ? ' result-hero--dark' : ''}`}>
-          <div className={`result-hero__top${!heroMetric ? ' result-hero__top--centered' : ''}`}>
-            {heroMetric ? (
-              <div style={{ position: 'relative' }}>
-                {heroMetric}
-                <ScoreTooltip toolId={resolvedTool.id} />
-              </div>
-            ) : (
-              <ToolHeroIllustration toolId={resolvedTool.id} />
+      <div className="result-page">
+        <header className="page-header result-header">
+          <div className="page-header__text">
+            <h1 className="page-header__title">{resolvedTool.label}</h1>
+            <p className="page-header__purpose result-header__headline">{headline}</p>
+            <ul className="page-header__meta">
+              {runLabel ? <li>{runLabel}</li> : null}
+              {runDate ? <li>{runDate}</li> : null}
+              {parentRunId && showUndo ? (
+                <li>
+                  <button
+                    type="button"
+                    className="result-undo"
+                    onClick={() => navigate({ to: resolvedTool.resultRoute.replace('$historyId', parentRunId) })}
+                  >
+                    <Undo2 size={12} aria-hidden="true" />
+                    Undo — restore previous result
+                  </button>
+                </li>
+              ) : null}
+            </ul>
+          </div>
+          <div className="page-header__action result-actions">
+            <Button
+              type="button"
+              size="sm"
+              aria-expanded={regenOpen}
+              title="Re-generate with feedback"
+              onClick={() => setRegenOpen((v) => !v)}
+            >
+              <RefreshCw aria-hidden="true" />
+              Re-generate
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleCopy}
+              title={copied ? 'Copied' : 'Copy'}
+              aria-label={copied ? 'Copied to clipboard' : 'Copy result to clipboard'}
+            >
+              <Copy aria-hidden="true" />
+              <span className="result-actions__label">{copied ? 'Copied' : 'Copy'}</span>
+            </Button>
+            {exportableSections.length > 0 && !definition.download ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => handleExport('txt')}
+                title="Export TXT"
+                aria-label="Export result as plain-text file"
+              >
+                <Download aria-hidden="true" />
+                <span className="result-actions__label">Export</span>
+              </Button>
+            ) : definition.download ? (
+              // Tools with their own download (Cover Letter) export the
+              // on-page, possibly edited text rather than the raw payload.
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const dl = definition.download?.(payload, item)
+                  if (dl) downloadTextFile(dl.filename, dl.content)
+                }}
+                title="Download"
+                aria-label="Download result"
+              >
+                <Download aria-hidden="true" />
+                <span className="result-actions__label">Download</span>
+              </Button>
+            ) : null}
+            {(resolvedTool.id === 'cover-letter' || resolvedTool.id === 'interview') && status === 'authenticated' && historyId && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => exportPdf(historyId)}
+                title={resolvedTool.id === 'cover-letter' ? 'Export PDF of the generated letter (edits not included)' : 'Export PDF'}
+              >
+                <FileText aria-hidden="true" />
+                PDF
+              </Button>
             )}
-            <div className="result-hero__text">
-              <div className="result-hero__label">
-                {resolvedTool.label}{savedResult ? '' : ' · Guest demo'}
-              </div>
-              <h1 className="result-hero__headline result-hero__headline--premium">
-                {typeof summary.headline === 'string' ? summary.headline : resolvedTool.resultTitle}
-                {scoreDelta !== null && (
-                  <span className={`score-delta ${scoreDelta >= 0 ? 'score-delta-positive' : 'score-delta-negative'}`}>
-                    {scoreDelta >= 0 ? '+' : ''}{scoreDelta} pts
-                  </span>
-                )}
-              </h1>
-              {definition.heroVariant === 'dark' && typeof summary.confidence_note === 'string' && summary.confidence_note.trim() && (
-                <p className="result-hero__sub">{summary.confidence_note}</p>
-              )}
-              {parentRunId && showUndo && (
-                <button
-                  className="result-undo-btn"
-                  onClick={() => navigate({ to: resolvedTool.resultRoute.replace('$historyId', parentRunId) })}
-                >
-                  <Undo2 size={13} />
-                  Undo — restore previous result
-                </button>
-              )}
-              <div className="result-hero__actions">
-                <Link to={resolvedTool.route} className="result-hero__btn-text result-hero__btn-text--ghost">New input</Link>
-                <button
-                  className="result-hero__btn-text result-hero__btn-text--primary"
-                  aria-expanded={regenOpen}
-                  onClick={() => setRegenOpen((v) => !v)}
-                  title="Re-generate with feedback"
-                >
-                  <RefreshCw size={12} style={{ marginRight: 4 }} />
-                  Re-generate
-                </button>
-                <button
-                  className="result-hero__btn"
-                  onClick={handleCopy}
-                  title={copied ? 'Copied' : 'Copy'}
-                  aria-label={copied ? 'Copied to clipboard' : 'Copy result to clipboard'}
-                >
-                  <Copy size={13} aria-hidden="true" />
-                </button>
-                {exportableSections.length > 0 && !definition.download ? (
-                  <button
-                    className="result-hero__btn"
-                    onClick={() => handleExport('txt')}
-                    title="Export TXT"
-                    aria-label="Export result as plain-text file"
-                  >
-                    <Download size={13} aria-hidden="true" />
-                  </button>
-                ) : definition.download ? (
-                  // Tools with their own download (Cover Letter) export the
-                  // on-page, possibly edited text rather than the raw payload.
-                  <button
-                    className="result-hero__btn"
-                    onClick={() => {
-                      const dl = definition.download?.(payload, item)
-                      if (dl) downloadTextFile(dl.filename, dl.content)
-                    }}
-                    title="Download"
-                    aria-label="Download result"
-                  >
-                    <Download size={13} aria-hidden="true" />
-                  </button>
-                ) : null}
-                {(resolvedTool.id === 'cover-letter' || resolvedTool.id === 'interview') && status === 'authenticated' && historyId && (
-                  <button
-                    className="result-hero__btn-text"
-                    onClick={() => exportPdf(historyId)}
-                    title={resolvedTool.id === 'cover-letter' ? 'Export PDF of the generated letter (edits not included)' : 'Export PDF'}
-                  >
-                    <FileText size={12} />
-                    PDF
-                  </button>
-                )}
-                <button
-                  className="result-hero__btn"
-                  disabled={status !== 'authenticated' || favoriteToggle.isPending}
-                  onClick={() => {
-                    if (!savedResult) {
-                      openAuthDialog({ to: resolvedTool.route, reason: 'save-demo-result', label: 'Sign in to save', toolId: resolvedTool.id })
-                      return
-                    }
-                    favoriteToggle.mutate({ historyId: item.id, isFavorite: !item.is_favorite })
-                  }}
-                  title={savedResult ? (item.is_favorite ? 'Favorited' : 'Favorite') : 'Sign in to save'}
-                  aria-label={
-                    savedResult
-                      ? item.is_favorite
-                        ? 'Remove from favorites'
-                        : 'Add to favorites'
-                      : 'Sign in to favorite this result'
-                  }
-                  aria-pressed={savedResult ? Boolean(item.is_favorite) : undefined}
-                >
-                  <Star size={13} fill={item.is_favorite ? 'currentColor' : 'none'} aria-hidden="true" />
-                </button>
-              </div>
-              {regenOpen && (
-                <div className="regen-feedback-panel">
-                  <textarea
-                    className="regen-feedback-textarea"
-                    placeholder="Optional: describe what you'd like changed..."
-                    value={regenFeedback}
-                    onChange={(e) => setRegenFeedback(e.target.value)}
-                    rows={3}
-                  />
-                  <div className="regen-feedback-actions">
-                    <button
-                      className="result-hero__btn-text"
-                      onClick={() => { setRegenOpen(false); setRegenFeedback('') }}
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      className="result-hero__btn-text regen-submit-btn"
-                      onClick={handleRegenSubmit}
-                    >
-                      Submit
-                    </button>
-                  </div>
-                </div>
-              )}
+            <Button
+              type="button"
+              variant="outline"
+              size="icon-sm"
+              disabled={status !== 'authenticated' || favoriteToggle.isPending}
+              onClick={() => {
+                if (!savedResult) {
+                  openAuthDialog({ to: resolvedTool.route, reason: 'save-demo-result', label: 'Sign in to save', toolId: resolvedTool.id })
+                  return
+                }
+                favoriteToggle.mutate({ historyId: item.id, isFavorite: !item.is_favorite })
+              }}
+              title={savedResult ? (item.is_favorite ? 'Favorited' : 'Favorite') : 'Sign in to save'}
+              aria-label={
+                savedResult
+                  ? item.is_favorite
+                    ? 'Remove from favorites'
+                    : 'Add to favorites'
+                  : 'Sign in to favorite this result'
+              }
+              aria-pressed={savedResult ? Boolean(item.is_favorite) : undefined}
+            >
+              <Star fill={item.is_favorite ? 'currentColor' : 'none'} aria-hidden="true" />
+            </Button>
+            <Button asChild variant="ghost" size="sm">
+              <Link to={resolvedTool.route}>New input</Link>
+            </Button>
+          </div>
+        </header>
+
+        {regenOpen && (
+          <div className="regen-panel">
+            <textarea
+              className="regen-panel__textarea"
+              placeholder="Optional: describe what you'd like changed..."
+              aria-label="Re-generate feedback"
+              value={regenFeedback}
+              onChange={(e) => setRegenFeedback(e.target.value)}
+              rows={3}
+            />
+            <div className="regen-panel__actions">
+              <Button type="button" variant="ghost" size="sm" onClick={() => { setRegenOpen(false); setRegenFeedback('') }}>
+                Cancel
+              </Button>
+              <Button type="button" variant="outline" size="sm" onClick={handleRegenSubmit}>
+                Submit
+              </Button>
             </div>
           </div>
-          {insightStrip && insightStrip.length > 0 ? (
-            <div className="result-hero__strip">
-              {insightStrip.map((stat) => {
-                const numericValue = parseFloat(stat.value)
-                const isBar = !Number.isNaN(numericValue) && numericValue <= 100 && !/[a-zA-Z]/.test(stat.value.replace('%', ''))
-                const stripGradient = isBar ? getStripGradient(numericValue) : null
-                return (
-                  <div key={stat.label} className="result-hero__strip-item">
-                    <span className="result-hero__strip-lbl">{stat.label}</span>
-                    {isBar ? (
-                      <div className="result-hero__strip-track">
-                        <div
-                          className="result-hero__strip-fill"
-                          style={{
-                            width: `${numericValue}%`,
-                            '--strip-start': stripGradient?.start,
-                            '--strip-end': stripGradient?.end,
-                            '--strip-color': stripGradient?.glow,
-                          } as React.CSSProperties}
-                        />
-                      </div>
-                    ) : null}
-                    <span className="result-hero__strip-val">{stat.value}</span>
-                  </div>
-                )
-              })}
-            </div>
-          ) : null}
-          {definition.heroExtra?.(payload)}
-        </div>
-        </FadeIn>
+        )}
 
-        {/* ── Mid-section (e.g. Fix First cards) ── */}
-        {definition.midSection ? (
-          <FadeUp delay={0.08}>
-            {definition.midSection(payload)}
-          </FadeUp>
-        ) : null}
-
-        {/* ── Guest banner (floating pill) ── */}
         {guestResult && !bannerDismissed ? (
-          <div className="result-guest-banner">
+          <div className="result-notice">
+            <span>Guest demo</span>
             {status !== 'authenticated' ? (
-              <>
-                <span>Guest demo</span>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  style={{ height: '1.5rem', fontSize: '0.6875rem', padding: '0 0.5rem', borderRadius: '9999px' }}
-                  onClick={() => {
-                    openAuthDialog({
-                      to: resolvedTool.route,
-                      reason: 'guest-demo-result',
-                      label: guestSignupLabel,
-                      toolId: resolvedTool.id,
-                    })
-                  }}
-                >
-                  {guestSignupLabel}
-                </Button>
-              </>
-            ) : (
-              <span>Guest demo</span>
-            )}
+              <Button
+                type="button"
+                variant="outline"
+                size="xs"
+                onClick={() => {
+                  openAuthDialog({
+                    to: resolvedTool.route,
+                    reason: 'guest-demo-result',
+                    label: guestSignupLabel,
+                    toolId: resolvedTool.id,
+                  })
+                }}
+              >
+                {guestSignupLabel}
+              </Button>
+            ) : null}
             <button
-              className="result-guest-banner__dismiss"
+              type="button"
+              className="result-notice__dismiss"
               onClick={() => setBannerDismissed(true)}
               aria-label="Dismiss"
             >
-              <X size={10} />
+              <X size={12} aria-hidden="true" />
             </button>
           </div>
         ) : null}
 
-        {/* ── Content ── */}
-        <FadeUp delay={0.12}>
-          <div className="result-content">
-            {definition.render(payload, item, resolvedTool)}
+        {(summaryInfo.score || summaryInfo.facts.length > 0) && (
+          <div className="result-summary">
+            {summaryInfo.score ? (
+              <div className="result-score">
+                <div className="result-score__main">
+                  <span className="result-score__value">{summaryInfo.score.value}</span>
+                  <span className={`result-score__unit${summaryInfo.score.unit === '%' ? ' result-score__unit--pct' : ''}`}>{summaryInfo.score.unit}</span>
+                  {scoreDelta !== null && (
+                    <span className={`result-score__delta ${scoreDelta >= 0 ? 'result-score__delta--up' : 'result-score__delta--down'}`}>
+                      {scoreDelta >= 0 ? '+' : ''}{scoreDelta} pts
+                    </span>
+                  )}
+                </div>
+                <div className="result-score__label">
+                  {summaryInfo.score.label}
+                  <ScoreTooltip toolId={resolvedTool.id} />
+                </div>
+                <MiniBar value={summaryInfo.score.value} tone={scoreTone(summaryInfo.score.value)} />
+              </div>
+            ) : null}
+            {summaryInfo.facts.length > 0 ? (
+              <dl className="result-facts">
+                {summaryInfo.facts.map((f) => (
+                  <div key={f.label} className="result-facts__item">
+                    <dt>{f.label}</dt>
+                    <dd>{f.value}</dd>
+                  </div>
+                ))}
+              </dl>
+            ) : null}
           </div>
-        </FadeUp>
+        )}
+        {summaryInfo.note ? <p className="result-note">{summaryInfo.note}</p> : null}
 
-        <ClaimPromotionSection
-          toolId={resolvedTool.id}
-          payload={payload as Record<string, unknown>}
-          authenticated={status === 'authenticated'}
-        />
-
-      </section>
+        <div className="result-layout">
+          <div className="result-main" ref={bodyRef}>
+            <FixFirstList actions={topActions} />
+            {definition.render(payload, item, resolvedTool)}
+            <ClaimPromotionSection
+              toolId={resolvedTool.id}
+              payload={payload as Record<string, unknown>}
+              authenticated={status === 'authenticated'}
+            />
+          </div>
+          <ResultToc containerRef={bodyRef} />
+        </div>
+      </div>
     </PageFrame>
   )
 }

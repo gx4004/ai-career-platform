@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { Plus, Sparkles, X } from 'lucide-react'
-import { WorkspacePanel } from '#/components/app/WorkspacePage'
+import { Panel } from './Panel'
 import { Button } from '#/components/ui/button'
 import { getApplicationPreferences, prepareApplicationsForMe, saveApplicationPreferences } from '#/lib/api/client'
 import type { ApplicationPreferences, ApplicationPreferencesUpdate, BulkPrepareResult } from '#/lib/api/schemas'
@@ -38,8 +38,7 @@ export function PrepareForMePanel() {
   }
 
   return (
-    <WorkspacePanel
-      kicker="Prepare for me"
+    <Panel
       title="Prepare applications for me"
       description="Tell us what you're looking for. We pick the best matching jobs from Job Discovery and draft each application. You still check and send every one yourself."
       className="camp-prepare"
@@ -68,7 +67,7 @@ export function PrepareForMePanel() {
           <p id="camp-prepare-hint" className="camp-muted">Add at least one keyword so we know which jobs to prepare.</p>
         ) : null}
       </div>
-    </WorkspacePanel>
+    </Panel>
   )
 }
 
@@ -120,8 +119,8 @@ function PreferencesForm({
           <input type="checkbox" checked={prefs.remote} disabled={saving} onChange={(event) => onChange({ remote: event.target.checked })} />
           Include remote jobs
         </label>
-        <label className="workspace-field camp-prefs__cap">
-          <span className="workspace-field__label">Most per click</span>
+        <label className="camp-field camp-prefs__cap">
+          <span className="camp-field__label">Most per click</span>
           <input
             type="number"
             min={1}
@@ -159,7 +158,7 @@ function TermsField({
   const [draft, setDraft] = useState('')
   return (
     <div className="camp-prefs__field">
-      <span className="workspace-field__label">{label}</span>
+      <span className="camp-field__label">{label}</span>
       {value.length ? (
         <ul className="camp-chips" aria-label={label}>
           {value.map((term) => (
