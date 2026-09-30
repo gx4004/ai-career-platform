@@ -110,9 +110,9 @@ test.describe('Discovery hand-offs', () => {
       stdio: 'pipe',
     })
     await gotoHydrated(page, '/discovery')
-    const firstCard = page.locator('.disc-card').first()
+    const firstCard = page.locator('.disc-row').first()
     await expect(firstCard).toBeVisible({ timeout: 15_000 })
-    const jobTitle = (await firstCard.locator('h3, .disc-card__title').first().textContent())?.trim() ?? ''
+    const jobTitle = (await firstCard.locator('.disc-row__title').first().textContent())?.trim() ?? ''
     expect(jobTitle.length).toBeGreaterThan(0)
 
     await firstCard.getByRole('button', { name: /^More actions for / }).click()
@@ -131,9 +131,9 @@ test.describe('Discovery hand-offs', () => {
       stdio: 'pipe',
     })
     await gotoHydrated(page, '/discovery')
-    const firstCard = page.locator('.disc-card').first()
+    const firstCard = page.locator('.disc-row').first()
     await expect(firstCard).toBeVisible({ timeout: 15_000 })
-    const jobTitle = (await firstCard.locator('h3, .disc-card__title').first().textContent())?.trim() ?? ''
+    const jobTitle = (await firstCard.locator('.disc-row__title').first().textContent())?.trim() ?? ''
 
     await firstCard.getByRole('button', { name: 'Add to applications' }).click()
     await page.waitForURL(/\/campaigns\/[^/]+$/, { timeout: 15_000 })

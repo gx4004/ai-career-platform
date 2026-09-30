@@ -159,16 +159,16 @@ for (const tool of guestTools) {
     test.setTimeout(60_000)
     await runGuestTool(page, tool)
     await expect(page).toHaveURL(tool.resultPath)
-    await expect(page.getByText(`${tool.label} · Guest demo`)).toBeVisible()
+    await expect(page.getByText("Guest demo", { exact: true })).toBeVisible()
     const resultUrl = page.url()
 
     await page.reload()
     await page.locator('html[data-hydrated="true"]').waitFor()
-    await expect(page.getByText(`${tool.label} · Guest demo`)).toBeVisible()
+    await expect(page.getByText("Guest demo", { exact: true })).toBeVisible()
 
     await gotoHydrated(page, '/')
     await gotoHydrated(page, resultUrl)
-    await expect(page.getByText(`${tool.label} · Guest demo`)).toBeVisible()
+    await expect(page.getByText("Guest demo", { exact: true })).toBeVisible()
 
     const demoId = resultUrl.split('/').at(-1)
     await page.evaluate((id) => {
@@ -217,6 +217,6 @@ for (const tool of guestTools) {
     }
 
     await expect(page).toHaveURL(tool.resultPath)
-    await expect(page.getByText(`${tool.label} · Guest demo`)).toBeVisible()
+    await expect(page.getByText("Guest demo", { exact: true })).toBeVisible()
   })
 }

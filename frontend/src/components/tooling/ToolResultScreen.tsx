@@ -42,6 +42,12 @@ function downloadTextFile(filename: string, content: string, mimeType = 'text/pl
   URL.revokeObjectURL(url)
 }
 
+/** Screen-reader names for the headline score (the old score ring carried these). */
+const SCORE_ARIA_NAMES: Partial<Record<string, string>> = {
+  resume: 'Resume score',
+  'job-match': 'Job match score',
+}
+
 export function ToolResultScreen({
   toolId,
   historyId,
@@ -432,7 +438,11 @@ export function ToolResultScreen({
           <div className="result-summary">
             {summaryInfo.score ? (
               <div className="result-score">
-                <div className="result-score__main">
+                <div
+                  className="result-score__main"
+                  role="img"
+                  aria-label={`${SCORE_ARIA_NAMES[resolvedTool.id] ?? summaryInfo.score.label}: ${summaryInfo.score.value} ${summaryInfo.score.unit === '%' ? 'percent' : 'out of 100'}`}
+                >
                   <span className="result-score__value">{summaryInfo.score.value}</span>
                   <span className={`result-score__unit${summaryInfo.score.unit === '%' ? ' result-score__unit--pct' : ''}`}>{summaryInfo.score.unit}</span>
                   {scoreDelta !== null && (

@@ -149,7 +149,7 @@ test('deleting one run preserves its workspace and deleting the final run remove
 
   await gotoHydrated(page, '/history')
   await expect(page.getByRole('button', { name: /^Delete / })).toHaveCount(2)
-  const originalRunRow = page.locator('.run-row').filter({
+  const originalRunRow = page.locator('.history-row').filter({
     has: page.locator(`a[href="/resume/result/${firstId}"]`),
   })
   await originalRunRow.getByRole('button', { name: /^Delete / }).click()
