@@ -59,7 +59,6 @@ vi.mock('#/hooks/useHistory', () => ({
 vi.mock('#/lib/api/client', async (importOriginal) => ({
   ...(await importOriginal<typeof import('#/lib/api/client')>()),
   getHistoryItem: getHistoryItemMock,
-  getHistoryWorkspaces: vi.fn().mockResolvedValue({ items: [] }),
 }))
 
 function renderPage() {
@@ -88,9 +87,7 @@ describe('HistoryPage — workflow_continued telemetry (D-040)', () => {
   it('fires workflow_continued once when continuing a completed run to its next tool', async () => {
     renderPage()
 
-    expect(screen.queryByRole('region', { name: 'Recent results reminder' })).toBeNull()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Continue: Match' }))
 
     await waitFor(() => expect(getHistoryItemMock).toHaveBeenCalledWith('run-1'))
     await waitFor(() =>
@@ -113,14 +110,16 @@ describe('HistoryPage — workflow_continued telemetry (D-040)', () => {
 })
 
 describe('HistoryPage — runs saved by older CV Studio checks (#362)', () => {
-  it.each(['cv-quality', 'cv-tailoring'])('lists a %s run without tool actions', (toolName) => {
+  it.each(['cv-quality', 'cv-tailoring'])('lists a %s run without an Open link or Continue', (toolName) => {
     historyItems.current = [{ ...run, id: `legacy-${toolName}`, tool_name: toolName, label: 'Old check' }]
 
     renderPage()
 
-    expect(screen.getByText(toolName)).toBeTruthy()
-    expect(screen.getByDisplayValue('Old check')).toBeTruthy()
-    expect(screen.queryByRole('button', { name: 'Continue' })).toBeNull()
-    expect(screen.queryByRole('link', { name: 'View →' })).toBeNull()
+    expect(screen.getByText('CV Studio')).toBeTruthy()
+    expect(screen.getByText('Older CV Studio run')).toBeTruthy()
+    expect(screen.getByText('Old check')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /^Continue/ })).toBeNull()
+    expect(screen.queryByRole('link', { name: /^Open Old check/ })).toBeNull()
+    expect(screen.queryAllByRole('link').filter((a) => a.getAttribute('href') === '/history')).toHaveLength(0)
   })
 })

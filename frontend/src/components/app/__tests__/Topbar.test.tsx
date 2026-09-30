@@ -116,4 +116,22 @@ describe('Topbar', () => {
     expect(container.querySelector('.topbar--compact')).toBeTruthy()
     expect(screen.getByText('History')).toBeTruthy()
   })
+
+  it.each([
+    ['/campaigns', 'Applications'],
+    ['/campaigns/abc-123', 'Applications'],
+    ['/discovery', 'Discover'],
+    ['/cv-studio', 'CV Studio'],
+    ['/profile', 'Profile'],
+    ['/account', 'Account'],
+    ['/settings', 'Settings'],
+  ])('shows a page pill for %s', (path, label) => {
+    mockPathname.current = path
+
+    const { container } = renderTopbar()
+
+    const pill = container.querySelector('.topbar-tool-pill')
+    expect(pill?.textContent).toBe(label)
+    expect(pill?.querySelector('svg')).toBeTruthy()
+  })
 })

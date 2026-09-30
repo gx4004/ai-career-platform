@@ -143,13 +143,13 @@ async function runGuestTool(page: Page, tool: GuestTool, resume = resumeText) {
 
 async function register(page: Page) {
   await gotoHydrated(page, '/login')
-  await page.getByRole('tab', { name: 'Create Account' }).click()
+  await page.getByRole('tab', { name: 'Create account' }).click()
   await page.locator('#register-name').fill('R2 Guest Audit')
   await page.locator('#register-email').fill(uniqueEmail('guest-audit'))
   await page.locator('#register-password').fill('correct-horse-battery-staple')
   await page.locator('#register-tos').check()
   await page.getByRole('button', { name: 'Create free account' }).click()
-  await expect(page.getByRole('heading', { name: 'You are already signed in' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: "You're already signed in" })).toBeVisible()
 }
 
 for (const tool of guestTools) {
@@ -198,7 +198,7 @@ test('guest runs for all six tools never appear in persisted history', async ({
   await register(page)
   await gotoHydrated(page, '/history')
 
-  await expect(page.getByText('No runs found')).toBeVisible()
+  await expect(page.getByText('No runs yet')).toBeVisible()
 })
 
 for (const tool of guestTools) {

@@ -30,14 +30,14 @@ async function gotoHydrated(page: Page, path: string) {
 async function register(page: Page, identity: string) {
   const email = uniqueEmail(identity.toLowerCase().replaceAll(' ', '-'))
   await gotoHydrated(page, '/login')
-  await page.getByRole('tab', { name: 'Create Account' }).click()
+  await page.getByRole('tab', { name: 'Create account' }).click()
   await page.locator('#register-name').fill(identity)
   await page.locator('#register-email').fill(email)
   await page.locator('#register-password').fill(password)
   await page.locator('#register-tos').check()
   await page.getByRole('button', { name: 'Create free account' }).click()
   await expect(
-    page.getByRole('heading', { name: 'You are already signed in' }),
+    page.getByRole('heading', { name: "You're already signed in" }),
   ).toBeVisible({ timeout: 15_000 })
   return email
 }
@@ -203,8 +203,7 @@ test('retry recovers from a transient request failure without duplicating the ru
   expect(attempts).toBe(3)
 
   await gotoHydrated(page, '/history')
-  const totalRuns = page.locator('.h-stat-card').filter({ hasText: 'Total Runs' })
-  await expect(totalRuns).toContainText('1')
+  await expect(page.locator('.page-hero__chips')).toContainText('1 run')
 })
 
 test('malformed success responses explain that the service returned an unexpected result', async ({
