@@ -16,8 +16,11 @@ EXTRA_SKILL_PATTERNS: dict[str, tuple[str, ...]] = {
     "GraphQL": (r"\bgraphql\b",),
     "Java": (r"\bjava\b",),
     "Kotlin": (r"\bkotlin\b",),
-    "Swift": (r"\bswift\b",),
-    "Rust": (r"\brust\b",),
+    "Swift": (
+        r"\bswiftui\b",
+        r"\bswift\b(?![\s-]+(?:decision|action|response|execution|turnaround|pace|delivery|resolution|learner|mover|and (?:decisive|efficient|effective)))",
+    ),
+    "Rust": (r"(?<![-\w])rust\b(?![-\s]*(?:free|belt|proof|resistant|colou?red))",),
     "C++": (r"c\+\+",),
     "C#": (r"\bc#",),
     "Ruby": (r"\bruby\b",),
@@ -57,7 +60,13 @@ EXTRA_SKILL_PATTERNS: dict[str, tuple[str, ...]] = {
     # Data / ML
     "dbt": (r"\bdbt\b",),
     "Airflow": (r"\bairflow\b",),
-    "Spark": (r"\bspark\b", r"\bpyspark\b"),
+    # Bare "spark" is usually a verb ("spark innovation"): require Spark context.
+    "Spark": (
+        r"\bapache spark\b",
+        r"\bpyspark\b",
+        r"\bspark (?:sql|streaming|jobs?|clusters?|dataframes?|applications?)\b",
+        r"\b(?:hadoop|databricks|hive|scala)\b.*\bspark\b",
+    ),
     "Pandas": (r"\bpandas\b",),
     "NumPy": (r"\bnumpy\b",),
     "scikit-learn": (r"\bscikit-learn\b", r"\bsklearn\b"),
@@ -70,7 +79,12 @@ EXTRA_SKILL_PATTERNS: dict[str, tuple[str, ...]] = {
     "Tableau": (r"\btableau\b",),
     "Power BI": (r"\bpower ?bi\b",),
     "Looker": (r"\blooker\b",),
-    "Excel": (r"\bexcel\b",),
+    # "excel at/in ..." is a verb; only the spreadsheet counts.
+    "Excel": (
+        r"\bmicrosoft excel\b",
+        r"\bms excel\b",
+        r"\bexcel\b(?!\s+(?:at|in|as|with|when|under|on|by|and|to|for|within)\b)(?!\s+[a-z]+ing\b)",
+    ),
     "A/B Testing": (r"\ba/b test(?:ing|s)?\b", r"\bsplit testing\b", r"\bexperimentation\b"),
     # Backend / infra
     "Schema Design": (
