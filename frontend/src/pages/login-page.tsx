@@ -39,13 +39,14 @@ export function LoginPage() {
 
   if (status === 'authenticated') {
     return (
-      <AppStatePanel
-        badge="Authenticated"
-        title="You are already signed in"
-        description="Use the dashboard to continue the workflow."
-        scene="emptyPlanning"
-        actions={[{ label: 'Go to dashboard', to: '/dashboard' }]}
-      />
+      <div className="auth-page-signed-in">
+        <AppStatePanel
+          title="You're already signed in"
+          description="Head back to your dashboard to keep going."
+          scene="emptyPlanning"
+          actions={[{ label: 'Go to dashboard', to: '/dashboard' }]}
+        />
+      </div>
     )
   }
 

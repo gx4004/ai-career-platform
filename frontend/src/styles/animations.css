@@ -127,10 +127,6 @@
   animation: fade-up 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
-.h-stat-card {
-  animation: scale-in 0.32s cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-
 [role='tabpanel'] {
   animation: fade-up 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
@@ -313,12 +309,10 @@
   .result-hero,
   .result-body,
   .dash-hero,
-  .h-stat-card,
   .cookie-banner,
   .app-state-panel,
   .account-layout,
   .history-layout,
-  .history-card,
   .settings-layout,
   .onboarding-step,
   [role='tabpanel'],
@@ -350,7 +344,6 @@
   }
 
   /* Hover transitions */
-  .history-card,
   .dash-tool-preview,
   .keyword-card,
   .path-card,
