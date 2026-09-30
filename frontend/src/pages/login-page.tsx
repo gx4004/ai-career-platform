@@ -3,7 +3,6 @@ import { useEffect, useState } from 'react'
 import { AlertCircle } from 'lucide-react'
 import { AppStatePanel } from '#/components/app/AppStatePanel'
 import { AuthSurface } from '#/components/auth/AuthSurface'
-import { FadeUp } from '#/components/ui/motion'
 import { useSession } from '#/hooks/useSession'
 
 const OAUTH_ERROR_COPY: Record<string, string> = {
@@ -43,7 +42,6 @@ export function LoginPage() {
         <AppStatePanel
           title="You're already signed in"
           description="Head back to your dashboard to keep going."
-          scene="emptyPlanning"
           actions={[{ label: 'Go to dashboard', to: '/dashboard' }]}
         />
       </div>
@@ -60,7 +58,7 @@ export function LoginPage() {
 
   return (
     <div className="auth-page">
-      <FadeUp className="auth-page-shell">
+      <div className="auth-page-shell">
         <div className="auth-page-actions">
           <button
             type="button"
@@ -76,15 +74,14 @@ export function LoginPage() {
         {oauthErrorMessage ? (
           <div
             role="alert"
-            className="flex items-start gap-2.5 rounded-lg border border-destructive/25 bg-destructive/5 px-3 py-2.5 text-destructive"
-            style={{ marginBottom: '1rem' }}
+            className="mx-4 mt-3 flex items-start gap-2.5 rounded-lg border border-destructive/25 bg-destructive/5 px-3 py-2.5 text-destructive"
           >
             <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
             <p className="text-sm leading-relaxed">{oauthErrorMessage}</p>
           </div>
         ) : null}
         <AuthSurface view={view} onViewChange={setView} />
-      </FadeUp>
+      </div>
     </div>
   )
 }

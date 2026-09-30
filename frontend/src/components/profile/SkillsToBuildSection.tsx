@@ -1,12 +1,11 @@
 import { useId, useMemo, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { BadgeCheck, Pencil, Sprout, Trash2 } from 'lucide-react'
+import { BadgeCheck, Pencil, Trash2 } from 'lucide-react'
 import { Badge } from '#/components/ui/badge'
 import { Button } from '#/components/ui/button'
 import { Skeleton } from '#/components/ui/skeleton'
 import { ConfirmDeleteDialog } from '#/components/app/ConfirmDeleteDialog'
-import { WorkspaceEmpty, WorkspacePanel } from '#/components/app/WorkspacePage'
 import {
   deleteDevelopmentItem,
   getDevelopmentPlan,
@@ -128,12 +127,15 @@ export function SkillsToBuildSection() {
   }
 
   return (
-    <WorkspacePanel
-      id="skills-to-build"
-      kicker="Next steps"
-      title="Skills to build"
-      description="Gaps you chose to work on. Move each one through planned, in progress and completed; completing one adds it to your profile."
-    >
+    <section id="skills-to-build" className="profile-section" aria-labelledby="skills-to-build-title">
+      <div className="profile-section__head">
+        <div>
+          <h2 id="skills-to-build-title" className="profile-section__title">Skills to build</h2>
+          <p className="profile-section__description">
+            Gaps you chose to work on. Completing one adds it to your profile.
+          </p>
+        </div>
+      </div>
       {actionError ? (
         <p role="alert" className="profile-banner profile-banner--error">
           {actionError}
@@ -145,26 +147,21 @@ export function SkillsToBuildSection() {
           <Skeleton className="fact-skeleton" />
         </div>
       ) : itemsQuery.isError ? (
-        <WorkspaceEmpty
-          icon={Sprout}
-          title="We could not load your skills to build"
-          action={
-            <Button variant="outline" onClick={() => itemsQuery.refetch()}>
-              Try again
-            </Button>
-          }
-        />
+        <p className="profile-empty">
+          We could not load your skills to build.{' '}
+          <Button variant="outline" size="sm" onClick={() => itemsQuery.refetch()}>
+            Try again
+          </Button>
+        </p>
       ) : items.length === 0 ? (
-        <WorkspaceEmpty
-          icon={Sprout}
-          title="Nothing to build yet"
-          description="When an application's gap check finds something to work on, add it from the application and it shows up here."
-          action={
-            <Button variant="outline" asChild>
-              <Link to="/campaigns">Open applications</Link>
-            </Button>
-          }
-        />
+        <p className="profile-empty">
+          <strong className="profile-empty__title">Nothing to build yet</strong> When an
+          application&apos;s gap check finds something to work on, add it from the application and it
+          shows up here.{' '}
+          <Button variant="outline" size="sm" asChild>
+            <Link to="/campaigns">Open applications</Link>
+          </Button>
+        </p>
       ) : (
         <div className="fact-groups">
           {groups.map((group) => (
@@ -190,7 +187,7 @@ export function SkillsToBuildSection() {
                               {STATE_LABELS[item.state]}
                             </Badge>
                           </span>
-                          <Badge variant="ghost">{GAP_KIND_LABELS[item.gap_kind]}</Badge>
+                          <span className="fact-card__source">{GAP_KIND_LABELS[item.gap_kind]}</span>
                         </>
                       }
                       fields={[
@@ -270,6 +267,6 @@ export function SkillsToBuildSection() {
         onCancel={() => setDeleteTarget(null)}
         onConfirm={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
       />
-    </WorkspacePanel>
+    </section>
   )
 }

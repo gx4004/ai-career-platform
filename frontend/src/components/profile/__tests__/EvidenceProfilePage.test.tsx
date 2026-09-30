@@ -136,11 +136,10 @@ describe('EvidenceProfilePage', () => {
     await waitFor(() => expect(api.confirmEvidenceItem).toHaveBeenCalledWith('e1'))
   })
 
-  it('dismissing a suggestion from its menu deletes it', async () => {
+  it('dismissing a suggestion inline deletes it', async () => {
     renderPage()
 
-    const menu = await openMenu('More actions: Backend Engineer')
-    fireEvent.click(within(menu).getByRole('menuitem', { name: /Dismiss/ }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Dismiss: Backend Engineer' }))
 
     await waitFor(() => expect(api.deleteEvidenceItem).toHaveBeenCalledWith('e1'))
     expect(api.confirmEvidenceItem).not.toHaveBeenCalled()

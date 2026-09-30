@@ -74,7 +74,7 @@ export function AdminRunsPage() {
             )}
             {isError && (
               <tr>
-                <td colSpan={4} className="admin-table-muted" style={{ textAlign: 'center', color: '#dc2626' }}>
+                <td colSpan={4} className="admin-table-muted" style={{ textAlign: 'center', color: 'var(--destructive)' }}>
                   Couldn't load runs.{' '}
                   <button type="button" className="admin-toolbar-btn" onClick={() => void refetch()}>
                     Try again
