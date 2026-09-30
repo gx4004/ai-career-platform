@@ -70,8 +70,21 @@ describe('Application details card', () => {
     api.saveApplicationDetails.mockRejectedValue(new Error('nope'))
     renderCard()
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Save details' }))
+    fireEvent.change(await screen.findByLabelText('Phone'), { target: { value: '123' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save details' }))
 
     expect((await screen.findByRole('alert')).textContent).toContain("couldn't be saved")
+  })
+
+  it('keeps Save disabled until something changes', async () => {
+    renderCard()
+    const save = await screen.findByRole<HTMLButtonElement>('button', { name: 'Save details' })
+    expect(save.disabled).toBe(true)
+
+    fireEvent.change(screen.getByLabelText('Phone'), { target: { value: '1' } })
+    expect(save.disabled).toBe(false)
+
+    fireEvent.change(screen.getByLabelText('Phone'), { target: { value: '' } })
+    expect(save.disabled).toBe(true)
   })
 })
