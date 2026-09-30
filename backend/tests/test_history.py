@@ -357,3 +357,34 @@ def test_saved_run_detail_carries_the_export_affordance(client, db, test_user, a
     # Enrichment is a read-time projection, not a rewrite of stored evidence.
     db.refresh(run)
     assert "exportable_sections" not in (run.result_payload or {})
+
+
+def test_list_hides_internal_application_drafts_and_keeps_counts_correct(
+    client, auth_headers, test_user, db
+):
+    """Application drafts are an internal artefact of Applications (opened from
+    the application page); they must not appear in the run list, its total or
+    pagination, nor in the favorites count."""
+    _create_run(db, test_user.id, label="Resume A")
+    _create_run(db, test_user.id, tool_name="job-match", label="Match B", is_favorite=True)
+    for i in range(3):
+        _create_run(
+            db,
+            test_user.id,
+            tool_name="application-drafts",
+            label=f"Draft {i}",
+            is_favorite=True,
+        )
+
+    data = client.get(f"{PREFIX}?page_size=1", headers=auth_headers).json()
+    assert data["total"] == 2
+    assert data["has_more"] is True
+    assert all(item["tool_name"] != "application-drafts" for item in data["items"])
+
+    page_two = client.get(f"{PREFIX}?page=2&page_size=1", headers=auth_headers).json()
+    assert len(page_two["items"]) == 1
+    assert page_two["has_more"] is False
+
+    favorites = client.get(f"{PREFIX}?favorite=true", headers=auth_headers).json()
+    assert favorites["total"] == 1
+    assert favorites["items"][0]["label"] == "Match B"
