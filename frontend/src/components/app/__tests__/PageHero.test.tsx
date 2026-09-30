@@ -22,12 +22,13 @@ describe('PageHero', () => {
     expect(chips.map((chip) => chip.textContent)).toEqual(['3 in progress', '1 offer'])
   })
 
-  it('uses the tool input hero styling rather than a stat-tile card', () => {
+  it('renders a compact left-aligned page header, not a centred hero', () => {
     const { container } = render(<PageHero title="Queue" purpose="Review packets." />)
 
-    const hero = container.querySelector('header')
-    expect(hero?.classList.contains('tool-input-hero')).toBe(true)
+    const header = container.querySelector('header')
+    expect(header?.classList.contains('page-header')).toBe(true)
+    expect(header?.classList.contains('tool-input-hero')).toBe(false)
     expect(screen.queryByRole('list')).toBeNull()
-    expect(container.querySelector('dl')).toBeNull()
+    expect(container.querySelector('svg')).toBeNull()
   })
 })

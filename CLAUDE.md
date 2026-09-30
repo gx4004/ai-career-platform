@@ -13,8 +13,8 @@ authorized.
 
 **Sept 2026 reset:** local-only, feature-first. Beyond the six tools the product
 includes CV Studio (flagship), Evidence Profile, Applications (the former
-Campaigns and Approval Queue, merged), Job Discovery, and an experimental Autopilot. New or redesigned pages must match
-the original visual language (dashboard, tool input heroes, result pages).
+Campaigns and Approval Queue, merged), Job Discovery, and an experimental Autopilot. In-app pages follow
+the work-tool design (2026-09-30 overhaul) described under Code Conventions.
 Direction and phases: `docs/roadmap.md` (umbrella #319).
 
 ## Stack
@@ -89,9 +89,8 @@ cd backend && alembic upgrade head        # Run migrations
 - Zod schemas in `frontend/src/lib/api/schemas.ts` must mirror backend Pydantic schemas in `backend/app/schemas/`
 - Every tool router endpoint calls `run_tool_pipeline()` — don't bypass it for new tools
 - CSS architecture: no CSS modules, plain CSS files in `styles/` with BEM-ish naming
-- Hybrid theme: dark sidebar/topbar + light content area. No dark mode toggle.
-- Tool input pages: light hero (`tool-input-hero`: transparent over the light content area with a faint grain and a soft accent glow, not a gradient) with per-tool animations + chips, form surface below
-- Result pages: premium redesign with dark hero variant (Resume/Job Match), heroExtra sections, midSection (Fix First cards), per-tool views
+- Work-tool design (2026-09-30 overhaul; the owner rejected the old look as "AI"): light sidebar, slim topbar, neutral tokens in `styles/theme.css`, Inter, and `styles/workbench.css` loaded last. Every in-app page starts with the compact one-row `PageHero`/`PageHeader` (title, one-line purpose, inline meta, action on the right) and shows the user's data in the first screen. Inside the app: no icon tiles, centred heroes, gradients/glows, pill-chip rows, hover lifts, entrance animations or decorative illustrations; prefer lists/tables over card grids; one primary button per view. The public landing page may stay expressive. No dark mode toggle.
+- Tool input pages: compact header + plain form column (resume source control, fields, one submit). Result pages: report layout (header with Re-generate, summary row, plain sections).
 - Deploy: Railway watches `deploy`. Promote reviewed release commits deliberately from
   `chapter2` to `main`, then to `deploy`; never push experimental work directly to
   either stable branch.
