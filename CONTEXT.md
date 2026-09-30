@@ -179,9 +179,27 @@ source's retention rule. Distinct from a campaign's canonical listing, which is
 owner-isolated user content.
 
 **Recommendation**
-A discovered listing ranked against confirmed Evidence Profile items and
-preference items, always carrying an explainable match rationale. A recommendation
-becomes a campaign only by explicit user adoption.
+A discovered listing ranked by skills fit against confirmed Evidence Profile
+items, always carrying an explainable rationale (matched and missing skills,
+preference hits). A recommendation becomes a campaign only by explicit user
+adoption.
+
+**Skills fit**
+The share of a listing's keywords that the owner's confirmed evidence covers,
+shown with the matched and missing skills. Ranking uses it. It is null, never
+0%, when the owner has no confirmed evidence. Never blended with preference hits
+into one number (D-072).
+
+**Preference hits**
+The owner's confirmed preference keywords that a listing mentions. A separate
+signal shown beside skills fit; it only breaks ties between equal skills fit and
+is never a filter.
+
+**Deep match**
+The full Job Match tool run on demand for one Discovery listing, with the owner's
+newest CV and the listing text, through the shared tool pipeline. The feed itself
+never runs an LLM. The run is linked to the listing, so reopening it shows the
+newest run in its `parent_run_id` chain instead of running again.
 
 **Query contract**
 The registry-declared minimal parameters a source query may carry (for example
