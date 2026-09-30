@@ -74,7 +74,7 @@ def _action_for(card: ApplicationCard, now: datetime) -> ActionItem | None:
     elif (
         card.status == ApplicationStatus.SAVED
         and card.deadline is not None
-        and now <= card.deadline <= now + DEADLINE_WINDOW
+        and _start_of_day(now) <= card.deadline <= now + DEADLINE_WINDOW
     ):
         reason = "deadline"
     elif card.no_reply_suggested:
@@ -93,6 +93,12 @@ def _action_for(card: ApplicationCard, now: datetime) -> ActionItem | None:
             max(0, (now - card.applied_at).days) if reason == "no_reply" and card.applied_at else None
         ),
     )
+
+
+def _start_of_day(moment: datetime) -> datetime:
+    # Deadlines are dates saved at local noon, so one due today must stay listed
+    # after noon; only earlier days count as past.
+    return moment.replace(hour=0, minute=0, second=0, microsecond=0)
 
 
 def _urgency(item: ActionItem):
