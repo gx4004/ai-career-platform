@@ -168,3 +168,12 @@ def test_keyword_present_handles_multiword_and_variant_skills():
     assert keyword_present("CI/CD", "Set up GitHub Actions pipelines")
     assert keyword_present("User Research", "Conducted usability testing sessions")
     assert not keyword_present("Schema Design", "Wrote Python scripts")
+
+
+def test_ambiguous_words_are_not_skills_when_used_as_plain_english():
+    jd = "Excel at stakeholder work, spark innovation, make swift decisions in a rust-free stack. Postgres, Docker."
+    lowered = {k.lower() for k in extract_job_keywords(jd, limit=12)}
+    assert not lowered & {"excel", "spark", "swift", "rust"}
+    assert {"postgresql", "docker"} <= lowered
+    real = {k.lower() for k in extract_job_keywords("Apache Spark and Microsoft Excel; Swift and Kotlin apps.")}
+    assert {"spark", "excel", "swift", "kotlin"} <= real
