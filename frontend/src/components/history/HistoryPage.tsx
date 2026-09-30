@@ -322,6 +322,8 @@ export function HistoryPage({
                         className="history-rename"
                         onSubmit={(event) => {
                           event.preventDefault()
+                          // A run can be renamed but never left without a name.
+                          if (!editDraft.trim()) return
                           renameMutation.mutate({ historyId: item.id, label: editDraft.trim() })
                         }}
                       >
@@ -338,7 +340,11 @@ export function HistoryPage({
                             }
                           }}
                         />
-                        <Button type="submit" size="sm" disabled={renameMutation.isPending}>
+                        <Button
+                          type="submit"
+                          size="sm"
+                          disabled={renameMutation.isPending || !editDraft.trim()}
+                        >
                           Save
                         </Button>
                         <Button
