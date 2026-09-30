@@ -131,7 +131,7 @@ describe('AppShell', () => {
       </AppShell>,
     )
 
-    expect(screen.getByTestId('sidebar-provider').getAttribute('data-default-open')).toBe('false')
+    expect(screen.getByTestId('sidebar-provider').getAttribute('data-default-open')).toBe('true')
     expect(screen.getByTestId('app-sidebar')).toBeTruthy()
     expect(screen.getByTestId('sidebar-inset')).toBeTruthy()
     expect(screen.getByTestId('topbar')).toBeTruthy()

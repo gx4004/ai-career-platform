@@ -130,12 +130,17 @@ describe('AppSidebar', () => {
     expect(screen.queryByRole('link', { name: 'Applications' })).toBeNull()
   })
 
-  it('groups the sidebar into Tools, Job search, and You', () => {
+  it('lists the main destinations first, then Tools and History', () => {
     renderSidebar()
 
     expect(screen.getByText('Tools')).toBeTruthy()
-    expect(screen.getByText('Job search')).toBeTruthy()
-    expect(screen.getByText('You')).toBeTruthy()
+    expect(screen.queryByText('Job search')).toBeNull()
+    expect(screen.queryByText('You')).toBeNull()
+    const order = [...document.querySelectorAll('[data-sidebar="menu-button"]')].map((link) =>
+      link.textContent?.trim(),
+    )
+    expect(order.slice(0, 5)).toEqual(['Dashboard', 'Discover', 'Applications', 'CV Studio', 'Profile'])
+    expect(order.at(-1)).toBe('History')
     expect(screen.getByRole('link', { name: /resume analyzer/i }).getAttribute('href')).toBe('/resume')
     expect(screen.getByRole('link', { name: 'Discover' }).getAttribute('href')).toBe('/discovery')
     expect(screen.getByRole('link', { name: 'Applications' }).getAttribute('href')).toBe('/campaigns')
@@ -143,6 +148,9 @@ describe('AppSidebar', () => {
     expect(screen.getByRole('link', { name: 'CV Studio' }).getAttribute('href')).toBe('/cv-studio')
     expect(screen.getByRole('link', { name: 'Profile' }).getAttribute('href')).toBe('/profile')
     expect(screen.getByRole('link', { name: 'History' }).getAttribute('href')).toBe('/history')
+    // Account and Settings live in the session menu, not the sidebar.
+    expect(screen.queryByRole('link', { name: 'Account' })).toBeNull()
+    expect(screen.queryByRole('link', { name: 'Settings' })).toBeNull()
   })
 
   it('gives every destination its own icon (no shared compass)', () => {
@@ -155,8 +163,8 @@ describe('AppSidebar', () => {
       )
     const icons = links.map(iconFor)
 
-    // Dashboard + 6 tools + Job search (2) + You (3) + Account + Settings.
-    expect(links).toHaveLength(14)
+    // Dashboard + Discover + Applications + CV Studio + Profile + 6 tools + History.
+    expect(links).toHaveLength(12)
     expect(icons.every(Boolean)).toBe(true)
     expect(new Set(icons).size).toBe(links.length)
   })
@@ -179,14 +187,14 @@ describe('AppSidebar', () => {
     expect(await screen.findByRole('tooltip', { name: 'Discover' })).toBeTruthy()
   })
 
-  it('keeps "You" destinations visible for guests, unlike "Job search"', () => {
+  it('keeps CV Studio, Profile and History visible for guests, unlike job search', () => {
     mockSessionUser.current = null
     renderSidebar()
 
     expect(screen.getByRole('link', { name: 'CV Studio' }).getAttribute('href')).toBe('/cv-studio')
     expect(screen.getByRole('link', { name: 'Profile' }).getAttribute('href')).toBe('/profile')
     expect(screen.getByRole('link', { name: 'History' }).getAttribute('href')).toBe('/history')
-    expect(screen.queryByText('Job search')).toBeNull()
+    expect(screen.queryByRole('link', { name: 'Discover' })).toBeNull()
   })
 
   it('starts collapsed on desktop when no cookie exists', () => {
@@ -253,19 +261,17 @@ describe('AppSidebar', () => {
     expect(await screen.findByRole('dialog')).toBeTruthy()
   })
 
-  it('keeps the active tool highlighted and shows a dashboard back arrow on tool routes', () => {
+  it('keeps the active tool highlighted and the normal sidebar controls on tool routes', () => {
     mockPathname.current = '/resume'
 
     const { container } = renderSidebar()
 
-    const backLink = screen.getByRole('link', { name: /back to dashboard/i })
     const dashboardLink = screen.getByRole('link', { name: 'Dashboard' })
     const resumeLink = screen.getByRole('link', { name: /resume analyzer/i })
 
-    expect(backLink.getAttribute('href')).toBe('/dashboard')
+    expect(screen.queryByRole('link', { name: /back to dashboard/i })).toBeNull()
     expect(dashboardLink.getAttribute('data-active')).not.toBe('true')
     expect(resumeLink.getAttribute('data-active')).toBe('true')
-    expect(getBrandRowTrigger(container)).toBeNull()
-    expect(container.querySelector('[data-slot="sidebar-rail"]')).toBeNull()
+    expect(getBrandRowTrigger(container)).toBeTruthy()
   })
 })
