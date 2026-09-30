@@ -11,6 +11,11 @@
     linear-gradient(180deg, #0f172a 0%, #182540 28%, #3d5a80 42%, #a3bcd5 54%, #d9e4ef 64%, #edf2f8 76%, #f4f7fb 100%);
 }
 
+/* Keep the fixed cookie banner from covering the last form controls on short screens. */
+html:has(.cookie-banner) .auth-page {
+  padding-bottom: calc(clamp(1.25rem, 4vw, 2.5rem) + 13rem);
+}
+
 .auth-page::before {
   content: '';
   position: absolute;

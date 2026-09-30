@@ -81,7 +81,7 @@ test('history filtering, favorites, rename and open work through the UI', async 
   await gotoHydrated(page, '/history')
   const filters = page.getByRole('group', { name: 'Filter by tool' })
   await filters.getByRole('button', { name: 'Resume', exact: true }).click()
-  await expect(page.getByRole('link', { name: /^Open / })).toHaveCount(2)
+  await expect(page.getByRole('link', { name: /^Open (?!Applications$)/ })).toHaveCount(2)
 
   await page.getByRole('button', { name: /^Rename / }).first().click()
   await page.getByRole('textbox', { name: /^Rename / }).fill('Backend application')
@@ -90,9 +90,9 @@ test('history filtering, favorites, rename and open work through the UI', async 
 
   await page.getByRole('button', { name: 'Add to favorites' }).first().click()
   await filters.getByRole('button', { name: /Favorites/ }).click()
-  await expect(page.getByRole('link', { name: /^Open / })).toHaveCount(1)
+  await expect(page.getByRole('link', { name: /^Open (?!Applications$)/ })).toHaveCount(1)
 
-  await page.getByRole('link', { name: /^Open / }).click()
+  await page.getByRole('link', { name: /^Open (?!Applications$)/ }).click()
   await expect(page).toHaveURL(new RegExp(`/resume/result/${id1}|/resume/result/`))
 })
 
