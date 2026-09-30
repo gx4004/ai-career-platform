@@ -32,6 +32,7 @@ import { writeWorkflowContext } from '#/lib/tools/drafts'
 import { getNextStepToolId } from '#/lib/tools/runMetadata'
 import { deriveWorkflowUpdateFromHistoryItem } from '#/lib/tools/workflowContext'
 import { getToolByHistoryName, toolList } from '#/lib/tools/registry'
+import { historyRunPresentation } from '#/lib/tools/historyRunPresentation'
 import { toolAccentStyle } from '#/lib/tools/styleUtils'
 import { trackTelemetry } from '#/lib/telemetry/client'
 
@@ -281,7 +282,8 @@ export function HistoryPage({
                 <div key={item.id} className="grid gap-1">
                   <p>{item.label || item.metadata.primary_recommendation_title || 'Saved run'}</p>
                   <p className="small-copy muted-copy">
-                    {item.metadata.summary_headline || item.tool_name}
+                    {item.metadata.summary_headline ||
+                      historyRunPresentation(item.tool_name, item.id).label}
                   </p>
                 </div>
               ))
@@ -513,23 +515,24 @@ export function HistoryPage({
         ) : listQuery.data?.items.length ? (
           <div className="history-grid">
             {listQuery.data.items.map((item) => {
-              const tool = getToolByHistoryName(item.tool_name)
-              const route = tool?.resultRoute.replace('$historyId', item.id) ?? '/history'
+              const presentation = historyRunPresentation(item.tool_name, item.id)
+              const { route } = presentation
+              const RowIcon = presentation.icon
 
               return (
                 <div
                   key={item.id}
                   className="history-card"
-                  style={toolAccentStyle(tool?.accent || 'var(--accent)')}
+                  style={toolAccentStyle(presentation.accent)}
                 >
                   <div className="grid gap-4">
                     <div className="flex items-start justify-between gap-3">
                       <div className="grid gap-2">
                         <div className="flex items-center gap-2">
-                          {tool ? (
-                            <tool.icon size={16} style={{ color: tool.accent }} />
+                          {RowIcon ? (
+                            <RowIcon size={16} style={{ color: presentation.accent }} />
                           ) : null}
-                          <Badge variant="outline">{tool?.shortLabel || item.tool_name}</Badge>
+                          <Badge variant="outline">{presentation.shortLabel}</Badge>
                           {item.metadata.schema_version ? (
                             <Badge variant="outline">{item.metadata.schema_version}</Badge>
                           ) : null}
@@ -539,7 +542,7 @@ export function HistoryPage({
                         </div>
                         <div className="flex items-center gap-2">
                           <Input
-                            aria-label={`Label ${tool?.label || item.tool_name} run`}
+                            aria-label={`Label ${presentation.label} run`}
                             value={runDrafts[item.id] ?? item.label ?? ''}
                             placeholder="Label this saved run"
                             onChange={(event) =>
@@ -613,7 +616,7 @@ export function HistoryPage({
                       </div>
                       {/* Older CV Studio checks (cv-quality, cv-tailoring) saved runs
                           that no tool result page can open (#362). */}
-                      {tool ? (
+                      {presentation.isTool ? (
                       <div className="flex gap-2">
                         <Button
                           variant="outline"

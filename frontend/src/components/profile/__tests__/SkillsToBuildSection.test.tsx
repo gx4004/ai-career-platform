@@ -134,6 +134,6 @@ describe('SkillsToBuildSection', () => {
     renderSection()
 
     expect(await screen.findByText('Nothing to build yet')).toBeTruthy()
-    expect(screen.getByRole('link', { name: 'Open Campaigns' }).getAttribute('href')).toBe('/campaigns')
+    expect(screen.getByRole('link', { name: 'Open applications' }).getAttribute('href')).toBe('/campaigns')
   })
 })

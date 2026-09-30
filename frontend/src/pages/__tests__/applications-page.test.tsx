@@ -60,6 +60,9 @@ describe('ApplicationsPage', () => {
     expect(within(column('Closed')).getByText('Not selected')).toBeTruthy()
     expect(screen.getByRole('link', { name: 'Backend Engineer' }).getAttribute('href')).toBe('/campaigns/a-1')
     expect(screen.getByText('1 ready to apply')).toBeTruthy()
+    // The hero shows at most three chips.
+    expect(screen.getByText(/\d+ in progress/)).toBeTruthy()
+    expect(screen.queryByText(/\d+ offers?$/)).toBeNull()
   })
 
   it('moves a card to Applied, and back again from a closed stage', async () => {
@@ -115,6 +118,14 @@ describe('Prepare applications for me', () => {
     await waitFor(() => expect(api.saveApplicationPreferences).toHaveBeenCalledWith({
       keywords: ['backend', 'platform'], locations: [], remote: true, max_per_run: 5,
     }))
+  })
+
+  it('hints at the missing keyword while keeping the button enabled', async () => {
+    api.getApplicationPreferences.mockResolvedValue({ ...prefs, keywords: [] })
+    renderBoard()
+    expect(await screen.findByText('Add at least one keyword so we know which jobs to prepare.')).toBeTruthy()
+    const button = screen.getByRole('button', { name: /Prepare applications$/ })
+    expect(button.hasAttribute('disabled')).toBe(false)
   })
 
   it('asks for keywords when none are saved', async () => {
