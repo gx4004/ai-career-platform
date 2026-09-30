@@ -47,8 +47,21 @@ export function timeAgo(value: string, now = Date.now()) {
   return formatDate(value)
 }
 
-export function applicationTitle(application: { title: string | null; label?: string | null }) {
-  return application.title || application.label || 'Untitled application'
+/**
+ * What an application is called. A name the user chose wins; the automatic
+ * label ("Role — Company", set when a job is adopted) just repeats the title.
+ */
+export function applicationTitle(application: {
+  title: string | null
+  label?: string | null
+  company?: string | null
+}) {
+  const label = application.label?.trim()
+  const automatic =
+    !label ||
+    label === application.title ||
+    (application.title && label === `${application.title} — ${application.company ?? ''}`)
+  return (automatic ? application.title || label : label) || 'Untitled application'
 }
 
 /**

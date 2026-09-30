@@ -65,6 +65,26 @@ describe('ApplicationsPage', () => {
     expect(screen.queryByText(/\d+ offers?$/)).toBeNull()
   })
 
+  it('shows an offers chip next to the interviewing chip, and every non-zero status', async () => {
+    const withOffer = [...items, { ...base, id: 'a-6', title: 'Data Engineer', company: 'Fjord', status: 'offer', applied_at: '2026-09-10T10:00:00Z' }]
+    api.listApplications.mockResolvedValue({ items: withOffer, total: withOffer.length })
+    renderBoard()
+    await screen.findByText('Backend Engineer')
+    expect(screen.getByText('1 interviewing')).toBeTruthy()
+    expect(screen.getByText('1 offer')).toBeTruthy()
+    expect(screen.getByText('5 in progress')).toBeTruthy()
+  })
+
+  it('marks pinned applications on the board', async () => {
+    const pinned = [{ ...items[0], is_pinned: true }, ...items.slice(1)]
+    api.listApplications.mockResolvedValue({ items: pinned, total: pinned.length })
+    renderBoard()
+    const card = (await screen.findByText('Backend Engineer')).closest('article') as HTMLElement
+    expect(within(card).getByLabelText('Pinned')).toBeTruthy()
+    const other = screen.getByText('Platform Engineer').closest('article') as HTMLElement
+    expect(within(other).queryByLabelText('Pinned')).toBeNull()
+  })
+
   it('moves a card to Applied, and back again from a closed stage', async () => {
     api.updateApplication.mockResolvedValue({ ...items[0], status: 'applied', applied_at: '2026-09-24T10:00:00Z' })
     renderBoard()
