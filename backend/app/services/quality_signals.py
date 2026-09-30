@@ -496,21 +496,84 @@ def extract_job_keywords(job_description: str, limit: int = 10) -> list[str]:
     return ordered_unique(keywords)[:limit]
 
 
-def extract_role_label(job_description: str) -> str | None:
-    for line in job_description.splitlines():
-        cleaned = line.strip()
-        if not cleaned:
+_ROLE_NOUNS = frozenset(
+    {
+        "engineer", "developer", "designer", "manager", "analyst", "lead", "specialist",
+        "architect", "scientist", "consultant", "director", "administrator", "coordinator",
+        "officer", "recruiter", "researcher", "writer", "accountant", "technician",
+        "programmer", "strategist", "producer",
+    }
+)  # fmt: skip
+_ROLE_STOP_WORDS = frozenset(
+    {
+        "a", "an", "the", "for", "as", "we", "we're", "are", "is", "hiring", "seeking",
+        "looking", "join", "our", "your", "to", "at", "with", "in", "on", "this", "that",
+        "you", "will", "be", "from", "by", "about", "role", "position", "job", "title",
+        "opening", "new", "and", "or", "of", "experienced", "talented", "passionate",
+        "great", "exciting", "want", "need", "needs", "who", "us",
+    }
+)  # fmt: skip
+_ROLE_LEVEL_SUFFIXES = frozenset({"i", "ii", "iii", "iv", "v"})
+_ROLE_TITLE_PREFIX = re.compile(
+    r"^\s*(?:job\s+title|title|position|role|vacancy|opening)\s*[:\-]\s*", re.IGNORECASE
+)
+_ROLE_MAX_WORDS = 5
+_ROLE_SCAN_LINES = 40
+
+
+def _clean_role_token(token: str) -> str:
+    return token.strip("#*_`>()[]{}|.,:;!?\"'")
+
+
+def _role_title_from_line(line: str) -> str | None:
+    """The first job-title phrase in `line`, or None."""
+    tokens = line.split()
+    has_upper = any(ch.isupper() for ch in line)
+    for index, token in enumerate(tokens):
+        if _clean_role_token(token).lower() not in _ROLE_NOUNS:
             continue
-        if len(cleaned) <= 90 and re.search(
-            r"\b(engineer|developer|designer|manager|analyst|lead|specialist)\b",
-            cleaned.lower(),
-        ):
-            return cleaned
-    match = re.search(
-        r"\b([A-Z][A-Za-z/&+\- ]+(?:Engineer|Developer|Designer|Manager|Analyst|Lead|Specialist))\b",
-        job_description,
-    )
-    return match.group(1).strip() if match else None
+        words = [_clean_role_token(token)]
+        cursor = index - 1
+        while cursor >= 0 and len(words) < _ROLE_MAX_WORDS:
+            previous = tokens[cursor]
+            word = _clean_role_token(previous)
+            # Sentence/field boundaries end the title ("Job Title: ...", "Acme, ...").
+            if not word or previous[-1] in ":,;|.!?)" or word.lower() in _ROLE_STOP_WORDS:
+                break
+            if has_upper and not (word[0].isupper() or word[0].isdigit()):
+                break
+            words.insert(0, word)
+            cursor -= 1
+        following = _clean_role_token(tokens[index + 1]) if index + 1 < len(tokens) else ""
+        if following.lower() in _ROLE_LEVEL_SUFFIXES and (following.isupper() or not has_upper):
+            words.append(following)
+        if len(words) < 2 and len(line) > 40:
+            # A lone "lead"/"manager" inside a sentence is not a title.
+            continue
+        title = " ".join(words)
+        if title.islower():
+            title = title.title()
+        return title[:60].strip()
+    return None
+
+
+def extract_role_label(job_description: str) -> str | None:
+    """A clean job title from the posting, without an LLM.
+
+    Pass 1 looks for an explicit "Job title: ..." field, pass 2 for a short
+    heading-like line, pass 3 for a title inside a longer sentence. The result
+    is only the title phrase ("Senior Backend Engineer"), never the whole line.
+    """
+    raw_lines = [line.strip() for line in job_description.splitlines() if line.strip()]
+    raw_lines = raw_lines[:_ROLE_SCAN_LINES]
+    fields = [_ROLE_TITLE_PREFIX.sub("", line) for line in raw_lines if _ROLE_TITLE_PREFIX.match(line)]
+    headings = [line for line in raw_lines if len(line) <= 90]
+    for candidates in (fields, headings, raw_lines):
+        for line in candidates:
+            title = _role_title_from_line(line)
+            if title:
+                return title
+    return None
 
 
 def build_resume_prepass(resume_text: str, job_description: str | None) -> ResumePrepass:
