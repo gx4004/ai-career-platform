@@ -1,5 +1,9 @@
-import { cleanup } from '@testing-library/react'
+import { cleanup, configure } from '@testing-library/react'
 import { afterEach } from 'vitest'
+
+// findBy*/waitFor poll until the condition holds; 1s (the default) is too tight
+// for screens that mount heavy trees under load. Ceiling only, see vite.config.ts.
+configure({ asyncUtilTimeout: 5_000 })
 
 afterEach(() => {
   cleanup()
