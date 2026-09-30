@@ -249,6 +249,14 @@ export const evidenceItemListSchema = z.object({ items: z.array(evidenceItemSche
 // Job search (#323). Mirrors DiscoveryListingPage in
 // backend/app/schemas/discovery_recommendations.py.
 const httpsUrlSchema = z.string().url().max(2_048).refine((value) => value.startsWith('https://'))
+// The owner's own outcomes for similar applications (#417): x of n got a reply.
+// A signal apart from skills_fit; null below the sample thresholds.
+export const similarApplicationsSchema = z.strictObject({
+  role_family: z.string(),
+  fit_bucket: z.string(),
+  applied: z.number().int().min(1),
+  replied: z.number().int().nonnegative(),
+})
 export const discoveryListingSchema = z.strictObject({
   listing_id: z.string(),
   title: z.string(),
@@ -267,6 +275,7 @@ export const discoveryListingSchema = z.strictObject({
   matched_skills: z.array(z.string()),
   missing_skills: z.array(z.string()),
   preference_hits: z.array(z.string()),
+  similar_applications: similarApplicationsSchema.nullable().default(null),
   source_name: z.string(),
   source_url: httpsUrlSchema,
 })

@@ -30,9 +30,13 @@ from app.schemas.applications import (
     InsightsSummary,
     WhatsWorking,
 )
+from app.schemas.discovery_recommendations import SimilarApplications
 
 MIN_SEGMENT_SIZE = 3
 MAX_SEGMENTS_PER_DIMENSION = 8
+# Odds signal in Discovery (#417): needs a real sample, not a lucky streak.
+MIN_ODDS_SAMPLE = 5
+MIN_ODDS_OUTCOMES = 20
 
 _SOURCE_LABELS = {
     "employer_ats": "Employer job boards",
@@ -181,8 +185,64 @@ def compute_insights(applications: list[AppliedApplication]) -> WhatsWorking:
     )
 
 
-def whats_working(db: Session, user_id: str) -> WhatsWorking:
-    """Load the owner's sent applications and compute their insights."""
+@dataclass(frozen=True)
+class OddsModel:
+    """Reply rate for "similar applications": same kind of role and skills-fit bucket.
+
+    Learned only from the owner's own outcomes (#417). It says nothing until the
+    owner has ``MIN_ODDS_OUTCOMES`` recorded outcomes, and per listing until the
+    segment has ``MIN_ODDS_SAMPLE`` applications. It is a separate signal: it is
+    never folded into skills fit, and ranking uses it only to break exact ties.
+    """
+
+    segments: dict[tuple[str, str], tuple[int, int]]  # (family, bucket) -> (applied, replied)
+    overall_rate: float = 0.0  # neutral value for listings without a signal
+
+    def similar(self, title: str | None, skills_fit: int | None) -> SimilarApplications | None:
+        family, bucket = role_family(title), fit_bucket(skills_fit)
+        counts = self.segments.get((family, bucket)) if family and bucket else None
+        if counts is None or counts[0] < MIN_ODDS_SAMPLE:
+            return None
+        return SimilarApplications(
+            role_family=family, fit_bucket=bucket, applied=counts[0], replied=counts[1]
+        )
+
+    def tiebreak_rate(self, title: str | None, skills_fit: int | None) -> float:
+        """Reply rate to order equal-fit listings by; unknown ones get the owner's overall."""
+        similar = self.similar(title, skills_fit)
+        return similar.replied / similar.applied if similar else self.overall_rate
+
+
+NO_ODDS = OddsModel(segments={})
+
+
+def _recorded_outcome(application: AppliedApplication) -> bool:
+    """Something happened after applying: not still waiting (or never sent)."""
+    return application.status not in ("saved", "applied")
+
+
+def build_odds_model(applications: list[AppliedApplication]) -> OddsModel:
+    applied = [a for a in applications if counts_as_applied(a)]
+    if sum(_recorded_outcome(a) for a in applied) < MIN_ODDS_OUTCOMES:
+        return NO_ODDS
+    counts: dict[tuple[str, str], list[int]] = defaultdict(lambda: [0, 0])
+    for application in applied:
+        family, bucket = role_family(application.title), fit_bucket(application.skills_fit)
+        if family and bucket:
+            counts[(family, bucket)][0] += 1
+            counts[(family, bucket)][1] += has_replied(application)
+    return OddsModel(
+        segments={key: (a, r) for key, (a, r) in counts.items()},
+        overall_rate=sum(has_replied(a) for a in applied) / len(applied),
+    )
+
+
+def odds_model(db: Session, user_id: str) -> OddsModel:
+    return build_odds_model(load_applied_applications(db, user_id))
+
+
+def load_applied_applications(db: Session, user_id: str) -> list[AppliedApplication]:
+    """The owner's sent applications, reduced to the facts the insights count."""
     workspaces = (
         db.query(Workspace)
         .filter(Workspace.user_id == user_id, Workspace.applied_at.is_not(None))
@@ -216,17 +276,20 @@ def whats_working(db: Session, user_id: str) -> WhatsWorking:
                 DiscoveredListing.id.in_(listing_ids)
             )
         )
-    return compute_insights(
-        [
-            AppliedApplication(
-                status=w.status or "saved",
-                reached_interview=w.id in interviewed,
-                source=families.get(w.id),
-                company=w.company or (w.listing.company if w.listing else None),
-                title=w.role or (w.listing.title if w.listing else None),
-                remote=remote_by_listing.get(w.discovery_listing_id),
-                skills_fit=w.match_score if w.discovery_listing_id else None,
-            )
-            for w in workspaces
-        ]
-    )
+    return [
+        AppliedApplication(
+            status=w.status or "saved",
+            reached_interview=w.id in interviewed,
+            source=families.get(w.id),
+            company=w.company or (w.listing.company if w.listing else None),
+            title=w.role or (w.listing.title if w.listing else None),
+            remote=remote_by_listing.get(w.discovery_listing_id),
+            skills_fit=w.match_score if w.discovery_listing_id else None,
+        )
+        for w in workspaces
+    ]
+
+
+def whats_working(db: Session, user_id: str) -> WhatsWorking:
+    """Load the owner's sent applications and compute their insights."""
+    return compute_insights(load_applied_applications(db, user_id))
