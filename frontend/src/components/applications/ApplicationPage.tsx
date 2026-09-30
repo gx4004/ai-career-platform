@@ -17,7 +17,7 @@ import { ApplicationIdentity } from './ApplicationIdentity'
 import { ApplyPanel } from './ApplyPanel'
 import { DocumentChecks } from './DocumentChecks'
 import { StageMenu } from './StageMenu'
-import { STATUS_LABELS, applicationTitle } from './stages'
+import { STATUS_LABELS, applicationTitle, roleOnly } from './stages'
 
 /** One application on one page: apply, documents, job, tasks, notes, activity. */
 export function ApplicationPage({ applicationId }: { applicationId: string }) {
@@ -55,8 +55,14 @@ export function ApplicationPage({ applicationId }: { applicationId: string }) {
     <PageFrame className="camp-page camp-detail">
       <Link to="/campaigns" className="camp-back"><ArrowLeft size={14} aria-hidden="true" /> All applications</Link>
       <PageHero
-        title={applicationTitle(application)}
-        purpose={application.company ?? 'Application'}
+        title={roleOnly(applicationTitle(application), application.company)}
+        purpose={application.company ? (
+          application.listing?.source_url ? (
+            <a href={application.listing.source_url} target="_blank" rel="noopener noreferrer" className="camp-company-link">
+              {application.company}
+            </a>
+          ) : application.company
+        ) : undefined}
         action={
           <div className="camp-head-actions">
             <ApplicationIdentity application={application} />

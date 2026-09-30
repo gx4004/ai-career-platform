@@ -74,7 +74,7 @@ describe('DashboardToday', () => {
     renderToday()
 
     expect(await screen.findByText('Platform Engineer')).toBeTruthy()
-    expect(screen.getByText('4 of 5 skills')).toBeTruthy()
+    expect(screen.getByLabelText('82% skills fit, 4 of 5 skills')).toBeTruthy()
     expect(screen.getByRole('link', { name: /Platform Engineer/ }).getAttribute('href')).toBe(
       LISTING.source_url,
     )

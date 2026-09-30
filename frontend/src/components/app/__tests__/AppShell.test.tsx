@@ -37,6 +37,10 @@ vi.mock('#/components/app/Topbar', () => ({
   Topbar: () => <div data-testid="topbar" />,
 }))
 
+vi.mock('#/components/app/CommandPalette', () => ({
+  CommandPalette: () => <div data-testid="command-palette" />,
+}))
+
 vi.mock('#/components/auth/AuthDialog', () => ({
   AuthDialog: () => <div data-testid="auth-dialog" />,
 }))
@@ -134,7 +138,9 @@ describe('AppShell', () => {
     expect(screen.getByTestId('sidebar-provider').getAttribute('data-default-open')).toBe('true')
     expect(screen.getByTestId('app-sidebar')).toBeTruthy()
     expect(screen.getByTestId('sidebar-inset')).toBeTruthy()
-    expect(screen.getByTestId('topbar')).toBeTruthy()
+    // Desktop has no topbar: page headers start the page; ⌘K palette is mounted.
+    expect(screen.queryByTestId('topbar')).toBeNull()
+    expect(screen.getByTestId('command-palette')).toBeTruthy()
     expect(screen.getByTestId('mobile-nav')).toBeTruthy()
     expect(screen.getByTestId('auth-dialog')).toBeTruthy()
     expect(screen.getByTestId('page-child')).toBeTruthy()

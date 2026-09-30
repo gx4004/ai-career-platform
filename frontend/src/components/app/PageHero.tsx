@@ -15,8 +15,8 @@ export function PageHero({
 }: {
   icon?: LucideIcon
   title: ReactNode
-  /** One line saying what the page is for. */
-  purpose: ReactNode
+  /** Optional line saying what the page is for — only when it teaches something. */
+  purpose?: ReactNode
   /** The page's primary action (usually a single Button). */
   action?: ReactNode
   /** Optional short facts, e.g. "3 in progress". */
@@ -27,7 +27,7 @@ export function PageHero({
     <header className="page-header">
       <div className="page-header__text">
         <h1 className="page-header__title">{title}</h1>
-        <p className="page-header__purpose">{purpose}</p>
+        {purpose ? <p className="page-header__purpose">{purpose}</p> : null}
         {chips && chips.length > 0 ? (
           <ul className="page-header__meta">
             {chips.map((chip) => (

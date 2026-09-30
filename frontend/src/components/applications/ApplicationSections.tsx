@@ -191,7 +191,7 @@ export function TasksPanel({ application }: Section) {
   const open = application.tasks.filter((task) => !task.completed)
   const done = application.tasks.filter((task) => task.completed)
   return (
-    <Panel title="Tasks" description="Small steps that keep this application moving.">
+    <Panel title="Tasks">
       <form
         className="camp-task-form"
         onSubmit={(event) => {
@@ -203,17 +203,9 @@ export function TasksPanel({ application }: Section) {
           }).then(() => { setTitle(''); setDeadline('') }))
         }}
       >
-        <label className="camp-field">
-          <span className="camp-field__label">New task</span>
-          <input className="workspace-input" required maxLength={240} value={title} placeholder="e.g. Follow up with the recruiter" onChange={(event) => setTitle(event.target.value)} />
-        </label>
-        <div className="camp-task-form__row">
-          <label className="camp-field camp-form__grow">
-            <span className="camp-field__label">Due date (optional)</span>
-            <input className="workspace-input" type="date" value={deadline} onChange={(event) => setDeadline(event.target.value)} />
-          </label>
-          <Button type="submit" size="sm" variant="outline" disabled={write.isPending}>Add task</Button>
-        </div>
+        <input className="workspace-input camp-task-form__title" required maxLength={240} value={title} aria-label="New task" placeholder="Add a task" onChange={(event) => setTitle(event.target.value)} />
+        <input className="workspace-input camp-task-form__date" type="date" value={deadline} aria-label="Due date (optional)" onChange={(event) => setDeadline(event.target.value)} />
+        <Button type="submit" size="sm" variant="outline" disabled={write.isPending} aria-label="Add task">Add</Button>
       </form>
       {application.tasks.length ? (
         <ul className="camp-list">
@@ -231,7 +223,7 @@ export function TasksPanel({ application }: Section) {
           ))}
         </ul>
       ) : (
-        <EmptyLine>No tasks yet. Add the next thing you need to do, like tailoring your CV or following up.</EmptyLine>
+        <p className="camp-muted">No tasks yet.</p>
       )}
       {write.isError ? <p role="alert" className="camp-alert">That change couldn't be saved. Try again.</p> : null}
     </Panel>
@@ -326,14 +318,6 @@ const OUTCOMES: Partial<Record<ApplicationStatus, string>> = {
   withdrawn: 'You withdrew',
 }
 
-function hostOf(url: string) {
-  try {
-    return new URL(url).hostname.replace(/^www\./, '')
-  } catch {
-    return url
-  }
-}
-
 export function FactsPanel({ application }: Section) {
   const { listing } = application
   const rows: Array<[string, ReactNode]> = [
@@ -342,9 +326,6 @@ export function FactsPanel({ application }: Section) {
     ...(OUTCOMES[application.status] ? [['Outcome', OUTCOMES[application.status]] as [string, ReactNode]] : []),
     ...(application.applied_at ? [['Applied', formatDate(application.applied_at)] as [string, ReactNode]] : []),
     ...(application.deadline && !application.applied_at ? [['Apply by', formatDate(application.deadline)] as [string, ReactNode]] : []),
-    ...(listing?.source_url
-      ? [['Source', <a key="src" href={listing.source_url} target="_blank" rel="noopener noreferrer" className="camp-link-button">{hostOf(listing.source_url)} <ExternalLink size={12} aria-hidden="true" /></a>] as [string, ReactNode]]
-      : []),
     ...(listing ? [['Saved', formatDate(listing.retrieved_at)] as [string, ReactNode]] : []),
     ['Last activity', timeAgo(application.last_activity_at ?? application.updated_at)],
   ]

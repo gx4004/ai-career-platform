@@ -82,3 +82,17 @@ export function applyLink(listing: Pick<ApplicationListing, 'apply_url' | 'sourc
     return null
   }
 }
+
+/**
+ * The role alone, for a page title. A stored label can carry the company
+ * ("Role at Acme", "Role @ Acme"); the company is shown once, as the subtitle.
+ */
+export function roleOnly(title: string, company?: string | null) {
+  const name = company?.trim()
+  if (name) {
+    const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const stripped = title.replace(new RegExp(`\\s+(?:at|@)\\s+${escaped}\\s*$`, 'i'), '').trim()
+    if (stripped) return stripped
+  }
+  return title
+}

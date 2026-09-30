@@ -1,8 +1,6 @@
 import { Link, useNavigate } from '@tanstack/react-router'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowUpRight, CalendarClock, FolderPlus, Hourglass, MessagesSquare } from 'lucide-react'
-import type { ComponentType } from 'react'
-import { CompanyAvatar, SkillsFit } from '#/components/discovery/JobParts'
+import { FolderPlus } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { useToday } from '#/hooks/useToday'
 import { adoptDiscoveryRecommendation } from '#/lib/api/client'
@@ -72,25 +70,40 @@ function BestMatches({ plan }: { plan: TodayPlan }) {
 }
 
 function MatchRow({ listing, adding, onAdd }: { listing: DiscoveryListing; adding: boolean; onAdd: () => void }) {
+  const total = listing.matched_skills.length + listing.missing_skills.length
+  const sample = `${listing.matched_skills.length} of ${total} skills`
   return (
     <article className="today-match">
-      <CompanyAvatar name={listing.company} />
       <div className="today-match__body">
         <h3 className="today-match__title">
           <a href={listing.source_url} target="_blank" rel="noopener noreferrer">
             {listing.title}
-            <ArrowUpRight size={13} aria-hidden="true" />
             <span className="sr-only"> (opens the listing on {listing.source_name})</span>
           </a>
         </h3>
         <p className="today-match__meta">
           {listing.company}
           {listing.location ? ` · ${listing.location}` : ''}
-          {listing.remote ? ' · Remote' : ''}
+          {listing.remote && !/remote/i.test(listing.location ?? '') ? ' · Remote' : ''}
         </p>
       </div>
-      <SkillsFit listing={listing} />
-      <Button type="button" variant="outline" size="sm" onClick={onAdd} loading={adding} aria-label={`Add ${listing.title} to applications`}>
+      <span
+        className="today-match__fit"
+        role={listing.skills_fit === null ? undefined : 'img'}
+        aria-label={listing.skills_fit === null ? undefined : `${listing.skills_fit}% skills fit, ${sample}`}
+        title={listing.skills_fit === null ? undefined : sample}
+      >
+        {listing.skills_fit === null ? '—' : `${listing.skills_fit}%`}
+      </span>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="today-match__add"
+        onClick={onAdd}
+        loading={adding}
+        aria-label={`Add ${listing.title} to applications`}
+      >
         <FolderPlus size={14} aria-hidden="true" /> Add
       </Button>
     </article>
@@ -125,19 +138,18 @@ function MatchesEmpty({ plan }: { plan: TodayPlan }) {
   )
 }
 
-const REASONS: Record<TodayActionItem['reason'], { icon: ComponentType<{ size: number }>; tone: string }> = {
-  interview: { icon: MessagesSquare, tone: 'warning' },
-  deadline: { icon: CalendarClock, tone: 'accent' },
-  no_reply: { icon: Hourglass, tone: 'neutral' },
-}
-
 function reasonText(item: TodayActionItem): string {
   if (item.reason === 'interview') return 'Interviewing: prepare for the next round'
-  if (item.reason === 'deadline') {
-    return `Deadline ${item.deadline ? new Date(item.deadline).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : 'soon'}`
-  }
+  if (item.reason === 'deadline') return 'Deadline'
   const days = item.days_since_applied ?? 0
   return `No reply yet? Applied ${days} ${days === 1 ? 'day' : 'days'} ago`
+}
+
+function dueText(item: TodayActionItem): string | null {
+  if (item.reason === 'deadline' && item.deadline) {
+    return new Date(item.deadline).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+  }
+  return null
 }
 
 function NeedsAction({ plan }: { plan: TodayPlan }) {
@@ -152,20 +164,19 @@ function NeedsAction({ plan }: { plan: TodayPlan }) {
           <>
             <ul className="today-list">
               {plan.needs_action.map((item) => {
-                const { icon: Icon, tone } = REASONS[item.reason]
+                const due = dueText(item)
                 return (
                   <li key={item.application_id}>
                     <Link
                       to="/campaigns/$campaignId"
                       params={{ campaignId: item.application_id }}
-                      className={`today-action today-action--${tone}`}
+                      className="today-action"
                     >
-                      <span className="today-action__icon" aria-hidden="true"><Icon size={14} /></span>
                       <span className="today-action__body">
                         <strong>{item.title}</strong>
                         <small>{item.company ? `${item.company} · ` : ''}{reasonText(item)}</small>
                       </span>
-                      <ArrowUpRight size={13} className="today-action__go" aria-hidden="true" />
+                      {due ? <span className="today-action__due">{due}</span> : null}
                     </Link>
                   </li>
                 )

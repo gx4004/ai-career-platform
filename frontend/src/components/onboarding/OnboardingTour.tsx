@@ -18,8 +18,8 @@ const STEPS: TourStep[] = [
   },
   {
     target: '[data-tour="quick-start"]',
-    title: 'Six connected tools',
-    body: 'Follow the numbered workflow from top to bottom to move from resume foundation into application and planning tools.',
+    title: 'Your pipeline',
+    body: 'Every application by stage, with your reply rate. The six tools live in the sidebar, and ⌘K jumps anywhere.',
   },
   {
     target: '[data-tour="activity"]',

@@ -136,7 +136,7 @@ describe('AppSidebar', () => {
     expect(screen.getByText('Tools')).toBeTruthy()
     expect(screen.queryByText('Job search')).toBeNull()
     expect(screen.queryByText('You')).toBeNull()
-    const order = [...document.querySelectorAll('[data-sidebar="menu-button"]')].map((link) =>
+    const order = [...document.querySelectorAll('a[data-sidebar="menu-button"]')].map((link) =>
       link.textContent?.trim(),
     )
     expect(order.slice(0, 5)).toEqual(['Dashboard', 'Discover', 'Applications', 'CV Studio', 'Profile'])
@@ -156,7 +156,7 @@ describe('AppSidebar', () => {
   it('gives every destination its own icon (no shared compass)', () => {
     const { container } = renderSidebar(true)
 
-    const links = [...container.querySelectorAll<HTMLAnchorElement>('[data-sidebar="menu-button"]')]
+    const links = [...container.querySelectorAll<HTMLAnchorElement>('a[data-sidebar="menu-button"]')]
     const iconFor = (link: HTMLAnchorElement) =>
       [...(link.querySelector('svg')?.classList ?? [])].find(
         (name) => name.startsWith('lucide-') && name !== 'lucide-icon',
@@ -233,9 +233,7 @@ describe('AppSidebar', () => {
       expect(getSidebarState(container)).toBe('expanded')
     })
 
-    expect(
-      container.querySelector('[data-brand-mode="full"]'),
-    ).toBeTruthy()
+    expect(screen.getByText('Career Workbench')).toBeTruthy()
   })
 
   it('keeps the session menu only in the topbar', () => {

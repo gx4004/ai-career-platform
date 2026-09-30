@@ -3,9 +3,11 @@ import {
   ChevronLeft,
   ChevronRight,
   LayoutDashboard,
-  ShieldCheck,
+  Search,
 } from 'lucide-react'
 import { AppBrandLockup } from '#/components/app/AppBrandLockup'
+import { openCommandPalette } from '#/components/app/CommandPalette'
+import { SidebarUserMenu } from '#/components/app/SidebarUserMenu'
 import { useSession } from '#/hooks/useSession'
 import {
   Sidebar,
@@ -59,7 +61,8 @@ export function AppSidebar() {
             className="app-sidebar-brand-link"
             aria-label="Career Workbench"
           >
-            <AppBrandLockup mode={isCollapsedDesktop ? 'compact' : 'full'} />
+            <AppBrandLockup mode="compact" />
+            {isCollapsedDesktop ? null : <span className="app-sidebar-brand-name">Career Workbench</span>}
           </Link>
           <SidebarTrigger
             className="app-sidebar-brand-toggle"
@@ -72,6 +75,19 @@ export function AppSidebar() {
             )}
           </SidebarTrigger>
         </div>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              tooltip="Search (⌘K)"
+              className="app-sidebar-menu-button app-sidebar-search"
+              onClick={openCommandPalette}
+            >
+              <Search className="app-sidebar-item-icon" />
+              <span>Search</span>
+              <kbd className="app-sidebar-kbd">⌘K</kbd>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
         <NavGroupSection destinations={mainDestinations} pathname={pathname} />
@@ -100,23 +116,7 @@ export function AppSidebar() {
         <NavGroupSection destinations={history} pathname={pathname} />
       </SidebarContent>
       <SidebarFooter className="app-sidebar-footer">
-        {user?.is_admin && (
-          <SidebarMenu>
-            <SidebarMenuItem>
-              <SidebarMenuButton
-                asChild
-                tooltip="Admin"
-                isActive={pathname.startsWith('/admin')}
-                className="app-sidebar-menu-button app-sidebar-menu-button--footer"
-              >
-                <Link to="/admin">
-                  <ShieldCheck className="app-sidebar-item-icon" />
-                  <span>Admin</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          </SidebarMenu>
-        )}
+        <SidebarUserMenu />
         <div className="app-sidebar-legal group-data-[collapsible=icon]:hidden" aria-label="Legal">
           <Link to="/privacy" className="app-sidebar-legal__link">Privacy</Link>
           <span className="app-sidebar-legal__sep" aria-hidden="true">·</span>

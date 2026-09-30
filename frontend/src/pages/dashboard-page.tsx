@@ -1,8 +1,8 @@
 import { useEffect } from 'react'
 import { Link } from '@tanstack/react-router'
-import { DashboardResumeUpload } from '#/components/dashboard/DashboardResumeUpload'
+import { DashboardCv } from '#/components/dashboard/DashboardCv'
 import { DashboardToday } from '#/components/dashboard/DashboardToday'
-import { DashboardTools } from '#/components/dashboard/DashboardTools'
+import { DashboardPipeline } from '#/components/dashboard/DashboardPipeline'
 import { FavoriteRuns } from '#/components/dashboard/FavoriteRuns'
 import { RecentRuns } from '#/components/dashboard/RecentRuns'
 import { PageFrame } from '#/components/app/PageFrame'
@@ -44,23 +44,17 @@ export function DashboardPage() {
       <div className="dash">
         <PageHero
           title="Dashboard"
-          purpose={isAuthenticated ? 'What needs you today, and where to pick up.' : 'Upload a resume and pick a tool to begin.'}
           chips={meta}
         />
         {isAuthenticated ? <DashboardToday /> : null}
-        <section className="dash-section" aria-labelledby="dash-start">
-          <div className="dash-section__head">
-            <h2 className="dash-section__title" id="dash-start">Start</h2>
-          </div>
-          <DashboardResumeUpload />
-        </section>
+        {isAuthenticated ? <DashboardPipeline /> : null}
+        <DashboardCv />
         <div className="dash-columns">
-          <DashboardTools />
           {isAuthenticated ? (
-            <div className="dash-stack" data-tour="activity">
-              <RecentRuns />
+            <>
+              <div data-tour="activity"><RecentRuns /></div>
               <FavoriteRuns />
-            </div>
+            </>
           ) : (
             <section className="dash-section" data-tour="activity">
               <div className="dash-section__head">

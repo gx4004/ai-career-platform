@@ -197,6 +197,13 @@ export function DiscoveryPage() {
     hidingId: hide.isPending ? hide.variables?.listing_id : undefined,
   }
 
+  const headerMeta = data
+    ? [
+        `${formatCount(data.total)} ${filtered ? (data.total === 1 ? 'match' : 'matches') : data.total === 1 ? 'open job' : 'open jobs'}`,
+        ...(data.total > 0 ? [hasEvidence && filters.sort === 'best_match' ? 'best skills fit first' : 'newest first'] : []),
+      ]
+    : []
+
   const heroAction = data && !hasEvidence ? (
     <Button asChild size="sm"><Link to="/profile">Open my profile</Link></Button>
   ) : (
@@ -207,13 +214,8 @@ export function DiscoveryPage() {
     <WorkspacePage className="disc-page">
       <PageHero
         title="Discover jobs"
-        purpose={
-          data && !hasEvidence
-            ? 'Open roles from company career sites. Confirm skills in your profile to see your skills fit.'
-            : 'Open roles from company career sites, ranked by skills fit.'
-        }
         action={heroAction}
-        chips={data ? [`${formatCount(data.total)} ${filtered ? (data.total === 1 ? 'match' : 'matches') : data.total === 1 ? 'open job' : 'open jobs'}`] : undefined}
+        chips={data ? headerMeta : undefined}
       />
 
       <div className="disc-filters" role="search" aria-label="Filter jobs">
@@ -274,15 +276,6 @@ export function DiscoveryPage() {
       </Sheet>
 
       <section className="disc-results" aria-label="Jobs" ref={resultsRef}>
-        <p className="disc-results__count" aria-live="polite">
-          {data && data.total > 0 ? (
-            <>
-              {rangeLabel(data.page, data.limit, items.length)} of {formatCount(data.total)}
-              {hasEvidence && filters.sort === 'best_match' ? ' · best skills fit first' : ' · newest first'}
-            </>
-          ) : ' '}
-        </p>
-
         {hidden
           ? createPortal(
               <div className="disc-toast" role="status">
@@ -330,7 +323,7 @@ export function DiscoveryPage() {
             <ol className="disc-list" aria-busy={listings.isPlaceholderData}>
               {items.map((listing) => (
                 <li key={listing.listing_id}>
-                  <JobRow listing={listing} actions={actions} />
+                  <JobRow listing={listing} actions={actions} selected={openListing?.listing_id === listing.listing_id} />
                 </li>
               ))}
             </ol>
@@ -416,8 +409,9 @@ function AdoptButton({ listing, actions }: { listing: DiscoveryListing; actions:
       variant="outline"
       onClick={() => actions.onAdopt(listing)}
       loading={actions.adoptingId === listing.listing_id}
+      aria-label="Add to applications"
     >
-      Add to applications
+      Add
     </Button>
   )
 }
@@ -438,7 +432,7 @@ function useDeepMatch(listing: DiscoveryListing) {
   return { run, openResult }
 }
 
-function JobRow({ listing, actions }: { listing: DiscoveryListing; actions: CardActions }) {
+function JobRow({ listing, actions, selected }: { listing: DiscoveryListing; actions: CardActions; selected: boolean }) {
   const queryClient = useQueryClient()
   const { run, openResult } = useDeepMatch(listing)
   const [checking, setChecking] = useState(false)
@@ -457,24 +451,14 @@ function JobRow({ listing, actions }: { listing: DiscoveryListing; actions: Card
     }
   }
   return (
-    <article className="disc-row" aria-labelledby={`job-${listing.listing_id}`}>
+    <article className="disc-row" data-selected={selected || undefined} aria-labelledby={`job-${listing.listing_id}`}>
       <div className="disc-row__main">
         <h2 id={`job-${listing.listing_id}`} className="disc-row__heading">
           <button type="button" className="disc-row__title" onClick={() => actions.onOpen(listing)}>
             {listing.title}
           </button>
         </h2>
-        <JobMeta listing={listing} />
-        <p className="disc-row__preview">{listing.preview}</p>
-        <div className="disc-row__signals">
-          <SimilarOutcomes listing={listing} />
-          {listing.preference_hits.length > 0 ? (
-            <span className="disc-row__prefs" aria-label="Matches your preferences">
-              {listing.preference_hits.slice(0, 2).join(', ')}
-            </span>
-          ) : null}
-          <span>via {listing.source_name}</span>
-        </div>
+        <JobMeta listing={listing} source />
         {run.isError ? (
           <p className="disc-error" role="alert">
             {needsCv ? (
@@ -487,11 +471,18 @@ function JobRow({ listing, actions }: { listing: DiscoveryListing; actions: Card
       </div>
       <SkillsFit listing={listing} />
       <div className="disc-row__actions">
-        <Button type="button" size="sm" variant="ghost" onClick={() => void deepMatch()} loading={checking || run.isPending}>
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          className="disc-row__reveal"
+          onClick={() => void deepMatch()}
+          loading={checking || run.isPending}
+        >
           Deep match
         </Button>
         <AdoptButton listing={listing} actions={actions} />
-        <JobOverflowMenu listing={listing} actions={actions} />
+        <span className="disc-row__reveal"><JobOverflowMenu listing={listing} actions={actions} /></span>
       </div>
     </article>
   )
@@ -689,14 +680,16 @@ function pageNumbers(page: number, lastPage: number): (number | null)[] {
   )
 }
 
-function JobMeta({ listing }: { listing: DiscoveryListing }) {
+function JobMeta({ listing, source = false }: { listing: DiscoveryListing; source?: boolean }) {
   const posted = relativeDays(listing.posted_at)
+  const saysRemote = /remote/i.test(listing.location ?? '')
   return (
     <p className="disc-meta">
       <span className="disc-meta__company">{listing.company}</span>
       {listing.location ? <span>{listing.location}</span> : null}
-      {listing.remote ? <span>Remote</span> : null}
+      {listing.remote && !saysRemote ? <span>Remote</span> : null}
       {posted ? <span className="disc-meta__posted">{posted}</span> : null}
+      {source ? <span>via {listing.source_name}</span> : null}
     </p>
   )
 }
@@ -710,11 +703,6 @@ function relativeDays(value: string | null, now = Date.now()): string | null {
   if (days < 30) return `Posted ${days} days ago`
   const months = Math.floor(days / 30)
   return months < 12 ? `Posted ${months} ${months === 1 ? 'month' : 'months'} ago` : 'Posted over a year ago'
-}
-
-function rangeLabel(page: number, limit: number, count: number): string {
-  const start = (page - 1) * limit + 1
-  return `${start}–${start + count - 1}`
 }
 
 function formatCount(value: number): string {
