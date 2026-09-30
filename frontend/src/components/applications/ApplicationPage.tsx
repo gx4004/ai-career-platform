@@ -53,7 +53,7 @@ export function ApplicationPage({ applicationId }: { applicationId: string }) {
   const application = query.data
   const chips = [
     STATUS_LABELS[application.status],
-    ...(application.match_score !== null ? [`${application.match_score}% match`] : []),
+    ...(application.match_score !== null ? [`${application.match_score}% skills fit when saved`] : []),
     ...(application.applied_at ? [`Applied ${formatDate(application.applied_at)}`] : []),
     ...(application.deadline && !application.applied_at ? [`Apply by ${formatDate(application.deadline)}`] : []),
   ]

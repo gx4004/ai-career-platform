@@ -262,7 +262,7 @@ def load_match_profile(db: Session, user_id: str) -> MatchProfile:
     )
     evidence = [_content_text(item.content) for item in items if item.kind != "preference"]
     preferences = [
-        tuple(extract_job_keywords(_content_text(item.content), limit=8))
+        tuple(extract_job_keywords(_content_text(item.content), limit=8, include_plain_words=True))
         for item in items
         if item.kind == "preference"
     ]

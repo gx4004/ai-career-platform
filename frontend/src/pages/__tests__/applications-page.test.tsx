@@ -56,7 +56,7 @@ describe('ApplicationsPage', () => {
     await screen.findByText('Backend Engineer')
     const saved = within(column('Saved'))
     expect(saved.getByText('Tailor CV')).toBeTruthy()
-    expect(saved.getByText('81% match')).toBeTruthy()
+    expect(saved.getByText('81% skills fit')).toBeTruthy()
     expect(within(saved.getByText('Platform Engineer').closest('article') as HTMLElement).getByText('Ready to apply')).toBeTruthy()
     expect(within(saved.getByText('Python Developer').closest('article') as HTMLElement).getByText('2 questions')).toBeTruthy()
     expect(within(column('Interviewing')).getByText('SRE')).toBeTruthy()
