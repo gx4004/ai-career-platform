@@ -119,7 +119,7 @@ export function CvPaper({ name, sections, style, catalog, activeId, onEdit }: {
           {!hasContent ? <p className="cvp-placeholder">Your CV appears here as you write.</p> : null}
         </div>
       </div>
-      <p className="cvp-footnote">{pages === 1 ? '1 page' : `About ${pages} pages`} · live preview</p>
+      <p className="cvp-footnote">{pages === 1 ? '1 page' : `About ${pages} pages`} · live preview<span className="cvp-footnote__hint cvp-footnote__hint--touch"> · tap a section to edit</span><span className="cvp-footnote__hint cvp-footnote__hint--pointer"> · click a section to edit</span></p>
     </div>
   )
 }

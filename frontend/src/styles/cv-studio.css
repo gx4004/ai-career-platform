@@ -259,6 +259,8 @@
 
 .cvs-tool__badge.is-pass { background: var(--success-soft); color: var(--success); }
 .cvs-tool__badge.is-fail { background: var(--destructive-soft); color: var(--destructive); }
+.cvs-tool--pass svg { color: var(--success); }
+.cvs-tool--fail svg { color: var(--destructive); }
 
 .cvs-panel {
   position: sticky;
@@ -910,6 +912,12 @@
   text-align: center;
 }
 
+.cvp-footnote__hint--touch { display: none; }
+@media (max-width: 1024px) {
+  .cvp-footnote__hint--touch { display: inline; }
+  .cvp-footnote__hint--pointer { display: none; }
+}
+
 /* A section on the paper is the way into its editor */
 
 .cvp-section--editable {
@@ -947,7 +955,9 @@
 /* ATS check: pass/fail checklist, never a score */
 
 .cvs-ats { display: flex; flex-direction: column; align-items: flex-start; gap: 0.5rem; }
-.cvs-ats__headline { margin: 0; font-size: var(--type-body); font-weight: 700; color: var(--text-strong); }
+.cvs-ats__headline { display: inline-flex; align-items: center; gap: 0.4rem; margin: 0; font-size: var(--type-body); font-weight: 700; color: var(--text-strong); }
+.cvs-ats__headline--pass svg { color: var(--success); }
+.cvs-ats__headline--fail svg { color: var(--destructive); }
 
 .cvs-ats__refreshing {
   display: inline-flex;
@@ -1325,10 +1335,9 @@
   .cvs-toolbar > .cvs-tool { flex-direction: column; gap: 0.15rem; min-height: 3.25rem; padding: 0.35rem 0.2rem; font-size: var(--type-xs); }
   .cvs-toolbar > .cvs-tool > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
   .cvs-toolbar > .cvs-tool { position: relative; }
-  .cvs-toolbar > .cvs-tool > .cvs-tool__badge { position: absolute; top: 0.45rem; right: calc(50% - 1rem); width: 0.5rem; height: 0.5rem; padding: 0; clip-path: none; border-radius: 50%; background: currentColor; }
-  .cvs-toolbar > .cvs-tool > .cvs-tool__badge.is-pass { color: var(--success); }
-  .cvs-toolbar > .cvs-tool > .cvs-tool__badge.is-fail { color: var(--destructive); }
-  .cvs-toolbar__end { grid-column: 1 / -1; justify-content: space-between; }
+  .cvs-toolbar__end { grid-column: 1 / -1; justify-content: space-between; border-top: 1px solid var(--border); padding-top: 0.3rem; }
+  .cvs-toolbar__end > .cvs-tool,
+  .cvs-toolbar__end > .cvs-select { font-size: var(--type-xs); }
   .cvs-tool { min-height: var(--touch-target, 44px); }
 }
 
