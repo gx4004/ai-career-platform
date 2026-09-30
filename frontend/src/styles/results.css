@@ -3,29 +3,31 @@
    Header, summary row, then plain sections (lists, tables).
    ═══════════════════════════════════════════════════ */
 
+/* Page grid: header row (title left, actions right); below 1200px the
+   summary row follows, at 1200px+ score/facts/actions move to a sticky rail. */
 .result-page {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 1rem;
   max-width: 76rem;
   margin: 0;
   padding-bottom: 3rem;
 }
 
-/* ── Header ── */
-.result-header {
-  margin-bottom: 1rem;
-  align-items: flex-start;
-}
+.result-page > * { grid-column: 1 / -1; min-width: 0; }
 
-.result-header .page-header__purpose {
-  max-width: 52rem;
-  color: var(--text-body);
-  font-size: 0.875rem;
-}
+.result-header { grid-column: 1; grid-row: 1; margin-bottom: 1rem; align-items: flex-start; }
 
-.result-header .result-actions {
-  flex-shrink: 1;
+.result-rail { display: contents; }
+
+.result-actions {
+  grid-column: 2;
+  grid-row: 1;
+  align-self: start;
+  display: flex;
   flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 0.375rem;
-  max-width: 100%;
 }
 
 .result-undo {
@@ -47,6 +49,11 @@
 .result-undo:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+}
+
+@media (max-width: 720px) {
+  .result-header { grid-column: 1 / -1; margin-bottom: 0.75rem; }
+  .result-actions { grid-column: 1 / -1; grid-row: 2; justify-content: flex-start; margin-bottom: 0.75rem; }
 }
 
 /* ── Re-generate panel ── */
@@ -93,7 +100,8 @@
 
 /* ── Guest notice ── */
 .result-notice {
-  display: inline-flex;
+  display: flex;
+  width: fit-content;
   align-items: center;
   gap: 0.5rem;
   margin: 0 0 1rem;
@@ -257,32 +265,81 @@
   line-height: 1.4;
 }
 
-/* ── Layout: body + sticky table of contents ── */
-.result-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 2rem;
-  align-items: start;
-}
-
+/* ── Main column ── */
 .result-main {
   min-width: 0;
-  max-width: 56rem;
+  max-width: 45rem;
 }
 
-.result-toc {
-  display: none;
+.result-lead {
+  margin: 0 0 1rem;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--text-strong);
 }
+
+.result-toc { display: none; }
 
 @media (min-width: 1200px) {
-  .result-layout {
-    grid-template-columns: minmax(0, 56rem) 11.5rem;
+  .result-page {
+    grid-template-columns: minmax(0, 720px) 280px;
+    column-gap: 3rem;
+    justify-content: start;
   }
+
+  .result-page > * { grid-column: 1; }
+  .result-header { grid-column: 1 / -1; }
+
+  .result-rail {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    grid-column: 2;
+    grid-row: 2 / span 20;
+    align-self: start;
+    position: sticky;
+    top: 1rem;
+  }
+
+  .result-rail .result-summary {
+    display: flex;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    gap: 0.875rem;
+    margin: 0;
+    padding: 0.875rem;
+  }
+
+  .result-rail .result-score .rbar { width: 100%; }
+  .result-rail .result-facts {
+    flex-direction: column;
+    flex-wrap: nowrap;
+    align-content: stretch;
+    gap: 0;
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--divider);
+  }
+
+  .result-rail .result-facts__item {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 0.75rem;
+    padding: 0.3125rem 0;
+  }
+
+  .result-rail .result-facts dd { font-size: 0.8125rem; text-align: right; }
+
+  .result-rail .result-actions {
+    grid-column: auto;
+    grid-row: auto;
+    justify-content: flex-start;
+  }
+
+  .result-rail .result-actions > :first-child { flex: 1 0 100%; }
 
   .result-toc {
     display: block;
-    position: sticky;
-    top: 4.5rem;
     font-size: 0.8125rem;
   }
 }
@@ -326,6 +383,7 @@
   scroll-margin-top: 4.5rem;
 }
 
+.result-lead + .rs-section,
 .rs-section:first-child {
   border-top: 0;
   padding-top: 0.25rem;
@@ -423,39 +481,43 @@
   display: block;
 }
 
-.rlist--numbered > .rlist__item,
 .rlist--plain > .rlist__item {
   padding: 0.75rem 0;
   border-top: 1px solid var(--divider);
 }
 
-.rlist--numbered > .rlist__item:first-child,
 .rlist--plain > .rlist__item:first-child {
   border-top: 0;
   padding-top: 0.25rem;
 }
 
+/* Fix first: number column, then title + severity and a detail line. */
 .rlist--numbered > .rlist__item {
-  position: relative;
-  padding-left: 1.75rem;
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  column-gap: 8px;
+  padding: 12px 0;
+  border-top: 1px solid var(--divider);
   counter-increment: ritem;
 }
 
+.rlist--numbered > .rlist__item:first-child { border-top: 0; padding-top: 0; }
+.rlist--numbered > .rlist__item:last-child { padding-bottom: 0; }
+
 .rlist--numbered > .rlist__item::before {
   content: counter(ritem);
-  position: absolute;
-  left: 0;
-  top: 0.8125rem;
-  width: 1.25rem;
-  font-size: 0.8125rem;
+  grid-row: 1 / span 2;
+  font-size: 13px;
+  line-height: 20px;
   font-weight: 500;
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
 }
 
-.rlist--numbered > .rlist__item:first-child::before {
-  top: 0.3125rem;
-}
+.rlist--numbered > .rlist__item > * { grid-column: 2; }
+.rlist--numbered .rlist__row { align-items: center; }
+.rlist--numbered .rlist__title { font-size: 13px; line-height: 20px; }
+.rlist--numbered .rlist__text { margin: 2px 0 0; font-size: 13px; line-height: 1.5; }
 
 .rlist__item--inline {
   display: flex;
@@ -687,24 +749,37 @@
   white-space: nowrap;
 }
 
-.rtable--bars th[scope='row'] {
-  width: 40%;
-  color: var(--text-body);
+.rtable--bars {
+  width: auto;
+  max-width: 100%;
+}
+
+.rtable--bars th,
+.rtable--bars td {
+  padding: 6px 0;
   vertical-align: middle;
 }
 
-.rtable--bars td {
-  vertical-align: middle;
+.rtable--bars th[scope='row'] {
+  min-width: 8rem;
+  padding-right: 16px;
+  color: var(--text-body);
+  white-space: nowrap;
 }
 
 .rtable--bars .rtable__bar {
-  width: 7rem;
+  width: 160px;
+  padding-right: 12px;
+}
+
+.rtable--bars .rbar {
+  display: block;
+  width: 160px;
 }
 
 .rtable--bars .rtable__num {
-  text-align: right;
   width: 3rem;
-  padding-right: 0;
+  text-align: right;
 }
 
 .rtable--requirements th[scope='row'] {

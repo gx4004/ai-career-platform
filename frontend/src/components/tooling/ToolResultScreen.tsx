@@ -232,7 +232,8 @@ export function ToolResultScreen({
   const summaryInfo = definition.summary(payload)
   const topActions = definition.topActions(payload)
   const runDate = formatRunDate(item.created_at)
-  const headline = typeof summary.headline === 'string' ? summary.headline : resolvedTool.resultTitle
+  const headline = typeof summary.headline === 'string' ? summary.headline.trim() : ''
+  const hasHeadline = headline.length > 0
   const runLabel = item.label && item.label.trim() ? item.label.trim() : ''
 
   async function handleCopy() {
@@ -270,7 +271,6 @@ export function ToolResultScreen({
         <header className="page-header result-header">
           <div className="page-header__text">
             <h1 className="page-header__title">{resolvedTool.label}</h1>
-            <p className="page-header__purpose result-header__headline">{headline}</p>
             <ul className="page-header__meta">
               {runLabel ? <li>{runLabel}</li> : null}
               {runDate ? <li>{runDate}</li> : null}
@@ -288,7 +288,98 @@ export function ToolResultScreen({
               ) : null}
             </ul>
           </div>
-          <div className="page-header__action result-actions">
+        </header>
+
+        {regenOpen && (
+          <div className="regen-panel">
+            <textarea
+              className="regen-panel__textarea"
+              placeholder="Optional: describe what you'd like changed..."
+              aria-label="Re-generate feedback"
+              value={regenFeedback}
+              onChange={(e) => setRegenFeedback(e.target.value)}
+              rows={3}
+            />
+            <div className="regen-panel__actions">
+              <Button type="button" variant="ghost" size="sm" onClick={() => { setRegenOpen(false); setRegenFeedback('') }}>
+                Cancel
+              </Button>
+              <Button type="button" variant="outline" size="sm" onClick={handleRegenSubmit}>
+                Submit
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {guestResult && !bannerDismissed ? (
+          <div className="result-notice">
+            <span>Guest demo</span>
+            {status !== 'authenticated' ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="xs"
+                onClick={() => {
+                  openAuthDialog({
+                    to: resolvedTool.route,
+                    reason: 'guest-demo-result',
+                    label: guestSignupLabel,
+                    toolId: resolvedTool.id,
+                  })
+                }}
+              >
+                {guestSignupLabel}
+              </Button>
+            ) : null}
+            <button
+              type="button"
+              className="result-notice__dismiss"
+              onClick={() => setBannerDismissed(true)}
+              aria-label="Dismiss"
+            >
+              <X size={12} aria-hidden="true" />
+            </button>
+          </div>
+        ) : null}
+
+        <aside className="result-rail" aria-label="Summary">
+          {(summaryInfo.score || summaryInfo.facts.length > 0) && (
+            <div className="result-summary">
+              {summaryInfo.score ? (
+                <div className="result-score">
+                  <div
+                    className="result-score__main"
+                    role="img"
+                    aria-label={`${SCORE_ARIA_NAMES[resolvedTool.id] ?? summaryInfo.score.label}: ${summaryInfo.score.value} ${summaryInfo.score.unit === '%' ? 'percent' : 'out of 100'}`}
+                  >
+                    <span className="result-score__value">{summaryInfo.score.value}</span>
+                    <span className={`result-score__unit${summaryInfo.score.unit === '%' ? ' result-score__unit--pct' : ''}`}>{summaryInfo.score.unit}</span>
+                    {scoreDelta !== null && (
+                      <span className={`result-score__delta ${scoreDelta >= 0 ? 'result-score__delta--up' : 'result-score__delta--down'}`}>
+                        {scoreDelta >= 0 ? '+' : ''}{scoreDelta} pts
+                      </span>
+                    )}
+                  </div>
+                  <div className="result-score__label">
+                    {summaryInfo.score.label}
+                    <ScoreTooltip toolId={resolvedTool.id} />
+                  </div>
+                  <MiniBar value={summaryInfo.score.value} tone={scoreTone(summaryInfo.score.value)} />
+                </div>
+              ) : null}
+              {summaryInfo.facts.length > 0 ? (
+                <dl className="result-facts">
+                  {summaryInfo.facts.map((f) => (
+                    <div key={f.label} className="result-facts__item">
+                      <dt>{f.label}</dt>
+                      <dd>{f.value}</dd>
+                    </div>
+                  ))}
+                </dl>
+              ) : null}
+            </div>
+          )}
+          <div className="result-actions">
             <Button
               type="button"
               size="sm"
@@ -380,100 +471,14 @@ export function ToolResultScreen({
               <Link to={resolvedTool.route}>New input</Link>
             </Button>
           </div>
-        </header>
+          <ResultToc containerRef={bodyRef} />
+        </aside>
 
-        {regenOpen && (
-          <div className="regen-panel">
-            <textarea
-              className="regen-panel__textarea"
-              placeholder="Optional: describe what you'd like changed..."
-              aria-label="Re-generate feedback"
-              value={regenFeedback}
-              onChange={(e) => setRegenFeedback(e.target.value)}
-              rows={3}
-            />
-            <div className="regen-panel__actions">
-              <Button type="button" variant="ghost" size="sm" onClick={() => { setRegenOpen(false); setRegenFeedback('') }}>
-                Cancel
-              </Button>
-              <Button type="button" variant="outline" size="sm" onClick={handleRegenSubmit}>
-                Submit
-              </Button>
-            </div>
-          </div>
-        )}
 
-        {guestResult && !bannerDismissed ? (
-          <div className="result-notice">
-            <span>Guest demo</span>
-            {status !== 'authenticated' ? (
-              <Button
-                type="button"
-                variant="outline"
-                size="xs"
-                onClick={() => {
-                  openAuthDialog({
-                    to: resolvedTool.route,
-                    reason: 'guest-demo-result',
-                    label: guestSignupLabel,
-                    toolId: resolvedTool.id,
-                  })
-                }}
-              >
-                {guestSignupLabel}
-              </Button>
-            ) : null}
-            <button
-              type="button"
-              className="result-notice__dismiss"
-              onClick={() => setBannerDismissed(true)}
-              aria-label="Dismiss"
-            >
-              <X size={12} aria-hidden="true" />
-            </button>
-          </div>
-        ) : null}
-
-        {(summaryInfo.score || summaryInfo.facts.length > 0) && (
-          <div className="result-summary">
-            {summaryInfo.score ? (
-              <div className="result-score">
-                <div
-                  className="result-score__main"
-                  role="img"
-                  aria-label={`${SCORE_ARIA_NAMES[resolvedTool.id] ?? summaryInfo.score.label}: ${summaryInfo.score.value} ${summaryInfo.score.unit === '%' ? 'percent' : 'out of 100'}`}
-                >
-                  <span className="result-score__value">{summaryInfo.score.value}</span>
-                  <span className={`result-score__unit${summaryInfo.score.unit === '%' ? ' result-score__unit--pct' : ''}`}>{summaryInfo.score.unit}</span>
-                  {scoreDelta !== null && (
-                    <span className={`result-score__delta ${scoreDelta >= 0 ? 'result-score__delta--up' : 'result-score__delta--down'}`}>
-                      {scoreDelta >= 0 ? '+' : ''}{scoreDelta} pts
-                    </span>
-                  )}
-                </div>
-                <div className="result-score__label">
-                  {summaryInfo.score.label}
-                  <ScoreTooltip toolId={resolvedTool.id} />
-                </div>
-                <MiniBar value={summaryInfo.score.value} tone={scoreTone(summaryInfo.score.value)} />
-              </div>
-            ) : null}
-            {summaryInfo.facts.length > 0 ? (
-              <dl className="result-facts">
-                {summaryInfo.facts.map((f) => (
-                  <div key={f.label} className="result-facts__item">
-                    <dt>{f.label}</dt>
-                    <dd>{f.value}</dd>
-                  </div>
-                ))}
-              </dl>
-            ) : null}
-          </div>
-        )}
         {summaryInfo.note ? <p className="result-note">{summaryInfo.note}</p> : null}
 
-        <div className="result-layout">
-          <div className="result-main" ref={bodyRef}>
+        <div className="result-main" ref={bodyRef}>
+          {hasHeadline ? <p className="result-lead">{headline}</p> : null}
             <FixFirstList actions={topActions} />
             {definition.render(payload, item, resolvedTool)}
             <ClaimPromotionSection
@@ -481,8 +486,6 @@ export function ToolResultScreen({
               payload={payload as Record<string, unknown>}
               authenticated={status === 'authenticated'}
             />
-          </div>
-          <ResultToc containerRef={bodyRef} />
         </div>
       </div>
     </PageFrame>

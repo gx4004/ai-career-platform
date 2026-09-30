@@ -26,7 +26,7 @@ export function WhatsWorkingPanel() {
   return (
     <Panel
       title="What's working"
-      description="A reply is an interview or an offer. Each list stands on its own, and a rate only shows once a group has enough applications behind it."
+      description={`A reply is an interview or an offer. A rate shows once a group has ${data.min_segment_size} or more applications; smaller groups show “—”.`}
       className="camp-insights"
     >
       {overall.applied === 0 ? (
@@ -73,22 +73,20 @@ function Dimension({ dimension }: { dimension: InsightsDimension }) {
 }
 
 function Segment({ segment }: { segment: InsightSegment }) {
+  const known = segment.enough_data && segment.reply_rate !== null
   return (
     <li className="camp-insights__row">
       <span className="camp-insights__label">{segment.label}</span>
-      {segment.enough_data && segment.reply_rate !== null ? (
-        <>
-          <span className="camp-insights__track" aria-hidden="true">
-            <span className="camp-insights__fill" style={{ width: `${Math.max(segment.reply_rate, 2)}%` }} />
-          </span>
-          <span className="camp-insights__value">
-            {segment.reply_rate}%
-            <small> {segment.replied} of {segment.applied}</small>
-          </span>
-        </>
-      ) : (
-        <span className="camp-insights__thin">Not enough data yet ({applications(segment.applied)})</span>
-      )}
+      <span className="camp-insights__track" aria-hidden="true">
+        {known ? <span className="camp-insights__fill" style={{ width: `${Math.max(segment.reply_rate ?? 0, 2)}%` }} /> : null}
+      </span>
+      <span
+        className={known ? 'camp-insights__value' : 'camp-insights__value is-thin'}
+        aria-label={known ? `${segment.reply_rate}%, ${segment.replied} of ${applications(segment.applied)}` : `Not enough data, ${applications(segment.applied)}`}
+      >
+        <span aria-hidden="true">{known ? `${segment.reply_rate}%` : '—'}</span>
+        <small aria-hidden="true">n={segment.applied}</small>
+      </span>
     </li>
   )
 }

@@ -320,7 +320,7 @@ test('capture authenticated + guest pages for visual review', async ({ page, bro
       // spinner instead of the result (career-workbench#326). Wait for the
       // actual result heading rather than the spinner's absence — a fresh
       // history fetch right after registration can outlast a short wait.
-      await page.locator('.result-header__headline').first().waitFor({ timeout: 30_000 }).catch(() => {})
+      await page.locator('.result-header').first().waitFor({ timeout: 30_000 }).catch(() => {})
       await shootCurrentPage(page, 'desktop', 'resume-result', results)
     } catch (error) {
       results.push({ name: 'resume-result', viewport: 'desktop', status: 'failed', error: describeError(error) })
@@ -431,7 +431,7 @@ test('capture authenticated + guest pages for visual review', async ({ page, bro
 
       if (resumeResultPath) {
         await mobilePage.goto(resumeResultPath, { waitUntil: 'domcontentloaded', timeout: 30_000 }).catch(() => {})
-        await mobilePage.locator('.result-header__headline').first().waitFor({ timeout: 30_000 }).catch(() => {})
+        await mobilePage.locator('.result-header').first().waitFor({ timeout: 30_000 }).catch(() => {})
         await shootCurrentPage(mobilePage, 'mobile', 'resume-result', results, { waitForMobileShell: true })
       } else {
         skip(results, 'resume-result', 'mobile', 'desktop seed did not produce a result page')

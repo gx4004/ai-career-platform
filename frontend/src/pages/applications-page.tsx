@@ -17,6 +17,7 @@ import {
   stageOf,
   stageTone,
   timeAgo,
+  roleOnly,
 } from '#/components/applications/stages'
 import { Button } from '#/components/ui/button'
 import { listApplications, updateApplication } from '#/lib/api/client'
@@ -60,8 +61,7 @@ export function ApplicationsPage() {
     <PageFrame className="camp-page camp-page--board">
       <PageHero
         title="Your applications"
-        purpose="Every job you're going for, from saved to offer."
-        action={findJobs}
+                action={findJobs}
         chips={query.data ? summaryChips(items) : undefined}
       />
 
@@ -153,7 +153,7 @@ function BoardCard({
   moving: boolean
   onMove: (status: ApplicationStatus) => void
 }) {
-  const title = applicationTitle(card)
+  const title = roleOnly(applicationTitle(card), card.company)
   const closed = stageOf(card.status) === 'closed'
   const next = nextStep(card)
   return (
@@ -169,11 +169,15 @@ function BoardCard({
           </button>
         </StageMenu>
       </div>
-      <p className="camp-card__meta">
-        {card.company ? <span className="camp-card__company">{card.company}</span> : null}
-        {card.match_score !== null ? <span className="camp-card__fit">{card.match_score}% skills fit</span> : null}
-        {next ? <span className="camp-card__next" title={next}>{next}</span> : null}
-      </p>
+      {card.company ? <p className="camp-card__company">{card.company}</p> : null}
+      {card.match_score !== null || next ? (
+        <p className="camp-card__meta">
+          {card.match_score !== null ? (
+            <span className="camp-card__fit" aria-label={`${card.match_score}% skills fit`}>{card.match_score}% fit</span>
+          ) : null}
+          {next ? <span className="camp-card__next" title={next}>{next}</span> : null}
+        </p>
+      ) : null}
       {closed || card.status === 'no_reply' || (card.status === 'saved' && (card.ready || card.open_question_count > 0)) ? (
         <div className="camp-card__badges">
           {closed || card.status === 'no_reply' ? <Badge>{STATUS_LABELS[card.status]}</Badge> : null}
@@ -189,10 +193,6 @@ function BoardCard({
           <Button size="xs" variant="outline" disabled={moving} onClick={() => onMove('no_reply')}>Mark no reply</Button>
         </div>
       ) : null}
-      <p className="camp-card__activity">
-        {card.applied_at ? `Applied ${formatDate(card.applied_at)} · ` : ''}
-        Last activity {timeAgo(card.last_activity_at ?? card.updated_at)}
-      </p>
     </article>
   )
 }
@@ -223,7 +223,7 @@ function ApplicationsTable({
         </thead>
         <tbody>
           {rows.map((card) => {
-            const title = applicationTitle(card)
+            const title = roleOnly(applicationTitle(card), card.company)
             return (
               <tr key={card.id} aria-busy={moving(card) || undefined}>
                 <td>

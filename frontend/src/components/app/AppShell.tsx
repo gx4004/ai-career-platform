@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { useRouterState } from '@tanstack/react-router'
 import { ErrorBoundary } from '#/components/app/ErrorBoundary'
 import { AppSidebar } from '#/components/app/AppSidebar'
+import { CommandPalette } from '#/components/app/CommandPalette'
 import { MobileNav } from '#/components/app/MobileNav'
 import { Topbar } from '#/components/app/Topbar'
 import { AuthDialog } from '#/components/auth/AuthDialog'
@@ -39,6 +40,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <ErrorBoundary>{children}</ErrorBoundary>
           </div>
           <MobileNav />
+          <CommandPalette />
           <AuthDialog />
         </SidebarProvider>
       </TooltipProvider>
@@ -50,12 +52,14 @@ export function AppShell({ children }: { children: ReactNode }) {
       <SidebarProvider defaultOpen>
         <AppSidebar />
         <SidebarInset>
+          {/* Desktop has no topbar: each page header is the top of the page,
+              and the account menu lives in the sidebar footer. */}
           <div className="app-main">
-            <Topbar />
             <ErrorBoundary>{children}</ErrorBoundary>
           </div>
         </SidebarInset>
         <MobileNav />
+        <CommandPalette />
         <AuthDialog />
       </SidebarProvider>
     </TooltipProvider>

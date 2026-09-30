@@ -87,19 +87,17 @@ beforeEach(() => {
 })
 
 describe('DiscoveryPage', () => {
-  it('shows a compact job row with match, meta, preview and attribution', async () => {
+  it('shows a two-line job row with match, meta and attribution', async () => {
     renderPage()
     const card = await findCard()
 
     expect(screen.getByRole('heading', { name: 'Discover jobs' })).toBeTruthy()
-    expect(within(card).getByText(LISTING.preview)).toBeTruthy()
+    expect(within(card).queryByText(LISTING.preview)).toBeNull()
     expect(within(card).getByLabelText('82% skills fit, 2 of 3 skills')).toBeTruthy()
     expect(within(card).getByText('Berlin, Germany')).toBeTruthy()
     expect(within(card).getByText('Remote')).toBeTruthy()
     expect(within(card).getByText('Posted 3 days ago')).toBeTruthy()
     expect(within(card).getByText('via Greenhouse')).toBeTruthy()
-    // Preference hits are their own signal, not folded into the fit number.
-    expect(within(card).getByLabelText('Matches your preferences').textContent).toBe('Startup')
     expect(within(card).queryByText(/\d+% match/)).toBeNull()
   })
 
@@ -108,7 +106,7 @@ describe('DiscoveryPage', () => {
     const card = await findCard()
 
     const buttons = within(card).getAllByRole('button').map((button) => button.textContent?.trim() || button.getAttribute('aria-label'))
-    expect(buttons).toEqual(['Platform Engineer', 'Deep match', 'Add to applications', 'More actions for Platform Engineer'])
+    expect(buttons).toEqual(['Platform Engineer', 'Deep match', 'Add', 'More actions for Platform Engineer'])
     expect(within(card).queryByRole('link')).toBeNull()
 
     const menu = await openMenu(card)
@@ -235,13 +233,15 @@ describe('DiscoveryPage', () => {
     expect(within(dialog).queryByText(/0%/)).toBeNull()
   })
 
-  it('shows how similar applications went as its own signal, with the sample size', async () => {
+  it('shows how similar applications went in the drawer, with the sample size', async () => {
     const similar = { role_family: 'Engineering', fit_bucket: 'Strong fit (78%+)', applied: 6, replied: 2 }
     renderPage(page({ items: [{ ...LISTING, similar_applications: similar }] }))
     const card = await findCard()
 
-    expect(within(card).getByText(/2 of 6/).closest('p')?.textContent).toContain('got a reply')
     expect(within(card).getByLabelText(/82% skills fit/)).toBeTruthy()
+    fireEvent.click(within(card).getByRole('button', { name: 'Platform Engineer' }))
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByText(/2 of 6/).closest('p')?.textContent).toContain('got a reply')
   })
 
   it('shows no outcome line when there are too few similar applications', async () => {
