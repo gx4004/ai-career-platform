@@ -50,8 +50,7 @@ export function ApplicationDetailsCard() {
         <div>
           <h2 className="account-card-title">Application details</h2>
           <p className="account-card-description">
-            Fill these in once. Autopilot types them into application forms, and answers questions like work
-            authorization or salary only with what you write here. Leave anything blank to answer it yourself.
+            Autopilot uses these for application forms and leaves anything blank for you.
           </p>
         </div>
       </div>
@@ -69,6 +68,10 @@ function DetailsForm({ initial }: { initial: ApplicationDetailsUpdate }) {
     mutationFn: (payload: ApplicationDetailsUpdate) => saveApplicationDetails(payload),
     onSuccess: (saved) => queryClient.setQueryData(APPLICATION_DETAILS_QUERY_KEY, saved),
   })
+
+  const dirty = (Object.keys(values) as (keyof ApplicationDetailsUpdate)[]).some(
+    (key) => (values[key] ?? '') !== (initial[key] ?? ''),
+  )
 
   const onSubmit = (event: FormEvent) => {
     event.preventDefault()
@@ -105,7 +108,7 @@ function DetailsForm({ initial }: { initial: ApplicationDetailsUpdate }) {
         {STANDING_FIELDS.map(renderField)}
       </fieldset>
       <div className="flex flex-wrap items-center gap-3">
-        <Button type="submit" variant="outline" className="settings-btn" loading={save.isPending}>
+        <Button type="submit" loading={save.isPending} disabled={!dirty}>
           Save details
         </Button>
         {save.isSuccess ? <span className="small-copy muted-copy" role="status">Saved.</span> : null}

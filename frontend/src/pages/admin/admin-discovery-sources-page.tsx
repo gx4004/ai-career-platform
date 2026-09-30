@@ -7,7 +7,7 @@ import type { DiscoverySource } from '#/lib/api/discoverySchemas'
 
 export function AdminDiscoverySourcesPage() {
   const queryClient = useQueryClient()
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['admin-discovery-sources'],
     queryFn: getAdminDiscoverySources,
     staleTime: 30_000,
@@ -26,7 +26,7 @@ export function AdminDiscoverySourcesPage() {
 
   return (
     <div>
-      <h1 className="admin-page-title">Discovery Sources</h1>
+      <h1 className="admin-page-title">Discovery sources</h1>
       <p className="admin-table-muted">
         Governance registry plus the operator kill switch. A source can ingest only
         after an accepted terms review and while its kill switch is off. Tripping the
@@ -36,7 +36,10 @@ export function AdminDiscoverySourcesPage() {
       <div className="admin-data-table-wrap" style={{ marginTop: '1.5rem' }}>
         {isError && (
           <p className="admin-table-muted admin-error-text" style={{ padding: '1rem' }}>
-            Failed to load discovery sources.
+            Couldn't load discovery sources.{' '}
+            <button type="button" className="admin-toolbar-btn" onClick={() => void refetch()}>
+              Try again
+            </button>
           </p>
         )}
         {isLoading && (

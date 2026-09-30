@@ -593,9 +593,8 @@ select.disc-field {
   .disc-card__heading { padding-right: 0; }
   .disc-card__preview { -webkit-line-clamp: 2; }
   .disc-card__actions { flex-basis: 100%; }
-  .disc-card__actions > :first-child { flex: 1; }
   .disc-card__actions > *, .disc-drawer__actions > * { min-height: var(--touch-target, 44px); }
-  .disc-card__actions > :last-child { min-width: var(--touch-target, 44px); }
+  .disc-card__actions > :last-child { min-width: var(--touch-target, 44px); margin-left: auto; }
   .disc-pager__page { min-width: var(--touch-target, 44px); height: var(--touch-target, 44px); }
   .disc-drawer__head, .disc-drawer__description, .disc-drawer__actions {
   display: flex;

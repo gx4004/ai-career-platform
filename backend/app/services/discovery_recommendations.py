@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from collections import OrderedDict
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -41,6 +42,7 @@ from app.schemas.discovery_recommendations import (
 from app.services.ats_providers import provider_for_endpoint
 from app.services.quality_signals import (
     compute_match_score,
+    extract_detected_skills,
     extract_job_keywords,
     keyword_present,
 )
@@ -250,7 +252,7 @@ def score_listing(profile: MatchProfile, listing: DiscoveredListing) -> Match:
     evidence_score = preference_score = 0
 
     if profile.evidence_text is not None:
-        keywords = _listing_keywords(listing.content_sha256, listing_text)
+        keywords = _listing_keywords(listing)
         evidence_matches = [k for k in keywords if keyword_present(k, profile.evidence_text)]
         evidence_score = compute_match_score(
             evidence_matches, [k for k in keywords if k not in evidence_matches]
@@ -452,12 +454,28 @@ def _scores(
     return {listing_id: cache[listing_id] for listing_id in listing_ids if listing_id in cache}
 
 
-def _listing_keywords(content_sha256: str, listing_text: str) -> list[str]:
-    keywords = _KEYWORD_CACHE.get(content_sha256)
+def _words(value: str) -> set[str]:
+    """Lowercased words with a plural 's' folded, so "Engineers" matches "Engineer"."""
+    return {w.removesuffix("s") for w in re.findall(r"[a-z0-9+#]+", value.lower())}
+
+
+def _listing_keywords(listing: DiscoveredListing) -> list[str]:
+    """Keywords from the description, minus words that only name the company or role.
+
+    "Labs" or "Engineers" from a company name or title are not skills the owner
+    matched. Known skills are kept even when the title mentions them.
+    """
+    cache_key = f"{listing.content_sha256}:{listing.title}:{listing.company}"
+    keywords = _KEYWORD_CACHE.get(cache_key)
     if keywords is None:
         if len(_KEYWORD_CACHE) >= _KEYWORD_CACHE_MAX:
             _KEYWORD_CACHE.clear()
-        keywords = _KEYWORD_CACHE[content_sha256] = extract_job_keywords(listing_text, limit=12)
+        name_words = _words(f"{listing.title} {listing.company}")
+        skills = {k.lower() for k in extract_detected_skills(listing.description)}
+        extracted = extract_job_keywords(listing.description, limit=12)
+        keywords = _KEYWORD_CACHE[cache_key] = [
+            k for k in extracted if k.lower() in skills or not _words(k) <= name_words
+        ]
     return keywords
 
 
