@@ -22,13 +22,13 @@ import {
 } from '#/lib/api/client'
 import type { EvidenceItem } from '#/lib/api/schemas'
 import {
-  KIND_LABELS,
+  KIND_SINGULAR_LABELS,
   PROVENANCE_DESCRIPTIONS,
   PROVENANCE_LABELS,
   STATE_LABELS,
   contentEntries,
   countByState,
-  fieldLabel,
+  factDisplay,
   groupItemsByKind,
 } from '#/lib/profile/evidence'
 import { EVIDENCE_QUERY_KEY, invalidateEvidenceCaches } from '#/lib/query/evidenceCaches'
@@ -44,37 +44,43 @@ function previewText(item: EvidenceItem): string {
 function EvidenceCard({
   item,
   busy,
-  showKind,
   primary,
   menu,
 }: {
   item: EvidenceItem
   busy: boolean
-  showKind: boolean
   primary: React.ReactNode
   menu: FactMenuItem[]
 }) {
   const state = item.confirmation_state
+  const { title, fields } = factDisplay(item)
+  const provenance = `${PROVENANCE_LABELS[item.provenance]}. ${PROVENANCE_DESCRIPTIONS[item.provenance]}`
   return (
     <FactCard
       tone={state}
       busy={busy}
+      title={title}
       meta={
         <>
-          {showKind ? <span className="fact-card__kind">{KIND_LABELS[item.kind]}</span> : null}
-          <Badge variant="outline" className={`fact-badge fact-badge--${state}`}>
+          <span className="fact-card__kind">{KIND_SINGULAR_LABELS[item.kind]}</span>
+          <Badge
+            variant="outline"
+            className={`fact-badge fact-badge--${state}`}
+            title={provenance}
+          >
             {STATE_LABELS[state]}
           </Badge>
-          <Badge variant="ghost" title={PROVENANCE_DESCRIPTIONS[item.provenance]}>
-            {PROVENANCE_LABELS[item.provenance]}
-          </Badge>
+          {/* A title tooltip is invisible on touch, so the source is also
+              available to assistive tech as text. */}
+          <span className="sr-only">{`Source: ${provenance}`}</span>
+          {state === 'confirmed' ? (
+            <Badge variant="ghost" aria-hidden="true">
+              {PROVENANCE_LABELS[item.provenance]}
+            </Badge>
+          ) : null}
         </>
       }
-      fields={contentEntries(item.content).map(({ key, value }) => ({
-        key,
-        label: fieldLabel(key),
-        value: value || '—',
-      }))}
+      fields={fields}
       primary={primary}
       menu={menu}
       menuLabel={`More actions: ${previewText(item)}`}
@@ -273,7 +279,6 @@ export function EvidenceProfilePage() {
               <EvidenceCard
                 key={item.id}
                 item={item}
-                showKind
                 busy={pendingItemId === item.id}
                 primary={
                   <Button
@@ -340,7 +345,6 @@ export function EvidenceProfilePage() {
                     <EvidenceCard
                       key={item.id}
                       item={item}
-                      showKind={false}
                       busy={pendingItemId === item.id || deleteTarget?.id === item.id}
                       primary={
                         <Button

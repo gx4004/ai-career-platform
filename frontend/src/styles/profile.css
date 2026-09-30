@@ -14,10 +14,6 @@
   border: 1px solid color-mix(in srgb, var(--destructive) 22%, transparent);
 }
 
-.profile-danger .workspace-panel__title {
-  color: var(--destructive);
-}
-
 .fact-groups {
   display: flex;
   flex-direction: column;
@@ -250,4 +246,13 @@
   .fact-card {
     transition: none;
   }
+}
+
+.fact-card__title {
+  margin: 0;
+  font-size: 0.975rem;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--text-strong);
+  overflow-wrap: anywhere;
 }

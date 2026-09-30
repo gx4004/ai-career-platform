@@ -7,7 +7,7 @@ import { useHistory } from '#/hooks/useHistory'
 import { useSession } from '#/hooks/useSession'
 import type { HistoryQueryParams } from '#/lib/api/client'
 import { Skeleton } from '#/components/ui/skeleton'
-import { getToolByHistoryName } from '#/lib/tools/registry'
+import { historyRunPresentation } from '#/lib/tools/historyRunPresentation'
 import { toolAccentStyle } from '#/lib/tools/styleUtils'
 import { ScrollFadeUp } from '#/components/ui/motion'
 
@@ -64,10 +64,9 @@ export function RunList({
         </div>
       ) : hasItems ? (
         items.map((item, i) => {
-          const tool = getToolByHistoryName(item.tool_name)
-          const route = tool
-            ? tool.resultRoute.replace('$historyId', item.id)
-            : '/history'
+          const presentation = historyRunPresentation(item.tool_name, item.id)
+          const { route } = presentation
+          const RowIcon = presentation.icon
 
           return (
             <motion.div
@@ -79,11 +78,11 @@ export function RunList({
             <Link
               to={route}
               className="run-row run-row--linked"
-              style={toolAccentStyle(tool?.accent)}
+              style={toolAccentStyle(presentation.accent)}
             >
-              {tool && (
+              {RowIcon && (
                 <div className="run-row-icon-col" aria-hidden>
-                  <tool.icon size={16} />
+                  <RowIcon size={16} />
                 </div>
               )}
               <div className="run-row-body">
@@ -92,7 +91,7 @@ export function RunList({
                     <Star size={12} className="run-row-favorite" aria-hidden />
                   )}
                   <Badge variant="outline">
-                    <span className="run-row-badge-text">{tool?.shortLabel || item.tool_name}</span>
+                    <span className="run-row-badge-text">{presentation.shortLabel}</span>
                   </Badge>
                   {!showFavoriteStar && (
                     <span className="small-copy muted-copy run-row-date">
@@ -105,7 +104,7 @@ export function RunList({
               <span
                 className="run-row-cta"
                 aria-hidden
-                style={tool?.accent ? { color: tool.accent } : undefined}
+                style={{ color: presentation.accent }}
               >
                 <span>Open</span>
                 <ArrowRight size={14} className="run-row-cta-arrow" />
