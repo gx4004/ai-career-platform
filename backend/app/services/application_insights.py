@@ -15,6 +15,7 @@ Definitions (also in CONTEXT.md):
 
 from __future__ import annotations
 
+import re
 from collections import defaultdict
 from dataclasses import dataclass
 
@@ -77,12 +78,21 @@ class AppliedApplication:
     skills_fit: int | None = None  # at adoption; Discovery-created applications only
 
 
+def _keyword_in(keyword: str, padded: str) -> bool:
+    if len(keyword) <= 3:
+        return f" {keyword} " in padded
+    return f" {keyword}" in padded
+
+
 def role_family(title: str | None) -> str | None:
     if not title or not title.strip():
         return None
-    padded = f"{title.casefold()} "
+    words = " ".join(re.findall(r"[a-z0-9+#]+", title.casefold()))
+    padded = f" {words} "
     for family, keywords in _ROLE_FAMILIES:
-        if any(keyword in padded for keyword in keywords):
+        # Word starts only, so "HTML" is not machine learning and "Linux" is not UX.
+        # Short keywords (ux, ui, ml, sre, seo) must be the whole word.
+        if any(_keyword_in(keyword.strip(), padded) for keyword in keywords):
             return family
     return "Other"
 
@@ -164,7 +174,9 @@ def compute_insights(applications: list[AppliedApplication]) -> WhatsWorking:
                 applied,
                 lambda a: None if a.remote is None else ("Remote" if a.remote else "On-site"),
             ),
-            _dimension("skills_fit", "Skills fit when saved", applied, lambda a: fit_bucket(a.skills_fit)),
+            _dimension(
+                "skills_fit", "Skills fit when saved", applied, lambda a: fit_bucket(a.skills_fit)
+            ),
         ],
     )
 
@@ -184,7 +196,9 @@ def whats_working(db: Session, user_id: str) -> WhatsWorking:
             db.query(CampaignEvent)
             .filter(
                 CampaignEvent.workspace_id.in_(ids),
-                CampaignEvent.event_type.in_(("status_changed", "listing_adopted", "listing_attached")),
+                CampaignEvent.event_type.in_(
+                    ("status_changed", "listing_adopted", "listing_attached")
+                ),
             )
             .order_by(CampaignEvent.created_at.asc())
         ):

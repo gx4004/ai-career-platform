@@ -62,9 +62,15 @@ def test_role_family(title, family):
 
 @pytest.mark.parametrize(
     ("fit", "bucket"),
-    [(100, "Strong fit (78%+)"), (78, "Strong fit (78%+)"), (77, "Partial fit (55-77%)"),
-     (55, "Partial fit (55-77%)"), (54, "Low fit (under 55%)"), (0, "Low fit (under 55%)"),
-     (None, None)],
+    [
+        (100, "Strong fit (78%+)"),
+        (78, "Strong fit (78%+)"),
+        (77, "Partial fit (55-77%)"),
+        (55, "Partial fit (55-77%)"),
+        (54, "Low fit (under 55%)"),
+        (0, "Low fit (under 55%)"),
+        (None, None),
+    ],
 )
 def test_fit_bucket_boundaries(fit, bucket):
     assert fit_bucket(fit) == bucket
@@ -79,8 +85,14 @@ def test_a_segment_needs_three_applications_before_it_shows_a_rate():
     company = dimension(compute_insights(rows), "company")
 
     by_label = {s.label: s for s in company.segments}
-    assert (by_label["Acme"].applied, by_label["Acme"].reply_rate, by_label["Acme"].enough_data) == (
-        2, None, False,
+    assert (
+        by_label["Acme"].applied,
+        by_label["Acme"].reply_rate,
+        by_label["Acme"].enough_data,
+    ) == (
+        2,
+        None,
+        False,
     )
     assert (by_label["Globex"].applied, by_label["Globex"].reply_rate) == (3, 0)
     # Segments with enough data come first.
@@ -89,9 +101,21 @@ def test_a_segment_needs_three_applications_before_it_shows_a_rate():
 
 def test_segments_are_separate_and_skip_applications_without_that_fact():
     rows = [
-        app("interviewing", source="employer_ats", remote=True, skills_fit=90, title="Backend Engineer"),
+        app(
+            "interviewing",
+            source="employer_ats",
+            remote=True,
+            skills_fit=90,
+            title="Backend Engineer",
+        ),
         app("applied", source="employer_ats", remote=True, skills_fit=80, title="Data Engineer"),
-        app("applied", source="employer_ats", remote=False, skills_fit=30, title="Frontend Developer"),
+        app(
+            "applied",
+            source="employer_ats",
+            remote=False,
+            skills_fit=30,
+            title="Frontend Developer",
+        ),
         app("applied", title="Backend Engineer"),  # pasted, nothing known
     ]
 
@@ -121,8 +145,18 @@ def test_company_names_group_case_insensitively_and_long_lists_are_capped():
 # ── Endpoint ──
 
 
-def _sent(db, user_id, *, company, status, source_family=None, remote=None, fit=None,
-          interviewed=False, role="Backend Engineer"):
+def _sent(
+    db,
+    user_id,
+    *,
+    company,
+    status,
+    source_family=None,
+    remote=None,
+    fit=None,
+    interviewed=False,
+    role="Backend Engineer",
+):
     from datetime import UTC, datetime
 
     workspace = make_application(db, user_id, company=company, role=role, status=status)
@@ -131,27 +165,62 @@ def _sent(db, user_id, *, company, status, source_family=None, remote=None, fit=
     if remote is not None:
         listing = DiscoveredListing(
             content_sha256=f"{company}{status}{fit}{role}".ljust(64, "x")[:64],
-            title=role, company=company, description="d" * 30, remote=remote,
+            title=role,
+            company=company,
+            description="d" * 30,
+            remote=remote,
         )
         db.add(listing)
         db.flush()
         workspace.discovery_listing_id = listing.id
     if source_family:
-        db.add(CampaignEvent(workspace_id=workspace.id, event_type="listing_adopted",
-                             details={"source_family": source_family, "outcome": "attached"}))
+        db.add(
+            CampaignEvent(
+                workspace_id=workspace.id,
+                event_type="listing_adopted",
+                details={"source_family": source_family, "outcome": "attached"},
+            )
+        )
     if interviewed:
-        db.add(CampaignEvent(workspace_id=workspace.id, event_type="status_changed",
-                             details={"from": "applied", "to": "interviewing"}))
+        db.add(
+            CampaignEvent(
+                workspace_id=workspace.id,
+                event_type="status_changed",
+                details={"from": "applied", "to": "interviewing"},
+            )
+        )
     db.commit()
 
 
 def test_endpoint_reports_the_owners_own_outcomes(client, db, test_user, auth_headers):
-    _sent(db, test_user.id, company="Acme", status="rejected", interviewed=True,
-          source_family="employer_ats", remote=True, fit=88)
-    _sent(db, test_user.id, company="Acme", status="applied",
-          source_family="employer_ats", remote=True, fit=85)
-    _sent(db, test_user.id, company="Acme", status="no_reply",
-          source_family="employer_ats", remote=False, fit=40)
+    _sent(
+        db,
+        test_user.id,
+        company="Acme",
+        status="rejected",
+        interviewed=True,
+        source_family="employer_ats",
+        remote=True,
+        fit=88,
+    )
+    _sent(
+        db,
+        test_user.id,
+        company="Acme",
+        status="applied",
+        source_family="employer_ats",
+        remote=True,
+        fit=85,
+    )
+    _sent(
+        db,
+        test_user.id,
+        company="Acme",
+        status="no_reply",
+        source_family="employer_ats",
+        remote=False,
+        fit=40,
+    )
     make_application(db, test_user.id, company="Unsent")  # saved, never applied
 
     body = client.get(f"{PREFIX}/insights", headers=auth_headers).json()
@@ -164,7 +233,8 @@ def test_endpoint_reports_the_owners_own_outcomes(client, db, test_user, auth_he
     ]
     mode = next(d for d in body["dimensions"] if d["key"] == "work_mode")["segments"]
     assert {s["label"]: (s["applied"], s["reply_rate"]) for s in mode} == {
-        "Remote": (2, None), "On-site": (1, None)
+        "Remote": (2, None),
+        "On-site": (1, None),
     }
 
 
@@ -179,3 +249,14 @@ def test_endpoint_is_empty_for_a_new_owner_and_private(client, db, test_user, au
     assert mine["overall"]["applied"] == 1
     assert theirs["overall"] == {"applied": 0, "replied": 0, "reply_rate": None}
     assert client.get(f"{PREFIX}/insights").status_code == 401
+
+
+def test_role_family_matches_whole_words_only():
+    from app.services.application_insights import role_family
+
+    assert role_family("HTML Developer") == "Engineering"
+    assert role_family("Linux Systems Engineer") == "Engineering"
+    assert role_family("Senior UX Designer") == "Design"
+    assert role_family("Data Engineer") == "Data"
+    assert role_family("Product Managers") == "Product"
+    assert role_family("Barista") == "Other"
