@@ -164,6 +164,16 @@ dimension is its own list, never blended into one score. A segment shows a rate
 only from 3 applications; below that it says "Not enough data yet (n
 applications)". Plain counts, no ML.
 
+**Similar applications (odds signal)**
+On a Discovery listing: "x of n got a reply" for the owner's own sent applications
+in the same *kind of role* and *skills-fit bucket* as the listing (the buckets and
+role families What's working uses). A third signal beside skills fit and
+preference hits, never blended into either. Shown only when the owner has 20 or
+more recorded outcomes (sent applications no longer just waiting) and the segment
+has 5 or more applications; otherwise absent. Ranking uses it only to break exact
+ties, after skills fit and preference hits, so it can never outrank fit. Plain
+counts, no ML.
+
 **Canonical listing**
 The persisted job posting an application targets - title, company, description,
 source URL, and retrieval date - stored as owner-isolated user content.
