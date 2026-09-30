@@ -1,0 +1,156 @@
+"""Curated skill vocabulary for job-posting keyword extraction.
+
+Heuristic only (no LLM). Each label maps to regex alternatives matched against
+lower-cased text. `quality_signals.extract_job_keywords` unions these with
+`SKILL_PATTERNS`; `keyword_present` uses the same patterns so a keyword such as
+"PostgreSQL" is found in a CV that says "Postgres" and "JavaScript" in one that
+says "JS". Only real skills, tools and competencies belong here: never verbs,
+generic nouns or domain words ("billing", "platform").
+"""
+
+from __future__ import annotations
+
+EXTRA_SKILL_PATTERNS: dict[str, tuple[str, ...]] = {
+    # Languages
+    "Go": (r"\bgolang\b",),
+    "GraphQL": (r"\bgraphql\b",),
+    "Java": (r"\bjava\b",),
+    "Kotlin": (r"\bkotlin\b",),
+    "Swift": (
+        r"\bswiftui\b",
+        r"\bswift\b(?![\s-]+(?:decision|action|response|execution|turnaround|pace|delivery|resolution|learner|mover|and (?:decisive|efficient|effective)))",
+    ),
+    "Rust": (r"(?<![-\w])rust\b(?![-\s]*(?:free|belt|proof|resistant|colou?red))",),
+    "C++": (r"c\+\+",),
+    "C#": (r"\bc#",),
+    "Ruby": (r"\bruby\b",),
+    "PHP": (r"\bphp\b",),
+    "Scala": (r"\bscala\b",),
+    "HTML": (r"\bhtml5?\b",),
+    "CSS": (r"\bcss3?\b", r"\bscss\b", r"\bsass\b"),
+    "Bash": (r"\bbash\b", r"\bshell scripting\b"),
+    # Frameworks
+    "Django": (r"\bdjango\b",),
+    "Flask": (r"\bflask\b",),
+    "Spring Boot": (r"\bspring boot\b", r"\bspring framework\b"),
+    "Ruby on Rails": (r"\bruby on rails\b", r"\brails\b"),
+    ".NET": (r"\.net\b", r"\basp\.net\b"),
+    "Next.js": (r"\bnext\.?js\b",),
+    "Vue": (r"\bvue(?:\.js)?\b",),
+    "Angular": (r"\bangular\b",),
+    "Svelte": (r"\bsvelte\b",),
+    "Redux": (r"\bredux\b",),
+    "Tailwind CSS": (r"\btailwind(?: css)?\b",),
+    "SQLAlchemy": (r"\bsqlalchemy\b",),
+    "React Native": (r"\breact native\b",),
+    "Flutter": (r"\bflutter\b",),
+    "iOS": (r"\bios\b",),
+    "Android": (r"\bandroid\b",),
+    # Data stores
+    "PostgreSQL": (r"\bpostgres(?:ql)?\b",),
+    "MySQL": (r"\bmysql\b",),
+    "MongoDB": (r"\bmongo(?:db)?\b",),
+    "Redis": (r"\bredis\b",),
+    "Elasticsearch": (r"\belasticsearch\b", r"\bopensearch\b"),
+    "Snowflake": (r"\bsnowflake\b",),
+    "BigQuery": (r"\bbigquery\b",),
+    "Redshift": (r"\bredshift\b",),
+    "Kafka": (r"\bkafka\b",),
+    "RabbitMQ": (r"\brabbitmq\b",),
+    # Data / ML
+    "dbt": (r"\bdbt\b",),
+    "Airflow": (r"\bairflow\b",),
+    # Bare "spark" is usually a verb ("spark innovation"): require Spark context.
+    "Spark": (
+        r"\bapache spark\b",
+        r"\bpyspark\b",
+        r"\bspark (?:sql|streaming|jobs?|clusters?|dataframes?|applications?)\b",
+        r"\b(?:hadoop|databricks|hive|scala)\b.*\bspark\b",
+    ),
+    "Pandas": (r"\bpandas\b",),
+    "NumPy": (r"\bnumpy\b",),
+    "scikit-learn": (r"\bscikit-learn\b", r"\bsklearn\b"),
+    "TensorFlow": (r"\btensorflow\b",),
+    "PyTorch": (r"\bpytorch\b",),
+    "LLMs": (r"\bllms?\b", r"\blarge language models?\b"),
+    "ETL": (r"\betl\b", r"\belt\b", r"\bdata pipelines?\b"),
+    "Statistics": (r"\bstatistics\b", r"\bstatistical (?:analysis|modeling)\b"),
+    "Data Visualization": (r"\bdata visuali[sz]ation\b",),
+    "Tableau": (r"\btableau\b",),
+    "Power BI": (r"\bpower ?bi\b",),
+    "Looker": (r"\blooker\b",),
+    # "excel at/in ..." is a verb; only the spreadsheet counts.
+    "Excel": (
+        r"\bmicrosoft excel\b",
+        r"\bms excel\b",
+        r"\bexcel\b(?!\s+(?:at|in|as|with|when|under|on|by|and|to|for|within)\b)(?!\s+[a-z]+ing\b)",
+    ),
+    "A/B Testing": (r"\ba/b test(?:ing|s)?\b", r"\bsplit testing\b", r"\bexperimentation\b"),
+    # Backend / infra
+    "Schema Design": (
+        r"\bschema design\b",
+        r"\bdesign(?:s|ed|ing)?\s+(?:\w+\s+){0,2}schemas?\b",
+        r"\bdata model(?:l)?ing\b",
+    ),
+    "Data Migrations": (
+        r"\b(?:database|schema|data|db|sql)\s+migrations?\b",
+        r"\bmigrations\b",
+        r"\balembic\b",
+        r"\bflyway\b",
+        r"\bliquibase\b",
+    ),
+    "Microservices": (r"\bmicroservices?\b",),
+    "gRPC": (r"\bgrpc\b",),
+    "Terraform": (r"\bterraform\b",),
+    "Ansible": (r"\bansible\b",),
+    "Helm": (r"\bhelm\b",),
+    "Linux": (r"\blinux\b",),
+    "Git": (r"\bgit\b",),
+    "Serverless": (r"\bserverless\b", r"\baws lambda\b"),
+    "Observability": (r"\bobservability\b", r"\bprometheus\b", r"\bgrafana\b", r"\bdatadog\b"),
+    "Code Review": (r"\bcode reviews?\b",),
+    "OAuth": (r"\boauth2?\b",),
+    "Performance Optimization": (r"\bperformance (?:optimi[sz]ation|tuning)\b",),
+    # Design
+    "Sketch": (r"\bsketch app\b", r"\bsketch\b(?=.*\b(?:figma|design|prototyp))",),
+    "Adobe Creative Suite": (r"\badobe\b", r"\bphotoshop\b", r"\billustrator\b", r"\bindesign\b"),
+    "User Research": (r"\buser research\b", r"\busability (?:testing|studies)\b"),
+    "Wireframing": (r"\bwireframes?\b", r"\bwireframing\b"),
+    "Prototyping": (r"\bprototyp(?:e|es|ing)\b",),
+    "Interaction Design": (r"\binteraction design\b",),
+    "Visual Design": (r"\bvisual design\b", r"\btypography\b"),
+    "UX Design": (r"\bux\b", r"\buser experience\b"),
+    "UI Design": (r"\bui design\b", r"\buser interface design\b"),
+    # Marketing / sales
+    "SEO": (r"\bseo\b", r"\bsearch engine optimi[sz]ation\b"),
+    "SEM": (r"\bsem\b", r"\bgoogle ads\b", r"\bppc\b"),
+    "Google Analytics": (r"\bgoogle analytics\b", r"\bga4\b"),
+    "HubSpot": (r"\bhubspot\b",),
+    "Salesforce": (r"\bsalesforce\b",),
+    "Marketo": (r"\bmarketo\b",),
+    "Mailchimp": (r"\bmailchimp\b",),
+    "CRM": (r"\bcrm\b",),
+    "Content Marketing": (r"\bcontent marketing\b",),
+    "Content Strategy": (r"\bcontent strategy\b",),
+    "Email Marketing": (r"\bemail marketing\b", r"\blifecycle marketing\b"),
+    "Copywriting": (r"\bcopywriting\b", r"\bcopywriter\b"),
+    "Social Media": (r"\bsocial media\b",),
+    "Marketing Automation": (r"\bmarketing automation\b",),
+    "Paid Media": (r"\bpaid (?:media|social|search|acquisition)\b",),
+    "Brand Strategy": (r"\bbrand strategy\b", r"\bbrand management\b"),
+    "Demand Generation": (r"\bdemand gen(?:eration)?\b",),
+    "Campaign Management": (r"\bcampaign management\b",),
+    # Ways of working
+    "Agile": (r"\bagile\b",),
+    "Scrum": (r"\bscrum\b",),
+    "Kanban": (r"\bkanban\b",),
+    "Jira": (r"\bjira\b",),
+    "Stakeholder Management": (r"\bstakeholder management\b",),
+    "Financial Modeling": (r"\bfinancial model(?:l)?ing\b",),
+    "Forecasting": (r"\bforecasting\b",),
+    "Budgeting": (r"\bbudgeting\b",),
+    "Technical Leadership": (r"\btechnical leadership\b", r"\btech lead\b"),
+}
+
+#: Postgres, MySQL etc. make the generic "SQL" label redundant in a posting.
+SQL_FLAVOUR_LABELS = frozenset({"PostgreSQL", "MySQL"})

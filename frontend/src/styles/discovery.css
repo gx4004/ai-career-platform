@@ -594,8 +594,12 @@ select.disc-field {
 .disc-drawer__actions {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 0.4rem;
 }
+
+/* Deep match stays primary; the rest live in the overflow menu at the end. */
+.disc-drawer__actions > :last-child { margin-left: auto; }
 
 .disc-drawer__footer {
   display: flex;

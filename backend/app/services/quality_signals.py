@@ -3,6 +3,8 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
+from app.services.skill_vocabulary import EXTRA_SKILL_PATTERNS, SQL_FLAVOUR_LABELS
+
 SECTION_PATTERNS: dict[str, tuple[str, ...]] = {
     "Summary": (
         r"\bprofessional summary\b",
@@ -54,8 +56,8 @@ SKILL_PATTERNS: dict[str, tuple[str, ...]] = {
         r"\bsql server\b",
     ),
     "FastAPI": (r"\bfastapi\b",),
-    "APIs": (r"\bapi\b", r"\bapis\b", r"\brest\b", r"\bgraphql\b"),
-    "JavaScript": (r"\bjavascript\b",),
+    "APIs": (r"\bapi\b", r"\bapis\b", r"\brestful\b", r"\brest apis?\b"),
+    "JavaScript": (r"\bjavascript\b", r"(?<![.\w])js\b", r"\becmascript\b"),
     "TypeScript": (r"\btypescript\b",),
     "React": (r"\breact\b",),
     "Node.js": (r"\bnode(?:\.js)?\b",),
@@ -438,7 +440,8 @@ def infer_resume_discipline(
 #: Case-folded lookup from a SKILL_PATTERNS label to its patterns, so
 #: `keyword_present` can match every synonym/family-member of a skill
 #: (e.g. "SQL" -> PostgreSQL, MySQL, T-SQL, ...), not just the literal label.
-_SKILL_PATTERNS_BY_LOWER_LABEL = {label.lower(): patterns for label, patterns in SKILL_PATTERNS.items()}
+_JOB_VOCABULARY: dict[str, tuple[str, ...]] = {**EXTRA_SKILL_PATTERNS, **SKILL_PATTERNS}
+_SKILL_PATTERNS_BY_LOWER_LABEL = {label.lower(): patterns for label, patterns in _JOB_VOCABULARY.items()}
 
 
 def keyword_present(keyword: str, text: str) -> bool:
@@ -467,9 +470,43 @@ def format_keyword(token: str) -> str:
     return token.title()
 
 
-def extract_job_keywords(job_description: str, limit: int = 10) -> list[str]:
+def _looks_like_technology(token: str) -> bool:
+    """A token that is plausibly a product/tool name even if not in the vocabulary.
+
+    Plain lowercase or Capitalised words ("behind", "Billing", "Lead") are never
+    accepted; only CamelCase ("SQLAlchemy"), digits/symbols ("Node.js", "C++")
+    or names ending in ".js"/".net".
+    """
+    if any(c.isupper() for c in token[1:]) and any(c.islower() for c in token):
+        return True
+    lowered = token.lower()
+    return lowered.endswith((".js", ".net")) or any(c in token for c in "+#")
+
+
+def _ranked_vocabulary_hits(job_description: str) -> list[str]:
     lowered = job_description.lower()
-    keywords: list[str] = extract_detected_skills(job_description)
+    hits: list[tuple[int, int, str]] = []
+    for label, patterns in _JOB_VOCABULARY.items():
+        positions = [m.start() for p in patterns for m in re.finditer(p, lowered)]
+        if positions:
+            hits.append((-min(len(positions), 3), min(positions), label))
+    labels = {label for _c, _p, label in hits}
+    if "SQL" in labels and labels & SQL_FLAVOUR_LABELS and not re.search(r"\bsql\b", lowered):
+        hits = [h for h in hits if h[2] != "SQL"]
+    return [label for _c, _p, label in sorted(hits)]
+
+
+def extract_job_keywords(
+    job_description: str, limit: int = 10, *, include_plain_words: bool = False
+) -> list[str]:
+    """Real skills, tools and competencies named in a posting (heuristic, no LLM).
+
+    Curated vocabulary hits ranked by mention count then position, then curated
+    phrases, then technology-looking tokens (CamelCase, ``Node.js``) the
+    vocabulary does not know. Generic verbs and nouns never qualify.
+    """
+    lowered = job_description.lower()
+    keywords: list[str] = _ranked_vocabulary_hits(job_description)
 
     for phrase in COMMON_KEYWORD_PHRASES:
         if phrase in lowered:
@@ -481,7 +518,7 @@ def extract_job_keywords(job_description: str, limit: int = 10) -> list[str]:
     for token in tokens:
         cleaned = token.strip(".,:;!()[]{}")
         key = cleaned.lower()
-        if key in STOPWORDS or len(key) < 4:
+        if key in STOPWORDS or len(key) < 4 or not (include_plain_words or _looks_like_technology(cleaned)):
             continue
         token_counts[key] = token_counts.get(key, 0) + 1
         original_token.setdefault(key, cleaned)
