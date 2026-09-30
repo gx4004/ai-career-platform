@@ -6,6 +6,7 @@ import { ApplicationsPage } from '../applications-page'
 
 const api = vi.hoisted(() => ({
   listApplications: vi.fn(),
+  getApplicationInsights: vi.fn(),
   updateApplication: vi.fn(),
   getApplicationPreferences: vi.fn(),
   saveApplicationPreferences: vi.fn(),
@@ -29,6 +30,7 @@ const items = [
   { ...base, id: 'a-4', title: 'SRE', company: 'Lumen', status: 'interviewing', applied_at: '2026-09-18T10:00:00Z' },
   { ...base, id: 'a-5', title: 'ML Engineer', company: 'Quarry', status: 'rejected' },
 ]
+const noInsights = { overall: { applied: 0, replied: 0, reply_rate: null }, min_segment_size: 3, dimensions: [] }
 const prefs = { keywords: ['backend'], locations: [], remote: true, max_per_run: 5, max_per_run_limit: 10, is_default: false }
 
 function renderBoard() {
@@ -46,6 +48,7 @@ describe('ApplicationsPage', () => {
     vi.clearAllMocks()
     api.listApplications.mockResolvedValue({ items, total: items.length })
     api.getApplicationPreferences.mockResolvedValue(prefs)
+    api.getApplicationInsights.mockResolvedValue(noInsights)
   })
 
   it('groups applications into stage columns with what each one needs next', async () => {
@@ -185,5 +188,35 @@ describe('Prepare applications for me', () => {
   it('says so when nothing new matched', async () => {
     await prepare({ reason: 'prepared', matched_count: 0 })
     expect(await screen.findByText(/No new jobs match your keywords/)).toBeTruthy()
+  })
+  it('teaches the owner to record outcomes when nothing has been applied to yet', async () => {
+    renderBoard()
+    expect(await screen.findByText('Nothing to learn from yet.')).toBeTruthy()
+    expect(screen.getByText(/mark it No reply/)).toBeTruthy()
+  })
+
+  it("shows reply rates with their sample size, and 'not enough data' for thin segments", async () => {
+    api.getApplicationInsights.mockResolvedValue({
+      overall: { applied: 8, replied: 3, reply_rate: 38 },
+      min_segment_size: 3,
+      dimensions: [
+        {
+          key: 'work_mode', title: 'Remote or on-site', hidden_count: 0,
+          segments: [
+            { label: 'Remote', applied: 5, replied: 3, reply_rate: 60, enough_data: true },
+            { label: 'On-site', applied: 2, replied: 0, reply_rate: null, enough_data: false },
+          ],
+        },
+        { key: 'company', title: 'Company', hidden_count: 4, segments: [] },
+      ],
+    })
+    renderBoard()
+    expect(await screen.findByText('3 of 8 applications got a reply')).toBeTruthy()
+    const group = within(screen.getByRole('region', { name: 'Remote or on-site' }))
+    expect(group.getByText('Remote')).toBeTruthy()
+    expect(group.getByText('60%')).toBeTruthy()
+    expect(group.getByText('3 of 5')).toBeTruthy()
+    expect(group.getByText('Not enough data yet (2 applications)')).toBeTruthy()
+    expect(screen.queryByRole('region', { name: 'Company' })).toBeNull()
   })
 })
