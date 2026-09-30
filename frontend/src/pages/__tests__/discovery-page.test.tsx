@@ -10,6 +10,7 @@ const dismissRecommendation = vi.hoisted(() => vi.fn())
 const undismissRecommendation = vi.hoisted(() => vi.fn())
 const adoptRecommendation = vi.hoisted(() => vi.fn())
 const getListing = vi.hoisted(() => vi.fn())
+const startDeepMatch = vi.hoisted(() => vi.fn())
 const navigate = vi.hoisted(() => vi.fn())
 
 vi.mock('#/lib/api/client', () => ({
@@ -18,6 +19,7 @@ vi.mock('#/lib/api/client', () => ({
   undismissDiscoveryRecommendation: undismissRecommendation,
   adoptDiscoveryRecommendation: adoptRecommendation,
   getDiscoveryListing: getListing,
+  startDiscoveryDeepMatch: startDeepMatch,
 }))
 
 vi.mock('@tanstack/react-router', () => ({
@@ -35,8 +37,10 @@ const LISTING = {
   posted_at: new Date(Date.now() - 3 * 86_400_000).toISOString(),
   apply_url: 'https://jobs.example/apply/1',
   department: 'Infrastructure',
-  score: 82,
-  matched_keywords: ['Kubernetes', 'Python'],
+  skills_fit: 82,
+  matched_skills: ['Kubernetes', 'Python'],
+  missing_skills: ['Terraform'],
+  preference_hits: ['Startup'],
   source_name: 'Greenhouse',
   source_url: 'https://boards.example/jobs/1',
 }
@@ -48,7 +52,7 @@ function page(overrides: Record<string, unknown> = {}) {
     page: 1,
     limit: 20,
     sort: 'best_match',
-    has_profile: true,
+    has_evidence: true,
     companies: ['Acme Systems', 'Stripe'],
     ...overrides,
   }
@@ -89,12 +93,15 @@ describe('DiscoveryPage', () => {
 
     expect(screen.getByRole('heading', { name: 'Discover jobs' })).toBeTruthy()
     expect(within(card).getByText(LISTING.preview)).toBeTruthy()
-    expect(within(card).getByLabelText('82% match')).toBeTruthy()
+    expect(within(card).getByLabelText('82% skills fit')).toBeTruthy()
     expect(within(card).getByText('Berlin, Germany')).toBeTruthy()
     expect(within(card).getByText('Remote')).toBeTruthy()
     expect(within(card).getByText('Posted 3 days ago')).toBeTruthy()
     expect(within(card).getByText('Kubernetes')).toBeTruthy()
     expect(within(card).getByText('via Greenhouse')).toBeTruthy()
+    // Preference hits are their own signal, not folded into the fit number.
+    expect(within(card).getByLabelText('Matches your preferences').textContent).toBe('Startup')
+    expect(within(card).queryByText(/\d+% match/)).toBeNull()
   })
 
   it('gives each card one primary action and keeps the rest in its overflow menu', async () => {
@@ -167,10 +174,57 @@ describe('DiscoveryPage', () => {
     expect(await within(dialog).findByText('<b>Bold</b> claim')).toBeTruthy()
     expect(getListing).toHaveBeenCalledWith('listing-1')
     expect(dialog.querySelector('b')).toBeNull()
-    for (const name of [/Add to applications/, /Tailor my CV/, /^Hide$/]) {
+    for (const name of [/Deep match/, /Add to applications/, /Tailor my CV/, /^Hide$/]) {
       expect(within(dialog).getByRole('button', { name })).toBeTruthy()
     }
     expect(within(dialog).getByRole('link', { name: /Apply on company site/ })).toBeTruthy()
+  })
+
+  it('shows matched and missing skills and runs a deep match from the drawer', async () => {
+    startDeepMatch.mockResolvedValue({ history_id: 'run-7', match_score: 71, verdict: 'borderline', created_at: '2026-09-30T10:00:00Z' })
+    renderPage()
+    const card = await findCard()
+    fireEvent.click(within(card).getByRole('button', { name: 'Platform Engineer' }))
+    const dialog = await screen.findByRole('dialog')
+
+    expect(within(dialog).getByText('Terraform')).toBeTruthy()
+    expect(within(dialog).getByText('Skills to add')).toBeTruthy()
+    expect(within(dialog).getByText('Matches your preferences')).toBeTruthy()
+
+    fireEvent.click(within(dialog).getByRole('button', { name: /^Deep match$/ }))
+
+    await waitFor(() => expect(startDeepMatch).toHaveBeenCalledWith('listing-1'))
+    await waitFor(() =>
+      expect(navigate).toHaveBeenCalledWith({ to: '/job-match/result/$historyId', params: { historyId: 'run-7' } }),
+    )
+  })
+
+  it('reopens a listing that already has a deep match instead of running it again', async () => {
+    getListing.mockResolvedValue({
+      ...LISTING,
+      description: 'Body',
+      deep_match: { history_id: 'run-3', match_score: 64, verdict: 'borderline', created_at: '2026-09-30T10:00:00Z' },
+    })
+    renderPage()
+    const card = await findCard()
+    fireEvent.click(within(card).getByRole('button', { name: 'Platform Engineer' }))
+    const dialog = await screen.findByRole('dialog')
+
+    fireEvent.click(await within(dialog).findByRole('button', { name: /View deep match/ }))
+
+    expect(within(dialog).getByLabelText('Deep match').textContent).toContain('64%')
+    expect(startDeepMatch).not.toHaveBeenCalled()
+    expect(navigate).toHaveBeenCalledWith({ to: '/job-match/result/$historyId', params: { historyId: 'run-3' } })
+  })
+
+  it('asks the owner to confirm evidence in the drawer instead of showing 0%', async () => {
+    renderPage(page({ has_evidence: false, sort: 'newest', items: [{ ...LISTING, skills_fit: null, matched_skills: [], missing_skills: [], preference_hits: [] }] }))
+    const card = await findCard()
+    fireEvent.click(within(card).getByRole('button', { name: 'Platform Engineer' }))
+    const dialog = await screen.findByRole('dialog')
+
+    expect(within(dialog).getByText(/Confirm your skills in your profile/)).toBeTruthy()
+    expect(within(dialog).queryByText(/0%/)).toBeNull()
   })
 
   it('sends filter changes to the search endpoint', async () => {
@@ -223,10 +277,11 @@ describe('DiscoveryPage', () => {
   })
 
   it('shows unscored jobs and points to the profile when the user has no confirmed skills', async () => {
-    renderPage(page({ has_profile: false, sort: 'newest', items: [{ ...LISTING, score: null, matched_keywords: [] }] }))
+    renderPage(page({ has_evidence: false, sort: 'newest', items: [{ ...LISTING, skills_fit: null, matched_skills: [], missing_skills: [], preference_hits: [] }] }))
     const card = await findCard()
 
-    expect(within(card).queryByText(/match/)).toBeNull()
+    expect(within(card).queryByText(/skills fit/)).toBeNull()
+    expect(within(card).queryByText(/\d+%/)).toBeNull()
     expect(screen.getByRole('link', { name: 'Open my profile' }).getAttribute('href')).toBe('/profile')
     expect(screen.queryByRole('combobox', { name: 'Sort' })).toBeNull()
   })

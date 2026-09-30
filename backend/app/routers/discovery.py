@@ -1,14 +1,16 @@
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from sqlalchemy.orm import Session
 
 from app.auth.security import get_current_user
 from app.database import get_db
+from app.limiter import limiter
 from app.models.user import User
 from app.schemas.applications import ApplicationDetail
 from app.schemas.discovery_personalization import DismissalCreate, DismissalItem
 from app.schemas.discovery_recommendations import (
+    DiscoveryDeepMatch,
     DiscoveryListingDetail,
     DiscoveryListingPage,
 )
@@ -17,6 +19,7 @@ from app.services.discovery_adoption import (
     RecommendationNotAdoptableError,
     adopt_recommendation,
 )
+from app.services.discovery_deep_match import ListingNotVisibleError, NoCvError, deep_match
 from app.services.discovery_personalization import (
     DiscoveredListingNotFoundError,
     dismiss_recommendation,
@@ -66,6 +69,29 @@ def get_listing(
     if detail is None:
         raise HTTPException(status_code=404, detail="Listing not found")
     return detail
+
+
+@router.post("/listings/{listing_id}/deep-match", response_model=DiscoveryDeepMatch)
+@limiter.limit("10/minute")
+async def start_deep_match(
+    request: Request,
+    listing_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Run Job Match on this listing with the owner's newest CV, once.
+
+    Returns the run already linked to the listing when there is one, so opening a
+    listing again never re-runs the model.
+    """
+    try:
+        return await deep_match(db, current_user, listing_id)
+    except ListingNotVisibleError as error:
+        raise HTTPException(status_code=404, detail="Listing not found") from error
+    except NoCvError as error:
+        raise HTTPException(
+            status_code=409, detail="Create a CV in CV Studio before running a deep match."
+        ) from error
 
 
 @router.post(
