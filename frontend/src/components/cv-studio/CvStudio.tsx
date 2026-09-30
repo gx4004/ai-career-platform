@@ -2,15 +2,15 @@ import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import {
-  ArrowLeft, Check, ChevronDown, CloudOff, Download, FileSearch, FileText, FileUp, History, Layers, LayoutTemplate,
-  ListTree, Loader2, MoreHorizontal, Plus, ShieldCheck, Sparkles, Trash2, X,
+  ArrowLeft, Check, CheckCircle2, CircleAlert, CloudOff, Download, FileSearch, FileText, FileUp, History, Layers, LayoutTemplate,
+  ListTree, Loader2, MoreHorizontal, ShieldCheck, Sparkles, Trash2, X,
 } from 'lucide-react'
 import { AppStatePanel } from '#/components/app/AppStatePanel'
 import { PageHero } from '#/components/app/PageHero'
-import { WorkspaceEmpty, WorkspacePage, WorkspacePanel } from '#/components/app/WorkspacePage'
+import { WorkspaceEmpty, WorkspacePage } from '#/components/app/WorkspacePage'
 import { Button } from '#/components/ui/button'
 import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
 } from '#/components/ui/dropdown-menu'
 import { Sheet, SheetContent, SheetTitle } from '#/components/ui/sheet'
 import { useBreakpoint } from '#/hooks/use-breakpoint'
@@ -209,10 +209,15 @@ export function CvStudio() {
     return <AppStatePanel title="CV Studio" description="Sign in to write, design and export your CV, and keep every version safe." actions={[{ label: 'Sign in', onClick: () => openAuthDialog({ to: '/cv-studio', reason: 'CV Studio is private to your account.' }) }]} />
   }
   if (listQuery.isError || catalogQuery.isError || documentQuery.isError) {
-    return <AppStatePanel title="CV Studio didn’t load" description="Your CVs are safe. Nothing was changed." detail="Try loading the studio again." actions={[{ label: 'Try again', onClick: () => { void listQuery.refetch(); void catalogQuery.refetch(); void documentQuery.refetch() } }]} />
+    return <AppStatePanel title="CV Studio didn’t load" description="Your CVs are safe and nothing was changed. Try again in a moment." actions={[{ label: 'Try again', onClick: () => { void listQuery.refetch(); void catalogQuery.refetch(); void documentQuery.refetch() } }]} />
   }
   if (listQuery.isPending || catalogQuery.isPending || (documentId && documentQuery.isPending)) {
-    return <WorkspacePage wide className="cvs-page"><div className="cvs-skeleton" role="status" aria-label="Loading CV Studio" /></WorkspacePage>
+    return (
+      <WorkspacePage wide className="cvs-page">
+        <PageHero icon={FileText} title="CV Studio" purpose="Write it once, pick a look, and tailor it to every job." />
+        <div className="cvs-skeleton" role="status" aria-label="Loading CV Studio" />
+      </WorkspacePage>
+    )
   }
   const catalog = catalogQuery.data
   const closeDialog = (open: boolean) => { if (!open) setDialog(null) }
@@ -232,7 +237,7 @@ export function CvStudio() {
           purpose="Write it once, pick a look, and tailor it to every job. We check that application systems can read it."
           chips={['Live paper preview', 'ATS check', 'Tailor to a job', 'Versions']}
         />
-        <WorkspacePanel className="cvs-empty-panel">
+        <div className="cvs-empty-panel">
           <WorkspaceEmpty
             icon={FileUp}
             title="Let’s start with your CV"
@@ -244,7 +249,7 @@ export function CvStudio() {
               </div>
             )}
           />
-        </WorkspacePanel>
+        </div>
         {startDialogs}
       </WorkspacePage>
     )
@@ -263,8 +268,15 @@ export function CvStudio() {
     openPanel({ sectionId: next[next.length - 1].id })
   }
 
-  const toolButton = (id: Tool, Icon: typeof ListTree, extra?: ReactNode) => (
-    <button type="button" className={cn('cvs-tool', tool === id && 'is-active')} aria-pressed={tool === id} onClick={() => openPanel(id)}>
+  const toolButton = (id: Tool, Icon: typeof ListTree, extra?: ReactNode, tone?: 'pass' | 'fail') => (
+    <button
+      type="button"
+      className={cn('cvs-tool', tone && `cvs-tool--${tone}`, tool === id && (desktop || panelOpen) && 'is-active')}
+      {...(desktop
+        ? { 'aria-pressed': tool === id }
+        : { 'aria-haspopup': 'dialog' as const, 'aria-expanded': panelOpen && tool === id })}
+      onClick={() => openPanel(id)}
+    >
       <Icon size={15} aria-hidden="true" /> {TOOL_TITLES[id]}{extra}
     </button>
   )
@@ -289,7 +301,11 @@ export function CvStudio() {
       ) : tool === 'design' ? (
         <CvDesignPanel style={draft.style} catalog={catalog} onChange={editStyle} />
       ) : tool === 'checks' ? (
-        <CvAtsPanel quality={quality} atsMode={draft.style.ats_mode} onTurnOnAtsMode={() => { editStyle({ ats_mode: true }); openPanel('design') }} />
+        <CvAtsPanel
+          quality={quality} sections={draft.sections} onAddSection={addAndOpen}
+          onShowSection={(sectionId) => editSections((sections) => sections.map((section) => section.id === sectionId ? { ...section, visible: true } : section))}
+          atsMode={draft.style.ats_mode} onTurnOnAtsMode={() => { editStyle({ ats_mode: true }); openPanel('design') }}
+        />
       ) : tool === 'versions' ? (
         <CvVersionsPanel variants={draft.variants} busy={dirty} onSave={saveVersion} onRestore={restoreVersion} />
       ) : (
@@ -320,25 +336,20 @@ export function CvStudio() {
           />
         </>
       )}
-      purpose={<span className="cvs-purpose"><SaveStatus state={saveState} /> Click any section on the page to edit it.</span>}
+      purpose={<span className="cvs-purpose"><SaveStatus state={saveState} />{templateName ? <> · {templateName}</> : null}</span>}
       action={(
         <>
           <Button type="button" loading={exporting === 'pdf'} disabled={dirty} onClick={() => void exportFile('pdf')}><Download size={16} /> Export PDF</Button>
           <Button type="button" variant="outline" onClick={() => setDialog('tailor')}><Sparkles size={16} /> Tailor to a job</Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button type="button" variant="outline" disabled={dirty}><Plus size={16} /> New CV <ChevronDown size={14} /></Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-60">
-              <DropdownMenuItem onSelect={() => setDialog('import')}><FileUp /> Import a PDF or DOCX</DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => setDialog('create')}><Layers /> Start from your Evidence</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
               <Button type="button" variant="outline" size="icon" aria-label="More options"><MoreHorizontal size={16} /></Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-60">
+              <DropdownMenuLabel>New CV</DropdownMenuLabel>
+              <DropdownMenuItem disabled={dirty} onSelect={() => setDialog('import')}><FileUp /> Import a PDF or DOCX</DropdownMenuItem>
+              <DropdownMenuItem disabled={dirty} onSelect={() => setDialog('create')}><Layers /> Start from your Evidence</DropdownMenuItem>
+              <DropdownMenuSeparator />
               <DropdownMenuItem disabled={dirty || exporting === 'docx'} onSelect={() => void exportFile('docx')}><Download /> Export DOCX</DropdownMenuItem>
               <DropdownMenuItem disabled={exporting === 'data'} onSelect={() => void exportFile('data')}><Download /> Download my CV data</DropdownMenuItem>
               <DropdownMenuSeparator />
@@ -362,9 +373,9 @@ export function CvStudio() {
           <nav className="cvs-toolbar" aria-label="Studio tools">
             {toolButton('sections', ListTree)}
             {toolButton('design', LayoutTemplate)}
-            {toolButton('checks', ShieldCheck, checks ? (
+            {toolButton('checks', checks ? (checks.every((check) => check.passed) ? CheckCircle2 : CircleAlert) : ShieldCheck, checks ? (
               <span className={cn('cvs-tool__badge', checks.every((check) => check.passed) ? 'is-pass' : 'is-fail')}>{checklistSummary(checks)}</span>
-            ) : null)}
+            ) : null, checks ? (checks.every((check) => check.passed) ? 'pass' : 'fail') : undefined)}
             {toolButton('versions', History, <span className="cvs-tool__count">{draft.variants.length}</span>)}
             <span className="cvs-toolbar__end">
               {documents.length > 1 ? (
