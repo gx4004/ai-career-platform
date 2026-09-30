@@ -84,3 +84,87 @@ def test_extract_role_label_ignores_role_words_used_in_prose():
     assert extract_role_label("You will lead a team of five across two time zones.") is None
     assert extract_role_label("") is None
     assert extract_role_label("Great benefits and a friendly office.") is None
+
+
+# --- Skill keyword quality: only real skills, never function words/generic verbs.
+
+import pytest  # noqa: E402
+
+_JUNK = {
+    "behind", "billing", "lead", "design", "pipelines", "migrations", "own", "build",
+    "services", "platform", "team", "teams", "product", "products", "customers",
+    "customer", "will", "you", "using", "strong", "across", "drive", "grow",
+    "manage", "create", "campaigns", "content", "users", "user", "data", "work",
+    "engineers", "engineering", "experience", "years", "mentor", "schemas", "with",
+}
+
+_JOB_CASES = [
+    (
+        "backend",
+        "Own the Python and FastAPI services behind our billing platform. You will "
+        "design PostgreSQL schemas, lead migrations, and build CI/CD pipelines with "
+        "Docker on AWS.",
+        {"Python", "FastAPI", "PostgreSQL", "CI/CD", "Docker", "AWS", "Schema Design", "Data Migrations"},
+    ),
+    (
+        "frontend",
+        "We are hiring a frontend engineer. You will ship interfaces with strong accessibility in "
+        "React and TypeScript, build a component library in Tailwind CSS, and write "
+        "tests with Jest. Experience with Next.js and GraphQL is a plus.",
+        {"React", "TypeScript", "Tailwind CSS", "Next.js", "Accessibility"},
+    ),
+    (
+        "data",
+        "Join our data team to build ETL pipelines in Airflow and dbt on Snowflake. "
+        "You will model data in SQL, create dashboards in Tableau and use Python "
+        "with Pandas for analysis.",
+        {"Airflow", "dbt", "Snowflake", "SQL", "Tableau", "Python", "Pandas", "ETL"},
+    ),
+    (
+        "design",
+        "Lead the design of our mobile experience. You will run user research, "
+        "create wireframes and prototypes in Figma, and maintain our design system "
+        "with a strong eye for typography and accessibility.",
+        {"Figma", "User Research", "Wireframing", "Prototyping", "Accessibility", "Design Systems"},
+    ),
+    (
+        "marketing",
+        "Grow our pipeline through content marketing, SEO and email marketing. "
+        "You will manage campaigns in HubSpot, report on Google Analytics, run "
+        "A/B tests and write strong copy for our customers.",
+        {"Content Marketing", "SEO", "Email Marketing", "HubSpot", "Google Analytics", "A/B Testing"},
+    ),
+]
+
+
+@pytest.mark.parametrize(("name", "jd", "expected"), _JOB_CASES, ids=[c[0] for c in _JOB_CASES])
+def test_job_keywords_are_real_skills_only(name, jd, expected):
+    keywords = extract_job_keywords(jd, limit=12)
+    lowered = {k.lower() for k in keywords}
+    assert not (lowered & _JUNK), f"{name}: junk keywords {lowered & _JUNK}"
+    missing = {k for k in expected if k not in keywords}
+    assert not missing, f"{name}: missing {missing} in {keywords}"
+
+
+def test_unknown_camelcase_tool_is_kept_but_plain_words_are_not():
+    keywords = extract_job_keywords("You will maintain our SQLAlchemy models and lead the platform billing work.")
+    assert "SQLAlchemy" in keywords
+    assert not {k.lower() for k in keywords} & {"lead", "platform", "billing", "maintain", "models"}
+
+
+def test_postgres_replaces_generic_sql_when_flavour_named():
+    keywords = extract_job_keywords("Design PostgreSQL schemas.")
+    assert "PostgreSQL" in keywords
+    assert "SQL" not in keywords
+
+
+def test_keyword_present_handles_multiword_and_variant_skills():
+    assert keyword_present("PostgreSQL", "Tuned Postgres queries for 5 years")
+    assert keyword_present("PostgreSQL", "Managed POSTGRESQL clusters")
+    assert not keyword_present("PostgreSQL", "MySQL only")
+    assert keyword_present("JavaScript", "Built UIs with JS and HTML")
+    assert keyword_present("Schema Design", "Designed relational schemas for billing")
+    assert keyword_present("Data Migrations", "Ran zero-downtime database migrations")
+    assert keyword_present("CI/CD", "Set up GitHub Actions pipelines")
+    assert keyword_present("User Research", "Conducted usability testing sessions")
+    assert not keyword_present("Schema Design", "Wrote Python scripts")

@@ -176,7 +176,7 @@ function BoardCard({
             {card.open_question_count === 1 ? '1 question' : `${card.open_question_count} questions`}
           </StatusPill>
         ) : null}
-        {card.match_score !== null ? <span className="camp-card__score">{card.match_score}% match</span> : null}
+        {card.match_score !== null ? <span className="camp-card__score">{card.match_score}% skills fit</span> : null}
       </div>
       {task ? (
         <p className="camp-card__next">
