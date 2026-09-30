@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import {
   AlertCircle,
@@ -19,6 +19,7 @@ import {
   Zap,
 } from 'lucide-react'
 import { ScrollReveal, AnimatedNumber } from '#/components/ui/motion'
+import { AutoGrowTextarea } from '#/components/tooling/AutoGrowTextarea'
 import { InterviewPracticeMode } from '#/components/tooling/InterviewPracticeMode'
 import type { ToolRunDetail } from '#/lib/api/schemas'
 import type { ToolDefinition, ToolId } from '#/lib/tools/registry'
@@ -436,6 +437,52 @@ function composeCoverLetterText(parts: {
     .join('\n\n')
 }
 
+/** Shorten a role label (the backend can echo a whole JD line) to one readable line. */
+export function truncateLabel(text: string, max = 60) {
+  const trimmed = text.trim()
+  return trimmed.length > max ? `${trimmed.slice(0, max - 1).trimEnd()}…` : trimmed
+}
+
+/** "Target role: <role>", or just "Target role" when the backend sent only a placeholder. */
+export function roleFitLabel(label: string) {
+  const trimmed = label.trim()
+  if (!trimmed || /^(the )?target role$/i.test(trimmed)) return 'Target role'
+  return `Target role: ${truncateLabel(trimmed)}`
+}
+
+export function formatLetterDate(iso: string | null | undefined, now: Date = new Date()) {
+  const parsed = iso ? new Date(iso) : null
+  const date = parsed && !Number.isNaN(parsed.getTime()) ? parsed : now
+  return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+}
+
+/** Distinct requirements addressed across opening, body points and closing. */
+export function uniqueRequirementCount(result: {
+  opening: { requirementsUsed: string[] }
+  bodyPoints: Array<{ requirementsUsed: string[] }>
+  closing: { requirementsUsed: string[] }
+}) {
+  const seen = new Set<string>()
+  for (const section of [result.opening, ...result.bodyPoints, result.closing]) {
+    for (const req of section.requirementsUsed) {
+      const key = req.trim().toLowerCase()
+      if (key) seen.add(key)
+    }
+  }
+  return seen.size
+}
+
+/**
+ * The letter is editable on the result page. Edits live only in the browser, so
+ * hero Copy / Download read the edited text from here, keyed by run id, and fall
+ * back to the generated letter when nothing was edited.
+ */
+const editedLetters = new Map<string, string>()
+
+function coverLetterTextFor(payload: AnyObject, item?: ToolRunDetail) {
+  return (item && editedLetters.get(item.id)) || coverLetterCopyText(payload)
+}
+
 function normalizeCoverLetterPayload(payload: AnyObject): CoverLetterResultPayload {
   const summary = payload.summary && typeof payload.summary === 'object'
     ? payload.summary as AnyObject
@@ -603,46 +650,58 @@ function ScoreCircleSvg({
 }
 
 const FIX_FIRST_ICONS = [FileEdit, Hash, TrendingUp] as const
-const FIX_FIRST_CARD_STYLES = [
-  { bg: '#fef3c7', text: '#b45309' },  // amber
-  { bg: '#fee2e2', text: '#dc2626' },  // rose
-  { bg: '#dbeafe', text: '#2563eb' },  // blue
-] as const
+// Tint follows priority (not card position): high = rose, medium = amber, low = blue.
+const FIX_FIRST_TONES: Record<string, { bg: string; text: string }> = {
+  high: { bg: '#fee2e2', text: '#dc2626' },
+  medium: { bg: '#fef3c7', text: '#b45309' },
+  low: { bg: '#dbeafe', text: '#2563eb' },
+}
 const FIX_FIRST_LABELS: Record<string, string> = {
   high: 'High priority',
-  medium: 'Urgent fix',
-  low: 'Actionable',
+  medium: 'Worth fixing',
+  low: 'Nice to have',
 }
 
-function FixFirstStrip({ actions, showFooter = true }: { actions: Array<{ title: string; action: string; priority: string }>; showFooter?: boolean }) {
+export function fixFirstTone(priority: string) {
+  return FIX_FIRST_TONES[priority] ?? FIX_FIRST_TONES.medium
+}
+
+// `showFooter` is false only on Job Match: its cards sit directly under the
+// score hero, where the priority label would repeat the hero's own framing.
+export function FixFirstStrip({ actions, showFooter = true }: { actions: Array<{ title: string; action: string; priority: string }>; showFooter?: boolean }) {
   const items = actions.slice(0, 3)
   if (items.length === 0) return null
 
   return (
-    <div className="fix-first-strip stagger-entrance">
-      {items.map((a, i) => {
-        const Icon = FIX_FIRST_ICONS[i] || FileEdit
-        const style = FIX_FIRST_CARD_STYLES[i] || FIX_FIRST_CARD_STYLES[0]
-        return (
-          <div key={`${a.title}-${i}`} className="fix-first-card">
-            <div className="fix-first-card__icon" style={{ background: style.bg }}>
-              <Icon size={18} style={{ color: style.text }} />
+    <div className="fix-first-section stagger-entrance">
+      <div className="fix-first-eyebrow">Fix these first</div>
+      <div
+        className="fix-first-strip"
+        style={{ '--fix-count': items.length } as React.CSSProperties}
+      >
+        {items.map((a, i) => {
+          const Icon = FIX_FIRST_ICONS[i] || FileEdit
+          const tone = fixFirstTone(a.priority)
+          return (
+            <div key={`${a.title}-${i}`} className="fix-first-card">
+              <div className="fix-first-card__icon" style={{ background: tone.bg }}>
+                <Icon size={18} style={{ color: tone.text }} />
+              </div>
+              <div className="fix-first-card__content">
+                <div className="fix-first-card__title">{a.title}</div>
+                <div className="fix-first-card__desc">{a.action}</div>
+                {showFooter && (
+                  <div className="fix-first-card__footer">
+                    <span className="fix-first-card__priority" style={{ color: tone.text }}>
+                      {FIX_FIRST_LABELS[a.priority] || a.priority}
+                    </span>
+                  </div>
+                )}
+              </div>
             </div>
-            <div className="fix-first-card__content">
-              <div className="fix-first-card__title">{a.title}</div>
-              <div className="fix-first-card__desc">{a.action}</div>
-              {showFooter && (
-                <div className="fix-first-card__footer">
-                  <span className="fix-first-card__priority" style={{ color: style.text }}>
-                    {FIX_FIRST_LABELS[a.priority] || a.priority}
-                  </span>
-                  <ArrowRight size={16} style={{ color: 'var(--text-soft)' }} />
-                </div>
-              )}
-            </div>
-          </div>
-        )
-      })}
+          )
+        })}
+      </div>
     </div>
   )
 }
@@ -682,7 +741,7 @@ function ResumeResultView({ payload }: { payload: AnyObject }) {
     : null
 
   return (
-    <div className={hasRightColumn ? 'resume-body-grid' : 'resume-body-single'} style={{ padding: 'var(--rs-pad-y) var(--rs-pad-x)' }}>
+    <div className={hasRightColumn ? 'resume-body-grid' : 'resume-body-single'}>
       {/* ── Left column ── */}
       <div className="resume-body-left">
         {/* Detailed Feedback card */}
@@ -786,7 +845,9 @@ function ResumeResultView({ payload }: { payload: AnyObject }) {
             </div>
             <div className="rolefit-bar">
               <div className="rolefit-bar__header">
-                <span className="rolefit-bar__label">{result.roleFit.targetRoleLabel}</span>
+                <span className="rolefit-bar__label" title={result.roleFit.targetRoleLabel}>
+                  {roleFitLabel(result.roleFit.targetRoleLabel)}
+                </span>
                 <span className="rolefit-bar__value">{result.roleFit.fitScore}%</span>
               </div>
               <div className="rolefit-bar__track">
@@ -845,7 +906,7 @@ function JobMatchView({ payload }: { payload: AnyObject }) {
   const hasRightContent = result.recruiterSummary || result.interviewFocus.length > 0
 
   return (
-    <div className={hasRightContent ? 'resume-body-grid' : 'resume-body-single'} style={{ padding: 'var(--rs-pad-y) var(--rs-pad-x)' }}>
+    <div className={hasRightContent ? 'resume-body-grid' : 'resume-body-single'}>
       {/* ── Left column ── */}
       <div className="resume-body-left">
         {/* Requirements card */}
@@ -994,10 +1055,7 @@ function JobMatchView({ payload }: { payload: AnyObject }) {
             <div className="jm-interview-card__header">Interview prep</div>
             <div className="jm-interview-card__items">
               {result.interviewFocus.map((f) => (
-                <div key={f} className="jm-interview-card__item">
-                  <ArrowRight size={14} className="jm-interview-card__item-icon" />
-                  <span>{f}</span>
-                </div>
+                <span key={f} className="jm-interview-card__item">{f}</span>
               ))}
             </div>
           </div>
@@ -1012,7 +1070,7 @@ function JobMatchView({ payload }: { payload: AnyObject }) {
 function CoverLetterHeroExtra({ payload }: { payload: AnyObject }) {
   const result = normalizeCoverLetterPayload(payload)
   const wordCount = result.fullText.split(/\s+/).filter(Boolean).length
-  const reqCount = result.customizationNotes.length
+  const reqCount = uniqueRequirementCount(result)
 
   return (
     <div className="hero-stat-strip">
@@ -1038,7 +1096,7 @@ function CoverLetterHeroExtra({ payload }: { payload: AnyObject }) {
   )
 }
 
-function CoverLetterView({ payload }: { payload: AnyObject }) {
+function CoverLetterView({ payload, item }: { payload: AnyObject; item?: ToolRunDetail }) {
   const result = normalizeCoverLetterPayload(payload)
   const [openingText, setOpeningText] = useState(result.opening.text)
   const [bodyTexts, setBodyTexts] = useState(result.bodyPoints.map((item) => item.text))
@@ -1048,6 +1106,14 @@ function CoverLetterView({ payload }: { payload: AnyObject }) {
     () => composeCoverLetterText({ opening: openingText, bodyPoints: bodyTexts, closing: closingText }),
     [bodyTexts, closingText, openingText],
   )
+
+  useEffect(() => {
+    if (!item) return
+    editedLetters.set(item.id, compiledText)
+    return () => {
+      editedLetters.delete(item.id)
+    }
+  }, [item, compiledText])
 
   const bodyAnnotationLabels = ['Evidence loop', 'Culture fit', 'Value close']
   const annotationLabels = [
@@ -1070,41 +1136,38 @@ function CoverLetterView({ payload }: { payload: AnyObject }) {
       {/* Left: Document card */}
       <ScrollReveal>
       <div className="cl-document">
-        <div className="cl-document__annotations">
-          {[result.opening, ...result.bodyPoints, result.closing].map((_section, i) => (
-            <span key={i} className="cl-document__annotation-label">
-              {annotationLabels[i] ?? `Para ${i + 1}`}
-            </span>
-          ))}
-        </div>
+        <div className="cl-document__annotations" aria-hidden="true" />
         <div className="cl-document__inner">
           <div className="cl-document__header">
-            <div className="cl-document__date">{result.generatedAt || new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</div>
+            <div className="cl-document__date">{formatLetterDate(result.generatedAt)}</div>
           </div>
           <div className="cl-document__paragraphs">
             <div className="cl-document__para-wrapper">
-              <textarea
+              <span className="cl-document__annotation-label" aria-hidden="true">{annotationLabels[0]}</span>
+              <AutoGrowTextarea
                 className="cl-document__textarea"
-                rows={3}
+                aria-label="Opening paragraph"
                 value={openingText}
                 onChange={(e) => setOpeningText(e.target.value)}
               />
             </div>
             {result.bodyPoints.map((_item, index) => (
               <div key={`body-${index}`} className="cl-document__para-wrapper">
-                <textarea
+                <span className="cl-document__annotation-label" aria-hidden="true">{annotationLabels[index + 1]}</span>
+                <AutoGrowTextarea
                   className="cl-document__textarea"
-                  rows={5}
+                  aria-label={`Body paragraph ${index + 1}`}
                   value={bodyTexts[index] || ''}
                   onChange={(e) => setBodyTexts((c) => c.map((t, i) => i === index ? e.target.value : t))}
                 />
               </div>
             ))}
           </div>
-          <div className="cl-document__signoff">
-            <textarea
+          <div className="cl-document__signoff cl-document__para-wrapper">
+            <span className="cl-document__annotation-label" aria-hidden="true">{annotationLabels[annotationLabels.length - 1]}</span>
+            <AutoGrowTextarea
               className="cl-document__textarea"
-              rows={2}
+              aria-label="Closing paragraph"
               value={closingText}
               onChange={(e) => setClosingText(e.target.value)}
             />
@@ -1145,7 +1208,7 @@ function CoverLetterView({ payload }: { payload: AnyObject }) {
         {/* Action card */}
         <div className="cl-action-card">
           <div className="cl-action-card__title">Ready to apply?</div>
-          <div className="cl-action-card__desc">Download your finalized document or copy the text directly into your application.</div>
+          <div className="cl-action-card__desc">Copies your edited letter, including changes you made above.</div>
           <div className="cl-action-card__buttons">
             <button className="cl-action-card__btn cl-action-card__btn--primary" onClick={handleCopy}>
               <Copy size={15} /> Copy full text
@@ -2038,14 +2101,14 @@ export const resultDefinitions: Record<ToolId, ResultDefinition> = {
     render: (payload) => <JobMatchView payload={payload} />,
   },
   'cover-letter': {
-    copyText: (payload) => coverLetterCopyText(payload),
+    copyText: (payload, item) => coverLetterTextFor(payload, item),
     download: (payload, item) => ({
       filename: `${item.label || 'cover-letter'}.txt`,
-      content: coverLetterCopyText(payload),
+      content: coverLetterTextFor(payload, item),
     }),
     heroExtra: (payload) => <CoverLetterHeroExtra payload={payload} />,
     midSection: (payload) => <FixFirstStrip actions={normalizeCoverLetterPayload(payload).topActions} />,
-    render: (payload) => <CoverLetterView payload={payload} />,
+    render: (payload, item) => <CoverLetterView payload={payload} item={item} />,
   },
   interview: {
     copyText: (payload) => interviewCopyText(payload),

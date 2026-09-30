@@ -11,6 +11,15 @@ import { getToolByHistoryName } from '#/lib/tools/registry'
 import { toolAccentStyle } from '#/lib/tools/styleUtils'
 import { ScrollFadeUp } from '#/components/ui/motion'
 
+/** Display names for history tool_names that are not in the tool registry. */
+const NON_TOOL_RUN_LABELS: Record<string, string> = {
+  'application-drafts': 'Application drafts',
+}
+
+export function runToolLabel(toolName: string, shortLabel?: string) {
+  return shortLabel || NON_TOOL_RUN_LABELS[toolName] || toolName
+}
+
 export function RunList({
   eyebrow,
   title,
@@ -92,7 +101,7 @@ export function RunList({
                     <Star size={12} className="run-row-favorite" aria-hidden />
                   )}
                   <Badge variant="outline">
-                    <span className="run-row-badge-text">{tool?.shortLabel || item.tool_name}</span>
+                    <span className="run-row-badge-text">{runToolLabel(item.tool_name, tool?.shortLabel)}</span>
                   </Badge>
                   {!showFavoriteStar && (
                     <span className="small-copy muted-copy run-row-date">

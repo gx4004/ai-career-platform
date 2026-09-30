@@ -41,7 +41,7 @@ export function JobMatchToolPage() {
   return (
     <ToolPageShell
       toolId="job-match"
-      bodyClassName="tool-fs-body--wide jobmatch-page"
+      bodyClassName={phase === 'form' && !mutation.isPending ? 'tool-fs-body--wide jobmatch-page' : 'jobmatch-page'}
       hero={<ToolInputHero toolId="job-match" subtitle={heroSubtitle} />}
     >
       {mutation.isPending ? (

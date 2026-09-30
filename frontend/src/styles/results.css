@@ -2078,6 +2078,43 @@
     0 2px 8px rgba(0, 0, 0, 0.2);
 }
 
+/* Hero action row: one accent-filled primary (Re-generate), ghost "New input" */
+.result-hero .result-hero__btn-text--primary,
+.result-hero--dark .result-hero__btn-text--primary {
+  background: var(--tool-accent, var(--accent));
+  border-color: var(--tool-accent, var(--accent));
+  color: #fff;
+  font-weight: 600;
+  backdrop-filter: none;
+}
+
+.result-hero .result-hero__btn-text--primary:hover,
+.result-hero--dark .result-hero__btn-text--primary:hover {
+  background: color-mix(in srgb, var(--tool-accent, var(--accent)) 88%, black);
+  border-color: color-mix(in srgb, var(--tool-accent, var(--accent)) 88%, black);
+  color: #fff;
+}
+
+.result-hero .result-hero__btn-text--ghost {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.result-hero .result-hero__btn-text--ghost:hover {
+  background: var(--surface-focus);
+  border-color: var(--border-soft);
+}
+
+.result-hero--dark .result-hero__btn-text--ghost {
+  background: transparent;
+  border-color: transparent;
+}
+
+.result-hero--dark .result-hero__btn-text--ghost:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
 .result-hero--dark .result-hero__score::after {
   background: radial-gradient(circle, rgba(74, 222, 128, 0.12), transparent 70%);
 }
@@ -2140,12 +2177,27 @@
 }
 
 /* ── Fix First Strip ── */
-.fix-first-strip {
+.fix-first-section {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 1.5rem;
+  gap: 0.75rem;
   position: relative;
   z-index: 20;
+}
+
+.fix-first-eyebrow {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.fix-first-strip {
+  display: grid;
+  /* --fix-count is set inline by FixFirstStrip so 1-2 cards fill the row */
+  grid-template-columns: repeat(var(--fix-count, 3), minmax(0, 1fr));
+  gap: 1.5rem;
+  position: relative;
   counter-reset: fix-step;
 }
 
@@ -2156,7 +2208,6 @@
   border: 1px solid var(--border-soft);
   box-shadow: var(--shadow-elevated);
   transition:
-    transform 0.25s cubic-bezier(0.32, 0.72, 0, 1),
     box-shadow 0.25s cubic-bezier(0.32, 0.72, 0, 1),
     border-color 0.25s ease;
   min-width: 0;
@@ -2167,7 +2218,7 @@
 
 /* Large faded step number */
 .fix-first-card::before {
-  content: counter(fix-step);
+  content: counter(fix-step) / ''; /* decorative watermark, hidden from AT */
   position: absolute;
   top: 0.75rem;
   right: 1rem;
@@ -2177,10 +2228,11 @@
   line-height: 1;
   color: color-mix(in srgb, var(--foreground, #16324b) 5%, transparent);
   pointer-events: none;
+  user-select: none;
 }
 
+/* Cards are informational (not links): border/shadow hover only, no lift */
 .fix-first-card:hover {
-  transform: translateY(-3px);
   box-shadow: var(--shadow-panel);
   border-color: color-mix(in srgb, var(--accent) 30%, var(--border-soft));
 }
@@ -2220,7 +2272,6 @@
 .fix-first-card__footer {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   margin-top: 1rem;
   padding-top: 1rem;
   border-top: 1px solid var(--divider);
@@ -2234,6 +2285,12 @@
 }
 
 /* ── Resume Body Grid (3-col layout) ── */
+.resume-body-grid,
+.resume-body-single {
+  /* vertical rhythm only: horizontal edges align with the hero and Fix First strip */
+  padding: var(--rs-pad-y) 0;
+}
+
 .resume-body-grid {
   display: grid;
   grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
@@ -2539,6 +2596,8 @@
 }
 
 .rolefit-bar__label {
+  min-width: 0;
+  overflow-wrap: anywhere;
   font-size: 0.875rem;
   font-weight: 500;
   color: var(--text-muted);
@@ -2704,7 +2763,7 @@
   }
 
   .fix-first-strip {
-    grid-template-columns: repeat(3, minmax(13rem, 1fr));
+    grid-template-columns: repeat(var(--fix-count, 3), minmax(13rem, 1fr));
     overflow-x: auto;
     scroll-snap-type: x mandatory;
     padding-bottom: 0.5rem;
@@ -3079,7 +3138,14 @@
   opacity: 1;
 }
 
+/* Labels live inside each paragraph wrapper so they track its (auto-grown) height */
 .cl-document__annotation-label {
+  position: absolute;
+  left: -3.25rem;
+  top: 0.25rem;
+  width: 1.5rem;
+  display: flex;
+  justify-content: center;
   writing-mode: vertical-rl;
   transform: rotate(180deg);
   font-size: 0.5625rem;
@@ -3087,7 +3153,22 @@
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.15em;
-  margin-bottom: 3rem;
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  pointer-events: none;
+}
+
+.cl-document:hover .cl-document__annotation-label {
+  opacity: 1;
+}
+
+.cl-document__signoff::before {
+  display: none;
+}
+
+.cl-document__signoff .cl-document__annotation-label {
+  top: 0;
 }
 
 /* Document inner content */
@@ -3144,8 +3225,10 @@
   line-height: 1.75;
   color: var(--text-body);
   resize: none;
-  overflow: hidden;
+  overflow: hidden; /* height is driven by AutoGrowTextarea, so nothing is clipped */
   outline: none;
+  display: block;
+  min-height: 1.75em;
 }
 
 .cl-document__textarea:focus {
@@ -3703,14 +3786,22 @@
   display: none;
 }
 
+/* Chevron drawn with borders (no glyph-font dependency), rotates when open */
 .iv-qcard__sample-toggle::before {
-  content: '▸ ';
+  content: '';
   display: inline-block;
+  width: 0.4rem;
+  height: 0.4rem;
+  margin-right: 0.55rem;
+  border-right: 2px solid currentColor;
+  border-top: 2px solid currentColor;
+  transform: rotate(45deg);
   transition: transform 0.15s ease;
+  vertical-align: 0.05em;
 }
 
 .iv-qcard__sample[open] .iv-qcard__sample-toggle::before {
-  transform: rotate(90deg);
+  transform: rotate(135deg);
 }
 
 /* AI suggestion box (practice first) */
@@ -4239,30 +4330,22 @@
 
 .jm-interview-card__items {
   display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
+  flex-wrap: wrap;
+  gap: 0.5rem;
 }
 
+/* Plain keyword chips: informational, not links */
 .jm-interview-card__item {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.5rem;
-  padding: 0.5rem 0.75rem;
-  border-radius: var(--radius-md);
+  display: inline-flex;
+  align-items: center;
+  padding: 0.3rem 0.75rem;
+  border-radius: 9999px;
+  border: 1px solid var(--border-soft);
+  background: var(--surface-subtle);
   font-size: 0.8125rem;
   color: var(--text-body);
-  line-height: 1.5;
-  transition: background 0.15s ease;
-}
-
-.jm-interview-card__item:hover {
-  background: var(--surface-focus);
-}
-
-.jm-interview-card__item-icon {
-  color: var(--accent);
-  flex-shrink: 0;
-  margin-top: 0.125rem;
+  line-height: 1.4;
+  cursor: default;
 }
 
 /* ── Responsive: Cover Letter + Interview ── */
@@ -4280,7 +4363,8 @@
     min-height: auto;
   }
 
-  .cl-document__annotations {
+  .cl-document__annotations,
+  .cl-document__annotation-label {
     display: none;
   }
 
@@ -5334,8 +5418,9 @@
 
 /* ── R11 #148: promote reusable claims from a saved result into the profile ── */
 .claim-promote {
-  width: min(var(--shell-max), calc(100% - var(--space-page-x) * 2));
-  margin: 1.5rem auto 0;
+  /* Rendered inside .result-shell (already width-constrained), so fill it */
+  width: 100%;
+  margin: 0;
   padding: 1.25rem 1.5rem;
   background: var(--surface-raised);
   border: 1px solid var(--border-subtle);
@@ -5379,11 +5464,16 @@
 }
 
 .claim-promote__label {
+  flex: 1;
+  min-width: 0;
   color: var(--text-default);
   font-size: 0.85rem;
   line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
 }
 
 .claim-promote__btn {
@@ -5427,5 +5517,17 @@
 @media (prefers-reduced-motion: reduce) {
   .claim-promote__spin {
     animation: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .claim-promote__item {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .claim-promote__btn {
+    min-height: 2.5rem;
+    padding-inline: 1rem;
   }
 }
