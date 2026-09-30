@@ -20,6 +20,7 @@ import {
   discoveryListingDetailSchema,
   discoveryListingPageSchema,
   discoveryDismissalSchema,
+  todayPlanSchema,
   healthCheckSchema,
   importedJobSchema,
   importJobTextSchema,
@@ -406,6 +407,11 @@ export function searchDiscoveryListings(query: DiscoveryListingQuery = {}) {
     method: 'GET',
     schema: discoveryListingPageSchema,
   })
+}
+
+// Today's best matches to add and the applications that need action.
+export function getToday() {
+  return request('/today', { method: 'GET', schema: todayPlanSchema })
 }
 
 export function getDiscoveryListing(listingId: string) {

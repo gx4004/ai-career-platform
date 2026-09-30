@@ -174,6 +174,14 @@ has 5 or more applications; otherwise absent. Ranking uses it only to break exac
 ties, after skills fit and preference hits, so it can never outrank fit. Plain
 counts, no ML.
 
+**Today plan**
+The dashboard's answer to "what should I do today?", from `GET /api/v1/today`. Two
+lists, never blended: *best matches* (the top five visible Discovery listings by
+skills fit that are not dismissed and not yet an application, each with one action,
+Add to applications) and *needs action* (applications that are interviewing, still
+saved with a deadline in the next seven days, or showing the No-reply suggestion,
+listed once under their most urgent reason). Nothing here changes a status.
+
 **Canonical listing**
 The persisted job posting an application targets - title, company, description,
 source URL, and retrieval date - stored as owner-isolated user content.
