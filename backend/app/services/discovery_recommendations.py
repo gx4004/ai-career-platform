@@ -11,7 +11,10 @@ Fit is deterministic keyword overlap with the owner's confirmed Evidence Profile
 items, kept as two separate signals that are never blended: **skills fit**
 (listing keywords the confirmed evidence covers, with the matched and missing
 ones) and **preference hits** (the owner's confirmed preference keywords the
-listing mentions). Ranking uses skills fit; preference hits only break ties.
+listing mentions). Ranking uses skills fit; preference hits only break ties. A third signal,
+**similar applications** (the owner's own reply rate for the same kind of role
+and skills-fit bucket, #417), is shown apart and only breaks ties that skills
+fit and preference hits leave.
 Nothing here calls an LLM. The owner's items are prepared once per request
 (``MatchProfile``), and matches are cached per profile fingerprint and listing,
 so a page request scores only listings it has not seen for that profile.
@@ -42,6 +45,7 @@ from app.schemas.discovery_recommendations import (
     DiscoveryListingItem,
     DiscoveryListingPage,
 )
+from app.services.application_insights import NO_ODDS, OddsModel, odds_model
 from app.services.ats_providers import provider_for_endpoint
 from app.services.quality_signals import (
     compute_match_score,
@@ -122,6 +126,7 @@ def search_listings(
     """
     now = now or datetime.now(UTC)
     profile = load_match_profile(db, user_id)
+    odds = _odds_for(db, user_id, profile)
     visible = visible_listing_clause(db, user_id, now)
     filters = _search_filters(
         q=q,
@@ -137,13 +142,13 @@ def search_listings(
     effective_sort: SearchSort = sort if profile.has_evidence else "newest"
     offset = (page - 1) * limit
     if effective_sort == "best_match":
-        page_ids = _best_match_page(db, profile, matching, offset=offset, limit=limit)
+        page_ids = _best_match_page(db, profile, odds, matching, offset=offset, limit=limit)
     else:
         page_ids = _newest_ids(db, matching, offset=offset, limit=limit)
 
     visible_rows = _load_visible(db, page_ids, profile, now)
     return DiscoveryListingPage(
-        items=[listing_item(visible_rows[i]) for i in page_ids if i in visible_rows],
+        items=[listing_item(visible_rows[i], odds) for i in page_ids if i in visible_rows],
         total=total,
         page=page,
         limit=limit,
@@ -170,11 +175,12 @@ def listing_detail(
     row = visible_listing(db, user_id, listing_id, now=now)
     if row is None:
         return None
+    odds = _odds_for(db, user_id, load_match_profile(db, user_id))
     # Local import: deep match builds on this module's visibility rule.
     from app.services.discovery_deep_match import linked_deep_match
 
     return DiscoveryListingDetail(
-        **listing_item(row).model_dump(),
+        **listing_item(row, odds).model_dump(),
         description=row.listing.description,
         deep_match=linked_deep_match(db, user_id, listing_id),
     )
@@ -213,7 +219,8 @@ def best_matches(
     if not profile.has_evidence:
         return []
     matching = select(DiscoveredListing.id).where(visible_listing_clause(db, user_id, now))
-    page_ids = _best_match_page(db, profile, matching, offset=0, limit=limit)
+    odds = _odds_for(db, user_id, profile)
+    page_ids = _best_match_page(db, profile, odds, matching, offset=0, limit=limit)
     rows = _load_visible(db, page_ids, profile, now)
     return [rows[listing_id] for listing_id in page_ids if listing_id in rows]
 
@@ -337,17 +344,39 @@ def _newest_ids(db: Session, matching, *, offset: int, limit: int) -> list[str]:
     return list(db.scalars(matching.order_by(*_NEWEST_FIRST).offset(offset).limit(limit)))
 
 
+def _odds_for(db: Session, user_id: str, profile: MatchProfile) -> OddsModel:
+    """The owner's own-outcomes signal; nothing without evidence (no skills fit to bucket)."""
+    return odds_model(db, user_id) if profile.has_evidence else NO_ODDS
+
+
 def _best_match_page(
-    db: Session, profile: MatchProfile, matching, *, offset: int, limit: int
+    db: Session, profile: MatchProfile, odds: OddsModel, matching, *, offset: int, limit: int
 ) -> list[str]:
-    """Score the newest candidates, then page through them and the newest-first tail."""
+    """Score the newest candidates, then page through them and the newest-first tail.
+
+    Order: skills fit, then preference hits, then the owner's own reply rate for
+    similar applications (equal skills fit only, so it can never outrank fit),
+    then newest first.
+    """
     head = list(db.scalars(matching.order_by(*_NEWEST_FIRST).limit(MAX_SCORED_CANDIDATES)))
     scores = _scores(db, profile, head)
+    titles: dict[str, str] = {}
+    if odds.segments:
+        titles = dict(
+            db.execute(
+                select(DiscoveredListing.id, DiscoveredListing.title).where(
+                    DiscoveredListing.id.in_(head)
+                )
+            ).all()
+        )
     position = {listing_id: index for index, listing_id in enumerate(head)}
     head.sort(
         key=lambda listing_id: (
             -(scores[listing_id].skills_fit or 0),
             -len(scores[listing_id].preference_hits),
+            -odds.tiebreak_rate(titles.get(listing_id), scores[listing_id].skills_fit)
+            if odds.segments
+            else 0,
             position[listing_id],
         )
     )
@@ -394,7 +423,7 @@ def _load_visible(
     }
 
 
-def listing_item(row: VisibleListing) -> DiscoveryListingItem:
+def listing_item(row: VisibleListing, odds: OddsModel = NO_ODDS) -> DiscoveryListingItem:
     listing = row.listing
     return DiscoveryListingItem(
         listing_id=listing.id,
@@ -410,6 +439,9 @@ def listing_item(row: VisibleListing) -> DiscoveryListingItem:
         matched_skills=list(row.match.matched_skills) if row.match else [],
         missing_skills=list(row.match.missing_skills) if row.match else [],
         preference_hits=list(row.match.preference_hits) if row.match else [],
+        similar_applications=(
+            odds.similar(listing.title, row.match.skills_fit) if row.match else None
+        ),
         source_name=_source_label(row.attribution.source),
         source_url=row.attribution.source_url,
     )

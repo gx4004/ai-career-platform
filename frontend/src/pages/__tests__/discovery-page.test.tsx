@@ -227,6 +227,22 @@ describe('DiscoveryPage', () => {
     expect(within(dialog).queryByText(/0%/)).toBeNull()
   })
 
+  it('shows how similar applications went as its own signal, with the sample size', async () => {
+    const similar = { role_family: 'Engineering', fit_bucket: 'Strong fit (78%+)', applied: 6, replied: 2 }
+    renderPage(page({ items: [{ ...LISTING, similar_applications: similar }] }))
+    const card = await findCard()
+
+    expect(within(card).getByText(/2 of 6/).closest('p')?.textContent).toContain('got a reply')
+    expect(within(card).getByLabelText(/82% skills fit/)).toBeTruthy()
+  })
+
+  it('shows no outcome line when there are too few similar applications', async () => {
+    renderPage()
+    const card = await findCard()
+
+    expect(within(card).queryByText(/Similar applications of yours/)).toBeNull()
+  })
+
   it('sends filter changes to the search endpoint', async () => {
     renderPage()
     await findCard()

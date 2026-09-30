@@ -9,6 +9,21 @@ HttpsUrl = Annotated[
 ]
 
 
+class SimilarApplications(BaseModel):
+    """How the owner's own similar applications went (#417): x of n got a reply.
+
+    Similar means the same kind of role and skills-fit bucket. A separate signal,
+    never blended into skills fit.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    role_family: str
+    fit_bucket: str
+    applied: int = Field(ge=1)
+    replied: int = Field(ge=0)
+
+
 class DiscoveryListingItem(BaseModel):
     """One searchable job listing, with a match score when the user has a profile."""
 
@@ -31,6 +46,9 @@ class DiscoveryListingItem(BaseModel):
     missing_skills: list[str]
     # Confirmed preference keywords this listing mentions; a separate signal.
     preference_hits: list[str]
+    # The owner's own outcomes for similar applications; null below the
+    # sample thresholds. Independent of skills_fit.
+    similar_applications: SimilarApplications | None = None
     # Attribution: the job board the listing came from ("Greenhouse") and the
     # original listing link.
     source_name: str

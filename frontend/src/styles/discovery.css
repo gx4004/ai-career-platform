@@ -381,6 +381,19 @@ select.disc-field {
 .disc-score--fair { background: rgba(245, 158, 11, 0.12); color: #b45309; }
 .disc-score--low { background: var(--surface-focus); color: var(--text-muted); }
 
+/* The owner's own outcomes for similar applications: a quiet line, apart from the fit pill. */
+.disc-odds {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+  font-size: var(--type-xs);
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.disc-odds svg { flex: none; color: var(--text-soft); }
+.disc-odds strong { color: var(--text-body); font-weight: 700; }
+
 .disc-card__preview {
   margin: 0;
   font-size: var(--type-small);
