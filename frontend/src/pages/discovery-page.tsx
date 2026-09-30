@@ -11,6 +11,7 @@ import {
   EyeOff,
   FolderPlus,
   Gauge,
+  History,
   MapPin,
   MoreHorizontal,
   Search,
@@ -453,6 +454,7 @@ function JobCard({ listing, actions }: { listing: DiscoveryListing; actions: Car
           <SkillsFit listing={listing} />
         </div>
         <p className="disc-card__preview">{listing.preview}</p>
+        <SimilarOutcomes listing={listing} />
         <div className="disc-card__footer">
           {listing.matched_skills.length > 0 ? (
             <p className="disc-card__skills" aria-label="Skills you match">
@@ -614,10 +616,28 @@ function FitPanel({ listing }: { listing: DiscoveryListing }) {
   }
   return (
     <section className="disc-fit" aria-label="Skills fit">
+      <SimilarOutcomes listing={listing} />
       <ChipRow label="Skills you match" items={listing.matched_skills} tone="match" />
       <ChipRow label="Skills to add" items={listing.missing_skills} tone="missing" />
       <ChipRow label="Matches your preferences" items={listing.preference_hits} tone="pref" />
     </section>
+  )
+}
+
+/** The owner's own reply rate for similar applications; a separate signal from skills fit. */
+function SimilarOutcomes({ listing }: { listing: DiscoveryListing }) {
+  const similar = listing.similar_applications
+  if (!similar) return null
+  return (
+    <p
+      className="disc-odds"
+      title={`Your ${similar.role_family.toLowerCase()} applications with ${similar.fit_bucket.toLowerCase()}`}
+    >
+      <History size={13} aria-hidden="true" />
+      <span>
+        Similar applications of yours: <strong>{similar.replied} of {similar.applied}</strong> got a reply
+      </span>
+    </p>
   )
 }
 
