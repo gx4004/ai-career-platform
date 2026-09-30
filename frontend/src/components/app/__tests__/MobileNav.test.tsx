@@ -41,9 +41,12 @@ describe('MobileNav discovery visibility', () => {
     expect(openAuthDialog).toHaveBeenCalledWith({ to: '/discovery', reason: 'discovery' })
   })
 
-  it('keeps five tabs for signed-in users', () => {
+  it('gives signed-in users Home, Discover, Applications, CV and More', () => {
     render(<MobileNav />)
     const nav = screen.getByRole('navigation', { name: 'Main navigation' })
-    expect(nav.querySelectorAll('.mobile-tab-item')).toHaveLength(5)
+    const labels = [...nav.querySelectorAll('.mobile-tab-item')].map((tab) => tab.textContent)
+    expect(labels).toEqual(['Home', 'Discover', 'Applications', 'CV', 'More'])
+    expect(screen.getByRole('link', { name: 'Applications' }).getAttribute('href')).toBe('/campaigns')
+    expect(screen.getByRole('link', { name: 'CV' }).getAttribute('href')).toBe('/cv-studio')
   })
 })
