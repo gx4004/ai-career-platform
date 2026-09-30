@@ -25,9 +25,12 @@ class DiscoveryListingItem(BaseModel):
     posted_at: datetime | None = None
     apply_url: HttpsUrl | None = None
     department: str | None = None
-    # Null when the user has no confirmed Evidence Profile items to score against.
-    score: int | None = Field(default=None, ge=0, le=100)
-    matched_keywords: list[str]
+    # Skills fit: null when the user has no confirmed evidence to compare against.
+    skills_fit: int | None = Field(default=None, ge=0, le=100)
+    matched_skills: list[str]
+    missing_skills: list[str]
+    # Confirmed preference keywords this listing mentions; a separate signal.
+    preference_hits: list[str]
     # Attribution: the job board the listing came from ("Greenhouse") and the
     # original listing link.
     source_name: str
@@ -41,10 +44,22 @@ class DiscoveryListingItem(BaseModel):
         return value
 
 
+class DiscoveryDeepMatch(BaseModel):
+    """The Job Match run linked to one listing (its own LLM score, not the feed's)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    history_id: str
+    match_score: int = Field(ge=0, le=100)
+    verdict: str | None = None
+    created_at: datetime
+
+
 class DiscoveryListingDetail(DiscoveryListingItem):
     """One listing with its full description (opened card, tailoring)."""
 
     description: str
+    deep_match: DiscoveryDeepMatch | None = None
 
 
 class DiscoveryListingPage(BaseModel):
@@ -55,6 +70,7 @@ class DiscoveryListingPage(BaseModel):
     page: int = Field(ge=1)
     limit: int = Field(ge=1)
     sort: Literal["best_match", "newest"]
-    has_profile: bool
+    # True when the user has confirmed evidence, so skills fit can be shown.
+    has_evidence: bool
     # Company filter options across every visible listing; page 1 only.
     companies: list[str] | None = None

@@ -567,7 +567,7 @@ def feed(monkeypatch, discovery):
     def ranked(_db, _user_id, **_kwargs):
         state["ranked"] += 1
         return [
-            VisibleListing(listing, listing.attributions[0], Match(score, ()))
+            VisibleListing(listing, listing.attributions[0], Match(skills_fit=score))
             for listing, score in rows
         ]
 
