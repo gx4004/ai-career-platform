@@ -258,7 +258,12 @@ def upgrade() -> None:
     op.create_index(op.f('ix_development_items_evidence_item_id'), 'development_items', ['evidence_item_id'], unique=False)
     op.create_index(op.f('ix_development_items_gap_classification_id'), 'development_items', ['gap_classification_id'], unique=False)
     op.create_index(op.f('ix_development_items_user_id'), 'development_items', ['user_id'], unique=False)
-    op.create_foreign_key('fk_tool_runs_parent_run_id', 'tool_runs', 'tool_runs', ['parent_run_id'], ['id'])
+    # Runs deleted before this FK existed left dangling parent ids behind.
+    op.execute(
+        "UPDATE tool_runs SET parent_run_id = NULL WHERE parent_run_id IS NOT NULL "
+        "AND parent_run_id NOT IN (SELECT id FROM tool_runs)"
+    )
+    op.create_foreign_key('fk_tool_runs_parent_run_id', 'tool_runs', 'tool_runs', ['parent_run_id'], ['id'], ondelete='SET NULL')
     op.execute("UPDATE users SET is_admin = false WHERE is_admin IS NULL")
     op.alter_column('users', 'is_admin',
                existing_type=sa.BOOLEAN(),
