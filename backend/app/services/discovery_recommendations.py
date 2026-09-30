@@ -7,11 +7,14 @@ kill switch is clear, and the owner has not dismissed it. Governance is re-read
 on every request, so revoking or killing a source hides its listings at once
 (ADR 0008, D-090).
 
-Scoring is deterministic keyword overlap with the owner's confirmed Evidence
-Profile items: 80% confirmed evidence, 20% confirmed preferences. The owner's
-items are prepared once per request (``MatchProfile``), and scores are cached per
-profile fingerprint and listing, so a page request scores only listings it has
-not seen for that profile.
+Fit is deterministic keyword overlap with the owner's confirmed Evidence Profile
+items, kept as two separate signals that are never blended: **skills fit**
+(listing keywords the confirmed evidence covers, with the matched and missing
+ones) and **preference hits** (the owner's confirmed preference keywords the
+listing mentions). Ranking uses skills fit; preference hits only break ties.
+Nothing here calls an LLM. The owner's items are prepared once per request
+(``MatchProfile``), and matches are cached per profile fingerprint and listing,
+so a page request scores only listings it has not seen for that profile.
 """
 
 from __future__ import annotations
@@ -59,8 +62,11 @@ SearchSort = Literal["best_match", "newest"]
 
 @dataclass(frozen=True)
 class Match:
-    score: int
-    matched_keywords: tuple[str, ...]
+    # None when the owner has no confirmed evidence (not 0%: nothing to compare).
+    skills_fit: int | None = None
+    matched_skills: tuple[str, ...] = ()
+    missing_skills: tuple[str, ...] = ()
+    preference_hits: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -73,7 +79,11 @@ class MatchProfile:
 
     @property
     def has_items(self) -> bool:
-        return self.evidence_text is not None or bool(self.preference_keywords)
+        return self.has_evidence or bool(self.preference_keywords)
+
+    @property
+    def has_evidence(self) -> bool:
+        return self.evidence_text is not None
 
 
 @dataclass(frozen=True)
@@ -124,7 +134,7 @@ def search_listings(
     matching = select(DiscoveredListing.id).where(visible, *filters)
     total = db.scalar(select(func.count()).select_from(matching.subquery())) or 0
 
-    effective_sort: SearchSort = sort if profile.has_items else "newest"
+    effective_sort: SearchSort = sort if profile.has_evidence else "newest"
     offset = (page - 1) * limit
     if effective_sort == "best_match":
         page_ids = _best_match_page(db, profile, matching, offset=offset, limit=limit)
@@ -138,7 +148,7 @@ def search_listings(
         page=page,
         limit=limit,
         sort=effective_sort,
-        has_profile=profile.has_items,
+        has_evidence=profile.has_evidence,
         companies=(
             list(
                 db.scalars(
@@ -160,8 +170,14 @@ def listing_detail(
     row = visible_listing(db, user_id, listing_id, now=now)
     if row is None:
         return None
-    item = _listing_item(row)
-    return DiscoveryListingDetail(**item.model_dump(), description=row.listing.description)
+    # Local import: deep match builds on this module's visibility rule.
+    from app.services.discovery_deep_match import linked_deep_match
+
+    return DiscoveryListingDetail(
+        **_listing_item(row).model_dump(),
+        description=row.listing.description,
+        deep_match=linked_deep_match(db, user_id, listing_id),
+    )
 
 
 def visible_listing(
@@ -191,10 +207,10 @@ def best_matches(
     limit: int = BEST_MATCHES_LIMIT,
     now: datetime | None = None,
 ) -> list[VisibleListing]:
-    """The owner's top visible listings by match; empty without confirmed items."""
+    """The owner's top visible listings by skills fit; empty without confirmed evidence."""
     now = now or datetime.now(UTC)
     profile = load_match_profile(db, user_id)
-    if not profile.has_items:
+    if not profile.has_evidence:
         return []
     matching = select(DiscoveredListing.id).where(visible_listing_clause(db, user_id, now))
     page_ids = _best_match_page(db, profile, matching, offset=0, limit=limit)
@@ -247,33 +263,27 @@ def load_match_profile(db: Session, user_id: str) -> MatchProfile:
 
 
 def score_listing(profile: MatchProfile, listing: DiscoveredListing) -> Match:
-    listing_text = f"{listing.title}\n{listing.company}\n{listing.description}"
+    """Skills fit and preference hits for one listing; the two are never combined."""
+    skills_fit = None
     matched: list[str] = []
-    evidence_score = preference_score = 0
-
+    missing: list[str] = []
     if profile.evidence_text is not None:
-        keywords = _listing_keywords(listing)
-        evidence_matches = [k for k in keywords if keyword_present(k, profile.evidence_text)]
-        evidence_score = compute_match_score(
-            evidence_matches, [k for k in keywords if k not in evidence_matches]
-        )
-        matched.extend(evidence_matches)
+        for keyword in _listing_keywords(listing):
+            covered = keyword_present(keyword, profile.evidence_text)
+            (matched if covered else missing).append(keyword)
+        skills_fit = max(0, min(100, compute_match_score(matched, missing)))
 
+    hits: list[str] = []
     if profile.preference_keywords:
-        wanted = list(dict.fromkeys(k for item in profile.preference_keywords for k in item))
-        preference_matches = [k for k in wanted if keyword_present(k, listing_text)]
-        preference_score = compute_match_score(
-            preference_matches, [k for k in wanted if k not in preference_matches]
-        )
-        matched.extend(preference_matches)
-
-    if profile.evidence_text is not None and profile.preference_keywords:
-        score = round(evidence_score * 0.8 + preference_score * 0.2)
-    elif profile.evidence_text is not None:
-        score = evidence_score
-    else:
-        score = preference_score
-    return Match(score=max(0, min(100, score)), matched_keywords=tuple(dict.fromkeys(matched)))
+        listing_text = f"{listing.title}\n{listing.company}\n{listing.description}"
+        wanted = dict.fromkeys(k for item in profile.preference_keywords for k in item)
+        hits = [k for k in wanted if keyword_present(k, listing_text)]
+    return Match(
+        skills_fit=skills_fit,
+        matched_skills=tuple(matched),
+        missing_skills=tuple(missing),
+        preference_hits=tuple(hits),
+    )
 
 
 # ── Internals ──
@@ -323,7 +333,13 @@ def _best_match_page(
     head = list(db.scalars(matching.order_by(*_NEWEST_FIRST).limit(MAX_SCORED_CANDIDATES)))
     scores = _scores(db, profile, head)
     position = {listing_id: index for index, listing_id in enumerate(head)}
-    head.sort(key=lambda listing_id: (-scores[listing_id].score, position[listing_id]))
+    head.sort(
+        key=lambda listing_id: (
+            -(scores[listing_id].skills_fit or 0),
+            -len(scores[listing_id].preference_hits),
+            position[listing_id],
+        )
+    )
     page_ids = head[offset : offset + limit]
     if len(head) == MAX_SCORED_CANDIDATES and len(page_ids) < limit:
         page_ids += _newest_ids(
@@ -379,8 +395,10 @@ def _listing_item(row: VisibleListing) -> DiscoveryListingItem:
         posted_at=listing.posted_at,
         apply_url=listing.apply_url,
         department=listing.department,
-        score=row.match.score if row.match else None,
-        matched_keywords=list(row.match.matched_keywords) if row.match else [],
+        skills_fit=row.match.skills_fit if row.match else None,
+        matched_skills=list(row.match.matched_skills) if row.match else [],
+        missing_skills=list(row.match.missing_skills) if row.match else [],
+        preference_hits=list(row.match.preference_hits) if row.match else [],
         source_name=_source_label(row.attribution.source),
         source_url=row.attribution.source_url,
     )

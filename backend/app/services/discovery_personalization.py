@@ -3,7 +3,7 @@ from __future__ import annotations
 from sqlalchemy.orm import Session
 
 from app.models.discovered_listing import DiscoveredListing
-from app.models.discovery_personalization import DiscoveryDismissedListing
+from app.models.discovery_personalization import DiscoveryDeepMatchLink, DiscoveryDismissedListing
 from app.schemas.discovery_personalization import DismissalItem, PersonalizationExport
 
 
@@ -70,6 +70,9 @@ def export_personalization(db: Session, user_id: str) -> PersonalizationExport:
 
 def delete_personalization(db: Session, user_id: str) -> int:
     """Owner-scoped hard delete used by the account-deletion cascade."""
+    db.query(DiscoveryDeepMatchLink).filter(DiscoveryDeepMatchLink.user_id == user_id).delete(
+        synchronize_session=False
+    )
     return (
         db.query(DiscoveryDismissedListing)
         .filter(DiscoveryDismissedListing.user_id == user_id)

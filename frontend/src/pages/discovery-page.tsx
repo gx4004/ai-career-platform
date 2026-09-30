@@ -10,6 +10,7 @@ import {
   Compass,
   EyeOff,
   FolderPlus,
+  Gauge,
   MapPin,
   MoreHorizontal,
   Search,
@@ -39,8 +40,10 @@ import {
   dismissDiscoveryRecommendation,
   getDiscoveryListing,
   searchDiscoveryListings,
+  startDiscoveryDeepMatch,
   undismissDiscoveryRecommendation,
 } from '#/lib/api/client'
+import { ApiError } from '#/lib/api/errors'
 import type { DiscoveryListing } from '#/lib/api/schemas'
 import { getNavDestination } from '#/lib/navigation/navGroups'
 import { DISCOVERY_RECOMMENDATIONS_QUERY_KEY } from '#/lib/query/evidenceCaches'
@@ -185,7 +188,7 @@ export function DiscoveryPage() {
 
   const items = data?.items ?? []
   const companies = firstPage.data?.companies ?? []
-  const hasProfile = data?.has_profile ?? false
+  const hasEvidence = data?.has_evidence ?? false
   const activeFilterCount = [
     filters.location, filters.company, filters.postedWithin, filters.remote ? 'remote' : '',
   ].filter(Boolean).length
@@ -201,7 +204,7 @@ export function DiscoveryPage() {
     hidingId: hide.isPending ? hide.variables?.listing_id : undefined,
   }
 
-  const heroAction = data && !hasProfile ? (
+  const heroAction = data && !hasEvidence ? (
     <Button asChild><Link to="/profile">Open my profile</Link></Button>
   ) : (
     <Button asChild variant="outline"><Link to="/campaigns">My applications</Link></Button>
@@ -213,9 +216,9 @@ export function DiscoveryPage() {
         icon={DiscoverIcon}
         title="Discover jobs"
         purpose={
-          data && !hasProfile
-            ? 'Real openings from company career sites. Confirm skills in your profile to see how well each one fits.'
-            : 'Real openings from company career sites, matched to the skills in your profile.'
+          data && !hasEvidence
+            ? 'Real openings from company career sites. Confirm skills in your profile to see how well your skills fit each one.'
+            : 'Real openings from company career sites, ranked by how well your skills fit.'
         }
         action={heroAction}
         chips={data && !filtered ? [`${formatCount(data.total)} open ${data.total === 1 ? 'job' : 'jobs'}`] : undefined}
@@ -272,11 +275,11 @@ export function DiscoveryPage() {
               <>
                 <strong>{rangeLabel(data.page, data.limit, items.length)}</strong> of{' '}
                 <strong>{formatCount(data.total)}</strong>
-                {hasProfile && filters.sort === 'best_match' ? ' · best matches first' : ' · newest first'}
+                {hasEvidence && filters.sort === 'best_match' ? ' · best skills fit first' : ' · newest first'}
               </>
             ) : ' '}
           </p>
-          {hasProfile ? (
+          {hasEvidence ? (
             <label className="disc-sort">
               <span>Sort</span>
               <select
@@ -284,7 +287,7 @@ export function DiscoveryPage() {
                 value={filters.sort}
                 onChange={(event) => update({ sort: event.target.value as Filters['sort'] })}
               >
-                <option value="best_match">Best match</option>
+                <option value="best_match">Best skills fit</option>
                 <option value="newest">Newest</option>
               </select>
             </label>
@@ -447,14 +450,21 @@ function JobCard({ listing, actions }: { listing: DiscoveryListing; actions: Car
             </h2>
             <JobMeta listing={listing} />
           </div>
-          <MatchScore listing={listing} />
+          <SkillsFit listing={listing} />
         </div>
         <p className="disc-card__preview">{listing.preview}</p>
         <div className="disc-card__footer">
-          {listing.matched_keywords.length > 0 ? (
-            <p className="disc-card__skills" aria-label="Matches your profile">
-              {listing.matched_keywords.slice(0, 3).map((keyword) => (
+          {listing.matched_skills.length > 0 ? (
+            <p className="disc-card__skills" aria-label="Skills you match">
+              {listing.matched_skills.slice(0, 3).map((keyword) => (
                 <span key={keyword} className="disc-chip">{keyword}</span>
+              ))}
+            </p>
+          ) : null}
+          {listing.preference_hits.length > 0 ? (
+            <p className="disc-card__skills" aria-label="Matches your preferences">
+              {listing.preference_hits.slice(0, 2).map((keyword) => (
+                <span key={keyword} className="disc-chip disc-chip--pref">{keyword}</span>
               ))}
             </p>
           ) : null}
@@ -492,7 +502,20 @@ function JobCard({ listing, actions }: { listing: DiscoveryListing; actions: Car
 }
 
 function JobDetails({ listing, actions }: { listing: DiscoveryListing; actions: CardActions }) {
+  const queryClient = useQueryClient()
+  const navigate = useNavigate()
   const detail = useQuery(detailQuery(listing.listing_id))
+  const deepMatch = detail.data?.deep_match ?? null
+  const openResult = (historyId: string) =>
+    navigate({ to: '/job-match/result/$historyId', params: { historyId } })
+  const run = useMutation({
+    mutationFn: () => startDiscoveryDeepMatch(listing.listing_id),
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: [...LISTINGS_KEY, 'detail', listing.listing_id] })
+      openResult(result.history_id)
+    },
+  })
+  const needsCv = run.error instanceof ApiError && run.error.status === 409
   return (
     <div className="disc-drawer__inner">
       <SheetHeader className="disc-drawer__head">
@@ -505,15 +528,50 @@ function JobDetails({ listing, actions }: { listing: DiscoveryListing; actions: 
             </SheetDescription>
           </div>
         </div>
-        <MatchScore listing={listing} detailed />
+        <SkillsFit listing={listing} />
       </SheetHeader>
-      {/* Plain text on purpose: listing descriptions come from third-party boards. */}
-      <div className="disc-drawer__description" aria-busy={detail.isPending}>
-        {detail.data?.description ?? (detail.isError ? listing.preview : 'Loading the full description…')}
+      <div className="disc-drawer__scroll">
+        <FitPanel listing={listing} />
+        {/* Plain text on purpose: listing descriptions come from third-party boards. */}
+        <div className="disc-drawer__description" aria-busy={detail.isPending}>
+          {detail.data?.description ?? (detail.isError ? listing.preview : 'Loading the full description…')}
+        </div>
       </div>
       <div className="disc-drawer__footer">
+        {deepMatch ? (
+          <p className="disc-drawer__deep" aria-label="Deep match">
+            <Gauge size={15} aria-hidden="true" /> Deep match {deepMatch.match_score}%
+            {deepMatch.verdict ? ` · ${deepMatch.verdict}` : ''}
+          </p>
+        ) : null}
+        {run.isError ? (
+          <p className="disc-error" role="alert">
+            {needsCv ? (
+              <>Create a CV in CV Studio first. <Link to="/cv-studio">Open CV Studio</Link></>
+            ) : (
+              'The deep match could not run. Try again.'
+            )}
+          </p>
+        ) : null}
         <div className="disc-drawer__actions">
-          <AdoptButton listing={listing} actions={actions} />
+          {deepMatch ? (
+            <Button type="button" size="sm" onClick={() => openResult(deepMatch.history_id)}>
+              <Gauge size={14} aria-hidden="true" /> View deep match
+            </Button>
+          ) : (
+            <Button type="button" size="sm" onClick={() => run.mutate()} loading={run.isPending}>
+              <Gauge size={14} aria-hidden="true" /> Deep match
+            </Button>
+          )}
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => actions.onAdopt(listing)}
+            loading={actions.adoptingId === listing.listing_id}
+          >
+            <FolderPlus size={14} aria-hidden="true" /> Add to applications
+          </Button>
           <Button type="button" size="sm" variant="outline" onClick={() => void actions.onTailor(listing)}>
             <Sparkles size={14} aria-hidden="true" /> Tailor my CV
           </Button>
@@ -537,6 +595,40 @@ function JobDetails({ listing, actions }: { listing: DiscoveryListing; actions: 
           <a href={listing.source_url} target="_blank" rel="noopener noreferrer">original listing</a>
         </span>
       </div>
+    </div>
+  )
+}
+
+/** Why a listing fits: skills matched and missing, and the preferences it hits. */
+function FitPanel({ listing }: { listing: DiscoveryListing }) {
+  if (listing.skills_fit === null) {
+    return (
+      <section className="disc-fit" aria-label="Skills fit">
+        <p className="disc-fit__prompt">
+          Confirm your skills in your profile to see how well they fit this job.{' '}
+          <Link to="/profile">Open my profile</Link>
+        </p>
+        <ChipRow label="Matches your preferences" items={listing.preference_hits} tone="pref" />
+      </section>
+    )
+  }
+  return (
+    <section className="disc-fit" aria-label="Skills fit">
+      <ChipRow label="Skills you match" items={listing.matched_skills} tone="match" />
+      <ChipRow label="Skills to add" items={listing.missing_skills} tone="missing" />
+      <ChipRow label="Matches your preferences" items={listing.preference_hits} tone="pref" />
+    </section>
+  )
+}
+
+function ChipRow({ label, items, tone }: { label: string; items: string[]; tone: 'match' | 'missing' | 'pref' }) {
+  if (items.length === 0) return null
+  return (
+    <div className="disc-fit__row">
+      <h3>{label}</h3>
+      <p className="disc-card__skills">
+        {items.map((item) => <span key={item} className={`disc-chip disc-chip--${tone}`}>{item}</span>)}
+      </p>
     </div>
   )
 }
@@ -595,16 +687,13 @@ function JobMeta({ listing }: { listing: DiscoveryListing }) {
   )
 }
 
-function MatchScore({ listing, detailed = false }: { listing: DiscoveryListing; detailed?: boolean }) {
-  if (listing.score === null) return null
-  const tone = listing.score >= 70 ? 'good' : listing.score >= 41 ? 'fair' : 'low'
+function SkillsFit({ listing }: { listing: DiscoveryListing }) {
+  if (listing.skills_fit === null) return null
+  const tone = listing.skills_fit >= 70 ? 'good' : listing.skills_fit >= 41 ? 'fair' : 'low'
   return (
-    <div className={`disc-score disc-score--${tone}`} aria-label={`${listing.score}% match`}>
-      <strong>{listing.score}%</strong>
-      <span>match</span>
-      {detailed && listing.matched_keywords.length > 0 ? (
-        <p className="disc-score__skills">Matches {listing.matched_keywords.slice(0, 6).join(', ')}</p>
-      ) : null}
+    <div className={`disc-score disc-score--${tone}`} aria-label={`${listing.skills_fit}% skills fit`}>
+      <strong>{listing.skills_fit}%</strong>
+      <span>skills fit</span>
     </div>
   )
 }

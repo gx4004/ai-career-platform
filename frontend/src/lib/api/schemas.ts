@@ -232,8 +232,13 @@ export const discoveryListingSchema = z.strictObject({
   posted_at: z.iso.datetime({ offset: true }).nullable().default(null),
   apply_url: httpsUrlSchema.nullable().default(null),
   department: z.string().nullable().default(null),
-  score: z.number().int().min(0).max(100).nullable(),
-  matched_keywords: z.array(z.string()),
+  // Two separate signals, never blended (#414). skills_fit is null without
+  // confirmed evidence; preference_hits are confirmed preference keywords the
+  // listing mentions.
+  skills_fit: z.number().int().min(0).max(100).nullable(),
+  matched_skills: z.array(z.string()),
+  missing_skills: z.array(z.string()),
+  preference_hits: z.array(z.string()),
   source_name: z.string(),
   source_url: httpsUrlSchema,
 })
@@ -243,13 +248,23 @@ export const discoveryListingPageSchema = z.strictObject({
   page: z.number().int().positive(),
   limit: z.number().int().positive(),
   sort: z.enum(['best_match', 'newest']),
-  has_profile: z.boolean(),
+  has_evidence: z.boolean(),
   // Company filter options; page 1 only.
   companies: z.array(z.string()).nullable().default(null),
 })
+// The Job Match run linked to a listing (its own LLM score, shown apart from
+// the feed's skills fit).
+export const discoveryDeepMatchSchema = z.strictObject({
+  history_id: z.string(),
+  match_score: z.number().int().min(0).max(100),
+  verdict: z.string().nullable().default(null),
+  created_at: z.iso.datetime({ offset: true }),
+})
 export const discoveryListingDetailSchema = discoveryListingSchema.extend({
   description: z.string(),
+  deep_match: discoveryDeepMatchSchema.nullable().default(null),
 })
+export type DiscoveryDeepMatch = z.infer<typeof discoveryDeepMatchSchema>
 export type DiscoveryListing = z.infer<typeof discoveryListingSchema>
 export type DiscoveryListingPage = z.infer<typeof discoveryListingPageSchema>
 export type DiscoveryListingDetail = z.infer<typeof discoveryListingDetailSchema>

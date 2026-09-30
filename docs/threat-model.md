@@ -1367,7 +1367,7 @@ model metadata were used instead of decorator-text counts.
 | §2 | `grep -n "allow_origins\|allow_credentials" backend/app/main.py` | Lines 311-312: configured origins with credentials |
 | §3 | `rg -n 'def run_tool_pipeline' backend/app/services/tool_pipeline.py` | Primary pipeline at line 32 |
 | §4 | `rg -n 'result_payload\|hashed_password\|google_id' backend/app/models --glob='*.py'` | Sensitive model fields confirmed |
-| §4.2 | Assembled-app `Base.metadata.tables` introspection | 37 unique application tables; Alembic head `c2a0f1e5d7b3` |
+| §4.2 | Assembled-app `Base.metadata.tables` introspection | 38 unique application tables; Alembic head `f4b8c1d2a7e9` |
 | §5 | `rg -l 'localStorage\|sessionStorage' frontend/src --glob='*.ts' --glob='*.tsx' --glob='!**/__tests__/**' --glob='!**/*.test.*'` | 15 production files matched for manual key review |
 | §6 | `cd backend && .venv/bin/pytest -q tests/test_openapi_schema.py tests/test_feature_gates.py` | assembled app has exactly 127 operations, matches the reviewed fixture, and preserves cumulative gates |
 | §6 | Assembled FastAPI dependency and Limiter-registry introspection | Auth split: 11 public, 8 optional, 1 refresh-cookie, 91 owner, 23 admin; 56 limited and 78 without a route window |
