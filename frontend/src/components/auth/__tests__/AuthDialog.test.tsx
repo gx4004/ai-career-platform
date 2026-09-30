@@ -202,16 +202,16 @@ describe('AuthDialog', () => {
     })
   })
 
-  it('purges the prior owner queue packets before another user can sign in', async () => {
+  it('purges the prior owner applications before another user can sign in', async () => {
     const { queryClient } = renderAuthFlow()
-    queryClient.setQueryData(['queue', 'u1', 'packets'], {
-      items: [{ id: 'owner-a-sensitive-packet' }],
+    queryClient.setQueryData(['applications', 'board'], {
+      items: [{ id: 'owner-a-sensitive-application' }],
     })
 
     fireEvent.click(screen.getByRole('button', { name: 'Log out' }))
 
     await waitFor(() => {
-      expect(queryClient.getQueriesData({ queryKey: ['queue'] })).toEqual([])
+      expect(queryClient.getQueriesData({ queryKey: ['applications'] })).toEqual([])
     })
   })
 
@@ -327,8 +327,8 @@ describe('AuthDialog', () => {
 
     await new Promise((resolve) => setTimeout(resolve, 0))
     fireEvent.click(screen.getByRole('button', { name: 'Seed local state' }))
-    queryClient.setQueryData(['queue', 'u1', 'packets'], {
-      items: [{ id: 'expired-sensitive-packet' }],
+    queryClient.setQueryData(['applications', 'board'], {
+      items: [{ id: 'expired-sensitive-application' }],
     })
 
     const originalPathname = window.location.pathname
@@ -349,7 +349,7 @@ describe('AuthDialog', () => {
     })
 
     expect(screen.queryByRole('dialog')).not.toBeNull()
-    expect(queryClient.getQueriesData({ queryKey: ['queue'] })).toEqual([])
+    expect(queryClient.getQueriesData({ queryKey: ['applications'] })).toEqual([])
     expect(clearSensitiveBrowserDataMock).toHaveBeenCalled()
     expect(screen.getByTestId('owner-local-state').textContent).toBe('')
 

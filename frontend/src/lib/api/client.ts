@@ -1,25 +1,5 @@
 import { z } from 'zod'
 import { ApiError } from '#/lib/api/errors'
-import {
-  applicationPacketItemSchema,
-  applicationPacketListSchema,
-  autofillReportSchema,
-  packetApprovalResultSchema,
-  packetApprovalPreviewSchema,
-  packetApprovalRequestSchema,
-  packetPreparationResultSchema,
-  queueReviewStateSchema,
-  stopAnswerRequestSchema,
-  stopAnswerResultSchema,
-} from '#/lib/api/packetSchemas'
-import {
-  queueRuleItemSchema,
-  queueRuleListSchema,
-  queueRuleUpsertSchema,
-  queueSettingsResponseSchema,
-  queueSettingsUpsertSchema,
-} from '#/lib/api/queueSchemas'
-import type { QueueRuleType, QueueRuleUpsert, QueueSettingsUpsert } from '#/lib/api/queueSchemas'
 import { gapClassificationListResponseSchema } from '#/lib/api/gapClassificationSchemas'
 import { gapResponseOfferSchema } from '#/lib/api/gapResponseSchemas'
 import {
@@ -34,14 +14,11 @@ import {
   evidenceItemSchema,
   evidenceItemCreateSchema,
   evidenceItemUpdateSchema,
-  evidenceConfirmationActionSchema,
   evidenceImportRequestSchema,
-  evidenceImportProposalsSchema,
+  evidenceItemIdsSchema,
+  discoveryListingDetailSchema,
   discoveryListingPageSchema,
-  discoveryPersonalizationSchema,
-  discoveryHiddenSourceSchema,
   discoveryDismissalSchema,
-  discoveryReportAckSchema,
   healthCheckSchema,
   importedJobSchema,
   importJobTextSchema,
@@ -66,11 +43,17 @@ import {
   workspaceListSchema,
   workspaceSummarySchema,
   workspaceUpdateSchema,
-  campaignDetailSchema,
-  campaignMaterialSelectionSchema,
-  campaignTaskSchema, campaignNoteSchema, campaignContactSchema,
-  campaignReminderResponseSchema,
-  campaignReviewResponseSchema,
+  applicationDetailSchema,
+  applicationListSchema,
+  applicationDetailsSchema,
+  applicationDetailsUpdateSchema,
+  applicationPreferencesSchema,
+  applicationPreferencesUpdateSchema,
+  applicationReviewResponseSchema,
+  applicationTaskSchema,
+  applicationUpdateSchema,
+  autofillRunStatusSchema,
+  bulkPrepareResultSchema,
   careerDataExportSchema,
   cvDocumentCreateSchema,
   cvDocumentListSchema,
@@ -79,26 +62,23 @@ import {
   cvDocumentUpdateSchema,
   cvVariantCreateSchema,
   cvVariantSchema,
-  cvQualityRequestSchema,
   cvQualityResponseSchema,
   cvTailoringApplySchema,
   cvTailoringProposalSchema,
-  cvRenderModelSchema,
   cvStyleCatalogSchema,
   cvImportProposalSchema,
   cvImportAcceptSchema,
 } from '#/lib/api/schemas'
 import type {
-  EvidenceConfirmationAction,
   EvidenceItemCreate,
   EvidenceItemUpdate,
   CvDocumentCreate,
   CvDocumentUpdate,
-  CvAtsCheckKey,
-  CvTemplateId,
   CvImportProposal,
   WorkspaceUpdate,
-  CampaignMaterialSelection,
+  ApplicationUpdate,
+  ApplicationDetailsUpdate,
+  ApplicationPreferencesUpdate,
 } from '#/lib/api/schemas'
 
 export function listCvDocuments() {
@@ -148,17 +128,10 @@ export function restoreCvVariant(documentId: string, variantId: string) {
   })
 }
 
-export function scoreCvDocument(
-  documentId: string,
-  payload: { use_model: boolean; checks?: CvAtsCheckKey[]; artifact_template?: CvTemplateId; artifact_format?: 'docx' | 'pdf' },
-) {
+export function scoreCvDocument(documentId: string) {
   return request(`/cv-documents/${documentId}/quality`, {
-    method: 'POST', body: cvQualityRequestSchema.parse(payload), schema: cvQualityResponseSchema,
+    method: 'POST', body: {}, schema: cvQualityResponseSchema,
   })
-}
-
-export function getCvRenderModel(documentId: string, template: CvTemplateId) {
-  return request(`/cv-documents/${documentId}/render?template=${encodeURIComponent(template)}`, { method: 'GET', schema: cvRenderModelSchema })
 }
 
 export function getCvStyleCatalog() {
@@ -182,31 +155,10 @@ export function acceptCvImport(proposal: CvImportProposal) {
   })
 }
 
-export interface CvRenderModelPreviewOverrides {
-  template_id?: CvTemplateId
-  font_id?: string
-  accent_color?: string
-  density?: string
-  ats_mode?: boolean
-}
-
-export function getCvRenderModelPreview(documentId: string, overrides: CvRenderModelPreviewOverrides = {}) {
-  const params = new URLSearchParams()
-  for (const [key, value] of Object.entries(overrides)) {
-    if (value !== undefined) params.set(key, String(value))
-  }
-  const query = params.toString()
-  return request(`/cv-documents/${documentId}/render-model${query ? `?${query}` : ''}`, {
-    method: 'GET', schema: cvRenderModelSchema,
-  })
-}
-
-export function cvArtifactUrl(documentId: string, template: CvTemplateId, format: 'docx' | 'pdf') {
-  return `${API_URL}/cv-documents/${encodeURIComponent(documentId)}/artifacts/${format}?template=${encodeURIComponent(template)}`
-}
-
-export async function fetchCvArtifactBlob(documentId: string, template: CvTemplateId, format: 'docx' | 'pdf', retry = false): Promise<Blob> {
-  const response = await fetch(cvArtifactUrl(documentId, template, format), {
+/** The saved CV rendered in its saved style: exactly what Export downloads. */
+export async function fetchCvArtifactBlob(documentId: string, format: 'docx' | 'pdf', retry = false): Promise<Blob> {
+  const url = `${API_URL}/cv-documents/${encodeURIComponent(documentId)}/artifacts/${format}`
+  const response = await fetch(url, {
     credentials: 'include', signal: AbortSignal.timeout(180_000),
   })
   if (response.status === 401 && !retry && Date.now() >= refreshCooldownUntil) {
@@ -214,7 +166,7 @@ export async function fetchCvArtifactBlob(documentId: string, template: CvTempla
       if (!refreshPromise) refreshPromise = silentRefresh()
       await refreshPromise
       refreshPromise = null
-      return fetchCvArtifactBlob(documentId, template, format, true)
+      return fetchCvArtifactBlob(documentId, format, true)
     } catch {
       refreshPromise = null
       refreshCooldownUntil = Date.now() + REFRESH_COOLDOWN_MS
@@ -231,11 +183,6 @@ export function tailorCvDocument(documentId: string, payload: { job_title: strin
 
 export function applyCvTailoring(documentId: string, payload: unknown) {
   return request(`/cv-documents/${documentId}/tailoring/apply`, { method: 'POST', body: cvTailoringApplySchema.parse(payload), schema: cvVariantSchema })
-}
-
-export function proposeCvTailoringEdit(documentId: string, payload: unknown) {
-  const parsed = cvTailoringApplySchema.pick({ request_id: true, job_title: true, proposal_token: true, changes: true }).extend({ change_id: z.string(), edited_after: z.string().min(1).max(5_000) }).parse(payload)
-  return request(`/cv-documents/${documentId}/tailoring/edit-proposals`, { method: 'POST', body: parsed, schema: evidenceItemSchema })
 }
 
 function trimTrailingSlash(value: string): string {
@@ -307,7 +254,7 @@ async function silentRefresh(): Promise<void> {
   if (!res.ok) throw new Error('refresh failed')
 }
 
-async function request<T>(
+export async function request<T>(
   path: string,
   options: RequestOptions<T> = {},
   _isRetry = false,
@@ -459,37 +406,24 @@ export function searchDiscoveryListings(query: DiscoveryListingQuery = {}) {
   })
 }
 
-// R14 #176 explicit adoption: one user action turns a visible recommendation
-// into a campaign whose canonical listing carries the listing content,
-// attribution, and retrieval date. Returns the new campaign detail.
+export function getDiscoveryListing(listingId: string) {
+  return request(`/discovery/listings/${encodeURIComponent(listingId)}`, {
+    method: 'GET',
+    schema: discoveryListingDetailSchema,
+  })
+}
+
+// One explicit user action turns a visible recommendation into a saved
+// application carrying the listing, its apply link and retrieval date.
 export function adoptDiscoveryRecommendation(listingId: string) {
   return request(`/discovery/recommendations/${listingId}/adopt`, {
     method: 'POST',
     body: {},
-    schema: campaignDetailSchema,
+    schema: applicationDetailSchema,
   })
 }
 
-// R14 #175 discovery correction controls. Every write is owner-scoped server-side.
-export function getDiscoveryPersonalization() {
-  return request('/discovery/personalization', {
-    method: 'GET',
-    schema: discoveryPersonalizationSchema,
-  })
-}
-
-export function hideDiscoverySource(sourceId: string) {
-  return request('/discovery/hidden-sources', {
-    method: 'POST',
-    body: { source_id: sourceId },
-    schema: discoveryHiddenSourceSchema,
-  })
-}
-
-export function unhideDiscoverySource(sourceId: string) {
-  return request<void>(`/discovery/hidden-sources/${sourceId}`, { method: 'DELETE' })
-}
-
+// R14 #175 listing dismissals. Every write is owner-scoped server-side.
 export function dismissDiscoveryRecommendation(listingId: string) {
   return request('/discovery/dismissals', {
     method: 'POST',
@@ -500,22 +434,6 @@ export function dismissDiscoveryRecommendation(listingId: string) {
 
 export function undismissDiscoveryRecommendation(listingId: string) {
   return request<void>(`/discovery/dismissals/${listingId}`, { method: 'DELETE' })
-}
-
-export function reportDiscoveryRecommendation(payload: {
-  listingId: string
-  reasonCategory: string
-  reason: string
-}) {
-  return request('/discovery/reports', {
-    method: 'POST',
-    body: {
-      listing_id: payload.listingId,
-      reason_category: payload.reasonCategory,
-      reason: payload.reason,
-    },
-    schema: discoveryReportAckSchema,
-  })
 }
 
 export function createEvidenceItem(payload: EvidenceItemCreate) {
@@ -533,22 +451,19 @@ export function updateEvidenceItem(
   })
 }
 
-export function setEvidenceItemConfirmation(
-  itemId: string,
-  action: EvidenceConfirmationAction['action'],
-) {
-  return request(`/evidence-profile/items/${itemId}/confirmation`, {
+// Save one suggestion. Rejecting a suggestion is deleteEvidenceItem.
+export function confirmEvidenceItem(itemId: string) {
+  return request(`/evidence-profile/items/${itemId}/confirm`, {
     method: 'POST',
-    body: evidenceConfirmationActionSchema.parse({ action }),
     schema: evidenceItemSchema,
   })
 }
 
-// Phase 1b (#321): confirm every still-unconfirmed imported item in one call.
-export function confirmImportedEvidenceItems() {
-  return request('/evidence-profile/items/confirm-imported', {
+// Save several suggestions in one server commit.
+export function confirmEvidenceItems(ids: string[]) {
+  return request('/evidence-profile/items/confirm', {
     method: 'POST',
-    body: {},
+    body: evidenceItemIdsSchema.parse({ ids }),
     schema: evidenceItemListSchema,
   })
 }
@@ -568,14 +483,13 @@ export function exportCareerData() {
   })
 }
 
-// R11 (#146): derive reviewable evidence proposals from parsed resume text.
-// Authenticated-only server-side (guests get 401/403). Proposals are ephemeral —
-// nothing is stored until the user accepts one via createEvidenceItem.
-export function requestEvidenceImportProposals(resumeText: string) {
-  return request('/evidence-profile/import/proposals', {
+// R11 (#146): extract facts from parsed resume text and store them as
+// suggestions to review on the profile. Authenticated-only server-side.
+export function importEvidenceFromResume(resumeText: string) {
+  return request('/evidence-profile/import', {
     method: 'POST',
     body: evidenceImportRequestSchema.parse({ resume_text: resumeText }),
-    schema: evidenceImportProposalsSchema,
+    schema: evidenceItemListSchema,
   })
 }
 
@@ -733,49 +647,127 @@ export function updateHistoryWorkspace(
   })
 }
 
-export function getCampaign(workspaceId: string) {
-  return request(`/history/workspaces/${workspaceId}`, {
-    method: 'GET', schema: campaignDetailSchema,
+// ── Applications (/applications): the board, one application, its apply flow ──
+
+export function listApplications() {
+  return request('/applications', { method: 'GET', schema: applicationListSchema })
+}
+
+export function getApplication(applicationId: string) {
+  return request(`/applications/${applicationId}`, { method: 'GET', schema: applicationDetailSchema })
+}
+
+export function updateApplication(applicationId: string, payload: ApplicationUpdate) {
+  return request(`/applications/${applicationId}`, {
+    method: 'PATCH',
+    body: applicationUpdateSchema.parse(payload),
+    schema: applicationDetailSchema,
   })
 }
 
-export function deleteCampaign(workspaceId: string) {
-  return request(`/history/workspaces/${workspaceId}`, {
-    method: 'DELETE', schema: deletedResponseSchema,
+export function deleteApplication(applicationId: string) {
+  return request(`/applications/${applicationId}`, { method: 'DELETE', schema: deletedResponseSchema })
+}
+
+/** Draft a cover letter and screening answers; list what only the owner can answer. */
+export function prepareApplication(applicationId: string) {
+  return request(`/applications/${applicationId}/prepare`, {
+    method: 'POST', body: {}, schema: applicationDetailSchema,
   })
 }
 
-export function updateCampaignMaterials(
-  workspaceId: string,
-  payload: CampaignMaterialSelection,
-) {
-  return request(`/history/workspaces/${workspaceId}/materials`, {
-    method: 'PATCH', body: campaignMaterialSelectionSchema.parse(payload), schema: campaignDetailSchema,
+/** The full set of typed answers; a blank answer removes it. */
+export function saveApplicationAnswers(applicationId: string, answers: Record<string, string>) {
+  return request(`/applications/${applicationId}/answers`, {
+    method: 'PUT', body: { answers }, schema: applicationDetailSchema,
   })
 }
 
-export function createCampaignTask(workspaceId: string, payload: { title: string; deadline?: string | null }) { return request(`/history/workspaces/${workspaceId}/tasks`, { method: 'POST', body: payload, schema: campaignTaskSchema }) }
-export function updateCampaignTask(workspaceId: string, taskId: string, completed: boolean) { return request(`/history/workspaces/${workspaceId}/tasks/${taskId}`, { method: 'PATCH', body: { completed }, schema: campaignTaskSchema }) }
-export function deleteCampaignTask(workspaceId: string, taskId: string) { return request(`/history/workspaces/${workspaceId}/tasks/${taskId}`, { method: 'DELETE', schema: deletedResponseSchema }) }
-export function createCampaignNote(workspaceId: string, text: string) { return request(`/history/workspaces/${workspaceId}/notes`, { method: 'POST', body: { text }, schema: campaignNoteSchema }) }
-export function deleteCampaignNote(workspaceId: string, noteId: string) { return request(`/history/workspaces/${workspaceId}/notes/${noteId}`, { method: 'DELETE', schema: deletedResponseSchema }) }
-export function createCampaignContact(workspaceId: string, payload: { name: string; role?: string | null; channel?: string | null }) { return request(`/history/workspaces/${workspaceId}/contacts`, { method: 'POST', body: payload, schema: campaignContactSchema }) }
-export function deleteCampaignContact(workspaceId: string, contactId: string) { return request(`/history/workspaces/${workspaceId}/contacts/${contactId}`, { method: 'DELETE', schema: deletedResponseSchema }) }
-export function getCampaignReminders(workspaceId: string) { return request(`/history/workspaces/${workspaceId}/reminders`, { method: 'GET', schema: campaignReminderResponseSchema }) }
-export function updateCampaignReminderConsent(workspaceId: string, enabled: boolean) { return request(`/history/workspaces/${workspaceId}/reminders`, { method: 'PATCH', body: { enabled }, schema: campaignReminderResponseSchema }) }
-export function reviewCampaign(workspaceId: string) { return request(`/history/workspaces/${workspaceId}/review`, { method: 'POST', body: {}, schema: campaignReviewResponseSchema }) }
-export function classifyCampaignGaps(workspaceId: string) {
-  return request(`/history/workspaces/${workspaceId}/gap-classifications`, {
+/** The owner applied on the employer's site: freezes what was sent. */
+export function markApplicationApplied(applicationId: string) {
+  return request(`/applications/${applicationId}/applied`, {
+    method: 'POST', body: {}, schema: applicationDetailSchema,
+  })
+}
+
+/** Autopilot experiment: start filling the form in a local browser. Never submits. */
+export function autofillApplication(applicationId: string) {
+  return request(`/applications/${applicationId}/autofill`, {
+    method: 'POST', body: {}, schema: autofillRunStatusSchema,
+  })
+}
+
+export function getAutofillStatus(applicationId: string) {
+  return request(`/applications/${applicationId}/autofill`, { method: 'GET', schema: autofillRunStatusSchema })
+}
+
+/** Cancel the run and close its browser window. */
+export function cancelAutofill(applicationId: string) {
+  return request(`/applications/${applicationId}/autofill`, { method: 'DELETE', schema: autofillRunStatusSchema })
+}
+
+export function reviewApplication(applicationId: string) {
+  return request(`/applications/${applicationId}/review`, {
+    method: 'POST', body: {}, schema: applicationReviewResponseSchema,
+  })
+}
+
+export function createApplicationTask(applicationId: string, payload: { title: string; deadline?: string | null }) {
+  return request(`/applications/${applicationId}/tasks`, { method: 'POST', body: payload, schema: applicationTaskSchema })
+}
+
+export function updateApplicationTask(applicationId: string, taskId: string, completed: boolean) {
+  return request(`/applications/${applicationId}/tasks/${taskId}`, {
+    method: 'PATCH', body: { completed }, schema: applicationTaskSchema,
+  })
+}
+
+export function deleteApplicationTask(applicationId: string, taskId: string) {
+  return request(`/applications/${applicationId}/tasks/${taskId}`, { method: 'DELETE', schema: deletedResponseSchema })
+}
+
+export function classifyApplicationGaps(applicationId: string) {
+  return request(`/applications/${applicationId}/gap-classifications`, {
     method: 'POST',
     body: {},
     schema: gapClassificationListResponseSchema,
   })
 }
-export function getCampaignGapResponse(workspaceId: string, classificationId: string) {
+
+export function getApplicationGapResponse(applicationId: string, classificationId: string) {
   return request(
-    `/history/workspaces/${workspaceId}/gap-classifications/${classificationId}/response`,
+    `/applications/${applicationId}/gap-classifications/${classificationId}/response`,
     { method: 'GET', schema: gapResponseOfferSchema },
   )
+}
+
+export function getApplicationPreferences() {
+  return request('/applications/preferences', { method: 'GET', schema: applicationPreferencesSchema })
+}
+
+export function saveApplicationPreferences(payload: ApplicationPreferencesUpdate) {
+  return request('/applications/preferences', {
+    method: 'PUT',
+    body: applicationPreferencesUpdateSchema.parse(payload),
+    schema: applicationPreferencesSchema,
+  })
+}
+
+export function getApplicationDetails() {
+  return request('/applications/details', { method: 'GET', schema: applicationDetailsSchema })
+}
+
+export function saveApplicationDetails(payload: ApplicationDetailsUpdate) {
+  return request('/applications/details', {
+    method: 'PUT',
+    body: applicationDetailsUpdateSchema.parse(payload),
+    schema: applicationDetailsSchema,
+  })
+}
+
+/** "Prepare applications for me": adopt and prepare the best matches, up to the cap. */
+export function prepareApplicationsForMe() {
+  return request('/applications/prepare', { method: 'POST', body: {}, schema: bulkPrepareResultSchema })
 }
 
 export function requestPasswordReset(payload: { email: string }) {
@@ -813,142 +805,5 @@ export async function deleteAccount(confirmation: string): Promise<void> {
   await request<unknown>('/auth/me/delete', {
     method: 'POST',
     body: { confirmation },
-  })
-}
-
-// ── Application Approval Queue review surface (R15 #183) ──
-// Every write is owner-scoped and audited server-side. Accept is refused (409) while
-// any unresolved question remains (D-095); edit reopens materials under the existing
-// diff/confirmation rules (D-073); pause halts preparation immediately (ADR 0009).
-
-export function listPackets() {
-  return request('/packets', { method: 'GET', schema: applicationPacketListSchema })
-}
-
-export function getQueueState() {
-  return request('/packets/queue-state', { method: 'GET', schema: queueReviewStateSchema })
-}
-
-export function pauseQueue() {
-  return request('/packets/pause', {
-    method: 'POST',
-    body: {},
-    schema: queueReviewStateSchema,
-  })
-}
-
-export function resumeQueue() {
-  return request('/packets/resume', {
-    method: 'POST',
-    body: {},
-    schema: queueReviewStateSchema,
-  })
-}
-
-export function acceptPacket(packetId: string, expectedMaterialSha256: string) {
-  // Accepting freezes the immutable R15 snapshot and returns only a manual handoff.
-  return request(`/packets/${packetId}/accept`, {
-    method: 'POST',
-    body: packetApprovalRequestSchema.parse({
-      expected_material_sha256: expectedMaterialSha256,
-    }),
-    schema: packetApprovalResultSchema,
-  })
-}
-
-export function getPacketApprovalPreview(packetId: string) {
-  return request(`/packets/${packetId}/approval-preview`, {
-    method: 'GET',
-    schema: packetApprovalPreviewSchema,
-  })
-}
-
-export function skipPacket(packetId: string) {
-  return request(`/packets/${packetId}/skip`, {
-    method: 'POST',
-    body: {},
-    schema: applicationPacketItemSchema,
-  })
-}
-
-export function rejectPacket(packetId: string) {
-  return request(`/packets/${packetId}/reject`, {
-    method: 'POST',
-    body: {},
-    schema: applicationPacketItemSchema,
-  })
-}
-
-export function editPacket(packetId: string) {
-  return request(`/packets/${packetId}/edit`, {
-    method: 'POST',
-    body: {},
-    schema: applicationPacketItemSchema,
-  })
-}
-
-export function answerPacketStopQuestion(
-  packetId: string,
-  payload: { field: string; answer: string },
-) {
-  return request(`/packets/${packetId}/stop-answers`, {
-    method: 'POST',
-    body: stopAnswerRequestSchema.parse(payload),
-    schema: stopAnswerResultSchema,
-  })
-}
-
-export function markPacketApplied(packetId: string) {
-  return request(`/packets/${packetId}/applied`, {
-    method: 'POST',
-    body: {},
-    schema: applicationPacketItemSchema,
-  })
-}
-
-/** Autopilot experiment: fill the approved form in a local browser. Never submits. */
-export function autofillPacket(packetId: string) {
-  return request(`/packets/${packetId}/autofill`, {
-    method: 'POST',
-    body: {},
-    schema: autofillReportSchema,
-  })
-}
-
-// ── Queue rules — the filters a job must pass to become a packet (R15 #180) ──
-
-export function listQueueRules() {
-  return request('/queue/rules', { method: 'GET', schema: queueRuleListSchema })
-}
-
-export function upsertQueueRule(payload: QueueRuleUpsert) {
-  return request('/queue/rules', {
-    method: 'PUT',
-    body: queueRuleUpsertSchema.parse(payload),
-    schema: queueRuleItemSchema,
-  })
-}
-
-export function deleteQueueRule(ruleType: QueueRuleType) {
-  return request(`/queue/rules/${ruleType}`, { method: 'DELETE' })
-}
-
-export function getQueueSettings() {
-  return request('/queue/settings', { method: 'GET', schema: queueSettingsResponseSchema })
-}
-
-export function updateQueueSettings(payload: QueueSettingsUpsert) {
-  return request('/queue/settings', {
-    method: 'PUT',
-    body: queueSettingsUpsertSchema.parse(payload),
-    schema: queueSettingsResponseSchema,
-  })
-}
-
-export function preparePackets() {
-  return request('/packets/prepare', {
-    method: 'POST',
-    body: {},
-    schema: packetPreparationResultSchema,
   })
 }

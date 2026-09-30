@@ -83,13 +83,8 @@ function requestUrl(req) {
 
 function securityHeaders(req) {
   const connectOrigins = new Set(["'self'"])
-  for (const value of [
-    process.env.VITE_API_URL,
-    process.env.VITE_SENTRY_DSN,
-  ]) {
-    const origin = configuredOrigin(value)
-    if (origin) connectOrigins.add(origin)
-  }
+  const apiOrigin = configuredOrigin(process.env.VITE_API_URL)
+  if (apiOrigin) connectOrigins.add(apiOrigin)
 
   const headers = {
     'Content-Security-Policy': [
@@ -233,9 +228,8 @@ const httpServer = createServer(async (req, res) => {
     res.end(body)
   } catch (err) {
     // Render errors routinely embed user-supplied content in their message and
-    // stack, and process stdout/stderr is the one surface Sentry's scrubbing
-    // does not cover. Log only the stable shape of the failure: error name,
-    // method, and path. The query string is dropped for the same reason, and the
+    // stack, and process stdout/stderr is not scrubbed. Log only the stable
+    // shape of the failure: error name, method, and path. The query string is dropped for the same reason, and the
     // name is sanitised because a thrown object can carry an arbitrary one.
     const rawName = err instanceof Error ? err.name : typeof err
     const name = String(rawName).replace(/[^\w.$-]/g, '').slice(0, 64) || 'Unknown'

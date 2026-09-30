@@ -1,8 +1,6 @@
 import asyncio
 import logging
 
-import sentry_sdk
-
 from app.config import settings
 
 logger = logging.getLogger(__name__)
@@ -62,7 +60,6 @@ async def send_password_reset_email(to_email: str, reset_url: str) -> bool:
         await asyncio.to_thread(_send_resend_sync, to_email, reset_url)
         return True
     except Exception as exc:
-        sentry_sdk.capture_message("Password reset email delivery failed", level="error")
         logger.error(
             "Failed to send password reset email error_type=%s",
             type(exc).__name__,

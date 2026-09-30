@@ -10,7 +10,7 @@ export function AdminUsersPage() {
   const [search, setSearch] = useState('')
   const [searchInput, setSearchInput] = useState('')
 
-  const { data, isLoading, isError } = useQuery<AdminUserListResponse>({
+  const { data, isLoading, isError, refetch } = useQuery<AdminUserListResponse>({
     queryKey: ['admin-users', page, search],
     queryFn: () => getAdminUsers({ page, page_size: 20, q: search || undefined }),
     staleTime: 30_000,
@@ -70,7 +70,10 @@ export function AdminUsersPage() {
             {isError && (
               <tr>
                 <td colSpan={6} className="admin-table-muted" style={{ textAlign: 'center', color: '#dc2626' }}>
-                  Failed to load users.
+                  Couldn't load users.{' '}
+                  <button type="button" className="admin-toolbar-btn" onClick={() => void refetch()}>
+                    Try again
+                  </button>
                 </td>
               </tr>
             )}

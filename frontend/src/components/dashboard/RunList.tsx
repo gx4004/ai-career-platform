@@ -1,14 +1,11 @@
 import type { ComponentType } from 'react'
 import { Link } from '@tanstack/react-router'
-import { ArrowRight, Star } from 'lucide-react'
 import { motion, useReducedMotion } from 'framer-motion'
-import { Badge } from '#/components/ui/badge'
 import { useHistory } from '#/hooks/useHistory'
 import { useSession } from '#/hooks/useSession'
 import type { HistoryQueryParams } from '#/lib/api/client'
-import { Skeleton } from '#/components/ui/skeleton'
-import { getToolByHistoryName } from '#/lib/tools/registry'
-import { toolAccentStyle } from '#/lib/tools/styleUtils'
+import { RunRow, RunRowSkeleton, formatRunDate } from '#/components/dashboard/RunRow'
+import { historyRunHref, historyToolDisplay } from '#/lib/tools/historyToolLabel'
 import { ScrollFadeUp } from '#/components/ui/motion'
 
 export function RunList({
@@ -20,6 +17,7 @@ export function RunList({
   queryParams,
   showFavoriteStar,
   bare,
+  viewAllTo,
 }: {
   eyebrow: string
   title: string
@@ -29,6 +27,8 @@ export function RunList({
   queryParams: HistoryQueryParams
   showFavoriteStar?: boolean
   bare?: boolean
+  /** Adds a "View all" link to the card header. */
+  viewAllTo?: '/history'
 }) {
   const { status } = useSession()
   const query = useHistory(queryParams, status === 'authenticated')
@@ -51,23 +51,14 @@ export function RunList({
     <div className="run-list">
       {query.isPending ? (
         <div className="run-list run-list--loading" aria-hidden>
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="run-row run-row--skeleton">
-              <Skeleton className="run-row-skeleton-icon" />
-              <div className="run-row-skeleton-body">
-                <Skeleton className="run-row-skeleton-meta" />
-                <Skeleton className="run-row-skeleton-label" />
-              </div>
-              <Skeleton className="run-row-skeleton-cta" />
-            </div>
+          {Array.from({ length: queryParams.page_size ?? 3 }, (_, i) => (
+            <RunRowSkeleton key={i} />
           ))}
         </div>
       ) : hasItems ? (
         items.map((item, i) => {
-          const tool = getToolByHistoryName(item.tool_name)
-          const route = tool
-            ? tool.resultRoute.replace('$historyId', item.id)
-            : '/history'
+          const tool = historyToolDisplay(item.tool_name)
+          const href = historyRunHref(item)
 
           return (
             <motion.div
@@ -76,41 +67,20 @@ export function RunList({
               animate={{ opacity: 1, y: 0, scale: 1 }}
               transition={prefersReducedMotion ? { duration: 0 } : { type: 'spring', stiffness: 80, damping: 18, delay: i * 0.05 }}
             >
-            <Link
-              to={route}
-              className="run-row run-row--linked"
-              style={toolAccentStyle(tool?.accent)}
-            >
-              {tool && (
-                <div className="run-row-icon-col" aria-hidden>
-                  <tool.icon size={16} />
-                </div>
-              )}
-              <div className="run-row-body">
-                <div className="run-row-meta">
-                  {showFavoriteStar && (
-                    <Star size={12} className="run-row-favorite" aria-hidden />
-                  )}
-                  <Badge variant="outline">
-                    <span className="run-row-badge-text">{tool?.shortLabel || item.tool_name}</span>
-                  </Badge>
-                  {!showFavoriteStar && (
-                    <span className="small-copy muted-copy run-row-date">
-                      {new Date(item.created_at).toLocaleDateString()}
-                    </span>
-                  )}
-                </div>
-                <span className="run-row-label">{item.label || (showFavoriteStar ? 'Untitled favorite' : 'Untitled run')}</span>
-              </div>
-              <span
-                className="run-row-cta"
-                aria-hidden
-                style={tool?.accent ? { color: tool.accent } : undefined}
-              >
-                <span>Open</span>
-                <ArrowRight size={14} className="run-row-cta-arrow" />
-              </span>
-            </Link>
+              {(() => {
+                const rowProps = {
+                  tool,
+                  label: item.label || (showFavoriteStar ? 'Untitled favorite' : 'Untitled run'),
+                  showFavoriteStar,
+                  date: showFavoriteStar ? undefined : formatRunDate(item.created_at),
+                }
+                // Older CV Studio runs have no page to open: show them as a plain row.
+                return href ? (
+                  <RunRow mode="linked" href={href} {...rowProps} />
+                ) : (
+                  <RunRow mode="actions" href={null} actions={null} {...rowProps} />
+                )
+              })()}
             </motion.div>
           )
         })
@@ -131,9 +101,16 @@ export function RunList({
     <ScrollFadeUp>
       <section className="dash-card dash-card--runs">
         <div className="grid gap-3">
-          <div className="grid gap-0.5">
-            <p className="eyebrow">{eyebrow}</p>
-            <h2 className="section-title">{title}</h2>
+          <div className="dash-card-head">
+            <div className="grid gap-0.5">
+              <p className="eyebrow">{eyebrow}</p>
+              <h2 className="section-title">{title}</h2>
+            </div>
+            {viewAllTo ? (
+              <Link to={viewAllTo} className="dash-card-head-link">
+                View all
+              </Link>
+            ) : null}
           </div>
           {content}
         </div>

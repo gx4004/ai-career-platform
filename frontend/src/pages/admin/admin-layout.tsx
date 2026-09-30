@@ -3,25 +3,13 @@ import {
   LayoutDashboard,
   Users,
   FileText,
-  Activity,
-  ShieldCheck,
-  ShieldAlert,
   Database,
-  ListChecks,
-  Flag,
-  HeartPulse,
   ArrowLeft,
 } from 'lucide-react'
 
 const NAV = [
   { to: '/admin', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/admin/activation', label: 'Activation', icon: Activity },
-  { to: '/admin/profile-adoption', label: 'Profile Adoption', icon: ShieldCheck },
-  { to: '/admin/development-loop', label: 'Development Loop', icon: ListChecks },
-  { to: '/admin/discovery-sources', label: 'Discovery Sources', icon: Database },
-  { to: '/admin/source-health', label: 'Source Health', icon: HeartPulse },
-  { to: '/admin/packet-gate', label: 'Packet Gate', icon: ShieldAlert },
-  { to: '/admin/discovery-reports', label: 'Recommendation Reports', icon: Flag },
+  { to: '/admin/discovery-sources', label: 'Discovery sources', icon: Database },
   { to: '/admin/users', label: 'Users', icon: Users },
   { to: '/admin/runs', label: 'Runs', icon: FileText },
 ] as const
@@ -33,7 +21,7 @@ export function AdminLayout() {
     <div className="admin-layout">
       <aside className="admin-sidebar">
         <div className="admin-sidebar-brand">
-          <span className="admin-sidebar-brand-label">Admin Panel</span>
+          <span className="admin-sidebar-brand-label">Admin panel</span>
         </div>
         <nav className="admin-sidebar-nav">
           {NAV.map((item) => {

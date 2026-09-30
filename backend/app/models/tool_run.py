@@ -28,7 +28,7 @@ class ToolRun(Base):
     is_favorite: Mapped[bool] = mapped_column(Boolean, default=False)
     result_payload: Mapped[dict] = mapped_column(JSON, default=dict)
     parent_run_id: Mapped[str | None] = mapped_column(
-        String, ForeignKey("tool_runs.id"), nullable=True, index=True
+        String, ForeignKey("tool_runs.id", ondelete="SET NULL"), nullable=True, index=True
     )
     feedback_text: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(

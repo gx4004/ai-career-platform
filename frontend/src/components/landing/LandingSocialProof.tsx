@@ -4,7 +4,7 @@ export function LandingSocialProof() {
   const prefersReducedMotion = useReducedMotion() ?? false
 
   return (
-    <section className="lp-section lp-surface-lowest" id="landing-proof">
+    <section className="lp-section lp-section--compact lp-surface-lowest" id="landing-proof">
       <div className="lp-container">
         <motion.div
           style={{ textAlign: 'center', maxWidth: '46rem', margin: '0 auto' }}

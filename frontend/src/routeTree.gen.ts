@@ -17,7 +17,6 @@ import { Route as CookiesRouteImport } from './routes/cookies'
 import { Route as CoverLetterRouteImport } from './routes/cover-letter'
 import { Route as CvStudioRouteImport } from './routes/cv-studio'
 import { Route as DashboardRouteImport } from './routes/dashboard'
-import { Route as DevelopmentPlanRouteImport } from './routes/development-plan'
 import { Route as DiscoveryRouteImport } from './routes/discovery'
 import { Route as HistoryRouteImport } from './routes/history'
 import { Route as ImprintRouteImport } from './routes/imprint'
@@ -33,14 +32,8 @@ import { Route as ResumeRouteImport } from './routes/resume'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as AdminIndexRouteImport } from './routes/admin/index'
-import { Route as AdminActivationRouteImport } from './routes/admin/activation'
-import { Route as AdminDevelopmentLoopRouteImport } from './routes/admin/development-loop'
-import { Route as AdminDiscoveryReportsRouteImport } from './routes/admin/discovery-reports'
 import { Route as AdminDiscoverySourcesRouteImport } from './routes/admin/discovery-sources'
-import { Route as AdminPacketGateRouteImport } from './routes/admin/packet-gate'
-import { Route as AdminProfileAdoptionRouteImport } from './routes/admin/profile-adoption'
 import { Route as AdminRunsRouteImport } from './routes/admin/runs'
-import { Route as AdminSourceHealthRouteImport } from './routes/admin/source-health'
 import { Route as AdminUsersRouteImport } from './routes/admin/users'
 import { Route as CampaignsIndexRouteImport } from './routes/campaigns.index'
 import { Route as CampaignsCampaignIdRouteImport } from './routes/campaigns.$campaignId'
@@ -89,11 +82,6 @@ const CvStudioRoute = CvStudioRouteImport.update({
 const DashboardRoute = DashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DevelopmentPlanRoute = DevelopmentPlanRouteImport.update({
-  id: '/development-plan',
-  path: '/development-plan',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DiscoveryRoute = DiscoveryRouteImport.update({
@@ -171,44 +159,14 @@ const AdminIndexRoute = AdminIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AdminRoute,
 } as any)
-const AdminActivationRoute = AdminActivationRouteImport.update({
-  id: '/activation',
-  path: '/activation',
-  getParentRoute: () => AdminRoute,
-} as any)
-const AdminDevelopmentLoopRoute = AdminDevelopmentLoopRouteImport.update({
-  id: '/development-loop',
-  path: '/development-loop',
-  getParentRoute: () => AdminRoute,
-} as any)
-const AdminDiscoveryReportsRoute = AdminDiscoveryReportsRouteImport.update({
-  id: '/discovery-reports',
-  path: '/discovery-reports',
-  getParentRoute: () => AdminRoute,
-} as any)
 const AdminDiscoverySourcesRoute = AdminDiscoverySourcesRouteImport.update({
   id: '/discovery-sources',
   path: '/discovery-sources',
   getParentRoute: () => AdminRoute,
 } as any)
-const AdminPacketGateRoute = AdminPacketGateRouteImport.update({
-  id: '/packet-gate',
-  path: '/packet-gate',
-  getParentRoute: () => AdminRoute,
-} as any)
-const AdminProfileAdoptionRoute = AdminProfileAdoptionRouteImport.update({
-  id: '/profile-adoption',
-  path: '/profile-adoption',
-  getParentRoute: () => AdminRoute,
-} as any)
 const AdminRunsRoute = AdminRunsRouteImport.update({
   id: '/runs',
   path: '/runs',
-  getParentRoute: () => AdminRoute,
-} as any)
-const AdminSourceHealthRoute = AdminSourceHealthRouteImport.update({
-  id: '/source-health',
-  path: '/source-health',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminUsersRoute = AdminUsersRouteImport.update({
@@ -269,7 +227,6 @@ export interface FileRoutesByFullPath {
   '/cover-letter': typeof CoverLetterRoute
   '/cv-studio': typeof CvStudioRoute
   '/dashboard': typeof DashboardRoute
-  '/development-plan': typeof DevelopmentPlanRoute
   '/discovery': typeof DiscoveryRoute
   '/history': typeof HistoryRoute
   '/imprint': typeof ImprintRoute
@@ -284,14 +241,8 @@ export interface FileRoutesByFullPath {
   '/resume': typeof ResumeRoute
   '/settings': typeof SettingsRoute
   '/terms': typeof TermsRoute
-  '/admin/activation': typeof AdminActivationRoute
-  '/admin/development-loop': typeof AdminDevelopmentLoopRoute
-  '/admin/discovery-reports': typeof AdminDiscoveryReportsRoute
   '/admin/discovery-sources': typeof AdminDiscoverySourcesRoute
-  '/admin/packet-gate': typeof AdminPacketGateRoute
-  '/admin/profile-adoption': typeof AdminProfileAdoptionRoute
   '/admin/runs': typeof AdminRunsRoute
-  '/admin/source-health': typeof AdminSourceHealthRoute
   '/admin/users': typeof AdminUsersRoute
   '/campaigns/$campaignId': typeof CampaignsCampaignIdRoute
   '/admin/': typeof AdminIndexRoute
@@ -311,7 +262,6 @@ export interface FileRoutesByTo {
   '/cover-letter': typeof CoverLetterRoute
   '/cv-studio': typeof CvStudioRoute
   '/dashboard': typeof DashboardRoute
-  '/development-plan': typeof DevelopmentPlanRoute
   '/discovery': typeof DiscoveryRoute
   '/history': typeof HistoryRoute
   '/imprint': typeof ImprintRoute
@@ -326,14 +276,8 @@ export interface FileRoutesByTo {
   '/resume': typeof ResumeRoute
   '/settings': typeof SettingsRoute
   '/terms': typeof TermsRoute
-  '/admin/activation': typeof AdminActivationRoute
-  '/admin/development-loop': typeof AdminDevelopmentLoopRoute
-  '/admin/discovery-reports': typeof AdminDiscoveryReportsRoute
   '/admin/discovery-sources': typeof AdminDiscoverySourcesRoute
-  '/admin/packet-gate': typeof AdminPacketGateRoute
-  '/admin/profile-adoption': typeof AdminProfileAdoptionRoute
   '/admin/runs': typeof AdminRunsRoute
-  '/admin/source-health': typeof AdminSourceHealthRoute
   '/admin/users': typeof AdminUsersRoute
   '/campaigns/$campaignId': typeof CampaignsCampaignIdRoute
   '/admin': typeof AdminIndexRoute
@@ -355,7 +299,6 @@ export interface FileRoutesById {
   '/cover-letter': typeof CoverLetterRoute
   '/cv-studio': typeof CvStudioRoute
   '/dashboard': typeof DashboardRoute
-  '/development-plan': typeof DevelopmentPlanRoute
   '/discovery': typeof DiscoveryRoute
   '/history': typeof HistoryRoute
   '/imprint': typeof ImprintRoute
@@ -370,14 +313,8 @@ export interface FileRoutesById {
   '/resume': typeof ResumeRoute
   '/settings': typeof SettingsRoute
   '/terms': typeof TermsRoute
-  '/admin/activation': typeof AdminActivationRoute
-  '/admin/development-loop': typeof AdminDevelopmentLoopRoute
-  '/admin/discovery-reports': typeof AdminDiscoveryReportsRoute
   '/admin/discovery-sources': typeof AdminDiscoverySourcesRoute
-  '/admin/packet-gate': typeof AdminPacketGateRoute
-  '/admin/profile-adoption': typeof AdminProfileAdoptionRoute
   '/admin/runs': typeof AdminRunsRoute
-  '/admin/source-health': typeof AdminSourceHealthRoute
   '/admin/users': typeof AdminUsersRoute
   '/campaigns/$campaignId': typeof CampaignsCampaignIdRoute
   '/admin/': typeof AdminIndexRoute
@@ -400,7 +337,6 @@ export interface FileRouteTypes {
     | '/cover-letter'
     | '/cv-studio'
     | '/dashboard'
-    | '/development-plan'
     | '/discovery'
     | '/history'
     | '/imprint'
@@ -415,14 +351,8 @@ export interface FileRouteTypes {
     | '/resume'
     | '/settings'
     | '/terms'
-    | '/admin/activation'
-    | '/admin/development-loop'
-    | '/admin/discovery-reports'
     | '/admin/discovery-sources'
-    | '/admin/packet-gate'
-    | '/admin/profile-adoption'
     | '/admin/runs'
-    | '/admin/source-health'
     | '/admin/users'
     | '/campaigns/$campaignId'
     | '/admin/'
@@ -442,7 +372,6 @@ export interface FileRouteTypes {
     | '/cover-letter'
     | '/cv-studio'
     | '/dashboard'
-    | '/development-plan'
     | '/discovery'
     | '/history'
     | '/imprint'
@@ -457,14 +386,8 @@ export interface FileRouteTypes {
     | '/resume'
     | '/settings'
     | '/terms'
-    | '/admin/activation'
-    | '/admin/development-loop'
-    | '/admin/discovery-reports'
     | '/admin/discovery-sources'
-    | '/admin/packet-gate'
-    | '/admin/profile-adoption'
     | '/admin/runs'
-    | '/admin/source-health'
     | '/admin/users'
     | '/campaigns/$campaignId'
     | '/admin'
@@ -485,7 +408,6 @@ export interface FileRouteTypes {
     | '/cover-letter'
     | '/cv-studio'
     | '/dashboard'
-    | '/development-plan'
     | '/discovery'
     | '/history'
     | '/imprint'
@@ -500,14 +422,8 @@ export interface FileRouteTypes {
     | '/resume'
     | '/settings'
     | '/terms'
-    | '/admin/activation'
-    | '/admin/development-loop'
-    | '/admin/discovery-reports'
     | '/admin/discovery-sources'
-    | '/admin/packet-gate'
-    | '/admin/profile-adoption'
     | '/admin/runs'
-    | '/admin/source-health'
     | '/admin/users'
     | '/campaigns/$campaignId'
     | '/admin/'
@@ -529,7 +445,6 @@ export interface RootRouteChildren {
   CoverLetterRoute: typeof CoverLetterRoute
   CvStudioRoute: typeof CvStudioRoute
   DashboardRoute: typeof DashboardRoute
-  DevelopmentPlanRoute: typeof DevelopmentPlanRoute
   DiscoveryRoute: typeof DiscoveryRoute
   HistoryRoute: typeof HistoryRoute
   ImprintRoute: typeof ImprintRoute
@@ -610,13 +525,6 @@ declare module '@tanstack/react-router' {
       path: '/dashboard'
       fullPath: '/dashboard'
       preLoaderRoute: typeof DashboardRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/development-plan': {
-      id: '/development-plan'
-      path: '/development-plan'
-      fullPath: '/development-plan'
-      preLoaderRoute: typeof DevelopmentPlanRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/discovery': {
@@ -724,27 +632,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminIndexRouteImport
       parentRoute: typeof AdminRoute
     }
-    '/admin/activation': {
-      id: '/admin/activation'
-      path: '/activation'
-      fullPath: '/admin/activation'
-      preLoaderRoute: typeof AdminActivationRouteImport
-      parentRoute: typeof AdminRoute
-    }
-    '/admin/development-loop': {
-      id: '/admin/development-loop'
-      path: '/development-loop'
-      fullPath: '/admin/development-loop'
-      preLoaderRoute: typeof AdminDevelopmentLoopRouteImport
-      parentRoute: typeof AdminRoute
-    }
-    '/admin/discovery-reports': {
-      id: '/admin/discovery-reports'
-      path: '/discovery-reports'
-      fullPath: '/admin/discovery-reports'
-      preLoaderRoute: typeof AdminDiscoveryReportsRouteImport
-      parentRoute: typeof AdminRoute
-    }
     '/admin/discovery-sources': {
       id: '/admin/discovery-sources'
       path: '/discovery-sources'
@@ -752,32 +639,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminDiscoverySourcesRouteImport
       parentRoute: typeof AdminRoute
     }
-    '/admin/packet-gate': {
-      id: '/admin/packet-gate'
-      path: '/packet-gate'
-      fullPath: '/admin/packet-gate'
-      preLoaderRoute: typeof AdminPacketGateRouteImport
-      parentRoute: typeof AdminRoute
-    }
-    '/admin/profile-adoption': {
-      id: '/admin/profile-adoption'
-      path: '/profile-adoption'
-      fullPath: '/admin/profile-adoption'
-      preLoaderRoute: typeof AdminProfileAdoptionRouteImport
-      parentRoute: typeof AdminRoute
-    }
     '/admin/runs': {
       id: '/admin/runs'
       path: '/runs'
       fullPath: '/admin/runs'
       preLoaderRoute: typeof AdminRunsRouteImport
-      parentRoute: typeof AdminRoute
-    }
-    '/admin/source-health': {
-      id: '/admin/source-health'
-      path: '/source-health'
-      fullPath: '/admin/source-health'
-      preLoaderRoute: typeof AdminSourceHealthRouteImport
       parentRoute: typeof AdminRoute
     }
     '/admin/users': {
@@ -847,27 +713,15 @@ declare module '@tanstack/react-router' {
 }
 
 interface AdminRouteChildren {
-  AdminActivationRoute: typeof AdminActivationRoute
-  AdminDevelopmentLoopRoute: typeof AdminDevelopmentLoopRoute
-  AdminDiscoveryReportsRoute: typeof AdminDiscoveryReportsRoute
   AdminDiscoverySourcesRoute: typeof AdminDiscoverySourcesRoute
-  AdminPacketGateRoute: typeof AdminPacketGateRoute
-  AdminProfileAdoptionRoute: typeof AdminProfileAdoptionRoute
   AdminRunsRoute: typeof AdminRunsRoute
-  AdminSourceHealthRoute: typeof AdminSourceHealthRoute
   AdminUsersRoute: typeof AdminUsersRoute
   AdminIndexRoute: typeof AdminIndexRoute
 }
 
 const AdminRouteChildren: AdminRouteChildren = {
-  AdminActivationRoute: AdminActivationRoute,
-  AdminDevelopmentLoopRoute: AdminDevelopmentLoopRoute,
-  AdminDiscoveryReportsRoute: AdminDiscoveryReportsRoute,
   AdminDiscoverySourcesRoute: AdminDiscoverySourcesRoute,
-  AdminPacketGateRoute: AdminPacketGateRoute,
-  AdminProfileAdoptionRoute: AdminProfileAdoptionRoute,
   AdminRunsRoute: AdminRunsRoute,
-  AdminSourceHealthRoute: AdminSourceHealthRoute,
   AdminUsersRoute: AdminUsersRoute,
   AdminIndexRoute: AdminIndexRoute,
 }
@@ -883,7 +737,6 @@ const rootRouteChildren: RootRouteChildren = {
   CoverLetterRoute: CoverLetterRoute,
   CvStudioRoute: CvStudioRoute,
   DashboardRoute: DashboardRoute,
-  DevelopmentPlanRoute: DevelopmentPlanRoute,
   DiscoveryRoute: DiscoveryRoute,
   HistoryRoute: HistoryRoute,
   ImprintRoute: ImprintRoute,

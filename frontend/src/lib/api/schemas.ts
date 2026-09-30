@@ -4,40 +4,209 @@ import {
   developmentResponseKindSchema,
 } from '#/lib/api/developmentSchemas'
 import { gapClassificationSchema, gapKindSchema } from '#/lib/api/gapClassificationSchemas'
-import {
-  applicationPacketsExportSchema,
-  packetApprovalSnapshotsExportSchema,
-  packetStopAnswersExportSchema,
-} from '#/lib/api/packetSchemas'
-import { queueAuditExportSchema, queueRulesExportSchema } from '#/lib/api/queueSchemas'
 
-export const campaignStatusSchema = z.enum([
-  'planning', 'preparing', 'applied', 'interviewing',
-  'offer', 'accepted', 'rejected', 'withdrawn',
+// ── Applications (mirrors backend/app/schemas/applications.py) ──
+// Timestamps may carry the database session's UTC offset (e.g. +02:00), not only Z.
+const offsetDateTime = z.iso.datetime({ offset: true })
+
+export const applicationStatusSchema = z.enum([
+  'saved', 'applied', 'interviewing', 'offer', 'rejected', 'withdrawn',
 ])
-export type CampaignStatus = z.infer<typeof campaignStatusSchema>
-export const campaignListingSchema = z.strictObject({
+export type ApplicationStatus = z.infer<typeof applicationStatusSchema>
+export const applicationListingSchema = z.strictObject({
   title: z.string(), company: z.string(), description: z.string(),
-  source_url: z.string().url().nullable(), retrieved_at: z.iso.datetime({ offset: true }),
+  source_url: z.string().url().nullable(),
+  apply_url: z.string().url().nullable().default(null),
+  retrieved_at: offsetDateTime,
 })
+export const applicationTaskSchema = z.object({
+  id: z.string(), title: z.string(), deadline: offsetDateTime.nullable(),
+  completed: z.boolean(), created_at: offsetDateTime,
+})
+// One event shape for the page's activity list and the data export (which omits provenance).
+export const applicationEventSchema = z.object({
+  id: z.string(), event_type: z.string(), details: z.record(z.string(), z.unknown()),
+  provenance: z.enum(['user', 'system']).default('user'), created_at: offsetDateTime,
+})
+export const applicationSnapshotSchema = z.object({
+  id: z.string(), content: z.record(z.string(), z.unknown()),
+  content_sha256: z.string().length(64), created_at: offsetDateTime,
+})
+export const applicationCardSchema = z.object({
+  id: z.string(),
+  label: z.string().nullable().default(null),
+  title: z.string().nullable().default(null),
+  company: z.string().nullable().default(null),
+  status: applicationStatusSchema,
+  deadline: offsetDateTime.nullable().default(null),
+  applied_at: offsetDateTime.nullable().default(null),
+  match_score: z.number().int().nullable().default(null),
+  prepared: z.boolean().default(false),
+  ready: z.boolean().default(false),
+  open_question_count: z.number().int().nonnegative().default(0),
+  next_task: z.object({ title: z.string(), deadline: offsetDateTime.nullable() }).nullable().default(null),
+  last_activity_at: offsetDateTime.nullable().default(null),
+  is_pinned: z.boolean().default(false),
+  updated_at: offsetDateTime,
+})
+export const applicationListSchema = z.object({
+  items: z.array(applicationCardSchema),
+  total: z.number(),
+})
+const cvVariantReferenceSchema = z.object({
+  id: z.string(), document_id: z.string(), document_name: z.string(), name: z.string(),
+  target_role: z.string().nullable().default(null), created_at: offsetDateTime,
+})
+const runReferenceSchema = z.object({
+  id: z.string(), label: z.string().nullable().default(null),
+  parent_run_id: z.string().nullable().default(null), created_at: offsetDateTime,
+})
+export const applicationDetailSchema = applicationCardSchema.extend({
+  role: z.string().nullable().default(null),
+  listing: applicationListingSchema.nullable().default(null),
+  notes: z.string().nullable().default(null),
+  selected_materials: z.object({
+    cv_variant: cvVariantReferenceSchema.nullable(),
+    cover_letter: runReferenceSchema.nullable(),
+    interview: runReferenceSchema.nullable(),
+  }),
+  available_materials: z.object({
+    cv_variants: z.array(cvVariantReferenceSchema),
+    cover_letters: z.array(runReferenceSchema),
+    interviews: z.array(runReferenceSchema),
+  }),
+  drafts: z.object({
+    run_id: z.string(),
+    created_at: offsetDateTime,
+    cover_letter: z.object({
+      body: z.string(),
+      support: z.enum(['confirmed', 'document', 'unsupported']),
+      evidence_item_ids: z.array(z.string()).default([]),
+    }).nullable().default(null),
+    screening_answers: z.array(z.object({
+      question: z.string(),
+      answer: z.string(),
+      support: z.enum(['confirmed', 'document']),
+      evidence_item_ids: z.array(z.string()).default([]),
+    })).default([]),
+  }).nullable().default(null),
+  open_questions: z.array(z.object({
+    key: z.string(), question: z.string(), category: z.string(), answered: z.boolean().default(false),
+  })).default([]),
+  answers: z.record(z.string(), z.string()).default({}),
+  tasks: z.array(applicationTaskSchema).default([]),
+  events: z.array(applicationEventSchema).default([]),
+  snapshot: applicationSnapshotSchema.nullable().default(null),
+  autofill_supported: z.boolean().default(false),
+})
+export const applicationUpdateSchema = z.strictObject({
+  label: z.string().max(200).nullable().optional(),
+  company: z.string().max(200).nullable().optional(),
+  role: z.string().max(200).nullable().optional(),
+  status: applicationStatusSchema.optional(),
+  deadline: offsetDateTime.nullable().optional(),
+  notes: z.string().max(20_000).nullable().optional(),
+  cv_variant_id: z.string().nullable().optional(),
+  cover_letter_run_id: z.string().nullable().optional(),
+  interview_run_id: z.string().nullable().optional(),
+}).refine((value) => Object.keys(value).length > 0)
+export const applicationPreferencesSchema = z.object({
+  keywords: z.array(z.string()).default([]),
+  locations: z.array(z.string()).default([]),
+  remote: z.boolean().default(false),
+  max_per_run: z.number().int().min(1),
+  max_per_run_limit: z.number().int().min(1).default(10),
+  is_default: z.boolean().default(false),
+})
+export const applicationPreferencesUpdateSchema = z.strictObject({
+  keywords: z.array(z.string().max(100)).max(20),
+  locations: z.array(z.string().max(100)).max(20),
+  remote: z.boolean(),
+  max_per_run: z.number().int().min(1).max(10),
+})
+const applicationDetailsFields = {
+  full_name: z.string().max(200),
+  email: z.string().max(320),
+  phone: z.string().max(50),
+  linkedin: z.string().max(500),
+  website: z.string().max(500),
+  location: z.string().max(200),
+  work_authorization: z.string().max(1000),
+  visa_sponsorship: z.string().max(1000),
+  notice_period: z.string().max(1000),
+  salary_expectation: z.string().max(1000),
+  relocation: z.string().max(1000),
+}
+/** The owner's contact details and standing answers for application forms (#374). */
+export const applicationDetailsSchema = z.object({
+  ...applicationDetailsFields,
+  is_default: z.boolean().default(false),
+})
+export const applicationDetailsUpdateSchema = z.strictObject(applicationDetailsFields)
+export const bulkPrepareResultSchema = z.object({
+  reason: z.enum(['prepared', 'no_preferences', 'no_cv']),
+  prepared: z.array(applicationCardSchema).default([]),
+  matched_count: z.number().int().nonnegative().default(0),
+  skipped_existing_count: z.number().int().nonnegative().default(0),
+  max_per_run: z.number().int(),
+})
+export const autofillReportSchema = z.object({
+  filled: z.array(z.string()),
+  skipped: z.array(z.string()),
+  mismatched: z.array(z.string()).default([]),
+  url: z.string(),
+})
+export const autofillRunStatusSchema = z.object({
+  state: z.enum(['idle', 'running', 'review', 'failed', 'closed']),
+  kind: z.string().nullable().default(null),
+  message: z.string().nullable().default(null),
+  next_step: z.string().nullable().default(null),
+  seconds_left: z.number().int().nullable().default(null),
+  report: autofillReportSchema.nullable().default(null),
+})
+const runExportSchema = z.object({
+  id: z.string(), tool_name: z.string(), label: z.string().nullable(),
+  parent_run_id: z.string().nullable(), result_payload: z.record(z.string(), z.unknown()),
+  created_at: offsetDateTime,
+})
+export const applicationsExportSchema = z.strictObject({
+  application_count: z.number().int().nonnegative(),
+  applications: z.array(z.object({
+    id: z.string(), label: z.string().nullable(), is_pinned: z.boolean(),
+    company: z.string().nullable(), role: z.string().nullable(),
+    status: applicationStatusSchema.nullable(),
+    deadline: offsetDateTime.nullable(), applied_at: offsetDateTime.nullable(),
+    match_score: z.number().int().nullable(), notes: z.string().nullable(),
+    open_questions: z.array(z.record(z.string(), z.unknown())).default([]),
+    answers: z.record(z.string(), z.string()).default({}),
+    created_at: offsetDateTime, updated_at: offsetDateTime,
+    listing: applicationListingSchema.nullable().default(null),
+    listing_revisions: z.array(applicationListingSchema).default([]),
+    selected_cv_variant_id: z.string().nullable().default(null),
+    selected_cover_letter: runExportSchema.nullable().default(null),
+    selected_interview: runExportSchema.nullable().default(null),
+    drafts: runExportSchema.nullable().default(null),
+    tasks: z.array(applicationTaskSchema).default([]),
+    snapshot: applicationSnapshotSchema.nullable().default(null),
+    events: z.array(applicationEventSchema.omit({ provenance: true })).default([]),
+  })),
+  preferences: applicationPreferencesSchema.nullable().default(null),
+  details: applicationDetailsSchema.nullable().default(null),
+}).refine((value) => value.application_count === value.applications.length)
 
 export const evidenceKindSchema = z.enum([
   'experience', 'achievement', 'skill', 'education', 'project',
   'certification', 'preference', 'interview-evidence',
 ])
 export const evidenceProvenanceSchema = z.enum(['imported', 'inferred', 'user-entered'])
-export const evidenceConfirmationStateSchema = z.enum(['unconfirmed', 'confirmed', 'rejected'])
+export const evidenceConfirmationStateSchema = z.enum(['unconfirmed', 'confirmed'])
 export const evidenceItemCreateSchema = z.strictObject({
   kind: evidenceKindSchema,
   content: z.record(z.string(), z.unknown()).refine((value) => Object.keys(value).length > 0),
   provenance: evidenceProvenanceSchema,
 })
-export const evidenceItemUpdateSchema = evidenceItemCreateSchema
-  .partial()
-  .refine((value) => Object.keys(value).length > 0)
-export const evidenceConfirmationActionSchema = z.strictObject({
-  action: z.enum(['confirm', 'reject']),
-})
+// Updates are content-only: kind and provenance keep the item's recorded origin.
+export const evidenceItemUpdateSchema = evidenceItemCreateSchema.pick({ content: true })
 export const evidenceItemSchema = z.object({
   id: z.string(),
   kind: evidenceKindSchema,
@@ -49,45 +218,6 @@ export const evidenceItemSchema = z.object({
 })
 export const evidenceItemListSchema = z.object({ items: z.array(evidenceItemSchema) })
 
-export const discoveryRecommendationSignalSchema = z.strictObject({
-  kind: z.enum(['confirmed_evidence', 'preference']),
-  label: z.string(),
-  matched_keywords: z.array(z.string()),
-  evidence_item_ids: z.array(z.string()),
-  score: z.number().int().min(0).max(100),
-})
-export const discoveryRecommendationAttributionSchema = z.strictObject({
-  source_id: z.string(),
-  source_name: z.string(),
-  source_family: z.enum([
-    'licensed', 'employer_ats', 'public_career_page', 'user_provided',
-  ]),
-  source_url: z.string().url().max(2_048).refine((value) => value.startsWith('https://')),
-  retrieved_at: z.iso.datetime({ offset: true }),
-})
-export const discoveryRecommendationSchema = z.strictObject({
-  listing_id: z.string(),
-  title: z.string(),
-  company: z.string(),
-  description: z.string(),
-  // ATS-sourced fields (#323). Null for listings without them.
-  location: z.string().nullable().default(null),
-  remote: z.boolean().nullable().default(null),
-  posted_at: z.iso.datetime({ offset: true }).nullable().default(null),
-  apply_url: z.string().url().max(2_048).refine((value) => value.startsWith('https://')).nullable().default(null),
-  department: z.string().nullable().default(null),
-  score: z.number().int().min(0).max(100),
-  rationale: z.array(discoveryRecommendationSignalSchema),
-  attributions: z.array(discoveryRecommendationAttributionSchema).min(1),
-})
-export const discoveryRecommendationListSchema = z.strictObject({
-  items: z.array(discoveryRecommendationSchema),
-  confirmed_item_count: z.number().int().nonnegative(),
-  preference_item_count: z.number().int().nonnegative(),
-})
-export type DiscoveryRecommendation = z.infer<typeof discoveryRecommendationSchema>
-export type DiscoveryRecommendationList = z.infer<typeof discoveryRecommendationListSchema>
-
 // Job search (#323). Mirrors DiscoveryListingPage in
 // backend/app/schemas/discovery_recommendations.py.
 const httpsUrlSchema = z.string().url().max(2_048).refine((value) => value.startsWith('https://'))
@@ -95,7 +225,8 @@ export const discoveryListingSchema = z.strictObject({
   listing_id: z.string(),
   title: z.string(),
   company: z.string(),
-  description: z.string(),
+  // A short excerpt; the full description comes from the detail endpoint.
+  preview: z.string(),
   location: z.string().nullable().default(null),
   remote: z.boolean().nullable().default(null),
   posted_at: z.iso.datetime({ offset: true }).nullable().default(null),
@@ -113,104 +244,41 @@ export const discoveryListingPageSchema = z.strictObject({
   limit: z.number().int().positive(),
   sort: z.enum(['best_match', 'newest']),
   has_profile: z.boolean(),
-  stats: z.strictObject({
-    jobs: z.number().int().nonnegative(),
-    companies: z.number().int().nonnegative(),
-    new_this_week: z.number().int().nonnegative(),
-  }),
-  companies: z.array(z.string()),
+  // Company filter options; page 1 only.
+  companies: z.array(z.string()).nullable().default(null),
+})
+export const discoveryListingDetailSchema = discoveryListingSchema.extend({
+  description: z.string(),
 })
 export type DiscoveryListing = z.infer<typeof discoveryListingSchema>
 export type DiscoveryListingPage = z.infer<typeof discoveryListingPageSchema>
+export type DiscoveryListingDetail = z.infer<typeof discoveryListingDetailSchema>
 
-// R14 #175 discovery correction controls. Mirrors
+// R14 #175 discovery dismissals. Mirrors
 // backend/app/schemas/discovery_personalization.py.
-export const discoverySourceFamilySchema = z.enum([
-  'licensed', 'employer_ats', 'public_career_page', 'user_provided',
-])
-export const discoveryReportReasonCategorySchema = z.enum([
-  'not_relevant', 'expired', 'duplicate', 'wrong_location', 'low_quality', 'other',
-])
-export const discoveryHiddenSourceSchema = z.strictObject({
-  source_id: z.string(),
-  source_key: z.string(),
-  display_name: z.string(),
-  source_family: discoverySourceFamilySchema,
-  created_at: z.iso.datetime({ offset: true }),
-})
 export const discoveryDismissalSchema = z.strictObject({
   listing_id: z.string(),
   created_at: z.iso.datetime({ offset: true }),
 })
-export const discoveryPersonalizationSchema = z.strictObject({
-  hidden_sources: z.array(discoveryHiddenSourceSchema),
-  dismissals: z.array(discoveryDismissalSchema),
-})
-export const discoveryReportAckSchema = z.strictObject({
-  id: z.string(),
-  listing_id: z.string(),
-  reason_category: discoveryReportReasonCategorySchema,
-  created_at: z.iso.datetime({ offset: true }),
-})
-export const discoveryPersonalizationReportExportSchema = z.strictObject({
-  listing_id: z.string(),
-  listing_title: z.string(),
-  listing_company: z.string(),
-  source_family: discoverySourceFamilySchema,
-  reason_category: discoveryReportReasonCategorySchema,
-  reason: z.string(),
-  created_at: z.iso.datetime({ offset: true }),
-})
 export const discoveryPersonalizationExportSchema = z.strictObject({
-  hidden_sources: z.array(discoveryHiddenSourceSchema),
   dismissals: z.array(discoveryDismissalSchema),
-  reports: z.array(discoveryPersonalizationReportExportSchema),
 })
-export const adminDiscoveryReportSchema = z.strictObject({
-  id: z.string(),
-  listing_id: z.string(),
-  listing_title: z.string(),
-  listing_company: z.string(),
-  source_family: discoverySourceFamilySchema,
-  reason_category: discoveryReportReasonCategorySchema,
-  reason: z.string(),
-  created_at: z.iso.datetime({ offset: true }),
-})
-export const adminDiscoveryReportListSchema = z.strictObject({
-  items: z.array(adminDiscoveryReportSchema),
-})
-export type DiscoveryPersonalization = z.infer<typeof discoveryPersonalizationSchema>
-export type DiscoveryHiddenSource = z.infer<typeof discoveryHiddenSourceSchema>
 export type DiscoveryDismissal = z.infer<typeof discoveryDismissalSchema>
-export type DiscoveryReportReasonCategory = z.infer<typeof discoveryReportReasonCategorySchema>
-export type AdminDiscoveryReport = z.infer<typeof adminDiscoveryReportSchema>
-export type AdminDiscoveryReportList = z.infer<typeof adminDiscoveryReportListSchema>
 
-// R11 reviewable resume-import proposals (#146). A proposal is ephemeral — it is
-// never persisted server-side and carries no confirmation state. Resume-derived
-// proposals are always `imported`; accepting one goes through the normal
-// item-create path, which stores it `unconfirmed` (D-062).
+// R11 resume import (#146): extracted facts are stored as `imported`,
+// `unconfirmed` suggestions and reviewed on the profile (D-062).
 export const evidenceImportRequestSchema = z.strictObject({
   resume_text: z.string().min(50).max(50_000),
 })
-export const evidenceProposalSchema = z.object({
-  proposal_id: z.string(),
-  kind: evidenceKindSchema,
-  content: z.record(z.string(), z.unknown()),
-  provenance: z.literal('imported'),
-})
-export const evidenceImportProposalsSchema = z.object({
-  proposals: z.array(evidenceProposalSchema),
+export const evidenceItemIdsSchema = z.strictObject({
+  ids: z.array(z.string()).min(1).max(1000),
 })
 export type EvidenceItem = z.infer<typeof evidenceItemSchema>
-export type EvidenceProposal = z.infer<typeof evidenceProposalSchema>
-export type EvidenceImportRequest = z.infer<typeof evidenceImportRequestSchema>
 export type EvidenceKind = z.infer<typeof evidenceKindSchema>
 export type EvidenceProvenance = z.infer<typeof evidenceProvenanceSchema>
 export type EvidenceConfirmationState = z.infer<typeof evidenceConfirmationStateSchema>
 export type EvidenceItemCreate = z.infer<typeof evidenceItemCreateSchema>
 export type EvidenceItemUpdate = z.infer<typeof evidenceItemUpdateSchema>
-export type EvidenceConfirmationAction = z.infer<typeof evidenceConfirmationActionSchema>
 
 export const cvSectionKindSchema = z.enum([
   'summary', 'experience', 'achievements', 'skills', 'education', 'projects',
@@ -241,7 +309,6 @@ export const cvStyleSchema = z.strictObject({
   font_id: cvFontIdSchema.default('lato'),
   accent_color: z.enum(CV_ACCENT_PALETTE).default('#111827'),
   density: cvDensitySchema.default('normal'),
-  section_order: z.array(z.string()).max(50).nullable().optional(),
   ats_mode: z.boolean().default(false),
 })
 export type CvStyle = z.infer<typeof cvStyleSchema>
@@ -279,8 +346,7 @@ export const cvDocumentSchema = z.object({
     density: 'normal' as const, ats_mode: false,
   })),
   created_at: z.iso.datetime({ offset: true }), updated_at: z.iso.datetime({ offset: true }),
-  quality_model_runs: z.number().int().nonnegative(), tailoring_model_runs: z.number().int().nonnegative(),
-  quality_model_run_limit: z.literal(10), tailoring_model_run_limit: z.literal(10),
+  tailoring_model_runs: z.number().int().nonnegative(), tailoring_model_run_limit: z.literal(10),
   variants: z.array(cvVariantSchema),
 })
 export const cvDocumentListSchema = z.object({ items: z.array(cvDocumentSchema) })
@@ -342,36 +408,8 @@ export const careerDataExportSchema = z.strictObject({
   item_count: z.number().int().nonnegative(), items: z.array(evidenceItemSchema),
   cv_documents: cvDocumentsExportSchema,
   personalization: discoveryPersonalizationExportSchema,
-  queue_rules: queueRulesExportSchema,
-  application_packets: applicationPacketsExportSchema,
-  packet_stop_answers: packetStopAnswersExportSchema,
-  packet_approval_snapshots: packetApprovalSnapshotsExportSchema,
-  queue_audit: queueAuditExportSchema,
   development: developmentLoopExportSchema,
-  campaigns: z.strictObject({
-    campaign_count: z.number().int().nonnegative(),
-    campaigns: z.array(z.object({
-      id: z.string(), label: z.string().nullable(), is_pinned: z.boolean(),
-      company: z.string().nullable(), role: z.string().nullable(),
-      status: campaignStatusSchema.nullable(),
-      deadline: z.iso.datetime({ offset: true }).nullable(), reminders_enabled: z.boolean().default(false), created_at: z.iso.datetime(), updated_at: z.iso.datetime(),
-      listing: campaignListingSchema.nullable().default(null),
-      listing_revisions: z.array(campaignListingSchema).default([]),
-      events: z.array(z.object({
-        id: z.string(), event_type: z.enum(['status_changed', 'deadline_changed', 'listing_attached', 'listing_adopted', 'material_selection_changed', 'task_created', 'task_completed', 'task_reopened', 'task_deleted', 'note_added', 'note_deleted', 'contact_added', 'contact_deleted', 'submission_snapshot_created', 'packet_approved', 'submission_confirmed']),
-        details: z.record(z.string(), z.unknown()), created_at: z.iso.datetime(),
-      })),
-      tasks: z.array(z.object({ id: z.string(), title: z.string(), deadline: z.iso.datetime({ offset: true }).nullable(), completed: z.boolean(), created_at: z.iso.datetime() })).default([]),
-      notes: z.array(z.object({ id: z.string(), text: z.string(), created_at: z.iso.datetime() })).default([]),
-      contacts: z.array(z.object({ id: z.string(), name: z.string(), role: z.string().nullable(), channel: z.string().nullable(), created_at: z.iso.datetime() })).default([]),
-      submission_snapshots: z.array(z.object({ id: z.string(), content: z.record(z.string(), z.unknown()), content_sha256: z.string(), created_at: z.iso.datetime() })).default([]),
-      selected_cv_variant_id: z.string().nullable().default(null),
-      selected_cover_letter_run_id: z.string().nullable().default(null),
-      selected_interview_run_id: z.string().nullable().default(null),
-      selected_cover_letter: z.object({ id: z.string(), tool_name: z.literal('cover-letter'), label: z.string().nullable(), parent_run_id: z.string().nullable(), result_payload: z.record(z.string(), z.unknown()), created_at: z.iso.datetime() }).nullable().default(null),
-      selected_interview: z.object({ id: z.string(), tool_name: z.literal('interview'), label: z.string().nullable(), parent_run_id: z.string().nullable(), result_payload: z.record(z.string(), z.unknown()), created_at: z.iso.datetime() }).nullable().default(null),
-    })),
-  }).refine((value) => value.campaign_count === value.campaigns.length),
+  applications: applicationsExportSchema,
 }).refine((value) => value.item_count === value.items.length)
 export type CvEntry = z.infer<typeof cvEntrySchema>
 export type CvSection = z.infer<typeof cvSectionSchema>
@@ -396,72 +434,42 @@ export const cvTailoringProposalSchema = z.object({
 export const cvTailoringApplySchema = z.strictObject({
   request_id: z.string().uuid(), variant_name: z.string().min(1).max(120), job_title: z.string().min(1).max(200), proposal_token: z.string().length(64),
   changes: z.array(cvTailoringChangeSchema).max(50), decisions: z.array(z.strictObject({
-    change_id: z.string(), action: z.enum(['accept', 'reject', 'edit']), edited_after: z.string().min(1).max(5_000).optional(),
+    change_id: z.string(), action: z.enum(['accept', 'reject']),
   })).max(50),
 })
 export type CvTailoringProposal = z.infer<typeof cvTailoringProposalSchema>
 export type CvTailoringChange = z.infer<typeof cvTailoringChangeSchema>
 
-export const cvAtsCheckKeySchema = z.enum([
-  'section_structure', 'text_layer', 'links', 'page_breaks', 're_importability',
-])
 export const cvTemplateIdSchema = z.enum([
   'ats-essential', 'professional-editorial', 'technical-portfolio',
   'modern-two-column', 'minimal-serif',
 ])
-export const cvQualityRequestSchema = z.strictObject({
-  use_model: z.boolean().default(false),
-  checks: z.array(cvAtsCheckKeySchema).min(1).max(5).optional(),
-  artifact_template: cvTemplateIdSchema.optional(),
-  artifact_format: z.enum(['docx', 'pdf']).optional(),
-}).refine((value) => Boolean(value.artifact_template) === Boolean(value.artifact_format), {
-  message: 'artifact_template and artifact_format must be supplied together',
-})
-export const cvRenderModelSchema = z.object({
-  schema_version: z.literal('cv-render/v1'), document_id: z.string(), document_name: z.string(), template_id: cvTemplateIdSchema,
-  page: z.object({ width_mm: z.number().int(), height_mm: z.number().int(), margin_mm: z.number().int() }),
-  tokens: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])),
-  sections: z.array(z.object({
-    id: z.string(), kind: cvSectionKindSchema, title: z.string(),
-    entries: z.array(z.object({
-      id: z.string(), text: z.string(), links: z.array(z.string()),
-      heading: z.string().nullable().optional(), subheading: z.string().nullable().optional(),
-      location: z.string().nullable().optional(), start_date: z.string().nullable().optional(),
-      end_date: z.string().nullable().optional(), bullets: z.array(z.string()).optional(),
-    })),
-  })),
-  canonical_hash: z.string().regex(/^[0-9a-f]{64}$/),
-})
 export type CvTemplateId = z.infer<typeof cvTemplateIdSchema>
-export type CvRenderModel = z.infer<typeof cvRenderModelSchema>
 export const cvQualityResponseSchema = z.object({
-  schema_version: z.literal('cv-quality/v1'),
-  dimensions: z.array(z.object({
-    key: z.enum(['impact', 'clarity', 'completeness', 'structure']),
-    label: z.string(), score: z.number().min(0).max(100),
-    reasons: z.array(z.string()).min(1).max(4), remediation: z.string(),
+  schema_version: z.literal('cv-quality/v3'),
+  checks: z.array(z.object({
+    id: z.enum(['sections', 'reads_back', 'links', 'page_breaks', 'layout']),
+    label: z.string(), passed: z.boolean(), detail: z.string(), fix: z.string(),
   })),
-  ats_checks: z.array(z.object({
-    key: cvAtsCheckKeySchema, label: z.string(), status: z.enum(['pass', 'fail', 'review', 'not_run']),
-    explanation: z.string(), remediation: z.string(),
-  })),
-  scoring_mode: z.enum(['heuristic', 'blended']), advisory_note: z.string(),
-  remaining_model_runs: z.number().int().nonnegative(),
-  history_id: z.string().nullable().optional(), access_mode: z.literal('authenticated'),
-  saved: z.boolean(), locked_actions: z.array(z.string()),
-  ats_score: z.number().int().min(0).max(100).default(0),
-  ats_fixes: z.array(z.string()).default([]),
 })
+// GET /cv-documents/style-catalog: the backend's single source of CV design
+// values. The live preview looks sizes, fonts and names up here.
+const cvStyleSizesSchema = z.object({ body_pt: z.number(), heading_pt: z.number(), section_gap_pt: z.number() })
 export const cvStyleCatalogSchema = z.object({
   templates: z.array(z.object({
     id: cvTemplateIdSchema, name: z.string(), description: z.string(), ats_safe: z.boolean(),
-  })),
-  fonts: z.array(z.object({ id: cvFontIdSchema, name: z.string(), category: z.string() })),
-  palette: z.array(z.string()),
-  densities: z.array(cvDensitySchema),
+    title_align: z.enum(['left', 'center']), margin_mm: z.number(),
+    sidebar_kinds: z.array(cvSectionKindSchema),
+    sizes: z.object({ compact: cvStyleSizesSchema, normal: cvStyleSizesSchema, spacious: cvStyleSizesSchema }),
+  })).min(1),
+  fonts: z.array(z.object({ id: cvFontIdSchema, name: z.string(), category: z.string(), css_family: z.string() })).min(1),
+  palette: z.array(z.object({ value: z.enum(CV_ACCENT_PALETTE), name: z.string() })).min(1),
+  densities: z.array(z.object({ id: cvDensitySchema, name: z.string() })).min(1),
+  ats_mode: z.object({
+    template_id: cvTemplateIdSchema, density: cvDensitySchema, accent: z.string(), css_family: z.string(),
+  }),
 })
 export type CvStyleCatalog = z.infer<typeof cvStyleCatalogSchema>
-export type CvAtsCheckKey = z.infer<typeof cvAtsCheckKeySchema>
 export type CvQualityResponse = z.infer<typeof cvQualityResponseSchema>
 
 export const cvImportClaimSchema = z.strictObject({
@@ -586,9 +594,9 @@ export const toolRunSummarySchema = z.object({
       is_pinned: z.boolean().default(false),
       company: z.string().nullable().default(null),
       role: z.string().nullable().default(null),
-      status: campaignStatusSchema.nullable().default(null),
+      status: applicationStatusSchema.nullable().default(null),
       deadline: z.iso.datetime({ offset: true }).nullable().default(null),
-      listing: campaignListingSchema.nullable().default(null),
+      listing: applicationListingSchema.nullable().default(null),
       linked_run_ids: z.array(z.string()).default([]),
       last_active_tool: z.string().nullable().optional(),
       last_active_result_id: z.string().nullable().optional(),
@@ -617,74 +625,25 @@ export const workspaceSummarySchema = z.object({
   is_pinned: z.boolean().default(false),
   company: z.string().nullable().default(null),
   role: z.string().nullable().default(null),
-  status: campaignStatusSchema.nullable().default(null),
+  status: applicationStatusSchema.nullable().default(null),
   deadline: z.iso.datetime({ offset: true }).nullable().default(null),
-  listing: campaignListingSchema.nullable().default(null),
+  listing: applicationListingSchema.nullable().default(null),
   linked_run_ids: z.array(z.string()).default([]),
   last_active_tool: z.string().nullable().optional(),
   last_active_result_id: z.string().nullable().optional(),
   updated_at: z.string(),
-  // Filled only by the campaign list, for the pipeline board cards.
-  next_task: z
-    .object({ title: z.string(), deadline: z.iso.datetime({ offset: true }).nullable() })
-    .nullable()
-    .default(null),
-  last_activity_at: z.iso.datetime({ offset: true }).nullable().default(null),
 })
 
+// Label and pin only; application fields are edited through /applications.
 export const workspaceUpdateSchema = z.strictObject({
   label: z.string().max(200).nullable().optional(),
   is_pinned: z.boolean().optional(),
-  company: z.string().max(200).nullable().optional(),
-  role: z.string().max(200).nullable().optional(),
-  status: campaignStatusSchema.nullable().optional(),
-  deadline: z.iso.datetime({ offset: true }).nullable().optional(),
 }).refine((value) => Object.keys(value).length > 0)
 
 export const workspaceListSchema = z.object({
   items: z.array(workspaceSummarySchema),
   total: z.number(),
 })
-
-export const campaignCvVariantReferenceSchema = z.object({
-  id: z.string(), document_id: z.string(), document_name: z.string(), name: z.string(),
-  target_role: z.string().nullable().default(null), created_at: z.iso.datetime({ offset: true }),
-})
-export const campaignRunReferenceSchema = z.object({
-  id: z.string(), label: z.string().nullable().default(null),
-  parent_run_id: z.string().nullable().default(null), created_at: z.iso.datetime({ offset: true }),
-})
-// Timestamps may carry the database session's UTC offset (e.g. +02:00), not only Z.
-export const campaignEventSchema = z.object({ id: z.string(), event_type: z.string(), details: z.record(z.string(), z.unknown()), provenance: z.enum(['user', 'system']), created_at: z.iso.datetime({ offset: true }) })
-export const campaignTaskSchema = z.object({ id: z.string(), title: z.string(), deadline: z.iso.datetime({ offset: true }).nullable(), completed: z.boolean(), created_at: z.iso.datetime({ offset: true }) })
-export const campaignNoteSchema = z.object({ id: z.string(), text: z.string(), created_at: z.iso.datetime({ offset: true }) })
-export const campaignContactSchema = z.object({ id: z.string(), name: z.string(), role: z.string().nullable(), channel: z.string().nullable(), created_at: z.iso.datetime({ offset: true }) })
-export const campaignReminderResponseSchema = z.object({
-  enabled: z.boolean(),
-  items: z.array(z.object({ kind: z.enum(['campaign_deadline', 'task_deadline']), task_id: z.string().nullable(), label: z.string(), deadline: z.iso.datetime({ offset: true }) })),
-  next_surface_at: z.iso.datetime({ offset: true }).nullable(),
-})
-export const campaignSubmissionSnapshotSchema = z.object({ id: z.string(), content: z.record(z.string(), z.unknown()), content_sha256: z.string().length(64), created_at: z.iso.datetime({ offset: true }) })
-export const campaignDetailSchema = workspaceSummarySchema.extend({
-  selected_materials: z.object({
-    cv_variant: campaignCvVariantReferenceSchema.nullable(),
-    cover_letter: campaignRunReferenceSchema.nullable(),
-    interview: campaignRunReferenceSchema.nullable(),
-  }),
-  available_materials: z.object({
-    cv_variants: z.array(campaignCvVariantReferenceSchema),
-    cover_letters: z.array(campaignRunReferenceSchema),
-    interviews: z.array(campaignRunReferenceSchema),
-  }),
-  events: z.array(campaignEventSchema), tasks: z.array(campaignTaskSchema),
-  notes: z.array(campaignNoteSchema), contacts: z.array(campaignContactSchema),
-  submission_snapshots: z.array(campaignSubmissionSnapshotSchema),
-})
-export const campaignMaterialSelectionSchema = z.strictObject({
-  cv_variant_id: z.string().nullable().optional(),
-  cover_letter_run_id: z.string().nullable().optional(),
-  interview_run_id: z.string().nullable().optional(),
-}).refine((value) => Object.keys(value).length > 0)
 
 export const deletedResponseSchema = z.object({
   deleted: z.number(),
@@ -812,7 +771,6 @@ export const registerRequestSchema = z.object({
   email: z.email(),
   password: newPasswordSchema,
   full_name: z.string().nullable().optional(),
-  captcha_token: z.string().nullable().optional(),
   tos_accepted: z.boolean().refine(value => value, {
     message: 'You must accept the Terms of Service',
   }),
@@ -974,11 +932,11 @@ export const sharedResultEnvelopeSchema = z.object({
   locked_actions: z.array(z.enum(['save', 'favorite', 'continue', 'history'])).default([]),
 })
 
-export const campaignReviewFindingSchema = z.object({
+export const applicationReviewFindingSchema = z.object({
   id: z.string(), category: z.enum(['unsupported_claim', 'missed_requirement', 'contradiction', 'generic_language', 'repetition', 'document_defect']),
   severity: z.enum(['high', 'medium', 'low']), message: z.string(), locations: z.array(z.string()), trace: z.array(z.string()),
 })
-export const campaignReviewResponseSchema = sharedResultEnvelopeSchema.extend({ findings: z.array(campaignReviewFindingSchema) })
+export const applicationReviewResponseSchema = sharedResultEnvelopeSchema.extend({ findings: z.array(applicationReviewFindingSchema) })
 
 export const resumeResultSchema = sharedResultEnvelopeSchema
   .extend({
@@ -1162,9 +1120,21 @@ export type ToolRunList = z.infer<typeof toolRunListSchema>
 export type WorkspaceSummary = z.infer<typeof workspaceSummarySchema>
 export type WorkspaceList = z.infer<typeof workspaceListSchema>
 export type WorkspaceUpdate = z.input<typeof workspaceUpdateSchema>
-export type CampaignDetail = z.infer<typeof campaignDetailSchema>
-export type CampaignMaterialSelection = z.input<typeof campaignMaterialSelectionSchema>
-export type CampaignTask = z.infer<typeof campaignTaskSchema>
+export type ApplicationListing = z.infer<typeof applicationListingSchema>
+export type ApplicationCard = z.infer<typeof applicationCardSchema>
+export type ApplicationList = z.infer<typeof applicationListSchema>
+export type ApplicationDetail = z.infer<typeof applicationDetailSchema>
+export type ApplicationUpdate = z.input<typeof applicationUpdateSchema>
+export type ApplicationTask = z.infer<typeof applicationTaskSchema>
+export type ApplicationEvent = z.infer<typeof applicationEventSchema>
+export type ApplicationPreferences = z.infer<typeof applicationPreferencesSchema>
+export type ApplicationPreferencesUpdate = z.input<typeof applicationPreferencesUpdateSchema>
+export type ApplicationDetails = z.infer<typeof applicationDetailsSchema>
+export type ApplicationDetailsUpdate = z.input<typeof applicationDetailsUpdateSchema>
+export type BulkPrepareResult = z.infer<typeof bulkPrepareResultSchema>
+export type AutofillReport = z.infer<typeof autofillReportSchema>
+export type AutofillRunStatus = z.infer<typeof autofillRunStatusSchema>
+export type ApplicationReviewFinding = z.infer<typeof applicationReviewFindingSchema>
 export type ResumeResult = z.infer<typeof resumeResultSchema>
 export type JobMatchResult = z.infer<typeof jobMatchResultSchema>
 export type CoverLetterResult = z.infer<typeof coverLetterResultSchema>

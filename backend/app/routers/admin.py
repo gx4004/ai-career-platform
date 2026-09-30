@@ -6,8 +6,6 @@
 # generation then fails for the whole app (#285). Real annotation objects
 # sidestep the lookup entirely. Covered by tests/test_openapi_schema.py.
 from datetime import UTC, datetime, timedelta
-from time import perf_counter
-from typing import Literal
 
 import sqlalchemy as sa
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -21,39 +19,20 @@ from app.models.discovery_source import DiscoverySource
 from app.models.tool_run import ToolRun
 from app.models.user import User
 from app.schemas.admin import (
-    AdminActivationResponse,
-    AdminDevelopmentLoopResponse,
-    AdminPacketGateResponse,
-    AdminProfileAdoptionResponse,
     AdminRunDetailResponse,
     AdminRunItem,
     AdminRunListResponse,
     AdminSetAdminRequest,
-    AdminSourceHealthResponse,
     AdminStatsResponse,
     AdminUserDetailResponse,
     AdminUserItem,
     AdminUserListResponse,
 )
-from app.schemas.analytics import OperationalToolId
-from app.schemas.ats_ingestion import ATSIngestionRefreshResponse
-from app.schemas.discovery_personalization import AdminRecommendationReportList
 from app.schemas.discovery_sources import (
     DiscoverySourceListResponse,
     DiscoverySourceResponse,
 )
-from app.services.analytics import (
-    ACTIVATION_DEFAULT_WINDOW_DAYS,
-    aggregate_activation_metrics,
-    aggregate_development_loop,
-    aggregate_profile_adoption,
-    record_database_query_timing,
-)
-from app.services.ats_ingestion import run_ats_ingestion_off_loop
-from app.services.discovery_personalization import list_admin_reports
 from app.services.discovery_sources import operate_source_kill_switch
-from app.services.packet_gate import aggregate_packet_gate
-from app.services.source_health import aggregate_source_health
 
 router = APIRouter()
 
@@ -78,58 +57,7 @@ def list_discovery_sources(
     return DiscoverySourceListResponse(items=items)
 
 
-@router.get("/discovery-reports", response_model=AdminRecommendationReportList)
-@limiter.limit(_ADMIN_RATE)
-def list_discovery_reports(
-    request: Request,
-    admin: User = Depends(get_current_admin),
-    db: Session = Depends(get_db),
-):
-    """Recommendation error reports for review (R14, #175).
-
-    Read-only. Each row carries the product listing snapshot, the closed-set
-    reason category, and the reporter's own reason text — never the reporter's
-    identity or any Evidence Profile content (D-090).
-    """
-    return list_admin_reports(db)
-
-
-# ── Per-source health & kill switch (R14, issue #177) ──
-
-
-@router.get("/source-health", response_model=AdminSourceHealthResponse)
-@limiter.limit(_ADMIN_RATE)
-def get_source_health(
-    request: Request,
-    start: datetime | None = Query(None),
-    end: datetime | None = Query(None),
-    admin: User = Depends(get_current_admin),
-    db: Session = Depends(get_db),
-):
-    """Read-only per-source-family operational health (#177, D-053).
-
-    Admin-gated exactly like every other endpoint here (``get_current_admin``).
-    Extends the existing first-party operational path with source-family
-    aggregate dimensions only: registry posture, listings-store volume and
-    staleness, and windowed fetch/ingest/dedup/expiry outcomes. No listing
-    content, full URL, source key/name, or user identifier is reachable. The
-    date window defaults to a rolling two weeks; naive bounds are treated as UTC
-    so comparison against the timezone-aware ``created_at`` column is well
-    defined on Postgres.
-    """
-    now = datetime.now(UTC)
-    window_end = end or now
-    window_start = start or (window_end - timedelta(days=ACTIVATION_DEFAULT_WINDOW_DAYS))
-    if window_start.tzinfo is None:
-        window_start = window_start.replace(tzinfo=UTC)
-    if window_end.tzinfo is None:
-        window_end = window_end.replace(tzinfo=UTC)
-
-    return aggregate_source_health(
-        db,
-        window_start=window_start,
-        window_end=window_end,
-    )
+# ── Per-source kill switch (R14, issue #177) ──
 
 
 @router.post(
@@ -154,9 +82,7 @@ def operate_kill_switch(
     Flips the persisted ``kill_switch`` column that every fetch/ingest read path
     re-reads on the next request, so a trip halts the source at once and a clear
     re-enables it. Clearing is refused unless the terms review is accepted, so
-    the kill switch can never bypass the per-source terms gate (D-084). The
-    action is recorded as a bounded operational event (source family + trip/clear
-    outcome only).
+    the kill switch can never bypass the per-source terms gate (D-084).
     """
     source = db.query(DiscoverySource).filter(DiscoverySource.id == source_id).first()
     if source is None:
@@ -166,29 +92,6 @@ def operate_kill_switch(
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     return source
-
-
-@router.post("/discovery-sources/refresh", response_model=ATSIngestionRefreshResponse)
-@limiter.limit(_ADMIN_RATE)
-async def refresh_ats_sources(
-    request: Request,
-    admin: User = Depends(get_current_admin),
-    db: Session = Depends(get_db),
-):
-    """Run employer-ATS ingestion now, on demand (#323).
-
-    Admin-gated exactly like every other endpoint here. Reuses the same
-    per-source governance and isolation as the scheduled run: one source's
-    failure never fails this request, it is reported per source instead. Runs
-    off the event loop (`run_ats_ingestion_off_loop`) so this request's
-    potentially multi-minute ingestion pass never blocks every other request
-    on this process.
-    """
-    summary = await run_ats_ingestion_off_loop(db)
-    return ATSIngestionRefreshResponse(
-        outcomes=summary.outcomes,
-        failures=summary.failures,
-    )
 
 
 # ── Users ──
@@ -318,7 +221,6 @@ def list_runs(
     admin: User = Depends(get_current_admin),
     db: Session = Depends(get_db),
 ):
-    query_started = perf_counter()
     query = db.query(ToolRun)
     if tool:
         query = query.filter(ToolRun.tool_name == tool)
@@ -353,13 +255,9 @@ def list_runs(
         for r in runs
     ]
 
-    response = AdminRunListResponse(
+    return AdminRunListResponse(
         items=items, total=total, page=page, page_size=page_size
     )
-    record_database_query_timing(
-        db, query_family="admin_runs", started_at=query_started
-    )
-    return response
 
 
 @router.get("/runs/{run_id}", response_model=AdminRunDetailResponse)
@@ -427,160 +325,6 @@ def get_stats(
         runs_today=runs_today,
         active_users_7d=active_users_7d,
         runs_by_tool=runs_by_tool,
-    )
-
-
-# ── Activation dashboard (R6, issue #108) ──
-
-
-@router.get("/activation", response_model=AdminActivationResponse)
-@limiter.limit(_ADMIN_RATE)
-def get_activation(
-    request: Request,
-    # Inlined to mirror `AccessMode` (app/schemas/telemetry.py) — FastAPI cannot
-    # resolve the aliased Literal as a query-param forward ref under
-    # `from __future__ import annotations`.
-    access_mode: Literal["authenticated", "guest_demo"] | None = Query(None),
-    tool_id: OperationalToolId | None = Query(None),
-    start: datetime | None = Query(None),
-    end: datetime | None = Query(None),
-    admin: User = Depends(get_current_admin),
-    db: Session = Depends(get_db),
-):
-    """Read-only activation funnel / failure / cost aggregate (D-039).
-
-    Admin-gated exactly like every other endpoint here (`get_current_admin`).
-    Filterable by tool, access mode (guest vs. authenticated), and by a date
-    window that defaults to a rolling two weeks. Naive window bounds are treated as
-    UTC so comparison against the timezone-aware `created_at` column is well
-    defined on Postgres.
-    """
-    now = datetime.now(UTC)
-    window_end = end or now
-    window_start = start or (window_end - timedelta(days=ACTIVATION_DEFAULT_WINDOW_DAYS))
-    if window_start.tzinfo is None:
-        window_start = window_start.replace(tzinfo=UTC)
-    if window_end.tzinfo is None:
-        window_end = window_end.replace(tzinfo=UTC)
-
-    return aggregate_activation_metrics(
-        db,
-        window_start=window_start,
-        window_end=window_end,
-        access_mode=access_mode,
-        tool_id=tool_id,
-    )
-
-
-# ── Profile adoption view (R11, issue #150) ──
-
-
-@router.get("/profile-adoption", response_model=AdminProfileAdoptionResponse)
-@limiter.limit(_ADMIN_RATE)
-def get_profile_adoption(
-    request: Request,
-    start: datetime | None = Query(None),
-    end: datetime | None = Query(None),
-    admin: User = Depends(get_current_admin),
-    db: Session = Depends(get_db),
-):
-    """Read-only Evidence Profile adoption/trust aggregate (#150, D-067).
-
-    Admin-gated exactly like every other endpoint here (``get_current_admin``).
-    Answers "is the profile being adopted and trusted?" from allowlisted
-    low-cardinality profile events only — created counts by kind and provenance
-    class, and confirm/reject trust decisions — over a date window that defaults
-    to a rolling two weeks. No evidence content is reachable from this view.
-    Naive window bounds are treated as UTC so comparison against the
-    timezone-aware ``created_at`` column is well defined on Postgres.
-    """
-    now = datetime.now(UTC)
-    window_end = end or now
-    window_start = start or (window_end - timedelta(days=ACTIVATION_DEFAULT_WINDOW_DAYS))
-    if window_start.tzinfo is None:
-        window_start = window_start.replace(tzinfo=UTC)
-    if window_end.tzinfo is None:
-        window_end = window_end.replace(tzinfo=UTC)
-
-    return aggregate_profile_adoption(
-        db,
-        window_start=window_start,
-        window_end=window_end,
-    )
-
-
-# ── Development-loop adoption view (R17, issue #202) ──
-
-
-@router.get("/development-loop", response_model=AdminDevelopmentLoopResponse)
-@limiter.limit(_ADMIN_RATE)
-def get_development_loop(
-    request: Request,
-    start: datetime | None = Query(None),
-    end: datetime | None = Query(None),
-    admin: User = Depends(get_current_admin),
-    db: Session = Depends(get_db),
-):
-    """Aggregate-only R17 adoption view over content-free lifecycle events.
-
-    No gap message, note, recommendation content, stable item identifier, or
-    user identifier is stored by the event model, so none is reachable here
-    (D-114). Naive bounds are interpreted as UTC, matching sibling admin views.
-    """
-    now = datetime.now(UTC)
-    window_end = end or now
-    window_start = start or (window_end - timedelta(days=ACTIVATION_DEFAULT_WINDOW_DAYS))
-    if window_start.tzinfo is None:
-        window_start = window_start.replace(tzinfo=UTC)
-    if window_end.tzinfo is None:
-        window_end = window_end.replace(tzinfo=UTC)
-    if window_start > window_end:
-        raise HTTPException(
-            status_code=422,
-            detail="start must be before or equal to end",
-        )
-
-    return aggregate_development_loop(
-        db,
-        window_start=window_start,
-        window_end=window_end,
-    )
-
-
-# ── Packet-queue trust-chain gate (R15, issue #184) ──
-
-
-@router.get("/packet-gate", response_model=AdminPacketGateResponse)
-@limiter.limit(_ADMIN_RATE)
-def get_packet_gate(
-    request: Request,
-    start: datetime | None = Query(None),
-    end: datetime | None = Query(None),
-    admin: User = Depends(get_current_admin),
-    db: Session = Depends(get_db),
-):
-    """Read-only trust-chain gate state (#184, D-097).
-
-    Admin-gated exactly like every other endpoint here (``get_current_admin``).
-    Surfaces the current pipeline-halt posture plus windowed counts of the
-    allowlisted gate events (running / passed / blocked, and halt / clear). No
-    packet content, listing text/id, run id, finding text, or user identifier is
-    reachable. The window defaults to a rolling two weeks; naive bounds are
-    treated as UTC so comparison against the timezone-aware ``created_at`` column
-    is well defined on Postgres.
-    """
-    now = datetime.now(UTC)
-    window_end = end or now
-    window_start = start or (window_end - timedelta(days=ACTIVATION_DEFAULT_WINDOW_DAYS))
-    if window_start.tzinfo is None:
-        window_start = window_start.replace(tzinfo=UTC)
-    if window_end.tzinfo is None:
-        window_end = window_end.replace(tzinfo=UTC)
-
-    return aggregate_packet_gate(
-        db,
-        window_start=window_start,
-        window_end=window_end,
     )
 
 

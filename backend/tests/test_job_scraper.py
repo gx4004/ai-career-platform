@@ -7,10 +7,8 @@ from unittest.mock import AsyncMock, patch
 import httpx
 import pytest
 
-from app.models.analytics_event import AnalyticsEvent
-from app.schemas.analytics import IMPORT_FAILURE_OUTCOMES, ActivationEventCreate
-from app.services.import_source import get_import_outcome, reset_import_outcome
 from app.services.job_scraper import (
+    PASTE_FALLBACK_DESCRIPTION,
     _fetch_resource_with_httpx,
     _fetch_with_httpx,
     _fetch_with_playwright,
@@ -557,53 +555,34 @@ async def _unsized_response_handler(_request):
     )
 
 
-@pytest.mark.asyncio
-async def test_short_description_records_low_quality_success_not_failure(
-    monkeypatch, public_dns, no_browser_tier
-):
-    """A page that fetches and parses is not a failed import — only a thin one."""
-    _mock_http(monkeypatch, _status_handler(200, text=SHORT_DESCRIPTION_PAGE))
-    reset_import_outcome()
-
-    result = await scrape_job_posting("https://example.com/job")
-
-    assert get_import_outcome() == "success_low_quality"
-    # User-facing behaviour is unchanged: the fallback tier still runs and the
-    # user still gets the paste path when it cannot do better.
-    assert result.job_title is None
-    assert "paste" in result.job_description.lower()
-
-
 @pytest.mark.parametrize(
-    ("handler", "expected_outcome"),
+    "handler",
     [
-        (_status_handler(403), "failure_blocked"),
-        (_status_handler(429), "failure_blocked"),
-        (_timeout_handler, "failure_timeout"),
-        (_status_handler(503), "failure_unavailable"),
-        (_connect_error_handler, "failure_unavailable"),
-        (_status_handler(200, content_type="application/pdf"), "failure_unparseable"),
-        (_unsized_response_handler, "failure_unparseable"),
-        (_status_handler(200, text=EMPTY_PAGE), "failure_empty"),
+        _status_handler(200, text=SHORT_DESCRIPTION_PAGE),
+        _status_handler(200, text=EMPTY_PAGE),
+        _status_handler(403),
+        _status_handler(429),
+        _timeout_handler,
+        _status_handler(503),
+        _connect_error_handler,
+        _status_handler(200, content_type="application/pdf"),
+        _unsized_response_handler,
     ],
 )
 @pytest.mark.asyncio
-async def test_each_failure_branch_records_its_bounded_category(
-    monkeypatch, public_dns, no_browser_tier, handler, expected_outcome
+async def test_unusable_first_tier_falls_through_to_paste_prompt(
+    monkeypatch, public_dns, no_browser_tier, handler
 ):
     _mock_http(monkeypatch, handler)
-    reset_import_outcome()
 
     result = await scrape_job_posting("https://example.com/job")
 
-    assert get_import_outcome() == expected_outcome
-    assert "paste" in result.job_description.lower()
+    assert result.job_title is None
+    assert result.job_description == PASTE_FALLBACK_DESCRIPTION
 
 
 @pytest.mark.asyncio
-async def test_redirect_to_internal_address_records_blocked(monkeypatch, no_browser_tier):
-    """The outbound guard refusing a redirect hop is a blocked fetch, not an outage."""
-
+async def test_redirect_to_internal_address_falls_back_to_paste(monkeypatch, no_browser_tier):
     def fake_getaddrinfo(host, _port, _family, _socktype):
         ip = "93.184.216.34" if host == "example.com" else "127.0.0.1"
         return [(0, 0, 0, "", (ip, 0))]
@@ -614,117 +593,7 @@ async def test_redirect_to_internal_address_records_blocked(monkeypatch, no_brow
         return httpx.Response(302, headers={"location": "http://internal.example/secret"})
 
     _mock_http(monkeypatch, handler)
-    reset_import_outcome()
 
     result = await scrape_job_posting("https://example.com/job")
 
-    assert get_import_outcome() == "failure_blocked"
-    assert "paste" in result.job_description.lower()
-
-
-def test_import_outcome_event_records_category_without_url_host_or_message(
-    client, db, monkeypatch, public_dns, no_browser_tier
-):
-    """The persisted row carries the family and the category — nothing else."""
-
-    async def handler(_request):
-        return httpx.Response(
-            403,
-            headers={"content-type": "text/html", "x-blocked-by": "Acme WAF"},
-            text="Forbidden by boards.greenhouse.io for token=secret",
-        )
-
-    _mock_http(monkeypatch, handler)
-
-    response = client.post(
-        "/api/v1/job-posts/import-url",
-        json={"url": "https://boards.greenhouse.io/acme/jobs/4815162342?token=secret"},
-    )
-
-    assert response.status_code == 200
-    event = (
-        db.query(AnalyticsEvent)
-        .filter(AnalyticsEvent.event_name == "r10_import_outcome")
-        .one()
-    )
-    assert event.operational_dimension == "greenhouse"
-    assert event.operational_outcome == "failure_blocked"
-    assert event.duration_ms >= 0
-
-    persisted = " ".join(
-        str(getattr(event, column.name)) for column in AnalyticsEvent.__table__.columns
-    )
-    for leaked in (
-        "greenhouse.io",
-        "boards",
-        "4815162342",
-        "secret",
-        "Acme WAF",
-        "Forbidden",
-        "https://",
-    ):
-        assert leaked not in persisted
-
-
-@pytest.mark.parametrize(
-    "outcome",
-    [
-        "success",
-        "success_low_quality",
-        "fallback",
-        "failure",
-        "failure_blocked",
-        "failure_timeout",
-        "failure_unavailable",
-        "failure_unparseable",
-        "failure_empty",
-    ],
-)
-def test_import_outcome_allowlist_accepts_every_recorded_class(outcome):
-    event = ActivationEventCreate(
-        event_name="r10_import_outcome",
-        operational_dimension="greenhouse",
-        operational_outcome=outcome,
-        duration_ms=12,
-    )
-
-    assert event.operational_outcome == outcome
-
-
-def test_import_failure_class_covers_every_category():
-    assert IMPORT_FAILURE_OUTCOMES == {
-        "failure",
-        "failure_blocked",
-        "failure_timeout",
-        "failure_unavailable",
-        "failure_unparseable",
-        "failure_empty",
-    }
-
-
-@pytest.mark.parametrize(
-    "fields",
-    [
-        # A message-bearing or host-bearing outcome is still rejected outright.
-        {
-            "event_name": "r10_import_outcome",
-            "operational_dimension": "greenhouse",
-            "operational_outcome": "failure: boards.greenhouse.io returned 403",
-            "duration_ms": 1,
-        },
-        # The import-specific classes belong to the import event and nothing else.
-        {
-            "event_name": "discovery_source_fetch_outcome",
-            "operational_dimension": "licensed",
-            "operational_outcome": "failure_blocked",
-        },
-        {
-            "event_name": "discovery_source_fetch_outcome",
-            "operational_dimension": "licensed",
-            "operational_outcome": "success_low_quality",
-        },
-    ],
-)
-def test_import_outcome_allowlist_rejects_unbounded_or_borrowed_values(fields):
-    with pytest.raises(Exception):
-        ActivationEventCreate(**fields)
+    assert result.job_description == PASTE_FALLBACK_DESCRIPTION

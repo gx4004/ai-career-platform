@@ -1,12 +1,8 @@
 import type { ComponentType } from 'react'
 import { Link } from '@tanstack/react-router'
-import { ArrowRight, Compass, Megaphone, PanelsTopLeft } from 'lucide-react'
-import {
-  isR12CvStudioEnabled,
-  isR13CampaignsEnabled,
-  isR14DiscoveryEnabled,
-} from '#/lib/flags/featureFlags'
+import { ArrowRight } from 'lucide-react'
 import { useSession } from '#/hooks/useSession'
+import { getNavDestination } from '#/lib/navigation/navGroups'
 
 type FeatureLink = {
   key: string
@@ -18,52 +14,45 @@ type FeatureLink = {
 
 /**
  * Compact discoverability row for the build-ahead outcomes (CV Studio,
- * Discovery, Campaigns) that otherwise only surface in the sidebar. Renders
- * nothing when every linked feature is flagged off, and Discover/Your
- * applications stay hidden for guests since both routes redirect to login
+ * Discovery, Campaigns) that otherwise only surface in the sidebar.
+ * Discover/Your applications stay hidden for guests since both routes redirect to login
  * (see src/routes/discovery.tsx, src/routes/campaigns.index.tsx).
  */
 export function DashboardFeatureLinks() {
   const { status } = useSession()
   const isAuthenticated = status === 'authenticated'
 
-  const links: FeatureLink[] = []
-  if (isR12CvStudioEnabled()) {
-    links.push({
+  const links: FeatureLink[] = [
+    {
       key: 'cv-studio',
       label: 'CV Studio',
       copy: 'Build and tailor CV versions from your evidence.',
       route: '/cv-studio',
-      icon: PanelsTopLeft,
-    })
-  }
-  if (isAuthenticated && isR14DiscoveryEnabled()) {
+      icon: getNavDestination('/cv-studio').icon,
+    },
+  ]
+  if (isAuthenticated) {
     links.push({
       key: 'discovery',
       label: 'Discover jobs',
       copy: 'Browse live roles ranked against your profile.',
       route: '/discovery',
-      icon: Compass,
-    })
-  }
-  if (isAuthenticated && isR13CampaignsEnabled()) {
-    links.push({
+      icon: getNavDestination('/discovery').icon,
+    }, {
       key: 'campaigns',
       label: 'Your applications',
       copy: 'Track every application you have saved.',
       route: '/campaigns',
-      icon: Megaphone,
+      icon: getNavDestination('/campaigns').icon,
     })
   }
-
-  if (links.length === 0) return null
 
   return (
     <section className="dash-card dash-card--features">
       <div className="grid gap-3">
         <div className="grid gap-0.5">
           <p className="eyebrow">More in your workspace</p>
-          <h2 className="section-title">Pick up the next step</h2>
+          <h2 className="section-title">{isAuthenticated ? 'Pick up the next step' : 'Explore'}</h2>
         </div>
         <div className="dashboard-feature-grid">
           {links.map(({ key, label, copy, route, icon: Icon }) => (

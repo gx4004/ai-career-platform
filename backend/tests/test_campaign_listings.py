@@ -6,7 +6,6 @@ from app.models.user import User
 from app.models.workspace import Workspace
 from app.schemas.data_export import CareerDataExport
 from app.schemas.tools import ImportedJobResponse
-from app.services.import_source import set_import_outcome
 
 
 def _workspace(db, user_id: str) -> Workspace:
@@ -85,7 +84,6 @@ def test_url_import_reuses_scraper_and_attaches_listing(
 
     async def fake_scrape(url: str) -> ImportedJobResponse:
         called.append(url)
-        set_import_outcome("success")
         return ImportedJobResponse(
             job_title="Backend Engineer",
             company_name="Example Corp",
@@ -124,7 +122,6 @@ def test_failed_url_import_preserves_current_listing(
     db.commit()
 
     async def failed_scrape(url: str) -> ImportedJobResponse:
-        set_import_outcome("failure")
         return ImportedJobResponse(
             job_description="Could not extract the job description. Please copy and paste it.",
             source_url=url,
@@ -148,7 +145,6 @@ def test_incomplete_url_import_does_not_invent_canonical_fields(
     workspace = _workspace(db, test_user.id)
 
     async def incomplete_scrape(url: str) -> ImportedJobResponse:
-        set_import_outcome("success")
         return ImportedJobResponse(
             job_title=None,
             company_name=None,
@@ -181,10 +177,10 @@ def test_listing_is_exported_and_account_deletion_removes_it(client, auth_header
     exported = CareerDataExport.model_validate(
         client.get("/api/v1/evidence-profile/export", headers=auth_headers).json()
     )
-    listing = exported.campaigns.campaigns[0].listing
+    listing = exported.applications.applications[0].listing
     assert listing is not None
     assert listing.description == "Build reliable Python systems for customers."
-    assert [item.title for item in exported.campaigns.campaigns[0].listing_revisions] == [
+    assert [item.title for item in exported.applications.applications[0].listing_revisions] == [
         "Engineer"
     ]
 
@@ -258,7 +254,7 @@ def test_owner_can_delete_campaign_and_listing_immediately(client, auth_headers,
         )
     )
     db.commit()
-    response = client.delete(f"/api/v1/history/workspaces/{workspace.id}", headers=auth_headers)
+    response = client.delete(f"/api/v1/applications/{workspace.id}", headers=auth_headers)
     assert response.status_code == 200
     assert response.json() == {"deleted": 1}
     assert db.query(Workspace).filter_by(id=workspace.id).first() is None

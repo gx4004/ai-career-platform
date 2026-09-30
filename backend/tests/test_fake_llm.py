@@ -266,39 +266,22 @@ async def test_cv_tailoring_fake_provider_targets_a_bullet_when_the_entry_has_bu
 
 
 @pytest.mark.asyncio
-async def test_cv_quality_fake_provider_is_not_degraded():
-    from app.services import cv_quality
-
-    result = await cv_quality.analyze_cv_quality(RESUME_TEXT, sections=_CV_SECTIONS)
-
-    # `analyze_cv_quality` falls back to `scoring_mode: "heuristic"` whenever
-    # `complete_structured` raises or the model omits a dimension score.
-    assert result["scoring_mode"] == "blended"
-    assert {item["key"] for item in result["dimensions"]} == {
-        "impact",
-        "clarity",
-        "completeness",
-        "structure",
-    }
-
-
-@pytest.mark.asyncio
 async def test_evidence_import_fake_provider_is_not_degraded():
     from app.services import evidence_import
 
-    proposals = await evidence_import.generate_import_proposals(RESUME_TEXT)
+    proposals = await evidence_import.extract_resume_evidence(RESUME_TEXT)
 
-    # `generate_import_proposals` degrades to `[]` on any LLM failure.
+    # `extract_resume_evidence` degrades to `[]` on any LLM failure.
     assert proposals
     for proposal in proposals:
         assert proposal.content
 
 
 @pytest.mark.asyncio
-async def test_application_packets_compose_materials_fake_provider_is_not_degraded():
-    from app.services import application_packets
+async def test_application_drafts_fake_provider_is_not_degraded():
+    from app.services import application_drafts
 
-    result = await application_packets.compose_packet_materials(
+    result = await application_drafts.compose_application_drafts(
         resume_text=RESUME_TEXT,
         job_description=JOB_DESCRIPTION,
         listing_title="Backend Engineer",
@@ -310,7 +293,7 @@ async def test_application_packets_compose_materials_fake_provider_is_not_degrad
     assert result["screening_answers"]
     # Both fixture questions are generic ("why are you a fit" / "relevant
     # experience") and must not trip the never-draft stop-question classifier.
-    assert result["unresolved_questions"] == []
+    assert result["open_questions"] == []
 
 
 # ---------------------------------------------------------------------------

@@ -1,13 +1,14 @@
 import pytest
 
 from app.auth.security import hash_password
-from app.limiter import limiter
 from app.models.cv_document import CvDocument, CvVariant
 from app.models.evidence_item import EvidenceItem
+from app.models.tool_run import ToolRun
 from app.models.user import User
-from app.routers.cv_documents import CV_QUALITY_MODEL_RUN_LIMIT, CV_TAILORING_MODEL_RUN_LIMIT
-from app.schemas.analytics import ActivationEventCreate
+from app.models.workspace import Workspace
+from app.routers.cv_documents import CV_TAILORING_MODEL_RUN_LIMIT
 from app.services.cv_tailoring import proposal_token
+from app.services.tool_runs import persist_tool_run
 
 PREFIX = "/api/v1/cv-documents"
 
@@ -127,6 +128,12 @@ def test_owner_can_create_edit_snapshot_and_restore_without_mutating_variants(
     )
     assert restored.status_code == 200
     assert restored.json()["sections"] == _with_response_defaults(edited_sections)
+    # The unsaved "Later draft." was kept as a version before being replaced.
+    kept = restored.json()["variants"][-1]
+    assert kept["name"] == "Before restoring Platform role"
+    assert kept["sections"] == _with_response_defaults(
+        [_section(confirmed_evidence.id, body="Later draft.")]
+    )
 
     base_restored = client.post(
         f"{PREFIX}/{created['id']}/variants/{base_id}/restore",
@@ -134,6 +141,8 @@ def test_owner_can_create_edit_snapshot_and_restore_without_mutating_variants(
     )
     assert base_restored.status_code == 200
     assert base_restored.json()["sections"] == _with_response_defaults([_section(confirmed_evidence.id)])
+    # The replaced CV already matched a saved version, so no duplicate was added.
+    assert len(base_restored.json()["variants"]) == 3
 
     fetched = client.get(f"{PREFIX}/{created['id']}", headers=auth_headers).json()
     snapshots = {variant["id"]: variant for variant in fetched["variants"]}
@@ -293,370 +302,105 @@ def test_export_is_owner_scoped_and_contains_recoverable_snapshots(
     assert payload["documents"][0]["variants"][0]["name"] == "Base"
 
 
-def test_owner_can_score_quality_and_rerun_one_named_ats_check(
-    client, auth_headers, confirmed_evidence
-):
-    sections = [
-        _section(confirmed_evidence.id),
-        {
-            "id": "section-skills",
-            "kind": "skills",
-            "title": "Skills",
-            "visible": True,
-            "position": 1,
-            "entries": [
-                {
-                    "id": "skill-one",
-                    "evidence_item_id": confirmed_evidence.id,
-                    "body": "Python, PostgreSQL, accessibility",
-                    "position": 0,
-                }
-            ],
-        },
-    ]
-    document = client.post(
-        PREFIX, json={"name": "Quality fixture", "sections": sections}, headers=auth_headers
-    ).json()
-
-    response = client.post(
-        f"{PREFIX}/{document['id']}/quality",
-        json={"use_model": False, "checks": ["section_structure"]},
-        headers=auth_headers,
-    )
-
-    assert response.status_code == 200
-    payload = response.json()
-    assert {dimension["key"] for dimension in payload["dimensions"]} == {
-        "impact",
-        "clarity",
-        "completeness",
-        "structure",
-    }
-    assert all(dimension["reasons"] for dimension in payload["dimensions"])
-    assert [check["key"] for check in payload["ats_checks"]] == ["section_structure"]
-    assert payload["ats_checks"][0]["remediation"]
-    assert payload["advisory_note"].startswith("Quality scores are directional")
-
-
 def test_quality_endpoint_is_authenticated_and_owner_isolated(
     client, auth_headers, db, second_user
 ):
     foreign = CvDocument(user_id=second_user.id, name="Private quality", sections=[])
     db.add(foreign)
     db.commit()
-    assert (
-        client.post(f"{PREFIX}/{foreign.id}/quality", json={"use_model": False}).status_code == 401
-    )
-    assert (
-        client.post(
-            f"{PREFIX}/{foreign.id}/quality", json={"use_model": False}, headers=auth_headers
-        ).status_code
-        == 404
+    assert client.post(f"{PREFIX}/{foreign.id}/quality").status_code == 401
+    assert client.post(f"{PREFIX}/{foreign.id}/quality", headers=auth_headers).status_code == 404
+
+
+def _fake_llm(monkeypatch, module: str, result: dict | Exception):
+    """Replace the provider call inside one CV service module."""
+
+    async def complete(*_args, **_kwargs):
+        if isinstance(result, Exception):
+            raise result
+        return result
+
+    monkeypatch.setattr(f"app.services.{module}.complete_structured", complete)
+
+
+def _tailoring_change(evidence_id: str) -> dict:
+    return {
+        "id": "change-one",
+        "section_id": "section-achievements",
+        "entry_id": "entry-one",
+        "before": "Improved a synthetic process by 20%.",
+        "after": "Improved a synthetic platform process by 20%.",
+        "job_requirement": "Improve platform reliability",
+        "evidence_item_ids": [evidence_id],
+        "support": "confirmed",
+    }
+
+
+def _run_and_workspace_counts(db, user_id: str) -> tuple[int, int]:
+    db.expire_all()
+    return (
+        db.query(ToolRun).filter(ToolRun.user_id == user_id).count(),
+        db.query(Workspace).filter(Workspace.user_id == user_id).count(),
     )
 
 
-def test_model_quality_uses_shared_pipeline_and_enforces_document_quota(
+def test_quality_checks_never_create_runs_or_campaigns(
+    client, auth_headers, db, test_user, confirmed_evidence
+):
+    """Autosave re-runs the check constantly; it must not fill the Campaigns board."""
+    document = client.post(
+        PREFIX,
+        json={"name": "Autosaved", "sections": [_section(confirmed_evidence.id)]},
+        headers=auth_headers,
+    ).json()
+    url = f"{PREFIX}/{document['id']}/quality"
+
+    responses = [client.post(url, headers=auth_headers) for _ in range(3)]
+
+    assert [response.status_code for response in responses] == [200, 200, 200]
+    assert _run_and_workspace_counts(db, test_user.id) == (0, 0)
+    assert client.get("/api/v1/history/workspaces", headers=auth_headers).json()["items"] == []
+
+
+
+
+def test_tailoring_returns_reviewable_provenance_without_creating_campaigns(
     client, auth_headers, db, test_user, confirmed_evidence, monkeypatch
 ):
-    document = client.post(
-        PREFIX,
-        json={"name": "Bounded", "sections": [_section(confirmed_evidence.id)]},
-        headers=auth_headers,
-    ).json()
-    stored = db.query(CvDocument).filter(CvDocument.id == document["id"]).one()
-    stored.quality_model_runs = CV_QUALITY_MODEL_RUN_LIMIT
-    db.commit()
-    response = client.post(
-        f"{PREFIX}/{document['id']}/quality", json={"use_model": True}, headers=auth_headers
-    )
-    assert response.status_code == 429
-    assert "Deterministic checks remain available" in response.json()["detail"]
-
-
-def test_model_quality_delegates_to_shared_pipeline(
-    client, auth_headers, confirmed_evidence, monkeypatch
-):
-    document = client.post(
-        PREFIX,
-        json={"name": "Pipeline seam", "sections": [_section(confirmed_evidence.id)]},
-        headers=auth_headers,
-    ).json()
-    captured = {}
-
-    async def pipeline(**kwargs):
-        captured.update(kwargs)
-        return {
-            "schema_version": "cv-quality/v1",
-            "dimensions": [
-                {
-                    "key": "impact",
-                    "label": "Evidence of impact",
-                    "score": 60,
-                    "reasons": ["Synthetic reason."],
-                    "remediation": "Synthetic fix.",
-                }
-            ],
-            "ats_checks": [],
-            "scoring_mode": "blended",
-            "advisory_note": "Directional guidance only.",
-            "history_id": "run-one",
-            "access_mode": "authenticated",
-            "saved": True,
-            "locked_actions": [],
-        }
-
-    monkeypatch.setattr("app.routers.cv_documents.run_tool_pipeline", pipeline)
-    response = client.post(
-        f"{PREFIX}/{document['id']}/quality", json={"use_model": True}, headers=auth_headers
-    )
-    assert response.status_code == 200
-    assert captured["tool_name"] == "cv-quality"
-    assert captured["current_user"].id
-    assert captured["service_fn"].__name__ == "analyze_cv_quality"
-    assert response.json()["remaining_model_runs"] == CV_QUALITY_MODEL_RUN_LIMIT - 1
-
-
-def test_model_quality_enforces_the_shared_account_cost_limit_across_documents(
-    client, auth_headers, confirmed_evidence, monkeypatch
-):
-    """The per-document quota is a separate, unrelated cap. CV Studio's model
-    calls must also count against the same shared per-account/per-source LLM
-    cost budget every other tool enforces, or a user can bypass it entirely by
-    spreading calls across many documents.
-    """
-    monkeypatch.setattr("app.limiter.settings.MODEL_COST_LIMIT", "1/minute")
-    limiter._storage.reset()
-
-    async def pipeline(**_):
-        return {
-            "schema_version": "cv-quality/v1",
-            "dimensions": [],
-            "ats_checks": [],
-            "scoring_mode": "blended",
-            "advisory_note": "Directional guidance only.",
-            "history_id": "run-one",
-            "access_mode": "authenticated",
-            "saved": True,
-            "locked_actions": [],
-        }
-
-    monkeypatch.setattr("app.routers.cv_documents.run_tool_pipeline", pipeline)
-    first_document = client.post(
-        PREFIX,
-        json={"name": "First", "sections": [_section(confirmed_evidence.id)]},
-        headers=auth_headers,
-    ).json()
-    second_document = client.post(
-        PREFIX,
-        json={"name": "Second", "sections": [_section(confirmed_evidence.id)]},
-        headers=auth_headers,
-    ).json()
-
-    first = client.post(
-        f"{PREFIX}/{first_document['id']}/quality", json={"use_model": True}, headers=auth_headers
-    )
-    second = client.post(
-        f"{PREFIX}/{second_document['id']}/quality", json={"use_model": True}, headers=auth_headers
-    )
-
-    assert first.status_code == 200
-    assert second.status_code == 429
-
-
-def test_tailoring_enforces_the_shared_account_cost_limit_across_documents(
-    client, auth_headers, confirmed_evidence, monkeypatch
-):
-    monkeypatch.setattr("app.limiter.settings.MODEL_COST_LIMIT", "1/minute")
-    limiter._storage.reset()
-
-    async def pipeline(**_):
-        return {
-            "schema_version": "cv-tailoring/v1",
-            "changes": [],
-            "request_id": "req-one",
-            "job_title": "Engineer",
-        }
-
-    monkeypatch.setattr("app.routers.cv_documents.run_tool_pipeline", pipeline)
-    first_document = client.post(
-        PREFIX,
-        json={"name": "First", "sections": [_section(confirmed_evidence.id)]},
-        headers=auth_headers,
-    ).json()
-    second_document = client.post(
-        PREFIX,
-        json={"name": "Second", "sections": [_section(confirmed_evidence.id)]},
-        headers=auth_headers,
-    ).json()
-    payload = {"job_description": "We need a synthetic engineer.", "job_title": "Engineer"}
-
-    first = client.post(
-        f"{PREFIX}/{first_document['id']}/tailoring", json=payload, headers=auth_headers
-    )
-    second = client.post(
-        f"{PREFIX}/{second_document['id']}/tailoring", json=payload, headers=auth_headers
-    )
-
-    assert first.status_code == 200
-    assert second.status_code == 429
-
-
-def _quality_pipeline_stub(calls: list):
-    async def pipeline(**kwargs):
-        calls.append(kwargs)
-        return {
-            "schema_version": "cv-quality/v1",
-            "dimensions": [],
-            "ats_checks": [],
-            "scoring_mode": "blended",
-            "advisory_note": "Directional guidance only.",
-            "history_id": "run-one",
-            "access_mode": "authenticated",
-            "saved": True,
-            "locked_actions": [],
-        }
-
-    return pipeline
-
-
-def test_deterministic_quality_survives_an_exhausted_model_budget(
-    client, auth_headers, confirmed_evidence, monkeypatch
-):
-    """A spent LLM budget must not take the free heuristic checks offline.
-
-    The shared cost cap exists to bound provider spend. Deterministic scoring
-    reaches no provider, so gating it behind that cap would let one expensive
-    mode disable an unrelated free one.
-    """
-    monkeypatch.setattr("app.limiter.settings.MODEL_COST_LIMIT", "1/minute")
-    limiter._storage.reset()
-    monkeypatch.setattr(
-        "app.routers.cv_documents.run_tool_pipeline", _quality_pipeline_stub([])
-    )
-    document = client.post(
-        PREFIX,
-        json={"name": "First", "sections": [_section(confirmed_evidence.id)]},
-        headers=auth_headers,
-    ).json()
-    url = f"{PREFIX}/{document['id']}/quality"
-
-    spend = client.post(url, json={"use_model": True}, headers=auth_headers)
-    exhausted = client.post(url, json={"use_model": True}, headers=auth_headers)
-    deterministic = client.post(url, json={"use_model": False}, headers=auth_headers)
-
-    assert spend.status_code == 200
-    assert exhausted.status_code == 429, "the model budget should be spent by now"
-    assert deterministic.status_code == 200, (
-        "deterministic scoring spends no provider budget and must remain "
-        "available after the model budget is exhausted"
-    )
-
-
-def test_deterministic_quality_does_not_consume_the_model_budget(
-    client, auth_headers, confirmed_evidence, monkeypatch
-):
-    """Heuristic runs must not draw down the allowance reserved for model runs."""
-    monkeypatch.setattr("app.limiter.settings.MODEL_COST_LIMIT", "1/minute")
-    limiter._storage.reset()
-    monkeypatch.setattr(
-        "app.routers.cv_documents.run_tool_pipeline", _quality_pipeline_stub([])
-    )
-    document = client.post(
-        PREFIX,
-        json={"name": "First", "sections": [_section(confirmed_evidence.id)]},
-        headers=auth_headers,
-    ).json()
-    url = f"{PREFIX}/{document['id']}/quality"
-
-    deterministic = [
-        client.post(url, json={"use_model": False}, headers=auth_headers) for _ in range(3)
-    ]
-    model = client.post(url, json={"use_model": True}, headers=auth_headers)
-
-    assert [response.status_code for response in deterministic] == [200, 200, 200]
-    assert model.status_code == 200, (
-        "three deterministic runs must leave the single model allowance intact"
-    )
-
-
-def test_studio_telemetry_allowlist_rejects_content_and_stable_identifiers():
-    assert ActivationEventCreate(event_name="studio_document_deleted").event_name == "studio_document_deleted"
-    for field in ("cv_content", "job_description", "document_id", "run_id", "title"):
-        with pytest.raises(Exception):
-            ActivationEventCreate(event_name="studio_document_deleted", **{field: "private"})
-
-
-def test_failed_pipeline_still_consumes_document_model_allowance(
-    client, auth_headers, db, confirmed_evidence, monkeypatch
-):
-    document = client.post(
-        PREFIX,
-        json={"name": "Failed attempt", "sections": [_section(confirmed_evidence.id)]},
-        headers=auth_headers,
-    ).json()
-
-    async def fail(**_):
-        raise RuntimeError("synthetic pipeline failure")
-
-    monkeypatch.setattr("app.routers.cv_documents.run_tool_pipeline", fail)
-    with pytest.raises(RuntimeError, match="synthetic pipeline failure"):
-        client.post(
-            f"{PREFIX}/{document['id']}/quality",
-            json={"use_model": True},
-            headers=auth_headers,
-        )
-    db.expire_all()
-    stored = db.query(CvDocument).filter(CvDocument.id == document["id"]).one()
-    assert stored.quality_model_runs == 1
-
-
-def test_tailoring_uses_shared_pipeline_and_returns_reviewable_provenance(
-    client, auth_headers, confirmed_evidence, monkeypatch
-):
+    _fake_llm(monkeypatch, "cv_tailoring", {"changes": [_tailoring_change(confirmed_evidence.id)]})
     document = client.post(
         PREFIX,
         json={"name": "Tailor", "sections": [_section(confirmed_evidence.id)]},
         headers=auth_headers,
     ).json()
-    captured = {}
+    payload = {
+        "job_title": "Platform Engineer",
+        "job_description": "Improve platform reliability across distributed services.",
+    }
 
-    async def pipeline(**kwargs):
-        captured.update(kwargs)
-        return {
-            "schema_version": "cv-tailoring/v1",
-            "job_title": "Platform Engineer",
-            "changes": [
-                {
-                    "id": "change-one",
-                    "section_id": "section-achievements",
-                    "entry_id": "entry-one",
-                    "before": "Improved a synthetic process by 20%.",
-                    "after": "Improved a synthetic platform process by 20%.",
-                    "job_requirement": "Improve platform reliability",
-                    "evidence_item_ids": [confirmed_evidence.id],
-                    "support": "confirmed",
-                }
-            ],
-            "history_id": "run",
-            "access_mode": "authenticated",
-            "saved": True,
-            "locked_actions": [],
-        }
+    first = client.post(f"{PREFIX}/{document['id']}/tailoring", json=payload, headers=auth_headers)
+    second = client.post(f"{PREFIX}/{document['id']}/tailoring", json=payload, headers=auth_headers)
 
-    monkeypatch.setattr("app.routers.cv_documents.run_tool_pipeline", pipeline)
-    response = client.post(
-        f"{PREFIX}/{document['id']}/tailoring",
+    assert first.status_code == 200 and second.status_code == 200
+    proposal = second.json()
+    assert proposal["changes"][0]["evidence_item_ids"] == [confirmed_evidence.id]
+    assert proposal["remaining_regenerations"] == CV_TAILORING_MODEL_RUN_LIMIT - 2
+    assert proposal["locked_actions"] == []
+    assert _run_and_workspace_counts(db, test_user.id) == (0, 0)
+
+    applied = client.post(
+        f"{PREFIX}/{document['id']}/tailoring/apply",
         json={
+            "request_id": proposal["request_id"],
+            "proposal_token": proposal["proposal_token"],
+            "variant_name": "Platform",
             "job_title": "Platform Engineer",
-            "job_description": "Improve platform reliability across distributed services.",
+            "changes": proposal["changes"],
+            "decisions": [{"change_id": "change-one", "action": "accept"}],
         },
         headers=auth_headers,
     )
-    assert response.status_code == 200
-    assert captured["tool_name"] == "cv-tailoring"
-    assert captured["service_fn"].__name__ == "generate_cv_tailoring"
-    assert response.json()["changes"][0]["evidence_item_ids"] == [confirmed_evidence.id]
-    assert response.json()["remaining_regenerations"] == CV_TAILORING_MODEL_RUN_LIMIT - 1
+    assert applied.status_code == 201
 
 
 def test_review_rejects_without_mutating_and_accept_creates_immutable_variant(
@@ -677,7 +421,8 @@ def test_review_rejects_without_mutating_and_accept_creates_immutable_variant(
         "evidence_item_ids": [confirmed_evidence.id],
         "support": "confirmed",
     }
-    invented_edit = _signed(
+    # Tailoring review is accept/reject only: there is no free-text "edit" action.
+    edit_decision = _signed(
         document["id"],
         test_user.id,
         {
@@ -685,32 +430,15 @@ def test_review_rejects_without_mutating_and_accept_creates_immutable_variant(
             "variant_name": "Invented edit",
             "job_title": "Platform Engineer",
             "changes": [change],
-            "decisions": [
-                {
-                    "change_id": "change-one",
-                    "action": "edit",
-                    "edited_after": "Managed a newly invented team of 90.",
-                }
-            ],
+            "decisions": [{"change_id": "change-one", "action": "edit"}],
         },
     )
     assert (
         client.post(
-            f"{PREFIX}/{document['id']}/tailoring/apply", json=invented_edit, headers=auth_headers
+            f"{PREFIX}/{document['id']}/tailoring/apply", json=edit_decision, headers=auth_headers
         ).status_code
         == 422
     )
-    edit_proposal = client.post(
-        f"{PREFIX}/{document['id']}/tailoring/edit-proposals",
-        json={
-            key: invented_edit[key]
-            for key in ("request_id", "job_title", "proposal_token", "changes")
-        }
-        | {"change_id": "change-one", "edited_after": "Managed a newly invented team of 90."},
-        headers=auth_headers,
-    )
-    assert edit_proposal.status_code == 201
-    assert edit_proposal.json()["confirmation_state"] == "unconfirmed"
     payload = _signed(
         document["id"],
         test_user.id,
@@ -803,7 +531,112 @@ def test_tailoring_change_can_target_a_specific_bullet(
     assert response.status_code == 201
     entry = response.json()["sections"][0]["entries"][0]
     assert entry["bullets"] == ["Improved platform delivery by 20%.", "Led a synthetic migration."]
-    assert entry["body"] == "Senior Engineer"
+    # body is derived from the bullets, so it follows the tailored bullet.
+    assert entry["body"] == "Improved platform delivery by 20%.\nLed a synthetic migration."
+
+
+def _bulleted_section(bullets, *, body="Stale text"):
+    return {
+        "id": "section-experience",
+        "kind": "experience",
+        "title": "Experience",
+        "visible": True,
+        "position": 0,
+        "entries": [
+            {
+                "id": "entry-one",
+                "evidence_item_id": None,
+                "body": body,
+                "position": 0,
+                "heading": "Senior Engineer",
+                "bullets": bullets,
+            }
+        ],
+    }
+
+
+def test_saved_entry_body_is_derived_from_its_bullets(client, auth_headers):
+    document = client.post(
+        PREFIX,
+        json={"name": "Bulleted", "sections": [_bulleted_section(["Shipped A.", " ", "Led B."])]},
+        headers=auth_headers,
+    ).json()
+    assert document["sections"][0]["entries"][0]["body"] == "Shipped A.\nLed B."
+
+    patched = client.patch(
+        f"{PREFIX}/{document['id']}",
+        json={"sections": [_bulleted_section(["Shipped C."], body="Shipped A.\nLed B.")]},
+        headers=auth_headers,
+    ).json()
+    assert patched["sections"][0]["entries"][0]["body"] == "Shipped C."
+
+    freeform = [_section("unused", body="A free description.")]
+    freeform[0]["entries"][0]["evidence_item_id"] = None
+    patched = client.patch(
+        f"{PREFIX}/{document['id']}", json={"sections": freeform}, headers=auth_headers
+    ).json()
+    assert patched["sections"][0]["entries"][0]["body"] == "A free description."
+
+
+def test_tailoring_cannot_rewrite_the_derived_body_of_a_bulleted_entry(
+    client, auth_headers, test_user
+):
+    document = client.post(
+        PREFIX,
+        json={"name": "Bulleted", "sections": [_bulleted_section(["Shipped A."])]},
+        headers=auth_headers,
+    ).json()
+    payload = _signed(
+        document["id"],
+        test_user.id,
+        {
+            "request_id": "0b7a4f4e-58d5-4a0f-9d3e-1b3c5f0e2a11",
+            "variant_name": "Body tailored",
+            "job_title": "Platform Engineer",
+            "changes": [
+                {
+                    "id": "change-one",
+                    "section_id": "section-experience",
+                    "entry_id": "entry-one",
+                    "field": "body",
+                    "before": "Shipped A.",
+                    "after": "Shipped A for the platform.",
+                    "job_requirement": "Platform delivery",
+                    "evidence_item_ids": [],
+                    "support": "document",
+                }
+            ],
+            "decisions": [{"change_id": "change-one", "action": "accept"}],
+        },
+    )
+    response = client.post(
+        f"{PREFIX}/{document['id']}/tailoring/apply", json=payload, headers=auth_headers
+    )
+    assert response.status_code == 422
+    assert len(client.get(f"{PREFIX}/{document['id']}", headers=auth_headers).json()["variants"]) == 1
+
+
+def test_each_restore_keeps_the_replaced_cv_under_a_unique_name(client, auth_headers):
+    document = client.post(
+        PREFIX,
+        json={"name": "Restorable", "sections": [_bulleted_section(["Original."])]},
+        headers=auth_headers,
+    ).json()
+    base_id = document["variants"][0]["id"]
+    url = f"{PREFIX}/{document['id']}"
+
+    for draft in ("First draft.", "Second draft."):
+        client.patch(url, json={"sections": [_bulleted_section([draft])]}, headers=auth_headers)
+        restored = client.post(f"{url}/variants/{base_id}/restore", headers=auth_headers)
+        assert restored.status_code == 200
+        assert restored.json()["sections"][0]["entries"][0]["bullets"] == ["Original."]
+
+    variants = client.get(url, headers=auth_headers).json()["variants"]
+    assert [(v["name"], v["sections"][0]["entries"][0]["bullets"]) for v in variants] == [
+        ("Base", ["Original."]),
+        ("Before restoring Base", ["First draft."]),
+        ("Before restoring Base (2)", ["Second draft."]),
+    ]
 
 
 def test_unsupported_tailoring_change_is_blocked_until_evidence_is_confirmed(
@@ -884,52 +717,29 @@ def test_unsupported_tailoring_change_is_blocked_until_evidence_is_confirmed(
     assert accepted.json()["sections"][0]["entries"][0]["body"] == "Managed a synthetic team of 50."
 
 
-@pytest.mark.parametrize(
-    ("section_kind", "evidence_kind"),
-    [
-        ("experience", "experience"),
-        ("achievements", "achievement"),
-        ("skills", "skill"),
-        ("education", "education"),
-        ("projects", "project"),
-        ("certifications", "certification"),
-    ],
-)
-def test_custom_tailoring_edits_stage_the_typed_r11_evidence_kind(
-    client, auth_headers, test_user, confirmed_evidence, section_kind, evidence_kind
+def test_history_still_lists_runs_saved_by_earlier_quality_and_tailoring_checks(
+    client, auth_headers, db, test_user
 ):
-    section = _section(confirmed_evidence.id)
-    section["kind"] = section_kind
-    document = client.post(
-        PREFIX, json={"name": section_kind, "sections": [section]}, headers=auth_headers
-    ).json()
-    change = {
-        "id": "typed-edit",
-        "section_id": "section-achievements",
-        "entry_id": "entry-one",
-        "before": "Improved a synthetic process by 20%.",
-        "after": "Improved a synthetic platform process by 20%.",
-        "job_requirement": "Relevant evidence",
-        "evidence_item_ids": [confirmed_evidence.id],
-        "support": "confirmed",
-    }
-    request = _signed(
-        document["id"],
-        test_user.id,
-        {
-            "request_id": "f5ac39c0-5a76-4e94-98f1-a0fd8b42a5b2",
-            "variant_name": "unused",
-            "job_title": "Target",
-            "changes": [change],
-            "decisions": [],
-        },
-    )
-    response = client.post(
-        f"{PREFIX}/{document['id']}/tailoring/edit-proposals",
-        json={key: request[key] for key in ("request_id", "job_title", "proposal_token", "changes")}
-        | {"change_id": "typed-edit", "edited_after": "New user-authored wording."},
-        headers=auth_headers,
-    )
-    assert response.status_code == 201
-    assert response.json()["kind"] == evidence_kind
-    assert response.json()["confirmation_state"] == "unconfirmed"
+    """Rows written before #362 stay in users' history; every view must render them."""
+    legacy = [
+        persist_tool_run(
+            db,
+            current_user=test_user,
+            tool_name=tool_name,
+            label=f"{tool_name} · legacy",
+            result=result,
+        )
+        for tool_name, result in (
+            ("cv-quality", {"schema_version": "cv-quality/v1", "dimensions": [], "ats_checks": []}),
+            ("cv-tailoring", {"schema_version": "cv-tailoring/v1", "changes": []}),
+        )
+    ]
+
+    listing = client.get("/api/v1/history", headers=auth_headers)
+    campaigns = client.get("/api/v1/history/workspaces", headers=auth_headers)
+    details = [client.get(f"/api/v1/history/{run.id}", headers=auth_headers) for run in legacy]
+
+    assert listing.status_code == 200
+    assert {item["tool_name"] for item in listing.json()["items"]} == {"cv-quality", "cv-tailoring"}
+    assert campaigns.status_code == 200
+    assert [detail.status_code for detail in details] == [200, 200]

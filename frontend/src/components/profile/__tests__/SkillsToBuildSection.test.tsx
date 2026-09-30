@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -7,150 +8,103 @@ import { SkillsToBuildSection } from '#/components/profile/SkillsToBuildSection'
 const getPlanMock = vi.hoisted(() => vi.fn())
 const updateItemMock = vi.hoisted(() => vi.fn())
 const deleteItemMock = vi.hoisted(() => vi.fn())
-const confirmEvidenceMock = vi.hoisted(() => vi.fn())
-const declineEvidenceMock = vi.hoisted(() => vi.fn())
 const warmEvidenceFetchMock = vi.hoisted(() => vi.fn())
-const warmRecommendationsFetchMock = vi.hoisted(() => vi.fn())
 
 vi.mock('#/lib/api/development', () => ({
   getDevelopmentPlan: getPlanMock,
   updateDevelopmentItem: updateItemMock,
   deleteDevelopmentItem: deleteItemMock,
-  confirmDevelopmentEvidence: confirmEvidenceMock,
-  declineDevelopmentEvidence: declineEvidenceMock,
+}))
+
+vi.mock('@tanstack/react-router', () => ({
+  Link: ({ children, to }: { children: ReactNode; to: string }) => <a href={to}>{children}</a>,
 }))
 
 function makeItem(overrides: Partial<DevelopmentItem>): DevelopmentItem {
   return {
-    id: 'id',
+    id: 'd1',
     gap_classification_id: 'g1',
     gap_kind: 'presentation_weakness',
     response_kind: 'reword',
     state: 'planned',
     target_date: null,
     notes: null,
-    source_finding_id: null,
-    timeline: [],
-    evidence_proposal: null,
+    evidence_item_id: null,
     created_at: '2026-07-20T00:00:00Z',
     updated_at: '2026-07-20T00:00:00Z',
     ...overrides,
   }
 }
 
-const items: DevelopmentItem[] = [
-  makeItem({
-    id: 'd1',
-    response_kind: 'reword',
-    gap_kind: 'presentation_weakness',
-    state: 'planned',
-  }),
+const items = [
+  makeItem({ id: 'd1' }),
   makeItem({
     id: 'd2',
     response_kind: 'learn_skill',
     gap_kind: 'missing_skill',
-    state: 'in_progress',
-    target_date: '2026-08-01',
+    state: 'completed',
     notes: 'Take a course',
+    evidence_item_id: 'e1',
   }),
 ]
 
-function WarmEvidenceConsumers() {
-  useQuery({
-    queryKey: ['evidence-profile', 'items'],
-    queryFn: warmEvidenceFetchMock,
-  })
-  useQuery({
-    queryKey: ['discovery', 'recommendations'],
-    queryFn: warmRecommendationsFetchMock,
-  })
+function WarmEvidenceConsumer() {
+  useQuery({ queryKey: ['evidence-profile', 'items'], queryFn: warmEvidenceFetchMock })
   return null
 }
 
-function renderSection({ warmEvidenceConsumers = false } = {}) {
+function renderSection() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={client}>
-      {warmEvidenceConsumers ? <WarmEvidenceConsumers /> : null}
+      <WarmEvidenceConsumer />
       <SkillsToBuildSection />
     </QueryClientProvider>,
   )
 }
 
+async function openMenu(scope: HTMLElement) {
+  fireEvent.keyDown(within(scope).getByRole('button', { name: /More actions/ }), { key: 'Enter' })
+  return screen.findByRole('menu')
+}
+
 describe('SkillsToBuildSection', () => {
   beforeEach(() => {
-    getPlanMock
-      .mockReset()
-      .mockResolvedValue({ schema_version: 'development-plan/v1', items })
+    getPlanMock.mockReset().mockResolvedValue({ schema_version: 'development-plan/v1', items })
     updateItemMock.mockReset().mockImplementation((id: string) => Promise.resolve(makeItem({ id })))
     deleteItemMock.mockReset().mockResolvedValue(undefined)
-    confirmEvidenceMock.mockReset().mockResolvedValue(
-      makeItem({
-        id: 'd3',
-        state: 'completed',
-        evidence_proposal: {
-          id: 'e1',
-          content: { statement: 'Completed the planned work.' },
-          confirmation_state: 'confirmed',
-        },
-      }),
-    )
-    declineEvidenceMock.mockReset().mockResolvedValue(
-      makeItem({ id: 'd3', state: 'completed' }),
-    )
     warmEvidenceFetchMock.mockReset().mockResolvedValue({ items: [] })
-    warmRecommendationsFetchMock.mockReset().mockResolvedValue({
-      confirmed_item_count: 0,
-      preference_item_count: 0,
-      items: [],
-    })
   })
 
-  it('renders as the "Skills to build" section with an anchorable id', async () => {
-    renderSection()
-
-    const section = await screen.findByRole('region', { name: 'Skills to build' })
-    expect(section.id).toBe('skills-to-build')
-    expect(within(section).getByRole('heading', { name: 'Skills to build' })).toBeTruthy()
-  })
-
-  it('renders items grouped by response kind with a labeled status control', async () => {
+  it('renders each skill in its group with its status, notes and profile link', async () => {
     renderSection()
 
     const reword = await screen.findByRole('region', { name: 'Reword existing content' })
+    expect((within(reword).getByLabelText('Status') as HTMLSelectElement).value).toBe('planned')
     const learn = screen.getByRole('region', { name: 'Learn a new skill' })
-
-    const rewordStatus = within(reword).getByRole('combobox') as HTMLSelectElement
-    expect(rewordStatus.value).toBe('planned')
-    expect(within(reword).getByText('Planned', { selector: '.development-state' })).toBeTruthy()
-    expect(within(reword).getByLabelText('Status')).toBe(rewordStatus)
-
-    const learnStatus = within(learn).getByRole('combobox') as HTMLSelectElement
-    expect(learnStatus.value).toBe('in_progress')
     expect(within(learn).getByText('Take a course')).toBeTruthy()
+    expect(within(learn).getByText('Added to your profile')).toBeTruthy()
   })
 
-  it('changes an item state through the update endpoint', async () => {
+  it('completing a skill saves it and refreshes the profile', async () => {
     renderSection()
 
     const reword = await screen.findByRole('region', { name: 'Reword existing content' })
-    fireEvent.change(within(reword).getByRole('combobox'), {
-      target: { value: 'in_progress' },
+    await waitFor(() => expect(warmEvidenceFetchMock).toHaveBeenCalledTimes(1))
+    fireEvent.change(within(reword).getByLabelText('Status'), { target: { value: 'completed' } })
+
+    await waitFor(() => expect(updateItemMock).toHaveBeenCalledWith('d1', { state: 'completed' }))
+    await waitFor(() => expect(warmEvidenceFetchMock).toHaveBeenCalledTimes(2))
+  })
+
+  it('edits the target date and notes from the card menu', async () => {
+    renderSection()
+
+    const menu = await openMenu(await screen.findByRole('region', { name: 'Reword existing content' }))
+    fireEvent.click(within(menu).getByRole('menuitem', { name: /Edit/ }))
+    fireEvent.change(await screen.findByLabelText('Target date (optional)'), {
+      target: { value: '2026-09-01' },
     })
-
-    await waitFor(() =>
-      expect(updateItemMock).toHaveBeenCalledWith('d1', { state: 'in_progress' }),
-    )
-  })
-
-  it('edits the target date and notes through the update endpoint', async () => {
-    renderSection()
-
-    const reword = await screen.findByRole('region', { name: 'Reword existing content' })
-    fireEvent.click(within(reword).getByRole('button', { name: /Edit/i }))
-
-    const dateInput = await screen.findByLabelText('Target date (optional)')
-    fireEvent.change(dateInput, { target: { value: '2026-09-01' } })
     fireEvent.change(screen.getByLabelText('Notes (optional)'), {
       target: { value: 'Rewrite the summary' },
     })
@@ -164,117 +118,22 @@ describe('SkillsToBuildSection', () => {
     )
   })
 
-  it('deletes an item after confirmation', async () => {
+  it('deletes a skill through the confirm dialog', async () => {
     renderSection()
 
-    const reword = await screen.findByRole('region', { name: 'Reword existing content' })
-    fireEvent.click(within(reword).getByRole('button', { name: /Delete/i }))
-
+    const menu = await openMenu(await screen.findByRole('region', { name: 'Reword existing content' }))
+    fireEvent.click(within(menu).getByRole('menuitem', { name: /Delete/ }))
     const dialog = await screen.findByRole('dialog')
     fireEvent.click(within(dialog).getByRole('button', { name: /Delete item/i }))
 
     await waitFor(() => expect(deleteItemMock).toHaveBeenCalledWith('d1'))
   })
 
-  it('offers reachable confirm and decline actions for a completion proposal', async () => {
-    getPlanMock.mockResolvedValue({
-      schema_version: 'development-plan/v1',
-      items: [
-        makeItem({
-          id: 'd3',
-          state: 'completed',
-          evidence_proposal: {
-            id: 'e1',
-            content: { statement: 'Rewrote the CV summary around measured outcomes.' },
-            confirmation_state: 'unconfirmed',
-          },
-        }),
-      ],
-    })
-    renderSection()
-
-    const group = await screen.findByRole('region', { name: 'Reword existing content' })
-    expect(within(group).getByText(/ready to become reusable evidence/i)).toBeTruthy()
-    expect(
-      within(group).getByText('Rewrote the CV summary around measured outcomes.'),
-    ).toBeTruthy()
-    fireEvent.click(within(group).getByRole('button', { name: 'Confirm evidence' }))
-    await waitFor(() => expect(confirmEvidenceMock).toHaveBeenCalledWith('d3'))
-
-    fireEvent.click(within(group).getByRole('button', { name: 'Decline proposal' }))
-    await waitFor(() => expect(declineEvidenceMock).toHaveBeenCalledWith('d3'))
-  })
-
-  it.each([
-    {
-      actionName: 'Confirm evidence',
-      mutation: confirmEvidenceMock,
-      expectedRecommendationCalls: 2,
-    },
-    {
-      actionName: 'Decline proposal',
-      mutation: declineEvidenceMock,
-      expectedRecommendationCalls: 1,
-    },
-  ])(
-    '$actionName refreshes warm evidence consumers with ranking impact respected',
-    async ({ actionName, mutation, expectedRecommendationCalls }) => {
-      getPlanMock.mockResolvedValue({
-        schema_version: 'development-plan/v1',
-        items: [
-          makeItem({
-            id: 'd3',
-            state: 'completed',
-            evidence_proposal: {
-              id: 'e1',
-              content: { statement: 'Rewrote the CV summary around measured outcomes.' },
-              confirmation_state: 'unconfirmed',
-            },
-          }),
-        ],
-      })
-      renderSection({ warmEvidenceConsumers: true })
-
-      const group = await screen.findByRole('region', { name: 'Reword existing content' })
-      await waitFor(() => expect(warmEvidenceFetchMock).toHaveBeenCalledTimes(1))
-      await waitFor(() => expect(warmRecommendationsFetchMock).toHaveBeenCalledTimes(1))
-
-      fireEvent.click(within(group).getByRole('button', { name: actionName }))
-
-      await waitFor(() => expect(mutation).toHaveBeenCalledWith('d3'))
-      await waitFor(() => expect(getPlanMock).toHaveBeenCalledTimes(2))
-      await waitFor(() => expect(warmEvidenceFetchMock).toHaveBeenCalledTimes(2))
-      expect(warmRecommendationsFetchMock).toHaveBeenCalledTimes(expectedRecommendationCalls)
-    },
-  )
-
-  it('shows confirmed evidence without offering proposal actions again', async () => {
-    getPlanMock.mockResolvedValue({
-      schema_version: 'development-plan/v1',
-      items: [
-        makeItem({
-          id: 'd3',
-          state: 'completed',
-          evidence_proposal: {
-            id: 'e1',
-            content: { statement: 'Rewrote the CV summary around measured outcomes.' },
-            confirmation_state: 'confirmed',
-          },
-        }),
-      ],
-    })
-    renderSection()
-
-    const group = await screen.findByRole('region', { name: 'Reword existing content' })
-    expect(within(group).getByText('Evidence confirmed')).toBeTruthy()
-    expect(within(group).queryByRole('button', { name: 'Decline proposal' })).toBeNull()
-  })
-
-  it('renders nothing when there are no development items', async () => {
+  it('shows an empty panel pointing to Campaigns when there is nothing to build', async () => {
     getPlanMock.mockResolvedValue({ schema_version: 'development-plan/v1', items: [] })
-    const { container } = renderSection()
+    renderSection()
 
-    await waitFor(() => expect(getPlanMock).toHaveBeenCalled())
-    await waitFor(() => expect(container.querySelector('#skills-to-build')).toBeNull())
+    expect(await screen.findByText('Nothing to build yet')).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Open applications' }).getAttribute('href')).toBe('/campaigns')
   })
 })

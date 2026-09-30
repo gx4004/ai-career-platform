@@ -1,29 +1,32 @@
 import type { CSSProperties } from 'react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
 import {
   ArrowUpRight,
-  BadgeCheck,
+  ChevronLeft,
+  ChevronRight,
   Compass,
   EyeOff,
   FolderPlus,
   MapPin,
+  MoreHorizontal,
   Search,
   SearchX,
   SlidersHorizontal,
   Sparkles,
-  Undo2,
   X,
 } from 'lucide-react'
-import {
-  StatusPill,
-  WorkspaceEmpty,
-  WorkspaceHero,
-  WorkspacePage,
-} from '#/components/app/WorkspacePage'
+import { PageHero } from '#/components/app/PageHero'
+import { StatusPill, WorkspaceEmpty, WorkspacePage } from '#/components/app/WorkspacePage'
 import { Button } from '#/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '#/components/ui/dropdown-menu'
 import {
   Sheet,
   SheetContent,
@@ -34,20 +37,32 @@ import {
 import {
   adoptDiscoveryRecommendation,
   dismissDiscoveryRecommendation,
-  getDiscoveryPersonalization,
+  getDiscoveryListing,
   searchDiscoveryListings,
   undismissDiscoveryRecommendation,
-  unhideDiscoverySource,
 } from '#/lib/api/client'
 import type { DiscoveryListing } from '#/lib/api/schemas'
+import { getNavDestination } from '#/lib/navigation/navGroups'
 import { DISCOVERY_RECOMMENDATIONS_QUERY_KEY } from '#/lib/query/evidenceCaches'
 import { writeWorkflowContext } from '#/lib/tools/drafts'
 
-const PAGE_SIZE = 20
-const PERSONALIZATION_KEY = ['discovery', 'personalization']
+const DiscoverIcon = getNavDestination('/discovery').icon
+const PAGE_SIZE = 10
 // Under the recommendations prefix so Evidence Profile edits (which change the
 // match scores) invalidate the search too.
 const LISTINGS_KEY = [...DISCOVERY_RECOMMENDATIONS_QUERY_KEY, 'listings']
+type SearchParams = Omit<Parameters<typeof searchDiscoveryListings>[0], 'page' | 'limit'>
+const listingsQuery = (params: SearchParams, page: number) => ({
+  queryKey: [...LISTINGS_KEY, params, page],
+  queryFn: () => searchDiscoveryListings({ ...params, page, limit: PAGE_SIZE }),
+  staleTime: 60_000,
+})
+// List responses carry a short preview; the full description is fetched on demand.
+const detailQuery = (listingId: string) => ({
+  queryKey: [...LISTINGS_KEY, 'detail', listingId],
+  queryFn: () => getDiscoveryListing(listingId),
+  staleTime: 5 * 60_000,
+})
 
 const POSTED_WITHIN = [
   { value: '', label: 'Any time' },
@@ -87,6 +102,7 @@ function useDebounced<T>(value: T, delay = 300): T {
 export function DiscoveryPage() {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
+  const resultsRef = useRef<HTMLElement>(null)
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS)
   const [openListing, setOpenListing] = useState<DiscoveryListing | null>(null)
   const [filtersOpen, setFiltersOpen] = useState(false)
@@ -94,7 +110,7 @@ export function DiscoveryPage() {
   const q = useDebounced(filters.q.trim())
   const location = useDebounced(filters.location.trim())
 
-  const params = {
+  const params: SearchParams = {
     q: q || undefined,
     location: location || undefined,
     remote: filters.remote || undefined,
@@ -102,23 +118,31 @@ export function DiscoveryPage() {
     posted_within_days: filters.postedWithin ? Number(filters.postedWithin) : undefined,
     sort: filters.sort,
   }
-  const listings = useInfiniteQuery({
-    queryKey: [...LISTINGS_KEY, params],
-    queryFn: ({ pageParam }) =>
-      searchDiscoveryListings({ ...params, page: pageParam, limit: PAGE_SIZE }),
-    initialPageParam: 1,
-    getNextPageParam: (last) => (last.page * last.limit < last.total ? last.page + 1 : undefined),
-    staleTime: 60_000,
-  })
-  const personalization = useQuery({
-    queryKey: PERSONALIZATION_KEY,
-    queryFn: getDiscoveryPersonalization,
-    staleTime: 60_000,
-  })
+  // Any filter change starts again from page 1.
+  const paramsKey = JSON.stringify(params)
+  const [paging, setPaging] = useState({ key: paramsKey, page: 1 })
+  const page = paging.key === paramsKey ? paging.page : 1
+
+  const listings = useQuery({ ...listingsQuery(params, page), placeholderData: keepPreviousData })
+  // Page 1 carries the company filter options; it is already cached once you page on.
+  const firstPage = useQuery(listingsQuery(params, 1))
+
+  const data = listings.data
+  const lastPage = data ? Math.max(1, Math.ceil(data.total / data.limit)) : 1
+  // Hiding the only job on the last page leaves that page empty.
+  useEffect(() => {
+    if (data && !listings.isPlaceholderData && page > lastPage) {
+      setPaging({ key: paramsKey, page: lastPage })
+    }
+  }, [data, listings.isPlaceholderData, page, lastPage, paramsKey])
+
+  const goToPage = (next: number) => {
+    setPaging({ key: paramsKey, page: next })
+    resultsRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' })
+  }
 
   const refresh = () => {
     queryClient.invalidateQueries({ queryKey: LISTINGS_KEY })
-    queryClient.invalidateQueries({ queryKey: PERSONALIZATION_KEY })
   }
   const hide = useMutation({
     mutationFn: (listing: DiscoveryListing) => dismissDiscoveryRecommendation(listing.listing_id),
@@ -135,23 +159,23 @@ export function DiscoveryPage() {
       refresh()
     },
   })
-  const unhideCompany = useMutation({
-    mutationFn: (sourceId: string) => unhideDiscoverySource(sourceId),
-    onSuccess: refresh,
-  })
   const adopt = useMutation({
     mutationFn: (listingId: string) => adoptDiscoveryRecommendation(listingId),
-    onSuccess: (campaign) => {
-      navigate({ to: '/campaigns/$campaignId', params: { campaignId: campaign.id } })
+    onSuccess: (application) => {
+      navigate({ to: '/campaigns/$campaignId', params: { campaignId: application.id } })
     },
   })
 
-  const tailor = (listing: DiscoveryListing) => {
+  const tailor = async (listing: DiscoveryListing) => {
+    const description = await queryClient
+      .fetchQuery(detailQuery(listing.listing_id))
+      .then((detail) => detail.description)
+      .catch(() => listing.preview)
     // The workflow context is the tab-scoped handoff every tool already reads
     // its job title and description from.
     writeWorkflowContext({
       targetRole: listing.title,
-      jobDescription: `${listing.title} at ${listing.company}\n\n${listing.description}`,
+      jobDescription: `${listing.title} at ${listing.company}\n\n${description}`,
       // Tells CV Studio to open its tailor dialog prefilled on arrival (#324).
       tailorPending: true,
       updatedAt: Date.now(),
@@ -159,15 +183,9 @@ export function DiscoveryPage() {
     navigate({ to: '/cv-studio' })
   }
 
-  const first = listings.data?.pages[0]
-  // Hiding a job shifts later pages by one; de-duplicate across page seams.
-  const items = [
-    ...new Map(
-      (listings.data?.pages ?? []).flatMap((page) => page.items).map((item) => [item.listing_id, item]),
-    ).values(),
-  ]
-  const hasProfile = first?.has_profile ?? false
-  const hiddenCompanies = personalization.data?.hidden_sources ?? []
+  const items = data?.items ?? []
+  const companies = firstPage.data?.companies ?? []
+  const hasProfile = data?.has_profile ?? false
   const activeFilterCount = [
     filters.location, filters.company, filters.postedWithin, filters.remote ? 'remote' : '',
   ].filter(Boolean).length
@@ -183,30 +201,25 @@ export function DiscoveryPage() {
     hidingId: hide.isPending ? hide.variables?.listing_id : undefined,
   }
 
+  const heroAction = data && !hasProfile ? (
+    <Button asChild><Link to="/profile">Open my profile</Link></Button>
+  ) : (
+    <Button asChild variant="outline"><Link to="/campaigns">My applications</Link></Button>
+  )
+
   return (
     <WorkspacePage className="disc-page">
-      <WorkspaceHero
-        icon={Compass}
-        eyebrow="Job discovery"
+      <PageHero
+        icon={DiscoverIcon}
         title="Discover jobs"
-        subtitle="Real openings posted on company career sites, checked against the skills you confirmed in your profile."
-        stats={[
-          { label: 'Jobs available', value: formatCount(first?.stats.jobs) },
-          { label: 'Companies', value: formatCount(first?.stats.companies) },
-          { label: 'New this week', value: formatCount(first?.stats.new_this_week) },
-        ]}
+        purpose={
+          data && !hasProfile
+            ? 'Real openings from company career sites. Confirm skills in your profile to see how well each one fits.'
+            : 'Real openings from company career sites, matched to the skills in your profile.'
+        }
+        action={heroAction}
+        chips={data && !filtered ? [`${formatCount(data.total)} open ${data.total === 1 ? 'job' : 'jobs'}`] : undefined}
       />
-
-      {first && !hasProfile ? (
-        <div className="disc-nudge" role="note">
-          <BadgeCheck size={18} aria-hidden="true" />
-          <p>
-            <strong>See how well each job fits you.</strong> Confirm a few skills in your
-            profile and every job gets a match score.
-          </p>
-          <Link to="/profile" className="disc-nudge__link">Open my profile</Link>
-        </div>
-      ) : null}
 
       <div className="disc-filters" role="search" aria-label="Filter jobs">
         <label className="disc-search">
@@ -220,7 +233,7 @@ export function DiscoveryPage() {
           />
         </label>
         <div className="disc-filters__inline">
-          <FilterFields filters={filters} companies={first?.companies ?? []} onChange={update} />
+          <FilterFields filters={filters} companies={companies} onChange={update} />
         </div>
         <button
           type="button"
@@ -241,7 +254,7 @@ export function DiscoveryPage() {
             <SheetDescription>Narrow the list to the jobs you want to see.</SheetDescription>
           </SheetHeader>
           <div className="disc-filter-sheet__body">
-            <FilterFields filters={filters} companies={first?.companies ?? []} onChange={update} stacked />
+            <FilterFields filters={filters} companies={companies} onChange={update} stacked />
           </div>
           <div className="disc-filter-sheet__footer">
             <Button type="button" variant="ghost" onClick={() => setFilters({ ...EMPTY_FILTERS, q: filters.q })}>
@@ -252,29 +265,13 @@ export function DiscoveryPage() {
         </SheetContent>
       </Sheet>
 
-      {hiddenCompanies.length > 0 ? (
-        <div className="disc-hidden" aria-label="Hidden companies">
-          <span>Hidden companies:</span>
-          {hiddenCompanies.map((source) => (
-            <button
-              key={source.source_id}
-              type="button"
-              onClick={() => unhideCompany.mutate(source.source_id)}
-              disabled={unhideCompany.isPending}
-              aria-label={`Show ${source.display_name} again`}
-            >
-              {source.display_name} <Undo2 size={12} aria-hidden="true" />
-            </button>
-          ))}
-        </div>
-      ) : null}
-
-      <section className="disc-results" aria-label="Jobs">
+      <section className="disc-results" aria-label="Jobs" ref={resultsRef}>
         <div className="disc-results__head">
           <p className="disc-results__count" aria-live="polite">
-            {first ? (
+            {data && data.total > 0 ? (
               <>
-                <strong>{formatCount(first.total)}</strong> {first.total === 1 ? 'job' : 'jobs'}
+                <strong>{rangeLabel(data.page, data.limit, items.length)}</strong> of{' '}
+                <strong>{formatCount(data.total)}</strong>
                 {hasProfile && filters.sort === 'best_match' ? ' · best matches first' : ' · newest first'}
               </>
             ) : ' '}
@@ -310,7 +307,7 @@ export function DiscoveryPage() {
             )
           : null}
         {adopt.isError ? (
-          <p className="disc-error" role="alert">That job could not be added to a campaign. Try again.</p>
+          <p className="disc-error" role="alert">That job could not be added to your applications. Try again.</p>
         ) : null}
 
         {listings.isPending ? (
@@ -336,31 +333,19 @@ export function DiscoveryPage() {
             <WorkspaceEmpty
               icon={Compass}
               title="No jobs yet"
-              description="New openings are added every day. Check back soon."
+              description="New openings are added every day. Add the ones you like to Applications, where we help you prepare each one."
             />
           )
         ) : (
           <>
-            <ol className="disc-list">
+            <ol className="disc-list" aria-busy={listings.isPlaceholderData}>
               {items.map((listing) => (
                 <li key={listing.listing_id}>
                   <JobCard listing={listing} actions={actions} />
                 </li>
               ))}
             </ol>
-            {listings.hasNextPage ? (
-              <div className="disc-more">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => listings.fetchNextPage()}
-                  loading={listings.isFetchingNextPage}
-                >
-                  Show more jobs
-                </Button>
-                <span>{items.length} of {formatCount(first?.total)}</span>
-              </div>
-            ) : null}
+            {lastPage > 1 ? <Pagination page={page} lastPage={lastPage} onChange={goToPage} /> : null}
           </>
         )}
       </section>
@@ -428,11 +413,24 @@ function FilterFields({
 
 type CardActions = {
   onOpen: (listing: DiscoveryListing) => void
-  onTailor: (listing: DiscoveryListing) => void
+  onTailor: (listing: DiscoveryListing) => Promise<void>
   onAdopt: (listing: DiscoveryListing) => void
   onHide: (listing: DiscoveryListing) => void
   adoptingId?: string
   hidingId?: string
+}
+
+function AdoptButton({ listing, actions }: { listing: DiscoveryListing; actions: CardActions }) {
+  return (
+    <Button
+      type="button"
+      size="sm"
+      onClick={() => actions.onAdopt(listing)}
+      loading={actions.adoptingId === listing.listing_id}
+    >
+      <FolderPlus size={14} aria-hidden="true" /> Add to applications
+    </Button>
+  )
 }
 
 function JobCard({ listing, actions }: { listing: DiscoveryListing; actions: CardActions }) {
@@ -451,18 +449,42 @@ function JobCard({ listing, actions }: { listing: DiscoveryListing; actions: Car
           </div>
           <MatchScore listing={listing} />
         </div>
-        <p className="disc-card__preview">{preview(listing.description)}</p>
-        {listing.matched_keywords.length > 0 ? (
-          <p className="disc-card__skills">
-            <span>Matches your profile:</span>
-            {listing.matched_keywords.slice(0, 4).map((keyword) => (
-              <span key={keyword} className="disc-chip">{keyword}</span>
-            ))}
-          </p>
-        ) : null}
+        <p className="disc-card__preview">{listing.preview}</p>
         <div className="disc-card__footer">
-          <JobActions listing={listing} actions={actions} />
+          {listing.matched_keywords.length > 0 ? (
+            <p className="disc-card__skills" aria-label="Matches your profile">
+              {listing.matched_keywords.slice(0, 3).map((keyword) => (
+                <span key={keyword} className="disc-chip">{keyword}</span>
+              ))}
+            </p>
+          ) : null}
           <span className="disc-card__via">via {listing.source_name}</span>
+          <div className="disc-card__actions">
+            <AdoptButton listing={listing} actions={actions} />
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button type="button" size="icon-sm" variant="ghost" aria-label={`More actions for ${listing.title}`}>
+                  <MoreHorizontal size={16} aria-hidden="true" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuItem onSelect={() => void actions.onTailor(listing)}>
+                  <Sparkles aria-hidden="true" /> Tailor my CV
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <a href={listing.apply_url ?? listing.source_url} target="_blank" rel="noopener noreferrer">
+                    <ArrowUpRight aria-hidden="true" /> Apply on company site
+                  </a>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={() => actions.onHide(listing)}
+                  disabled={actions.hidingId === listing.listing_id}
+                >
+                  <EyeOff aria-hidden="true" /> Hide this job
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
       </div>
     </article>
@@ -470,6 +492,7 @@ function JobCard({ listing, actions }: { listing: DiscoveryListing; actions: Car
 }
 
 function JobDetails({ listing, actions }: { listing: DiscoveryListing; actions: CardActions }) {
+  const detail = useQuery(detailQuery(listing.listing_id))
   return (
     <div className="disc-drawer__inner">
       <SheetHeader className="disc-drawer__head">
@@ -485,9 +508,30 @@ function JobDetails({ listing, actions }: { listing: DiscoveryListing; actions: 
         <MatchScore listing={listing} detailed />
       </SheetHeader>
       {/* Plain text on purpose: listing descriptions come from third-party boards. */}
-      <div className="disc-drawer__description">{listing.description}</div>
+      <div className="disc-drawer__description" aria-busy={detail.isPending}>
+        {detail.data?.description ?? (detail.isError ? listing.preview : 'Loading the full description…')}
+      </div>
       <div className="disc-drawer__footer">
-        <JobActions listing={listing} actions={actions} />
+        <div className="disc-drawer__actions">
+          <AdoptButton listing={listing} actions={actions} />
+          <Button type="button" size="sm" variant="outline" onClick={() => void actions.onTailor(listing)}>
+            <Sparkles size={14} aria-hidden="true" /> Tailor my CV
+          </Button>
+          <Button asChild size="sm" variant="outline">
+            <a href={listing.apply_url ?? listing.source_url} target="_blank" rel="noopener noreferrer">
+              Apply on company site <ArrowUpRight size={14} aria-hidden="true" />
+            </a>
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            onClick={() => actions.onHide(listing)}
+            disabled={actions.hidingId === listing.listing_id}
+          >
+            <EyeOff size={14} aria-hidden="true" /> Hide
+          </Button>
+        </div>
         <span className="disc-card__via">
           via {listing.source_name} ·{' '}
           <a href={listing.source_url} target="_blank" rel="noopener noreferrer">original listing</a>
@@ -497,37 +541,45 @@ function JobDetails({ listing, actions }: { listing: DiscoveryListing; actions: 
   )
 }
 
-function JobActions({ listing, actions }: { listing: DiscoveryListing; actions: CardActions }) {
+function Pagination({ page, lastPage, onChange }: { page: number; lastPage: number; onChange: (page: number) => void }) {
   return (
-    <div className="disc-actions">
-      <Button type="button" size="sm" onClick={() => actions.onTailor(listing)}>
-        <Sparkles size={14} aria-hidden="true" /> Tailor my CV
+    <nav className="disc-pager" aria-label="Pages">
+      <Button type="button" size="sm" variant="ghost" disabled={page <= 1} onClick={() => onChange(page - 1)}>
+        <ChevronLeft size={14} aria-hidden="true" /> Previous
       </Button>
-      <Button
-        type="button"
-        size="sm"
-        variant="outline"
-        onClick={() => actions.onAdopt(listing)}
-        loading={actions.adoptingId === listing.listing_id}
-      >
-        <FolderPlus size={14} aria-hidden="true" /> Add to campaign
+      <ol className="disc-pager__pages">
+        {pageNumbers(page, lastPage).map((number, index) =>
+          number === null ? (
+            <li key={`gap-${index}`} className="disc-pager__gap" aria-hidden="true">…</li>
+          ) : (
+            <li key={number}>
+              <button
+                type="button"
+                className="disc-pager__page"
+                aria-label={`Page ${number}`}
+                aria-current={number === page ? 'page' : undefined}
+                onClick={() => onChange(number)}
+              >
+                {number}
+              </button>
+            </li>
+          ),
+        )}
+      </ol>
+      <Button type="button" size="sm" variant="ghost" disabled={page >= lastPage} onClick={() => onChange(page + 1)}>
+        Next <ChevronRight size={14} aria-hidden="true" />
       </Button>
-      <Button asChild size="sm" variant="outline">
-        <a href={listing.apply_url ?? listing.source_url} target="_blank" rel="noopener noreferrer">
-          Apply on company site <ArrowUpRight size={14} aria-hidden="true" />
-        </a>
-      </Button>
-      <Button
-        type="button"
-        size="sm"
-        variant="ghost"
-        onClick={() => actions.onHide(listing)}
-        disabled={actions.hidingId === listing.listing_id}
-        aria-label={`Hide ${listing.title}`}
-      >
-        <EyeOff size={14} aria-hidden="true" /> Hide
-      </Button>
-    </div>
+    </nav>
+  )
+}
+
+/** First, last and the current page's neighbours; null marks a gap. */
+function pageNumbers(page: number, lastPage: number): (number | null)[] {
+  const shown = [...new Set([1, page - 1, page, page + 1, lastPage])]
+    .filter((number) => number >= 1 && number <= lastPage)
+    .sort((a, b) => a - b)
+  return shown.flatMap((number, index) =>
+    index > 0 && number - shown[index - 1] > 1 ? [null, number] : [number],
   )
 }
 
@@ -538,7 +590,6 @@ function JobMeta({ listing }: { listing: DiscoveryListing }) {
       <span className="disc-meta__company">{listing.company}</span>
       {listing.location ? <span>{listing.location}</span> : null}
       {listing.remote ? <StatusPill tone="accent">Remote</StatusPill> : null}
-      {listing.department ? <span className="disc-meta__dept">{listing.department}</span> : null}
       {posted ? <span className="disc-meta__posted">{posted}</span> : null}
     </p>
   )
@@ -569,11 +620,6 @@ function CompanyAvatar({ name }: { name: string }) {
   )
 }
 
-function preview(description: string): string {
-  const text = description.replace(/\s+/g, ' ').trim()
-  return text.length > 240 ? `${text.slice(0, 240).trimEnd()}…` : text
-}
-
 function relativeDays(value: string | null, now = Date.now()): string | null {
   if (!value) return null
   const days = Math.floor((now - new Date(value).getTime()) / 86_400_000)
@@ -585,6 +631,11 @@ function relativeDays(value: string | null, now = Date.now()): string | null {
   return months < 12 ? `Posted ${months} ${months === 1 ? 'month' : 'months'} ago` : 'Posted over a year ago'
 }
 
-function formatCount(value: number | undefined): string {
-  return value === undefined ? '—' : value.toLocaleString('en-US')
+function rangeLabel(page: number, limit: number, count: number): string {
+  const start = (page - 1) * limit + 1
+  return `${start}–${start + count - 1}`
+}
+
+function formatCount(value: number): string {
+  return value.toLocaleString('en-US')
 }

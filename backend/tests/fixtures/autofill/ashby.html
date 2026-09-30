@@ -1,0 +1,114 @@
+<!doctype html>
+<!-- Hand-built fixture shaped like a jobs.ashbyhq.com /application page (React,
+     no <form> element, Yes/No buttons over a hidden checkbox, submission by a
+     GraphQL POST). Structure only; never a copy of a live page. Tests serve it
+     under the real host. -->
+<html>
+<head><meta charset="utf-8"><title>Backend Engineer @ Acme</title></head>
+<body>
+<script>
+  window.__submitted = false;
+  function cwSubmit() {
+    window.__submitted = true;
+    fetch('/api/non-user-graphql?op=ApiSubmitSingleApplicationFormAction',
+          {method: 'POST', body: '{}'}).catch(() => {});
+  }
+  // Like Ashby, uploading a resume fills fields from the parsed file shortly after.
+  function cwParseResume() {
+    setTimeout(() => {
+      document.getElementById('_systemfield_name').value = 'A. Lovelace (parsed)';
+    }, 50);
+  }
+</script>
+<div id="root"><div class="ashby-job-posting-right-pane">
+<div class="ashby-application-form-container">
+  <div class="ashby-application-form-autofill-input-root">
+    <p class="ashby-application-form-autofill-input-title">Autofill from resume</p>
+    <p>Upload your resume here to autofill key application fields.</p>
+    <button type="button">Upload file</button>
+    <input type="file" id="_autofill_resume" style="display:none" onchange="cwParseResume()">
+  </div>
+  <div class="ashby-application-form-section-container">
+    <div class="ashby-application-form-field-entry">
+      <label class="ashby-application-form-question-title" for="_systemfield_name">Name<span class="_required">*</span></label>
+      <input id="_systemfield_name" name="_systemfield_name" type="text" placeholder="Type here..." required>
+    </div>
+    <div class="ashby-application-form-field-entry">
+      <label class="ashby-application-form-question-title" for="_systemfield_email">Email<span class="_required">*</span></label>
+      <input id="_systemfield_email" name="_systemfield_email" type="email" placeholder="hello@example.com..." required>
+    </div>
+    <div class="ashby-application-form-field-entry">
+      <label class="ashby-application-form-question-title" for="8c1f0e1a">Phone Number</label>
+      <input id="8c1f0e1a" name="8c1f0e1a" type="tel" placeholder="1-415-555-1234...">
+    </div>
+    <div class="ashby-application-form-field-entry">
+      <label class="ashby-application-form-question-title" for="_systemfield_resume">Resume<span class="_required">*</span></label>
+      <div class="_container"><button type="button">Upload File</button>
+        <input id="_systemfield_resume" name="_systemfield_resume" type="file" style="display:none"
+               onchange="cwParseResume()"></div>
+    </div>
+    <div class="ashby-application-form-field-entry">
+      <label class="ashby-application-form-question-title" for="a2b3c4d5">LinkedIn Profile</label>
+      <input id="a2b3c4d5" name="a2b3c4d5" type="text" placeholder="Type here...">
+    </div>
+    <div class="ashby-application-form-field-entry">
+      <label class="ashby-application-form-question-title" for="loc-1">Location</label>
+      <input id="loc-1" role="combobox" aria-autocomplete="list" aria-expanded="false"
+             type="text" placeholder="Start typing...">
+    </div>
+    <div class="ashby-application-form-field-entry">
+      <label class="ashby-application-form-question-title" for="notice-1">What is your notice period?</label>
+      <input id="notice-1" name="notice-1" type="text" placeholder="Type here...">
+    </div>
+    <div class="ashby-application-form-field-entry">
+      <label class="ashby-application-form-question-title">Are you legally authorized to work in the UK?<span class="_required">*</span></label>
+      <div class="_yesno_1a2b3"><button type="button" class="_option_1a2b3">Yes</button><button type="button" class="_option_1a2b3">No</button></div>
+      <input type="checkbox" name="auth-1" style="display:none" tabindex="-1">
+    </div>
+    <div class="ashby-application-form-field-entry">
+      <label class="ashby-application-form-question-title">Will you require visa sponsorship?<span class="_required">*</span></label>
+      <div class="_yesno_1a2b3"><button type="button" class="_option_1a2b3">Yes</button><button type="button" class="_option_1a2b3">No</button></div>
+      <input type="checkbox" name="visa-1" style="display:none" tabindex="-1">
+    </div>
+    <fieldset class="ashby-application-form-field-entry">
+      <legend class="ashby-application-form-question-title">How did you hear about us?</legend>
+      <label><input type="radio" name="heard-1" value="Friend"> Friend</label>
+      <label><input type="radio" name="heard-1" value="Job board"> Job board</label>
+    </fieldset>
+    <div class="ashby-application-form-field-entry">
+      <label class="ashby-application-form-question-title" for="why-1">Why do you want to work at Acme?</label>
+      <textarea id="why-1" name="why-1" placeholder="Type here..."></textarea>
+    </div>
+    <div class="ashby-application-form-field-entry">
+      <label class="ashby-application-form-question-title" for="cover-1">Cover Letter</label>
+      <div class="_container"><button type="button">Upload File</button>
+        <input id="cover-1" name="cover-1" type="file" style="display:none"></div>
+    </div>
+  </div>
+  <div class="ashby-application-form-section-container">
+    <h3>U.S. Equal Employment Opportunity Information</h3>
+    <fieldset class="ashby-application-form-field-entry">
+      <legend class="ashby-application-form-question-title">Gender</legend>
+      <label><input type="radio" name="eeo-gender" value="Male"> Male</label>
+      <label><input type="radio" name="eeo-gender" value="Female"> Female</label>
+      <label><input type="radio" name="eeo-gender" value="Decline"> Decline to self-identify</label>
+    </fieldset>
+    <fieldset class="ashby-application-form-field-entry">
+      <legend class="ashby-application-form-question-title">Race</legend>
+      <label><input type="radio" name="eeo-race" value="Decline"> Decline to self-identify</label>
+    </fieldset>
+    <fieldset class="ashby-application-form-field-entry">
+      <legend class="ashby-application-form-question-title">Veteran Status</legend>
+      <label><input type="radio" name="eeo-veteran" value="No"> I am not a protected veteran</label>
+    </fieldset>
+  </div>
+  <div class="ashby-application-form-field-entry">
+    <label class="ashby-application-form-question-title"><input type="checkbox" name="consent-1">
+      I agree to Acme's privacy policy</label>
+  </div>
+  <textarea name="g-recaptcha-response" style="display:none"></textarea>
+  <button type="button" class="ashby-application-form-submit-button" onclick="cwSubmit()">Submit Application</button>
+</div>
+</div></div>
+</body>
+</html>

@@ -7,6 +7,7 @@ import { HistoryPage } from '#/components/history/HistoryPage'
 const trackTelemetryMock = vi.hoisted(() => vi.fn())
 const navigateMock = vi.hoisted(() => vi.fn())
 const getHistoryItemMock = vi.hoisted(() => vi.fn())
+const historyItems = vi.hoisted(() => ({ current: [] as unknown[] }))
 
 const run = {
   id: 'run-1',
@@ -48,7 +49,7 @@ vi.mock('#/hooks/useFavoriteToggle', () => ({
 
 vi.mock('#/hooks/useHistory', () => ({
   useHistory: () => ({
-    data: { items: [run], total: 1, page: 1, page_size: 12, has_more: false },
+    data: { items: historyItems.current, total: historyItems.current.length, page: 1, page_size: 12, has_more: false },
     isPending: false,
     isLoading: false,
     isError: false,
@@ -58,7 +59,6 @@ vi.mock('#/hooks/useHistory', () => ({
 vi.mock('#/lib/api/client', async (importOriginal) => ({
   ...(await importOriginal<typeof import('#/lib/api/client')>()),
   getHistoryItem: getHistoryItemMock,
-  getHistoryWorkspaces: vi.fn().mockResolvedValue({ items: [] }),
 }))
 
 function renderPage() {
@@ -74,6 +74,7 @@ function renderPage() {
 
 describe('HistoryPage — workflow_continued telemetry (D-040)', () => {
   beforeEach(() => {
+    historyItems.current = [run]
     trackTelemetryMock.mockReset()
     navigateMock.mockReset().mockResolvedValue(undefined)
     getHistoryItemMock.mockReset().mockResolvedValue({
@@ -86,9 +87,7 @@ describe('HistoryPage — workflow_continued telemetry (D-040)', () => {
   it('fires workflow_continued once when continuing a completed run to its next tool', async () => {
     renderPage()
 
-    expect(screen.queryByRole('region', { name: 'Recent results reminder' })).toBeNull()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Continue: Match' }))
 
     await waitFor(() => expect(getHistoryItemMock).toHaveBeenCalledWith('run-1'))
     await waitFor(() =>
@@ -107,5 +106,20 @@ describe('HistoryPage — workflow_continued telemetry (D-040)', () => {
     await waitFor(() =>
       expect(navigateMock).toHaveBeenCalledWith({ to: '/job-match' }),
     )
+  })
+})
+
+describe('HistoryPage — runs saved by older CV Studio checks (#362)', () => {
+  it.each(['cv-quality', 'cv-tailoring'])('lists a %s run without an Open link or Continue', (toolName) => {
+    historyItems.current = [{ ...run, id: `legacy-${toolName}`, tool_name: toolName, label: 'Old check' }]
+
+    renderPage()
+
+    expect(screen.getByText('CV Studio')).toBeTruthy()
+    expect(screen.getByText('Older CV Studio run')).toBeTruthy()
+    expect(screen.getByText('Old check')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /^Continue/ })).toBeNull()
+    expect(screen.queryByRole('link', { name: /^Open Old check/ })).toBeNull()
+    expect(screen.queryAllByRole('link').filter((a) => a.getAttribute('href') === '/history')).toHaveLength(0)
   })
 })

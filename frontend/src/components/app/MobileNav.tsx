@@ -1,16 +1,19 @@
 import { useState, useEffect } from 'react'
 import { Link, useRouterState } from '@tanstack/react-router'
-import { Compass, Grid2x2, History, LayoutDashboard, UserRound } from 'lucide-react'
+import { Grid2x2, History, LayoutDashboard, LogIn, UserRound } from 'lucide-react'
 import { useBreakpoint } from '#/hooks/use-breakpoint'
 import { ToolGridSheet } from '#/components/mobile/ToolGridSheet'
 import { isPublicRoute } from '#/lib/navigation/publicRoutes'
 import { toolList } from '#/lib/tools/registry'
 import { useSession } from '#/hooks/useSession'
-import { isR14DiscoveryEnabled } from '#/lib/flags/featureFlags'
+import { getNavDestination } from '#/lib/navigation/navGroups'
+
+// Same icon + label as the sidebar and tools sheet (shared navGroups).
+const discover = getNavDestination('/discovery')
 
 export function MobileNav() {
   const [toolsOpen, setToolsOpen] = useState(false)
-  const { user } = useSession()
+  const { user, openAuthDialog } = useSession()
   const bp = useBreakpoint()
   const pathname = useRouterState({
     select: (state) => state.location.pathname,
@@ -56,15 +59,26 @@ export function MobileNav() {
           <span>History</span>
         </Link>
 
-        {user && isR14DiscoveryEnabled() ? (
+        {user ? (
           <Link
             to="/discovery"
             className={`mobile-tab-item${isActive('/discovery') ? ' is-active' : ''}`}
           >
-            <Compass size={20} strokeWidth={isActive('/discovery') ? 2.2 : 1.8} />
-            <span>Discover</span>
+            <discover.icon size={20} strokeWidth={isActive('/discovery') ? 2.2 : 1.8} />
+            <span>{discover.label}</span>
           </Link>
-        ) : null}
+        ) : (
+          // /discovery needs an account, so guests get a Sign in tab in the same
+          // slot. It keeps the bar at five tabs so widths do not jump on sign-in.
+          <button
+            type="button"
+            className="mobile-tab-item"
+            onClick={() => openAuthDialog({ to: '/discovery', reason: 'discovery' })}
+          >
+            <LogIn size={20} strokeWidth={1.8} />
+            <span>Sign in</span>
+          </button>
+        )}
 
         {/* Points at /account, not /profile — "Account" avoids colliding with
             the "You → Profile" nav destination (career facts, /profile). */}

@@ -1,43 +1,42 @@
 import type { ReactNode } from 'react'
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { EvidenceItem } from '#/lib/api/schemas'
 import { EvidenceProfilePage } from '#/components/profile/EvidenceProfilePage'
 
-const listEvidenceItemsMock = vi.hoisted(() => vi.fn())
-const setConfirmationMock = vi.hoisted(() => vi.fn())
-const updateItemMock = vi.hoisted(() => vi.fn())
-const deleteItemMock = vi.hoisted(() => vi.fn())
-const deleteProfileMock = vi.hoisted(() => vi.fn())
-const confirmImportedMock = vi.hoisted(() => vi.fn())
+const api = vi.hoisted(() => ({
+  listEvidenceItems: vi.fn(),
+  confirmEvidenceItem: vi.fn(),
+  confirmEvidenceItems: vi.fn(),
+  importEvidenceFromResume: vi.fn(),
+  updateEvidenceItem: vi.fn(),
+  deleteEvidenceItem: vi.fn(),
+  deleteEvidenceProfile: vi.fn(),
+}))
 const getDevelopmentPlanMock = vi.hoisted(() => vi.fn())
 const warmRecommendationsFetchMock = vi.hoisted(() => vi.fn())
 const openAuthDialogMock = vi.hoisted(() => vi.fn())
 const sessionState = vi.hoisted(() => ({ status: 'authenticated' as string }))
+const resumeCarry = vi.hoisted(() => ({ resumeText: '' }))
 
-vi.mock('#/lib/api/client', () => ({
-  listEvidenceItems: listEvidenceItemsMock,
-  setEvidenceItemConfirmation: setConfirmationMock,
-  updateEvidenceItem: updateItemMock,
-  deleteEvidenceItem: deleteItemMock,
-  deleteEvidenceProfile: deleteProfileMock,
-  confirmImportedEvidenceItems: confirmImportedMock,
-}))
+vi.mock('#/lib/api/client', () => api)
 
-// The "Skills to build" section is folded into this page (Phase 1b, #321) and
-// fetches through its own client module; keep it quiet by default so these
-// tests stay focused on the Evidence Profile surface.
 vi.mock('#/lib/api/development', () => ({
   getDevelopmentPlan: getDevelopmentPlanMock,
   updateDevelopmentItem: vi.fn(),
   deleteDevelopmentItem: vi.fn(),
-  confirmDevelopmentEvidence: vi.fn(),
-  declineDevelopmentEvidence: vi.fn(),
 }))
 
 vi.mock('#/hooks/useSession', () => ({
   useSession: () => ({ status: sessionState.status, openAuthDialog: openAuthDialogMock }),
+}))
+
+vi.mock('#/hooks/use-resume-carry', () => ({
+  useResumeCarry: () => ({
+    resumeText: resumeCarry.resumeText,
+    hasResume: resumeCarry.resumeText.length > 0,
+  }),
 }))
 
 vi.mock('#/components/app/AppStatePanel', () => ({
@@ -71,233 +70,153 @@ function makeItem(overrides: Partial<EvidenceItem>): EvidenceItem {
 }
 
 const items: EvidenceItem[] = [
-  makeItem({ id: 'e1', kind: 'experience', confirmation_state: 'unconfirmed', provenance: 'imported' }),
+  makeItem({ id: 'e1', kind: 'experience', content: { title: 'Backend Engineer' } }),
+  makeItem({ id: 'e2', kind: 'project', content: { name: 'Payments service' } }),
   makeItem({
     id: 's1',
     kind: 'skill',
-    content: { text: 'TypeScript' },
+    content: { name: 'TypeScript', level: 'Advanced' },
     confirmation_state: 'confirmed',
     provenance: 'user-entered',
   }),
 ]
 
 function WarmRecommendationsConsumer() {
-  useQuery({
-    queryKey: ['discovery', 'recommendations'],
-    queryFn: warmRecommendationsFetchMock,
-  })
+  useQuery({ queryKey: ['discovery', 'recommendations'], queryFn: warmRecommendationsFetchMock })
   return null
 }
 
-function renderPage({ warmEvidenceConsumers = false } = {}) {
+function renderPage() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={client}>
-      {warmEvidenceConsumers ? <WarmRecommendationsConsumer /> : null}
+      <WarmRecommendationsConsumer />
       <EvidenceProfilePage />
     </QueryClientProvider>,
   )
 }
 
+async function openMenu(name: string) {
+  fireEvent.keyDown(await screen.findByRole('button', { name }), { key: 'Enter' })
+  return screen.findByRole('menu')
+}
+
 describe('EvidenceProfilePage', () => {
   beforeEach(() => {
-    vi.stubEnv('VITE_R17_DEVELOPMENT_LOOP_ENABLED', 'true')
     sessionState.status = 'authenticated'
-    listEvidenceItemsMock.mockReset().mockResolvedValue({ items })
-    setConfirmationMock.mockReset().mockImplementation((id: string) => Promise.resolve(makeItem({ id })))
-    updateItemMock.mockReset().mockImplementation((id: string) => Promise.resolve(makeItem({ id, confirmation_state: 'confirmed' })))
-    deleteItemMock.mockReset().mockResolvedValue(undefined)
-    deleteProfileMock.mockReset().mockResolvedValue(undefined)
-    confirmImportedMock.mockReset().mockResolvedValue({ items: [] })
+    resumeCarry.resumeText = ''
+    api.listEvidenceItems.mockReset().mockResolvedValue({ items })
+    api.confirmEvidenceItem.mockReset().mockResolvedValue(makeItem({ confirmation_state: 'confirmed' }))
+    api.confirmEvidenceItems.mockReset().mockResolvedValue({ items: [] })
+    api.importEvidenceFromResume.mockReset().mockResolvedValue({ items: [] })
+    api.updateEvidenceItem.mockReset().mockResolvedValue(makeItem({ confirmation_state: 'confirmed' }))
+    api.deleteEvidenceItem.mockReset().mockResolvedValue(undefined)
+    api.deleteEvidenceProfile.mockReset().mockResolvedValue(undefined)
     getDevelopmentPlanMock.mockReset().mockResolvedValue({ schema_version: 'development-plan/v1', items: [] })
-    warmRecommendationsFetchMock.mockReset().mockResolvedValue({
-      confirmed_item_count: 0,
-      preference_item_count: 0,
-      items: [],
-    })
+    warmRecommendationsFetchMock.mockReset().mockResolvedValue({ items: [] })
     openAuthDialogMock.mockReset()
   })
 
-  afterEach(() => {
-    vi.unstubAllEnvs()
-  })
-
-  it('renders items grouped by kind with source and trust state', async () => {
+  it('lists each suggestion once and groups only saved facts by kind', async () => {
     renderPage()
 
-    const experience = await screen.findByRole('region', { name: 'Experience' })
-    const skills = screen.getByRole('region', { name: 'Skills' })
-    // Both source and trust-state labels are visible on each card.
-    expect(within(experience).getByText('Suggested')).toBeTruthy()
-    expect(within(experience).getByText('Imported')).toBeTruthy()
-    expect(within(skills).getByText('Saved')).toBeTruthy()
-    expect(within(skills).getByText('You entered')).toBeTruthy()
+    const suggestions = await screen.findByRole('list', { name: 'Suggestions to review' })
+    expect(within(suggestions).getAllByRole('listitem')).toHaveLength(2)
+    const skills = await screen.findByRole('region', { name: 'Skills' })
+    expect(within(skills).getByText('TypeScript')).toBeTruthy()
+    expect(screen.queryByRole('region', { name: 'Experience' })).toBeNull()
+    expect(screen.getAllByText('Backend Engineer')).toHaveLength(1)
   })
 
-  it('accepts a suggested item through the confirmation endpoint', async () => {
+  it('saves a suggestion with its one primary action', async () => {
     renderPage()
 
-    const region = await screen.findByRole('region', { name: 'Experience' })
-    fireEvent.click(within(region).getByRole('button', { name: /^Accept$/i }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Save: Backend Engineer' }))
 
-    await waitFor(() => expect(setConfirmationMock).toHaveBeenCalledWith('e1', 'confirm'))
+    await waitFor(() => expect(api.confirmEvidenceItem).toHaveBeenCalledWith('e1'))
   })
 
-  it('rejects an item through the confirmation endpoint', async () => {
+  it('dismissing a suggestion from its menu deletes it', async () => {
     renderPage()
 
-    const region = await screen.findByRole('region', { name: 'Experience' })
-    fireEvent.click(within(region).getByRole('button', { name: /Reject/i }))
+    const menu = await openMenu('More actions: Backend Engineer')
+    fireEvent.click(within(menu).getByRole('menuitem', { name: /Dismiss/ }))
 
-    await waitFor(() => expect(setConfirmationMock).toHaveBeenCalledWith('e1', 'reject'))
+    await waitFor(() => expect(api.deleteEvidenceItem).toHaveBeenCalledWith('e1'))
+    expect(api.confirmEvidenceItem).not.toHaveBeenCalled()
   })
 
-  it('correcting content saves it directly — no extra confirm click', async () => {
+  it('saves every suggestion in one call', async () => {
     renderPage()
 
-    const region = await screen.findByRole('region', { name: 'Experience' })
-    fireEvent.click(within(region).getByRole('button', { name: /Correct/i }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Save all' }))
 
-    const editor = await screen.findByLabelText('Content (JSON fields)')
-    fireEvent.change(editor, { target: { value: '{"title":"Staff Engineer"}' } })
-    fireEvent.click(screen.getByRole('button', { name: /^Save$/i }))
+    await waitFor(() => expect(api.confirmEvidenceItems).toHaveBeenCalledWith(['e1', 'e2']))
+  })
+
+  it('edits a saved fact through one labelled field per value', async () => {
+    renderPage()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit: TypeScript' }))
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.change(within(dialog).getByLabelText('Name'), { target: { value: 'TypeScript, React' } })
+    fireEvent.change(within(dialog).getByLabelText('Level'), { target: { value: '' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save' }))
 
     await waitFor(() =>
-      expect(updateItemMock).toHaveBeenCalledWith('e1', { content: { title: 'Staff Engineer' } }),
+      expect(api.updateEvidenceItem).toHaveBeenCalledWith('s1', { content: { name: 'TypeScript, React' } }),
     )
-    // The old two-step "confirm the edit" call no longer exists.
-    expect(setConfirmationMock).not.toHaveBeenCalled()
   })
 
-  it('deletes a single item after confirmation', async () => {
+  it('deletes a saved fact through the confirm dialog and refreshes warm caches', async () => {
     renderPage()
+    await waitFor(() => expect(warmRecommendationsFetchMock).toHaveBeenCalledTimes(1))
 
-    const region = await screen.findByRole('region', { name: 'Experience' })
-    fireEvent.click(within(region).getByRole('button', { name: /Delete/i }))
-
+    const menu = await openMenu('More actions: TypeScript')
+    fireEvent.click(within(menu).getByRole('menuitem', { name: /Delete/ }))
     const dialog = await screen.findByRole('dialog')
-    fireEvent.click(within(dialog).getByRole('button', { name: /Delete item/i }))
+    fireEvent.click(within(dialog).getByRole('button', { name: /Delete fact/ }))
 
-    await waitFor(() => expect(deleteItemMock).toHaveBeenCalledWith('e1'))
+    await waitFor(() => expect(api.deleteEvidenceItem).toHaveBeenCalledWith('s1'))
+    await waitFor(() => expect(warmRecommendationsFetchMock).toHaveBeenCalledTimes(2))
   })
 
-  it('deletes the whole profile through the atomic bulk endpoint', async () => {
+  it('deletes the whole profile through the bulk endpoint', async () => {
     renderPage()
 
-    await screen.findByRole('region', { name: 'Experience' })
-    fireEvent.click(screen.getByRole('button', { name: /Delete profile/i }))
-
+    fireEvent.click(await screen.findByRole('button', { name: /Delete profile/ }))
     const dialog = await screen.findByRole('dialog')
-    fireEvent.click(within(dialog).getByRole('button', { name: /Delete everything/i }))
+    fireEvent.click(within(dialog).getByRole('button', { name: /Delete everything/ }))
 
-    await waitFor(() => expect(deleteProfileMock).toHaveBeenCalledOnce())
-    expect(deleteItemMock).not.toHaveBeenCalled()
+    await waitFor(() => expect(api.deleteEvidenceProfile).toHaveBeenCalledOnce())
   })
 
-  it('accepts every still-suggested imported item at once', async () => {
-    renderPage()
-
-    await screen.findByRole('region', { name: 'Experience' })
-    fireEvent.click(screen.getByRole('button', { name: /Accept all/i }))
-
-    await waitFor(() => expect(confirmImportedMock).toHaveBeenCalledOnce())
-  })
-
-  it('hides the accept-all action when nothing imported is still suggested', async () => {
-    listEvidenceItemsMock.mockResolvedValue({
-      items: [makeItem({ id: 's1', confirmation_state: 'confirmed', provenance: 'user-entered' })],
-    })
-    renderPage()
-
-    await screen.findByRole('region', { name: 'Experience' })
-    expect(screen.queryByRole('button', { name: /Accept all/i })).toBeNull()
-  })
-
-  it.each([
-    {
-      action: 'accepting an item',
-      perform: async () => {
-        const region = await screen.findByRole('region', { name: 'Experience' })
-        fireEvent.click(within(region).getByRole('button', { name: /^Accept$/i }))
-        await waitFor(() => expect(setConfirmationMock).toHaveBeenCalledWith('e1', 'confirm'))
-      },
-    },
-    {
-      action: 'rejecting an item',
-      perform: async () => {
-        const region = await screen.findByRole('region', { name: 'Skills' })
-        fireEvent.click(within(region).getByRole('button', { name: /Reject/i }))
-        await waitFor(() => expect(setConfirmationMock).toHaveBeenCalledWith('s1', 'reject'))
-      },
-    },
-    {
-      action: 'correcting an item',
-      perform: async () => {
-        const region = await screen.findByRole('region', { name: 'Skills' })
-        fireEvent.click(within(region).getByRole('button', { name: /Correct/i }))
-        fireEvent.change(await screen.findByLabelText('Content (JSON fields)'), {
-          target: { value: '{"text":"Advanced TypeScript"}' },
-        })
-        fireEvent.click(screen.getByRole('button', { name: /^Save$/i }))
-        await waitFor(() =>
-          expect(updateItemMock).toHaveBeenCalledWith('s1', {
-            content: { text: 'Advanced TypeScript' },
-          }),
-        )
-      },
-    },
-    {
-      action: 'deleting a confirmed item',
-      perform: async () => {
-        const region = await screen.findByRole('region', { name: 'Skills' })
-        fireEvent.click(within(region).getByRole('button', { name: /Delete/i }))
-        const dialog = await screen.findByRole('dialog')
-        fireEvent.click(within(dialog).getByRole('button', { name: /Delete item/i }))
-        await waitFor(() => expect(deleteItemMock).toHaveBeenCalledWith('s1'))
-      },
-    },
-    {
-      action: 'purging the profile',
-      perform: async () => {
-        await screen.findByRole('region', { name: 'Experience' })
-        fireEvent.click(screen.getByRole('button', { name: /Delete profile/i }))
-        const dialog = await screen.findByRole('dialog')
-        fireEvent.click(within(dialog).getByRole('button', { name: /Delete everything/i }))
-        await waitFor(() => expect(deleteProfileMock).toHaveBeenCalledOnce())
-      },
-    },
-  ])(
-    '$action refreshes warm development and recommendation caches',
-    async ({ perform }) => {
-      renderPage({ warmEvidenceConsumers: true })
-      await waitFor(() => expect(getDevelopmentPlanMock).toHaveBeenCalledTimes(1))
-      await waitFor(() => expect(warmRecommendationsFetchMock).toHaveBeenCalledTimes(1))
-
-      await perform()
-
-      await waitFor(() => expect(getDevelopmentPlanMock).toHaveBeenCalledTimes(2))
-      await waitFor(() => expect(warmRecommendationsFetchMock).toHaveBeenCalledTimes(2))
-    },
-  )
-
-  it('shows Skills to build only when the development flag is on', async () => {
-    vi.stubEnv('VITE_R17_DEVELOPMENT_LOOP_ENABLED', 'false')
+  it('links to the resume page to upload a CV, or imports the carried one', async () => {
     const { unmount } = renderPage()
-    await screen.findByRole('region', { name: 'Experience' })
-    expect(screen.queryByRole('region', { name: 'Skills to build' })).toBeNull()
+    expect((await screen.findByRole('link', { name: /Upload a CV/ })).getAttribute('href')).toBe('/resume')
     unmount()
 
-    vi.stubEnv('VITE_R17_DEVELOPMENT_LOOP_ENABLED', 'true')
+    resumeCarry.resumeText = 'x'.repeat(80)
+    api.importEvidenceFromResume.mockResolvedValue({ items: [items[0], items[1]] })
     renderPage()
-    expect(await screen.findByRole('region', { name: 'Skills to build' })).toBeTruthy()
+    fireEvent.click(await screen.findByRole('button', { name: /Import from your CV/ }))
+
+    await waitFor(() => expect(api.importEvidenceFromResume).toHaveBeenCalledWith('x'.repeat(80)))
+    expect(await screen.findByText('Added 2 suggestions to review.')).toBeTruthy()
   })
 
-  it('shows a sign-in prompt when unauthenticated', () => {
+  it('shows the Skills to build panel', async () => {
+    renderPage()
+    expect(await screen.findByRole('heading', { name: 'Skills to build' })).toBeTruthy()
+    expect(await screen.findByText('Nothing to build yet')).toBeTruthy()
+  })
+
+  it('asks a signed-out visitor to sign in', () => {
     sessionState.status = 'unauthenticated'
     renderPage()
 
     fireEvent.click(screen.getByRole('button', { name: 'Sign in' }))
     expect(openAuthDialogMock).toHaveBeenCalledWith({ to: '/profile', reason: 'account' })
-    expect(listEvidenceItemsMock).not.toHaveBeenCalled()
+    expect(api.listEvidenceItems).not.toHaveBeenCalled()
   })
 })

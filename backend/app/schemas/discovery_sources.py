@@ -1,4 +1,4 @@
-from datetime import UTC, date, datetime
+from datetime import UTC, datetime
 from typing import Literal
 from urllib.parse import urlparse
 
@@ -8,21 +8,6 @@ DiscoverySourceFamily = Literal["licensed", "employer_ats", "public_career_page"
 DiscoveryTermsStatus = Literal["pending", "accepted", "failed"]
 DiscoveryAllowedBehavior = Literal[
     "api", "feed", "ats_integration", "public_page", "user_url", "paste"
-]
-DiscoveryRobotsPolicy = Literal["required", "not_applicable"]
-DiscoveryQueryParameter = Literal[
-    "role",
-    "location",
-    "remote",
-    "page",
-    "cursor",
-    "limit",
-    "posted_after",
-    # Employer-ATS provider query parameters (#323). Fixed, provider-specific
-    # switches — never user-supplied search terms.
-    "content",
-    "mode",
-    "includeCompensation",
 ]
 
 
@@ -35,10 +20,6 @@ class DiscoverySourceCreate(BaseModel):
     owner: str = Field(min_length=1, max_length=160)
     allowed_behavior: DiscoveryAllowedBehavior
     endpoint_url: str = Field(pattern=r"^https://", max_length=2_048)
-    allowed_query_parameters: list[DiscoveryQueryParameter] = Field(
-        default_factory=list, max_length=7
-    )
-    robots_policy: DiscoveryRobotsPolicy
     rate_limit_per_minute: int = Field(ge=1, le=10_000)
     attribution_rule: str = Field(min_length=1, max_length=1_000)
     retention_days: int = Field(ge=1, le=3_650)
@@ -47,15 +28,6 @@ class DiscoverySourceCreate(BaseModel):
     @classmethod
     def validate_endpoint(cls, value: str) -> str:
         return _validate_endpoint(value)
-
-    @field_validator("allowed_query_parameters")
-    @classmethod
-    def unique_query_parameters(
-        cls, value: list[DiscoveryQueryParameter]
-    ) -> list[DiscoveryQueryParameter]:
-        if len(value) != len(set(value)):
-            raise ValueError("Allowed query parameters must be unique")
-        return value
 
 
 class DiscoverySourceUpdate(BaseModel):
@@ -66,10 +38,6 @@ class DiscoverySourceUpdate(BaseModel):
     terms_status: DiscoveryTermsStatus | None = None
     allowed_behavior: DiscoveryAllowedBehavior | None = None
     endpoint_url: str | None = Field(default=None, pattern=r"^https://", max_length=2_048)
-    allowed_query_parameters: list[DiscoveryQueryParameter] | None = Field(
-        default=None, max_length=7
-    )
-    robots_policy: DiscoveryRobotsPolicy | None = None
     rate_limit_per_minute: int | None = Field(default=None, ge=1, le=10_000)
     attribution_rule: str | None = Field(default=None, min_length=1, max_length=1_000)
     retention_days: int | None = Field(default=None, ge=1, le=3_650)
@@ -86,15 +54,6 @@ class DiscoverySourceUpdate(BaseModel):
     def validate_endpoint(cls, value: str | None) -> str | None:
         return _validate_endpoint(value) if value is not None else None
 
-    @field_validator("allowed_query_parameters")
-    @classmethod
-    def unique_query_parameters(
-        cls, value: list[DiscoveryQueryParameter] | None
-    ) -> list[DiscoveryQueryParameter] | None:
-        if value is not None and len(value) != len(set(value)):
-            raise ValueError("Allowed query parameters must be unique")
-        return value
-
 
 class DiscoverySourceResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -109,17 +68,18 @@ class DiscoverySourceResponse(BaseModel):
     terms_reviewed_by: str | None
     allowed_behavior: DiscoveryAllowedBehavior
     endpoint_url: str | None
-    allowed_query_parameters: list[DiscoveryQueryParameter] | None
-    robots_policy: DiscoveryRobotsPolicy | None
     rate_limit_per_minute: int
     attribution_rule: str
     retention_days: int
     kill_switch: bool
     ingestion_allowed: bool
+    last_fetched_at: datetime | None = None
+    last_outcome: str | None = None
+    listing_count: int | None = None
     created_at: datetime
     updated_at: datetime
 
-    @field_validator("terms_reviewed_at", "created_at", "updated_at")
+    @field_validator("terms_reviewed_at", "last_fetched_at", "created_at", "updated_at")
     @classmethod
     def require_offset(cls, value: datetime | None) -> datetime | None:
         if value is not None and value.tzinfo is None:
@@ -129,20 +89,6 @@ class DiscoverySourceResponse(BaseModel):
 
 class DiscoverySourceListResponse(BaseModel):
     items: list[DiscoverySourceResponse] = Field(default_factory=list)
-
-
-class LicensedSourceQuery(BaseModel):
-    """Minimal outbound discovery query; profile/history/identity fields do not exist."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    role: str | None = Field(default=None, min_length=1, max_length=120)
-    location: str | None = Field(default=None, min_length=1, max_length=120)
-    remote: bool | None = None
-    page: int | None = Field(default=None, ge=1, le=10_000)
-    cursor: str | None = Field(default=None, min_length=1, max_length=200)
-    limit: int | None = Field(default=None, ge=1, le=100)
-    posted_after: date | None = None
 
 
 def _validate_endpoint(value: str) -> str:

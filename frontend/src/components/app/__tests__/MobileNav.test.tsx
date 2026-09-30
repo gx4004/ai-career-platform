@@ -1,9 +1,10 @@
 import type { AnchorHTMLAttributes, ReactNode } from 'react'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { MobileNav } from '#/components/app/MobileNav'
 
 const pathname = vi.hoisted(() => ({ current: '/dashboard' }))
+const openAuthDialog = vi.hoisted(() => vi.fn())
 const sessionUser = vi.hoisted(() => ({ current: { id: 'user-1' } as { id: string } | null }))
 
 vi.mock('@tanstack/react-router', () => ({
@@ -15,17 +16,11 @@ vi.mock('@tanstack/react-router', () => ({
 }))
 
 vi.mock('#/hooks/use-breakpoint', () => ({ useBreakpoint: () => 'mobile' }))
-vi.mock('#/hooks/useSession', () => ({ useSession: () => ({ user: sessionUser.current }) }))
+vi.mock('#/hooks/useSession', () => ({ useSession: () => ({ user: sessionUser.current, openAuthDialog }) }))
 vi.mock('#/components/mobile/ToolGridSheet', () => ({ ToolGridSheet: () => null }))
 
 describe('MobileNav discovery visibility', () => {
   beforeEach(() => {
-    for (const flag of [
-      'VITE_R11_EVIDENCE_PROFILE_ENABLED',
-      'VITE_R12_CV_STUDIO_ENABLED',
-      'VITE_R13_CAMPAIGNS_ENABLED',
-      'VITE_R14_DISCOVERY_ENABLED',
-    ]) vi.stubEnv(flag, 'true')
     pathname.current = '/dashboard'
     sessionUser.current = { id: 'user-1' }
   })
@@ -35,9 +30,20 @@ describe('MobileNav discovery visibility', () => {
     expect(screen.getByRole('link', { name: 'Discover' }).getAttribute('href')).toBe('/discovery')
   })
 
-  it('keeps discovery absent for guests', () => {
+  it('keeps five tabs for guests, swapping Discover for a Sign in tab', () => {
     sessionUser.current = null
     render(<MobileNav />)
     expect(screen.queryByRole('link', { name: 'Discover' })).toBeNull()
+    const nav = screen.getByRole('navigation', { name: 'Main navigation' })
+    expect(nav.querySelectorAll('.mobile-tab-item')).toHaveLength(5)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in' }))
+    expect(openAuthDialog).toHaveBeenCalledWith({ to: '/discovery', reason: 'discovery' })
+  })
+
+  it('keeps five tabs for signed-in users', () => {
+    render(<MobileNav />)
+    const nav = screen.getByRole('navigation', { name: 'Main navigation' })
+    expect(nav.querySelectorAll('.mobile-tab-item')).toHaveLength(5)
   })
 })

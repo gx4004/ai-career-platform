@@ -73,14 +73,6 @@ function renderPage({ warmEvidenceConsumers = false } = {}) {
 
 describe('Settings privacy controls', () => {
   beforeEach(() => {
-    for (const flag of [
-      'VITE_R11_EVIDENCE_PROFILE_ENABLED',
-      'VITE_R12_CV_STUDIO_ENABLED',
-      'VITE_R13_CAMPAIGNS_ENABLED',
-      'VITE_R14_DISCOVERY_ENABLED',
-      'VITE_R15_QUEUE_ENABLED',
-      'VITE_R17_DEVELOPMENT_LOOP_ENABLED',
-    ]) vi.stubEnv(flag, 'false')
     api.exportCareerData.mockReset().mockResolvedValue({
       schema_version: 'career-data-export/v1',
     })

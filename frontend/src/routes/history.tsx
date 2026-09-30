@@ -14,10 +14,14 @@ export const Route = createFileRoute('/history')({
   }),
   validateSearch: (search): HistorySearch => ({
     tool: typeof search.tool === 'string' ? search.tool : undefined,
+    // Only ever "true": an absent filter must not become `favorite=false`,
+    // which the API reads as "show only runs that are not starred".
     favorite:
       search.favorite === true ||
       search.favorite === 'true' ||
-      search.favorite === '1',
+      search.favorite === '1'
+        ? true
+        : undefined,
     q: typeof search.q === 'string' ? search.q : undefined,
     page: typeof search.page === 'string' ? Number(search.page) || 1 : undefined,
     page_size:

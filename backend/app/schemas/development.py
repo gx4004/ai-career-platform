@@ -12,7 +12,7 @@ build its richer response offer.
 """
 
 from datetime import UTC, date, datetime
-from typing import Any, Literal
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -65,21 +65,6 @@ class DevelopmentItemUpdate(BaseModel):
         return self
 
 
-class DevelopmentEvidenceProposalResponse(BaseModel):
-    """The exact claim a completed item asks its owner to review (D-113).
-
-    Keeping the identifier, content, and trust state together makes the
-    nullable-link invariant explicit in both API contracts: either there is one
-    complete, inspectable proposal or there is none.
-    """
-
-    model_config = ConfigDict(extra="forbid")
-
-    id: str
-    content: dict[str, Any]
-    confirmation_state: Literal["unconfirmed", "confirmed"]
-
-
 class DevelopmentItemResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True, extra="forbid")
 
@@ -90,12 +75,9 @@ class DevelopmentItemResponse(BaseModel):
     state: DevelopmentState
     target_date: date | None
     notes: str | None
-    source_finding_id: str | None
-    timeline: list[dict[str, Any]]
-    # R17 #201: a complete, inspectable value after completion stages a proposal;
-    # NULL before completion or after decline. Never `rejected`: declining
-    # hard-deletes the profile row rather than leaving a trace (D-113).
-    evidence_proposal: DevelopmentEvidenceProposalResponse | None
+    # R17 #201: the profile item completion produced. It is reviewed on the
+    # profile like any other suggestion; NULL before completion or once deleted.
+    evidence_item_id: str | None
     created_at: datetime
     updated_at: datetime
 

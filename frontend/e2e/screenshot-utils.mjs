@@ -15,7 +15,7 @@ export const VIEWPORTS = {
 /**
  * Fixed-route pages the harness visits directly. Two additional pages —
  * `resume-result` and `campaign-detail` — are captured by screenshots.spec.ts
- * after seeding resolves their dynamic URLs (a result id, a campaign/workspace
+ * after seeding resolves their dynamic URLs (a result id, an application
  * id), so they have no fixed `path` and are not listed here.
  *
  * `auth` says which browser context a page is captured from:
@@ -39,9 +39,7 @@ export const STATIC_PAGES = [
   { name: 'account', path: '/account', auth: 'user' },
   { name: 'cv-studio', path: '/cv-studio', auth: 'user' },
   { name: 'profile', path: '/profile', auth: 'user' },
-  { name: 'development-plan', path: '/development-plan', auth: 'user' },
   { name: 'discovery', path: '/discovery', auth: 'user' },
-  { name: 'queue', path: '/queue', auth: 'user' },
   { name: 'admin', path: '/admin', auth: 'admin' },
 ]
 

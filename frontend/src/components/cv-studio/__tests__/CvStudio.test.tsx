@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { CvStudio } from '#/components/cv-studio/CvStudio'
 import type { CvDocument } from '#/lib/api/schemas'
 import { readWorkflowContext, writeWorkflowContext } from '#/lib/tools/drafts'
+import { styleCatalogFixture } from '#/lib/cv-studio/__tests__/styleCatalog.fixture'
 
 const api = vi.hoisted(() => ({
   listCvDocuments: vi.fn(), createCvDocument: vi.fn(), getCvDocument: vi.fn(), updateCvDocument: vi.fn(),
@@ -31,20 +32,18 @@ const style = { template_id: 'ats-essential' as const, font_id: 'lato' as const,
 const document: CvDocument = {
   id: 'd1', name: 'Principal CV', sections: [experience, skills], style,
   created_at: '2026-07-12T10:00:00Z', updated_at: '2026-07-12T10:00:00Z',
-  quality_model_runs: 0, tailoring_model_runs: 0, quality_model_run_limit: 10, tailoring_model_run_limit: 10,
+  tailoring_model_runs: 0, tailoring_model_run_limit: 10,
   variants: [{ id: 'v1', name: 'Base', target_role: null, sections: [experience], created_at: '2026-07-12T10:00:00Z' }],
 }
 const quality = {
-  schema_version: 'cv-quality/v1', scoring_mode: 'heuristic', remaining_model_runs: 10,
-  advisory_note: 'Directional guidance.',
-  dimensions: [{ key: 'impact', label: 'Evidence of impact', score: 64, reasons: ['Two entries include outcomes.'], remediation: 'Add truthful measurements.' }],
-  ats_checks: [
-    { key: 'section_structure', label: 'Section structure', status: 'pass', explanation: 'Found typed sections.', remediation: 'Add Experience and Skills.' },
-    { key: 'page_breaks', label: 'Page-break risk', status: 'fail', explanation: 'Validated against the generated PDF artifact.', remediation: 'Regenerate after editing if this artifact validation fails.' },
+  schema_version: 'cv-quality/v3',
+  checks: [
+    { id: 'sections', label: 'Clear section headings', passed: true, detail: 'Application systems look for standard sections.', fix: 'Add Experience and Skills.' },
+    { id: 'page_breaks', label: 'Tidy page breaks', passed: false, detail: 'Each section starts with its first entry.', fix: 'An entry splits across pages. Shorten it or move it so it fits on one page.' },
+    { id: 'layout', label: 'Single-column layout', passed: false, detail: 'Single-column layouts read in order.', fix: 'Your template uses two columns.' },
   ],
-  history_id: 'h1', access_mode: 'authenticated', saved: true, locked_actions: [],
-  ats_score: 72, ats_fixes: ['Regenerate after editing if this artifact validation fails.'],
 }
+const passingQuality = { ...quality, checks: quality.checks.map((check) => ({ ...check, passed: true })) }
 let clickedDownload = ''
 
 function view() {
@@ -52,6 +51,14 @@ function view() {
 }
 const saveStatus = () => screen.getByTestId('save-status')
 const lastPatch = () => api.updateCvDocument.mock.calls.at(-1)?.[1]
+const paper = () => screen.getByTestId('cv-paper')
+const panel = () => screen.getByRole('complementary')
+/** Open a studio tool (Sections, Design, ATS check, Versions) from the toolbar. */
+async function openTool(name: RegExp) {
+  const toolbar = await screen.findByRole('navigation', { name: 'Studio tools' })
+  fireEvent.click(within(toolbar).getByRole('button', { name }))
+  return panel()
+}
 async function openMenu(name: string) {
   const trigger = await screen.findByRole('button', { name })
   fireEvent.keyDown(trigger, { key: 'Enter' })
@@ -60,6 +67,7 @@ async function openMenu(name: string) {
 
 beforeEach(() => {
   vi.clearAllMocks(); session.status = 'authenticated'; clickedDownload = ''
+  window.innerWidth = 1440
   window.sessionStorage.clear()
   Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: vi.fn(() => 'blob:artifact') })
   Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: vi.fn() })
@@ -71,7 +79,7 @@ beforeEach(() => {
   api.listEvidenceItems.mockResolvedValue({ items: [] })
   api.getCvDocument.mockResolvedValue(document)
   api.updateCvDocument.mockImplementation((_id: string, payload: Partial<CvDocument>) => Promise.resolve({ ...document, ...payload, updated_at: '2026-07-12T10:05:00Z' }))
-  api.getCvStyleCatalog.mockRejectedValue(new Error('offline'))
+  api.getCvStyleCatalog.mockResolvedValue(styleCatalogFixture)
   api.deleteCvDocument.mockResolvedValue(undefined)
   api.deleteAllCvDocuments.mockResolvedValue(undefined)
   api.exportCvDocuments.mockResolvedValue({ schema_version: 'cv-documents-export/v1', exported_at: '2026-08-13T10:00:00Z', document_count: 1, documents: [document] })
@@ -123,22 +131,21 @@ describe('CV Studio empty state', { timeout: 15_000 }, () => {
   })
 })
 
-describe('CV Studio editor', { timeout: 15_000 }, () => {
-  it('edits structured entry fields and bullets, shows them live, then autosaves', async () => {
+describe('CV Studio paper and section editor', { timeout: 15_000 }, () => {
+  it('opens a section’s editor from the paper, mirrors edits live, then autosaves', async () => {
     view()
-    const role = await screen.findByLabelText('Job title')
-    fireEvent.change(role, { target: { value: 'Principal Designer' } })
-    fireEvent.change(screen.getByLabelText('Company'), { target: { value: '' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Add highlight' }))
-    fireEvent.change(screen.getByLabelText('Highlight 2 for Principal Designer'), { target: { value: 'Grew adoption by 40%.' } })
-    const paper = screen.getByTestId('cv-paper')
-    expect(within(paper).getByText('Principal Designer')).toBeTruthy()
-    expect(within(paper).getByText('Grew adoption by 40%.')).toBeTruthy()
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit Experience' }))
+    expect(within(panel()).getByRole('heading', { name: 'Edit Experience' })).toBeTruthy()
+    fireEvent.change(within(panel()).getByLabelText('Job title'), { target: { value: 'Principal Designer' } })
+    fireEvent.change(within(panel()).getByLabelText('Company'), { target: { value: '' } })
+    fireEvent.click(within(panel()).getByRole('button', { name: 'Add highlight' }))
+    fireEvent.change(within(panel()).getByLabelText('Highlight 2 for Principal Designer'), { target: { value: 'Grew adoption by 40%.' } })
+    expect(within(paper()).getByText('Principal Designer')).toBeTruthy()
+    expect(within(paper()).getByText('Grew adoption by 40%.')).toBeTruthy()
     expect(saveStatus().textContent).toContain('Saving')
 
     await waitFor(() => expect(api.updateCvDocument).toHaveBeenCalledTimes(1), { timeout: 1500 })
-    const saved = lastPatch().sections[0].entries[0]
-    expect(saved).toMatchObject({
+    expect(lastPatch().sections[0].entries[0]).toMatchObject({
       heading: 'Principal Designer', subheading: null,
       bullets: ['Built accessible systems.', 'Grew adoption by 40%.'],
       body: 'Built accessible systems.\nGrew adoption by 40%.',
@@ -147,27 +154,29 @@ describe('CV Studio editor', { timeout: 15_000 }, () => {
     await waitFor(() => expect(saveStatus().textContent).toContain('Saved'))
   })
 
-  it('reorders sections from the outline with the keyboard and saves new positions', async () => {
+  it('opens a section with the keyboard and goes back to the sections list', async () => {
     view()
-    const grip = await screen.findByRole('button', { name: /Reorder Skills/ })
-    fireEvent.keyDown(grip, { key: 'ArrowUp' })
-    const editor = screen.getByLabelText('CV sections')
-    await waitFor(() => expect(within(editor).getAllByRole('textbox', { name: /^Section name for/ })[0]).toHaveProperty('value', 'Skills'))
-    expect(screen.getByText('Skills moved to position 1 of 2.')).toBeTruthy()
-    await waitFor(() => expect(api.updateCvDocument).toHaveBeenCalled(), { timeout: 1500 })
-    expect(lastPatch().sections.map((s: { id: string; position: number }) => [s.id, s.position])).toEqual([['s2', 0], ['s1', 1]])
-    fireEvent.click(screen.getByRole('button', { name: 'Move Skills down' }))
-    await waitFor(() => expect(within(editor).getAllByRole('textbox', { name: /^Section name for/ })[0]).toHaveProperty('value', 'Experience'))
+    fireEvent.keyDown(await screen.findByRole('button', { name: 'Edit Skills' }), { key: 'Enter' })
+    expect(within(panel()).getByLabelText('Skills text')).toBeTruthy()
+    fireEvent.click(within(panel()).getByRole('button', { name: 'All sections' }))
+    expect(within(panel()).getByRole('list', { name: 'Sections in your CV' })).toBeTruthy()
   })
 
-  it('hides a section from the preview without deleting it', async () => {
+  it('reorders, hides and adds sections from the sections list', async () => {
     view()
-    const paper = await screen.findByTestId('cv-paper')
-    expect(within(paper).getByText('Skills')).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: 'Hide Skills' }))
-    expect(within(paper).queryByText('Skills')).toBeNull()
-    expect(screen.getByText('Hidden from your CV')).toBeTruthy()
-    await waitFor(() => expect(lastPatch()?.sections[1]).toMatchObject({ id: 's2', visible: false }), { timeout: 1500 })
+    await screen.findByTestId('cv-paper')
+    fireEvent.click(within(panel()).getByRole('button', { name: 'Move Skills up' }))
+    expect(screen.getByText('Skills moved to position 1 of 2.')).toBeTruthy()
+    expect(within(paper()).getAllByRole('button').map((section) => section.getAttribute('aria-label'))).toEqual(['Edit Skills', 'Edit Experience'])
+    fireEvent.click(within(panel()).getByRole('button', { name: 'Hide Skills' }))
+    expect(within(paper()).queryByText('Skills')).toBeNull()
+    await waitFor(() => expect(lastPatch()?.sections.map((s: { id: string; position: number; visible: boolean }) => [s.id, s.position, s.visible]))
+      .toEqual([['s2', 0, false], ['s1', 1, true]]), { timeout: 1500 })
+
+    const menu = await openMenu('Add section')
+    fireEvent.click(within(menu).getByRole('menuitem', { name: 'Education' }))
+    expect(within(panel()).getByRole('heading', { name: 'Edit Education' })).toBeTruthy()
+    expect(within(paper()).getByRole('button', { name: 'Edit Education' }).getAttribute('aria-pressed')).toBe('true')
   })
 
   it('keeps a newer edit saving when an older autosave response resolves', async () => {
@@ -190,9 +199,35 @@ describe('CV Studio editor', { timeout: 15_000 }, () => {
     expect(saveStatus().textContent).toContain('Saved')
     expect(api.updateCvDocument).toHaveBeenLastCalledWith('d1', expect.objectContaining({ name: 'Newest edit' }))
     expect((name as HTMLInputElement).value).toBe('Newest edit')
+    expect(within(paper()).getByText('Newest edit')).toBeTruthy()
   })
 
-  it('switches between CVs from the hero', async () => {
+  it('updates the CV list from the autosave response without refetching every CV', async () => {
+    const other = { ...document, id: 'd2', name: 'Research CV' }
+    api.listCvDocuments.mockResolvedValue({ items: [document, other] })
+    view()
+    fireEvent.change(await screen.findByLabelText('Document name'), { target: { value: 'Renamed CV' } })
+    await waitFor(() => expect(saveStatus().textContent).toContain('Saved'), { timeout: 1500 })
+    const switcher = screen.getByLabelText('Your CVs')
+    expect(within(switcher).getByRole('option', { name: 'Renamed CV' })).toBeTruthy()
+    expect(within(switcher).getByRole('option', { name: 'Research CV' })).toBeTruthy()
+    expect(api.listCvDocuments).toHaveBeenCalledTimes(1)
+  })
+
+  it('opens a section’s editor in a bottom sheet on a phone', async () => {
+    window.innerWidth = 375
+    view()
+    await screen.findByTestId('cv-paper')
+    expect(screen.queryByRole('complementary')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Skills' }))
+    const sheet = await screen.findByRole('dialog', { name: 'Edit Skills' })
+    fireEvent.change(within(sheet).getByLabelText('Skills text'), { target: { value: 'Figma, research, SQL' } })
+    expect(within(paper()).getByText('Figma, research, SQL')).toBeTruthy()
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Close panel' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+  })
+
+  it('switches between CVs', async () => {
     const other = { ...document, id: 'd2', name: 'Research CV' }
     api.listCvDocuments.mockResolvedValue({ items: [document, other] })
     api.getCvDocument.mockImplementation((id: string) => Promise.resolve(id === 'd2' ? other : document))
@@ -203,75 +238,134 @@ describe('CV Studio editor', { timeout: 15_000 }, () => {
   })
 })
 
-describe('CV Studio design', { timeout: 15_000 }, () => {
-  it('persists a template, font, accent and spacing change and mirrors it in the preview', async () => {
+describe('CV Studio design panel', { timeout: 15_000 }, () => {
+  it('persists a template, font, accent and spacing change and mirrors it on the paper', async () => {
     view()
-    fireEvent.click(within(await screen.findByRole('tablist', { name: 'Side panel' })).getByRole('tab', { name: /Design/ }))
-    fireEvent.click(screen.getByRole('radio', { name: /Modern Two-Column/ }))
-    fireEvent.click(screen.getByRole('radio', { name: /PT Serif/ }))
-    fireEvent.click(screen.getByRole('radio', { name: 'Ocean' }))
-    fireEvent.click(screen.getByRole('radio', { name: 'Roomy' }))
-    const paper = screen.getByTestId('cv-paper')
-    expect(paper.className).toContain('cvp-paper--two-column')
-    expect(paper.style.getPropertyValue('--cvp-accent')).toBe('#075985')
-    expect(paper.style.getPropertyValue('--cvp-font')).toContain('PT Serif')
+    const design = await openTool(/^Design/)
+    fireEvent.click(within(design).getByRole('radio', { name: /Modern Two-Column/ }))
+    fireEvent.click(within(design).getByRole('radio', { name: /PT Serif/ }))
+    fireEvent.click(within(design).getByRole('radio', { name: 'Ocean' }))
+    fireEvent.click(within(design).getByRole('radio', { name: 'Roomy' }))
+    expect(paper().className).toContain('cvp-paper--two-column')
+    expect(paper().style.getPropertyValue('--cvp-accent')).toBe('#075985')
+    expect(paper().style.getPropertyValue('--cvp-font')).toContain('PT Serif')
     await waitFor(() => expect(lastPatch()?.style).toEqual({
       template_id: 'modern-two-column', font_id: 'pt-serif', accent_color: '#075985', density: 'spacious', ats_mode: false,
     }), { timeout: 1500 })
   })
 
+  it('shows the names the style catalog provides', async () => {
+    api.getCvStyleCatalog.mockResolvedValue({
+      ...styleCatalogFixture,
+      templates: styleCatalogFixture.templates.map((template) => template.id === 'ats-essential' ? { ...template, name: 'Catalog Plain', description: 'Named by the server.' } : template),
+      palette: [{ value: '#111827', name: 'Graphite' }],
+      densities: [{ id: 'normal', name: 'Airy' }],
+    })
+    view()
+    const design = await openTool(/^Design/)
+    expect(within(design).getByRole('radio', { name: /Catalog Plain/ })).toBeTruthy()
+    expect(within(design).getByText('Named by the server.')).toBeTruthy()
+    expect(within(design).getByRole('radio', { name: 'Graphite' })).toBeTruthy()
+    expect(within(design).getByRole('radio', { name: 'Airy' })).toBeTruthy()
+    expect(within(design).queryByRole('radio', { name: 'Roomy' })).toBeNull()
+  })
+
+  it('asks to try again when the style catalog cannot load', async () => {
+    api.getCvStyleCatalog.mockRejectedValueOnce(new Error('offline'))
+    view()
+    fireEvent.click(await screen.findByRole('button', { name: 'Try again' }))
+    expect(await screen.findByTestId('cv-paper')).toBeTruthy()
+  })
+
   it('turns on ATS-friendly mode, pauses the other controls and saves it', async () => {
     api.getCvDocument.mockResolvedValue({ ...document, style: { ...style, template_id: 'modern-two-column', accent_color: '#B91C1C' } })
     view()
-    fireEvent.click(within(await screen.findByRole('tablist', { name: 'Side panel' })).getByRole('tab', { name: /Design/ }))
-    const toggle = screen.getByRole('switch', { name: 'ATS-friendly mode' })
-    expect(toggle.getAttribute('aria-checked')).toBe('false')
+    const design = await openTool(/^Design/)
+    const toggle = within(design).getByRole('switch', { name: 'ATS-friendly mode' })
     fireEvent.click(toggle)
     expect(toggle.getAttribute('aria-checked')).toBe('true')
-    expect(screen.getByText('Paused while ATS-friendly mode is on.')).toBeTruthy()
-    expect((screen.getByRole('radio', { name: /PT Serif/ }) as HTMLInputElement).disabled || screen.getByRole('radio', { name: /PT Serif/ }).closest('fieldset')?.disabled).toBe(true)
-    const paper = screen.getByTestId('cv-paper')
-    expect(paper.className).not.toContain('two-column')
-    expect(paper.style.getPropertyValue('--cvp-accent')).toBe('#111827')
+    expect(within(design).getByText('Paused while ATS-friendly mode is on.')).toBeTruthy()
+    expect(within(design).getByRole('radio', { name: /PT Serif/ }).closest('fieldset')?.disabled).toBe(true)
+    expect(paper().className).not.toContain('two-column')
+    expect(paper().style.getPropertyValue('--cvp-accent')).toBe('#111827')
     await waitFor(() => expect(lastPatch()?.style).toMatchObject({ ats_mode: true }), { timeout: 1500 })
   })
 })
 
-describe('CV Studio quality, exports and versions', { timeout: 15_000 }, () => {
-  it('shows the ATS score, plain fixes and tucks detailed checks under Advanced checks', async () => {
+describe('CV Studio ATS check, exports and versions', { timeout: 15_000 }, () => {
+  it('summarises failing checks in the toolbar and lists their fixes, never a score', async () => {
     view()
-    expect(await screen.findByRole('img', { name: 'ATS score: 72 out of 100' })).toBeTruthy()
-    expect(screen.getByText('An entry splits across pages. Shorten it or move it so it fits on one page.')).toBeTruthy()
-    expect(api.scoreCvDocument).toHaveBeenCalledWith('d1', { use_model: false, artifact_template: 'ats-essential', artifact_format: 'pdf' })
-    const advanced = screen.getByText('Advanced checks').closest('details')!
-    expect(within(advanced).getByText('Clear section headings')).toBeTruthy()
-    expect(within(advanced).getByText('Needs a fix')).toBeTruthy()
+    const toolbar = await screen.findByRole('navigation', { name: 'Studio tools' })
+    expect(await within(toolbar).findByText('2 to fix')).toBeTruthy()
+    expect(api.scoreCvDocument).toHaveBeenCalledWith('d1')
+    const checks = await openTool(/^ATS check/)
+    const list = within(checks).getByRole('list', { name: 'Checks' })
+    expect(within(list).getByText('Clear section headings')).toBeTruthy()
+    expect(within(list).getByText('An entry splits across pages. Shorten it or move it so it fits on one page.')).toBeTruthy()
+    fireEvent.click(within(checks).getByRole('button', { name: /Turn on ATS-friendly mode/ }))
+    expect(within(panel()).getByRole('switch', { name: 'ATS-friendly mode' }).getAttribute('aria-checked')).toBe('true')
+    expect(window.document.body.textContent).not.toMatch(/\/100|ATS score|second opinion|AI review/i)
     expect(window.document.body.textContent).not.toMatch(/deterministic|preflight|immutable|canonical/i)
   })
 
-  it('reports the AI review limit while the checks stay available', async () => {
-    api.scoreCvDocument
-      .mockResolvedValueOnce(quality)
-      .mockRejectedValueOnce(new Error('This document has reached its model scoring limit.'))
+  it('offers to show a hidden required section and to add a missing one', async () => {
+    const failingSections = { ...quality, checks: [{ ...quality.checks[0], passed: false }] }
+    api.scoreCvDocument.mockResolvedValue(failingSections)
+    const hiddenSkills = { ...document, sections: [experience, { ...skills, visible: false }] }
+    api.getCvDocument.mockResolvedValue(hiddenSkills)
+    api.listCvDocuments.mockResolvedValue({ items: [hiddenSkills] })
     view()
-    fireEvent.click(await screen.findByRole('button', { name: /Ask AI for a second opinion/ }))
-    expect((await screen.findByRole('alert')).textContent).toContain('used all AI reviews')
-    expect(screen.getByText('Clear section headings')).toBeTruthy()
+    let checks = await openTool(/^ATS check/)
+    expect(within(checks).queryByRole('button', { name: 'Add Skills section' })).toBeNull()
+    fireEvent.click(await within(checks).findByRole('button', { name: 'Show Skills section' }))
+    await waitFor(() => expect(lastPatch().sections.find((s: { kind: string }) => s.kind === 'skills').visible).toBe(true))
+    expect(lastPatch().sections).toHaveLength(2)
   })
 
-  it('exports the PDF with the chosen template and opens the exact server PDF', async () => {
+  it('adds a missing required section from the ATS check and opens its editor', async () => {
+    api.scoreCvDocument.mockResolvedValue({ ...quality, checks: [{ ...quality.checks[0], passed: false }] })
+    const noSkills = { ...document, sections: [experience] }
+    api.getCvDocument.mockResolvedValue(noSkills)
+    api.listCvDocuments.mockResolvedValue({ items: [noSkills] })
+    view()
+    const checks = await openTool(/^ATS check/)
+    fireEvent.click(await within(checks).findByRole('button', { name: 'Add Skills section' }))
+    await waitFor(() => expect(lastPatch().sections.map((s: { kind: string }) => s.kind)).toEqual(['experience', 'skills']))
+    expect(await within(panel()).findByText('Edit Skills')).toBeTruthy()
+  })
+
+  it('starts a new CV from the overflow menu', async () => {
+    view()
+    expect(screen.queryByRole('button', { name: /New CV/ })).toBeNull()
+    const menu = await openMenu('More options')
+    fireEvent.click(within(menu).getByRole('menuitem', { name: /Start from your Evidence/ }))
+    expect(await screen.findByRole('dialog')).toBeTruthy()
+  })
+
+  it('says every check passes when the CV is clean', async () => {
+    api.scoreCvDocument.mockResolvedValue(passingQuality)
+    view()
+    expect(await screen.findByText('All 3 checks pass')).toBeTruthy()
+    const checks = await openTool(/^ATS check/)
+    expect(within(checks).queryByRole('button', { name: /Turn on ATS-friendly mode/ })).toBeNull()
+  })
+
+  it('exports the saved PDF and opens the exact server PDF', async () => {
     view()
     fireEvent.click(await screen.findByRole('button', { name: /Export PDF/ }))
-    await waitFor(() => expect(api.fetchCvArtifactBlob).toHaveBeenCalledWith('d1', 'ats-essential', 'pdf'))
+    await waitFor(() => expect(api.fetchCvArtifactBlob).toHaveBeenCalledWith('d1', 'pdf'))
     await waitFor(() => expect(clickedDownload).toBe('Principal CV.pdf'))
     fireEvent.click(screen.getByRole('button', { name: /View exact PDF/ }))
     expect(await screen.findByTitle('ATS Essential PDF preview')).toBeTruthy()
   })
 
-  it('downloads CV data and deletes all CVs from the overflow menu after confirmation', async () => {
+  it('exports DOCX and CV data and deletes all CVs from the overflow menu after confirmation', async () => {
     vi.spyOn(window, 'confirm').mockReturnValue(true)
     view()
     let menu = await openMenu('More options')
+    fireEvent.click(within(menu).getByRole('menuitem', { name: /Export DOCX/ }))
+    await waitFor(() => expect(clickedDownload).toBe('Principal CV.docx'))
+    menu = await openMenu('More options')
     fireEvent.click(within(menu).getByRole('menuitem', { name: /Download my CV data/ }))
     await waitFor(() => expect(clickedDownload).toBe('career-workbench-cv-data.json'))
     menu = await openMenu('More options')
@@ -283,13 +377,14 @@ describe('CV Studio quality, exports and versions', { timeout: 15_000 }, () => {
   it('saves a named version and restores one after an inline confirmation', async () => {
     api.restoreCvVariant.mockRejectedValueOnce(new Error('Restore unavailable'))
     view()
-    fireEvent.change(await screen.findByLabelText('Version name'), { target: { value: 'Design roles' } })
-    fireEvent.click(screen.getByRole('button', { name: /Save version/ }))
+    const versions = await openTool(/^Versions/)
+    fireEvent.change(within(versions).getByLabelText('Version name'), { target: { value: 'Design roles' } })
+    fireEvent.click(within(versions).getByRole('button', { name: /Save version/ }))
     await waitFor(() => expect(api.snapshotCvVariant).toHaveBeenCalledWith('d1', 'Design roles'))
     expect(await screen.findByText('Saved “Design roles” to your versions.')).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: 'Restore Base' }))
-    expect(screen.getByText('Replace your current CV?')).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: 'Restore' }))
+    fireEvent.click(within(panel()).getByRole('button', { name: 'Restore Base' }))
+    expect(within(panel()).getByText('Replace your current CV? We’ll keep it in your versions.')).toBeTruthy()
+    fireEvent.click(within(panel()).getByRole('button', { name: 'Restore' }))
     await waitFor(() => expect(api.restoreCvVariant).toHaveBeenCalledWith('d1', 'v1'))
     expect((await screen.findByRole('alert')).textContent).toContain('Restore unavailable')
   })

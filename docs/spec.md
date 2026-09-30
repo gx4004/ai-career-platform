@@ -21,9 +21,8 @@ the next, which is the product advantage over six standalone generators.
 
 The long-term direction — Evidence Profile, premium CV Studio, Application
 Campaigns, lawful job discovery, and trust-staged application automation — is owned
-by `docs/product-direction.md` and gated by the roadmap (R11+). Repository foundations
-for R11–R17 exist as default-dark build-ahead code under D-120; none is an enabled
-product, production-readiness, or outcome-completion claim.
+by `docs/product-direction.md` and reset in `docs/roadmap.md`. The product runs locally only; every area is
+always on (D-131), and none of it is a production-readiness claim.
 
 ## 2. Access Modes
 
@@ -50,7 +49,7 @@ Canonical order and grouping (D-003; registry:
 | 5 | Interview Q&A | application | resume + job description + question count (3–12) | question deck with answer frameworks, focus areas, practice mode (3 attempts per question, cheaper feedback model) |
 | 6 | Portfolio Planner | planning | resume + target role | project roadmap (foundational → advanced) with hiring signals |
 
-Shared UX pattern: input page (dark-to-light gradient hero) → cinematic loader →
+Shared UX pattern: input page (light hero with grain and accent glow) → cinematic loader →
 result page (per-tool view; dark hero variant with score ring for Resume and Job
 Match). The visual contract lives in `design.md`.
 
@@ -82,9 +81,8 @@ Scoring semantics:
   deletion-confirmation emails.
 - Account deletion is immediate and removes all owner-scoped product data,
   including runs, workspaces, Evidence Profile items, CV documents and immutable
-  variants, application packets and immutable approval snapshots, classified
-  career gaps, development items, active per-source submission authorization
-  records, and the user record (GDPR/RODO). Derived development recommendations
+  variants, the application snapshot, tasks and notes, application details and
+  preferences, classified career gaps, development items, and the user record (GDPR/RODO). Derived development recommendations
   disappear with their source classifications.
   Retention and backup policy beyond this is an open human decision (issue #74,
   D-NEXT-3).
@@ -99,14 +97,13 @@ Scoring semantics:
 - Exports: TXT and Markdown for everyone on all tools; PDF export for Cover Letter
   and Interview Q&A requires authentication. Exports use the user's last edited
   version, without an AI disclaimer.
-- The built-ahead approval queue remains roadmap-gated. Where present, accepting a
-  pending packet revalidates its required listing and CV references, then freezes
-  the exact owner-visible materials and resolved stop answers into an immutable
-  hashed snapshot. Missing required material must be re-prepared. Approval prevents
-  a duplicate for the same
-  owner/company/role or an already-submitted campaign, and offers a user-driven HTTPS
-  link to the official destination. It never submits, schedules, or retries an
-  application. Deleting the campaign or account removes the product's snapshot copy.
+- Applications (the former Campaigns and Approval Queue) prepare a cover letter and
+  screening-answer drafts; mandatory-stop questions (salary, work authorization,
+  demographics and similar) are never drafted and only the owner's answer resolves
+  them. There is no separate approval step: marking an application applied freezes
+  one immutable snapshot of what was sent. The product never submits, schedules or
+  retries an application (ADR 0009). Deleting the application or account removes the
+  product's snapshot copy.
 
 ## 7. Admin
 

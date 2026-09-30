@@ -2,14 +2,13 @@
 
 These are pipeline-seam tests: they drive `run_tool_pipeline` (the single
 execution seam) and assert prompt composition per confirmation state for a
-scored tool (Resume) and a generative tool (Cover Letter), plus the cache-key,
-disable-switch, and guest/empty-profile behavior the acceptance criteria name.
+scored tool (Resume) and a generative tool (Cover Letter), plus the cache-key
+and guest/empty-profile behavior the acceptance criteria name.
 """
 from __future__ import annotations
 
 import pytest
 
-from app.config import settings
 from app.models.evidence_item import EvidenceItem
 from app.services.cover_letter_gen import generate_cover_letter
 from app.services.result_cache import clear_cache
@@ -21,7 +20,7 @@ JD = "Seeking a backend engineer with distributed-systems experience and strong 
 
 
 def _seed_profile(db, user_id: str) -> None:
-    """One confirmed, one unconfirmed, one rejected item with unique markers."""
+    """One confirmed and one unconfirmed item with unique markers."""
     db.add_all(
         [
             EvidenceItem(
@@ -38,34 +37,16 @@ def _seed_profile(db, user_id: str) -> None:
                 provenance="inferred",
                 confirmation_state="unconfirmed",
             ),
-            EvidenceItem(
-                user_id=user_id,
-                kind="achievement",
-                content={"statement": "REJECTED_MARKER_CLAIM"},
-                provenance="imported",
-                confirmation_state="rejected",
-            ),
         ]
     )
     db.commit()
-
-
-@pytest.fixture
-def injection_enabled(monkeypatch):
-    """Turn the dark-by-default injection switch ON for a test.
-
-    Injection ships dark (default False) to honor the open R1–R4 / R3 gate
-    (D-060), so tests that exercise the injection path must opt in explicitly
-    rather than rely on the default.
-    """
-    monkeypatch.setattr(settings, "EVIDENCE_PROFILE_INJECTION_ENABLED", True)
 
 
 # ── Seam wiring: the pipeline builds and injects the payload by state ──────────
 
 
 @pytest.mark.asyncio
-async def test_pipeline_injects_payload_split_by_confirmation_state(db, test_user, injection_enabled):
+async def test_pipeline_injects_payload_split_by_confirmation_state(db, test_user):
     _seed_profile(db, test_user.id)
     captured: dict = {}
 
@@ -87,16 +68,14 @@ async def test_pipeline_injects_payload_split_by_confirmation_state(db, test_use
     assert payload is not None
     locked = str(payload.locked_facts)
     gaps = str(payload.gaps)
-    # Confirmed → locked facts; unconfirmed → gaps; rejected → excluded entirely.
+    # Confirmed → locked facts; unconfirmed → gaps.
     assert "CONFIRMED_MARKER_RUST" in locked
     assert "UNCONFIRMED_MARKER_ROLE" not in locked
     assert "UNCONFIRMED_MARKER_ROLE" in gaps
-    assert "REJECTED_MARKER_CLAIM" not in locked
-    assert "REJECTED_MARKER_CLAIM" not in gaps
 
 
 @pytest.mark.asyncio
-async def test_no_injection_for_guest(db, injection_enabled):
+async def test_no_injection_for_guest(db):
     captured: dict = {"payload": "sentinel"}
 
     async def fake_service(resume_text=None, job_description=None, feedback=None, evidence_profile=None):
@@ -117,7 +96,7 @@ async def test_no_injection_for_guest(db, injection_enabled):
 
 
 @pytest.mark.asyncio
-async def test_no_injection_for_user_without_profile_items(db, test_user, injection_enabled):
+async def test_no_injection_for_user_without_profile_items(db, test_user):
     captured: dict = {"payload": "sentinel"}
 
     async def fake_service(resume_text=None, job_description=None, feedback=None, evidence_profile=None):
@@ -137,70 +116,11 @@ async def test_no_injection_for_user_without_profile_items(db, test_user, inject
     assert captured["payload"] is None
 
 
-@pytest.mark.asyncio
-async def test_default_off_injection_is_a_no_op(db, test_user):
-    # Ships dark: the switch defaults OFF to honor the open R1–R4 / R3 gate
-    # (D-060), matching #144's dormant build-ahead pattern.
-    assert settings.EVIDENCE_PROFILE_INJECTION_ENABLED is False
-
-    _seed_profile(db, test_user.id)
-    captured: dict = {"payload": "sentinel"}
-
-    async def fake_service(resume_text=None, job_description=None, feedback=None, evidence_profile=None):
-        captured["payload"] = evidence_profile
-        return {"summary": "ok"}
-
-    await run_tool_pipeline(
-        tool_name="resume",
-        service_fn=fake_service,
-        service_kwargs={"resume_text": RESUME, "job_description": None, "feedback": None},
-        label_fn=lambda r: "label",
-        resume_text=RESUME,
-        current_user=test_user,
-        db=db,
-    )
-    # Default OFF → the profile is never read even with confirmed items present,
-    # so tools keep today's inline-input behavior with no data loss (ADR 0005).
-    assert captured["payload"] is None
-
-
-@pytest.mark.asyncio
-async def test_legacy_injection_switch_cannot_bypass_dark_r11(
-    db, test_user, monkeypatch
-):
-    _seed_profile(db, test_user.id)
-    monkeypatch.setattr(settings, "EVIDENCE_PROFILE_INJECTION_ENABLED", True)
-    monkeypatch.setattr(settings, "R11_EVIDENCE_PROFILE_ENABLED", False)
-    captured: dict = {"payload": "sentinel"}
-
-    async def fake_service(
-        resume_text=None, job_description=None, feedback=None, evidence_profile=None
-    ):
-        captured["payload"] = evidence_profile
-        return {"summary": "ok"}
-
-    await run_tool_pipeline(
-        tool_name="resume",
-        service_fn=fake_service,
-        service_kwargs={
-            "resume_text": RESUME,
-            "job_description": None,
-            "feedback": None,
-        },
-        label_fn=lambda r: "label",
-        resume_text=RESUME,
-        current_user=test_user,
-        db=db,
-    )
-
-    assert captured["payload"] is None
-
-
 # ── Cache key: the profile version participates and edits invalidate it ───────
 
 
 @pytest.mark.asyncio
-async def test_profile_edit_invalidates_result_cache(db, test_user, injection_enabled):
+async def test_profile_edit_invalidates_result_cache(db, test_user):
     clear_cache()
     calls = {"n": 0}
 
@@ -245,7 +165,7 @@ async def test_profile_edit_invalidates_result_cache(db, test_user, injection_en
 
 
 @pytest.mark.asyncio
-async def test_resume_prompt_composition_by_state(db, test_user, monkeypatch, injection_enabled):
+async def test_resume_prompt_composition_by_state(db, test_user, monkeypatch):
     _seed_profile(db, test_user.id)
     captured: dict = {}
 
@@ -271,11 +191,10 @@ async def test_resume_prompt_composition_by_state(db, test_user, monkeypatch, in
     assert "Unconfirmed profile items" in prompt
     assert "UNCONFIRMED_MARKER_ROLE" in prompt
     # Rejected evidence never reaches the prompt.
-    assert "REJECTED_MARKER_CLAIM" not in prompt
 
 
 @pytest.mark.asyncio
-async def test_cover_letter_prompt_composition_by_state(db, test_user, monkeypatch, injection_enabled):
+async def test_cover_letter_prompt_composition_by_state(db, test_user, monkeypatch):
     _seed_profile(db, test_user.id)
     captured: dict = {}
 
@@ -308,4 +227,3 @@ async def test_cover_letter_prompt_composition_by_state(db, test_user, monkeypat
     assert "CONFIRMED_MARKER_RUST" in prompt
     assert "Unconfirmed profile items" in prompt
     assert "UNCONFIRMED_MARKER_ROLE" in prompt
-    assert "REJECTED_MARKER_CLAIM" not in prompt

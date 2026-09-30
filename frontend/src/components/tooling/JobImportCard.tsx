@@ -4,7 +4,6 @@ import { Link2 } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { Input } from '#/components/ui/input'
 import { getHistoryWorkspaces, importJobText, importJobUrl } from '#/lib/api/client'
-import { isR13CampaignsEnabled } from '#/lib/flags/featureFlags'
 
 export function JobImportCard({
   onImported,
@@ -62,67 +61,60 @@ export function JobImportCard({
             {mutation.error instanceof Error ? mutation.error.message : 'Job import failed.'}
           </p>
         ) : null}
-        {/* R13 campaigns ships dark until the full R11-R13 chain is enabled
-            (see docs/agents/domain.md); the attach-to-campaign affordance stays
-            hidden and inert until then. */}
-        {isR13CampaignsEnabled() ? (
-          <>
-            <label className="import-card-attach small-copy" htmlFor="campaign-attach-toggle">
-              <input
-                id="campaign-attach-toggle"
-                type="checkbox"
-                checked={attach}
-                onChange={(event) => setAttach(event.target.checked)}
+        <label className="import-card-attach small-copy" htmlFor="campaign-attach-toggle">
+          <input
+            id="campaign-attach-toggle"
+            type="checkbox"
+            checked={attach}
+            onChange={(event) => setAttach(event.target.checked)}
+          />
+          Attach to one of your applications
+        </label>
+        {attach ? (
+          <div className="import-card-panel grid gap-3" aria-label="Application listing attachment">
+            <div className="workspace-picker">
+              <label className="workspace-picker-label" htmlFor="campaign-listing-picker">Application</label>
+              <select
+                id="campaign-listing-picker"
+                className="workspace-picker-select"
+                value={campaignId}
+                onChange={(event) => setCampaignId(event.target.value)}
+              >
+                <option value="">Select an application</option>
+                {campaigns.data?.items.map((item) => (
+                  <option key={item.id} value={item.id}>{item.label || item.role || 'Untitled application'}</option>
+                ))}
+              </select>
+            </div>
+            <p className="small-copy">Or attach a pasted listing</p>
+            <div className="grid gap-1">
+              <label className="small-copy" htmlFor="campaign-job-title">Job title</label>
+              <Input id="campaign-job-title" value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Job title" maxLength={200} />
+            </div>
+            <div className="grid gap-1">
+              <label className="small-copy" htmlFor="campaign-job-company">Company</label>
+              <Input id="campaign-job-company" value={company} onChange={(event) => setCompany(event.target.value)} placeholder="Company" maxLength={200} />
+            </div>
+            <div className="grid gap-1">
+              <label className="small-copy" htmlFor="campaign-job-description">Job description</label>
+              <textarea
+                id="campaign-job-description"
+                className="import-card-textarea"
+                value={description}
+                onChange={(event) => setDescription(event.target.value)}
+                placeholder="Paste the job description"
+                maxLength={20_000}
               />
-              Attach explicitly to a campaign
-            </label>
-            {attach ? (
-              <div className="import-card-panel grid gap-3" aria-label="Campaign listing attachment">
-                <div className="workspace-picker">
-                  <label className="workspace-picker-label" htmlFor="campaign-listing-picker">Campaign</label>
-                  <select
-                    id="campaign-listing-picker"
-                    className="workspace-picker-select"
-                    value={campaignId}
-                    onChange={(event) => setCampaignId(event.target.value)}
-                  >
-                    <option value="">Select a campaign</option>
-                    {campaigns.data?.items.map((item) => (
-                      <option key={item.id} value={item.id}>{item.label || item.role || 'Untitled campaign'}</option>
-                    ))}
-                  </select>
-                </div>
-                <p className="small-copy">Or attach a pasted listing</p>
-                <div className="grid gap-1">
-                  <label className="small-copy" htmlFor="campaign-job-title">Job title</label>
-                  <Input id="campaign-job-title" value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Job title" maxLength={200} />
-                </div>
-                <div className="grid gap-1">
-                  <label className="small-copy" htmlFor="campaign-job-company">Company</label>
-                  <Input id="campaign-job-company" value={company} onChange={(event) => setCompany(event.target.value)} placeholder="Company" maxLength={200} />
-                </div>
-                <div className="grid gap-1">
-                  <label className="small-copy" htmlFor="campaign-job-description">Job description</label>
-                  <textarea
-                    id="campaign-job-description"
-                    className="import-card-textarea"
-                    value={description}
-                    onChange={(event) => setDescription(event.target.value)}
-                    placeholder="Paste the job description"
-                    maxLength={20_000}
-                  />
-                </div>
-                <Button
-                  type="button"
-                  onClick={() => pasteMutation.mutate({ campaign_id: campaignId, job_title: title, company_name: company, job_description: description })}
-                  disabled={pasteMutation.isPending || !campaignId || !title.trim() || !company.trim() || description.trim().length < 20}
-                >
-                  {pasteMutation.isPending ? 'Attaching…' : 'Attach pasted listing'}
-                </Button>
-                {campaigns.error || pasteMutation.error ? <p className="small-copy" style={{ color: 'var(--destructive)' }}>Could not attach the listing.</p> : null}
-              </div>
-            ) : null}
-          </>
+            </div>
+            <Button
+              type="button"
+              onClick={() => pasteMutation.mutate({ campaign_id: campaignId, job_title: title, company_name: company, job_description: description })}
+              disabled={pasteMutation.isPending || !campaignId || !title.trim() || !company.trim() || description.trim().length < 20}
+            >
+              {pasteMutation.isPending ? 'Attaching…' : 'Attach pasted listing'}
+            </Button>
+            {campaigns.error || pasteMutation.error ? <p className="small-copy" style={{ color: 'var(--destructive)' }}>Could not attach the listing.</p> : null}
+          </div>
         ) : null}
       </div>
     </div>

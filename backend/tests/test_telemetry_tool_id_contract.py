@@ -19,13 +19,7 @@ from typing import get_args
 import pytest
 from pydantic import ValidationError
 
-from app.schemas.analytics import ActivationEventCreate, OperationalToolId
-from app.schemas.telemetry import (
-    BackendOnlyToolId,
-    BrowserToolId,
-    TelemetryEventRequest,
-    ToolId,
-)
+from app.schemas.telemetry import BrowserToolId, TelemetryEventRequest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 TELEMETRY_CLIENT = REPO_ROOT / "frontend" / "src" / "lib" / "telemetry" / "client.ts"
@@ -33,17 +27,6 @@ BROWSER_TOOL_IDS_PATTERN = re.compile(
     r"export const BROWSER_TOOL_IDS = \[(?P<members>.*?)\] as const",
     re.DOTALL,
 )
-
-
-def _literal_members(annotation) -> set[str]:
-    """Flatten a Literal, or a Union of Literals, into its string members."""
-    members: set[str] = set()
-    for arg in get_args(annotation):
-        if isinstance(arg, str):
-            members.add(arg)
-        else:
-            members |= _literal_members(arg)
-    return members
 
 
 def _frontend_browser_tool_ids() -> tuple[str, ...]:
@@ -69,41 +52,13 @@ def test_the_frontend_only_reports_ids_the_pipeline_can_actually_run():
     assert "resume" in frontend_ids
 
 
-@pytest.mark.parametrize("tool_id", get_args(BackendOnlyToolId))
-def test_browser_ingest_rejects_backend_only_tool_ids(tool_id):
-    # `application-packet` is produced by app/services/application_packets.py,
-    # never by a browser. Accepting it on the ingest route would let any client
-    # fabricate packet activation rows.
+def test_browser_ingest_rejects_backend_only_tool_ids():
     with pytest.raises(ValidationError):
-        TelemetryEventRequest(event_name="tool_run_succeeded", tool_id=tool_id)
+        TelemetryEventRequest(event_name="tool_run_succeeded", tool_id="application-packet")
 
 
 @pytest.mark.parametrize("tool_id", get_args(BrowserToolId))
 def test_browser_ingest_accepts_every_browser_tool_id(tool_id):
     event = TelemetryEventRequest(event_name="tool_run_succeeded", tool_id=tool_id)
-
-    assert event.tool_id == tool_id
-
-
-def test_backend_only_ids_stay_inside_the_reporting_taxonomy():
-    # Narrowing the ingest contract must not narrow admin/analytics reporting:
-    # backend-emitted packet runs still need a bounded identifier.
-    reporting_ids = get_args(ToolId)
-
-    assert set(get_args(BrowserToolId)) <= set(reporting_ids)
-    assert set(get_args(BackendOnlyToolId)) <= set(reporting_ids)
-    # And the admin/analytics union still covers the whole reporting taxonomy.
-    assert set(reporting_ids) <= _literal_members(OperationalToolId)
-
-
-@pytest.mark.parametrize("tool_id", get_args(BackendOnlyToolId))
-def test_backend_activation_events_still_accept_backend_only_tool_ids(tool_id):
-    event = ActivationEventCreate(
-        event_name="r10_generation_phase",
-        tool_id=tool_id,
-        access_mode="authenticated",
-        duration_ms=1,
-        operational_dimension="provider",
-    )
 
     assert event.tool_id == tool_id

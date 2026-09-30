@@ -35,8 +35,8 @@ export function PrivacyPolicyPage() {
         </li>
         <li>
           <strong>Technical data:</strong> your IP address, which our own service processes to apply rate limits and
-          prevent abuse, plus low-cardinality operational diagnostics. Sentry error monitoring is inactive by
-          default; if enabled after privacy-scrubbing checks, it may receive minimal error diagnostics.
+          prevent abuse, plus low-cardinality operational diagnostics kept in our own logs. No third-party error
+          monitoring service receives this data.
         </li>
         <li>
           <strong>Cookies and similar storage:</strong> strictly-necessary authentication cookies and a local
@@ -56,11 +56,12 @@ export function PrivacyPolicyPage() {
         </li>
         <li>
           <strong>Security and bot protection (Art. 6(1)(f) GDPR — legitimate interest):</strong> preventing abuse and
-          automated attacks. Google reCAPTCHA is used only if that protection is enabled for a sensitive form.
+          automated attacks through per-route request limits based on your IP address. We do not use a CAPTCHA
+          service.
         </li>
         <li>
           <strong>Error monitoring (Art. 6(1)(f) GDPR — legitimate interest):</strong> understanding and fixing crashes
-          and bugs. Sentry is used only if enabled after privacy-scrubbing checks.
+          and bugs from our own first-party logs and diagnostic telemetry.
         </li>
         <li>
           <strong>Transactional email (Art. 6(1)(b) GDPR — contract):</strong> sending password-reset emails through
@@ -84,8 +85,8 @@ export function PrivacyPolicyPage() {
 
       <h2>5. Who we share data with (sub-processors)</h2>
       <p>
-        We use the following third-party providers to run the Service. Providers marked optional process data only
-        when the corresponding integration is enabled.
+        We use the following third-party providers to run the Service. Google OAuth processes data only if you choose to
+        sign in with Google.
       </p>
       <ul>
         <li>
@@ -97,18 +98,6 @@ export function PrivacyPolicyPage() {
         <li>
           <strong>Google (OAuth)</strong> — optional sign-in with your Google account.{' '}
           <a href="https://policies.google.com/privacy" target="_blank" rel="noreferrer" className="legal-page__link">
-            Privacy policy
-          </a>
-        </li>
-        <li>
-          <strong>Google reCAPTCHA (optional)</strong> — bot protection on sensitive forms when enabled.{' '}
-          <a href="https://policies.google.com/privacy" target="_blank" rel="noreferrer" className="legal-page__link">
-            Privacy policy
-          </a>
-        </li>
-        <li>
-          <strong>Sentry (optional; inactive by default)</strong> — error monitoring after privacy-scrubbing checks.{' '}
-          <a href="https://sentry.io/privacy/" target="_blank" rel="noreferrer" className="legal-page__link">
             Privacy policy
           </a>
         </li>
@@ -131,10 +120,10 @@ export function PrivacyPolicyPage() {
 
       <h2>6. International transfers</h2>
       <p>
-        Some active or optional sub-processors, including Google and Sentry, may process data in the United States or
+        Some sub-processors, including Google, may process data in the United States or
         other countries outside the European Economic Area. Where this happens, transfers are protected by the
         European Commission’s Standard Contractual Clauses and, where applicable, supplementary measures required
-        under GDPR. Optional providers receive data only while their integration is enabled.
+        under GDPR. Google OAuth sign-in is optional and used only if you choose it.
       </p>
 
       <h2>7. How long we keep data</h2>
@@ -148,8 +137,7 @@ export function PrivacyPolicyPage() {
         </li>
         <li>
           <strong>Error diagnostics</strong> remain in first-party operational logs according to the hosting
-          provider’s managed retention. If Sentry is enabled later, its events follow Sentry’s platform-managed
-          retention settings; Sentry is inactive by default.
+          provider’s managed retention.
         </li>
       </ul>
 

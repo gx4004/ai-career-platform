@@ -2,120 +2,33 @@ import { describe, expect, it } from 'vitest'
 import { discoverySourceListSchema } from '#/lib/api/discoverySchemas'
 
 describe('discovery source contracts', () => {
-  it('accepts the complete governance response shape', () => {
-    expect(
-      discoverySourceListSchema.parse({
-        items: [
-          {
-            id: 'source-1',
-            source_key: 'licensed-example',
-            display_name: 'Licensed Example Feed',
-            source_family: 'licensed',
-            owner: 'Discovery Operations',
-            terms_status: 'accepted',
-            terms_reviewed_at: '2026-07-13T00:00:00Z',
-            terms_reviewed_by: 'Legal Reviewer',
-            allowed_behavior: 'feed',
-            endpoint_url: 'https://fixture.example/jobs',
-            allowed_query_parameters: ['role', 'location'],
-            robots_policy: 'required',
-            rate_limit_per_minute: 12,
-            attribution_rule: 'Show source name and original link',
-            retention_days: 30,
-            kill_switch: false,
-            ingestion_allowed: true,
-            created_at: '2026-07-13T00:00:00Z',
-            updated_at: '2026-07-13T00:00:00Z',
-          },
-        ],
-      }).items[0].source_family,
-    ).toBe('licensed')
-  })
-
-  it('rejects registry values outside the backend closed sets', () => {
-    const result = discoverySourceListSchema.safeParse({
+  it('accepts an employer-ATS source as the backend returns it', () => {
+    const parsed = discoverySourceListSchema.parse({
       items: [
         {
           id: 'source-1',
-          source_key: 'bad-source',
-          display_name: 'Bad source',
-          source_family: 'scraped_board',
-          owner: 'Nobody',
+          source_key: 'employer-ats-greenhouse-figma',
+          display_name: 'Figma',
+          source_family: 'employer_ats',
+          owner: 'Discovery Operations',
           terms_status: 'accepted',
           terms_reviewed_at: '2026-07-13T00:00:00Z',
-          terms_reviewed_by: 'Reviewer',
-          allowed_behavior: 'crawler',
-          endpoint_url: 'https://fixture.example/jobs',
-          allowed_query_parameters: ['role'],
-          robots_policy: 'required',
-          rate_limit_per_minute: 10,
-          attribution_rule: 'None',
-          retention_days: 30,
+          terms_reviewed_by: 'Legal Reviewer',
+          allowed_behavior: 'ats_integration',
+          endpoint_url: 'https://boards-api.greenhouse.io/v1/boards/figma/jobs',
+          rate_limit_per_minute: 20,
+          attribution_rule: 'Show company, source name and original link',
+          retention_days: 45,
           kill_switch: false,
           ingestion_allowed: true,
+          last_fetched_at: '2026-09-28T06:00:00Z',
+          last_outcome: 'ok',
+          listing_count: 12,
           created_at: '2026-07-13T00:00:00Z',
           updated_at: '2026-07-13T00:00:00Z',
         },
       ],
     })
-    expect(result.success).toBe(false)
-  })
-
-  it('rejects timestamps that the backend datetime contract cannot parse', () => {
-    const result = discoverySourceListSchema.safeParse({
-      items: [
-        {
-          id: 'source-1',
-          source_key: 'licensed-example',
-          display_name: 'Licensed Example Feed',
-          source_family: 'licensed',
-          owner: 'Discovery Operations',
-          terms_status: 'pending',
-          terms_reviewed_at: 'yesterday',
-          terms_reviewed_by: null,
-          allowed_behavior: 'feed',
-          endpoint_url: 'https://fixture.example/jobs',
-          allowed_query_parameters: ['role'],
-          robots_policy: 'required',
-          rate_limit_per_minute: 12,
-          attribution_rule: 'Show source name and original link',
-          retention_days: 30,
-          kill_switch: true,
-          ingestion_allowed: false,
-          created_at: 'not-a-date',
-          updated_at: '2026-07-13',
-        },
-      ],
-    })
-    expect(result.success).toBe(false)
-  })
-
-  it('rejects unsafe endpoints and duplicate query declarations', () => {
-    const result = discoverySourceListSchema.safeParse({
-      items: [
-        {
-          id: 'source-1',
-          source_key: 'licensed-example',
-          display_name: 'Licensed Example Feed',
-          source_family: 'licensed',
-          owner: 'Discovery Operations',
-          terms_status: 'pending',
-          terms_reviewed_at: null,
-          terms_reviewed_by: null,
-          allowed_behavior: 'feed',
-          endpoint_url: 'https://user:password@fixture.example/jobs?profile=secret',
-          allowed_query_parameters: ['role', 'role'],
-          robots_policy: 'required',
-          rate_limit_per_minute: 12,
-          attribution_rule: 'Show source name and original link',
-          retention_days: 30,
-          kill_switch: true,
-          ingestion_allowed: false,
-          created_at: '2026-07-13T00:00:00Z',
-          updated_at: '2026-07-13T00:00:00Z',
-        },
-      ],
-    })
-    expect(result.success).toBe(false)
+    expect(parsed.items[0].listing_count).toBe(12)
   })
 })

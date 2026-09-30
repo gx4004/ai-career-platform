@@ -15,7 +15,7 @@ from app.auth.security import (
 )
 from app.config import settings
 from app.database import get_db
-from app.limiter import clear_auth_failures, limiter, record_account_pressure, record_auth_failure
+from app.limiter import limiter
 from app.models.user import User
 from app.schemas.auth import (
     AuthProvidersResponse,
@@ -27,7 +27,6 @@ from app.schemas.auth import (
     RegisterRequest,
     UserResponse,
 )
-from app.services.captcha import CaptchaVerdict, challenge_provider, verify_captcha
 from app.services.email_blocklist import is_disposable_email
 from app.services.email_service import send_password_reset_email
 from app.services.tool_runs import delete_all_user_data
@@ -35,26 +34,11 @@ from app.services.tool_runs import delete_all_user_data
 router = APIRouter()
 
 
-class AuthProvidersPayload(AuthProvidersResponse):
-    """Sign-up configuration this deployment advertises to the client.
-
-    Extends the existing provider advertisement instead of adding a second
-    configuration endpoint: the client already asks this endpoint what is
-    configured before it renders the sign-up surface, and the registration
-    challenge is exactly that kind of deployment fact. Only public
-    configuration is exposed — never the provider secret.
-    """
-
-    captcha_required: bool = False
-    captcha_provider: str | None = None
-
-
 @router.post("/login", response_model=AuthSessionResponse)
 @limiter.limit("10/minute")
 async def login(request: Request, response: Response, body: LoginRequest, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == body.email).first()
     if not user or not verify_password(body.password, user.hashed_password):
-        await record_auth_failure(body.email)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password",
@@ -64,7 +48,6 @@ async def login(request: Request, response: Response, body: LoginRequest, db: Se
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Account is deactivated",
         )
-    clear_auth_failures(body.email)
     access = create_access_token(user.id)
     refresh = create_refresh_token(user.id, user.token_version)
     set_auth_cookies(response, access, refresh)
@@ -74,33 +57,6 @@ async def login(request: Request, response: Response, body: LoginRequest, db: Se
 @router.post("/register", response_model=UserResponse, status_code=201)
 @limiter.limit("5/minute")
 async def register(request: Request, response: Response, body: RegisterRequest, db: Session = Depends(get_db)):
-    await record_account_pressure("registration", body.email)
-
-    # The challenge runs before anything that inspects this address, so no
-    # response can reveal whether an address is already registered (or blocked)
-    # until the challenge is satisfied. Returning the 409 first made the
-    # challenge useless for the abuse it exists to stop: an attacker could
-    # enumerate accounts at the plain rate limit while the challenge was on.
-    if settings.CAPTCHA_ENABLED:
-        if not body.captcha_token:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="CAPTCHA token is required",
-            )
-        verdict = await verify_captcha(body.captcha_token)
-        if verdict is not CaptchaVerdict.VERIFIED:
-            # A refused token and an unreachable provider both fail closed, and
-            # both get the same generic answer: the client-visible response
-            # must not become a probe for provider state, and provider detail
-            # never reaches the body. The unavailable case is distinguished
-            # where it matters — in the service's warning log — and matches the
-            # existing enabled-but-unconfigured posture, which also refuses to
-            # register when the challenge cannot be asked.
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="CAPTCHA verification failed",
-            )
-
     if settings.DISPOSABLE_EMAIL_BLOCK_ENABLED and is_disposable_email(body.email):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -222,17 +178,12 @@ def delete_account(
     return None
 
 
-@router.get("/providers", response_model=AuthProvidersPayload)
+@router.get("/providers", response_model=AuthProvidersResponse)
 def get_providers():
     providers = []
     if settings.GOOGLE_CLIENT_ID:
         providers.append("google")
-    provider = challenge_provider()
-    return AuthProvidersPayload(
-        providers=providers,
-        captcha_required=provider is not None,
-        captcha_provider=provider,
-    )
+    return AuthProvidersResponse(providers=providers)
 
 
 @router.post("/password-reset/request", status_code=200)
@@ -243,7 +194,6 @@ async def request_password_reset(
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
 ):
-    await record_account_pressure("password-reset", body.email)
     user = db.query(User).filter(User.email == body.email).first()
     if user:
         token = create_password_reset_token(user.email, user.hashed_password or "")

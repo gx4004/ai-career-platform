@@ -1,13 +1,21 @@
 import { useLayoutEffect, useRef } from 'react'
 import { Link, useRouterState } from '@tanstack/react-router'
-import { LayoutDashboard, History, UserRound, Settings } from 'lucide-react'
+import { LayoutDashboard } from 'lucide-react'
 import { SessionMenu } from '#/components/auth/SessionMenu'
 import { SidebarTrigger } from '#/components/ui/sidebar'
 import { AppBrandLockup } from '#/components/app/AppBrandLockup'
+import { getPagePill } from '#/lib/navigation/pagePill'
 import { getRouteMeta } from '#/lib/navigation/routeMeta'
 import { toolList } from '#/lib/tools/registry'
 import { useBreakpoint } from '#/hooks/use-breakpoint'
 import { cn } from '#/lib/utils'
+
+/** Result routes end in a generic "Result" crumb; on mobile show the tool name instead. */
+function mobileBreadcrumbTitle(breadcrumbs: string[]) {
+  const last = breadcrumbs[breadcrumbs.length - 1]
+  if (last === 'Result' && breadcrumbs.length > 1) return breadcrumbs[breadcrumbs.length - 2]
+  return last
+}
 
 export function Topbar() {
   const pathname = useRouterState({
@@ -22,12 +30,7 @@ export function Topbar() {
   const headerRef = useRef<HTMLElement | null>(null)
 
   // Page icon/label for non-tool compact pages (pill style, same as tool pages)
-  const pageIcons: Record<string, { icon: typeof LayoutDashboard; label: string }> = {
-    '/history': { icon: History, label: 'History' },
-    '/account': { icon: UserRound, label: 'Account' },
-    '/settings': { icon: Settings, label: 'Settings' },
-  }
-  const pagePill = pageIcons[pathname]
+  const pagePill = getPagePill(pathname)
 
   useLayoutEffect(() => {
     const el = headerRef.current
@@ -53,7 +56,7 @@ export function Topbar() {
     ? 'Your Workspace'
     : entryTool
       ? entryTool.label
-      : meta.breadcrumbs[meta.breadcrumbs.length - 1] || meta.title
+      : mobileBreadcrumbTitle(meta.breadcrumbs) || meta.title
 
   return (
     <header
