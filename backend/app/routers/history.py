@@ -18,6 +18,7 @@ from app.schemas.history import (
     WorkspaceSummary,
     WorkspaceUpdateRequest,
 )
+from app.services.application_drafts import DRAFTS_TOOL_NAME
 from app.services.applications import clear_selected_run
 from app.services.premium_outputs import attach_premium_outputs
 from app.services.tool_runs import build_workspace_summary, derive_saved_run_metadata
@@ -43,6 +44,10 @@ def list_history(
 
     if tool:
         query = query.filter(ToolRun.tool_name == tool)
+    else:
+        # Application drafts are an internal artefact of Applications; they are
+        # opened from the application page, never listed as saved runs.
+        query = query.filter(ToolRun.tool_name != DRAFTS_TOOL_NAME)
     if favorite is not None:
         query = query.filter(ToolRun.is_favorite == favorite)
     if q:
