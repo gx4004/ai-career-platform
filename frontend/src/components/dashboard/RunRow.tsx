@@ -80,10 +80,6 @@ export function RunRow(
         style={toolAccentStyle(tool.accent)}
       >
         {body}
-        <span className="run-row-cta" aria-hidden>
-          <span>Open</span>
-          <ArrowRight size={14} className="run-row-cta-arrow" />
-        </span>
       </Link>
     )
   }

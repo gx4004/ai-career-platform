@@ -41,13 +41,15 @@ vi.mock('#/lib/telemetry/client', () => ({
 
 // A trivial result definition so the test is robust against per-tool payload
 // shape — the wrapper (formerly `AdGatedLock`) is what is under test, not the
-// per-tool renderer. `download` makes an export affordance render in the hero.
+// per-tool renderer. `download` makes an export affordance render in the header.
 vi.mock('#/lib/tools/resultDefinitions', () => ({
+  FixFirstList: () => null,
   resultDefinitions: new Proxy(
     {},
     {
       get: () => ({
-        heroVariant: 'light',
+        summary: () => ({ facts: [] }),
+        topActions: () => [],
         render: () => <div>RESULT_CONTENT_MARKER</div>,
         copyText: () => 'copied result',
         download: () => ({ filename: 'result.txt', content: 'result body' }),

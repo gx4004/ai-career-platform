@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { Link2 } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { Input } from '#/components/ui/input'
 import { getHistoryWorkspaces, importJobText, importJobUrl } from '#/lib/api/client'
@@ -33,20 +32,24 @@ export function JobImportCard({
   })
 
   return (
-    <div className="import-card p-4">
-      <div className="grid gap-3">
-        <div className="flex items-center gap-2">
-          <Link2 size={16} style={{ color: 'var(--text-muted)' }} />
-          <p className="section-title">Import from job URL</p>
+    <div className="import-card">
+      <div className="tool-field">
+        <div className="tool-field-head">
+          <label className="tool-field-label" htmlFor="job-import-url">
+            <span>Import from job URL</span>
+            <span className="tool-field-meta">Optional</span>
+          </label>
         </div>
-        <div className="flex flex-col gap-3 sm:flex-row">
+        <div className="import-card-row">
           <Input
+            id="job-import-url"
             value={url}
             onChange={(event) => setUrl(event.target.value)}
             placeholder="Paste the job posting URL"
           />
           <Button
             type="button"
+            variant="outline"
             onClick={() => mutation.mutate({
               url,
               ...(attach && campaignId ? { campaign_id: campaignId } : {}),
@@ -57,11 +60,11 @@ export function JobImportCard({
           </Button>
         </div>
         {mutation.error ? (
-          <p className="small-copy" style={{ color: 'var(--destructive)' }}>
+          <p className="tool-field-error">
             {mutation.error instanceof Error ? mutation.error.message : 'Job import failed.'}
           </p>
         ) : null}
-        <label className="import-card-attach small-copy" htmlFor="campaign-attach-toggle">
+        <label className="import-card-attach" htmlFor="campaign-attach-toggle">
           <input
             id="campaign-attach-toggle"
             type="checkbox"
@@ -86,17 +89,17 @@ export function JobImportCard({
                 ))}
               </select>
             </div>
-            <p className="small-copy">Or attach a pasted listing</p>
+            <p className="tool-field-note">Or attach a pasted listing</p>
             <div className="grid gap-1">
-              <label className="small-copy" htmlFor="campaign-job-title">Job title</label>
+              <label className="tool-field-note" htmlFor="campaign-job-title">Job title</label>
               <Input id="campaign-job-title" value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Job title" maxLength={200} />
             </div>
             <div className="grid gap-1">
-              <label className="small-copy" htmlFor="campaign-job-company">Company</label>
+              <label className="tool-field-note" htmlFor="campaign-job-company">Company</label>
               <Input id="campaign-job-company" value={company} onChange={(event) => setCompany(event.target.value)} placeholder="Company" maxLength={200} />
             </div>
             <div className="grid gap-1">
-              <label className="small-copy" htmlFor="campaign-job-description">Job description</label>
+              <label className="tool-field-note" htmlFor="campaign-job-description">Job description</label>
               <textarea
                 id="campaign-job-description"
                 className="import-card-textarea"
@@ -108,12 +111,14 @@ export function JobImportCard({
             </div>
             <Button
               type="button"
+              variant="outline"
+              size="sm"
               onClick={() => pasteMutation.mutate({ campaign_id: campaignId, job_title: title, company_name: company, job_description: description })}
               disabled={pasteMutation.isPending || !campaignId || !title.trim() || !company.trim() || description.trim().length < 20}
             >
               {pasteMutation.isPending ? 'Attaching…' : 'Attach pasted listing'}
             </Button>
-            {campaigns.error || pasteMutation.error ? <p className="small-copy" style={{ color: 'var(--destructive)' }}>Could not attach the listing.</p> : null}
+            {campaigns.error || pasteMutation.error ? <p className="tool-field-error">Could not attach the listing.</p> : null}
           </div>
         ) : null}
       </div>

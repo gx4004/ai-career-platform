@@ -55,7 +55,7 @@ describe('ApplicationsPage', () => {
     renderBoard()
     await screen.findByText('Backend Engineer')
     const saved = within(column('Saved'))
-    expect(saved.getByText('Tailor CV')).toBeTruthy()
+    expect(saved.getByText(/Next: Tailor CV/)).toBeTruthy()
     expect(saved.getByText('81% skills fit')).toBeTruthy()
     expect(within(saved.getByText('Platform Engineer').closest('article') as HTMLElement).getByText('Ready to apply')).toBeTruthy()
     expect(within(saved.getByText('Python Developer').closest('article') as HTMLElement).getByText('2 questions')).toBeTruthy()
@@ -66,6 +66,18 @@ describe('ApplicationsPage', () => {
     // The hero shows at most three chips.
     expect(screen.getByText(/\d+ in progress/)).toBeTruthy()
     expect(screen.queryByText(/\d+ offers?$/)).toBeNull()
+  })
+
+  it('switches to a list with stage, role, company, fit and next step', async () => {
+    renderBoard()
+    await screen.findByText('Backend Engineer')
+    fireEvent.click(screen.getByRole('button', { name: 'List' }))
+    const row = screen.getByRole('link', { name: 'Backend Engineer' }).closest('tr') as HTMLElement
+    expect(within(row).getByText('Saved')).toBeTruthy()
+    expect(within(row).getByText('Northwind')).toBeTruthy()
+    expect(within(row).getByText('81%')).toBeTruthy()
+    expect(within(row).getByText(/Tailor CV/)).toBeTruthy()
+    expect(screen.getByRole('columnheader', { name: 'Next step' })).toBeTruthy()
   })
 
   it('shows an offers chip next to the interviewing chip, and every non-zero status', async () => {
@@ -131,7 +143,7 @@ describe('ApplicationsPage', () => {
   it('shows a friendly empty state and still offers to prepare applications', async () => {
     api.listApplications.mockResolvedValue({ items: [], total: 0 })
     renderBoard()
-    expect(await screen.findByText('No applications yet')).toBeTruthy()
+    expect(await screen.findByText(/No applications yet/)).toBeTruthy()
     expect(screen.getByRole('heading', { name: 'Prepare applications for me' })).toBeTruthy()
   })
 })

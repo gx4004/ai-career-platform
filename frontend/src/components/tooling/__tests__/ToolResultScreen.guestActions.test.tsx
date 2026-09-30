@@ -31,11 +31,13 @@ vi.mock('#/components/app/PageFrame', () => ({
 vi.mock('#/lib/telemetry/client', () => ({ trackTelemetry: trackTelemetryMock }))
 
 vi.mock('#/lib/tools/resultDefinitions', () => ({
+  FixFirstList: () => null,
   resultDefinitions: new Proxy(
     {},
     {
       get: () => ({
-        heroVariant: 'light',
+        summary: () => ({ facts: [] }),
+        topActions: () => [],
         render: () => <div>RESULT_CONTENT_MARKER</div>,
         copyText: () => 'copied result',
       }),

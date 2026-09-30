@@ -334,3 +334,13 @@ body,
   border-color: var(--border-soft);
   box-shadow: var(--shadow-soft);
 }
+
+/* The page-wide grid texture and tone glows belong to the landing page only. */
+body:not(.page-tone-landing)::before,
+body:not(.page-tone-landing)::after {
+  display: none;
+}
+
+.app-state-panel::after {
+  display: none;
+}

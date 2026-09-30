@@ -10,8 +10,8 @@ import { applicationTitle } from './stages'
 
 /**
  * Name and pin for one application (an application is its workspace row, so
- * this is the workspace rename/pin that used to live on History). Secondary to
- * the hero's single "Change stage" action: quiet ghost buttons, no new card.
+ * this is the workspace rename/pin that used to live on History). Quiet
+ * icon buttons that sit in the page header next to the stage control.
  */
 export function ApplicationIdentity({ application }: { application: ApplicationDetail }) {
   const queryClient = useQueryClient()
@@ -72,24 +72,27 @@ export function ApplicationIdentity({ application }: { application: ApplicationD
     <div className="camp-identity">
       <Button
         variant="ghost"
-        size="sm"
+        size="icon-sm"
+        aria-label="Rename application"
+        title="Rename application"
         onClick={() => {
           save.reset()
           setDraft(applicationTitle(application))
           setEditing(true)
         }}
       >
-        <Pencil size={14} aria-hidden="true" /> Rename application
+        <Pencil size={14} aria-hidden="true" />
       </Button>
       <Button
         variant="ghost"
-        size="sm"
+        size="icon-sm"
         aria-pressed={pinned}
+        aria-label={pinned ? 'Unpin application' : 'Pin application'}
+        title={pinned ? 'Unpin application' : 'Pin application'}
         disabled={save.isPending}
         onClick={() => save.mutate({ is_pinned: !pinned })}
       >
-        <Pin size={14} fill={pinned ? 'currentColor' : 'none'} aria-hidden="true" />{' '}
-        {pinned ? 'Unpin application' : 'Pin application'}
+        <Pin size={14} fill={pinned ? 'currentColor' : 'none'} aria-hidden="true" />
       </Button>
       {save.isError ? <p className="camp-alert" role="alert">Your change couldn't be saved. Try again.</p> : null}
     </div>

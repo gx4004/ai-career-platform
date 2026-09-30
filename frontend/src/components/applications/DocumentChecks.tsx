@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { Check, CircleAlert, ClipboardCheck, ListPlus } from 'lucide-react'
-import { WorkspacePanel } from '#/components/app/WorkspacePage'
+import { Panel } from './Panel'
 import { Button } from '#/components/ui/button'
 import { classifyApplicationGaps, getApplicationGapResponse, reviewApplication } from '#/lib/api/client'
 import { createDevelopmentItem } from '#/lib/api/development'
@@ -36,8 +36,7 @@ export function DocumentChecks({ applicationId }: { applicationId: string }) {
   const findings = review.data?.findings.filter((item) => !hidden.has(item.id)) ?? []
 
   return (
-    <WorkspacePanel
-      kicker="Before you send"
+    <Panel
       title="Check your documents"
       description="Quick rule-based checks on the CV and cover letter this application would send. Nothing is changed for you."
       actions={
@@ -96,7 +95,7 @@ export function DocumentChecks({ applicationId }: { applicationId: string }) {
           )
         })}
       </ul>
-    </WorkspacePanel>
+    </Panel>
   )
 }
 

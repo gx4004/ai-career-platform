@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { WorkspacePanel } from '#/components/app/WorkspacePage'
+import { Panel } from './Panel'
 import { getApplicationInsights } from '#/lib/api/client'
 import type { InsightSegment, InsightsDimension } from '#/lib/api/schemas'
 import { APPLICATION_INSIGHTS_QUERY_KEY } from '#/lib/query/applicationCaches'
@@ -17,17 +17,16 @@ export function WhatsWorkingPanel() {
   if (query.isError) return null
   if (!data) {
     return (
-      <WorkspacePanel kicker="What's working" title="Which jobs reply" className="camp-insights">
+      <Panel title="What's working" className="camp-insights">
         <p className="camp-muted" role="status">Counting your outcomes…</p>
-      </WorkspacePanel>
+      </Panel>
     )
   }
   const { overall } = data
   return (
-    <WorkspacePanel
-      kicker="What's working"
-      title="Which jobs reply"
-      description="A reply is an interview or an offer. Each list below stands on its own, and a rate only shows once a group has enough applications behind it."
+    <Panel
+      title="What's working"
+      description="A reply is an interview or an offer. Each list stands on its own, and a rate only shows once a group has enough applications behind it."
       className="camp-insights"
     >
       {overall.applied === 0 ? (
@@ -55,7 +54,7 @@ export function WhatsWorkingPanel() {
           </div>
         </>
       )}
-    </WorkspacePanel>
+    </Panel>
   )
 }
 
@@ -79,8 +78,8 @@ function Segment({ segment }: { segment: InsightSegment }) {
       <span className="camp-insights__label">{segment.label}</span>
       {segment.enough_data && segment.reply_rate !== null ? (
         <>
-          <span className="score-bar__track camp-insights__track" aria-hidden="true">
-            <span className="score-bar__fill" style={{ width: `${Math.max(segment.reply_rate, 2)}%` }} />
+          <span className="camp-insights__track" aria-hidden="true">
+            <span className="camp-insights__fill" style={{ width: `${Math.max(segment.reply_rate, 2)}%` }} />
           </span>
           <span className="camp-insights__value">
             {segment.reply_rate}%

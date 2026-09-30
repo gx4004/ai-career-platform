@@ -1,8 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import {
-  FixFirstStrip,
-  fixFirstTone,
+  FixFirstList,
   formatLetterDate,
   resultDefinitions,
   roleFitLabel,
@@ -461,36 +460,60 @@ describe('cover letter helpers', () => {
   })
 })
 
-describe('FixFirstStrip', () => {
+describe('FixFirstList', () => {
   const actions = [
     { title: 'A', action: 'do a', priority: 'high' },
     { title: 'B', action: 'do b', priority: 'medium' },
   ]
 
-  it('exposes the card count so 2 cards fill the row', () => {
-    const { container } = render(<FixFirstStrip actions={actions} />)
-    const strip = container.querySelector('.fix-first-strip') as HTMLElement
-    expect(strip.style.getPropertyValue('--fix-count')).toBe('2')
-    expect(screen.getByText('Fix these first')).toBeTruthy()
+  it('renders a numbered list under a plain heading', () => {
+    const { container } = render(<FixFirstList actions={actions} />)
+    expect(screen.getByRole('heading', { name: 'Fix first' })).toBeTruthy()
+    expect(container.querySelectorAll('ol > li').length).toBe(2)
   })
 
   it('renders nothing without actions', () => {
-    const { container } = render(<FixFirstStrip actions={[]} />)
+    const { container } = render(<FixFirstList actions={[]} />)
     expect(container.firstChild).toBeNull()
   })
 
-  it('derives tint and label from priority, not position', () => {
-    expect(fixFirstTone('high').text).toBe('#dc2626')
-    expect(fixFirstTone('medium').text).toBe('#b45309')
-    expect(fixFirstTone('low').text).toBe('#2563eb')
-    render(<FixFirstStrip actions={[{ title: 'Low first', action: 'x', priority: 'low' }, { title: 'High second', action: 'y', priority: 'high' }]} />)
-    expect(screen.getByText('Nice to have')).toBeTruthy()
-    expect(screen.getByText('High priority')).toBeTruthy()
+  it('shows severity as text, derived from priority and not position', () => {
+    render(
+      <FixFirstList
+        actions={[
+          { title: 'Low first', action: 'x', priority: 'low' },
+          { title: 'High second', action: 'y', priority: 'high' },
+        ]}
+      />,
+    )
+    expect(screen.getByText('Low')).toBeTruthy()
+    expect(screen.getByText('High')).toBeTruthy()
   })
 
-  it('omits the priority footer when showFooter is false', () => {
-    render(<FixFirstStrip actions={actions} showFooter={false} />)
-    expect(screen.queryByText('High priority')).toBeNull()
+  it('caps the list at three items', () => {
+    const many = Array.from({ length: 5 }, (_, i) => ({ title: `T${i}`, action: 'x', priority: 'medium' }))
+    const { container } = render(<FixFirstList actions={many} />)
+    expect(container.querySelectorAll('ol > li').length).toBe(3)
+  })
+})
+
+describe('result summary', () => {
+  it('reads the score and facts for a resume', () => {
+    const summary = resultDefinitions.resume.summary({
+      overall_score: 77,
+      summary: { verdict: 'Strong foundation', confidence_note: 'Directional.' },
+      issues: [{ id: 'a', title: 'x' }],
+      role_fit: { target_role_label: 'Engineer', fit_score: 64, rationale: 'r' },
+    })
+    expect(summary.score).toEqual({ value: 77, label: 'Resume score', unit: '/100' })
+    expect(summary.facts.map((f) => f.label)).toEqual(['Verdict', 'Role fit', 'Issues'])
+    expect(summary.note).toBe('Directional.')
+  })
+
+  it('has no score for generative tools', () => {
+    expect(resultDefinitions['cover-letter'].summary({}).score).toBeUndefined()
+    expect(resultDefinitions.interview.summary({}).score).toBeUndefined()
+    expect(resultDefinitions.portfolio.summary({}).score).toBeUndefined()
   })
 })
 

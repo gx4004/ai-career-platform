@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { CheckCircle2, FilePenLine } from 'lucide-react'
+import { useState, type ReactNode } from 'react'
 import { Button } from '#/components/ui/button'
+import { Label } from '#/components/ui/label'
 import { CinematicLoader } from '#/components/tooling/CinematicLoader'
 import { GuestSaveBanner } from '#/components/tooling/GuestSaveBanner'
 import { ToolFullScreen } from '#/components/tooling/ToolFullScreen'
@@ -12,7 +12,6 @@ import { useWorkflowBridge } from '#/hooks/useWorkflowBridge'
 import { workflowConfigs, validateWorkflowDraft } from '#/lib/tools/workflowConfigs'
 import { tools } from '#/lib/tools/registry'
 import type { ToolId } from '#/lib/tools/registry'
-import { cn } from '#/lib/utils'
 
 const toolHeroChips: Record<ToolId, string[]> = {
   resume: ['Skills', 'Score', 'Tips'],
@@ -65,12 +64,10 @@ export function useToolPageState(toolId: ToolId) {
 
 export function ToolPageShell({
   toolId,
-  bodyClassName,
   hero,
   children,
 }: {
   toolId: ToolId
-  bodyClassName?: string
   hero?: ReactNode
   children: ReactNode
 }) {
@@ -78,10 +75,10 @@ export function ToolPageShell({
 
   return (
     <ToolFullScreen accent={tool.accent} heroFlow={Boolean(hero)}>
-      <GuestSaveBanner />
       {hero}
-      <WorkflowHandoffBanner toolId={toolId} />
-      <div className={cn('tool-fs-body', bodyClassName)}>
+      <div className="tool-page-body">
+        <GuestSaveBanner />
+        <WorkflowHandoffBanner toolId={toolId} />
         {children}
       </div>
     </ToolFullScreen>
@@ -115,51 +112,112 @@ export function ToolInputHero({
   )
 }
 
-export function ToolStatusInline({
-  label,
-  onChangeResume,
-}: {
-  label: string
-  onChangeResume?: () => void
-}) {
-  return (
-    <div className="tool-status-inline">
-      <span className="tool-status-inline-dot" />
-      <span>{label}</span>
-      {onChangeResume && (
-        <button type="button" className="tool-status-inline-change" onClick={onChangeResume}>
-          Change
-        </button>
-      )}
-    </div>
-  )
-}
-
 export function ToolPageLoading({
   toolId,
-  className,
   mutationDone,
   onReady,
 }: {
   toolId: ToolId
-  className?: string
   /** Whether the data mutation has resolved */
   mutationDone?: boolean
   /** Called when minimum display time has elapsed */
   onReady?: () => void
 }) {
-  const tool = tools[toolId]
   const { status } = useSession()
 
   return (
-    <div className={cn('tool-loading-stage', className)}>
+    <div className="tool-loading">
       <CinematicLoader
-        accent={tool.accent}
         toolId={toolId}
         mutationDone={mutationDone}
         onReady={onReady}
         accessMode={status === 'authenticated' ? 'authenticated' : 'guest_demo'}
       />
+    </div>
+  )
+}
+
+/** A labelled form field: label above, optional note, control, error below. */
+export function ToolField({
+  htmlFor,
+  label,
+  meta,
+  note,
+  error,
+  children,
+}: {
+  htmlFor?: string
+  label: string
+  meta?: string
+  note?: string
+  error?: string
+  children: ReactNode
+}) {
+  return (
+    <div className="tool-field">
+      <div className="tool-field-head">
+        <Label className="tool-field-label" htmlFor={htmlFor}>
+          <span>{label}</span>
+          {meta ? <span className="tool-field-meta">{meta}</span> : null}
+        </Label>
+      </div>
+      {note ? <p className="tool-field-note">{note}</p> : null}
+      {children}
+      {error ? <p className="tool-field-error">{error}</p> : null}
+    </div>
+  )
+}
+
+/** Single primary submit, bottom-left, with the run error above it. */
+export function ToolSubmitRow({
+  label,
+  error,
+  pending,
+}: {
+  label: string
+  error?: unknown
+  pending?: boolean
+}) {
+  return (
+    <div className="tool-submit-row">
+      {error ? (
+        <p className="tool-field-error">
+          {error instanceof Error ? error.message : 'This run failed.'}
+        </p>
+      ) : null}
+      <Button type="submit" disabled={pending}>
+        {label}
+      </Button>
+    </div>
+  )
+}
+
+/** Small segmented picker for short option lists (tone, question count). */
+export function ToolSegmented<T extends string | number>({
+  ariaLabel,
+  options,
+  value,
+  onChange,
+}: {
+  ariaLabel: string
+  options: Array<{ value: T; label: string; ariaLabel?: string }>
+  value: T
+  onChange: (value: T) => void
+}) {
+  return (
+    <div className="tool-segmented" role="group" aria-label={ariaLabel}>
+      {options.map((option) => (
+        <button
+          key={String(option.value)}
+          type="button"
+          aria-label={option.ariaLabel}
+          aria-pressed={value === option.value}
+          className="tool-segmented-option"
+          onClick={() => onChange(option.value)}
+        >
+          {option.label}
+        </button>
+      ))}
     </div>
   )
 }
@@ -185,70 +243,4 @@ export function getSeededFieldNote(
   }
 
   return ''
-}
-
-export function ParsedResumeNotice({
-  body,
-  actionLabel,
-  onAction,
-}: {
-  body: string
-  actionLabel?: string
-  onAction: () => void
-}) {
-  return (
-    <div className="parsed-resume-notice">
-      <div className="parsed-resume-notice-copy">
-        <CheckCircle2 size={18} />
-        <p className="small-copy">{body}</p>
-      </div>
-      {actionLabel !== '' ? (
-        <Button type="button" variant="outline" size="sm" onClick={onAction}>
-          <FilePenLine size={14} />
-          {actionLabel ?? 'Review extracted text'}
-        </Button>
-      ) : null}
-    </div>
-  )
-}
-
-export function useResumeEditorCollapse(
-  hasResumeContent: boolean,
-  initialCollapsed: boolean,
-) {
-  const [resumeEditorCollapsed, setResumeEditorCollapsed] = useState(initialCollapsed)
-  const userOpenedEditorRef = useRef(false)
-
-  useEffect(() => {
-    if (!hasResumeContent || userOpenedEditorRef.current) return
-    setResumeEditorCollapsed(true)
-  }, [hasResumeContent])
-
-  const openResumeEditor = () => {
-    userOpenedEditorRef.current = true
-    setResumeEditorCollapsed(false)
-  }
-
-  const collapseResumeEditor = () => {
-    userOpenedEditorRef.current = false
-    setResumeEditorCollapsed(true)
-  }
-
-  return {
-    resumeEditorCollapsed,
-    openResumeEditor,
-    collapseResumeEditor,
-  }
-}
-
-export function useSeededToolPhase(hasResumeContent: boolean) {
-  const [phase, setPhase] = useState<'upload' | 'form'>(
-    hasResumeContent ? 'form' : 'upload',
-  )
-
-  useEffect(() => {
-    if (hasResumeContent) setPhase('form')
-  }, [hasResumeContent])
-
-  return { phase, setPhase }
 }

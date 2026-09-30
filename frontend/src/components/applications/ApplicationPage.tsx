@@ -1,11 +1,10 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
-import { ArrowLeft, ArrowRightLeft, Briefcase, LockKeyhole, Trash2 } from 'lucide-react'
+import { ArrowLeft, ChevronDown, LockKeyhole, Trash2 } from 'lucide-react'
 import { AppStatePanel } from '#/components/app/AppStatePanel'
 import { PageFrame } from '#/components/app/PageFrame'
 import { PageHero } from '#/components/app/PageHero'
-import { WorkspacePage } from '#/components/app/WorkspacePage'
 import { Button } from '#/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '#/components/ui/dialog'
 import { Skeleton } from '#/components/ui/skeleton'
@@ -13,12 +12,12 @@ import { useSession } from '#/hooks/useSession'
 import { deleteApplication, getApplication, updateApplication } from '#/lib/api/client'
 import type { ApplicationStatus } from '#/lib/api/schemas'
 import { applicationQueryKey, invalidateApplications } from '#/lib/query/applicationCaches'
-import { ActivityPanel, DocumentsPanel, JobPanel, NotesPanel, TasksPanel } from './ApplicationSections'
+import { ActivityPanel, DocumentsPanel, FactsPanel, JobPanel, NotesPanel, TasksPanel } from './ApplicationSections'
 import { ApplicationIdentity } from './ApplicationIdentity'
 import { ApplyPanel } from './ApplyPanel'
 import { DocumentChecks } from './DocumentChecks'
 import { StageMenu } from './StageMenu'
-import { STATUS_LABELS, applicationTitle, formatDate } from './stages'
+import { STATUS_LABELS, applicationTitle } from './stages'
 
 /** One application on one page: apply, documents, job, tasks, notes, activity. */
 export function ApplicationPage({ applicationId }: { applicationId: string }) {
@@ -51,28 +50,24 @@ export function ApplicationPage({ applicationId }: { applicationId: string }) {
   if (query.isError || !query.data) return <PageFrame><AppStatePanel badge="Not found" title="This application couldn't be opened" description="It may have been deleted." actions={[{ label: 'All applications', to: '/campaigns', variant: 'outline' }]} /></PageFrame>
 
   const application = query.data
-  const chips = [
-    STATUS_LABELS[application.status],
-    ...(application.match_score !== null ? [`${application.match_score}% skills fit when saved`] : []),
-    ...(application.applied_at ? [`Applied ${formatDate(application.applied_at)}`] : []),
-    ...(application.deadline && !application.applied_at ? [`Apply by ${formatDate(application.deadline)}`] : []),
-  ]
 
   return (
-    <WorkspacePage className="camp-detail">
-      <Link to="/campaigns" className="camp-back"><ArrowLeft size={15} aria-hidden="true" /> All applications</Link>
+    <PageFrame className="camp-page camp-detail">
+      <Link to="/campaigns" className="camp-back"><ArrowLeft size={14} aria-hidden="true" /> All applications</Link>
       <PageHero
-        icon={Briefcase}
         title={applicationTitle(application)}
         purpose={application.company ?? 'Application'}
-        chips={chips}
         action={
-          <StageMenu status={application.status} onMove={(next) => stage.mutate(next)} disabled={stage.isPending}>
-            <Button variant="outline"><ArrowRightLeft size={15} /> Change stage</Button>
-          </StageMenu>
+          <div className="camp-head-actions">
+            <ApplicationIdentity application={application} />
+            <StageMenu status={application.status} onMove={(next) => stage.mutate(next)} disabled={stage.isPending}>
+              <Button variant="outline" size="sm" aria-label="Change stage">
+                {STATUS_LABELS[application.status]} <ChevronDown size={14} aria-hidden="true" />
+              </Button>
+            </StageMenu>
+          </div>
         }
       />
-      <ApplicationIdentity application={application} />
       {stage.isError ? (
         <p className="camp-alert" role="alert">
           {stage.error instanceof Error && stage.error.message ? stage.error.message : "The stage couldn't be changed. Try again."}
@@ -85,11 +80,12 @@ export function ApplicationPage({ applicationId }: { applicationId: string }) {
           <DocumentsPanel application={application} />
           <DocumentChecks applicationId={application.id} />
           <JobPanel application={application} />
-        </div>
-        <div className="camp-stack">
-          <TasksPanel application={application} />
           <NotesPanel application={application} />
           <ActivityPanel application={application} />
+        </div>
+        <div className="camp-stack camp-side">
+          <FactsPanel application={application} />
+          <TasksPanel application={application} />
           <button type="button" className="camp-delete" onClick={() => setDeleteOpen(true)}>
             <Trash2 size={14} aria-hidden="true" /> Delete this application
           </button>
@@ -111,17 +107,17 @@ export function ApplicationPage({ applicationId }: { applicationId: string }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </WorkspacePage>
+    </PageFrame>
   )
 }
 
 function ApplicationSkeleton() {
   return (
-    <WorkspacePage className="camp-detail">
+    <PageFrame className="camp-page camp-detail">
       <div className="camp-stack" aria-busy="true">
-        <Skeleton className="h-44 w-full rounded-3xl" />
+        <Skeleton className="h-12 w-72" />
         <Skeleton className="h-[26rem] w-full" />
       </div>
-    </WorkspacePage>
+    </PageFrame>
   )
 }

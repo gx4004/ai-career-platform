@@ -51,7 +51,10 @@ function renderPage() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
   return render(<QueryClientProvider client={client}><ApplicationPage applicationId="app-1" /></QueryClientProvider>)
 }
-const applyPanel = async () => (await screen.findByText('Apply', { selector: '.workspace-panel__kicker' })).closest('section') as HTMLElement
+const applyPanel = async () => {
+  await screen.findByRole('heading', { name: /Get this application ready|question|Ready to apply|You applied/ })
+  return document.querySelector('.camp-apply') as HTMLElement
+}
 
 describe('ApplicationPage', () => {
   beforeEach(() => {
@@ -60,13 +63,14 @@ describe('ApplicationPage', () => {
     api.getAutofillStatus.mockResolvedValue({ state: 'idle' })
   })
 
-  it('shows every section on one page under the shared hero', async () => {
+  it('shows every section on one page under the shared header', async () => {
     api.getApplication.mockResolvedValue(saved)
     renderPage()
     expect(await screen.findByRole('heading', { level: 1, name: 'Platform Engineer' })).toBeTruthy()
-    expect(document.querySelector('.page-hero')).toBeTruthy()
-    expect(screen.getByText('82% skills fit when saved')).toBeTruthy()
-    for (const title of ["What you're sending", 'Check your documents', 'Job description', 'Tasks', 'Notes', 'Activity']) {
+    expect(document.querySelector('.page-header')).toBeTruthy()
+    expect(screen.getByText('82% when saved')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Change stage' })).toBeTruthy()
+    for (const title of ["What you're sending", 'Check your documents', 'Job description', 'Tasks', 'Notes', 'Activity', 'Details']) {
       expect(screen.getByRole('heading', { name: title })).toBeTruthy()
     }
     expect(screen.queryByRole('tab')).toBeNull()
