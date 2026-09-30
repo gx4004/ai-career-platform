@@ -11,25 +11,28 @@ export const STAGES: Array<{ id: Stage; label: string; hint: string }> = [
   { id: 'closed', label: 'Closed', hint: 'Not selected or withdrawn' },
 ]
 
-export const STATUSES: ApplicationStatus[] = ['saved', 'applied', 'interviewing', 'offer', 'rejected', 'withdrawn']
+export const STATUSES: ApplicationStatus[] = ['saved', 'applied', 'no_reply', 'interviewing', 'offer', 'rejected', 'withdrawn']
 
 export const STATUS_LABELS: Record<ApplicationStatus, string> = {
   saved: 'Saved',
   applied: 'Applied',
+  no_reply: 'No reply',
   interviewing: 'Interviewing',
   offer: 'Offer',
   rejected: 'Not selected',
   withdrawn: 'Withdrawn',
 }
 
+/** No reply is still waiting on the employer, so it stays in the Applied column. */
 export function stageOf(status: ApplicationStatus): Stage {
+  if (status === 'no_reply') return 'applied'
   return status === 'rejected' || status === 'withdrawn' ? 'closed' : status
 }
 
 export function stageTone(status: ApplicationStatus) {
   if (status === 'offer') return 'positive' as const
   if (status === 'interviewing') return 'warning' as const
-  if (status === 'applied') return 'accent' as const
+  if (status === 'applied' || status === 'no_reply') return 'accent' as const
   return 'neutral' as const
 }
 

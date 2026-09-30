@@ -282,6 +282,7 @@ const EVENT_LABELS: Record<string, string> = {
 function eventLabel(event: ApplicationEvent) {
   if (event.event_type === 'status_changed') {
     const to = event.details.to as ApplicationStatus | undefined
+    if (to === 'no_reply') return 'Marked no reply'
     return to && STATUS_LABELS[to] ? `Moved to ${STATUS_LABELS[to]}` : 'Stage changed'
   }
   if (event.event_type === 'autofill') {

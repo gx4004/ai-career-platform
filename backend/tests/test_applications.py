@@ -770,3 +770,114 @@ def test_no_endpoint_or_service_submits_an_application():
     assert not any("submit" in value.casefold() for value in [*paths, *names])
     assert not any("submit" in name.casefold() for name in dir(applications))
     assert not any("submission" in table for table in Base.metadata.tables)
+
+
+# ── Outcomes (#415): no_reply, status timestamps, the 21-day suggestion ──
+
+NOW = datetime(2026, 10, 30, 12, 0, tzinfo=UTC)
+
+
+@pytest.fixture
+def fixed_clock(monkeypatch):
+    from app.services import applications
+
+    monkeypatch.setattr(applications, "_now", lambda: NOW)
+    return NOW
+
+
+def _applied(db, user_id: str, days_ago: float, status: str = "applied") -> Workspace:
+    workspace = make_application(db, user_id, status=status)
+    workspace.applied_at = NOW - timedelta(days=days_ago)
+    db.commit()
+    return workspace
+
+
+@pytest.mark.parametrize(
+    ("days_ago", "suggested"),
+    [(20.99, False), (21, True), (40, True)],
+)
+def test_no_reply_is_suggested_from_21_days_after_applying(
+    client, db, test_user, auth_headers, fixed_clock, days_ago, suggested
+):
+    workspace = _applied(db, test_user.id, days_ago)
+
+    detail = client.get(f"{PREFIX}/{workspace.id}", headers=auth_headers).json()
+    card = client.get(PREFIX, headers=auth_headers).json()["items"][0]
+
+    assert detail["no_reply_suggested"] is suggested
+    assert card["no_reply_suggested"] is suggested
+
+
+def test_the_suggestion_never_changes_status_and_only_applies_while_applied(
+    client, db, test_user, auth_headers, fixed_clock
+):
+    stale = _applied(db, test_user.id, 60)
+    replied = _applied(db, test_user.id, 60, status="interviewing")
+
+    assert client.get(f"{PREFIX}/{stale.id}", headers=auth_headers).json()["status"] == "applied"
+    later = client.get(f"{PREFIX}/{replied.id}", headers=auth_headers).json()
+    assert later["status"] == "interviewing" and later["no_reply_suggested"] is False
+
+
+def test_marking_no_reply_records_a_timeline_event_and_the_change_time(
+    client, db, test_user, auth_headers, fixed_clock
+):
+    workspace = _applied(db, test_user.id, 25)
+
+    response = client.patch(
+        f"{PREFIX}/{workspace.id}", json={"status": "no_reply"}, headers=auth_headers
+    )
+
+    body = response.json()
+    assert response.status_code == 200 and body["status"] == "no_reply"
+    assert body["no_reply_suggested"] is False
+    assert datetime.fromisoformat(body["status_changed_at"]) == NOW
+    last = body["events"][-1]
+    assert (last["event_type"], last["details"]) == (
+        "status_changed",
+        {"from": "applied", "to": "no_reply"},
+    )
+
+
+def test_no_reply_is_refused_unless_the_application_is_applied(
+    client, db, test_user, auth_headers
+):
+    workspace = make_application(db, test_user.id)
+
+    response = client.patch(
+        f"{PREFIX}/{workspace.id}", json={"status": "no_reply"}, headers=auth_headers
+    )
+
+    assert response.status_code == 409
+    assert db.get(Workspace, workspace.id).status == "saved"
+
+
+def test_a_late_reply_can_still_move_on_from_no_reply(
+    client, db, test_user, auth_headers, fixed_clock
+):
+    workspace = _applied(db, test_user.id, 30, status="no_reply")
+
+    moved = client.patch(
+        f"{PREFIX}/{workspace.id}", json={"status": "interviewing"}, headers=auth_headers
+    )
+
+    assert moved.status_code == 200 and moved.json()["status"] == "interviewing"
+
+
+def test_every_status_change_stamps_status_changed_at(
+    client, db, test_user, auth_headers, monkeypatch
+):
+    from app.services import applications
+
+    workspace = make_application(db, test_user.id)
+    monkeypatch.setattr(applications, "_now", lambda: NOW)
+    first = client.patch(
+        f"{PREFIX}/{workspace.id}", json={"status": "applied"}, headers=auth_headers
+    ).json()
+    monkeypatch.setattr(applications, "_now", lambda: NOW + timedelta(days=3))
+    second = client.patch(
+        f"{PREFIX}/{workspace.id}", json={"status": "offer"}, headers=auth_headers
+    ).json()
+
+    assert datetime.fromisoformat(first["status_changed_at"]) == NOW
+    assert datetime.fromisoformat(second["status_changed_at"]) == NOW + timedelta(days=3)

@@ -193,6 +193,21 @@
 .camp-card__next svg { flex: none; margin-top: 0.1rem; color: var(--accent); }
 .camp-card__next strong { color: var(--text-strong); font-weight: 600; }
 .camp-card__next em { font-style: normal; color: var(--text-muted); }
+.camp-card__nudge,
+.camp-nudge {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  padding: 0.45rem 0.55rem;
+  border-radius: var(--radius-md);
+  background: var(--surface-subtle);
+  color: var(--text-strong);
+  font-size: var(--type-xs);
+  font-weight: 600;
+}
+.camp-card__nudge { flex-direction: column; align-items: flex-start; }
+.camp-nudge { padding: 0.65rem 0.8rem; font-size: var(--type-sm, 0.9rem); }
 .camp-card__meta { margin: 0; color: var(--text-soft); font-size: var(--type-xs); }
 
 .camp-card__badges { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; }

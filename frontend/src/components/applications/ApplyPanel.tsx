@@ -10,6 +10,7 @@ import {
   markApplicationApplied,
   prepareApplication,
   saveApplicationAnswers,
+  updateApplication,
 } from '#/lib/api/client'
 import type { ApplicationDetail, AutofillRunStatus } from '#/lib/api/schemas'
 import { isAutopilotExperimentEnabled } from '#/lib/flags/featureFlags'
@@ -38,7 +39,11 @@ export function ApplyPanel({ application }: { application: ApplicationDetail }) 
     onSuccess: onDetail,
   })
   const applied = useMutation({ mutationFn: () => markApplicationApplied(application.id), onSuccess: onDetail })
-  const failed = [prepare, answers, applied].find((mutation) => mutation.isError)
+  const noReply = useMutation({
+    mutationFn: () => updateApplication(application.id, { status: 'no_reply' }),
+    onSuccess: onDetail,
+  })
+  const failed = [prepare, answers, applied, noReply].find((mutation) => mutation.isError)
 
   const link = applyLink(application.listing)
   const unanswered = application.open_questions.filter((question) => !question.answered)
@@ -47,6 +52,13 @@ export function ApplyPanel({ application }: { application: ApplicationDetail }) 
   if (application.applied_at) {
     return (
       <WorkspacePanel kicker="Apply" title={`You applied on ${formatDate(application.applied_at)}`} description="What you sent is saved below, exactly as it was when you marked it applied." className="camp-apply is-applied">
+        {application.no_reply_suggested ? (
+          <div className="camp-nudge">
+            <span>No reply yet?</span>
+            <Button variant="outline" loading={noReply.isPending} disabled={noReply.isPending} onClick={() => noReply.mutate()}>Mark no reply</Button>
+          </div>
+        ) : null}
+        {failed ? <p className="camp-alert" role="alert">{errorMessage(failed.error, "That didn't save. Try again.")}</p> : null}
         {application.snapshot ? <SentApplication content={application.snapshot.content} /> : null}
         {link ? (
           <div className="camp-apply__actions">

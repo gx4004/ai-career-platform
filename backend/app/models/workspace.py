@@ -18,7 +18,7 @@ from app.database import Base
 
 # The six stages of an Application. Any move is allowed; "ready to apply" is
 # derived, never stored. NULL means a plain tool workspace, not an application.
-APPLICATION_STATUSES = ("saved", "applied", "interviewing", "offer", "rejected", "withdrawn")
+APPLICATION_STATUSES = ("saved", "applied", "no_reply", "interviewing", "offer", "rejected", "withdrawn")
 
 
 class Workspace(Base):
@@ -28,7 +28,7 @@ class Workspace(Base):
     __table_args__ = (
         CheckConstraint(
             "status IS NULL OR status IN "
-            "('saved', 'applied', 'interviewing', 'offer', 'rejected', 'withdrawn')",
+            "('saved', 'applied', 'no_reply', 'interviewing', 'offer', 'rejected', 'withdrawn')",
             name="ck_workspaces_application_status",
         ),
         # At most one application per owner per adopted discovery listing:
@@ -77,6 +77,10 @@ class Workspace(Base):
     # The owner's typed answers, keyed by open-question key.
     answers: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
     applied_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # When ``status`` last changed; the clock behind the "No reply yet?" prompt.
+    status_changed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False
+    )
     match_score: Mapped[int | None] = mapped_column(Integer, nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(

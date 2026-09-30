@@ -8,6 +8,7 @@ import { PrepareForMePanel } from '#/components/applications/PrepareForMePanel'
 import { StageMenu } from '#/components/applications/StageMenu'
 import {
   STAGES,
+  STATUSES,
   STATUS_LABELS,
   applicationTitle,
   formatDate,
@@ -59,7 +60,7 @@ export function ApplicationsPage() {
         title="Your applications"
         purpose="Every job you're going for, from saved to offer."
         action={findJobs}
-        chips={query.data ? summaryChips(items, byStage) : undefined}
+        chips={query.data ? summaryChips(items) : undefined}
       />
 
       {moveError ? <p className="camp-alert" role="alert">{moveError}</p> : null}
@@ -119,18 +120,16 @@ export function ApplicationsPage() {
   )
 }
 
-function summaryChips(items: ApplicationCard[], byStage: (stage: string) => ApplicationCard[]) {
+function summaryChips(items: ApplicationCard[]) {
   const inProgress = items.filter((item) => stageOf(item.status) !== 'closed').length
   const ready = items.filter((item) => item.ready).length
-  const interviewing = byStage('interviewing').length
-  const offers = byStage('offer').length
-  // Every non-zero status gets its chip; the column headers carry the rest.
-  return [
-    `${inProgress} in progress`,
-    ...(ready ? [`${ready} ready to apply`] : []),
-    ...(interviewing ? [`${interviewing} interviewing`] : []),
-    ...(offers ? [`${offers} ${offers === 1 ? 'offer' : 'offers'}`] : []),
-  ]
+  // Every status with a non-zero count gets its chip, in pipeline order.
+  const perStatus = STATUSES.filter((status) => status !== 'saved').flatMap((status) => {
+    const count = items.filter((item) => item.status === status).length
+    if (!count) return []
+    return [status === 'offer' && count > 1 ? `${count} offers` : `${count} ${STATUS_LABELS[status].toLowerCase()}`]
+  })
+  return [`${inProgress} in progress`, ...(ready ? [`${ready} ready to apply`] : []), ...perStatus]
 }
 
 function BoardCard({
@@ -164,7 +163,7 @@ function BoardCard({
         </StageMenu>
       </div>
       <div className="camp-card__badges">
-        {closed ? <StatusPill>{STATUS_LABELS[card.status]}</StatusPill> : null}
+        {closed || card.status === 'no_reply' ? <StatusPill>{STATUS_LABELS[card.status]}</StatusPill> : null}
         {card.status === 'saved' && card.ready ? (
           <StatusPill tone="positive"><CircleCheck size={12} aria-hidden="true" /> Ready to apply</StatusPill>
         ) : null}
@@ -189,6 +188,12 @@ function BoardCard({
           <CalendarClock size={14} aria-hidden="true" />
           <span>Apply by {formatDate(card.deadline)}</span>
         </p>
+      ) : null}
+      {card.no_reply_suggested ? (
+        <div className="camp-card__nudge">
+          <span>No reply yet?</span>
+          <Button size="sm" variant="outline" disabled={moving} onClick={() => onMove('no_reply')}>Mark no reply</Button>
+        </div>
       ) : null}
       <p className="camp-card__meta">
         {card.applied_at ? `Applied ${formatDate(card.applied_at)} · ` : ''}

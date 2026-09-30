@@ -27,6 +27,7 @@ def _require_timezone(value: datetime | None) -> datetime | None:
 class ApplicationStatus(StrEnum):
     SAVED = "saved"
     APPLIED = "applied"
+    NO_REPLY = "no_reply"
     INTERVIEWING = "interviewing"
     OFFER = "offer"
     REJECTED = "rejected"
@@ -57,6 +58,9 @@ class ApplicationCard(BaseModel):
     status: ApplicationStatus
     deadline: datetime | None = None
     applied_at: datetime | None = None
+    status_changed_at: datetime | None = None
+    # Derived: still Applied 21 days on. Only ever a prompt; never changes status.
+    no_reply_suggested: bool = False
     match_score: int | None = None
     prepared: bool = False
     # Derived: prepared, every open question answered, still saved.
