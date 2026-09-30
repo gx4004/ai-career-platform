@@ -49,7 +49,7 @@ Canonical order and grouping (D-003; registry:
 | 5 | Interview Q&A | application | resume + job description + question count (3–12) | question deck with answer frameworks, focus areas, practice mode (3 attempts per question, cheaper feedback model) |
 | 6 | Portfolio Planner | planning | resume + target role | project roadmap (foundational → advanced) with hiring signals |
 
-Shared UX pattern: input page (dark-to-light gradient hero) → cinematic loader →
+Shared UX pattern: input page (light hero with grain and accent glow) → cinematic loader →
 result page (per-tool view; dark hero variant with score ring for Resume and Job
 Match). The visual contract lives in `design.md`.
 

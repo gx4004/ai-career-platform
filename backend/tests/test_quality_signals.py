@@ -53,3 +53,34 @@ def test_keyword_present_does_not_match_unrelated_skills():
     # keyword with no relation to the resume text stays absent.
     assert not keyword_present("Kubernetes", "We deploy with Docker only.")
     assert not keyword_present("SQL", "We only work with MongoDB and Redis.")
+
+
+import pytest  # noqa: E402
+
+from app.services.quality_signals import extract_role_label  # noqa: E402
+
+
+@pytest.mark.parametrize(
+    ("job_description", "expected"),
+    [
+        ("Senior Backend Engineer\nAcme builds payments.", "Senior Backend Engineer"),
+        ("Job Title: Senior Backend Engineer (Remote)\nAbout us", "Senior Backend Engineer"),
+        (
+            "About Acme\nWe are hiring a Senior Backend Engineer to join our platform team.",
+            "Senior Backend Engineer",
+        ),
+        ("Senior Backend Engineer - Remote (EU) | Full-time", "Senior Backend Engineer"),
+        ("## Staff Product Designer, Growth", "Staff Product Designer"),
+        ("Position: Data Analyst II at Globex Corp", "Data Analyst II"),
+        ("We're looking for an experienced Engineering Manager who loves people.", "Engineering Manager"),
+        ("senior backend engineer", "Senior Backend Engineer"),
+    ],
+)
+def test_extract_role_label_returns_a_clean_title(job_description, expected):
+    assert extract_role_label(job_description) == expected
+
+
+def test_extract_role_label_ignores_role_words_used_in_prose():
+    assert extract_role_label("You will lead a team of five across two time zones.") is None
+    assert extract_role_label("") is None
+    assert extract_role_label("Great benefits and a friendly office.") is None

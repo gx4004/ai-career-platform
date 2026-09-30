@@ -90,7 +90,7 @@ cd backend && alembic upgrade head        # Run migrations
 - Every tool router endpoint calls `run_tool_pipeline()` — don't bypass it for new tools
 - CSS architecture: no CSS modules, plain CSS files in `styles/` with BEM-ish naming
 - Hybrid theme: dark sidebar/topbar + light content area. No dark mode toggle.
-- Tool input pages: dark-to-light gradient hero (tool-input-hero) with per-tool animations + chips, form surface below
+- Tool input pages: light hero (`tool-input-hero`: transparent over the light content area with a faint grain and a soft accent glow, not a gradient) with per-tool animations + chips, form surface below
 - Result pages: premium redesign with dark hero variant (Resume/Job Match), heroExtra sections, midSection (Fix First cards), per-tool views
 - Deploy: Railway watches `deploy`. Promote reviewed release commits deliberately from
   `chapter2` to `main`, then to `deploy`; never push experimental work directly to

@@ -5,7 +5,7 @@ import { ApiError } from '#/lib/api/errors'
 import { ApplicationPage } from '../ApplicationPage'
 
 const api = vi.hoisted(() => ({
-  getApplication: vi.fn(), updateApplication: vi.fn(), deleteApplication: vi.fn(),
+  getApplication: vi.fn(), updateApplication: vi.fn(), updateHistoryWorkspace: vi.fn(), deleteApplication: vi.fn(),
   prepareApplication: vi.fn(), saveApplicationAnswers: vi.fn(), markApplicationApplied: vi.fn(), autofillApplication: vi.fn(), getAutofillStatus: vi.fn(), cancelAutofill: vi.fn(),
   createApplicationTask: vi.fn(), updateApplicationTask: vi.fn(), deleteApplicationTask: vi.fn(),
   reviewApplication: vi.fn(), classifyApplicationGaps: vi.fn(), getApplicationGapResponse: vi.fn(),
@@ -70,6 +70,43 @@ describe('ApplicationPage', () => {
       expect(screen.getByRole('heading', { name: title })).toBeTruthy()
     }
     expect(screen.queryByRole('tab')).toBeNull()
+  })
+
+  it('pins and unpins the application from the page', async () => {
+    api.getApplication.mockResolvedValue(saved)
+    api.updateHistoryWorkspace.mockResolvedValue({ id: 'app-1', label: null, is_pinned: true, updated_at: saved.updated_at })
+    renderPage()
+    const pin = await screen.findByRole('button', { name: 'Pin application' })
+    expect(pin.getAttribute('aria-pressed')).toBe('false')
+    api.getApplication.mockResolvedValue({ ...saved, is_pinned: true })
+    fireEvent.click(pin)
+    await waitFor(() => expect(api.updateHistoryWorkspace).toHaveBeenCalledWith('app-1', { is_pinned: true }))
+    expect((await screen.findByRole('button', { name: 'Unpin application' })).getAttribute('aria-pressed')).toBe('true')
+  })
+
+  it('renames the application, never saving an empty or whitespace name', async () => {
+    api.getApplication.mockResolvedValue(saved)
+    api.updateHistoryWorkspace.mockResolvedValue({ id: 'app-1', label: 'Dream job', is_pinned: false, updated_at: saved.updated_at })
+    renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: 'Rename application' }))
+    const input = screen.getByRole('textbox', { name: 'Application name' })
+    const save = screen.getByRole('button', { name: 'Save name' }) as HTMLButtonElement
+    for (const value of ['', '   ']) {
+      fireEvent.change(input, { target: { value } })
+      expect(save.disabled).toBe(true)
+      fireEvent.submit(input.closest('form') as HTMLFormElement)
+    }
+    expect(api.updateHistoryWorkspace).not.toHaveBeenCalled()
+    fireEvent.change(input, { target: { value: '  Dream job ' } })
+    fireEvent.click(save)
+    await waitFor(() => expect(api.updateHistoryWorkspace).toHaveBeenCalledWith('app-1', { label: 'Dream job' }))
+    await waitFor(() => expect(screen.queryByRole('textbox', { name: 'Application name' })).toBeNull())
+  })
+
+  it('shows a custom name as the page title but keeps the automatic one out of it', async () => {
+    api.getApplication.mockResolvedValue({ ...saved, label: 'Dream job' })
+    renderPage()
+    expect(await screen.findByRole('heading', { level: 1, name: 'Dream job' })).toBeTruthy()
   })
 
   it('walks the apply flow: prepare, answer, apply on the company site, mark applied', async () => {

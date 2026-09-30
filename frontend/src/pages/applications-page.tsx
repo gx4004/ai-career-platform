@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { ArrowRightLeft, CalendarClock, CircleCheck, MessageCircleQuestion, SearchX } from 'lucide-react'
+import { ArrowRightLeft, CalendarClock, CircleCheck, MessageCircleQuestion, Pin, SearchX } from 'lucide-react'
 import { PageHero } from '#/components/app/PageHero'
 import { StatusPill, WorkspaceEmpty, WorkspacePage } from '#/components/app/WorkspacePage'
 import { PrepareForMePanel } from '#/components/applications/PrepareForMePanel'
@@ -124,15 +124,12 @@ function summaryChips(items: ApplicationCard[], byStage: (stage: string) => Appl
   const ready = items.filter((item) => item.ready).length
   const interviewing = byStage('interviewing').length
   const offers = byStage('offer').length
-  // At most three chips; the column headers still carry every count.
+  // Every non-zero status gets its chip; the column headers carry the rest.
   return [
     `${inProgress} in progress`,
     ...(ready ? [`${ready} ready to apply`] : []),
-    ...(interviewing
-      ? [`${interviewing} interviewing`]
-      : offers
-        ? [`${offers} ${offers === 1 ? 'offer' : 'offers'}`]
-        : []),
+    ...(interviewing ? [`${interviewing} interviewing`] : []),
+    ...(offers ? [`${offers} ${offers === 1 ? 'offer' : 'offers'}`] : []),
   ]
 }
 
@@ -152,9 +149,12 @@ function BoardCard({
     <article className="camp-card" aria-busy={moving || undefined}>
       <div className="camp-card__top">
         <div className="camp-card__title">
-          <Link to="/campaigns/$campaignId" params={{ campaignId: card.id }} className="camp-card__link">
-            {title}
-          </Link>
+          <div className="camp-card__name">
+            <Link to="/campaigns/$campaignId" params={{ campaignId: card.id }} className="camp-card__link">
+              {title}
+            </Link>
+            {card.is_pinned ? <Pin className="camp-card__pin" size={13} fill="currentColor" aria-label="Pinned" role="img" /> : null}
+          </div>
           {card.company ? <span>{card.company}</span> : null}
         </div>
         <StageMenu status={card.status} onMove={onMove} disabled={moving}>

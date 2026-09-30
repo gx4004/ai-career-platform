@@ -197,6 +197,22 @@ describe('HistoryPage', () => {
     expect(updateHistoryItemMock).toHaveBeenCalledTimes(1)
   })
 
+  it('keeps Save disabled and saves nothing for an empty or whitespace label', () => {
+    renderPage()
+    fireEvent.click(screen.getByRole('button', { name: 'Rename My resume run' }))
+    const input = screen.getByRole('textbox', { name: 'Rename My resume run' })
+    const save = screen.getByRole('button', { name: 'Save' }) as HTMLButtonElement
+    expect(save.disabled).toBe(false)
+    for (const value of ['', '   ']) {
+      fireEvent.change(input, { target: { value } })
+      expect(save.disabled).toBe(true)
+      fireEvent.submit(input.closest('form') as HTMLFormElement)
+    }
+    expect(updateHistoryItemMock).not.toHaveBeenCalled()
+    fireEvent.change(input, { target: { value: ' Fresh name ' } })
+    expect(save.disabled).toBe(false)
+  })
+
   it('shows a rename error inline', async () => {
     updateHistoryItemMock.mockRejectedValue(new Error('Nope'))
     renderPage()
