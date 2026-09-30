@@ -120,3 +120,17 @@ def test_needs_action_is_owner_scoped_and_never_changes_status(
     assert _today(client, other)["needs_action"] == []
     _today(client, auth_headers)
     assert db.get(Workspace, application_id).status == "applied"
+
+
+def test_a_deadline_due_today_stays_listed_after_its_noon_timestamp(client, auth_headers, db, discovery):
+    from app.services.today import todays_plan
+
+    listing = discovery.listing()
+    application_id = _adopt(client, auth_headers, listing.id)
+    afternoon = datetime(2026, 10, 5, 16, 0, tzinfo=UTC)
+    _set(db, application_id, deadline=datetime(2026, 10, 5, 12, 0, tzinfo=UTC))
+    user_id = db.get(Workspace, application_id).user_id
+
+    assert [i.reason for i in todays_plan(db, user_id, now=afternoon).needs_action] == ["deadline"]
+    next_day = afternoon + timedelta(days=1)
+    assert todays_plan(db, user_id, now=next_day).needs_action == []
