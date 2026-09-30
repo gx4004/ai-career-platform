@@ -1,4 +1,4 @@
-"""The migration chain is deploy head, the squashed chapter2 revision (#378), then later ones."""
+"""The migration chain is deploy head, one squashed chapter2 revision (#378), then linear additions."""
 
 from pathlib import Path
 
@@ -20,8 +20,10 @@ def test_single_head_squashed_onto_deploy_head():
     script = _script()
     heads = script.get_heads()
     assert len(heads) == 1
-    assert script.get_revision(SQUASH).down_revision == DEPLOY_HEAD
-    # Every later revision descends from the squash in a straight line.
-    walked = [rev.revision for rev in script.walk_revisions()]
-    assert walked.index(SQUASH) == len(walked) - 1 - walked[::-1].index(DEPLOY_HEAD) - 1
+    revision = script.get_revision(heads[0])
+    # Walk the additions back down to the squash, which sits on the deploy head.
+    while revision.down_revision != DEPLOY_HEAD:
+        assert isinstance(revision.down_revision, str), "additions must be linear"
+        revision = script.get_revision(revision.down_revision)
+    assert revision.revision == SQUASH
     assert script.get_revision(DEPLOY_HEAD) is not None

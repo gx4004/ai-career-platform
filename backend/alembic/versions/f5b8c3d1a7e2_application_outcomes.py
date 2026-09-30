@@ -1,7 +1,7 @@
 """Application outcomes (#415): no_reply status and status_changed_at
 
 Revision ID: f5b8c3d1a7e2
-Revises: c2a0f1e5d7b3
+Revises: f4b8c1d2a7e9
 Create Date: 2026-09-30 14:00:00.000000
 
 """
@@ -13,7 +13,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = 'f5b8c3d1a7e2'
-down_revision: Union[str, None] = 'c2a0f1e5d7b3'
+down_revision: Union[str, None] = 'f4b8c1d2a7e9'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
