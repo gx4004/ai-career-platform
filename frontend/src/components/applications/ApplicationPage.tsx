@@ -14,6 +14,7 @@ import { deleteApplication, getApplication, updateApplication } from '#/lib/api/
 import type { ApplicationStatus } from '#/lib/api/schemas'
 import { applicationQueryKey, invalidateApplications } from '#/lib/query/applicationCaches'
 import { ActivityPanel, DocumentsPanel, JobPanel, NotesPanel, TasksPanel } from './ApplicationSections'
+import { ApplicationIdentity } from './ApplicationIdentity'
 import { ApplyPanel } from './ApplyPanel'
 import { DocumentChecks } from './DocumentChecks'
 import { StageMenu } from './StageMenu'
@@ -71,6 +72,7 @@ export function ApplicationPage({ applicationId }: { applicationId: string }) {
           </StageMenu>
         }
       />
+      <ApplicationIdentity application={application} />
       {stage.isError ? (
         <p className="camp-alert" role="alert">
           {stage.error instanceof Error && stage.error.message ? stage.error.message : "The stage couldn't be changed. Try again."}

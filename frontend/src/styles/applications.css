@@ -153,6 +153,10 @@
 .camp-card__link:focus-visible { outline: none; }
 .camp-card:has(.camp-card__link:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
 
+.camp-card__name { display: flex; align-items: flex-start; gap: 0.35rem; }
+
+.camp-card__pin { flex: none; margin-top: 0.2rem; color: var(--accent); }
+
 .camp-card__title > span { color: var(--text-muted); font-size: var(--type-small); overflow-wrap: anywhere; }
 
 .camp-card__move {
@@ -211,6 +215,19 @@
 }
 
 .camp-back:hover { color: var(--accent); }
+
+/* Rename + pin: quiet secondary controls under the hero. */
+.camp-identity {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.camp-identity input { flex: 1 1 14rem; max-width: 24rem; }
+
+.camp-identity .camp-alert { flex-basis: 100%; }
 
 .camp-description {
   margin: 0 0 0.6rem;
