@@ -2,7 +2,8 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { CheckCircle2, CircleAlert, RefreshCw, ShieldCheck } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { scoreCvDocument } from '#/lib/api/client'
-import type { CvQualityResponse, CvTemplateId } from '#/lib/api/schemas'
+import { sectionLabels } from '#/lib/cv-studio/editor'
+import type { CvQualityResponse, CvSection, CvTemplateId } from '#/lib/api/schemas'
 
 /**
  * Pass/fail checks for the saved document, validated against the real PDF of
@@ -25,8 +26,12 @@ export function checklistSummary(checks: CvQualityResponse['checks']) {
   return failing === 0 ? `All ${checks.length} checks pass` : `${failing} to fix`
 }
 
-export function CvAtsPanel({ quality, atsMode, onTurnOnAtsMode }: {
-  quality: ReturnType<typeof useCvQuality>; atsMode: boolean; onTurnOnAtsMode: () => void
+/** The backend's "sections" check passes only when Experience and Skills are both visible. */
+const REQUIRED_KINDS = ['experience', 'skills'] as const
+
+export function CvAtsPanel({ quality, sections, atsMode, onTurnOnAtsMode, onAddSection, onShowSection }: {
+  quality: ReturnType<typeof useCvQuality>; sections: CvSection[]; atsMode: boolean; onTurnOnAtsMode: () => void
+  onAddSection: (kind: CvSection['kind']) => void; onShowSection: (sectionId: string) => void
 }) {
   if (quality.isError) {
     return (
@@ -39,11 +44,21 @@ export function CvAtsPanel({ quality, atsMode, onTurnOnAtsMode }: {
   if (!quality.data) return <p className="cvs-muted" role="status">Checking your CV… We build the real PDF and read it back the way an application system would.</p>
 
   const { checks } = quality.data
+  const allPass = checks.every((check) => check.passed)
+  const sectionsFail = checks.some((check) => check.id === 'sections' && !check.passed)
+  const sectionFixes = sectionsFail
+    ? REQUIRED_KINDS.filter((kind) => !sections.some((section) => section.kind === kind && section.visible)).map((kind) => ({
+      kind, hidden: sections.find((section) => section.kind === kind && !section.visible),
+    }))
+    : []
   const layoutFails = checks.some((check) => check.id === 'layout' && !check.passed)
   return (
     <div className="cvs-ats" aria-busy={quality.isFetching || undefined}>
-      <p className="cvs-ats__headline">{checklistSummary(checks)}</p>
-      <p className="cvs-muted">Checked against the PDF you would send. Each check is pass or fail; none of them predicts interviews.</p>
+      <p className={`cvs-ats__headline cvs-ats__headline--${allPass ? 'pass' : 'fail'}`}>
+        {allPass ? <ShieldCheck size={18} aria-hidden="true" /> : <CircleAlert size={18} aria-hidden="true" />}
+        {checklistSummary(checks)}
+      </p>
+      <p className="cvs-muted">Checked against the PDF you’d send. Pass or fail only. Not a prediction.</p>
       {quality.isFetching ? <p className="cvs-ats__refreshing" role="status"><RefreshCw size={13} aria-hidden="true" /> Updating…</p> : null}
       <ul className="cvs-check-list" aria-label="Checks">
         {checks.map((check) => (
@@ -56,6 +71,11 @@ export function CvAtsPanel({ quality, atsMode, onTurnOnAtsMode }: {
           </li>
         ))}
       </ul>
+      {sectionFixes.map(({ kind, hidden }) => (
+        <Button key={kind} type="button" size="sm" variant="outline" onClick={() => hidden ? onShowSection(hidden.id) : onAddSection(kind)}>
+          {hidden ? 'Show' : 'Add'} {sectionLabels[kind]} section
+        </Button>
+      ))}
       {layoutFails && !atsMode ? (
         <Button type="button" size="sm" variant="outline" onClick={onTurnOnAtsMode}><ShieldCheck size={15} /> Turn on ATS-friendly mode</Button>
       ) : null}
