@@ -93,7 +93,7 @@ describe('DiscoveryPage', () => {
 
     expect(screen.getByRole('heading', { name: 'Discover jobs' })).toBeTruthy()
     expect(within(card).getByText(LISTING.preview)).toBeTruthy()
-    expect(within(card).getByLabelText('82% skills fit')).toBeTruthy()
+    expect(within(card).getByLabelText('82% skills fit, 2 of 3 skills')).toBeTruthy()
     expect(within(card).getByText('Berlin, Germany')).toBeTruthy()
     expect(within(card).getByText('Remote')).toBeTruthy()
     expect(within(card).getByText('Posted 3 days ago')).toBeTruthy()

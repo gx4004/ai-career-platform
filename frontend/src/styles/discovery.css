@@ -375,6 +375,8 @@ select.disc-field {
 
 .disc-score strong { font-size: 0.95rem; font-weight: 800; }
 .disc-score span { font-size: var(--type-xs); font-weight: 600; }
+.disc-score__n { font-size: var(--type-xs); font-weight: 500; opacity: 0.8; white-space: nowrap; }
+.disc-score__n::before { content: '\00b7'; margin-right: 0.25rem; }
 .disc-score--good { background: rgba(34, 197, 94, 0.1); color: #15803d; }
 .disc-score--fair { background: rgba(245, 158, 11, 0.12); color: #b45309; }
 .disc-score--low { background: var(--surface-focus); color: var(--text-muted); }
