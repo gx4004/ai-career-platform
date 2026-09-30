@@ -1,17 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import {
-  Activity,
-  AlertTriangle,
-  Clock,
-  Compass,
-  Download,
-  HardDrive,
-  Settings,
-  RotateCcw,
-  Trash2,
-} from 'lucide-react'
+import { Download, RotateCcw, Trash2 } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import {
   Dialog,
@@ -136,15 +126,12 @@ export function SettingsPage() {
   }
 
   return (
-    <WorkspacePage>
-      <PageHero icon={Settings} title="Settings" purpose="Your tour, local data and workspace status." />
-      <div className="content-max settings-layout">
+    <WorkspacePage className="settings-page">
+      <PageHero title="Settings" purpose="Your tour, local data and workspace status." />
+      <div className="settings-layout">
         <section className="settings-section">
-          <div className="settings-panel">
+          <div className="settings-group">
             <div className="settings-row">
-              <div className="settings-row-icon">
-                <Compass size={18} />
-              </div>
               <div className="settings-info">
                 <h2 className="settings-title">Onboarding</h2>
                 <p className="settings-description">
@@ -167,9 +154,6 @@ export function SettingsPage() {
             </div>
 
             <div className="settings-row">
-              <div className="settings-row-icon">
-                <HardDrive size={18} />
-              </div>
               <div className="settings-info">
                 <h2 className="settings-title">Local workspace data</h2>
                 <p className="settings-description">
@@ -194,9 +178,6 @@ export function SettingsPage() {
             </div>
 
             <div className="settings-row">
-              <div className="settings-row-icon">
-                <Clock size={18} />
-              </div>
               <div className="settings-info">
                 <h2 className="settings-title">Saved workspace history</h2>
                 <p className="settings-description">
@@ -213,11 +194,8 @@ export function SettingsPage() {
         </section>
 
         <section className="settings-section">
-          <div className="settings-panel">
+          <div className="settings-group">
             <div className="settings-row">
-              <div className="settings-row-icon">
-                <Activity size={18} />
-              </div>
               <div className="settings-info">
                 <h2 className="settings-title">Connection</h2>
               </div>
@@ -237,11 +215,8 @@ export function SettingsPage() {
         {isAuthenticated && (
           <section className="settings-section">
             <h2 className="settings-section-heading">Data and privacy</h2>
-            <div className="settings-panel">
+            <div className="settings-group">
               <div className="settings-row">
-                <div className="settings-row-icon">
-                  <Download size={18} />
-                </div>
                 <div className="settings-info">
                   <h3 className="settings-title">Export career data</h3>
                   <p className="settings-description">
@@ -264,9 +239,6 @@ export function SettingsPage() {
                 </div>
               </div>
               <div className="settings-row">
-                <div className="settings-row-icon settings-row-icon--danger">
-                  <Trash2 size={18} />
-                </div>
                 <div className="settings-info">
                   <h3 className="settings-title">Delete evidence profile</h3>
                   <p className="settings-description">
@@ -287,9 +259,6 @@ export function SettingsPage() {
                 </div>
               </div>
               <div className="settings-row">
-                <div className="settings-row-icon settings-row-icon--danger">
-                  <AlertTriangle size={18} />
-                </div>
                 <div className="settings-info">
                   <h3 className="settings-title">Delete account</h3>
                   <p className="settings-description">

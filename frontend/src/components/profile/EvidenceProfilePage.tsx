@@ -1,14 +1,14 @@
 import { useMemo, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { BadgeCheck, Check, FileUp, Pencil, Trash2, X } from 'lucide-react'
+import { Check, FileUp, Pencil, Trash2, X } from 'lucide-react'
 import { Badge } from '#/components/ui/badge'
 import { Button } from '#/components/ui/button'
 import { Skeleton } from '#/components/ui/skeleton'
 import { AppStatePanel } from '#/components/app/AppStatePanel'
 import { ConfirmDeleteDialog } from '#/components/app/ConfirmDeleteDialog'
 import { PageHero } from '#/components/app/PageHero'
-import { WorkspaceEmpty, WorkspacePage, WorkspacePanel } from '#/components/app/WorkspacePage'
+import { WorkspacePage } from '#/components/app/WorkspacePage'
 import { useSession } from '#/hooks/useSession'
 import { useResumeCarry } from '#/hooks/use-resume-carry'
 import {
@@ -74,9 +74,9 @@ function EvidenceCard({
               available to assistive tech as text. */}
           <span className="sr-only">{`Source: ${provenance}`}</span>
           {state === 'confirmed' ? (
-            <Badge variant="ghost" aria-hidden="true">
+            <span className="fact-card__source" aria-hidden="true">
               {PROVENANCE_LABELS[item.provenance]}
-            </Badge>
+            </span>
           ) : null}
         </>
       }
@@ -225,9 +225,8 @@ export function EvidenceProfilePage() {
     : undefined
 
   return (
-    <WorkspacePage>
+    <WorkspacePage className="profile-page">
       <PageHero
-        icon={BadgeCheck}
         title="Your profile"
         purpose="The facts about you that CV Studio and the tools reuse."
         chips={heroChips}
@@ -257,142 +256,152 @@ export function EvidenceProfilePage() {
         </p>
       ) : null}
 
-      {suggestions.length > 0 ? (
-        <WorkspacePanel
-          kicker="To review"
-          title="Suggestions"
-          description="Pulled from your CV or a tool result. Nothing counts until you save it; dismissing one removes it."
-          actions={
-            suggestions.length > 1 ? (
-              <Button
-                variant="outline"
-                loading={saveAllMutation.isPending}
-                onClick={() => saveAllMutation.mutate(suggestions.map((item) => item.id))}
-              >
-                Save all
-              </Button>
-            ) : null
-          }
-        >
-          <ul className="fact-list" aria-label="Suggestions to review">
-            {suggestions.map((item) => (
-              <EvidenceCard
-                key={item.id}
-                item={item}
-                busy={pendingItemId === item.id}
-                primary={
-                  <Button
-                    size="sm"
-                    disabled={pendingItemId === item.id}
-                    aria-label={`Save: ${previewText(item)}`}
-                    onClick={() => withPending(item, saveMutation.mutate)}
-                  >
-                    <Check size={14} /> Save
-                  </Button>
-                }
-                menu={[
-                  { label: 'Edit', icon: Pencil, onSelect: () => openEditor(item) },
-                  {
-                    label: 'Dismiss',
-                    icon: X,
-                    destructive: true,
-                    onSelect: () => withPending(item, dismissMutation.mutate),
-                  },
-                ]}
-              />
-            ))}
-          </ul>
-        </WorkspacePanel>
-      ) : null}
+      <div className={suggestions.length > 0 ? 'profile-layout profile-layout--split' : 'profile-layout'}>
+        {suggestions.length > 0 ? (
+          <section className="profile-section" aria-labelledby="profile-suggestions-title">
+            <div className="profile-section__head">
+              <div>
+                <h2 id="profile-suggestions-title" className="profile-section__title">Suggestions to review</h2>
+                <p className="profile-section__description">
+                  From your CV or a tool result. Nothing counts until you save it.
+                </p>
+              </div>
+              {suggestions.length > 1 ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  loading={saveAllMutation.isPending}
+                  onClick={() => saveAllMutation.mutate(suggestions.map((item) => item.id))}
+                >
+                  Save all
+                </Button>
+              ) : null}
+            </div>
+            <ul className="fact-list" aria-label="Suggestions to review">
+              {suggestions.map((item) => (
+                <EvidenceCard
+                  key={item.id}
+                  item={item}
+                  busy={pendingItemId === item.id}
+                  primary={
+                    <>
+                      <Button
+                        size="sm"
+                        disabled={pendingItemId === item.id}
+                        aria-label={`Save: ${previewText(item)}`}
+                        onClick={() => withPending(item, saveMutation.mutate)}
+                      >
+                        <Check size={14} /> Save
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        disabled={pendingItemId === item.id}
+                        aria-label={`Dismiss: ${previewText(item)}`}
+                        onClick={() => withPending(item, dismissMutation.mutate)}
+                      >
+                        <X size={14} /> Dismiss
+                      </Button>
+                    </>
+                  }
+                  menu={[{ label: 'Edit', icon: Pencil, onSelect: () => openEditor(item) }]}
+                />
+              ))}
+            </ul>
+          </section>
+        ) : null}
 
-      {itemsQuery.isLoading ? (
-        <div className="fact-groups" aria-hidden="true">
-          {[0, 1, 2].map((n) => (
-            <Skeleton key={n} className="fact-skeleton" />
-          ))}
-        </div>
-      ) : itemsQuery.isError ? (
-        <WorkspaceEmpty
-          icon={BadgeCheck}
-          title="We could not load your profile"
-          action={
-            <Button variant="outline" onClick={() => itemsQuery.refetch()}>
-              Try again
-            </Button>
-          }
-        />
-      ) : items.length === 0 ? (
-        <WorkspaceEmpty
-          icon={BadgeCheck}
-          title="No facts yet"
-          description="Your profile fills up as you import a CV or save a result from one of the tools. Anything added arrives as a suggestion until you save it."
-        />
-      ) : groups.length > 0 ? (
-        <WorkspacePanel
-          kicker="Saved facts"
-          title="What you stand behind"
-          description="CV Studio and the tools only use saved facts. Edit one to correct it."
-        >
-          <div className="fact-groups">
-            {groups.map((group) => (
-              <section key={group.kind} className="fact-group" aria-label={group.label}>
-                <h3 className="fact-group__title">
-                  {group.label}
-                  <span className="fact-group__count">{group.items.length}</span>
-                </h3>
-                <ul className="fact-list">
-                  {group.items.map((item) => (
-                    <EvidenceCard
-                      key={item.id}
-                      item={item}
-                      busy={pendingItemId === item.id || deleteTarget?.id === item.id}
-                      primary={
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          aria-label={`Edit: ${previewText(item)}`}
-                          onClick={() => openEditor(item)}
-                        >
-                          <Pencil size={14} /> Edit
-                        </Button>
-                      }
-                      menu={[
-                        {
-                          label: 'Delete',
-                          icon: Trash2,
-                          destructive: true,
-                          onSelect: () => setDeleteTarget(item),
-                        },
-                      ]}
-                    />
-                  ))}
-                </ul>
-              </section>
+        {itemsQuery.isLoading ? (
+          <div className="fact-groups" aria-hidden="true">
+            {[0, 1, 2].map((n) => (
+              <Skeleton key={n} className="fact-skeleton" />
             ))}
           </div>
-        </WorkspacePanel>
-      ) : null}
+        ) : itemsQuery.isError ? (
+          <p className="profile-empty">
+            We could not load your profile.{' '}
+            <Button variant="outline" size="sm" onClick={() => itemsQuery.refetch()}>
+              Try again
+            </Button>
+          </p>
+        ) : items.length === 0 ? (
+          <p className="profile-empty">
+            No facts yet. Your profile fills up as you import a CV or save a result from one of the
+            tools. Anything added arrives as a suggestion until you save it.
+          </p>
+        ) : groups.length > 0 ? (
+          <section className="profile-section" aria-labelledby="profile-saved-title">
+            <div className="profile-section__head">
+              <div>
+                <h2 id="profile-saved-title" className="profile-section__title">Saved facts</h2>
+                <p className="profile-section__description">
+                  CV Studio and the tools only use saved facts. Edit one to correct it.
+                </p>
+              </div>
+            </div>
+            <div className="fact-groups">
+              {groups.map((group) => (
+                <section key={group.kind} className="fact-group" aria-label={group.label}>
+                  <h3 className="fact-group__title">
+                    {group.label}
+                    <span className="fact-group__count">{group.items.length}</span>
+                  </h3>
+                  <ul className="fact-list">
+                    {group.items.map((item) => (
+                      <EvidenceCard
+                        key={item.id}
+                        item={item}
+                        busy={pendingItemId === item.id || deleteTarget?.id === item.id}
+                        primary={
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            aria-label={`Edit: ${previewText(item)}`}
+                            onClick={() => openEditor(item)}
+                          >
+                            <Pencil size={14} /> Edit
+                          </Button>
+                        }
+                        menu={[
+                          {
+                            label: 'Delete',
+                            icon: Trash2,
+                            destructive: true,
+                            onSelect: () => setDeleteTarget(item),
+                          },
+                        ]}
+                      />
+                    ))}
+                  </ul>
+                </section>
+              ))}
+            </div>
+          </section>
+        ) : null}
+      </div>
 
       <SkillsToBuildSection />
 
       {items.length > 0 ? (
-        <WorkspacePanel
-          className="profile-danger"
-          title="Delete your whole profile"
-          description="Permanently removes every fact above. This takes effect immediately and cannot be undone."
-          actions={
+        <section className="profile-section profile-danger">
+          <div className="profile-section__head">
+            <div>
+              <h2 className="profile-section__title">Delete your whole profile</h2>
+              <p className="profile-section__description">
+                Permanently removes every fact above. This takes effect immediately and cannot be undone.
+              </p>
+            </div>
             <Button
               variant="outline"
+              size="sm"
               className="settings-btn--destructive"
               onClick={() => setPurgeOpen(true)}
             >
               <Trash2 size={14} className="mr-1.5" />
               Delete profile
             </Button>
-          }
-        >
-          <></>
-        </WorkspacePanel>
+          </div>
+        </section>
       ) : null}
 
       <EditFactDialog

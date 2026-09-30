@@ -1,9 +1,8 @@
 import { Link, useSearch } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
-import { AlertCircle, CheckCircle2, Eye, EyeOff, Lock } from 'lucide-react'
+import { AlertCircle, Eye, EyeOff } from 'lucide-react'
 import { confirmPasswordReset } from '#/lib/api/client'
 import { newPasswordSchema } from '#/lib/api/schemas'
-import { FadeUp } from '#/components/ui/motion'
 import { Button } from '#/components/ui/button'
 import { Input } from '#/components/ui/input'
 import { Label } from '#/components/ui/label'
@@ -46,30 +45,17 @@ export function ResetPasswordPage() {
   if (!token) {
     return (
       <div className="auth-page">
-        <FadeUp className="auth-page-shell">
-          <div className="auth-surface" style={{ textAlign: 'center', padding: '3rem 2rem' }}>
-            <div
-              style={{
-                width: 52,
-                height: 52,
-                borderRadius: '50%',
-                background: 'color-mix(in srgb, var(--destructive) 10%, transparent)',
-                display: 'inline-grid',
-                placeItems: 'center',
-                marginBottom: '1rem',
-              }}
-            >
-              <Lock size={22} style={{ color: 'var(--destructive)' }} />
-            </div>
+        <div className="auth-page-shell">
+          <div className="auth-result">
             <h1 className="auth-surface-title">Invalid reset link</h1>
-            <p className="muted-copy" style={{ marginTop: '0.5rem', maxWidth: '36ch', marginInline: 'auto', lineHeight: 1.6 }}>
+            <p className="auth-result__text">
               This password reset link is missing or expired. Request a new one and we'll email you a fresh link.
             </p>
-            <Button asChild size="lg" className="auth-submit" style={{ marginTop: '1.5rem' }}>
+            <Button asChild className="auth-submit">
               <Link to="/login">Back to sign in</Link>
             </Button>
           </div>
-        </FadeUp>
+        </div>
       </div>
     )
   }
@@ -77,31 +63,17 @@ export function ResetPasswordPage() {
   if (status === 'success') {
     return (
       <div className="auth-page">
-        <FadeUp className="auth-page-shell">
-          <div className="auth-surface" style={{ textAlign: 'center', padding: '3rem 2rem' }}>
-            <div
-              style={{
-                width: 52,
-                height: 52,
-                borderRadius: '50%',
-                background: 'color-mix(in srgb, #22c55e 14%, transparent)',
-                display: 'inline-grid',
-                placeItems: 'center',
-                marginBottom: '1rem',
-                boxShadow: '0 8px 24px color-mix(in srgb, #22c55e 18%, transparent)',
-              }}
-            >
-              <CheckCircle2 size={24} style={{ color: '#16a34a' }} />
-            </div>
+        <div className="auth-page-shell">
+          <div className="auth-result">
             <h1 className="auth-surface-title">Password updated</h1>
-            <p className="muted-copy" style={{ marginTop: '0.5rem', maxWidth: '36ch', marginInline: 'auto', lineHeight: 1.6 }}>
+            <p className="auth-result__text">
               Your password has been reset. Sign in with your new password to continue.
             </p>
-            <Button asChild size="lg" className="auth-submit" style={{ marginTop: '1.5rem' }}>
+            <Button asChild className="auth-submit">
               <Link to="/login">Sign in</Link>
             </Button>
           </div>
-        </FadeUp>
+        </div>
       </div>
     )
   }
@@ -136,7 +108,7 @@ export function ResetPasswordPage() {
 
   return (
     <div className="auth-page">
-      <FadeUp className="auth-page-shell">
+      <div className="auth-page-shell">
         <div className="auth-page-actions">
           <Link to="/login" className="small-copy muted-copy auth-back-link">
             ← Back to sign in
@@ -211,7 +183,7 @@ export function ResetPasswordPage() {
             </Button>
           </form>
         </div>
-      </FadeUp>
+      </div>
     </div>
   )
 }

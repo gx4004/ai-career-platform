@@ -41,7 +41,7 @@ describe('LoginPage', () => {
     const { container, queryByText } = render(<LoginPage />)
 
     expect(container.querySelector('[data-auth-surface]')).toBeTruthy()
-    expect(container.querySelector('[data-brand-mode="full"]')).toBeTruthy()
+    expect(container.querySelector('[data-brand-mode="compact"]')).toBeTruthy()
     expect(container.querySelector('.cw-brand-lockup')).toBeTruthy()
     expect(container.querySelector('.auth-visual')).toBeNull()
     expect(queryByText(/^CW$/)).toBeNull()

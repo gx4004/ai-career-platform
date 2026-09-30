@@ -20,7 +20,7 @@ export function AuthSurface({
   return (
     <div className={cn('auth-surface', className)} data-auth-surface>
       <div className="auth-surface-header">
-        <AppBrandLockup className="auth-brand-lockup" />
+        <AppBrandLockup mode="compact" className="auth-brand-lockup" />
         <div className="auth-surface-copy">
           <h1 className="auth-surface-title">
             {view === 'register' ? 'Create your workspace account' : 'Sign in to your workspace'}

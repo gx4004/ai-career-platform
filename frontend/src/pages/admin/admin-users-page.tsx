@@ -69,7 +69,7 @@ export function AdminUsersPage() {
             )}
             {isError && (
               <tr>
-                <td colSpan={6} className="admin-table-muted" style={{ textAlign: 'center', color: '#dc2626' }}>
+                <td colSpan={6} className="admin-table-muted" style={{ textAlign: 'center', color: 'var(--destructive)' }}>
                   Couldn't load users.{' '}
                   <button type="button" className="admin-toolbar-btn" onClick={() => void refetch()}>
                     Try again

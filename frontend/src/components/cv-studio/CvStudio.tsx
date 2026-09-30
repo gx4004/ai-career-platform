@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import {
-  ArrowLeft, Check, CheckCircle2, CircleAlert, CloudOff, Download, FileSearch, FileText, FileUp, History, Layers, LayoutTemplate,
+  ArrowLeft, Check, CheckCircle2, CircleAlert, CloudOff, Download, FileSearch, FileUp, History, Layers, LayoutTemplate,
   ListTree, Loader2, MoreHorizontal, ShieldCheck, Sparkles, Trash2, X,
 } from 'lucide-react'
 import { AppStatePanel } from '#/components/app/AppStatePanel'
@@ -214,7 +214,7 @@ export function CvStudio() {
   if (listQuery.isPending || catalogQuery.isPending || (documentId && documentQuery.isPending)) {
     return (
       <WorkspacePage wide className="cvs-page">
-        <PageHero icon={FileText} title="CV Studio" purpose="Write it once, pick a look, and tailor it to every job." />
+        <PageHero title="CV Studio" purpose="Write it once, pick a look, and tailor it to every job." />
         <div className="cvs-skeleton" role="status" aria-label="Loading CV Studio" />
       </WorkspacePage>
     )
@@ -232,14 +232,11 @@ export function CvStudio() {
     return (
       <WorkspacePage wide className="cvs-page">
         <PageHero
-          icon={FileText}
-          title="Build a CV you’re proud to send"
+          title="CV Studio"
           purpose="Write it once, pick a look, and tailor it to every job. We check that application systems can read it."
-          chips={['Live paper preview', 'ATS check', 'Tailor to a job', 'Versions']}
         />
         <div className="cvs-empty-panel">
           <WorkspaceEmpty
-            icon={FileUp}
             title="Let’s start with your CV"
             description="Import the CV you already have and we’ll turn it into editable sections. Or start from the facts you’ve saved in your Evidence."
             action={(
@@ -324,84 +321,82 @@ export function CvStudio() {
   )
 
   const hero = (
-    <PageHero
-      icon={FileText}
-      title={(
-        <>
-          <span className="sr-only">{draft.name}</span>
-          <input
-            className="cvs-title" aria-label="Document name" value={draft.name} maxLength={120}
-            size={Math.max(8, Math.min(draft.name.length + 1, 40))}
-            onChange={(event) => edit((current) => ({ ...current, name: event.target.value }))}
-          />
-        </>
-      )}
-      purpose={<span className="cvs-purpose"><SaveStatus state={saveState} />{templateName ? <> · {templateName}</> : null}</span>}
-      action={(
-        <>
-          <Button type="button" loading={exporting === 'pdf'} disabled={dirty} onClick={() => void exportFile('pdf')}><Download size={16} /> Export PDF</Button>
-          <Button type="button" variant="outline" onClick={() => setDialog('tailor')}><Sparkles size={16} /> Tailor to a job</Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button type="button" variant="outline" size="icon" aria-label="More options"><MoreHorizontal size={16} /></Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-60">
-              <DropdownMenuLabel>New CV</DropdownMenuLabel>
-              <DropdownMenuItem disabled={dirty} onSelect={() => setDialog('import')}><FileUp /> Import a PDF or DOCX</DropdownMenuItem>
-              <DropdownMenuItem disabled={dirty} onSelect={() => setDialog('create')}><Layers /> Start from your Evidence</DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem disabled={dirty || exporting === 'docx'} onSelect={() => void exportFile('docx')}><Download /> Export DOCX</DropdownMenuItem>
-              <DropdownMenuItem disabled={exporting === 'data'} onSelect={() => void exportFile('data')}><Download /> Download my CV data</DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem variant="destructive" disabled={dirty} onSelect={() => void removeDocument(false)}><Trash2 /> Delete this CV</DropdownMenuItem>
-              <DropdownMenuItem variant="destructive" disabled={dirty} onSelect={() => void removeDocument(true)}><Trash2 /> Delete all CVs</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </>
-      )}
-    />
+    <header className="cvs-bar">
+      <div className="cvs-bar__doc">
+        <span className="sr-only">{draft.name}</span>
+        <input
+          className="cvs-title" aria-label="Document name" value={draft.name} maxLength={120}
+          size={Math.max(8, Math.min(draft.name.length + 1, 40))}
+          onChange={(event) => edit((current) => ({ ...current, name: event.target.value }))}
+        />
+        <span className="cvs-purpose"><SaveStatus state={saveState} />{templateName ? <span className="cvs-purpose__template">{templateName}</span> : null}</span>
+      </div>
+      <div className="cvs-bar__actions">
+        {documents.length > 1 ? (
+          <select
+            className="cvs-select" aria-label="Your CVs" value={draft.id} disabled={dirty}
+            onChange={(event) => switchDocument(event.target.value)}
+          >
+            {documents.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+          </select>
+        ) : null}
+        <Button type="button" variant="outline" size="sm" onClick={() => setDialog('tailor')}><Sparkles size={14} /> Tailor to a job</Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button type="button" variant="outline" size="icon-sm" aria-label="More options"><MoreHorizontal size={14} /></Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-60">
+            <DropdownMenuLabel>New CV</DropdownMenuLabel>
+            <DropdownMenuItem disabled={dirty} onSelect={() => setDialog('import')}><FileUp /> Import a PDF or DOCX</DropdownMenuItem>
+            <DropdownMenuItem disabled={dirty} onSelect={() => setDialog('create')}><Layers /> Start from your Evidence</DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem disabled={dirty || exporting === 'docx'} onSelect={() => void exportFile('docx')}><Download /> Export DOCX</DropdownMenuItem>
+            <DropdownMenuItem disabled={exporting === 'data'} onSelect={() => void exportFile('data')}><Download /> Download my CV data</DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem variant="destructive" disabled={dirty} onSelect={() => void removeDocument(false)}><Trash2 /> Delete this CV</DropdownMenuItem>
+            <DropdownMenuItem variant="destructive" disabled={dirty} onSelect={() => void removeDocument(true)}><Trash2 /> Delete all CVs</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+        <Button type="button" size="sm" loading={exporting === 'pdf'} disabled={dirty} onClick={() => void exportFile('pdf')}><Download size={14} /> Export PDF</Button>
+      </div>
+    </header>
   )
 
   return (
-    <WorkspacePage wide className="cvs-page">
+    <WorkspacePage wide className="cvs-page cvs-page--editor">
       {hero}
       {actionError ? <Banner tone="error" onDismiss={() => setActionError('')}>{actionError}</Banner> : null}
       {notice ? <Banner tone="ok" onDismiss={() => setNotice('')}>{notice}</Banner> : null}
 
       <div className="cvs-studio">
-        <div className="cvs-desk">
-          <nav className="cvs-toolbar" aria-label="Studio tools">
+        <div className="cvs-side">
+          <nav className="cvs-tabs" aria-label="Studio tools">
             {toolButton('sections', ListTree)}
             {toolButton('design', LayoutTemplate)}
             {toolButton('checks', checks ? (checks.every((check) => check.passed) ? CheckCircle2 : CircleAlert) : ShieldCheck, checks ? (
               <span className={cn('cvs-tool__badge', checks.every((check) => check.passed) ? 'is-pass' : 'is-fail')}>{checklistSummary(checks)}</span>
             ) : null, checks ? (checks.every((check) => check.passed) ? 'pass' : 'fail') : undefined)}
             {toolButton('versions', History, <span className="cvs-tool__count">{draft.variants.length}</span>)}
-            <span className="cvs-toolbar__end">
-              {documents.length > 1 ? (
-                <select
-                  className="cvs-select" aria-label="Your CVs" value={draft.id} disabled={dirty}
-                  onChange={(event) => switchDocument(event.target.value)}
-                >
-                  {documents.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-                </select>
-              ) : null}
-              <button type="button" className="cvs-tool" disabled={dirty} onClick={() => setDialog('pdf')}><FileSearch size={15} aria-hidden="true" /> View exact PDF</button>
-            </span>
           </nav>
+          {desktop ? (
+            <aside className="cvs-panel" aria-labelledby="cvs-panel-title">{panelHead}{panelBody}</aside>
+          ) : (
+            <Sheet open={panelOpen} onOpenChange={setPanelOpen}>
+              <SheetContent side="bottom" showCloseButton={false} aria-describedby={undefined} className="cvs-sheet">{panelHead}{panelBody}</SheetContent>
+            </Sheet>
+          )}
+        </div>
+
+        <div className="cvs-canvas">
+          <div className="cvs-canvas__bar">
+            <span>Live preview</span>
+            <button type="button" className="cvs-tool" disabled={dirty} onClick={() => setDialog('pdf')}><FileSearch size={14} aria-hidden="true" /> View exact PDF</button>
+          </div>
           <CvPaper
             name={draft.name} sections={draft.sections} style={draft.style} catalog={catalog}
             activeId={activeSection?.id} onEdit={(sectionId) => openPanel({ sectionId })}
           />
         </div>
-
-        {desktop ? (
-          <aside className="cvs-panel" aria-labelledby="cvs-panel-title">{panelHead}{panelBody}</aside>
-        ) : (
-          <Sheet open={panelOpen} onOpenChange={setPanelOpen}>
-            <SheetContent side="bottom" showCloseButton={false} aria-describedby={undefined} className="cvs-sheet">{panelHead}{panelBody}</SheetContent>
-          </Sheet>
-        )}
       </div>
 
       {startDialogs}

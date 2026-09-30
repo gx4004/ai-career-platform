@@ -1,7 +1,6 @@
 import type { ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
 import { Button } from '#/components/ui/button'
-import { SceneVisual } from '#/components/illustrations/SceneVisual'
 import type { IllustrationScene } from '#/components/illustrations/SceneVisual'
 
 type PanelAction = {
@@ -11,13 +10,15 @@ type PanelAction = {
   variant?: 'default' | 'outline' | 'ghost'
 }
 
+/**
+ * A plain state page: one title, one line of explanation, and a primary plus a
+ * secondary action, left-aligned. `icon`, `scene` and `visual` are accepted for
+ * existing callers but no longer rendered (no illustrations on state pages).
+ */
 export function AppStatePanel({
   badge,
   title,
   description,
-  icon,
-  scene,
-  visual,
   detail,
   actions = [],
 }: {
@@ -32,47 +33,27 @@ export function AppStatePanel({
 }) {
   return (
     <section className="page-shell">
-      <div className="content-narrow">
-        <div className="app-state-panel section-card grid gap-5 p-8 text-center">
-          {badge ? <div className="section-kicker mx-auto">{badge}</div> : null}
-          {visual ? <div className="mx-auto w-full max-w-sm">{visual}</div> : null}
-          {!visual && scene ? (
-            <div className="mx-auto w-full max-w-xl">
-              <SceneVisual scene={scene} />
-            </div>
-          ) : null}
-          {icon ? <div className="mx-auto">{icon}</div> : null}
-          <div className="grid gap-2">
-            <h1 className="app-state-panel-title">{title}</h1>
-            <p className="muted-copy">{description}</p>
-            {detail ? <p className="small-copy muted-copy">{detail}</p> : null}
+      <div className="state-page">
+        {badge ? <p className="state-page__code">{badge}</p> : null}
+        <h1 className="state-page__title">{title}</h1>
+        <p className="state-page__text">{description}</p>
+        {detail ? <p className="state-page__detail">{detail}</p> : null}
+        {actions.length > 0 ? (
+          <div className="state-page__actions">
+            {actions.map((action, i) => {
+              const variant = action.variant || (i === 0 ? 'default' : 'outline')
+              return action.to ? (
+                <Button key={action.label} variant={variant} size="sm" asChild>
+                  <Link to={action.to}>{action.label}</Link>
+                </Button>
+              ) : (
+                <Button key={action.label} variant={variant} size="sm" onClick={action.onClick}>
+                  {action.label}
+                </Button>
+              )
+            })}
           </div>
-          {actions.length > 0 ? (
-            <div className="button-cluster button-cluster--center justify-center">
-              {actions.map((action, i) =>
-                action.to ? (
-                  <Button
-                    key={action.label}
-                    variant={action.variant || 'default'}
-                    className={i === 0 ? 'button-hero-primary' : undefined}
-                    asChild
-                  >
-                    <Link to={action.to}>{action.label}</Link>
-                  </Button>
-                ) : (
-                  <Button
-                    key={action.label}
-                    variant={action.variant || 'default'}
-                    className={i === 0 ? 'button-hero-primary' : undefined}
-                    onClick={action.onClick}
-                  >
-                    {action.label}
-                  </Button>
-                ),
-              )}
-            </div>
-          ) : null}
-        </div>
+        ) : null}
       </div>
     </section>
   )

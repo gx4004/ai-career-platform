@@ -1,20 +1,15 @@
-import { SearchX } from 'lucide-react'
 import { AppStatePanel } from '#/components/app/AppStatePanel'
 
 export function AppNotFound() {
   return (
-    <div className="error-gradient-bg">
-      <AppStatePanel
-        badge="404"
-        scene="emptyPlanning"
-        icon={<SearchX size={48} style={{ color: 'var(--text-muted)' }} />}
-        title="Page not found"
-        description="The page you requested does not exist in this workspace."
-        actions={[
-          { label: 'Go to dashboard', to: '/dashboard' },
-          { label: 'Back to landing', to: '/', variant: 'outline' },
-        ]}
-      />
-    </div>
+    <AppStatePanel
+      badge="404"
+      title="Page not found"
+      description="This page does not exist in your workspace."
+      actions={[
+        { label: 'Go to dashboard', to: '/dashboard' },
+        { label: 'Back to home', to: '/', variant: 'outline' },
+      ]}
+    />
   )
 }

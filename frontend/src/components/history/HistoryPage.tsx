@@ -1,15 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
-import { History, Pencil, Search, Star, Trash2 } from 'lucide-react'
+import { ArrowRight, Pencil, Search, Star, Trash2 } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { Input } from '#/components/ui/input'
 import { PageHero } from '#/components/app/PageHero'
 import { PageFrame } from '#/components/app/PageFrame'
+import { Skeleton } from '#/components/ui/skeleton'
 import { AppStatePanel } from '#/components/app/AppStatePanel'
 import { ConfirmDeleteDialog } from '#/components/app/ConfirmDeleteDialog'
-import { RunRow, RunRowSkeleton, formatRunDate } from '#/components/dashboard/RunRow'
-import { SceneVisual } from '#/components/illustrations/SceneVisual'
+import { formatRunDate } from '#/components/dashboard/RunRow'
 import { useFavoriteToggle } from '#/hooks/useFavoriteToggle'
 import { useHistory } from '#/hooks/useHistory'
 import { useSession } from '#/hooks/useSession'
@@ -152,7 +152,6 @@ export function HistoryPage({
       <AppStatePanel
         title="Pick up where you left off"
         description="Your saved runs and favorites live here — sign in to unlock your full history."
-        scene="dashboardHero"
         actions={[
           {
             label: 'Sign in',
@@ -180,9 +179,8 @@ export function HistoryPage({
 
   return (
     <PageFrame className="history-page">
-      <section className="history-layout content-max">
+      <section className="history-layout">
         <PageHero
-          icon={History}
           title="History"
           purpose="Every analysis you have saved, newest first. Reopen a result or continue to the next tool."
           chips={chips}
@@ -190,7 +188,7 @@ export function HistoryPage({
 
         <div className="history-toolbar">
           <div className="history-toolbar__search">
-            <Search className="history-toolbar__search-icon" size={16} aria-hidden />
+            <Search className="history-toolbar__search-icon" size={14} aria-hidden />
             <Input
               type="search"
               aria-label="Search saved runs by label"
@@ -206,7 +204,7 @@ export function HistoryPage({
                 }, 200)
               }}
               placeholder="Search by saved label"
-              className="pl-10"
+              className="history-toolbar__input"
             />
           </div>
           <div className="history-pill-row" role="group" aria-label="Filter by tool">
@@ -223,11 +221,6 @@ export function HistoryPage({
                   })
                 }
               >
-                <span
-                  className="history-pill__dot"
-                  style={{ background: tool.accent }}
-                  aria-hidden
-                />
                 <span>{tool.shortLabel}</span>
               </button>
             ))}
@@ -258,182 +251,200 @@ export function HistoryPage({
         ) : null}
 
         {listQuery.isPending ? (
-          <div className="run-list history-list" aria-hidden>
+          <div className="history-table-wrap" aria-hidden>
             {Array.from({ length: 6 }, (_, i) => (
-              <RunRowSkeleton key={i} />
+              <div key={i} className="history-skeleton-row">
+                <Skeleton className="history-skeleton-row__bar" />
+              </div>
             ))}
           </div>
         ) : listQuery.isError ? (
-          <div className="section-card history-empty" role="alert">
-            <p className="section-title">We couldn&apos;t load your history</p>
-            <p className="muted-copy">Check your connection and try again.</p>
+          <div className="history-empty" role="alert">
+            <p className="history-empty__title">We couldn&apos;t load your history</p>
+            <p className="history-empty__text">Check your connection and try again.</p>
             <div>
-              <Button variant="outline" onClick={() => void listQuery.refetch()}>
+              <Button variant="outline" size="sm" onClick={() => void listQuery.refetch()}>
                 Retry
               </Button>
             </div>
           </div>
         ) : items.length ? (
-          <div className="run-list history-list">
-            {items.map((item) => {
-              const display = historyToolDisplay(item.tool_name)
-              const href = historyRunHref(item)
-              const label = runLabel(item)
-              const registryTool = display.kind === 'tool' ? getToolByHistoryName(item.tool_name) : null
-              const nextTool = registryTool
-                ? toolList.find(
-                    (candidate) =>
-                      candidate.id === getNextStepToolId(registryTool.id, item.metadata),
-                  )
-                : null
-              const workspaceLabel = item.workspace?.label
-              const editing = editingId === item.id
-
-              const note =
-                display.kind === 'cv-studio'
-                  ? 'Older CV Studio run'
-                  : display.kind === 'application-drafts'
-                    ? 'Application draft'
+          <div className="history-table-wrap">
+            <table className="history-table">
+              <thead>
+                <tr>
+                  <th scope="col" className="history-table__tool">Tool</th>
+                  <th scope="col">Run</th>
+                  <th scope="col" className="history-table__date">Date</th>
+                  <th scope="col" className="history-table__actions-head"><span className="sr-only">Actions</span></th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((item) => {
+                  const display = historyToolDisplay(item.tool_name)
+                  const href = historyRunHref(item)
+                  const label = runLabel(item)
+                  const registryTool = display.kind === 'tool' ? getToolByHistoryName(item.tool_name) : null
+                  const nextTool = registryTool
+                    ? toolList.find(
+                        (candidate) =>
+                          candidate.id === getNextStepToolId(registryTool.id, item.metadata),
+                      )
                     : null
-              const notes =
-                note || (workspaceLabel && workspaceLabel !== label) ? (
-                  <>
-                    {note ? <span className="run-row-note">{note}</span> : null}
-                    {workspaceLabel && workspaceLabel !== label ? (
-                      <span className="run-row-note">Workspace: {workspaceLabel}</span>
-                    ) : null}
-                  </>
-                ) : null
+                  const workspaceLabel = item.workspace?.label
+                  const editing = editingId === item.id
+                  const summary = item.metadata.summary_headline
 
-              return (
-                <RunRow
-                  key={item.id}
-                  mode="actions"
-                  href={href}
-                  tool={display}
-                  label={label}
-                  date={formatRunDate(item.created_at)}
-                  showFavoriteStar={item.is_favorite}
-                  summary={item.metadata.summary_headline}
-                  notes={notes}
-                  editor={
-                    editing ? (
-                      <form
-                        className="history-rename"
-                        onSubmit={(event) => {
-                          event.preventDefault()
-                          // A run can be renamed but never left without a name.
-                          if (!editDraft.trim()) return
-                          renameMutation.mutate({ historyId: item.id, label: editDraft.trim() })
-                        }}
-                      >
-                        <Input
-                          autoFocus
-                          aria-label={`Rename ${label}`}
-                          value={editDraft}
-                          maxLength={200}
-                          onChange={(event) => setEditDraft(event.target.value)}
-                          onKeyDown={(event) => {
-                            if (event.key === 'Escape') {
+                  const note =
+                    display.kind === 'cv-studio'
+                      ? 'Older CV Studio run'
+                      : display.kind === 'application-drafts'
+                        ? 'Application draft'
+                        : null
+
+                  return (
+                    <tr key={item.id} className="history-row">
+                      <td className="history-table__tool">
+                        <span className="history-tool">{display.label}</span>
+                      </td>
+                      <td className="history-table__run">
+                        {editing ? (
+                          <form
+                            className="history-rename"
+                            onSubmit={(event) => {
                               event.preventDefault()
-                              setEditingId(null)
+                              // A run can be renamed but never left without a name.
+                              if (!editDraft.trim()) return
+                              renameMutation.mutate({ historyId: item.id, label: editDraft.trim() })
+                            }}
+                          >
+                            <Input
+                              autoFocus
+                              aria-label={`Rename ${label}`}
+                              value={editDraft}
+                              maxLength={200}
+                              onChange={(event) => setEditDraft(event.target.value)}
+                              onKeyDown={(event) => {
+                                if (event.key === 'Escape') {
+                                  event.preventDefault()
+                                  setEditingId(null)
+                                }
+                              }}
+                            />
+                            <Button
+                              type="submit"
+                              size="sm"
+                              disabled={renameMutation.isPending || !editDraft.trim()}
+                            >
+                              Save
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              onClick={() => setEditingId(null)}
+                            >
+                              Cancel
+                            </Button>
+                          </form>
+                        ) : (
+                          <>
+                            <span className="history-run__label">
+                              {item.is_favorite ? (
+                                <Star size={12} className="history-run__star" fill="currentColor" aria-hidden />
+                              ) : null}
+                              {label}
+                            </span>
+                            {summary ? <span className="history-run__note">{summary}</span> : null}
+                          </>
+                        )}
+                        {note ? <span className="history-run__note">{note}</span> : null}
+                        {workspaceLabel && workspaceLabel !== label ? (
+                          <span className="history-run__note">Workspace: {workspaceLabel}</span>
+                        ) : null}
+                      </td>
+                      <td className="history-table__date">{formatRunDate(item.created_at)}</td>
+                      <td className="history-table__actions">
+                        <div className="history-actions">
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            className="history-icon-button"
+                            aria-label={item.is_favorite ? 'Remove from favorites' : 'Add to favorites'}
+                            aria-pressed={item.is_favorite}
+                            onClick={() =>
+                              favoriteToggle.mutate({
+                                historyId: item.id,
+                                isFavorite: !item.is_favorite,
+                              })
                             }
-                          }}
-                        />
-                        <Button
-                          type="submit"
-                          size="sm"
-                          disabled={renameMutation.isPending || !editDraft.trim()}
-                        >
-                          Save
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          onClick={() => setEditingId(null)}
-                        >
-                          Cancel
-                        </Button>
-                      </form>
-                    ) : undefined
-                  }
-                  actions={
-                    <>
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        className="history-icon-button"
-                        aria-label={item.is_favorite ? 'Remove from favorites' : 'Add to favorites'}
-                        aria-pressed={item.is_favorite}
-                        onClick={() =>
-                          favoriteToggle.mutate({
-                            historyId: item.id,
-                            isFavorite: !item.is_favorite,
-                          })
-                        }
-                      >
-                        <Star size={15} fill={item.is_favorite ? 'currentColor' : 'none'} />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        className="history-icon-button"
-                        aria-label={`Rename ${label}`}
-                        onClick={() => {
-                          setActionError(null)
-                          setEditingId(item.id)
-                          setEditDraft(item.label ?? '')
-                        }}
-                      >
-                        <Pencil size={15} />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        className="history-icon-button history-icon-button--danger"
-                        aria-label={`Delete ${label}`}
-                        disabled={deleteMutation.isPending && deleteMutation.variables === item.id}
-                        onClick={() => setDeleteCandidate({ id: item.id, label })}
-                      >
-                        <Trash2 size={15} />
-                      </Button>
-                      {nextTool ? (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="history-continue"
-                          disabled={continuingId === item.id}
-                          onClick={() => void continueRun(item)}
-                        >
-                          {continuingId === item.id ? 'Opening…' : `Continue: ${nextTool.shortLabel}`}
-                        </Button>
-                      ) : null}
-                    </>
-                  }
-                />
-              )
-            })}
+                          >
+                            <Star size={14} fill={item.is_favorite ? 'currentColor' : 'none'} />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            className="history-icon-button"
+                            aria-label={`Rename ${label}`}
+                            onClick={() => {
+                              setActionError(null)
+                              setEditingId(item.id)
+                              setEditDraft(item.label ?? '')
+                            }}
+                          >
+                            <Pencil size={14} />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            className="history-icon-button history-icon-button--danger"
+                            aria-label={`Delete ${label}`}
+                            disabled={deleteMutation.isPending && deleteMutation.variables === item.id}
+                            onClick={() => setDeleteCandidate({ id: item.id, label })}
+                          >
+                            <Trash2 size={14} />
+                          </Button>
+                          {nextTool ? (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="history-continue"
+                              disabled={continuingId === item.id}
+                              onClick={() => void continueRun(item)}
+                            >
+                              {continuingId === item.id ? 'Opening…' : `Continue: ${nextTool.shortLabel}`}
+                            </Button>
+                          ) : null}
+                          {href ? (
+                            <Link to={href} className="history-open" aria-label={`Open ${label}`}>
+                              <span>Open</span>
+                              <ArrowRight size={13} aria-hidden />
+                            </Link>
+                          ) : null}
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
           </div>
         ) : hasFilters ? (
-          <div className="section-card history-empty">
-            <p className="section-title">No runs match these filters</p>
-            <p className="muted-copy">Try a different tool or search, or clear the filters.</p>
+          <div className="history-empty">
+            <p className="history-empty__title">No runs match these filters</p>
+            <p className="history-empty__text">Try a different tool or search, or clear the filters.</p>
             <div>
-              <Button variant="outline" onClick={clearFilters}>
+              <Button variant="outline" size="sm" onClick={clearFilters}>
                 Clear filters
               </Button>
             </div>
           </div>
         ) : (
-          <div className="section-card history-empty">
-            <div className="mx-auto w-full max-w-md">
-              <SceneVisual scene="emptyPlanning" />
-            </div>
-            <p className="section-title">No runs yet</p>
-            <p className="muted-copy">Run a tool and your saved results will show up here.</p>
+          <div className="history-empty">
+            <p className="history-empty__title">No runs yet</p>
+            <p className="history-empty__text">Run a tool and your saved results will show up here.</p>
             <div>
-              <Button asChild className="button-hero-primary" size="lg">
+              <Button asChild size="sm">
                 <Link to="/resume">Start with Resume</Link>
               </Button>
             </div>
@@ -444,7 +455,7 @@ export function HistoryPage({
           <nav className="history-pagination" aria-label="History pages">
             <Button
               variant="outline"
-              className="button-toolbar-utility"
+              size="sm"
               disabled={page <= 1}
               onClick={() => onSearchChange({ page: page - 1 })}
             >
@@ -455,7 +466,7 @@ export function HistoryPage({
             </span>
             <Button
               variant="outline"
-              className="button-toolbar-utility"
+              size="sm"
               disabled={page >= totalPages}
               onClick={() => onSearchChange({ page: page + 1 })}
             >
