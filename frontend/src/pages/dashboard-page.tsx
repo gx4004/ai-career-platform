@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { DashboardHero } from '#/components/dashboard/DashboardHero'
 import { FavoriteRuns } from '#/components/dashboard/FavoriteRuns'
+import { DashboardToday } from '#/components/dashboard/DashboardToday'
 import { RecentRuns } from '#/components/dashboard/RecentRuns'
 import { DashboardActivityFooter } from '#/components/dashboard/DashboardActivityFooter'
 import { DashboardFeatureLinks } from '#/components/dashboard/DashboardFeatureLinks'
@@ -39,6 +40,7 @@ export function DashboardPage() {
         <div className="dashboard-light-surface">
           {isAuthenticated ? (
             <>
+              <DashboardToday />
               <div className="dashboard-runs-grid" data-tour="activity">
                 <RecentRuns />
                 <FavoriteRuns />

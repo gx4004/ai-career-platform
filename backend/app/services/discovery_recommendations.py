@@ -143,7 +143,7 @@ def search_listings(
 
     visible_rows = _load_visible(db, page_ids, profile, now)
     return DiscoveryListingPage(
-        items=[_listing_item(visible_rows[i]) for i in page_ids if i in visible_rows],
+        items=[listing_item(visible_rows[i]) for i in page_ids if i in visible_rows],
         total=total,
         page=page,
         limit=limit,
@@ -174,7 +174,7 @@ def listing_detail(
     from app.services.discovery_deep_match import linked_deep_match
 
     return DiscoveryListingDetail(
-        **_listing_item(row).model_dump(),
+        **listing_item(row).model_dump(),
         description=row.listing.description,
         deep_match=linked_deep_match(db, user_id, listing_id),
     )
@@ -216,6 +216,17 @@ def best_matches(
     page_ids = _best_match_page(db, profile, matching, offset=0, limit=limit)
     rows = _load_visible(db, page_ids, profile, now)
     return [rows[listing_id] for listing_id in page_ids if listing_id in rows]
+
+
+def has_live_source(db: Session, now: datetime | None = None) -> bool:
+    """True when at least one listing is currently attributed to an allowed source."""
+    live = (
+        select(DiscoveredListingAttribution.id)
+        .join(DiscoverySource, DiscoveredListingAttribution.source_id == DiscoverySource.id)
+        .where(_live(db, now or datetime.now(UTC)))
+        .limit(1)
+    )
+    return db.scalar(live) is not None
 
 
 def visible_listing_clause(db: Session, user_id: str, now: datetime):
@@ -383,7 +394,7 @@ def _load_visible(
     }
 
 
-def _listing_item(row: VisibleListing) -> DiscoveryListingItem:
+def listing_item(row: VisibleListing) -> DiscoveryListingItem:
     listing = row.listing
     return DiscoveryListingItem(
         listing_id=listing.id,

@@ -266,6 +266,26 @@ export const discoveryListingDetailSchema = discoveryListingSchema.extend({
   description: z.string(),
   deep_match: discoveryDeepMatchSchema.nullable().default(null),
 })
+// Dashboard "today" plan (#418). Mirrors TodayPlan in backend/app/schemas/today.py.
+export const todayActionItemSchema = z.strictObject({
+  application_id: z.string(),
+  title: z.string(),
+  company: z.string().nullable().default(null),
+  status: applicationStatusSchema,
+  reason: z.enum(['interview', 'deadline', 'no_reply']),
+  deadline: offsetDateTime.nullable().default(null),
+  applied_at: offsetDateTime.nullable().default(null),
+  days_since_applied: z.number().int().nonnegative().nullable().default(null),
+})
+export const todayPlanSchema = z.strictObject({
+  has_sources: z.boolean(),
+  has_evidence: z.boolean(),
+  best_matches: z.array(discoveryListingSchema),
+  needs_action: z.array(todayActionItemSchema),
+  needs_action_total: z.number().int().nonnegative(),
+})
+export type TodayActionItem = z.infer<typeof todayActionItemSchema>
+export type TodayPlan = z.infer<typeof todayPlanSchema>
 export type DiscoveryDeepMatch = z.infer<typeof discoveryDeepMatchSchema>
 export type DiscoveryListing = z.infer<typeof discoveryListingSchema>
 export type DiscoveryListingPage = z.infer<typeof discoveryListingPageSchema>
