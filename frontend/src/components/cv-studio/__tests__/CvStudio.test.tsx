@@ -308,6 +308,40 @@ describe('CV Studio ATS check, exports and versions', { timeout: 15_000 }, () =>
     expect(window.document.body.textContent).not.toMatch(/deterministic|preflight|immutable|canonical/i)
   })
 
+  it('offers to show a hidden required section and to add a missing one', async () => {
+    const failingSections = { ...quality, checks: [{ ...quality.checks[0], passed: false }] }
+    api.scoreCvDocument.mockResolvedValue(failingSections)
+    const hiddenSkills = { ...document, sections: [experience, { ...skills, visible: false }] }
+    api.getCvDocument.mockResolvedValue(hiddenSkills)
+    api.listCvDocuments.mockResolvedValue({ items: [hiddenSkills] })
+    view()
+    let checks = await openTool(/^ATS check/)
+    expect(within(checks).queryByRole('button', { name: 'Add Skills section' })).toBeNull()
+    fireEvent.click(await within(checks).findByRole('button', { name: 'Show Skills section' }))
+    await waitFor(() => expect(lastPatch().sections.find((s: { kind: string }) => s.kind === 'skills').visible).toBe(true))
+    expect(lastPatch().sections).toHaveLength(2)
+  })
+
+  it('adds a missing required section from the ATS check and opens its editor', async () => {
+    api.scoreCvDocument.mockResolvedValue({ ...quality, checks: [{ ...quality.checks[0], passed: false }] })
+    const noSkills = { ...document, sections: [experience] }
+    api.getCvDocument.mockResolvedValue(noSkills)
+    api.listCvDocuments.mockResolvedValue({ items: [noSkills] })
+    view()
+    const checks = await openTool(/^ATS check/)
+    fireEvent.click(await within(checks).findByRole('button', { name: 'Add Skills section' }))
+    await waitFor(() => expect(lastPatch().sections.map((s: { kind: string }) => s.kind)).toEqual(['experience', 'skills']))
+    expect(await within(panel()).findByText('Edit Skills')).toBeTruthy()
+  })
+
+  it('starts a new CV from the overflow menu', async () => {
+    view()
+    expect(screen.queryByRole('button', { name: /New CV/ })).toBeNull()
+    const menu = await openMenu('More options')
+    fireEvent.click(within(menu).getByRole('menuitem', { name: /Start from your Evidence/ }))
+    expect(await screen.findByRole('dialog')).toBeTruthy()
+  })
+
   it('says every check passes when the CV is clean', async () => {
     api.scoreCvDocument.mockResolvedValue(passingQuality)
     view()
