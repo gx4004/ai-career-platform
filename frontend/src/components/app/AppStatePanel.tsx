@@ -1,7 +1,6 @@
 import type { ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
 import { Button, ErrorState, Page } from '#/components/kit'
-import type { IllustrationScene } from '#/components/illustrations/SceneVisual'
 
 type PanelAction = {
   label: string
@@ -14,8 +13,7 @@ const VARIANTS = { default: 'primary', outline: 'secondary', ghost: 'ghost' } as
 
 /**
  * A plain state page for screens that have not moved to the kit's EmptyState and ErrorState yet: one title,
- * one line of explanation, a primary and a secondary action, left-aligned. `icon`, `scene` and `visual` are
- * accepted for existing callers but no longer rendered.
+ * one line of explanation, a primary and a secondary action, left-aligned.
  */
 export function AppStatePanel({
   badge,
@@ -28,9 +26,6 @@ export function AppStatePanel({
   badge?: string
   title: string
   description: string
-  icon?: ReactNode
-  scene?: IllustrationScene
-  visual?: ReactNode
   detail?: string
   actions?: PanelAction[]
   children?: ReactNode

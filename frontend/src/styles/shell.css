@@ -85,10 +85,6 @@ html:has(.cookie-banner) .app-main {
   white-space: nowrap;
 }
 
-.auth-brand-lockup {
-  --cw-brand-mark-size: 2.25rem;
-}
-
 /* ── Sidebar ───────────────────────────────────────────────────────── */
 
 .app-sidebar {
@@ -619,38 +615,13 @@ html:has(.cookie-banner) .app-main {
 
 /* ── Legacy page frames (pages not yet on the kit Page) ────────────── */
 
-.page-shell {
-  padding: var(--space-page-y) var(--space-page-x) 3rem;
-  min-height: 100%;
-}
-
-.page-frame {
-  position: relative;
-  display: block;
-}
-
 /* The skip link moves focus to whichever element is the page's main landmark. */
 .app-content :is(main, [role='main']):focus-visible {
   outline: var(--focus-ring-width) solid var(--focus-ring-color);
   outline-offset: calc(var(--focus-ring-width) * -1);
 }
 
-/* A top-level legacy page starts at the top edge: its own header carries the top spacing. */
-.app-content > .page-shell {
-  padding-top: 0;
-}
-
 /* Legacy frames that do not clear the phone tab bar themselves (the kit Page does). */
-@media (max-width: 639px) {
-  .app-main--mobile .tool-fullscreen {
-    padding-block-end: calc(var(--mobile-tab-height) + env(safe-area-inset-bottom, 0px) + var(--space-6));
-  }
-}
-
-[data-slot='badge'] {
-  white-space: nowrap;
-}
-
 /* ── Cookie notice: a compact corner card; two equal-weight choices ── */
 
 .cookie-banner {
@@ -714,5 +685,37 @@ html:has(.cookie-banner) .app-main {
   .cookie-banner__actions {
     flex-direction: column;
     gap: var(--space-2);
+  }
+}
+
+/* Route-level pending state (lazy chunk loading), shown by router.tsx. */
+
+.route-pending {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  min-height: 40vh;
+  color: var(--text-soft);
+  font-size: 0.8125rem;
+}
+
+.route-pending-spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--divider);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .route-pending-spinner {
+    animation-duration: 2.4s;
   }
 }
