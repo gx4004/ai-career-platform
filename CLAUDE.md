@@ -44,14 +44,14 @@ Direction and phases: `docs/roadmap.md` (umbrella #319).
 ```
 frontend/src/routes/        — File-based route definitions (tool_.result.$historyId.tsx pattern for result pages)
 frontend/src/pages/         — Page component implementations
-frontend/src/components/    — app/, auth/, dashboard/, tooling/, landing/, mobile/, ui/
+frontend/src/components/    — kit/ (the shared component layer), app/, auth/, dashboard/, tooling/, landing/, mobile/, ui/ (sidebar only)
 frontend/src/hooks/         — useSession, useBreakpoint, useResumeCarry, useCarousel, etc.
 frontend/src/lib/tools/     — Tool registry, drafts, workflow configs, exports
 frontend/src/lib/auth/      — SessionProvider, token storage, pending intent
 frontend/src/lib/api/       — client.ts (fetch wrapper), schemas.ts (Zod response schemas)
 frontend/src/lib/navigation/ — routeMeta, publicRoutes, redirect helpers
 frontend/src/lib/query/     — TanStack Query client config
-frontend/src/styles/        — CSS files (theme, shell, landing, tooling, results, responsive, etc.)
+frontend/src/styles/        — CSS files (theme tokens, shell, landing, tooling, results, etc.); kit/ holds the kit's CSS
 backend/app/routers/        — Route handlers per domain (all mounted under /api/v1)
 backend/app/services/       — Business logic (LLM, parsing, scoring, scraping)
 backend/app/services/tool_pipeline.py — Shared pipeline: sanitize→cache→service→persist→respond
@@ -89,7 +89,9 @@ cd backend && alembic upgrade head        # Run migrations
 - Zod schemas in `frontend/src/lib/api/schemas.ts` must mirror backend Pydantic schemas in `backend/app/schemas/`
 - Every tool router endpoint calls `run_tool_pipeline()` — don't bypass it for new tools
 - CSS architecture: no CSS modules, plain CSS files in `styles/` with BEM-ish naming
-- Work-tool design (2026-09-30 overhaul; the owner rejected the old look as "AI"): light sidebar, slim topbar, neutral tokens in `styles/theme.css`, Inter, and `styles/workbench.css` loaded last. Every in-app page starts with the compact one-row `PageHero`/`PageHeader` (title, one-line purpose, inline meta, action on the right) and shows the user's data in the first screen. Inside the app: no icon tiles, centred heroes, gradients/glows, pill-chip rows, hover lifts, entrance animations or decorative illustrations; prefer lists/tables over card grids; one primary button per view. The public landing page may stay expressive. No dark mode toggle.
+- Design system (2026-10-03 "Editorial, warm" overhaul; the owner rejected the earlier looks as "AI"): warm paper surfaces, ink text, ONE forest accent (`--accent`), Newsreader (serif) only for page titles, big numbers, lead sentences and empty-state headings, Instrument Sans for all UI, tabular numerals for data. No blue anywhere (info is a neutral stone). All tokens live in `styles/theme.css` (type scale, 4px spacing, radii, one soft + one overlay shadow, 120-160ms motion, status roles, focus ring); never hard-code a colour outside theme.css (CV paper preview and exports are the exceptions). Landing page uses the same tokens.
+- Component kit: every page is built from `components/kit` (Button, Badge/Chip, Field/Input/Select/..., Dialog/Sheet/DropdownMenu/Toast/Tabs/Disclosure, Page/PageHeader/Split/Section/MetaRow/KeyValue/Stat/ScoreBar/Notice/Card/List/Row/Table/Toolbar/Pagination/EmptyState/ErrorState/Skeleton). CSS in `styles/kit/*.css`, class prefix `kit-`, no `!important`, hover only under `(hover: hover)`, 44px touch targets. Pages must not define their own badge, section heading, row, button, input, empty-state or dialog styling; extend the kit additively (specimen in the gallery + test) instead. The hidden, public, noindex `/_kit` route shows every component in every state. `ui/` keeps only the sidebar primitive.
+- Page shape: every in-app page starts with the compact left-aligned `PageHeader` and shows the user's data in the first screen; no icon tiles, centred heroes, gradients/glows, pill-chip rows, hover lifts, entrance animations or decorative illustrations; lists/tables over card grids (cards only for real objects: a job, an application); one filled primary button per view; the account menu lives in the sidebar footer, ⌘K opens the command palette, desktop has no top bar. No dark mode toggle.
 - Tool input pages: compact header + plain form column (resume source control, fields, one submit). Result pages: report layout (header with Re-generate, summary row, plain sections).
 - Deploy: Railway watches `deploy`. Promote reviewed release commits deliberately from
   `chapter2` to `main`, then to `deploy`; never push experimental work directly to
