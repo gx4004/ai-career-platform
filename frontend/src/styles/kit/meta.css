@@ -1,0 +1,314 @@
+/*
+ * MetaRow, KeyValue, Stat, ScoreBar: small data displays.
+ */
+
+/* ── MetaRow ────────────────────────────────────────────────────────── */
+
+.kit-meta {
+  --kit-meta-gap: var(--space-4);
+
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 var(--kit-meta-gap);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  color: var(--text-muted);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+  font-variant-numeric: var(--numeric-tabular);
+  list-style: none;
+}
+
+.kit-meta__item {
+  position: relative;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  overflow-wrap: anywhere;
+}
+
+/*
+ * The dot lives in the gap before an item, centred in it. It is hidden (not removed) on the item
+ * that starts a wrapped line, so it never clips and never moves anything.
+ */
+.kit-meta__item + .kit-meta__item::before {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: calc(var(--kit-meta-gap) * -1);
+  inline-size: var(--kit-meta-gap);
+  color: var(--text-faint);
+  text-align: center;
+  content: '·';
+  content: '·' / '';
+  pointer-events: none;
+}
+
+.kit-meta__item[data-line-start]::before {
+  visibility: hidden;
+}
+
+.kit-meta strong {
+  color: var(--text-body);
+  font-weight: var(--fw-medium);
+}
+
+/* ── KeyValue ───────────────────────────────────────────────────────── */
+
+.kit-kv {
+  --kit-kv-label: 9rem;
+
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  margin: 0;
+}
+
+.kit-kv__row {
+  display: grid;
+  grid-template-columns: var(--kit-kv-label) minmax(0, 1fr);
+  align-items: baseline;
+  column-gap: var(--space-4);
+  min-height: var(--control-md);
+  padding-block: var(--space-1);
+  padding-inline: var(--space-2);
+  margin: 0;
+}
+
+.kit-kv[data-divided] > .kit-kv__row + .kit-kv__row {
+  border-top: 1px solid var(--divider);
+}
+
+.kit-kv[data-layout='stacked'] .kit-kv__row {
+  grid-template-columns: minmax(0, 1fr);
+  row-gap: 0;
+  padding-block: var(--space-2);
+}
+
+/* A rail has no hover or selected tint to give the text room, so its facts start at the column edge like Stat and ScoreBar. */
+.kit-split__rail .kit-kv__row {
+  padding-inline: 0;
+}
+
+.kit-kv__label {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--fs-body);
+  font-weight: var(--fw-regular);
+  line-height: var(--lh-body);
+}
+
+.kit-kv[data-layout='stacked'] .kit-kv__label {
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+}
+
+.kit-kv__value {
+  min-width: 0;
+  margin: 0;
+  color: var(--text-strong);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  font-variant-numeric: var(--numeric-tabular);
+  overflow-wrap: anywhere;
+}
+
+.kit-kv__value[data-mono] {
+  font-family: var(--font-mono);
+  font-size: var(--fs-meta);
+}
+
+.kit-kv__empty {
+  color: var(--text-faint);
+}
+
+@media (max-width: 479px) {
+  .kit-kv[data-layout='inline'] .kit-kv__row {
+    grid-template-columns: minmax(0, 1fr);
+    padding-block: var(--space-2);
+  }
+
+  .kit-kv[data-layout='inline'] .kit-kv__label {
+    font-size: var(--fs-meta);
+    line-height: var(--lh-meta);
+  }
+}
+
+/* ── Stat ───────────────────────────────────────────────────────────── */
+
+.kit-stat {
+  display: flex;
+  flex-direction: column-reverse;
+  gap: var(--space-1);
+  min-width: 0;
+  margin: 0;
+}
+
+.kit-stat__label {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--fs-meta);
+  font-weight: var(--fw-regular);
+  line-height: var(--lh-meta);
+}
+
+.kit-stat__value {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 var(--space-1);
+  min-width: 0;
+  margin: 0;
+}
+
+.kit-stat__number {
+  color: var(--text-strong);
+  font-family: var(--font-serif);
+  font-size: var(--fs-display);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-display);
+  letter-spacing: var(--ls-display);
+  font-variant-numeric: var(--numeric-display);
+}
+
+.kit-stat[data-size='md'] .kit-stat__number {
+  font-size: var(--fs-title);
+  line-height: var(--lh-title);
+  letter-spacing: var(--ls-title);
+}
+
+.kit-stat__unit {
+  margin-inline-start: calc(var(--space-1) * -0.5);
+  color: var(--text-muted);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+}
+
+.kit-stat__delta {
+  margin-inline-start: var(--space-2);
+  color: var(--text-muted);
+  font-size: var(--fs-meta);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-meta);
+  font-variant-numeric: var(--numeric-tabular);
+}
+
+.kit-stat__delta[data-tone='success'] {
+  color: var(--success-fg);
+}
+
+.kit-stat__delta[data-tone='warning'] {
+  color: var(--warning-fg);
+}
+
+.kit-stat__delta[data-tone='danger'] {
+  color: var(--danger-fg);
+}
+
+/* ── ScoreBar ───────────────────────────────────────────────────────── */
+
+.kit-score {
+  --kit-score-track: var(--surface-sunken);
+  --kit-score-h: 0.375rem;
+
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    'label value'
+    'track track';
+  align-items: baseline;
+  gap: var(--space-1) var(--space-3);
+  min-width: 0;
+}
+
+.kit-score[data-size='sm'] {
+  --kit-score-h: 0.25rem;
+}
+
+.kit-score__label {
+  grid-area: label;
+  min-width: 0;
+  color: var(--text-body);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  overflow-wrap: anywhere;
+}
+
+.kit-score__value {
+  grid-area: value;
+  color: var(--text-strong);
+  font-size: var(--fs-body);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-body);
+  text-align: end;
+  font-variant-numeric: var(--numeric-tabular);
+  white-space: nowrap;
+}
+
+.kit-score__track {
+  grid-area: track;
+  display: block;
+  box-sizing: border-box;
+  block-size: var(--kit-score-h);
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  background: var(--kit-score-track);
+}
+
+.kit-score__fill {
+  display: block;
+  block-size: 100%;
+  border-radius: var(--radius-pill);
+  background: var(--text-soft);
+}
+
+.kit-score__fill[data-tone='success'] {
+  background: var(--success-solid);
+}
+
+.kit-score__fill[data-tone='warning'] {
+  background: color-mix(in srgb, var(--warning-solid) 90%, var(--text-strong));
+}
+
+.kit-score__fill[data-tone='danger'] {
+  background: var(--danger-solid);
+}
+
+.kit-score__fill[data-tone='accent'] {
+  background: var(--accent);
+}
+
+.kit-score__fill[data-tone='neutral'] {
+  background: var(--text-soft);
+}
+
+.kit-score:not([data-labelled]),
+.kit-score[data-layout='inline'] {
+  grid-template-columns: minmax(3rem, 5rem) auto;
+  grid-template-areas: 'track value';
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.kit-score:not([data-labelled]):not([data-layout='inline']) {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.kit-score[data-layout='inline'][data-labelled] {
+  grid-template-columns: minmax(6rem, 14rem) minmax(5rem, 1fr) 2.5rem;
+  grid-template-areas: 'label track value';
+  gap: var(--space-3);
+}
+
+/* On phones an inline score keeps its row: the label gets the first line, the bar and number the second. */
+@media (max-width: 479px) {
+  .kit-score[data-layout='inline'][data-labelled] {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      'label value'
+      'track track';
+    align-items: baseline;
+    gap: var(--space-1) var(--space-3);
+  }
+}

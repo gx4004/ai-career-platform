@@ -1,0 +1,99 @@
+/*
+ * Tabs: underline style. The list carries a hairline; the active tab draws a 2px forest line over it.
+ * A list wider than its container scrolls sideways instead of wrapping.
+ */
+
+.kit-tabs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.kit-tabs__list {
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-5);
+  min-width: 0;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--border-soft);
+  scrollbar-width: none;
+}
+
+.kit-tabs__list::-webkit-scrollbar {
+  display: none;
+}
+
+.kit-tabs__trigger {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: calc(var(--space-1) * 1.5);
+  box-sizing: border-box;
+  height: var(--kit-h-lg);
+  margin: 0;
+  padding: 0 var(--space-1);
+  border: 0;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  background: transparent;
+  color: var(--text-muted);
+  font-family: var(--font-sans);
+  font-size: var(--fs-body);
+  font-weight: var(--fw-medium);
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: var(--transition-colors);
+}
+
+.kit-tabs__trigger > svg {
+  flex: none;
+  width: 1rem;
+  height: 1rem;
+}
+
+.kit-tabs__trigger::after {
+  position: absolute;
+  right: 0;
+  bottom: -1px;
+  left: 0;
+  height: 2px;
+  background: transparent;
+  content: '';
+}
+
+@media (hover: hover) {
+  .kit-tabs__trigger:hover {
+    color: var(--text-strong);
+  }
+}
+
+.kit-tabs__trigger[data-state='active'] {
+  color: var(--text-strong);
+}
+
+.kit-tabs__trigger[data-state='active']::after {
+  background: var(--accent);
+}
+
+.kit-tabs__trigger:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: calc(var(--focus-ring-width) * -1);
+}
+
+.kit-tabs__trigger[data-disabled] {
+  color: var(--text-disabled);
+  cursor: not-allowed;
+}
+
+.kit-tabs__panel {
+  min-width: 0;
+}
+
+.kit-tabs__panel:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}

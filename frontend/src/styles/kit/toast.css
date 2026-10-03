@@ -1,0 +1,128 @@
+/*
+ * Toast: a small paper panel, tone shown by the icon and a tinted hairline (never by colour alone:
+ * the icon shape and the text carry it). Bottom-right on desktop; above the mobile tab bar on phones.
+ * The region ignores the pointer so it never blocks the page, and the toasts opt back in (also
+ * while a modal has switched the rest of the page off).
+ */
+
+.kit-toast-region {
+  position: fixed;
+  right: var(--space-4);
+  bottom: calc(var(--space-4) + env(safe-area-inset-bottom, 0px));
+  z-index: var(--z-toast);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: min(24rem, calc(100vw - var(--space-4) * 2));
+  pointer-events: none;
+}
+
+@media (max-width: 767px) {
+  .kit-toast-region {
+    right: var(--space-4);
+    left: var(--space-4);
+    width: auto;
+  }
+}
+
+/* Above the mobile tab bar, which exists at 639px and below only. */
+@media (max-width: 639px) {
+  .kit-toast-region {
+    bottom: calc(var(--mobile-tab-height) + env(safe-area-inset-bottom, 0px) + var(--space-3));
+  }
+}
+
+.kit-toast {
+  --kit-toast-border: var(--border-soft);
+  --kit-toast-icon: var(--text-soft);
+  --kit-shift-y: 4px;
+
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  box-sizing: border-box;
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-3);
+  border: 1px solid var(--kit-toast-border);
+  border-radius: var(--radius-lg);
+  background: var(--surface-overlay);
+  box-shadow: var(--shadow-overlay);
+  color: var(--text-body);
+  font-family: var(--font-sans);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  pointer-events: auto;
+}
+
+.kit-toast[data-tone='success'] {
+  --kit-toast-border: var(--success-border);
+  --kit-toast-icon: var(--success-solid);
+}
+
+.kit-toast[data-tone='danger'] {
+  --kit-toast-border: var(--danger-border);
+  --kit-toast-icon: var(--danger-solid);
+}
+
+.kit-toast[data-state='open'] {
+  animation: kit-shift-in var(--duration-overlay) var(--ease-out);
+}
+
+.kit-toast[data-state='closed'] {
+  animation: kit-fade-out var(--duration-fast) var(--ease-out) forwards;
+}
+
+.kit-toast__icon {
+  display: inline-flex;
+  flex: none;
+  color: var(--kit-toast-icon);
+}
+
+.kit-toast__icon > svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.kit-toast__text {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding-block: var(--space-1);
+}
+
+.kit-toast__title,
+.kit-toast__description {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.kit-toast__title {
+  color: var(--text-strong);
+  font-weight: var(--fw-medium);
+}
+
+.kit-toast__description {
+  color: var(--text-muted);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+}
+
+.kit-toast .kit-toast__action {
+  --kit-button-fg: var(--accent);
+  --kit-button-hover-fg: var(--accent-hover);
+
+  flex: none;
+}
+
+.kit-toast .kit-toast__close {
+  flex: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kit-toast[data-state='open'] {
+    animation: none;
+  }
+
+  .kit-toast[data-state='closed'] {
+    opacity: 0;
+    animation: none;
+  }
+}

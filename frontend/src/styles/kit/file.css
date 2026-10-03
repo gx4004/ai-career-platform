@@ -1,0 +1,116 @@
+/*
+ * FileInput: a real <input type="file"> (visually hidden, still focusable) behind a Button-looking
+ * trigger, the chosen file name and a remove button. The dropzone variant is a bordered area.
+ */
+
+.kit-file {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  box-sizing: border-box;
+  min-width: 0;
+  color: var(--text-body);
+  font-family: var(--font-sans);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+}
+
+.kit-file__input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.kit-file__trigger {
+  cursor: pointer;
+}
+
+.kit-file__input:focus-visible + .kit-file__trigger {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.kit-file[data-invalid] .kit-file__trigger {
+  --kit-button-border: var(--danger-solid);
+}
+
+.kit-file__info {
+  display: flex;
+  flex: 1 1 8rem;
+  align-items: center;
+  min-width: 0;
+}
+
+.kit-file__hint,
+.kit-file__names {
+  margin: 0;
+  min-width: 0;
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+}
+
+.kit-file__hint {
+  color: var(--text-muted);
+}
+
+.kit-file__names {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 var(--space-2);
+  color: var(--text-strong);
+}
+
+.kit-file__name {
+  min-width: 0;
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  overflow-wrap: anywhere;
+}
+
+.kit-file__size {
+  color: var(--text-muted);
+  font-variant-numeric: var(--numeric-tabular);
+}
+
+.kit-file__remove {
+  flex: none;
+}
+
+/* ── Dropzone ──────────────────────────────────────────────────────── */
+
+.kit-file[data-variant='dropzone'] {
+  padding: var(--space-4);
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-lg);
+  background: var(--surface-raised);
+  transition: var(--transition-colors);
+}
+
+@media (hover: hover) {
+  .kit-file[data-variant='dropzone']:hover:not([data-disabled]) {
+    border-color: var(--text-soft);
+  }
+}
+
+.kit-file[data-variant='dropzone'][data-dragging] {
+  border-color: var(--accent);
+  background: var(--accent-subtle);
+}
+
+.kit-file[data-variant='dropzone'][data-invalid] {
+  border-color: var(--danger-solid);
+}
+
+.kit-file[data-variant='dropzone'][data-disabled] {
+  border-color: var(--border-strong);
+  background: var(--surface-subtle);
+}

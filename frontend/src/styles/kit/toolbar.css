@@ -1,0 +1,207 @@
+/*
+ * Toolbar and Pagination.
+ * Desktop: search, filters, sort, count on one row. 767px and below: search plus a Filters button
+ * (the filters live in a bottom Sheet), count on its own line.
+ */
+
+.kit-toolbar {
+  container: kit-toolbar / inline-size;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.kit-toolbar__search {
+  flex: 1 1 14rem;
+  min-width: 0;
+  max-width: 24rem;
+}
+
+.kit-toolbar__search > .kit-input {
+  width: 100%;
+}
+
+.kit-toolbar__filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+/* Filter controls size to their content in the row; the Input frame is the only one that stretches. */
+.kit-toolbar__filters > :is(.kit-select, .kit-check, .kit-input) {
+  flex: 0 0 auto;
+  width: auto;
+}
+
+.kit-toolbar__filters-button {
+  display: none;
+}
+
+.kit-toolbar__actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.kit-toolbar__count {
+  flex: none;
+  margin: 0;
+  margin-inline-start: auto;
+  color: var(--text-muted);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+  font-variant-numeric: var(--numeric-tabular);
+  white-space: nowrap;
+}
+
+.kit-toolbar__sheet-controls {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.kit-toolbar__sheet-controls > * {
+  width: 100%;
+  max-width: none;
+}
+
+/* Too narrow for everything on one line: the search takes the whole first row instead of floating at its start. */
+@container kit-toolbar (max-width: 56rem) {
+  .kit-toolbar__search {
+    flex: 1 1 18rem;
+    max-width: none;
+  }
+}
+
+@media (max-width: 767px) {
+  .kit-toolbar__search {
+    flex: 1 1 0;
+    max-width: none;
+  }
+
+  .kit-toolbar__filters {
+    display: none;
+  }
+
+  .kit-toolbar__filters-button {
+    display: inline-flex;
+  }
+
+  .kit-toolbar__clear {
+    display: none;
+  }
+
+  .kit-toolbar__count {
+    order: 10;
+    flex-basis: 100%;
+    margin-inline-start: 0;
+  }
+}
+
+/* ── Pagination ─────────────────────────────────────────────────────── */
+
+.kit-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+  min-width: 0;
+}
+
+.kit-pagination__summary,
+.kit-pagination__status {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+  font-variant-numeric: var(--numeric-tabular);
+}
+
+.kit-pagination__controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+  margin-inline-start: auto;
+}
+
+.kit-pagination__pages {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.kit-pagination__gap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--kit-h-sm);
+  height: var(--kit-h-sm);
+  color: var(--text-muted);
+}
+
+.kit-pagination__gap > svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.kit-pagination__page {
+  min-width: var(--kit-h-sm);
+  padding-inline: var(--space-2);
+  font-variant-numeric: var(--numeric-tabular);
+}
+
+.kit-pagination__page[aria-current='page'] {
+  background: var(--accent-selected);
+  color: var(--accent);
+  font-weight: var(--fw-semibold);
+}
+
+.kit-pagination__status {
+  padding-inline: var(--space-2);
+}
+
+/* The numbered variant shows the numbers on wide screens and "Page x of y" on narrow ones. */
+.kit-pagination[data-variant='numbered'] .kit-pagination__status {
+  display: none;
+}
+
+.kit-pagination__chevron:dir(rtl) {
+  transform: scaleX(-1);
+}
+
+@media (max-width: 639px) {
+  .kit-pagination[data-variant='numbered'] .kit-pagination__pages {
+    display: none;
+  }
+
+  .kit-pagination[data-variant='numbered'] .kit-pagination__status {
+    display: block;
+  }
+
+  .kit-pagination__controls {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    flex: 1 1 100%;
+  }
+
+  .kit-pagination__controls > :first-child {
+    justify-self: start;
+  }
+
+  .kit-pagination__controls > :last-child {
+    justify-self: end;
+  }
+
+  .kit-pagination__summary {
+    flex: 1 1 100%;
+  }
+}

@@ -1,0 +1,293 @@
+/*
+ * List and Row. A row is 36 (compact) or 44 (comfortable) tall, text inset 8px from the column
+ * edge, hairline between rows, tint on hover and selection. Secondary actions appear on hover for
+ * fine pointers; they are always there on touch and while focus is inside the row.
+ *
+ * Narrow lists (the List is under 32rem wide, i.e. a phone) follow ONE rule, decided by the list's
+ * width and never by a row's content: a row with actions keeps them at the end of its first line,
+ * and its meta drops under the text. Rows without actions keep the flex-wrap behaviour.
+ */
+
+.kit-list {
+  container: kit-list / inline-size;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: kit-row;
+}
+
+.kit-list[data-boxed] {
+  border-block: 1px solid var(--divider);
+}
+
+.kit-row {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+  box-sizing: border-box;
+  min-width: 0;
+  min-height: var(--kit-row-h-lg);
+  margin: 0;
+  padding: var(--space-1) var(--space-2) var(--space-1) calc(var(--space-2) - 2px);
+  border-inline-start: 2px solid transparent;
+  background-color: transparent;
+  color: var(--text-body);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  list-style: none;
+  transition: var(--transition-colors);
+}
+
+.kit-row[data-density='compact'] {
+  min-height: var(--kit-row-h-md);
+}
+
+/* The hairline is a background image over the whole border box, so it takes no height (every row is exactly 36 or 44) and tints go under it. */
+.kit-row + .kit-row {
+  background-image: linear-gradient(var(--divider), var(--divider));
+  background-repeat: no-repeat;
+  background-position: top;
+  background-size: 100% 1px;
+  background-origin: border-box;
+}
+
+@media (hover: hover) {
+  .kit-row:is([data-interactive], :has(.kit-stretched)):hover {
+    background-color: var(--surface-hover);
+  }
+}
+
+.kit-row[data-selected] {
+  border-inline-start-color: var(--accent);
+  background-color: var(--accent-subtle);
+}
+
+@media (hover: hover) {
+  .kit-row[data-selected]:is([data-interactive], :has(.kit-stretched)):hover {
+    background-color: var(--accent-selected);
+  }
+}
+
+/* Numbered list ("Fix first"): a counter in front of every row. The row itself increments: the List is a size container, and its style containment would restart a counter incremented in a pseudo-element. */
+.kit-list[data-numbered] > .kit-row {
+  counter-increment: kit-row;
+}
+
+.kit-list[data-numbered] > .kit-row::before {
+  flex: none;
+  align-self: flex-start;
+  width: 1.25rem;
+  padding-block: var(--space-1);
+  color: var(--text-muted);
+  font-weight: var(--fw-medium);
+  font-variant-numeric: var(--numeric-tabular);
+  line-height: var(--lh-body);
+  content: counter(kit-row);
+}
+
+/* A numbered row, or one whose meta is a lone Badge or Count, keeps that meta beside the text at every width. */
+.kit-list[data-numbered] > .kit-row,
+.kit-row:has(> .kit-row__meta > :is(.kit-badge, .kit-count):only-child) {
+  flex-wrap: nowrap;
+}
+
+.kit-row__leading {
+  display: flex;
+  flex: none;
+  align-items: center;
+  color: var(--text-soft);
+}
+
+.kit-row__leading > svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.kit-row__body {
+  display: flex;
+  flex: 1 1 var(--kit-row-body-min, 12rem);
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+}
+
+.kit-row__heading {
+  display: block;
+  min-width: 0;
+  margin: 0;
+  font: inherit;
+  letter-spacing: 0;
+}
+
+.kit-row__title {
+  min-width: 0;
+  margin: 0;
+  color: var(--text-strong);
+  font-size: var(--fs-body);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-body);
+  letter-spacing: 0;
+  text-align: start;
+  overflow-wrap: anywhere;
+}
+
+.kit-row__heading > .kit-row__title {
+  display: block;
+}
+
+@media (hover: hover) {
+  .kit-row__title:is(a, button):hover {
+    color: var(--accent);
+  }
+}
+
+.kit-row__subtitle {
+  min-width: 0;
+  color: var(--text-muted);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+  text-align: start;
+  overflow-wrap: anywhere;
+}
+
+.kit-row__meta {
+  flex: none;
+  margin-inline-start: auto;
+  color: var(--text-muted);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+  text-align: end;
+  font-variant-numeric: var(--numeric-tabular);
+  white-space: nowrap;
+}
+
+.kit-row__actions {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-1);
+  /* 44px touch buttons fill the row to its edge instead of adding the row's padding on top (a one-line row stays 44). */
+  margin-block: calc(var(--space-1) * -1);
+  margin-inline-start: auto;
+}
+
+/* RowActions collapse: the inline actions on wide lists, one overflow menu on narrow ones. */
+.kit-row__actions-inline {
+  display: contents;
+}
+
+.kit-row__actions-collapsed {
+  display: none;
+  align-items: center;
+}
+
+/* Actions always hug the end edge; meta does too unless actions follow it (then they are the ones that go to the edge). */
+.kit-row__meta:has(~ .kit-row__actions) {
+  margin-inline-start: 0;
+}
+
+.kit-row__reveal {
+  display: inline-flex;
+  align-items: center;
+}
+
+/* Truncate: one line, ellipsis. The text is dir=auto, so an Arabic or Hebrew title is cut at its own end. */
+.kit-row[data-overflow='truncate'] :is(.kit-row__title, .kit-row__subtitle) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kit-row[data-overflow='truncate'] .kit-row__body {
+  flex-basis: 0;
+}
+
+.kit-row[data-overflow='truncate'] .kit-meta {
+  flex-wrap: nowrap;
+  overflow: hidden;
+}
+
+.kit-row[data-overflow='truncate'] .kit-meta__item {
+  white-space: nowrap;
+}
+
+@container kit-list (max-width: 31.9375rem) {
+  .kit-row:has(> .kit-row__actions) {
+    display: grid;
+    grid-template-columns: auto auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0;
+  }
+
+  .kit-row:has(> .kit-row__actions) > .kit-row__leading {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    margin-inline-end: var(--space-3);
+  }
+
+  .kit-list[data-numbered] > .kit-row:has(> .kit-row__actions)::before {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+  }
+
+  .kit-row:has(> .kit-row__actions) > .kit-row__body {
+    grid-column: 3;
+    grid-row: 1;
+  }
+
+  .kit-row:has(> .kit-row__actions) > .kit-row__meta {
+    grid-column: 3;
+    grid-row: 2;
+    margin: 0;
+    justify-self: start;
+    text-align: start;
+  }
+
+  .kit-row > .kit-row__actions {
+    grid-column: 4;
+    grid-row: 1 / span 2;
+    margin-inline-start: var(--space-3);
+  }
+
+  .kit-row .kit-row__actions[data-collapsible] > .kit-row__actions-inline {
+    display: none;
+  }
+
+  .kit-row .kit-row__actions[data-collapsible] > .kit-row__actions-collapsed {
+    display: flex;
+  }
+
+  /* One overflow menu is always shown: it is the only way to the actions. */
+  .kit-row .kit-row__actions[data-collapsible] {
+    opacity: 1;
+  }
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .kit-row__actions[data-reveal] {
+    opacity: 0;
+    transition: var(--transition-colors);
+  }
+
+  .kit-row:hover .kit-row__actions[data-reveal],
+  .kit-row:focus-within .kit-row__actions[data-reveal],
+  .kit-row__actions[data-reveal]:has([data-state='open'], [aria-expanded='true']) {
+    opacity: 1;
+  }
+
+  .kit-row__reveal {
+    opacity: 0;
+    transition: var(--transition-colors);
+  }
+
+  .kit-row:hover .kit-row__reveal,
+  .kit-row:focus-within .kit-row__reveal,
+  .kit-row__reveal:has([data-state='open'], [aria-expanded='true']) {
+    opacity: 1;
+  }
+}

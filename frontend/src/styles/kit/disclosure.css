@@ -1,0 +1,140 @@
+/*
+ * Disclosure: a heading row that shows or hides its content.
+ *   section: full-width row with hairlines above and below (a collapsible page section)
+ *   inline:  small text button with a leading chevron ("Why?", "Show sample answer")
+ * The chevron turns instantly with the state (down closed / up open in a section; right / down inline);
+ * the content appears without animating.
+ */
+
+.kit-disclosure__heading {
+  margin: 0;
+  font: inherit;
+  letter-spacing: 0;
+}
+
+.kit-disclosure__trigger {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  box-sizing: border-box;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-strong);
+  font-family: var(--font-sans);
+  font-size: var(--fs-section);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-section);
+  text-align: left;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: var(--transition-colors);
+}
+
+.kit-disclosure__trigger:focus-visible {
+  border-radius: var(--radius-sm);
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.kit-disclosure__title {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.kit-disclosure__meta {
+  flex: none;
+  color: var(--text-muted);
+  font-size: var(--fs-meta);
+  font-weight: var(--fw-regular);
+}
+
+.kit-disclosure__chevron {
+  flex: none;
+  width: 1rem;
+  height: 1rem;
+  color: var(--text-soft);
+}
+
+.kit-disclosure__content {
+  min-width: 0;
+}
+
+/* section */
+
+.kit-disclosure--section {
+  border-block: 1px solid var(--divider);
+}
+
+.kit-disclosure--section + .kit-disclosure--section {
+  margin-top: -1px;
+}
+
+.kit-disclosure--section .kit-disclosure__trigger {
+  min-height: var(--row-h-lg);
+}
+
+.kit-disclosure--section .kit-disclosure__trigger:focus-visible {
+  outline-offset: calc(var(--focus-ring-width) * -1);
+}
+
+@media (hover: hover) {
+  .kit-disclosure--section .kit-disclosure__trigger:hover .kit-disclosure__chevron {
+    color: var(--text-strong);
+  }
+}
+
+.kit-disclosure--section .kit-disclosure__chevron {
+  order: 1;
+}
+
+.kit-disclosure--section .kit-disclosure__trigger[data-state='open'] .kit-disclosure__chevron {
+  transform: rotate(180deg);
+}
+
+.kit-disclosure--section .kit-disclosure__content {
+  padding-bottom: var(--space-4);
+}
+
+/* inline */
+
+.kit-disclosure--inline .kit-disclosure__trigger {
+  width: auto;
+  min-height: var(--kit-h-sm);
+  color: var(--accent);
+  font-size: var(--fs-body);
+  font-weight: var(--fw-medium);
+}
+
+@media (hover: hover) {
+  .kit-disclosure--inline .kit-disclosure__trigger:hover {
+    color: var(--accent-hover);
+  }
+}
+
+.kit-disclosure--inline .kit-disclosure__title {
+  flex: none;
+}
+
+.kit-disclosure--inline .kit-disclosure__chevron {
+  width: 0.875rem;
+  height: 0.875rem;
+  color: inherit;
+  transform: rotate(-90deg);
+}
+
+.kit-disclosure--inline .kit-disclosure__trigger[data-state='open'] .kit-disclosure__chevron {
+  transform: none;
+}
+
+.kit-disclosure--inline .kit-disclosure__content {
+  padding-top: var(--space-2);
+}
+
+.kit-disclosure .kit-disclosure__trigger:disabled {
+  color: var(--text-disabled);
+  cursor: not-allowed;
+}
