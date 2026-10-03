@@ -2,7 +2,7 @@
 // Caches the app shell for offline-ready PWA experience.
 // Does NOT cache API responses (LLM results require backend).
 
-const CACHE_NAME = 'cw-shell-v2'
+const CACHE_NAME = 'cw-shell-v3'
 
 const SHELL_ASSETS = [
   '/',

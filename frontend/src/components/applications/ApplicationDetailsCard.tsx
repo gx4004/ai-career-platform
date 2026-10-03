@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ClipboardList } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { Input } from '#/components/ui/input'
 import { Label } from '#/components/ui/label'
@@ -44,9 +43,6 @@ export function ApplicationDetailsCard() {
   return (
     <div className="account-card">
       <div className="account-card-header">
-        <div className="account-card-icon">
-          <ClipboardList size={18} />
-        </div>
         <div>
           <h2 className="account-card-title">Application details</h2>
           <p className="account-card-description">
@@ -100,11 +96,11 @@ function DetailsForm({ initial }: { initial: ApplicationDetailsUpdate }) {
   return (
     <form className="grid gap-5" onSubmit={onSubmit} aria-label="Application details">
       <fieldset className="grid gap-3 md:grid-cols-2">
-        <legend className="small-copy muted-copy mb-2">Contact</legend>
+        <legend className="account-subhead">Contact</legend>
         {CONTACT_FIELDS.map(renderField)}
       </fieldset>
       <fieldset className="grid gap-3 md:grid-cols-2">
-        <legend className="small-copy muted-copy mb-2">Your standing answers</legend>
+        <legend className="account-subhead">Your standing answers</legend>
         {STANDING_FIELDS.map(renderField)}
       </fieldset>
       <div className="flex flex-wrap items-center gap-3">

@@ -42,13 +42,10 @@ export function CookieConsent() {
     <div className="cookie-banner" role="dialog" aria-label="Cookie consent">
       <div className="cookie-banner__inner">
         <p className="cookie-banner__text">
-          We use strictly-necessary cookies to keep you signed in, and a small amount of first-party diagnostic
-          telemetry to see whether the tools work — declining turns that telemetry off. We serve no advertising and
-          load no third-party analytics or advertising cookies.{' '}
+          Essential cookies keep you signed in. Optional diagnostics help us fix bugs, and declining turns them off.{' '}
           <Link to="/cookies" className="cookie-banner__link">
             Learn more
           </Link>
-          .
         </p>
         <div className="cookie-banner__actions">
           <button type="button" className="cookie-banner__btn cookie-banner__btn--reject" onClick={reject}>

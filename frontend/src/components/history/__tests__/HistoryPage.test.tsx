@@ -75,11 +75,10 @@ describe('HistoryPage', () => {
     refetchMock.mockReset()
   })
 
-  it('shows a PageHero with run and starred counts', () => {
+  it('shows a PageHero with the run count', () => {
     renderPage()
     expect(screen.getByRole('heading', { level: 1, name: 'History' })).toBeTruthy()
     expect(screen.getByText('1 run')).toBeTruthy()
-    expect(screen.getByText('1 starred')).toBeTruthy()
   })
 
   it('renders each run with a real Open link and no leaked identifiers', () => {
@@ -126,11 +125,6 @@ describe('HistoryPage', () => {
   it('offers no Clear filters without filters', () => {
     renderPage()
     expect(screen.queryByRole('button', { name: 'Clear filters' })).toBeNull()
-  })
-
-  it('links to Applications', () => {
-    renderPage()
-    expect(screen.getByRole('link', { name: 'Open Applications' }).getAttribute('href')).toBe('/campaigns')
   })
 
   it('labels the search field', () => {

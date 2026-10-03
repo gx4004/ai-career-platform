@@ -1,12 +1,15 @@
 import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { X } from 'lucide-react'
+import { ChevronDown, X } from 'lucide-react'
 import { getAdminRuns, getAdminRun } from '#/lib/api/admin'
 import type { AdminRunListResponse, AdminRunDetail } from '#/lib/api/admin'
 import { toolList } from '#/lib/tools/registry'
 import { toolLabel } from './toolLabel'
 
 const TOOL_IDS = toolList.map((t) => t.id)
+
+const formatDateTime = (value: string) =>
+  new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value))
 
 export function AdminRunsPage() {
   const [page, setPage] = useState(1)
@@ -38,21 +41,25 @@ export function AdminRunsPage() {
       <h1 className="admin-page-title">Runs</h1>
       <div className="admin-data-table-wrap">
         <div className="admin-data-table-toolbar">
-          <select
-            className="admin-toolbar-select"
-            value={toolFilter}
-            onChange={(e) => {
-              setToolFilter(e.target.value)
-              setPage(1)
-            }}
-          >
-            <option value="">All tools</option>
-            {TOOL_IDS.map((t) => (
-              <option key={t} value={t}>
-                {t}
-              </option>
-            ))}
-          </select>
+          <span className="admin-select">
+            <select
+              className="admin-toolbar-select"
+              aria-label="Tool"
+              value={toolFilter}
+              onChange={(e) => {
+                setToolFilter(e.target.value)
+                setPage(1)
+              }}
+            >
+              <option value="">All tools</option>
+              {TOOL_IDS.map((t) => (
+                <option key={t} value={t}>
+                  {toolLabel(t)}
+                </option>
+              ))}
+            </select>
+            <ChevronDown size={14} aria-hidden="true" />
+          </span>
         </div>
 
         <table className="admin-table">
@@ -88,13 +95,11 @@ export function AdminRunsPage() {
                 className="is-clickable"
                 onClick={() => setSelectedRunId(run.id)}
               >
-                <td>
-                  <span className="admin-badge admin-badge--tool">{toolLabel(run.tool_name)}</span>
-                </td>
+                <td>{toolLabel(run.tool_name)}</td>
                 <td className="admin-table-muted">{run.user_email || run.user_id.slice(0, 8)}</td>
                 <td className="admin-table-muted">{run.label || '—'}</td>
                 <td className="admin-table-muted">
-                  {run.created_at ? new Date(run.created_at).toLocaleString() : '—'}
+                  {run.created_at ? formatDateTime(run.created_at) : '—'}
                 </td>
               </tr>
             ))}
@@ -161,9 +166,7 @@ export function AdminRunsPage() {
                   </div>
                   <div>
                     <span className="admin-table-muted">Created: </span>
-                    {runDetail.data.created_at
-                      ? new Date(runDetail.data.created_at).toLocaleString()
-                      : '—'}
+                    {runDetail.data.created_at ? formatDateTime(runDetail.data.created_at) : '—'}
                   </div>
                   {runDetail.data.feedback_text && (
                     <div style={{ gridColumn: '1 / -1' }}>

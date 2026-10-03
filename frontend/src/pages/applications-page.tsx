@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { ArrowRightLeft, ChevronDown, Pin } from 'lucide-react'
+import { ChevronDown, MoreHorizontal, Pin } from 'lucide-react'
 import { PageFrame } from '#/components/app/PageFrame'
 import { PageHero } from '#/components/app/PageHero'
 import { PrepareForMePanel } from '#/components/applications/PrepareForMePanel'
@@ -30,6 +30,7 @@ export function ApplicationsPage() {
   const queryClient = useQueryClient()
   const [moveError, setMoveError] = useState<string | null>(null)
   const [view, setView] = useState<View>('board')
+  const [phoneStage, setPhoneStage] = useState<string | null>(null)
   const query = useQuery({ queryKey: APPLICATION_BOARD_QUERY_KEY, queryFn: listApplications })
   const move = useMutation({
     mutationFn: ({ card, status }: { card: ApplicationCard; status: ApplicationStatus }) =>
@@ -54,6 +55,8 @@ export function ApplicationsPage() {
 
   const items = query.data?.items ?? []
   const byStage = (stage: string) => items.filter((item) => stageOf(item.status) === stage)
+  const firstFilled = STAGES.find((stage) => byStage(stage.id).length > 0)?.id ?? STAGES[0].id
+  const shownStage = phoneStage ?? firstFilled
   const findJobs = <Button asChild size="sm"><Link to="/discovery">Find jobs</Link></Button>
   const moving = (card: ApplicationCard) => move.isPending && move.variables?.card.id === card.id
 
@@ -61,7 +64,7 @@ export function ApplicationsPage() {
     <PageFrame className="camp-page camp-page--board">
       <PageHero
         title="Your applications"
-                action={findJobs}
+        action={findJobs}
         chips={query.data ? summaryChips(items) : undefined}
       />
 
@@ -88,11 +91,29 @@ export function ApplicationsPage() {
             </div>
           </div>
           {view === 'board' ? (
+            <>
+            <div className="camp-stage-tabs" role="group" aria-label="Stage">
+              {STAGES.map((stage) => (
+                <button
+                  key={stage.id}
+                  type="button"
+                  aria-pressed={stage.id === shownStage}
+                  onClick={() => setPhoneStage(stage.id)}
+                >
+                  {stage.label} <span>{byStage(stage.id).length}</span>
+                </button>
+              ))}
+            </div>
             <div className="camp-board">
               {STAGES.map((stage) => {
                 const cards = byStage(stage.id)
                 return (
-                  <section key={stage.id} className={`camp-col camp-col--${stage.id}`} aria-labelledby={`col-${stage.id}`}>
+                  <section
+                    key={stage.id}
+                    className={`camp-col camp-col--${stage.id}`}
+                    aria-labelledby={`col-${stage.id}`}
+                    data-shown={stage.id === shownStage || undefined}
+                  >
                     <header className="camp-col__head">
                       <h2 id={`col-${stage.id}`}>{stage.label}</h2>
                       <span className="camp-col__count">{cards.length}</span>
@@ -112,6 +133,7 @@ export function ApplicationsPage() {
                 )
               })}
             </div>
+            </>
           ) : (
             <ApplicationsTable items={items} moving={moving} onMove={(card, status) => move.mutate({ card, status })} />
           )}
@@ -126,15 +148,10 @@ export function ApplicationsPage() {
 }
 
 function summaryChips(items: ApplicationCard[]) {
+  // Per-stage counts live in the board's column headers; the header only adds what they don't say.
   const inProgress = items.filter((item) => stageOf(item.status) !== 'closed').length
   const ready = items.filter((item) => item.ready).length
-  // Every status with a non-zero count gets its chip, in pipeline order.
-  const perStatus = STATUSES.filter((status) => status !== 'saved').flatMap((status) => {
-    const count = items.filter((item) => item.status === status).length
-    if (!count) return []
-    return [status === 'offer' && count > 1 ? `${count} offers` : `${count} ${STATUS_LABELS[status].toLowerCase()}`]
-  })
-  return [`${inProgress} in progress`, ...(ready ? [`${ready} ready to apply`] : []), ...perStatus]
+  return [`${inProgress} in progress`, ...(ready ? [`${ready} ready to apply`] : [])]
 }
 
 function nextStep(card: ApplicationCard) {
@@ -165,7 +182,7 @@ function BoardCard({
         {card.is_pinned ? <Pin className="camp-card__pin" size={12} fill="currentColor" aria-label="Pinned" role="img" /> : null}
         <StageMenu status={card.status} onMove={onMove} disabled={moving}>
           <button type="button" className="camp-card__move" aria-label={`Move ${title}`}>
-            <ArrowRightLeft size={14} aria-hidden="true" />
+            <MoreHorizontal size={16} aria-hidden="true" />
           </button>
         </StageMenu>
       </div>
@@ -175,7 +192,7 @@ function BoardCard({
           {card.match_score !== null ? (
             <span className="camp-card__fit" aria-label={`${card.match_score}% skills fit`}>{card.match_score}% fit</span>
           ) : null}
-          {next ? <span className="camp-card__next" title={next}>{next}</span> : null}
+          {next ? <span className="camp-card__next">{next}</span> : null}
         </p>
       ) : null}
       {closed || card.status === 'no_reply' || (card.status === 'saved' && (card.ready || card.open_question_count > 0)) ? (

@@ -54,7 +54,7 @@ describe('LoginPage', () => {
 
     expect(screen.getByRole('tab', { name: 'Sign in' })).toBeTruthy()
     expect(screen.getByRole('tab', { name: 'Create account' })).toBeTruthy()
-    expect(screen.getByText('Save your runs, favorites and progress across every tool.')).toBeTruthy()
+    expect(screen.getByText('Keep your runs and favorites across every tool.')).toBeTruthy()
     expect(screen.queryByText(/No account needed to browse/)).toBeNull()
     expect(container.querySelector('.auth-surface-note')).toBeNull()
   })

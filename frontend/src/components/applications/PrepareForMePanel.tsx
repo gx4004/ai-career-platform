@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { Plus, Sparkles, X } from 'lucide-react'
+import { X } from 'lucide-react'
 import { Panel } from './Panel'
 import { Button } from '#/components/ui/button'
 import { getApplicationPreferences, prepareApplicationsForMe, saveApplicationPreferences } from '#/lib/api/client'
@@ -56,12 +56,13 @@ export function PrepareForMePanel() {
       <div className="camp-prepare__footer">
         <Button
           className="camp-prepare__submit"
+          variant="outline"
           onClick={() => prepare.mutate()}
           loading={prepare.isPending}
           disabled={!prefs || prepare.isPending || save.isPending}
           aria-describedby={prefs && prefs.keywords.length === 0 ? 'camp-prepare-hint' : undefined}
         >
-          <Sparkles size={15} aria-hidden="true" /> {prepare.isPending ? 'Preparing…' : 'Prepare applications'}
+          {prepare.isPending ? 'Preparing…' : 'Prepare applications'}
         </Button>
         {prefs && prefs.keywords.length === 0 ? (
           <p id="camp-prepare-hint" className="camp-muted">Add at least one keyword so we know which jobs to prepare.</p>
@@ -189,8 +190,8 @@ function TermsField({
           maxLength={100}
           onChange={(event) => setDraft(event.target.value)}
         />
-        <Button type="submit" size="sm" variant="outline" disabled={saving || !draft.trim()}>
-          <Plus size={13} aria-hidden="true" /> Add
+        <Button type="submit" size="sm" variant="outline" disabled={saving}>
+          Add
         </Button>
       </form>
     </div>

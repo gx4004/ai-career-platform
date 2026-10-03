@@ -1,101 +1,180 @@
+/*
+ * Career Workbench design tokens: Editorial, warm.
+ * Paper surfaces, ink text, one forest accent. No blue anywhere (no hue in 190-270).
+ *
+ * WCAG 2.x contrast, text on paper #f6f3ec / raised #fdfbf7 / sidebar #efe9dd:
+ *   text-strong 15.5 / 16.6 / 14.2    text-body 10.2 / 10.9 / 9.4
+ *   text-muted   7.8 /  8.4 /  7.2    text-soft  5.3 /  5.7 /  4.8   (AA text)
+ *   text-faint, border-control, *-solid >= 3.0 on paper and raised     (icons, UI borders)
+ *   accent 7.0 / 7.5 / 6.4; white on accent 7.7; status fg on own bg 4.8 to 9.2
+ * border-soft, border-strong and divider are hairlines (1.2 to 1.5): decoration, never the only cue.
+ */
+
 :root {
   color-scheme: light;
+
+  /* ── Surfaces ─────────────────────────────────────────────────────── */
   --background: #f6f3ec;
   --surface-raised: #fdfbf7;
-  --surface-focus: #f0ece3;
-  --surface-overlay: #fdfbf7;
   --surface-subtle: #f9f6f0;
-  --surface-tint: rgba(40, 32, 20, 0.035);
-  --surface-blue: #f0ece3;
+  --surface-focus: #f0ece3;
+  --surface-sunken: #ebe5d8;
+  --surface-overlay: #fdfbf7;
+  --surface-hover: rgb(40 32 20 / 0.05);
+  --surface-active: rgb(40 32 20 / 0.08);
+  --surface-scrim: rgb(29 27 23 / 0.4);
+  --surface-scrim-light: rgb(29 27 23 / 0.18);
+  --surface-tint: rgb(40 32 20 / 0.035);
+  --ink-hairline: rgb(var(--shadow-ink) / 0.15); /* page-break guide, swatch rings */
+
+  /* ── Ink ──────────────────────────────────────────────────────────── */
   --text-strong: #1d1b17;
   --text-body: #3e3a33;
-  --text-muted: #75706a;
-  --text-soft: #a39d93;
-  --accent: #1f5d46;
-  --accent-vivid: #174a37;
-  --accent-soft: rgba(31, 93, 70, 0.09);
-  --accent-hover: rgba(31, 93, 70, 0.15);
+  --text-muted: #504b42;
+  --text-soft: #6b645a;
+  --text-placeholder: var(--text-soft);
+  --text-faint: #8d867a; /* icons and separators only, never running text */
+  --text-disabled: #a39d93; /* disabled controls are exempt from contrast */
+
+  /* ── Borders ──────────────────────────────────────────────────────── */
   --border-soft: #e5dfd2;
   --border-strong: #d3cab8;
+  --border-control: #8d8579; /* input, select, checkbox outlines: 3:1 */
   --divider: #ece6da;
-  --shadow-soft: 0 1px 2px rgba(40, 32, 20, 0.04);
-  --shadow-elevated: 0 1px 3px rgba(40, 32, 20, 0.06), 0 1px 2px rgba(40, 32, 20, 0.04);
-  --shadow-panel: 0 8px 24px rgba(40, 32, 20, 0.08), 0 2px 6px rgba(40, 32, 20, 0.04);
-  --shadow-glow-blue: none;
-  --destructive: #a8382b;
-  --destructive-soft: rgba(168, 56, 43, 0.09);
-  --success: #2b7a4b;
-  --success-soft: rgba(43, 122, 75, 0.1);
-  --warning: #a8650c;
-  --warning-soft: rgba(168, 101, 12, 0.1);
-  --resume-accent: var(--accent);
-  --match-accent: var(--accent);
-  --letter-accent: var(--accent);
-  --interview-accent: var(--accent);
-  --career-accent: var(--accent);
-  --portfolio-accent: var(--accent);
-  --dark-surface: #0f1a2e;
-  --dark-text: #f0f4f8;
-  --dark-text-muted: #94a3b8;
-  --dark-text-soft: #64748b;
-  --font-sans: 'Instrument Sans', system-ui, -apple-system, sans-serif;
-  --font-display: 'Newsreader', 'Iowan Old Style', Georgia, serif;
-  --type-display-xl: clamp(2.6rem, 4vw, 4rem);
-  --type-display-lg: clamp(2.15rem, 3vw, 3.15rem);
-  --type-page-title: 1.75rem;
-  --type-tool-title: 1.375rem;
-  --type-section: 0.95rem;
-  --type-body: 0.875rem;
-  --type-small: 0.8125rem;
-  --type-xs: 0.75rem;
-  --tracking-display: -0.03em;
-  --tracking-title: -0.025em;
-  --tracking-section: -0.025em;
-  --tracking-tight: -0.015em;
-  --tracking-caps: 0.1em;
-  --radius-sm: 5px;
-  --radius-md: 6px;
-  --radius-lg: 8px;
-  --radius-xl: 10px;
-  --radius-2xl: 12px;
-  --radius-pill: 9999px;
-  --space-page-x: clamp(1.25rem, 4vw, 2.5rem);
-  --space-page-y: 1.25rem;
-  --space-section: clamp(3rem, 6vw, 5rem);
-  --transition-fast: 120ms cubic-bezier(0.16, 1, 0.3, 1);
-  --transition-smooth: 220ms cubic-bezier(0.16, 1, 0.3, 1);
-  --transition-slow: 380ms cubic-bezier(0.16, 1, 0.3, 1);
-  --spring: cubic-bezier(0.34, 1.56, 0.64, 1);
 
-  /* Mobile tokens */
+  /* ── Accent: forest ───────────────────────────────────────────────── */
+  --accent: #1f5d46;
+  --accent-hover: #174a37;
+  --accent-active: #123a2b;
+  --accent-on: #ffffff;
+  --accent-subtle: rgb(31 93 70 / 0.07);
+  --accent-selected: rgb(31 93 70 / 0.13);
+
+  /* ── Status roles (fg, bg, border, solid) ─────────────────────────── */
+  --success-fg: #2b6a35;
+  --success-bg: #dfeadb;
+  --success-border: #b5cfae;
+  --success-solid: #3f8a4a;
+  --warning-fg: #7f5200;
+  --warning-bg: #f5e6c1;
+  --warning-border: #e2c98a;
+  --warning-solid: #b8790c;
+  --danger-fg: #8e2c27;
+  --danger-bg: #f3dcd5;
+  --danger-border: #dfb2a9;
+  --danger-solid: #8e2c27;
+  --danger-hover: #7a2420;
+  --info-fg: #4f493f;
+  --info-bg: #e8e3d8;
+  --info-border: #cbc4b4;
+  --info-solid: #8d867a;
+  --neutral-fg: #3e3a33;
+  --neutral-bg: #ece7dc;
+  --neutral-border: #d3cab8;
+
+  /* ── Focus, selection, caret ──────────────────────────────────────── */
+  --focus-ring-color: var(--accent); /* solid: 7:1 on paper, above the 3:1 non-text rule */
+  --focus-ring-width: 2px;
+  --focus-ring-offset: 2px;
+  --focus-ring: 0 0 0 var(--focus-ring-offset) var(--background), 0 0 0 calc(var(--focus-ring-offset) + var(--focus-ring-width)) var(--focus-ring-color);
+  --selection-bg: rgb(31 93 70 / 0.2);
+  --caret: var(--accent);
+
+  /* ── Type: families ───────────────────────────────────────────────── */
+  --font-sans: 'Instrument Sans', 'Instrument Sans Fallback', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-serif: 'Newsreader', 'Newsreader Fallback', 'Iowan Old Style', Georgia, serif;
+  --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  --font-display: var(--font-serif);
+
+  /* ── Type: scale (size / line-height; weights below) ──────────────── */
+  --fs-display: 2rem; /* 32, serif: page titles, big numbers */
+  --lh-display: 2.25rem;
+  --fs-title: 1.25rem; /* 20 */
+  --lh-title: 1.75rem;
+  --fs-section: 0.875rem; /* 14 / 600 */
+  --lh-section: 1.25rem;
+  --fs-body: 0.84375rem; /* 13.5 */
+  --lh-body: 1.25rem;
+  --fs-meta: 0.75rem; /* 12 */
+  --lh-meta: 1rem;
+  --fs-micro: 0.6875rem; /* 11 / 500 */
+  --lh-micro: 1rem;
+  --fw-regular: 400;
+  --fw-medium: 500;
+  --fw-semibold: 600;
+  --ls-display: -0.015em;
+  --ls-title: -0.01em;
+  --ls-section: 0;
+  --numeric-tabular: tabular-nums;
+  --numeric-display: lining-nums tabular-nums;
+
+  /* ── Spacing: 4px grid ────────────────────────────────────────────── */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+  --space-section: var(--space-8);
+  --space-heading: var(--space-3);
+  --space-page-x: clamp(1rem, 4vw, 2rem);
+  --space-page-y: 1.25rem;
+  --row-h: 2.25rem; /* 36 */
+  --row-h-lg: 2.75rem; /* 44 */
+  --control-sm: 1.75rem; /* 28 */
+  --control-md: 2rem; /* 32 */
+  --control-lg: 2.25rem; /* 36 */
   --touch-target: 44px;
   --mobile-section-gap: 24px;
   --mobile-pad: 16px;
   --mobile-tab-height: 56px;
 
-  --glass-bg: rgba(255, 255, 255, 0.96);
-  --glass-bg-elevated: #ffffff;
-  --glass-bg-subtle: rgba(255, 255, 255, 0.92);
-  --glass-border: #e5dfd2;
-  --glass-blur: none;
-  --glass-shadow: var(--shadow-soft);
+  /* ── Radius ───────────────────────────────────────────────────────── */
+  --radius-sm: 4px; /* badges, kbd */
+  --radius-md: 6px; /* buttons, inputs */
+  --radius-lg: 8px; /* cards, panels */
+  --radius-xl: 12px; /* dialogs, sheets */
+  --radius-2xl: var(--radius-xl);
+  --radius-pill: 9999px;
 
+  /* ── Elevation: hairline, one soft shadow, one overlay shadow ─────── */
+  --shadow-ink: 40 32 20;
+  --shadow-soft: 0 1px 2px rgb(var(--shadow-ink) / 0.06);
+  --shadow-overlay: 0 12px 32px -8px rgb(var(--shadow-ink) / 0.2), 0 2px 6px rgb(var(--shadow-ink) / 0.08);
+
+  /* ── Motion: colour and opacity only ──────────────────────────────── */
+  --ease-out: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --duration-fast: 120ms;
+  --duration-overlay: 160ms;
+  --transition-colors:
+    color var(--duration-fast) var(--ease-out),
+    background-color var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out),
+    opacity var(--duration-fast) var(--ease-out);
+
+  /* ── shadcn / Tailwind bridge ─────────────────────────────────────── */
   --foreground: var(--text-strong);
   --card: var(--surface-raised);
   --card-foreground: var(--text-strong);
   --popover: var(--surface-overlay);
   --popover-foreground: var(--text-strong);
   --primary: var(--accent);
-  --primary-foreground: #ffffff;
+  --primary-foreground: var(--accent-on);
   --secondary: var(--surface-focus);
   --secondary-foreground: var(--text-strong);
   --muted: var(--surface-focus);
   --muted-foreground: var(--text-muted);
-  --accent-foreground: #ffffff;
+  --accent-foreground: var(--accent-on);
   --border: var(--border-soft);
   --input: var(--surface-focus);
   --ring: var(--accent);
   --radius: var(--radius-lg);
+
+  /* ── Sidebar ──────────────────────────────────────────────────────── */
   --sidebar: #efe9dd;
   --sidebar-foreground: #55504a;
   --sidebar-primary: #1d1b17;
@@ -103,27 +182,73 @@
   --sidebar-accent: #e5dfd2;
   --sidebar-accent-foreground: #1d1b17;
   --sidebar-border: #e0d9ca;
-  --sidebar-ring: #1f5d46;
-  --sidebar-rail-bg: #efe9dd;
-  --sidebar-rail-foreground: #55504a;
-  --sidebar-rail-accent: #e5dfd2;
-  --sidebar-rail-border: #e0d9ca;
-  --sidebar-panel-bg: #f7f7f8;
-  --sidebar-panel-foreground: #252a33;
-  --sidebar-panel-muted: #69707d;
-  --sidebar-panel-accent: #eceff3;
-  --sidebar-panel-accent-foreground: #1b2028;
-  --sidebar-panel-border: #e5e7eb;
-  --sidebar-panel-divider: rgba(15, 23, 42, 0.08);
+  --sidebar-ring: var(--accent);
+  --sidebar-rail-bg: var(--sidebar);
+  --sidebar-rail-foreground: var(--sidebar-foreground);
+  --sidebar-rail-accent: var(--sidebar-accent);
+  --sidebar-rail-border: var(--sidebar-border);
 
-  --nav-bg: #fdfbf7;
+  /* ── Tool accents (registry.ts reads these; one accent for every tool) ── */
+  --resume-accent: var(--accent);
+  --match-accent: var(--accent);
+  --letter-accent: var(--accent);
+  --interview-accent: var(--accent);
+  --career-accent: var(--accent);
+  --portfolio-accent: var(--accent);
+
+  /*
+   * ── Legacy aliases ──────────────────────────────────────────────────
+   * Old names that other stylesheets still read. Delete each one when its
+   * last consumer moves to the token named in the comment.
+   */
+  --accent-vivid: var(--accent-hover);
+  --success: var(--success-fg); /* -> --success-fg */
+  --success-soft: var(--success-bg);
+  --warning: var(--warning-fg);
+  --warning-soft: var(--warning-bg);
+  --destructive: var(--danger-fg);
+  --destructive-soft: var(--danger-bg);
+  --surface-blue: var(--surface-focus); /* misnamed; -> --surface-focus */
+  --shadow-elevated: var(--shadow-soft);
+  --shadow-panel: var(--shadow-overlay);
+  --transition-fast: var(--duration-fast) var(--ease-out);
+  --transition-smooth: var(--duration-overlay) var(--ease-out);
+  --type-display-xl: var(--fs-display);
+  --type-display-lg: var(--fs-display);
+  --type-page-title: var(--fs-display);
+  --type-tool-title: var(--fs-title);
+  --type-section: var(--fs-section);
+  --type-body: var(--fs-body);
+  --type-small: 0.8125rem;
+  --type-xs: var(--fs-meta);
+  --tracking-title: -0.025em; /* global heading default; CV paper preview headings inherit it */
+  --tracking-section: var(--ls-section);
+  --tracking-tight: -0.01em;
+  --tracking-caps: 0.1em;
+  --glass-bg: var(--surface-raised);
+  --glass-bg-elevated: var(--surface-raised);
+  --glass-bg-subtle: var(--surface-subtle);
+  --glass-shadow: var(--shadow-soft);
+  --nav-bg: var(--surface-raised);
   --nav-text: #55504a;
-  --nav-text-strong: #1d1b17;
+  --nav-text-strong: var(--text-strong);
   --nav-border: #e0d9ca;
-  --nav-active-bg: rgba(40, 32, 20, 0.05);
-  --nav-accent: #1f5d46;
+  --nav-accent: var(--accent);
 }
 
+@media (max-width: 767px) {
+  :root {
+    --fs-display: 1.75rem; /* 28 */
+    --lh-display: 2rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-fast: 0.01ms;
+    --duration-overlay: 0.01ms;
+  }
+}
 
 @theme inline {
   --color-background: var(--background);
@@ -150,10 +275,12 @@
   --color-text-body: var(--text-body);
   --color-text-muted: var(--text-muted);
   --color-text-soft: var(--text-soft);
-  --color-success: var(--success);
-  --color-warning: var(--warning);
-  --color-destructive: var(--destructive);
+  --color-success: var(--success-fg);
+  --color-warning: var(--warning-fg);
+  --color-destructive: var(--danger-fg);
   --font-sans: var(--font-sans);
+  --font-serif: var(--font-serif);
+  --font-mono: var(--font-mono);
   --radius-sm: var(--radius-sm);
   --radius-md: var(--radius-md);
   --radius-lg: var(--radius-lg);
@@ -169,18 +296,6 @@
   --color-sidebar-ring: var(--sidebar-ring);
 }
 
-.text-gradient-brand {
-  color: var(--accent);
-}
-
-.text-gradient-aurora {
-  color: var(--accent);
-}
-
-.text-gradient-hero {
-  color: var(--text-strong);
-}
-
 .surface-card {
   border: 1px solid var(--border-soft);
   background: var(--surface-raised);
@@ -190,5 +305,5 @@
 .surface-panel {
   border: 1px solid var(--border-soft);
   background: var(--surface-raised);
-  box-shadow: var(--shadow-elevated);
+  box-shadow: var(--shadow-soft);
 }

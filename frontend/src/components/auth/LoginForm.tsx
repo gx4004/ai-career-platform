@@ -57,7 +57,7 @@ export function LoginForm({
           </p>
         </div>
         {resetMessage ? (
-          <div className="flex items-start gap-2.5 rounded-lg border border-emerald-500/25 bg-emerald-500/5 px-3 py-2.5 text-emerald-600 dark:text-emerald-400">
+          <div className="flex items-start gap-2.5 rounded-lg border border-[var(--success-border)] bg-[var(--success-bg)] px-3 py-2.5 text-[var(--success-fg)]">
             <CheckCircle2 className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
             <p className="text-sm leading-relaxed">{resetMessage}</p>
           </div>
@@ -195,7 +195,7 @@ export function LoginForm({
               type={showPassword ? 'text' : 'password'}
               value={password}
               onChange={(event) => setPassword(event.target.value)}
-              placeholder="••••••••"
+              placeholder="Your password"
               className="auth-input pr-11"
               autoComplete="current-password"
               required
@@ -203,7 +203,7 @@ export function LoginForm({
             <button
               type="button"
               onClick={() => setShowPassword((v) => !v)}
-              className="absolute inset-y-0 right-0 grid min-h-11 w-11 place-items-center text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45 rounded-r-lg"
+              className="absolute inset-y-0 right-0 grid min-h-11 w-11 place-items-center text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-r-lg"
               aria-label={showPassword ? 'Hide password' : 'Show password'}
             >
               {showPassword ? (

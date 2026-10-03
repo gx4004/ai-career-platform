@@ -126,11 +126,11 @@ describe('ToolRouteScreen', () => {
     expect(screen.getByTestId('tool-fullscreen')).toBeTruthy()
     expect(screen.getByText(/Drop a PDF or DOCX here/i)).toBeTruthy()
     expect(screen.getByText(/Upload a PDF or DOCX, or paste your resume text/i)).toBeTruthy()
-    expect(screen.queryByLabelText(/Resume textRequired/i)).toBeNull()
+    expect(screen.queryByLabelText(/^Resume text$/i)).toBeNull()
 
     fireEvent.click(screen.getByRole('button', { name: /Paste text instead/i }))
 
-    expect(screen.getByLabelText(/Resume textRequired/i)).toBeTruthy()
+    expect(screen.getByLabelText(/^Resume text$/i)).toBeTruthy()
     expect(screen.getByRole('button', { name: /Add target job description/i })).toBeTruthy()
     expect(screen.queryByText(/Guidance/i)).toBeNull()
   })
@@ -139,12 +139,12 @@ describe('ToolRouteScreen', () => {
     renderScreen('resume')
 
     expect(screen.getByText(/Resume carried from previous tool/i)).toBeTruthy()
-    expect(screen.queryByLabelText(/Resume textRequired/i)).toBeNull()
+    expect(screen.queryByLabelText(/^Resume text$/i)).toBeNull()
     expect(screen.getByRole('button', { name: /^Upload$/i })).toBeTruthy()
 
     fireEvent.click(screen.getByRole('button', { name: /Change/i }))
 
-    expect(screen.getByLabelText(/Resume textRequired/i)).toBeTruthy()
+    expect(screen.getByLabelText(/^Resume text$/i)).toBeTruthy()
   })
 
   it('clears the pending-review flag when a dashboard-seeded resume is opened', () => {
@@ -155,9 +155,9 @@ describe('ToolRouteScreen', () => {
 
     renderScreen('resume')
 
-    expect(screen.queryByLabelText(/Resume textRequired/i)).toBeNull()
+    expect(screen.queryByLabelText(/^Resume text$/i)).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: /Change/i }))
-    expect(screen.getByLabelText(/Resume textRequired/i)).toBeTruthy()
+    expect(screen.getByLabelText(/^Resume text$/i)).toBeTruthy()
   })
 
   it('keeps a carried resume collapsed even before the draft text hydrates into job match', () => {
@@ -168,7 +168,7 @@ describe('ToolRouteScreen', () => {
     renderScreen('job-match')
 
     expect(screen.getByText(/Resume carried from previous tool/i)).toBeTruthy()
-    expect(screen.queryByLabelText(/Resume textRequired/i)).toBeNull()
+    expect(screen.queryByLabelText(/^Resume text$/i)).toBeNull()
   })
 
   it('moves from the dropzone to the resume row when workflow context arrives after mount', () => {

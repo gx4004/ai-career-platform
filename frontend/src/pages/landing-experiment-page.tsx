@@ -57,7 +57,7 @@ export function LandingExperimentPage() {
         signInLabel="Sign in"
         signInTo="/login"
         brand={
-          <Link to="/" className="inline-flex items-center">
+          <Link to="/" className="inline-flex items-center" aria-label="Career Workbench home">
             <AppBrandLockup mode="compact" />
           </Link>
         }

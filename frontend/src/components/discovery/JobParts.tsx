@@ -1,7 +1,7 @@
 import type { DiscoveryListing } from '#/lib/api/schemas'
 
 /** Skills fit with its sample size, shared by Discovery and the dashboard. */
-export function SkillsFit({ listing }: { listing: DiscoveryListing }) {
+export function SkillsFit({ listing, label = 'skills fit' }: { listing: DiscoveryListing; label?: string }) {
   if (listing.skills_fit === null) return null
   const tone = listing.skills_fit >= 70 ? 'good' : listing.skills_fit >= 41 ? 'fair' : 'low'
   const total = listing.matched_skills.length + listing.missing_skills.length
@@ -9,7 +9,7 @@ export function SkillsFit({ listing }: { listing: DiscoveryListing }) {
   return (
     <div className={`disc-score disc-score--${tone}`} aria-label={`${listing.skills_fit}% skills fit, ${sample}`}>
       <strong>{listing.skills_fit}%</strong>
-      <span>skills fit</span>
+      <span>{label}</span>
       <small className="disc-score__n">{sample}</small>
     </div>
   )

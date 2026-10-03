@@ -63,7 +63,6 @@ describe('ApplicationsPage', () => {
     expect(within(column('Closed')).getByText('Not selected')).toBeTruthy()
     expect(screen.getByRole('link', { name: 'Backend Engineer' }).getAttribute('href')).toBe('/campaigns/a-1')
     expect(screen.getByText('1 ready to apply')).toBeTruthy()
-    // The hero shows at most three chips.
     expect(screen.getByText(/\d+ in progress/)).toBeTruthy()
     expect(screen.queryByText(/\d+ offers?$/)).toBeNull()
   })
@@ -80,17 +79,17 @@ describe('ApplicationsPage', () => {
     expect(screen.getByRole('columnheader', { name: 'Next step' })).toBeTruthy()
   })
 
-  it('shows an offers chip next to the interviewing chip, and every non-zero status', async () => {
+  it('keeps the header to in-progress and ready counts; stage counts live in the board columns', async () => {
     const withOffer = [...items, { ...base, id: 'a-6', title: 'Data Engineer', company: 'Fjord', status: 'offer', applied_at: '2026-09-10T10:00:00Z' }]
     api.listApplications.mockResolvedValue({ items: withOffer, total: withOffer.length })
     renderBoard()
     await screen.findByText('Backend Engineer')
-    expect(screen.getByText('1 interviewing')).toBeTruthy()
-    expect(screen.getByText('1 offer')).toBeTruthy()
+    expect(screen.queryByText('1 interviewing')).toBeNull()
+    expect(screen.queryByText('1 offer')).toBeNull()
     expect(screen.getByText('5 in progress')).toBeTruthy()
   })
 
-  it('offers Mark no reply on a stale applied card and chips every non-zero status', async () => {
+  it('offers Mark no reply on a stale applied card', async () => {
     const stale = [
       { ...base, id: 'a-7', title: 'Cloud Engineer', company: 'Vale', status: 'applied', applied_at: '2026-09-01T10:00:00Z', no_reply_suggested: true },
       { ...base, id: 'a-8', title: 'QA Engineer', company: 'Dune', status: 'no_reply', applied_at: '2026-08-01T10:00:00Z' },
@@ -100,8 +99,6 @@ describe('ApplicationsPage', () => {
     renderBoard()
     const card = (await screen.findByText('Cloud Engineer')).closest('article') as HTMLElement
     expect(within(card).getByText('No reply yet?')).toBeTruthy()
-    expect(screen.getByText('1 applied')).toBeTruthy()
-    expect(screen.getByText('1 no reply')).toBeTruthy()
     const parked = (screen.getByText('QA Engineer')).closest('article') as HTMLElement
     expect(within(parked).queryByText('No reply yet?')).toBeNull()
     fireEvent.click(within(card).getByRole('button', { name: 'Mark no reply' }))
@@ -229,7 +226,7 @@ describe('Prepare applications for me', () => {
     expect(group.getByText('60%')).toBeTruthy()
     expect(group.getByLabelText('60%, 3 of 5 applications')).toBeTruthy()
     expect(group.getByText('n=5')).toBeTruthy()
-    expect(group.getByLabelText('Not enough data, 2 applications').textContent).toBe('—n=2')
+    expect(group.getByText('Not enough data yet: On-site (2)')).toBeTruthy()
     expect(screen.queryByRole('region', { name: 'Company' })).toBeNull()
   })
 })

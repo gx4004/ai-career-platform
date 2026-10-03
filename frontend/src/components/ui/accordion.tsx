@@ -37,7 +37,7 @@ function AccordionTrigger({
             "group/accordion-trigger flex flex-1 items-start justify-between gap-4 rounded-md py-4 text-left text-sm font-medium tracking-[-0.005em] text-foreground outline-none",
             "transition-[color,background-color] duration-150 ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none",
             "hover:text-foreground/90",
-            "focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/45",
+            "focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
             "disabled:pointer-events-none disabled:opacity-50",
             "[&[data-state=open]>svg]:rotate-180",
           ].join(" "),

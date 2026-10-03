@@ -23,7 +23,7 @@ export function AdminDashboardPage() {
         <StatCard label="Total users" value={stats.data?.total_users} loading={stats.isLoading} error={stats.isError} />
         <StatCard label="Total runs" value={stats.data?.total_runs} loading={stats.isLoading} error={stats.isError} />
         <StatCard label="Runs today" value={stats.data?.runs_today} loading={stats.isLoading} error={stats.isError} />
-        <StatCard label="Active Users (7d)" value={stats.data?.active_users_7d} loading={stats.isLoading} error={stats.isError} />
+        <StatCard label="Active users (7d)" value={stats.data?.active_users_7d} loading={stats.isLoading} error={stats.isError} />
       </div>
 
       <div className="admin-info-grid">
@@ -54,7 +54,8 @@ export function AdminDashboardPage() {
               <div className="admin-info-row">
                 <span className="admin-info-row-label">Database</span>
                 <span className={`admin-info-row-value ${health.data.database === 'ok' ? 'admin-info-row-value--ok' : 'admin-info-row-value--error'}`}>
-                  {health.data.database}
+                  <span className="settings-status-dot" aria-hidden="true" />
+                  {health.data.database === 'ok' ? 'Healthy' : health.data.database}
                 </span>
               </div>
               <div className="admin-info-row">

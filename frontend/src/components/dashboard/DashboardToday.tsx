@@ -1,14 +1,14 @@
 import { Link, useNavigate } from '@tanstack/react-router'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { FolderPlus } from 'lucide-react'
 import { Button } from '#/components/ui/button'
+import { SkillsFit } from '#/components/discovery/JobParts'
 import { useToday } from '#/hooks/useToday'
 import { adoptDiscoveryRecommendation } from '#/lib/api/client'
 import type { DiscoveryListing, TodayActionItem, TodayPlan } from '#/lib/api/schemas'
 import { invalidateApplications } from '#/lib/query/applicationCaches'
 
 /** "What should I do today?": jobs worth adding, and applications that need a move. */
-export function DashboardToday() {
+export function DashboardToday({ children }: { children?: React.ReactNode }) {
   const today = useToday()
   const plan = today.data
 
@@ -20,12 +20,15 @@ export function DashboardToday() {
       </div>
     )
   }
-  if (!plan) return null
+  if (!plan) return <>{children}</>
 
   return (
     <div className="today-grid" data-tour="today">
       <BestMatches plan={plan} />
-      <NeedsAction plan={plan} />
+      <div className="today-side">
+        <NeedsAction plan={plan} />
+        {children}
+      </div>
     </div>
   )
 }
@@ -70,8 +73,6 @@ function BestMatches({ plan }: { plan: TodayPlan }) {
 }
 
 function MatchRow({ listing, adding, onAdd }: { listing: DiscoveryListing; adding: boolean; onAdd: () => void }) {
-  const total = listing.matched_skills.length + listing.missing_skills.length
-  const sample = `${listing.matched_skills.length} of ${total} skills`
   return (
     <article className="today-match">
       <div className="today-match__body">
@@ -87,14 +88,11 @@ function MatchRow({ listing, adding, onAdd }: { listing: DiscoveryListing; addin
           {listing.remote && !/remote/i.test(listing.location ?? '') ? ' · Remote' : ''}
         </p>
       </div>
-      <span
-        className="today-match__fit"
-        role={listing.skills_fit === null ? undefined : 'img'}
-        aria-label={listing.skills_fit === null ? undefined : `${listing.skills_fit}% skills fit, ${sample}`}
-        title={listing.skills_fit === null ? undefined : sample}
-      >
-        {listing.skills_fit === null ? '—' : `${listing.skills_fit}%`}
-      </span>
+      {listing.skills_fit === null ? (
+        <span className="disc-score" aria-hidden="true" />
+      ) : (
+        <SkillsFit listing={listing} label="fit" />
+      )}
       <Button
         type="button"
         variant="outline"
@@ -104,7 +102,7 @@ function MatchRow({ listing, adding, onAdd }: { listing: DiscoveryListing; addin
         loading={adding}
         aria-label={`Add ${listing.title} to applications`}
       >
-        <FolderPlus size={14} aria-hidden="true" /> Add
+        Add
       </Button>
     </article>
   )

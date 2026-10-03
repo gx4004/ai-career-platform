@@ -75,7 +75,6 @@ export function HistoryPage({
     },
     authenticated,
   )
-  const favoritesQuery = useHistory({ page: 1, page_size: 1, favorite: true }, authenticated)
   const favoriteToggle = useFavoriteToggle()
   const [actionError, setActionError] = useState<string | null>(null)
   const [continuingId, setContinuingId] = useState<string | null>(null)
@@ -163,13 +162,9 @@ export function HistoryPage({
     )
   }
 
-  const chips =
-    listQuery.data && favoritesQuery.data
-      ? [
-          `${listQuery.data.total} ${listQuery.data.total === 1 ? 'run' : 'runs'}`,
-          `${favoritesQuery.data.total} starred`,
-        ]
-      : undefined
+  const chips = listQuery.data
+    ? [`${listQuery.data.total} ${listQuery.data.total === 1 ? 'run' : 'runs'}`]
+    : undefined
   const items = listQuery.data?.items ?? []
   const errorMessage = actionError ?? (favoriteToggle.error
     ? favoriteToggle.error instanceof Error
@@ -182,7 +177,6 @@ export function HistoryPage({
       <section className="history-layout">
         <PageHero
           title="History"
-          purpose="Every analysis you have saved, newest first. Reopen a result or continue to the next tool."
           chips={chips}
         />
 
@@ -240,9 +234,6 @@ export function HistoryPage({
             </button>
           ) : null}
         </div>
-        <p className="history-applications-link small-copy muted-copy">
-          Looking for your applications? <Link to="/campaigns">Open Applications</Link>
-        </p>
 
         {errorMessage ? (
           <div className="history-alert small-copy" role="alert">
@@ -366,6 +357,7 @@ export function HistoryPage({
                       <td className="history-table__date">{formatRunDate(item.created_at)}</td>
                       <td className="history-table__actions">
                         <div className="history-actions">
+                          <span className="history-reveal">
                           <Button
                             variant="ghost"
                             size="icon-sm"
@@ -404,9 +396,10 @@ export function HistoryPage({
                           >
                             <Trash2 size={14} />
                           </Button>
+                          </span>
                           {nextTool ? (
                             <Button
-                              variant="outline"
+                              variant="link"
                               size="sm"
                               className="history-continue"
                               disabled={continuingId === item.id}
@@ -417,8 +410,8 @@ export function HistoryPage({
                           ) : null}
                           {href ? (
                             <Link to={href} className="history-open" aria-label={`Open ${label}`}>
-                              <span>Open</span>
-                              <ArrowRight size={13} aria-hidden />
+                              <span className="sr-only">Open</span>
+                              <ArrowRight size={14} aria-hidden />
                             </Link>
                           ) : null}
                         </div>

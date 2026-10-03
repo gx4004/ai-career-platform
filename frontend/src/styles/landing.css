@@ -881,17 +881,17 @@
   margin-bottom: 1.25rem;
   align-self: flex-start;
 }
-/* Left-align the full brand lockup inside the footer so the logo
-   and the blurb underneath share the same left edge. */
-.lp-redesign .lp-footer-brand-link .cw-brand-lockup--full {
-  align-items: flex-start;
-  width: auto;
+/* The brand lockup on the dark landing surface: light tile, forest letter. */
+.lp-redesign .cw-brand-lockup {
+  --cw-brand-mark-size: 2rem;
+  --cw-brand-wordmark-size: 1.25rem;
+  color: var(--lp-text);
 }
-.lp-redesign .lp-footer-brand-link .cw-brand-wordmark {
-  margin-inline: 0;
-  width: auto;
-  max-width: 13rem;
-  height: auto;
+.lp-redesign .cw-brand-mark__tile {
+  fill: var(--lp-text);
+}
+.lp-redesign .cw-brand-mark__ink {
+  fill: var(--accent);
 }
 .lp-redesign .lp-footer-blurb {
   font-size: 0.875rem;

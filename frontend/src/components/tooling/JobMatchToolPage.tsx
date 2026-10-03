@@ -55,7 +55,6 @@ export function JobMatchToolPage() {
           <ToolField
             htmlFor="job-match-jobDescription"
             label={jobField.label}
-            meta="Required"
             note={getSeededFieldNote('jobDescription', bridge)}
             error={errors.jobDescription}
           >

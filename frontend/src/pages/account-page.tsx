@@ -3,6 +3,7 @@ import { AppStatePanel } from '#/components/app/AppStatePanel'
 import { ApplicationDetailsCard } from '#/components/applications/ApplicationDetailsCard'
 import { PageHero } from '#/components/app/PageHero'
 import { WorkspacePage } from '#/components/app/WorkspacePage'
+import { formatDate } from '#/components/applications/stages'
 import { useSession } from '#/hooks/useSession'
 
 export function AccountPage() {
@@ -25,17 +26,15 @@ export function AccountPage() {
   }
 
   const memberSince = user.created_at ? new Date(user.created_at) : null
-  const chips = [
-    user.full_name || null,
+  const chips =
     memberSince && !Number.isNaN(memberSince.getTime())
-      ? `Member since ${memberSince.toLocaleDateString()}`
-      : null,
-  ].filter((chip): chip is string => Boolean(chip))
+      ? [`Member since ${formatDate(memberSince.toISOString())}`]
+      : undefined
   const googleEnabled = providers.some((p) => p.provider === 'google' && p.enabled)
 
   return (
     <WorkspacePage className="settings-page">
-      <PageHero title="Account" purpose={user.email} chips={chips} />
+      <PageHero title="Account" chips={chips} />
       <section className="account-layout">
         <ApplicationDetailsCard />
 
@@ -62,7 +61,7 @@ export function AccountPage() {
           </div>
           <Button
             variant="outline"
-            className="settings-btn settings-btn--destructive justify-self-start"
+            className="settings-btn justify-self-start"
             onClick={logout}
           >
             Sign out

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Shield, ShieldOff } from 'lucide-react'
+import { formatDate } from '#/components/applications/stages'
 import { getAdminUsers, setAdminStatus } from '#/lib/api/admin'
 import type { AdminUserListResponse } from '#/lib/api/admin'
 
@@ -56,7 +56,7 @@ export function AdminUsersPage() {
               <th>Runs</th>
               <th>Role</th>
               <th>Created</th>
-              <th></th>
+              <th><span className="sr-only">Actions</span></th>
             </tr>
           </thead>
           <tbody>
@@ -82,25 +82,19 @@ export function AdminUsersPage() {
                 <td>{user.email}</td>
                 <td className="admin-table-muted">{user.full_name || '—'}</td>
                 <td className="admin-table-mono">{user.run_count}</td>
-                <td>
-                  {user.is_admin ? (
-                    <span className="admin-badge admin-badge--admin">Admin</span>
-                  ) : (
-                    <span className="admin-table-muted">—</span>
-                  )}
-                </td>
+                <td>{user.is_admin ? 'Admin' : <span className="admin-table-muted">Member</span>}</td>
                 <td className="admin-table-muted">
-                  {user.created_at ? new Date(user.created_at).toLocaleDateString() : '—'}
+                  {user.created_at ? formatDate(user.created_at) : '—'}
                 </td>
-                <td>
+                <td className="admin-table-action">
                   <button
-                    className="admin-icon-btn"
+                    type="button"
+                    className="admin-toolbar-btn"
                     onClick={() =>
                       toggleAdmin.mutate({ userId: user.id, isAdmin: !user.is_admin })
                     }
-                    title={user.is_admin ? 'Remove admin' : 'Make admin'}
                   >
-                    {user.is_admin ? <ShieldOff size={15} /> : <Shield size={15} />}
+                    {user.is_admin ? 'Remove admin' : 'Make admin'}
                   </button>
                 </td>
               </tr>

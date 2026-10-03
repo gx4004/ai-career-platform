@@ -14,7 +14,7 @@ const buttonVariants = cva(
     "active:duration-75 active:ease-out",
     "motion-reduce:transition-none motion-reduce:active:scale-100",
     // focus ring — premium offset ring, respects the theme accent
-    "focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/60 focus-visible:ring-offset-0",
+    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
     // disabled + invalid
     "disabled:pointer-events-none disabled:opacity-55",
     "aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40",
@@ -27,16 +27,14 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default: [
-          // premium primary: layered shadow, top-edge highlight, active press
           "bg-primary text-primary-foreground",
-          "shadow-[0_1px_2px_0_rgba(24,24,27,0.08)]",
           "hover:bg-primary/90",
         ].join(" "),
         outline: [
           "border-border bg-background text-foreground",
           "hover:bg-muted hover:text-foreground",
           "aria-expanded:bg-muted aria-expanded:text-foreground",
-          "bg-surface-raised shadow-[0_1px_2px_0_rgba(24,24,27,0.04)]",
+          "bg-surface-raised",
           "dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
         ].join(" "),
         secondary: [

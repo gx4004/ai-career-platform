@@ -71,28 +71,23 @@ export function MiniBar({ value, tone }: { value: number; tone?: 'success' | 'wa
   )
 }
 
-/** Inline list of small tokens (keywords, skills). */
+/** Plain comma-separated list of short terms (keywords, skills), optionally led by a count label. */
 export function TokenList({
   items,
   tone = 'neutral',
-  prefix,
+  label,
 }: {
   items: string[]
   tone?: BadgeTone
   prefix?: string
+  label?: string
 }) {
   if (items.length === 0) return null
   return (
-    <ul className="rtokens">
-      {items.map((item) => (
-        <li key={item}>
-          <Badge tone={tone}>
-            {prefix}
-            {item}
-          </Badge>
-        </li>
-      ))}
-    </ul>
+    <p className={`rtokens${tone === 'warning' ? ' rtokens--missing' : ''}`}>
+      {label ? <span className="rtokens__label">{label} ({items.length})</span> : null}
+      {items.join(', ')}
+    </p>
   )
 }
 

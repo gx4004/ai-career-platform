@@ -10,13 +10,6 @@ import { toolList } from '#/lib/tools/registry'
 import { useBreakpoint } from '#/hooks/use-breakpoint'
 import { cn } from '#/lib/utils'
 
-/** Result routes end in a generic "Result" crumb; on mobile show the tool name instead. */
-function mobileBreadcrumbTitle(breadcrumbs: string[]) {
-  const last = breadcrumbs[breadcrumbs.length - 1]
-  if (last === 'Result' && breadcrumbs.length > 1) return breadcrumbs[breadcrumbs.length - 2]
-  return last
-}
-
 export function Topbar() {
   const pathname = useRouterState({
     select: (state) => state.location.pathname,
@@ -51,13 +44,6 @@ export function Topbar() {
     }
   }, [])
 
-  // Mobile: simple brand + page name + session menu
-  const mobilePageName = isDashboard
-    ? 'Your Workspace'
-    : entryTool
-      ? entryTool.label
-      : mobileBreadcrumbTitle(meta.breadcrumbs) || meta.title
-
   return (
     <header
       ref={headerRef}
@@ -73,16 +59,18 @@ export function Topbar() {
         )}
       >
         {isMobile ? (
-          <Link to={isDashboard ? '/' : '/dashboard'} className="topbar-mobile-brand">
+          <Link
+            to={isDashboard ? '/' : '/dashboard'}
+            className="topbar-mobile-brand"
+            aria-label="Career Workbench home"
+          >
             <AppBrandLockup mode="compact" />
           </Link>
         ) : (
           <SidebarTrigger className="mr-2 button-toolbar-utility md:hidden" />
         )}
-        <div className={cn('topbar-breadcrumb', isCompact && 'topbar-breadcrumb--compact', isMobile && 'topbar-breadcrumb--mobile')}>
-          {isMobile ? (
-            <span className="topbar-mobile-title">{mobilePageName}</span>
-          ) : isCompact ? (
+        <div className={cn('topbar-breadcrumb', isCompact && 'topbar-breadcrumb--compact')}>
+          {isMobile ? null : isCompact ? (
             isDashboard ? (
               <div className="topbar-tool-entry-chip" aria-current="page">
                 <span className="topbar-tool-pill">

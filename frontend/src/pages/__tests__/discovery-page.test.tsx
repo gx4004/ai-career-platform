@@ -106,11 +106,12 @@ describe('DiscoveryPage', () => {
     const card = await findCard()
 
     const buttons = within(card).getAllByRole('button').map((button) => button.textContent?.trim() || button.getAttribute('aria-label'))
-    expect(buttons).toEqual(['Platform Engineer', 'Deep match', 'Add', 'More actions for Platform Engineer'])
+    expect(buttons).toEqual(['Platform Engineer', 'Add', 'More actions for Platform Engineer'])
     expect(within(card).queryByRole('link')).toBeNull()
 
     const menu = await openMenu(card)
     expect(within(menu).getAllByRole('menuitem').map((item) => item.textContent?.trim())).toEqual([
+      'Deep match',
       'Tailor my CV',
       'Apply on company site',
       'Hide this job',

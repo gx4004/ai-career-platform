@@ -1,4 +1,3 @@
-import { AppBrandLockup } from '#/components/app/AppBrandLockup'
 import { LoginForm } from '#/components/auth/LoginForm'
 import { RegisterForm } from '#/components/auth/RegisterForm'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '#/components/ui/tabs'
@@ -20,13 +19,12 @@ export function AuthSurface({
   return (
     <div className={cn('auth-surface', className)} data-auth-surface>
       <div className="auth-surface-header">
-        <AppBrandLockup mode="compact" className="auth-brand-lockup" />
         <div className="auth-surface-copy">
           <h1 className="auth-surface-title">
             {view === 'register' ? 'Create your workspace account' : 'Sign in to your workspace'}
           </h1>
           <p className="auth-intro-copy">
-            Save your runs, favorites and progress across every tool.
+            Keep your runs and favorites across every tool.
           </p>
         </div>
       </div>
@@ -36,7 +34,7 @@ export function AuthSurface({
         onValueChange={(value) => onViewChange(value as AuthView)}
         className="auth-surface-tabs"
       >
-        <TabsList className="grid w-full grid-cols-2">
+        <TabsList className="w-full justify-start">
           <TabsTrigger value="login">Sign in</TabsTrigger>
           <TabsTrigger value="register">Create account</TabsTrigger>
         </TabsList>

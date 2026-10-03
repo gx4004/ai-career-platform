@@ -2,7 +2,6 @@ import { useMemo, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Check, FileUp, Pencil, Trash2, X } from 'lucide-react'
-import { Badge } from '#/components/ui/badge'
 import { Button } from '#/components/ui/button'
 import { Skeleton } from '#/components/ui/skeleton'
 import { AppStatePanel } from '#/components/app/AppStatePanel'
@@ -25,7 +24,6 @@ import {
   KIND_SINGULAR_LABELS,
   PROVENANCE_DESCRIPTIONS,
   PROVENANCE_LABELS,
-  STATE_LABELS,
   contentEntries,
   countByState,
   factDisplay,
@@ -55,36 +53,42 @@ function EvidenceCard({
   const state = item.confirmation_state
   const { title, fields } = factDisplay(item)
   const provenance = `${PROVENANCE_LABELS[item.provenance]}. ${PROVENANCE_DESCRIPTIONS[item.provenance]}`
+  // Every saved row sits under its kind heading and the "Saved facts" heading, so the row
+  // itself only says what is not already obvious: where a fact came from, when it was not typed.
+  const showSource = item.provenance !== 'user-entered'
+  // One row template for every kind: the first value leads, the rest follow as plain lines.
+  const filled = fields.filter((field) => field.value && field.value !== '—')
+  const lead = title ?? filled[0]?.value ?? null
+  const rest = title ? [] : filled.slice(1)
   return (
     <FactCard
       tone={state}
       busy={busy}
-      title={title}
+      title={lead}
       meta={
         <>
-          <span className="fact-card__kind">{KIND_SINGULAR_LABELS[item.kind]}</span>
-          <Badge
-            variant="outline"
-            className={`fact-badge fact-badge--${state}`}
-            title={provenance}
-          >
-            {STATE_LABELS[state]}
-          </Badge>
+          {state === 'unconfirmed' ? (
+            <span className="fact-card__kind">{KIND_SINGULAR_LABELS[item.kind]}</span>
+          ) : null}
           {/* A title tooltip is invisible on touch, so the source is also
               available to assistive tech as text. */}
           <span className="sr-only">{`Source: ${provenance}`}</span>
-          {state === 'confirmed' ? (
-            <span className="fact-card__source" aria-hidden="true">
+          {showSource ? (
+            <span className="fact-card__source" aria-hidden="true" title={provenance}>
               {PROVENANCE_LABELS[item.provenance]}
             </span>
           ) : null}
         </>
       }
-      fields={fields}
+      fields={[]}
       primary={primary}
       menu={menu}
       menuLabel={`More actions: ${previewText(item)}`}
-    />
+    >
+      {rest.map((field) => (
+        <p key={field.key} className="fact-card__sub">{field.value}</p>
+      ))}
+    </FactCard>
   )
 }
 
@@ -228,7 +232,6 @@ export function EvidenceProfilePage() {
     <WorkspacePage className="profile-page">
       <PageHero
         title="Your profile"
-        purpose="The facts about you that CV Studio and the tools reuse."
         chips={heroChips}
         action={
           canImport ? (
@@ -287,6 +290,7 @@ export function EvidenceProfilePage() {
                     <>
                       <Button
                         size="sm"
+                        variant="outline"
                         disabled={pendingItemId === item.id}
                         aria-label={`Save: ${previewText(item)}`}
                         onClick={() => withPending(item, saveMutation.mutate)}
@@ -356,6 +360,7 @@ export function EvidenceProfilePage() {
                           <Button
                             size="sm"
                             variant="outline"
+                            className="fact-card__edit"
                             aria-label={`Edit: ${previewText(item)}`}
                             onClick={() => openEditor(item)}
                           >
@@ -363,6 +368,7 @@ export function EvidenceProfilePage() {
                           </Button>
                         }
                         menu={[
+                          { label: 'Edit', icon: Pencil, onSelect: () => openEditor(item) },
                           {
                             label: 'Delete',
                             icon: Trash2,

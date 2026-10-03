@@ -46,8 +46,11 @@ export function DashboardPage() {
           title="Dashboard"
           chips={meta}
         />
-        {isAuthenticated ? <DashboardToday /> : null}
-        {isAuthenticated ? <DashboardPipeline /> : null}
+        {isAuthenticated ? (
+          <DashboardToday>
+            <DashboardPipeline />
+          </DashboardToday>
+        ) : null}
         <DashboardCv />
         <div className="dash-columns">
           {isAuthenticated ? (

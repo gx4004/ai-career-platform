@@ -247,7 +247,7 @@ export const workflowConfigs: Record<ToolId, WorkflowConfig> = {
         name: 'targetRole',
         kind: 'text',
         label: 'Target role',
-        placeholder: 'Optional: e.g. Product Designer, Frontend Engineer…',
+        placeholder: 'e.g. Product Designer',
       },
     ],
     buildPayload: (draft) => ({

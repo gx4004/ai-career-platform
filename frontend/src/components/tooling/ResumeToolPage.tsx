@@ -94,7 +94,7 @@ export function ResumeToolPage() {
               </>
             ) : (
               <div>
-                <Button type="button" variant="outline" size="sm" onClick={() => setShowOptionalJob(true)}>
+                <Button type="button" variant="link" size="sm" className="h-auto px-0" onClick={() => setShowOptionalJob(true)}>
                   Add target job description
                 </Button>
               </div>
