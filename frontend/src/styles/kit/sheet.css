@@ -1,0 +1,86 @@
+/*
+ * Sheet: right-hand drawer, or bottom sheet. "responsive" is a drawer above 767px (the kit's
+ * compact breakpoint) and a bottom sheet at 767px and below. No drag handle, no slide-in:
+ * opacity and a 4px shift, like Dialog.
+ */
+
+.kit-sheet {
+  --kit-sheet-w: 30rem;
+  --kit-shift-x: 4px;
+
+  position: fixed;
+  z-index: var(--z-overlay);
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  border: 0 solid var(--border-soft);
+  background: var(--surface-overlay);
+  box-shadow: var(--shadow-overlay);
+  color: var(--text-body);
+  font-family: var(--font-sans);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  outline: none;
+}
+
+.kit-sheet[data-size='sm'] {
+  --kit-sheet-w: 24rem;
+}
+
+.kit-sheet[data-size='lg'] {
+  --kit-sheet-w: 36rem;
+}
+
+.kit-sheet:is([data-side='right'], [data-side='responsive']) {
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(var(--kit-sheet-w), 100vw);
+  border-left-width: 1px;
+}
+
+.kit-sheet[data-side='bottom'] {
+  --kit-shift-x: 0;
+  --kit-shift-y: 4px;
+
+  right: 0;
+  bottom: 0;
+  left: 0;
+  max-height: 85vh;
+  max-height: 85dvh;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  border-top-width: 1px;
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+}
+
+@media (max-width: 767px) {
+  .kit-sheet[data-side='responsive'] {
+    --kit-shift-x: 0;
+    --kit-shift-y: 4px;
+
+    top: auto;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    width: auto;
+    max-height: 85vh;
+    max-height: 85dvh;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    border-width: 1px 0 0;
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  }
+}
+
+.kit-sheet[data-state='open'] {
+  animation: kit-shift-in var(--duration-overlay) var(--ease-out);
+}
+
+.kit-sheet[data-state='closed'] {
+  animation: kit-shift-out var(--duration-fast) var(--ease-out) forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kit-sheet[data-state] {
+    animation: none;
+  }
+}

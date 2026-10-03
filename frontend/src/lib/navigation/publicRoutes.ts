@@ -12,6 +12,7 @@ const SHELLLESS_ROUTES = new Set([
   '/terms',
   '/cookies',
   '/imprint',
+  '/_kit',
 ])
 const SHELLLESS_ROUTE_PREFIXES = ['/auth/', '/admin']
 

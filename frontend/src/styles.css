@@ -24,3 +24,5 @@
 @import './styles/legal.css';
 /* Work-tool design layer (Sept 2026 overhaul): loaded last on purpose. */
 @import './styles/workbench.css';
+/* Kit: loaded after every legacy file; all selectors carry the kit- prefix. */
+@import './styles/kit/index.css';

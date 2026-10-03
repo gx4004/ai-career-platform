@@ -51,10 +51,10 @@
   --accent-selected: rgb(31 93 70 / 0.13);
 
   /* ── Status roles (fg, bg, border, solid) ─────────────────────────── */
-  --success-fg: #2b6a35;
-  --success-bg: #dfeadb;
-  --success-border: #b5cfae;
-  --success-solid: #3f8a4a;
+  --success-fg: #386519;
+  --success-bg: #e2ecd0;
+  --success-border: #bcd29c;
+  --success-solid: #3f7a1f;
   --warning-fg: #7f5200;
   --warning-bg: #f5e6c1;
   --warning-border: #e2c98a;
@@ -145,6 +145,15 @@
   --shadow-ink: 40 32 20;
   --shadow-soft: 0 1px 2px rgb(var(--shadow-ink) / 0.06);
   --shadow-overlay: 0 12px 32px -8px rgb(var(--shadow-ink) / 0.2), 0 2px 6px rgb(var(--shadow-ink) / 0.08);
+
+  /* ── Layers: one scale for everything that stacks ─────────────────── */
+  --z-sticky: 10; /* sticky headers and table heads */
+  --z-nav: 40; /* mobile tab bar */
+  --z-banner: 50; /* non-modal notices pinned to the viewport (cookie notice) */
+  --z-overlay: 60; /* scrim, dialogs, sheets */
+  --z-popover: 70; /* menus and popovers: they open from inside dialogs too */
+  --z-toast: 80;
+  --z-tooltip: 90;
 
   /* ── Motion: colour and opacity only ──────────────────────────────── */
   --ease-out: cubic-bezier(0.22, 0.61, 0.36, 1);

@@ -126,6 +126,22 @@ describe('AppShell', () => {
     expect(screen.queryByTestId('command-palette')).toBeNull()
   })
 
+  it('renders the hidden /_kit gallery without the workspace shell', () => {
+    mockPathname.current = '/_kit'
+
+    render(
+      <AppShell>
+        <div data-testid="page-child" />
+      </AppShell>,
+    )
+
+    expect(screen.getByTestId('page-child')).toBeTruthy()
+    expect(screen.queryByTestId('sidebar-provider')).toBeNull()
+    expect(screen.queryByTestId('app-sidebar')).toBeNull()
+    expect(screen.queryByTestId('mobile-nav')).toBeNull()
+    expect(screen.queryByTestId('command-palette')).toBeNull()
+  })
+
   it('keeps dashboard routes inside the workspace shell', () => {
     mockPathname.current = '/dashboard'
 
