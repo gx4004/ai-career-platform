@@ -143,6 +143,13 @@
   }
 }
 
+/* Touch: a link-variant button is a standalone control (never inline in running text), so it gets the 44px target. */
+@media (pointer: coarse) {
+  .kit-button--link {
+    min-height: var(--touch-target);
+  }
+}
+
 /* ── States ────────────────────────────────────────────────────────── */
 
 @media (hover: hover) {

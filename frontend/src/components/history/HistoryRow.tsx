@@ -79,6 +79,7 @@ export function HistoryRow({
 
   const renameButton = useRef<HTMLButtonElement | null>(null)
   const moreButton = useRef<HTMLButtonElement | null>(null)
+  const menuHandsFocusOn = useRef(false)
   const renaming = rename !== null
   const wasRenaming = useRef(false)
   useEffect(() => {
@@ -164,8 +165,14 @@ export function HistoryRow({
                   <MoreHorizontal aria-hidden />
                 </Button>
               </DropdownMenuTrigger>
-              {/* The menu closes into the form or the dialog it opened: focus belongs to them. */}
-              <DropdownMenuContent align="end" onCloseAutoFocus={(event) => event.preventDefault()}>
+              {/* Rename and Delete close the menu into a form or a dialog that takes focus; Esc and the other items return it to the trigger. */}
+              <DropdownMenuContent
+                align="end"
+                onCloseAutoFocus={(event) => {
+                  if (menuHandsFocusOn.current) event.preventDefault()
+                  menuHandsFocusOn.current = false
+                }}
+              >
                 {nextTool ? (
                   <DropdownMenuItem icon={<ArrowRight />} disabled={continuing} onSelect={onContinue}>
                     {continuing ? 'Opening…' : `Continue: ${nextTool.shortLabel}`}
@@ -174,11 +181,25 @@ export function HistoryRow({
                 <DropdownMenuItem icon={<Star fill={item.is_favorite ? 'currentColor' : 'none'} />} onSelect={onToggleFavorite}>
                   {favoriteLabel}
                 </DropdownMenuItem>
-                <DropdownMenuItem icon={<Pencil />} onSelect={onStartRename}>
+                <DropdownMenuItem
+                  icon={<Pencil />}
+                  onSelect={() => {
+                    menuHandsFocusOn.current = true
+                    onStartRename()
+                  }}
+                >
                   Rename
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem destructive icon={<Trash2 />} disabled={deleting} onSelect={() => onDelete(moreButton.current)}>
+                <DropdownMenuItem
+                  destructive
+                  icon={<Trash2 />}
+                  disabled={deleting}
+                  onSelect={() => {
+                    menuHandsFocusOn.current = true
+                    onDelete(moreButton.current)
+                  }}
+                >
                   Delete
                 </DropdownMenuItem>
               </DropdownMenuContent>
