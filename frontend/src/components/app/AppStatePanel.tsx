@@ -1,8 +1,6 @@
 import type { ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
-import { Button } from '#/components/ui/button'
-import { SceneVisual } from '#/components/illustrations/SceneVisual'
-import type { IllustrationScene } from '#/components/illustrations/SceneVisual'
+import { Button, ErrorState, Page } from '#/components/kit'
 
 type PanelAction = {
   label: string
@@ -11,69 +9,53 @@ type PanelAction = {
   variant?: 'default' | 'outline' | 'ghost'
 }
 
+const VARIANTS = { default: 'primary', outline: 'secondary', ghost: 'ghost' } as const
+
+/**
+ * A plain state page for screens that have not moved to the kit's EmptyState and ErrorState yet: one title,
+ * one line of explanation, a primary and a secondary action, left-aligned.
+ */
 export function AppStatePanel({
   badge,
   title,
   description,
-  icon,
-  scene,
-  visual,
   detail,
   actions = [],
+  children,
 }: {
   badge?: string
   title: string
   description: string
-  icon?: ReactNode
-  scene?: IllustrationScene
-  visual?: ReactNode
   detail?: string
   actions?: PanelAction[]
+  children?: ReactNode
 }) {
+  const buttons = actions.map((action, i) => {
+    const variant = VARIANTS[action.variant ?? (i === 0 ? 'default' : 'outline')]
+    return action.to ? (
+      <Button key={action.label} asChild variant={variant}>
+        <Link to={action.to}>{action.label}</Link>
+      </Button>
+    ) : (
+      <Button key={action.label} type="button" variant={variant} onClick={action.onClick}>
+        {action.label}
+      </Button>
+    )
+  })
+
   return (
-    <section className="page-shell">
-      <div className="content-narrow">
-        <div className="app-state-panel section-card grid gap-5 p-8 text-center">
-          {badge ? <div className="section-kicker mx-auto">{badge}</div> : null}
-          {visual ? <div className="mx-auto w-full max-w-sm">{visual}</div> : null}
-          {!visual && scene ? (
-            <div className="mx-auto w-full max-w-xl">
-              <SceneVisual scene={scene} />
-            </div>
-          ) : null}
-          {icon ? <div className="mx-auto">{icon}</div> : null}
-          <div className="grid gap-2">
-            <h1 className="app-state-panel-title">{title}</h1>
-            <p className="muted-copy">{description}</p>
-            {detail ? <p className="small-copy muted-copy">{detail}</p> : null}
-          </div>
-          {actions.length > 0 ? (
-            <div className="button-cluster button-cluster--center justify-center">
-              {actions.map((action, i) =>
-                action.to ? (
-                  <Button
-                    key={action.label}
-                    variant={action.variant || 'default'}
-                    className={i === 0 ? 'button-hero-primary' : undefined}
-                    asChild
-                  >
-                    <Link to={action.to}>{action.label}</Link>
-                  </Button>
-                ) : (
-                  <Button
-                    key={action.label}
-                    variant={action.variant || 'default'}
-                    className={i === 0 ? 'button-hero-primary' : undefined}
-                    onClick={action.onClick}
-                  >
-                    {action.label}
-                  </Button>
-                ),
-              )}
-            </div>
-          ) : null}
-        </div>
-      </div>
-    </section>
+    <Page as="div">
+      <ErrorState
+        size="page"
+        role="status"
+        headingLevel={1}
+        code={badge}
+        title={title}
+        description={description}
+        detail={detail}
+        backAction={buttons.length > 0 ? <>{buttons}</> : undefined}
+      />
+      {children}
+    </Page>
   )
 }

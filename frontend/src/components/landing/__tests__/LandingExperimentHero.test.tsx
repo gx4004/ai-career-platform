@@ -9,26 +9,6 @@ vi.mock('@tanstack/react-router', () => ({
   ),
 }))
 
-vi.mock('framer-motion', () => {
-  const passthrough = ({ children, ...props }: { children?: ReactNode } & Record<string, unknown>) => (
-    <div {...(props as Record<string, unknown>)}>{children}</div>
-  )
-  const motionValue = () => ({ set: () => {}, get: () => 0 })
-  const motionFactory = (component: unknown) => component
-  // motion.create(Component) returns the component itself so Link mock's href is
-  // preserved; motion.div / motion.a etc. return passthrough via Proxy.
-  const motion = new Proxy(motionFactory, {
-    get: (_target, property) => property === 'create' ? motionFactory : passthrough,
-  })
-  return {
-    motion,
-    useReducedMotion: () => true,
-    useMotionValue: motionValue,
-    useSpring: (v: unknown) => v,
-    useTransform: () => motionValue(),
-  }
-})
-
 describe('LandingExperimentHero', () => {
   afterEach(() => {
     vi.unstubAllEnvs()
@@ -39,8 +19,8 @@ describe('LandingExperimentHero', () => {
     const heading = container.querySelector('h1')
     expect(heading?.textContent).toContain('blind spots')
     expect(heading?.textContent).toContain('We find them')
-    expect(container.querySelector('.lp-hero-image-card img')).toBeTruthy()
-    expect(container.querySelector('a.lp-btn-primary')?.getAttribute('href')).toBe('/dashboard')
+    expect(container.querySelector('.lp-hero-image-card .lp-preview')).toBeTruthy()
+    expect(container.querySelector('.lp-hero-actions a')?.getAttribute('href')).toBe('/dashboard')
   })
 
   it('hero image link navigates to dashboard with aria-label', () => {

@@ -1,4 +1,3 @@
-import type { ReactNode } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -24,18 +23,16 @@ vi.mock('#/hooks/useSession', () => ({
   useSession: () => ({ status: 'guest', openAuthDialog: openAuthDialogMock }),
 }))
 
-vi.mock('#/components/app/PageFrame', () => ({
-  PageFrame: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-}))
-
 vi.mock('#/lib/telemetry/client', () => ({ trackTelemetry: trackTelemetryMock }))
 
 vi.mock('#/lib/tools/resultDefinitions', () => ({
+  FixFirstList: () => null,
   resultDefinitions: new Proxy(
     {},
     {
       get: () => ({
-        heroVariant: 'light',
+        summary: () => ({ facts: [] }),
+        topActions: () => [],
         render: () => <div>RESULT_CONTENT_MARKER</div>,
         copyText: () => 'copied result',
       }),

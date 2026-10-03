@@ -1,22 +1,16 @@
 import { Link } from '@tanstack/react-router'
-import { motion, useReducedMotion } from 'framer-motion'
 import { AppBrandLockup } from '#/components/app/AppBrandLockup'
 
 const currentYear = new Date().getFullYear()
 
 export function LandingFooter() {
-  const prefersReducedMotion = useReducedMotion() ?? false
   return (
-    <motion.footer
+    <footer
       id="landing-footer"
       className="lp-footer"
       aria-labelledby="landing-footer-heading"
-      initial={prefersReducedMotion ? false : { opacity: 0, y: 24 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, amount: 0.2 }}
-      transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
     >
-      <div className="lp-footer-grid">
+      <div className="lp-container lp-footer-grid">
         <div className="lp-footer-brand-col">
           <Link to="/" aria-label="Career Workbench home" className="lp-footer-brand-link">
             <AppBrandLockup mode="full" />
@@ -52,9 +46,9 @@ export function LandingFooter() {
         </nav>
       </div>
 
-      <div className="lp-footer-bottom">
+      <div className="lp-container lp-footer-bottom">
         <p className="lp-footer-copy">© {currentYear} Career Workbench. All rights reserved.</p>
       </div>
-    </motion.footer>
+    </footer>
   )
 }

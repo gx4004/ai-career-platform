@@ -1,65 +1,88 @@
 import { useEffect } from 'react'
-import { DashboardHero } from '#/components/dashboard/DashboardHero'
-import { FavoriteRuns } from '#/components/dashboard/FavoriteRuns'
+import { Link } from '@tanstack/react-router'
+import { DashboardCv } from '#/components/dashboard/DashboardCv'
+import { DashboardPipeline } from '#/components/dashboard/DashboardPipeline'
+import { DashboardResumeUpload } from '#/components/dashboard/DashboardResumeUpload'
 import { DashboardToday } from '#/components/dashboard/DashboardToday'
+import { FavoriteRuns } from '#/components/dashboard/FavoriteRuns'
 import { RecentRuns } from '#/components/dashboard/RecentRuns'
-import { DashboardActivityFooter } from '#/components/dashboard/DashboardActivityFooter'
-import { DashboardFeatureLinks } from '#/components/dashboard/DashboardFeatureLinks'
-import { PageFrame } from '#/components/app/PageFrame'
+import { useDashboardCv } from '#/components/dashboard/useDashboardCv'
+import { Button, EmptyState, Page, PageHeader, Section, Skeleton, Split } from '#/components/kit'
 import { OnboardingTour } from '#/components/onboarding/OnboardingTour'
 import { useOnboarding } from '#/hooks/useOnboarding'
 import { useSession } from '#/hooks/useSession'
+import { useToday } from '#/hooks/useToday'
 import { useBreakpoint } from '#/hooks/use-breakpoint'
 
 export function DashboardPage() {
   const onboarding = useOnboarding()
   const { status } = useSession()
   const isAuthenticated = status === 'authenticated'
-  const bp = useBreakpoint()
-  const isMobile = bp === 'mobile'
+  const today = useToday()
+  const cv = useDashboardCv()
+  const isMobile = useBreakpoint() === 'mobile'
 
+  // The tour points at things on this page, so it waits until the page has settled on what it shows.
+  const ready = isAuthenticated ? !today.isPending && !cv.pending : status === 'guest'
+
+  // No onboarding tour on mobile: the UI should be self-explanatory.
+  const { shouldShow, startTour } = onboarding
   useEffect(() => {
-    document.body.classList.add('page-tone-dashboard')
+    if (!isMobile && ready && shouldShow) startTour()
+  }, [isMobile, ready, shouldShow, startTour])
 
-    return () => {
-      document.body.classList.remove('page-tone-dashboard')
-    }
-  }, [])
+  if (status === 'loading') {
+    return (
+      <Page>
+        <Skeleton variant="page" />
+      </Page>
+    )
+  }
 
-  // No onboarding tour on mobile — UI should be self-explanatory
-  useEffect(() => {
-    if (!isMobile && onboarding.shouldShow) {
-      onboarding.startTour()
-    }
-  }, [isMobile]) // eslint-disable-line react-hooks/exhaustive-deps
+  const start = (
+    <Section title="Upload your resume">
+      <DashboardResumeUpload />
+    </Section>
+  )
 
   return (
-    <PageFrame className="dashboard-page-frame premium-corner-canvas">
-      <div className="content-max dashboard-layout dashboard-stack">
-        <DashboardHero />
-        <div className="dashboard-light-surface">
-          {isAuthenticated ? (
+    <Page>
+      <PageHeader title="Dashboard" />
+      {isAuthenticated ? (
+        <Split
+          railLabel="Pipeline and CV"
+          rail={
             <>
-              <DashboardToday />
-              <div className="dashboard-runs-grid" data-tour="activity">
-                <RecentRuns />
-                <FavoriteRuns />
-              </div>
+              <DashboardPipeline />
+              <DashboardCv />
+              <FavoriteRuns />
             </>
-          ) : (
-            <DashboardActivityFooter />
-          )}
-          <DashboardFeatureLinks />
-          <div className="dashboard-footer-strip" />
-        </div>
-      </div>
-      {!isMobile && (
-        <OnboardingTour
-          open={onboarding.open}
-          onComplete={onboarding.complete}
-          onSkip={onboarding.skip}
-        />
+          }
+        >
+          {cv.isNewcomer ? start : null}
+          <DashboardToday />
+          <div data-tour="activity">
+            <RecentRuns />
+          </div>
+        </Split>
+      ) : (
+        <>
+          {start}
+          <Section title="Activity" data-tour="activity">
+            <EmptyState
+              title="Sign in to track your runs, favorites and applications."
+              action={
+                <Button asChild variant="secondary" size="sm">
+                  <Link to="/login">Sign in</Link>
+                </Button>
+              }
+            />
+          </Section>
+        </>
       )}
-    </PageFrame>
+      {!isMobile && (
+        <OnboardingTour open={onboarding.open} onComplete={onboarding.complete} onSkip={onboarding.skip} />
+      )}
+    </Page>
   )
 }

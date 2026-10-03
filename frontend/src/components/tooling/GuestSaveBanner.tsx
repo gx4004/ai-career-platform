@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from '@tanstack/react-router'
-import { Sparkles, X } from 'lucide-react'
+import { Button, Notice } from '#/components/kit'
 import { useSession } from '#/hooks/useSession'
 
 const DISMISSED_KEY = 'cw:guest-banner-dismissed'
@@ -32,22 +32,15 @@ export function GuestSaveBanner() {
   }
 
   return (
-    <div className="guest-save-banner">
-      <div className="guest-save-banner-content">
-        <Sparkles size={14} className="guest-save-banner-icon" />
-        <span className="guest-save-banner-text">Sign in to keep your results</span>
-        <Link to="/login" className="guest-save-banner-link">
-          Sign in
-        </Link>
-      </div>
-      <button
-        type="button"
-        className="guest-save-banner-close"
-        onClick={dismiss}
-        aria-label="Dismiss"
-      >
-        <X size={14} />
-      </button>
-    </div>
+    <Notice
+      onDismiss={dismiss}
+      action={
+        <Button asChild variant="secondary" size="sm">
+          <Link to="/login">Sign in to keep your results</Link>
+        </Button>
+      }
+    >
+      Guest runs are not saved.
+    </Notice>
   )
 }

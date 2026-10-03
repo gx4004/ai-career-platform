@@ -1,0 +1,273 @@
+/*
+ * Page frame, PageHeader, Lead, Split, Stack, Cluster.
+ * Left-aligned. 32px gutters (16px on phones), 32px between a page's direct children.
+ */
+
+.kit-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-section);
+  box-sizing: border-box;
+  width: 100%;
+  max-width: var(--kit-page-w-default);
+  min-width: 0;
+  margin: 0;
+  padding: var(--space-8) var(--space-8) var(--space-12);
+  color: var(--text-body);
+}
+
+.kit-page[data-width='narrow'] {
+  max-width: var(--kit-page-w-narrow);
+}
+
+.kit-page[data-width='wide'] {
+  max-width: var(--kit-page-w-wide);
+}
+
+.kit-page[data-width='full'] {
+  max-width: none;
+}
+
+.kit-page:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: calc(var(--focus-ring-width) * -1);
+}
+
+@media (max-width: 767px) {
+  .kit-page {
+    padding: var(--space-4) var(--space-4) var(--space-12);
+  }
+}
+
+/* The tab bar exists only at 639px and below (hooks/use-breakpoint MOBILE_MAX): that is when the page clears it. */
+@media (max-width: 639px) {
+  .kit-page {
+    padding-block-end: calc(var(--mobile-tab-height) + env(safe-area-inset-bottom, 0px) + var(--space-8));
+  }
+}
+
+/* ── PageHeader ─────────────────────────────────────────────────────── */
+
+.kit-page-header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+  /* The header sits 24px above what follows, not the full 32px a page puts between sections. */
+  margin-block-end: calc(var(--space-2) * -1);
+  padding-block-end: var(--space-4);
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.kit-page-header[data-tabs] {
+  padding-block-end: 0;
+  border-bottom: 0;
+}
+
+.kit-page-header__back {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  font-size: var(--fs-body);
+}
+
+.kit-page-header__main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-6);
+  min-width: 0;
+}
+
+.kit-page-header__text {
+  display: flex;
+  flex: 1 1 20rem;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.kit-page-header__title {
+  margin: 0;
+  color: var(--text-strong);
+  font-family: var(--font-serif);
+  font-size: var(--fs-display);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-display);
+  letter-spacing: var(--ls-display);
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+}
+
+.kit-page-header__lead {
+  max-width: 44rem;
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+}
+
+.kit-page-header__meta {
+  margin-block-start: var(--space-1);
+}
+
+.kit-page-header__actions {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  /* Wider content wraps inside the header instead of pushing past the page gutter. */
+  max-width: 100%;
+}
+
+.kit-page-header__tabs {
+  min-width: 0;
+  margin-block-start: var(--space-1);
+}
+
+/* In a header the tab list is the hairline; it should not add its own spacing. */
+.kit-page-header__tabs > .kit-tabs__list {
+  margin: 0;
+}
+
+/* ── Lead ───────────────────────────────────────────────────────────── */
+
+.kit-lead {
+  max-width: 45rem;
+  margin: 0;
+  color: var(--text-strong);
+  font-family: var(--font-serif);
+  font-size: var(--fs-title);
+  font-weight: var(--fw-regular);
+  line-height: 1.45;
+  text-wrap: pretty;
+}
+
+/* ── Split: main column plus rail ───────────────────────────────────── */
+
+.kit-split {
+  container: kit-split / inline-size;
+  min-width: 0;
+}
+
+.kit-split__layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-8);
+}
+
+.kit-split__main,
+.kit-split__rail {
+  min-width: 0;
+}
+
+.kit-split__main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-section);
+}
+
+.kit-split__rail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.kit-split[data-rail-first] .kit-split__rail {
+  order: -1;
+}
+
+@container kit-split (min-width: 56rem) {
+  .kit-split__layout {
+    grid-template-columns: minmax(0, 1fr) var(--kit-rail-w);
+    gap: var(--space-12);
+  }
+
+  .kit-split[data-rail-first] .kit-split__rail {
+    order: 0;
+  }
+
+  .kit-split[data-sticky] .kit-split__rail {
+    position: sticky;
+    top: var(--space-6);
+    align-self: start;
+  }
+}
+
+/* ── Stack and Cluster ──────────────────────────────────────────────── */
+
+.kit-stack {
+  --kit-gap: var(--space-4);
+
+  display: flex;
+  flex-direction: column;
+  gap: var(--kit-gap);
+  min-width: 0;
+}
+
+.kit-cluster {
+  --kit-gap: var(--space-2);
+
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--kit-gap);
+  min-width: 0;
+}
+
+.kit-stack[data-gap='1'],
+.kit-cluster[data-gap='1'] {
+  --kit-gap: var(--space-1);
+}
+
+.kit-stack[data-gap='2'],
+.kit-cluster[data-gap='2'] {
+  --kit-gap: var(--space-2);
+}
+
+.kit-stack[data-gap='3'],
+.kit-cluster[data-gap='3'] {
+  --kit-gap: var(--space-3);
+}
+
+.kit-stack[data-gap='4'],
+.kit-cluster[data-gap='4'] {
+  --kit-gap: var(--space-4);
+}
+
+.kit-stack[data-gap='6'],
+.kit-cluster[data-gap='6'] {
+  --kit-gap: var(--space-6);
+}
+
+.kit-stack[data-gap='8'],
+.kit-cluster[data-gap='8'] {
+  --kit-gap: var(--space-8);
+}
+
+.kit-cluster[data-align='start'] {
+  align-items: flex-start;
+}
+
+.kit-cluster[data-align='end'] {
+  align-items: flex-end;
+}
+
+.kit-cluster[data-align='baseline'] {
+  align-items: baseline;
+}
+
+.kit-cluster[data-justify='end'] {
+  justify-content: flex-end;
+}
+
+.kit-cluster[data-justify='between'] {
+  justify-content: space-between;
+}
+
+.kit-cluster[data-nowrap] {
+  flex-wrap: nowrap;
+}

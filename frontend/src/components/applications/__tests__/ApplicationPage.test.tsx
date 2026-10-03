@@ -51,7 +51,10 @@ function renderPage() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
   return render(<QueryClientProvider client={client}><ApplicationPage applicationId="app-1" /></QueryClientProvider>)
 }
-const applyPanel = async () => (await screen.findByText('Apply', { selector: '.workspace-panel__kicker' })).closest('section') as HTMLElement
+const applyPanel = async () => {
+  await screen.findByRole('heading', { name: /Get this application ready|question|Ready to apply|You applied/ })
+  return screen.getByRole('heading', { name: /Get this application ready|question|Ready to apply|You applied/ }).closest('section') as HTMLElement
+}
 
 describe('ApplicationPage', () => {
   beforeEach(() => {
@@ -60,13 +63,14 @@ describe('ApplicationPage', () => {
     api.getAutofillStatus.mockResolvedValue({ state: 'idle' })
   })
 
-  it('shows every section on one page under the shared hero', async () => {
+  it('shows every section on one page under the shared header', async () => {
     api.getApplication.mockResolvedValue(saved)
     renderPage()
     expect(await screen.findByRole('heading', { level: 1, name: 'Platform Engineer' })).toBeTruthy()
-    expect(document.querySelector('.page-hero')).toBeTruthy()
-    expect(screen.getByText('82% skills fit when saved')).toBeTruthy()
-    for (const title of ["What you're sending", 'Check your documents', 'Job description', 'Tasks', 'Notes', 'Activity']) {
+    expect(document.querySelector('.kit-page-header')).toBeTruthy()
+    expect(screen.getByText('82% when saved')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Change stage, currently Saved' })).toBeTruthy()
+    for (const title of ["What you're sending", 'Check your documents', 'Job description', 'Tasks', 'Notes', 'Activity', 'Details']) {
       expect(screen.getByRole('heading', { name: title })).toBeTruthy()
     }
     expect(screen.queryByRole('tab')).toBeNull()
@@ -101,6 +105,20 @@ describe('ApplicationPage', () => {
     fireEvent.click(save)
     await waitFor(() => expect(api.updateHistoryWorkspace).toHaveBeenCalledWith('app-1', { label: 'Dream job' }))
     await waitFor(() => expect(screen.queryByRole('textbox', { name: 'Application name' })).toBeNull())
+  })
+
+  it('keeps the name field open and says so when the rename fails', async () => {
+    api.getApplication.mockResolvedValue(saved)
+    api.updateHistoryWorkspace.mockRejectedValue(new Error('nope'))
+    renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: 'Rename application' }))
+    const input = screen.getByRole('textbox', { name: 'Application name' })
+    // The field takes the title's place, inside the page heading.
+    expect(input.closest('h1')).toBeTruthy()
+    fireEvent.change(input, { target: { value: 'Dream job' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save name' }))
+    expect(await screen.findByText("The name couldn't be saved. Try again.")).toBeTruthy()
+    expect(screen.getByRole('textbox', { name: 'Application name' })).toBeTruthy()
   })
 
   it('shows a custom name as the page title but keeps the automatic one out of it', async () => {
@@ -210,6 +228,28 @@ describe('ApplicationPage', () => {
     const alert = await screen.findByRole('alert')
     expect(alert.textContent).toContain('no longer there')
     expect(alert.textContent).toContain('Open the apply page yourself.')
+  })
+
+  it('asks before deleting and removes the application once confirmed', async () => {
+    api.getApplication.mockResolvedValue(saved)
+    api.deleteApplication.mockResolvedValue({ deleted: true })
+    renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete this application' }))
+    const dialog = await screen.findByRole('alertdialog', { name: 'Delete this application?' })
+    expect(api.deleteApplication).not.toHaveBeenCalled()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete' }))
+    await waitFor(() => expect(api.deleteApplication).toHaveBeenCalledWith('app-1'))
+  })
+
+  it('names the stage button with the current stage and puts details before the reading sections', async () => {
+    api.getApplication.mockResolvedValue(saved)
+    renderPage()
+    const stage = await screen.findByRole('button', { name: /^Change stage/ })
+    expect(stage.textContent?.trim()).toBe('Saved')
+    expect(stage.getAttribute('aria-label')).toContain('Saved')
+    const details = screen.getByRole('complementary', { name: 'Details and tasks' })
+    expect(within(details).getByRole('heading', { name: 'Details' })).toBeTruthy()
+    expect(within(details).getByRole('heading', { name: 'Tasks' })).toBeTruthy()
   })
 
   it('saves the chosen CV version, notes and a new task', async () => {

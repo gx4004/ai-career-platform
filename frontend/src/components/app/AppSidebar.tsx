@@ -1,15 +1,9 @@
 import { Link, useRouterState } from '@tanstack/react-router'
-import {
-  ArrowLeft,
-  ChevronLeft,
-  ChevronRight,
-  LayoutDashboard,
-  Settings,
-  ShieldCheck,
-  UserRound,
-} from 'lucide-react'
+import { LayoutDashboard, Search } from 'lucide-react'
 import { AppBrandLockup } from '#/components/app/AppBrandLockup'
-import { useSession } from '#/hooks/useSession'
+import { openCommandPalette } from '#/components/app/CommandPalette'
+import { SidebarUserMenu } from '#/components/app/SidebarUserMenu'
+import { Button, Kbd } from '#/components/kit'
 import {
   Sidebar,
   SidebarContent,
@@ -21,117 +15,70 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarRail,
-  SidebarSeparator,
+  SidebarTooltip,
   SidebarTrigger,
   useSidebar,
 } from '#/components/ui/sidebar'
-import { cn } from '#/lib/utils'
+import { useSession } from '#/hooks/useSession'
 import { toolList } from '#/lib/tools/registry'
-import { toolAccentStyle } from '#/lib/tools/styleUtils'
 import { navGroups } from '#/lib/navigation/navGroups'
 import type { NavDestination } from '#/lib/navigation/navGroups'
-
-const accountNavItems = [
-  { label: 'Account', icon: UserRound, route: '/account' },
-  { label: 'Settings', icon: Settings, route: '/settings' },
-] as const
 
 export function AppSidebar() {
   const pathname = useRouterState({
     select: (state) => state.location.pathname,
   })
   const { user } = useSession()
-  const { isMobile, state } = useSidebar()
-  const isCollapsedDesktop = !isMobile && state === 'collapsed'
-  const isDesktopToolRoute =
-    !isMobile && toolList.some((tool) => pathname === tool.route)
-  const visibleGroup = (id: string) =>
-    navGroups.find((candidate) => candidate.id === id)?.destinations ?? []
-  // "Job search" stays owner-only, same as the old "Opportunities" group.
-  // "You" (CV Studio, Profile, History) keeps rendering for guests, same as
-  // the old "Career Tools" + footer items did before the regroup.
-  const jobSearchDestinations = user ? visibleGroup('job-search') : []
-  const youDestinations = visibleGroup('you')
+  const { state } = useSidebar()
+  const collapsed = state === 'collapsed'
+  const group = (id: string) => navGroups.find((candidate) => candidate.id === id)?.destinations ?? []
+  // Job search stays owner-only. The rest renders for guests too.
+  const you = group('you')
+  const history = you.filter((item) => item.route === '/history')
+  const mainDestinations: NavDestination[] = [
+    { label: 'Dashboard', route: '/dashboard', icon: LayoutDashboard },
+    ...(user ? group('job-search') : []),
+    ...you.filter((item) => item.route !== '/history'),
+  ]
 
   return (
-    <Sidebar className="app-sidebar-shell" collapsible="icon">
-      <SidebarHeader className="app-sidebar-header">
-        <div
-          className={cn(
-            'app-sidebar-brand-row',
-            isCollapsedDesktop && 'is-collapsed',
-          )}
-        >
+    <Sidebar collapsible="icon">
+      <SidebarHeader>
+        <div className="app-sidebar__brand-row">
           <Link
             to={pathname === '/dashboard' ? '/' : '/dashboard'}
-            className="app-sidebar-brand-link"
+            className="app-sidebar__brand"
             aria-label="Career Workbench"
           >
-            <AppBrandLockup mode={isCollapsedDesktop ? 'compact' : 'full'} />
+            <AppBrandLockup mode={collapsed ? 'compact' : 'full'} />
           </Link>
-          {isDesktopToolRoute ? null : (
-            <SidebarTrigger
-              className="app-sidebar-brand-toggle"
-              title={isCollapsedDesktop ? 'Expand sidebar' : 'Collapse sidebar'}
-            >
-              {isCollapsedDesktop ? (
-                <ChevronRight className="app-sidebar-brand-toggle-icon" />
-              ) : (
-                <ChevronLeft className="app-sidebar-brand-toggle-icon" />
-              )}
-            </SidebarTrigger>
-          )}
+          <SidebarTrigger />
         </div>
+        <SidebarTooltip tooltip="Search" shortcut="⌘K">
+          <Button
+            variant="secondary"
+            className="app-sidebar__search"
+            aria-label="Search"
+            aria-keyshortcuts="Meta+K Control+K"
+            onClick={openCommandPalette}
+          >
+            <Search aria-hidden />
+            <span className="app-sidebar__search-label">Search</span>
+            <Kbd className="app-sidebar__search-kbd">⌘K</Kbd>
+          </Button>
+        </SidebarTooltip>
       </SidebarHeader>
       <SidebarContent>
-        {isDesktopToolRoute ? (
-          <div className="app-sidebar-tool-back-row">
-            <Link
-              to="/dashboard"
-              className="app-sidebar-tool-back"
-              aria-label="Back to dashboard"
-              title="Back to dashboard"
-            >
-              <ArrowLeft className="app-sidebar-tool-back-icon" />
-            </Link>
-          </div>
-        ) : null}
-        <SidebarGroup>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  asChild
-                  tooltip="Dashboard"
-                  isActive={pathname.startsWith('/dashboard')}
-                  className="app-sidebar-menu-button"
-                >
-                  <Link to="/dashboard">
-                    <LayoutDashboard className="app-sidebar-item-icon" />
-                    <span>Dashboard</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-        <SidebarSeparator />
+        <NavGroup destinations={mainDestinations} pathname={pathname} />
         <SidebarGroup>
           <SidebarGroupLabel>Tools</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {toolList.map((tool) => (
                 <SidebarMenuItem key={tool.id}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={pathname.startsWith(tool.route)}
-                    tooltip={tool.label}
-                    style={toolAccentStyle(tool.accent)}
-                    className="app-sidebar-menu-button"
-                  >
+                  <SidebarMenuButton asChild isActive={pathname.startsWith(tool.route)} tooltip={tool.label}>
                     <Link to={tool.route}>
-                      <tool.icon className="app-sidebar-item-icon" />
+                      <tool.icon aria-hidden />
                       <span>{tool.label}</span>
                     </Link>
                   </SidebarMenuButton>
@@ -140,91 +87,38 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
-        <NavGroupSection label="Job search" destinations={jobSearchDestinations} pathname={pathname} />
-        <NavGroupSection label="You" destinations={youDestinations} pathname={pathname} />
+        <NavGroup destinations={history} pathname={pathname} />
       </SidebarContent>
-      <SidebarFooter className="app-sidebar-footer">
-        <SidebarSeparator />
+      <SidebarFooter>
+        <SidebarUserMenu />
+        <nav className="app-sidebar__legal" aria-label="Legal">
+          <Link to="/privacy">Privacy</Link>
+          <Link to="/terms">Terms</Link>
+          <Link to="/cookies">Cookies</Link>
+        </nav>
+      </SidebarFooter>
+    </Sidebar>
+  )
+}
+
+function NavGroup({ destinations, pathname }: { destinations: NavDestination[]; pathname: string }) {
+  if (destinations.length === 0) return null
+  return (
+    <SidebarGroup>
+      <SidebarGroupContent>
         <SidebarMenu>
-          {accountNavItems.map((item) => (
+          {destinations.map((item) => (
             <SidebarMenuItem key={item.route}>
-              <SidebarMenuButton
-                asChild
-                tooltip={item.label}
-                isActive={pathname.startsWith(item.route)}
-                className="app-sidebar-menu-button app-sidebar-menu-button--footer"
-              >
+              <SidebarMenuButton asChild tooltip={item.label} isActive={pathname.startsWith(item.route)}>
                 <Link to={item.route}>
-                  <item.icon className="app-sidebar-item-icon" />
+                  <item.icon aria-hidden />
                   <span>{item.label}</span>
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
           ))}
-          {user?.is_admin && (
-            <SidebarMenuItem>
-              <SidebarMenuButton
-                asChild
-                tooltip="Admin"
-                isActive={pathname.startsWith('/admin')}
-                className="app-sidebar-menu-button app-sidebar-menu-button--footer"
-              >
-                <Link to="/admin">
-                  <ShieldCheck className="app-sidebar-item-icon" />
-                  <span>Admin</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          )}
         </SidebarMenu>
-        <div className="app-sidebar-legal group-data-[collapsible=icon]:hidden" aria-label="Legal">
-          <Link to="/privacy" className="app-sidebar-legal__link">Privacy</Link>
-          <span className="app-sidebar-legal__sep" aria-hidden="true">·</span>
-          <Link to="/terms" className="app-sidebar-legal__link">Terms</Link>
-          <span className="app-sidebar-legal__sep" aria-hidden="true">·</span>
-          <Link to="/cookies" className="app-sidebar-legal__link">Cookies</Link>
-        </div>
-      </SidebarFooter>
-      {isDesktopToolRoute ? null : <SidebarRail />}
-    </Sidebar>
-  )
-}
-
-function NavGroupSection({
-  label,
-  destinations,
-  pathname,
-}: {
-  label: string
-  destinations: NavDestination[]
-  pathname: string
-}) {
-  if (destinations.length === 0) return null
-  return (
-    <>
-      <SidebarSeparator />
-      <SidebarGroup>
-        <SidebarGroupLabel>{label}</SidebarGroupLabel>
-        <SidebarGroupContent>
-          <SidebarMenu>
-            {destinations.map((item) => (
-              <SidebarMenuItem key={item.route}>
-                <SidebarMenuButton
-                  asChild
-                  tooltip={item.label}
-                  isActive={pathname.startsWith(item.route)}
-                  className="app-sidebar-menu-button"
-                >
-                  <Link to={item.route}>
-                    <item.icon className="app-sidebar-item-icon" />
-                    <span>{item.label}</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            ))}
-          </SidebarMenu>
-        </SidebarGroupContent>
-      </SidebarGroup>
-    </>
+      </SidebarGroupContent>
+    </SidebarGroup>
   )
 }

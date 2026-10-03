@@ -13,9 +13,6 @@ vi.mock('#/lib/api/client', () => ({
   adoptDiscoveryRecommendation: adopt,
 }))
 vi.mock('#/hooks/useSession', () => ({ useSession: () => ({ status: 'authenticated' }) }))
-vi.mock('#/components/ui/motion', () => ({
-  ScrollFadeUp: ({ children }: { children: ReactNode }) => <>{children}</>,
-}))
 vi.mock('@tanstack/react-router', () => ({
   Link: ({ children, to, params, ...props }: { children: ReactNode; to: string; params?: Record<string, string> } & Record<string, unknown>) => (
     <a href={params ? to.replace('$campaignId', params.campaignId) : to} {...props}>{children}</a>
@@ -74,7 +71,7 @@ describe('DashboardToday', () => {
     renderToday()
 
     expect(await screen.findByText('Platform Engineer')).toBeTruthy()
-    expect(screen.getByText('4 of 5 skills')).toBeTruthy()
+    expect(screen.getByLabelText('82% skills fit, 4 of 5 skills')).toBeTruthy()
     expect(screen.getByRole('link', { name: /Platform Engineer/ }).getAttribute('href')).toBe(
       LISTING.source_url,
     )
@@ -129,5 +126,79 @@ describe('DashboardToday', () => {
 
     expect(await screen.findByText('Confirm your skills first')).toBeTruthy()
     expect(screen.getByRole('link', { name: 'Confirm evidence' }).getAttribute('href')).toBe('/profile')
+  })
+
+  it('keeps Add visible at rest: it is not one of the hover-revealed actions', async () => {
+    getToday.mockResolvedValue(plan())
+    renderToday()
+
+    const add = await screen.findByRole('button', { name: 'Add Platform Engineer to applications' })
+    expect(add.closest('.kit-row__reveal')).toBeNull()
+    expect(add.closest('[data-reveal]')).toBeNull()
+  })
+
+  it('leads with what needs action when something does, and with matches when nothing does', async () => {
+    getToday.mockResolvedValue(
+      plan({
+        needs_action: [
+          { application_id: 'a1', title: 'Backend Engineer', company: 'Globex', status: 'interviewing', reason: 'interview', deadline: null, applied_at: null, days_since_applied: null },
+        ],
+        needs_action_total: 1,
+      }),
+    )
+    const { unmount } = renderToday()
+    await screen.findByText('Backend Engineer')
+    const first = screen.getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent)
+    expect(first).toEqual(['Needs action', 'Best matches to add'])
+    unmount()
+
+    getToday.mockResolvedValue(plan())
+    renderToday()
+    await screen.findByText('Platform Engineer')
+    expect(screen.getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent)).toEqual([
+      'Best matches to add',
+      'Needs action',
+    ])
+  })
+
+  it('shows the deadline date of an application due soon', async () => {
+    getToday.mockResolvedValue(
+      plan({
+        needs_action: [
+          { application_id: 'a1', title: 'Backend Engineer', company: 'Globex', status: 'saved', reason: 'deadline', deadline: '2026-10-09T00:00:00Z', applied_at: null, days_since_applied: null },
+        ],
+        needs_action_total: 1,
+      }),
+    )
+    renderToday()
+
+    expect(await screen.findByText('Backend Engineer')).toBeTruthy()
+    expect(screen.getByText(/^Oct 9$|^9 Oct$/)).toBeTruthy()
+  })
+
+  it('says the job could not be added and stays on the page when adding fails', async () => {
+    getToday.mockResolvedValue(plan())
+    adopt.mockRejectedValue(new Error('nope'))
+    renderToday()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Add Platform Engineer to applications' }))
+
+    expect((await screen.findByRole('alert')).textContent).toContain('That job could not be added')
+    expect(navigate).not.toHaveBeenCalled()
+  })
+
+  it('shows busy lists while loading and an error with a retry when it fails', async () => {
+    let reject: (error: Error) => void = () => {}
+    getToday.mockReturnValue(new Promise((_, rej) => { reject = rej }))
+    renderToday()
+
+    const busy = screen.getAllByRole('list', { hidden: true }).filter((list) => list.getAttribute('aria-busy') === 'true')
+    expect(busy.length).toBe(2)
+
+    reject(new Error('down'))
+    expect((await screen.findByRole('alert')).textContent).toContain("couldn't be loaded")
+    getToday.mockResolvedValue(plan())
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
+    expect(await screen.findByText('Platform Engineer')).toBeTruthy()
   })
 })

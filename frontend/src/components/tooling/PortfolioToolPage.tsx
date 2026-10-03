@@ -1,202 +1,56 @@
-import { ArrowRight } from 'lucide-react'
-import { Button } from '#/components/ui/button'
-import { Input } from '#/components/ui/input'
-import { Label } from '#/components/ui/label'
-import { Textarea } from '#/components/ui/textarea'
-import { DropzoneHero } from '#/components/tooling/DropzoneHero'
+import { Field, Input } from '#/components/kit'
+import { ResumeSource } from '#/components/tooling/ResumeSource'
 import {
-  ToolInputHero,
+  ToolForm,
   ToolPageLoading,
   ToolPageShell,
-  ToolStatusInline,
   getSeededFieldNote,
-  useResumeEditorCollapse,
-  useSeededToolPhase,
   useToolPageState,
 } from '#/components/tooling/toolPageShared'
-import { toolAccentStyle } from '#/lib/tools/styleUtils'
 
 export function PortfolioToolPage() {
-  const {
-    tool,
-    config,
-    draft,
-    setField,
-    mutation,
-    bridge,
-    errors,
-    handleSubmit,
-  } = useToolPageState('portfolio')
+  const { tool, config, draft, setField, mutation, bridge, errors, handleSubmit } =
+    useToolPageState('portfolio')
 
   const resumeField = config.fields.find((field) => field.name === 'resumeText')!
   const targetRoleField = config.fields.find((field) => field.name === 'targetRole')!
-  const hasResumeContent = Boolean(draft.resumeText.trim() || bridge.seededResume)
-  const { phase, setPhase } = useSeededToolPhase(hasResumeContent)
-  const { resumeEditorCollapsed, openResumeEditor, collapseResumeEditor } =
-    useResumeEditorCollapse(hasResumeContent, hasResumeContent)
-
-  const heroSubtitle = phase === 'upload'
-    ? 'Start with your current resume, then add the role you want next to generate a project roadmap.'
-    : 'Add the role you want next, review your resume context, and generate a focused project roadmap.'
 
   return (
-    <ToolPageShell
-      toolId="portfolio"
-      bodyClassName="portfolio-bespoke-page"
-      hero={<ToolInputHero toolId="portfolio" subtitle={heroSubtitle} />}
-    >
+    <ToolPageShell toolId="portfolio">
       {mutation.isPending ? (
-        <ToolPageLoading
-          toolId="portfolio"
-          className="portfolio-loading-shell"
-          mutationDone={!mutation.isPending}
-        />
-      ) : phase === 'upload' ? (
-        <>
-          <section className="career-step-shell" style={toolAccentStyle(tool.accent)}>
-            <div className="wizard-step-indicator" aria-label="Portfolio steps">
-              <span className="wizard-step wizard-step--active">1</span>
-              <span className="wizard-step-line" />
-              <span className="wizard-step">2</span>
-            </div>
-            <div className="wizard-step-caption-row wizard-step-caption-row--two-up">
-              <span>Current profile</span>
-              <span>Build roadmap</span>
-            </div>
-          </section>
-
-          <section className="resume-upload-stage">
-            <DropzoneHero
-              accent={tool.accent}
-              onParsed={(text) => {
-                setField('resumeText', text)
-                collapseResumeEditor()
-                setPhase('form')
-              }}
-              onPasteText={() => {
-                openResumeEditor()
-                setPhase('form')
-              }}
-            />
-          </section>
-        </>
+        <ToolPageLoading toolId="portfolio" mutationDone={!mutation.isPending} />
       ) : (
-        <form
-          aria-label={`${tool.label} input form`}
-          className="portfolio-bespoke-form"
-          onSubmit={(event) => {
-            event.preventDefault()
-            handleSubmit()
-          }}
+        <ToolForm
+          label={`${tool.label} input form`}
+          onSubmit={handleSubmit}
+          submitLabel="Generate roadmap"
+          error={mutation.error}
+          pending={mutation.isPending}
         >
-          <section className="career-step-shell" style={toolAccentStyle(tool.accent)}>
-            <div className="wizard-step-indicator" aria-label="Portfolio steps">
-              <span className="wizard-step wizard-step--done">1</span>
-              <span className="wizard-step-line wizard-step-line--done" />
-              <span className="wizard-step wizard-step--active">2</span>
-            </div>
-            <div className="wizard-step-caption-row wizard-step-caption-row--two-up">
-              <span>Current profile</span>
-              <span>Build roadmap</span>
-            </div>
-          </section>
+          <ResumeSource
+            id="portfolio-resumeText"
+            label={resumeField.label}
+            placeholder={resumeField.placeholder}
+            rows={resumeField.rows}
+            value={String(draft.resumeText ?? '')}
+            onChange={(text) => setField('resumeText', text)}
+            seeded={bridge.seededResume}
+            error={errors.resumeText}
+          />
 
-          <section className="portfolio-primary-shell">
-            <div className="grid gap-2">
-              <Label className="tool-field-label" htmlFor="portfolio-targetRole">
-                <span>{targetRoleField.label}</span>
-                <span className="small-copy muted-copy">Required</span>
-              </Label>
-              {getSeededFieldNote('targetRole', bridge) ? (
-                <p className="tool-fs-field-note">
-                  {getSeededFieldNote('targetRole', bridge)}
-                </p>
-              ) : null}
-              <Input
-                id="portfolio-targetRole"
-                aria-invalid={!!errors.targetRole}
-                value={String(draft.targetRole ?? '')}
-                placeholder={targetRoleField.placeholder}
-                onChange={(event) => setField('targetRole', event.target.value as never)}
-              />
-              {errors.targetRole ? (
-                <p className="small-copy" style={{ color: 'var(--destructive)' }}>
-                  {errors.targetRole}
-                </p>
-              ) : null}
-            </div>
-          </section>
-
-          <section className="portfolio-support-shell">
-            <DropzoneHero
-              accent={tool.accent}
-              compact
-              collapseOnSuccess
-              preLoaded={hasResumeContent}
-              preLoadedLabel={bridge.seededResume ? 'Resume carried from previous tool' : undefined}
-              onParsed={(text) => {
-                setField('resumeText', text)
-                collapseResumeEditor()
-              }}
-              onPasteText={() => {
-                openResumeEditor()
-                document.getElementById('portfolio-resumeText')?.focus()
-              }}
+          <Field
+            label={targetRoleField.label}
+            id="portfolio-targetRole"
+            help={getSeededFieldNote('targetRole', bridge) || undefined}
+            error={errors.targetRole}
+          >
+            <Input
+              value={String(draft.targetRole ?? '')}
+              placeholder={targetRoleField.placeholder}
+              onChange={(event) => setField('targetRole', event.target.value as never)}
             />
-            {resumeEditorCollapsed && hasResumeContent ? (
-              <ToolStatusInline
-                label="Resume parsed and ready. Open the extracted text only if you want to adjust it before generating the roadmap."
-                onChangeResume={openResumeEditor}
-              />
-            ) : (
-              <div className="grid gap-2">
-                <Label className="tool-field-label" htmlFor="portfolio-resumeText">
-                  <span>{resumeField.label}</span>
-                  <span className="small-copy muted-copy">Required</span>
-                </Label>
-                {getSeededFieldNote('resumeText', bridge) ? (
-                  <p className="tool-fs-field-note">
-                    {getSeededFieldNote('resumeText', bridge)}
-                  </p>
-                ) : null}
-                <Textarea
-                  id="portfolio-resumeText"
-                  rows={resumeField.rows}
-                  className="resume-paste-textarea"
-                  aria-invalid={!!errors.resumeText}
-                  value={String(draft.resumeText ?? '')}
-                  placeholder={resumeField.placeholder}
-                  onChange={(event) => setField('resumeText', event.target.value as never)}
-                />
-                {errors.resumeText ? (
-                  <p className="small-copy" style={{ color: 'var(--destructive)' }}>
-                    {errors.resumeText}
-                  </p>
-                ) : null}
-              </div>
-            )}
-          </section>
-
-          <div className="tool-fs-footer">
-            {mutation.error ? (
-              <p className="tool-inline-error small-copy" style={{ color: 'var(--destructive)' }}>
-                {mutation.error instanceof Error ? mutation.error.message : 'This run failed.'}
-              </p>
-            ) : null}
-            <div className="tool-fs-submit-row">
-              <Button
-                type="submit"
-                size="lg"
-                className="tool-fs-submit-button"
-                style={{ background: tool.accent, color: '#ffffff' }}
-                disabled={mutation.isPending}
-              >
-                Generate roadmap
-                <ArrowRight size={16} />
-              </Button>
-            </div>
-          </div>
-        </form>
+          </Field>
+        </ToolForm>
       )}
     </ToolPageShell>
   )

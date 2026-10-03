@@ -1,13 +1,11 @@
 import '#/lib/i18n'
 import { type ReactNode, useEffect } from 'react'
 import { HeadContent, Outlet, Scripts, createRootRoute } from '@tanstack/react-router'
-import { useRouterState } from '@tanstack/react-router'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { AppNotFound } from '#/components/app/AppNotFound'
 import { AppRouteError } from '#/components/app/AppRouteError'
 import { AppShell } from '#/components/app/AppShell'
 import { CookieConsent } from '#/components/app/CookieConsent'
-import { AnimatePresence, motion, MotionConfig } from '#/components/ui/motion'
 import { SessionProvider } from '#/lib/auth/session'
 import { queryClient } from '#/lib/query/queryClient'
 import appCss from '#/styles.css?url'
@@ -29,22 +27,22 @@ export const Route = createRootRoute({
       },
       { property: 'og:type', content: 'website' },
       { name: 'twitter:card', content: 'summary' },
-      { name: 'theme-color', content: '#0a0a0a' },
+      { name: 'theme-color', content: '#f6f3ec' },
       { name: 'apple-mobile-web-app-capable', content: 'yes' },
-      { name: 'apple-mobile-web-app-status-bar-style', content: 'black-translucent' },
+      { name: 'apple-mobile-web-app-status-bar-style', content: 'default' },
     ],
     links: [
       { rel: 'preconnect', href: 'https://fonts.googleapis.com' },
       { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossOrigin: 'anonymous' },
       {
         rel: 'stylesheet',
-        href: 'https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap',
+        href: 'https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400..700&family=Newsreader:opsz,wght@6..72,400..600&family=Space+Grotesk:wght@400..700&display=swap',
       },
       { rel: 'stylesheet', href: appCss },
-      { rel: 'icon', href: '/favicon.png?v=3', type: 'image/png', sizes: '299x299' },
-      { rel: 'icon', href: '/favicon.ico?v=3', type: 'image/x-icon' },
+      { rel: 'icon', href: '/favicon.svg?v=4', type: 'image/svg+xml', sizes: 'any' },
+      { rel: 'icon', href: '/favicon.ico?v=4', type: 'image/x-icon', sizes: '48x48' },
       { rel: 'manifest', href: '/manifest.json' },
-      { rel: 'apple-touch-icon', href: '/favicon.png?v=3', sizes: '299x299' },
+      { rel: 'apple-touch-icon', href: '/apple-touch-icon.png?v=4', sizes: '180x180' },
     ],
   }),
   shellComponent: RootDocument,
@@ -53,23 +51,6 @@ export const Route = createRootRoute({
     <AppRouteError error={error} reset={reset} />
   ),
 })
-
-function PageTransition({ children }: { children: ReactNode }) {
-  const pathname = useRouterState({ select: (s) => s.location.pathname })
-  return (
-    <AnimatePresence mode="wait" initial={false}>
-      <motion.div
-        key={pathname}
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        transition={{ duration: 0.15, ease: 'easeOut' }}
-      >
-        {children}
-      </motion.div>
-    </AnimatePresence>
-  )
-}
 
 function RootDocument({ children }: { children: ReactNode }) {
   useEffect(() => {
@@ -135,12 +116,10 @@ function RootDocument({ children }: { children: ReactNode }) {
       <body>
         <QueryClientProvider client={queryClient}>
           <SessionProvider>
-            <MotionConfig reducedMotion="user">
               <AppShell>
-                <PageTransition>{children || <Outlet />}</PageTransition>
+                {children || <Outlet />}
               </AppShell>
               <CookieConsent />
-            </MotionConfig>
           </SessionProvider>
         </QueryClientProvider>
         <Scripts />

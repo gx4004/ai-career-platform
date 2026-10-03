@@ -151,7 +151,7 @@ test('guest demo results show expired state after clearing sessionStorage', asyn
   }, demoId)
   await page.reload()
 
-  await expect(page.getByText(/Demo expired/i)).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'This guest demo is no longer available' })).toBeVisible()
   await expect(page.getByRole('link', { name: /Run the tool again/i })).toBeVisible()
 })
 
@@ -203,7 +203,7 @@ test('retry recovers from a transient request failure without duplicating the ru
   expect(attempts).toBe(3)
 
   await gotoHydrated(page, '/history')
-  await expect(page.locator('.page-hero__chips')).toContainText('1 run')
+  await expect(page.locator('.kit-page-header__meta')).toContainText('1 run')
 })
 
 test('malformed success responses explain that the service returned an unexpected result', async ({

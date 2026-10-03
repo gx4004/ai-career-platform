@@ -43,12 +43,7 @@ export function LandingExperimentPage() {
   }
 
   return (
-    <div className="landing-page landing-page-experiment lp-redesign premium-corner-canvas" id="landing-experiment">
-      {/* Ambient: two slow-drifting blurred orbs (perpetual micro-motion) */}
-      <div className="lp-ambient" aria-hidden="true">
-        <div className="lp-ambient-orb lp-ambient-orb-1" />
-        <div className="lp-ambient-orb lp-ambient-orb-2" />
-      </div>
+    <div className="landing-page landing-page-experiment lp-redesign" id="landing-experiment">
       <LandingTubelightNavbar
         items={experimentItems}
         sectionIds={SECTION_IDS}
@@ -57,7 +52,7 @@ export function LandingExperimentPage() {
         signInLabel="Sign in"
         signInTo="/login"
         brand={
-          <Link to="/" className="inline-flex items-center">
+          <Link to="/" className="inline-flex items-center" aria-label="Career Workbench home">
             <AppBrandLockup mode="compact" />
           </Link>
         }

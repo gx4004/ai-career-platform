@@ -39,19 +39,6 @@ vi.mock('#/hooks/use-resume-carry', () => ({
   }),
 }))
 
-vi.mock('#/components/app/AppStatePanel', () => ({
-  AppStatePanel: ({ title, actions }: { title: string; actions: { label: string; onClick?: () => void }[] }) => (
-    <div>
-      <h1>{title}</h1>
-      {actions.map((a) => (
-        <button key={a.label} onClick={a.onClick}>
-          {a.label}
-        </button>
-      ))}
-    </div>
-  ),
-}))
-
 vi.mock('@tanstack/react-router', () => ({
   Link: ({ children, to }: { children: ReactNode; to: string }) => <a href={to}>{children}</a>,
 }))
@@ -96,11 +83,6 @@ function renderPage() {
   )
 }
 
-async function openMenu(name: string) {
-  fireEvent.keyDown(await screen.findByRole('button', { name }), { key: 'Enter' })
-  return screen.findByRole('menu')
-}
-
 describe('EvidenceProfilePage', () => {
   beforeEach(() => {
     sessionState.status = 'authenticated'
@@ -121,10 +103,11 @@ describe('EvidenceProfilePage', () => {
     renderPage()
 
     const suggestions = await screen.findByRole('list', { name: 'Suggestions to review' })
-    expect(within(suggestions).getAllByRole('listitem')).toHaveLength(2)
-    const skills = await screen.findByRole('region', { name: 'Skills' })
+    // A row's own source line is a list too, so count the list's direct rows.
+    expect(suggestions.querySelectorAll(':scope > li')).toHaveLength(2)
+    const skills = await screen.findByRole('list', { name: 'Skills' })
     expect(within(skills).getByText('TypeScript')).toBeTruthy()
-    expect(screen.queryByRole('region', { name: 'Experience' })).toBeNull()
+    expect(screen.queryByRole('list', { name: 'Experience' })).toBeNull()
     expect(screen.getAllByText('Backend Engineer')).toHaveLength(1)
   })
 
@@ -136,11 +119,19 @@ describe('EvidenceProfilePage', () => {
     await waitFor(() => expect(api.confirmEvidenceItem).toHaveBeenCalledWith('e1'))
   })
 
-  it('dismissing a suggestion from its menu deletes it', async () => {
+  it('tells the owner when saving a suggestion fails', async () => {
+    api.confirmEvidenceItem.mockRejectedValueOnce(new Error('Could not save.'))
     renderPage()
 
-    const menu = await openMenu('More actions: Backend Engineer')
-    fireEvent.click(within(menu).getByRole('menuitem', { name: /Dismiss/ }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Save: Backend Engineer' }))
+
+    expect((await screen.findByRole('alert')).textContent).toContain('Could not save.')
+  })
+
+  it('dismissing a suggestion inline deletes it', async () => {
+    renderPage()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Dismiss: Backend Engineer' }))
 
     await waitFor(() => expect(api.deleteEvidenceItem).toHaveBeenCalledWith('e1'))
     expect(api.confirmEvidenceItem).not.toHaveBeenCalled()
@@ -172,9 +163,8 @@ describe('EvidenceProfilePage', () => {
     renderPage()
     await waitFor(() => expect(warmRecommendationsFetchMock).toHaveBeenCalledTimes(1))
 
-    const menu = await openMenu('More actions: TypeScript')
-    fireEvent.click(within(menu).getByRole('menuitem', { name: /Delete/ }))
-    const dialog = await screen.findByRole('dialog')
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete: TypeScript' }))
+    const dialog = await screen.findByRole('alertdialog')
     fireEvent.click(within(dialog).getByRole('button', { name: /Delete fact/ }))
 
     await waitFor(() => expect(api.deleteEvidenceItem).toHaveBeenCalledWith('s1'))
@@ -185,7 +175,7 @@ describe('EvidenceProfilePage', () => {
     renderPage()
 
     fireEvent.click(await screen.findByRole('button', { name: /Delete profile/ }))
-    const dialog = await screen.findByRole('dialog')
+    const dialog = await screen.findByRole('alertdialog')
     fireEvent.click(within(dialog).getByRole('button', { name: /Delete everything/ }))
 
     await waitFor(() => expect(api.deleteEvidenceProfile).toHaveBeenCalledOnce())

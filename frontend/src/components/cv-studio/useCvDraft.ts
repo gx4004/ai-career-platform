@@ -13,7 +13,7 @@ const AUTOSAVE_DELAY_MS = 650
  * style catalog, and autosaves every edit (debounced, and serialized so an older
  * PATCH can never commit after a newer one).
  */
-export function useCvDraft(enabled: boolean, onSaveError: (message: string) => void) {
+export function useCvDraft(enabled: boolean) {
   const queryClient = useQueryClient()
   const [documentId, setDocumentId] = useState<string | null>(null)
   const [draft, setDraft] = useState<CvDocument | null>(null)
@@ -21,8 +21,6 @@ export function useCvDraft(enabled: boolean, onSaveError: (message: string) => v
   const [saveState, setSaveState] = useState<SaveState>('idle')
   const saveGeneration = useRef(0)
   const saveQueue = useRef<Promise<CvDocument | undefined>>(Promise.resolve(undefined))
-  const onSaveErrorRef = useRef(onSaveError)
-  useEffect(() => { onSaveErrorRef.current = onSaveError })
 
   const listQuery = useQuery({ queryKey: LIST_KEY, queryFn: listCvDocuments, enabled })
   useEffect(() => {
@@ -68,10 +66,9 @@ export function useCvDraft(enabled: boolean, onSaveError: (message: string) => v
         }
         setDirty(false)
         setSaveState('saved')
-      } catch (error) {
+      } catch {
         if (generation !== saveGeneration.current) return
         setSaveState('error')
-        onSaveErrorRef.current(error instanceof Error ? error.message : 'Your latest changes could not be saved.')
       }
     }, AUTOSAVE_DELAY_MS)
     return () => window.clearTimeout(timer)
@@ -81,6 +78,11 @@ export function useCvDraft(enabled: boolean, onSaveError: (message: string) => v
     setDraft((current) => current ? change(current) : current)
     setDirty(true)
     setSaveState('saving')
+  }
+
+  /** Save again after a failed save: a fresh copy of the draft restarts the autosave. */
+  function retrySave() {
+    setDraft((current) => current && { ...current })
   }
 
   /** Open another document (or none): drops the current draft without saving it again. */
@@ -97,5 +99,5 @@ export function useCvDraft(enabled: boolean, onSaveError: (message: string) => v
     setSaveState('saved')
   }
 
-  return { listQuery, documentQuery, catalogQuery, documentId, draft, dirty, saveState, edit, open, replace }
+  return { listQuery, documentQuery, catalogQuery, documentId, draft, dirty, saveState, edit, open, replace, retrySave }
 }

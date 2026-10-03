@@ -1,28 +1,24 @@
-import type { CSSProperties } from 'react'
+import { ScoreBar } from '#/components/kit'
 import type { DiscoveryListing } from '#/lib/api/schemas'
 
-/** Skills fit with its sample size, shared by Discovery and the dashboard. */
+/**
+ * Skills fit as a thin bar with its number. The sample size ("2 of 3 skills") is in the accessible
+ * name and in the detail drawer: a varying visible suffix would stop the bars of a column of rows lining up.
+ */
 export function SkillsFit({ listing }: { listing: DiscoveryListing }) {
   if (listing.skills_fit === null) return null
-  const tone = listing.skills_fit >= 70 ? 'good' : listing.skills_fit >= 41 ? 'fair' : 'low'
   const total = listing.matched_skills.length + listing.missing_skills.length
-  const sample = `${listing.matched_skills.length} of ${total} skills`
+  const sample = `${listing.matched_skills.length} of ${total} skill${total === 1 ? '' : 's'}`
+  // A figure space pads "82" to the width of "100" (tabular numerals), so the bars of a column of rows start together.
+  const number = String(listing.skills_fit).padStart(3, '\u2007')
   return (
-    <div className={`disc-score disc-score--${tone}`} aria-label={`${listing.skills_fit}% skills fit, ${sample}`}>
-      <strong>{listing.skills_fit}%</strong>
-      <span>skills fit</span>
-      <small className="disc-score__n">{sample}</small>
-    </div>
-  )
-}
-
-const AVATAR_HUES = [211, 199, 226, 187, 240, 172]
-
-export function CompanyAvatar({ name }: { name: string }) {
-  const hue = AVATAR_HUES[[...name].reduce((sum, char) => sum + char.charCodeAt(0), 0) % AVATAR_HUES.length]
-  return (
-    <span className="disc-avatar" style={{ '--avatar-hue': hue } as CSSProperties} aria-hidden="true">
-      {name.trim().charAt(0).toUpperCase() || '?'}
-    </span>
+    <ScoreBar
+      aria-label={`${listing.skills_fit}% skills fit, ${sample}`}
+      layout="inline"
+      size="sm"
+      lowTone="neutral"
+      value={listing.skills_fit}
+      valueLabel={`${number}% skills fit`}
+    />
   )
 }

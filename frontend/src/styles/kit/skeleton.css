@@ -1,0 +1,201 @@
+/*
+ * Skeleton. Calm placeholders: flat tint, a slow opacity pulse, nothing sweeping across them, and no
+ * motion at all under reduced motion. Heights come from the same tokens as Row, Card and Stat.
+ */
+
+@keyframes kit-skeleton-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.55;
+  }
+}
+
+.kit-skeleton__bar {
+  display: block;
+  inline-size: 100%;
+  block-size: 0.75rem;
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+  animation: kit-skeleton-pulse 2.2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kit-skeleton__bar {
+    animation: none;
+  }
+}
+
+/* A line sits in a box as tall as the text it stands for. */
+.kit-skeleton__line {
+  display: flex;
+  align-items: center;
+  min-inline-size: 0;
+  block-size: var(--lh-body);
+}
+
+.kit-skeleton__line[data-size='meta'] {
+  block-size: var(--lh-meta);
+}
+
+.kit-skeleton__line[data-size='meta'] > .kit-skeleton__bar {
+  block-size: 0.5rem;
+}
+
+.kit-skeleton__line[data-size='title'] {
+  block-size: var(--lh-title);
+}
+
+.kit-skeleton__line[data-size='title'] > .kit-skeleton__bar {
+  block-size: 1rem;
+}
+
+.kit-skeleton__line[data-size='display'] {
+  block-size: var(--lh-display);
+}
+
+.kit-skeleton__line[data-size='display'] > .kit-skeleton__bar {
+  block-size: 1.5rem;
+}
+
+.kit-skeleton--lines {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.kit-skeleton--block {
+  display: block;
+  min-width: 0;
+}
+
+.kit-skeleton--block > .kit-skeleton__bar {
+  block-size: 100%;
+  min-block-size: 0.75rem;
+}
+
+/* Rows: the same box as a Row, hairline between them. */
+.kit-skeleton--rows {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.kit-skeleton__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  box-sizing: border-box;
+  min-width: 0;
+  min-height: var(--kit-row-h-lg);
+  margin: 0;
+  padding: var(--space-1) var(--space-2) var(--space-1) calc(var(--space-2) - 2px);
+  border-inline-start: 2px solid transparent;
+  list-style: none;
+}
+
+.kit-skeleton__row[data-density='compact'] {
+  min-height: var(--kit-row-h-md);
+}
+
+.kit-skeleton__row + .kit-skeleton__row {
+  background-image: linear-gradient(var(--divider), var(--divider));
+  background-repeat: no-repeat;
+  background-position: top;
+  background-size: 100% 1px;
+  background-origin: border-box;
+}
+
+.kit-skeleton__row > .kit-skeleton__leading {
+  flex: none;
+  inline-size: 1.75rem;
+  block-size: 1.75rem;
+}
+
+.kit-skeleton__text {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+}
+
+.kit-skeleton__row > .kit-skeleton__trail {
+  flex: none;
+  inline-size: 3.5rem;
+  block-size: 0.75rem;
+}
+
+/* Cards: the same box as a Card holding a title line and a meta line. */
+.kit-skeleton--cards {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.kit-skeleton__card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  box-sizing: border-box;
+  min-width: 0;
+  padding: var(--kit-card-py) var(--kit-card-px);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-lg);
+  background: var(--surface-raised);
+}
+
+/* Stats: value line plus label line, as in Stat. */
+.kit-skeleton--stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4) var(--space-8);
+  min-width: 0;
+}
+
+.kit-skeleton__stat {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+/* Page: header and two sections. */
+.kit-skeleton--page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-section);
+  min-width: 0;
+}
+
+.kit-skeleton__header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding-block-end: var(--space-4);
+  margin-block-end: calc(var(--space-2) * -1);
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.kit-skeleton__section {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.kit-skeleton__section-head {
+  display: flex;
+  align-items: center;
+  min-height: var(--control-sm);
+  padding-block-end: var(--space-2);
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.kit-skeleton__rows {
+  display: flex;
+  flex-direction: column;
+}

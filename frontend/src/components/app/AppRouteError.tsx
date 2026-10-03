@@ -1,5 +1,4 @@
 import { useEffect } from 'react'
-import { AlertTriangle, RefreshCw } from 'lucide-react'
 import { AppStatePanel } from '#/components/app/AppStatePanel'
 import { captureAppError } from '#/lib/telemetry/client'
 
@@ -37,36 +36,29 @@ export function AppRouteError({
 
   if (chunkLoadFailure) {
     return (
-      <div className="error-gradient-bg">
-        <AppStatePanel
-          badge="Update required"
-          icon={<RefreshCw size={48} style={{ color: 'var(--accent)' }} />}
-          title="The app was updated in the background"
-          description="This page is using an older route bundle. Reload to fetch the latest version and retry your result."
-          detail={error.message}
-          actions={[
-            { label: 'Reload app', onClick: () => window.location.reload() },
-            { label: 'Go to dashboard', to: '/dashboard', variant: 'outline' },
-          ]}
-        />
-      </div>
+      <AppStatePanel
+        badge="Update required"
+        title="The app was updated in the background"
+        description="This page is using an older route bundle. Reload to fetch the latest version and retry your result."
+        detail={error.message}
+        actions={[
+          { label: 'Reload app', onClick: () => window.location.reload() },
+          { label: 'Go to dashboard', to: '/dashboard', variant: 'outline' },
+        ]}
+      />
     )
   }
 
   return (
-    <div className="error-gradient-bg">
-      <AppStatePanel
-        badge="Route error"
-        scene="emptyPlanning"
-        icon={<AlertTriangle size={48} style={{ color: 'var(--warning)' }} />}
-        title="This route failed to load"
-        description="A rendering or data-loading error interrupted the page."
-        detail={error.message}
-        actions={[
-          { label: 'Try again', onClick: reset },
-          { label: 'Go to dashboard', to: '/dashboard', variant: 'outline' },
-        ]}
-      />
-    </div>
+    <AppStatePanel
+      badge="Route error"
+      title="This route failed to load"
+      description="A rendering or data-loading error interrupted the page."
+      detail={error.message}
+      actions={[
+        { label: 'Try again', onClick: reset },
+        { label: 'Go to dashboard', to: '/dashboard', variant: 'outline' },
+      ]}
+    />
   )
 }

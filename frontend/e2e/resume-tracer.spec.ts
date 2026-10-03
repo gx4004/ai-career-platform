@@ -54,7 +54,7 @@ async function register(page: import('@playwright/test').Page, prefix: string) {
 
 test('guest resume result stays transient after account creation', async ({ page }) => {
   await submitResume(page)
-  await expect(page.getByText('Resume Analyzer · Guest demo')).toBeVisible()
+  await expect(page.getByText('Guest demo', { exact: true })).toBeVisible()
 
   await register(page, 'guest-tracer')
   await page.goto('/history')
@@ -66,12 +66,12 @@ test('authenticated resume result persists and can be revisited', async ({ page 
   await register(page, 'auth-tracer')
   await submitResume(page)
 
-  await expect(page.getByText('Resume Analyzer · Guest demo')).toHaveCount(0)
+  await expect(page.getByText('Guest demo', { exact: true })).toHaveCount(0)
   const resultUrl = page.url()
 
   await page.goto('/history')
-  await expect(page.getByRole('link', { name: /^Open / }).first()).toBeVisible()
+  await expect(page.getByRole('list', { name: 'Saved runs' }).getByRole('link').first()).toBeVisible()
 
   await page.goto(resultUrl)
-  await expect(page.getByRole('img', { name: /Resume score:/ })).toBeVisible()
+  await expect(page.getByRole('term').filter({ hasText: 'Resume score' })).toBeVisible()
 })

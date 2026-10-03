@@ -1,6 +1,20 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import type { ReactNode } from 'react'
 import { ArrowLeft, ArrowRight, Send, RotateCcw } from 'lucide-react'
-import { Button } from '#/components/ui/button'
+import {
+  Badge,
+  Button,
+  Cluster,
+  Count,
+  Field,
+  KeyValue,
+  Lead,
+  Notice,
+  Section,
+  Stack,
+  Textarea,
+} from '#/components/kit'
+import { Lines, Prose, ResultList } from '#/components/tooling/ResultParts'
 import { runInterviewPracticeFeedback } from '#/lib/api/client'
 import type { InterviewPracticeFeedback } from '#/lib/api/schemas'
 
@@ -12,6 +26,15 @@ interface Question {
   focusArea?: string
   answer?: string
   keyPoints?: string[]
+}
+
+function FeedbackList({ title, items }: { title: string; items: string[] }) {
+  if (items.length === 0) return null
+  return (
+    <Section headingLevel={3} size="sm" title={title} rule={false}>
+      <ResultList label={title} items={items.map((item, i) => ({ key: `${i}-${item}`, title: item }))} />
+    </Section>
+  )
 }
 
 export function InterviewPracticeMode({
@@ -32,6 +55,13 @@ export function InterviewPracticeMode({
       return stored ? JSON.parse(stored) : {}
     } catch { return {} }
   })
+
+  const questionRef = useRef<HTMLParagraphElement | null>(null)
+
+  // Switching from the report to practice replaces the button that was just pressed: start at the question.
+  useEffect(() => {
+    questionRef.current?.focus()
+  }, [])
 
   const current = questions[currentIndex]
   if (!current) return null
@@ -95,129 +125,110 @@ export function InterviewPracticeMode({
     }
   }
 
-  return (
-    <div className="practice-mode">
-      <div className="practice-mode-header">
-        <Button variant="ghost" size="sm" onClick={onExit}>
-          <ArrowLeft size={14} /> Back to results
-        </Button>
-        <span className="practice-mode-progress">
-          {currentIndex + 1} / {questions.length}
-        </span>
-      </div>
+  const modelAnswerBlocks: ReactNode = (
+    <KeyValue
+      divided={false}
+      labelWidth="7rem"
+      items={[
+        ...(current.answerStructure?.length
+          ? [{ label: 'Structure', value: <Lines items={current.answerStructure} /> }]
+          : []),
+        ...(current.keyPoints?.length ? [{ label: 'Key points', value: <Lines items={current.keyPoints} /> }] : []),
+      ]}
+    />
+  )
 
-      <div className="practice-mode-question">
-        <div className="practice-mode-difficulty">
-          {current.focusArea || 'Question'}
-        </div>
-        <h3>{questionText}</h3>
-        <span className="practice-mode-attempt-label">
-          Attempt {Math.min(attemptCount + 1, MAX_ATTEMPTS)} / {MAX_ATTEMPTS}
-        </span>
-      </div>
+  return (
+    <Stack gap={6}>
+      <Cluster justify="between">
+        <Button type="button" variant="link" className="tool-link" onClick={onExit}>
+          <ArrowLeft aria-hidden="true" />
+          Back to results
+        </Button>
+        <Count value={`${currentIndex + 1} / ${questions.length}`} aria-label={`Question ${currentIndex + 1} of ${questions.length}`} />
+      </Cluster>
+
+      <Stack gap={2} aria-live="polite" aria-atomic="true">
+        <Cluster>
+          <Badge>{current.focusArea || 'Question'}</Badge>
+          <Count value={`Attempt ${Math.min(attemptCount + 1, MAX_ATTEMPTS)} / ${MAX_ATTEMPTS}`} />
+        </Cluster>
+        <Lead ref={questionRef} tabIndex={-1}>
+          {questionText}
+        </Lead>
+      </Stack>
 
       {maxedOut ? (
-        <div className="practice-mode-maxed">
-          <h4>Maximum attempts reached</h4>
-          <p>Here's the model answer for this question:</p>
-          {current.answer ? (
-            <div className="practice-mode-ideal-answer practice-mode-ideal-answer--body">
-              {current.answer}
+        <Section headingLevel={2} title="Maximum attempts reached" description="Here's the model answer for this question:">
+          <Stack gap={3}>
+            {current.answer ? <Prose>{current.answer}</Prose> : null}
+            {modelAnswerBlocks}
+            <div>
+              <Button type="button" onClick={goNext} disabled={currentIndex >= questions.length - 1}>
+                Move to next question
+                <ArrowRight aria-hidden="true" />
+              </Button>
             </div>
-          ) : null}
-          {current.answerStructure?.length ? (
-            <div className="practice-mode-ideal-block">
-              <span className="practice-mode-ideal-block__label">Structure</span>
-              <ul className="practice-mode-ideal-list">
-                {current.answerStructure.map((step) => (
-                  <li key={step}>{step}</li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
-          {current.keyPoints?.length ? (
-            <div className="practice-mode-ideal-block">
-              <span className="practice-mode-ideal-block__label">Key points</span>
-              <ul className="practice-mode-ideal-list">
-                {current.keyPoints.map((point) => (
-                  <li key={point}>{point}</li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
-          <Button onClick={goNext} disabled={currentIndex >= questions.length - 1}>
-            Move to next question <ArrowRight size={14} />
-          </Button>
-        </div>
+          </Stack>
+        </Section>
       ) : (
-        <>
-          <textarea
-            className="practice-mode-answer"
-            placeholder="Type your answer here..."
-            value={answer}
-            onChange={(e) => setAnswer(e.target.value)}
-            rows={6}
-            disabled={loading}
-          />
-
-          <div className="practice-mode-actions">
-            <Button
-              onClick={handleSubmit}
+        <Stack gap={3}>
+          <Field label="Your answer">
+            <Textarea
+              placeholder="Type your answer here..."
+              value={answer}
+              onChange={(e) => setAnswer(e.target.value)}
+              rows={6}
               disabled={loading}
-              size="sm"
-            >
-              {loading ? 'Evaluating...' : <><Send size={14} /> Submit answer</>}
+            />
+          </Field>
+          <Cluster>
+            <Button type="button" onClick={handleSubmit} loading={loading}>
+              <Send aria-hidden="true" />
+              {loading ? 'Evaluating...' : 'Submit answer'}
             </Button>
             {feedback && attemptCount < MAX_ATTEMPTS && (
-              <Button variant="outline" size="sm" onClick={() => { setAnswer(''); setFeedback(null); setError(null) }}>
-                <RotateCcw size={14} /> Try again
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => {
+                  setAnswer('')
+                  setFeedback(null)
+                  setError(null)
+                }}
+              >
+                <RotateCcw aria-hidden="true" />
+                Try again
               </Button>
             )}
-          </div>
-
-          {error && !loading && (
-            <div className="practice-mode-error" role="alert">
-              {error}
-            </div>
-          )}
-        </>
+          </Cluster>
+          {error && !loading ? <Notice tone="danger">{error}</Notice> : null}
+        </Stack>
       )}
 
-      {feedback && !maxedOut && (
-        <div className="practice-mode-feedback">
-          <p className="practice-mode-overall">{feedback.overall_feedback}</p>
-
-          {feedback.strengths.length > 0 && (
-            <div className="practice-feedback-section practice-feedback-strengths">
-              <h4>Strengths</h4>
-              <ul>{feedback.strengths.map((s, i) => <li key={i}>{s}</li>)}</ul>
-            </div>
-          )}
-
-          {feedback.weaknesses.length > 0 && (
-            <div className="practice-feedback-section practice-feedback-weaknesses">
-              <h4>Areas to improve</h4>
-              <ul>{feedback.weaknesses.map((w, i) => <li key={i}>{w}</li>)}</ul>
-            </div>
-          )}
-
-          {feedback.suggestions.length > 0 && (
-            <div className="practice-feedback-section practice-feedback-suggestions">
-              <h4>Suggestions</h4>
-              <ul>{feedback.suggestions.map((s, i) => <li key={i}>{s}</li>)}</ul>
-            </div>
-          )}
-        </div>
-      )}
-
-      <div className="practice-mode-nav">
-        <Button variant="outline" size="sm" onClick={goPrev} disabled={currentIndex === 0}>
-          <ArrowLeft size={14} /> Previous
-        </Button>
-        <Button variant="outline" size="sm" onClick={goNext} disabled={currentIndex >= questions.length - 1}>
-          Next <ArrowRight size={14} />
-        </Button>
+      <div aria-live="polite">
+        {feedback && !maxedOut && (
+          <Section headingLevel={2} title="Feedback">
+            <Stack gap={6}>
+              <Prose>{feedback.overall_feedback}</Prose>
+              <FeedbackList title="Strengths" items={feedback.strengths} />
+              <FeedbackList title="Areas to improve" items={feedback.weaknesses} />
+              <FeedbackList title="Suggestions" items={feedback.suggestions} />
+            </Stack>
+          </Section>
+        )}
       </div>
-    </div>
+
+      <Cluster justify="between">
+        <Button type="button" variant="secondary" onClick={goPrev} disabled={currentIndex === 0}>
+          <ArrowLeft aria-hidden="true" />
+          Previous
+        </Button>
+        <Button type="button" variant="secondary" onClick={goNext} disabled={currentIndex >= questions.length - 1}>
+          Next
+          <ArrowRight aria-hidden="true" />
+        </Button>
+      </Cluster>
+    </Stack>
   )
 }

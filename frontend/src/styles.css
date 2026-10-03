@@ -1,24 +1,21 @@
 /* Google Fonts moved to <link> tags in __root.tsx for non-render-blocking load */
 @import 'tailwindcss';
 @import './styles/theme.css';
-@import './styles/design-system.css';
 @import './styles/base.css';
 @import './styles/typography.css';
-@import './styles/animations.css';
 @import './styles/shell.css';
 @import './styles/landing.css';
 @import './styles/dashboard.css';
 @import './styles/tooling.css';
-@import './styles/tooling-fullscreen.css';
 @import './styles/results.css';
-@import './styles/workspace.css';
 @import './styles/history.css';
+@import './styles/settings.css';
 @import './styles/applications.css';
 @import './styles/discovery.css';
 @import './styles/auth.css';
-@import './styles/responsive.css';
-@import './styles/settings.css';
 @import './styles/profile.css';
 @import './styles/cv-studio.css';
 @import './styles/admin.css';
 @import './styles/legal.css';
+/* Kit: loaded after every legacy file; all selectors carry the kit- prefix. */
+@import './styles/kit/index.css';

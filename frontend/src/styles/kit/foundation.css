@@ -1,0 +1,67 @@
+/*
+ * Kit foundation: helpers shared by every kit family.
+ * All kit rules carry the kit- prefix so they never fight legacy selectors.
+ * No importance overrides, no literal colours: tokens from styles/theme.css only.
+ */
+
+:root {
+  /* Control heights. One scale for buttons, inputs, selects, segmented. */
+  --kit-h-sm: var(--control-sm);
+  --kit-h-md: var(--control-md);
+  --kit-h-lg: var(--control-lg);
+}
+
+/*
+ * Breakpoints (media queries cannot read custom properties, so this is the one place they are named):
+ *   compact  max-width 767px  page gutters, Toolbar filters in a Sheet, State phone layout, Sheet becomes a bottom sheet
+ *   tab-bar  max-width 639px  the mobile tab bar exists (hooks/use-breakpoint MOBILE_MAX): Page and Toast clear it
+ * Anything else is a container query on the component itself (Table 40rem, Split 56rem, List/Row 32rem).
+ */
+
+/* Touch devices: every control grows to the 44px target. */
+@media (pointer: coarse) {
+  :root {
+    --kit-h-sm: var(--touch-target);
+    --kit-h-md: var(--touch-target);
+    --kit-h-lg: var(--touch-target);
+  }
+}
+
+/*
+ * Structure geometry. Rows, skeletons, cards and stats read the same tokens, so a
+ * loading placeholder is exactly as tall as the thing it stands in for.
+ */
+:root {
+  --kit-row-h-md: var(--row-h); /* compact row, 36 */
+  --kit-row-h-lg: var(--row-h-lg); /* comfortable row, 44 */
+  --kit-page-w-narrow: 62rem;
+  --kit-page-w-default: 75rem;
+  --kit-page-w-wide: 90rem;
+  --kit-rail-w: 17.5rem;
+  --kit-card-px: var(--space-4);
+  --kit-card-py: var(--space-3);
+}
+
+@media (pointer: coarse) {
+  :root {
+    --kit-row-h-md: var(--touch-target);
+  }
+}
+
+.kit-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  white-space: nowrap;
+  clip-path: inset(50%);
+}
+
+@keyframes kit-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

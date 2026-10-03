@@ -37,7 +37,7 @@ function renderBoard() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
   return render(<QueryClientProvider client={client}><ApplicationsPage /></QueryClientProvider>)
 }
-const column = (name: string) => screen.getByRole('heading', { name, level: 2 }).closest('section') as HTMLElement
+const column = (name: string) => screen.getByRole('heading', { name: new RegExp(`^${name}\\b`), level: 2 }).closest('section') as HTMLElement
 async function moveTo(title: string, target: string) {
   fireEvent.keyDown(await screen.findByRole('button', { name: `Move ${title}` }), { key: 'Enter' })
   fireEvent.click(within(await screen.findByRole('menu')).getByRole('menuitem', { name: target }))
@@ -55,30 +55,80 @@ describe('ApplicationsPage', () => {
     renderBoard()
     await screen.findByText('Backend Engineer')
     const saved = within(column('Saved'))
-    expect(saved.getByText('Tailor CV')).toBeTruthy()
-    expect(saved.getByText('81% skills fit')).toBeTruthy()
+    expect(saved.getByText(/Next: Tailor CV/)).toBeTruthy()
+    expect(saved.getByLabelText('81% skills fit')).toBeTruthy()
     expect(within(saved.getByText('Platform Engineer').closest('article') as HTMLElement).getByText('Ready to apply')).toBeTruthy()
     expect(within(saved.getByText('Python Developer').closest('article') as HTMLElement).getByText('2 questions')).toBeTruthy()
     expect(within(column('Interviewing')).getByText('SRE')).toBeTruthy()
     expect(within(column('Closed')).getByText('Not selected')).toBeTruthy()
     expect(screen.getByRole('link', { name: 'Backend Engineer' }).getAttribute('href')).toBe('/campaigns/a-1')
     expect(screen.getByText('1 ready to apply')).toBeTruthy()
-    // The hero shows at most three chips.
     expect(screen.getByText(/\d+ in progress/)).toBeTruthy()
     expect(screen.queryByText(/\d+ offers?$/)).toBeNull()
   })
 
-  it('shows an offers chip next to the interviewing chip, and every non-zero status', async () => {
+  it('switches to a list with stage, role, company, fit and next step', async () => {
+    renderBoard()
+    await screen.findByText('Backend Engineer')
+    fireEvent.click(screen.getByRole('radio', { name: 'List' }))
+    const row = screen.getByRole('link', { name: 'Backend Engineer' }).closest('tr') as HTMLElement
+    expect(within(row).getByText('Saved')).toBeTruthy()
+    expect(within(row).getByText('Northwind')).toBeTruthy()
+    expect(within(row).getByText('81%')).toBeTruthy()
+    expect(within(row).getByText(/Tailor CV/)).toBeTruthy()
+    expect(screen.getByRole('columnheader', { name: 'Next step' })).toBeTruthy()
+  })
+
+  it('keeps the Board/List toggle apart from the stage switcher on a phone, one stage at a time', async () => {
+    const original = window.matchMedia
+    window.matchMedia = ((query: string) => ({
+      matches: query.includes('max-width: 767px'),
+      media: query,
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+    })) as unknown as typeof window.matchMedia
+    try {
+      renderBoard()
+      await screen.findByText('Backend Engineer')
+      const view = screen.getByRole('radiogroup', { name: 'View' })
+      expect(within(view).getAllByRole('radio').map((radio) => radio.textContent)).toEqual(['Board', 'List'])
+      const stages = screen.getByRole('radiogroup', { name: 'Stage' })
+      expect(within(stages).getAllByRole('radio').map((radio) => radio.textContent)).toEqual([
+        'Saved 3', 'Applied 0', 'Interviewing 1', 'Offer 0', 'Closed 1',
+      ])
+      // Only the chosen stage is on screen.
+      expect(screen.queryByText('SRE')).toBeNull()
+      fireEvent.click(within(stages).getByRole('radio', { name: /^Interviewing/ }))
+      expect(await screen.findByText('SRE')).toBeTruthy()
+      expect(screen.queryByText('Backend Engineer')).toBeNull()
+      fireEvent.click(within(view).getByRole('radio', { name: 'List' }))
+      expect(screen.getByRole('columnheader', { name: 'Next step' })).toBeTruthy()
+      // The stages only make sense on the board; going back restores the stage you were on.
+      expect(screen.queryByRole('radiogroup', { name: 'Stage' })).toBeNull()
+      fireEvent.click(within(view).getByRole('radio', { name: 'Board' }))
+      expect(await screen.findByText('SRE')).toBeTruthy()
+    } finally {
+      window.matchMedia = original
+    }
+  })
+
+  it('says what a column is for when it is empty', async () => {
+    renderBoard()
+    await screen.findByText('Backend Engineer')
+    expect(within(column('Offer')).getByText('Offers on the table')).toBeTruthy()
+  })
+
+  it('keeps the header to in-progress and ready counts; stage counts live in the board columns', async () => {
     const withOffer = [...items, { ...base, id: 'a-6', title: 'Data Engineer', company: 'Fjord', status: 'offer', applied_at: '2026-09-10T10:00:00Z' }]
     api.listApplications.mockResolvedValue({ items: withOffer, total: withOffer.length })
     renderBoard()
     await screen.findByText('Backend Engineer')
-    expect(screen.getByText('1 interviewing')).toBeTruthy()
-    expect(screen.getByText('1 offer')).toBeTruthy()
+    expect(screen.queryByText('1 interviewing')).toBeNull()
+    expect(screen.queryByText('1 offer')).toBeNull()
     expect(screen.getByText('5 in progress')).toBeTruthy()
   })
 
-  it('offers Mark no reply on a stale applied card and chips every non-zero status', async () => {
+  it('offers Mark no reply on a stale applied card', async () => {
     const stale = [
       { ...base, id: 'a-7', title: 'Cloud Engineer', company: 'Vale', status: 'applied', applied_at: '2026-09-01T10:00:00Z', no_reply_suggested: true },
       { ...base, id: 'a-8', title: 'QA Engineer', company: 'Dune', status: 'no_reply', applied_at: '2026-08-01T10:00:00Z' },
@@ -88,8 +138,6 @@ describe('ApplicationsPage', () => {
     renderBoard()
     const card = (await screen.findByText('Cloud Engineer')).closest('article') as HTMLElement
     expect(within(card).getByText('No reply yet?')).toBeTruthy()
-    expect(screen.getByText('1 applied')).toBeTruthy()
-    expect(screen.getByText('1 no reply')).toBeTruthy()
     const parked = (screen.getByText('QA Engineer')).closest('article') as HTMLElement
     expect(within(parked).queryByText('No reply yet?')).toBeNull()
     fireEvent.click(within(card).getByRole('button', { name: 'Mark no reply' }))
@@ -131,7 +179,7 @@ describe('ApplicationsPage', () => {
   it('shows a friendly empty state and still offers to prepare applications', async () => {
     api.listApplications.mockResolvedValue({ items: [], total: 0 })
     renderBoard()
-    expect(await screen.findByText('No applications yet')).toBeTruthy()
+    expect(await screen.findByText(/No applications yet/)).toBeTruthy()
     expect(screen.getByRole('heading', { name: 'Prepare applications for me' })).toBeTruthy()
   })
 })
@@ -191,6 +239,11 @@ describe('Prepare applications for me', () => {
   })
   it('teaches the owner to record outcomes when nothing has been applied to yet', async () => {
     renderBoard()
+    // Folded until there is something to read: a first-time visitor sees the board and the form first.
+    const toggle = await screen.findByRole('button', { name: "What's working" })
+    expect(toggle.getAttribute('aria-expanded')).toBe('false')
+    expect(screen.queryByText('Nothing to learn from yet.')).toBeNull()
+    fireEvent.click(toggle)
     expect(await screen.findByText('Nothing to learn from yet.')).toBeTruthy()
     expect(screen.getByText(/mark it No reply/)).toBeTruthy()
   })
@@ -215,8 +268,9 @@ describe('Prepare applications for me', () => {
     const group = within(screen.getByRole('region', { name: 'Remote or on-site' }))
     expect(group.getByText('Remote')).toBeTruthy()
     expect(group.getByText('60%')).toBeTruthy()
-    expect(group.getByText('3 of 5')).toBeTruthy()
-    expect(group.getByText('Not enough data yet (2 applications)')).toBeTruthy()
+    expect(group.getByLabelText('60%, 3 of 5 applications')).toBeTruthy()
+    expect(group.getByText('n=5')).toBeTruthy()
+    expect(group.getByText('Not enough data yet: On-site (2)')).toBeTruthy()
     expect(screen.queryByRole('region', { name: 'Company' })).toBeNull()
   })
 })

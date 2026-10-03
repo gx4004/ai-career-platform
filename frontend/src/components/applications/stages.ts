@@ -29,10 +29,10 @@ export function stageOf(status: ApplicationStatus): Stage {
   return status === 'rejected' || status === 'withdrawn' ? 'closed' : status
 }
 
+/** The kit Badge tone of a status: accent while a conversation is open, success for an offer, quiet otherwise. */
 export function stageTone(status: ApplicationStatus) {
-  if (status === 'offer') return 'positive' as const
-  if (status === 'interviewing') return 'warning' as const
-  if (status === 'applied' || status === 'no_reply') return 'accent' as const
+  if (status === 'offer') return 'success' as const
+  if (status === 'applied' || status === 'interviewing') return 'accent' as const
   return 'neutral' as const
 }
 
@@ -81,4 +81,18 @@ export function applyLink(listing: Pick<ApplicationListing, 'apply_url' | 'sourc
   } catch {
     return null
   }
+}
+
+/**
+ * The role alone, for a page title. A stored label can carry the company
+ * ("Role at Acme", "Role @ Acme"); the company is shown once, as the subtitle.
+ */
+export function roleOnly(title: string, company?: string | null) {
+  const name = company?.trim()
+  if (name) {
+    const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const stripped = title.replace(new RegExp(`\\s+(?:at|@)\\s+${escaped}\\s*$`, 'i'), '').trim()
+    if (stripped) return stripped
+  }
+  return title
 }

@@ -1,0 +1,230 @@
+/* Checkbox and Switch: native checkbox inputs, restyled. The label is the hit area. */
+
+.kit-check {
+  --kit-check-gap: var(--space-2);
+
+  position: relative;
+  display: inline-flex;
+  align-items: flex-start;
+  gap: var(--kit-check-gap);
+  box-sizing: border-box;
+  max-width: 100%;
+  padding-block: var(--space-1);
+  color: var(--text-strong);
+  font-family: var(--font-sans);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  cursor: pointer;
+}
+
+.kit-check[data-framed] {
+  display: inline-flex;
+  width: auto;
+  flex: none;
+  padding-block: 0;
+  align-items: center;
+}
+
+.kit-check[data-control-position='end'] {
+  flex-direction: row-reverse;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.kit-check[data-disabled] {
+  cursor: not-allowed;
+}
+
+.kit-check__text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.kit-check[data-disabled] .kit-check__label {
+  color: var(--text-disabled);
+}
+
+.kit-check__description {
+  color: var(--text-muted);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+}
+
+/* ── Checkbox ──────────────────────────────────────────────────────── */
+
+.kit-check__box {
+  position: relative;
+  flex: none;
+  box-sizing: border-box;
+  width: 1rem;
+  height: 1rem;
+  margin: calc((var(--lh-body) - 1rem) / 2) 0 0;
+  padding: 0;
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-sm);
+  background: var(--surface-raised);
+  box-shadow: none;
+  cursor: inherit;
+  transition: var(--transition-colors);
+  appearance: none;
+}
+
+.kit-check[data-framed] .kit-check__box {
+  margin: 0;
+}
+
+.kit-check__box::after {
+  content: '';
+  position: absolute;
+  display: none;
+  left: 0.25rem;
+  top: 0.0625rem;
+  width: 0.25rem;
+  height: 0.5rem;
+  border: solid var(--accent-on);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+.kit-check__box:checked,
+.kit-check__box:indeterminate {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+.kit-check__box:checked::after,
+.kit-check__box:indeterminate::after {
+  display: block;
+}
+
+.kit-check__box:indeterminate::after {
+  left: 0.1875rem;
+  top: 0.375rem;
+  width: 0.5rem;
+  height: 0;
+  border-width: 0 0 2px;
+  transform: none;
+}
+
+.kit-check__box:focus-visible,
+.kit-check__switch:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+  box-shadow: none;
+}
+
+.kit-check[data-framed] :is(.kit-check__box, .kit-check__switch):focus-visible {
+  outline: none;
+}
+
+.kit-check[data-invalid] :is(.kit-check__box:not(:checked, :indeterminate), .kit-check__switch:not(:checked)) {
+  border-color: var(--danger-solid);
+}
+
+.kit-check__box:disabled {
+  border-color: var(--border-strong);
+  background: var(--surface-sunken);
+  cursor: not-allowed;
+}
+
+.kit-check__box:disabled:checked,
+.kit-check__box:disabled:indeterminate {
+  border-color: var(--surface-sunken);
+  background: var(--text-disabled);
+}
+
+/* ── Switch ────────────────────────────────────────────────────────── */
+
+.kit-check__switch {
+  position: relative;
+  flex: none;
+  box-sizing: border-box;
+  width: 2rem;
+  height: 1.25rem;
+  margin: calc((var(--lh-body) - 1.25rem) / 2) 0 0;
+  padding: 0;
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-pill);
+  background: var(--surface-raised);
+  box-shadow: none;
+  cursor: inherit;
+  transition: var(--transition-colors);
+  appearance: none;
+}
+
+.kit-check[data-framed] .kit-check__switch {
+  margin: 0;
+}
+
+.kit-check__switch::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 0.125rem;
+  width: 0.875rem;
+  height: 0.875rem;
+  margin-top: -0.4375rem;
+  border-radius: var(--radius-pill);
+  background: var(--text-faint);
+  transition:
+    transform var(--duration-fast) var(--ease-out),
+    background-color var(--duration-fast) var(--ease-out);
+}
+
+.kit-check__switch:checked {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+.kit-check__switch:checked::before {
+  background: var(--accent-on);
+  transform: translateX(0.75rem);
+}
+
+.kit-check__switch:disabled {
+  border-color: var(--border-strong);
+  background: var(--surface-subtle);
+  cursor: not-allowed;
+}
+
+.kit-check__switch:disabled::before {
+  background: var(--text-disabled);
+}
+
+.kit-check__switch:disabled:checked {
+  border-color: var(--text-disabled);
+  background: var(--text-disabled);
+}
+
+.kit-check__switch:disabled:checked::before {
+  background: var(--surface-raised);
+}
+
+/* The whole label is the hit area, so the whole label gives the hover cue (a framed one already does it on its frame). */
+@media (hover: hover) {
+  .kit-check:not([data-disabled], [data-invalid], [data-framed]):hover .kit-check__box:not(:checked, :indeterminate),
+  .kit-check:not([data-disabled], [data-invalid], [data-framed]):hover .kit-check__switch:not(:checked) {
+    border-color: var(--text-soft);
+  }
+}
+
+/* Touch: the label row grows to the 44px target. */
+@media (pointer: coarse) {
+  .kit-check:not([data-framed]) {
+    min-height: var(--touch-target);
+    align-items: center;
+  }
+
+  .kit-check:not([data-framed]) .kit-check__box,
+  .kit-check:not([data-framed]) .kit-check__switch {
+    margin-top: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kit-check__switch::before {
+    transition: none;
+  }
+}

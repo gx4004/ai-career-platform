@@ -1,9 +1,19 @@
-import { LogOut, Shield, UserRound } from 'lucide-react'
-import { Button } from '#/components/ui/button'
-import { AppStatePanel } from '#/components/app/AppStatePanel'
+import { Link } from '@tanstack/react-router'
 import { ApplicationDetailsCard } from '#/components/applications/ApplicationDetailsCard'
-import { PageHero } from '#/components/app/PageHero'
-import { WorkspacePage } from '#/components/app/WorkspacePage'
+import {
+  Button,
+  Cluster,
+  EmptyState,
+  List,
+  Page,
+  PageHeader,
+  Row,
+  RowActions,
+  RowBody,
+  RowSubtitle,
+  RowTitle,
+  Section,
+} from '#/components/kit'
 import { useSession } from '#/hooks/useSession'
 
 export function AccountPage() {
@@ -11,72 +21,55 @@ export function AccountPage() {
 
   if (status !== 'authenticated' || !user) {
     return (
-      <AppStatePanel
-        title="Your workspace, your way"
-        description="Sign in to manage your details and session."
-        scene="loginWorkflow"
-        actions={[
-          {
-            label: 'Sign in',
-            onClick: () => openAuthDialog({ to: '/account', reason: 'account' }),
-          },
-          { label: 'Explore tools', to: '/resume', variant: 'outline' },
-        ]}
-      />
+      <Page width="narrow">
+        <PageHeader title="Account" />
+        <EmptyState
+          headingLevel={2}
+          title="Your workspace, your way"
+          description="Sign in to manage your details and session."
+          action={
+            <Cluster gap={2}>
+              <Button onClick={() => openAuthDialog({ to: '/account', reason: 'account' })}>Sign in</Button>
+              <Button asChild variant="secondary">
+                <Link to="/resume">Explore tools</Link>
+              </Button>
+            </Cluster>
+          }
+        />
+      </Page>
     )
   }
 
   const memberSince = user.created_at ? new Date(user.created_at) : null
-  const chips = [
-    user.full_name || null,
+  const meta =
     memberSince && !Number.isNaN(memberSince.getTime())
-      ? `Member since ${memberSince.toLocaleDateString()}`
-      : null,
-  ].filter((chip): chip is string => Boolean(chip))
+      ? [`Member since ${new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(memberSince)}`]
+      : undefined
   const googleEnabled = providers.some((p) => p.provider === 'google' && p.enabled)
 
   return (
-    <WorkspacePage>
-      <PageHero icon={UserRound} title="Account" purpose={user.email} chips={chips} />
-      <section className="content-max account-layout">
-        <ApplicationDetailsCard />
+    <Page width="narrow">
+      <PageHeader title="Account" meta={meta} />
 
-        {googleEnabled ? (
-          <div className="account-card">
-            <div className="account-card-header">
-              <div className="account-card-icon">
-                <Shield size={18} />
-              </div>
-              <div>
-                <h2 className="account-card-title">Sign-in options</h2>
-                <p className="account-card-description">Google sign-in is available.</p>
-              </div>
-            </div>
-          </div>
-        ) : null}
+      <ApplicationDetailsCard />
 
-        {/* Session */}
-        <div className="account-card account-card--session">
-          <div className="account-card-header">
-            <div className="account-card-icon account-card-icon--warn">
-              <LogOut size={18} />
-            </div>
-            <div>
-              <h2 className="account-card-title">Session</h2>
-              <p className="account-card-description">
-                Sign out on shared computers.
-              </p>
-            </div>
-          </div>
-          <Button
-            variant="outline"
-            className="settings-btn settings-btn--destructive justify-self-start"
-            onClick={logout}
-          >
-            Sign out
-          </Button>
-        </div>
-      </section>
-    </WorkspacePage>
+      {googleEnabled ? <Section title="Sign-in options" description="Google sign-in is available." /> : null}
+
+      <Section title="Session">
+        <List aria-label="Session">
+          <Row>
+            <RowBody>
+              <RowTitle>Sign out</RowTitle>
+              <RowSubtitle>Sign out on shared computers.</RowSubtitle>
+            </RowBody>
+            <RowActions reveal={false}>
+              <Button variant="secondary" size="sm" onClick={logout}>
+                Sign out
+              </Button>
+            </RowActions>
+          </Row>
+        </List>
+      </Section>
+    </Page>
   )
 }

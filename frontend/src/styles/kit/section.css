@@ -1,0 +1,336 @@
+/*
+ * Section, Notice, Card, StretchedLink.
+ */
+
+/* ── Section ────────────────────────────────────────────────────────── */
+
+.kit-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-heading);
+  min-width: 0;
+}
+
+.kit-section__head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.kit-section__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-3);
+  min-height: var(--control-sm);
+  min-width: 0;
+}
+
+.kit-section[data-rule] > .kit-section__head {
+  padding-block-end: var(--space-2);
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.kit-section__title {
+  min-width: 0;
+  margin: 0;
+  color: var(--text-strong);
+  font-family: var(--font-sans);
+  font-size: var(--fs-section);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-section);
+  letter-spacing: var(--ls-section);
+  overflow-wrap: anywhere;
+}
+
+/* A group inside another section or a disclosure: its title steps down so the outer heading stays the loudest. */
+.kit-section[data-size='sm'] > .kit-section__head .kit-section__title {
+  color: var(--text-body);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+}
+
+.kit-section__count {
+  margin-inline-start: var(--space-1);
+}
+
+.kit-section__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  margin-inline-start: auto;
+}
+
+.kit-section__description {
+  max-width: 46rem;
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+}
+
+.kit-section__body {
+  min-width: 0;
+}
+
+/* A list, table or key-value block sits directly under the hairline: its rows bring their own padding. */
+.kit-section[data-rule]:has(> .kit-section__body > :is(.kit-list, .kit-table-wrap, .kit-kv):first-child) {
+  gap: 0;
+}
+
+/* ── Notice ─────────────────────────────────────────────────────────── */
+
+.kit-notice {
+  --kit-notice-fg: var(--text-strong);
+  --kit-notice-bg: var(--surface-raised);
+  --kit-notice-border: var(--border-strong);
+
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  box-sizing: border-box;
+  min-width: 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--kit-notice-border);
+  border-radius: var(--radius-md);
+  background: var(--kit-notice-bg);
+  color: var(--text-body);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+}
+
+.kit-notice[data-tone='success'] {
+  --kit-notice-fg: var(--success-fg);
+  --kit-notice-bg: var(--success-bg);
+  --kit-notice-border: var(--success-border);
+}
+
+.kit-notice[data-tone='warning'] {
+  --kit-notice-fg: var(--warning-fg);
+  --kit-notice-bg: var(--warning-bg);
+  --kit-notice-border: var(--warning-border);
+}
+
+.kit-notice[data-tone='danger'] {
+  --kit-notice-fg: var(--danger-fg);
+  --kit-notice-bg: var(--danger-bg);
+  --kit-notice-border: var(--danger-border);
+}
+
+.kit-notice__icon {
+  display: flex;
+  flex: none;
+  align-items: center;
+  height: var(--lh-body);
+  color: var(--kit-notice-fg);
+}
+
+.kit-notice__icon > svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.kit-notice__body {
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+
+.kit-notice__title {
+  margin: 0;
+  color: var(--kit-notice-fg);
+  font-weight: var(--fw-semibold);
+}
+
+.kit-notice__text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.kit-notice__text a {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.2em;
+}
+
+.kit-notice__title + .kit-notice__text {
+  margin-block-start: 1px;
+}
+
+.kit-notice__action {
+  display: flex;
+  flex: none;
+  align-items: center;
+  margin-block: calc((var(--kit-h-sm) - var(--lh-body)) / -2);
+}
+
+.kit-notice__dismiss {
+  flex: none;
+  margin-block: calc((var(--kit-h-sm) - var(--lh-body)) / -2);
+  margin-inline-end: calc(var(--space-2) * -1);
+}
+
+/* On a phone the action drops under the text instead of squeezing it. */
+@media (max-width: 479px) {
+  .kit-notice {
+    flex-wrap: wrap;
+  }
+
+  .kit-notice__dismiss {
+    order: 1;
+  }
+
+  .kit-notice__action {
+    order: 2;
+    flex-basis: 100%;
+    margin-block: 0;
+  }
+}
+
+/* ── Card ───────────────────────────────────────────────────────────── */
+
+.kit-card {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  box-sizing: border-box;
+  min-width: 0;
+  margin: 0;
+  padding: var(--kit-card-py) var(--kit-card-px);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-lg);
+  background: var(--surface-raised);
+  color: var(--text-body);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  list-style: none;
+  transition: var(--transition-colors);
+}
+
+.kit-card[data-padding='none'] {
+  padding: 0;
+}
+
+.kit-card[data-padding='sm'] {
+  padding: var(--space-2) var(--space-3);
+}
+
+@media (hover: hover) {
+  .kit-card:is([data-interactive], :has(.kit-stretched)):hover {
+    border-color: var(--border-strong);
+  }
+}
+
+.kit-card[data-selected] {
+  border-color: var(--accent);
+  background: var(--accent-subtle);
+}
+
+.kit-card__header {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.kit-card__heading {
+  display: block;
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  font: inherit;
+  letter-spacing: 0;
+}
+
+.kit-card__header > .kit-card__title {
+  flex: 1 1 auto;
+}
+
+.kit-card__title {
+  min-width: 0;
+  margin: 0;
+  color: var(--text-strong);
+  font-size: var(--fs-body);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-body);
+  letter-spacing: 0;
+  text-align: start;
+  overflow-wrap: anywhere;
+}
+
+.kit-card__heading > .kit-card__title {
+  display: block;
+}
+
+.kit-card__actions {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-1);
+  margin-block: calc((var(--kit-h-sm) - var(--lh-body)) / -2);
+  margin-inline-end: calc(var(--space-2) * -1);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .kit-card__actions[data-reveal] {
+    opacity: 0;
+    transition: var(--transition-colors);
+  }
+
+  .kit-card:hover .kit-card__actions[data-reveal],
+  .kit-card:focus-within .kit-card__actions[data-reveal],
+  .kit-card__actions[data-reveal]:has([data-state='open'], [aria-expanded='true']) {
+    opacity: 1;
+  }
+}
+
+/* ── StretchedLink ──────────────────────────────────────────────────── */
+
+/* :where() keeps these defaults at zero specificity, so a title class can set its own colour and font. */
+:where(.kit-stretched) {
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.kit-stretched::after {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: inherit;
+  content: '';
+}
+
+/* The ring follows the card's corners, not the anchor's (rows are square and need nothing). */
+.kit-card .kit-stretched::after {
+  border-radius: var(--radius-lg);
+}
+
+.kit-stretched:focus-visible {
+  outline: none;
+}
+
+.kit-stretched:focus-visible::after {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: calc(var(--focus-ring-width) * -1);
+}
+
+:where(button.kit-stretched) {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  text-align: start;
+}

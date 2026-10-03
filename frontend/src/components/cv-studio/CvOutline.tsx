@@ -1,12 +1,11 @@
 import { useState } from 'react'
-import { ArrowDown, ArrowUp, Eye, EyeOff, Plus } from 'lucide-react'
-import { Button } from '#/components/ui/button'
+import { ArrowDown, ArrowUp, ChevronRight, Eye, EyeOff, Plus } from 'lucide-react'
 import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger,
-} from '#/components/ui/dropdown-menu'
+  Button, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger, EmptyState,
+  List, Row, RowActions, RowBody, RowReveal, RowSubtitle, RowTitle, Stack,
+} from '#/components/kit'
 import type { CvSection } from '#/lib/api/schemas'
 import { sectionLabels } from '#/lib/cv-studio/editor'
-import { cn } from '#/lib/utils'
 
 const ADDABLE_KINDS: CvSection['kind'][] = [
   'summary', 'experience', 'education', 'skills', 'projects', 'achievements', 'certifications', 'interview-evidence', 'custom',
@@ -21,47 +20,63 @@ export function CvOutline({ sections, onMove, onToggle, onAdd, onOpen }: {
   onOpen: (sectionId: string) => void
 }) {
   const [announcement, setAnnouncement] = useState('')
+  const nameOf = (section: CvSection) => section.title.trim() || sectionLabels[section.kind]
 
   function move(index: number, delta: -1 | 1) {
     onMove(index, delta)
-    setAnnouncement(`${sections[index].title} moved to position ${index + delta + 1} of ${sections.length}.`)
+    setAnnouncement(`${nameOf(sections[index])} moved to position ${index + delta + 1} of ${sections.length}.`)
   }
 
   return (
-    <div className="cvs-outline">
+    <Stack gap={3}>
       {sections.length === 0 ? (
-        <p className="cvs-muted">No sections yet. Add your first one below.</p>
+        <EmptyState size="inline" title="No sections yet. Add your first one below." />
       ) : (
-        <ol className="cvs-outline__list" aria-label="Sections in your CV">
-          {sections.map((section, index) => (
-            <li key={section.id} className={cn('cvs-outline__item', !section.visible && 'is-hidden')}>
-              <button type="button" className="cvs-outline__name" onClick={() => onOpen(section.id)}>
-                <span className="cvs-outline__title">{section.title}</span>
-                <span className="cvs-outline__meta">
-                  {section.visible ? `${section.entries.length} ${section.entries.length === 1 ? 'entry' : 'entries'}` : 'Hidden from CV'}
-                </span>
-              </button>
-              <Button type="button" variant="ghost" size="icon-sm" aria-label={`Move ${section.title} up`} disabled={index === 0} onClick={() => move(index, -1)}><ArrowUp /></Button>
-              <Button type="button" variant="ghost" size="icon-sm" aria-label={`Move ${section.title} down`} disabled={index === sections.length - 1} onClick={() => move(index, 1)}><ArrowDown /></Button>
-              <Button type="button" variant="ghost" size="icon-sm" aria-label={`${section.visible ? 'Hide' : 'Show'} ${section.title}`} onClick={() => onToggle(section.id)}>
-                {section.visible ? <Eye /> : <EyeOff />}
+        <List aria-label="Sections in your CV" className="cvs-outline">
+          {sections.map((section, index) => {
+            const name = nameOf(section)
+            const toggle = (
+              <Button
+                type="button" iconOnly variant="ghost" size="sm"
+                aria-label={`${section.visible ? 'Hide' : 'Show'} ${name}`}
+                onClick={() => onToggle(section.id)}
+              >
+                {section.visible ? <Eye aria-hidden="true" /> : <EyeOff aria-hidden="true" />}
               </Button>
-            </li>
-          ))}
-        </ol>
+            )
+            return (
+              <Row key={section.id}>
+                <RowBody>
+                  <RowTitle asChild><button type="button" onClick={() => onOpen(section.id)}>{name}</button></RowTitle>
+                  <RowSubtitle>
+                    {section.visible ? `${section.entries.length} ${section.entries.length === 1 ? 'entry' : 'entries'}` : 'Hidden from CV'}
+                  </RowSubtitle>
+                </RowBody>
+                <RowActions reveal={false}>
+                  <RowReveal>
+                    <Button type="button" iconOnly variant="ghost" size="sm" aria-label={`Move ${name} up`} disabled={index === 0} onClick={() => move(index, -1)}><ArrowUp aria-hidden="true" /></Button>
+                    <Button type="button" iconOnly variant="ghost" size="sm" aria-label={`Move ${name} down`} disabled={index === sections.length - 1} onClick={() => move(index, 1)}><ArrowDown aria-hidden="true" /></Button>
+                  </RowReveal>
+                  {section.visible ? <RowReveal>{toggle}</RowReveal> : toggle}
+                  <span className="cvs-row-chevron" aria-hidden="true"><ChevronRight /></span>
+                </RowActions>
+              </Row>
+            )
+          })}
+        </List>
       )}
-      <p className="sr-only" role="status" aria-live="polite">{announcement}</p>
+      <p className="kit-sr-only" role="status" aria-live="polite">{announcement}</p>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button type="button" variant="outline" className="cvs-dashed"><Plus size={16} /> Add section</Button>
+          <Button type="button" variant="secondary" size="sm"><Plus aria-hidden="true" /> Add section</Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-56">
+        <DropdownMenuContent align="start">
           <DropdownMenuLabel>Add a section</DropdownMenuLabel>
           {ADDABLE_KINDS.map((kind) => (
             <DropdownMenuItem key={kind} onSelect={() => onAdd(kind)}>{sectionLabels[kind]}</DropdownMenuItem>
           ))}
         </DropdownMenuContent>
       </DropdownMenu>
-    </div>
+    </Stack>
   )
 }

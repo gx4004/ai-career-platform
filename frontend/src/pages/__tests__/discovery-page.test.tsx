@@ -2,7 +2,9 @@ import type { ReactNode } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { ToastProvider } from '#/components/kit'
 import { DiscoveryPage } from '#/pages/discovery-page'
+import { ApiError } from '#/lib/api/errors'
 import { readWorkflowContext } from '#/lib/tools/drafts'
 
 const searchListings = vi.hoisted(() => vi.fn())
@@ -61,14 +63,17 @@ function page(overrides: Record<string, unknown> = {}) {
 function renderPage(payload: unknown = page()) {
   searchListings.mockResolvedValue(payload)
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  render(
+  return render(
     <QueryClientProvider client={client}>
-      <DiscoveryPage />
+      <ToastProvider>
+        <DiscoveryPage />
+      </ToastProvider>
     </QueryClientProvider>,
   )
 }
 
-const findCard = () => screen.findByRole('article', { name: 'Platform Engineer' }, { timeout: 5_000 })
+const findCard = async () =>
+  (await screen.findByRole('heading', { name: 'Platform Engineer', level: 2 }, { timeout: 5_000 })).closest('li') as HTMLElement
 const openMenu = async (card: HTMLElement) => {
   fireEvent.keyDown(within(card).getByRole('button', { name: 'More actions for Platform Engineer' }), { key: 'Enter' })
   return screen.findByRole('menu')
@@ -87,33 +92,31 @@ beforeEach(() => {
 })
 
 describe('DiscoveryPage', () => {
-  it('shows a compact job card with match, meta, preview and attribution', async () => {
+  it('shows a two-line job row with match, meta and attribution', async () => {
     renderPage()
     const card = await findCard()
 
     expect(screen.getByRole('heading', { name: 'Discover jobs' })).toBeTruthy()
-    expect(within(card).getByText(LISTING.preview)).toBeTruthy()
+    expect(within(card).queryByText(LISTING.preview)).toBeNull()
     expect(within(card).getByLabelText('82% skills fit, 2 of 3 skills')).toBeTruthy()
     expect(within(card).getByText('Berlin, Germany')).toBeTruthy()
     expect(within(card).getByText('Remote')).toBeTruthy()
     expect(within(card).getByText('Posted 3 days ago')).toBeTruthy()
-    expect(within(card).getByText('Kubernetes')).toBeTruthy()
     expect(within(card).getByText('via Greenhouse')).toBeTruthy()
-    // Preference hits are their own signal, not folded into the fit number.
-    expect(within(card).getByLabelText('Matches your preferences').textContent).toBe('Startup')
     expect(within(card).queryByText(/\d+% match/)).toBeNull()
   })
 
-  it('gives each card one primary action and keeps the rest in its overflow menu', async () => {
+  it('gives each row its actions and keeps the rest in its overflow menu', async () => {
     renderPage()
     const card = await findCard()
 
     const buttons = within(card).getAllByRole('button').map((button) => button.textContent?.trim() || button.getAttribute('aria-label'))
-    expect(buttons).toEqual(['Platform Engineer', 'Add to applications', 'More actions for Platform Engineer'])
+    expect(buttons).toEqual(['Platform Engineer', 'Add', 'More actions for Platform Engineer'])
     expect(within(card).queryByRole('link')).toBeNull()
 
     const menu = await openMenu(card)
     expect(within(menu).getAllByRole('menuitem').map((item) => item.textContent?.trim())).toEqual([
+      'Deep match',
       'Tailor my CV',
       'Apply on company site',
       'Hide this job',
@@ -150,6 +153,22 @@ describe('DiscoveryPage', () => {
     await waitFor(() => expect(undismissRecommendation).toHaveBeenCalledWith('listing-1'))
   })
 
+  it('closes the undo toast when the page unmounts', async () => {
+    searchListings.mockResolvedValue(page())
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const tree = (showPage: boolean) => (
+      <QueryClientProvider client={client}>
+        <ToastProvider>{showPage ? <DiscoveryPage /> : <p>Another page</p>}</ToastProvider>
+      </QueryClientProvider>
+    )
+    const view = render(tree(true))
+    const menu = await openMenu(await findCard())
+    fireEvent.click(within(menu).getByRole('menuitem', { name: 'Hide this job' }))
+    expect(await screen.findByRole('button', { name: 'Undo' })).toBeTruthy()
+    view.rerender(tree(false))
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull())
+  })
+
   it('hands the job to CV Studio through the workflow context', async () => {
     renderPage()
     const menu = await openMenu(await findCard())
@@ -175,11 +194,11 @@ describe('DiscoveryPage', () => {
     expect(getListing).toHaveBeenCalledWith('listing-1')
     expect(dialog.querySelector('b')).toBeNull()
     // One primary, one secondary, the rest in the overflow menu.
-    const footer = dialog.querySelector('.disc-drawer__actions') as HTMLElement
+    const footer = dialog.querySelector('.kit-panel__footer') as HTMLElement
     expect(within(footer).getAllByRole('button').map((b) => b.textContent?.trim() || b.getAttribute('aria-label'))).toEqual([
+      'More actions for Platform Engineer',
       'Deep match',
       'Add to applications',
-      'More actions for Platform Engineer',
     ])
     const menu = await openMenu(dialog)
     expect(within(menu).getAllByRole('menuitem').map((item) => item.textContent?.trim())).toEqual([
@@ -221,7 +240,7 @@ describe('DiscoveryPage', () => {
 
     fireEvent.click(await within(dialog).findByRole('button', { name: /View deep match/ }))
 
-    expect(within(dialog).getByLabelText('Deep match').textContent).toContain('64%')
+    expect(within(dialog).getByText(/64%/).textContent).toContain('borderline')
     expect(startDeepMatch).not.toHaveBeenCalled()
     expect(navigate).toHaveBeenCalledWith({ to: '/job-match/result/$historyId', params: { historyId: 'run-3' } })
   })
@@ -236,13 +255,15 @@ describe('DiscoveryPage', () => {
     expect(within(dialog).queryByText(/0%/)).toBeNull()
   })
 
-  it('shows how similar applications went as its own signal, with the sample size', async () => {
+  it('shows how similar applications went in the drawer, with the sample size', async () => {
     const similar = { role_family: 'Engineering', fit_bucket: 'Strong fit (78%+)', applied: 6, replied: 2 }
     renderPage(page({ items: [{ ...LISTING, similar_applications: similar }] }))
     const card = await findCard()
 
-    expect(within(card).getByText(/2 of 6/).closest('p')?.textContent).toContain('got a reply')
     expect(within(card).getByLabelText(/82% skills fit/)).toBeTruthy()
+    fireEvent.click(within(card).getByRole('button', { name: 'Platform Engineer' }))
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByText(/2 of 6/).closest('dd')?.textContent).toContain('got a reply')
   })
 
   it('shows no outcome line when there are too few similar applications', async () => {
@@ -257,7 +278,7 @@ describe('DiscoveryPage', () => {
     await findCard()
 
     fireEvent.change(screen.getAllByLabelText('Company')[0], { target: { value: 'Stripe' } })
-    fireEvent.click(screen.getAllByRole('button', { name: 'Remote only' })[0])
+    fireEvent.click(screen.getAllByRole('checkbox', { name: 'Remote only' })[0])
     fireEvent.change(screen.getAllByLabelText('Posted')[0], { target: { value: '7' } })
     fireEvent.change(screen.getByLabelText('Search jobs'), { target: { value: 'python' } })
 
@@ -281,7 +302,9 @@ describe('DiscoveryPage', () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     render(
       <QueryClientProvider client={client}>
-        <DiscoveryPage />
+        <ToastProvider>
+          <DiscoveryPage />
+        </ToastProvider>
       </QueryClientProvider>,
     )
     await findCard()
@@ -319,6 +342,47 @@ describe('DiscoveryPage', () => {
     expect(await screen.findByText('No jobs match these filters')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Clear all filters' }))
     expect((screen.getByLabelText('Search jobs') as HTMLInputElement).value).toBe('')
+  })
+
+  it('opens the drawer from anywhere on the row and marks the row as the current one', async () => {
+    renderPage()
+    const card = await findCard()
+
+    fireEvent.click(within(card).getByRole('button', { name: 'Platform Engineer' }))
+
+    expect(await screen.findByRole('dialog', { name: 'Platform Engineer' })).toBeTruthy()
+    expect(card.getAttribute('aria-current')).toBe('true')
+  })
+
+  it('counts the open jobs in the toolbar and says how they are ordered when there is no fit score', async () => {
+    renderPage(page({ has_evidence: false, sort: 'newest', total: 12, items: [{ ...LISTING, skills_fit: null }] }))
+    await findCard()
+
+    expect(screen.getByText('12 open jobs · newest first').getAttribute('role')).toBe('status')
+  })
+
+  it('lets the owner retry when the jobs could not be loaded', async () => {
+    searchListings.mockRejectedValueOnce(new Error('boom'))
+    renderPage()
+
+    expect(await screen.findByText('Jobs could not be loaded')).toBeTruthy()
+    searchListings.mockResolvedValue(page())
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
+
+    expect(await findCard()).toBeTruthy()
+  })
+
+  it('sends the owner to CV Studio when a deep match needs a CV', async () => {
+    startDeepMatch.mockRejectedValue(new ApiError('Create a CV first', 409))
+    renderPage()
+    const menu = await openMenu(await findCard())
+
+    fireEvent.click(within(menu).getByRole('menuitem', { name: 'Deep match' }))
+
+    expect(await screen.findByText('Create a CV in CV Studio first.')).toBeTruthy()
+    // The banner sits above the list, so it names the job that failed.
+    expect(screen.getByText('Deep match for “Platform Engineer”')).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Open CV Studio' }).getAttribute('href')).toBe('/cv-studio')
   })
 
   it('shows a first-run empty state when there are no jobs at all', async () => {

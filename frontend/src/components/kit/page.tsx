@@ -1,0 +1,122 @@
+import { forwardRef, type ComponentPropsWithoutRef, type Ref, type ReactNode } from 'react'
+import { cn } from '#/lib/utils'
+import { MetaRow } from './meta-row'
+
+export type PageWidth = 'narrow' | 'default' | 'wide' | 'full'
+
+export type PageProps = ComponentPropsWithoutRef<'main'> & {
+  /** Maximum content width including gutters: narrow 62rem (settings, forms), default 75rem, wide 90rem (boards), full. */
+  width?: PageWidth
+  /**
+   * main (default) is the page's one landmark and the skip-link target (id="main-content").
+   * Use div where an ancestor already renders the main landmark.
+   */
+  as?: 'main' | 'div'
+}
+
+/**
+ * The standard page frame: left-aligned, 32px gutters (16px on phones), 32px between its direct
+ * children, room under the mobile tab bar. Put one PageHeader first, then Sections or any block.
+ */
+export const Page = forwardRef<HTMLElement, PageProps>(function Page(
+  { width = 'default', as = 'main', id, className, ...rest },
+  ref,
+) {
+  const Tag = as as 'div'
+  return (
+    <Tag
+      ref={ref as Ref<HTMLDivElement>}
+      id={id ?? (as === 'main' ? 'main-content' : undefined)}
+      tabIndex={as === 'main' ? -1 : undefined}
+      className={cn('kit-page', className)}
+      data-width={width}
+      {...rest}
+    />
+  )
+})
+
+export type PageHeaderProps = Omit<ComponentPropsWithoutRef<'header'>, 'title'> & {
+  /** The page title: serif display type. */
+  title: ReactNode
+  /** One line saying what the page is for, only when that teaches something. */
+  lead?: ReactNode
+  /** Quiet facts under the title, separated by dots: an array or several children. Missing items are skipped. */
+  meta?: ReactNode
+  /** Page actions, right-aligned; they wrap under the title on narrow screens. One primary Button at most. */
+  actions?: ReactNode
+  /** A back link or breadcrumb above the title. */
+  back?: ReactNode
+  /** A TabsList or nav under the title; its hairline replaces the header's own. */
+  tabs?: ReactNode
+  /** Level of the title heading. Default 1 (a page has one h1); 2 or 3 where a header sits inside another page, as in the gallery. */
+  headingLevel?: 1 | 2 | 3
+}
+
+/** Title row of a page. Replaces PageHero, PageHeader, .page-header, .admin-page-title, .state-page__title. */
+export const PageHeader = forwardRef<HTMLElement, PageHeaderProps>(function PageHeader(
+  { title, lead, meta, actions, back, tabs, headingLevel = 1, className, ...rest },
+  ref,
+) {
+  const Heading = `h${headingLevel}` as 'h1'
+  return (
+    <header ref={ref} className={cn('kit-page-header', className)} data-tabs={tabs ? 'true' : undefined} {...rest}>
+      {back ? <div className="kit-page-header__back">{back}</div> : null}
+      <div className="kit-page-header__main">
+        <div className="kit-page-header__text">
+          <Heading className="kit-page-header__title">{title}</Heading>
+          {lead ? <div className="kit-page-header__lead">{lead}</div> : null}
+          {meta ? <MetaRow className="kit-page-header__meta">{meta}</MetaRow> : null}
+        </div>
+        {actions ? <div className="kit-page-header__actions">{actions}</div> : null}
+      </div>
+      {tabs ? <div className="kit-page-header__tabs">{tabs}</div> : null}
+    </header>
+  )
+})
+
+/** A lead sentence: serif, one size up from body. The verdict line of a report, the opening line of a section. */
+export const Lead = forwardRef<HTMLParagraphElement, ComponentPropsWithoutRef<'p'>>(function Lead(
+  { className, ...rest },
+  ref,
+) {
+  return <p ref={ref} className={cn('kit-lead', className)} {...rest} />
+})
+
+export type SplitProps = Omit<ComponentPropsWithoutRef<'div'>, 'children'> & {
+  /** The side column: summary, facts, actions. */
+  rail: ReactNode
+  /** Names the rail landmark ("Summary", "Details"). */
+  railLabel: string
+  /** The rail stays in view while the main column scrolls (side by side only). */
+  stickyRail?: boolean
+  /** When stacked (narrow), show the rail above the main column instead of below it. */
+  railFirst?: boolean
+  children: ReactNode
+}
+
+/**
+ * Main column plus a ~280px rail. Side by side when the container is at least 56rem wide (it asks
+ * its own width, not the viewport's, so it behaves with the sidebar open or closed); otherwise
+ * the rail stacks under the main column.
+ */
+export const Split = forwardRef<HTMLDivElement, SplitProps>(function Split(
+  { rail, railLabel, stickyRail = false, railFirst = false, className, children, ...rest },
+  ref,
+) {
+  return (
+    <div
+      ref={ref}
+      className={cn('kit-split', className)}
+      data-sticky={stickyRail ? 'true' : undefined}
+      data-rail-first={railFirst ? 'true' : undefined}
+      {...rest}
+    >
+      <div className="kit-split__layout">
+        <div className="kit-split__main">{children}</div>
+        <aside className="kit-split__rail" aria-label={railLabel}>
+          {rail}
+        </aside>
+      </div>
+    </div>
+  )
+})

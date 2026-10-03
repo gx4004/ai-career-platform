@@ -63,11 +63,6 @@ function renderSection() {
   )
 }
 
-async function openMenu(scope: HTMLElement) {
-  fireEvent.keyDown(within(scope).getByRole('button', { name: /More actions/ }), { key: 'Enter' })
-  return screen.findByRole('menu')
-}
-
 describe('SkillsToBuildSection', () => {
   beforeEach(() => {
     getPlanMock.mockReset().mockResolvedValue({ schema_version: 'development-plan/v1', items })
@@ -79,9 +74,9 @@ describe('SkillsToBuildSection', () => {
   it('renders each skill in its group with its status, notes and profile link', async () => {
     renderSection()
 
-    const reword = await screen.findByRole('region', { name: 'Reword existing content' })
+    const reword = await screen.findByRole('list', { name: 'Reword existing content' })
     expect((within(reword).getByLabelText('Status') as HTMLSelectElement).value).toBe('planned')
-    const learn = screen.getByRole('region', { name: 'Learn a new skill' })
+    const learn = screen.getByRole('list', { name: 'Learn a new skill' })
     expect(within(learn).getByText('Take a course')).toBeTruthy()
     expect(within(learn).getByText('Added to your profile')).toBeTruthy()
   })
@@ -89,7 +84,7 @@ describe('SkillsToBuildSection', () => {
   it('completing a skill saves it and refreshes the profile', async () => {
     renderSection()
 
-    const reword = await screen.findByRole('region', { name: 'Reword existing content' })
+    const reword = await screen.findByRole('list', { name: 'Reword existing content' })
     await waitFor(() => expect(warmEvidenceFetchMock).toHaveBeenCalledTimes(1))
     fireEvent.change(within(reword).getByLabelText('Status'), { target: { value: 'completed' } })
 
@@ -97,15 +92,15 @@ describe('SkillsToBuildSection', () => {
     await waitFor(() => expect(warmEvidenceFetchMock).toHaveBeenCalledTimes(2))
   })
 
-  it('edits the target date and notes from the card menu', async () => {
+  it('edits the target date and notes by opening the skill', async () => {
     renderSection()
 
-    const menu = await openMenu(await screen.findByRole('region', { name: 'Reword existing content' }))
-    fireEvent.click(within(menu).getByRole('menuitem', { name: /Edit/ }))
-    fireEvent.change(await screen.findByLabelText('Target date (optional)'), {
+    const reword = await screen.findByRole('list', { name: 'Reword existing content' })
+    fireEvent.click(within(reword).getByRole('button', { name: 'Edit: Presentation weakness' }))
+    fireEvent.change(await screen.findByLabelText(/^Target date/), {
       target: { value: '2026-09-01' },
     })
-    fireEvent.change(screen.getByLabelText('Notes (optional)'), {
+    fireEvent.change(screen.getByLabelText(/^Notes/), {
       target: { value: 'Rewrite the summary' },
     })
     fireEvent.click(screen.getByRole('button', { name: /Save changes/i }))
@@ -121,9 +116,9 @@ describe('SkillsToBuildSection', () => {
   it('deletes a skill through the confirm dialog', async () => {
     renderSection()
 
-    const menu = await openMenu(await screen.findByRole('region', { name: 'Reword existing content' }))
-    fireEvent.click(within(menu).getByRole('menuitem', { name: /Delete/ }))
-    const dialog = await screen.findByRole('dialog')
+    const reword = await screen.findByRole('list', { name: 'Reword existing content' })
+    fireEvent.click(within(reword).getByRole('button', { name: 'Delete: Presentation weakness' }))
+    const dialog = await screen.findByRole('alertdialog')
     fireEvent.click(within(dialog).getByRole('button', { name: /Delete item/i }))
 
     await waitFor(() => expect(deleteItemMock).toHaveBeenCalledWith('d1'))

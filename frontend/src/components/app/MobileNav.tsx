@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link, useRouterState } from '@tanstack/react-router'
-import { Grid2x2, History, LayoutDashboard, LogIn, UserRound } from 'lucide-react'
+import { Grid2x2, History, LayoutDashboard, LogIn } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import { useBreakpoint } from '#/hooks/use-breakpoint'
 import { ToolGridSheet } from '#/components/mobile/ToolGridSheet'
 import { isPublicRoute } from '#/lib/navigation/publicRoutes'
@@ -8,94 +9,87 @@ import { toolList } from '#/lib/tools/registry'
 import { useSession } from '#/hooks/useSession'
 import { getNavDestination } from '#/lib/navigation/navGroups'
 
-// Same icon + label as the sidebar and tools sheet (shared navGroups).
+// Same icon + label as the sidebar and the More sheet (shared navGroups).
 const discover = getNavDestination('/discovery')
+const applications = getNavDestination('/campaigns')
+const cvStudio = getNavDestination('/cv-studio')
+
+function TabLink({ to, icon: Icon, label, active }: { to: string; icon: LucideIcon; label: string; active: boolean }) {
+  return (
+    <Link to={to} className="app-tabbar__item" data-active={active} aria-current={active ? 'page' : undefined}>
+      <Icon aria-hidden />
+      <span>{label}</span>
+    </Link>
+  )
+}
 
 export function MobileNav() {
-  const [toolsOpen, setToolsOpen] = useState(false)
+  const [moreOpen, setMoreOpen] = useState(false)
   const { user, openAuthDialog } = useSession()
   const bp = useBreakpoint()
   const pathname = useRouterState({
     select: (state) => state.location.pathname,
   })
 
-  // Close tools menu on navigation (handles keyboard/middle-click)
+  // Close the sheet on navigation (handles keyboard and middle-click).
   useEffect(() => {
-    setToolsOpen(false)
+    setMoreOpen(false)
   }, [pathname])
 
-  // Only show on mobile, hide on public routes (landing, login standalone)
+  // Only on phones, and not on public routes (landing, standalone login).
   if (bp !== 'mobile' || isPublicRoute(pathname)) return null
 
   const isActive = (path: string) => pathname.startsWith(path)
-  const isToolsActive =
-    toolsOpen || toolList.some((tool) => pathname.startsWith(tool.route))
+  const isMoreActive =
+    moreOpen ||
+    toolList.some((tool) => pathname.startsWith(tool.route)) ||
+    isActive('/profile') ||
+    (Boolean(user) && isActive('/history'))
 
   return (
     <>
-      <nav className="mobile-tab-bar" aria-label="Main navigation">
-        <Link
-          to="/dashboard"
-          className={`mobile-tab-item${isActive('/dashboard') ? ' is-active' : ''}`}
-        >
-          <LayoutDashboard size={20} strokeWidth={isActive('/dashboard') ? 2.2 : 1.8} />
-          <span>Home</span>
-        </Link>
-
-        <button
-          type="button"
-          className={`mobile-tab-item${isToolsActive ? ' is-active' : ''}`}
-          onClick={() => setToolsOpen(!toolsOpen)}
-        >
-          <Grid2x2 size={20} strokeWidth={isToolsActive ? 2.2 : 1.8} />
-          <span>Tools</span>
-        </button>
-
-        <Link
-          to="/history"
-          className={`mobile-tab-item${isActive('/history') ? ' is-active' : ''}`}
-        >
-          <History size={20} strokeWidth={isActive('/history') ? 2.2 : 1.8} />
-          <span>History</span>
-        </Link>
+      <nav className="app-tabbar" aria-label="Main navigation">
+        <TabLink to="/dashboard" icon={LayoutDashboard} label="Home" active={isActive('/dashboard')} />
 
         {user ? (
-          <Link
-            to="/discovery"
-            className={`mobile-tab-item${isActive('/discovery') ? ' is-active' : ''}`}
-          >
-            <discover.icon size={20} strokeWidth={isActive('/discovery') ? 2.2 : 1.8} />
-            <span>{discover.label}</span>
-          </Link>
+          <>
+            <TabLink to="/discovery" icon={discover.icon} label={discover.label} active={isActive('/discovery')} />
+            <TabLink to="/campaigns" icon={applications.icon} label={applications.label} active={isActive('/campaigns')} />
+          </>
         ) : (
-          // /discovery needs an account, so guests get a Sign in tab in the same
-          // slot. It keeps the bar at five tabs so widths do not jump on sign-in.
-          <button
-            type="button"
-            className="mobile-tab-item"
-            onClick={() => openAuthDialog({ to: '/discovery', reason: 'discovery' })}
-          >
-            <LogIn size={20} strokeWidth={1.8} />
-            <span>Sign in</span>
-          </button>
+          <>
+            <TabLink to="/history" icon={History} label="History" active={isActive('/history')} />
+            {/* /discovery needs an account, so guests get a Sign in tab. It
+                keeps the bar at five tabs so widths do not jump on sign-in. */}
+            <button
+              type="button"
+              className="app-tabbar__item"
+              onClick={() => openAuthDialog({ to: '/discovery', reason: 'discovery' })}
+            >
+              <LogIn aria-hidden />
+              <span>Sign in</span>
+            </button>
+          </>
         )}
 
-        {/* Points at /account, not /profile — "Account" avoids colliding with
-            the "You → Profile" nav destination (career facts, /profile). */}
-        <Link
-          to="/account"
-          className={`mobile-tab-item${isActive('/account') || isActive('/settings') ? ' is-active' : ''}`}
+        <TabLink to="/cv-studio" icon={cvStudio.icon} label="CV" active={isActive('/cv-studio')} />
+
+        {/* Tools, Profile, History and the rest live in the More sheet;
+            Account and Settings are in the account menu at the top. */}
+        <button
+          type="button"
+          className="app-tabbar__item"
+          data-active={isMoreActive}
+          aria-haspopup="dialog"
+          aria-expanded={moreOpen}
+          onClick={() => setMoreOpen((open) => !open)}
         >
-          <UserRound size={20} strokeWidth={isActive('/account') || isActive('/settings') ? 2.2 : 1.8} />
-          <span>Account</span>
-        </Link>
+          <Grid2x2 aria-hidden />
+          <span>More</span>
+        </button>
       </nav>
 
-      <ToolGridSheet
-        open={toolsOpen}
-        onOpenChange={setToolsOpen}
-        showAuthenticatedLinks={Boolean(user)}
-      />
+      <ToolGridSheet open={moreOpen} onOpenChange={setMoreOpen} showAuthenticatedLinks={Boolean(user)} />
     </>
   )
 }

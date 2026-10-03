@@ -79,9 +79,12 @@ test('history filtering, favorites, rename and open work through the UI', async 
   expect(id2Resp.ok()).toBe(true)
 
   await gotoHydrated(page, '/history')
-  const filters = page.getByRole('group', { name: 'Filter by tool' })
-  await filters.getByRole('button', { name: 'Resume', exact: true }).click()
-  await expect(page.getByRole('link', { name: /^Open (?!Applications$)/ })).toHaveCount(2)
+  const runs = page.getByRole('list', { name: 'Saved runs' })
+  await page
+    .getByRole('radiogroup', { name: 'Filter by tool' })
+    .getByRole('radio', { name: 'Resume Analyzer' })
+    .click()
+  await expect(runs.getByRole('link')).toHaveCount(2)
 
   await page.getByRole('button', { name: /^Rename / }).first().click()
   await page.getByRole('textbox', { name: /^Rename / }).fill('Backend application')
@@ -89,10 +92,10 @@ test('history filtering, favorites, rename and open work through the UI', async 
   await expect(page.getByText('Backend application')).toBeVisible()
 
   await page.getByRole('button', { name: 'Add to favorites' }).first().click()
-  await filters.getByRole('button', { name: /Favorites/ }).click()
-  await expect(page.getByRole('link', { name: /^Open (?!Applications$)/ })).toHaveCount(1)
+  await page.getByRole('button', { name: 'Favorites', exact: true }).click()
+  await expect(runs.getByRole('link')).toHaveCount(1)
 
-  await page.getByRole('link', { name: /^Open (?!Applications$)/ }).click()
+  await runs.getByRole('link').click()
   await expect(page).toHaveURL(new RegExp(`/resume/result/${id1}|/resume/result/`))
 })
 
@@ -104,7 +107,7 @@ test('continuing a run from history carries its context to the next tool', async
   await gotoHydrated(page, '/history')
   await page.getByRole('button', { name: /^Continue: / }).first().click()
   await expect(page).toHaveURL(/\/job-match$/)
-  const status = page.locator('.tool-status-inline')
+  const status = page.getByRole('list', { name: 'Resume source' })
   await expect(status).toBeVisible()
   await status.getByRole('button', { name: 'Change' }).click()
   await expect(page.locator('#job-match-resumeText')).toHaveValue(resumeText)
@@ -120,7 +123,7 @@ test('regeneration through the UI creates a new ToolRun linked by parent_run_id'
   await page.getByRole('button', { name: 'Submit' }).click()
   await expect(page).toHaveURL(new RegExp(`/resume\\?parent_run_id=${id1}`))
 
-  const status = page.locator('.tool-status-inline')
+  const status = page.getByRole('list', { name: 'Resume source' })
   await expect(status).toBeVisible()
   await page.getByRole('button', { name: 'Review resume' }).click()
   await expect(page).toHaveURL(/\/resume\/result\/[^/]+$/)
@@ -149,7 +152,7 @@ test('deleting one run preserves its workspace and deleting the final run remove
 
   await gotoHydrated(page, '/history')
   await expect(page.getByRole('button', { name: /^Delete / })).toHaveCount(2)
-  const originalRunRow = page.locator('.run-row').filter({
+  const originalRunRow = page.getByRole('list', { name: 'Saved runs' }).getByRole('listitem').filter({
     has: page.locator(`a[href="/resume/result/${firstId}"]`),
   })
   await originalRunRow.getByRole('button', { name: /^Delete / }).click()

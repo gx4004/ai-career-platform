@@ -85,12 +85,12 @@ test.describe('CV Studio editor loop', () => {
     await expect(page.getByTestId('save-status')).toContainText('Saved', { timeout: 15_000 })
 
     // Switch template.
-    await page.getByRole('navigation', { name: 'Studio tools' }).getByRole('button', { name: /^Design/ }).click()
+    await page.getByRole('tablist', { name: 'Studio tools' }).getByRole('tab', { name: /^Design/ }).click()
     await page.getByRole('radio', { name: /Modern Two-Column/ }).check({ force: true })
     // Switch font — the fixed template/font catalog always has more than one entry.
-    const fonts = page.locator('.cvs-font')
-    await fonts.nth(1).click()
-    await expect(fonts.nth(1).locator('input[type="radio"]')).toBeChecked()
+    const fonts = page.getByRole('radiogroup', { name: 'Font' }).getByRole('radio')
+    await fonts.nth(1).check({ force: true })
+    await expect(fonts.nth(1)).toBeChecked()
     await expect(page.getByTestId('save-status')).toContainText('Saved', { timeout: 15_000 })
 
     // Export PDF — disabled while dirty, so the prior "Saved" wait matters.
@@ -110,9 +110,9 @@ test.describe('Discovery hand-offs', () => {
       stdio: 'pipe',
     })
     await gotoHydrated(page, '/discovery')
-    const firstCard = page.locator('.disc-card').first()
+    const firstCard = page.getByRole('list', { name: 'Jobs' }).getByRole('listitem').first()
     await expect(firstCard).toBeVisible({ timeout: 15_000 })
-    const jobTitle = (await firstCard.locator('h3, .disc-card__title').first().textContent())?.trim() ?? ''
+    const jobTitle = (await firstCard.getByRole('heading').first().textContent())?.trim() ?? ''
     expect(jobTitle.length).toBeGreaterThan(0)
 
     await firstCard.getByRole('button', { name: /^More actions for / }).click()
@@ -131,9 +131,9 @@ test.describe('Discovery hand-offs', () => {
       stdio: 'pipe',
     })
     await gotoHydrated(page, '/discovery')
-    const firstCard = page.locator('.disc-card').first()
+    const firstCard = page.getByRole('list', { name: 'Jobs' }).getByRole('listitem').first()
     await expect(firstCard).toBeVisible({ timeout: 15_000 })
-    const jobTitle = (await firstCard.locator('h3, .disc-card__title').first().textContent())?.trim() ?? ''
+    const jobTitle = (await firstCard.getByRole('heading').first().textContent())?.trim() ?? ''
 
     await firstCard.getByRole('button', { name: 'Add to applications' }).click()
     await page.waitForURL(/\/campaigns\/[^/]+$/, { timeout: 15_000 })

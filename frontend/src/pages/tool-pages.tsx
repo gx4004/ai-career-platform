@@ -1,30 +1,25 @@
-import { CareerToolPage } from '#/components/tooling/CareerToolPage'
-import { CoverLetterToolPage } from '#/components/tooling/CoverLetterToolPage'
-import { InterviewToolPage } from '#/components/tooling/InterviewToolPage'
-import { JobMatchToolPage } from '#/components/tooling/JobMatchToolPage'
-import { PortfolioToolPage } from '#/components/tooling/PortfolioToolPage'
-import { ResumeToolPage } from '#/components/tooling/ResumeToolPage'
+import { ToolRouteScreen } from '#/components/tooling/ToolRouteScreen'
 
 export function ResumePage() {
-  return <ResumeToolPage />
+  return <ToolRouteScreen toolId="resume" />
 }
 
 export function JobMatchPage() {
-  return <JobMatchToolPage />
+  return <ToolRouteScreen toolId="job-match" />
 }
 
 export function CoverLetterPage() {
-  return <CoverLetterToolPage />
+  return <ToolRouteScreen toolId="cover-letter" />
 }
 
 export function InterviewPage() {
-  return <InterviewToolPage />
+  return <ToolRouteScreen toolId="interview" />
 }
 
 export function CareerPage() {
-  return <CareerToolPage />
+  return <ToolRouteScreen toolId="career" />
 }
 
 export function PortfolioPage() {
-  return <PortfolioToolPage />
+  return <ToolRouteScreen toolId="portfolio" />
 }

@@ -1,7 +1,45 @@
 import { Link } from '@tanstack/react-router'
+import { Button, Table } from '#/components/kit'
+import type { TableColumn } from '#/components/kit'
 import { LegalLayout } from '#/components/legal/LegalLayout'
 import { LEGAL_CONTACT_EMAIL } from '#/components/legal/constants'
 import { clearStoredConsent } from '#/lib/consent'
+
+type CookieRow = { name: string; type: string; purpose: string; lifetime: string }
+
+const NECESSARY_COOKIES: CookieRow[] = [
+  {
+    name: 'cw_access',
+    type: 'HttpOnly cookie',
+    purpose: 'Short-lived authentication token used to keep you signed in.',
+    lifetime: '~30 minutes',
+  },
+  {
+    name: 'cw_refresh',
+    type: 'HttpOnly cookie',
+    purpose: 'Refresh token used to renew your session without signing in again.',
+    lifetime: '~7 days',
+  },
+  {
+    name: 'cw-cookie-consent',
+    type: 'localStorage',
+    purpose: 'Remembers your cookie-consent choice so we don’t show the banner again.',
+    lifetime: 'Until you clear it',
+  },
+  {
+    name: 'cw:sw-reload-pending',
+    type: 'sessionStorage',
+    purpose: 'Technical flag used to reload the page after a service-worker update.',
+    lifetime: 'Until the browser tab is closed',
+  },
+]
+
+const COOKIE_COLUMNS: TableColumn<CookieRow>[] = [
+  { id: 'name', header: 'Name', primary: true, cell: (cookie) => <code>{cookie.name}</code> },
+  { id: 'type', header: 'Type', cell: (cookie) => cookie.type },
+  { id: 'purpose', header: 'Purpose', cell: (cookie) => cookie.purpose },
+  { id: 'lifetime', header: 'Lifetime', cell: (cookie) => cookie.lifetime },
+]
 
 function resetConsent() {
   clearStoredConsent()
@@ -34,52 +72,12 @@ export function CookiePolicyPage() {
         These cookies are required to operate the Service. They are always set and do not require your consent
         under the ePrivacy Directive.
       </p>
-      <div className="legal-page__table-wrap">
-        <table className="legal-page__table">
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Type</th>
-              <th>Purpose</th>
-              <th>Lifetime</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>
-                <code>cw_access</code>
-              </td>
-              <td>HttpOnly cookie</td>
-              <td>Short-lived authentication token used to keep you signed in.</td>
-              <td>~30 minutes</td>
-            </tr>
-            <tr>
-              <td>
-                <code>cw_refresh</code>
-              </td>
-              <td>HttpOnly cookie</td>
-              <td>Refresh token used to renew your session without signing in again.</td>
-              <td>~7 days</td>
-            </tr>
-            <tr>
-              <td>
-                <code>cw-cookie-consent</code>
-              </td>
-              <td>localStorage</td>
-              <td>Remembers your cookie-consent choice so we don’t show the banner again.</td>
-              <td>Until you clear it</td>
-            </tr>
-            <tr>
-              <td>
-                <code>cw:sw-reload-pending</code>
-              </td>
-              <td>sessionStorage</td>
-              <td>Technical flag used to reload the page after a service-worker update.</td>
-              <td>Until the browser tab is closed</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+      <Table
+        caption="Strictly necessary cookies"
+        columns={COOKIE_COLUMNS}
+        rows={NECESSARY_COOKIES}
+        getRowId={(cookie) => cookie.name}
+      />
 
       <h2>3. Analytics and advertising cookies</h2>
       <p>
@@ -125,9 +123,9 @@ export function CookiePolicyPage() {
         </li>
       </ul>
       <p>
-        <button type="button" className="legal-page__reset-btn" onClick={resetConsent}>
+        <Button variant="secondary" onClick={resetConsent}>
           Reset cookie consent
-        </button>
+        </Button>
       </p>
 
       <h2>6. Contact</h2>

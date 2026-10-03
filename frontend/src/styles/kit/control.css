@@ -1,0 +1,333 @@
+/*
+ * Control frame: the one skin shared by Input, DateField, Select, Textarea
+ * and the framed Checkbox/Switch. Same height scale, border, radius, colours,
+ * focus ring and states, so a toolbar row of mixed controls reads as one set.
+ */
+
+.kit-input,
+.kit-select,
+.kit-textarea,
+.kit-check[data-framed] {
+  --kit-control-h: var(--kit-h-md);
+  --kit-control-px: var(--space-3);
+  --kit-control-fs: var(--fs-body);
+  --kit-control-lh: var(--lh-body);
+  --kit-control-icon: 1rem;
+  --kit-control-ring: var(--focus-ring-color);
+
+  position: relative;
+  display: flex;
+  flex: 0 1 auto;
+  align-items: center;
+  gap: var(--space-2);
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+  color: var(--text-strong);
+  font-family: var(--font-sans);
+  font-size: var(--kit-control-fs);
+  line-height: var(--kit-control-lh);
+  transition: var(--transition-colors);
+}
+
+.kit-input,
+.kit-select,
+.kit-check[data-framed] {
+  height: var(--kit-control-h);
+  padding: 0 var(--kit-control-px);
+}
+
+.kit-input[data-size='sm'],
+.kit-select[data-size='sm'],
+.kit-check[data-framed][data-size='sm'] {
+  --kit-control-h: var(--kit-h-sm);
+  --kit-control-px: var(--space-2);
+  --kit-control-fs: var(--fs-meta);
+  --kit-control-lh: var(--lh-meta);
+  --kit-control-icon: 0.875rem;
+}
+
+.kit-input[data-size='lg'],
+.kit-select[data-size='lg'],
+.kit-check[data-framed][data-size='lg'] {
+  --kit-control-h: var(--kit-h-lg);
+}
+
+/* ── States ────────────────────────────────────────────────────────── */
+
+@media (hover: hover) {
+  .kit-input:hover,
+  .kit-select:hover,
+  .kit-textarea:hover,
+  .kit-check[data-framed]:hover {
+    border-color: var(--text-soft);
+  }
+}
+
+.kit-input:has(.kit-input__control:focus-visible),
+.kit-select:has(.kit-select__control:focus-visible),
+.kit-textarea:focus-visible,
+.kit-check[data-framed]:has(input:focus-visible) {
+  outline: var(--focus-ring-width) solid var(--kit-control-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.kit-input[data-invalid],
+.kit-select[data-invalid],
+.kit-textarea[data-invalid],
+.kit-check[data-framed][data-invalid] {
+  --kit-control-ring: var(--danger-solid);
+
+  border-color: var(--danger-solid);
+}
+
+.kit-input[data-readonly],
+.kit-textarea[data-readonly] {
+  border-color: var(--border-strong);
+  background: var(--surface-subtle);
+}
+
+.kit-input[data-disabled],
+.kit-select[data-disabled],
+.kit-textarea[data-disabled],
+.kit-check[data-framed][data-disabled] {
+  border-color: var(--border-strong);
+  background: var(--surface-subtle);
+  color: var(--text-disabled);
+  cursor: not-allowed;
+}
+
+/* ── Inner controls (Input, Select) ────────────────────────────────── */
+
+.kit-input__control,
+.kit-select__control {
+  flex: 1 1 auto;
+  box-sizing: border-box;
+  min-width: 0;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: inherit;
+  font: inherit;
+  text-overflow: ellipsis;
+  outline: none;
+  appearance: none;
+}
+
+.kit-input__control:focus-visible,
+.kit-select__control:focus-visible {
+  border: 0;
+  box-shadow: none;
+}
+
+.kit-input__control::placeholder {
+  color: var(--text-placeholder);
+  opacity: 1;
+}
+
+.kit-input__control:disabled,
+.kit-select__control:disabled {
+  cursor: not-allowed;
+}
+
+.kit-input__control:disabled::placeholder {
+  color: var(--text-disabled);
+}
+
+.kit-input__control[type='search']::-webkit-search-cancel-button,
+.kit-input__control[type='search']::-webkit-search-decoration {
+  display: none;
+  appearance: none;
+}
+
+.kit-input__control[type='date'] {
+  min-width: 0;
+  text-align: left;
+}
+
+.kit-input__control[type='date']::-webkit-date-and-time-value {
+  min-height: 1lh;
+  text-align: left;
+}
+
+/* An empty date reads like a placeholder; a focused segment uses the selection tint, not the browser's blue. */
+.kit-input[data-empty]:not(:focus-within) .kit-input__control[type='date'] {
+  color: var(--text-placeholder);
+}
+
+.kit-input__control[type='date']::-webkit-datetime-edit-day-field:focus,
+.kit-input__control[type='date']::-webkit-datetime-edit-month-field:focus,
+.kit-input__control[type='date']::-webkit-datetime-edit-year-field:focus {
+  background: var(--accent-selected);
+  color: var(--accent);
+  outline: none;
+}
+
+.kit-input__control[type='date']::-webkit-calendar-picker-indicator {
+  margin: 0;
+  cursor: pointer;
+  opacity: 0.6;
+}
+
+@media (hover: hover) {
+  .kit-input__control[type='date']::-webkit-calendar-picker-indicator:hover {
+    opacity: 1;
+  }
+}
+
+.kit-input__adornment,
+.kit-select__leading {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  color: var(--text-soft);
+  white-space: nowrap;
+}
+
+.kit-input__adornment > svg {
+  width: var(--kit-control-icon);
+  height: var(--kit-control-icon);
+}
+
+/* A trailing icon button (show/hide password) sits where the clear button does: same inset from the frame edge. */
+.kit-input__adornment:last-child > .kit-button {
+  margin-inline-end: calc(var(--space-1) * -1);
+}
+
+/* The adornment shrinks to its content and the negative end margin takes width off it: the button's own 100% cap would then squeeze a 44px touch icon button to 32px. */
+.kit-input__adornment > .kit-button {
+  max-inline-size: none;
+}
+
+.kit-input__clear {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  margin: 0 calc(var(--space-1) * -1) 0 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-soft);
+  cursor: pointer;
+  transition: var(--transition-colors);
+}
+
+@media (hover: hover) {
+  .kit-input__clear:hover {
+    background: var(--surface-hover);
+    color: var(--text-strong);
+  }
+}
+
+.kit-input__clear:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: 0;
+}
+
+.kit-input__clear > svg {
+  width: 0.875rem;
+  height: 0.875rem;
+}
+
+/* ── Select ────────────────────────────────────────────────────────── */
+
+.kit-select {
+  padding-right: 0;
+}
+
+.kit-select__control {
+  padding-right: calc(var(--kit-control-px) + var(--kit-control-icon) + var(--space-2));
+  cursor: pointer;
+}
+
+.kit-select__chevron {
+  position: absolute;
+  top: 50%;
+  right: var(--kit-control-px);
+  width: var(--kit-control-icon);
+  height: var(--kit-control-icon);
+  margin-top: calc(var(--kit-control-icon) / -2);
+  color: var(--text-soft);
+  pointer-events: none;
+}
+
+.kit-select[data-disabled] .kit-select__chevron {
+  color: var(--text-disabled);
+}
+
+/* ── Textarea ──────────────────────────────────────────────────────── */
+
+.kit-textarea {
+  display: block;
+  padding: var(--space-2) var(--kit-control-px);
+  resize: vertical;
+  outline: none;
+}
+
+.kit-textarea::placeholder {
+  color: var(--text-placeholder);
+  opacity: 1;
+}
+
+.kit-textarea:focus-visible {
+  box-shadow: none;
+}
+
+.kit-textarea[data-autosize] {
+  resize: none;
+  overflow-y: hidden;
+}
+
+.kit-textarea[data-capped] {
+  padding-block-end: 0;
+}
+
+.kit-textarea[data-disabled] {
+  resize: none;
+}
+
+.kit-textarea[data-disabled]::placeholder {
+  color: var(--text-disabled);
+}
+
+/* Touch: 16px text stops iOS Safari from zooming the page on focus. */
+@media (pointer: coarse) {
+  .kit-input,
+  .kit-select,
+  .kit-textarea,
+  .kit-check[data-framed] {
+    --kit-control-fs: 1rem;
+    --kit-control-lh: 1.25rem;
+  }
+
+  /* Declared after the data-size rules and matching their specificity, so small controls get 16px too. */
+  .kit-input[data-size='sm'],
+  .kit-select[data-size='sm'],
+  .kit-check[data-framed][data-size='sm'] {
+    --kit-control-fs: 1rem;
+    --kit-control-lh: 1.25rem;
+    --kit-control-icon: 1rem;
+  }
+
+  .kit-input__clear {
+    width: var(--touch-target);
+    height: var(--touch-target);
+    margin-right: calc(var(--kit-control-px) * -1);
+  }
+
+  .kit-input__adornment:last-child > .kit-button {
+    margin-inline-end: calc(var(--kit-control-px) * -1);
+  }
+}

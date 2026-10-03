@@ -1,27 +1,42 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { CheckCircle2, FilePenLine } from 'lucide-react'
-import { Button } from '#/components/ui/button'
+import { useState, type ReactNode } from 'react'
+import { Link } from '@tanstack/react-router'
+import {
+  Button,
+  ErrorState,
+  List,
+  Notice,
+  Page,
+  PageHeader,
+  Row,
+  RowBody,
+  RowMeta,
+  RowTitle,
+  Section,
+  Skeleton,
+  Stack,
+} from '#/components/kit'
 import { CinematicLoader } from '#/components/tooling/CinematicLoader'
 import { GuestSaveBanner } from '#/components/tooling/GuestSaveBanner'
-import { ToolFullScreen } from '#/components/tooling/ToolFullScreen'
-import { ToolHeroIllustration } from '#/components/tooling/ToolHeroIllustration'
 import { WorkflowHandoffBanner } from '#/components/tooling/WorkflowHandoffBanner'
+import { useHistory } from '#/hooks/useHistory'
 import { useSession } from '#/hooks/useSession'
+import { historyRunHref } from '#/lib/tools/historyToolLabel'
+import { formatRunDate } from '#/lib/tools/runLabel'
 import { useToolDraft } from '#/hooks/useToolDraft'
 import { useToolMutation } from '#/hooks/useToolMutation'
 import { useWorkflowBridge } from '#/hooks/useWorkflowBridge'
 import { workflowConfigs, validateWorkflowDraft } from '#/lib/tools/workflowConfigs'
 import { tools } from '#/lib/tools/registry'
 import type { ToolId } from '#/lib/tools/registry'
-import { cn } from '#/lib/utils'
 
-const toolHeroChips: Record<ToolId, string[]> = {
-  resume: ['Skills', 'Score', 'Tips'],
-  'job-match': ['Fit', 'Keywords', 'Gap'],
-  'cover-letter': ['Tone', 'Length', 'Match'],
-  interview: ['Questions', 'Difficulty', 'Role'],
-  career: ['Steps', 'Timeline', 'Options'],
-  portfolio: ['Projects', 'Impact', 'Role'],
+/** After a failed submit, move focus to the first field the errors are about (they render on the next frame). */
+function focusFirstInvalidField() {
+  requestAnimationFrame(() => {
+    const invalid = document.querySelector<HTMLElement>(
+      'form [aria-invalid="true"], form [data-invalid] :is(input:not([type="file"]), textarea, select, button)',
+    )
+    invalid?.focus()
+  })
 }
 
 export function useToolPageState(toolId: ToolId) {
@@ -40,7 +55,10 @@ export function useToolPageState(toolId: ToolId) {
   const handleSubmit = () => {
     const nextErrors = validateWorkflowDraft(config, draft)
     setErrors(nextErrors)
-    if (Object.keys(nextErrors).length > 0) return
+    if (Object.keys(nextErrors).length > 0) {
+      focusFirstInvalidField()
+      return
+    }
     mutation.mutate({
       payload: config.buildPayload(draft),
       draft,
@@ -66,97 +84,87 @@ export function useToolPageState(toolId: ToolId) {
 
 export function ToolPageShell({
   toolId,
-  bodyClassName,
-  hero,
   children,
 }: {
   toolId: ToolId
-  bodyClassName?: string
-  hero?: ReactNode
   children: ReactNode
 }) {
   const tool = tools[toolId]
 
   return (
-    <ToolFullScreen accent={tool.accent} heroFlow={Boolean(hero)}>
+    <Page width="narrow">
+      <PageHeader title={tool.label} lead={tool.summary} />
       <GuestSaveBanner />
-      {hero}
       <WorkflowHandoffBanner toolId={toolId} />
-      <div className={cn('tool-fs-body', bodyClassName)}>
-        {children}
-      </div>
-    </ToolFullScreen>
+      {children}
+      <RecentToolRuns toolId={toolId} />
+    </Page>
   )
 }
 
-export function ToolInputHero({
-  toolId,
-  subtitle,
-}: {
-  toolId: ToolId
-  subtitle: string
-}) {
-  const tool = tools[toolId]
-  const chips = toolHeroChips[toolId]
+/** The last few saved runs of this tool, so the page opens with the user's own data. */
+export function RecentToolRuns({ toolId }: { toolId: ToolId }) {
+  const { status } = useSession()
+  const query = useHistory({ tool: toolId, page: 1, page_size: 3 }, status === 'authenticated')
+  const items = query.data?.items ?? []
+
+  if (status !== 'authenticated' || (!query.isPending && !query.isError && items.length === 0)) return null
 
   return (
-    <div className="tool-input-hero">
-      <div className="tool-input-hero-illust">
-        <ToolHeroIllustration toolId={toolId} accent={tool.accent} loading={false} />
-      </div>
-      <h1 className="tool-input-hero-title">{tool.label}</h1>
-      <p className="tool-input-hero-subtitle">{subtitle}</p>
-      {chips.length > 0 && (
-        <div className="tool-input-hero-chips">
-          {chips.map((chip) => (
-            <span key={chip} className="tool-input-hero-chip">{chip}</span>
-          ))}
-        </div>
+    <Section id="recent-runs" title="Recent runs">
+      {query.isError ? (
+        <ErrorState
+          size="inline"
+          title="Recent runs couldn't be loaded"
+          onRetry={() => void query.refetch()}
+          retrying={query.isFetching}
+        />
+      ) : (
+        <List aria-labelledby="recent-runs-heading" aria-busy={query.isPending || undefined}>
+          {query.isPending ? (
+            <Skeleton variant="row" as="li" count={3} />
+          ) : (
+            items.map((item) => {
+              const href = historyRunHref(item)
+              const label = item.label || 'Untitled run'
+              return (
+                <Row key={item.id}>
+                  <RowBody>
+                    {href ? (
+                      <RowTitle asChild>
+                        <Link to={href}>{label}</Link>
+                      </RowTitle>
+                    ) : (
+                      <RowTitle>{label}</RowTitle>
+                    )}
+                  </RowBody>
+                  <RowMeta>{formatRunDate(item.created_at)}</RowMeta>
+                </Row>
+              )
+            })
+          )}
+        </List>
       )}
-    </div>
-  )
-}
-
-export function ToolStatusInline({
-  label,
-  onChangeResume,
-}: {
-  label: string
-  onChangeResume?: () => void
-}) {
-  return (
-    <div className="tool-status-inline">
-      <span className="tool-status-inline-dot" />
-      <span>{label}</span>
-      {onChangeResume && (
-        <button type="button" className="tool-status-inline-change" onClick={onChangeResume}>
-          Change
-        </button>
-      )}
-    </div>
+    </Section>
   )
 }
 
 export function ToolPageLoading({
   toolId,
-  className,
   mutationDone,
   onReady,
 }: {
   toolId: ToolId
-  className?: string
   /** Whether the data mutation has resolved */
   mutationDone?: boolean
   /** Called when minimum display time has elapsed */
   onReady?: () => void
 }) {
-  const tool = tools[toolId]
   const { status } = useSession()
 
   return (
-    <div className={cn('tool-loading-stage', className)}>
+    <div className="tool-loading">
       <CinematicLoader
-        accent={tool.accent}
         toolId={toolId}
         mutationDone={mutationDone}
         onReady={onReady}
@@ -166,18 +174,54 @@ export function ToolPageLoading({
   )
 }
 
+/** The input form: its fields, then the run error (if any) and the one submit button. */
+export function ToolForm({
+  label,
+  onSubmit,
+  submitLabel,
+  error,
+  pending,
+  children,
+}: {
+  label: string
+  onSubmit: () => void
+  submitLabel: string
+  error?: unknown
+  pending?: boolean
+  children: ReactNode
+}) {
+  return (
+    <form
+      aria-label={label}
+      onSubmit={(event) => {
+        event.preventDefault()
+        onSubmit()
+      }}
+    >
+      <Stack gap={6}>
+        {children}
+        <Stack gap={3}>
+          {error ? (
+            <Notice tone="danger">{error instanceof Error ? error.message : 'This run failed.'}</Notice>
+          ) : null}
+          <div>
+            <Button type="submit" loading={pending}>
+              {submitLabel}
+            </Button>
+          </div>
+        </Stack>
+      </Stack>
+    </form>
+  )
+}
+
 export function getSeededFieldNote(
-  fieldName: 'resumeText' | 'jobDescription' | 'targetRole',
+  fieldName: 'jobDescription' | 'targetRole',
   bridge: {
-    seededResume: boolean
     seededJob: boolean
     seededTargetRole: boolean
   },
 ): string {
-  if (fieldName === 'resumeText' && bridge.seededResume) {
-    return 'Resume text carried in from your recent workflow.'
-  }
-
   if (fieldName === 'jobDescription' && bridge.seededJob) {
     return 'Job description carried in from your recent workflow.'
   }
@@ -187,70 +231,4 @@ export function getSeededFieldNote(
   }
 
   return ''
-}
-
-export function ParsedResumeNotice({
-  body,
-  actionLabel,
-  onAction,
-}: {
-  body: string
-  actionLabel?: string
-  onAction: () => void
-}) {
-  return (
-    <div className="parsed-resume-notice">
-      <div className="parsed-resume-notice-copy">
-        <CheckCircle2 size={18} />
-        <p className="small-copy">{body}</p>
-      </div>
-      {actionLabel !== '' ? (
-        <Button type="button" variant="outline" size="sm" onClick={onAction}>
-          <FilePenLine size={14} />
-          {actionLabel ?? 'Review extracted text'}
-        </Button>
-      ) : null}
-    </div>
-  )
-}
-
-export function useResumeEditorCollapse(
-  hasResumeContent: boolean,
-  initialCollapsed: boolean,
-) {
-  const [resumeEditorCollapsed, setResumeEditorCollapsed] = useState(initialCollapsed)
-  const userOpenedEditorRef = useRef(false)
-
-  useEffect(() => {
-    if (!hasResumeContent || userOpenedEditorRef.current) return
-    setResumeEditorCollapsed(true)
-  }, [hasResumeContent])
-
-  const openResumeEditor = () => {
-    userOpenedEditorRef.current = true
-    setResumeEditorCollapsed(false)
-  }
-
-  const collapseResumeEditor = () => {
-    userOpenedEditorRef.current = false
-    setResumeEditorCollapsed(true)
-  }
-
-  return {
-    resumeEditorCollapsed,
-    openResumeEditor,
-    collapseResumeEditor,
-  }
-}
-
-export function useSeededToolPhase(hasResumeContent: boolean) {
-  const [phase, setPhase] = useState<'upload' | 'form'>(
-    hasResumeContent ? 'form' : 'upload',
-  )
-
-  useEffect(() => {
-    if (hasResumeContent) setPhase('form')
-  }, [hasResumeContent])
-
-  return { phase, setPhase }
 }

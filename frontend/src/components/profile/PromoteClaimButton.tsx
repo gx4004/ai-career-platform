@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { Check, Loader2, Plus } from 'lucide-react'
+import { Check, Plus } from 'lucide-react'
+import { Button } from '#/components/kit'
 import { createEvidenceItem } from '#/lib/api/client'
 import type { PromotableClaim } from '#/lib/tools/promotableClaims'
 
@@ -42,25 +43,21 @@ export function PromoteClaimButton({ claim }: { claim: PromotableClaim }) {
           : 'Add to profile'
 
   return (
-    <button
+    <Button
       type="button"
-      className={`claim-promote__btn claim-promote__btn--${state}`}
+      size="sm"
+      variant={state === 'done' ? 'ghost' : 'secondary'}
+      loading={state === 'pending'}
+      disabled={state === 'done'}
       onClick={handlePromote}
-      disabled={state === 'pending' || state === 'done'}
       aria-label={
         state === 'done'
           ? `Added "${claim.label}" to your Evidence Profile`
           : `Add "${claim.label}" to your Evidence Profile`
       }
     >
-      {state === 'done' ? (
-        <Check size={13} aria-hidden="true" />
-      ) : state === 'pending' ? (
-        <Loader2 size={13} className="claim-promote__spin" aria-hidden="true" />
-      ) : (
-        <Plus size={13} aria-hidden="true" />
-      )}
+      {state === 'done' ? <Check aria-hidden="true" /> : <Plus aria-hidden="true" />}
       {label}
-    </button>
+    </Button>
   )
 }

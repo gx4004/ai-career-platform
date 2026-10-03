@@ -1,0 +1,47 @@
+/* Avatar: a round identity mark. Initials on a quiet stone disc, never a per-person colour. */
+
+.kit-avatar {
+  --kit-avatar-size: 1.75rem;
+
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  inline-size: var(--kit-avatar-size);
+  block-size: var(--kit-avatar-size);
+  overflow: hidden;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-pill);
+  background: var(--surface-sunken);
+  color: var(--text-body);
+  font-family: var(--font-sans);
+  font-size: var(--fs-micro);
+  font-weight: var(--fw-medium);
+  line-height: 1;
+  vertical-align: middle;
+  user-select: none;
+}
+
+.kit-avatar[data-size='sm'] {
+  --kit-avatar-size: 1.5rem;
+}
+
+.kit-avatar[data-size='lg'] {
+  --kit-avatar-size: 2.25rem;
+
+  font-size: var(--fs-meta);
+}
+
+.kit-avatar__image {
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+}
+
+.kit-avatar__initials {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}

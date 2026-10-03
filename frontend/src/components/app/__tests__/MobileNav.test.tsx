@@ -35,15 +35,49 @@ describe('MobileNav discovery visibility', () => {
     render(<MobileNav />)
     expect(screen.queryByRole('link', { name: 'Discover' })).toBeNull()
     const nav = screen.getByRole('navigation', { name: 'Main navigation' })
-    expect(nav.querySelectorAll('.mobile-tab-item')).toHaveLength(5)
+    expect(nav.querySelectorAll('.app-tabbar__item')).toHaveLength(5)
 
     fireEvent.click(screen.getByRole('button', { name: 'Sign in' }))
     expect(openAuthDialog).toHaveBeenCalledWith({ to: '/discovery', reason: 'discovery' })
   })
 
-  it('keeps five tabs for signed-in users', () => {
+  it('gives signed-in users Home, Discover, Applications, CV and More', () => {
     render(<MobileNav />)
     const nav = screen.getByRole('navigation', { name: 'Main navigation' })
-    expect(nav.querySelectorAll('.mobile-tab-item')).toHaveLength(5)
+    const labels = [...nav.querySelectorAll('.app-tabbar__item')].map((tab) => tab.textContent)
+    expect(labels).toEqual(['Home', 'Discover', 'Applications', 'CV', 'More'])
+    expect(screen.getByRole('link', { name: 'Applications' }).getAttribute('href')).toBe('/campaigns')
+    expect(screen.getByRole('link', { name: 'CV' }).getAttribute('href')).toBe('/cv-studio')
+  })
+})
+
+describe('MobileNav current page', () => {
+  beforeEach(() => {
+    pathname.current = '/dashboard'
+    sessionUser.current = { id: 'user-1' }
+  })
+
+  it('marks the current tab with aria-current and leaves the others unmarked', () => {
+    pathname.current = '/campaigns/abc'
+    render(<MobileNav />)
+
+    expect(screen.getByRole('link', { name: 'Applications' }).getAttribute('aria-current')).toBe('page')
+    expect(screen.getByRole('link', { name: 'Home' }).getAttribute('aria-current')).toBeNull()
+  })
+
+  it('lights More while a tool or profile page is open', () => {
+    pathname.current = '/resume'
+    render(<MobileNav />)
+
+    expect(screen.getByRole('button', { name: 'More' }).getAttribute('data-active')).toBe('true')
+  })
+
+  it('opens and closes the More sheet from the More tab', () => {
+    render(<MobileNav />)
+    const more = screen.getByRole('button', { name: 'More' })
+
+    expect(more.getAttribute('aria-expanded')).toBe('false')
+    fireEvent.click(more)
+    expect(more.getAttribute('aria-expanded')).toBe('true')
   })
 })

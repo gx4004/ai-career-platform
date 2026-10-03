@@ -1,40 +1,43 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import {
-  ArrowRight,
-  ChevronLeft,
-  FileText,
-  Compass,
-  Sparkles,
-  Target,
-  Rocket,
-  CheckCircle2,
-} from 'lucide-react'
-import { Dialog, DialogContent, DialogTitle } from '#/components/ui/dialog'
-import { Button } from '#/components/ui/button'
-import { OnboardingProgress } from '#/components/onboarding/OnboardingProgress'
+  Button,
+  Dialog,
+  DialogBody,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  List,
+  Notice,
+  RadioGroup,
+  RadioItem,
+  Row,
+  RowBody,
+  RowLeading,
+  RowSubtitle,
+  RowTitle,
+} from '#/components/kit'
 import { toolList } from '#/lib/tools/registry'
 
 type OnboardingGoal = 'job-search' | 'career-change' | 'interview-prep'
 
-const goals: Array<{ id: OnboardingGoal; label: string; description: string; icon: typeof Target }> = [
+const goals: Array<{ id: OnboardingGoal; label: string; description: string }> = [
   {
     id: 'job-search',
     label: 'Active job search',
     description: 'Find and apply to roles that match your skills',
-    icon: Target,
   },
   {
     id: 'career-change',
     label: 'Career transition',
     description: 'Explore new directions and close skill gaps',
-    icon: Compass,
   },
   {
     id: 'interview-prep',
     label: 'Interview preparation',
     description: 'Practice answers and build confidence',
-    icon: Sparkles,
   },
 ]
 
@@ -54,6 +57,15 @@ export function OnboardingDialog({
   const [step, setStep] = useState(0)
   const [selectedGoal, setSelectedGoal] = useState<OnboardingGoal | null>(null)
   const navigate = useNavigate()
+  const nextRef = useRef<HTMLButtonElement | null>(null)
+
+  // A replayed tour starts from the welcome again.
+  useEffect(() => {
+    if (!open) {
+      setStep(0)
+      setSelectedGoal(null)
+    }
+  }, [open])
 
   function next() {
     if (step < TOTAL_STEPS - 1) {
@@ -73,147 +85,110 @@ export function OnboardingDialog({
     if (step > 0) setStep(step - 1)
   }
 
+  const recommendation =
+    selectedGoal === 'interview-prep'
+      ? 'We recommend starting with Interview Q&A to practice structured answers.'
+      : selectedGoal === 'career-change'
+        ? 'We recommend starting with Career Path to explore new directions.'
+        : 'We recommend starting with Resume Analyzer to build your workflow foundation.'
+
+  const copy = [
+    {
+      title: 'Welcome to Career Workbench',
+      description:
+        'Your AI-powered career suite that connects resume analysis, job matching, and application prep into one focused workflow.',
+    },
+    {
+      title: 'Start with your resume',
+      description:
+        'Upload your CV to unlock the full power of the workflow. Every tool builds on your resume data.',
+    },
+    {
+      title: 'Choose your goal',
+      description: 'Select your primary use case so we can recommend the best starting point.',
+    },
+    {
+      title: 'Explore your tools',
+      description:
+        'Six AI-powered tools line up as one connected workflow, from resume foundation into application prep and planning.',
+    },
+    { title: "You're all set!", description: recommendation },
+  ][step]
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="onboarding-dialog">
-        <DialogTitle className="sr-only">Welcome to Career Workbench</DialogTitle>
-        <div className="onboarding-dialog-inner">
-          <OnboardingProgress currentStep={step} totalSteps={TOTAL_STEPS} />
+      <DialogContent
+        size="md"
+        onOpenAutoFocus={(event) => {
+          event.preventDefault()
+          nextRef.current?.focus()
+        }}
+      >
+        <p role="status" className="kit-sr-only">
+          Step {step + 1} of {TOTAL_STEPS}: {copy.title}
+        </p>
+        <DialogHeader>
+          <p className="onboarding__progress">
+            Step {step + 1} of {TOTAL_STEPS}
+          </p>
+          <DialogTitle>{copy.title}</DialogTitle>
+          <DialogDescription>{copy.description}</DialogDescription>
+        </DialogHeader>
 
-          <div className="onboarding-body" aria-live="polite">
-            {step === 0 && (
-              <div className="onboarding-step">
-                <div className="onboarding-welcome-visual">
-                  <div className="onboarding-welcome-ring">
-                    <Rocket size={28} />
-                  </div>
-                </div>
-                <div className="onboarding-step-header">
-                  <h3 className="onboarding-title">Welcome to Career Workbench</h3>
-                  <p className="onboarding-description">
-                    Your AI-powered career suite that connects resume analysis, job matching, and application prep into one focused workflow.
-                  </p>
-                </div>
-              </div>
-            )}
+        {step === 1 ? (
+          <DialogBody>
+            <Notice title="PDF or text" icon={false}>
+              Upload a PDF or paste your resume text in the Resume Analyzer.
+            </Notice>
+          </DialogBody>
+        ) : null}
 
-            {step === 1 && (
-              <div className="onboarding-step">
-                <div className="onboarding-step-header">
-                  <h3 className="onboarding-title">Start with your resume</h3>
-                  <p className="onboarding-description">
-                    Upload your CV to unlock the full power of the workflow. Every tool builds on your resume data.
-                  </p>
-                </div>
-                <div className="onboarding-upload-hint">
-                  <div className="onboarding-upload-icon">
-                    <FileText size={22} />
-                  </div>
-                  <div>
-                    <p className="onboarding-upload-label">PDF or text</p>
-                    <p className="small-copy muted-copy">
-                      Upload a PDF or paste your resume text in the Resume Analyzer.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
+        {step === 2 ? (
+          <DialogBody>
+            <RadioGroup
+              aria-label="Your goal"
+              variant="card"
+              value={selectedGoal ?? ''}
+              onValueChange={(value) => setSelectedGoal(value as OnboardingGoal)}
+            >
+              {goals.map((goal) => (
+                <RadioItem key={goal.id} value={goal.id} label={goal.label} description={goal.description} />
+              ))}
+            </RadioGroup>
+          </DialogBody>
+        ) : null}
 
-            {step === 2 && (
-              <div className="onboarding-step">
-                <div className="onboarding-step-header">
-                  <h3 className="onboarding-title">Choose your goal</h3>
-                  <p className="onboarding-description">
-                    Select your primary use case so we can recommend the best starting point.
-                  </p>
-                </div>
-                <div className="onboarding-goals">
-                  {goals.map((goal) => (
-                    <button
-                      key={goal.id}
-                      type="button"
-                      className={`onboarding-goal-card ${selectedGoal === goal.id ? 'is-selected' : ''}`}
-                      onClick={() => setSelectedGoal(goal.id)}
-                    >
-                      <div className="onboarding-goal-icon">
-                        <goal.icon size={18} />
-                      </div>
-                      <div className="onboarding-goal-text">
-                        <p className="onboarding-goal-label">{goal.label}</p>
-                        <p className="onboarding-goal-desc">{goal.description}</p>
-                      </div>
-                      {selectedGoal === goal.id && (
-                        <CheckCircle2 size={18} className="onboarding-goal-check" />
-                      )}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
+        {step === 3 ? (
+          <DialogBody>
+            <List aria-label="Tools">
+              {toolList.map((tool) => (
+                <Row key={tool.id}>
+                  <RowLeading>
+                    <tool.icon aria-hidden />
+                  </RowLeading>
+                  <RowBody>
+                    <RowTitle>{tool.label}</RowTitle>
+                    <RowSubtitle>{tool.summary}</RowSubtitle>
+                  </RowBody>
+                </Row>
+              ))}
+            </List>
+          </DialogBody>
+        ) : null}
 
-            {step === 3 && (
-              <div className="onboarding-step">
-                <div className="onboarding-step-header">
-                  <h3 className="onboarding-title">Explore your tools</h3>
-                  <p className="onboarding-description">
-                    Six AI-powered tools line up as one connected workflow, from resume foundation into application prep and planning.
-                  </p>
-                </div>
-                <div className="onboarding-tools-preview">
-                  {toolList.map((tool) => (
-                    <div key={tool.id} className="onboarding-tool-chip">
-                      <div
-                        className="onboarding-tool-chip-icon"
-                        style={{ background: `color-mix(in srgb, ${tool.accent} 12%, transparent)` }}
-                      >
-                        <tool.icon size={14} style={{ color: tool.accent }} />
-                      </div>
-                      <span>{tool.shortLabel}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {step === 4 && (
-              <div className="onboarding-step">
-                <div className="onboarding-welcome-visual">
-                  <div className="onboarding-ready-ring">
-                    <CheckCircle2 size={28} />
-                  </div>
-                </div>
-                <div className="onboarding-step-header">
-                  <h3 className="onboarding-title">You're all set!</h3>
-                  <p className="onboarding-description">
-                    {selectedGoal === 'interview-prep'
-                      ? 'We recommend starting with Interview Q&A to practice structured answers.'
-                      : selectedGoal === 'career-change'
-                        ? 'We recommend starting with Career Path to explore new directions.'
-                        : 'We recommend starting with Resume Analyzer to build your workflow foundation.'}
-                  </p>
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div className="onboarding-footer">
-            <Button variant="ghost" onClick={onSkip} className="onboarding-skip">
-              Skip tour
+        <DialogFooter>
+          <Button type="button" variant="ghost" className="onboarding__skip" onClick={onSkip}>
+            Skip tour
+          </Button>
+          {step > 0 ? (
+            <Button type="button" variant="secondary" onClick={back}>
+              Back
             </Button>
-            <div className="flex gap-2">
-              {step > 0 && (
-                <Button variant="outline" onClick={back} className="onboarding-back">
-                  <ChevronLeft size={16} />
-                  Back
-                </Button>
-              )}
-              <Button onClick={next} className="onboarding-next">
-                {step === TOTAL_STEPS - 1 ? 'Get started' : 'Continue'}
-                <ArrowRight size={16} />
-              </Button>
-            </div>
-          </div>
-        </div>
+          ) : null}
+          <Button ref={nextRef} type="button" onClick={next}>
+            {step === TOTAL_STEPS - 1 ? 'Get started' : 'Continue'}
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   )

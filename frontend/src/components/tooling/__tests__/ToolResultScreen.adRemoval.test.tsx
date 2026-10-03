@@ -1,4 +1,3 @@
-import type { ReactNode } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -31,23 +30,21 @@ vi.mock('#/hooks/useSession', () => ({
   useSession: () => ({ status: sessionStatus, openAuthDialog: openAuthDialogMock }),
 }))
 
-vi.mock('#/components/app/PageFrame', () => ({
-  PageFrame: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-}))
-
 vi.mock('#/lib/telemetry/client', () => ({
   trackTelemetry: vi.fn(),
 }))
 
 // A trivial result definition so the test is robust against per-tool payload
 // shape — the wrapper (formerly `AdGatedLock`) is what is under test, not the
-// per-tool renderer. `download` makes an export affordance render in the hero.
+// per-tool renderer. `download` makes an export affordance render in the header.
 vi.mock('#/lib/tools/resultDefinitions', () => ({
+  FixFirstList: () => null,
   resultDefinitions: new Proxy(
     {},
     {
       get: () => ({
-        heroVariant: 'light',
+        summary: () => ({ facts: [] }),
+        topActions: () => [],
         render: () => <div>RESULT_CONTENT_MARKER</div>,
         copyText: () => 'copied result',
         download: () => ({ filename: 'result.txt', content: 'result body' }),

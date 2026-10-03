@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link } from '@tanstack/react-router'
+import { Button } from '#/components/kit'
 import {
   type ConsentState,
   getStoredConsent,
@@ -42,21 +43,18 @@ export function CookieConsent() {
     <div className="cookie-banner" role="dialog" aria-label="Cookie consent">
       <div className="cookie-banner__inner">
         <p className="cookie-banner__text">
-          We use strictly-necessary cookies to keep you signed in, and a small amount of first-party diagnostic
-          telemetry to see whether the tools work — declining turns that telemetry off. We serve no advertising and
-          load no third-party analytics or advertising cookies.{' '}
-          <Link to="/cookies" className="cookie-banner__link">
-            Learn more
-          </Link>
-          .
+          Essential cookies keep you signed in. Optional diagnostics help us fix bugs, and declining turns them off.{' '}
+          <Button asChild variant="link" size="sm">
+            <Link to="/cookies">Learn more</Link>
+          </Button>
         </p>
         <div className="cookie-banner__actions">
-          <button type="button" className="cookie-banner__btn cookie-banner__btn--reject" onClick={reject}>
+          <Button type="button" variant="secondary" onClick={reject}>
             Decline
-          </button>
-          <button type="button" className="cookie-banner__btn cookie-banner__btn--accept" onClick={accept}>
+          </Button>
+          <Button type="button" variant="secondary" onClick={accept}>
             Accept
-          </button>
+          </Button>
         </div>
       </div>
     </div>

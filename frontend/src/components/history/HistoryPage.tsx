@@ -1,22 +1,32 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
-import { History, Pencil, Search, Star, Trash2 } from 'lucide-react'
-import { Button } from '#/components/ui/button'
-import { Input } from '#/components/ui/input'
-import { PageHero } from '#/components/app/PageHero'
-import { PageFrame } from '#/components/app/PageFrame'
-import { AppStatePanel } from '#/components/app/AppStatePanel'
+import { Search, Star } from 'lucide-react'
 import { ConfirmDeleteDialog } from '#/components/app/ConfirmDeleteDialog'
-import { RunRow, RunRowSkeleton, formatRunDate } from '#/components/dashboard/RunRow'
-import { SceneVisual } from '#/components/illustrations/SceneVisual'
+import { HistoryRow, runLabel } from '#/components/history/HistoryRow'
+import {
+  Button,
+  Cluster,
+  EmptyState,
+  ErrorState,
+  Input,
+  List,
+  Notice,
+  Page,
+  PageHeader,
+  Pagination,
+  Segmented,
+  Select,
+  Skeleton,
+  Stack,
+  Toolbar,
+} from '#/components/kit'
 import { useFavoriteToggle } from '#/hooks/useFavoriteToggle'
 import { useHistory } from '#/hooks/useHistory'
 import { useSession } from '#/hooks/useSession'
 import { deleteHistoryItem, getHistoryItem, updateHistoryItem } from '#/lib/api/client'
 import type { ToolRunSummary } from '#/lib/api/schemas'
 import { writeWorkflowContext } from '#/lib/tools/drafts'
-import { historyRunHref, historyToolDisplay } from '#/lib/tools/historyToolLabel'
 import { getNextStepToolId } from '#/lib/tools/runMetadata'
 import { deriveWorkflowUpdateFromHistoryItem } from '#/lib/tools/workflowContext'
 import { getToolByHistoryName, toolList } from '#/lib/tools/registry'
@@ -32,8 +42,28 @@ export type HistorySearchState = {
 
 const DEFAULT_PAGE_SIZE = 10
 
-function runLabel(item: ToolRunSummary) {
-  return item.label || item.metadata.primary_recommendation_title || 'Untitled run'
+// Keeps the header's meta line when there is no count to show (nothing saved yet, or the list failed), so the toolbar does not jump.
+const META_PLACEHOLDER = <span key="placeholder" aria-hidden>{'\u00a0'}</span>
+
+const TOOL_OPTIONS = toolList.map((tool) => ({
+  value: tool.id as string,
+  label: tool.shortLabel,
+  'aria-label': tool.label,
+}))
+
+// The kit's compact width (the Toolbar moves its filters into a sheet): a six-option segmented control would only scroll there.
+const COMPACT_QUERY = '(max-width: 767px)'
+function useCompact() {
+  return useSyncExternalStore(
+    (notify) => {
+      if (typeof window.matchMedia !== 'function') return () => {}
+      const query = window.matchMedia(COMPACT_QUERY)
+      query.addEventListener('change', notify)
+      return () => query.removeEventListener('change', notify)
+    },
+    () => typeof window.matchMedia === 'function' && window.matchMedia(COMPACT_QUERY).matches,
+    () => false,
+  )
 }
 
 export function HistoryPage({
@@ -44,12 +74,15 @@ export function HistoryPage({
   onSearchChange: (next: Partial<HistorySearchState>) => void
 }) {
   const navigate = useNavigate()
+  const compact = useCompact()
   const { status, openAuthDialog } = useSession()
   const queryClient = useQueryClient()
   const authenticated = status === 'authenticated'
   const page = search.page ?? 1
   const pageSize = search.page_size ?? DEFAULT_PAGE_SIZE
-  const hasFilters = Boolean(search.tool || search.favorite || search.q)
+  // The search box sits outside the Filters sheet, so it is not counted there; it still makes an empty list "no match".
+  const activeFilters = [search.tool, search.favorite].filter(Boolean).length
+  const hasFilters = activeFilters > 0 || Boolean(search.q)
 
   const [searchInput, setSearchInput] = useState(search.q ?? '')
   useEffect(() => {
@@ -63,6 +96,7 @@ export function HistoryPage({
       }
     }
   }, [])
+  const searchRef = useRef<HTMLInputElement | null>(null)
 
   const listQuery = useHistory(
     {
@@ -75,23 +109,27 @@ export function HistoryPage({
     },
     authenticated,
   )
-  const favoritesQuery = useHistory({ page: 1, page_size: 1, favorite: true }, authenticated)
   const favoriteToggle = useFavoriteToggle()
   const [actionError, setActionError] = useState<string | null>(null)
   const [continuingId, setContinuingId] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editDraft, setEditDraft] = useState('')
+  const [renameError, setRenameError] = useState<string | null>(null)
   const [deleteCandidate, setDeleteCandidate] = useState<{ id: string; label: string } | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+  const deleteTrigger = useRef<HTMLElement | null>(null)
+  const deleted = useRef(false)
 
   const deleteMutation = useMutation({
     mutationFn: deleteHistoryItem,
     onSuccess: async (_response, historyId) => {
+      deleted.current = true
       setDeleteCandidate(null)
       queryClient.removeQueries({ queryKey: ['tool-run', historyId], exact: true })
       await queryClient.invalidateQueries({ queryKey: ['history-page'] })
     },
     onError: (error) => {
-      setActionError(error instanceof Error ? error.message : 'Failed to delete run.')
+      setDeleteError(error instanceof Error ? error.message : 'Failed to delete run.')
     },
   })
   const renameMutation = useMutation({
@@ -99,11 +137,11 @@ export function HistoryPage({
       updateHistoryItem(historyId, label),
     onSuccess: async () => {
       setEditingId(null)
-      setActionError(null)
+      setRenameError(null)
       await queryClient.invalidateQueries({ queryKey: ['history-page'] })
     },
     onError: (error) => {
-      setActionError(error instanceof Error ? error.message : 'Failed to update saved run.')
+      setRenameError(error instanceof Error ? error.message : 'Failed to update saved run.')
     },
   })
 
@@ -117,6 +155,13 @@ export function HistoryPage({
     }
     setSearchInput('')
     onSearchChange({ tool: undefined, favorite: undefined, q: undefined, page: 1 })
+  }
+
+  function startRename(item: ToolRunSummary) {
+    setActionError(null)
+    setRenameError(null)
+    setEditingId(item.id)
+    setEditDraft(item.label ?? '')
   }
 
   async function continueRun(item: ToolRunSummary) {
@@ -149,52 +194,53 @@ export function HistoryPage({
 
   if (!authenticated) {
     return (
-      <AppStatePanel
-        title="Pick up where you left off"
-        description="Your saved runs and favorites live here — sign in to unlock your full history."
-        scene="dashboardHero"
-        actions={[
-          {
-            label: 'Sign in',
-            onClick: () => openAuthDialog({ to: '/history', reason: 'history' }),
-          },
-          { label: 'Start with Resume', to: '/resume', variant: 'outline' },
-        ]}
-      />
+      <Page>
+        <PageHeader title="History" />
+        <EmptyState
+          title="Pick up where you left off"
+          description="Your saved runs and favorites live here — sign in to unlock your full history."
+          action={
+            <Cluster gap={2}>
+              <Button onClick={() => openAuthDialog({ to: '/history', reason: 'history' })}>Sign in</Button>
+              <Button asChild variant="secondary">
+                <Link to="/resume">Start with Resume</Link>
+              </Button>
+            </Cluster>
+          }
+        />
+      </Page>
     )
   }
 
-  const chips =
-    listQuery.data && favoritesQuery.data
-      ? [
-          `${listQuery.data.total} ${listQuery.data.total === 1 ? 'run' : 'runs'}`,
-          `${favoritesQuery.data.total} starred`,
-        ]
-      : undefined
   const items = listQuery.data?.items ?? []
   const errorMessage = actionError ?? (favoriteToggle.error
     ? favoriteToggle.error instanceof Error
       ? favoriteToggle.error.message
       : 'Failed to update favorite.'
     : null)
+  const runCount =
+    listQuery.data && (listQuery.data.total > 0 || hasFilters)
+      ? `${listQuery.data.total} ${listQuery.data.total === 1 ? 'run' : 'runs'}`
+      : null
 
   return (
-    <PageFrame className="history-page">
-      <section className="history-layout content-max">
-        <PageHero
-          icon={History}
-          title="History"
-          purpose="Every analysis you have saved, newest first. Reopen a result or continue to the next tool."
-          chips={chips}
-        />
+    <Page>
+      <PageHeader
+        title="History"
+        meta={listQuery.isPending ? [<Skeleton key="count" size="meta" width="3.5rem" />] : [runCount ?? META_PLACEHOLDER]}
+      />
 
-        <div className="history-toolbar">
-          <div className="history-toolbar__search">
-            <Search className="history-toolbar__search-icon" size={16} aria-hidden />
+      <Stack gap={3}>
+        <Toolbar
+          search={
             <Input
+              ref={searchRef}
               type="search"
               aria-label="Search saved runs by label"
+              leading={<Search aria-hidden />}
+              clearable
               value={searchInput}
+              placeholder="Search by saved label"
               onChange={(event) => {
                 const next = event.target.value
                 setSearchInput(next)
@@ -205,265 +251,150 @@ export function HistoryPage({
                   onSearchChange({ q: next || undefined, page: 1 })
                 }, 200)
               }}
-              placeholder="Search by saved label"
-              className="pl-10"
+              onClear={() => {
+                if (searchDebounceRef.current !== null) window.clearTimeout(searchDebounceRef.current)
+                onSearchChange({ q: undefined, page: 1 })
+              }}
             />
-          </div>
-          <div className="history-pill-row" role="group" aria-label="Filter by tool">
-            {toolList.map((tool) => (
-              <button
-                key={tool.id}
-                type="button"
-                aria-pressed={search.tool === tool.id}
-                className={`history-pill${search.tool === tool.id ? ' is-active' : ''}`}
-                onClick={() =>
-                  onSearchChange({
-                    tool: search.tool === tool.id ? undefined : tool.id,
-                    page: 1,
-                  })
-                }
-              >
-                <span
-                  className="history-pill__dot"
-                  style={{ background: tool.accent }}
-                  aria-hidden
+          }
+          filters={
+            <>
+              {compact ? (
+                <Select
+                  aria-label="Filter by tool"
+                  value={search.tool ?? ''}
+                  onChange={(event) => onSearchChange({ tool: event.target.value || undefined, page: 1 })}
+                >
+                  <option value="">All tools</option>
+                  {toolList.map((tool) => (
+                    <option key={tool.id} value={tool.id}>
+                      {tool.label}
+                    </option>
+                  ))}
+                </Select>
+              ) : (
+                <Segmented
+                  aria-label="Filter by tool"
+                  deselectable
+                  options={TOOL_OPTIONS}
+                  value={search.tool ?? null}
+                  onValueChange={(tool) => onSearchChange({ tool: tool ?? undefined, page: 1 })}
                 />
-                <span>{tool.shortLabel}</span>
-              </button>
-            ))}
-            <button
-              type="button"
-              aria-pressed={Boolean(search.favorite)}
-              className={`history-pill${search.favorite ? ' is-active' : ''}`}
-              onClick={() => onSearchChange({ favorite: search.favorite ? undefined : true, page: 1 })}
-            >
-              <Star size={12} fill={search.favorite ? 'currentColor' : 'none'} aria-hidden />
-              <span>Favorites</span>
-            </button>
-          </div>
-          {hasFilters ? (
-            <button type="button" className="history-toolbar__clear" onClick={clearFilters}>
-              Clear filters
-            </button>
-          ) : null}
-        </div>
-        <p className="history-applications-link small-copy muted-copy">
-          Looking for your applications? <Link to="/campaigns">Open Applications</Link>
-        </p>
+              )}
+              <Button
+                variant="secondary"
+                aria-pressed={Boolean(search.favorite)}
+                onClick={() => onSearchChange({ favorite: search.favorite ? undefined : true, page: 1 })}
+              >
+                <Star fill={search.favorite ? 'currentColor' : 'none'} aria-hidden />
+                Favorites
+              </Button>
+            </>
+          }
+          activeFilters={activeFilters}
+          onClearFilters={clearFilters}
+        />
 
         {errorMessage ? (
-          <div className="history-alert small-copy" role="alert">
+          <Notice
+            tone="danger"
+            onDismiss={() => {
+              setActionError(null)
+              favoriteToggle.reset?.()
+            }}
+          >
             {errorMessage}
-          </div>
+          </Notice>
         ) : null}
 
         {listQuery.isPending ? (
-          <div className="run-list history-list" aria-hidden>
-            {Array.from({ length: 6 }, (_, i) => (
-              <RunRowSkeleton key={i} />
-            ))}
-          </div>
+          <>
+            <p className="kit-sr-only" role="status">
+              Loading saved runs
+            </p>
+            <List aria-busy aria-label="Saved runs">
+              <Skeleton variant="row" as="li" count={6} />
+            </List>
+          </>
         ) : listQuery.isError ? (
-          <div className="section-card history-empty" role="alert">
-            <p className="section-title">We couldn&apos;t load your history</p>
-            <p className="muted-copy">Check your connection and try again.</p>
-            <div>
-              <Button variant="outline" onClick={() => void listQuery.refetch()}>
-                Retry
-              </Button>
-            </div>
-          </div>
+          <ErrorState
+            title="We couldn't load your history"
+            description="Check your connection and try again."
+            retryLabel="Retry"
+            onRetry={() => void listQuery.refetch()}
+            retrying={listQuery.isFetching}
+          />
         ) : items.length ? (
-          <div className="run-list history-list">
-            {items.map((item) => {
-              const display = historyToolDisplay(item.tool_name)
-              const href = historyRunHref(item)
-              const label = runLabel(item)
-              const registryTool = display.kind === 'tool' ? getToolByHistoryName(item.tool_name) : null
-              const nextTool = registryTool
-                ? toolList.find(
-                    (candidate) =>
-                      candidate.id === getNextStepToolId(registryTool.id, item.metadata),
-                  )
-                : null
-              const workspaceLabel = item.workspace?.label
-              const editing = editingId === item.id
-
-              const note =
-                display.kind === 'cv-studio'
-                  ? 'Older CV Studio run'
-                  : display.kind === 'application-drafts'
-                    ? 'Application draft'
+          <List aria-label="Saved runs">
+            {items.map((item) => (
+              <HistoryRow
+                key={item.id}
+                item={item}
+                rename={
+                  editingId === item.id
+                    ? {
+                        draft: editDraft,
+                        error: renameError,
+                        pending: renameMutation.isPending,
+                        onDraftChange: setEditDraft,
+                        onSubmit: () => renameMutation.mutate({ historyId: item.id, label: editDraft.trim() }),
+                        onCancel: () => {
+                          setEditingId(null)
+                          setRenameError(null)
+                        },
+                      }
                     : null
-              const notes =
-                note || (workspaceLabel && workspaceLabel !== label) ? (
-                  <>
-                    {note ? <span className="run-row-note">{note}</span> : null}
-                    {workspaceLabel && workspaceLabel !== label ? (
-                      <span className="run-row-note">Workspace: {workspaceLabel}</span>
-                    ) : null}
-                  </>
-                ) : null
-
-              return (
-                <RunRow
-                  key={item.id}
-                  mode="actions"
-                  href={href}
-                  tool={display}
-                  label={label}
-                  date={formatRunDate(item.created_at)}
-                  showFavoriteStar={item.is_favorite}
-                  summary={item.metadata.summary_headline}
-                  notes={notes}
-                  editor={
-                    editing ? (
-                      <form
-                        className="history-rename"
-                        onSubmit={(event) => {
-                          event.preventDefault()
-                          // A run can be renamed but never left without a name.
-                          if (!editDraft.trim()) return
-                          renameMutation.mutate({ historyId: item.id, label: editDraft.trim() })
-                        }}
-                      >
-                        <Input
-                          autoFocus
-                          aria-label={`Rename ${label}`}
-                          value={editDraft}
-                          maxLength={200}
-                          onChange={(event) => setEditDraft(event.target.value)}
-                          onKeyDown={(event) => {
-                            if (event.key === 'Escape') {
-                              event.preventDefault()
-                              setEditingId(null)
-                            }
-                          }}
-                        />
-                        <Button
-                          type="submit"
-                          size="sm"
-                          disabled={renameMutation.isPending || !editDraft.trim()}
-                        >
-                          Save
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          onClick={() => setEditingId(null)}
-                        >
-                          Cancel
-                        </Button>
-                      </form>
-                    ) : undefined
-                  }
-                  actions={
-                    <>
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        className="history-icon-button"
-                        aria-label={item.is_favorite ? 'Remove from favorites' : 'Add to favorites'}
-                        aria-pressed={item.is_favorite}
-                        onClick={() =>
-                          favoriteToggle.mutate({
-                            historyId: item.id,
-                            isFavorite: !item.is_favorite,
-                          })
-                        }
-                      >
-                        <Star size={15} fill={item.is_favorite ? 'currentColor' : 'none'} />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        className="history-icon-button"
-                        aria-label={`Rename ${label}`}
-                        onClick={() => {
-                          setActionError(null)
-                          setEditingId(item.id)
-                          setEditDraft(item.label ?? '')
-                        }}
-                      >
-                        <Pencil size={15} />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        className="history-icon-button history-icon-button--danger"
-                        aria-label={`Delete ${label}`}
-                        disabled={deleteMutation.isPending && deleteMutation.variables === item.id}
-                        onClick={() => setDeleteCandidate({ id: item.id, label })}
-                      >
-                        <Trash2 size={15} />
-                      </Button>
-                      {nextTool ? (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="history-continue"
-                          disabled={continuingId === item.id}
-                          onClick={() => void continueRun(item)}
-                        >
-                          {continuingId === item.id ? 'Opening…' : `Continue: ${nextTool.shortLabel}`}
-                        </Button>
-                      ) : null}
-                    </>
-                  }
-                />
-              )
-            })}
-          </div>
+                }
+                continuing={continuingId === item.id}
+                deleting={deleteMutation.isPending && deleteMutation.variables === item.id}
+                onStartRename={() => startRename(item)}
+                onToggleFavorite={() =>
+                  favoriteToggle.mutate({ historyId: item.id, isFavorite: !item.is_favorite })
+                }
+                onContinue={() => void continueRun(item)}
+                onDelete={(trigger) => {
+                  deleted.current = false
+                  setDeleteError(null)
+                  deleteTrigger.current = trigger
+                  setDeleteCandidate({ id: item.id, label: runLabel(item) })
+                }}
+              />
+            ))}
+          </List>
         ) : hasFilters ? (
-          <div className="section-card history-empty">
-            <p className="section-title">No runs match these filters</p>
-            <p className="muted-copy">Try a different tool or search, or clear the filters.</p>
-            <div>
-              <Button variant="outline" onClick={clearFilters}>
-                Clear filters
-              </Button>
-            </div>
-          </div>
+          <EmptyState
+            title="No runs match these filters"
+            description="Try a different tool or search, or clear the filters."
+            action={
+              // Where the toolbar shows its own "Clear filters" link the empty state does not repeat it.
+              compact || activeFilters === 0 ? (
+                <Button variant="secondary" size="sm" onClick={clearFilters}>
+                  Clear filters
+                </Button>
+              ) : undefined
+            }
+          />
         ) : (
-          <div className="section-card history-empty">
-            <div className="mx-auto w-full max-w-md">
-              <SceneVisual scene="emptyPlanning" />
-            </div>
-            <p className="section-title">No runs yet</p>
-            <p className="muted-copy">Run a tool and your saved results will show up here.</p>
-            <div>
-              <Button asChild className="button-hero-primary" size="lg">
+          <EmptyState
+            title="No runs yet"
+            description="Run a tool and your saved results will show up here."
+            action={
+              <Button asChild size="sm">
                 <Link to="/resume">Start with Resume</Link>
               </Button>
-            </div>
-          </div>
+            }
+          />
         )}
 
-        {totalPages > 1 ? (
-          <nav className="history-pagination" aria-label="History pages">
-            <Button
-              variant="outline"
-              className="button-toolbar-utility"
-              disabled={page <= 1}
-              onClick={() => onSearchChange({ page: page - 1 })}
-            >
-              Previous
-            </Button>
-            <span className="small-copy muted-copy">
-              Page {page} of {totalPages}
-            </span>
-            <Button
-              variant="outline"
-              className="button-toolbar-utility"
-              disabled={page >= totalPages}
-              onClick={() => onSearchChange({ page: page + 1 })}
-            >
-              Next
-            </Button>
-          </nav>
-        ) : null}
-      </section>
+        <Pagination
+          variant="simple"
+          aria-label="History pages"
+          page={page}
+          pageCount={totalPages}
+          onPageChange={(next) => onSearchChange({ page: next })}
+        />
+      </Stack>
+
       <ConfirmDeleteDialog
         open={deleteCandidate !== null}
         title="Delete this saved run?"
@@ -472,13 +403,26 @@ export function HistoryPage({
             ? `"${deleteCandidate.label}" will be permanently removed from your history. This cannot be undone.`
             : 'This run will be permanently removed.'
         }
-        confirmLabel={deleteMutation.isPending ? 'Deleting…' : 'Delete run'}
+        confirmLabel="Delete run"
         pending={deleteMutation.isPending}
-        onCancel={() => setDeleteCandidate(null)}
+        onCancel={() => {
+          setDeleteCandidate(null)
+          setDeleteError(null)
+        }}
         onConfirm={() => {
+          setDeleteError(null)
           if (deleteCandidate) deleteMutation.mutate(deleteCandidate.id)
         }}
-      />
-    </PageFrame>
+        onCloseAutoFocus={(event) => {
+          // The row that opened the dialog is gone once it was deleted; otherwise focus goes back to its button.
+          event.preventDefault()
+          const trigger = deleteTrigger.current
+          if (!deleted.current && trigger?.isConnected) trigger.focus()
+          else searchRef.current?.focus()
+        }}
+      >
+        {deleteError ? <Notice tone="danger">{deleteError}</Notice> : null}
+      </ConfirmDeleteDialog>
+    </Page>
   )
 }

@@ -1,7 +1,6 @@
 import type { ReactNode } from 'react'
-import { render, screen } from '@testing-library/react'
-import { Clock } from 'lucide-react'
-import { describe, expect, it, vi } from 'vitest'
+import { fireEvent, render, screen } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { RunList } from '#/components/dashboard/RunList'
 import { formatRunDate } from '#/components/dashboard/RunRow'
 
@@ -13,11 +12,10 @@ vi.mock('@tanstack/react-router', () => ({
   ),
 }))
 vi.mock('#/hooks/useSession', () => ({ useSession: () => ({ status: 'authenticated' }) }))
+const query = vi.hoisted(() => ({ state: { isPending: false, isError: false, isFetching: false } }))
+const refetch = vi.hoisted(() => vi.fn())
 vi.mock('#/hooks/useHistory', () => ({
-  useHistory: () => ({ data: { items: items.current }, isPending: false }),
-}))
-vi.mock('#/components/ui/motion', () => ({
-  ScrollFadeUp: ({ children }: { children: ReactNode }) => <>{children}</>,
+  useHistory: () => ({ data: { items: items.current }, refetch, ...query.state }),
 }))
 
 const base = { label: 'A run', created_at: new Date().toISOString(), is_favorite: false }
@@ -25,11 +23,9 @@ const base = { label: 'A run', created_at: new Date().toISOString(), is_favorite
 function renderList(viewAllTo?: '/history') {
   return render(
     <RunList
-      eyebrow="Recent"
       title="Pick up"
-      emptyIcon={Clock}
-      emptyText="empty"
-      unauthText="unauth"
+      emptyTitle="Nothing yet"
+      emptyText="Run a tool and it shows here."
       queryParams={{ page: 1, page_size: 3 }}
       viewAllTo={viewAllTo}
     />,
@@ -37,30 +33,72 @@ function renderList(viewAllTo?: '/history') {
 }
 
 describe('RunList', () => {
+  beforeEach(() => {
+    query.state = { isPending: false, isError: false, isFetching: false }
+    refetch.mockReset()
+  })
+
   it('labels application drafts and opens their application', () => {
     items.current = [
       { ...base, id: 'd1', tool_name: 'application-drafts', workspace: { id: 'ws-1' } },
     ]
-    const { container } = renderList()
+    renderList()
     expect(screen.getByText('Application')).toBeTruthy()
     expect(screen.queryByText('application-drafts')).toBeNull()
-    expect(container.querySelector('.run-row-icon-col')).toBeTruthy()
-    expect(container.querySelector('a.run-row')?.getAttribute('href')).toBe('/campaigns/ws-1')
+    expect(screen.getByRole('link', { name: 'A run' }).getAttribute('href')).toBe('/campaigns/ws-1')
   })
 
   it('renders older CV Studio runs as a plain row instead of a dead link', () => {
     items.current = [{ ...base, id: 'c1', tool_name: 'cv-quality' }]
-    const { container } = renderList()
+    renderList()
     expect(screen.getByText('CV Studio')).toBeTruthy()
-    expect(container.querySelector('a.run-row')).toBeNull()
-    expect(container.querySelector('.run-row-icon-col')).toBeTruthy()
+    expect(screen.queryByRole('link', { name: 'A run' })).toBeNull()
+    expect(screen.getByText('A run')).toBeTruthy()
   })
 
   it('opens registry tool results and offers View all', () => {
     items.current = [{ ...base, id: 'r1', tool_name: 'resume' }]
-    const { container } = renderList('/history')
-    expect(container.querySelector('a.run-row')?.getAttribute('href')).toBe('/resume/result/r1')
+    renderList('/history')
+    expect(screen.getByRole('link', { name: 'A run' }).getAttribute('href')).toBe('/resume/result/r1')
     expect(screen.getByRole('link', { name: 'View all' }).getAttribute('href')).toBe('/history')
+  })
+
+  it('does not repeat the tool name when the label already says it', () => {
+    items.current = [{ ...base, id: 'r1', tool_name: 'job-match', label: 'Job Match (75%)' }]
+    renderList()
+    expect(screen.getByText('Job Match (75%)')).toBeTruthy()
+    expect(screen.queryByText('Match')).toBeNull()
+  })
+
+  it('shows the date of each run and its tool underneath the label', () => {
+    items.current = [{ ...base, id: 'r1', tool_name: 'resume' }]
+    renderList()
+    expect(screen.getByText('Resume')).toBeTruthy()
+    expect(screen.getByText(formatRunDate(base.created_at))).toBeTruthy()
+  })
+
+  it('shows an empty state with its title and sentence', () => {
+    items.current = []
+    renderList()
+    expect(screen.getByText('Nothing yet')).toBeTruthy()
+    expect(screen.getByText('Run a tool and it shows here.')).toBeTruthy()
+  })
+
+  it('shows a busy list while loading, so the layout does not move', () => {
+    query.state = { isPending: true, isError: false, isFetching: true }
+    items.current = []
+    renderList()
+    expect(screen.getByRole('list', { name: 'Pick up' }).getAttribute('aria-busy')).toBe('true')
+    expect(screen.queryByText('Nothing yet')).toBeNull()
+  })
+
+  it('says what failed and retries', () => {
+    query.state = { isPending: false, isError: true, isFetching: false }
+    items.current = []
+    renderList()
+    expect(screen.getByRole('alert').textContent).toContain("Pick up couldn't be loaded")
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
+    expect(refetch).toHaveBeenCalledTimes(1)
   })
 })
 

@@ -1,10 +1,32 @@
 import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { X } from 'lucide-react'
+import {
+  Dialog,
+  DialogBody,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  EmptyState,
+  ErrorState,
+  KeyValue,
+  Notice,
+  Page,
+  PageHeader,
+  Pagination,
+  Section,
+  Select,
+  Skeleton,
+  Stack,
+  StretchedLink,
+  Table,
+} from '#/components/kit'
+import type { TableColumn } from '#/components/kit'
 import { getAdminRuns, getAdminRun } from '#/lib/api/admin'
-import type { AdminRunListResponse, AdminRunDetail } from '#/lib/api/admin'
+import type { AdminRunItem, AdminRunListResponse, AdminRunDetail } from '#/lib/api/admin'
 import { toolList } from '#/lib/tools/registry'
-import { toolLabel } from './toolLabel'
+import { adminDateTime, labelNamesTool, toolLabel } from './toolLabel'
+import { countMeta } from './count-meta'
 
 const TOOL_IDS = toolList.map((t) => t.id)
 
@@ -18,7 +40,7 @@ export function AdminRunsPage() {
     setSelectedRunId(null)
   }, [toolFilter])
 
-  const { data, isLoading, isError, refetch } = useQuery<AdminRunListResponse>({
+  const { data, isLoading, isError, isFetching, refetch } = useQuery<AdminRunListResponse>({
     queryKey: ['admin-runs', page, toolFilter],
     queryFn: () => getAdminRuns({ page, page_size: 20, tool: toolFilter || undefined }),
     staleTime: 30_000,
@@ -32,156 +54,120 @@ export function AdminRunsPage() {
 
   const rangeStart = data ? (data.page - 1) * data.page_size + 1 : 0
   const rangeEnd = data ? Math.min(data.page * data.page_size, data.total) : 0
+  const pageCount = data ? Math.max(1, Math.ceil(data.total / data.page_size)) : 1
+
+  const columns: TableColumn<AdminRunItem>[] = [
+    {
+      id: 'run',
+      header: 'Run',
+      primary: true,
+      cell: (run) => {
+        const title = run.label || toolLabel(run.tool_name)
+        return (
+          <>
+            <StretchedLink asChild>
+              <button type="button" onClick={() => setSelectedRunId(run.id)}>
+                {title}
+              </button>
+            </StretchedLink>
+            {run.label && !labelNamesTool(run.label, run.tool_name) ? (
+              <span className="admin-subline">{toolLabel(run.tool_name)}</span>
+            ) : null}
+          </>
+        )
+      },
+    },
+    // Stacked on a phone the address gets the full line, unlabelled, instead of wrapping inside a narrow value column.
+    {
+      id: 'user',
+      header: 'User',
+      width: '16rem',
+      stackLabel: false,
+      cell: (run) => <span className="admin-wrap">{run.user_email || run.user_id.slice(0, 8)}</span>,
+    },
+    { id: 'created', header: 'Created', width: '11rem', nowrap: true, cell: (run) => adminDateTime(run.created_at) || '—' },
+  ]
+
+  const detail = runDetail.data
 
   return (
-    <div>
-      <h1 className="admin-page-title">Runs</h1>
-      <div className="admin-data-table-wrap">
-        <div className="admin-data-table-toolbar">
-          <select
-            className="admin-toolbar-select"
-            value={toolFilter}
-            onChange={(e) => {
-              setToolFilter(e.target.value)
-              setPage(1)
-            }}
-          >
-            <option value="">All tools</option>
-            {TOOL_IDS.map((t) => (
-              <option key={t} value={t}>
-                {t}
-              </option>
-            ))}
-          </select>
-        </div>
+    <Page>
+      <PageHeader
+        title="Runs"
+        meta={countMeta(data ? `${data.total} ${data.total === 1 ? 'run' : 'runs'}` : null, isLoading)}
+      />
 
-        <table className="admin-table">
-          <thead>
-            <tr>
-              <th>Tool</th>
-              <th>User</th>
-              <th>Label</th>
-              <th>Created</th>
-            </tr>
-          </thead>
-          <tbody>
-            {isLoading && (
-              <tr>
-                <td colSpan={4} className="admin-table-muted" style={{ textAlign: 'center' }}>
-                  Loading…
-                </td>
-              </tr>
-            )}
-            {isError && (
-              <tr>
-                <td colSpan={4} className="admin-table-muted" style={{ textAlign: 'center', color: '#dc2626' }}>
-                  Couldn't load runs.{' '}
-                  <button type="button" className="admin-toolbar-btn" onClick={() => void refetch()}>
-                    Try again
-                  </button>
-                </td>
-              </tr>
-            )}
-            {data?.items.map((run) => (
-              <tr
-                key={run.id}
-                className="is-clickable"
-                onClick={() => setSelectedRunId(run.id)}
-              >
-                <td>
-                  <span className="admin-badge admin-badge--tool">{toolLabel(run.tool_name)}</span>
-                </td>
-                <td className="admin-table-muted">{run.user_email || run.user_id.slice(0, 8)}</td>
-                <td className="admin-table-muted">{run.label || '—'}</td>
-                <td className="admin-table-muted">
-                  {run.created_at ? new Date(run.created_at).toLocaleString() : '—'}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <Stack gap={3}>
+        <Select
+          leading="Tool"
+          aria-label="Tool"
+          className="admin-filter"
+          value={toolFilter}
+          onChange={(e) => {
+            setToolFilter(e.target.value)
+            setPage(1)
+          }}
+        >
+          <option value="">All tools</option>
+          {TOOL_IDS.map((t) => (
+            <option key={t} value={t}>
+              {toolLabel(t)}
+            </option>
+          ))}
+        </Select>
 
-        {data && (
-          <div className="admin-pagination">
-            <span>
-              Showing {rangeStart}–{rangeEnd} of {data.total}
-            </span>
-            <div className="admin-pagination-controls">
-              <button
-                className="admin-pagination-btn"
-                disabled={page <= 1}
-                onClick={() => setPage(page - 1)}
-              >
-                Previous
-              </button>
-              <button
-                className="admin-pagination-btn"
-                disabled={page * data.page_size >= data.total}
-                onClick={() => setPage(page + 1)}
-              >
-                Next
-              </button>
-            </div>
-          </div>
+        {isError ? (
+          <ErrorState title="Couldn't load runs" onRetry={() => void refetch()} retrying={isFetching} />
+        ) : (
+          <Table
+            caption="Runs"
+            columns={columns}
+            rows={data?.items ?? []}
+            getRowId={(run) => run.id}
+            loading={isLoading}
+            selectedRowId={selectedRunId}
+            empty={<EmptyState title="No runs found" />}
+          />
         )}
-      </div>
 
-      {/* Run detail modal */}
-      {selectedRunId && (
-        <div className="admin-modal-backdrop" onClick={() => setSelectedRunId(null)}>
-          <div className="admin-modal-panel" onClick={(e) => e.stopPropagation()}>
-            <div className="admin-modal-header">
-              <h2 className="admin-modal-title">Run detail</h2>
-              <button className="admin-icon-btn" onClick={() => setSelectedRunId(null)}>
-                <X size={20} />
-              </button>
-            </div>
+        <Pagination
+          variant="simple"
+          aria-label="Runs pages"
+          page={page}
+          pageCount={pageCount}
+          onPageChange={setPage}
+          summary={data ? `Showing ${rangeStart}–${rangeEnd} of ${data.total}` : undefined}
+        />
+      </Stack>
 
-            {runDetail.isLoading && <p className="admin-table-muted">Loading…</p>}
-            {runDetail.isError && (
-              <p className="admin-table-muted admin-error-text">
-                Failed to load run detail.
-              </p>
-            )}
-
-            {runDetail.data && (
-              <>
-                <div className="admin-modal-meta">
-                  <div>
-                    <span className="admin-table-muted">Tool: </span>
-                    {runDetail.data.tool_name}
-                  </div>
-                  <div>
-                    <span className="admin-table-muted">User: </span>
-                    {runDetail.data.user_email || runDetail.data.user_id}
-                  </div>
-                  <div>
-                    <span className="admin-table-muted">Label: </span>
-                    {runDetail.data.label || '—'}
-                  </div>
-                  <div>
-                    <span className="admin-table-muted">Created: </span>
-                    {runDetail.data.created_at
-                      ? new Date(runDetail.data.created_at).toLocaleString()
-                      : '—'}
-                  </div>
-                  {runDetail.data.feedback_text && (
-                    <div style={{ gridColumn: '1 / -1' }}>
-                      <span className="admin-table-muted">Feedback: </span>
-                      {runDetail.data.feedback_text}
-                    </div>
-                  )}
-                </div>
-
-                <div className="admin-modal-section-label">Result payload</div>
-                <pre className="admin-json-viewer">
-                  {JSON.stringify(runDetail.data.result_payload, null, 2)}
-                </pre>
-              </>
-            )}
-          </div>
-        </div>
-      )}
-    </div>
+      <Dialog open={selectedRunId !== null} onOpenChange={(open) => !open && setSelectedRunId(null)}>
+        <DialogContent size="lg">
+          <DialogHeader>
+            <DialogTitle>Run detail</DialogTitle>
+            <DialogDescription visuallyHidden>The saved result of one run.</DialogDescription>
+          </DialogHeader>
+          <DialogBody>
+            {runDetail.isLoading ? <Skeleton lines={4} label="Loading run detail" /> : null}
+            {runDetail.isError ? <Notice tone="danger">Failed to load run detail.</Notice> : null}
+            {detail ? (
+              <Stack gap={6}>
+                <KeyValue
+                  items={[
+                    { label: 'Tool', value: detail.tool_name, mono: true },
+                    { label: 'User', value: detail.user_email || detail.user_id },
+                    { label: 'Label', value: detail.label },
+                    { label: 'Created', value: adminDateTime(detail.created_at) },
+                    ...(detail.feedback_text ? [{ label: 'Feedback', value: detail.feedback_text }] : []),
+                  ]}
+                />
+                <Section title="Result payload" headingLevel={3} size="sm">
+                  <pre className="admin-json-viewer">{JSON.stringify(detail.result_payload, null, 2)}</pre>
+                </Section>
+              </Stack>
+            ) : null}
+          </DialogBody>
+        </DialogContent>
+      </Dialog>
+    </Page>
   )
 }

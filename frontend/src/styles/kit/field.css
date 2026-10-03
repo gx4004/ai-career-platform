@@ -1,0 +1,39 @@
+/* Field: label, help and error around one control. */
+
+.kit-field {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--space-1) * 1.5);
+  min-width: 0;
+}
+
+.kit-field__label {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  color: var(--text-strong);
+  font-size: var(--fs-meta);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-meta);
+}
+
+.kit-field__marker {
+  color: var(--text-soft);
+  font-weight: var(--fw-regular);
+}
+
+.kit-field__help,
+.kit-field__error {
+  margin: 0;
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+}
+
+.kit-field__help {
+  color: var(--text-muted);
+}
+
+.kit-field__error {
+  color: var(--danger-fg);
+}
+

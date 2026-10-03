@@ -1,0 +1,252 @@
+/*
+ * Button. Variants and states resolve through custom properties so hover,
+ * active, disabled and loading never need their own per-variant rules.
+ * Hover and active change colour only: no lift, no shadow, no scale.
+ */
+
+.kit-button {
+  --kit-button-h: var(--kit-h-md);
+  --kit-button-px: var(--space-3);
+  --kit-button-fs: var(--fs-body);
+  --kit-button-lh: var(--lh-body);
+  --kit-button-fg: var(--text-strong);
+  --kit-button-bg: transparent;
+  --kit-button-border: transparent;
+  --kit-button-hover-bg: var(--surface-hover);
+  --kit-button-hover-fg: var(--kit-button-fg);
+  --kit-button-hover-border: var(--kit-button-border);
+  --kit-button-active-bg: var(--surface-active);
+  --kit-button-icon: 1rem;
+  --kit-button-radius: var(--radius-md);
+
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  gap: calc(var(--space-1) * 1.5);
+  box-sizing: border-box;
+  max-inline-size: 100%;
+  height: auto;
+  min-height: var(--kit-button-h);
+  margin: 0;
+  padding: var(--space-1) var(--kit-button-px);
+  border: 1px solid var(--kit-button-border);
+  border-radius: var(--kit-button-radius);
+  background: var(--kit-button-bg);
+  color: var(--kit-button-fg);
+  font-family: var(--font-sans);
+  font-size: var(--kit-button-fs);
+  font-weight: var(--fw-medium);
+  line-height: var(--kit-button-lh);
+  text-align: center;
+  text-decoration: none;
+  /*
+   * Natural width first, wrap only when the column is narrower. fit-content takes the whole label when
+   * there is room, and shrinks to the column (never below its longest word) when there is not;
+   * max-inline-size caps it at the column, and break-word wraps at word boundaries inside the border.
+   * Not overflow-wrap: anywhere: it lowers min-content to one letter, so an auto-width table column or
+   * grid track squeezes "Save changes" into "Save / chang / es" (guarded in kit-css.test). Not
+   * max-content either: in a grid it forces the track to the full label and a long label spills out.
+   */
+  inline-size: fit-content;
+  overflow-wrap: break-word;
+  text-wrap: balance;
+  cursor: pointer;
+  user-select: none;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: var(--transition-colors);
+}
+
+.kit-button > svg {
+  flex: none;
+  width: var(--kit-button-icon);
+  height: var(--kit-button-icon);
+}
+
+/* ── Sizes ─────────────────────────────────────────────────────────── */
+
+.kit-button--sm {
+  --kit-button-h: var(--kit-h-sm);
+  --kit-button-px: calc(var(--space-1) * 2.5);
+  --kit-button-fs: var(--fs-meta);
+  --kit-button-lh: var(--lh-meta);
+  --kit-button-icon: 0.875rem;
+}
+
+.kit-button--lg {
+  --kit-button-h: var(--kit-h-lg);
+  --kit-button-px: var(--space-4);
+}
+
+.kit-button--icon {
+  width: var(--kit-button-h);
+  height: var(--kit-button-h);
+  padding: 0;
+}
+
+/* ── Variants ──────────────────────────────────────────────────────── */
+
+.kit-button--primary {
+  --kit-button-fg: var(--accent-on);
+  --kit-button-bg: var(--accent);
+  --kit-button-border: var(--accent);
+  --kit-button-hover-bg: var(--accent-hover);
+  --kit-button-hover-border: var(--accent-hover);
+  --kit-button-active-bg: var(--accent-active);
+}
+
+.kit-button--secondary {
+  --kit-button-bg: var(--surface-raised);
+  --kit-button-border: var(--border-control);
+  /* Same hover language as Input and Select (darker border), so a toolbar row reacts as one set. */
+  --kit-button-hover-border: var(--text-soft);
+  --kit-button-hover-bg: var(--surface-focus);
+  --kit-button-active-bg: var(--surface-sunken);
+}
+
+.kit-button--ghost {
+  --kit-button-fg: var(--text-body);
+  --kit-button-hover-fg: var(--text-strong);
+}
+
+.kit-button--destructive {
+  --kit-button-fg: var(--accent-on);
+  --kit-button-bg: var(--danger-solid);
+  --kit-button-border: var(--danger-solid);
+  --kit-button-hover-bg: var(--danger-hover);
+  --kit-button-hover-border: var(--danger-hover);
+  --kit-button-active-bg: color-mix(in srgb, var(--danger-hover) 86%, var(--text-strong));
+}
+
+.kit-button--link {
+  --kit-button-h: auto;
+  --kit-button-fg: var(--accent);
+  --kit-button-hover-bg: transparent;
+  --kit-button-hover-fg: var(--accent-hover);
+  --kit-button-active-bg: transparent;
+  --kit-button-radius: var(--radius-sm);
+
+  min-height: 0;
+  padding: 0;
+  line-height: var(--lh-body);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, currentColor 40%, transparent);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.2em;
+}
+
+@media (hover: hover) {
+  .kit-button--link:hover {
+    text-decoration-color: currentColor;
+  }
+}
+
+/* Touch: a link-variant button is a standalone control (never inline in running text), so it gets the 44px target. */
+@media (pointer: coarse) {
+  .kit-button--link {
+    min-height: var(--touch-target);
+  }
+}
+
+/* ── States ────────────────────────────────────────────────────────── */
+
+@media (hover: hover) {
+  .kit-button:hover {
+    border-color: var(--kit-button-hover-border);
+    background: var(--kit-button-hover-bg);
+    color: var(--kit-button-hover-fg);
+  }
+}
+
+.kit-button:active {
+  background: var(--kit-button-active-bg);
+}
+
+.kit-button:focus-visible {
+  border-radius: var(--kit-button-radius);
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+/* Toggle buttons (aria-pressed) read as selected; menu triggers (aria-expanded) as open. */
+.kit-button--secondary[aria-pressed='true'],
+.kit-button--ghost[aria-pressed='true'] {
+  --kit-button-fg: var(--accent);
+  --kit-button-hover-fg: var(--accent);
+  --kit-button-bg: var(--accent-selected);
+  --kit-button-hover-bg: var(--accent-selected);
+  --kit-button-active-bg: var(--accent-selected);
+}
+
+.kit-button--secondary[aria-pressed='true'] {
+  --kit-button-border: var(--accent);
+  --kit-button-hover-border: var(--accent);
+}
+
+.kit-button--secondary[aria-expanded='true'],
+.kit-button--ghost[aria-expanded='true'] {
+  --kit-button-bg: var(--surface-active);
+  --kit-button-hover-bg: var(--surface-active);
+}
+
+.kit-button:is(:disabled, [data-disabled='true']) {
+  --kit-button-fg: var(--text-disabled);
+  --kit-button-hover-fg: var(--text-disabled);
+  --kit-button-bg: var(--surface-sunken);
+  --kit-button-hover-bg: var(--surface-sunken);
+  --kit-button-active-bg: var(--surface-sunken);
+  --kit-button-border: transparent;
+  --kit-button-hover-border: transparent;
+
+  cursor: not-allowed;
+  text-decoration-color: transparent;
+}
+
+.kit-button--ghost:is(:disabled, [data-disabled='true']),
+.kit-button--link:is(:disabled, [data-disabled='true']) {
+  --kit-button-bg: transparent;
+  --kit-button-hover-bg: transparent;
+  --kit-button-active-bg: transparent;
+}
+
+.kit-button--secondary:is(:disabled, [data-disabled='true']) {
+  --kit-button-bg: var(--surface-raised);
+  --kit-button-hover-bg: var(--surface-raised);
+  --kit-button-active-bg: var(--surface-raised);
+  --kit-button-border: var(--border-strong);
+  --kit-button-hover-border: var(--border-strong);
+}
+
+.kit-button[data-loading='true'] {
+  --kit-button-hover-bg: var(--kit-button-bg);
+  --kit-button-hover-border: var(--kit-button-border);
+  --kit-button-active-bg: var(--kit-button-bg);
+
+  color: transparent;
+  cursor: progress;
+  text-decoration-color: transparent;
+}
+
+.kit-button[data-loading='true'] > svg {
+  opacity: 0;
+}
+
+.kit-button__spinner {
+  position: absolute;
+  inset: 0;
+  width: 0.875rem;
+  height: 0.875rem;
+  margin: auto;
+  border: 2px solid var(--kit-button-fg);
+  border-right-color: transparent;
+  border-radius: var(--radius-pill);
+  animation: kit-spin 0.7s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kit-button__spinner {
+    animation-duration: 2s;
+  }
+}

@@ -1,0 +1,424 @@
+/*
+ * Table. Hairline rows, 36/44px, quiet header, tabular numbers at the end edge. Under ~640px of
+ * table width every row stacks into a "label: value" list, so nothing scrolls sideways on a phone.
+ * Cells carry data-label; the pseudo-element draws it. The table roles are explicit in the markup
+ * so the semantics survive the display changes below.
+ */
+
+.kit-table-wrap {
+  container: kit-table / inline-size;
+  /* The visually hidden caption and hidden headers are absolutely positioned: without a positioned wrapper they escape its scroll clipping and widen the page. */
+  position: relative;
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.kit-table-wrap:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: calc(var(--focus-ring-width) * -1);
+}
+
+.kit-table-wrap[data-scroll] {
+  max-height: var(--kit-table-max-h);
+  overflow: auto;
+}
+
+/* A sticky header sticks to the page (or to the wrap, with maxHeight): it needs no scroll container of its own. */
+.kit-table-wrap[data-sticky]:not([data-scroll]) {
+  overflow-x: visible;
+}
+
+.kit-table {
+  width: 100%;
+  /* Separate borders: a sticky header keeps its hairline while rows scroll under it. */
+  border-collapse: separate;
+  border-spacing: 0;
+  color: var(--text-body);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  font-variant-numeric: var(--numeric-tabular);
+}
+
+.kit-table__th {
+  height: var(--control-md);
+  padding: 0 var(--space-2);
+  border-bottom: 1px solid var(--border-soft);
+  color: var(--text-muted);
+  font-size: var(--fs-meta);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-meta);
+  text-align: start;
+  white-space: nowrap;
+}
+
+.kit-table-wrap[data-sticky] .kit-table__th {
+  position: sticky;
+  top: var(--kit-table-sticky-top, 0);
+  z-index: var(--z-sticky);
+  background: var(--background);
+}
+
+.kit-table__th[data-align='end'] {
+  text-align: end;
+}
+
+.kit-table__th[data-align='center'] {
+  text-align: center;
+}
+
+.kit-table__sort {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  box-sizing: border-box;
+  min-height: var(--kit-h-sm);
+  margin: 0 calc(var(--space-2) * -1);
+  padding: 0 var(--space-2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  white-space: nowrap;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: var(--transition-colors);
+}
+
+.kit-table__th[data-align='end'] .kit-table__sort {
+  flex-direction: row-reverse;
+}
+
+@media (hover: hover) {
+  .kit-table__sort:hover {
+    color: var(--text-strong);
+  }
+}
+
+.kit-table__sort:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: calc(var(--focus-ring-width) * -1);
+}
+
+.kit-table__th[aria-sort='ascending'] .kit-table__sort,
+.kit-table__th[aria-sort='descending'] .kit-table__sort {
+  color: var(--text-strong);
+}
+
+.kit-table__sort-icon {
+  flex: none;
+  width: 0.875rem;
+  height: 0.875rem;
+  color: var(--text-faint);
+}
+
+.kit-table__th[aria-sort='ascending'] .kit-table__sort-icon,
+.kit-table__th[aria-sort='descending'] .kit-table__sort-icon {
+  color: var(--accent);
+}
+
+.kit-table__row {
+  position: relative;
+  transition: var(--transition-colors);
+}
+
+.kit-table__cell {
+  height: var(--kit-row-h-lg);
+  padding: var(--space-1) var(--space-2);
+  border-top: 1px solid var(--divider);
+  color: var(--text-body);
+  font-weight: var(--fw-regular);
+  text-align: start;
+  vertical-align: middle;
+  overflow-wrap: break-word;
+}
+
+.kit-table[data-density='compact'] .kit-table__cell {
+  height: var(--kit-row-h-md);
+}
+
+.kit-table__body > .kit-table__row:first-child > .kit-table__cell {
+  border-top: 0;
+}
+
+.kit-table__cell[data-align='end'] {
+  text-align: end;
+}
+
+.kit-table__cell[data-align='center'] {
+  text-align: center;
+}
+
+.kit-table__cell[data-numeric] {
+  color: var(--text-strong);
+  font-variant-numeric: var(--numeric-tabular);
+  white-space: nowrap;
+}
+
+.kit-table__cell[data-mono] {
+  font-family: var(--font-mono);
+  font-size: var(--fs-meta);
+}
+
+.kit-table__cell[data-actions],
+.kit-table__cell[data-selection] {
+  position: relative;
+  z-index: 1;
+  white-space: nowrap;
+}
+
+/* The selection cell's label fills the cell so a tap beside the 16px box still lands on it. */
+.kit-table__cell[data-selection] > .kit-check {
+  min-inline-size: 100%;
+  min-block-size: 100%;
+  justify-content: center;
+}
+
+@media (pointer: coarse) {
+  .kit-table__cell[data-selection] > .kit-check {
+    min-inline-size: var(--touch-target, 44px);
+  }
+}
+
+.kit-table__cell[data-nowrap] {
+  white-space: nowrap;
+}
+
+/* A button in a cell keeps its label whole: table layout would otherwise squeeze an auto column down to the longest word. */
+.kit-table__cell .kit-button {
+  white-space: nowrap;
+}
+
+.kit-table__cell[data-primary] {
+  color: var(--text-strong);
+  font-weight: var(--fw-medium);
+}
+
+@media (hover: hover) {
+  .kit-table__row:not(.kit-table__row--empty):hover > .kit-table__cell {
+    background: var(--surface-hover);
+  }
+}
+
+.kit-table__row[data-selected] > .kit-table__cell {
+  background: var(--accent-subtle);
+}
+
+.kit-table__cell:first-child {
+  border-inline-start: 2px solid transparent;
+  padding-inline-start: calc(var(--space-2) - 2px);
+}
+
+.kit-table__row[data-selected] > .kit-table__cell:first-child {
+  border-inline-start-color: var(--accent);
+}
+
+.kit-table__row[aria-busy='true'] {
+  opacity: 0.6;
+}
+
+.kit-table__empty {
+  height: auto;
+  padding: var(--space-4) var(--space-2);
+}
+
+@media (hover: hover) {
+  .kit-table__row--empty:hover > .kit-table__cell {
+    background: transparent;
+  }
+}
+
+/* ── Stacked: each row becomes a label/value list ───────────────────── */
+
+@container kit-table (max-width: 39.9375rem) {
+  .kit-table-wrap[data-stack] .kit-table,
+  .kit-table-wrap[data-stack] .kit-table__body {
+    display: block;
+  }
+
+  .kit-table-wrap[data-stack] colgroup {
+    display: none;
+  }
+
+  /* Headings stay in the accessibility tree; only the sort buttons remain visible. */
+  .kit-table-wrap[data-stack] .kit-table__head {
+    display: block;
+  }
+
+  /* Same 8px inset as the card text below it, so the sort buttons and a select-all box line up with the rows. */
+  .kit-table-wrap[data-stack] .kit-table__head-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-1) var(--space-3);
+    padding: 0 var(--space-2) var(--space-1);
+    border-bottom: 1px solid var(--border-soft);
+  }
+
+  .kit-table-wrap[data-stack] .kit-table__head-row:not(:has([data-sortable], [data-selection])) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    border: 0;
+    clip-path: inset(50%);
+  }
+
+  .kit-table-wrap[data-stack] .kit-table__th {
+    height: auto;
+    padding: 0;
+    border: 0;
+  }
+
+  .kit-table-wrap[data-stack] .kit-table__th[data-align='end'] .kit-table__sort {
+    flex-direction: row;
+  }
+
+  /* The select-all box stays reachable; its stackLabel (when given) is drawn beside it. */
+  .kit-table-wrap[data-stack] .kit-table__th[data-selection] {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+
+  .kit-table-wrap[data-stack] .kit-table__th[data-selection][data-label]::after {
+    color: var(--text-muted);
+    content: attr(data-label);
+  }
+
+  .kit-table-wrap[data-stack] .kit-table__th:not([data-sortable], [data-selection]) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+
+  .kit-table-wrap[data-stack] .kit-table__row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--space-1) 0;
+    padding: var(--space-3) var(--space-2) var(--space-3) calc(var(--space-2) - 2px);
+    border-top: 1px solid var(--divider);
+    border-inline-start: 2px solid transparent;
+  }
+
+  .kit-table-wrap[data-stack] .kit-table__body > .kit-table__row:first-child {
+    border-top: 0;
+  }
+
+  .kit-table-wrap[data-stack] .kit-table__cell {
+    display: grid;
+    grid-column: 1 / -1;
+    grid-template-columns: minmax(5rem, 38%) minmax(0, 1fr);
+    align-items: baseline;
+    justify-items: start;
+    gap: var(--space-3);
+    height: auto;
+    padding: 0;
+    border: 0;
+    text-align: start;
+    overflow-wrap: anywhere;
+  }
+
+  .kit-table-wrap[data-stack] .kit-table__cell::before {
+    color: var(--text-muted);
+    font-size: var(--fs-meta);
+    font-weight: var(--fw-regular);
+    line-height: var(--lh-meta);
+    content: attr(data-label);
+    content: attr(data-label) / '';
+  }
+
+  .kit-table-wrap[data-stack] .kit-table__cell:not([data-label]) {
+    display: block;
+  }
+
+  /* The actions cell shares the title line instead of taking a whole line of its own. */
+  .kit-table-wrap[data-stack] .kit-table__cell[data-actions] {
+    display: flex;
+    grid-column: 2;
+    grid-row: 1;
+    align-self: start;
+    justify-content: flex-end;
+    padding-inline-start: var(--space-3);
+  }
+
+  /* A selection column's checkbox takes the start of the title line; the title and actions move over one column. */
+  .kit-table-wrap[data-stack] .kit-table__row:has(> [data-selection]) {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  .kit-table-wrap[data-stack] .kit-table__cell[data-selection] {
+    display: flex;
+    grid-column: 1;
+    grid-row: 1;
+    align-items: center;
+    align-self: center;
+    padding-block-end: 0;
+    padding-inline-end: var(--space-2);
+  }
+
+  .kit-table-wrap[data-stack] .kit-table__cell[data-selection]::before {
+    content: none;
+  }
+
+  .kit-table-wrap[data-stack] .kit-table__row:has(> [data-selection]) > .kit-table__cell[data-primary] {
+    grid-column: 2;
+    align-self: center;
+    padding-block-end: 0;
+  }
+
+  .kit-table-wrap[data-stack] .kit-table__row:has(> [data-selection]) > .kit-table__cell[data-actions] {
+    grid-column: 3;
+  }
+
+  .kit-table-wrap[data-stack] .kit-table__cell .kit-button {
+    white-space: normal;
+  }
+
+  .kit-table-wrap[data-stack] .kit-table__cell > .kit-skeleton {
+    inline-size: 100%;
+    justify-self: stretch;
+  }
+
+  .kit-table-wrap[data-stack] .kit-table__cell:not([data-label])::before {
+    content: none;
+  }
+
+  .kit-table-wrap[data-stack] .kit-table__cell[data-primary] {
+    display: block;
+    grid-column: 1;
+    grid-row: 1;
+    padding-block-end: var(--space-1);
+  }
+
+  .kit-table-wrap[data-stack] .kit-table__cell[data-align='end'],
+  .kit-table-wrap[data-stack] .kit-table__cell[data-align='center'] {
+    text-align: start;
+  }
+
+  .kit-table-wrap[data-stack] .kit-table__row > .kit-table__cell,
+  .kit-table-wrap[data-stack] .kit-table__row[data-selected] > .kit-table__cell {
+    background: transparent;
+  }
+
+  @media (hover: hover) {
+    .kit-table-wrap[data-stack] .kit-table__row:not(.kit-table__row--empty):hover {
+      background: var(--surface-hover);
+    }
+  }
+
+  .kit-table-wrap[data-stack] .kit-table__row[data-selected] {
+    border-inline-start-color: var(--accent);
+    background: var(--accent-subtle);
+  }
+
+  .kit-table-wrap[data-stack] .kit-table__empty {
+    display: block;
+    padding: var(--space-4) 0;
+  }
+}

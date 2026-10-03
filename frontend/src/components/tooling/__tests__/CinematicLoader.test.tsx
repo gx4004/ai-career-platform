@@ -127,8 +127,8 @@ describe('CinematicLoader', () => {
   it('presents stage labels as indicative steps, not as server progress', () => {
     const { container } = render(<CinematicLoader toolId="resume" mutationDone={false} />)
 
-    // The frame is a stable node, always rendered.
-    expect(screen.getByText(/typical steps/i)).toBeTruthy()
+    // The visible line frames the rotating step as typical, always rendered.
+    expect(container.querySelector('.cinematic-status')?.textContent).toMatch(/typical step/i)
 
     // Resume stage 2 lands at 4000ms — the former "Calculating score…" slot.
     act(() => {
@@ -144,19 +144,17 @@ describe('CinematicLoader', () => {
     expect(screen.queryByText('Calculating score…')).toBeNull()
   })
 
-  it('restores the rotating step line to its original size/prominence (20px icon, visible-only ellipsis)', () => {
+  it('keeps the ellipsis on the visible line only, never in the announcement', () => {
     const { container } = render(<CinematicLoader toolId="resume" mutationDone={false} />)
-
-    const icon = container.querySelector('.cinematic-stage-content svg')
-    expect(icon).toBeTruthy()
-    expect(icon?.getAttribute('width')).toBe('20')
 
     // The ellipsis is decoration on the visible (aria-hidden) line only — it is
     // a "more is coming" affordance for sighted users, not a claim of observed
     // server progress. The a11y announcement (D-056) stays ellipsis-free: it
     // already states the substantiated claim explicitly ("Typical step: ...").
-    const visibleStage = container.querySelector('.cinematic-stage-content span')
-    expect(visibleStage?.textContent).toBe('Reading your resume…')
+    const visibleStage = container.querySelector('.cinematic-status')
+    expect(visibleStage?.textContent).toBe(
+      'Working on your results… Typical step: Reading your resume…',
+    )
 
     const region = screen.getByRole('status')
     expect(region.textContent).not.toMatch(/…/)

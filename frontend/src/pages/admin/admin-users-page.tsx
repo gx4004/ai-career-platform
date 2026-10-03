@@ -1,8 +1,25 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Shield, ShieldOff } from 'lucide-react'
+import { Search } from 'lucide-react'
+import {
+  Badge,
+  Button,
+  EmptyState,
+  ErrorState,
+  Input,
+  Notice,
+  Page,
+  PageHeader,
+  Pagination,
+  Stack,
+  Table,
+  Toolbar,
+} from '#/components/kit'
+import type { TableColumn } from '#/components/kit'
 import { getAdminUsers, setAdminStatus } from '#/lib/api/admin'
-import type { AdminUserListResponse } from '#/lib/api/admin'
+import type { AdminUserItem, AdminUserListResponse } from '#/lib/api/admin'
+import { adminDate } from './toolLabel'
+import { countMeta } from './count-meta'
 
 export function AdminUsersPage() {
   const queryClient = useQueryClient()
@@ -10,7 +27,7 @@ export function AdminUsersPage() {
   const [search, setSearch] = useState('')
   const [searchInput, setSearchInput] = useState('')
 
-  const { data, isLoading, isError, refetch } = useQuery<AdminUserListResponse>({
+  const { data, isLoading, isError, isFetching, refetch } = useQuery<AdminUserListResponse>({
     queryKey: ['admin-users', page, search],
     queryFn: () => getAdminUsers({ page, page_size: 20, q: search || undefined }),
     staleTime: 30_000,
@@ -30,108 +47,118 @@ export function AdminUsersPage() {
 
   const rangeStart = data ? (data.page - 1) * data.page_size + 1 : 0
   const rangeEnd = data ? Math.min(data.page * data.page_size, data.total) : 0
+  const pageCount = data ? Math.max(1, Math.ceil(data.total / data.page_size)) : 1
+
+  const columns: TableColumn<AdminUserItem>[] = [
+    {
+      id: 'user',
+      header: 'User',
+      primary: true,
+      cell: (user) => (
+        <span className="admin-wrap">
+          {user.email}
+          {user.full_name ? <span className="admin-subline">{user.full_name}</span> : null}
+        </span>
+      ),
+    },
+    {
+      id: 'role',
+      header: 'Role',
+      width: '7rem',
+      cell: (user) => (user.is_admin ? <Badge tone="accent">Admin</Badge> : 'Member'),
+    },
+    { id: 'runs', header: 'Runs', numeric: true, width: '4.5rem', cell: (user) => user.run_count },
+    {
+      id: 'created',
+      header: 'Created',
+      width: '9rem',
+      nowrap: true,
+      cell: (user) => <span className="admin-after-number">{adminDate(user.created_at) || '—'}</span>,
+    },
+    {
+      id: 'actions',
+      header: 'Actions',
+      hideHeader: true,
+      align: 'end',
+      width: '9.5rem',
+      stackLabel: false,
+      cell: (user) => {
+        const pending = toggleAdmin.isPending && toggleAdmin.variables?.userId === user.id
+        const label = user.is_admin ? 'Remove admin' : 'Make admin'
+        return (
+          <Button
+            size="sm"
+            variant="secondary"
+            loading={pending}
+            onClick={() => toggleAdmin.mutate({ userId: user.id, isAdmin: !user.is_admin })}
+          >
+            {label}
+          </Button>
+        )
+      },
+    },
+  ]
 
   return (
-    <div>
-      <h1 className="admin-page-title">Users</h1>
-      <div className="admin-data-table-wrap">
-        <form className="admin-data-table-toolbar" onSubmit={handleSearch}>
-          <input
-            type="search"
-            className="admin-toolbar-input"
-            placeholder="Search by email…"
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
+    <Page>
+      <PageHeader
+        title="Users"
+        meta={countMeta(data ? `${data.total} ${data.total === 1 ? 'user' : 'users'}` : null, isLoading)}
+      />
+
+      <Stack gap={3}>
+        <form role="search" onSubmit={handleSearch}>
+          <Toolbar
+            search={
+              <Input
+                type="search"
+                aria-label="Search users by email"
+                leading={<Search aria-hidden />}
+                placeholder="Search by email…"
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+              />
+            }
+            actions={
+              <Button type="submit" variant="secondary">
+                Search
+              </Button>
+            }
           />
-          <button type="submit" className="admin-toolbar-btn">
-            Search
-          </button>
         </form>
 
-        <table className="admin-table">
-          <thead>
-            <tr>
-              <th>Email</th>
-              <th>Name</th>
-              <th>Runs</th>
-              <th>Role</th>
-              <th>Created</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {isLoading && (
-              <tr>
-                <td colSpan={6} className="admin-table-muted" style={{ textAlign: 'center' }}>
-                  Loading…
-                </td>
-              </tr>
-            )}
-            {isError && (
-              <tr>
-                <td colSpan={6} className="admin-table-muted" style={{ textAlign: 'center', color: '#dc2626' }}>
-                  Couldn't load users.{' '}
-                  <button type="button" className="admin-toolbar-btn" onClick={() => void refetch()}>
-                    Try again
-                  </button>
-                </td>
-              </tr>
-            )}
-            {data?.items.map((user) => (
-              <tr key={user.id}>
-                <td>{user.email}</td>
-                <td className="admin-table-muted">{user.full_name || '—'}</td>
-                <td className="admin-table-mono">{user.run_count}</td>
-                <td>
-                  {user.is_admin ? (
-                    <span className="admin-badge admin-badge--admin">Admin</span>
-                  ) : (
-                    <span className="admin-table-muted">—</span>
-                  )}
-                </td>
-                <td className="admin-table-muted">
-                  {user.created_at ? new Date(user.created_at).toLocaleDateString() : '—'}
-                </td>
-                <td>
-                  <button
-                    className="admin-icon-btn"
-                    onClick={() =>
-                      toggleAdmin.mutate({ userId: user.id, isAdmin: !user.is_admin })
-                    }
-                    title={user.is_admin ? 'Remove admin' : 'Make admin'}
-                  >
-                    {user.is_admin ? <ShieldOff size={15} /> : <Shield size={15} />}
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        {toggleAdmin.isError ? (
+          <Notice tone="danger" onDismiss={() => toggleAdmin.reset()}>
+            That role change could not be saved.
+          </Notice>
+        ) : null}
 
-        {data && (
-          <div className="admin-pagination">
-            <span>
-              Showing {rangeStart}–{rangeEnd} of {data.total}
-            </span>
-            <div className="admin-pagination-controls">
-              <button
-                className="admin-pagination-btn"
-                disabled={page <= 1}
-                onClick={() => setPage(page - 1)}
-              >
-                Previous
-              </button>
-              <button
-                className="admin-pagination-btn"
-                disabled={page * data.page_size >= data.total}
-                onClick={() => setPage(page + 1)}
-              >
-                Next
-              </button>
-            </div>
-          </div>
+        {isError ? (
+          <ErrorState
+            title="Couldn't load users"
+            onRetry={() => void refetch()}
+            retrying={isFetching}
+          />
+        ) : (
+          <Table
+            caption="Users"
+            columns={columns}
+            rows={data?.items ?? []}
+            getRowId={(user) => user.id}
+            loading={isLoading}
+            empty={<EmptyState title="No users found" />}
+          />
         )}
-      </div>
-    </div>
+
+        <Pagination
+          variant="simple"
+          aria-label="Users pages"
+          page={page}
+          pageCount={pageCount}
+          onPageChange={setPage}
+          summary={data ? `Showing ${rangeStart}–${rangeEnd} of ${data.total}` : undefined}
+        />
+      </Stack>
+    </Page>
   )
 }

@@ -1,10 +1,9 @@
 import { useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { Link2 } from 'lucide-react'
-import { Button } from '#/components/ui/button'
-import { Input } from '#/components/ui/input'
+import { Button, Checkbox, Field, Input, Notice, Section, Select, Stack, Textarea } from '#/components/kit'
 import { getHistoryWorkspaces, importJobText, importJobUrl } from '#/lib/api/client'
 
+/** Fill the job description from a posting URL, and optionally attach the listing to an application. */
 export function JobImportCard({
   onImported,
 }: {
@@ -33,90 +32,94 @@ export function JobImportCard({
   })
 
   return (
-    <div className="import-card p-4">
-      <div className="grid gap-3">
-        <div className="flex items-center gap-2">
-          <Link2 size={16} style={{ color: 'var(--text-muted)' }} />
-          <p className="section-title">Import from job URL</p>
-        </div>
-        <div className="flex flex-col gap-3 sm:flex-row">
-          <Input
-            value={url}
-            onChange={(event) => setUrl(event.target.value)}
-            placeholder="Paste the job posting URL"
-          />
-          <Button
-            type="button"
-            onClick={() => mutation.mutate({
-              url,
-              ...(attach && campaignId ? { campaign_id: campaignId } : {}),
-            })}
-            disabled={mutation.isPending || !url.trim() || (attach && !campaignId)}
-          >
-            {mutation.isPending ? 'Importing…' : 'Import'}
-          </Button>
-        </div>
-        {mutation.error ? (
-          <p className="small-copy" style={{ color: 'var(--destructive)' }}>
-            {mutation.error instanceof Error ? mutation.error.message : 'Job import failed.'}
-          </p>
-        ) : null}
-        <label className="import-card-attach small-copy" htmlFor="campaign-attach-toggle">
-          <input
-            id="campaign-attach-toggle"
-            type="checkbox"
-            checked={attach}
-            onChange={(event) => setAttach(event.target.checked)}
-          />
-          Attach to one of your applications
-        </label>
-        {attach ? (
-          <div className="import-card-panel grid gap-3" aria-label="Application listing attachment">
-            <div className="workspace-picker">
-              <label className="workspace-picker-label" htmlFor="campaign-listing-picker">Application</label>
-              <select
-                id="campaign-listing-picker"
-                className="workspace-picker-select"
-                value={campaignId}
-                onChange={(event) => setCampaignId(event.target.value)}
-              >
-                <option value="">Select an application</option>
-                {campaigns.data?.items.map((item) => (
-                  <option key={item.id} value={item.id}>{item.label || item.role || 'Untitled application'}</option>
-                ))}
-              </select>
-            </div>
-            <p className="small-copy">Or attach a pasted listing</p>
-            <div className="grid gap-1">
-              <label className="small-copy" htmlFor="campaign-job-title">Job title</label>
-              <Input id="campaign-job-title" value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Job title" maxLength={200} />
-            </div>
-            <div className="grid gap-1">
-              <label className="small-copy" htmlFor="campaign-job-company">Company</label>
-              <Input id="campaign-job-company" value={company} onChange={(event) => setCompany(event.target.value)} placeholder="Company" maxLength={200} />
-            </div>
-            <div className="grid gap-1">
-              <label className="small-copy" htmlFor="campaign-job-description">Job description</label>
-              <textarea
-                id="campaign-job-description"
-                className="import-card-textarea"
-                value={description}
-                onChange={(event) => setDescription(event.target.value)}
-                placeholder="Paste the job description"
-                maxLength={20_000}
-              />
-            </div>
+    <Stack gap={3}>
+      <Field
+        label="Import from job URL"
+        optional
+        id="job-import-url"
+        error={
+          mutation.error
+            ? mutation.error instanceof Error
+              ? mutation.error.message
+              : 'Job import failed.'
+            : undefined
+        }
+      >
+        <Input
+          inputMode="url"
+          autoComplete="off"
+          value={url}
+          onChange={(event) => setUrl(event.target.value)}
+          placeholder="Paste the job posting URL"
+          trailing={
             <Button
               type="button"
-              onClick={() => pasteMutation.mutate({ campaign_id: campaignId, job_title: title, company_name: company, job_description: description })}
-              disabled={pasteMutation.isPending || !campaignId || !title.trim() || !company.trim() || description.trim().length < 20}
+              variant="secondary"
+              size="sm"
+              loading={mutation.isPending}
+              onClick={() =>
+                mutation.mutate({
+                  url,
+                  ...(attach && campaignId ? { campaign_id: campaignId } : {}),
+                })
+              }
+              disabled={!url.trim() || (attach && !campaignId)}
             >
-              {pasteMutation.isPending ? 'Attaching…' : 'Attach pasted listing'}
+              Import
             </Button>
-            {campaigns.error || pasteMutation.error ? <p className="small-copy" style={{ color: 'var(--destructive)' }}>Could not attach the listing.</p> : null}
-          </div>
-        ) : null}
-      </div>
-    </div>
+          }
+        />
+      </Field>
+      <Checkbox
+        id="campaign-attach-toggle"
+        label="Attach to one of your applications"
+        checked={attach}
+        onCheckedChange={setAttach}
+      />
+      {attach ? (
+        <Stack gap={4} className="tool-attach" role="group" aria-label="Application listing attachment">
+          <Field label="Application" id="campaign-listing-picker">
+            <Select value={campaignId} onChange={(event) => setCampaignId(event.target.value)}>
+              <option value="">Select an application</option>
+              {campaigns.data?.items.map((item) => (
+                <option key={item.id} value={item.id}>{item.label || item.role || 'Untitled application'}</option>
+              ))}
+            </Select>
+          </Field>
+          <Section headingLevel={3} size="sm" title="Or attach a pasted listing" rule={false}>
+            <Stack gap={3}>
+              <Field label="Job title" id="campaign-job-title">
+                <Input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Job title" maxLength={200} />
+              </Field>
+              <Field label="Company" id="campaign-job-company">
+                <Input value={company} onChange={(event) => setCompany(event.target.value)} placeholder="Company" maxLength={200} />
+              </Field>
+              <Field label="Pasted listing text" id="campaign-job-description">
+                <Textarea
+                  rows={4}
+                  value={description}
+                  onChange={(event) => setDescription(event.target.value)}
+                  placeholder="Paste the job description"
+                  maxLength={20_000}
+                />
+              </Field>
+              <div>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  loading={pasteMutation.isPending}
+                  onClick={() => pasteMutation.mutate({ campaign_id: campaignId, job_title: title, company_name: company, job_description: description })}
+                  disabled={!campaignId || !title.trim() || !company.trim() || description.trim().length < 20}
+                >
+                  Attach pasted listing
+                </Button>
+              </div>
+            </Stack>
+          </Section>
+          {campaigns.error || pasteMutation.error ? <Notice tone="danger">Could not attach the listing.</Notice> : null}
+        </Stack>
+      ) : null}
+    </Stack>
   )
 }
