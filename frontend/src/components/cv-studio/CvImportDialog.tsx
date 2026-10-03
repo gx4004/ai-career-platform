@@ -1,22 +1,23 @@
-import { useEffect, useId, useRef, useState } from 'react'
-import { FileUp, TriangleAlert } from 'lucide-react'
-import { Button } from '#/components/ui/button'
+import { useEffect, useState } from 'react'
 import {
-  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
-} from '#/components/ui/dialog'
+  Button, Count, Dialog, DialogBody, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+  Field, FileInput, Input, List, Notice, Row, RowBody, RowMeta, RowTitle, Skeleton, Stack,
+} from '#/components/kit'
 import { acceptCvImport, proposeCvImport } from '#/lib/api/client'
 import type { CvDocument, CvImportProposal } from '#/lib/api/schemas'
 
-export function CvImportDialog({ open, onOpenChange, onImported }: {
+export function CvImportDialog({ open, onOpenChange, onImported, onCloseAutoFocus }: {
   open: boolean; onOpenChange: (open: boolean) => void; onImported: (document: CvDocument) => void
+  /** Where focus goes on close, when the control that opened the dialog is gone (a menu item). */
+  onCloseAutoFocus?: (event: Event) => void
 }) {
-  const fileId = useId()
-  const nameId = useId()
-  const inputRef = useRef<HTMLInputElement>(null)
   const [proposal, setProposal] = useState<CvImportProposal | null>(null)
   const [name, setName] = useState('')
   const [state, setState] = useState<'idle' | 'reading' | 'creating'>('idle')
   const [error, setError] = useState('')
+  const [fileName, setFileName] = useState('')
+  // FileInput cannot be reset from outside; a new key starts it empty again after a failed read.
+  const [pickerKey, setPickerKey] = useState(0)
 
   useEffect(() => {
     if (!open) return
@@ -25,7 +26,7 @@ export function CvImportDialog({ open, onOpenChange, onImported }: {
 
   async function read(file: File | undefined) {
     if (!file) return
-    setState('reading'); setError('')
+    setState('reading'); setError(''); setFileName(file.name)
     try {
       const next = await proposeCvImport(file)
       setProposal(next)
@@ -34,7 +35,7 @@ export function CvImportDialog({ open, onOpenChange, onImported }: {
       setError(caught instanceof Error ? caught.message : 'We couldn’t read that file.')
     } finally {
       setState('idle')
-      if (inputRef.current) inputRef.current.value = ''
+      setPickerKey((key) => key + 1)
     }
   }
 
@@ -53,53 +54,68 @@ export function CvImportDialog({ open, onOpenChange, onImported }: {
   }
 
   const entryCount = proposal?.sections.reduce((total, section) => total + section.entries.length, 0) ?? 0
+  const busy = state !== 'idle'
 
   return (
-    <Dialog open={open} onOpenChange={(next) => state === 'idle' && onOpenChange(next)}>
-      <DialogContent className="sm:max-w-lg">
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent dismissible={!busy} onCloseAutoFocus={onCloseAutoFocus}>
         <DialogHeader>
           <DialogTitle>Import your CV</DialogTitle>
-          <DialogDescription>Upload a PDF or Word file. We’ll split it into sections you can edit, and nothing is saved until you say so.</DialogDescription>
+          <DialogDescription>
+            {proposal
+              ? `We found ${proposal.sections.length} ${proposal.sections.length === 1 ? 'section' : 'sections'} and ${entryCount} ${entryCount === 1 ? 'entry' : 'entries'} in ${proposal.filename}.`
+              : 'Upload a PDF or Word file. We’ll split it into sections you can edit, and nothing is saved until you say so.'}
+          </DialogDescription>
         </DialogHeader>
 
-        {!proposal ? (
-          <label htmlFor={fileId} className="cvs-dropzone" data-busy={state === 'reading' || undefined}>
-            <span className="cvs-dropzone__icon" aria-hidden="true"><FileUp size={22} /></span>
-            <span className="cvs-dropzone__title">{state === 'reading' ? 'Reading your CV…' : 'Choose a PDF or DOCX'}</span>
-            <span className="cvs-dropzone__hint">Up to 10 MB</span>
-            <input
-              ref={inputRef} id={fileId} type="file" className="sr-only" disabled={state !== 'idle'}
-              accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-              onChange={(event) => void read(event.target.files?.[0])}
-            />
-          </label>
-        ) : (
-          <div className="cvs-import-review">
-            <div className="cvs-field">
-              <label htmlFor={nameId}>CV name</label>
-              <input id={nameId} className="cvs-input" value={name} maxLength={120} onChange={(event) => setName(event.target.value)} />
-            </div>
-            <p className="cvs-import-review__summary">
-              We found {proposal.sections.length} {proposal.sections.length === 1 ? 'section' : 'sections'} and {entryCount} {entryCount === 1 ? 'entry' : 'entries'} in {proposal.filename}.
-            </p>
-            <ul className="cvs-import-review__sections">
-              {proposal.sections.map((section) => (
-                <li key={section.id}><span>{section.title}</span><span>{section.entries.length}</span></li>
-              ))}
-            </ul>
-            {proposal.warnings.map((warning) => (
-              <p key={warning} className="cvs-import-review__warning"><TriangleAlert size={14} aria-hidden="true" /> {warning}</p>
-            ))}
-            <p className="cvs-import-review__note">Facts we spot, like achievements and skills, are also added to your Evidence for you to confirm later.</p>
-          </div>
-        )}
+        <DialogBody className="cvs-import__body">
+          <Stack gap={4}>
+            {!proposal ? (
+              state === 'reading' ? (
+                <Stack gap={3}>
+                  <p className="cvs-hint" role="status">Reading {fileName}…</p>
+                  <List aria-label="Reading your CV" aria-busy="true"><Skeleton variant="row" as="li" density="compact" count={4} /></List>
+                </Stack>
+              ) : (
+                <FileInput
+                  key={pickerKey}
+                  variant="dropzone"
+                  label="Choose a PDF or DOCX"
+                  hint="Up to 10 MB"
+                  accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                  onFilesChange={([file]) => void read(file)}
+                />
+              )
+            ) : (
+              <>
+                <Field label="CV name">
+                  <Input value={name} maxLength={120} onChange={(event) => setName(event.target.value)} />
+                </Field>
+                <List boxed aria-label="Sections found">
+                  {proposal.sections.map((section) => (
+                    <Row key={section.id} density="compact">
+                      <RowBody><RowTitle>{section.title}</RowTitle></RowBody>
+                      <RowMeta><Count value={section.entries.length} /></RowMeta>
+                    </Row>
+                  ))}
+                </List>
+                {proposal.warnings.map((warning) => (
+                  <Notice key={warning} tone="warning">{warning}</Notice>
+                ))}
+                <p className="cvs-hint">Facts we spot, like achievements and skills, are also added to your Evidence for you to confirm later.</p>
+              </>
+            )}
 
-        {error ? <p role="alert" className="cvs-inline-error">{error}</p> : null}
+            {error ? <Notice tone="danger">{error}</Notice> : null}
+          </Stack>
+        </DialogBody>
 
         <DialogFooter>
-          <Button type="button" variant="outline" disabled={state !== 'idle'} onClick={() => proposal ? setProposal(null) : onOpenChange(false)}>
-            {proposal ? 'Choose another file' : 'Cancel'}
-          </Button>
+          {proposal ? (
+            <Button type="button" variant="secondary" disabled={busy} onClick={() => setProposal(null)}>Choose another file</Button>
+          ) : (
+            <DialogClose asChild><Button type="button" variant="secondary" disabled={busy}>Cancel</Button></DialogClose>
+          )}
           {proposal ? (
             <Button type="button" loading={state === 'creating'} disabled={!name.trim() || proposal.sections.length === 0} onClick={() => void create()}>
               Create my CV

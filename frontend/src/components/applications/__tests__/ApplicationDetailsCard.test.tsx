@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApplicationDetailsCard } from '#/components/applications/ApplicationDetailsCard'
+import { ToastProvider } from '#/components/kit'
 
 const api = vi.hoisted(() => ({
   getApplicationDetails: vi.fn(),
@@ -31,7 +32,9 @@ function renderCard() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={client}>
-      <ApplicationDetailsCard />
+      <ToastProvider>
+        <ApplicationDetailsCard />
+      </ToastProvider>
     </QueryClientProvider>,
   )
 }
@@ -63,7 +66,28 @@ describe('Application details card', () => {
       visa_sponsorship: 'No',
       salary_expectation: '90k EUR',
     })
-    expect((await screen.findByRole('status')).textContent).toBe('Saved.')
+    // The confirmation is a toast, not a line beside the button.
+    expect((await screen.findAllByText('Details saved.')).length).toBeGreaterThan(0)
+  })
+
+  it('shows the real section headings and labels while loading, so the page does not jump', async () => {
+    api.getApplicationDetails.mockReturnValue(new Promise(() => {}))
+    renderCard()
+
+    expect(screen.getByRole('heading', { level: 2, name: 'Contact' })).toBeTruthy()
+    expect(screen.getByRole('heading', { level: 2, name: 'Your standing answers' })).toBeTruthy()
+    expect(screen.getByText('Salary expectation')).toBeTruthy()
+    expect(screen.getByText('Loading your details…')).toBeTruthy()
+    expect(screen.queryByRole('textbox')).toBeNull()
+  })
+
+  it('offers a retry when the details cannot be loaded', async () => {
+    api.getApplicationDetails.mockRejectedValueOnce(new Error('down'))
+    renderCard()
+
+    expect((await screen.findByText(/couldn't be loaded/)).closest('[role="alert"]')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
+    expect((await screen.findByLabelText<HTMLInputElement>('Full name')).value).toBe('Ada Lovelace')
   })
 
   it('says so when saving fails', async () => {
@@ -73,7 +97,8 @@ describe('Application details card', () => {
     fireEvent.change(await screen.findByLabelText('Phone'), { target: { value: '123' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save details' }))
 
-    expect((await screen.findByRole('alert')).textContent).toContain("couldn't be saved")
+    // The toast region is also a live alert region: look for the notice by its text.
+    expect((await screen.findByText(/couldn't be saved/)).closest('[role="alert"]')).toBeTruthy()
   })
 
   it('keeps Save disabled until something changes', async () => {

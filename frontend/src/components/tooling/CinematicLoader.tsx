@@ -140,7 +140,7 @@ export function CinematicLoader({
     // Only a real page-leave counts as abandonment. Every tool page renders this
     // loader as `{mutation.isPending ? <loader/> : <result/>}`, so unmount is the
     // normal success path — reporting from cleanup fired on every completed run
-    // and would have shown the operator ~100% abandonment (#139). Under-reporting
+    // and would have shown the operator ~100% abandonment (issue 139). Under-reporting
     // an in-app navigation is safe; a false trigger is not.
     window.addEventListener('pagehide', reportAbandonment)
     return () => {
@@ -203,6 +203,9 @@ export function CinematicLoader({
       ? 90
       : ((displayedStageIndex + 1) / totalStages) * 100
 
+  // The bar fills one segment per step; the last one is reserved for real completion, like the 100% before.
+  const filledSteps = mutationDone ? totalStages : Math.min(displayedStageIndex + 1, totalStages - 1)
+
   // Spoken form of what the screen shows: the substantiated claim first, then
   // the current step explicitly marked as typical (see the STEPS_FRAME comment).
   const announcement = mutationDone
@@ -235,7 +238,16 @@ export function CinematicLoader({
         <span className="tool-spinner" />
         {/* Decorative-only ellipsis (see the D-056 comment above): the
             aria-live announcement never carries this. */}
-        <span className="cinematic-status">{mutationDone ? STATUS_READY : `${STATUS_WORKING} ${STEPS_FRAME_ONE}: ${stage.label}…`}</span>
+        <span className="cinematic-status">
+          {mutationDone ? (
+            STATUS_READY
+          ) : (
+            <>
+              <span className="cinematic-status__lead">{STATUS_WORKING}</span>{' '}
+              <span className="cinematic-status__step">{`${STEPS_FRAME_ONE}: ${stage.label}…`}</span>
+            </>
+          )}
+        </span>
       </div>
 
       {/*
@@ -246,7 +258,9 @@ export function CinematicLoader({
         client cannot observe — exactly what D-056 forbids.
       */}
       <div className="cinematic-progress" role="progressbar" aria-label="Generating results">
-        <div className="cinematic-progress-bar" style={{ width: `${progress}%` }} />
+        {displayStages.map((s, i) => (
+          <span key={`${i}-${s.label}`} className="cinematic-progress__step" data-filled={i < filledSteps || undefined} />
+        ))}
       </div>
     </div>
   )

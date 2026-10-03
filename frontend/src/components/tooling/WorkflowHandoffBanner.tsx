@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Notice } from '#/components/kit'
 import { readWorkflowContext } from '#/lib/tools/drafts'
 import { tools, type ToolId } from '#/lib/tools/registry'
 
@@ -29,10 +30,8 @@ export function WorkflowHandoffBanner({ toolId }: { toolId: ToolId }) {
   if (!sourceTool) return null
 
   return (
-    <div className="tool-notice workflow-handoff-banner" role="status" aria-live="polite">
-      <span className="tool-notice-text">
-        Carried over from <strong>{sourceTool.label}</strong>
-      </span>
-    </div>
+    <Notice>
+      Carried over from <strong>{sourceTool.label}</strong>
+    </Notice>
   )
 }

@@ -2,13 +2,18 @@ import type { AnchorHTMLAttributes, ReactNode } from 'react'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AppSidebar } from '#/components/app/AppSidebar'
-import { Topbar } from '#/components/app/Topbar'
-import { TooltipProvider } from '#/components/ui/tooltip'
+import { TooltipProvider } from '#/components/kit'
 import { SidebarProvider } from '#/components/ui/sidebar'
 
-const mockUseIsMobile = vi.hoisted(() => vi.fn())
 const mockPathname = vi.hoisted(() => ({ current: '/dashboard' }))
-const mockSessionUser = vi.hoisted(() => ({ current: { id: 'u1', email: 'test@example.com', name: 'Test User' } as { id: string; email: string; name: string } | null }))
+const mockSessionUser = vi.hoisted(() => ({
+  current: { id: 'u1', email: 'test@example.com', full_name: 'Test User', is_admin: false } as {
+    id: string
+    email: string
+    full_name: string
+    is_admin: boolean
+  } | null,
+}))
 
 vi.mock('@tanstack/react-router', () => ({
   Link: ({
@@ -38,13 +43,9 @@ vi.mock('@tanstack/react-router', () => ({
   },
 }))
 
-vi.mock('#/hooks/use-mobile', () => ({
-  useIsMobile: mockUseIsMobile,
-}))
-
 vi.mock('#/hooks/useSession', () => ({
   useSession: () => ({
-    status: 'authenticated',
+    status: mockSessionUser.current ? 'authenticated' : 'guest',
     user: mockSessionUser.current,
     login: vi.fn(),
     logout: vi.fn(),
@@ -52,50 +53,11 @@ vi.mock('#/hooks/useSession', () => ({
   }),
 }))
 
-vi.mock('#/components/auth/SessionMenu', () => ({
-  SessionMenu: () => <div>Session menu</div>,
-}))
-
-vi.mock('#/lib/navigation/routeMeta', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('#/lib/navigation/routeMeta')>()
-  return {
-    ...actual,
-    getRouteMeta: () => ({
-      sectionLabel: 'Workspace',
-      title: 'Dashboard',
-      description: 'Current workbench view.',
-      breadcrumbs: ['Home', 'Dashboard'],
-    }),
-  }
-})
-
 function renderSidebar(defaultOpen = false) {
   return render(
     <TooltipProvider delayDuration={0}>
       <SidebarProvider defaultOpen={defaultOpen}>
         <AppSidebar />
-      </SidebarProvider>
-    </TooltipProvider>,
-  )
-}
-
-function renderShellForMobile() {
-  return render(
-    <TooltipProvider delayDuration={0}>
-      <SidebarProvider defaultOpen={false}>
-        <AppSidebar />
-        <Topbar />
-      </SidebarProvider>
-    </TooltipProvider>,
-  )
-}
-
-function renderShell() {
-  return render(
-    <TooltipProvider delayDuration={0}>
-      <SidebarProvider defaultOpen={false}>
-        <AppSidebar />
-        <Topbar />
       </SidebarProvider>
     </TooltipProvider>,
   )
@@ -114,8 +76,7 @@ function getBrandRowTrigger(container: HTMLElement) {
 describe('AppSidebar', () => {
   beforeEach(() => {
     mockPathname.current = '/dashboard'
-    mockUseIsMobile.mockReturnValue(false)
-    mockSessionUser.current = { id: 'u1', email: 'test@example.com', name: 'Test User' }
+    mockSessionUser.current = { id: 'u1', email: 'test@example.com', full_name: 'Test User', is_admin: false }
   })
 
   it('shows discovery only to authenticated users', () => {
@@ -236,27 +197,45 @@ describe('AppSidebar', () => {
     expect(screen.getByText('Career Workbench')).toBeTruthy()
   })
 
-  it('keeps the session menu only in the topbar', () => {
-    renderShell()
+  it('has no top bar: the account menu is in the sidebar footer and opens with Account, Settings and Sign out', async () => {
+    const { container } = renderSidebar(true)
 
-    expect(screen.getByText('Session menu')).toBeTruthy()
-    expect(screen.getAllByText('Session menu')).toHaveLength(1)
+    expect(container.querySelector('.app-topbar')).toBeNull()
+    const trigger = screen.getByRole('button', { name: 'Account menu for Test User' })
+    fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false })
+    fireEvent.click(trigger)
+
+    expect(await screen.findByRole('menuitem', { name: 'Account' })).toBeTruthy()
+    expect(screen.getByRole('menuitem', { name: 'Settings' })).toBeTruthy()
+    expect(screen.getByRole('menuitem', { name: 'Sign out' })).toBeTruthy()
+    expect(screen.queryByRole('menuitem', { name: 'Admin' })).toBeNull()
   })
 
-  it('keeps a mobile topbar trigger that opens the off-canvas sidebar', async () => {
-    mockUseIsMobile.mockReturnValue(true)
+  it('offers a Sign in link in place of the account menu for guests', () => {
+    mockSessionUser.current = null
+    renderSidebar(true)
 
-    renderShellForMobile()
+    expect(screen.queryByRole('button', { name: /Account menu/ })).toBeNull()
+    expect(screen.getByRole('link', { name: 'Sign in' }).getAttribute('href')).toBe('/login')
+  })
 
-    expect(screen.queryByRole('dialog')).toBeNull()
+  it('keeps every destination named when the sidebar is collapsed to its icon rail', () => {
+    renderSidebar(false)
 
-    fireEvent.click(
-      screen.getByRole('button', {
-        name: /toggle sidebar/i,
-      }),
-    )
+    for (const link of document.querySelectorAll('a[data-sidebar="menu-button"]')) {
+      expect(link.textContent?.trim()).toBeTruthy()
+    }
+    expect(screen.getByRole('button', { name: 'Search' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Expand sidebar' })).toBeTruthy()
+  })
 
-    expect(await screen.findByRole('dialog')).toBeTruthy()
+  it('links the legal pages in the footer', () => {
+    renderSidebar(true)
+
+    const legal = screen.getByRole('navigation', { name: 'Legal' })
+    expect(legal.querySelector('a[href="/privacy"]')).toBeTruthy()
+    expect(legal.querySelector('a[href="/terms"]')).toBeTruthy()
+    expect(legal.querySelector('a[href="/cookies"]')).toBeTruthy()
   })
 
   it('keeps the active tool highlighted and the normal sidebar controls on tool routes', () => {

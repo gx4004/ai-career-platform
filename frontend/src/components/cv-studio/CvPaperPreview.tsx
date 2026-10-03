@@ -1,11 +1,10 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { CSSProperties, KeyboardEvent } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Download, FileSearch } from 'lucide-react'
-import { Button } from '#/components/ui/button'
+import { Download } from 'lucide-react'
 import {
-  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
-} from '#/components/ui/dialog'
+  Button, Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Notice, Skeleton,
+} from '#/components/kit'
 import { fetchCvArtifactBlob } from '#/lib/api/client'
 import type { CvSection, CvStyle, CvStyleCatalog } from '#/lib/api/schemas'
 import { buildPreviewSections, resolvePreviewStyle, splitTwoColumn } from '#/lib/cv-studio/preview'
@@ -119,7 +118,7 @@ export function CvPaper({ name, sections, style, catalog, activeId, onEdit }: {
           {!hasContent ? <p className="cvp-placeholder">Your CV appears here as you write.</p> : null}
         </div>
       </div>
-      <p className="cvp-footnote">{pages === 1 ? '1 page' : `About ${pages} pages`}<span className="cvp-footnote__hint cvp-footnote__hint--touch"> · tap a section to edit</span><span className="cvp-footnote__hint cvp-footnote__hint--pointer"> · click a section to edit</span></p>
+      <p className="cvp-footnote">{pages === 1 ? '1 page' : `About ${pages} pages`}</p>
     </div>
   )
 }
@@ -149,27 +148,31 @@ export function ExactPdfDialog({ open, onOpenChange, documentId, documentName, r
   const url = useObjectUrl(pdf.data)
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="cvs-pdf-dialog sm:max-w-3xl">
+      <DialogContent size="lg">
         <DialogHeader>
           <DialogTitle>Exact PDF</DialogTitle>
           <DialogDescription>This is the file you download with Export PDF, rendered on our server.</DialogDescription>
         </DialogHeader>
-        {pdf.isError ? (
-          <div className="cvs-inline-alert" role="alert">
-            <p>We couldn’t build the PDF just now. Your CV is safe.</p>
-            <Button type="button" size="sm" variant="outline" onClick={() => void pdf.refetch()}>Try again</Button>
-          </div>
-        ) : !url ? (
-          <div className="cvs-pdf-loading" role="status"><FileSearch size={20} aria-hidden="true" /> Building your PDF…</div>
-        ) : (
-          <>
-            <iframe className="cvs-pdf-frame" title={`${templateName} PDF preview`} src={`${url}#toolbar=0&navpanes=0&view=FitH`} />
-            <div className="cvs-pdf-actions">
-              <Button asChild>
-                <a href={url} download={`${documentName.trim() || 'cv'}.pdf`}><Download size={16} /> Download PDF</a>
-              </Button>
+        <DialogBody>
+          {pdf.isError ? (
+            <Notice tone="danger" action={<Button type="button" size="sm" variant="secondary" onClick={() => void pdf.refetch()}>Try again</Button>}>
+              We couldn’t build the PDF just now. Your CV is safe.
+            </Notice>
+          ) : !url ? (
+            <div role="status">
+              <Skeleton variant="block" width="100%" height="min(60dvh, 44rem)" />
+              <span className="kit-sr-only">Building your PDF…</span>
             </div>
-          </>
+          ) : (
+            <iframe className="cvs-pdf-frame" title={`${templateName} PDF preview`} src={`${url}#toolbar=0&navpanes=0&view=FitH`} />
+          )}
+        </DialogBody>
+        {pdf.isError ? null : (
+          <DialogFooter>
+            <Button asChild disabled={!url}>
+              <a href={url || undefined} download={`${documentName.trim() || 'cv'}.pdf`}><Download aria-hidden="true" /> Download PDF</a>
+            </Button>
+          </DialogFooter>
         )}
       </DialogContent>
     </Dialog>

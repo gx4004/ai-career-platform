@@ -1,5 +1,5 @@
 import type { AnchorHTMLAttributes, ReactNode } from 'react'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { ToolGridSheet } from '#/components/mobile/ToolGridSheet'
 
@@ -12,7 +12,16 @@ vi.mock('@tanstack/react-router', () => ({
     children: ReactNode
     to: string
   } & AnchorHTMLAttributes<HTMLAnchorElement>) => (
-    <a href={to} {...props}>{children}</a>
+    <a
+      href={to}
+      {...props}
+      onClick={(event) => {
+        props.onClick?.(event)
+        event.preventDefault()
+      }}
+    >
+      {children}
+    </a>
   ),
 }))
 
@@ -43,4 +52,16 @@ describe('ToolGridSheet authenticated workspace navigation', () => {
     expect(screen.getByRole('link', { name: 'CV Studio' }).getAttribute('href')).toBe('/cv-studio')
   })
 
+  it('lists the six tools first and closes when one is chosen', () => {
+    const onOpenChange = vi.fn()
+    render(<ToolGridSheet open onOpenChange={onOpenChange} showAuthenticatedLinks />)
+
+    expect(screen.getByRole('dialog', { name: 'More' })).toBeTruthy()
+    const tools = screen.getByRole('list', { name: 'Tools' })
+    expect(tools.querySelectorAll('li')).toHaveLength(6)
+    expect(screen.getByRole('heading', { name: 'Tools' })).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('link', { name: 'Career Path' }))
+    expect(onOpenChange).toHaveBeenCalledWith(false)
+  })
 })

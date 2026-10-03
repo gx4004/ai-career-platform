@@ -115,11 +115,10 @@ describe('HistoryPage — runs saved by older CV Studio checks (#362)', () => {
 
     renderPage()
 
-    expect(screen.getByText('CV Studio')).toBeTruthy()
     expect(screen.getByText('Older CV Studio run')).toBeTruthy()
     expect(screen.getByText('Old check')).toBeTruthy()
     expect(screen.queryByRole('button', { name: /^Continue/ })).toBeNull()
-    expect(screen.queryByRole('link', { name: /^Open Old check/ })).toBeNull()
+    expect(screen.queryByRole('link', { name: 'Old check' })).toBeNull()
     expect(screen.queryAllByRole('link').filter((a) => a.getAttribute('href') === '/history')).toHaveLength(0)
   })
 })

@@ -1,9 +1,5 @@
-import { HelpCircle } from 'lucide-react'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from '#/components/ui/tooltip'
+import { CircleHelp } from 'lucide-react'
+import { Button, Popover, PopoverContent, PopoverTrigger } from '#/components/kit'
 import type { ToolId } from '#/lib/tools/registry'
 
 const SCORE_EXPLANATIONS: Record<string, string> = {
@@ -13,20 +9,21 @@ const SCORE_EXPLANATIONS: Record<string, string> = {
   portfolio: 'This score is not applicable for portfolio recommendations.',
 }
 
-export function ScoreTooltip({ toolId }: { toolId: ToolId }) {
+/** A tap-reachable explanation of the headline score (a tooltip would not open on touch). */
+export function ScoreHelp({ toolId }: { toolId: ToolId }) {
   const explanation = SCORE_EXPLANATIONS[toolId]
   if (!explanation) return null
 
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <button type="button" className="score-tooltip-trigger" aria-label="What does this score mean?">
-          <HelpCircle size={14} />
-        </button>
-      </TooltipTrigger>
-      <TooltipContent side="bottom" className="score-tooltip-content">
-        <p>{explanation}</p>
-      </TooltipContent>
-    </Tooltip>
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button iconOnly variant="ghost" size="sm" aria-label="What does this score mean?">
+          <CircleHelp aria-hidden="true" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent side="bottom" align="end">
+        <p className="result-prose">{explanation}</p>
+      </PopoverContent>
+    </Popover>
   )
 }

@@ -82,8 +82,7 @@ p {
   color: var(--text-body);
 }
 
-.t-section,
-.section-title {
+.t-section {
   font-size: var(--fs-section);
   line-height: var(--lh-section);
   font-weight: var(--fw-semibold);

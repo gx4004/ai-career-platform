@@ -29,10 +29,18 @@ describe('DashboardResumeUpload', () => {
     parseCvMock.mockReset()
   })
 
-  it('offers a file chooser for PDF or DOCX', () => {
+  it('offers a file chooser for PDF or DOCX, and says that a dropped file works too', () => {
     renderUpload()
-    expect(screen.getByText('Upload your resume')).toBeTruthy()
-    expect(screen.getByRole('button', { name: /Choose file/i })).toBeTruthy()
+    expect(screen.getByText('Choose file')).toBeTruthy()
+    expect(screen.getByText(/PDF or DOCX/)).toBeTruthy()
+    const input = screen.getByLabelText('Resume file') as HTMLInputElement
+    expect(input.type).toBe('file')
+    expect(input.accept).toBe('.pdf,.docx')
+  })
+
+  it('is the target of the first tour step', () => {
+    const { container } = renderUpload()
+    expect(container.querySelector('[data-tour="hero-cta"]')).toBeTruthy()
   })
 
   it('stores a pending-review handoff before navigating to the resume tool', async () => {
@@ -58,5 +66,16 @@ describe('DashboardResumeUpload', () => {
     })
     expect((await screen.findByRole('alert')).textContent).toContain('Could not read that file')
     expect(navigateMock).not.toHaveBeenCalled()
+  })
+
+  it('says it is parsing while the file is read and blocks a second pick', async () => {
+    parseCvMock.mockReturnValue(new Promise(() => {}))
+    renderUpload()
+    fireEvent.change(screen.getByLabelText('Resume file'), {
+      target: { files: [new File(['x'], 'cv.pdf')] },
+    })
+
+    expect((await screen.findByRole('status')).textContent).toContain('Parsing your resume')
+    expect((screen.getByLabelText('Resume file') as HTMLInputElement).disabled).toBe(true)
   })
 })

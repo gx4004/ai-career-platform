@@ -1,9 +1,10 @@
 import { Link, useRouter } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
-import { AlertCircle } from 'lucide-react'
-import { AppBrandLockup } from '#/components/app/AppBrandLockup'
-import { AppStatePanel } from '#/components/app/AppStatePanel'
+import { ArrowLeft, ArrowRight } from 'lucide-react'
+import { authCopy } from '#/components/auth/auth-copy'
 import { AuthSurface } from '#/components/auth/AuthSurface'
+import { AuthShell } from '#/components/auth/AuthShell'
+import { Button, Notice, PageHeader } from '#/components/kit'
 import { useSession } from '#/hooks/useSession'
 
 const OAUTH_ERROR_COPY: Record<string, string> = {
@@ -21,6 +22,7 @@ export function LoginPage() {
   const { status } = useSession()
   const router = useRouter()
   const [view, setView] = useState<'login' | 'register'>('login')
+  const [resetting, setResetting] = useState(false)
   const [oauthErrorMessage, setOauthErrorMessage] = useState<string | null>(null)
 
   // Pull `?oauth_error=...` out of the URL once on mount and translate the
@@ -39,15 +41,18 @@ export function LoginPage() {
 
   if (status === 'authenticated') {
     return (
-      <div className="auth-page-signed-in">
-        <AppStatePanel
-          title="You're already signed in"
-          description="Head back to your dashboard to keep going."
-          actions={[{ label: 'Go to dashboard', to: '/dashboard' }]}
-        />
-      </div>
+      <AuthShell>
+        <PageHeader title="You're already signed in" lead="Head back to your dashboard to keep going." />
+        <div>
+          <Button asChild>
+            <Link to="/dashboard">Go to dashboard</Link>
+          </Button>
+        </div>
+      </AuthShell>
     )
   }
+
+  const copy = authCopy(view, resetting)
 
   const handleBack = () => {
     if (window.history.length > 1) {
@@ -58,36 +63,28 @@ export function LoginPage() {
   }
 
   return (
-    <div className="auth-page">
-      <div className="auth-page-shell">
-        <div className="auth-page-actions">
-          <Link to="/" aria-label="Career Workbench home">
-            <AppBrandLockup mode="compact" className="auth-brand-lockup" />
-          </Link>
-          <button
-            type="button"
-            onClick={handleBack}
-            className="small-copy muted-copy auth-back-link"
-          >
-            ← Back
-          </button>
-        </div>
-        {oauthErrorMessage ? (
-          <div
-            role="alert"
-            className="mx-4 mt-3 flex items-start gap-2.5 rounded-lg border border-destructive/25 bg-destructive/5 px-3 py-2.5 text-destructive"
-          >
-            <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-            <p className="text-sm leading-relaxed">{oauthErrorMessage}</p>
-          </div>
-        ) : null}
-        <AuthSurface view={view} onViewChange={setView} />
-        <div className="auth-page-footer">
-          <Link to="/dashboard" className="small-copy muted-copy auth-back-link">
-            Continue as guest →
-          </Link>
-        </div>
-      </div>
-    </div>
+    <AuthShell
+      actions={
+        <Button variant="ghost" size="sm" onClick={handleBack}>
+          <ArrowLeft aria-hidden />
+          Back
+        </Button>
+      }
+    >
+      <PageHeader title={copy.title} lead={copy.intro} />
+      <AuthSurface
+        view={view}
+        onViewChange={setView}
+        resetting={resetting}
+        onResettingChange={setResetting}
+        notice={oauthErrorMessage && !resetting ? <Notice tone="danger">{oauthErrorMessage}</Notice> : null}
+      />
+      <Button asChild variant="ghost" className="auth-guest">
+        <Link to="/dashboard">
+          Continue as guest
+          <ArrowRight aria-hidden />
+        </Link>
+      </Button>
+    </AuthShell>
   )
 }

@@ -6,7 +6,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '#/components/ui/dropdown-menu'
+} from '#/components/kit'
 import type { ApplicationStatus } from '#/lib/api/schemas'
 import { STATUSES, STATUS_LABELS } from './stages'
 
@@ -22,6 +22,7 @@ export function StageMenu({
   status: ApplicationStatus
   onMove: (status: ApplicationStatus) => void
   disabled?: boolean
+  /** The trigger: a kit Button. */
   children: ReactNode
 }) {
   const others = STATUSES.filter((option) => option !== status)
@@ -32,7 +33,7 @@ export function StageMenu({
       <DropdownMenuTrigger asChild disabled={disabled}>
         {children}
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-52">
+      <DropdownMenuContent align="end">
         <DropdownMenuLabel>Move to</DropdownMenuLabel>
         {open.map((option) => (
           <DropdownMenuItem key={option} onSelect={() => onMove(option)}>

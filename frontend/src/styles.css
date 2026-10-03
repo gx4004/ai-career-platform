@@ -9,15 +9,14 @@
 @import './styles/landing.css';
 @import './styles/dashboard.css';
 @import './styles/tooling.css';
-@import './styles/tooling-fullscreen.css';
 @import './styles/results.css';
 @import './styles/workspace.css';
 @import './styles/history.css';
+@import './styles/settings.css';
 @import './styles/applications.css';
 @import './styles/discovery.css';
 @import './styles/auth.css';
 @import './styles/responsive.css';
-@import './styles/settings.css';
 @import './styles/profile.css';
 @import './styles/cv-studio.css';
 @import './styles/admin.css';

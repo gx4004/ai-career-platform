@@ -1,10 +1,6 @@
 import { ArrowUpRight } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
-import { motion, useReducedMotion } from 'framer-motion'
-
-const MotionLink = motion.create(Link)
 import { toolList, type ToolId } from '#/lib/tools/registry'
-import { useSpotlight } from '#/hooks/useSpotlight'
 
 export type LandingToolGridCopy = {
   eyebrow: string
@@ -57,8 +53,6 @@ const meta: Record<ToolId, ToolMeta> = {
   },
 }
 
-const accentClassByIndex = ['', 'is-accent-2', 'is-accent-3', '', 'is-accent-2', 'is-accent-3'] as const
-
 export function LandingToolGridBase({
   copy = defaultCopy,
   autoRotate: _autoRotate = false,
@@ -66,109 +60,48 @@ export function LandingToolGridBase({
   copy?: LandingToolGridCopy
   autoRotate?: boolean
 } = {}) {
-  const prefersReducedMotion = useReducedMotion() ?? false
-  const spotlight = useSpotlight()
-
-  const featured = toolList[0]
-  const rest = toolList.slice(1)
-  const FeaturedIcon = featured.icon
-
   return (
     <section className="lp-section lp-surface-lowest" id="landing-tools">
       <div className="lp-container">
-        <motion.div
-          className="lp-tools-header"
-          initial={prefersReducedMotion ? false : { opacity: 0, y: 18 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, amount: 0.4 }}
-          transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-        >
-          <div className="lp-tools-header-top">
-            <span className="lp-tools-eyebrow">The toolkit · 06 tools</span>
-          </div>
+        <div className="lp-tools-header">
+          <p className="lp-tools-eyebrow">The toolkit · 06 tools</p>
           <h2 className="lp-section-h2">{copy.title}</h2>
           {copy.body ? <p className="lp-section-sub">{copy.body}</p> : null}
-        </motion.div>
+        </div>
 
-        <motion.div
-          className="lp-tools-bento"
-          initial="hidden"
-          whileInView="visible"
-          viewport={{ once: true, amount: 0.15 }}
-          variants={{
-            hidden: {},
-            visible: { transition: { staggerChildren: 0.07 } },
-          }}
-        >
-          {/* Featured: Resume Analyzer (spans 2 columns on desktop) */}
-          <MotionLink
-            to="/dashboard"
-            className="lp-tool-card lp-tool-card--featured lp-spotlight"
-            {...spotlight}
-            variants={{
-              hidden: prefersReducedMotion ? { opacity: 1 } : { opacity: 0, y: 22 },
-              visible: {
-                opacity: 1,
-                y: 0,
-                transition: { type: 'spring', stiffness: 110, damping: 20 },
-              },
-            }}
-          >
-            <div className="lp-tool-featured-head">
-              <div className="lp-tool-icon lp-tool-icon--lg">
-                <FeaturedIcon size={26} />
-              </div>
-              <span className="lp-tool-phase">{meta[featured.id].phase} · 01 / 06</span>
-            </div>
-            <h3 className="lp-tool-title lp-tool-title--lg">{featured.label}</h3>
-            <p className="lp-tool-summary lp-tool-summary--lg">{meta[featured.id].summary}</p>
-            <ul className="lp-tool-bullets">
-              {meta[featured.id].bullets.map((b) => (
-                <li key={b}>
-                  <span className="lp-tool-bullet-dot" aria-hidden="true" />
-                  {b}
-                </li>
-              ))}
-            </ul>
-            <div className="lp-tool-featured-cta">
-              Start here
-              <ArrowUpRight size={16} />
-            </div>
-          </MotionLink>
-
-          {/* Rest of the tools */}
-          {rest.map((tool, i) => {
-            const Icon = tool.icon
-            const realIndex = i + 1
+        <ul className="lp-tools-list">
+          {toolList.map((tool, index) => {
+            const featured = index === 0
+            const tm = meta[tool.id]
             return (
-              <MotionLink
-                key={tool.id}
-                to="/dashboard"
-                className={`lp-tool-card lp-spotlight ${accentClassByIndex[realIndex] ?? ''}`}
-                {...spotlight}
-                variants={{
-                  hidden: prefersReducedMotion ? { opacity: 1 } : { opacity: 0, y: 20 },
-                  visible: {
-                    opacity: 1,
-                    y: 0,
-                    transition: { type: 'spring', stiffness: 110, damping: 20 },
-                  },
-                }}
-              >
-                <div className="lp-tool-card-head">
-                  <div className="lp-tool-icon">
-                    <Icon size={20} />
-                  </div>
+              <li key={tool.id}>
+                <Link
+                  to="/dashboard"
+                  className={`lp-tool-card${featured ? ' lp-tool-card--featured' : ''}`}
+                >
                   <span className="lp-tool-phase">
-                    {meta[tool.id].phase} · {String(realIndex + 1).padStart(2, '0')} / 06
+                    {tm.phase} · {String(index + 1).padStart(2, '0')} / 06
                   </span>
-                </div>
-                <h3 className="lp-tool-title">{tool.label}</h3>
-                <p className="lp-tool-summary">{meta[tool.id].summary}</p>
-              </MotionLink>
+                  <h3 className="lp-tool-title">{tool.label}</h3>
+                  <p className="lp-tool-summary">{tm.summary}</p>
+                  {featured ? (
+                    <>
+                      <ul className="lp-tool-bullets">
+                        {tm.bullets.map((b) => (
+                          <li key={b}>{b}</li>
+                        ))}
+                      </ul>
+                      <span className="lp-tool-featured-cta">
+                        Start here
+                        <ArrowUpRight aria-hidden="true" />
+                      </span>
+                    </>
+                  ) : null}
+                </Link>
+              </li>
             )
           })}
-        </motion.div>
+        </ul>
       </div>
     </section>
   )

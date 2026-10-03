@@ -1,36 +1,49 @@
 import { useEffect, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
+import { ArrowUpRight, EyeOff, FileText, MoreHorizontal, Search } from 'lucide-react'
 import {
-  ArrowUpRight,
-  Check,
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  EyeOff,
-  MoreHorizontal,
-  Search,
-  SlidersHorizontal,
-  FileText,
-  X,
-} from 'lucide-react'
-import { PageHero } from '#/components/app/PageHero'
-import { WorkspaceEmpty, WorkspacePage } from '#/components/app/WorkspacePage'
-import { Button } from '#/components/ui/button'
-import {
+  Badge,
+  Button,
+  Checkbox,
+  Cluster,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '#/components/ui/dropdown-menu'
-import {
+  EmptyState,
+  ErrorState,
+  Input,
+  KeyValue,
+  KeyValueRow,
+  List,
+  MetaRow,
+  Notice,
+  Page,
+  PageHeader,
+  Pagination,
+  Row,
+  RowActions,
+  RowBody,
+  RowMeta,
+  RowReveal,
+  RowSubtitle,
+  RowTitle,
+  ScoreBar,
+  Section,
+  Select,
   Sheet,
+  SheetBody,
   SheetContent,
   SheetDescription,
+  SheetFooter,
   SheetHeader,
   SheetTitle,
-} from '#/components/ui/sheet'
+  Skeleton,
+  Stack,
+  Toolbar,
+  useToast,
+} from '#/components/kit'
 import {
   adoptDiscoveryRecommendation,
   dismissDiscoveryRecommendation,
@@ -40,7 +53,7 @@ import {
   undismissDiscoveryRecommendation,
 } from '#/lib/api/client'
 import { ApiError } from '#/lib/api/errors'
-import type { DiscoveryListing } from '#/lib/api/schemas'
+import type { DiscoveryDeepMatch, DiscoveryListing } from '#/lib/api/schemas'
 import { SkillsFit } from '#/components/discovery/JobParts'
 import { DISCOVERY_RECOMMENDATIONS_QUERY_KEY } from '#/lib/query/evidenceCaches'
 import { writeWorkflowContext } from '#/lib/tools/drafts'
@@ -100,11 +113,15 @@ function useDebounced<T>(value: T, delay = 300): T {
 export function DiscoveryPage() {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
-  const resultsRef = useRef<HTMLElement>(null)
+  const { toast, dismiss } = useToast()
+  const resultsRef = useRef<HTMLDivElement>(null)
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS)
   const [openListing, setOpenListing] = useState<DiscoveryListing | null>(null)
-  const [filtersOpen, setFiltersOpen] = useState(false)
-  const [hidden, setHidden] = useState<DiscoveryListing | null>(null)
+  // The drawer keeps showing the job it was showing while it fades out.
+  const [drawerListing, setDrawerListing] = useState<DiscoveryListing | null>(null)
+  const [checkingId, setCheckingId] = useState<string | null>(null)
+  // The undo toast is about this page's list: it does not follow the person to another route.
+  useEffect(() => () => dismiss('discovery-hidden'), [dismiss])
   const q = useDebounced(filters.q.trim())
   const location = useDebounced(filters.location.trim())
 
@@ -142,27 +159,62 @@ export function DiscoveryPage() {
   const refresh = () => {
     queryClient.invalidateQueries({ queryKey: LISTINGS_KEY })
   }
-  const hide = useMutation({
-    mutationFn: (listing: DiscoveryListing) => dismissDiscoveryRecommendation(listing.listing_id),
-    onSuccess: (_result, listing) => {
-      setHidden(listing)
-      if (openListing?.listing_id === listing.listing_id) setOpenListing(null)
-      refresh()
-    },
-  })
   const undoHide = useMutation({
     mutationFn: (listingId: string) => undismissDiscoveryRecommendation(listingId),
-    onSuccess: () => {
-      setHidden(null)
+    onSuccess: refresh,
+  })
+  const hide = useMutation({
+    mutationFn: (listing: DiscoveryListing) => dismissDiscoveryRecommendation(listing.listing_id),
+    retry: false,
+    onSuccess: (_result, listing) => {
+      if (openListing?.listing_id === listing.listing_id) setOpenListing(null)
+      toast({
+        id: 'discovery-hidden',
+        icon: <EyeOff aria-hidden="true" />,
+        title: `Hid “${listing.title}”.`,
+        duration: null,
+        action: { label: 'Undo', onClick: () => undoHide.mutate(listing.listing_id) },
+      })
       refresh()
     },
   })
   const adopt = useMutation({
     mutationFn: (listingId: string) => adoptDiscoveryRecommendation(listingId),
+    // A refused or failed request is shown, not repeated behind the person's back.
+    retry: false,
     onSuccess: (application) => {
       navigate({ to: '/campaigns/$campaignId', params: { campaignId: application.id } })
     },
   })
+  const openDeepMatch = (historyId: string) =>
+    navigate({ to: '/job-match/result/$historyId', params: { historyId } })
+
+  const runDeepMatch = useMutation({
+    mutationFn: (listing: DiscoveryListing) => startDiscoveryDeepMatch(listing.listing_id),
+    retry: false,
+    onSuccess: (result, listing) => {
+      queryClient.invalidateQueries({ queryKey: [...LISTINGS_KEY, 'detail', listing.listing_id] })
+      openDeepMatch(result.history_id)
+    },
+  })
+
+  /** Reopens the deep match this listing already has, or runs one. */
+  const deepMatch = async (listing: DiscoveryListing) => {
+    setCheckingId(listing.listing_id)
+    try {
+      const existing = await queryClient
+        .fetchQuery(detailQuery(listing.listing_id))
+        .then((detail) => detail.deep_match ?? null)
+        .catch(() => null)
+      if (existing) {
+        openDeepMatch(existing.history_id)
+      } else {
+        runDeepMatch.mutate(listing)
+      }
+    } finally {
+      setCheckingId(null)
+    }
+  }
 
   const tailor = async (listing: DiscoveryListing) => {
     const description = await queryClient
@@ -190,514 +242,415 @@ export function DiscoveryPage() {
   const filtered = activeFilterCount > 0 || filters.q.trim().length > 0
 
   const update = (patch: Partial<Filters>) => setFilters((current) => ({ ...current, ...patch }))
-  const actions: CardActions = {
-    onOpen: setOpenListing,
+  const deepMatchFailure = runDeepMatch.isError
+    ? { listingId: runDeepMatch.variables?.listing_id, title: runDeepMatch.variables?.title, needsCv: runDeepMatch.error instanceof ApiError && runDeepMatch.error.status === 409 }
+    : null
+  const actions: JobActions = {
+    onOpen: (listing) => {
+      setOpenListing(listing)
+      setDrawerListing(listing)
+    },
     onTailor: tailor,
+    onDeepMatch: deepMatch,
+    onViewDeepMatch: openDeepMatch,
     onAdopt: (listing) => adopt.mutate(listing.listing_id),
     onHide: (listing) => hide.mutate(listing),
     adoptingId: adopt.isPending ? adopt.variables : undefined,
     hidingId: hide.isPending ? hide.variables?.listing_id : undefined,
+    deepMatchingId: checkingId ?? (runDeepMatch.isPending ? runDeepMatch.variables?.listing_id : undefined),
+    deepMatchFailure,
   }
 
-  const headerMeta = data
-    ? [
-        `${formatCount(data.total)} ${filtered ? (data.total === 1 ? 'match' : 'matches') : data.total === 1 ? 'open job' : 'open jobs'}`,
-        ...(data.total > 0 ? [hasEvidence && filters.sort === 'best_match' ? 'best skills fit first' : 'newest first'] : []),
-      ]
-    : []
+  const count = data
+    ? `${formatCount(data.total)} ${filtered ? (data.total === 1 ? 'match' : 'matches') : data.total === 1 ? 'open job' : 'open jobs'}`
+      + (data.total > 0 && !hasEvidence ? ' · newest first' : '')
+    : listings.isPending ? 'Loading jobs…' : undefined
 
-  const heroAction = data && !hasEvidence ? (
+  const headerAction = data && !hasEvidence ? (
     <Button asChild size="sm"><Link to="/profile">Open my profile</Link></Button>
   ) : (
-    <Button asChild size="sm" variant="outline"><Link to="/campaigns">My applications</Link></Button>
+    <Button asChild size="sm" variant="secondary"><Link to="/campaigns">My applications</Link></Button>
   )
 
   return (
-    <WorkspacePage className="disc-page">
-      <PageHero
-        title="Discover jobs"
-        action={heroAction}
-        chips={data ? headerMeta : undefined}
-      />
+    <Page>
+      <PageHeader title="Discover jobs" actions={headerAction} />
 
-      <div className="disc-filters" role="search" aria-label="Filter jobs">
-        <label className="disc-search">
-          <Search size={14} aria-hidden="true" />
-          <input
-            type="search"
-            value={filters.q}
-            onChange={(event) => update({ q: event.target.value })}
-            placeholder="Title, company or skill"
-            aria-label="Search jobs"
-          />
-        </label>
-        <div className="disc-filters__inline">
-          <FilterFields filters={filters} companies={companies} onChange={update} />
-        </div>
-        {hasEvidence ? (
-          <label className="disc-field disc-sort">
-            <span>Sort</span>
-            <select
-              value={filters.sort}
-              onChange={(event) => update({ sort: event.target.value as Filters['sort'] })}
-            >
-              <option value="best_match">Best skills fit</option>
-              <option value="newest">Newest</option>
-            </select>
-            <ChevronDown size={14} aria-hidden="true" />
-          </label>
-        ) : null}
-        <button
-          type="button"
-          className="disc-filters__toggle"
-          onClick={() => setFiltersOpen(true)}
-          aria-label={`Filters${activeFilterCount ? ` (${activeFilterCount} active)` : ''}`}
-        >
-          <SlidersHorizontal size={14} aria-hidden="true" />
-          Filters
-          {activeFilterCount ? <span className="disc-filters__count">{activeFilterCount}</span> : null}
-        </button>
-      </div>
+      <Stack gap={3} ref={resultsRef}>
+        <Toolbar
+          role="search"
+          aria-label="Filter jobs"
+          search={
+            <Input
+              type="search"
+              aria-label="Search jobs"
+              placeholder="Title, company or skill"
+              leading={<Search aria-hidden="true" />}
+              clearable
+              value={filters.q}
+              onChange={(event) => update({ q: event.target.value })}
+            />
+          }
+          filters={
+            <>
+              <Input
+                aria-label="Location"
+                placeholder="Location"
+                className="disc-location"
+                value={filters.location}
+                onChange={(event) => update({ location: event.target.value })}
+              />
+              <Select aria-label="Company" value={filters.company} onChange={(event) => update({ company: event.target.value })}>
+                <option value="">All companies</option>
+                {companies.map((company) => <option key={company} value={company}>{company}</option>)}
+              </Select>
+              <Select aria-label="Posted" value={filters.postedWithin} onChange={(event) => update({ postedWithin: event.target.value })}>
+                {POSTED_WITHIN.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </Select>
+              <Checkbox framed label="Remote only" checked={filters.remote} onCheckedChange={(remote) => update({ remote })} />
+            </>
+          }
+          sort={
+            // Held in place (disabled) while the first page loads, so the toolbar does not shift when it arrives.
+            hasEvidence || listings.isPending ? (
+              <Select
+                leading="Sort"
+                aria-label="Sort"
+                disabled={listings.isPending}
+                value={filters.sort}
+                onChange={(event) => update({ sort: event.target.value as Filters['sort'] })}
+              >
+                <option value="best_match">Best skills fit</option>
+                <option value="newest">Newest</option>
+              </Select>
+            ) : undefined
+          }
+          count={count}
+          activeFilters={activeFilterCount}
+          onClearFilters={() => setFilters({ ...EMPTY_FILTERS, q: filters.q })}
+        />
 
-      <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
-        <SheetContent side="bottom" className="disc-filter-sheet">
-          <SheetHeader>
-            <SheetTitle>Filters</SheetTitle>
-            <SheetDescription>Narrow the list to the jobs you want to see.</SheetDescription>
-          </SheetHeader>
-          <div className="disc-filter-sheet__body">
-            <FilterFields filters={filters} companies={companies} onChange={update} stacked />
-          </div>
-          <div className="disc-filter-sheet__footer">
-            <Button type="button" size="sm" variant="ghost" onClick={() => setFilters({ ...EMPTY_FILTERS, q: filters.q })}>
-              Clear
-            </Button>
-            <Button type="button" size="sm" onClick={() => setFiltersOpen(false)}>Show jobs</Button>
-          </div>
-        </SheetContent>
-      </Sheet>
-
-      <section className="disc-results" aria-label="Jobs" ref={resultsRef}>
-        {hidden
-          ? createPortal(
-              <div className="disc-toast" role="status">
-                <EyeOff size={15} aria-hidden="true" />
-                <span>Hid “{hidden.title}”.</span>
-                <button type="button" onClick={() => undoHide.mutate(hidden.listing_id)} disabled={undoHide.isPending}>
-                  Undo
-                </button>
-                <button type="button" onClick={() => setHidden(null)} aria-label="Dismiss">
-                  <X size={14} aria-hidden="true" />
-                </button>
-              </div>,
-              document.body,
-            )
-          : null}
         {adopt.isError ? (
-          <p className="disc-error" role="alert">That job could not be added to your applications. Try again.</p>
+          <Notice tone="danger" onDismiss={() => adopt.reset()}>
+            That job could not be added to your applications. Try again.
+          </Notice>
+        ) : null}
+        {deepMatchFailure ? (
+          <Notice
+            tone="danger"
+            title={deepMatchFailure.title ? `Deep match for “${deepMatchFailure.title}”` : undefined}
+            onDismiss={() => runDeepMatch.reset()}
+            action={
+              deepMatchFailure.needsCv ? (
+                <Button asChild size="sm" variant="secondary"><Link to="/cv-studio">Open CV Studio</Link></Button>
+              ) : undefined
+            }
+          >
+            {deepMatchFailure.needsCv ? 'Create a CV in CV Studio first.' : 'The deep match could not run. Try again.'}
+          </Notice>
         ) : null}
 
         {listings.isPending ? (
-          <div className="disc-list" role="status" aria-label="Loading jobs">
-            {[0, 1, 2, 3].map((index) => <div key={index} className="disc-row disc-row--skeleton" />)}
-          </div>
+          <>
+            <p className="kit-sr-only" role="status">Loading jobs</p>
+            <List aria-label="Jobs" aria-busy="true" boxed>
+              <Skeleton variant="row" as="li" count={PAGE_SIZE} />
+            </List>
+          </>
         ) : listings.isError ? (
-          <WorkspaceEmpty
+          <ErrorState
             title="Jobs could not be loaded"
             description="Something went wrong on our side. Your filters are kept."
-            action={<Button type="button" size="sm" variant="outline" onClick={() => listings.refetch()}>Try again</Button>}
+            onRetry={() => listings.refetch()}
+            retrying={listings.isFetching}
           />
         ) : items.length === 0 ? (
           filtered ? (
-            <WorkspaceEmpty
-                title="No jobs match these filters"
+            <EmptyState
+              title="No jobs match these filters"
               description="Try fewer words, a wider location, or a longer time range."
-              action={<Button type="button" size="sm" variant="outline" onClick={() => setFilters(EMPTY_FILTERS)}>Clear all filters</Button>}
+              action={<Button type="button" size="sm" variant="secondary" onClick={() => setFilters(EMPTY_FILTERS)}>Clear all filters</Button>}
             />
           ) : (
-            <WorkspaceEmpty
+            <EmptyState
               title="No jobs yet"
               description="New openings are added every day. Add the ones you like to Applications, where we help you prepare each one."
             />
           )
         ) : (
           <>
-            <ol className="disc-list" aria-busy={listings.isPlaceholderData}>
+            <List aria-label="Jobs" boxed aria-busy={listings.isPlaceholderData}>
               {items.map((listing) => (
-                <li key={listing.listing_id}>
-                  <JobRow listing={listing} actions={actions} selected={openListing?.listing_id === listing.listing_id} />
-                </li>
+                <JobRow key={listing.listing_id} listing={listing} actions={actions} selected={openListing?.listing_id === listing.listing_id} />
               ))}
-            </ol>
-            {lastPage > 1 ? <Pagination page={page} lastPage={lastPage} onChange={goToPage} /> : null}
+            </List>
+            <Pagination page={page} pageCount={lastPage} onPageChange={goToPage} />
           </>
         )}
-      </section>
+      </Stack>
 
       <Sheet open={openListing !== null} onOpenChange={(open) => { if (!open) setOpenListing(null) }}>
-        <SheetContent side="right" className="disc-drawer">
-          {openListing ? <JobDetails listing={openListing} actions={actions} /> : null}
+        <SheetContent size="lg">
+          {drawerListing ? <JobDetails listing={drawerListing} actions={actions} /> : null}
         </SheetContent>
       </Sheet>
-    </WorkspacePage>
+    </Page>
   )
 }
 
-function FilterFields({
-  filters,
-  companies,
-  onChange,
-  stacked = false,
-}: {
-  filters: Filters
-  companies: string[]
-  onChange: (patch: Partial<Filters>) => void
-  stacked?: boolean
-}) {
-  return (
-    <div className={stacked ? 'disc-fields disc-fields--stacked' : 'disc-fields'}>
-      <label className="disc-field disc-field--location">
-        <input
-          value={filters.location}
-          onChange={(event) => onChange({ location: event.target.value })}
-          placeholder="Location"
-          aria-label="Location"
-        />
-      </label>
-      <span className="disc-field disc-field--select">
-        <select
-          value={filters.company}
-          onChange={(event) => onChange({ company: event.target.value })}
-          aria-label="Company"
-        >
-          <option value="">All companies</option>
-          {companies.map((company) => <option key={company} value={company}>{company}</option>)}
-        </select>
-        <ChevronDown size={14} aria-hidden="true" />
-      </span>
-      <span className="disc-field disc-field--select">
-        <select
-          value={filters.postedWithin}
-          onChange={(event) => onChange({ postedWithin: event.target.value })}
-          aria-label="Posted"
-        >
-          {POSTED_WITHIN.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-        </select>
-        <ChevronDown size={14} aria-hidden="true" />
-      </span>
-      <button
-        type="button"
-        className="disc-field disc-remote"
-        aria-pressed={filters.remote}
-        onClick={() => onChange({ remote: !filters.remote })}
-      >
-        <span className="disc-remote__switch" aria-hidden="true">
-          {filters.remote ? <Check size={12} strokeWidth={3} /> : null}
-        </span>
-        Remote only
-      </button>
-    </div>
-  )
-}
-
-type CardActions = {
+type JobActions = {
   onOpen: (listing: DiscoveryListing) => void
   onTailor: (listing: DiscoveryListing) => Promise<void>
+  onDeepMatch: (listing: DiscoveryListing) => Promise<void>
+  onViewDeepMatch: (historyId: string) => void
   onAdopt: (listing: DiscoveryListing) => void
   onHide: (listing: DiscoveryListing) => void
   adoptingId?: string
   hidingId?: string
+  deepMatchingId?: string
+  deepMatchFailure: { listingId?: string; title?: string; needsCv: boolean } | null
 }
 
-function AdoptButton({ listing, actions }: { listing: DiscoveryListing; actions: CardActions }) {
+function JobRow({ listing, actions, selected }: { listing: DiscoveryListing; actions: JobActions; selected: boolean }) {
   return (
-    <Button
-      type="button"
-      size="sm"
-      variant="outline"
-      onClick={() => actions.onAdopt(listing)}
-      loading={actions.adoptingId === listing.listing_id}
-      aria-label="Add to applications"
-    >
-      Add
-    </Button>
-  )
-}
-
-/** Runs the deep match, or reopens the one this listing already has. */
-function useDeepMatch(listing: DiscoveryListing) {
-  const queryClient = useQueryClient()
-  const navigate = useNavigate()
-  const openResult = (historyId: string) =>
-    navigate({ to: '/job-match/result/$historyId', params: { historyId } })
-  const run = useMutation({
-    mutationFn: () => startDiscoveryDeepMatch(listing.listing_id),
-    onSuccess: (result) => {
-      queryClient.invalidateQueries({ queryKey: [...LISTINGS_KEY, 'detail', listing.listing_id] })
-      openResult(result.history_id)
-    },
-  })
-  return { run, openResult }
-}
-
-function JobRow({ listing, actions, selected }: { listing: DiscoveryListing; actions: CardActions; selected: boolean }) {
-  const queryClient = useQueryClient()
-  const { run, openResult } = useDeepMatch(listing)
-  const [checking, setChecking] = useState(false)
-  const needsCv = run.error instanceof ApiError && run.error.status === 409
-  const deepMatch = async () => {
-    setChecking(true)
-    try {
-      const existing = await queryClient
-        .fetchQuery(detailQuery(listing.listing_id))
-        .then((detail) => detail.deep_match ?? null)
-        .catch(() => null)
-      if (existing) openResult(existing.history_id)
-      else run.mutate()
-    } finally {
-      setChecking(false)
-    }
-  }
-  return (
-    <article className="disc-row" data-selected={selected || undefined} aria-labelledby={`job-${listing.listing_id}`}>
-      <div className="disc-row__main">
-        <h2 id={`job-${listing.listing_id}`} className="disc-row__heading">
-          <button type="button" className="disc-row__title" onClick={() => actions.onOpen(listing)}>
+    <Row selected={selected} aria-current={selected ? 'true' : undefined}>
+      <RowBody>
+        <RowTitle headingLevel={2} asChild>
+          <button type="button" onClick={() => actions.onOpen(listing)}>
             {listing.title}
           </button>
-        </h2>
-        <JobMeta listing={listing} source />
-        {run.isError ? (
-          <p className="disc-error" role="alert">
-            {needsCv ? (
-              <>Create a CV in CV Studio first. <Link to="/cv-studio">Open CV Studio</Link></>
-            ) : (
-              'The deep match could not run. Try again.'
-            )}
-          </p>
-        ) : null}
-      </div>
-      <SkillsFit listing={listing} />
-      <div className="disc-row__actions">
-        <AdoptButton listing={listing} actions={actions} />
-        <span className="disc-row__reveal">
-          <JobOverflowMenu
-            listing={listing}
-            actions={actions}
-            onDeepMatch={() => void deepMatch()}
-            deepMatching={checking || run.isPending}
-          />
-        </span>
-      </div>
-    </article>
+        </RowTitle>
+        <RowSubtitle>
+          <JobMeta listing={listing} source />
+        </RowSubtitle>
+      </RowBody>
+      {listing.skills_fit !== null ? (
+        <RowMeta>
+          <SkillsFit listing={listing} />
+        </RowMeta>
+      ) : null}
+      <RowActions reveal={false}>
+        <Button
+          type="button"
+          size="sm"
+          variant="secondary"
+          onClick={() => actions.onAdopt(listing)}
+          loading={actions.adoptingId === listing.listing_id}
+          aria-label="Add to applications"
+        >
+          Add
+        </Button>
+        <RowReveal>
+          <JobOverflowMenu listing={listing} actions={actions} withDeepMatch />
+        </RowReveal>
+      </RowActions>
+    </Row>
   )
 }
 
-/** Secondary job actions, shared by feed cards and the detail drawer. */
+/** Secondary job actions, shared by the rows and the detail drawer. */
 function JobOverflowMenu({
   listing,
   actions,
-  onDeepMatch,
-  deepMatching = false,
+  withDeepMatch = false,
+  triggerVariant = 'ghost',
+  triggerClassName,
 }: {
   listing: DiscoveryListing
-  actions: CardActions
+  actions: JobActions
   /** Rows offer the deep match here; the drawer has its own button for it. */
-  onDeepMatch?: () => void
-  deepMatching?: boolean
+  withDeepMatch?: boolean
+  /** The drawer footer sits among bordered buttons, so its trigger is bordered too. */
+  triggerVariant?: 'ghost' | 'secondary'
+  triggerClassName?: string
 }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button type="button" size="icon-sm" variant="ghost" aria-label={`More actions for ${listing.title}`}>
-          <MoreHorizontal size={16} aria-hidden="true" />
+        <Button
+          type="button"
+          iconOnly
+          size={triggerVariant === 'ghost' ? 'sm' : 'md'}
+          variant={triggerVariant}
+          className={triggerClassName}
+          aria-label={`More actions for ${listing.title}`}
+        >
+          <MoreHorizontal aria-hidden="true" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56">
-        {onDeepMatch ? (
-          <DropdownMenuItem onSelect={onDeepMatch} disabled={deepMatching}>
-            <Search aria-hidden="true" /> Deep match
+      <DropdownMenuContent align="end">
+        {withDeepMatch ? (
+          <DropdownMenuItem
+            icon={<Search />}
+            onSelect={() => void actions.onDeepMatch(listing)}
+            disabled={actions.deepMatchingId === listing.listing_id}
+          >
+            Deep match
           </DropdownMenuItem>
         ) : null}
-        <DropdownMenuItem onSelect={() => void actions.onTailor(listing)}>
-          <FileText aria-hidden="true" /> Tailor my CV
+        <DropdownMenuItem icon={<FileText />} onSelect={() => void actions.onTailor(listing)}>
+          Tailor my CV
         </DropdownMenuItem>
-        <DropdownMenuItem asChild>
+        <DropdownMenuItem asChild icon={<ArrowUpRight />}>
           <a href={listing.apply_url ?? listing.source_url} target="_blank" rel="noopener noreferrer">
-            <ArrowUpRight aria-hidden="true" /> Apply on company site
+            Apply on company site
           </a>
         </DropdownMenuItem>
         <DropdownMenuItem
+          icon={<EyeOff />}
           onSelect={() => actions.onHide(listing)}
           disabled={actions.hidingId === listing.listing_id}
         >
-          <EyeOff aria-hidden="true" /> Hide this job
+          Hide this job
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   )
 }
 
-function JobDetails({ listing, actions }: { listing: DiscoveryListing; actions: CardActions }) {
+function JobDetails({ listing, actions }: { listing: DiscoveryListing; actions: JobActions }) {
   const detail = useQuery(detailQuery(listing.listing_id))
   const deepMatch = detail.data?.deep_match ?? null
-  const { run, openResult } = useDeepMatch(listing)
-  const needsCv = run.error instanceof ApiError && run.error.status === 409
+  const failure = actions.deepMatchFailure?.listingId === listing.listing_id ? actions.deepMatchFailure : null
   return (
-    <div className="disc-drawer__inner">
-      <SheetHeader className="disc-drawer__head">
-        <SheetTitle className="disc-drawer__title">{listing.title}</SheetTitle>
+    <>
+      <SheetHeader>
+        <SheetTitle>{listing.title}</SheetTitle>
         <SheetDescription asChild>
-          <div><JobMeta listing={listing} /></div>
+          <div><JobMeta listing={listing} source /></div>
         </SheetDescription>
-        <SkillsFit listing={listing} />
       </SheetHeader>
-      <div className="disc-drawer__scroll">
-        <FitPanel listing={listing} />
-        {/* Plain text on purpose: listing descriptions come from third-party boards. */}
-        <section className="disc-drawer__section" aria-label="Description">
-          <h3>Description</h3>
-          <div className="disc-drawer__description" aria-busy={detail.isPending}>
-            {detail.data?.description ?? (detail.isError ? listing.preview : 'Loading the full description…')}
-          </div>
-        </section>
-      </div>
-      <div className="disc-drawer__footer">
-        {deepMatch ? (
-          <p className="disc-drawer__deep" aria-label="Deep match">
-            Deep match {deepMatch.match_score}%
-            {deepMatch.verdict ? ` · ${deepMatch.verdict}` : ''}
-          </p>
-        ) : null}
-        {run.isError ? (
-          <p className="disc-error" role="alert">
-            {needsCv ? (
-              <>Create a CV in CV Studio first. <Link to="/cv-studio">Open CV Studio</Link></>
+      <SheetBody>
+        <Stack gap={6}>
+          {failure ? (
+            <Notice
+              tone="danger"
+              action={
+                failure.needsCv ? (
+                  <Button asChild size="sm" variant="secondary"><Link to="/cv-studio">Open CV Studio</Link></Button>
+                ) : undefined
+              }
+            >
+              {failure.needsCv ? 'Create a CV in CV Studio first.' : 'The deep match could not run. Try again.'}
+            </Notice>
+          ) : null}
+          <FitSection listing={listing} deepMatch={deepMatch} />
+          {/* Plain text on purpose: listing descriptions come from third-party boards. */}
+          <Section
+            headingLevel={3}
+            title="Description"
+            actions={
+              <Button asChild variant="secondary" size="sm">
+                <a href={listing.source_url} target="_blank" rel="noopener noreferrer">
+                  Original listing <ArrowUpRight aria-hidden="true" />
+                </a>
+              </Button>
+            }
+          >
+            {detail.isPending ? (
+              <Skeleton lines={5} label="Loading the full description…" />
             ) : (
-              'The deep match could not run. Try again.'
+              <div className="disc-description">{detail.data?.description ?? listing.preview}</div>
             )}
-          </p>
-        ) : null}
-        <div className="disc-drawer__actions">
-          {deepMatch ? (
-            <Button type="button" size="sm" onClick={() => openResult(deepMatch.history_id)}>
-              View deep match
-            </Button>
-          ) : (
-            <Button type="button" size="sm" onClick={() => run.mutate()} loading={run.isPending}>
-              Deep match
-            </Button>
-          )}
+          </Section>
+        </Stack>
+      </SheetBody>
+      <SheetFooter className="disc-footer">
+        <JobOverflowMenu listing={listing} actions={actions} triggerClassName="disc-footer__more" triggerVariant="secondary" />
+        {deepMatch ? (
+          <Button type="button" variant="secondary" className="disc-footer__deep" onClick={() => actions.onViewDeepMatch(deepMatch.history_id)}>
+            View deep match
+          </Button>
+        ) : (
           <Button
             type="button"
-            size="sm"
-            variant="outline"
-            onClick={() => actions.onAdopt(listing)}
-            loading={actions.adoptingId === listing.listing_id}
+            variant="secondary"
+            className="disc-footer__deep"
+            onClick={() => void actions.onDeepMatch(listing)}
+            loading={actions.deepMatchingId === listing.listing_id}
           >
-            Add to applications
+            Deep match
           </Button>
-          <JobOverflowMenu listing={listing} actions={actions} />
-        </div>
-        <span className="disc-drawer__via">
-          via {listing.source_name} ·{' '}
-          <a href={listing.source_url} target="_blank" rel="noopener noreferrer">original listing</a>
-        </span>
-      </div>
-    </div>
+        )}
+        <Button
+          type="button"
+          className="disc-footer__add"
+          onClick={() => actions.onAdopt(listing)}
+          loading={actions.adoptingId === listing.listing_id}
+        >
+          Add to applications
+        </Button>
+      </SheetFooter>
+    </>
   )
 }
 
-/** Why a listing fits: skills matched and missing, and the preferences it hits. */
-function FitPanel({ listing }: { listing: DiscoveryListing }) {
-  if (listing.skills_fit === null) {
-    return (
-      <section className="disc-fit disc-drawer__section" aria-label="Skills fit">
-        <p className="disc-fit__prompt">
-          Confirm your skills in your profile to see how well they fit this job.{' '}
-          <Link to="/profile">Open my profile</Link>
-        </p>
-        <ChipRow label="Matches your preferences" items={listing.preference_hits} tone="pref" />
-      </section>
-    )
-  }
-  return (
-    <section className="disc-fit disc-drawer__section" aria-label="Skills fit">
-      <SimilarOutcomes listing={listing} />
-      <ChipRow label="Skills you match" items={listing.matched_skills} tone="match" />
-      <ChipRow label="Skills to add" items={listing.missing_skills} tone="missing" />
-      <ChipRow label="Matches your preferences" items={listing.preference_hits} tone="pref" />
-    </section>
-  )
-}
-
-/** The owner's own reply rate for similar applications; a separate signal from skills fit. */
-function SimilarOutcomes({ listing }: { listing: DiscoveryListing }) {
+/** Why a listing fits: the score, skills matched and missing, and the preferences it hits. */
+function FitSection({
+  listing,
+  deepMatch,
+}: {
+  listing: DiscoveryListing
+  deepMatch: DiscoveryDeepMatch | null
+}) {
   const similar = listing.similar_applications
-  if (!similar) return null
+  const total = listing.matched_skills.length + listing.missing_skills.length
+  const hasRows =
+    deepMatch !== null ||
+    similar != null ||
+    listing.matched_skills.length > 0 ||
+    listing.missing_skills.length > 0 ||
+    listing.preference_hits.length > 0
   return (
-    <p
-      className="disc-odds"
-      title={`Your ${similar.role_family.toLowerCase()} applications with ${similar.fit_bucket.toLowerCase()}`}
-    >
-      <span>
-        Similar applications of yours: <strong>{similar.replied} of {similar.applied}</strong> got a reply
-      </span>
-    </p>
+    <Section headingLevel={3} title="Skills fit" className="disc-fit">
+      <Stack gap={4}>
+        {listing.skills_fit === null ? (
+          <Notice
+            action={<Button asChild size="sm" variant="secondary"><Link to="/profile">Open my profile</Link></Button>}
+          >
+            Confirm your skills in your profile to see how well they fit this job.
+          </Notice>
+        ) : (
+          <ScoreBar
+            aria-label={`${listing.skills_fit}% skills fit, ${listing.matched_skills.length} of ${total} skill${total === 1 ? '' : 's'}`}
+            value={listing.skills_fit}
+            valueLabel={`${listing.skills_fit}% · ${listing.matched_skills.length} of ${total} skill${total === 1 ? '' : 's'}`}
+            lowTone="neutral"
+          />
+        )}
+        {hasRows ? (
+          <KeyValue layout="stacked" divided={false}>
+            {deepMatch ? (
+              <KeyValueRow label="Deep match">
+                {deepMatch.match_score}%{deepMatch.verdict ? ` · ${deepMatch.verdict}` : ''}
+              </KeyValueRow>
+            ) : null}
+            {listing.skills_fit !== null && similar ? (
+              <KeyValueRow label="Similar applications of yours">
+                <>{similar.replied} of {similar.applied} got a reply</>
+                <span className="disc-note">
+                  Your {similar.role_family.toLowerCase()} applications with {similar.fit_bucket.toLowerCase()}
+                </span>
+              </KeyValueRow>
+            ) : null}
+            {listing.skills_fit !== null ? <SkillRow label="Skills you match" items={listing.matched_skills} tone="neutral" /> : null}
+            {listing.skills_fit !== null ? <SkillRow label="Skills to add" items={listing.missing_skills} tone="warning" /> : null}
+            <SkillRow label="Matches your preferences" items={listing.preference_hits} tone="accent" />
+          </KeyValue>
+        ) : null}
+      </Stack>
+    </Section>
   )
 }
 
-function ChipRow({ label, items, tone }: { label: string; items: string[]; tone: 'match' | 'missing' | 'pref' }) {
+function SkillRow({ label, items, tone }: { label: string; items: string[]; tone: 'neutral' | 'warning' | 'accent' }) {
   if (items.length === 0) return null
   return (
-    <div className="disc-fit__row">
-      <h3>{label}</h3>
-      <p className="disc-fit__items">
-        {items.map((item) => <span key={item} className={`disc-chip disc-chip--${tone}`}>{item}</span>)}
-      </p>
-    </div>
-  )
-}
-
-function Pagination({ page, lastPage, onChange }: { page: number; lastPage: number; onChange: (page: number) => void }) {
-  return (
-    <nav className="disc-pager" aria-label="Pages">
-      <Button type="button" size="sm" variant="ghost" disabled={page <= 1} onClick={() => onChange(page - 1)}>
-        <ChevronLeft size={14} aria-hidden="true" /> Previous
-      </Button>
-      <ol className="disc-pager__pages">
-        {pageNumbers(page, lastPage).map((number, index) =>
-          number === null ? (
-            <li key={`gap-${index}`} className="disc-pager__gap" aria-hidden="true">…</li>
-          ) : (
-            <li key={number}>
-              <button
-                type="button"
-                className="disc-pager__page"
-                aria-label={`Page ${number}`}
-                aria-current={number === page ? 'page' : undefined}
-                onClick={() => onChange(number)}
-              >
-                {number}
-              </button>
-            </li>
-          ),
-        )}
-      </ol>
-      <Button type="button" size="sm" variant="ghost" disabled={page >= lastPage} onClick={() => onChange(page + 1)}>
-        Next <ChevronRight size={14} aria-hidden="true" />
-      </Button>
-    </nav>
-  )
-}
-
-/** First, last and the current page's neighbours; null marks a gap. */
-function pageNumbers(page: number, lastPage: number): (number | null)[] {
-  const shown = [...new Set([1, page - 1, page, page + 1, lastPage])]
-    .filter((number) => number >= 1 && number <= lastPage)
-    .sort((a, b) => a - b)
-  return shown.flatMap((number, index) =>
-    index > 0 && number - shown[index - 1] > 1 ? [null, number] : [number],
+    <KeyValueRow label={label}>
+      <Cluster gap={1}>
+        {items.map((item) => <Badge key={item} tone={tone}>{item}</Badge>)}
+      </Cluster>
+    </KeyValueRow>
   )
 }
 
@@ -705,13 +658,13 @@ function JobMeta({ listing, source = false }: { listing: DiscoveryListing; sourc
   const posted = relativeDays(listing.posted_at)
   const saysRemote = /remote/i.test(listing.location ?? '')
   return (
-    <p className="disc-meta">
-      <span className="disc-meta__company">{listing.company}</span>
-      {listing.location ? <span>{listing.location}</span> : null}
-      {listing.remote && !saysRemote ? <span>Remote</span> : null}
-      {posted ? <span className="disc-meta__posted">{posted}</span> : null}
-      {source ? <span>via {listing.source_name}</span> : null}
-    </p>
+    <MetaRow className="disc-meta">
+      <strong>{listing.company}</strong>
+      {listing.location}
+      {listing.remote && !saysRemote ? 'Remote' : null}
+      {posted}
+      {source ? `via ${listing.source_name}` : null}
+    </MetaRow>
   )
 }
 

@@ -1,12 +1,10 @@
-import { Textarea } from '#/components/ui/textarea'
+import { Field, Textarea } from '#/components/kit'
 import { JobImportCard } from '#/components/tooling/JobImportCard'
 import { ResumeSource } from '#/components/tooling/ResumeSource'
 import {
-  ToolField,
-  ToolInputHero,
+  ToolForm,
   ToolPageLoading,
   ToolPageShell,
-  ToolSubmitRow,
   getSeededFieldNote,
   useToolPageState,
 } from '#/components/tooling/toolPageShared'
@@ -19,25 +17,16 @@ export function JobMatchToolPage() {
   const jobField = config.fields.find((field) => field.name === 'jobDescription')!
 
   return (
-    <ToolPageShell
-      toolId="job-match"
-      hero={
-        <ToolInputHero
-          toolId="job-match"
-          subtitle="Compare your resume against one specific job description."
-        />
-      }
-    >
+    <ToolPageShell toolId="job-match">
       {mutation.isPending ? (
         <ToolPageLoading toolId="job-match" mutationDone={!mutation.isPending} />
       ) : (
-        <form
-          aria-label={`${tool.label} input form`}
-          className="tool-form"
-          onSubmit={(event) => {
-            event.preventDefault()
-            handleSubmit()
-          }}
+        <ToolForm
+          label={`${tool.label} input form`}
+          onSubmit={handleSubmit}
+          submitLabel={tool.entryPointLabel}
+          error={mutation.error}
+          pending={mutation.isPending}
         >
           <ResumeSource
             id="job-match-resumeText"
@@ -47,33 +36,24 @@ export function JobMatchToolPage() {
             value={String(draft.resumeText ?? '')}
             onChange={(text) => setField('resumeText', text)}
             seeded={bridge.seededResume}
-            note={getSeededFieldNote('resumeText', bridge)}
             error={errors.resumeText}
           />
 
           <JobImportCard onImported={(description) => setField('jobDescription', description)} />
-          <ToolField
-            htmlFor="job-match-jobDescription"
+          <Field
             label={jobField.label}
-            note={getSeededFieldNote('jobDescription', bridge)}
+            id="job-match-jobDescription"
+            help={getSeededFieldNote('jobDescription', bridge) || undefined}
             error={errors.jobDescription}
           >
             <Textarea
-              id="job-match-jobDescription"
               rows={jobField.rows}
-              aria-invalid={!!errors.jobDescription}
               value={String(draft.jobDescription ?? '')}
               placeholder={jobField.placeholder}
               onChange={(event) => setField('jobDescription', event.target.value as never)}
             />
-          </ToolField>
-
-          <ToolSubmitRow
-            label={tool.entryPointLabel}
-            error={mutation.error}
-            pending={mutation.isPending}
-          />
-        </form>
+          </Field>
+        </ToolForm>
       )}
     </ToolPageShell>
   )

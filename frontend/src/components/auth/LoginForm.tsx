@@ -1,38 +1,18 @@
 import { useState } from 'react'
-import { Eye, EyeOff, AlertCircle, CheckCircle2 } from 'lucide-react'
-import { Button } from '#/components/ui/button'
-import { Input } from '#/components/ui/input'
-import { Label } from '#/components/ui/label'
+import { Button, Field, Input, Notice, Section, Stack } from '#/components/kit'
+import { RESET_COPY } from '#/components/auth/auth-copy'
+import { GoogleButton } from '#/components/auth/GoogleButton'
+import { PasswordInput } from '#/components/auth/PasswordInput'
 import { useSession } from '#/hooks/useSession'
 import { requestPasswordReset } from '#/lib/api/client'
 
-function GoogleG() {
-  return (
-    <svg viewBox="0 0 24 24" width="18" height="18" className="mr-2" aria-hidden="true">
-      <path
-        d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"
-        fill="#4285F4"
-      />
-      <path
-        d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-        fill="#34A853"
-      />
-      <path
-        d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
-        fill="#FBBC05"
-      />
-      <path
-        d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-        fill="#EA4335"
-      />
-    </svg>
-  )
-}
-
 export function LoginForm({
   onSuccess,
+  onResetChange,
 }: {
   onSuccess?: () => void
+  /** Reports the password-reset step opening and closing. A container that heads the form with it passes this and the form drops its own title. */
+  onResetChange?: (resetting: boolean) => void
 }) {
   const { login, googleLogin, authError } = useSession()
   const [email, setEmail] = useState('')
@@ -45,80 +25,64 @@ export function LoginForm({
   const [resetMessage, setResetMessage] = useState('')
   const [resetError, setResetError] = useState('')
 
+  function setReset(next: boolean) {
+    setShowReset(next)
+    onResetChange?.(next)
+  }
+
   if (showReset) {
+    const body = resetMessage ? (
+      <Notice tone="success">{resetMessage}</Notice>
+    ) : (
+      <form
+        className="auth-form__fields"
+        onSubmit={async (event) => {
+          event.preventDefault()
+          setResetLoading(true)
+          setResetError('')
+          try {
+            const result = await requestPasswordReset({ email: resetEmail })
+            setResetMessage(result.message || 'Check your email for a reset link.')
+          } catch (error) {
+            setResetError(error instanceof Error ? error.message : 'Something went wrong.')
+          } finally {
+            setResetLoading(false)
+          }
+        }}
+      >
+        <Field label="Email" id="reset-email">
+          <Input
+            type="email"
+            size="lg"
+            value={resetEmail}
+            onChange={(event) => setResetEmail(event.target.value)}
+            placeholder="you@example.com"
+            autoComplete="email"
+            required
+          />
+        </Field>
+        {resetError ? <Notice tone="danger">{resetError}</Notice> : null}
+        <Button type="submit" size="lg" className="auth-wide" loading={resetLoading}>
+          Send reset link
+        </Button>
+      </form>
+    )
     return (
-      <div className="grid gap-4">
-        <div className="grid gap-1.5">
-          <p className="auth-surface-title" style={{ fontSize: 'clamp(1.2rem, 2.5vw, 1.5rem)' }}>
-            Reset your password
-          </p>
-          <p className="small-copy" style={{ color: 'var(--text-soft)', lineHeight: 1.6 }}>
-            Enter your email and we'll send a link to reset your password.
-          </p>
-        </div>
-        {resetMessage ? (
-          <div className="flex items-start gap-2.5 rounded-lg border border-[var(--success-border)] bg-[var(--success-bg)] px-3 py-2.5 text-[var(--success-fg)]">
-            <CheckCircle2 className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-            <p className="text-sm leading-relaxed">{resetMessage}</p>
-          </div>
+      <div className="auth-form">
+        {onResetChange ? (
+          body
         ) : (
-          <form
-            className="grid gap-4"
-            onSubmit={async (event) => {
-              event.preventDefault()
-              setResetLoading(true)
-              setResetError('')
-              try {
-                const result = await requestPasswordReset({ email: resetEmail })
-                setResetMessage(result.message || 'Check your email for a reset link.')
-              } catch (error) {
-                setResetError(error instanceof Error ? error.message : 'Something went wrong.')
-              } finally {
-                setResetLoading(false)
-              }
-            }}
-          >
-            <div className="grid gap-1.5">
-              <Label htmlFor="reset-email">Email</Label>
-              <Input
-                id="reset-email"
-                type="email"
-                value={resetEmail}
-                onChange={(event) => setResetEmail(event.target.value)}
-                placeholder="you@example.com"
-                className="auth-input"
-                autoComplete="email"
-                required
-              />
-            </div>
-            <div className="min-h-[2.5rem]">
-              {resetError ? (
-                <div
-                  role="alert"
-                  className="flex items-start gap-2.5 rounded-lg border border-destructive/25 bg-destructive/5 px-3 py-2.5 text-destructive"
-                >
-                  <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-                  <p className="text-sm leading-relaxed">{resetError}</p>
-                </div>
-              ) : null}
-            </div>
-            <Button
-              type="submit"
-              size="lg"
-              className="auth-submit w-full"
-              loading={resetLoading}
-            >
-              Send reset link
-            </Button>
-          </form>
+          <Section title={RESET_COPY.title} description={RESET_COPY.intro} rule={false}>
+            {body}
+          </Section>
         )}
         <Button
           type="button"
-          variant="outline"
+          variant="secondary"
           size="lg"
-          className="auth-submit w-full"
+          className="auth-wide"
           onClick={() => {
-            setShowReset(false)
+            setReset(false)
             setResetMessage('')
             setResetError('')
           }}
@@ -130,28 +94,13 @@ export function LoginForm({
   }
 
   return (
-    <div className="grid gap-5">
-      <Button
-        type="button"
-        variant="outline"
-        size="lg"
-        className="auth-submit auth-google w-full"
-        onClick={() => {
-          googleLogin()
-        }}
-      >
-        <GoogleG />
-        Sign in with Google
-      </Button>
+    <div className="auth-form">
+      <GoogleButton onClick={() => googleLogin()}>Sign in with Google</GoogleButton>
 
-      <div className="relative flex items-center gap-3">
-        <div className="h-px flex-1 bg-border" />
-        <span className="small-copy muted-copy">or continue with email</span>
-        <div className="h-px flex-1 bg-border" />
-      </div>
+      <p className="auth-divider">or continue with email</p>
 
       <form
-        className="grid gap-5"
+        className="auth-form__fields"
         onSubmit={async (event) => {
           event.preventDefault()
           setLoading(true)
@@ -165,70 +114,36 @@ export function LoginForm({
           }
         }}
       >
-        <div className="grid gap-1.5">
-          <Label htmlFor="login-email">Email</Label>
+        <Field label="Email" id="login-email">
           <Input
-            id="login-email"
             type="email"
+            size="lg"
             value={email}
             onChange={(event) => setEmail(event.target.value)}
             placeholder="you@example.com"
-            className="auth-input"
             autoComplete="email"
             required
           />
-        </div>
-        <div className="grid gap-1.5">
-          <div className="flex items-center justify-between">
-            <Label htmlFor="login-password">Password</Label>
-            <button
-              type="button"
-              className="auth-forgot-link"
-              onClick={() => setShowReset(true)}
-            >
-              Forgot password?
-            </button>
-          </div>
-          <div className="relative">
-            <Input
-              id="login-password"
-              type={showPassword ? 'text' : 'password'}
+        </Field>
+        <Stack gap={1}>
+          <Field label="Password" id="login-password">
+            <PasswordInput
+              size="lg"
+              shown={showPassword}
+              onShownChange={setShowPassword}
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               placeholder="Your password"
-              className="auth-input pr-11"
               autoComplete="current-password"
               required
             />
-            <button
-              type="button"
-              onClick={() => setShowPassword((v) => !v)}
-              className="absolute inset-y-0 right-0 grid min-h-11 w-11 place-items-center text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-r-lg"
-              aria-label={showPassword ? 'Hide password' : 'Show password'}
-            >
-              {showPassword ? (
-                <EyeOff className="size-4" aria-hidden="true" />
-              ) : (
-                <Eye className="size-4" aria-hidden="true" />
-              )}
-            </button>
-          </div>
-        </div>
-        {authError ? (
-          <div
-            role="alert"
-            className="flex items-start gap-2.5 rounded-lg border border-destructive/25 bg-destructive/5 px-3 py-2.5 text-destructive"
-          >
-            <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-            <p className="text-sm leading-relaxed">{authError}</p>
-          </div>
-        ) : null}
-        <Button
-          type="submit"
-          size="lg"
-          className="auth-submit w-full"
-          loading={loading}
-        >
+          </Field>
+          <Button type="button" variant="ghost" className="auth-forgot" onClick={() => setReset(true)}>
+            Forgot password?
+          </Button>
+        </Stack>
+        {authError ? <Notice tone="danger">{authError}</Notice> : null}
+        <Button type="submit" size="lg" className="auth-wide" loading={loading}>
           Sign in
         </Button>
       </form>

@@ -1,13 +1,10 @@
 import { useMemo, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Check, FileUp, Pencil, Trash2, X } from 'lucide-react'
-import { Button } from '#/components/ui/button'
-import { Skeleton } from '#/components/ui/skeleton'
-import { AppStatePanel } from '#/components/app/AppStatePanel'
-import { ConfirmDeleteDialog } from '#/components/app/ConfirmDeleteDialog'
-import { PageHero } from '#/components/app/PageHero'
-import { WorkspacePage } from '#/components/app/WorkspacePage'
+import { FileUp, Trash2 } from 'lucide-react'
+import {
+  Button, ConfirmDialog, EmptyState, ErrorState, List, MetaRow, Notice, Page, PageHeader, Section, Skeleton, Stack,
+} from '#/components/kit'
 import { useSession } from '#/hooks/useSession'
 import { useResumeCarry } from '#/hooks/use-resume-carry'
 import {
@@ -31,7 +28,7 @@ import {
 } from '#/lib/profile/evidence'
 import { EVIDENCE_QUERY_KEY, invalidateEvidenceCaches } from '#/lib/query/evidenceCaches'
 import { EditFactDialog } from '#/components/profile/EditFactDialog'
-import { FactCard, type FactMenuItem } from '#/components/profile/FactCard'
+import { FactRow } from '#/components/profile/FactRow'
 import { SkillsToBuildSection } from '#/components/profile/SkillsToBuildSection'
 
 /** The first non-empty value: how a fact is named in buttons and menus. */
@@ -39,57 +36,33 @@ function previewText(item: EvidenceItem): string {
   return contentEntries(item.content).find((entry) => entry.value)?.value || 'No details recorded'
 }
 
-function EvidenceCard({
-  item,
-  busy,
-  primary,
-  menu,
-}: {
-  item: EvidenceItem
-  busy: boolean
-  primary: React.ReactNode
-  menu: FactMenuItem[]
-}) {
-  const state = item.confirmation_state
+/**
+ * One row template for every kind: the first value leads, the rest follow as plain lines. A saved row under its
+ * kind heading only says what is not already obvious (where a fact came from, when it was not typed); a suggestion
+ * also names its kind, since it sits in a list of its own.
+ */
+function evidenceRow(item: EvidenceItem) {
   const { title, fields } = factDisplay(item)
-  const provenance = `${PROVENANCE_LABELS[item.provenance]}. ${PROVENANCE_DESCRIPTIONS[item.provenance]}`
-  // Every saved row sits under its kind heading and the "Saved facts" heading, so the row
-  // itself only says what is not already obvious: where a fact came from, when it was not typed.
-  const showSource = item.provenance !== 'user-entered'
-  // One row template for every kind: the first value leads, the rest follow as plain lines.
   const filled = fields.filter((field) => field.value && field.value !== '—')
-  const lead = title ?? filled[0]?.value ?? null
+  const lead = title ?? filled[0]?.value ?? 'No details recorded'
   const rest = title ? [] : filled.slice(1)
-  return (
-    <FactCard
-      tone={state}
-      busy={busy}
-      title={lead}
-      meta={
-        <>
-          {state === 'unconfirmed' ? (
-            <span className="fact-card__kind">{KIND_SINGULAR_LABELS[item.kind]}</span>
-          ) : null}
-          {/* A title tooltip is invisible on touch, so the source is also
-              available to assistive tech as text. */}
-          <span className="sr-only">{`Source: ${provenance}`}</span>
-          {showSource ? (
-            <span className="fact-card__source" aria-hidden="true" title={provenance}>
-              {PROVENANCE_LABELS[item.provenance]}
-            </span>
-          ) : null}
-        </>
-      }
-      fields={[]}
-      primary={primary}
-      menu={menu}
-      menuLabel={`More actions: ${previewText(item)}`}
-    >
-      {rest.map((field) => (
-        <p key={field.key} className="fact-card__sub">{field.value}</p>
-      ))}
-    </FactCard>
+  const provenance = PROVENANCE_LABELS[item.provenance]
+  const meta = [
+    item.confirmation_state === 'unconfirmed' ? KIND_SINGULAR_LABELS[item.kind] : null,
+    item.provenance !== 'user-entered' ? (
+      <span key="source" title={PROVENANCE_DESCRIPTIONS[item.provenance]}>
+        <span aria-hidden="true">{provenance}</span>
+        <span className="kit-sr-only">Source: {provenance}. {PROVENANCE_DESCRIPTIONS[item.provenance]}</span>
+      </span>
+    ) : null,
+  ]
+  const details = (
+    <>
+      {rest.map((field) => <div key={field.key} className="profile-line">{field.value}</div>)}
+      <MetaRow>{meta}</MetaRow>
+    </>
   )
+  return { lead, details }
 }
 
 export function EvidenceProfilePage() {
@@ -113,7 +86,6 @@ export function EvidenceProfilePage() {
 
   function reportError(error: unknown, fallback: string) {
     setActionError(error instanceof Error ? error.message : fallback)
-    window.setTimeout(() => setActionError(null), 4000)
   }
 
   async function invalidateProfile() {
@@ -206,208 +178,166 @@ export function EvidenceProfilePage() {
 
   if (!isAuthenticated) {
     return (
-      <AppStatePanel
-        title="Your profile"
-        description="Sign in to see the facts about your experience that CV Studio and the tools reuse — save what you stand behind, and remove anything you do not."
-        scene="loginWorkflow"
-        actions={[
-          {
-            label: 'Sign in',
-            onClick: () => openAuthDialog({ to: '/profile', reason: 'account' }),
-          },
-          { label: 'Explore tools', to: '/resume', variant: 'outline' },
-        ]}
-      />
+      <Page>
+        <PageHeader
+          title="Your profile"
+          lead="Sign in to see the facts about your experience that CV Studio and the tools reuse. Save what you stand behind, and remove anything you do not."
+          actions={(
+            <>
+              <Button asChild size="sm" variant="secondary"><Link to="/resume">Explore tools</Link></Button>
+              <Button type="button" size="sm" onClick={() => openAuthDialog({ to: '/profile', reason: 'account' })}>Sign in</Button>
+            </>
+          )}
+        />
+      </Page>
     )
   }
 
-  const heroChips = itemsQuery.data
-    ? [
-        `${counts.confirmed} saved ${counts.confirmed === 1 ? 'fact' : 'facts'}`,
-        ...(counts.unconfirmed > 0 ? [`${counts.unconfirmed} to review`] : []),
-      ]
-    : undefined
+  const meta = itemsQuery.isError
+    ? []
+    : itemsQuery.data
+      ? items.length > 0
+        ? [
+            `${counts.confirmed} saved ${counts.confirmed === 1 ? 'fact' : 'facts'}`,
+            counts.unconfirmed > 0 ? `${counts.unconfirmed} to review` : null,
+          ]
+        : []
+      : [<Skeleton key="count" size="meta" width="7rem" />]
 
   return (
-    <WorkspacePage className="profile-page">
-      <PageHero
+    <Page>
+      <PageHeader
         title="Your profile"
-        chips={heroChips}
-        action={
+        meta={meta}
+        actions={
           canImport ? (
-            <Button loading={importMutation.isPending} onClick={() => importMutation.mutate()}>
-              <FileUp size={16} /> Import from your CV
+            <Button size="sm" loading={importMutation.isPending} onClick={() => importMutation.mutate()}>
+              <FileUp aria-hidden="true" /> Import from your CV
             </Button>
           ) : (
-            <Button asChild>
-              <Link to="/resume">
-                <FileUp size={16} /> Upload a CV
-              </Link>
+            <Button asChild size="sm">
+              <Link to="/resume"><FileUp aria-hidden="true" /> Upload a CV</Link>
             </Button>
           )
         }
       />
 
-      {actionError ? (
-        <p role="alert" className="profile-banner profile-banner--error">
-          {actionError}
-        </p>
-      ) : null}
-      {importNotice ? (
-        <p role="status" className="profile-banner">
-          {importNotice}
-        </p>
+      {actionError || importNotice ? (
+        <Stack gap={2}>
+          {actionError ? <Notice tone="danger" onDismiss={() => setActionError(null)}>{actionError}</Notice> : null}
+          {importNotice ? <Notice onDismiss={() => setImportNotice(null)}>{importNotice}</Notice> : null}
+        </Stack>
       ) : null}
 
-      <div className={suggestions.length > 0 ? 'profile-layout profile-layout--split' : 'profile-layout'}>
+      <div className="profile-layout" data-split={suggestions.length > 0 ? 'true' : undefined}>
         {suggestions.length > 0 ? (
-          <section className="profile-section" aria-labelledby="profile-suggestions-title">
-            <div className="profile-section__head">
-              <div>
-                <h2 id="profile-suggestions-title" className="profile-section__title">Suggestions to review</h2>
-                <p className="profile-section__description">
-                  From your CV or a tool result. Nothing counts until you save it.
-                </p>
-              </div>
-              {suggestions.length > 1 ? (
+          <Section
+            className="profile-suggestions"
+            title="Suggestions to review"
+            description="From your CV or a tool result. Nothing counts until you save it."
+            actions={
+              suggestions.length > 1 ? (
                 <Button
-                  variant="outline"
                   size="sm"
+                  variant="secondary"
                   loading={saveAllMutation.isPending}
                   onClick={() => saveAllMutation.mutate(suggestions.map((item) => item.id))}
                 >
                   Save all
                 </Button>
-              ) : null}
-            </div>
-            <ul className="fact-list" aria-label="Suggestions to review">
-              {suggestions.map((item) => (
-                <EvidenceCard
-                  key={item.id}
-                  item={item}
-                  busy={pendingItemId === item.id}
-                  primary={
-                    <>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={pendingItemId === item.id}
-                        aria-label={`Save: ${previewText(item)}`}
-                        onClick={() => withPending(item, saveMutation.mutate)}
-                      >
-                        <Check size={14} /> Save
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        disabled={pendingItemId === item.id}
-                        aria-label={`Dismiss: ${previewText(item)}`}
-                        onClick={() => withPending(item, dismissMutation.mutate)}
-                      >
-                        <X size={14} /> Dismiss
-                      </Button>
-                    </>
-                  }
-                  menu={[{ label: 'Edit', icon: Pencil, onSelect: () => openEditor(item) }]}
-                />
-              ))}
-            </ul>
-          </section>
+              ) : undefined
+            }
+          >
+            <List aria-label="Suggestions to review" className="profile-suggestions__list">
+              {suggestions.map((item) => {
+                const { lead, details } = evidenceRow(item)
+                const busy = pendingItemId === item.id
+                return (
+                  <FactRow
+                    key={item.id} title={lead} details={details} busy={busy}
+                    editLabel={`Edit: ${previewText(item)}`} onEdit={() => openEditor(item)}
+                    primary={(
+                      <>
+                        <Button size="sm" variant="secondary" disabled={busy} aria-label={`Save: ${previewText(item)}`} onClick={() => withPending(item, saveMutation.mutate)}>
+                          Save
+                        </Button>
+                        <Button size="sm" variant="ghost" disabled={busy} aria-label={`Dismiss: ${previewText(item)}`} onClick={() => withPending(item, dismissMutation.mutate)}>
+                          Dismiss
+                        </Button>
+                      </>
+                    )}
+                  />
+                )
+              })}
+            </List>
+          </Section>
         ) : null}
 
-        {itemsQuery.isLoading ? (
-          <div className="fact-groups" aria-hidden="true">
-            {[0, 1, 2].map((n) => (
-              <Skeleton key={n} className="fact-skeleton" />
-            ))}
-          </div>
-        ) : itemsQuery.isError ? (
-          <p className="profile-empty">
-            We could not load your profile.{' '}
-            <Button variant="outline" size="sm" onClick={() => itemsQuery.refetch()}>
-              Try again
-            </Button>
-          </p>
-        ) : items.length === 0 ? (
-          <p className="profile-empty">
-            No facts yet. Your profile fills up as you import a CV or save a result from one of the
-            tools. Anything added arrives as a suggestion until you save it.
-          </p>
-        ) : groups.length > 0 ? (
-          <section className="profile-section" aria-labelledby="profile-saved-title">
-            <div className="profile-section__head">
-              <div>
-                <h2 id="profile-saved-title" className="profile-section__title">Saved facts</h2>
-                <p className="profile-section__description">
-                  CV Studio and the tools only use saved facts. Edit one to correct it.
-                </p>
-              </div>
-            </div>
-            <div className="fact-groups">
-              {groups.map((group) => (
-                <section key={group.kind} className="fact-group" aria-label={group.label}>
-                  <h3 className="fact-group__title">
-                    {group.label}
-                    <span className="fact-group__count">{group.items.length}</span>
-                  </h3>
-                  <ul className="fact-list">
-                    {group.items.map((item) => (
-                      <EvidenceCard
-                        key={item.id}
-                        item={item}
-                        busy={pendingItemId === item.id || deleteTarget?.id === item.id}
-                        primary={
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="fact-card__edit"
-                            aria-label={`Edit: ${previewText(item)}`}
-                            onClick={() => openEditor(item)}
-                          >
-                            <Pencil size={14} /> Edit
-                          </Button>
-                        }
-                        menu={[
-                          { label: 'Edit', icon: Pencil, onSelect: () => openEditor(item) },
-                          {
-                            label: 'Delete',
-                            icon: Trash2,
-                            destructive: true,
-                            onSelect: () => setDeleteTarget(item),
-                          },
-                        ]}
-                      />
-                    ))}
-                  </ul>
-                </section>
-              ))}
-            </div>
-          </section>
-        ) : null}
+        {itemsQuery.isError ? (
+          <ErrorState
+            title="Your profile couldn’t be loaded"
+            description="Your facts are safe. Try again in a moment."
+            onRetry={() => void itemsQuery.refetch()}
+            retrying={itemsQuery.isFetching}
+          />
+        ) : (
+          <Section
+            title="Saved facts"
+            description={groups.length > 0 ? 'CV Studio and the tools only use saved facts. Edit one to correct it.' : undefined}
+          >
+            {itemsQuery.isPending ? (
+              <List aria-label="Saved facts" aria-busy="true" className="profile-skeleton"><Skeleton variant="row" as="li" count={4} /></List>
+            ) : groups.length === 0 ? (
+              <EmptyState
+                title={items.length === 0 ? 'No facts yet' : 'Nothing saved yet'}
+                description={
+                  items.length === 0
+                    ? 'Your profile fills up as you import a CV or save a result from one of the tools. Anything added arrives as a suggestion until you save it.'
+                    : 'Save a suggestion and it shows up here.'
+                }
+              />
+            ) : (
+              <Stack gap={6}>
+                {groups.map((group) => (
+                  <Section key={group.kind} headingLevel={3} size="sm" title={group.label} count={group.items.length}>
+                    <List aria-label={group.label}>
+                      {group.items.map((item) => {
+                        const { lead, details } = evidenceRow(item)
+                        const busy = pendingItemId === item.id || deleteTarget?.id === item.id
+                        return (
+                          <FactRow
+                            key={item.id} title={lead} details={details} busy={busy}
+                            editLabel={`Edit: ${previewText(item)}`} onEdit={() => openEditor(item)}
+                            reveal={(
+                              <Button iconOnly size="sm" variant="ghost" disabled={busy} aria-label={`Delete: ${previewText(item)}`} onClick={() => setDeleteTarget(item)}>
+                                <Trash2 aria-hidden="true" />
+                              </Button>
+                            )}
+                          />
+                        )
+                      })}
+                    </List>
+                  </Section>
+                ))}
+              </Stack>
+            )}
+          </Section>
+        )}
       </div>
 
       <SkillsToBuildSection />
 
       {items.length > 0 ? (
-        <section className="profile-section profile-danger">
-          <div className="profile-section__head">
-            <div>
-              <h2 className="profile-section__title">Delete your whole profile</h2>
-              <p className="profile-section__description">
-                Permanently removes every fact above. This takes effect immediately and cannot be undone.
-              </p>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              className="settings-btn--destructive"
-              onClick={() => setPurgeOpen(true)}
-            >
-              <Trash2 size={14} className="mr-1.5" />
-              Delete profile
+        <Section
+          title="Delete your whole profile"
+          rule={false}
+          description="Permanently removes every fact above. This takes effect immediately and cannot be undone."
+          actions={
+            <Button variant="secondary" size="sm" onClick={() => setPurgeOpen(true)}>
+              <Trash2 aria-hidden="true" /> Delete profile
             </Button>
-          </div>
-        </section>
+          }
+        />
       ) : null}
 
       <EditFactDialog
@@ -418,25 +348,27 @@ export function EvidenceProfilePage() {
         onSubmit={(content) => editTarget && editMutation.mutate({ id: editTarget.id, content })}
       />
 
-      <ConfirmDeleteDialog
+      <ConfirmDialog
         open={deleteTarget !== null}
         title="Delete this fact?"
         description="This permanently removes it from your profile. It takes effect immediately and cannot be undone."
         confirmLabel="Delete fact"
+        icon={<Trash2 />}
         pending={deleteMutation.isPending}
-        onCancel={() => setDeleteTarget(null)}
+        onOpenChange={(open) => { if (!open) setDeleteTarget(null) }}
         onConfirm={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
       />
 
-      <ConfirmDeleteDialog
+      <ConfirmDialog
         open={purgeOpen}
         title="Delete your entire profile?"
         description={`This permanently removes all ${counts.total} ${counts.total === 1 ? 'fact' : 'facts'}. It happens immediately — we do not keep a backup — and cannot be undone.`}
         confirmLabel="Delete everything"
+        icon={<Trash2 />}
         pending={purgeMutation.isPending}
-        onCancel={() => setPurgeOpen(false)}
+        onOpenChange={(open) => { if (!open) setPurgeOpen(false) }}
         onConfirm={() => purgeMutation.mutate()}
       />
-    </WorkspacePage>
+    </Page>
   )
 }

@@ -1,152 +1,90 @@
 import type { AnchorHTMLAttributes, ReactNode } from 'react'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { Topbar } from '#/components/app/Topbar'
-import { SidebarProvider } from '#/components/ui/sidebar'
-import { getRouteMeta } from '#/lib/navigation/routeMeta'
 
-const mockUseIsMobile = vi.hoisted(() => vi.fn())
 const mockPathname = vi.hoisted(() => ({ current: '/dashboard' }))
+const session = vi.hoisted(() => ({
+  current: {
+    status: 'authenticated',
+    user: { id: 'u1', email: 'a@example.com', full_name: 'Ada Lovelace', is_admin: false },
+    logout: vi.fn(),
+  } as { status: string; user: Record<string, unknown> | null; logout: () => void },
+}))
 
 vi.mock('@tanstack/react-router', () => ({
-  Link: ({
-    children,
-    to,
-    ...props
-  }: {
-    children: ReactNode
-    to: string
-  } & AnchorHTMLAttributes<HTMLAnchorElement>) => (
+  Link: ({ children, to, ...props }: { children: ReactNode; to: string } & AnchorHTMLAttributes<HTMLAnchorElement>) => (
     <a href={to} {...props}>
       {children}
     </a>
   ),
-  useRouterState: ({
-    select,
-  }: {
-    select?: (state: { location: { pathname: string } }) => string
-  } = {}) => {
-    const state = {
-      location: {
-        pathname: mockPathname.current,
-      },
-    }
-
+  useRouterState: ({ select }: { select?: (state: { location: { pathname: string } }) => string } = {}) => {
+    const state = { location: { pathname: mockPathname.current } }
     return select ? select(state) : state
   },
 }))
 
-vi.mock('#/hooks/use-mobile', () => ({
-  useIsMobile: mockUseIsMobile,
-}))
+vi.mock('#/hooks/useSession', () => ({ useSession: () => session.current }))
 
-vi.mock('#/components/auth/SessionMenu', () => ({
-  SessionMenu: () => <div>Session menu</div>,
-}))
-
-function renderTopbar() {
-  return render(
-    <SidebarProvider defaultOpen={false}>
-      <Topbar />
-    </SidebarProvider>,
-  )
-}
-
-describe('Topbar', () => {
+describe('Topbar (phones)', () => {
   beforeEach(() => {
-    mockUseIsMobile.mockReturnValue(false)
     mockPathname.current = '/dashboard'
-  })
-
-  it('keeps Command center as the dashboard route label in metadata', () => {
-    expect(getRouteMeta('/dashboard').sectionLabel).toBe('Command center')
-    expect(getRouteMeta('/dashboard').topbarVariant).toBe('compact')
-  })
-
-  it('uses the compact variant on the dashboard without the boxed hero chrome or CTA', () => {
-    const { container } = renderTopbar()
-
-    expect(container.querySelector('.topbar')).toBeTruthy()
-    expect(container.querySelector('.topbar--compact')).toBeTruthy()
-    expect(container.querySelector('.topbar-inner--compact')).toBeTruthy()
-    expect(container.querySelector('.topbar-meta')).toBeNull()
-    expect(screen.queryByText('Command center')).toBeNull()
-    expect(screen.queryByText('Review your current pipeline, recent runs, and the recommended next step.')).toBeNull()
-    expect(screen.queryByText('Start with resume')).toBeNull()
-    expect(screen.getByText('Your Workspace')).toBeTruthy()
-  })
-
-  it('uses the compact breadcrumb-only variant on tool pages', () => {
-    mockPathname.current = '/career'
-
-    const { container } = renderTopbar()
-
-    expect(getRouteMeta('/career').topbarVariant).toBe('compact')
-    expect(container.querySelector('.topbar--compact')).toBeTruthy()
-    expect(container.querySelector('.topbar-inner--compact')).toBeTruthy()
-    expect(container.querySelector('.topbar-meta')).toBeNull()
-    expect(screen.queryByText('Planning')).toBeNull()
-    expect(screen.queryByText('Compare target directions, timelines, and the skill gaps to close.')).toBeNull()
-    expect(screen.queryByRole('link', { name: 'Dashboard' })).toBeNull()
-    expect(container.querySelector('[data-slot="breadcrumb-separator"]')).toBeNull()
-    expect(container.querySelector('.topbar-tool-entry-chip')).toBeTruthy()
-    expect(screen.queryByRole('link', { name: 'Career Path' })).toBeNull()
-    expect(screen.getByText('Career Path')).toBeTruthy()
-  })
-
-  it('uses the compact pill-only variant on tool result pages', () => {
-    mockPathname.current = '/portfolio/result/demo-run'
-
-    const { container } = renderTopbar()
-
-    expect(getRouteMeta('/portfolio/result/demo-run').topbarVariant).toBe('compact')
-    expect(container.querySelector('.topbar--compact')).toBeTruthy()
-    expect(container.querySelector('.topbar-tool-entry-chip')).toBeTruthy()
-    expect(screen.queryByRole('link', { name: 'Dashboard' })).toBeNull()
-    expect(screen.queryByRole('link', { name: 'Portfolio Planner' })).toBeNull()
-    expect(screen.queryByText('Saved output for portfolio planner.')).toBeNull()
-  })
-
-  it('renders compact breadcrumb on secondary pages like history', () => {
-    mockPathname.current = '/history'
-
-    const { container } = renderTopbar()
-
-    expect(container.querySelector('.topbar')).toBeTruthy()
-    expect(container.querySelector('.topbar--compact')).toBeTruthy()
-    expect(screen.getByText('History')).toBeTruthy()
-  })
-
-  it.each([
-    ['/campaigns', 'Applications'],
-    ['/campaigns/abc-123', 'Applications'],
-    ['/discovery', 'Discover'],
-    ['/cv-studio', 'CV Studio'],
-    ['/profile', 'Profile'],
-    ['/account', 'Account'],
-    ['/settings', 'Settings'],
-  ])('shows a page pill for %s', (path, label) => {
-    mockPathname.current = path
-
-    const { container } = renderTopbar()
-
-    const pill = container.querySelector('.topbar-tool-pill')
-    expect(pill?.textContent).toBe(label)
-    expect(pill?.querySelector('svg')).toBeTruthy()
-  })
-
-  it('does not repeat the page name in the mobile top bar', () => {
-    const originalWidth = window.innerWidth
-    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 375 })
-    mockUseIsMobile.mockReturnValue(true)
-    mockPathname.current = '/job-match/result/demo-run'
-
-    try {
-      const { container } = renderTopbar()
-      expect(container.querySelector('.topbar-mobile-title')).toBeNull()
-      expect(container.querySelector('.topbar-mobile-brand')).toBeTruthy()
-    } finally {
-      Object.defineProperty(window, 'innerWidth', { configurable: true, value: originalWidth })
+    session.current = {
+      status: 'authenticated',
+      user: { id: 'u1', email: 'a@example.com', full_name: 'Ada Lovelace', is_admin: false },
+      logout: vi.fn(),
     }
+  })
+
+  it('shows the brand and the account menu, and nothing else', () => {
+    const { container } = render(<Topbar />)
+
+    expect(container.querySelector('header.app-topbar')).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Career Workbench home' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Account menu for Ada Lovelace' })).toBeTruthy()
+    expect(container.querySelector('h1, h2')).toBeNull()
+  })
+
+  it('sends the brand to the landing page from the dashboard and to the dashboard elsewhere', () => {
+    const { unmount } = render(<Topbar />)
+    expect(screen.getByRole('link', { name: 'Career Workbench home' }).getAttribute('href')).toBe('/')
+    unmount()
+
+    mockPathname.current = '/history'
+    render(<Topbar />)
+    expect(screen.getByRole('link', { name: 'Career Workbench home' }).getAttribute('href')).toBe('/dashboard')
+  })
+
+  it('opens the account menu with Account, Settings and Sign out, and signs out', async () => {
+    render(<Topbar />)
+
+    const trigger = screen.getByRole('button', { name: 'Account menu for Ada Lovelace' })
+    fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false })
+    fireEvent.click(trigger)
+
+    expect(await screen.findByRole('menuitem', { name: 'Account' })).toBeTruthy()
+    expect(screen.getByRole('menuitem', { name: 'Settings' })).toBeTruthy()
+    expect(screen.queryByRole('menuitem', { name: 'Admin' })).toBeNull()
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Sign out' }))
+    expect(session.current.logout).toHaveBeenCalledTimes(1)
+  })
+
+  it('gives admins an Admin entry', async () => {
+    session.current.user = { id: 'u1', email: 'a@example.com', full_name: 'Ada Lovelace', is_admin: true }
+    render(<Topbar />)
+
+    const trigger = screen.getByRole('button', { name: 'Account menu for Ada Lovelace' })
+    fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false })
+    fireEvent.click(trigger)
+
+    expect((await screen.findByRole('menuitem', { name: 'Admin' })).getAttribute('href')).toBe('/admin')
+  })
+
+  it('leaves signing in to the tab bar for guests', () => {
+    session.current = { status: 'guest', user: null, logout: vi.fn() }
+    render(<Topbar />)
+
+    expect(screen.queryByRole('button')).toBeNull()
+    expect(screen.queryByRole('link', { name: 'Sign in' })).toBeNull()
   })
 })

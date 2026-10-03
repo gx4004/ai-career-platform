@@ -1,11 +1,10 @@
-import { useId, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { BadgeCheck, Pencil, Trash2 } from 'lucide-react'
-import { Badge } from '#/components/ui/badge'
-import { Button } from '#/components/ui/button'
-import { Skeleton } from '#/components/ui/skeleton'
-import { ConfirmDeleteDialog } from '#/components/app/ConfirmDeleteDialog'
+import { Trash2 } from 'lucide-react'
+import {
+  Badge, Button, ConfirmDialog, EmptyState, ErrorState, List, MetaRow, Notice, RowMeta, Section, Select, Skeleton, Stack,
+} from '#/components/kit'
 import {
   deleteDevelopmentItem,
   getDevelopmentPlan,
@@ -20,44 +19,11 @@ import {
   groupItemsByResponseKind,
 } from '#/lib/development/plan'
 import { DEVELOPMENT_PLAN_QUERY_KEY, invalidateEvidenceCaches } from '#/lib/query/evidenceCaches'
-import { FactCard } from '#/components/profile/FactCard'
+import { FactRow } from '#/components/profile/FactRow'
 import {
   EditDevelopmentItemDialog,
   type DevelopmentEditSubmit,
 } from '#/components/profile/EditDevelopmentItemDialog'
-
-/** The status select is a skill's one primary control; Edit and Delete sit in its menu. */
-function StatusSelect({
-  item,
-  busy,
-  onChange,
-}: {
-  item: DevelopmentItem
-  busy: boolean
-  onChange: (state: DevelopmentState) => void
-}) {
-  const id = useId()
-  return (
-    <div className="fact-card__control">
-      <label className="fact-card__control-label" htmlFor={id}>
-        Status
-      </label>
-      <select
-        id={id}
-        className="fact-select"
-        value={item.state}
-        disabled={busy}
-        onChange={(event) => onChange(event.target.value as DevelopmentState)}
-      >
-        {STATE_ORDER.map((option) => (
-          <option key={option} value={option}>
-            {STATE_LABELS[option]}
-          </option>
-        ))}
-      </select>
-    </div>
-  )
-}
 
 /**
  * "Skills to build" — the R17 development plan on the profile page (#321).
@@ -79,7 +45,6 @@ export function SkillsToBuildSection() {
 
   function reportError(error: unknown, fallback: string) {
     setActionError(error instanceof Error ? error.message : fallback)
-    window.setTimeout(() => setActionError(null), 4000)
   }
 
   async function invalidate() {
@@ -126,125 +91,85 @@ export function SkillsToBuildSection() {
     stateMutation.mutate({ id: item.id, state })
   }
 
-  return (
-    <section id="skills-to-build" className="profile-section" aria-labelledby="skills-to-build-title">
-      <div className="profile-section__head">
-        <div>
-          <h2 id="skills-to-build-title" className="profile-section__title">Skills to build</h2>
-          <p className="profile-section__description">
-            Gaps you chose to work on. Completing one adds it to your profile.
-          </p>
-        </div>
-      </div>
-      {actionError ? (
-        <p role="alert" className="profile-banner profile-banner--error">
-          {actionError}
-        </p>
-      ) : null}
+  function openEditor(item: DevelopmentItem) {
+    setEditError(null)
+    setEditTarget(item)
+  }
 
-      {itemsQuery.isLoading ? (
-        <div className="fact-groups" aria-hidden="true">
-          <Skeleton className="fact-skeleton" />
-        </div>
-      ) : itemsQuery.isError ? (
-        <p className="profile-empty">
-          We could not load your skills to build.{' '}
-          <Button variant="outline" size="sm" onClick={() => itemsQuery.refetch()}>
-            Try again
-          </Button>
-        </p>
-      ) : items.length === 0 ? (
-        <div className="profile-empty profile-empty--stack">
-          <strong className="profile-empty__title">Nothing to build yet</strong>
-          <span>
-            When an application&apos;s gap check finds something to work on, add it from the application
-            and it shows up here.
-          </span>
-          <Button variant="outline" size="sm" asChild>
-            <Link to="/campaigns">Open applications</Link>
-          </Button>
-        </div>
-      ) : (
-        <div className="fact-groups">
-          {groups.map((group) => (
-            <section key={group.responseKind} className="fact-group" aria-label={group.label}>
-              <h3 className="fact-group__title">
-                {group.label}
-                <span className="fact-group__count">{group.items.length}</span>
-              </h3>
-              <p className="fact-group__description">{group.description}</p>
-              <ul className="fact-list">
+  return (
+    <Section
+      id="skills-to-build"
+      title="Skills to build"
+      description={items.length > 0 ? 'Gaps you chose to work on. Completing one adds it to your profile.' : undefined}
+    >
+      <Stack gap={6}>
+        {actionError ? <Notice tone="danger" onDismiss={() => setActionError(null)}>{actionError}</Notice> : null}
+
+        {itemsQuery.isPending ? (
+          <List aria-label="Skills to build" aria-busy="true" className="profile-skeleton"><Skeleton variant="row" as="li" count={2} /></List>
+        ) : itemsQuery.isError ? (
+          <ErrorState
+            title="Your skills to build couldn’t be loaded"
+            onRetry={() => void itemsQuery.refetch()}
+            retrying={itemsQuery.isFetching}
+          />
+        ) : items.length === 0 ? (
+          <EmptyState
+            title="Nothing to build yet"
+            description="When an application’s gap check finds something to work on, add it from the application and it shows up here."
+            action={<Button asChild variant="secondary" size="sm"><Link to="/campaigns">Open applications</Link></Button>}
+          />
+        ) : (
+          groups.map((group) => (
+            <Section key={group.responseKind} headingLevel={3} size="sm" title={group.label} count={group.items.length} description={group.description}>
+              <List aria-label={group.label}>
                 {group.items.map((item) => {
-                  const busy = pendingItemId === item.id
+                  const busy = pendingItemId === item.id || deleteTarget?.id === item.id
+                  const kind = GAP_KIND_LABELS[item.gap_kind]
                   return (
-                    <FactCard
+                    <FactRow
                       key={item.id}
-                      tone={item.state}
+                      title={kind}
                       busy={busy}
-                      meta={
+                      editLabel={`Edit: ${kind}`}
+                      onEdit={() => openEditor(item)}
+                      reveal={(
+                        <Button iconOnly size="sm" variant="ghost" disabled={busy} aria-label={`Delete: ${kind}`} onClick={() => setDeleteTarget(item)}>
+                          <Trash2 aria-hidden="true" />
+                        </Button>
+                      )}
+                      details={
                         <>
-                          {/* aria-live so a state change is announced once the badge updates. */}
-                          <span aria-live="polite" className="inline-flex">
-                            <Badge variant="outline" className={`fact-badge fact-badge--${item.state}`}>
-                              {STATE_LABELS[item.state]}
-                            </Badge>
-                          </span>
-                          <span className="fact-card__source">{GAP_KIND_LABELS[item.gap_kind]}</span>
+                          <div className="profile-line">{item.notes || 'No notes yet'}</div>
+                          <MetaRow>
+                            {formatTargetDate(item.target_date) ? `Target ${formatTargetDate(item.target_date)}` : 'No target date'}
+                            {item.evidence_item_id ? <Badge tone="success" size="sm" role="status">Added to your profile</Badge> : null}
+                          </MetaRow>
                         </>
                       }
-                      fields={[
-                        {
-                          key: 'target',
-                          label: 'Target date',
-                          value: formatTargetDate(item.target_date) ?? (
-                            <span className="muted-copy">No target date</span>
-                          ),
-                        },
-                        {
-                          key: 'notes',
-                          label: 'Notes',
-                          value: item.notes || <span className="muted-copy">No notes yet</span>,
-                        },
-                      ]}
-                      primary={
-                        <StatusSelect
-                          item={item}
-                          busy={busy}
-                          onChange={(state) => handleStateChange(item, state)}
-                        />
-                      }
-                      menu={[
-                        {
-                          label: 'Edit',
-                          icon: Pencil,
-                          onSelect: () => {
-                            setEditError(null)
-                            setEditTarget(item)
-                          },
-                        },
-                        {
-                          label: 'Delete',
-                          icon: Trash2,
-                          destructive: true,
-                          onSelect: () => setDeleteTarget(item),
-                        },
-                      ]}
-                      menuLabel={`More actions: ${GAP_KIND_LABELS[item.gap_kind]}`}
                     >
-                      {item.evidence_item_id ? (
-                        <p className="fact-card__note" role="status">
-                          <BadgeCheck size={15} aria-hidden="true" />
-                          Added to your profile
-                        </p>
-                      ) : null}
-                    </FactCard>
+                      <RowMeta>
+                        <Select
+                          size="sm"
+                          className="profile-status"
+                          aria-label="Status"
+                          value={item.state}
+                          disabled={busy}
+                          onChange={(event) => handleStateChange(item, event.target.value as DevelopmentState)}
+                        >
+                          {STATE_ORDER.map((option) => (
+                            <option key={option} value={option}>{STATE_LABELS[option]}</option>
+                          ))}
+                        </Select>
+                      </RowMeta>
+                    </FactRow>
                   )
                 })}
-              </ul>
-            </section>
-          ))}
-        </div>
-      )}
+              </List>
+            </Section>
+          ))
+        )}
+      </Stack>
 
       <EditDevelopmentItemDialog
         item={editTarget}
@@ -260,15 +185,16 @@ export function SkillsToBuildSection() {
         onSubmit={(payload) => editTarget && editMutation.mutate({ id: editTarget.id, payload })}
       />
 
-      <ConfirmDeleteDialog
+      <ConfirmDialog
         open={deleteTarget !== null}
         title="Delete this skill to build?"
         description="This permanently removes it from your list. It takes effect immediately and cannot be undone."
         confirmLabel="Delete item"
+        icon={<Trash2 />}
         pending={deleteMutation.isPending}
-        onCancel={() => setDeleteTarget(null)}
+        onOpenChange={(open) => { if (!open) setDeleteTarget(null) }}
         onConfirm={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
       />
-    </section>
+    </Section>
   )
 }

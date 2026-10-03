@@ -5,9 +5,7 @@
 }
 
 @media (max-width: 1100px) {
-  .dash-hero,
-  .landing-hero-grid,
-  .tool-layout {
+  .landing-hero-grid {
     grid-template-columns: 1fr;
   }
 
@@ -76,10 +74,6 @@
 }
 
 @media (max-width: 768px) {
-  .topbar-inner {
-    padding-inline: 1rem;
-  }
-
   .landing-page-experiment {
     padding-top: 0;
   }
@@ -92,38 +86,9 @@
     padding-inline: 1rem;
   }
 
-  .dashboard-runs-grid {
-    grid-template-columns: 1fr;
-  }
-
   /* Demo: single column */
   .landing-demo-grid {
     grid-template-columns: 1fr;
-  }
-
-  .topbar-page-description {
-    display: none;
-  }
-
-  .app-main--mobile {
-    padding-bottom: calc(var(--mobile-tab-height, 56px) + env(safe-area-inset-bottom, 0px) + 1.5rem);
-    min-height: 100svh;
-  }
-
-  .tool-sticky-wrap {
-    bottom: calc(var(--mobile-tab-height, 56px) + env(safe-area-inset-bottom, 0px) + 0.5rem);
-  }
-
-  .tool-sticky-bar,
-  .history-pagination {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .auth-page-actions {
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
   }
 
   .landing-hero {
@@ -193,13 +158,6 @@
   /* Ensure eyebrow text meets 12px minimum on mobile */
   .eyebrow {
     font-size: max(0.75rem, 12px);
-  }
-
-  /* Topbar sign-in: minimum touch target */
-  .topbar-actions [data-slot='button'],
-  .topbar-actions button {
-    min-height: 44px;
-    min-width: 44px;
   }
 
   /* Navbar: smaller buttons */
@@ -278,11 +236,6 @@
   .landing-storyboard-stage-frame {
     min-height: auto;
   }
-
-  /* Dashboard carousel */
-  .dash-carousel-stage {
-    min-height: auto;
-  }
 }
 
 @media (max-width: 640px) {
@@ -302,21 +255,6 @@
 
 /* ── Responsive polish ── */
 
-@media (max-width: 768px) {
-  .onboarding-dialog {
-    max-width: calc(100vw - 2rem) !important;
-    margin: 1rem !important;
-  }
-
-  .onboarding-goals {
-    gap: 0.5rem;
-  }
-
-  .onboarding-tools-preview {
-    gap: 0.4rem;
-  }
-}
-
 @media (max-width: 480px) {
   .landing-hero-copy .display-xl {
     font-size: clamp(1.8rem, 6vw, 2.6rem);
@@ -326,20 +264,4 @@
     width: 100%;
   }
 
-  .auth-page-shell {
-    width: 100%;
-    padding: 0.9rem;
-  }
-
-  .auth-dialog-content {
-    max-width: calc(100vw - 1rem);
-  }
-
-  .auth-surface {
-    padding: 1rem;
-  }
-
-  .onboarding-dialog-inner {
-    padding: 1.25rem;
-  }
 }

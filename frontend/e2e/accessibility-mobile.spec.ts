@@ -122,11 +122,11 @@ test('login→dashboard→resume flow is keyboard-navigable', async ({
     await gotoHydrated(page, '/dashboard')
   }
 
-  await page.keyboard.press('Tab')
-  await page.keyboard.press('Tab')
-  await page.keyboard.press('Tab')
+  // The skip link, the brand and the sidebar toggle come first in the tab order: land on a tool link and open it.
+  await page.getByRole('link', { name: 'Resume Analyzer' }).first().focus()
   await page.keyboard.press('Enter')
-  await page.waitForTimeout(2000)
+  await page.waitForURL('**/resume', { timeout: 10_000 })
+  await page.waitForTimeout(500)
 
   await page.keyboard.press('Tab')
   const focusAfterTool = await page.evaluate(() => {
@@ -174,6 +174,20 @@ test('app-shell pages have semantic landmarks', async ({ page }) => {
     expect(landmarks.hasMain, `${path}: missing <main>`).toBe(true)
     expect(landmarks.hasNav, `${path}: missing navigation landmark`).toBe(true)
     expect(landmarks.hasHeading, `${path}: missing heading`).toBe(true)
+  }
+})
+
+test('the skip link moves focus to the main landmark on every kind of page', async ({ page }) => {
+  test.setTimeout(60_000)
+  for (const path of ['/dashboard', '/settings', '/history']) {
+    await gotoHydrated(page, path)
+    await page.keyboard.press('Tab')
+    await page.keyboard.press('Enter')
+    const focusedTag = await page.evaluate(() => {
+      const el = document.activeElement
+      return el ? { tag: el.tagName, main: !!el.closest('main, [role="main"]') && el.matches('main, [role="main"]') } : null
+    })
+    expect(focusedTag?.main, `${path}: the skip link did not focus the main landmark`).toBe(true)
   }
 })
 
@@ -376,7 +390,7 @@ test('320px mobile view does not hide primary actions behind missing affordances
 
   await gotoHydrated(page, '/resume')
   await page.waitForTimeout(1500)
-  visible = await page.locator('.dropzone-hero, [data-slot="button"], textarea').first().isVisible().catch(() => false)
+  visible = await page.locator('.kit-file__trigger, textarea').first().isVisible().catch(() => false)
   expect(visible, '/resume: no interactive element visible at 320px').toBe(true)
 
   await gotoHydrated(page, '/dashboard')

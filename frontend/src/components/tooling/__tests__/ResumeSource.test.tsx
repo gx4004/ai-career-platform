@@ -60,4 +60,23 @@ describe('ResumeSource', () => {
     expect(screen.getByText('3 words')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Change' })).toBeTruthy()
   })
+
+  it('says the text was carried in when the editor opens on a carried resume', () => {
+    renderSource({ value: 'one two three', seeded: true })
+    fireEvent.click(screen.getByRole('button', { name: 'Change' }))
+    expect(screen.getByText('Resume text carried in from your recent workflow.')).toBeTruthy()
+  })
+
+  it('shows a busy row with the file name while a file is read, then names the dropzone "Resume"', async () => {
+    let resolve: (value: unknown) => void = () => {}
+    parseCvMock.mockReturnValue(new Promise((r) => { resolve = r }))
+    renderSource()
+    expect(screen.getByText('Resume')).toBeTruthy()
+    upload('cv.pdf')
+    const row = await screen.findByRole('list', { name: 'Resume source' })
+    expect(row.getAttribute('aria-busy')).toBe('true')
+    expect(row.textContent).toContain('Reading cv.pdf')
+    expect(row.querySelector('.tool-spinner')).toBeTruthy()
+    resolve({ filename: 'cv.pdf', extracted_text: 'text', chars_count: 4, warnings: [] })
+  })
 })

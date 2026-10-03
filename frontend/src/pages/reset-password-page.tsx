@@ -1,11 +1,20 @@
 import { Link, useSearch } from '@tanstack/react-router'
-import { useEffect, useState } from 'react'
-import { AlertCircle, Eye, EyeOff } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { ArrowLeft } from 'lucide-react'
+import { AuthShell } from '#/components/auth/AuthShell'
+import { PasswordInput } from '#/components/auth/PasswordInput'
+import { Button, EmptyState, ErrorState, Field, Input, Notice, PageHeader } from '#/components/kit'
 import { confirmPasswordReset } from '#/lib/api/client'
 import { newPasswordSchema } from '#/lib/api/schemas'
-import { Button } from '#/components/ui/button'
-import { Input } from '#/components/ui/input'
-import { Label } from '#/components/ui/label'
+
+const backToSignIn = (
+  <Button asChild variant="ghost" size="sm">
+    <Link to="/login">
+      <ArrowLeft aria-hidden />
+      Back to sign in
+    </Link>
+  </Button>
+)
 
 export function ResetPasswordPage() {
   const { token: legacyQueryToken } = useSearch({ from: '/reset-password' })
@@ -16,79 +25,90 @@ export function ResetPasswordPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
   const [error, setError] = useState('')
+  const [passwordError, setPasswordError] = useState('')
+  const [confirmError, setConfirmError] = useState('')
 
+  // The link's token is read once and scrubbed from the address bar. A re-run of this effect (the router
+  // seeing the scrubbed URL, a dev-mode remount) must keep the token it already consumed.
+  const consumed = useRef<{ token: string | undefined } | null>(null)
   useEffect(() => {
-    const fragment = new URLSearchParams(window.location.hash.slice(1))
-    setToken(fragment.get('token') ?? legacyQueryToken)
+    if (!consumed.current) {
+      const fragment = new URLSearchParams(window.location.hash.slice(1))
+      consumed.current = { token: fragment.get('token') ?? legacyQueryToken }
 
-    const url = new URL(window.location.href)
-    if (url.hash || url.searchParams.has('token')) {
-      url.hash = ''
-      url.searchParams.delete('token')
-      window.history.replaceState(
-        window.history.state,
-        '',
-        `${url.pathname}${url.search}`,
-      )
+      const url = new URL(window.location.href)
+      if (url.hash || url.searchParams.has('token')) {
+        url.hash = ''
+        url.searchParams.delete('token')
+        window.history.replaceState(
+          window.history.state,
+          '',
+          `${url.pathname}${url.search}`,
+        )
+      }
     }
+    setToken(consumed.current.token)
     setTokenReady(true)
   }, [legacyQueryToken])
 
   if (!tokenReady) {
     return (
-      <div className="auth-page" role="status" aria-live="polite">
-        Checking reset link…
-      </div>
+      <AuthShell>
+        <p className="auth-status" role="status">
+          Checking reset link…
+        </p>
+      </AuthShell>
     )
   }
 
   if (!token) {
     return (
-      <div className="auth-page">
-        <div className="auth-page-shell">
-          <div className="auth-result">
-            <h1 className="auth-surface-title">Invalid reset link</h1>
-            <p className="auth-result__text">
-              This password reset link is missing or expired. Request a new one and we'll email you a fresh link.
-            </p>
-            <Button asChild className="auth-submit">
+      <AuthShell>
+        <ErrorState
+          headingLevel={1}
+          role="none"
+          title="Invalid reset link"
+          description="This password reset link is missing or expired. Request a new one and we'll email you a fresh link."
+          backAction={
+            <Button asChild>
               <Link to="/login">Back to sign in</Link>
             </Button>
-          </div>
-        </div>
-      </div>
+          }
+        />
+      </AuthShell>
     )
   }
 
   if (status === 'success') {
     return (
-      <div className="auth-page">
-        <div className="auth-page-shell">
-          <div className="auth-result">
-            <h1 className="auth-surface-title">Password updated</h1>
-            <p className="auth-result__text">
-              Your password has been reset. Sign in with your new password to continue.
-            </p>
-            <Button asChild className="auth-submit">
+      <AuthShell>
+        <EmptyState
+          headingLevel={1}
+          title="Password updated"
+          description="Your password has been reset. Sign in with your new password to continue."
+          action={
+            <Button asChild>
               <Link to="/login">Sign in</Link>
             </Button>
-          </div>
-        </div>
-      </div>
+          }
+        />
+      </AuthShell>
     )
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError('')
+    setPasswordError('')
+    setConfirmError('')
 
     const passwordResult = newPasswordSchema.safeParse(password)
     if (!passwordResult.success) {
-      setError(passwordResult.error.issues[0]?.message || 'Password is invalid')
+      setPasswordError(passwordResult.error.issues[0]?.message || 'Password is invalid')
       return
     }
     if (password !== confirm) {
-      setError('Passwords do not match.')
+      setConfirmError('Passwords do not match.')
       return
     }
 
@@ -107,83 +127,49 @@ export function ResetPasswordPage() {
   }
 
   return (
-    <div className="auth-page">
-      <div className="auth-page-shell">
-        <div className="auth-page-actions">
-          <Link to="/login" className="small-copy muted-copy auth-back-link">
-            ← Back to sign in
-          </Link>
-        </div>
-        <div className="auth-surface">
-          <div className="auth-surface-header">
-            <h1 className="auth-surface-title">Set a new password</h1>
-            <p className="auth-surface-copy">Choose a strong password you haven't used before.</p>
-          </div>
-          <form onSubmit={handleSubmit} className="grid gap-5">
-            <div className="grid gap-1.5">
-              <Label htmlFor="new-password">New password</Label>
-              <div className="relative">
-                <Input
-                  id="new-password"
-                  type={showPassword ? 'text' : 'password'}
-                  className="auth-input pr-11"
-                  placeholder="8+ characters, at most 72 UTF-8 bytes"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  autoComplete="new-password"
-                  required
-                  minLength={8}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((v) => !v)}
-                  className="absolute inset-y-0 right-0 grid min-h-11 w-11 place-items-center text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45 rounded-r-lg"
-                  aria-label={showPassword ? 'Hide password' : 'Show password'}
-                >
-                  {showPassword ? (
-                    <EyeOff className="size-4" aria-hidden="true" />
-                  ) : (
-                    <Eye className="size-4" aria-hidden="true" />
-                  )}
-                </button>
-              </div>
-            </div>
-            <div className="grid gap-1.5">
-              <Label htmlFor="confirm-password">Confirm password</Label>
-              <Input
-                id="confirm-password"
-                type={showPassword ? 'text' : 'password'}
-                className="auth-input"
-                placeholder="Re-enter your new password"
-                value={confirm}
-                onChange={(e) => setConfirm(e.target.value)}
-                autoComplete="new-password"
-                required
-                minLength={8}
-              />
-            </div>
-            <div className="min-h-[2.5rem]">
-              {error ? (
-                <div
-                  role="alert"
-                  className="flex items-start gap-2.5 rounded-lg border border-destructive/25 bg-destructive/5 px-3 py-2.5 text-destructive"
-                >
-                  <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-                  <p className="text-sm leading-relaxed">{error}</p>
-                </div>
-              ) : null}
-            </div>
-            <Button
-              type="submit"
-              size="lg"
-              className="auth-submit w-full"
-              loading={status === 'loading'}
-            >
-              Reset password
-            </Button>
-          </form>
-        </div>
-      </div>
-    </div>
+    <AuthShell actions={backToSignIn}>
+      <PageHeader title="Set a new password" lead="Choose a strong password you haven't used before." />
+      <form onSubmit={handleSubmit} className="auth-form__fields">
+        <Field
+          label="New password"
+          id="new-password"
+          help={passwordError ? undefined : '8+ characters, at most 72 UTF-8 bytes.'}
+          error={passwordError || undefined}
+        >
+          <PasswordInput
+            size="lg"
+            shown={showPassword}
+            onShownChange={setShowPassword}
+            value={password}
+            onChange={(e) => {
+              setPassword(e.target.value)
+              setPasswordError('')
+            }}
+            autoComplete="new-password"
+            required
+            minLength={8}
+          />
+        </Field>
+        <Field label="Confirm password" id="confirm-password" error={confirmError || undefined}>
+          <Input
+            size="lg"
+            type={showPassword ? 'text' : 'password'}
+            placeholder="Re-enter your new password"
+            value={confirm}
+            onChange={(e) => {
+              setConfirm(e.target.value)
+              setConfirmError('')
+            }}
+            autoComplete="new-password"
+            required
+            minLength={8}
+          />
+        </Field>
+        {error ? <Notice tone="danger">{error}</Notice> : null}
+        <Button type="submit" size="lg" className="auth-wide" loading={status === 'loading'}>
+          Reset password
+        </Button>
+      </form>
+    </AuthShell>
   )
 }

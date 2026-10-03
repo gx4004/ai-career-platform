@@ -1,13 +1,10 @@
-import { Textarea } from '#/components/ui/textarea'
+import { Field, Segmented, Textarea } from '#/components/kit'
 import { JobImportCard } from '#/components/tooling/JobImportCard'
 import { ResumeSource } from '#/components/tooling/ResumeSource'
 import {
-  ToolField,
-  ToolInputHero,
+  ToolForm,
   ToolPageLoading,
   ToolPageShell,
-  ToolSegmented,
-  ToolSubmitRow,
   getSeededFieldNote,
   useToolPageState,
 } from '#/components/tooling/toolPageShared'
@@ -22,25 +19,16 @@ export function InterviewToolPage() {
   const jobField = config.fields.find((field) => field.name === 'jobDescription')!
 
   return (
-    <ToolPageShell
-      toolId="interview"
-      hero={
-        <ToolInputHero
-          toolId="interview"
-          subtitle="Check the resume and job description, then choose how many questions to practice."
-        />
-      }
-    >
+    <ToolPageShell toolId="interview">
       {mutation.isPending ? (
         <ToolPageLoading toolId="interview" mutationDone={!mutation.isPending} />
       ) : (
-        <form
-          aria-label={`${tool.label} input form`}
-          className="tool-form"
-          onSubmit={(event) => {
-            event.preventDefault()
-            handleSubmit()
-          }}
+        <ToolForm
+          label={`${tool.label} input form`}
+          onSubmit={handleSubmit}
+          submitLabel={tool.entryPointLabel}
+          error={mutation.error}
+          pending={mutation.isPending}
         >
           <ResumeSource
             id="interview-resumeText"
@@ -50,50 +38,36 @@ export function InterviewToolPage() {
             value={String(draft.resumeText ?? '')}
             onChange={(text) => setField('resumeText', text)}
             seeded={bridge.seededResume}
-            note={getSeededFieldNote('resumeText', bridge)}
             error={errors.resumeText}
           />
 
           <JobImportCard onImported={(description) => setField('jobDescription', description)} />
-          <ToolField
-            htmlFor="interview-jobDescription"
+          <Field
             label={jobField.label}
-            note={getSeededFieldNote('jobDescription', bridge)}
+            id="interview-jobDescription"
+            help={getSeededFieldNote('jobDescription', bridge) || undefined}
             error={errors.jobDescription}
           >
             <Textarea
-              id="interview-jobDescription"
               rows={jobField.rows}
-              aria-invalid={!!errors.jobDescription}
               value={String(draft.jobDescription ?? '')}
               placeholder={jobField.placeholder}
               onChange={(event) => setField('jobDescription', event.target.value as never)}
             />
-          </ToolField>
+          </Field>
 
-          <ToolField
-            label="Practice depth"
-            meta="Number of questions"
-            error={errors.numQuestions}
-          >
-            <ToolSegmented
-              ariaLabel="Question count quick picks"
+          <Field label="Practice depth" help="Number of questions" error={errors.numQuestions}>
+            <Segmented
               value={Number(draft.numQuestions)}
               options={questionCounts.map((count) => ({
                 value: count,
                 label: String(count),
-                ariaLabel: `${count} questions`,
+                'aria-label': `${count} questions`,
               }))}
-              onChange={(count) => setField('numQuestions', count as never)}
+              onValueChange={(count) => setField('numQuestions', count as never)}
             />
-          </ToolField>
-
-          <ToolSubmitRow
-            label={tool.entryPointLabel}
-            error={mutation.error}
-            pending={mutation.isPending}
-          />
-        </form>
+          </Field>
+        </ToolForm>
       )}
     </ToolPageShell>
   )

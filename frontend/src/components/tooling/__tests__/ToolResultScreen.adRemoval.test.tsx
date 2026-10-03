@@ -1,4 +1,3 @@
-import type { ReactNode } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -29,10 +28,6 @@ vi.mock('@tanstack/react-router', async (importOriginal) => {
 
 vi.mock('#/hooks/useSession', () => ({
   useSession: () => ({ status: sessionStatus, openAuthDialog: openAuthDialogMock }),
-}))
-
-vi.mock('#/components/app/PageFrame', () => ({
-  PageFrame: ({ children }: { children: ReactNode }) => <div>{children}</div>,
 }))
 
 vi.mock('#/lib/telemetry/client', () => ({

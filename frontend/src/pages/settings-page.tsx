@@ -2,19 +2,34 @@ import { useState, useEffect } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { Trash2 } from 'lucide-react'
-import { Button } from '#/components/ui/button'
 import {
+  Badge,
+  Button,
+  ConfirmDialog,
   Dialog,
+  DialogBody,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
+  DialogForm,
   DialogHeader,
   DialogTitle,
-} from '#/components/ui/dialog'
-import { Input } from '#/components/ui/input'
-import { Label } from '#/components/ui/label'
-import { PageHero } from '#/components/app/PageHero'
-import { WorkspacePage } from '#/components/app/WorkspacePage'
+  Field,
+  Input,
+  List,
+  Notice,
+  Page,
+  PageHeader,
+  Row,
+  RowActions,
+  RowBody,
+  RowMeta,
+  RowSubtitle,
+  RowTitle,
+  Section,
+  useToast,
+} from '#/components/kit'
 import { OnboardingDialog } from '#/components/onboarding/OnboardingDialog'
 import { useOnboarding } from '#/hooks/useOnboarding'
 import { useSession } from '#/hooks/useSession'
@@ -26,8 +41,8 @@ import { invalidateEvidenceCaches } from '#/lib/query/evidenceCaches'
 export function SettingsPage() {
   const queryClient = useQueryClient()
   const onboarding = useOnboarding()
+  const { toast } = useToast()
   const { health, status, user } = useSession()
-  const [cleared, setCleared] = useState(false)
   const isOnline = health?.status === 'ok'
 
   // Account-deletion dialog state. The Privacy Policy promises a working
@@ -47,13 +62,6 @@ export function SettingsPage() {
     !deleteSubmitting &&
     expectedConfirmation.length > 0 &&
     deleteConfirmInput.trim().toLowerCase() === expectedConfirmation.toLowerCase()
-
-  // Auto-hide cleared message after 3 seconds
-  useEffect(() => {
-    if (!cleared) return
-    const timer = setTimeout(() => setCleared(false), 3000)
-    return () => clearTimeout(timer)
-  }, [cleared])
 
   // Reset dialog state whenever it closes so the next open starts clean.
   useEffect(() => {
@@ -126,154 +134,129 @@ export function SettingsPage() {
   }
 
   return (
-    <WorkspacePage className="settings-page">
-      <PageHero title="Settings" />
-      <div className="settings-layout">
-        <section className="settings-section">
-          <h2 className="settings-section-heading">General</h2>
-          <div className="settings-group">
-            <div className="settings-row">
-              <div className="settings-info">
-                <h3 className="settings-title">Onboarding</h3>
-                <p className="settings-description">
-                  Replay the welcome tour.
-                </p>
-              </div>
-              <div className="settings-action">
+    <Page width="narrow">
+      <PageHeader title="Settings" />
+
+      <Section title="General">
+        <List className="settings-list" aria-label="General">
+          <Row>
+            <RowBody>
+              <RowTitle>Onboarding</RowTitle>
+              <RowSubtitle>Replay the welcome tour.</RowSubtitle>
+            </RowBody>
+            <RowActions reveal={false}>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  onboarding.reset()
+                  onboarding.startTour()
+                }}
+              >
+                Replay tour
+              </Button>
+            </RowActions>
+          </Row>
+          <Row>
+            <RowBody>
+              <RowTitle>Local workspace data</RowTitle>
+              <RowSubtitle>Clear cached drafts, guest demos and workflow context on this device.</RowSubtitle>
+            </RowBody>
+            <RowActions reveal={false}>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  clearSensitiveBrowserData()
+                  toast({ tone: 'success', title: 'Local drafts and demo state were cleared.' })
+                }}
+              >
+                Clear local drafts
+              </Button>
+            </RowActions>
+          </Row>
+          <Row>
+            <RowBody>
+              <RowTitle>Saved workspace history</RowTitle>
+              <RowSubtitle>Review, favorite, pin and delete saved runs in the timeline.</RowSubtitle>
+            </RowBody>
+            <RowActions reveal={false}>
+              <Button asChild variant="secondary" size="sm">
+                <Link to="/history">Open timeline</Link>
+              </Button>
+            </RowActions>
+          </Row>
+          <Row>
+            <RowBody>
+              <RowTitle>Connection</RowTitle>
+            </RowBody>
+            <RowMeta>
+              <Badge tone={isOnline ? 'success' : 'danger'} dot>
+                {isOnline ? 'Connected' : "Can't reach the server"}
+              </Badge>
+            </RowMeta>
+          </Row>
+        </List>
+      </Section>
+
+      {isAuthenticated ? (
+        <Section title="Data and privacy">
+          {exportError ? (
+            <Notice tone="danger" onDismiss={() => setExportError(null)}>
+              {exportError}
+            </Notice>
+          ) : null}
+          <List className="settings-list" aria-label="Data and privacy">
+            <Row>
+              <RowBody>
+                <RowTitle>Export career data</RowTitle>
+                <RowSubtitle>Download everything you saved as a JSON file.</RowSubtitle>
+              </RowBody>
+              <RowActions reveal={false}>
                 <Button
-                  variant="outline"
-                  className="settings-btn"
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => void handleCareerDataExport()}
+                  loading={dataAction === 'export'}
+                >
+                  Export data
+                </Button>
+              </RowActions>
+            </Row>
+            <Row>
+              <RowBody>
+                <RowTitle>Delete evidence profile</RowTitle>
+                <RowSubtitle>Erase saved Evidence Profile items without deleting your account.</RowSubtitle>
+              </RowBody>
+              <RowActions reveal={false}>
+                <Button
+                  variant="secondary"
+                  size="sm"
                   onClick={() => {
-                    onboarding.reset()
-                    onboarding.startTour()
+                    setProfileDeleteError(null)
+                    setProfileDeleteOpen(true)
                   }}
                 >
-                  Replay tour
+                  Delete profile
                 </Button>
-              </div>
-            </div>
-
-            <div className="settings-row">
-              <div className="settings-info">
-                <h3 className="settings-title">Local workspace data</h3>
-                <p className="settings-description">
-                  Clear cached drafts, guest demos and workflow context on this device.
-                </p>
-                <p role="status" className="settings-cleared-msg">
-                  {cleared ? 'Local drafts and demo state were cleared.' : ''}
-                </p>
-              </div>
-              <div className="settings-action">
-                <Button
-                  variant="outline"
-                  className="settings-btn"
-                  onClick={() => {
-                    clearSensitiveBrowserData()
-                    setCleared(true)
-                  }}
-                >
-                  Clear local drafts
+              </RowActions>
+            </Row>
+            <Row>
+              <RowBody>
+                <RowTitle>Delete account</RowTitle>
+                <RowSubtitle>
+                  Permanently delete your account, saved runs and workspaces. This cannot be undone.
+                </RowSubtitle>
+              </RowBody>
+              <RowActions reveal={false}>
+                <Button variant="secondary" size="sm" onClick={() => setDeleteOpen(true)}>
+                  Delete account
                 </Button>
-              </div>
-            </div>
-
-            <div className="settings-row">
-              <div className="settings-info">
-                <h3 className="settings-title">Saved workspace history</h3>
-                <p className="settings-description">
-                  Review, favorite, pin and delete saved runs in the timeline.
-                </p>
-              </div>
-              <div className="settings-action">
-                <Button asChild variant="outline" className="settings-btn">
-                  <Link to="/history">Open timeline</Link>
-                </Button>
-              </div>
-            </div>
-
-            <div className="settings-row">
-              <div className="settings-info">
-                <h3 className="settings-title">Connection</h3>
-              </div>
-              <div className="settings-action">
-                <span className="settings-status">
-                  <span
-                    className={`settings-status-dot ${isOnline ? 'is-online' : 'is-offline'}`}
-                    aria-hidden="true"
-                  />
-                  {isOnline ? 'Connected' : "Can't reach the server"}
-                </span>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {isAuthenticated && (
-          <section className="settings-section">
-            <h2 className="settings-section-heading">Data and privacy</h2>
-            <div className="settings-group">
-              <div className="settings-row">
-                <div className="settings-info">
-                  <h3 className="settings-title">Export career data</h3>
-                  <p className="settings-description">
-                    Download everything you saved as a JSON file.
-                  </p>
-                  {exportError ? (
-                    <p role="alert" className="settings-error">{exportError}</p>
-                  ) : null}
-                </div>
-                <div className="settings-action">
-                  <Button
-                    variant="outline"
-                    className="settings-btn"
-                    onClick={() => void handleCareerDataExport()}
-                    loading={dataAction === 'export'}
-                  >
-                    Export data
-                  </Button>
-                </div>
-              </div>
-              <div className="settings-row">
-                <div className="settings-info">
-                  <h3 className="settings-title">Delete evidence profile</h3>
-                  <p className="settings-description">
-                    Erase saved Evidence Profile items without deleting your account.
-                  </p>
-                </div>
-                <div className="settings-action">
-                  <Button
-                    variant="outline"
-                    className="settings-btn settings-btn--destructive"
-                    onClick={() => {
-                      setProfileDeleteError(null)
-                      setProfileDeleteOpen(true)
-                    }}
-                  >
-                    Delete profile
-                  </Button>
-                </div>
-              </div>
-              <div className="settings-row">
-                <div className="settings-info">
-                  <h3 className="settings-title">Delete account</h3>
-                  <p className="settings-description">
-                    Permanently delete your account, saved runs and workspaces. This cannot be undone.
-                  </p>
-                </div>
-                <div className="settings-action">
-                  <Button
-                    variant="outline"
-                    className="settings-btn settings-btn--destructive"
-                    onClick={() => setDeleteOpen(true)}
-                  >
-                    Delete account
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </section>
-        )}
-      </div>
+              </RowActions>
+            </Row>
+          </List>
+        </Section>
+      ) : null}
 
       <OnboardingDialog
         open={onboarding.open}
@@ -283,89 +266,70 @@ export function SettingsPage() {
       />
 
       <Dialog open={deleteOpen} onOpenChange={(open) => !deleteSubmitting && setDeleteOpen(open)}>
-        <DialogContent showCloseButton={!deleteSubmitting}>
-          <DialogHeader>
-            <DialogTitle>Delete your account?</DialogTitle>
-            <DialogDescription>
-              This permanently removes your account, every saved tool run, and every workspace.
-              The action is irreversible — we do not retain a backup. To confirm, type your email
-              address below.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-2">
-            <Label htmlFor="delete-confirm-input">
-              Type <span className="font-mono text-foreground">{expectedConfirmation}</span> to confirm
-            </Label>
-            <Input
-              id="delete-confirm-input"
-              autoComplete="off"
-              autoCapitalize="off"
-              autoCorrect="off"
-              spellCheck={false}
-              value={deleteConfirmInput}
-              onChange={(event) => setDeleteConfirmInput(event.target.value)}
-              placeholder="your.email@example.com"
-              disabled={deleteSubmitting}
-            />
-          </div>
-          {deleteError ? (
-            <p role="alert" className="small-copy settings-error">
-              {deleteError}
-            </p>
-          ) : null}
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setDeleteOpen(false)}
-              disabled={deleteSubmitting}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="outline"
-              className="settings-btn--destructive"
-              onClick={handleDeleteAccount}
-              disabled={!deleteEnabled}
-              loading={deleteSubmitting}
-            >
-              <Trash2 size={14} className="mr-1.5" />
-              {deleteSubmitting ? 'Deleting…' : 'Delete account permanently'}
-            </Button>
-          </DialogFooter>
+        <DialogContent size="md" showClose={false} dismissible={!deleteSubmitting}>
+          <DialogForm
+            onSubmit={(event) => {
+              event.preventDefault()
+              void handleDeleteAccount()
+            }}
+          >
+            <DialogHeader>
+              <DialogTitle>Delete your account?</DialogTitle>
+              <DialogDescription>
+                This permanently removes your account, every saved tool run, and every workspace.
+                The action is irreversible — we do not retain a backup. To confirm, type your email
+                address below.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogBody>
+              <Field
+                id="delete-confirm-input"
+                label={
+                  <span>
+                    Type <strong>{expectedConfirmation}</strong> to confirm
+                  </span>
+                }
+                error={deleteError}
+              >
+                <Input
+                  autoComplete="off"
+                  autoCapitalize="off"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  value={deleteConfirmInput}
+                  onChange={(event) => setDeleteConfirmInput(event.target.value)}
+                  placeholder="your.email@example.com"
+                  disabled={deleteSubmitting}
+                />
+              </Field>
+            </DialogBody>
+            <DialogFooter>
+              <DialogClose asChild>
+                <Button type="button" variant="secondary" disabled={deleteSubmitting}>
+                  Cancel
+                </Button>
+              </DialogClose>
+              <Button type="submit" variant="destructive" disabled={!deleteEnabled} loading={deleteSubmitting}>
+                <Trash2 aria-hidden />
+                {deleteSubmitting ? 'Deleting…' : 'Delete account permanently'}
+              </Button>
+            </DialogFooter>
+          </DialogForm>
         </DialogContent>
       </Dialog>
-      <Dialog
+
+      <ConfirmDialog
         open={profileDeleteOpen}
-        onOpenChange={(open) => dataAction !== 'erase' && setProfileDeleteOpen(open)}
+        onOpenChange={setProfileDeleteOpen}
+        pending={dataAction === 'erase'}
+        title="Delete your evidence profile?"
+        description="This immediately removes every Evidence Profile item. It does not delete your account, and it cannot be undone."
+        confirmLabel="Delete evidence profile"
+        icon={<Trash2 aria-hidden />}
+        onConfirm={() => void handleProfileErasure()}
       >
-        <DialogContent showCloseButton={dataAction !== 'erase'}>
-          <DialogHeader>
-            <DialogTitle>Delete your evidence profile?</DialogTitle>
-            <DialogDescription>
-              This immediately removes every Evidence Profile item. It does not delete your
-              account, and it cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          {profileDeleteError ? (
-            <p role="alert" className="small-copy settings-error">
-              {profileDeleteError}
-            </p>
-          ) : null}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setProfileDeleteOpen(false)} disabled={dataAction === 'erase'}>
-              Cancel
-            </Button>
-            <Button
-              variant="outline"
-              className="settings-btn--destructive"
-              onClick={() => void handleProfileErasure()}
-              loading={dataAction === 'erase'}
-            >
-              Delete evidence profile
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </WorkspacePage>
+        {profileDeleteError ? <Notice tone="danger">{profileDeleteError}</Notice> : null}
+      </ConfirmDialog>
+    </Page>
   )
 }

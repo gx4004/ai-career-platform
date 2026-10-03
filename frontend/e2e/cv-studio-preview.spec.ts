@@ -45,7 +45,7 @@ test('CV Studio paper fits 320/375px, edits in a sheet, follows the template and
   expect(created.ok()).toBe(true)
   await gotoHydrated(page, '/cv-studio')
   await expect(page.locator('.app-main--mobile')).toBeVisible()
-  const toolbar = page.getByRole('navigation', { name: 'Studio tools' })
+  const toolbar = page.getByRole('tablist', { name: 'Studio tools' })
 
   // Paper first on a phone: tapping a section opens its editor in a sheet.
   await page.getByRole('button', { name: 'Edit Summary' }).click()
@@ -55,7 +55,7 @@ test('CV Studio paper fits 320/375px, edits in a sheet, follows the template and
   await sheet.getByRole('button', { name: 'Close panel' }).click()
 
   for (const template of ['ATS Essential', 'Professional Editorial', 'Modern Two-Column']) {
-    await toolbar.getByRole('button', { name: /^Design/ }).click()
+    await toolbar.getByRole('tab', { name: /^Design/ }).click()
     await page.getByRole('dialog', { name: 'Design' }).getByRole('radio', { name: new RegExp(template) }).check({ force: true })
     await page.getByRole('dialog', { name: 'Design' }).getByRole('button', { name: 'Close panel' }).click()
     await expect(page.getByTestId('cv-paper')).toBeVisible()

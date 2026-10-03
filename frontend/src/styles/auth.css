@@ -1,192 +1,83 @@
-/* Sign-in, register and reset-password: one centred form card on the neutral
-   background, logo mark above the title. Also used inside the auth dialog. */
+/* Sign-in, register and reset password: brand and a way out at the top, one narrow column of form on paper. Forms, tabs, buttons and notices are kit components; also used inside the session-expired dialog. */
 
 .auth-page {
-  min-height: 100svh;
   display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  padding: clamp(1.5rem, 12vh, 6rem) clamp(1rem, 4vw, 2.5rem) clamp(1rem, 4vw, 2.5rem);
+  flex-direction: column;
+  min-height: 100svh;
   background: var(--background);
 }
 
-/* Keep the fixed cookie banner from covering the last form controls on short screens. */
+/* The cookie notice is fixed to the viewport: leave room under the form so it never covers the last controls. */
 html:has(.cookie-banner) .auth-page {
-  padding-bottom: calc(clamp(1rem, 4vw, 2.5rem) + 8rem);
+  padding-bottom: 8rem;
 }
 
-.auth-page-shell,
-.auth-dialog-content,
-.auth-dialog-sheet {
-  overflow: hidden;
-  border-radius: var(--radius-xl);
-  border: 1px solid var(--border-soft);
-  background: var(--surface-raised);
-  box-shadow: none;
+.auth-page__main {
+  display: flex;
+  flex: 1 1 auto;
+  justify-content: center;
+  padding: clamp(var(--space-4), 6vh, var(--space-12)) var(--space-page-x) var(--space-12);
 }
 
-.auth-page-shell { width: min(100%, 26rem); padding: 0.75rem 0.5rem 0.5rem; position: relative; }
+.auth-page__column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  inline-size: 100%;
+  max-inline-size: 26rem;
+  min-inline-size: 0;
+}
 
-.auth-page-actions {
+.auth-status {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--fs-body);
+}
+
+.auth-form,
+.auth-form__fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-inline-size: 0;
+}
+
+.kit-button.auth-wide {
+  inline-size: 100%;
+}
+
+/* A ghost button's label sits inside its padding and border: pull it back so the text lines up with the form's edge.
+   The forgot-password button sits under the password field and lines up with the field. */
+.kit-button:is(.auth-guest, .auth-forgot) {
+  align-self: flex-start;
+  margin-inline-start: calc((var(--space-3) + 1px) * -1);
+}
+
+.auth-google-mark {
+  flex: none;
+}
+
+/* "or continue with email": a hairline either side of quiet text. */
+.auth-divider {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 0 1rem;
-  color: var(--text-muted);
-  font-size: 0.8125rem;
-}
-
-.auth-page-actions a,
-.auth-page-actions button {
-  display: inline-flex;
-  align-items: center;
-  min-height: 2.25rem;
-  color: var(--text-muted);
-  text-decoration: none;
-}
-
-.auth-page-actions a:hover,
-.auth-page-actions button:hover { color: var(--text-strong); }
-
-.auth-back-link { background: none; border: none; padding: 0; cursor: pointer; white-space: nowrap; transition: color 120ms; }
-.auth-back-link:focus-visible,
-.auth-forgot-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: var(--radius-sm); }
-
-.auth-dialog-content {
-  width: min(100%, 26rem);
-  max-width: calc(100vw - 2rem);
-  max-height: calc(100svh - 2rem);
-  padding: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
-}
-
-.auth-dialog-content [data-slot='dialog-close'] { top: 0.75rem; right: 0.75rem; z-index: 2; }
-
-.auth-dialog-sheet {
-  min-height: auto;
-  max-height: 85svh;
-  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
-  overflow-y: auto;
-  overflow-x: hidden;
-  -webkit-overflow-scrolling: touch;
-  padding-bottom: calc(var(--mobile-tab-height, 56px) + env(safe-area-inset-bottom, 0px) + 1rem) !important;
-}
-
-.auth-dialog-sheet [data-slot='sheet-close'] { top: 0.75rem; right: 0.75rem; z-index: 2; }
-
-.auth-surface { display: grid; gap: 1.25rem; padding: 1.5rem 1.5rem 1.25rem; }
-.auth-surface--sheet { padding-bottom: max(1.25rem, env(safe-area-inset-bottom)); }
-
-.auth-surface-header { display: grid; gap: 0.75rem; text-align: left; justify-items: start; }
-.auth-surface-copy { display: grid; gap: 0.25rem; text-align: left; }
-.auth-page-footer { padding: 0 1.5rem 0.75rem; }
-
-.auth-surface-title {
+  gap: var(--space-3);
   margin: 0;
-  color: var(--text-strong);
-  font-family: var(--font-serif);
-  font-size: var(--fs-title);
-  line-height: var(--lh-title);
-  letter-spacing: var(--ls-title);
-  font-weight: var(--fw-medium);
-}
-
-.auth-intro-copy { margin: 0; max-width: 24rem; color: var(--text-muted); font-size: 0.8125rem; line-height: 1.5; }
-.auth-surface-tabs { gap: 0; }
-
-.auth-input { height: 2.25rem; padding: 0.4rem 0.65rem; font-size: 0.875rem; border-radius: var(--radius-md); }
-.auth-input:focus-visible { border-color: var(--accent); box-shadow: var(--focus-ring); }
-
-.auth-submit { height: 2.25rem; font-size: 0.875rem; font-weight: 500; margin-top: 0.25rem; }
-
-.auth-surface .auth-google[data-slot='button'] {
-  background: var(--surface-raised) !important;
-  border-color: var(--border-strong) !important;
-  color: var(--text-strong) !important;
-  box-shadow: none !important;
-}
-
-.auth-surface .auth-google[data-slot='button']:hover { background: var(--surface-focus) !important; }
-
-.auth-surface [data-slot='tabs-list'] {
-  height: auto;
-  gap: 1.25rem;
-  padding: 0;
-  border: 0;
-  border-bottom: 1px solid var(--border-soft);
-  border-radius: 0;
-  background: none;
-}
-
-.auth-surface [data-slot='tabs-trigger'] {
-  flex: none;
-  height: 2.5rem;
-  margin-bottom: -1px;
-  padding: 0;
-  border: 0;
-  border-bottom: 2px solid transparent;
-  border-radius: 0;
-  background: none;
-  font-size: var(--fs-body);
-  font-weight: 500;
   color: var(--text-muted);
-  box-shadow: none;
-  transition: var(--transition-colors);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
 }
 
-.auth-surface [data-slot='tabs-trigger']::after { display: none; }
-.auth-surface [data-slot='tabs-trigger']:hover { color: var(--text-strong); }
-
-.auth-surface [data-slot='tabs-trigger'][data-state='active'] {
-  background: none;
-  border-bottom-color: var(--accent);
-  color: var(--text-strong);
-  box-shadow: none;
+.auth-divider::before,
+.auth-divider::after {
+  flex: 1 1 0;
+  block-size: 1px;
+  background: var(--border-soft);
+  content: '';
 }
 
-.auth-surface-provider-block { display: grid; gap: 0.6rem; }
-
-.auth-forgot-link {
-  font-size: 0.8125rem;
-  font-weight: 500;
+.auth-form .kit-check__text a {
   color: var(--accent);
-  background: none;
-  border: none;
-  padding: 0.5rem 0;
-  min-height: 44px;
-  margin-block: -0.75rem;
-  display: inline-flex;
-  align-items: center;
-  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
-
-.auth-forgot-link:hover { text-decoration: underline; }
-
-/* Reset-password result cards (invalid link, success) */
-.auth-result { display: grid; gap: 0.5rem; justify-items: start; padding: 1.5rem; }
-.auth-result .auth-surface-title { text-align: left; }
-.auth-result__text { margin: 0; font-size: 0.8125rem; color: var(--text-muted); line-height: 1.5; }
-
-.auth-page-signed-in { min-height: 100dvh; }
-
-/* ── State pages (404, route error, sign-in required) ─────────────── */
-
-.state-page {
-  display: grid;
-  justify-items: start;
-  gap: 0.5rem;
-  max-width: 34rem;
-  padding: 3rem 0;
-}
-
-.state-page__code { margin: 0; font-size: 0.75rem; font-weight: 500; color: var(--text-muted); font-variant-numeric: tabular-nums; }
-.state-page__title { margin: 0; font-family: var(--font-serif); font-size: var(--fs-display); font-weight: var(--fw-medium); line-height: var(--lh-display); letter-spacing: var(--ls-display); color: var(--text-strong); }
-.state-page__text { margin: 0; font-size: 0.875rem; color: var(--text-muted); }
-.state-page__detail { margin: 0; font-size: 0.75rem; color: var(--text-soft); overflow-wrap: anywhere; }
-.state-page__tools { margin-top: 1.5rem; }
-.state-page__tools ul { display: grid; gap: 0.25rem; margin: 0.5rem 0 0; padding: 0; list-style: none; font-size: var(--fs-body); }
-.state-page__tools a { color: var(--accent); text-decoration: none; }
-.state-page__tools a:hover { text-decoration: underline; }
-.state-page__actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.75rem; }

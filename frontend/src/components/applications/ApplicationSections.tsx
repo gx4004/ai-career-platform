@@ -3,7 +3,31 @@ import type { ReactNode } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { CalendarClock, Check, Copy, ExternalLink, Trash2 } from 'lucide-react'
-import { Button } from '#/components/ui/button'
+import {
+  Button,
+  Card,
+  CardActions,
+  CardHeader,
+  CardTitle,
+  Checkbox,
+  Cluster,
+  DateField,
+  EmptyState,
+  Field,
+  Input,
+  KeyValue,
+  List,
+  Notice,
+  Row,
+  RowActions,
+  RowBody,
+  RowMeta,
+  RowTitle,
+  Section,
+  Select,
+  Stack,
+  Textarea,
+} from '#/components/kit'
 import {
   createApplicationTask,
   deleteApplicationTask,
@@ -12,10 +36,9 @@ import {
 } from '#/lib/api/client'
 import type { ApplicationDetail, ApplicationEvent, ApplicationStatus, ApplicationUpdate } from '#/lib/api/schemas'
 import { applicationQueryKey, invalidateApplications } from '#/lib/query/applicationCaches'
-import { EmptyLine, Panel } from './Panel'
 import { STATUS_LABELS, formatDate, timeAgo } from './stages'
 
-type Section = { application: ApplicationDetail }
+type Props = { application: ApplicationDetail }
 
 function useApplicationUpdate(applicationId: string) {
   const queryClient = useQueryClient()
@@ -30,13 +53,13 @@ function useApplicationUpdate(applicationId: string) {
 
 // ── What you're sending ──
 
-export function DocumentsPanel({ application }: Section) {
+export function DocumentsPanel({ application }: Props) {
   const materials = useApplicationUpdate(application.id)
   const { selected_materials: selected, available_materials: available, drafts } = application
   const draftCover = drafts?.cover_letter
   return (
-    <Panel title="What you're sending" description="Pick the version of each document that goes with this application." className="camp-sec-documents">
-      <div className="camp-materials">
+    <Section title="What you're sending" description="Pick the version of each document that goes with this application.">
+      <Stack gap={4}>
         <MaterialRow
           label="CV version" field="cv_variant_id" value={selected.cv_variant?.id ?? ''} pending={materials.isPending}
           items={available.cv_variants.map((item) => ({ id: item.id, label: `${item.name} (${item.document_name})` }))}
@@ -56,12 +79,13 @@ export function DocumentsPanel({ application }: Section) {
           <CopyBlock label="Prepared cover letter" text={draftCover.body} />
         ) : null}
         {drafts?.screening_answers.length ? (
-          <div className="camp-material">
-            <span className="camp-field__label">Screening answers</span>
-            {drafts.screening_answers.map((item) => (
-              <CopyBlock key={item.question} label={item.question} text={item.answer} />
-            ))}
-          </div>
+          <Section headingLevel={3} title="Screening answers" rule={false}>
+            <Stack gap={2}>
+              {drafts.screening_answers.map((item) => (
+                <CopyBlock key={item.question} label={item.question} text={item.answer} />
+              ))}
+            </Stack>
+          </Section>
         ) : null}
         <MaterialRow
           label="Interview prep" field="interview_run_id" value={selected.interview?.id ?? ''} pending={materials.isPending}
@@ -70,10 +94,13 @@ export function DocumentsPanel({ application }: Section) {
           create={{ to: '/interview', label: 'Prepare for interviews' }}
           onChange={(value) => materials.mutate({ interview_run_id: value || null })}
         />
-      </div>
-      <p className="camp-muted" role="status" aria-live="polite">{materials.isPending ? 'Saving…' : materials.isSuccess ? 'Saved.' : ''}</p>
-      {materials.isError ? <p className="camp-alert" role="alert">Your choice couldn't be saved. Try again.</p> : null}
-    </Panel>
+        {/* Always mounted so screen readers announce it; only takes room while it has something to say. */}
+        <p className={materials.isPending || materials.isSuccess ? 'camp-note' : 'kit-sr-only'} role="status" aria-live="polite">
+          {materials.isPending ? 'Saving…' : materials.isSuccess ? 'Saved.' : ''}
+        </p>
+        {materials.isError ? <Notice tone="danger">Your choice couldn't be saved. Try again.</Notice> : null}
+      </Stack>
+    </Section>
   )
 }
 
@@ -90,58 +117,64 @@ function MaterialRow({ label, field, value, items, pending, open, create, emptyL
   emptyLabel?: string
   onChange: (value: string) => void
 }) {
-  const id = `application-${field}`
   if (!items.length && !create) return null
   return (
-    <div className="camp-material">
-      <label htmlFor={id} className="camp-field__label">{label}</label>
-      {items.length ? (
-        <div className="camp-material__row">
-          <select id={id} className="workspace-select" value={value} disabled={pending} onChange={(event) => onChange(event.target.value)}>
+    <Field label={label} id={`application-${field}`}>
+      <Cluster gap={3} className="camp-material">
+        {items.length ? (
+          <Select className="camp-material__select" value={value} disabled={pending} onChange={(event) => onChange(event.target.value)}>
             <option value="">{emptyLabel}</option>
             {items.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
-          </select>
-          {open ? (
-            'historyId' in open
-              ? <Link to={open.to} params={{ historyId: open.historyId }} className="camp-link-button">Open</Link>
-              : <Link to={open.to} className="camp-link-button">Open</Link>
-          ) : null}
-        </div>
-      ) : create ? (
-        <p className="camp-material__empty">
-          None yet. <Link to={create.to} className="camp-link-button">{create.label}</Link>
-        </p>
-      ) : null}
-    </div>
+          </Select>
+        ) : (
+          <Select className="camp-material__select" value="" disabled>
+            <option value="">None yet</option>
+          </Select>
+        )}
+        {items.length && open ? (
+          <Button asChild variant="secondary" size="sm">
+            {'historyId' in open
+              ? <Link to={open.to} params={{ historyId: open.historyId }}>Open</Link>
+              : <Link to={open.to}>Open</Link>}
+          </Button>
+        ) : null}
+        {!items.length && create ? (
+          <Button asChild variant="secondary" size="sm"><Link to={create.to}>{create.label}</Link></Button>
+        ) : null}
+      </Cluster>
+    </Field>
   )
 }
 
 function CopyBlock({ label, text }: { label: string; text: string }) {
   const [copied, setCopied] = useState(false)
   return (
-    <div className="camp-copy">
-      <div className="camp-copy__head">
-        <span>{label}</span>
-        <button
-          type="button"
-          className="camp-copy__button"
-          aria-label={`Copy ${label}`}
-          onClick={async () => {
-            try {
-              await navigator.clipboard.writeText(text)
-              setCopied(true)
-              setTimeout(() => setCopied(false), 1200)
-            } catch {
-              // Clipboard access can be denied; the text stays visible to copy by hand.
-            }
-          }}
-        >
-          {copied ? <Check size={13} aria-hidden="true" /> : <Copy size={13} aria-hidden="true" />}
-          {copied ? 'Copied' : 'Copy'}
-        </button>
-      </div>
-      <p>{text}</p>
-    </div>
+    <Card as="div" padding="sm">
+      <CardHeader>
+        <CardTitle>{label}</CardTitle>
+        <CardActions reveal={false}>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            aria-label={`Copy ${label}`}
+            onClick={async () => {
+              try {
+                await navigator.clipboard.writeText(text)
+                setCopied(true)
+                setTimeout(() => setCopied(false), 1200)
+              } catch {
+                // Clipboard access can be denied; the text stays visible to copy by hand.
+              }
+            }}
+          >
+            {copied ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
+            {copied ? 'Copied' : 'Copy'}
+          </Button>
+        </CardActions>
+      </CardHeader>
+      <p className="camp-prose">{text}</p>
+    </Card>
   )
 }
 
@@ -152,36 +185,47 @@ function runLabel(run: { label: string | null; parent_run_id: string | null; cre
 
 // ── The job ──
 
-export function JobPanel({ application }: Section) {
+export function JobPanel({ application }: Props) {
   const [expanded, setExpanded] = useState(false)
   const listing = application.listing
   const long = (listing?.description.length ?? 0) > 700
   return (
-    <Panel
+    <Section
       title="Job description"
-      className="camp-sec-job"
       description={listing ? `${listing.title} at ${listing.company} · saved ${formatDate(listing.retrieved_at)}` : undefined}
       actions={listing?.source_url ? (
-        <a href={listing.source_url} target="_blank" rel="noopener noreferrer" className="camp-link-button">
-          Job posting <ExternalLink size={13} aria-hidden="true" />
-        </a>
+        <Button asChild variant="secondary" size="sm">
+          <a href={listing.source_url} target="_blank" rel="noopener noreferrer">
+            Job posting <ExternalLink aria-hidden="true" />
+          </a>
+        </Button>
       ) : null}
     >
       {listing ? (
-        <>
-          <p className={long && !expanded ? 'camp-description is-clamped' : 'camp-description'}>{listing.description}</p>
-          {long ? <button type="button" className="camp-link-button" onClick={() => setExpanded(!expanded)}>{expanded ? 'Show less' : 'Show full description'}</button> : null}
-        </>
+        <Stack gap={2}>
+          <p className="camp-prose" data-clamped={long && !expanded ? 'true' : undefined}>{listing.description}</p>
+          {long ? (
+            <div>
+              <Button type="button" variant="ghost" size="sm" aria-expanded={expanded} onClick={() => setExpanded(!expanded)}>
+                {expanded ? 'Show less' : 'Show full description'}
+              </Button>
+            </div>
+          ) : null}
+        </Stack>
       ) : (
-        <EmptyLine>No job posting yet. Save the job from Job Discovery or import it in Job Match to keep the description here.</EmptyLine>
+        <EmptyState
+          size="inline"
+          title="No job posting yet"
+          description="Save the job from Job Discovery or import it in Job Match to keep the description here."
+        />
       )}
-    </Panel>
+    </Section>
   )
 }
 
 // ── Tasks ──
 
-export function TasksPanel({ application }: Section) {
+export function TasksPanel({ application }: Props) {
   const queryClient = useQueryClient()
   const [title, setTitle] = useState('')
   const [deadline, setDeadline] = useState('')
@@ -192,67 +236,88 @@ export function TasksPanel({ application }: Section) {
   const open = application.tasks.filter((task) => !task.completed)
   const done = application.tasks.filter((task) => task.completed)
   return (
-    <Panel title="Tasks" className="camp-sec-tasks">
-      <form
-        className="camp-task-form"
-        onSubmit={(event) => {
-          event.preventDefault()
-          // Midday keeps a date-only choice on the same calendar day in any timezone.
-          write.mutate(() => createApplicationTask(application.id, {
-            title,
-            deadline: deadline ? new Date(`${deadline}T12:00:00`).toISOString() : null,
-          }).then(() => { setTitle(''); setDeadline('') }))
-        }}
-      >
-        <input className="workspace-input camp-task-form__title" required maxLength={240} value={title} aria-label="New task" placeholder="Add a task" onChange={(event) => setTitle(event.target.value)} />
-        <input className="workspace-input camp-task-form__date" type="date" value={deadline} aria-label="Due date (optional)" onChange={(event) => setDeadline(event.target.value)} />
-        <Button type="submit" size="sm" variant="outline" disabled={write.isPending} aria-label="Add task">Add</Button>
-      </form>
-      {application.tasks.length ? (
-        <ul className="camp-list">
-          {[...open, ...done].map((task) => (
-            <li key={task.id} className={task.completed ? 'camp-task is-done' : 'camp-task'}>
-              <label>
-                <input type="checkbox" checked={task.completed} onChange={() => write.mutate(() => updateApplicationTask(application.id, task.id, !task.completed))} />
-                <span>{task.title}</span>
-              </label>
-              {task.deadline ? <span className="camp-task__due"><CalendarClock size={13} aria-hidden="true" />{formatDate(task.deadline)}</span> : null}
-              <button type="button" className="camp-icon-button" aria-label={`Delete task ${task.title}`} onClick={() => write.mutate(() => deleteApplicationTask(application.id, task.id))}>
-                <Trash2 size={14} aria-hidden="true" />
-              </button>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p className="camp-muted">No tasks yet.</p>
-      )}
-      {write.isError ? <p role="alert" className="camp-alert">That change couldn't be saved. Try again.</p> : null}
-    </Panel>
+    <Section title="Tasks">
+      <Stack gap={3}>
+        <form
+          className="camp-task-form"
+          onSubmit={(event) => {
+            event.preventDefault()
+            // Midday keeps a date-only choice on the same calendar day in any timezone.
+            write.mutate(() => createApplicationTask(application.id, {
+              title,
+              deadline: deadline ? new Date(`${deadline}T12:00:00`).toISOString() : null,
+            }).then(() => { setTitle(''); setDeadline('') }))
+          }}
+        >
+          <Input required maxLength={240} value={title} aria-label="New task" placeholder="Add a task" onChange={(event) => setTitle(event.target.value)} />
+          <div className="camp-task-form__row">
+            <DateField aria-label="Due date (optional)" value={deadline} onValueChange={setDeadline} />
+            <Button type="submit" variant="secondary" disabled={write.isPending} aria-label="Add task">Add</Button>
+          </div>
+        </form>
+        {application.tasks.length ? (
+          <List aria-label="Tasks">
+            {[...open, ...done].map((task) => (
+              <Row key={task.id} density="compact">
+                <RowBody>
+                  <Checkbox
+                    label={task.completed ? <span className="camp-done">{task.title}</span> : task.title}
+                    checked={task.completed}
+                    onCheckedChange={() => write.mutate(() => updateApplicationTask(application.id, task.id, !task.completed))}
+                  />
+                </RowBody>
+                {task.deadline ? (
+                  <RowMeta>
+                    <span className="camp-due"><CalendarClock aria-hidden="true" />{formatDate(task.deadline)}</span>
+                  </RowMeta>
+                ) : null}
+                <RowActions>
+                  <Button
+                    type="button"
+                    iconOnly
+                    size="sm"
+                    variant="ghost"
+                    aria-label={`Delete task ${task.title}`}
+                    onClick={() => write.mutate(() => deleteApplicationTask(application.id, task.id))}
+                  >
+                    <Trash2 aria-hidden="true" />
+                  </Button>
+                </RowActions>
+              </Row>
+            ))}
+          </List>
+        ) : (
+          <EmptyState size="inline" title="No tasks yet" />
+        )}
+        {write.isError ? <Notice tone="danger">That change couldn't be saved. Try again.</Notice> : null}
+      </Stack>
+    </Section>
   )
 }
 
 // ── Notes ──
 
-export function NotesPanel({ application }: Section) {
+export function NotesPanel({ application }: Props) {
   const save = useApplicationUpdate(application.id)
   const [text, setText] = useState(application.notes ?? '')
   const changed = text.trim() !== (application.notes ?? '').trim()
   return (
-    <Panel title="Notes" description="Only you can see these: interview impressions, salary details, who you spoke to." className="camp-sec-notes">
-      <form className="camp-form" onSubmit={(event) => { event.preventDefault(); save.mutate({ notes: text.trim() || null }) }}>
-        <label className="camp-field">
-          <span className="camp-field__label">Your notes</span>
-          <textarea className="workspace-textarea" rows={5} maxLength={20_000} value={text} onChange={(event) => setText(event.target.value)} />
-        </label>
-        {changed || save.isPending ? (
-          <Button type="submit" size="sm" variant="outline" disabled={save.isPending} className="camp-form__submit">
-            {save.isPending ? 'Saving…' : 'Save notes'}
-          </Button>
-        ) : null}
-      </form>
-      {save.isSuccess && !changed ? <p className="camp-muted" role="status">Saved.</p> : null}
-      {save.isError ? <p role="alert" className="camp-alert">Your notes couldn't be saved. Try again.</p> : null}
-    </Panel>
+    <Section title="Notes" description="Only you can see these: interview impressions, salary details, who you spoke to.">
+      <Stack gap={2}>
+        <form className="camp-notes" onSubmit={(event) => { event.preventDefault(); save.mutate({ notes: text.trim() || null }) }}>
+          <Field label="Your notes" hideLabel>
+            <Textarea autosize rows={3} maxRows={14} maxLength={20_000} value={text} onChange={(event) => setText(event.target.value)} />
+          </Field>
+          {changed || save.isPending ? (
+            <Button type="submit" size="sm" variant="secondary" disabled={save.isPending}>
+              {save.isPending ? 'Saving…' : 'Save notes'}
+            </Button>
+          ) : null}
+        </form>
+        {save.isSuccess && !changed ? <p className="camp-note" role="status">Saved.</p> : null}
+        {save.isError ? <Notice tone="danger">Your notes couldn't be saved. Try again.</Notice> : null}
+      </Stack>
+    </Section>
   )
 }
 
@@ -289,24 +354,25 @@ function eventLabel(event: ApplicationEvent) {
   return EVENT_LABELS[event.event_type] ?? 'Updated'
 }
 
-export function ActivityPanel({ application }: Section) {
+export function ActivityPanel({ application }: Props) {
   const events = [...application.events].reverse()
   return (
-    <Panel title="Activity" className="camp-sec-activity">
+    <Section title="Activity">
       {events.length ? (
-        <ol className="camp-timeline">
+        <List aria-label="Activity">
           {events.map((event) => (
-            <li key={event.id} className={event.event_type === 'applied' ? 'is-key' : undefined}>
-              <span className="camp-timeline__dot" aria-hidden="true" />
-              <strong>{eventLabel(event)}</strong>
-              <span className="camp-muted">{formatDate(event.created_at)} · {event.provenance === 'system' ? 'Automatic' : 'You'}</span>
-            </li>
+            <Row key={event.id} density="compact">
+              <RowBody>
+                <RowTitle>{eventLabel(event)}</RowTitle>
+              </RowBody>
+              <RowMeta>{formatDate(event.created_at)} · {event.provenance === 'system' ? 'Automatic' : 'You'}</RowMeta>
+            </Row>
           ))}
-        </ol>
+        </List>
       ) : (
-        <p className="camp-muted">Changes you make to this application will show up here.</p>
+        <EmptyState size="inline" title="Nothing yet" description="Changes you make to this application will show up here." />
       )}
-    </Panel>
+    </Section>
   )
 }
 
@@ -321,22 +387,18 @@ const OUTCOMES: Partial<Record<ApplicationStatus, string>> = {
   withdrawn: 'You withdrew',
 }
 
-export function FactsPanel({ application }: Section) {
+export function FactsPanel({ application }: Props) {
   const { listing } = application
-  const rows: Array<[string, ReactNode]> = [
-    ...(application.match_score !== null ? [['Skills fit', `${application.match_score}% when saved`] as [string, ReactNode]] : []),
-    ...(OUTCOMES[application.status] ? [['Outcome', OUTCOMES[application.status]] as [string, ReactNode]] : []),
-    ...(application.deadline && !application.applied_at ? [['Apply by', formatDate(application.deadline)] as [string, ReactNode]] : []),
-    ...(listing ? [['Saved', formatDate(listing.retrieved_at)] as [string, ReactNode]] : []),
-    ['Last activity', timeAgo(application.last_activity_at ?? application.updated_at)],
+  const rows: Array<{ label: string; value: ReactNode }> = [
+    ...(application.match_score !== null ? [{ label: 'Skills fit', value: `${application.match_score}% when saved` }] : []),
+    ...(OUTCOMES[application.status] ? [{ label: 'Outcome', value: OUTCOMES[application.status] }] : []),
+    ...(application.deadline && !application.applied_at ? [{ label: 'Apply by', value: formatDate(application.deadline) }] : []),
+    ...(listing ? [{ label: 'Saved', value: formatDate(listing.retrieved_at) }] : []),
+    { label: 'Last activity', value: timeAgo(application.last_activity_at ?? application.updated_at) },
   ]
   return (
-    <Panel title="Details" className="camp-sec-details">
-      <dl className="camp-facts">
-        {rows.map(([label, value]) => (
-          <div key={label}><dt>{label}</dt><dd>{value}</dd></div>
-        ))}
-      </dl>
-    </Panel>
+    <Section title="Details">
+      <KeyValue items={rows} labelWidth="6.5rem" />
+    </Section>
   )
 }

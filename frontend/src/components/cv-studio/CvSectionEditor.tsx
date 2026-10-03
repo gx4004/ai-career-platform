@@ -1,12 +1,13 @@
-import { useId } from 'react'
-import { ArrowDown, ArrowUp, BadgeCheck, Plus, Trash2, X } from 'lucide-react'
-import { Button } from '#/components/ui/button'
+import { useState } from 'react'
+import { ArrowDown, ArrowLeft, ArrowUp, Plus, Trash2, X } from 'lucide-react'
+import {
+  Badge, Button, Cluster, ConfirmDialog, EmptyState, Field, Input, Section, Stack, Textarea,
+} from '#/components/kit'
 import type { CvEntry, CvSection } from '#/lib/api/schemas'
 import {
   MAX_BULLETS, addBullet, addEntry, isStructuredKind, moveBullet, moveEntry, removeBullet, removeEntry,
   removeSection, sectionLabels, updateBullet, updateEntry,
 } from '#/lib/cv-studio/editor'
-import { cn } from '#/lib/utils'
 
 type SectionsChange = (change: (sections: CvSection[]) => CvSection[]) => void
 
@@ -22,83 +23,101 @@ const FREEFORM_HINTS: Partial<Record<CvSection['kind'], string>> = {
   achievements: 'One result per entry. Numbers help: “Cut onboarding time by 30%”.',
 }
 
+const LinkedToEvidence = () => <Badge tone="success" size="sm">Linked to your Evidence</Badge>
+
+/** Move up, move down and delete: the same three controls on every entry. */
+function EntryTools({ name, index, count, onMove, onDelete }: {
+  name: string; index: number; count: number; onMove: (delta: -1 | 1) => void; onDelete: () => void
+}) {
+  return (
+    <>
+      <Button type="button" iconOnly variant="ghost" size="sm" aria-label={`Move ${name} up`} disabled={index === 0} onClick={() => onMove(-1)}><ArrowUp aria-hidden="true" /></Button>
+      <Button type="button" iconOnly variant="ghost" size="sm" aria-label={`Move ${name} down`} disabled={index === count - 1} onClick={() => onMove(1)}><ArrowDown aria-hidden="true" /></Button>
+      <Button type="button" iconOnly variant="ghost" size="sm" aria-label={`Delete ${name}`} onClick={onDelete}><Trash2 aria-hidden="true" /></Button>
+    </>
+  )
+}
+
+function Bullet({ text, index, count, label, onChange, onMove, onRemove }: {
+  text: string; index: number; count: number; label: string
+  onChange: (value: string) => void; onMove: (delta: -1 | 1) => void; onRemove: () => void
+}) {
+  return (
+    <li className="cvs-bullet">
+      <Textarea
+        autosize maxRows={8} rows={1} value={text} maxLength={1000}
+        aria-label={`Highlight ${index + 1} for ${label}`}
+        placeholder="What did you do, and what changed because of it?"
+        onChange={(event) => onChange(event.target.value)}
+      />
+      <div className="cvs-bullet__tools">
+        <Button type="button" iconOnly variant="ghost" size="sm" aria-label={`Move highlight ${index + 1} up`} disabled={index === 0} onClick={() => onMove(-1)}><ArrowUp aria-hidden="true" /></Button>
+        <Button type="button" iconOnly variant="ghost" size="sm" aria-label={`Move highlight ${index + 1} down`} disabled={index === count - 1} onClick={() => onMove(1)}><ArrowDown aria-hidden="true" /></Button>
+        <Button type="button" iconOnly variant="ghost" size="sm" aria-label={`Remove highlight ${index + 1}`} onClick={onRemove}><X aria-hidden="true" /></Button>
+      </div>
+    </li>
+  )
+}
+
 function StructuredEntry({ section, entry, index, onSections }: {
   section: CvSection; entry: CvEntry; index: number; onSections: SectionsChange
 }) {
-  const uid = useId()
   const labels = FIELD_LABELS[section.kind] ?? FIELD_LABELS.experience!
   const bullets = entry.bullets ?? []
   const set = (patch: Partial<CvEntry>) => onSections((sections) => updateEntry(sections, section.id, entry.id, patch))
   const cardTitle = entry.heading?.trim() || `New ${labels.noun}`
-  const field = (key: 'heading' | 'subheading' | 'location' | 'start_date' | 'end_date', label: string, placeholder?: string, className?: string) => (
-    <div className={cn('cvs-field', className)}>
-      <label htmlFor={`${uid}-${key}`}>{label}</label>
-      <input
-        id={`${uid}-${key}`} className="cvs-input" value={entry[key] ?? ''} maxLength={key.endsWith('date') ? 40 : 200}
-        placeholder={placeholder} onChange={(event) => set({ [key]: event.target.value })}
-      />
-    </div>
+  const field = (key: 'heading' | 'subheading' | 'location' | 'start_date' | 'end_date', label: string, placeholder?: string, span = 'cvs-field--third') => (
+    <Field label={label} className={span}>
+      <Input value={entry[key] ?? ''} maxLength={key.endsWith('date') ? 40 : 200} placeholder={placeholder} onChange={(event) => set({ [key]: event.target.value })} />
+    </Field>
   )
 
   return (
-    <article className="cvs-entry cvs-entry--structured" aria-label={cardTitle}>
-      <header className="cvs-entry__head">
-        <p className="cvs-entry__title">{cardTitle}</p>
-        {entry.evidence_item_id ? <span className="cvs-evidence-tag"><BadgeCheck size={13} aria-hidden="true" /> Linked to your Evidence</span> : null}
-        <span className="cvs-entry__tools">
-          <Button type="button" variant="ghost" size="icon-sm" aria-label={`Move ${cardTitle} up`} disabled={index === 0} onClick={() => onSections((s) => moveEntry(s, section.id, index, -1))}><ArrowUp /></Button>
-          <Button type="button" variant="ghost" size="icon-sm" aria-label={`Move ${cardTitle} down`} disabled={index === section.entries.length - 1} onClick={() => onSections((s) => moveEntry(s, section.id, index, 1))}><ArrowDown /></Button>
-          <Button type="button" variant="ghost" size="icon-sm" aria-label={`Delete ${cardTitle}`} onClick={() => onSections((s) => removeEntry(s, section.id, entry.id))}><Trash2 /></Button>
-        </span>
-      </header>
-      <div className="cvs-entry__grid">
-        {field('heading', labels.heading, section.kind === 'experience' ? 'e.g. Product Designer' : undefined, 'cvs-field--wide')}
-        {field('subheading', labels.subheading, undefined, 'cvs-field--wide')}
-        {field('location', 'Location', 'City or Remote')}
-        <div className="cvs-field-pair">
-          {field('start_date', 'Start', 'Jan 2022')}
-          {field('end_date', 'End', 'Present')}
-        </div>
-      </div>
-      {bullets.length > 0 ? (
-        <div className="cvs-bullets">
-          <p className="cvs-bullets__label" id={`${uid}-bullets`}>Highlights</p>
-          <ul aria-labelledby={`${uid}-bullets`}>
-            {bullets.map((bullet, bulletIndex) => (
-              // Bullets have no ids of their own; the index is their identity.
-              <li key={bulletIndex} className="cvs-bullet">
-                <span className="cvs-bullet__dot" aria-hidden="true" />
-                <textarea
-                  className="cvs-bullet__input" rows={1} value={bullet} maxLength={1000}
-                  aria-label={`Highlight ${bulletIndex + 1} for ${cardTitle}`}
-                  placeholder="What did you do, and what changed because of it?"
-                  onChange={(event) => onSections((s) => updateBullet(s, section.id, entry.id, bulletIndex, event.target.value))}
-                />
-                <span className="cvs-bullet__tools">
-                  <Button type="button" variant="ghost" size="icon-xs" aria-label={`Move highlight ${bulletIndex + 1} up`} disabled={bulletIndex === 0} onClick={() => onSections((s) => moveBullet(s, section.id, entry.id, bulletIndex, -1))}><ArrowUp /></Button>
-                  <Button type="button" variant="ghost" size="icon-xs" aria-label={`Move highlight ${bulletIndex + 1} down`} disabled={bulletIndex === bullets.length - 1} onClick={() => onSections((s) => moveBullet(s, section.id, entry.id, bulletIndex, 1))}><ArrowDown /></Button>
-                  <Button type="button" variant="ghost" size="icon-xs" aria-label={`Remove highlight ${bulletIndex + 1}`} onClick={() => onSections((s) => removeBullet(s, section.id, entry.id, bulletIndex))}><X /></Button>
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : (
-        <div className="cvs-field">
-          <label htmlFor={`${uid}-body`}>Description</label>
-          <textarea
-            id={`${uid}-body`} className="cvs-textarea" rows={3} maxLength={5000} value={entry.body}
-            placeholder="A short description, or add highlights below."
-            onChange={(event) => set({ body: event.target.value })}
-          />
-        </div>
-      )}
-      <Button
-        type="button" variant="ghost" size="sm" className="cvs-add-bullet" disabled={bullets.length >= MAX_BULLETS}
-        onClick={() => onSections((s) => addBullet(s, section.id, entry.id))}
+    <article aria-label={cardTitle}>
+      <Section
+        headingLevel={3}
+        title={cardTitle}
+        actions={<EntryTools
+          name={cardTitle} index={index} count={section.entries.length}
+          onMove={(delta) => onSections((s) => moveEntry(s, section.id, index, delta))}
+          onDelete={() => onSections((s) => removeEntry(s, section.id, entry.id))}
+        />}
       >
-        <Plus size={14} /> Add highlight
-      </Button>
+        <Stack gap={3}>
+          {entry.evidence_item_id ? <div><LinkedToEvidence /></div> : null}
+          <div className="cvs-entry__grid">
+            {field('heading', labels.heading, section.kind === 'experience' ? 'e.g. Product Designer' : undefined, 'cvs-field--full')}
+            {field('subheading', labels.subheading, undefined, 'cvs-field--full')}
+            {field('location', 'Location', 'City or Remote', 'cvs-field--third cvs-field--location')}
+            {field('start_date', 'Start', 'Jan 2022')}
+            {field('end_date', 'End', 'Present')}
+          </div>
+          {bullets.length > 0 ? (
+            <Section headingLevel={4} size="sm" title="Highlights" rule={false}>
+              <ul className="cvs-bullets" role="list">
+                {bullets.map((bullet, bulletIndex) => (
+                  // Bullets have no ids of their own; the index is their identity.
+                  <Bullet
+                    key={bulletIndex} text={bullet} index={bulletIndex} count={bullets.length} label={cardTitle}
+                    onChange={(value) => onSections((s) => updateBullet(s, section.id, entry.id, bulletIndex, value))}
+                    onMove={(delta) => onSections((s) => moveBullet(s, section.id, entry.id, bulletIndex, delta))}
+                    onRemove={() => onSections((s) => removeBullet(s, section.id, entry.id, bulletIndex))}
+                  />
+                ))}
+              </ul>
+            </Section>
+          ) : (
+            <Field label="Description">
+              <Textarea autosize maxRows={10} rows={3} maxLength={5000} value={entry.body} placeholder="A short description, or add highlights below." onChange={(event) => set({ body: event.target.value })} />
+            </Field>
+          )}
+          <div>
+            <Button type="button" variant="ghost" size="sm" disabled={bullets.length >= MAX_BULLETS} onClick={() => onSections((s) => addBullet(s, section.id, entry.id))}>
+              <Plus aria-hidden="true" /> Add highlight
+            </Button>
+          </div>
+        </Stack>
+      </Section>
     </article>
   )
 }
@@ -106,63 +125,88 @@ function StructuredEntry({ section, entry, index, onSections }: {
 function FreeformEntry({ section, entry, index, onSections }: {
   section: CvSection; entry: CvEntry; index: number; onSections: SectionsChange
 }) {
-  const uid = useId()
   const only = section.entries.length === 1
   const label = only ? `${section.title} text` : `${section.title} entry ${index + 1}`
+  const text = (
+    <Textarea
+      autosize maxRows={12} aria-label={label} rows={section.kind === 'summary' ? 4 : 2} maxLength={5000}
+      value={entry.body} placeholder={FREEFORM_HINTS[section.kind] ?? 'Write this entry in your own words.'}
+      onChange={(event) => onSections((s) => updateEntry(s, section.id, entry.id, { body: event.target.value }))}
+    />
+  )
+  if (only) {
+    return (
+      <Section headingLevel={3} size="sm" title={sectionLabels[section.kind]} rule={false}>
+        <Stack gap={2}>
+          {entry.evidence_item_id ? <div><LinkedToEvidence /></div> : null}
+          {text}
+        </Stack>
+      </Section>
+    )
+  }
   return (
-    <div className="cvs-entry cvs-entry--freeform">
-      {only ? (
-        entry.evidence_item_id ? <span className="cvs-evidence-tag"><BadgeCheck size={13} aria-hidden="true" /> Linked to your Evidence</span> : null
-      ) : (
-        <div className="cvs-entry__freeform-head">
-          <label htmlFor={uid}>Entry {index + 1}</label>
-          {entry.evidence_item_id ? <span className="cvs-evidence-tag"><BadgeCheck size={13} aria-hidden="true" /> Linked to your Evidence</span> : null}
-          <span className="cvs-entry__tools">
-            <Button type="button" variant="ghost" size="icon-sm" aria-label={`Move ${label} up`} disabled={index === 0} onClick={() => onSections((s) => moveEntry(s, section.id, index, -1))}><ArrowUp /></Button>
-            <Button type="button" variant="ghost" size="icon-sm" aria-label={`Move ${label} down`} disabled={index === section.entries.length - 1} onClick={() => onSections((s) => moveEntry(s, section.id, index, 1))}><ArrowDown /></Button>
-            <Button type="button" variant="ghost" size="icon-sm" aria-label={`Delete ${label}`} onClick={() => onSections((s) => removeEntry(s, section.id, entry.id))}><Trash2 /></Button>
-          </span>
-        </div>
-      )}
-      <textarea
-        id={uid} aria-label={label} className="cvs-textarea" rows={section.kind === 'summary' ? 4 : 2} maxLength={5000}
-        value={entry.body} placeholder={FREEFORM_HINTS[section.kind] ?? 'Write this entry in your own words.'}
-        onChange={(event) => onSections((s) => updateEntry(s, section.id, entry.id, { body: event.target.value }))}
-      />
-    </div>
+    <Section
+      headingLevel={3}
+      title={`Entry ${index + 1}`}
+      actions={<EntryTools
+        name={label} index={index} count={section.entries.length}
+        onMove={(delta) => onSections((s) => moveEntry(s, section.id, index, delta))}
+        onDelete={() => onSections((s) => removeEntry(s, section.id, entry.id))}
+      />}
+    >
+      <Stack gap={3}>
+        {entry.evidence_item_id ? <div><LinkedToEvidence /></div> : null}
+        {text}
+      </Stack>
+    </Section>
   )
 }
 
-export function CvSectionEditor({ section, onSections }: { section: CvSection; onSections: SectionsChange }) {
-  const uid = useId()
+export function CvSectionEditor({ section, onSections, onBack }: { section: CvSection; onSections: SectionsChange; onBack: () => void }) {
+  const [confirmRemove, setConfirmRemove] = useState(false)
   const structured = isStructuredKind(section.kind)
+  const customTitle = section.title.trim() !== sectionLabels[section.kind]
   const addLabel = structured ? `Add ${FIELD_LABELS[section.kind]?.noun ?? 'entry'}` : 'Add entry'
 
   function remove() {
-    if (section.entries.length > 0 && !window.confirm(`Remove the ${section.title} section and everything in it?`)) return
-    onSections((sections) => removeSection(sections, section.id))
+    if (section.entries.length > 0) setConfirmRemove(true)
+    else onSections((sections) => removeSection(sections, section.id))
   }
 
   return (
-    <section className={cn('cvs-section', !section.visible && 'is-hidden')} aria-labelledby={`${uid}-kind`}>
-      <header className="cvs-section__head">
-        <input
-          className="cvs-section__title" aria-label={`Section name for ${sectionLabels[section.kind]}`} value={section.title} maxLength={120}
+    <Stack gap={6} role="group" aria-label={sectionLabels[section.kind]}>
+      <Cluster justify="between" gap={3}>
+        <Button type="button" variant="ghost" size="sm" onClick={onBack}><ArrowLeft aria-hidden="true" /> All sections</Button>
+        <Button type="button" variant="ghost" size="sm" onClick={remove}><Trash2 aria-hidden="true" /> Remove section</Button>
+      </Cluster>
+      <Field label="Section name">
+        <Input
+          value={section.title} maxLength={120}
           onChange={(event) => onSections((sections) => sections.map((item) => item.id === section.id ? { ...item, title: event.target.value } : item))}
         />
-        {!section.visible ? <span className="cvs-section__hidden">Hidden from your CV</span> : null}
-        <span id={`${uid}-kind`} className={cn('cvs-section__kind', section.title.trim() === sectionLabels[section.kind] && 'sr-only')}>{sectionLabels[section.kind]}</span>
-        <Button type="button" variant="ghost" size="icon-sm" className="cvs-section__remove" aria-label={`Remove ${section.title} section`} onClick={remove}><Trash2 /></Button>
-      </header>
-      <div className="cvs-section__entries">
-        {section.entries.length === 0 ? <p className="cvs-section__empty">Nothing here yet.</p> : null}
-        {section.entries.map((entry, index) => structured
-          ? <StructuredEntry key={entry.id} section={section} entry={entry} index={index} onSections={onSections} />
-          : <FreeformEntry key={entry.id} section={section} entry={entry} index={index} onSections={onSections} />)}
+      </Field>
+      {customTitle || !section.visible ? (
+        <Cluster gap={2}>
+          {customTitle ? <Badge size="sm">{sectionLabels[section.kind]}</Badge> : null}
+          {!section.visible ? <Badge size="sm" tone="info">Hidden from your CV</Badge> : null}
+        </Cluster>
+      ) : null}
+      {section.entries.length === 0 ? <EmptyState size="inline" title="Nothing here yet." /> : null}
+      {section.entries.map((entry, index) => structured
+        ? <StructuredEntry key={entry.id} section={section} entry={entry} index={index} onSections={onSections} />
+        : <FreeformEntry key={entry.id} section={section} entry={entry} index={index} onSections={onSections} />)}
+      <div>
+        <Button type="button" variant="secondary" size="sm" onClick={() => onSections((sections) => addEntry(sections, section.id))}>
+          <Plus aria-hidden="true" /> {addLabel}
+        </Button>
       </div>
-      <Button type="button" variant="outline" size="sm" className="cvs-section__add" onClick={() => onSections((sections) => addEntry(sections, section.id))}>
-        <Plus size={15} /> {addLabel}
-      </Button>
-    </section>
+      <ConfirmDialog
+        open={confirmRemove} onOpenChange={setConfirmRemove}
+        title={`Remove the ${section.title} section?`}
+        description="Everything in it is removed from your CV. You can’t undo this."
+        confirmLabel="Remove section" icon={<Trash2 />}
+        onConfirm={() => { setConfirmRemove(false); onSections((sections) => removeSection(sections, section.id)) }}
+      />
+    </Stack>
   )
 }

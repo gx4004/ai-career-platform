@@ -49,7 +49,7 @@ describe('JobImportCard', () => {
       fireEvent.change(screen.getByLabelText('Application'), { target: { value: 'ws-1' } })
       fireEvent.change(screen.getByLabelText('Job title'), { target: { value: 'Engineer' } })
       fireEvent.change(screen.getByLabelText('Company'), { target: { value: 'Example Corp' } })
-      fireEvent.change(screen.getByLabelText('Job description'), { target: { value: 'A sufficiently detailed pasted listing description.' } })
+      fireEvent.change(screen.getByLabelText('Pasted listing text'), { target: { value: 'A sufficiently detailed pasted listing description.' } })
       fireEvent.click(screen.getByRole('button', { name: 'Attach pasted listing' }))
       await waitFor(() => expect(importJobTextMock).toHaveBeenCalledWith({
           campaign_id: 'ws-1', job_title: 'Engineer', company_name: 'Example Corp',

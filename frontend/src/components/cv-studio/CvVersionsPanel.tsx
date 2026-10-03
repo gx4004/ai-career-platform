@@ -1,7 +1,9 @@
-import { useId, useState } from 'react'
+import { useState } from 'react'
 import type { FormEvent } from 'react'
-import { History, RotateCcw, Save } from 'lucide-react'
-import { Button } from '#/components/ui/button'
+import { RotateCcw, Save } from 'lucide-react'
+import {
+  Button, EmptyState, Field, Input, List, MetaRow, Row, RowActions, RowBody, RowSubtitle, RowTitle, Stack,
+} from '#/components/kit'
 import type { CvVariant } from '#/lib/api/schemas'
 
 const dateFormat = new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
@@ -13,7 +15,6 @@ export function CvVersionsPanel({ variants, busy, onSave, onRestore }: {
   onSave: (name: string) => Promise<boolean>
   onRestore: (variantId: string) => Promise<void>
 }) {
-  const nameId = useId()
   const [name, setName] = useState('')
   const [saving, setSaving] = useState(false)
   const [confirming, setConfirming] = useState<string | null>(null)
@@ -36,42 +37,46 @@ export function CvVersionsPanel({ variants, busy, onSave, onRestore }: {
   }
 
   return (
-    <div className="cvs-versions">
+    <Stack gap={4}>
       <form className="cvs-versions__form" onSubmit={(event) => void submit(event)}>
-        <label htmlFor={nameId} className="sr-only">Version name</label>
-        <input id={nameId} className="cvs-input" value={name} maxLength={120} placeholder="Name this version, e.g. Product roles" onChange={(event) => setName(event.target.value)} />
-        <Button type="submit" variant="outline" loading={saving} disabled={!name.trim() || busy}><Save size={15} /> Save version</Button>
+        <Field
+          label="Version name" hideLabel className="cvs-versions__name"
+          help={busy ? <span role="status">Saving your latest edits first…</span> : undefined}
+        >
+          <Input value={name} maxLength={120} placeholder="Name this version" onChange={(event) => setName(event.target.value)} />
+        </Field>
+        <Button type="submit" variant="secondary" loading={saving} disabled={!name.trim() || busy}><Save aria-hidden="true" /> Save version</Button>
       </form>
-      {busy ? <p className="cvs-versions__hint" role="status">Saving your latest edits first…</p> : null}
       {ordered.length === 0 ? (
-        <p className="cvs-versions__empty"><History size={16} aria-hidden="true" /> No versions yet. Save one before big changes so you can always go back.</p>
+        <EmptyState title="No versions yet" description="Save one before big changes so you can always go back." />
       ) : (
-        <ul className="cvs-versions__list" aria-label="Saved versions">
+        <List aria-label="Saved versions">
           {ordered.map((variant) => (
-            <li key={variant.id} className="cvs-version">
-              <span className="cvs-version__dot" aria-hidden="true" />
-              <div className="cvs-version__text">
-                <p className="cvs-version__name">{variant.name}</p>
-                <p className="cvs-version__meta">
-                  {dateFormat.format(new Date(variant.created_at))}
-                  {variant.target_role ? ` · for ${variant.target_role}` : ''}
-                </p>
-              </div>
-              {confirming === variant.id ? (
-                <span className="cvs-version__confirm">
-                  <span>Replace your current CV? We’ll keep it in your versions.</span>
-                  <Button type="button" size="sm" variant="ghost" disabled={restoring !== null} onClick={() => setConfirming(null)}>Cancel</Button>
-                  <Button type="button" size="sm" loading={restoring === variant.id} onClick={() => void restore(variant.id)}>Restore</Button>
-                </span>
-              ) : (
-                <Button type="button" size="sm" variant="ghost" disabled={busy} aria-label={`Restore ${variant.name}`} onClick={() => setConfirming(variant.id)}>
-                  <RotateCcw size={14} /> Restore
-                </Button>
-              )}
-            </li>
+            <Row key={variant.id}>
+              <RowBody>
+                <RowTitle>{variant.name}</RowTitle>
+                <RowSubtitle>
+                  {confirming === variant.id
+                    ? 'Replace your current CV? We’ll keep it in your versions.'
+                    : <MetaRow>{dateFormat.format(new Date(variant.created_at))}{variant.target_role ? `for ${variant.target_role}` : null}</MetaRow>}
+                </RowSubtitle>
+              </RowBody>
+              <RowActions reveal={false}>
+                {confirming === variant.id ? (
+                  <>
+                    <Button type="button" size="sm" variant="ghost" disabled={restoring !== null} onClick={() => setConfirming(null)}>Cancel</Button>
+                    <Button type="button" size="sm" variant="secondary" loading={restoring === variant.id} onClick={() => void restore(variant.id)}>Restore</Button>
+                  </>
+                ) : (
+                  <Button type="button" size="sm" variant="ghost" disabled={busy} aria-label={`Restore ${variant.name}`} onClick={() => setConfirming(variant.id)}>
+                    <RotateCcw aria-hidden="true" /> Restore
+                  </Button>
+                )}
+              </RowActions>
+            </Row>
           ))}
-        </ul>
+        </List>
       )}
-    </div>
+    </Stack>
   )
 }

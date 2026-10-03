@@ -1,12 +1,11 @@
-import { useEffect, useId, useState } from 'react'
-import { ArrowRight, Check, Info, Sparkles, X } from 'lucide-react'
-import { Button } from '#/components/ui/button'
+import { useEffect, useState } from 'react'
+import { Check, X } from 'lucide-react'
 import {
-  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
-} from '#/components/ui/dialog'
+  Badge, Button, Card, CardHeader, CardTitle, Cluster, Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter,
+  DialogHeader, DialogTitle, Field, Input, KeyValue, Notice, Stack, Textarea,
+} from '#/components/kit'
 import { applyCvTailoring, tailorCvDocument } from '#/lib/api/client'
 import type { CvTailoringChange, CvTailoringProposal, CvVariant } from '#/lib/api/schemas'
-import { cn } from '#/lib/utils'
 
 type Decision = 'accept' | 'reject'
 
@@ -15,35 +14,36 @@ function ChangeCard({ change, decision, onDecide }: {
 }) {
   const blocked = change.support === 'unsupported'
   return (
-    <article className={cn('cvs-diff', blocked && 'is-blocked', decision === 'accept' && 'is-accepted', decision === 'reject' && 'is-rejected')} aria-label={`Suggestion for ${change.job_requirement}`}>
-      <p className="cvs-diff__why"><span>For this job:</span> {change.job_requirement}</p>
-      <div className="cvs-diff__compare">
-        <div className="cvs-diff__side cvs-diff__side--before">
-          <p className="cvs-diff__tag">Now</p>
-          <p>{change.before}</p>
-        </div>
-        <ArrowRight className="cvs-diff__arrow" size={16} aria-hidden="true" />
-        <div className="cvs-diff__side cvs-diff__side--after">
-          <p className="cvs-diff__tag">Suggested</p>
-          <p>{change.after}</p>
-        </div>
-      </div>
+    <Card selected={decision === 'accept'} aria-label={`Suggestion for ${change.job_requirement}`}>
+      <CardHeader>
+        <CardTitle headingLevel={4}>For this job: {change.job_requirement}</CardTitle>
+      </CardHeader>
+      <KeyValue
+        divided={false}
+        labelWidth="6rem"
+        items={[
+          { label: 'Now', value: <span className="cvs-prewrap">{change.before}</span> },
+          { label: 'Suggested', value: <span className="cvs-prewrap">{change.after}</span> },
+        ]}
+      />
       {blocked ? (
-        <p className="cvs-diff__note"><Info size={14} aria-hidden="true" /> We can’t back this up yet. Add and confirm it in your Evidence, then generate again.</p>
+        <Notice>We can’t back this up yet. Add and confirm it in your Evidence, then generate again.</Notice>
       ) : (
-        <div className="cvs-diff__footer">
-          <p className="cvs-diff__source">{change.support === 'confirmed' ? 'Based on facts you confirmed in your Evidence' : 'Reworded from what your CV already says'}</p>
-          <div className="cvs-diff__actions" role="group" aria-label="Your decision">
-            <Button type="button" size="sm" variant={decision === 'reject' ? 'secondary' : 'ghost'} aria-pressed={decision === 'reject'} onClick={() => onDecide('reject')}>
-              <X size={14} /> Keep mine
+        <Cluster justify="between" gap={3}>
+          <Badge tone={change.support === 'confirmed' ? 'success' : 'neutral'} size="sm">
+            {change.support === 'confirmed' ? 'Based on facts you confirmed in your Evidence' : 'Reworded from what your CV already says'}
+          </Badge>
+          <Cluster gap={2} role="group" aria-label="Your decision">
+            <Button type="button" size="sm" variant="secondary" aria-pressed={decision === 'reject'} onClick={() => onDecide('reject')}>
+              <X aria-hidden="true" /> Keep mine
             </Button>
-            <Button type="button" size="sm" variant={decision === 'accept' ? 'default' : 'outline'} aria-pressed={decision === 'accept'} onClick={() => onDecide('accept')}>
-              <Check size={14} /> Use suggestion
+            <Button type="button" size="sm" variant="secondary" aria-pressed={decision === 'accept'} onClick={() => onDecide('accept')}>
+              <Check aria-hidden="true" /> Use suggestion
             </Button>
-          </div>
-        </div>
+          </Cluster>
+        </Cluster>
       )}
-    </article>
+    </Card>
   )
 }
 
@@ -59,9 +59,6 @@ export function CvTailorDialog({ open, onOpenChange, documentId, canGenerate, re
   /** Prefills the form when the dialog is opened for a job carried over from Job Discovery. */
   seed?: { jobTitle: string; jobDescription: string } | null
 }) {
-  const titleId = useId()
-  const descriptionId = useId()
-  const versionId = useId()
   const [jobTitle, setJobTitle] = useState('')
   const [jobDescription, setJobDescription] = useState('')
   const [proposal, setProposal] = useState<CvTailoringProposal | null>(null)
@@ -126,8 +123,8 @@ export function CvTailorDialog({ open, onOpenChange, documentId, canGenerate, re
   const canSubmit = canGenerate && jobTitle.trim().length > 0 && jobDescription.trim().length >= 20 && remaining > 0
 
   return (
-    <Dialog open={open} onOpenChange={(next) => state === 'idle' && onOpenChange(next)}>
-      <DialogContent className="cvs-tailor sm:max-w-3xl">
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent size="lg" dismissible={state === 'idle'}>
         <DialogHeader>
           <DialogTitle>Tailor to a job</DialogTitle>
           <DialogDescription>
@@ -135,54 +132,51 @@ export function CvTailorDialog({ open, onOpenChange, documentId, canGenerate, re
           </DialogDescription>
         </DialogHeader>
 
-        <div className="cvs-tailor__body">
-          <div className="cvs-tailor__form">
-            <div className="cvs-field">
-              <label htmlFor={titleId}>Job title</label>
-              <input id={titleId} className="cvs-input" value={jobTitle} maxLength={200} placeholder="e.g. Senior Product Designer" onChange={(event) => setJobTitle(event.target.value)} />
-            </div>
-            <div className="cvs-field">
-              <label htmlFor={descriptionId}>Job description</label>
-              <textarea id={descriptionId} className="cvs-textarea" rows={proposal ? 3 : 7} maxLength={50_000} value={jobDescription} placeholder="Paste the full job ad here." onChange={(event) => setJobDescription(event.target.value)} />
-            </div>
-            <div className="cvs-tailor__generate">
-              <Button type="button" loading={state === 'generating'} disabled={!canSubmit || state !== 'idle'} onClick={() => void generate()}>
-                <Sparkles size={16} /> {proposal ? 'Suggest again' : 'Suggest changes'}
-              </Button>
-              <span className="cvs-tailor__quota">{remaining} {remaining === 1 ? 'suggestion run' : 'suggestion runs'} left for this CV</span>
-            </div>
-            {!canGenerate ? <p className="cvs-tailor__hint" role="status">Saving your latest edits first…</p> : null}
-          </div>
+        <DialogBody>
+          <Stack gap={6}>
+            <Stack gap={4}>
+              <Field label="Job title">
+                <Input value={jobTitle} maxLength={200} placeholder="e.g. Senior Product Designer" onChange={(event) => setJobTitle(event.target.value)} />
+              </Field>
+              <Field label="Job description">
+                <Textarea autosize maxRows={proposal ? 4 : 12} rows={proposal ? 3 : 7} maxLength={50_000} value={jobDescription} placeholder="Paste the full job ad here." onChange={(event) => setJobDescription(event.target.value)} />
+              </Field>
+              <Cluster gap={3}>
+                <Button type="button" variant={proposal ? 'secondary' : 'primary'} loading={state === 'generating'} disabled={!canSubmit || state !== 'idle'} onClick={() => void generate()}>
+                  {proposal ? 'Suggest again' : 'Suggest changes'}
+                </Button>
+                <span className="cvs-hint">{remaining} {remaining === 1 ? 'suggestion run' : 'suggestion runs'} left for this CV</span>
+              </Cluster>
+              {!canGenerate ? <p className="cvs-hint" role="status">Saving your latest edits first…</p> : null}
+            </Stack>
 
-          {error ? <p role="alert" className="cvs-inline-error">{error} Your CV hasn’t changed.</p> : null}
+            {error ? <Notice tone="danger">{error} Your CV hasn’t changed.</Notice> : null}
 
-          {proposal ? (
-            <div className="cvs-tailor__review">
-              <p className="cvs-tailor__summary">
-                {proposal.changes.length === 0
-                  ? 'Your CV already fits this job well. We didn’t find anything worth changing.'
-                  : `${proposal.changes.length} ${proposal.changes.length === 1 ? 'suggestion' : 'suggestions'} for ${proposal.job_title}. Nothing changes unless you choose “Use suggestion”.`}
-              </p>
-              {skipped > 0 ? (
-                <p className="cvs-tailor__skipped" role="status">
-                  <Info size={14} aria-hidden="true" /> We left out {skipped} {skipped === 1 ? 'suggestion' : 'suggestions'} because that part of your CV changed while we were working. Suggest again to include {skipped === 1 ? 'it' : 'them'}.
+            {proposal ? (
+              <Stack gap={3}>
+                <p>
+                  {proposal.changes.length === 0
+                    ? 'Your CV already fits this job well. We didn’t find anything worth changing.'
+                    : `${proposal.changes.length} ${proposal.changes.length === 1 ? 'suggestion' : 'suggestions'} for ${proposal.job_title}. Nothing changes unless you choose “Use suggestion”.`}
                 </p>
-              ) : null}
-              <div className="cvs-diff-list">
+                {skipped > 0 ? (
+                  <Notice role="status">
+                    We left out {skipped} {skipped === 1 ? 'suggestion' : 'suggestions'} because that part of your CV changed while we were working. Suggest again to include {skipped === 1 ? 'it' : 'them'}.
+                  </Notice>
+                ) : null}
                 {proposal.changes.map((change) => (
                   <ChangeCard key={change.id} change={change} decision={decisions[change.id]} onDecide={(decision) => setDecisions((current) => ({ ...current, [change.id]: decision }))} />
                 ))}
-              </div>
-            </div>
-          ) : null}
-        </div>
+              </Stack>
+            ) : null}
+          </Stack>
+        </DialogBody>
 
         {proposal && proposal.changes.length > 0 ? (
           <DialogFooter className="cvs-tailor__footer">
-            <div className="cvs-field cvs-tailor__version">
-              <label htmlFor={versionId}>Save as version</label>
-              <input id={versionId} className="cvs-input" value={versionName} maxLength={120} onChange={(event) => setVersionName(event.target.value)} />
-            </div>
+            <Field label="Save as version" className="cvs-tailor__version">
+              <Input value={versionName} maxLength={120} onChange={(event) => setVersionName(event.target.value)} />
+            </Field>
             <Button type="button" loading={state === 'saving'} disabled={accepted === 0 || !versionName.trim() || state !== 'idle'} onClick={() => void save()}>
               Save version{accepted > 0 ? ` with ${accepted} ${accepted === 1 ? 'change' : 'changes'}` : ''}
             </Button>

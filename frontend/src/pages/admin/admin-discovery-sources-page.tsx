@@ -1,14 +1,52 @@
+import { Fragment } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { formatDate } from '#/components/applications/stages'
+import {
+  Badge,
+  Button,
+  Disclosure,
+  EmptyState,
+  ErrorState,
+  MetaRow,
+  Notice,
+  Page,
+  PageHeader,
+  Stack,
+  Table,
+} from '#/components/kit'
+import type { TableColumn } from '#/components/kit'
 import {
   getAdminDiscoverySources,
   setDiscoverySourceKillSwitch,
 } from '#/lib/api/admin'
 import type { DiscoverySource } from '#/lib/api/discoverySchemas'
+import { adminDate, adminDateTime } from './toolLabel'
+
+/** A URL breaks after its slashes, never in the middle of a word. */
+function BreakableUrl({ value }: { value: string }) {
+  return (
+    <>
+      {value.split(/(?<=\/)/).map((part, index) => (
+        <Fragment key={index}>
+          {index > 0 ? <wbr /> : null}
+          {part}
+        </Fragment>
+      ))}
+    </>
+  )
+}
+
+/** The one value every source shares, or null when they differ or there is only one source. */
+function sharedValue(sources: DiscoverySource[], pick: (source: DiscoverySource) => string) {
+  if (sources.length < 2) return null
+  const first = pick(sources[0])
+  return sources.every((source) => pick(source) === first) ? first : null
+}
+
+const capitalize = (value: string) => value.charAt(0).toUpperCase() + value.slice(1)
 
 export function AdminDiscoverySourcesPage() {
   const queryClient = useQueryClient()
-  const { data, isLoading, isError, refetch } = useQuery({
+  const { data, isLoading, isError, isFetching, refetch } = useQuery({
     queryKey: ['admin-discovery-sources'],
     queryFn: getAdminDiscoverySources,
     staleTime: 30_000,
@@ -25,141 +63,153 @@ export function AdminDiscoverySourcesPage() {
   const pendingId =
     killSwitch.isPending && killSwitch.variables ? killSwitch.variables.sourceId : null
 
-  return (
-    <div>
-      <h1 className="admin-page-title">Discovery sources</h1>
-      <p className="admin-intro">
-        A source can ingest only after an accepted terms review and while its kill
-        switch is off. Tripping the kill switch halts it immediately, with no deploy or restart.
-      </p>
+  const sources = data?.items ?? []
+  const sharedOwner = sharedValue(sources, (source) => source.owner)
+  const sharedFamily = sharedValue(sources, (source) => source.source_family)
+  const failing = sources.filter((source) => source.last_fetched_at && source.last_outcome !== 'ok').length
 
-      <div className="admin-data-table-wrap">
-        {isError && (
-          <p className="admin-table-muted admin-error-text" style={{ padding: '1rem' }}>
-            Couldn't load discovery sources.{' '}
-            <button type="button" className="admin-toolbar-btn" onClick={() => void refetch()}>
-              Try again
-            </button>
-          </p>
+  const columns: TableColumn<DiscoverySource>[] = [
+    {
+      id: 'source',
+      header: 'Source',
+      primary: true,
+      cell: (source) => (
+        <>
+          {source.display_name}
+          <MetaRow>
+            <span className="admin-mono">{source.source_key}</span>
+            {sharedFamily ? null : source.source_family}
+            {sharedOwner ? null : source.owner}
+          </MetaRow>
+          <span className="admin-subline admin-wrap">
+            {source.endpoint_url ? <BreakableUrl value={source.endpoint_url} /> : 'Endpoint not configured'}
+          </span>
+          <Disclosure variant="inline" title="Policy">
+            <p className="admin-subline">{source.allowed_behavior}</p>
+            <p className="admin-subline">{source.attribution_rule}</p>
+          </Disclosure>
+        </>
+      ),
+    },
+    {
+      id: 'terms',
+      header: 'Terms review',
+      cell: (source) => (
+        <div>
+          {source.terms_status === 'accepted' ? (
+            capitalize(source.terms_status)
+          ) : (
+            <Badge tone="warning">{capitalize(source.terms_status)}</Badge>
+          )}
+          <MetaRow>
+            {source.terms_reviewed_at ? adminDate(source.terms_reviewed_at) : 'Not reviewed'}
+            {source.terms_reviewed_by ? `by ${source.terms_reviewed_by}` : null}
+          </MetaRow>
+        </div>
+      ),
+    },
+    {
+      id: 'bounds',
+      header: 'Bounds',
+      nowrap: true,
+      cell: (source) => (
+        <MetaRow>
+          {`${source.rate_limit_per_minute}/minute`}
+          {`Retain ${source.retention_days} days`}
+        </MetaRow>
+      ),
+    },
+    {
+      id: 'ingestion',
+      header: 'Ingestion',
+      nowrap: true,
+      cell: (source) => (
+        <div>
+          {source.ingestion_allowed ? 'Allowed' : 'Refused'}
+          {source.kill_switch ? <span className="admin-subline">Kill switch on</span> : null}
+        </div>
+      ),
+    },
+    { id: 'fetch', header: 'Last fetch', cell: (source) => <LastFetch source={source} /> },
+    {
+      id: 'kill-switch',
+      header: 'Kill switch',
+      hideHeader: true,
+      align: 'end',
+      stackLabel: false,
+      cell: (source) => (
+        <KillSwitchControl
+          source={source}
+          busy={pendingId === source.id}
+          onTrip={() => killSwitch.mutate({ sourceId: source.id, tripped: true })}
+          onClear={() => killSwitch.mutate({ sourceId: source.id, tripped: false })}
+        />
+      ),
+    },
+  ]
+
+  return (
+    <Page>
+      <PageHeader
+        title="Discovery sources"
+        lead="A source can ingest only after an accepted terms review and while its kill switch is off. Tripping the kill switch halts it immediately, with no deploy or restart."
+        meta={
+          data
+            ? [
+                `${sources.length} ${sources.length === 1 ? 'source' : 'sources'}`,
+                failing > 0 ? `${failing} failed their last fetch` : null,
+                sharedFamily ? `Family: ${sharedFamily}` : null,
+                sharedOwner ? `Owner: ${sharedOwner}` : null,
+              ]
+            : undefined
+        }
+      />
+
+      <Stack gap={3}>
+        {killSwitch.isError ? (
+          <Notice tone="danger" onDismiss={() => killSwitch.reset()}>
+            Kill-switch change failed. A source cannot be cleared before its terms review is accepted.
+          </Notice>
+        ) : null}
+
+        {isError ? (
+          <ErrorState
+            title="Couldn't load discovery sources"
+            onRetry={() => void refetch()}
+            retrying={isFetching}
+          />
+        ) : (
+          <Table
+            caption="Discovery sources"
+            columns={columns}
+            rows={sources}
+            getRowId={(source) => source.id}
+            loading={isLoading}
+            empty={
+              <EmptyState
+                title="No discovery sources are registered."
+                description="Ingestion remains disabled."
+              />
+            }
+          />
         )}
-        {isLoading && (
-          <p className="admin-table-muted" style={{ padding: '1rem' }}>
-            Loading…
-          </p>
-        )}
-        {killSwitch.isError && (
-          <p className="admin-table-muted admin-error-text" style={{ padding: '1rem' }}>
-            Kill-switch change failed. A source cannot be cleared before its terms
-            review is accepted.
-          </p>
-        )}
-        {data && (
-          <table className="admin-table">
-            <thead>
-              <tr>
-                <th>Source</th>
-                <th>Governance</th>
-                <th>Terms review</th>
-                <th>Bounds</th>
-                <th>Ingestion</th>
-                <th>Last fetch</th>
-                <th>Kill switch</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.items.length === 0 && (
-                <tr>
-                  <td colSpan={7} className="admin-table-muted">
-                    No discovery sources are registered. Ingestion remains disabled.
-                  </td>
-                </tr>
-              )}
-              {data.items.map((source) => (
-                <tr key={source.id}>
-                  <td>
-                    <strong>{source.display_name}</strong>
-                    <div className="admin-table-muted">{source.source_key}</div>
-                    <div className="admin-table-muted">{source.source_family}</div>
-                  </td>
-                  <td className="admin-source-governance">
-                    <div>{source.owner}</div>
-                    <div className="admin-table-muted admin-source-url" title={source.endpoint_url ?? undefined}>
-                      {source.endpoint_url || 'Endpoint not configured'}
-                    </div>
-                    <details className="admin-policy">
-                      <summary>Policy</summary>
-                      <div className="admin-table-muted">{source.allowed_behavior}</div>
-                      <div className="admin-table-muted">{source.attribution_rule}</div>
-                    </details>
-                  </td>
-                  <td>
-                    <span className="admin-badge admin-badge--tool">
-                      {source.terms_status}
-                    </span>
-                    <div className="admin-table-muted">
-                      {source.terms_reviewed_at
-                        ? formatDate(source.terms_reviewed_at)
-                        : 'Not reviewed'}
-                    </div>
-                    {source.terms_reviewed_by && (
-                      <div className="admin-table-muted">
-                        by {source.terms_reviewed_by}
-                      </div>
-                    )}
-                  </td>
-                  <td>
-                    <div>{source.rate_limit_per_minute}/minute</div>
-                    <div className="admin-table-muted">
-                      Retain {source.retention_days} days
-                    </div>
-                  </td>
-                  <td>
-                    <strong>{source.ingestion_allowed ? 'Allowed' : 'Refused'}</strong>
-                    <div className="admin-table-muted">
-                      Kill switch {source.kill_switch ? 'on' : 'off'}
-                    </div>
-                  </td>
-                  <td>
-                    <LastFetch source={source} />
-                  </td>
-                  <td>
-                    <KillSwitchControl
-                      source={source}
-                      busy={pendingId === source.id}
-                      onTrip={() =>
-                        killSwitch.mutate({ sourceId: source.id, tripped: true })
-                      }
-                      onClear={() =>
-                        killSwitch.mutate({ sourceId: source.id, tripped: false })
-                      }
-                    />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
-    </div>
+      </Stack>
+    </Page>
   )
 }
 
 function LastFetch({ source }: { source: DiscoverySource }) {
   if (!source.last_fetched_at) {
-    return <span className="admin-table-muted">Never fetched</span>
+    return <span className="admin-muted">Never fetched</span>
   }
   const failed = source.last_outcome !== 'ok'
   return (
     <div>
-      <div className={failed ? 'admin-fetch-failed' : undefined}>
-        {failed ? source.last_outcome : 'OK'}
-      </div>
-      <div className="admin-table-muted">
-        {new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(source.last_fetched_at))}
-      </div>
-      <div className="admin-table-muted">
-        {source.listing_count ?? 0} listings
-      </div>
+      <span className={failed ? 'admin-failed' : undefined}>{failed ? source.last_outcome : 'OK'}</span>
+      <MetaRow>
+        {adminDateTime(source.last_fetched_at)}
+        {`${source.listing_count ?? 0} listings`}
+      </MetaRow>
     </div>
   )
 }
@@ -178,29 +228,17 @@ function KillSwitchControl({
   if (source.kill_switch) {
     const canClear = source.terms_status === 'accepted'
     return (
-      <div>
-        <button
-          type="button"
-          className="admin-button"
-          disabled={busy || !canClear}
-          onClick={onClear}
-        >
-          {busy ? 'Working…' : 'Clear kill switch'}
-        </button>
-        {!canClear && (
-          <div className="admin-table-muted">Accept terms review to clear.</div>
-        )}
+      <div className="admin-action">
+        <Button size="sm" variant="secondary" disabled={!canClear} loading={busy} onClick={onClear}>
+          Clear kill switch
+        </Button>
+        {!canClear ? <span className="admin-subline">Accept terms review to clear.</span> : null}
       </div>
     )
   }
   return (
-    <button
-      type="button"
-      className="admin-button admin-button--danger"
-      disabled={busy}
-      onClick={onTrip}
-    >
-      {busy ? 'Working…' : 'Trip kill switch'}
-    </button>
+    <Button size="sm" variant="secondary" loading={busy} onClick={onTrip}>
+      Trip kill switch
+    </Button>
   )
 }

@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ToolRouteScreen } from '#/components/tooling/ToolRouteScreen'
+import { tools } from '#/lib/tools/registry'
 import type { ToolId } from '#/lib/tools/registry'
 
 const mutateMock = vi.hoisted(() => vi.fn())
@@ -26,12 +27,6 @@ let seededResume = true
 let resumePendingReview = false
 let seededJob = true
 let seededTargetRole = false
-
-vi.mock('#/components/tooling/ToolFullScreen', () => ({
-  ToolFullScreen: ({ children }: { children: ReactNode }) => (
-    <div data-testid="tool-fullscreen">{children}</div>
-  ),
-}))
 
 vi.mock('#/components/tooling/JobImportCard', () => ({
   JobImportCard: () => <div data-testid="job-import-card">Import from job URL</div>,
@@ -123,10 +118,10 @@ describe('ToolRouteScreen', () => {
 
     renderScreen('resume')
 
-    expect(screen.getByTestId('tool-fullscreen')).toBeTruthy()
+    expect(screen.getByRole('heading', { level: 1, name: 'Resume Analyzer' })).toBeTruthy()
     expect(screen.getByText(/Drop a PDF or DOCX here/i)).toBeTruthy()
-    expect(screen.getByText(/Upload a PDF or DOCX, or paste your resume text/i)).toBeTruthy()
-    expect(screen.queryByLabelText(/^Resume text$/i)).toBeNull()
+    expect(screen.getByText(tools.resume.summary)).toBeTruthy()
+    expect(screen.queryByRole('textbox', { name: /^Resume text$/i })).toBeNull()
 
     fireEvent.click(screen.getByRole('button', { name: /Paste text instead/i }))
 
@@ -140,7 +135,7 @@ describe('ToolRouteScreen', () => {
 
     expect(screen.getByText(/Resume carried from previous tool/i)).toBeTruthy()
     expect(screen.queryByLabelText(/^Resume text$/i)).toBeNull()
-    expect(screen.getByRole('button', { name: /^Upload$/i })).toBeTruthy()
+    expect(screen.getByText('Upload').closest('label')).toBeTruthy()
 
     fireEvent.click(screen.getByRole('button', { name: /Change/i }))
 
@@ -219,12 +214,12 @@ describe('ToolRouteScreen', () => {
   it('renders the bespoke cover-letter editor shell and keeps tone selection interactive', () => {
     renderScreen('cover-letter')
 
-    expect(screen.getByText(/Review your resume, paste the posting/i)).toBeTruthy()
-    expect(screen.getByLabelText(/Tone controls/i)).toBeTruthy()
+    expect(screen.getByText(tools['cover-letter'].summary)).toBeTruthy()
+    expect(screen.getByRole('radiogroup', { name: /Tone/i })).toBeTruthy()
     expect(screen.queryByLabelText(/Cover letter editor shell/i)).toBeNull()
     expect(screen.queryByText(/Draft setup/i)).toBeNull()
 
-    fireEvent.click(screen.getByRole('button', { name: /Warm/i }))
+    fireEvent.click(screen.getByRole('radio', { name: /Warm/i }))
 
     expect(setFieldMock).toHaveBeenCalledWith('tone', 'Warm')
   })
@@ -235,10 +230,9 @@ describe('ToolRouteScreen', () => {
     renderScreen('interview')
 
     expect(screen.queryByLabelText(/Practice preview/i)).toBeNull()
-    expect(screen.getByLabelText(/Question count quick picks/i)).toBeTruthy()
-    expect(screen.getByText(/Practice depth/i)).toBeTruthy()
+    expect(screen.getByRole('radiogroup', { name: /Practice depth/i })).toBeTruthy()
 
-    fireEvent.click(screen.getByRole('button', { name: /8 questions/i }))
+    fireEvent.click(screen.getByRole('radio', { name: /8 questions/i }))
 
     expect(setFieldMock).toHaveBeenCalledWith('numQuestions', 8)
 
@@ -257,7 +251,7 @@ describe('ToolRouteScreen', () => {
   it('renders the bespoke career wizard without inline sign-in CTA', () => {
     renderScreen('career')
 
-    expect(screen.getByText(/Review the resume text, optionally add a target role/i)).toBeTruthy()
+    expect(screen.getByText(tools.career.summary)).toBeTruthy()
     expect(screen.queryByText(/Path comparison preview/i)).toBeNull()
     expect(screen.queryByText(/Backend Engineer II/i)).toBeNull()
     expect(screen.queryByRole('button', { name: /Sign in to save runs/i })).toBeNull()
@@ -268,7 +262,7 @@ describe('ToolRouteScreen', () => {
 
     renderScreen('portfolio')
 
-    expect(screen.getByText(/Add the role you want next/i)).toBeTruthy()
+    expect(screen.getByText(tools.portfolio.summary)).toBeTruthy()
     expect(screen.queryByText(/Roadmap preview/i)).toBeNull()
     expect(screen.queryByText(/Analytics Workspace/i)).toBeNull()
     expect(screen.queryByText(/Guest demo runs are not saved/i)).toBeNull()

@@ -5,7 +5,6 @@ type RouteMeta = {
   description: string
   sectionLabel: string
   breadcrumbs: string[]
-  topbarVariant: 'compact' | 'standard'
 }
 
 export function getRouteMeta(pathname: string): RouteMeta {
@@ -15,7 +14,6 @@ export function getRouteMeta(pathname: string): RouteMeta {
       description: 'Review your current pipeline, recent runs, and the recommended next step.',
       sectionLabel: 'Command center',
       breadcrumbs: ['Dashboard'],
-      topbarVariant: 'compact',
     }
   }
 
@@ -25,7 +23,6 @@ export function getRouteMeta(pathname: string): RouteMeta {
       description: 'Browse previous analyses, favorites, and saved outputs.',
       sectionLabel: 'Activity',
       breadcrumbs: ['Dashboard', 'History'],
-      topbarVariant: 'compact',
     }
   }
 
@@ -35,7 +32,6 @@ export function getRouteMeta(pathname: string): RouteMeta {
       description: 'Facts about your experience that CV Studio and the tools reuse.',
       sectionLabel: 'You',
       breadcrumbs: ['Dashboard', 'Your profile'],
-      topbarVariant: 'compact',
     }
   }
 
@@ -45,7 +41,6 @@ export function getRouteMeta(pathname: string): RouteMeta {
       description: 'Build and tailor CV versions from the facts in your profile.',
       sectionLabel: 'You',
       breadcrumbs: ['Dashboard', 'CV Studio'],
-      topbarVariant: 'compact',
     }
   }
 
@@ -55,7 +50,6 @@ export function getRouteMeta(pathname: string): RouteMeta {
       description: 'Review live roles ranked against evidence and preferences you confirmed.',
       sectionLabel: 'Job search',
       breadcrumbs: ['Dashboard', 'Job Discovery'],
-      topbarVariant: 'compact',
     }
   }
 
@@ -65,7 +59,6 @@ export function getRouteMeta(pathname: string): RouteMeta {
       description: 'Every job you are going for, from saved to offer.',
       sectionLabel: 'Job search',
       breadcrumbs: ['Dashboard', 'Applications'],
-      topbarVariant: 'compact',
     }
   }
 
@@ -78,7 +71,6 @@ export function getRouteMeta(pathname: string): RouteMeta {
       description: 'Apply, documents, tasks, notes and activity for this application.',
       sectionLabel: 'Job search',
       breadcrumbs: ['Dashboard', 'Applications', 'Application'],
-      topbarVariant: 'compact',
     }
   }
 
@@ -88,7 +80,6 @@ export function getRouteMeta(pathname: string): RouteMeta {
       description: 'Manage your profile and see the current account status.',
       sectionLabel: 'Settings',
       breadcrumbs: ['Dashboard', 'Account'],
-      topbarVariant: 'compact',
     }
   }
 
@@ -98,7 +89,6 @@ export function getRouteMeta(pathname: string): RouteMeta {
       description: 'Onboarding, local workspace data, and system status.',
       sectionLabel: 'Settings',
       breadcrumbs: ['Dashboard', 'Settings'],
-      topbarVariant: 'compact',
     }
   }
 
@@ -114,7 +104,6 @@ export function getRouteMeta(pathname: string): RouteMeta {
               ? 'Application support'
               : 'Planning',
         breadcrumbs: ['Dashboard', tool.label],
-        topbarVariant: 'compact',
       }
     }
 
@@ -124,7 +113,6 @@ export function getRouteMeta(pathname: string): RouteMeta {
         description: `Saved output for ${tool.label.toLowerCase()}.`,
         sectionLabel: 'Results',
         breadcrumbs: ['Dashboard', tool.label, 'Result'],
-        topbarVariant: 'compact',
       }
     }
   }
@@ -134,6 +122,5 @@ export function getRouteMeta(pathname: string): RouteMeta {
     description: 'AI-powered job search suite.',
     sectionLabel: 'Workspace',
     breadcrumbs: ['Dashboard'],
-    topbarVariant: 'standard',
   }
 }

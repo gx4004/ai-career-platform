@@ -1,5 +1,7 @@
 export { Badge, Count, Kbd } from './badge'
 export type { BadgeProps, BadgeSize, BadgeTone, CountProps, KbdProps } from './badge'
+export { Chip } from './chip'
+export type { ChipProps } from './chip'
 export { Button } from './button'
 export type { ButtonProps, ButtonSize, ButtonVariant } from './button'
 export { Checkbox, Switch } from './checkbox'

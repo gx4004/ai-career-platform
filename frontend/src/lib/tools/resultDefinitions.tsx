@@ -1,16 +1,29 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Copy, Download, Zap } from 'lucide-react'
-import { Button } from '#/components/ui/button'
-import { AutoGrowTextarea } from '#/components/tooling/AutoGrowTextarea'
-import { InterviewPracticeMode } from '#/components/tooling/InterviewPracticeMode'
+import { Zap } from 'lucide-react'
 import {
   Badge,
-  Field,
-  MiniBar,
-  ResultSection,
+  Button,
+  Cluster,
+  Disclosure,
+  EmptyState,
+  KeyValue,
+  MetaRow,
+  ScoreBar,
+  Segmented,
+  Stack,
+  Table,
+  Textarea,
+} from '#/components/kit'
+import type { TableColumn } from '#/components/kit'
+import { InterviewPracticeMode } from '#/components/tooling/InterviewPracticeMode'
+import {
+  Lines,
+  Prose,
+  ReportSection,
+  ResultList,
   SeverityBadge,
-  TokenList,
+  useReportPracticing,
 } from '#/components/tooling/ResultParts'
 import type { ToolRunDetail } from '#/lib/api/schemas'
 import type { ToolDefinition, ToolId } from '#/lib/tools/registry'
@@ -240,6 +253,11 @@ type PortfolioResultPayload = {
   presentationTips: string[]
 }
 
+/** "1 question", "2 questions". */
+export function countOf(count: number, noun: string) {
+  return `${count} ${count === 1 ? noun : `${noun}s`}`
+}
+
 function toString(value: unknown): string {
   if (typeof value === 'string') return value
   if (typeof value === 'number') return String(value)
@@ -416,17 +434,11 @@ function composeCoverLetterText(parts: {
     .join('\n\n')
 }
 
-/** Shorten a role label (the backend can echo a whole JD line) to one readable line. */
-export function truncateLabel(text: string, max = 60) {
-  const trimmed = text.trim()
-  return trimmed.length > max ? `${trimmed.slice(0, max - 1).trimEnd()}…` : trimmed
-}
-
 /** "Target role: <role>", or just "Target role" when the backend sent only a placeholder. */
 export function roleFitLabel(label: string) {
   const trimmed = label.trim()
   if (!trimmed || /^(the )?target role$/i.test(trimmed)) return 'Target role'
-  return `Target role: ${truncateLabel(trimmed)}`
+  return `Target role: ${trimmed}`
 }
 
 export function formatLetterDate(iso: string | null | undefined, now: Date = new Date()) {
@@ -568,19 +580,18 @@ export function FixFirstList({ actions }: { actions: TopAction[] }) {
   if (items.length === 0) return null
 
   return (
-    <ResultSection title="Fix first">
-      <ol className="rlist rlist--numbered">
-        {items.map((a, i) => (
-          <li key={`${a.title}-${i}`} className="rlist__item">
-            <div className="rlist__row">
-              <span className="rlist__title">{a.title}</span>
-              <SeverityBadge level={a.priority} />
-            </div>
-            <p className="rlist__text">{a.action}</p>
-          </li>
-        ))}
-      </ol>
-    </ResultSection>
+    <ReportSection title="Fix first">
+      <ResultList
+        numbered
+        label="Fix first"
+        items={items.map((a, i) => ({
+          key: `${a.title}-${i}`,
+          title: a.title,
+          detail: a.action,
+          meta: <SeverityBadge level={a.priority} />,
+        }))}
+      />
+    </ReportSection>
   )
 }
 
@@ -590,101 +601,88 @@ function RoleFitLevel({ score }: { score: number }) {
   return <Badge tone="danger">Low match</Badge>
 }
 
+/** Matched and missing terms as two labelled lines. */
+function KeywordFacts({ matched, missing }: { matched: string[]; missing: string[] }) {
+  const items = [
+    ...(matched.length > 0 ? [{ label: `Matched (${matched.length})`, value: matched.join(', ') }] : []),
+    ...(missing.length > 0 ? [{ label: `Missing (${missing.length})`, value: missing.join(', ') }] : []),
+  ]
+  return <KeyValue items={items} />
+}
+
+/** "Why it matters / Fix" pairs under a row's title. */
+function WhyFix({ items }: { items: Array<{ label: string; value: string }> }) {
+  return <KeyValue className="result-why" divided={false} labelWidth="7rem" items={items} />
+}
+
 /* ── Resume ── */
 
 function ResumeResultView({ payload }: { payload: AnyObject }) {
   const result = normalizeResumePayload(payload)
   const { evidence } = result
   const hasKeywords = evidence.matchedKeywords.length > 0 || evidence.missingKeywords.length > 0
-  const hasFeedback = result.strengths.length > 0 || result.issues.length > 0
 
   return (
     <>
       {result.scoreBreakdown.length > 0 && (
-        <ResultSection title="Score breakdown">
-          <table className="rtable rtable--bars">
-            <thead className="sr-only">
-              <tr>
-                <th scope="col">Category</th>
-                <th scope="col">Score</th>
-                <th scope="col">Value</th>
-              </tr>
-            </thead>
-            <tbody>
-              {result.scoreBreakdown.map((item) => (
-                <tr key={item.key}>
-                  <th scope="row">{item.label}</th>
-                  <td className="rtable__bar">
-                    <MiniBar value={item.score} />
-                  </td>
-                  <td className="rtable__num">{item.score}%</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </ResultSection>
+        <ReportSection title="Score breakdown">
+          <Stack gap={2} role="group" aria-label="Score breakdown">
+            {result.scoreBreakdown.map((item) => (
+              <ScoreBar key={item.key} layout="inline" label={item.label} value={item.score} valueLabel={`${item.score}%`} />
+            ))}
+          </Stack>
+        </ReportSection>
       )}
 
-      {hasFeedback && (
-        <ResultSection title="Detailed feedback">
-          {result.strengths.length > 0 && (
-            <>
-              <h3 className="rs-sub">Major strengths</h3>
-              <ul className="rlist rlist--bullets">
-                {result.strengths.slice(0, 4).map((s) => (
-                  <li key={s}>{s}</li>
-                ))}
-              </ul>
-            </>
-          )}
-          {result.issues.length > 0 && (
-            <>
-              <h3 className="rs-sub">Refinement areas</h3>
-              <ol className="rlist rlist--numbered">
-                {result.issues.map((issue) => (
-                  <li key={issue.id} className="rlist__item">
-                    <div className="rlist__row">
-                      <span className="rlist__title">{issue.title}</span>
-                      <SeverityBadge level={issue.severity} />
-                    </div>
-                    <dl className="rfields">
-                      <Field label="Why it matters">{issue.whyItMatters}</Field>
-                      <Field label="Fix">{issue.fix}</Field>
-                    </dl>
-                  </li>
-                ))}
-              </ol>
-            </>
-          )}
-        </ResultSection>
+      {result.strengths.length > 0 && (
+        <ReportSection title="Major strengths">
+          <ResultList
+            label="Major strengths"
+            items={result.strengths.slice(0, 4).map((s) => ({ key: s, title: s }))}
+          />
+        </ReportSection>
+      )}
+
+      {result.issues.length > 0 && (
+        <ReportSection title="Refinement areas">
+          <ResultList
+            numbered
+            label="Refinement areas"
+            items={result.issues.map((issue) => ({
+              key: issue.id,
+              title: issue.title,
+              meta: <SeverityBadge level={issue.severity} />,
+              body: (
+                <WhyFix
+                  items={[
+                    { label: 'Why it matters', value: issue.whyItMatters },
+                    { label: 'Fix', value: issue.fix },
+                  ]}
+                />
+              ),
+            }))}
+          />
+        </ReportSection>
       )}
 
       {hasKeywords && (
-        <ResultSection
-          title="Keyword optimization"
-          meta={
-            <>
-              {evidence.matchedKeywords.length} matched
-              {evidence.missingKeywords.length > 0 ? ` · ${evidence.missingKeywords.length} missing` : ''}
-            </>
-          }
-        >
-          <TokenList items={evidence.matchedKeywords} label="Matched" />
-          <TokenList items={evidence.missingKeywords} tone="warning" label="Missing" />
-        </ResultSection>
+        <ReportSection title="Keyword optimization">
+          <KeywordFacts matched={evidence.matchedKeywords} missing={evidence.missingKeywords} />
+        </ReportSection>
       )}
 
       {result.roleFit && (
-        <ResultSection title="Role fit" meta={<RoleFitLevel score={result.roleFit.fitScore} />}>
-          <div className="rfit">
-            <span className="rfit__label" title={result.roleFit.targetRoleLabel}>
-              {roleFitLabel(result.roleFit.targetRoleLabel)}
-            </span>
-            <MiniBar value={result.roleFit.fitScore} />
-            <span className="rfit__value">{result.roleFit.fitScore}%</span>
-          </div>
-          {result.roleFit.rationale && <p className="rs-text">{result.roleFit.rationale}</p>}
-        </ResultSection>
+        <ReportSection title="Role fit" actions={<RoleFitLevel score={result.roleFit.fitScore} />}>
+          <Stack gap={3}>
+            <ScoreBar
+              layout="inline"
+              label={roleFitLabel(result.roleFit.targetRoleLabel)}
+              value={result.roleFit.fitScore}
+              valueLabel={`${result.roleFit.fitScore}%`}
+            />
+            {result.roleFit.rationale && <Prose>{result.roleFit.rationale}</Prose>}
+          </Stack>
+        </ReportSection>
       )}
     </>
   )
@@ -698,93 +696,88 @@ function requirementStatusBadge(status: 'matched' | 'partial' | 'missing') {
   return <Badge tone="danger">Missing</Badge>
 }
 
+type RequirementRow = JobMatchResultPayload['requirements'][number] & { rowId: string }
+
+const REQUIREMENT_COLUMNS: Array<TableColumn<RequirementRow>> = [
+  {
+    id: 'requirement',
+    header: 'Requirement',
+    primary: true,
+    width: '30%',
+    cell: (item) => (
+      <>
+        {item.requirement}
+        {item.importance !== 'must' ? (
+          <>
+            {' '}
+            <Badge size="sm">Preferred</Badge>
+          </>
+        ) : null}
+      </>
+    ),
+  },
+  { id: 'status', header: 'Status', hideHeader: true, width: '7rem', stackLabel: false, cell: (item) => requirementStatusBadge(item.status) },
+  {
+    id: 'detail',
+    header: 'Detail',
+    stackLabel: false,
+    cell: (item) => (item.status === 'matched' ? item.resumeEvidence : item.suggestedFix),
+  },
+]
+
+const sameText = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase()
+
 function JobMatchView({ payload }: { payload: AnyObject }) {
   const result = normalizeJobMatchPayload(payload)
-  const met = result.requirements.filter((r) => r.status === 'matched').length
+  const requirementRows: RequirementRow[] = result.requirements.map((req, index) => ({ ...req, rowId: `${index}-${req.requirement}` }))
+
+  // What Fix first (the page's list of the top three actions) already says is not said again below it.
+  const fixFirst = result.topActions.slice(0, 3)
+  const tailoringActions = result.tailoringActions.filter(
+    (a) => !fixFirst.some((top) => sameText(top.action, a.action)),
+  )
+  const gaps = result.requirements.filter((req) => req.status !== 'matched').map((req) => req.requirement)
+  const interviewFocus = result.interviewFocus.filter((focus) => !gaps.some((gap) => sameText(gap, focus)))
 
   return (
     <>
-      {result.requirements.length > 0 && (
-        <ResultSection title="Detailed requirements" meta={`${met} of ${result.requirements.length} met`}>
-          <table className="rtable rtable--requirements">
-            <thead>
-              <tr>
-                <th scope="col">Requirement</th>
-                <th scope="col">Status</th>
-                <th scope="col">Detail</th>
-              </tr>
-            </thead>
-            <tbody>
-              {result.requirements.map((item, index) => (
-                <tr key={`${item.requirement}-${index}`}>
-                  <th scope="row">
-                    <span className="rtable__name">{item.requirement}</span>
-                    {item.importance !== 'must' ? <span className="rtable__sub">Preferred</span> : null}
-                  </th>
-                  <td>{requirementStatusBadge(item.status)}</td>
-                  <td>
-                    {item.resumeEvidence && item.status === 'matched' && (
-                      <p className="rtable__note">
-                        {item.resumeEvidence}
-                      </p>
-                    )}
-                    {item.suggestedFix && item.status !== 'matched' && (
-                      <p className="rtable__note">
-                        {item.suggestedFix}
-                      </p>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </ResultSection>
+      {requirementRows.length > 0 && (
+        <ReportSection title="Detailed requirements">
+          <Table
+            caption="Requirements"
+            columns={REQUIREMENT_COLUMNS}
+            rows={requirementRows}
+            getRowId={(item) => item.rowId}
+          />
+        </ReportSection>
       )}
 
-      {result.tailoringActions.length > 0 && (
-        <ResultSection title="Tailoring actions">
-          <ol className="rlist rlist--numbered">
-            {result.tailoringActions.map((a, i) => (
-              <li key={`${a.keyword}-${i}`} className="rlist__item">
-                <div className="rlist__row">
-                  <span className="rlist__title">{a.keyword}</span>
-                </div>
-                <p className="rlist__text">{a.action}</p>
-              </li>
-            ))}
-          </ol>
-        </ResultSection>
+      {tailoringActions.length > 0 && (
+        <ReportSection title="Tailoring actions">
+          <ResultList
+            numbered
+            label="Tailoring actions"
+            items={tailoringActions.map((a, i) => ({ key: `${a.keyword}-${i}`, title: a.keyword, detail: a.action }))}
+          />
+        </ReportSection>
       )}
 
       {(result.matchedKeywords.length > 0 || result.missingKeywords.length > 0) && (
-        <ResultSection
-          title="Keyword breakdown"
-          meta={
-            <>
-              {result.matchedKeywords.length} matched
-              {result.missingKeywords.length > 0 ? ` · ${result.missingKeywords.length} missing` : ''}
-            </>
-          }
-        >
-          <TokenList items={result.matchedKeywords} label="Matched" />
-          <TokenList items={result.missingKeywords.map((k) => k.keyword)} tone="warning" label="Missing" />
-        </ResultSection>
+        <ReportSection title="Keyword breakdown">
+          <KeywordFacts matched={result.matchedKeywords} missing={result.missingKeywords.map((k) => k.keyword)} />
+        </ReportSection>
       )}
 
       {result.recruiterSummary && (
-        <ResultSection title="Recruiter summary" meta="How they see you">
-          <p className="rs-text">{result.recruiterSummary}</p>
-        </ResultSection>
+        <ReportSection title="Recruiter summary" description="How they see you">
+          <Prose>{result.recruiterSummary}</Prose>
+        </ReportSection>
       )}
 
-      {result.interviewFocus.length > 0 && (
-        <ResultSection title="Interview prep">
-          <ul className="rlist rlist--bullets">
-            {result.interviewFocus.map((f) => (
-              <li key={f}>{f}</li>
-            ))}
-          </ul>
-        </ResultSection>
+      {interviewFocus.length > 0 && (
+        <ReportSection title="Interview prep">
+          <ResultList label="Interview prep" items={interviewFocus.map((f) => ({ key: f, title: f }))} />
+        </ReportSection>
       )}
     </>
   )
@@ -799,12 +792,35 @@ const COVER_NOTE_LABELS: Record<string, string> = {
   gap: 'Gap',
 }
 
+function LetterParagraph({
+  caption,
+  label,
+  value,
+  onChange,
+  children,
+}: {
+  caption: string
+  label: string
+  value: string
+  onChange: (value: string) => void
+  children?: ReactNode
+}) {
+  return (
+    <div className="result-letter__para">
+      <span className="result-letter__caption" aria-hidden="true">
+        {caption}
+      </span>
+      <Textarea autosize rows={1} aria-label={label} value={value} onChange={(e) => onChange(e.target.value)} />
+      {children}
+    </div>
+  )
+}
+
 function CoverLetterView({ payload, item }: { payload: AnyObject; item?: ToolRunDetail }) {
   const result = normalizeCoverLetterPayload(payload)
   const [openingText, setOpeningText] = useState(result.opening.text)
   const [bodyTexts, setBodyTexts] = useState(result.bodyPoints.map((p) => p.text))
   const [closingText, setClosingText] = useState(result.closing.text)
-  const [copied, setCopied] = useState(false)
 
   const compiledText = useMemo(
     () => composeCoverLetterText({ opening: openingText, bodyPoints: bodyTexts, closing: closingText }),
@@ -820,99 +836,52 @@ function CoverLetterView({ payload, item }: { payload: AnyObject; item?: ToolRun
   }, [item, compiledText])
 
   const bodyAnnotationLabels = ['Evidence loop', 'Culture fit', 'Value close']
-  const annotationLabels = [
-    'Hook strategy',
-    ...result.bodyPoints.map((_b, idx) => bodyAnnotationLabels[idx] ?? 'Evidence loop'),
-    'Closing',
-  ]
-
-  async function handleCopy() {
-    await navigator.clipboard.writeText(compiledText)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 1200)
-  }
-  function handleDownload() {
-    const blob = new Blob([compiledText], { type: 'text/plain;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = 'cover-letter.txt'
-    a.click()
-    URL.revokeObjectURL(url)
-  }
 
   return (
     <>
-      <ResultSection
+      <ReportSection
         title="Letter"
-        meta="Editable. Copy and download use your edits."
-        actions={
-          <>
-            <Button type="button" variant="outline" size="sm" onClick={handleCopy}>
-              <Copy /> {copied ? 'Copied' : 'Copy full text'}
-            </Button>
-            <Button type="button" variant="outline" size="sm" onClick={handleDownload}>
-              <Download /> Download TXT
-            </Button>
-          </>
-        }
+        description="Editable. Copy and Download use your edits."
       >
-        <div className="rletter">
-          <div className="rletter__date">{formatLetterDate(result.generatedAt)}</div>
-          <div className="rletter__para">
-            <span className="rletter__label" aria-hidden="true">{annotationLabels[0]}</span>
-            <AutoGrowTextarea
-              className="rletter__textarea"
-              aria-label="Opening paragraph"
-              value={openingText}
-              onChange={(e) => setOpeningText(e.target.value)}
-            />
-          </div>
+        <div className="result-letter">
+          <p className="result-letter__date">{formatLetterDate(result.generatedAt)}</p>
+          <LetterParagraph caption="Hook strategy" label="Opening paragraph" value={openingText} onChange={setOpeningText} />
           {result.bodyPoints.map((_p, index) => (
-            <div key={`body-${index}`} className="rletter__para">
-              <span className="rletter__label" aria-hidden="true">{annotationLabels[index + 1]}</span>
-              <AutoGrowTextarea
-                className="rletter__textarea"
-                aria-label={`Body paragraph ${index + 1}`}
-                value={bodyTexts[index] || ''}
-                onChange={(e) => setBodyTexts((c) => c.map((t, i) => (i === index ? e.target.value : t)))}
-              />
-            </div>
-          ))}
-          <div className="rletter__para">
-            <span className="rletter__label" aria-hidden="true">{annotationLabels[annotationLabels.length - 1]}</span>
-            <AutoGrowTextarea
-              className="rletter__textarea"
-              aria-label="Closing paragraph"
-              value={closingText}
-              onChange={(e) => setClosingText(e.target.value)}
+            <LetterParagraph
+              key={`body-${index}`}
+              caption={bodyAnnotationLabels[index] ?? 'Evidence loop'}
+              label={`Body paragraph ${index + 1}`}
+              value={bodyTexts[index] || ''}
+              onChange={(value) => setBodyTexts((c) => c.map((t, i) => (i === index ? value : t)))}
             />
-            <p className="rletter__sign">
+          ))}
+          <LetterParagraph caption="Closing" label="Closing paragraph" value={closingText} onChange={setClosingText}>
+            <p className="result-letter__sign">
               Sincerely,
               <br />
               [Your name]
             </p>
-          </div>
+          </LetterParagraph>
         </div>
-      </ResultSection>
+      </ReportSection>
 
       {result.customizationNotes.length > 0 && (
-        <ResultSection title="Customization notes">
-          <ul className="rlist rlist--plain">
-            {result.customizationNotes.map((n, i) => (
-              <li key={`${n.note}-${i}`} className="rlist__item rlist__item--inline">
-                <Badge>{COVER_NOTE_LABELS[n.category] ?? n.category}</Badge>
-                <span>{n.note}</span>
-              </li>
-            ))}
-          </ul>
-        </ResultSection>
+        <ReportSection title="Customization notes">
+          <ResultList
+            label="Customization notes"
+            items={result.customizationNotes.map((n, i) => ({
+              key: `${n.note}-${i}`,
+              title: n.note,
+              meta: <Badge>{COVER_NOTE_LABELS[n.category] ?? n.category}</Badge>,
+            }))}
+          />
+        </ReportSection>
       )}
 
       {result.opening.whyThisParagraph && (
-        <ResultSection title="Letter strategy">
-          <p className="rs-text">{result.opening.whyThisParagraph}</p>
-        </ResultSection>
+        <ReportSection title="Letter strategy">
+          <Prose>{result.opening.whyThisParagraph}</Prose>
+        </ReportSection>
       )}
     </>
   )
@@ -924,11 +893,27 @@ function InterviewView({ payload }: { payload: AnyObject }) {
   const result = normalizeInterviewPayload(payload)
   const [showWeakestFirst, setShowWeakestFirst] = useState(false)
   const [practiceMode, setPracticeMode] = useState(false)
+  const practiceButtonRef = useRef<HTMLButtonElement | null>(null)
+  const returnToPractice = useRef(false)
+  useReportPracticing(practiceMode)
+
+  // Leaving practice brings the "Practice mode" button back: put focus on it again.
+  useEffect(() => {
+    if (!practiceMode && returnToPractice.current) {
+      returnToPractice.current = false
+      practiceButtonRef.current?.focus()
+    }
+  }, [practiceMode])
 
   const visibleQuestions = useMemo(() => {
     if (!showWeakestFirst) return result.questions
     return [...result.questions.filter((q) => q.practiceFirst), ...result.questions.filter((q) => !q.practiceFirst)]
   }, [showWeakestFirst, result.questions])
+
+  // A badge every row carries says nothing: the rail already counts them.
+  const allQuestionsPracticeFirst = result.questions.length > 0 && result.questions.every((q) => q.practiceFirst)
+  const allFocusAreasPracticeFirst = result.focusAreas.length > 0 && result.focusAreas.every((a) => a.practiceFirst)
+  const severityVaries = new Set(result.weakSignals.map((w) => w.severity)).size > 1
 
   if (practiceMode) {
     return (
@@ -940,120 +925,125 @@ function InterviewView({ payload }: { payload: AnyObject }) {
           answer: q.answer,
           keyPoints: q.keyPoints,
         }))}
-        onExit={() => setPracticeMode(false)}
+        onExit={() => {
+          returnToPractice.current = true
+          setPracticeMode(false)
+        }}
       />
     )
   }
 
   return (
     <>
-      <ResultSection
+      <ReportSection
         title="Question breakdown"
-        meta={`${result.questions.length} questions`}
+        count={countOf(result.questions.length, 'question')}
         actions={
           <>
-            <div className="rseg" role="group" aria-label="Question order">
-              <button
-                type="button"
-                className={`rseg__btn${!showWeakestFirst ? ' rseg__btn--active' : ''}`}
-                aria-pressed={!showWeakestFirst}
-                onClick={() => setShowWeakestFirst(false)}
-              >
-                All
-              </button>
-              <button
-                type="button"
-                className={`rseg__btn${showWeakestFirst ? ' rseg__btn--active' : ''}`}
-                aria-pressed={showWeakestFirst}
-                onClick={() => setShowWeakestFirst(true)}
-              >
-                Weakest
-              </button>
-            </div>
-            <Button type="button" variant="outline" size="sm" title="Rehearse weak responses" onClick={() => setPracticeMode(true)}>
-              <Zap /> Practice mode
+            <Segmented
+              size="sm"
+              aria-label="Question order"
+              value={showWeakestFirst ? 'weakest' : 'all'}
+              onValueChange={(value) => setShowWeakestFirst(value === 'weakest')}
+              options={[
+                { value: 'all', label: 'All' },
+                { value: 'weakest', label: 'Weakest' },
+              ]}
+            />
+            <Button
+              ref={practiceButtonRef}
+              type="button"
+              variant="secondary"
+              size="sm"
+              disabled={result.questions.length === 0}
+              onClick={() => setPracticeMode(true)}
+            >
+              <Zap aria-hidden="true" />
+              Practice mode
             </Button>
           </>
         }
       >
-        <ol className="rlist rlist--numbered">
-          {visibleQuestions.map((q, index) => (
-            <li key={`${index}-${q.question}`} className="rlist__item">
-              <div className="rlist__row">
-                <span className="rlist__title">{q.question}</span>
-                <Badge>{q.focusArea}</Badge>
-                {q.practiceFirst && <Badge tone="warning">Practice first</Badge>}
-              </div>
-              {q.practiceFirst ? (
-                <>
-                  <p className="rlist__text">
-                    <strong>Focus area:</strong> {q.whyAsked}
-                  </p>
-                  {q.answer ? (
-                    <details className="rdetails">
-                      <summary>Show sample answer</summary>
-                      <p className="rlist__text">{q.answer}</p>
-                    </details>
-                  ) : null}
-                </>
-              ) : q.answer ? (
-                <p className="rlist__text">{q.answer}</p>
-              ) : null}
-              {q.keyPoints.length > 0 && (
-                <ul className="rlist rlist--bullets rlist--tight">
-                  {q.keyPoints.slice(0, 3).map((p) => (
-                    <li key={p}>{p}</li>
-                  ))}
-                </ul>
-              )}
-            </li>
-          ))}
-        </ol>
-      </ResultSection>
+        {visibleQuestions.length === 0 ? (
+          <EmptyState title="No questions in this run" />
+        ) : (
+          <ResultList
+            numbered
+            label="Questions"
+            items={visibleQuestions.map((q, index) => ({
+              key: `${index}-${q.question}`,
+              title: q.question,
+              detail: (
+                <Cluster gap={1}>
+                  <Badge>{q.focusArea}</Badge>
+                  {q.practiceFirst && !allQuestionsPracticeFirst ? <Badge tone="warning">Practice first</Badge> : null}
+                </Cluster>
+              ),
+              body: <QuestionDetails question={q} />,
+            }))}
+          />
+        )}
+      </ReportSection>
 
       {result.focusAreas.length > 0 && (
-        <ResultSection title="Focus areas">
-          <ul className="rlist rlist--plain">
-            {result.focusAreas.map((area) => (
-              <li key={area.title} className="rlist__item">
-                <div className="rlist__row">
-                  <span className="rlist__title">{area.title}</span>
-                  {area.practiceFirst && <Badge tone="warning">Practice first</Badge>}
-                </div>
-                <p className="rlist__text">{area.reason}</p>
-              </li>
-            ))}
-          </ul>
-        </ResultSection>
+        <ReportSection title="Focus areas">
+          <ResultList
+            label="Focus areas"
+            items={result.focusAreas.map((area) => ({
+              key: area.title,
+              title: area.title,
+              detail: area.reason,
+              meta: area.practiceFirst && !allFocusAreasPracticeFirst ? <Badge tone="warning">Practice first</Badge> : undefined,
+            }))}
+          />
+        </ReportSection>
       )}
 
       {result.weakSignals.length > 0 && (
-        <ResultSection title="Weak signals">
-          <ul className="rlist rlist--plain">
-            {result.weakSignals.map((w) => (
-              <li key={w.title} className="rlist__item">
-                <div className="rlist__row">
-                  <span className="rlist__title">{w.title}</span>
-                  <SeverityBadge level={w.severity} />
-                </div>
-                <p className="rlist__text">{w.prepAction}</p>
-              </li>
-            ))}
-          </ul>
-        </ResultSection>
+        <ReportSection title="Weak signals">
+          <ResultList
+            label="Weak signals"
+            items={result.weakSignals.map((w) => ({
+              key: w.title,
+              title: w.title,
+              detail: w.prepAction,
+              meta: severityVaries ? <SeverityBadge level={w.severity} /> : undefined,
+            }))}
+          />
+        </ReportSection>
       )}
 
       {result.interviewerNotes.length > 0 && (
-        <ResultSection title="Interviewer notes">
-          <ul className="rlist rlist--bullets">
-            {result.interviewerNotes.map((n) => (
-              <li key={n}>{n}</li>
-            ))}
-          </ul>
-        </ResultSection>
+        <ReportSection title="Interviewer notes">
+          <ResultList label="Interviewer notes" items={result.interviewerNotes.map((n) => ({ key: n, title: n }))} />
+        </ReportSection>
       )}
     </>
   )
+}
+
+/** Why a question is asked, the sample answer and the talking points, under the question. */
+function QuestionDetails({ question: q }: { question: InterviewResultPayload['questions'][number] }) {
+  const items = [
+    ...(q.practiceFirst ? [{ label: 'Focus area', value: q.whyAsked }] : []),
+    ...(q.answer
+      ? [
+          q.practiceFirst
+            ? {
+                label: 'Sample answer',
+                value: (
+                  <Disclosure variant="inline" title="Show sample answer">
+                    <Prose>{q.answer}</Prose>
+                  </Disclosure>
+                ),
+              }
+            : { label: 'Answer', value: q.answer },
+        ]
+      : []),
+    ...(q.keyPoints.length > 0 ? [{ label: 'Key points', value: <Lines items={q.keyPoints.slice(0, 3)} /> }] : []),
+  ]
+  if (items.length === 0) return null
+  return <KeyValue className="result-why" divided={false} labelWidth="7rem" items={items} />
 }
 
 function normalizeCareerPayload(payload: AnyObject): CareerResultPayload {
@@ -1167,10 +1157,28 @@ function normalizePortfolioPayload(payload: AnyObject): PortfolioResultPayload {
 
 /* ── Career ── */
 
+type PathRow = CareerResultPayload['paths'][number] & { rowId: string }
+
+const PATH_COLUMNS: Array<TableColumn<PathRow>> = [
+  { id: 'role', header: 'Role', primary: true, width: '14rem', cell: (p) => p.roleTitle },
+  {
+    id: 'fit',
+    header: 'Fit',
+    width: '9rem',
+    cell: (p) => (
+      <ScoreBar aria-label={`${p.roleTitle} fit`} layout="inline" size="sm" value={p.fitScore} valueLabel={`${p.fitScore}%`} />
+    ),
+  },
+  { id: 'timeline', header: 'Timeline', width: '8rem', cell: (p) => p.transitionTimeline },
+  { id: 'rationale', header: 'Rationale', cell: (p) => p.rationale },
+]
+
 function CareerView({ payload }: { payload: AnyObject }) {
   const result = normalizeCareerPayload(payload)
   const recommendedRole = result.recommendedDirection.roleTitle.toLowerCase()
-  const altPaths = result.paths.filter((p) => p.roleTitle.toLowerCase() !== recommendedRole)
+  const altPaths: PathRow[] = result.paths
+    .filter((p) => p.roleTitle.toLowerCase() !== recommendedRole)
+    .map((p, index) => ({ ...p, rowId: `${index}-${p.roleTitle}` }))
   // _normalize_paths sorts by fit_score, so paths[0] is the highest-fit
   // option — not necessarily the LLM's recommended direction. Source the
   // strengths from the path that matches the headline, falling back to
@@ -1187,98 +1195,63 @@ function CareerView({ payload }: { payload: AnyObject }) {
 
   return (
     <>
-      <ResultSection title="Recommended path" meta={result.recommendedDirection.transitionTimeline}>
-        <p className="rs-lead">{result.recommendedDirection.roleTitle}</p>
-        <h3 className="rs-sub">Why this is your ideal next step</h3>
-        <p className="rs-text">{result.recommendedDirection.whyNow}</p>
-        {strengths.length > 0 && (
-          <ul className="rlist rlist--bullets">
-            {strengths.map((s) => (
-              <li key={s}>{s}</li>
-            ))}
-          </ul>
-        )}
-        {result.targetSkills.length > 0 && (
-          <>
-            <h3 className="rs-sub">Skills to develop next</h3>
-            <TokenList items={result.targetSkills} tone="accent" />
-          </>
-        )}
-        {result.currentSkills.length > 0 && (
-          <>
-            <h3 className="rs-sub">Skills you already bring</h3>
-            <TokenList items={result.currentSkills} />
-          </>
-        )}
-      </ResultSection>
+      <ReportSection title="Recommended path">
+        <KeyValue
+          labelWidth="11rem"
+          items={[
+            { label: 'Role', value: <strong>{result.recommendedDirection.roleTitle}</strong> },
+            { label: 'Why this is your ideal next step', value: result.recommendedDirection.whyNow },
+            ...(strengths.length > 0 ? [{ label: 'Strengths to leverage', value: <Lines items={strengths} /> }] : []),
+            ...(result.targetSkills.length > 0
+              ? [{ label: 'Skills to develop next', value: <Lines items={result.targetSkills} /> }]
+              : []),
+            ...(result.currentSkills.length > 0
+              ? [{ label: 'Skills you already bring', value: <Lines items={result.currentSkills} /> }]
+              : []),
+          ]}
+        />
+      </ReportSection>
 
       {result.nextSteps.length > 0 && (
-        <ResultSection title={`The ${result.nextSteps.length}-step roadmap`}>
-          <ol className="rlist rlist--numbered">
-            {result.nextSteps.map((step, i) => (
-              <li key={`${step.timeframe}-${i}`} className="rlist__item">
-                <div className="rlist__row">
-                  <span className="rlist__title">{step.timeframe}</span>
-                </div>
-                <p className="rlist__text">{step.action}</p>
-              </li>
-            ))}
-          </ol>
-        </ResultSection>
+        <ReportSection title={`The ${result.nextSteps.length}-step roadmap`}>
+          <ResultList
+            numbered
+            label="Roadmap"
+            items={result.nextSteps.map((step, i) => ({ key: `${step.timeframe}-${i}`, title: step.timeframe, detail: step.action }))}
+          />
+        </ReportSection>
       )}
 
       {result.skillGaps.length > 0 && (
-        <ResultSection title="Critical skill gaps" meta={`${result.skillGaps.length} gaps`}>
-          <ul className="rlist rlist--plain">
-            {result.skillGaps.map((g) => (
-              <li key={g.skill} className="rlist__item">
-                <div className="rlist__row">
-                  <span className="rlist__title">{g.skill}</span>
-                  <SeverityBadge level={g.urgency} />
-                </div>
-                <dl className="rfields">
-                  <Field label="Why it matters">{g.whyItMatters}</Field>
-                  <Field label="How to build">{g.howToBuild}</Field>
-                </dl>
-              </li>
-            ))}
-          </ul>
-        </ResultSection>
+        <ReportSection title="Critical skill gaps" count={result.skillGaps.length}>
+          <ResultList
+            label="Critical skill gaps"
+            items={result.skillGaps.map((g) => ({
+              key: g.skill,
+              title: g.skill,
+              meta: <SeverityBadge level={g.urgency} />,
+              body: (
+                <WhyFix
+                  items={[
+                    { label: 'Why it matters', value: g.whyItMatters },
+                    { label: 'How to build', value: g.howToBuild },
+                  ]}
+                />
+              ),
+            }))}
+          />
+        </ReportSection>
       )}
 
       {altPaths.length > 0 && (
-        <ResultSection title="Alternative paths">
-          <table className="rtable rtable--paths">
-            <thead>
-              <tr>
-                <th scope="col">Role</th>
-                <th scope="col">Fit</th>
-                <th scope="col">Timeline</th>
-                <th scope="col">Rationale</th>
-              </tr>
-            </thead>
-            <tbody>
-              {altPaths.map((p) => (
-                <tr key={p.roleTitle}>
-                  <th scope="row">
-                    <span className="rtable__name">{p.roleTitle}</span>
-                  </th>
-                  <td className="rtable__fit">
-                    <span className="rtable__num">{p.fitScore}%</span>
-                    <MiniBar value={p.fitScore} />
-                  </td>
-                  <td>{p.transitionTimeline}</td>
-                  <td>{p.rationale}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </ResultSection>
+        <ReportSection title="Alternative paths">
+          <Table caption="Alternative career paths" columns={PATH_COLUMNS} rows={altPaths} getRowId={(p) => p.rowId} />
+        </ReportSection>
       )}
 
-      <ResultSection title="Note">
-        <p className="rs-text">{tip}</p>
-      </ResultSection>
+      <ReportSection title="Note">
+        <Prose>{tip}</Prose>
+      </ReportSection>
     </>
   )
 }
@@ -1312,67 +1285,76 @@ function PortfolioView({ payload }: { payload: AnyObject }) {
 
   return (
     <>
-      <ResultSection title="Strategy">
-        <p className="rs-lead">{result.strategy.headline}</p>
-        <p className="rs-text">{result.strategy.focus}</p>
-      </ResultSection>
+      <ReportSection title="Strategy">
+        <Stack gap={3}>
+          <Prose strong>{result.strategy.headline}</Prose>
+          <Prose>{result.strategy.focus}</Prose>
+        </Stack>
+      </ReportSection>
 
-      <ResultSection title="The build sequence" meta={`${orderedSteps.length} projects`}>
-        <ol className="rlist rlist--numbered">
-          {orderedSteps.map(({ step, project }) => {
-            const isStart = isStartProject(project.projectTitle)
-            return (
-              <li key={project.projectTitle} className="rlist__item" value={step.order || undefined}>
-                <div className="rlist__row">
-                  <span className="rlist__title">{project.projectTitle}</span>
-                  {isStart && <Badge tone="accent">Start here</Badge>}
-                  <span className="rlist__meta">
-                    {project.complexity}
-                    {project.estimatedTimeline ? ` · ${project.estimatedTimeline}` : ''}
-                  </span>
-                </div>
-                <p className="rlist__text">{project.description}</p>
-                <dl className="rfields">
-                  {step.reason && <Field label="Why this slot">{step.reason}</Field>}
-                  <Field label="Why this project">{project.whyThisProject}</Field>
-                </dl>
-                {project.skills.length > 0 && <TokenList items={project.skills.slice(0, 4)} />}
-                {project.hiringSignals.length > 0 && (
-                  <>
-                    <h3 className="rs-sub">What this proves to hiring teams</h3>
-                    <ul className="rlist rlist--bullets rlist--tight">
-                      {project.hiringSignals.slice(0, 3).map((signal) => (
-                        <li key={signal}>{signal}</li>
-                      ))}
-                    </ul>
-                  </>
-                )}
-              </li>
-            )
-          })}
-        </ol>
-      </ResultSection>
+      <ReportSection title="The build sequence" count={countOf(orderedSteps.length, 'project')}>
+        {orderedSteps.length === 0 ? (
+          <EmptyState title="No projects in this run" />
+        ) : (
+          <ResultList
+            numbered
+            label="Build sequence"
+            items={orderedSteps.map(({ step, project }) => ({
+              key: project.projectTitle,
+              title: (
+                <>
+                  {project.projectTitle}
+                  {isStartProject(project.projectTitle) ? (
+                    <>
+                      {' '}
+                      <Badge tone="accent">Start here</Badge>
+                    </>
+                  ) : null}
+                </>
+              ),
+              detail: (
+                <MetaRow>
+                  {project.complexity}
+                  {project.estimatedTimeline}
+                </MetaRow>
+              ),
+              body: (
+                <Stack gap={2}>
+                  <Prose>{project.description}</Prose>
+                  <KeyValue
+                    className="result-why"
+                    divided={false}
+                    labelWidth="7rem"
+                    items={[
+                      ...(step.reason ? [{ label: 'Why this slot', value: step.reason }] : []),
+                      { label: 'Why this project', value: project.whyThisProject },
+                      ...(project.skills.length > 0 ? [{ label: 'Skills', value: project.skills.slice(0, 4).join(', ') }] : []),
+                      ...(project.hiringSignals.length > 0
+                        ? [{ label: 'Proves to hiring teams', value: <Lines items={project.hiringSignals.slice(0, 3)} /> }]
+                        : []),
+                    ]}
+                  />
+                </Stack>
+              ),
+            }))}
+          />
+        )}
+      </ReportSection>
 
       {result.presentationTips.length > 0 && (
-        <ResultSection title="Presentation tips">
-          <ol className="rlist rlist--numbered">
-            {result.presentationTips.map((tip) => (
-              <li key={tip} className="rlist__item">
-                <p className="rlist__text">{tip}</p>
-              </li>
-            ))}
-          </ol>
-        </ResultSection>
+        <ReportSection title="Presentation tips">
+          <ResultList
+            numbered
+            label="Presentation tips"
+            items={result.presentationTips.map((tip) => ({ key: tip, title: tip }))}
+          />
+        </ReportSection>
       )}
 
       {allDeliverables.length > 0 && (
-        <ResultSection title="Key deliverables">
-          <ul className="rlist rlist--bullets">
-            {allDeliverables.map((d) => (
-              <li key={d}>{d}</li>
-            ))}
-          </ul>
-        </ResultSection>
+        <ReportSection title="Key deliverables">
+          <ResultList label="Key deliverables" items={allDeliverables.map((d) => ({ key: d, title: d }))} />
+        </ReportSection>
       )}
     </>
   )
@@ -1478,6 +1460,8 @@ function portfolioCopyText(payload: AnyObject) {
 /** What the report header shows above the content: one score and a few facts. */
 export type ResultSummary = {
   score?: { value: number; label: string; unit: '/100' | '%' }
+  /** A ratio worth a bar under the score ("Requirements met 3 of 6"). */
+  bars?: Array<{ label: string; value: number; max: number; valueLabel: string }>
   facts: Array<{ label: string; value: string }>
   note?: string
 }
@@ -1507,7 +1491,6 @@ export const resultDefinitions: Record<ToolId, ResultDefinition> = {
         score: { value: r.overallScore, label: 'Resume score', unit: '/100' },
         facts: [
           ...fact('Verdict', r.summary.verdict),
-          ...(r.roleFit ? fact('Role fit', `${r.roleFit.fitScore}%`) : []),
           ...fact('Issues', r.issues.length || ''),
         ],
         note: r.summary.confidence_note,
@@ -1523,9 +1506,12 @@ export const resultDefinitions: Record<ToolId, ResultDefinition> = {
       const met = r.requirements.filter((req) => req.status === 'matched').length
       return {
         score: { value: r.matchScore, label: 'Match score', unit: '/100' },
+        bars:
+          r.requirements.length > 0
+            ? [{ label: 'Requirements met', value: met, max: r.requirements.length, valueLabel: `${met} of ${r.requirements.length}` }]
+            : [],
         facts: [
           ...fact('Verdict', r.verdict.charAt(0).toUpperCase() + r.verdict.slice(1)),
-          ...(r.requirements.length > 0 ? fact('Requirements met', `${met}/${r.requirements.length}`) : []),
           ...fact('Keywords matched', r.matchedKeywords.length),
           ...fact('Missing', r.missingKeywords.length),
         ],
@@ -1548,8 +1534,8 @@ export const resultDefinitions: Record<ToolId, ResultDefinition> = {
       return {
         facts: [
           ...fact('Tone', r.toneUsed),
-          ...fact('Length', `${wordCount} words`),
-          ...(reqCount > 0 ? fact('Tailored for', `${reqCount} requirements`) : []),
+          ...fact('Length', countOf(wordCount, 'word')),
+          ...(reqCount > 0 ? fact('Tailored for', countOf(reqCount, 'requirement')) : []),
         ],
         note: r.summary.confidence_note,
       }

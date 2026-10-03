@@ -1,11 +1,9 @@
-import { Input } from '#/components/ui/input'
+import { Field, Input } from '#/components/kit'
 import { ResumeSource } from '#/components/tooling/ResumeSource'
 import {
-  ToolField,
-  ToolInputHero,
+  ToolForm,
   ToolPageLoading,
   ToolPageShell,
-  ToolSubmitRow,
   getSeededFieldNote,
   useToolPageState,
 } from '#/components/tooling/toolPageShared'
@@ -18,25 +16,16 @@ export function PortfolioToolPage() {
   const targetRoleField = config.fields.find((field) => field.name === 'targetRole')!
 
   return (
-    <ToolPageShell
-      toolId="portfolio"
-      hero={
-        <ToolInputHero
-          toolId="portfolio"
-          subtitle="Add the role you want next and generate a focused project roadmap."
-        />
-      }
-    >
+    <ToolPageShell toolId="portfolio">
       {mutation.isPending ? (
         <ToolPageLoading toolId="portfolio" mutationDone={!mutation.isPending} />
       ) : (
-        <form
-          aria-label={`${tool.label} input form`}
-          className="tool-form"
-          onSubmit={(event) => {
-            event.preventDefault()
-            handleSubmit()
-          }}
+        <ToolForm
+          label={`${tool.label} input form`}
+          onSubmit={handleSubmit}
+          submitLabel="Generate roadmap"
+          error={mutation.error}
+          pending={mutation.isPending}
         >
           <ResumeSource
             id="portfolio-resumeText"
@@ -46,31 +35,22 @@ export function PortfolioToolPage() {
             value={String(draft.resumeText ?? '')}
             onChange={(text) => setField('resumeText', text)}
             seeded={bridge.seededResume}
-            note={getSeededFieldNote('resumeText', bridge)}
             error={errors.resumeText}
           />
 
-          <ToolField
-            htmlFor="portfolio-targetRole"
+          <Field
             label={targetRoleField.label}
-            note={getSeededFieldNote('targetRole', bridge)}
+            id="portfolio-targetRole"
+            help={getSeededFieldNote('targetRole', bridge) || undefined}
             error={errors.targetRole}
           >
             <Input
-              id="portfolio-targetRole"
-              aria-invalid={!!errors.targetRole}
               value={String(draft.targetRole ?? '')}
               placeholder={targetRoleField.placeholder}
               onChange={(event) => setField('targetRole', event.target.value as never)}
             />
-          </ToolField>
-
-          <ToolSubmitRow
-            label="Generate roadmap"
-            error={mutation.error}
-            pending={mutation.isPending}
-          />
-        </form>
+          </Field>
+        </ToolForm>
       )}
     </ToolPageShell>
   )
