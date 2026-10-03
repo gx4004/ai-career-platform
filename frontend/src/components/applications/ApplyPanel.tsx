@@ -51,7 +51,7 @@ export function ApplyPanel({ application }: { application: ApplicationDetail }) 
 
   if (application.applied_at) {
     return (
-      <Panel title={`You applied on ${formatDate(application.applied_at)}`} description="What you sent is saved below, exactly as it was when you marked it applied." className="camp-apply is-applied">
+      <Panel title={`You applied on ${formatDate(application.applied_at)}`} description="What you sent is saved below, exactly as it was when you marked it applied." className="camp-apply camp-sec-apply is-applied">
         {application.no_reply_suggested ? (
           <div className="camp-nudge">
             <span>No reply yet?</span>
@@ -60,13 +60,6 @@ export function ApplyPanel({ application }: { application: ApplicationDetail }) 
         ) : null}
         {failed ? <p className="camp-alert" role="alert">{errorMessage(failed.error, "That didn't save. Try again.")}</p> : null}
         {application.snapshot ? <SentApplication content={application.snapshot.content} /> : null}
-        {link ? (
-          <div className="camp-apply__actions">
-            <Button variant="outline" asChild>
-              <a href={link} target="_blank" rel="noopener noreferrer">Open the job posting <ArrowUpRight size={14} aria-hidden="true" /></a>
-            </Button>
-          </div>
-        ) : null}
       </Panel>
     )
   }
@@ -86,7 +79,7 @@ export function ApplyPanel({ application }: { application: ApplicationDetail }) 
   const primary = !prepared ? 'prepare' : unanswered.length ? 'answer' : link ? 'apply' : 'applied'
 
   return (
-    <Panel title={title} description={description} className="camp-apply">
+    <Panel title={title} description={description} className="camp-apply camp-sec-apply">
       {application.open_questions.length ? (
         <QuestionsForm
           key={`${application.drafts?.run_id ?? ''}:${JSON.stringify(application.answers)}`}

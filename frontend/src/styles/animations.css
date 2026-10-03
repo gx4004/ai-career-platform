@@ -296,11 +296,6 @@
   100% { transform: translate(0, 0); }
 }
 
-@keyframes cta-glow-pulse {
-  0%, 100% { box-shadow: 0 0 30px rgba(74, 147, 239, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.15); }
-  50% { box-shadow: 0 0 44px rgba(74, 147, 239, 0.38), inset 0 1px 0 rgba(255, 255, 255, 0.15); }
-}
-
 @media (prefers-reduced-motion: reduce) {
   /* Make all entrance animations instant */
   .page-frame,
@@ -332,7 +327,6 @@
   .dash-hero-dark-drop-glow,
   .dash-hero-dark .dropzone-hero,
   .route-pending-spinner,
-  .button-session-signin-cta::before,
   .tool-illust-scan-beam,
   .tool-input-hero .tool-illust-scan-beam,
   .tool-illust-circle,

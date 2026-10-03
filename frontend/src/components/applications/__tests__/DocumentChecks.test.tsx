@@ -235,7 +235,7 @@ describe('DocumentChecks', () => {
 
   it('waits for the owner to run the checks', () => {
     renderReviewer()
-    expect(within(item('You cover what the job asks for')).getByLabelText('Not checked yet')).toBeTruthy()
+    expect(screen.getByTestId('checks-idle').textContent).toContain('6 checks, not run yet')
     expect(api.reviewApplication).not.toHaveBeenCalled()
   })
 

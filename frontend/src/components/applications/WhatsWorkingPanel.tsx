@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import { useBreakpoint } from '#/hooks/use-breakpoint'
 import { Panel } from './Panel'
 import { getApplicationInsights } from '#/lib/api/client'
 import type { InsightSegment, InsightsDimension } from '#/lib/api/schemas'
@@ -12,6 +13,7 @@ const applications = (n: number) => `${n} application${n === 1 ? '' : 's'}`
  * and every rate shows how many applications it rests on.
  */
 export function WhatsWorkingPanel() {
+  const phone = useBreakpoint() === 'mobile'
   const query = useQuery({ queryKey: APPLICATION_INSIGHTS_QUERY_KEY, queryFn: getApplicationInsights })
   const data = query.data
   if (query.isError) return null
@@ -23,12 +25,8 @@ export function WhatsWorkingPanel() {
     )
   }
   const { overall } = data
-  return (
-    <Panel
-      title="What's working"
-      description={`A reply is an interview or an offer. A rate shows once a group has ${data.min_segment_size} or more applications; smaller groups show “—”.`}
-      className="camp-insights"
-    >
+  const body = (
+    <>
       {overall.applied === 0 ? (
         <div className="camp-insights__empty">
           <p><strong>Nothing to learn from yet.</strong></p>
@@ -54,17 +52,45 @@ export function WhatsWorkingPanel() {
           </div>
         </>
       )}
+    </>
+  )
+  if (phone) {
+    return (
+      <details className="camp-panel camp-insights camp-disclosure">
+        <summary className="camp-panel__title">What's working</summary>
+        <div className="camp-panel__body">{body}</div>
+      </details>
+    )
+  }
+  return (
+    <Panel
+      title="What's working"
+      description={`A reply is an interview or an offer. A rate shows once a group has ${data.min_segment_size} or more applications.`}
+      className="camp-insights"
+    >
+      {body}
     </Panel>
   )
 }
 
+const hasRate = (segment: InsightSegment) => segment.enough_data && segment.reply_rate !== null
+
 function Dimension({ dimension }: { dimension: InsightsDimension }) {
+  const rated = dimension.segments.filter(hasRate)
+  const thin = dimension.segments.filter((segment) => !hasRate(segment))
   return (
     <section className="camp-insights__group" aria-label={dimension.title}>
       <h3>{dimension.title}</h3>
-      <ul>
-        {dimension.segments.map((segment) => <Segment key={segment.label} segment={segment} />)}
-      </ul>
+      {rated.length > 0 ? (
+        <ul>
+          {rated.map((segment) => <Segment key={segment.label} segment={segment} />)}
+        </ul>
+      ) : null}
+      {thin.length > 0 ? (
+        <p className="camp-muted">
+          Not enough data yet: {thin.map((segment) => `${segment.label} (${segment.applied})`).join(', ')}
+        </p>
+      ) : null}
       {dimension.hidden_count > 0 ? (
         <p className="camp-muted">+ {dimension.hidden_count} more with fewer applications</p>
       ) : null}
@@ -73,18 +99,17 @@ function Dimension({ dimension }: { dimension: InsightsDimension }) {
 }
 
 function Segment({ segment }: { segment: InsightSegment }) {
-  const known = segment.enough_data && segment.reply_rate !== null
   return (
     <li className="camp-insights__row">
       <span className="camp-insights__label">{segment.label}</span>
       <span className="camp-insights__track" aria-hidden="true">
-        {known ? <span className="camp-insights__fill" style={{ width: `${Math.max(segment.reply_rate ?? 0, 2)}%` }} /> : null}
+        <span className="camp-insights__fill" style={{ width: `${Math.max(segment.reply_rate ?? 0, 2)}%` }} />
       </span>
       <span
-        className={known ? 'camp-insights__value' : 'camp-insights__value is-thin'}
-        aria-label={known ? `${segment.reply_rate}%, ${segment.replied} of ${applications(segment.applied)}` : `Not enough data, ${applications(segment.applied)}`}
+        className="camp-insights__value"
+        aria-label={`${segment.reply_rate}%, ${segment.replied} of ${applications(segment.applied)}`}
       >
-        <span aria-hidden="true">{known ? `${segment.reply_rate}%` : '—'}</span>
+        <span aria-hidden="true">{`${segment.reply_rate}%`}</span>
         <small aria-hidden="true">n={segment.applied}</small>
       </span>
     </li>

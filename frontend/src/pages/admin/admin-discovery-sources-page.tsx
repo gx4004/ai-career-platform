@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { formatDate } from '#/components/applications/stages'
 import {
   getAdminDiscoverySources,
   setDiscoverySourceKillSwitch,
@@ -27,13 +28,12 @@ export function AdminDiscoverySourcesPage() {
   return (
     <div>
       <h1 className="admin-page-title">Discovery sources</h1>
-      <p className="admin-table-muted">
-        Governance registry plus the operator kill switch. A source can ingest only
-        after an accepted terms review and while its kill switch is off. Tripping the
-        kill switch halts a source immediately — no deploy or restart.
+      <p className="admin-intro">
+        A source can ingest only after an accepted terms review and while its kill
+        switch is off. Tripping the kill switch halts it immediately, with no deploy or restart.
       </p>
 
-      <div className="admin-data-table-wrap" style={{ marginTop: '1.5rem' }}>
+      <div className="admin-data-table-wrap">
         {isError && (
           <p className="admin-table-muted admin-error-text" style={{ padding: '1rem' }}>
             Couldn't load discovery sources.{' '}
@@ -81,13 +81,16 @@ export function AdminDiscoverySourcesPage() {
                     <div className="admin-table-muted">{source.source_key}</div>
                     <div className="admin-table-muted">{source.source_family}</div>
                   </td>
-                  <td>
+                  <td className="admin-source-governance">
                     <div>{source.owner}</div>
-                    <div className="admin-table-muted">{source.allowed_behavior}</div>
-                    <div className="admin-table-muted">
+                    <div className="admin-table-muted admin-source-url" title={source.endpoint_url ?? undefined}>
                       {source.endpoint_url || 'Endpoint not configured'}
                     </div>
-                    <div className="admin-table-muted">{source.attribution_rule}</div>
+                    <details className="admin-policy">
+                      <summary>Policy</summary>
+                      <div className="admin-table-muted">{source.allowed_behavior}</div>
+                      <div className="admin-table-muted">{source.attribution_rule}</div>
+                    </details>
                   </td>
                   <td>
                     <span className="admin-badge admin-badge--tool">
@@ -95,7 +98,7 @@ export function AdminDiscoverySourcesPage() {
                     </span>
                     <div className="admin-table-muted">
                       {source.terms_reviewed_at
-                        ? new Date(source.terms_reviewed_at).toLocaleDateString()
+                        ? formatDate(source.terms_reviewed_at)
                         : 'Not reviewed'}
                     </div>
                     {source.terms_reviewed_by && (
@@ -148,11 +151,11 @@ function LastFetch({ source }: { source: DiscoverySource }) {
   const failed = source.last_outcome !== 'ok'
   return (
     <div>
-      <strong className={failed ? 'admin-error-text' : undefined}>
+      <div className={failed ? 'admin-fetch-failed' : undefined}>
         {failed ? source.last_outcome : 'OK'}
-      </strong>
+      </div>
       <div className="admin-table-muted">
-        {new Date(source.last_fetched_at).toLocaleString()}
+        {new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(source.last_fetched_at))}
       </div>
       <div className="admin-table-muted">
         {source.listing_count ?? 0} listings

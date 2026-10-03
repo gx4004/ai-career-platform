@@ -64,8 +64,7 @@ function SheetContent({
         className={cn(
           [
             "fixed z-50 flex flex-col gap-4 bg-background bg-clip-padding text-sm text-foreground",
-            "shadow-[0_0_0_1px_rgba(12,17,29,0.06),0_32px_64px_-20px_rgba(12,17,29,0.25)]",
-            "dark:shadow-[0_0_0_1px_rgba(255,255,255,0.04),0_32px_64px_-20px_rgba(0,0,0,0.7)]",
+            "shadow-[var(--shadow-overlay)]",
             "transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
             "motion-reduce:transition-none motion-reduce:duration-0",
             "data-[side=bottom]:inset-x-0 data-[side=bottom]:bottom-0 data-[side=bottom]:h-auto data-[side=bottom]:border-t data-[side=bottom]:rounded-t-[var(--radius-2xl)]",

@@ -61,8 +61,7 @@ export function AppSidebar() {
             className="app-sidebar-brand-link"
             aria-label="Career Workbench"
           >
-            <AppBrandLockup mode="compact" />
-            {isCollapsedDesktop ? null : <span className="app-sidebar-brand-name">Career Workbench</span>}
+            <AppBrandLockup mode={isCollapsedDesktop ? 'compact' : 'full'} />
           </Link>
           <SidebarTrigger
             className="app-sidebar-brand-toggle"

@@ -1,6 +1,7 @@
 import { Link, useRouter } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
 import { AlertCircle } from 'lucide-react'
+import { AppBrandLockup } from '#/components/app/AppBrandLockup'
 import { AppStatePanel } from '#/components/app/AppStatePanel'
 import { AuthSurface } from '#/components/auth/AuthSurface'
 import { useSession } from '#/hooks/useSession'
@@ -60,6 +61,9 @@ export function LoginPage() {
     <div className="auth-page">
       <div className="auth-page-shell">
         <div className="auth-page-actions">
+          <Link to="/" aria-label="Career Workbench home">
+            <AppBrandLockup mode="compact" className="auth-brand-lockup" />
+          </Link>
           <button
             type="button"
             onClick={handleBack}
@@ -67,9 +71,6 @@ export function LoginPage() {
           >
             ← Back
           </button>
-          <Link to="/dashboard" className="small-copy muted-copy auth-back-link">
-            Continue as guest →
-          </Link>
         </div>
         {oauthErrorMessage ? (
           <div
@@ -81,6 +82,11 @@ export function LoginPage() {
           </div>
         ) : null}
         <AuthSurface view={view} onViewChange={setView} />
+        <div className="auth-page-footer">
+          <Link to="/dashboard" className="small-copy muted-copy auth-back-link">
+            Continue as guest →
+          </Link>
+        </div>
       </div>
     </div>
   )

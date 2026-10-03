@@ -1,4 +1,5 @@
 import { Link, Outlet, useRouterState } from '@tanstack/react-router'
+import { AppBrandLockup } from '#/components/app/AppBrandLockup'
 import {
   LayoutDashboard,
   Users,
@@ -20,9 +21,10 @@ export function AdminLayout() {
   return (
     <div className="admin-layout">
       <aside className="admin-sidebar">
-        <div className="admin-sidebar-brand">
-          <span className="admin-sidebar-brand-label">Admin panel</span>
-        </div>
+        <Link to="/dashboard" className="admin-sidebar-brand" aria-label="Career Workbench, back to the app">
+          <AppBrandLockup />
+        </Link>
+        <p className="admin-sidebar-label">Admin</p>
         <nav className="admin-sidebar-nav">
           {NAV.map((item) => {
             const isActive =

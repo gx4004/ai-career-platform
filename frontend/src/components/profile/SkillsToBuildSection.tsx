@@ -154,14 +154,16 @@ export function SkillsToBuildSection() {
           </Button>
         </p>
       ) : items.length === 0 ? (
-        <p className="profile-empty">
-          <strong className="profile-empty__title">Nothing to build yet</strong> When an
-          application&apos;s gap check finds something to work on, add it from the application and it
-          shows up here.{' '}
+        <div className="profile-empty profile-empty--stack">
+          <strong className="profile-empty__title">Nothing to build yet</strong>
+          <span>
+            When an application&apos;s gap check finds something to work on, add it from the application
+            and it shows up here.
+          </span>
           <Button variant="outline" size="sm" asChild>
             <Link to="/campaigns">Open applications</Link>
           </Button>
-        </p>
+        </div>
       ) : (
         <div className="fact-groups">
           {groups.map((group) => (

@@ -13,13 +13,13 @@ import { PROVENANCE_LABELS, contentEntries } from '#/lib/profile/evidence'
 
 type Finding = Awaited<ReturnType<typeof reviewApplication>>['findings'][number]
 
-const CHECKS: Array<{ category: Finding['category']; title: string; detail: string }> = [
-  { category: 'unsupported_claim', title: 'Everything you claim is backed up', detail: 'Numbers, names and results also appear in your CV or profile.' },
-  { category: 'missed_requirement', title: 'You cover what the job asks for', detail: 'The key skills in the job posting show up in your documents.' },
-  { category: 'contradiction', title: 'Your documents agree', detail: 'Your CV and cover letter tell the same story, like years of experience.' },
-  { category: 'generic_language', title: 'No stock phrases', detail: 'Lines like “team player” are swapped for specifics.' },
-  { category: 'repetition', title: 'Nothing is repeated', detail: 'Each sentence earns its place.' },
-  { category: 'document_defect', title: 'No placeholders or near-empty documents', detail: 'No leftover [Company] or TODO, and both documents have real content.' },
+const CHECKS: Array<{ category: Finding['category']; title: string; short: string; detail: string }> = [
+  { category: 'unsupported_claim', title: 'Everything you claim is backed up', short: 'claims backed up', detail: 'Numbers, names and results also appear in your CV or profile.' },
+  { category: 'missed_requirement', title: 'You cover what the job asks for', short: 'job requirements covered', detail: 'The key skills in the job posting show up in your documents.' },
+  { category: 'contradiction', title: 'Your documents agree', short: 'documents agree', detail: 'Your CV and cover letter tell the same story, like years of experience.' },
+  { category: 'generic_language', title: 'No stock phrases', short: 'no stock phrases', detail: 'Lines like “team player” are swapped for specifics.' },
+  { category: 'repetition', title: 'Nothing is repeated', short: 'nothing repeated', detail: 'Each sentence earns its place.' },
+  { category: 'document_defect', title: 'No placeholders or near-empty documents', short: 'no placeholders', detail: 'No leftover [Company] or TODO, and both documents have real content.' },
 ]
 
 /** Rule-based content checks on what this application would send, plus next steps for gaps. */
@@ -38,6 +38,7 @@ export function DocumentChecks({ applicationId }: { applicationId: string }) {
   return (
     <Panel
       title="Check your documents"
+      className="camp-sec-checks"
       description="Quick rule-based checks on the CV and cover letter this application would send. Nothing is changed for you."
       actions={
         <Button variant="outline" onClick={() => review.mutate()} loading={review.isPending} disabled={review.isPending}>
@@ -66,10 +67,15 @@ export function DocumentChecks({ applicationId }: { applicationId: string }) {
         </div>
       ) : null}
       {classify.isError ? <p role="alert" className="camp-alert">Next steps couldn't be suggested. Nothing was added.</p> : null}
+      {!review.data ? (
+        <p className="camp-muted" data-testid="checks-idle">
+          {CHECKS.length} checks, not run yet: {CHECKS.map((check) => check.short).join(', ')}.
+        </p>
+      ) : (
       <ul className="camp-checks">
         {CHECKS.map((check) => {
           const matches = findings.filter((item) => item.category === check.category)
-          const state = !review.data ? 'idle' : matches.length ? 'warn' : 'pass'
+          const state = matches.length ? 'warn' : 'pass'
           return (
             <li key={check.category} className={`is-${state}`}>
               <CheckMark state={state} />
@@ -95,14 +101,15 @@ export function DocumentChecks({ applicationId }: { applicationId: string }) {
           )
         })}
       </ul>
+      )}
     </Panel>
   )
 }
 
-function CheckMark({ state }: { state: 'pass' | 'warn' | 'idle' }) {
+function CheckMark({ state }: { state: 'pass' | 'warn' }) {
   return (
-    <span className={`camp-checkmark is-${state}`} aria-label={state === 'pass' ? 'Done' : state === 'idle' ? 'Not checked yet' : 'Needs a look'}>
-      {state === 'pass' ? <Check size={14} aria-hidden="true" /> : state === 'idle' ? null : <CircleAlert size={14} aria-hidden="true" />}
+    <span className={`camp-checkmark is-${state}`} aria-label={state === 'pass' ? 'Done' : 'Needs a look'}>
+      {state === 'pass' ? <Check size={14} aria-hidden="true" /> : <CircleAlert size={14} aria-hidden="true" />}
     </span>
   )
 }

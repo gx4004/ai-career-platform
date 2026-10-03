@@ -35,8 +35,6 @@ const tabsListVariants = cva(
       variant: {
         default: [
           "gap-0.5 rounded-xl border border-border/70 bg-muted/60 p-[3px]",
-          "shadow-[0_1px_0_0_rgba(255,255,255,0.6)_inset,0_1px_2px_0_rgba(16,24,40,0.04)]",
-          "dark:shadow-[0_1px_0_0_rgba(255,255,255,0.04)_inset]",
         ].join(" "),
         line: "gap-1 bg-transparent border-b border-border/60 p-0 rounded-none",
       },
@@ -79,13 +77,13 @@ function TabsTrigger({
           "motion-reduce:transition-none",
           "group-data-[orientation=vertical]/tabs:w-full group-data-[orientation=vertical]/tabs:justify-start",
           "hover:text-foreground",
-          "focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/45 focus-visible:outline-none",
+          "focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-none",
           "disabled:pointer-events-none disabled:opacity-50",
           "dark:text-muted-foreground dark:hover:text-foreground",
           "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
           // default variant — pill background moves to active
           "group-data-[variant=default]/tabs-list:data-[state=active]:bg-background group-data-[variant=default]/tabs-list:data-[state=active]:text-foreground",
-          "group-data-[variant=default]/tabs-list:data-[state=active]:shadow-[0_1px_0_0_rgba(255,255,255,0.6)_inset,0_1px_2px_0_rgba(16,24,40,0.06),0_8px_18px_-10px_rgba(16,24,40,0.18)]",
+          "group-data-[variant=default]/tabs-list:data-[state=active]:shadow-[var(--shadow-soft)]",
           "dark:group-data-[variant=default]/tabs-list:data-[state=active]:border-input dark:group-data-[variant=default]/tabs-list:data-[state=active]:bg-input/60",
           // line variant — underline
           "group-data-[variant=line]/tabs-list:bg-transparent group-data-[variant=line]/tabs-list:data-[state=active]:bg-transparent",

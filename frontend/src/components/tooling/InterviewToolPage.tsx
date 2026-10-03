@@ -58,7 +58,6 @@ export function InterviewToolPage() {
           <ToolField
             htmlFor="interview-jobDescription"
             label={jobField.label}
-            meta="Required"
             note={getSeededFieldNote('jobDescription', bridge)}
             error={errors.jobDescription}
           >
@@ -74,7 +73,7 @@ export function InterviewToolPage() {
 
           <ToolField
             label="Practice depth"
-            note="Number of questions to generate."
+            meta="Number of questions"
             error={errors.numQuestions}
           >
             <ToolSegmented

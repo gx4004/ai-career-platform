@@ -38,22 +38,6 @@ export function PortfolioToolPage() {
             handleSubmit()
           }}
         >
-          <ToolField
-            htmlFor="portfolio-targetRole"
-            label={targetRoleField.label}
-            meta="Required"
-            note={getSeededFieldNote('targetRole', bridge)}
-            error={errors.targetRole}
-          >
-            <Input
-              id="portfolio-targetRole"
-              aria-invalid={!!errors.targetRole}
-              value={String(draft.targetRole ?? '')}
-              placeholder={targetRoleField.placeholder}
-              onChange={(event) => setField('targetRole', event.target.value as never)}
-            />
-          </ToolField>
-
           <ResumeSource
             id="portfolio-resumeText"
             label={resumeField.label}
@@ -65,6 +49,21 @@ export function PortfolioToolPage() {
             note={getSeededFieldNote('resumeText', bridge)}
             error={errors.resumeText}
           />
+
+          <ToolField
+            htmlFor="portfolio-targetRole"
+            label={targetRoleField.label}
+            note={getSeededFieldNote('targetRole', bridge)}
+            error={errors.targetRole}
+          >
+            <Input
+              id="portfolio-targetRole"
+              aria-invalid={!!errors.targetRole}
+              value={String(draft.targetRole ?? '')}
+              placeholder={targetRoleField.placeholder}
+              onChange={(event) => setField('targetRole', event.target.value as never)}
+            />
+          </ToolField>
 
           <ToolSubmitRow
             label="Generate roadmap"

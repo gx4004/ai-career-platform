@@ -4,13 +4,15 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tansta
 import { Link, useNavigate } from '@tanstack/react-router'
 import {
   ArrowUpRight,
+  Check,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   EyeOff,
   MoreHorizontal,
   Search,
   SlidersHorizontal,
-  Sparkles,
+  FileText,
   X,
 } from 'lucide-react'
 import { PageHero } from '#/components/app/PageHero'
@@ -233,16 +235,16 @@ export function DiscoveryPage() {
           <FilterFields filters={filters} companies={companies} onChange={update} />
         </div>
         {hasEvidence ? (
-          <label className="disc-sort">
+          <label className="disc-field disc-sort">
             <span>Sort</span>
             <select
-              className="disc-field"
               value={filters.sort}
               onChange={(event) => update({ sort: event.target.value as Filters['sort'] })}
             >
               <option value="best_match">Best skills fit</option>
               <option value="newest">Newest</option>
             </select>
+            <ChevronDown size={14} aria-hidden="true" />
           </label>
         ) : null}
         <button
@@ -355,37 +357,43 @@ function FilterFields({
   return (
     <div className={stacked ? 'disc-fields disc-fields--stacked' : 'disc-fields'}>
       <label className="disc-field disc-field--location">
-                <input
+        <input
           value={filters.location}
           onChange={(event) => onChange({ location: event.target.value })}
           placeholder="Location"
           aria-label="Location"
         />
       </label>
-      <select
-        className="disc-field"
-        value={filters.company}
-        onChange={(event) => onChange({ company: event.target.value })}
-        aria-label="Company"
-      >
-        <option value="">All companies</option>
-        {companies.map((company) => <option key={company} value={company}>{company}</option>)}
-      </select>
-      <select
-        className="disc-field"
-        value={filters.postedWithin}
-        onChange={(event) => onChange({ postedWithin: event.target.value })}
-        aria-label="Posted"
-      >
-        {POSTED_WITHIN.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-      </select>
+      <span className="disc-field disc-field--select">
+        <select
+          value={filters.company}
+          onChange={(event) => onChange({ company: event.target.value })}
+          aria-label="Company"
+        >
+          <option value="">All companies</option>
+          {companies.map((company) => <option key={company} value={company}>{company}</option>)}
+        </select>
+        <ChevronDown size={14} aria-hidden="true" />
+      </span>
+      <span className="disc-field disc-field--select">
+        <select
+          value={filters.postedWithin}
+          onChange={(event) => onChange({ postedWithin: event.target.value })}
+          aria-label="Posted"
+        >
+          {POSTED_WITHIN.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+        </select>
+        <ChevronDown size={14} aria-hidden="true" />
+      </span>
       <button
         type="button"
         className="disc-field disc-remote"
         aria-pressed={filters.remote}
         onClick={() => onChange({ remote: !filters.remote })}
       >
-        <span className="disc-remote__switch" aria-hidden="true" />
+        <span className="disc-remote__switch" aria-hidden="true">
+          {filters.remote ? <Check size={12} strokeWidth={3} /> : null}
+        </span>
         Remote only
       </button>
     </div>
@@ -471,25 +479,33 @@ function JobRow({ listing, actions, selected }: { listing: DiscoveryListing; act
       </div>
       <SkillsFit listing={listing} />
       <div className="disc-row__actions">
-        <Button
-          type="button"
-          size="sm"
-          variant="ghost"
-          className="disc-row__reveal"
-          onClick={() => void deepMatch()}
-          loading={checking || run.isPending}
-        >
-          Deep match
-        </Button>
         <AdoptButton listing={listing} actions={actions} />
-        <span className="disc-row__reveal"><JobOverflowMenu listing={listing} actions={actions} /></span>
+        <span className="disc-row__reveal">
+          <JobOverflowMenu
+            listing={listing}
+            actions={actions}
+            onDeepMatch={() => void deepMatch()}
+            deepMatching={checking || run.isPending}
+          />
+        </span>
       </div>
     </article>
   )
 }
 
 /** Secondary job actions, shared by feed cards and the detail drawer. */
-function JobOverflowMenu({ listing, actions }: { listing: DiscoveryListing; actions: CardActions }) {
+function JobOverflowMenu({
+  listing,
+  actions,
+  onDeepMatch,
+  deepMatching = false,
+}: {
+  listing: DiscoveryListing
+  actions: CardActions
+  /** Rows offer the deep match here; the drawer has its own button for it. */
+  onDeepMatch?: () => void
+  deepMatching?: boolean
+}) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -498,8 +514,13 @@ function JobOverflowMenu({ listing, actions }: { listing: DiscoveryListing; acti
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
+        {onDeepMatch ? (
+          <DropdownMenuItem onSelect={onDeepMatch} disabled={deepMatching}>
+            <Search aria-hidden="true" /> Deep match
+          </DropdownMenuItem>
+        ) : null}
         <DropdownMenuItem onSelect={() => void actions.onTailor(listing)}>
-          <Sparkles aria-hidden="true" /> Tailor my CV
+          <FileText aria-hidden="true" /> Tailor my CV
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
           <a href={listing.apply_url ?? listing.source_url} target="_blank" rel="noopener noreferrer">

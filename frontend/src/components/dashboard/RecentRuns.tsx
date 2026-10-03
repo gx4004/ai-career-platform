@@ -7,6 +7,7 @@ export function RecentRuns() {
   return (
     <RunList
       title="Recent activity"
+      emptyTitle="No runs yet"
       emptyText="Run a tool to see your results here."
       unauthText="Sign in to review recent runs."
       queryParams={{ page: 1, page_size: pageSize }}

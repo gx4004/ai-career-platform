@@ -7,6 +7,7 @@ import { historyRunHref, historyToolDisplay } from '#/lib/tools/historyToolLabel
 
 export function RunList({
   title,
+  emptyTitle,
   emptyText,
   unauthText,
   queryParams,
@@ -15,6 +16,7 @@ export function RunList({
   viewAllTo,
 }: {
   title: string
+  emptyTitle?: string
   emptyText: string
   unauthText: string
   queryParams: HistoryQueryParams
@@ -58,7 +60,10 @@ export function RunList({
           )
         })
       ) : (
-        <p className="dash-empty">{emptyText}</p>
+        <div className="today-empty">
+          {emptyTitle ? <p className="today-empty__title">{emptyTitle}</p> : null}
+          <p className={emptyTitle ? 'today-empty__text' : 'dash-empty'}>{emptyText}</p>
+        </div>
       )}
     </div>
   )

@@ -234,7 +234,10 @@ export function ToolResultScreen({
   const runDate = formatRunDate(item.created_at)
   const headline = typeof summary.headline === 'string' ? summary.headline.trim() : ''
   const hasHeadline = headline.length > 0
-  const runLabel = item.label && item.label.trim() ? item.label.trim() : ''
+  // The run label usually restates the tool and the score the page already shows: "Job Match (75%)".
+  const rawLabel = item.label && item.label.trim() ? item.label.trim() : ''
+  const strippedLabel = rawLabel.replace(/\s*\((\d+(\/100|%)?)\)\s*$/, '').trim()
+  const runLabel = strippedLabel && strippedLabel !== resolvedTool.label && strippedLabel !== resolvedTool.shortLabel ? strippedLabel : ''
 
   async function handleCopy() {
     await navigator.clipboard.writeText(definition.copyText(payload, item!))
@@ -467,15 +470,13 @@ export function ToolResultScreen({
             >
               <Star fill={item.is_favorite ? 'currentColor' : 'none'} aria-hidden="true" />
             </Button>
-            <Button asChild variant="ghost" size="sm">
+            <Button asChild variant="link" size="sm" className="px-0">
               <Link to={resolvedTool.route}>New input</Link>
             </Button>
           </div>
           <ResultToc containerRef={bodyRef} />
         </aside>
 
-
-        {summaryInfo.note ? <p className="result-note">{summaryInfo.note}</p> : null}
 
         <div className="result-main" ref={bodyRef}>
           {hasHeadline ? <p className="result-lead">{headline}</p> : null}
@@ -486,6 +487,7 @@ export function ToolResultScreen({
               payload={payload as Record<string, unknown>}
               authenticated={status === 'authenticated'}
             />
+          {summaryInfo.note ? <p className="result-note">{summaryInfo.note}</p> : null}
         </div>
       </div>
     </PageFrame>

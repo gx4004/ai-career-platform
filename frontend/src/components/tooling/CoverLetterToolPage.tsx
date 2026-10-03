@@ -57,7 +57,6 @@ export function CoverLetterToolPage() {
           <ToolField
             htmlFor="cover-letter-jobDescription"
             label={jobField.label}
-            meta="Required"
             note={getSeededFieldNote('jobDescription', bridge)}
             error={errors.jobDescription}
           >

@@ -1,4 +1,39 @@
-@import '@fontsource-variable/geist'; /* single variable font file replaces 5 static weights */
+@import '@fontsource-variable/geist'; /* CV Studio placeholder text only (cv-studio.css .cvp-placeholder) */
+
+/*
+ * Metric-matched fallbacks. The web fonts load with display=swap; these local
+ * faces are scaled to the same average width and vertical metrics so the swap
+ * does not move text. size-adjust is the average advance width of the served
+ * woff2 files at the weights the UI uses (Instrument Sans 400-500, Newsreader
+ * 500-600 at opsz 20-32) over Arial and Times New Roman, weighted by UI-text
+ * letter frequency; the vertical overrides follow from it.
+ */
+@font-face {
+  font-family: 'Instrument Sans Fallback';
+  src: local('Arial'), local('ArialMT'), local('Liberation Sans'), local('Helvetica');
+  font-weight: 400 700;
+  size-adjust: 104%;
+  ascent-override: 93.27%;
+  descent-override: 24.04%;
+  line-gap-override: 0%;
+}
+
+@font-face {
+  font-family: 'Newsreader Fallback';
+  src: local('Times New Roman'), local('TimesNewRomanPSMT'), local('Liberation Serif'), local('Times');
+  font-weight: 400 700;
+  size-adjust: 106%;
+  ascent-override: 69.34%;
+  descent-override: 25%;
+  line-gap-override: 0%;
+}
+
+body {
+  font-family: var(--font-sans);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  color: var(--text-body);
+}
 
 h1,
 h2,
@@ -8,7 +43,7 @@ h5,
 h6 {
   margin: 0;
   color: var(--text-strong);
-  font-weight: 700;
+  font-weight: var(--fw-semibold);
   letter-spacing: var(--tracking-title);
   text-wrap: pretty;
 }
@@ -17,55 +52,114 @@ p {
   margin: 0;
 }
 
-.display-xl {
-  font-family: var(--font-display);
-  font-size: var(--type-display-xl);
-  font-weight: 800;
-  line-height: 0.96;
-  letter-spacing: -0.035em;
+/* ── Type roles ─────────────────────────────────────────────────────
+   Serif (Newsreader): page title, big numbers, lead sentences, empty-state
+   heading. Everything else is Instrument Sans. */
+
+.t-display {
+  font-family: var(--font-serif);
+  font-size: var(--fs-display);
+  line-height: var(--lh-display);
+  font-weight: var(--fw-medium);
+  letter-spacing: var(--ls-display);
+  color: var(--text-strong);
 }
 
-.display-lg {
-  font-family: var(--font-display);
-  font-size: var(--type-display-lg);
-  font-weight: 800;
-  line-height: 0.98;
-  letter-spacing: -0.03em;
+.t-title {
+  font-family: var(--font-serif);
+  font-size: var(--fs-title);
+  line-height: var(--lh-title);
+  font-weight: var(--fw-medium);
+  letter-spacing: var(--ls-title);
+  color: var(--text-strong);
 }
 
-.page-title {
-  font-family: var(--font-display);
-  font-size: var(--type-page-title);
-  font-weight: 700;
-  line-height: 1.05;
-  letter-spacing: -0.02em;
+.t-lead {
+  font-family: var(--font-serif);
+  font-size: var(--fs-title);
+  line-height: var(--lh-title);
+  font-weight: var(--fw-regular);
+  color: var(--text-body);
 }
 
-.tool-title {
-  font-size: var(--type-tool-title);
-  line-height: 1.15;
-}
-
+.t-section,
 .section-title {
-  font-size: 1.2rem;
-  font-weight: 700;
-  line-height: 1.2;
-  letter-spacing: -0.03em;
+  font-size: var(--fs-section);
+  line-height: var(--lh-section);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--ls-section);
+  color: var(--text-strong);
 }
 
-.eyebrow {
-  font-size: 0.7rem;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
+.t-body {
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+}
+
+.t-meta,
+.small-copy {
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
   color: var(--text-muted);
 }
 
-.small-copy {
-  font-size: var(--type-small);
+.t-micro {
+  font-size: var(--fs-micro);
+  line-height: var(--lh-micro);
+  font-weight: var(--fw-medium);
 }
 
-.mono {
-  font-family: var(--font-sans);
-  font-variant-numeric: tabular-nums;
+/* Tabular figures for every number that sits in a column or changes in place.
+   Big serif numbers also use lining figures. */
+.tnum,
+table,
+time,
+data,
+output {
+  font-variant-numeric: var(--numeric-tabular);
+}
+
+.t-num-display {
+  font-family: var(--font-serif);
+  font-weight: var(--fw-medium);
+  font-variant-numeric: var(--numeric-display);
+  letter-spacing: var(--ls-display);
+}
+
+/* ── Global element defaults ───────────────────────────────────────── */
+
+:root {
+  accent-color: var(--accent);
+  caret-color: var(--caret);
+}
+
+::selection {
+  background: var(--selection-bg);
+  color: var(--text-strong);
+}
+
+::placeholder {
+  color: var(--text-placeholder);
+  opacity: 1;
+}
+
+:where(:focus-visible),
+a:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+/* Browser autofill paints a pale blue field; keep the field and ink as designed. */
+input:-webkit-autofill,
+textarea:-webkit-autofill,
+select:-webkit-autofill {
+  -webkit-text-fill-color: var(--text-strong);
+  caret-color: var(--text-strong);
+  transition: background-color 600000s 0s, color 600000s 0s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
 }

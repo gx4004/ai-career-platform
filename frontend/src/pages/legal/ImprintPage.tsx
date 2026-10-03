@@ -31,25 +31,6 @@ export function ImprintPage() {
         (such as resumes, job descriptions, and outputs produced by AI tools) belongs to the respective users.
       </p>
 
-      <h2>Legal documents</h2>
-      <ul>
-        <li>
-          <Link to="/privacy" className="legal-page__link">
-            Privacy Policy
-          </Link>
-        </li>
-        <li>
-          <Link to="/terms" className="legal-page__link">
-            Terms of Service
-          </Link>
-        </li>
-        <li>
-          <Link to="/cookies" className="legal-page__link">
-            Cookie Policy
-          </Link>
-        </li>
-      </ul>
-
       <h2>Disclaimer</h2>
       <p>
         Career Workbench is provided on an “as-is” basis. AI-generated output is not professional career, legal,

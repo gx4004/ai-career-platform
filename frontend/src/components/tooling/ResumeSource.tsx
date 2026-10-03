@@ -169,7 +169,7 @@ export function ResumeSource({
           <Button type="button" variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
             Choose file
           </Button>
-          <Button type="button" variant="ghost" size="sm" onClick={openEditor}>
+          <Button type="button" variant="link" size="sm" onClick={openEditor}>
             Paste text instead
           </Button>
         </div>
@@ -182,7 +182,6 @@ export function ResumeSource({
       <div className="tool-field-head">
         <Label className="tool-field-label" htmlFor={editing ? id : undefined}>
           <span>{label}</span>
-          <span className="tool-field-meta">Required</span>
         </Label>
       </div>
       {note ? <p className="tool-field-note">{note}</p> : null}

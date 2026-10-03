@@ -1,26 +1,21 @@
 import { useState, type ReactNode } from 'react'
+import { Link } from '@tanstack/react-router'
 import { Button } from '#/components/ui/button'
 import { Label } from '#/components/ui/label'
 import { CinematicLoader } from '#/components/tooling/CinematicLoader'
 import { GuestSaveBanner } from '#/components/tooling/GuestSaveBanner'
 import { ToolFullScreen } from '#/components/tooling/ToolFullScreen'
 import { WorkflowHandoffBanner } from '#/components/tooling/WorkflowHandoffBanner'
+import { formatRunDate } from '#/components/dashboard/RunRow'
+import { useHistory } from '#/hooks/useHistory'
 import { useSession } from '#/hooks/useSession'
+import { historyRunHref } from '#/lib/tools/historyToolLabel'
 import { useToolDraft } from '#/hooks/useToolDraft'
 import { useToolMutation } from '#/hooks/useToolMutation'
 import { useWorkflowBridge } from '#/hooks/useWorkflowBridge'
 import { workflowConfigs, validateWorkflowDraft } from '#/lib/tools/workflowConfigs'
 import { tools } from '#/lib/tools/registry'
 import type { ToolId } from '#/lib/tools/registry'
-
-const toolHeroChips: Record<ToolId, string[]> = {
-  resume: ['Skills', 'Score', 'Tips'],
-  'job-match': ['Fit', 'Keywords', 'Gap'],
-  'cover-letter': ['Tone', 'Length', 'Match'],
-  interview: ['Questions', 'Difficulty', 'Role'],
-  career: ['Steps', 'Timeline', 'Options'],
-  portfolio: ['Projects', 'Impact', 'Role'],
-}
 
 export function useToolPageState(toolId: ToolId) {
   const tool = tools[toolId]
@@ -80,8 +75,34 @@ export function ToolPageShell({
         <GuestSaveBanner />
         <WorkflowHandoffBanner toolId={toolId} />
         {children}
+        <RecentToolRuns toolId={toolId} />
       </div>
     </ToolFullScreen>
+  )
+}
+
+/** The last few saved runs of this tool, so the page opens with the user's own data. */
+function RecentToolRuns({ toolId }: { toolId: ToolId }) {
+  const { status } = useSession()
+  const query = useHistory({ tool: toolId, page: 1, page_size: 3 }, status === 'authenticated')
+  const items = query.data?.items ?? []
+  if (items.length === 0) return null
+  return (
+    <section className="tool-recent" aria-label="Recent runs">
+      <h2 className="tool-recent__title">Recent runs</h2>
+      <ul className="tool-recent__list">
+        {items.map((item) => {
+          const href = historyRunHref(item)
+          const label = item.label || 'Untitled run'
+          return (
+            <li key={item.id}>
+              {href ? <Link to={href}>{label}</Link> : <span>{label}</span>}
+              <span className="tool-recent__date">{formatRunDate(item.created_at)}</span>
+            </li>
+          )
+        })}
+      </ul>
+    </section>
   )
 }
 
@@ -93,20 +114,12 @@ export function ToolInputHero({
   subtitle: string
 }) {
   const tool = tools[toolId]
-  const chips = toolHeroChips[toolId]
 
   return (
     <header className="page-header page-header--tool">
       <div className="page-header__text">
         <h1 className="page-header__title">{tool.label}</h1>
         <p className="page-header__purpose">{subtitle}</p>
-        {chips.length > 0 && (
-          <ul className="page-header__meta">
-            {chips.map((chip) => (
-              <li key={chip}>{chip}</li>
-            ))}
-          </ul>
-        )}
       </div>
     </header>
   )

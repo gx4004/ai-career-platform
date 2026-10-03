@@ -30,8 +30,8 @@ describe('Account page', () => {
   it('titles the page Account, with the email and name in the hero', () => {
     renderPage({})
     expect(screen.getByRole('heading', { level: 1, name: 'Account' })).toBeTruthy()
-    expect(screen.getByText('ada@example.com')).toBeTruthy()
-    expect(screen.getByText('Ada Lovelace')).toBeTruthy()
+    // The header does not repeat the name and email; the editable Email field carries them.
+    expect(screen.queryByText('Ada Lovelace')).toBeNull()
     expect(screen.getByText(/^Member since /)).toBeTruthy()
   })
 

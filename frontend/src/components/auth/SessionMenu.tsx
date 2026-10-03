@@ -27,8 +27,8 @@ export function SessionMenu() {
   if (status !== 'authenticated' || !user) {
     return (
       <Button
+        variant="outline"
         size="default"
-        className="button-session-signin-cta"
         asChild
       >
         <Link to="/login">Sign in</Link>

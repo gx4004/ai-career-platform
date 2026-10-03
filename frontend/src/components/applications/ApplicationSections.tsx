@@ -12,8 +12,8 @@ import {
 } from '#/lib/api/client'
 import type { ApplicationDetail, ApplicationEvent, ApplicationStatus, ApplicationUpdate } from '#/lib/api/schemas'
 import { applicationQueryKey, invalidateApplications } from '#/lib/query/applicationCaches'
-import { Badge, EmptyLine, Panel } from './Panel'
-import { STATUS_LABELS, formatDate, stageTone, timeAgo } from './stages'
+import { EmptyLine, Panel } from './Panel'
+import { STATUS_LABELS, formatDate, timeAgo } from './stages'
 
 type Section = { application: ApplicationDetail }
 
@@ -35,7 +35,7 @@ export function DocumentsPanel({ application }: Section) {
   const { selected_materials: selected, available_materials: available, drafts } = application
   const draftCover = drafts?.cover_letter
   return (
-    <Panel title="What you're sending" description="Pick the version of each document that goes with this application.">
+    <Panel title="What you're sending" description="Pick the version of each document that goes with this application." className="camp-sec-documents">
       <div className="camp-materials">
         <MaterialRow
           label="CV version" field="cv_variant_id" value={selected.cv_variant?.id ?? ''} pending={materials.isPending}
@@ -159,6 +159,7 @@ export function JobPanel({ application }: Section) {
   return (
     <Panel
       title="Job description"
+      className="camp-sec-job"
       description={listing ? `${listing.title} at ${listing.company} · saved ${formatDate(listing.retrieved_at)}` : undefined}
       actions={listing?.source_url ? (
         <a href={listing.source_url} target="_blank" rel="noopener noreferrer" className="camp-link-button">
@@ -191,7 +192,7 @@ export function TasksPanel({ application }: Section) {
   const open = application.tasks.filter((task) => !task.completed)
   const done = application.tasks.filter((task) => task.completed)
   return (
-    <Panel title="Tasks">
+    <Panel title="Tasks" className="camp-sec-tasks">
       <form
         className="camp-task-form"
         onSubmit={(event) => {
@@ -237,15 +238,17 @@ export function NotesPanel({ application }: Section) {
   const [text, setText] = useState(application.notes ?? '')
   const changed = text.trim() !== (application.notes ?? '').trim()
   return (
-    <Panel title="Notes" description="Only you can see these: interview impressions, salary details, who you spoke to.">
+    <Panel title="Notes" description="Only you can see these: interview impressions, salary details, who you spoke to." className="camp-sec-notes">
       <form className="camp-form" onSubmit={(event) => { event.preventDefault(); save.mutate({ notes: text.trim() || null }) }}>
         <label className="camp-field">
           <span className="camp-field__label">Your notes</span>
           <textarea className="workspace-textarea" rows={5} maxLength={20_000} value={text} onChange={(event) => setText(event.target.value)} />
         </label>
-        <Button type="submit" size="sm" variant="outline" disabled={save.isPending || !changed} className="camp-form__submit">
-          {save.isPending ? 'Saving…' : 'Save notes'}
-        </Button>
+        {changed || save.isPending ? (
+          <Button type="submit" size="sm" variant="outline" disabled={save.isPending} className="camp-form__submit">
+            {save.isPending ? 'Saving…' : 'Save notes'}
+          </Button>
+        ) : null}
       </form>
       {save.isSuccess && !changed ? <p className="camp-muted" role="status">Saved.</p> : null}
       {save.isError ? <p role="alert" className="camp-alert">Your notes couldn't be saved. Try again.</p> : null}
@@ -289,7 +292,7 @@ function eventLabel(event: ApplicationEvent) {
 export function ActivityPanel({ application }: Section) {
   const events = [...application.events].reverse()
   return (
-    <Panel title="Activity">
+    <Panel title="Activity" className="camp-sec-activity">
       {events.length ? (
         <ol className="camp-timeline">
           {events.map((event) => (
@@ -321,16 +324,14 @@ const OUTCOMES: Partial<Record<ApplicationStatus, string>> = {
 export function FactsPanel({ application }: Section) {
   const { listing } = application
   const rows: Array<[string, ReactNode]> = [
-    ['Stage', <Badge key="stage" tone={stageTone(application.status)}>{STATUS_LABELS[application.status]}</Badge>],
     ...(application.match_score !== null ? [['Skills fit', `${application.match_score}% when saved`] as [string, ReactNode]] : []),
     ...(OUTCOMES[application.status] ? [['Outcome', OUTCOMES[application.status]] as [string, ReactNode]] : []),
-    ...(application.applied_at ? [['Applied', formatDate(application.applied_at)] as [string, ReactNode]] : []),
     ...(application.deadline && !application.applied_at ? [['Apply by', formatDate(application.deadline)] as [string, ReactNode]] : []),
     ...(listing ? [['Saved', formatDate(listing.retrieved_at)] as [string, ReactNode]] : []),
     ['Last activity', timeAgo(application.last_activity_at ?? application.updated_at)],
   ]
   return (
-    <Panel title="Details">
+    <Panel title="Details" className="camp-sec-details">
       <dl className="camp-facts">
         {rows.map(([label, value]) => (
           <div key={label}><dt>{label}</dt><dd>{value}</dd></div>

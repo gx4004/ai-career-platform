@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import {
   ArrowLeft, Check, CheckCircle2, CircleAlert, CloudOff, Download, FileSearch, FileUp, History, Layers, LayoutTemplate,
-  ListTree, Loader2, MoreHorizontal, ShieldCheck, Sparkles, Trash2, X,
+  ListTree, Loader2, MoreHorizontal, ShieldCheck, Trash2, X,
 } from 'lucide-react'
 import { AppStatePanel } from '#/components/app/AppStatePanel'
 import { PageHero } from '#/components/app/PageHero'
@@ -281,7 +281,7 @@ export function CvStudio() {
   // Desktop: the panel sits beside the paper. Narrower screens: paper first, the panel opens as a bottom sheet.
   const PanelTitle = desktop ? 'h2' : SheetTitle
   const panelHead = (
-    <header className="cvs-panel__head">
+    <header className={cn('cvs-panel__head', desktop && !activeSection && 'sr-only')}>
       {activeSection ? (
         <Button type="button" variant="ghost" size="icon-sm" aria-label="All sections" onClick={() => openPanel('sections')}><ArrowLeft /></Button>
       ) : null}
@@ -340,7 +340,7 @@ export function CvStudio() {
             {documents.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
           </select>
         ) : null}
-        <Button type="button" variant="outline" size="sm" onClick={() => setDialog('tailor')}><Sparkles size={14} /> Tailor to a job</Button>
+        <Button type="button" variant="outline" size="sm" onClick={() => setDialog('tailor')}>Tailor to a job</Button>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button type="button" variant="outline" size="icon-sm" aria-label="More options"><MoreHorizontal size={14} /></Button>

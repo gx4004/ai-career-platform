@@ -135,7 +135,7 @@ describe('Topbar', () => {
     expect(pill?.querySelector('svg')).toBeTruthy()
   })
 
-  it('shows the tool name, not "Result", as the mobile title on result pages', () => {
+  it('does not repeat the page name in the mobile top bar', () => {
     const originalWidth = window.innerWidth
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: 375 })
     mockUseIsMobile.mockReturnValue(true)
@@ -143,7 +143,8 @@ describe('Topbar', () => {
 
     try {
       const { container } = renderTopbar()
-      expect(container.querySelector('.topbar-mobile-title')?.textContent).toBe('Job Match')
+      expect(container.querySelector('.topbar-mobile-title')).toBeNull()
+      expect(container.querySelector('.topbar-mobile-brand')).toBeTruthy()
     } finally {
       Object.defineProperty(window, 'innerWidth', { configurable: true, value: originalWidth })
     }

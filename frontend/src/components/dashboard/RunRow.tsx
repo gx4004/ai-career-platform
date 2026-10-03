@@ -1,7 +1,6 @@
 import type { ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
 import { ArrowRight, Star } from 'lucide-react'
-import { Badge } from '#/components/ui/badge'
 import { Skeleton } from '#/components/ui/skeleton'
 import type { HistoryToolDisplay } from '#/lib/tools/historyToolLabel'
 import { toolAccentStyle } from '#/lib/tools/styleUtils'
@@ -47,18 +46,12 @@ export function RunRow(
     ),
 ) {
   const { tool, label, date, showFavoriteStar, summary, notes, editor } = props
-  const Icon = tool.icon
   const body = (
     <>
-      <div className="run-row-icon-col" aria-hidden>
-        <Icon size={16} />
-      </div>
       <div className="run-row-body">
         <div className="run-row-meta">
           {showFavoriteStar ? <Star size={12} className="run-row-favorite" aria-hidden /> : null}
-          <Badge variant="outline">
-            <span className="run-row-badge-text">{tool.label}</span>
-          </Badge>
+          <span className="run-row-tool">{tool.label}</span>
           {date ? <span className="small-copy muted-copy run-row-date">{date}</span> : null}
         </div>
         {editor ?? (
@@ -103,7 +96,6 @@ export function RunRow(
 export function RunRowSkeleton() {
   return (
     <div className="run-row run-row--skeleton">
-      <Skeleton className="run-row-skeleton-icon" />
       <div className="run-row-skeleton-body">
         <Skeleton className="run-row-skeleton-meta" />
         <Skeleton className="run-row-skeleton-label" />

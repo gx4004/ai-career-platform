@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { Download, RotateCcw, Trash2 } from 'lucide-react'
+import { Trash2 } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import {
   Dialog,
@@ -127,13 +127,14 @@ export function SettingsPage() {
 
   return (
     <WorkspacePage className="settings-page">
-      <PageHero title="Settings" purpose="Your tour, local data and workspace status." />
+      <PageHero title="Settings" />
       <div className="settings-layout">
         <section className="settings-section">
+          <h2 className="settings-section-heading">General</h2>
           <div className="settings-group">
             <div className="settings-row">
               <div className="settings-info">
-                <h2 className="settings-title">Onboarding</h2>
+                <h3 className="settings-title">Onboarding</h3>
                 <p className="settings-description">
                   Replay the welcome tour.
                 </p>
@@ -147,7 +148,6 @@ export function SettingsPage() {
                     onboarding.startTour()
                   }}
                 >
-                  <RotateCcw size={14} className="mr-1.5" />
                   Replay tour
                 </Button>
               </div>
@@ -155,7 +155,7 @@ export function SettingsPage() {
 
             <div className="settings-row">
               <div className="settings-info">
-                <h2 className="settings-title">Local workspace data</h2>
+                <h3 className="settings-title">Local workspace data</h3>
                 <p className="settings-description">
                   Clear cached drafts, guest demos and workflow context on this device.
                 </p>
@@ -179,7 +179,7 @@ export function SettingsPage() {
 
             <div className="settings-row">
               <div className="settings-info">
-                <h2 className="settings-title">Saved workspace history</h2>
+                <h3 className="settings-title">Saved workspace history</h3>
                 <p className="settings-description">
                   Review, favorite, pin and delete saved runs in the timeline.
                 </p>
@@ -190,14 +190,10 @@ export function SettingsPage() {
                 </Button>
               </div>
             </div>
-          </div>
-        </section>
 
-        <section className="settings-section">
-          <div className="settings-group">
             <div className="settings-row">
               <div className="settings-info">
-                <h2 className="settings-title">Connection</h2>
+                <h3 className="settings-title">Connection</h3>
               </div>
               <div className="settings-action">
                 <span className="settings-status">
@@ -233,7 +229,6 @@ export function SettingsPage() {
                     onClick={() => void handleCareerDataExport()}
                     loading={dataAction === 'export'}
                   >
-                    <Download size={14} className="mr-1.5" />
                     Export data
                   </Button>
                 </div>
@@ -271,7 +266,6 @@ export function SettingsPage() {
                     className="settings-btn settings-btn--destructive"
                     onClick={() => setDeleteOpen(true)}
                   >
-                    <Trash2 size={14} className="mr-1.5" />
                     Delete account
                   </Button>
                 </div>

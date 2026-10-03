@@ -9,7 +9,6 @@
 body,
 .app-main {
   background: var(--background);
-  font-feature-settings: 'cv11', 'ss01';
   -webkit-font-smoothing: antialiased;
 }
 
@@ -58,18 +57,6 @@ body,
   min-height: 0 !important;
 }
 
-.app-sidebar-brand-link .cw-brand-wordmark {
-  width: 8.5rem;
-  margin: 0;
-  filter: brightness(0.35) saturate(1.4);
-}
-
-.app-sidebar-brand-row.is-collapsed .cw-brand-mark,
-.app-sidebar-brand-link .cw-brand-mark {
-  width: 1.5rem;
-  height: 1.5rem;
-}
-
 .app-sidebar-brand-toggle {
   width: 1.75rem !important;
   height: 1.75rem !important;
@@ -78,7 +65,7 @@ body,
 }
 
 .app-sidebar-brand-toggle:hover {
-  background: rgba(40, 32, 20, 0.06) !important;
+  background: var(--surface-hover) !important;
   color: var(--text-strong) !important;
 }
 
@@ -122,7 +109,7 @@ body,
 
 .app-sidebar-menu-button:hover,
 .app-sidebar-menu-button:focus-visible {
-  background: rgba(40, 32, 20, 0.05) !important;
+  background: var(--surface-hover) !important;
   color: var(--text-strong) !important;
 }
 
@@ -131,7 +118,7 @@ body,
 [data-slot='sidebar'][data-state='collapsed'] [data-sidebar='menu-button'][data-active='true'].app-sidebar-menu-button {
   background: var(--surface-raised) !important;
   color: var(--text-strong) !important;
-  box-shadow: 0 0 0 1px var(--border-soft), 0 1px 2px rgba(40, 32, 20, 0.05) !important;
+  box-shadow: inset 2px 0 0 var(--accent) !important;
 }
 
 .app-sidebar-item-icon,
@@ -152,17 +139,16 @@ body,
 
 .app-sidebar-legal__link,
 .app-sidebar-legal__sep {
-  color: var(--text-soft);
-  font-size: 0.72rem;
+  color: var(--text-muted);
+  font-size: var(--fs-meta);
 }
 
 /* ── Topbar ────────────────────────────────────────────────────────── */
 
 .topbar {
-  background: rgba(255, 255, 255, 0.85);
+  background: var(--surface-raised);
   border-bottom: 1px solid var(--border-soft);
   color: var(--text-body);
-  backdrop-filter: saturate(180%) blur(8px);
 }
 
 .topbar-inner,
@@ -204,7 +190,7 @@ body,
 }
 
 .topbar .button-session-avatar:hover {
-  background: rgba(40, 32, 20, 0.05);
+  background: var(--surface-hover);
   color: var(--text-strong);
 }
 
@@ -239,11 +225,11 @@ body,
 
 .page-header__title {
   margin: 0;
-  font-family: var(--font-sans);
-  font-size: var(--type-page-title);
-  font-weight: 600;
-  line-height: 1.25;
-  letter-spacing: -0.015em;
+  font-family: var(--font-serif);
+  font-size: var(--fs-display);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-display);
+  letter-spacing: var(--ls-display);
   color: var(--text-strong);
 }
 
@@ -258,18 +244,24 @@ body,
 .page-header__meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 0 0.5rem;
+  gap: 0 1.125rem;
   margin: 0.15rem 0 0;
   padding: 0;
+  overflow: hidden; /* clips the separator that would start a wrapped line */
   list-style: none;
-  font-size: 0.75rem;
+  font-size: var(--fs-meta);
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
 }
 
+.page-header__meta li {
+  position: relative;
+}
+
 .page-header__meta li + li::before {
   content: '·';
-  margin-right: 0.5rem;
+  position: absolute;
+  left: -0.7rem;
   color: var(--text-soft);
 }
 
@@ -295,10 +287,9 @@ body,
   display: none;
 }
 
-.page-header--tool {
-  max-width: 64rem;
-  margin: 0 auto 1.25rem;
-  padding: 1.5rem var(--space-page-x) 1rem;
+.page-header.page-header--tool {
+  margin: 0 0 1.25rem;
+  padding: calc(var(--space-page-y) + 1.75rem) var(--space-page-x) 1rem;
   border-bottom: 0;
 }
 
@@ -322,11 +313,6 @@ body,
   transform: none;
 }
 
-.button-hero-primary,
-.page-header__action [data-slot='button'] {
-  box-shadow: 0 1px 2px rgba(40, 32, 20, 0.08);
-}
-
 /* ── Surfaces: hairline borders instead of floating shadows ────────── */
 
 .surface-card,
@@ -335,49 +321,8 @@ body,
   box-shadow: var(--shadow-soft);
 }
 
-/* The page-wide grid texture and tone glows belong to the landing page only. */
-body:not(.page-tone-landing)::before,
-body:not(.page-tone-landing)::after {
-  display: none;
-}
-
-.app-state-panel::after {
-  display: none;
-}
-
-/* ── Cookie banner: a compact corner card, and the page can always scroll
-   its last controls clear of it (it used to cover tool submit buttons). ── */
-
-.cookie-banner {
-  left: auto;
-  right: 0;
-  width: min(100%, 26rem);
-  animation: none;
-}
-
-.cookie-banner__inner {
-  flex-direction: column;
-  align-items: stretch;
-  gap: 0.75rem;
-  padding: 0.875rem 1rem;
-  background: var(--surface-raised);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-panel);
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-}
-
-.cookie-banner__actions {
-  justify-content: flex-end;
-}
-
-.cookie-banner__btn {
-  padding: 0.375rem 0.75rem;
-  font-weight: 500;
-}
-
 html:has(.cookie-banner) .app-main {
-  padding-bottom: 11rem;
+  padding-bottom: 7rem;
 }
 
 /* ── Hardcore pass: chrome ─────────────────────────────────────────── */
@@ -403,20 +348,6 @@ html:has(.cookie-banner) .app-main {
   text-decoration: none;
 }
 
-.app-sidebar-brand-link .cw-brand-lockup--compact .cw-brand-mark {
-  width: 1.375rem;
-  height: 1.375rem;
-  border-radius: 5px;
-}
-
-.app-sidebar-brand-name {
-  font-size: 0.8125rem;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  color: var(--text-strong);
-  white-space: nowrap;
-}
-
 .app-sidebar-search {
   margin-top: 0.5rem;
   background: var(--surface-raised) !important;
@@ -432,7 +363,7 @@ html:has(.cookie-banner) .app-main {
 .app-sidebar-kbd {
   margin-left: auto;
   font: 500 0.6875rem/1 var(--font-sans);
-  color: var(--text-soft);
+  color: var(--text-muted);
   letter-spacing: 0.02em;
 }
 
@@ -455,8 +386,8 @@ html:has(.cookie-banner) .app-main {
 }
 
 .app-sidebar-user__avatar [data-slot='avatar-fallback'] {
-  background: var(--accent-soft);
-  color: var(--accent-vivid);
+  background: var(--accent-subtle);
+  color: var(--accent-hover);
 }
 
 .app-sidebar-user__name {
@@ -492,7 +423,7 @@ html:has(.cookie-banner) .app-main {
   overflow: hidden;
   border-radius: var(--radius-xl);
   background: var(--surface-raised);
-  box-shadow: 0 24px 64px -12px rgba(40, 32, 20, 0.28), 0 0 0 1px var(--border-soft);
+  box-shadow: var(--shadow-overlay), 0 0 0 1px var(--border-soft);
 }
 
 .command-palette__search {
@@ -605,7 +536,7 @@ html:has(.cookie-banner) .app-main {
 
 /* Dialog backdrops: a light dim, no blur. */
 [data-slot='dialog-overlay'] {
-  background: rgba(40, 32, 20, 0.18) !important;
+  background: var(--surface-scrim-light) !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
 }

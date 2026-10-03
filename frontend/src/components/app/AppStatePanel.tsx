@@ -21,6 +21,7 @@ export function AppStatePanel({
   description,
   detail,
   actions = [],
+  children,
 }: {
   badge?: string
   title: string
@@ -30,6 +31,7 @@ export function AppStatePanel({
   visual?: ReactNode
   detail?: string
   actions?: PanelAction[]
+  children?: ReactNode
 }) {
   return (
     <section className="page-shell">
@@ -54,6 +56,7 @@ export function AppStatePanel({
             })}
           </div>
         ) : null}
+        {children}
       </div>
     </section>
   )

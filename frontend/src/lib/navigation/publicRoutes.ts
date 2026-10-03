@@ -4,6 +4,7 @@
 const SHELLLESS_ROUTES = new Set([
   '/',
   '/login',
+  '/reset-password',
   '/landing-experiment',
   '/landing-tools',
   '/landing-classic',

@@ -41,7 +41,6 @@ describe('RunList', () => {
     const { container } = renderList()
     expect(screen.getByText('Application')).toBeTruthy()
     expect(screen.queryByText('application-drafts')).toBeNull()
-    expect(container.querySelector('.run-row-icon-col')).toBeTruthy()
     expect(container.querySelector('a.run-row')?.getAttribute('href')).toBe('/campaigns/ws-1')
   })
 
@@ -50,7 +49,6 @@ describe('RunList', () => {
     const { container } = renderList()
     expect(screen.getByText('CV Studio')).toBeTruthy()
     expect(container.querySelector('a.run-row')).toBeNull()
-    expect(container.querySelector('.run-row-icon-col')).toBeTruthy()
   })
 
   it('opens registry tool results and offers View all', () => {

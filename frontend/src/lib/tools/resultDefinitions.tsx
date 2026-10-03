@@ -669,13 +669,8 @@ function ResumeResultView({ payload }: { payload: AnyObject }) {
             </>
           }
         >
-          <TokenList items={evidence.matchedKeywords} tone="success" />
-          {evidence.missingKeywords.length > 0 && (
-            <>
-              <h3 className="rs-sub">Add these to rank higher</h3>
-              <TokenList items={evidence.missingKeywords} tone="warning" prefix="+ " />
-            </>
-          )}
+          <TokenList items={evidence.matchedKeywords} label="Matched" />
+          <TokenList items={evidence.missingKeywords} tone="warning" label="Missing" />
         </ResultSection>
       )}
 
@@ -724,19 +719,17 @@ function JobMatchView({ payload }: { payload: AnyObject }) {
                 <tr key={`${item.requirement}-${index}`}>
                   <th scope="row">
                     <span className="rtable__name">{item.requirement}</span>
-                    <span className="rtable__sub">{item.importance === 'must' ? 'Must have' : 'Preferred'}</span>
+                    {item.importance !== 'must' ? <span className="rtable__sub">Preferred</span> : null}
                   </th>
                   <td>{requirementStatusBadge(item.status)}</td>
                   <td>
                     {item.resumeEvidence && item.status === 'matched' && (
                       <p className="rtable__note">
-                        <span className="rtable__note-label">Resume evidence</span>
                         {item.resumeEvidence}
                       </p>
                     )}
                     {item.suggestedFix && item.status !== 'matched' && (
                       <p className="rtable__note">
-                        <span className="rtable__note-label">Suggested fix</span>
                         {item.suggestedFix}
                       </p>
                     )}
@@ -755,7 +748,6 @@ function JobMatchView({ payload }: { payload: AnyObject }) {
               <li key={`${a.keyword}-${i}`} className="rlist__item">
                 <div className="rlist__row">
                   <span className="rlist__title">{a.keyword}</span>
-                  <Badge>{a.section}</Badge>
                 </div>
                 <p className="rlist__text">{a.action}</p>
               </li>
@@ -774,13 +766,8 @@ function JobMatchView({ payload }: { payload: AnyObject }) {
             </>
           }
         >
-          <TokenList items={result.matchedKeywords} tone="success" />
-          {result.missingKeywords.length > 0 && (
-            <>
-              <h3 className="rs-sub">Add these to rank higher</h3>
-              <TokenList items={result.missingKeywords.map((k) => k.keyword)} tone="warning" prefix="+ " />
-            </>
-          )}
+          <TokenList items={result.matchedKeywords} label="Matched" />
+          <TokenList items={result.missingKeywords.map((k) => k.keyword)} tone="warning" label="Missing" />
         </ResultSection>
       )}
 

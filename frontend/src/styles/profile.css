@@ -21,6 +21,7 @@
 
 .profile-layout { display: grid; gap: 2rem; align-items: start; }
 .profile-layout--split { grid-template-columns: minmax(0, 26rem) minmax(0, 1fr); }
+.profile-layout--split > .profile-section:first-child { position: sticky; top: 1rem; }
 
 .profile-section { min-width: 0; }
 .profile-section__head {
@@ -86,7 +87,15 @@
 .fact-badge--confirmed,
 .fact-badge--completed { background: var(--success-soft); color: var(--success); }
 .fact-badge--unconfirmed { background: var(--warning-soft); color: var(--warning); }
-.fact-badge--in_progress { background: var(--accent-soft); color: var(--accent); }
+.fact-badge--in_progress { background: var(--accent-subtle); color: var(--accent); }
+
+.fact-card__sub { margin: 0; font-size: var(--fs-body); line-height: 1.45; color: var(--text-muted); overflow-wrap: anywhere; }
+
+/* Edit is the secondary action: it appears on hover or focus; the overflow menu always has it. */
+.fact-card__edit { opacity: 0; transition: opacity var(--duration-fast) var(--ease-out); }
+.fact-card:hover .fact-card__edit,
+.fact-card:focus-within .fact-card__edit { opacity: 1; }
+@media (hover: none) { .fact-card__edit { display: none; } }
 
 .fact-card__title { margin: 0; font-size: 0.875rem; font-weight: 500; line-height: 1.4; color: var(--text-strong); overflow-wrap: anywhere; }
 
@@ -115,23 +124,31 @@
   height: 1.75rem;
   padding: 0 0.4rem;
   border-radius: var(--radius-md);
-  border: 1px solid var(--border-strong);
+  border: 1px solid var(--border-control);
   background: var(--surface-raised);
   color: var(--text-strong);
   font-size: 0.8125rem;
   cursor: pointer;
 }
 
-.fact-select:focus-visible { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.fact-select:focus-visible { outline: none; border-color: var(--accent); box-shadow: var(--focus-ring); }
 .fact-select:disabled { cursor: wait; opacity: 0.6; }
 
 @media (max-width: 900px) {
   .profile-layout--split { grid-template-columns: minmax(0, 1fr); }
+  .profile-layout--split > .profile-section:first-child { position: static; }
 }
 
 @media (max-width: 640px) {
   .fact-card { grid-template-columns: minmax(0, 1fr); }
   .fact-card > .fact-card__actions { grid-column: 1; grid-row: auto; margin-top: 0.4rem; }
   .fact-field { flex-direction: column; gap: 0; }
+  .fact-card--confirmed { grid-template-columns: minmax(0, 1fr) auto; }
+  .fact-card--confirmed > .fact-card__actions { grid-column: 2; grid-row: 1 / span 6; margin-top: 0; align-self: center; }
+  .fact-card__edit { display: none; }
+  .profile-danger .profile-section__head { flex-direction: column; }
 }
-.profile-empty__title { display: block; font-weight: 500; color: var(--text-strong); }
+.profile-empty__title { display: block; font-family: var(--font-serif); font-size: var(--fs-title); font-weight: var(--fw-medium); line-height: var(--lh-title); color: var(--text-strong); }
+
+.profile-empty--stack { display: grid; justify-items: start; gap: 0.25rem; }
+.profile-empty--stack .button, .profile-empty--stack [data-slot='button'] { margin-top: 0.5rem; }
