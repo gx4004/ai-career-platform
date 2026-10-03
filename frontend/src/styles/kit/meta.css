@@ -49,6 +49,20 @@
   visibility: hidden;
 }
 
+/* Touch: a link inside a fact keeps its line height; its tap area grows to 44px around it. */
+@media (pointer: coarse) {
+  .kit-meta__item > a {
+    position: relative;
+  }
+
+  .kit-meta__item > a::after {
+    position: absolute;
+    inset-block: min(0px, calc(50% - var(--touch-target) / 2));
+    inset-inline: calc(var(--space-1) * -1);
+    content: '';
+  }
+}
+
 .kit-meta strong {
   color: var(--text-body);
   font-weight: var(--fw-medium);

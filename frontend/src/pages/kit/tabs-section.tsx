@@ -89,6 +89,9 @@ export function TabsSection() {
                     </TabsTrigger>
                   ))}
                 </TabsList>
+                <TabsContent value="c">
+                  <p className="kit-gallery__paragraph">Career path.</p>
+                </TabsContent>
               </Tabs>
             </div>
           </Specimen>

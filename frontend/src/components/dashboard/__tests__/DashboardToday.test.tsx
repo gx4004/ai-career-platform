@@ -13,9 +13,6 @@ vi.mock('#/lib/api/client', () => ({
   adoptDiscoveryRecommendation: adopt,
 }))
 vi.mock('#/hooks/useSession', () => ({ useSession: () => ({ status: 'authenticated' }) }))
-vi.mock('#/components/ui/motion', () => ({
-  ScrollFadeUp: ({ children }: { children: ReactNode }) => <>{children}</>,
-}))
 vi.mock('@tanstack/react-router', () => ({
   Link: ({ children, to, params, ...props }: { children: ReactNode; to: string; params?: Record<string, string> } & Record<string, unknown>) => (
     <a href={params ? to.replace('$campaignId', params.campaignId) : to} {...props}>{children}</a>

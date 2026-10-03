@@ -24,8 +24,9 @@ function PaperSection({ section, activeId, onEdit }: { section: PreviewSection }
       if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onEdit(section.id) }
     },
   } : {}
+  const Tag = onEdit ? 'div' : 'section'
   return (
-    <section className={`cvp-section${onEdit ? ' cvp-section--editable' : ''}`} data-section-id={section.id} {...editable}>
+    <Tag className={`cvp-section${onEdit ? ' cvp-section--editable' : ''}`} data-section-id={section.id} {...editable}>
       <h3 className="cvp-section__title">{section.title}</h3>
       {section.entries.map((entry) => (
         <div className="cvp-entry" key={entry.id}>
@@ -46,7 +47,7 @@ function PaperSection({ section, activeId, onEdit }: { section: PreviewSection }
           {entry.text ? <p className="cvp-entry__text">{entry.text}</p> : null}
         </div>
       ))}
-    </section>
+    </Tag>
   )
 }
 
