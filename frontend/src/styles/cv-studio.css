@@ -415,13 +415,10 @@
   overflow-wrap: anywhere;
 }
 
-.cvp-paper p,
-.cvp-paper h2,
-.cvp-paper h3,
-.cvp-paper ul { margin: 0; }
+:where(.cvp-paper) :where(p, h2, h3, ul) { margin: 0; }
 
 .cvp-title {
-  margin-bottom: 10pt !important;
+  margin-bottom: 10pt;
   font-size: calc(var(--cvp-heading) + 6pt);
   line-height: calc(var(--cvp-heading) + 9pt);
   font-weight: 400;
@@ -431,7 +428,7 @@
 .cvp-section { margin-bottom: var(--cvp-gap); }
 
 .cvp-section__title {
-  margin-bottom: 3pt !important;
+  margin-bottom: 3pt;
   font-size: var(--cvp-heading);
   line-height: calc(var(--cvp-heading) + 3pt);
   font-weight: 400;
@@ -446,7 +443,7 @@
 
 .cvp-entry__heading,
 .cvp-entry__dates {
-  margin-bottom: 1pt !important;
+  margin-bottom: 1pt;
   font-size: calc(var(--cvp-body) + 1pt);
   line-height: calc(var(--cvp-body) + 4pt);
 }
@@ -455,7 +452,7 @@
 .cvp-entry__dates { font-weight: 700; text-align: right; }
 
 .cvp-entry__meta {
-  margin-bottom: 2pt !important;
+  margin-bottom: 2pt;
   font-size: max(7pt, calc(var(--cvp-body) - 1pt));
   line-height: calc(var(--cvp-body) + 2pt);
   color: #4b5563;
@@ -475,7 +472,7 @@
   left: 0;
 }
 
-.cvp-entry__text { margin-bottom: 4pt !important; white-space: pre-line; }
+.cvp-entry__text { margin-bottom: 4pt; white-space: pre-line; }
 
 .cvp-columns {
   display: grid;
@@ -484,7 +481,7 @@
 }
 
 .cvp-placeholder {
-  margin-top: 2rem !important;
+  margin-top: 2rem;
   font-family: var(--font-sans);
   font-size: 11pt;
   color: var(--text-soft);
@@ -492,7 +489,7 @@
 
 .cvp-footnote {
   margin: 0;
-  font-size: var(--type-xs);
+  font-size: var(--fs-meta);
   color: var(--text-muted);
 }
 
@@ -504,7 +501,7 @@
   outline: 1.5px dashed transparent;
   outline-offset: 2.5mm;
   cursor: pointer;
-  transition: outline-color var(--transition-fast), background var(--transition-fast);
+  transition: outline-color var(--duration-fast) var(--ease-out), background var(--duration-fast) var(--ease-out);
 }
 
 .cvp-section--editable:hover { outline-color: color-mix(in srgb, var(--accent) 55%, transparent); background: var(--accent-subtle); }
@@ -523,7 +520,7 @@
   color: var(--accent-on);
   opacity: 0;
   transform: translateY(-50%);
-  transition: opacity var(--transition-fast);
+  transition: opacity var(--duration-fast) var(--ease-out);
 }
 
 .cvp-section--editable:hover::after,

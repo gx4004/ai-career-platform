@@ -23,7 +23,6 @@
   --surface-hover: rgb(40 32 20 / 0.05);
   --surface-active: rgb(40 32 20 / 0.08);
   --surface-scrim: rgb(29 27 23 / 0.4);
-  --surface-scrim-light: rgb(29 27 23 / 0.18);
   --surface-tint: rgb(40 32 20 / 0.035);
   --ink-hairline: rgb(var(--shadow-ink) / 0.15); /* page-break guide, swatch rings */
 
@@ -65,9 +64,7 @@
   --danger-solid: #8e2c27;
   --danger-hover: #7a2420;
   --info-fg: #4f493f;
-  --info-bg: #e8e3d8;
   --info-border: #cbc4b4;
-  --info-solid: #8d867a;
   --neutral-fg: #3e3a33;
   --neutral-bg: #ece7dc;
   --neutral-border: #d3cab8;
@@ -84,7 +81,6 @@
   --font-sans: 'Instrument Sans', 'Instrument Sans Fallback', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-serif: 'Newsreader', 'Newsreader Fallback', 'Iowan Old Style', Georgia, serif;
   --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
-  --font-display: var(--font-serif);
 
   /* ── Type: scale (size / line-height; weights below) ──────────────── */
   --fs-display: 2rem; /* 32, serif: page titles, big numbers */
@@ -122,15 +118,12 @@
   --space-section: var(--space-8);
   --space-heading: var(--space-3);
   --space-page-x: clamp(1rem, 4vw, 2rem);
-  --space-page-y: 1.25rem;
   --row-h: 2.25rem; /* 36 */
   --row-h-lg: 2.75rem; /* 44 */
   --control-sm: 1.75rem; /* 28 */
   --control-md: 2rem; /* 32 */
   --control-lg: 2.25rem; /* 36 */
   --touch-target: 44px;
-  --mobile-section-gap: 24px;
-  --mobile-pad: 16px;
   --mobile-tab-height: 56px;
 
   /* ── Radius ───────────────────────────────────────────────────────── */
@@ -166,36 +159,13 @@
     opacity var(--duration-fast) var(--ease-out);
 
   /* ── shadcn / Tailwind bridge ─────────────────────────────────────── */
-  --foreground: var(--text-strong);
-  --card: var(--surface-raised);
-  --card-foreground: var(--text-strong);
-  --popover: var(--surface-overlay);
-  --popover-foreground: var(--text-strong);
   --primary: var(--accent);
-  --primary-foreground: var(--accent-on);
   --secondary: var(--surface-focus);
-  --secondary-foreground: var(--text-strong);
-  --muted: var(--surface-focus);
-  --muted-foreground: var(--text-muted);
-  --accent-foreground: var(--accent-on);
-  --border: var(--border-soft);
-  --input: var(--surface-focus);
-  --ring: var(--accent);
-  --radius: var(--radius-lg);
 
   /* ── Sidebar ──────────────────────────────────────────────────────── */
   --sidebar: #efe9dd;
   --sidebar-foreground: #55504a;
-  --sidebar-primary: #1d1b17;
-  --sidebar-primary-foreground: #1d1b17;
-  --sidebar-accent: #e5dfd2;
-  --sidebar-accent-foreground: #1d1b17;
   --sidebar-border: #e0d9ca;
-  --sidebar-ring: var(--accent);
-  --sidebar-rail-bg: var(--sidebar);
-  --sidebar-rail-foreground: var(--sidebar-foreground);
-  --sidebar-rail-accent: var(--sidebar-accent);
-  --sidebar-rail-border: var(--sidebar-border);
 
   /* ── Tool accents (registry.ts reads these; one accent for every tool) ── */
   --resume-accent: var(--accent);
@@ -205,44 +175,8 @@
   --career-accent: var(--accent);
   --portfolio-accent: var(--accent);
 
-  /*
-   * ── Legacy aliases ──────────────────────────────────────────────────
-   * Old names that other stylesheets still read. Delete each one when its
-   * last consumer moves to the token named in the comment.
-   */
-  --accent-vivid: var(--accent-hover);
-  --success: var(--success-fg); /* -> --success-fg */
-  --success-soft: var(--success-bg);
-  --warning: var(--warning-fg);
-  --warning-soft: var(--warning-bg);
-  --destructive: var(--danger-fg);
-  --destructive-soft: var(--danger-bg);
-  --surface-blue: var(--surface-focus); /* misnamed; -> --surface-focus */
-  --shadow-elevated: var(--shadow-soft);
-  --shadow-panel: var(--shadow-overlay);
-  --transition-fast: var(--duration-fast) var(--ease-out);
-  --transition-smooth: var(--duration-overlay) var(--ease-out);
-  --type-display-xl: var(--fs-display);
-  --type-display-lg: var(--fs-display);
-  --type-page-title: var(--fs-display);
-  --type-tool-title: var(--fs-title);
-  --type-section: var(--fs-section);
-  --type-body: var(--fs-body);
-  --type-small: 0.8125rem;
-  --type-xs: var(--fs-meta);
-  --tracking-title: -0.025em; /* global heading default; CV paper preview headings inherit it */
-  --tracking-section: var(--ls-section);
-  --tracking-tight: -0.01em;
-  --tracking-caps: 0.1em;
-  --glass-bg: var(--surface-raised);
-  --glass-bg-elevated: var(--surface-raised);
-  --glass-bg-subtle: var(--surface-subtle);
-  --glass-shadow: var(--shadow-soft);
-  --nav-bg: var(--surface-raised);
-  --nav-text: #55504a;
-  --nav-text-strong: var(--text-strong);
-  --nav-border: #e0d9ca;
-  --nav-accent: var(--accent);
+  /* Global heading default; CV paper preview headings inherit it */
+  --tracking-title: -0.025em;
 }
 
 @media (max-width: 767px) {
@@ -260,33 +194,6 @@
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
-  --color-popover: var(--popover);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-secondary: var(--secondary);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-border: var(--border);
-  --color-input: var(--input);
-  --color-ring: var(--ring);
-  --color-surface-raised: var(--surface-raised);
-  --color-surface-focus: var(--surface-focus);
-  --color-surface-overlay: var(--surface-overlay);
-  --color-text-strong: var(--text-strong);
-  --color-text-body: var(--text-body);
-  --color-text-muted: var(--text-muted);
-  --color-text-soft: var(--text-soft);
-  --color-success: var(--success-fg);
-  --color-warning: var(--warning-fg);
-  --color-destructive: var(--danger-fg);
   --font-sans: var(--font-sans);
   --font-serif: var(--font-serif);
   --font-mono: var(--font-mono);
@@ -295,24 +202,5 @@
   --radius-lg: var(--radius-lg);
   --radius-xl: var(--radius-xl);
   --radius-2xl: var(--radius-2xl);
-  --color-sidebar: var(--sidebar);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-ring: var(--sidebar-ring);
 }
 
-.surface-card {
-  border: 1px solid var(--border-soft);
-  background: var(--surface-raised);
-  box-shadow: var(--shadow-soft);
-}
-
-.surface-panel {
-  border: 1px solid var(--border-soft);
-  background: var(--surface-raised);
-  box-shadow: var(--shadow-soft);
-}

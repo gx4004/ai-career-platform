@@ -34,7 +34,6 @@
 :root {
   --kit-row-h-md: var(--row-h); /* compact row, 36 */
   --kit-row-h-lg: var(--row-h-lg); /* comfortable row, 44 */
-  --kit-row-bleed: var(--space-2); /* hover and selected tint reach this far past the text column */
   --kit-page-w-narrow: 62rem;
   --kit-page-w-default: 75rem;
   --kit-page-w-wide: 90rem;
