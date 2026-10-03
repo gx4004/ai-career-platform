@@ -1,110 +1,40 @@
-import { useLayoutEffect, useRef } from 'react'
 import { Link, useRouterState } from '@tanstack/react-router'
-import { LayoutDashboard } from 'lucide-react'
-import { SessionMenu } from '#/components/auth/SessionMenu'
-import { SidebarTrigger } from '#/components/ui/sidebar'
+import { AccountMenuContent } from '#/components/app/AccountMenu'
 import { AppBrandLockup } from '#/components/app/AppBrandLockup'
-import { getPagePill } from '#/lib/navigation/pagePill'
-import { getRouteMeta } from '#/lib/navigation/routeMeta'
-import { toolList } from '#/lib/tools/registry'
-import { useBreakpoint } from '#/hooks/use-breakpoint'
-import { cn } from '#/lib/utils'
+import { Avatar, Button, DropdownMenu, DropdownMenuTrigger } from '#/components/kit'
+import { useSession } from '#/hooks/useSession'
 
+/**
+ * The phone's top bar: the brand on the left, the account menu on the right once signed in (guests sign in from
+ * the tab bar). Desktop and tablets have no top bar: the sidebar carries both, and the page title is the page's own header.
+ */
 export function Topbar() {
   const pathname = useRouterState({
     select: (state) => state.location.pathname,
   })
-  const meta = getRouteMeta(pathname)
-  const bp = useBreakpoint()
-  const isMobile = bp === 'mobile'
-  const isCompact = meta.topbarVariant === 'compact'
-  const isDashboard = pathname === '/dashboard'
-  const entryTool = toolList.find((tool) => pathname === tool.route)
-  const headerRef = useRef<HTMLElement | null>(null)
+  const { status, user, logout } = useSession()
 
-  // Page icon/label for non-tool compact pages (pill style, same as tool pages)
-  const pagePill = getPagePill(pathname)
-
-  useLayoutEffect(() => {
-    const el = headerRef.current
-    if (!el) return
-
-    const update = () => {
-      document.documentElement.style.setProperty('--app-topbar-height', `${el.offsetHeight}px`)
-    }
-
-    update()
-    const ro = new ResizeObserver(update)
-    ro.observe(el)
-    window.addEventListener('resize', update)
-
-    return () => {
-      ro.disconnect()
-      window.removeEventListener('resize', update)
-    }
-  }, [])
+  const displayName = user ? user.full_name || user.email : ''
 
   return (
-    <header
-      ref={headerRef}
-      className={cn(
-        'topbar',
-        (isCompact || isMobile) && 'topbar--compact',
-      )}
-    >
-      <div
-        className={cn(
-          'topbar-inner',
-          (isCompact || isMobile) && 'topbar-inner--compact',
-        )}
+    <header className="app-topbar">
+      <Link
+        to={pathname === '/dashboard' ? '/' : '/dashboard'}
+        className="app-topbar__brand"
+        aria-label="Career Workbench home"
       >
-        {isMobile ? (
-          <Link
-            to={isDashboard ? '/' : '/dashboard'}
-            className="topbar-mobile-brand"
-            aria-label="Career Workbench home"
-          >
-            <AppBrandLockup mode="compact" />
-          </Link>
-        ) : (
-          <SidebarTrigger className="mr-2 button-toolbar-utility md:hidden" />
-        )}
-        <div className={cn('topbar-breadcrumb', isCompact && 'topbar-breadcrumb--compact')}>
-          {isMobile ? null : isCompact ? (
-            isDashboard ? (
-              <div className="topbar-tool-entry-chip" aria-current="page">
-                <span className="topbar-tool-pill">
-                  <LayoutDashboard size={16} />
-                  <span className="topbar-tool-pill-text">Your Workspace</span>
-                </span>
-              </div>
-            ) : entryTool ? (
-              <div className="topbar-tool-entry-chip" aria-current="page">
-                <span className="topbar-tool-pill">
-                  <entryTool.icon size={16} />
-                  <span className="topbar-tool-pill-text">{entryTool.label}</span>
-                </span>
-              </div>
-            ) : pagePill ? (
-              <div className="topbar-tool-entry-chip" aria-current="page">
-                <span className="topbar-tool-pill">
-                  <pagePill.icon size={16} />
-                  <span className="topbar-tool-pill-text">{pagePill.label}</span>
-                </span>
-              </div>
-            ) : (
-              <div className="topbar-tool-entry-chip" aria-current="page">
-                <span className="topbar-tool-pill">
-                  <span className="topbar-tool-pill-text">{meta.title}</span>
-                </span>
-              </div>
-            )
-          ) : null}
-        </div>
-        <div className="topbar-actions">
-          <SessionMenu />
-        </div>
-      </div>
+        <AppBrandLockup mode="compact" />
+      </Link>
+      {status === 'authenticated' && user ? (
+        <DropdownMenu modal={false}>
+          <DropdownMenuTrigger asChild>
+            <Button iconOnly variant="ghost" aria-label={`Account menu for ${displayName}`}>
+              <Avatar name={displayName} decorative />
+            </Button>
+          </DropdownMenuTrigger>
+          <AccountMenuContent user={user} align="end" onSignOut={() => void logout()} />
+        </DropdownMenu>
+      ) : null}
     </header>
   )
 }

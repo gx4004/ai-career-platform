@@ -1,8 +1,7 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowUpRight, Check, CircleCheck, RefreshCw, Sparkles, Wand2, X } from 'lucide-react'
-import { Badge, Panel } from './Panel'
-import { Button } from '#/components/ui/button'
+import { Badge, Button, Cluster, Disclosure, Field, KeyValue, Lead, Notice, Section, Stack, Textarea } from '#/components/kit'
 import {
   autofillApplication,
   cancelAutofill,
@@ -51,16 +50,24 @@ export function ApplyPanel({ application }: { application: ApplicationDetail }) 
 
   if (application.applied_at) {
     return (
-      <Panel title={`You applied on ${formatDate(application.applied_at)}`} description="What you sent is saved below, exactly as it was when you marked it applied." className="camp-apply camp-sec-apply is-applied">
-        {application.no_reply_suggested ? (
-          <div className="camp-nudge">
-            <span>No reply yet?</span>
-            <Button variant="outline" loading={noReply.isPending} disabled={noReply.isPending} onClick={() => noReply.mutate()}>Mark no reply</Button>
-          </div>
-        ) : null}
-        {failed ? <p className="camp-alert" role="alert">{errorMessage(failed.error, "That didn't save. Try again.")}</p> : null}
-        {application.snapshot ? <SentApplication content={application.snapshot.content} /> : null}
-      </Panel>
+      <Section title={`You applied on ${formatDate(application.applied_at)}`}>
+        <Stack gap={3}>
+          <Lead>What you sent is saved below, exactly as it was when you marked it applied.</Lead>
+          {application.no_reply_suggested ? (
+            <Notice
+              action={
+                <Button size="sm" variant="secondary" loading={noReply.isPending} disabled={noReply.isPending} onClick={() => noReply.mutate()}>
+                  Mark no reply
+                </Button>
+              }
+            >
+              No reply yet?
+            </Notice>
+          ) : null}
+          {failed ? <Notice tone="danger">{errorMessage(failed.error, "That didn't save. Try again.")}</Notice> : null}
+          {application.snapshot ? <SentApplication content={application.snapshot.content} /> : null}
+        </Stack>
+      </Section>
     )
   }
 
@@ -79,57 +86,60 @@ export function ApplyPanel({ application }: { application: ApplicationDetail }) 
   const primary = !prepared ? 'prepare' : unanswered.length ? 'answer' : link ? 'apply' : 'applied'
 
   return (
-    <Panel title={title} description={description} className="camp-apply camp-sec-apply">
-      {application.open_questions.length ? (
-        <QuestionsForm
-          key={`${application.drafts?.run_id ?? ''}:${JSON.stringify(application.answers)}`}
-          application={application}
-          primary={primary === 'answer'}
-          saving={answers.isPending}
-          onSave={(map) => answers.mutate(map)}
-        />
-      ) : null}
-
-      <div className="camp-apply__actions">
-        {primary === 'prepare' ? (
-          <Button onClick={() => prepare.mutate()} loading={prepare.isPending} disabled={prepare.isPending}>
-            <Sparkles size={15} aria-hidden="true" /> {prepare.isPending ? 'Preparing…' : 'Prepare application'}
-          </Button>
+    <Section title={title}>
+      <Stack gap={4}>
+        <Lead>{description}</Lead>
+        {application.open_questions.length ? (
+          <QuestionsForm
+            key={`${application.drafts?.run_id ?? ''}:${JSON.stringify(application.answers)}`}
+            application={application}
+            primary={primary === 'answer'}
+            saving={answers.isPending}
+            onSave={(map) => answers.mutate(map)}
+          />
         ) : null}
-        {link ? (
-          <Button variant={primary === 'apply' ? 'default' : 'outline'} asChild>
-            <a href={link} target="_blank" rel="noopener noreferrer">
-              Apply on company site <ArrowUpRight size={14} aria-hidden="true" />
-            </a>
-          </Button>
-        ) : null}
-        <Button
-          variant={primary === 'applied' ? 'default' : 'outline'}
-          onClick={() => applied.mutate()}
-          loading={applied.isPending}
-          disabled={applied.isPending || unanswered.length > 0}
-          title={unanswered.length ? 'Answer the open questions first' : undefined}
-          aria-describedby={unanswered.length ? 'camp-applied-hint' : undefined}
-        >
-          <Check size={15} aria-hidden="true" /> Mark as applied
-        </Button>
-        {prepared ? (
-          <Button variant="ghost" onClick={() => prepare.mutate()} loading={prepare.isPending} disabled={prepare.isPending}>
-            <RefreshCw size={14} aria-hidden="true" /> {prepare.isPending ? 'Preparing…' : 'Prepare again'}
-          </Button>
-        ) : null}
-      </div>
-      {unanswered.length > 0 ? <p id="camp-applied-hint" className="camp-muted">Answer the questions above first.</p> : null}
-      {!link ? <p className="camp-muted">No link to the employer's form was saved with this job. Apply wherever you found it.</p> : null}
 
-      {failed ? (
-        <p className="camp-alert" role="alert">{errorMessage(failed.error, 'That didn’t go through. Try again.')}</p>
-      ) : null}
+        <Stack gap={2}>
+          <Cluster gap={2} className="camp-apply__actions">
+            {primary === 'prepare' ? (
+              <Button onClick={() => prepare.mutate()} loading={prepare.isPending} disabled={prepare.isPending}>
+                <Sparkles aria-hidden="true" /> {prepare.isPending ? 'Preparing…' : 'Prepare application'}
+              </Button>
+            ) : null}
+            {link ? (
+              <Button variant={primary === 'apply' ? 'primary' : 'secondary'} asChild>
+                <a href={link} target="_blank" rel="noopener noreferrer">
+                  Apply on company site <ArrowUpRight aria-hidden="true" />
+                </a>
+              </Button>
+            ) : null}
+            <Button
+              variant={primary === 'applied' ? 'primary' : 'secondary'}
+              onClick={() => applied.mutate()}
+              loading={applied.isPending}
+              disabled={applied.isPending || unanswered.length > 0}
+              title={unanswered.length ? 'Answer the open questions first' : undefined}
+              aria-describedby={unanswered.length ? 'camp-applied-hint' : undefined}
+            >
+              <Check aria-hidden="true" /> Mark as applied
+            </Button>
+            {prepared ? (
+              <Button variant="ghost" onClick={() => prepare.mutate()} loading={prepare.isPending} disabled={prepare.isPending}>
+                <RefreshCw aria-hidden="true" /> {prepare.isPending ? 'Preparing…' : 'Prepare again'}
+              </Button>
+            ) : null}
+          </Cluster>
+          {unanswered.length > 0 ? <p id="camp-applied-hint" className="camp-note">Answer the questions above first.</p> : null}
+          {!link ? <p className="camp-note">No link to the employer's form was saved with this job. Apply wherever you found it.</p> : null}
+        </Stack>
 
-      {isAutopilotExperimentEnabled() && application.autofill_supported ? (
-        <AutofillBlock applicationId={application.id} blocked={unanswered.length > 0} />
-      ) : null}
-    </Panel>
+        {failed ? <Notice tone="danger">{errorMessage(failed.error, 'That didn’t go through. Try again.')}</Notice> : null}
+
+        {isAutopilotExperimentEnabled() && application.autofill_supported ? (
+          <AutofillBlock applicationId={application.id} blocked={unanswered.length > 0} />
+        ) : null}
+      </Stack>
+    </Section>
   )
 }
 
@@ -158,27 +168,32 @@ function QuestionsForm({
         onSave(Object.fromEntries(application.open_questions.map((question) => [question.key, (draft[question.key] ?? '').trim()])))
       }}
     >
-      <ol>
-        {application.open_questions.map((question) => (
-          <li key={question.key} className={question.answered ? 'is-answered' : undefined}>
-            <label htmlFor={`answer-${question.key}`}>
-              {question.answered ? <CircleCheck size={15} aria-hidden="true" /> : null}
+      {application.open_questions.map((question) => (
+        <Field
+          key={question.key}
+          id={`answer-${question.key}`}
+          label={
+            <>
               {question.question}
-            </label>
-            <textarea
-              id={`answer-${question.key}`}
-              className="workspace-textarea"
-              rows={2}
-              maxLength={5000}
-              value={draft[question.key] ?? ''}
-              onChange={(event) => setDraft((current) => ({ ...current, [question.key]: event.target.value }))}
-            />
-          </li>
-        ))}
-      </ol>
-      <Button type="submit" variant={primary ? 'default' : 'outline'} size="sm" disabled={saving || !changed}>
-        {saving ? 'Saving…' : 'Save answers'}
-      </Button>
+              {question.answered ? <CircleCheck className="camp-answered" aria-hidden="true" /> : null}
+            </>
+          }
+        >
+          <Textarea
+            autosize
+            rows={2}
+            maxRows={10}
+            maxLength={5000}
+            value={draft[question.key] ?? ''}
+            onChange={(event) => setDraft((current) => ({ ...current, [question.key]: event.target.value }))}
+          />
+        </Field>
+      ))}
+      <div>
+        <Button type="submit" variant={primary ? 'primary' : 'secondary'} size="sm" disabled={saving || !changed}>
+          {saving ? 'Saving…' : 'Save answers'}
+        </Button>
+      </div>
     </form>
   )
 }
@@ -203,40 +218,38 @@ function AutofillBlock({ applicationId, blocked }: { applicationId: string; bloc
   const report = run?.report
   const error = start.error ?? cancel.error
   return (
-    <div className="camp-autofill">
-      <div className="camp-autofill__row">
+    <Stack gap={3} className="camp-autofill">
+      <Cluster gap={3} align="start">
         {active ? (
-          <Button variant="outline" size="sm" onClick={() => cancel.mutate()} loading={cancel.isPending} disabled={cancel.isPending}>
-            <X size={14} aria-hidden="true" /> {state === 'running' ? 'Cancel' : 'Close the window'}
+          <Button variant="secondary" size="sm" onClick={() => cancel.mutate()} loading={cancel.isPending} disabled={cancel.isPending}>
+            <X aria-hidden="true" /> {state === 'running' ? 'Cancel' : 'Close the window'}
           </Button>
         ) : (
-          <Button className="camp-autofill__button" variant="outline" size="sm" onClick={() => start.mutate()} loading={start.isPending} disabled={blocked || start.isPending}>
-            <Wand2 size={14} aria-hidden="true" /> Fill the form for me
+          <Button variant="secondary" size="sm" onClick={() => start.mutate()} loading={start.isPending} disabled={blocked || start.isPending}>
+            <Wand2 aria-hidden="true" /> Fill the form for me
           </Button>
         )}
-        <p className="camp-muted">
-          <Badge tone="warning">Experimental</Badge>{' '}
+        <p className="camp-note camp-autofill__text">
+          <Badge tone="warning" size="sm">Experimental</Badge>{' '}
           {state === 'running'
             ? 'Opening the employer’s form on this computer and filling it. Nothing is submitted.'
             : state === 'review'
               ? `The form is open in a browser window. Check it and press submit yourself. The window closes itself in ${Math.max(1, Math.ceil((run?.seconds_left ?? 0) / 60))} min.`
               : 'Opens the employer’s form in a browser on this computer and fills what it can. You check it and press submit yourself.'}
         </p>
-      </div>
-      {error ? <p className="camp-alert" role="alert">{errorMessage(error, 'Could not fill the form.')}</p> : null}
-      {state === 'failed' ? (
-        <p className="camp-alert" role="alert">{run?.message} {run?.next_step}</p>
-      ) : null}
-      {state === 'closed' && run?.message ? <p className="camp-muted" role="status">{run.message}</p> : null}
+      </Cluster>
+      {error ? <Notice tone="danger">{errorMessage(error, 'Could not fill the form.')}</Notice> : null}
+      {state === 'failed' ? <Notice tone="danger">{run?.message} {run?.next_step}</Notice> : null}
+      {state === 'closed' && run?.message ? <p className="camp-note" role="status">{run.message}</p> : null}
       {report ? (
-        <div className="camp-autofill__report" role="status">
+        <Notice>
           <p><strong>Filled:</strong> {report.filled.length ? report.filled.join(', ') : 'nothing'}</p>
           {report.skipped.length ? <p><strong>Fill these yourself (highlighted in the form):</strong> {report.skipped.join(', ')}</p> : null}
           {report.mismatched.length ? <p><strong>Check these (the form changed what was typed):</strong> {report.mismatched.join(', ')}</p> : null}
           <p>Nothing was submitted. Check the browser window and press submit when you're happy.</p>
-        </div>
+        </Notice>
       ) : null}
-    </div>
+    </Stack>
   )
 }
 
@@ -247,16 +260,16 @@ function SentApplication({ content }: { content: Record<string, unknown> }) {
   const cover = content.cover_letter as { source?: string } | null
   const answers = (content.answers as Array<{ question: string; answer: string }> | undefined) ?? []
   return (
-    <details className="camp-sent">
-      <summary>See what you sent</summary>
-      <dl>
-        <div><dt>Job</dt><dd>{listing ? [listing.title, listing.company].filter(Boolean).join(' · ') : 'No job posting attached'}</dd></div>
-        <div><dt>CV</dt><dd>{cv?.name || 'No CV chosen'}</dd></div>
-        <div><dt>Cover letter</dt><dd>{cover ? (cover.source === 'prepared' ? 'The prepared draft' : 'Your chosen cover letter') : 'None'}</dd></div>
-        {answers.map((item) => (
-          <div key={item.question}><dt>{item.question}</dt><dd>{item.answer}</dd></div>
-        ))}
-      </dl>
-    </details>
+    <Disclosure variant="inline" title="See what you sent">
+      <KeyValue
+        layout="stacked"
+        items={[
+          { label: 'Job', value: listing ? [listing.title, listing.company].filter(Boolean).join(' · ') : 'No job posting attached' },
+          { label: 'CV', value: cv?.name || 'No CV chosen' },
+          { label: 'Cover letter', value: cover ? (cover.source === 'prepared' ? 'The prepared draft' : 'Your chosen cover letter') : 'None' },
+          ...answers.map((item) => ({ key: item.question, label: item.question, value: item.answer })),
+        ]}
+      />
+    </Disclosure>
   )
 }

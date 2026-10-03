@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
-import { Button } from '#/components/ui/button'
+import { Button, ErrorState, Page } from '#/components/kit'
 import type { IllustrationScene } from '#/components/illustrations/SceneVisual'
 
 type PanelAction = {
@@ -10,10 +10,12 @@ type PanelAction = {
   variant?: 'default' | 'outline' | 'ghost'
 }
 
+const VARIANTS = { default: 'primary', outline: 'secondary', ghost: 'ghost' } as const
+
 /**
- * A plain state page: one title, one line of explanation, and a primary plus a
- * secondary action, left-aligned. `icon`, `scene` and `visual` are accepted for
- * existing callers but no longer rendered (no illustrations on state pages).
+ * A plain state page for screens that have not moved to the kit's EmptyState and ErrorState yet: one title,
+ * one line of explanation, a primary and a secondary action, left-aligned. `icon`, `scene` and `visual` are
+ * accepted for existing callers but no longer rendered.
  */
 export function AppStatePanel({
   badge,
@@ -33,31 +35,32 @@ export function AppStatePanel({
   actions?: PanelAction[]
   children?: ReactNode
 }) {
+  const buttons = actions.map((action, i) => {
+    const variant = VARIANTS[action.variant ?? (i === 0 ? 'default' : 'outline')]
+    return action.to ? (
+      <Button key={action.label} asChild variant={variant}>
+        <Link to={action.to}>{action.label}</Link>
+      </Button>
+    ) : (
+      <Button key={action.label} type="button" variant={variant} onClick={action.onClick}>
+        {action.label}
+      </Button>
+    )
+  })
+
   return (
-    <section className="page-shell">
-      <div className="state-page">
-        {badge ? <p className="state-page__code">{badge}</p> : null}
-        <h1 className="state-page__title">{title}</h1>
-        <p className="state-page__text">{description}</p>
-        {detail ? <p className="state-page__detail">{detail}</p> : null}
-        {actions.length > 0 ? (
-          <div className="state-page__actions">
-            {actions.map((action, i) => {
-              const variant = action.variant || (i === 0 ? 'default' : 'outline')
-              return action.to ? (
-                <Button key={action.label} variant={variant} size="sm" asChild>
-                  <Link to={action.to}>{action.label}</Link>
-                </Button>
-              ) : (
-                <Button key={action.label} variant={variant} size="sm" onClick={action.onClick}>
-                  {action.label}
-                </Button>
-              )
-            })}
-          </div>
-        ) : null}
-        {children}
-      </div>
-    </section>
+    <Page as="div">
+      <ErrorState
+        size="page"
+        role="status"
+        headingLevel={1}
+        code={badge}
+        title={title}
+        description={description}
+        detail={detail}
+        backAction={buttons.length > 0 ? <>{buttons}</> : undefined}
+      />
+      {children}
+    </Page>
   )
 }

@@ -1,9 +1,7 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { X } from 'lucide-react'
-import { Panel } from './Panel'
-import { Button } from '#/components/ui/button'
+import { Button, Checkbox, Chip, Cluster, Field, Input, Notice, Section, Skeleton, Stack } from '#/components/kit'
 import { getApplicationPreferences, prepareApplicationsForMe, saveApplicationPreferences } from '#/lib/api/client'
 import type { ApplicationPreferences, ApplicationPreferencesUpdate, BulkPrepareResult } from '#/lib/api/schemas'
 import { APPLICATION_PREFERENCES_QUERY_KEY, invalidateApplications } from '#/lib/query/applicationCaches'
@@ -38,65 +36,68 @@ export function PrepareForMePanel() {
   }
 
   return (
-    <Panel
+    <Section
       title="Prepare applications for me"
       description="Tell us what you're looking for. We pick the best matching jobs from Job Discovery and draft each application. You still check and send every one yourself."
-      className="camp-prepare"
     >
-      {preferences.isPending ? <p className="camp-muted">Loading your preferences…</p> : null}
-      {preferences.isError ? <p className="camp-alert" role="alert">Your preferences couldn't be loaded.</p> : null}
-      {prefs ? <PreferencesForm prefs={prefs} saving={save.isPending} onChange={update} /> : null}
-      {save.isError ? <p className="camp-alert" role="alert">Your preferences couldn't be saved. Try again.</p> : null}
-      {prepare.isError ? (
-        <p className="camp-alert" role="alert">
-          {prepare.error instanceof Error ? prepare.error.message : 'Nothing could be prepared. Try again.'}
-        </p>
-      ) : null}
-      {prepare.data ? <PrepareResult result={prepare.data} /> : null}
-      <div className="camp-prepare__footer">
-        <Button
-          className="camp-prepare__submit"
-          variant="outline"
-          onClick={() => prepare.mutate()}
-          loading={prepare.isPending}
-          disabled={!prefs || prepare.isPending || save.isPending}
-          aria-describedby={prefs && prefs.keywords.length === 0 ? 'camp-prepare-hint' : undefined}
-        >
-          {prepare.isPending ? 'Preparing…' : 'Prepare applications'}
-        </Button>
-        {prefs && prefs.keywords.length === 0 ? (
-          <p id="camp-prepare-hint" className="camp-muted">Add at least one keyword so we know which jobs to prepare.</p>
+      <Stack gap={4}>
+        {preferences.isPending ? <Skeleton lines={2} label="Loading your preferences…" /> : null}
+        {preferences.isError ? <Notice tone="danger">Your preferences couldn't be loaded.</Notice> : null}
+        {prefs ? <PreferencesForm prefs={prefs} saving={save.isPending} onChange={update} /> : null}
+        {save.isError ? <Notice tone="danger">Your preferences couldn't be saved. Try again.</Notice> : null}
+        {prepare.isError ? (
+          <Notice tone="danger">
+            {prepare.error instanceof Error ? prepare.error.message : 'Nothing could be prepared. Try again.'}
+          </Notice>
         ) : null}
-      </div>
-    </Panel>
+        {prepare.data ? <PrepareResult result={prepare.data} /> : null}
+        <Stack gap={2}>
+          <Button
+            variant="secondary"
+            onClick={() => prepare.mutate()}
+            loading={prepare.isPending}
+            disabled={!prefs || prepare.isPending || save.isPending}
+            aria-describedby={prefs && prefs.keywords.length === 0 ? 'camp-prepare-hint' : undefined}
+          >
+            {prepare.isPending ? 'Preparing…' : 'Prepare applications'}
+          </Button>
+          {prefs && prefs.keywords.length === 0 ? (
+            <p id="camp-prepare-hint" className="camp-note">Add at least one keyword so we know which jobs to prepare.</p>
+          ) : null}
+        </Stack>
+      </Stack>
+    </Section>
   )
 }
 
 function PrepareResult({ result }: { result: BulkPrepareResult }) {
   if (result.reason === 'no_preferences') {
-    return <p className="camp-result" role="status">Add at least one keyword above so we know which jobs to prepare.</p>
+    return <Notice>Add at least one keyword above so we know which jobs to prepare.</Notice>
   }
   if (result.reason === 'no_cv') {
     return (
-      <p className="camp-result" role="status">
-        You need a CV first. <Link to="/cv-studio" className="camp-link-button">Create one in CV Studio</Link>
-      </p>
+      <Notice
+        tone="warning"
+        action={<Button asChild size="sm" variant="secondary"><Link to="/cv-studio">Create one in CV Studio</Link></Button>}
+      >
+        You need a CV first.
+      </Notice>
     )
   }
   const count = result.prepared.length
   if (count === 0) {
     return (
-      <p className="camp-result" role="status">
+      <Notice>
         {result.matched_count === 0
           ? 'No new jobs match your keywords right now. Try broader keywords or check back later.'
           : 'Every matching job already has an application.'}
-      </p>
+      </Notice>
     )
   }
   return (
-    <p className="camp-result" role="status">
+    <Notice tone="success">
       Prepared {count} application{count === 1 ? '' : 's'}. {count === 1 ? 'It is' : 'They are'} in Saved on your board.
-    </p>
+    </Notice>
   )
 }
 
@@ -113,44 +114,42 @@ function PreferencesForm({
   const capValue = cap ?? String(prefs.max_per_run)
   return (
     <div className="camp-prefs">
-      <TermsField label="Keywords" placeholder="e.g. backend engineer" value={prefs.keywords} saving={saving} onChange={(keywords) => onChange({ keywords })} />
-      <TermsField label="Locations" placeholder="e.g. Berlin" value={prefs.locations} saving={saving} onChange={(locations) => onChange({ locations })} />
-      <div className="camp-prefs__row">
-        <label className="camp-prefs__check">
-          <input type="checkbox" checked={prefs.remote} disabled={saving} onChange={(event) => onChange({ remote: event.target.checked })} />
-          Include remote jobs
-        </label>
-        <label className="camp-field camp-prefs__cap">
-          <span className="camp-field__label">Most per click</span>
-          <input
-            type="number"
-            min={1}
-            max={prefs.max_per_run_limit}
-            className="workspace-input"
-            value={capValue}
-            onChange={(event) => setCap(event.target.value)}
-            onBlur={() => {
-              const parsed = Number.parseInt(capValue, 10)
-              if (Number.isFinite(parsed) && parsed !== prefs.max_per_run) {
-                onChange({ max_per_run: Math.min(Math.max(parsed, 1), prefs.max_per_run_limit) })
-              }
-              setCap(null)
-            }}
-          />
-        </label>
+      <TermsField label="Keywords" noun="keyword" placeholder="e.g. backend engineer" value={prefs.keywords} saving={saving} onChange={(keywords) => onChange({ keywords })} />
+      <TermsField label="Locations" noun="location" placeholder="e.g. Berlin" value={prefs.locations} saving={saving} onChange={(locations) => onChange({ locations })} />
+      <div className="camp-prefs__remote">
+        <Checkbox label="Include remote jobs" checked={prefs.remote} disabled={saving} onCheckedChange={(remote) => onChange({ remote })} />
       </div>
+      <Field label="Most per click">
+        <Input
+          type="number"
+          min={1}
+          max={prefs.max_per_run_limit}
+          className="camp-cap"
+          value={capValue}
+          onChange={(event) => setCap(event.target.value)}
+          onBlur={() => {
+            const parsed = Number.parseInt(capValue, 10)
+            if (Number.isFinite(parsed) && parsed !== prefs.max_per_run) {
+              onChange({ max_per_run: Math.min(Math.max(parsed, 1), prefs.max_per_run_limit) })
+            }
+            setCap(null)
+          }}
+        />
+      </Field>
     </div>
   )
 }
 
 function TermsField({
   label,
+  noun,
   placeholder,
   value,
   saving,
   onChange,
 }: {
   label: string
+  noun: string
   placeholder: string
   value: string[]
   saving: boolean
@@ -158,22 +157,8 @@ function TermsField({
 }) {
   const [draft, setDraft] = useState('')
   return (
-    <div className="camp-prefs__field">
-      <span className="camp-field__label">{label}</span>
-      {value.length ? (
-        <ul className="camp-chips" aria-label={label}>
-          {value.map((term) => (
-            <li key={term} className="camp-chip">
-              {term}
-              <button type="button" aria-label={`Remove ${term}`} disabled={saving} onClick={() => onChange(value.filter((item) => item !== term))}>
-                <X size={12} aria-hidden="true" />
-              </button>
-            </li>
-          ))}
-        </ul>
-      ) : null}
+    <div className="camp-terms">
       <form
-        className="camp-prefs__add"
         onSubmit={(event) => {
           event.preventDefault()
           const next = draft.trim()
@@ -182,18 +167,32 @@ function TermsField({
           setDraft('')
         }}
       >
-        <input
-          className="workspace-input"
-          value={draft}
-          placeholder={placeholder}
-          aria-label={`Add ${label.toLowerCase()}`}
-          maxLength={100}
-          onChange={(event) => setDraft(event.target.value)}
-        />
-        <Button type="submit" size="sm" variant="outline" disabled={saving}>
-          Add
-        </Button>
+        <Field label={label}>
+          <Cluster nowrap className="camp-terms__add">
+            <Input
+              value={draft}
+              placeholder={placeholder}
+              aria-label={`Add ${label.toLowerCase()}`}
+              maxLength={100}
+              onChange={(event) => setDraft(event.target.value)}
+            />
+            <Button type="submit" variant="secondary" disabled={saving} aria-label={`Add ${noun}`}>
+              Add
+            </Button>
+          </Cluster>
+        </Field>
       </form>
+      {value.length ? (
+        <ul className="camp-terms__list" aria-label={label}>
+          {value.map((term) => (
+            <li key={term}>
+              <Chip removeLabel={`Remove ${term}`} disabled={saving} onRemove={() => onChange(value.filter((item) => item !== term))}>
+                {term}
+              </Chip>
+            </li>
+          ))}
+        </ul>
+      ) : null}
     </div>
   )
 }

@@ -1,49 +1,45 @@
 import { Link } from '@tanstack/react-router'
-import { useQuery } from '@tanstack/react-query'
-import { formatDate } from '#/components/applications/stages'
-import { Button } from '#/components/ui/button'
-import { useHistory } from '#/hooks/useHistory'
-import { useSession } from '#/hooks/useSession'
-import { listCvDocuments } from '#/lib/api/client'
-import { DashboardResumeUpload } from './DashboardResumeUpload'
+import { Button, ErrorState, List, Row, RowActions, RowBody, RowSubtitle, RowTitle, Section, Skeleton } from '#/components/kit'
+import { useDashboardCv } from '#/components/dashboard/useDashboardCv'
+import { formatRunDate } from '#/components/dashboard/RunRow'
 
-/**
- * Upload while the user has neither a CV document nor a resume run; once they
- * have a CV, one quiet line that opens CV Studio. Guests always get the upload.
- */
+/** Once there is a CV, one row that opens CV Studio. Without one, the page leads with the upload instead. */
 export function DashboardCv() {
-  const { status } = useSession()
-  const authenticated = status === 'authenticated'
-  const cvs = useQuery({ queryKey: ['cv-studio', 'list'], queryFn: listCvDocuments, enabled: authenticated })
-  const resumeRuns = useHistory({ tool: 'resume', page: 1, page_size: 1 }, authenticated)
+  const { latest, pending, isError, fetching, retry } = useDashboardCv()
 
-  if (!authenticated) return <DashboardResumeUpload />
-  if (cvs.isPending || resumeRuns.isPending) return null
-
-  const latest = cvs.data?.items
-    .slice()
-    .sort((a, b) => b.updated_at.localeCompare(a.updated_at))[0]
-  if (latest) {
+  if (pending) {
     return (
-      <section className="dash-section" aria-label="Your CV">
-        <div className="dash-cv">
-          <span className="dash-cv__label">Your CV</span>
-          <span className="dash-cv__name">{latest.name}</span>
-          <span className="dash-cv__meta">Edited {formatDate(latest.updated_at)}</span>
-          <Button asChild variant="outline" size="sm">
-            <Link to="/cv-studio">Open CV Studio</Link>
-          </Button>
-        </div>
-      </section>
+      <Section title="Your CV">
+        <List aria-busy aria-label="Your CV">
+          <Skeleton variant="row" as="li" />
+        </List>
+      </Section>
     )
   }
-  if ((resumeRuns.data?.total ?? 0) > 0) return null
+
+  if (!latest) {
+    return isError ? (
+      <Section title="Your CV">
+        <ErrorState title="Your CV couldn't be loaded" onRetry={retry} retrying={fetching} />
+      </Section>
+    ) : null
+  }
+
   return (
-    <section className="dash-section" aria-labelledby="dash-start">
-      <div className="dash-section__head">
-        <h2 className="dash-section__title" id="dash-start">Start</h2>
-      </div>
-      <DashboardResumeUpload />
-    </section>
+    <Section title="Your CV">
+      <List>
+        <Row>
+          <RowBody>
+            <RowTitle>{latest.name}</RowTitle>
+            <RowSubtitle>Edited {formatRunDate(latest.updated_at)}</RowSubtitle>
+          </RowBody>
+          <RowActions reveal={false}>
+            <Button asChild variant="secondary" size="sm">
+              <Link to="/cv-studio">Open CV Studio</Link>
+            </Button>
+          </RowActions>
+        </Row>
+      </List>
+    </Section>
   )
 }

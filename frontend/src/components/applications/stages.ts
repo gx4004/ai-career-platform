@@ -29,10 +29,10 @@ export function stageOf(status: ApplicationStatus): Stage {
   return status === 'rejected' || status === 'withdrawn' ? 'closed' : status
 }
 
+/** The kit Badge tone of a status: accent while a conversation is open, success for an offer, quiet otherwise. */
 export function stageTone(status: ApplicationStatus) {
-  if (status === 'offer') return 'positive' as const
-  if (status === 'interviewing') return 'warning' as const
-  if (status === 'applied' || status === 'no_reply') return 'accent' as const
+  if (status === 'offer') return 'success' as const
+  if (status === 'applied' || status === 'interviewing') return 'accent' as const
   return 'neutral' as const
 }
 

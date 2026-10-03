@@ -9,7 +9,7 @@ export function PageFrame({
   className?: string
 }) {
   return (
-    <main id="main-content" className={cn('page-frame page-shell', className)}>
+    <main id="main-content" tabIndex={-1} className={cn('page-frame page-shell', className)}>
       {children}
     </main>
   )

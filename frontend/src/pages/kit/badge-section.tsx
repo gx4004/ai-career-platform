@@ -1,4 +1,5 @@
-import { Avatar, Badge, Card, CardHeader, CardTitle, Count, Kbd, MetaRow, type BadgeTone } from '#/components/kit'
+import { useState } from 'react'
+import { Avatar, Badge, Card, CardHeader, CardTitle, Chip, Count, Kbd, MetaRow, type BadgeTone } from '#/components/kit'
 import { GallerySection, Group, Row, Specimen } from './gallery-parts'
 
 const TONES: Array<{ tone: BadgeTone; label: string }> = [
@@ -9,6 +10,21 @@ const TONES: Array<{ tone: BadgeTone; label: string }> = [
   { tone: 'danger', label: 'Rejected' },
   { tone: 'info', label: 'Draft' },
 ]
+
+function ChipGroup() {
+  const [terms, setTerms] = useState(['backend engineer', 'platform', 'Staff engineer, data infrastructure and developer productivity'])
+  return (
+    <ul className="kit-gallery__chips" aria-label="Keywords">
+      {terms.map((term) => (
+        <li key={term}>
+          <Chip removeLabel={`Remove ${term}`} onRemove={() => setTerms((current) => current.filter((item) => item !== term))}>
+            {term}
+          </Chip>
+        </li>
+      ))}
+    </ul>
+  )
+}
 
 export function BadgeSection() {
   return (
@@ -108,6 +124,22 @@ export function BadgeSection() {
             </Badge>
           </li>
         </ul>
+      </Group>
+
+      <Group title="Chip: a removable value the person typed (keywords, locations). Remove one to see the list shrink">
+        <Row>
+          <Specimen label="removable">
+            <ChipGroup />
+          </Specimen>
+          <Specimen label="plain / disabled">
+            <Row>
+              <Chip>Berlin</Chip>
+              <Chip onRemove={() => undefined} disabled removeLabel="Remove Berlin">
+                Berlin
+              </Chip>
+            </Row>
+          </Specimen>
+        </Row>
       </Group>
 
       <Group title="Count: tabular, no pill">

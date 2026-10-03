@@ -177,7 +177,7 @@ for (const tool of guestTools) {
     await page.reload()
     await page.locator('html[data-hydrated="true"]').waitFor()
 
-    await expect(page.getByText('Demo expired')).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'This guest demo is no longer available' })).toBeVisible()
     await expect(page.getByRole('link', { name: 'Run the tool again' })).toBeVisible()
   })
 }

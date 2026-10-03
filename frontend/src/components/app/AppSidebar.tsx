@@ -1,14 +1,9 @@
 import { Link, useRouterState } from '@tanstack/react-router'
-import {
-  ChevronLeft,
-  ChevronRight,
-  LayoutDashboard,
-  Search,
-} from 'lucide-react'
+import { LayoutDashboard, Search } from 'lucide-react'
 import { AppBrandLockup } from '#/components/app/AppBrandLockup'
 import { openCommandPalette } from '#/components/app/CommandPalette'
 import { SidebarUserMenu } from '#/components/app/SidebarUserMenu'
-import { useSession } from '#/hooks/useSession'
+import { Button, Kbd } from '#/components/kit'
 import {
   Sidebar,
   SidebarContent,
@@ -20,11 +15,11 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarRail,
+  SidebarTooltip,
   SidebarTrigger,
   useSidebar,
 } from '#/components/ui/sidebar'
-import { cn } from '#/lib/utils'
+import { useSession } from '#/hooks/useSession'
 import { toolList } from '#/lib/tools/registry'
 import { navGroups } from '#/lib/navigation/navGroups'
 import type { NavDestination } from '#/lib/navigation/navGroups'
@@ -34,10 +29,9 @@ export function AppSidebar() {
     select: (state) => state.location.pathname,
   })
   const { user } = useSession()
-  const { isMobile, state } = useSidebar()
-  const isCollapsedDesktop = !isMobile && state === 'collapsed'
-  const group = (id: string) =>
-    navGroups.find((candidate) => candidate.id === id)?.destinations ?? []
+  const { state } = useSidebar()
+  const collapsed = state === 'collapsed'
+  const group = (id: string) => navGroups.find((candidate) => candidate.id === id)?.destinations ?? []
   // Job search stays owner-only. The rest renders for guests too.
   const you = group('you')
   const history = you.filter((item) => item.route === '/history')
@@ -48,62 +42,43 @@ export function AppSidebar() {
   ]
 
   return (
-    <Sidebar className="app-sidebar-shell" collapsible="icon">
-      <SidebarHeader className="app-sidebar-header">
-        <div
-          className={cn(
-            'app-sidebar-brand-row',
-            isCollapsedDesktop && 'is-collapsed',
-          )}
-        >
+    <Sidebar collapsible="icon">
+      <SidebarHeader>
+        <div className="app-sidebar__brand-row">
           <Link
             to={pathname === '/dashboard' ? '/' : '/dashboard'}
-            className="app-sidebar-brand-link"
+            className="app-sidebar__brand"
             aria-label="Career Workbench"
           >
-            <AppBrandLockup mode={isCollapsedDesktop ? 'compact' : 'full'} />
+            <AppBrandLockup mode={collapsed ? 'compact' : 'full'} />
           </Link>
-          <SidebarTrigger
-            className="app-sidebar-brand-toggle"
-            title={isCollapsedDesktop ? 'Expand sidebar' : 'Collapse sidebar'}
-          >
-            {isCollapsedDesktop ? (
-              <ChevronRight className="app-sidebar-brand-toggle-icon" />
-            ) : (
-              <ChevronLeft className="app-sidebar-brand-toggle-icon" />
-            )}
-          </SidebarTrigger>
+          <SidebarTrigger />
         </div>
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              tooltip="Search (⌘K)"
-              className="app-sidebar-menu-button app-sidebar-search"
-              onClick={openCommandPalette}
-            >
-              <Search className="app-sidebar-item-icon" />
-              <span>Search</span>
-              <kbd className="app-sidebar-kbd">⌘K</kbd>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
+        <SidebarTooltip tooltip="Search" shortcut="⌘K">
+          <Button
+            variant="secondary"
+            className="app-sidebar__search"
+            aria-label="Search"
+            aria-keyshortcuts="Meta+K Control+K"
+            onClick={openCommandPalette}
+          >
+            <Search aria-hidden />
+            <span className="app-sidebar__search-label">Search</span>
+            <Kbd className="app-sidebar__search-kbd">⌘K</Kbd>
+          </Button>
+        </SidebarTooltip>
       </SidebarHeader>
       <SidebarContent>
-        <NavGroupSection destinations={mainDestinations} pathname={pathname} />
+        <NavGroup destinations={mainDestinations} pathname={pathname} />
         <SidebarGroup>
           <SidebarGroupLabel>Tools</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {toolList.map((tool) => (
                 <SidebarMenuItem key={tool.id}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={pathname.startsWith(tool.route)}
-                    tooltip={tool.label}
-                    className="app-sidebar-menu-button app-sidebar-menu-button--tool"
-                  >
+                  <SidebarMenuButton asChild isActive={pathname.startsWith(tool.route)} tooltip={tool.label}>
                     <Link to={tool.route}>
-                      <tool.icon className="app-sidebar-item-icon" />
+                      <tool.icon aria-hidden />
                       <span>{tool.label}</span>
                     </Link>
                   </SidebarMenuButton>
@@ -112,48 +87,31 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
-        <NavGroupSection destinations={history} pathname={pathname} />
+        <NavGroup destinations={history} pathname={pathname} />
       </SidebarContent>
-      <SidebarFooter className="app-sidebar-footer">
+      <SidebarFooter>
         <SidebarUserMenu />
-        <div className="app-sidebar-legal group-data-[collapsible=icon]:hidden" aria-label="Legal">
-          <Link to="/privacy" className="app-sidebar-legal__link">Privacy</Link>
-          <span className="app-sidebar-legal__sep" aria-hidden="true">·</span>
-          <Link to="/terms" className="app-sidebar-legal__link">Terms</Link>
-          <span className="app-sidebar-legal__sep" aria-hidden="true">·</span>
-          <Link to="/cookies" className="app-sidebar-legal__link">Cookies</Link>
-        </div>
+        <nav className="app-sidebar__legal" aria-label="Legal">
+          <Link to="/privacy">Privacy</Link>
+          <Link to="/terms">Terms</Link>
+          <Link to="/cookies">Cookies</Link>
+        </nav>
       </SidebarFooter>
-      <SidebarRail />
     </Sidebar>
   )
 }
 
-function NavGroupSection({
-  label,
-  destinations,
-  pathname,
-}: {
-  label?: string
-  destinations: NavDestination[]
-  pathname: string
-}) {
+function NavGroup({ destinations, pathname }: { destinations: NavDestination[]; pathname: string }) {
   if (destinations.length === 0) return null
   return (
     <SidebarGroup>
-      {label ? <SidebarGroupLabel>{label}</SidebarGroupLabel> : null}
       <SidebarGroupContent>
         <SidebarMenu>
           {destinations.map((item) => (
             <SidebarMenuItem key={item.route}>
-              <SidebarMenuButton
-                asChild
-                tooltip={item.label}
-                isActive={pathname.startsWith(item.route)}
-                className="app-sidebar-menu-button"
-              >
+              <SidebarMenuButton asChild tooltip={item.label} isActive={pathname.startsWith(item.route)}>
                 <Link to={item.route}>
-                  <item.icon className="app-sidebar-item-icon" />
+                  <item.icon aria-hidden />
                   <span>{item.label}</span>
                 </Link>
               </SidebarMenuButton>

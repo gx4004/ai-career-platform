@@ -1,8 +1,7 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { motion, AnimatePresence } from 'framer-motion'
-import { ArrowRight, X } from 'lucide-react'
-import { Button } from '#/components/ui/button'
+import { X } from 'lucide-react'
+import { Button } from '#/components/kit'
 
 type TourStep = {
   target: string
@@ -28,24 +27,22 @@ const STEPS: TourStep[] = [
   },
 ]
 
-const tooltipVariants = {
-  hidden: { opacity: 0, y: 8, scale: 0.96 },
-  visible: { opacity: 1, y: 0, scale: 1 },
-  exit: { opacity: 0, y: -8, scale: 0.96 },
+const CARD_WIDTH = 320
+const GAP = 12
+
+function getCardPosition(rect: DOMRect, cardHeight: number) {
+  const fitsBelow = rect.bottom + GAP + cardHeight < window.innerHeight
+  const top = fitsBelow ? rect.bottom + GAP : Math.max(GAP, rect.top - GAP - cardHeight)
+  const left = Math.min(Math.max(16, rect.left), window.innerWidth - CARD_WIDTH - 16)
+  return { top, left }
 }
 
-function getTooltipPosition(rect: DOMRect) {
-  const pad = 12
-  const top = rect.bottom + pad
-  const left = Math.max(16, rect.left + rect.width / 2 - 160)
-  const fitsBelow = top + 200 < window.innerHeight
-  return {
-    top: fitsBelow ? top : rect.top - pad - 180,
-    left: Math.min(left, window.innerWidth - 336),
-    placement: fitsBelow ? ('below' as const) : ('above' as const),
-  }
-}
-
+/**
+ * A short first-run tour of the dashboard. A step whose target is not on the page is left out
+ * (a user who already has a CV has no upload row), so the tour only ever points at what is there.
+ * It is not modal and does not take focus (the page stays usable from the keyboard, and the skip link stays
+ * the first stop of the first Tab); Escape skips it, and the card is the last thing in the tab order.
+ */
 export function OnboardingTour({
   open,
   onComplete,
@@ -55,103 +52,106 @@ export function OnboardingTour({
   onComplete: () => void
   onSkip: () => void
 }) {
+  const [steps, setSteps] = useState<TourStep[]>([])
   const [step, setStep] = useState(0)
   const [rect, setRect] = useState<DOMRect | null>(null)
-  const rafRef = useRef(0)
+  const cardRef = useRef<HTMLDivElement | null>(null)
+  const [cardHeight, setCardHeight] = useState(160)
+  const current = steps[step]
+
+  useEffect(() => {
+    if (!open) {
+      setSteps([])
+      setStep(0)
+      setRect(null)
+      return
+    }
+    setSteps(STEPS.filter((candidate) => document.querySelector(candidate.target)))
+  }, [open])
 
   const measure = useCallback(() => {
-    const sel = STEPS[step]?.target
-    if (!sel) return
-    const el = document.querySelector(sel)
-    if (el) {
-      setRect(el.getBoundingClientRect())
-    }
-  }, [step])
+    if (!current) return
+    const element = document.querySelector(current.target)
+    if (element) setRect(element.getBoundingClientRect())
+  }, [current])
 
   useEffect(() => {
-    if (!open) return
-    const id = setTimeout(measure, 300)
-    return () => clearTimeout(id)
-  }, [open, step, measure])
-
-  useEffect(() => {
-    if (!open) return
-    const onResize = () => {
-      cancelAnimationFrame(rafRef.current)
-      rafRef.current = requestAnimationFrame(measure)
+    if (!open || !current) return
+    const element = document.querySelector(current.target)
+    // Only when it is out of view: scrolling an element into view also moves where the next Tab starts from,
+    // which would skip the skip link and the sidebar for a keyboard user.
+    if (element) {
+      const box = element.getBoundingClientRect()
+      if (box.top < 0 || box.bottom > window.innerHeight) element.scrollIntoView({ block: 'nearest' })
     }
-    window.addEventListener('resize', onResize)
-    window.addEventListener('scroll', onResize, true)
+    measure()
+    window.addEventListener('resize', measure)
+    window.addEventListener('scroll', measure, true)
+    const observer = element ? new ResizeObserver(measure) : null
+    if (element) observer?.observe(element)
     return () => {
-      window.removeEventListener('resize', onResize)
-      window.removeEventListener('scroll', onResize, true)
-      cancelAnimationFrame(rafRef.current)
+      window.removeEventListener('resize', measure)
+      window.removeEventListener('scroll', measure, true)
+      observer?.disconnect()
     }
-  }, [open, measure])
+  }, [open, current, measure])
 
-  const next = useCallback(() => {
-    if (step < STEPS.length - 1) {
-      setStep(step + 1)
-    } else {
-      onComplete()
+  const visible = open && Boolean(current) && rect !== null
+
+  useEffect(() => {
+    if (!visible) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onSkip()
     }
-  }, [step, onComplete])
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [visible, onSkip])
 
-  if (!open || !rect) return null
+  // The card is placed from its real height, so it sits the same distance from the ring above or below.
+  useLayoutEffect(() => {
+    if (cardRef.current) setCardHeight(cardRef.current.offsetHeight)
+  })
 
-  const pos = getTooltipPosition(rect)
-  const current = STEPS[step]
+  const next = () => {
+    if (step < steps.length - 1) setStep(step + 1)
+    else onComplete()
+  }
+
+  if (!visible || !current || !rect) return null
+
+  const position = getCardPosition(rect, cardHeight)
+  const isLast = step === steps.length - 1
 
   return createPortal(
     <>
       <div
-        className="tour-ring"
-        style={{
-          top: rect.top - 6,
-          left: rect.left - 6,
-          width: rect.width + 12,
-          height: rect.height + 12,
-          borderRadius: 'var(--radius-xl)',
-        }}
+        className="app-tour__ring"
+        aria-hidden="true"
+        style={{ top: rect.top - 6, left: rect.left - 6, width: rect.width + 12, height: rect.height + 12 }}
       />
-
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={step}
-          className="tour-tooltip glass-elevated"
-          style={{ top: pos.top, left: pos.left }}
-          variants={tooltipVariants}
-          initial="hidden"
-          animate="visible"
-          exit="exit"
-          transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-        >
-          <div className="tour-tooltip-header">
-            <span className="small-copy muted-copy">
-              {step + 1} of {STEPS.length}
-            </span>
-            <button className="tour-close" onClick={onSkip} aria-label="Skip tour">
-              <X size={14} />
-            </button>
-          </div>
-          <h3 className="section-title">{current.title}</h3>
-          <p className="small-copy muted-copy">{current.body}</p>
-          <div className="tour-tooltip-footer">
-            <div className="tour-dots">
-              {STEPS.map((_, i) => (
-                <span
-                  key={i}
-                  className={`tour-dot${i === step ? ' is-active' : i < step ? ' is-done' : ''}`}
-                />
-              ))}
-            </div>
-            <Button size="sm" className="button-hero-primary" onClick={next}>
-              {step === STEPS.length - 1 ? 'Got it' : 'Next'}
-              <ArrowRight size={14} />
-            </Button>
-          </div>
-        </motion.div>
-      </AnimatePresence>
+      <div
+        ref={cardRef}
+        className="app-tour__card"
+        role="dialog"
+        aria-label={`Tour, step ${step + 1} of ${steps.length}`}
+        style={position}
+      >
+        <div className="app-tour__top">
+          <span className="app-tour__count">
+            {step + 1} of {steps.length}
+          </span>
+          <Button type="button" iconOnly variant="ghost" size="sm" aria-label="Skip tour" onClick={onSkip}>
+            <X aria-hidden />
+          </Button>
+        </div>
+        <h2 className="app-tour__title">{current.title}</h2>
+        <p className="app-tour__body">{current.body}</p>
+        <div className="app-tour__footer">
+          <Button type="button" size="sm" onClick={next}>
+            {isLast ? 'Got it' : 'Next'}
+          </Button>
+        </div>
+      </div>
     </>,
     document.body,
   )

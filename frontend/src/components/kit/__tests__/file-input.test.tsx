@@ -21,6 +21,13 @@ describe('kit FileInput', () => {
     expect(input.getAttribute('aria-describedby')).toBe(screen.getByText('PDF, up to 5 MB').id)
   })
 
+  it('renders no info block when there is no hint and nothing chosen (it would wrap onto a line of its own)', () => {
+    const { container, rerender } = render(<FileInput aria-label="Resume" />)
+    expect(container.querySelector('.kit-file__info')).toBeNull()
+    rerender(<FileInput aria-label="Resume" hint="PDF" />)
+    expect(container.querySelector('.kit-file__info')).not.toBeNull()
+  })
+
   it('is named by the Field label first, then the trigger text', () => {
     render(
       <Field label="Resume" error="Too large.">

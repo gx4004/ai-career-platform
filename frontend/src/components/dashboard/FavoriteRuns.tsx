@@ -8,9 +8,9 @@ export function FavoriteRuns() {
       title="Starred results"
       emptyTitle="No starred results"
       emptyText="Star a result and it lands here."
-      unauthText="Favorites become available after sign-in."
+      untitled="Untitled favorite"
       queryParams={{ page: 1, page_size: pageSize, favorite: true }}
-      showFavoriteStar
+      showDate={false}
     />
   )
 }

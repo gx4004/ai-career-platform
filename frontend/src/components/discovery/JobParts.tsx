@@ -1,24 +1,24 @@
+import { ScoreBar } from '#/components/kit'
 import type { DiscoveryListing } from '#/lib/api/schemas'
 
-/** Skills fit with its sample size, shared by Discovery and the dashboard. */
-export function SkillsFit({ listing, label = 'skills fit' }: { listing: DiscoveryListing; label?: string }) {
+/**
+ * Skills fit as a thin bar with its number. The sample size ("2 of 3 skills") is in the accessible
+ * name and in the detail drawer: a varying visible suffix would stop the bars of a column of rows lining up.
+ */
+export function SkillsFit({ listing }: { listing: DiscoveryListing }) {
   if (listing.skills_fit === null) return null
-  const tone = listing.skills_fit >= 70 ? 'good' : listing.skills_fit >= 41 ? 'fair' : 'low'
   const total = listing.matched_skills.length + listing.missing_skills.length
-  const sample = `${listing.matched_skills.length} of ${total} skills`
+  const sample = `${listing.matched_skills.length} of ${total} skill${total === 1 ? '' : 's'}`
+  // A figure space pads "82" to the width of "100" (tabular numerals), so the bars of a column of rows start together.
+  const number = String(listing.skills_fit).padStart(3, '\u2007')
   return (
-    <div className={`disc-score disc-score--${tone}`} aria-label={`${listing.skills_fit}% skills fit, ${sample}`}>
-      <strong>{listing.skills_fit}%</strong>
-      <span>{label}</span>
-      <small className="disc-score__n">{sample}</small>
-    </div>
-  )
-}
-
-export function CompanyAvatar({ name }: { name: string }) {
-  return (
-    <span className="disc-avatar" aria-hidden="true">
-      {name.trim().charAt(0).toUpperCase() || '?'}
-    </span>
+    <ScoreBar
+      aria-label={`${listing.skills_fit}% skills fit, ${sample}`}
+      layout="inline"
+      size="sm"
+      lowTone="neutral"
+      value={listing.skills_fit}
+      valueLabel={`${number}% skills fit`}
+    />
   )
 }

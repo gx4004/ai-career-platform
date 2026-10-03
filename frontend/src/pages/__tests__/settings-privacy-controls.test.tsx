@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { ToastProvider } from '#/components/kit'
 import { SettingsPage } from '#/pages/settings-page'
 import { EVIDENCE_QUERY_KEY } from '#/lib/profile/evidence'
 
@@ -65,7 +66,9 @@ function renderPage({ warmEvidenceConsumers = false } = {}) {
   const view = render(
     <QueryClientProvider client={client}>
       {warmEvidenceConsumers ? <WarmEvidenceConsumers /> : null}
-      <SettingsPage />
+      <ToastProvider>
+        <SettingsPage />
+      </ToastProvider>
     </QueryClientProvider>,
   )
   return { ...view, client }
@@ -115,7 +118,7 @@ describe('Settings privacy controls', () => {
     renderPage()
 
     fireEvent.click(screen.getByRole('button', { name: 'Delete profile' }))
-    const dialog = screen.getByRole('dialog', { name: 'Delete your evidence profile?' })
+    const dialog = screen.getByRole('alertdialog', { name: 'Delete your evidence profile?' })
     fireEvent.click(within(dialog).getByRole('button', { name: 'Delete evidence profile' }))
 
     expect((await within(dialog).findByRole('alert')).textContent).toContain('Erase failed safely.')
@@ -132,5 +135,67 @@ describe('Settings privacy controls', () => {
     await waitFor(() => expect(api.deleteEvidenceProfile).toHaveBeenCalledTimes(1))
     await waitFor(() => expect(warmDevelopmentFetch).toHaveBeenCalledTimes(2))
     await waitFor(() => expect(warmRecommendationsFetch).toHaveBeenCalledTimes(2))
+  })
+})
+
+describe('Settings page structure', () => {
+  beforeEach(() => {
+    api.deleteAccount.mockReset().mockResolvedValue(undefined)
+  })
+
+  it('groups the rows under two headings, each row a title with its explanation and one control', () => {
+    renderPage()
+    expect(screen.getByRole('heading', { level: 1, name: 'Settings' })).toBeTruthy()
+    for (const name of ['General', 'Data and privacy']) {
+      expect(screen.getByRole('heading', { level: 2, name })).toBeTruthy()
+    }
+    const general = within(screen.getByRole('list', { name: 'General' }))
+    expect(general.getByRole('button', { name: 'Replay tour' })).toBeTruthy()
+    expect(general.getByRole('link', { name: 'Open timeline' })).toBeTruthy()
+    expect(general.getByText('Connected')).toBeTruthy()
+  })
+
+  it('offers both deletions as quiet buttons; the loud destructive button is only the one that confirms', () => {
+    renderPage()
+    const profile = screen.getByRole('button', { name: 'Delete profile' })
+    const account = screen.getByRole('button', { name: 'Delete account' })
+    expect(profile.className).toContain('kit-button--secondary')
+    expect(account.className).toContain('kit-button--secondary')
+    fireEvent.click(account)
+    expect(screen.getByRole('button', { name: 'Delete account permanently' }).className).toContain('kit-button--destructive')
+  })
+
+  it('confirms a local data clear with a toast and no inline status text', async () => {
+    renderPage()
+    fireEvent.click(screen.getByRole('button', { name: 'Clear local drafts' }))
+    expect(await screen.findAllByText('Local drafts and demo state were cleared.')).not.toHaveLength(0)
+  })
+
+  it('keeps Delete account permanently disabled until the email is typed exactly, then deletes', async () => {
+    const assign = vi.fn()
+    Object.defineProperty(window, 'location', { configurable: true, value: { ...window.location, assign } })
+    renderPage()
+    fireEvent.click(screen.getByRole('button', { name: 'Delete account' }))
+    const dialog = screen.getByRole('dialog', { name: 'Delete your account?' })
+    const confirm = within(dialog).getByRole('button', { name: 'Delete account permanently' }) as HTMLButtonElement
+    const input = within(dialog).getByRole('textbox')
+    expect(confirm.disabled).toBe(true)
+    fireEvent.change(input, { target: { value: 'someone@example.com' } })
+    expect(confirm.disabled).toBe(true)
+    fireEvent.change(input, { target: { value: ' OWNER@example.com ' } })
+    expect(confirm.disabled).toBe(false)
+    fireEvent.click(confirm)
+    await waitFor(() => expect(api.deleteAccount).toHaveBeenCalledWith('OWNER@example.com'))
+    await waitFor(() => expect(assign).toHaveBeenCalledWith('/'))
+  })
+
+  it('shows an account deletion failure under the field it concerns', async () => {
+    api.deleteAccount.mockRejectedValueOnce(new Error('The confirmation did not match.'))
+    renderPage()
+    fireEvent.click(screen.getByRole('button', { name: 'Delete account' }))
+    const dialog = screen.getByRole('dialog', { name: 'Delete your account?' })
+    fireEvent.change(within(dialog).getByRole('textbox'), { target: { value: 'owner@example.com' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete account permanently' }))
+    expect((await within(dialog).findByRole('alert')).textContent).toContain('The confirmation did not match.')
   })
 })

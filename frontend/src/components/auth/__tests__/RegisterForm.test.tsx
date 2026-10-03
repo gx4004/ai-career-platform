@@ -125,4 +125,31 @@ describe('RegisterForm — auth_signup_source telemetry (D-040)', () => {
     expect((await screen.findByRole('alert')).textContent).toContain('72 UTF-8 bytes')
     expect(registerMock).not.toHaveBeenCalled()
   })
+
+  it('keeps the form ids the other flows register through', () => {
+    render(<RegisterForm />)
+    for (const id of ['register-name', 'register-email', 'register-password', 'register-tos']) {
+      expect(document.getElementById(id), id).toBeTruthy()
+    }
+  })
+
+  it('marks the name optional and explains the password rule until it is broken', () => {
+    render(<RegisterForm />)
+    expect(screen.getByText('Optional')).toBeTruthy()
+    expect(screen.getByText('8+ characters, at most 72 UTF-8 bytes.')).toBeTruthy()
+  })
+
+  it('does not offer to create the account before the terms are accepted', () => {
+    render(<RegisterForm />)
+    const submit = screen.getByRole('button', { name: 'Create free account' }) as HTMLButtonElement
+    expect(submit.disabled).toBe(true)
+    fireEvent.click(screen.getByRole('checkbox'))
+    expect(submit.disabled).toBe(false)
+  })
+
+  it('links the terms and the privacy policy from the checkbox label', () => {
+    render(<RegisterForm />)
+    expect(screen.getByRole('link', { name: 'Terms of Service' }).getAttribute('href')).toBe('/terms')
+    expect(screen.getByRole('link', { name: 'Privacy Policy' }).getAttribute('href')).toBe('/privacy')
+  })
 })

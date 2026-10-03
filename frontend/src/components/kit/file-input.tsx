@@ -171,27 +171,29 @@ export const FileInput = forwardRef<HTMLInputElement, FileInputProps>(function F
         <Upload aria-hidden="true" />
         {triggerText}
       </label>
-      <div className="kit-file__info">
-        {files.length > 0 ? (
-          <p className="kit-file__names" data-testid="kit-file-names">
-            {files.length === 1 ? (
-              <>
-                <span className="kit-file__name">{files[0].name}</span>
-                <span className="kit-file__size">{formatSize(files[0].size)}</span>
-              </>
-            ) : (
-              <>
-                <span className="kit-file__name">{files.length} files</span>
-                <span className="kit-file__size">{formatSize(files.reduce((sum, file) => sum + file.size, 0))}</span>
-              </>
-            )}
-          </p>
-        ) : hint ? (
-          <p id={hintId} className="kit-file__hint">
-            {hint}
-          </p>
-        ) : null}
-      </div>
+      {files.length > 0 || hint ? (
+        <div className="kit-file__info">
+          {files.length > 0 ? (
+            <p className="kit-file__names" data-testid="kit-file-names">
+              {files.length === 1 ? (
+                <>
+                  <span className="kit-file__name">{files[0].name}</span>
+                  <span className="kit-file__size">{formatSize(files[0].size)}</span>
+                </>
+              ) : (
+                <>
+                  <span className="kit-file__name">{files.length} files</span>
+                  <span className="kit-file__size">{formatSize(files.reduce((sum, file) => sum + file.size, 0))}</span>
+                </>
+              )}
+            </p>
+          ) : hint ? (
+            <p id={hintId} className="kit-file__hint">
+              {hint}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
       {files.length > 0 && clearable && !field.disabled ? (
         <Button
           type="button"

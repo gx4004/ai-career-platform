@@ -1,154 +1,56 @@
-/* Your profile: suggestions to review beside saved facts, both as plain lists.
-   FactCard.tsx renders one row per fact; state is carried by a text badge. */
+/* Your profile: suggestions to review beside saved facts. Every control and row is a kit component;
+   this file only lays out the two columns and the lines under a fact's title. */
 
-.profile-page::before { display: none; }
-.profile-page { max-width: 80rem; padding-block: 1.5rem 3rem; gap: 1.5rem; }
-.profile-page .page-header { margin-bottom: 0; }
-
-.profile-banner {
-  margin: 0;
-  padding: 0.5rem 0.75rem;
-  border-radius: var(--radius-md);
-  background: var(--surface-focus);
-  font-size: 0.8125rem;
-  color: var(--text-body);
-}
-
-.profile-banner--error {
-  background: var(--destructive-soft);
-  color: var(--destructive);
-}
-
-.profile-layout { display: grid; gap: 2rem; align-items: start; }
-.profile-layout--split { grid-template-columns: minmax(0, 26rem) minmax(0, 1fr); }
-.profile-layout--split > .profile-section:first-child { position: sticky; top: 1rem; }
-
-.profile-section { min-width: 0; }
-.profile-section__head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 0.5rem;
-}
-.profile-section__title { margin: 0; font-size: 0.875rem; font-weight: 600; color: var(--text-strong); }
-.profile-section__description { margin: 0.15rem 0 0; font-size: 0.75rem; color: var(--text-muted); }
-
-.profile-empty { margin: 0; font-size: 0.8125rem; color: var(--text-muted); }
-.profile-danger { padding-top: 1.25rem; border-top: 1px solid var(--border-soft); }
-
-.fact-groups { display: flex; flex-direction: column; gap: 1.25rem; }
-.fact-skeleton { height: 3rem; border-radius: var(--radius-md); }
-
-.fact-group__title {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  margin: 0 0 0.25rem;
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--text-muted);
-}
-
-.fact-group__description { margin: 0 0 0.25rem; font-size: 0.75rem; color: var(--text-muted); }
-.fact-group__count { font-weight: 500; color: var(--text-soft); font-variant-numeric: tabular-nums; }
-
-.fact-list { list-style: none; padding: 0; margin: 0; border-top: 1px solid var(--border-soft); }
-
-.fact-card {
+.profile-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  column-gap: 0.75rem;
-  row-gap: 0.15rem;
+  gap: var(--space-section);
   align-items: start;
-  padding: 0.6rem 0.25rem;
-  border-bottom: 1px solid var(--border-soft);
-}
-
-.fact-card > * { grid-column: 1; min-width: 0; }
-.fact-card > .fact-card__actions { grid-column: 2; grid-row: 1 / span 6; align-self: center; }
-
-.fact-card__meta { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; font-size: 0.75rem; color: var(--text-muted); }
-.fact-card__kind { font-weight: 500; }
-.fact-card__source { font-size: 0.75rem; color: var(--text-soft); }
-
-.fact-badge {
-  padding: 1px 6px;
-  border-radius: 4px;
-  font-size: 0.6875rem;
-  font-weight: 500;
-  line-height: 1.4;
-  height: auto;
-  background: var(--surface-focus);
-  color: var(--text-muted);
-  border-color: transparent;
-}
-
-.fact-badge--confirmed,
-.fact-badge--completed { background: var(--success-soft); color: var(--success); }
-.fact-badge--unconfirmed { background: var(--warning-soft); color: var(--warning); }
-.fact-badge--in_progress { background: var(--accent-subtle); color: var(--accent); }
-
-.fact-card__sub { margin: 0; font-size: var(--fs-body); line-height: 1.45; color: var(--text-muted); overflow-wrap: anywhere; }
-
-/* Edit is the secondary action: it appears on hover or focus; the overflow menu always has it. */
-.fact-card__edit { opacity: 0; transition: opacity var(--duration-fast) var(--ease-out); }
-.fact-card:hover .fact-card__edit,
-.fact-card:focus-within .fact-card__edit { opacity: 1; }
-@media (hover: none) { .fact-card__edit { display: none; } }
-
-.fact-card__title { margin: 0; font-size: 0.875rem; font-weight: 500; line-height: 1.4; color: var(--text-strong); overflow-wrap: anywhere; }
-
-.fact-card__fields { display: flex; flex-direction: column; gap: 0.15rem; margin: 0; }
-.fact-field { display: flex; gap: 0.5rem; font-size: 0.8125rem; }
-.fact-field__key { flex: none; min-width: 5.5rem; color: var(--text-muted); font-size: 0.75rem; }
-.fact-field__value { margin: 0; color: var(--text-body); line-height: 1.45; overflow-wrap: anywhere; white-space: pre-wrap; }
-.fact-card--completed .fact-field__value { color: var(--text-muted); }
-
-.fact-card__note {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  margin: 0.15rem 0 0;
-  font-size: 0.75rem;
-  color: var(--success);
-}
-
-.fact-card__actions { display: flex; align-items: center; gap: 0.25rem; }
-.fact-card__control { display: flex; align-items: center; gap: 0.4rem; min-width: 0; }
-.fact-card__control-label { font-size: 0.75rem; color: var(--text-muted); }
-
-.fact-select {
   min-width: 0;
-  max-width: 10rem;
-  height: 1.75rem;
-  padding: 0 0.4rem;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border-control);
-  background: var(--surface-raised);
-  color: var(--text-strong);
-  font-size: 0.8125rem;
-  cursor: pointer;
 }
 
-.fact-select:focus-visible { outline: none; border-color: var(--accent); box-shadow: var(--focus-ring); }
-.fact-select:disabled { cursor: wait; opacity: 0.6; }
+.profile-layout[data-split] {
+  grid-template-columns: minmax(0, 26rem) minmax(0, 1fr);
+  column-gap: var(--space-12);
+}
+
+/* The suggestions stay in view while a long list of saved facts scrolls past. */
+.profile-layout[data-split] > .profile-suggestions {
+  position: sticky;
+  top: var(--space-4);
+}
+
+.profile-suggestions__list {
+  max-height: calc(100svh - 12rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
 
 @media (max-width: 900px) {
-  .profile-layout--split { grid-template-columns: minmax(0, 1fr); }
-  .profile-layout--split > .profile-section:first-child { position: static; }
+  .profile-layout[data-split] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .profile-layout[data-split] > .profile-suggestions {
+    position: static;
+  }
+
+  .profile-suggestions__list {
+    max-height: none;
+    overflow-y: visible;
+  }
 }
 
-@media (max-width: 640px) {
-  .fact-card { grid-template-columns: minmax(0, 1fr); }
-  .fact-card > .fact-card__actions { grid-column: 1; grid-row: auto; margin-top: 0.4rem; }
-  .fact-field { flex-direction: column; gap: 0; }
-  .fact-card--confirmed { grid-template-columns: minmax(0, 1fr) auto; }
-  .fact-card--confirmed > .fact-card__actions { grid-column: 2; grid-row: 1 / span 6; margin-top: 0; align-self: center; }
-  .fact-card__edit { display: none; }
-  .profile-danger .profile-section__head { flex-direction: column; }
+/* A fact's remaining values: kept as typed (line breaks included), long strings wrap. */
+.profile-line {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
-.profile-empty__title { display: block; font-family: var(--font-serif); font-size: var(--fs-title); font-weight: var(--fw-medium); line-height: var(--lh-title); color: var(--text-strong); }
 
-.profile-empty--stack { display: grid; justify-items: start; gap: 0.25rem; }
-.profile-empty--stack .button, .profile-empty--stack [data-slot='button'] { margin-top: 0.5rem; }
+.kit-select.profile-status {
+  width: 8.5rem;
+}
+
+/* Loading rows end where the real ones do: the controls come in with the text, not as a trailing pill. */
+.profile-skeleton .kit-skeleton__trail {
+  display: none;
+}

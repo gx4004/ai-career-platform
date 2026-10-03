@@ -1,6 +1,5 @@
 import { Component } from 'react'
 import type { ErrorInfo, ReactNode } from 'react'
-import { AlertTriangle } from 'lucide-react'
 import { AppStatePanel } from '#/components/app/AppStatePanel'
 import { captureAppError } from '#/lib/telemetry/client'
 
@@ -50,10 +49,7 @@ export class ErrorBoundary extends Component<Props, State> {
     if (this.state.error) {
       return (
         <AppStatePanel
-          badge="Something went wrong"
-          scene="emptyPlanning"
-          icon={<AlertTriangle size={48} style={{ color: 'var(--warning)' }} />}
-          title="An unexpected error occurred"
+          title="Something went wrong"
           description="The page crashed while rendering. This has been logged."
           detail={this.state.error.message}
           actions={[

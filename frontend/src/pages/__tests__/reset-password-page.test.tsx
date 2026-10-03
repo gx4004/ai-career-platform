@@ -1,3 +1,4 @@
+import { StrictMode } from 'react'
 import type { AnchorHTMLAttributes, ReactNode } from 'react'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -90,5 +91,63 @@ describe('ResetPasswordPage reset-link privacy', () => {
 
     expect((await screen.findByRole('alert')).textContent).toContain('72 UTF-8 bytes')
     expect(confirmPasswordResetMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('ResetPasswordPage states', () => {
+  beforeEach(() => {
+    routerState.legacyToken = undefined
+    window.history.replaceState({}, '', '/reset-password')
+  })
+
+  it('explains a missing link and offers the way back as the one action', () => {
+    render(<ResetPasswordPage />)
+    expect(screen.getByRole('heading', { level: 1, name: 'Invalid reset link' })).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Back to sign in' }).getAttribute('href')).toBe('/login')
+    expect(screen.getByRole('link', { name: 'Career Workbench home' }).getAttribute('href')).toBe('/')
+  })
+
+  it('shows the form under the brand, with a way back and the password toggle', () => {
+    window.history.replaceState({}, '', '/reset-password#token=fragment-token')
+    render(<ResetPasswordPage />)
+    expect(screen.getByRole('link', { name: 'Career Workbench home' })).toBeTruthy()
+    expect(screen.getByRole('link', { name: /Back to sign in/ }).getAttribute('href')).toBe('/login')
+    const toggle = screen.getByRole('button', { name: 'Show password' })
+    fireEvent.click(toggle)
+    expect((screen.getByLabelText('New password') as HTMLInputElement).type).toBe('text')
+    expect((screen.getByLabelText('Confirm password') as HTMLInputElement).type).toBe('text')
+  })
+
+  it('rejects mismatched passwords without calling the API', async () => {
+    window.history.replaceState({}, '', '/reset-password#token=fragment-token')
+    confirmPasswordResetMock.mockClear()
+    render(<ResetPasswordPage />)
+    fireEvent.change(screen.getByLabelText('New password'), { target: { value: 'new-password-1' } })
+    fireEvent.change(screen.getByLabelText('Confirm password'), { target: { value: 'new-password-2' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Reset password' }))
+    expect((await screen.findByRole('alert')).textContent).toContain('Passwords do not match.')
+    expect(confirmPasswordResetMock).not.toHaveBeenCalled()
+  })
+
+  it('confirms the new password and points to sign in', async () => {
+    window.history.replaceState({}, '', '/reset-password#token=fragment-token')
+    render(<ResetPasswordPage />)
+    fireEvent.change(screen.getByLabelText('New password'), { target: { value: 'new-password-1' } })
+    fireEvent.change(screen.getByLabelText('Confirm password'), { target: { value: 'new-password-1' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Reset password' }))
+    expect(await screen.findByRole('heading', { level: 1, name: 'Password updated' })).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Sign in' }).getAttribute('href')).toBe('/login')
+  })
+
+  it('keeps the token it consumed when effects run twice (dev strict mode)', () => {
+    window.history.replaceState({}, '', '/reset-password#token=fragment-token')
+    render(
+      <StrictMode>
+        <ResetPasswordPage />
+      </StrictMode>,
+    )
+    // The fragment was scrubbed by the first pass; the second must not lose the link.
+    expect(screen.getByRole('heading', { name: 'Set a new password' })).toBeTruthy()
+    expect(window.location.hash).toBe('')
   })
 })

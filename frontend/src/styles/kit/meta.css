@@ -285,7 +285,7 @@
 
 .kit-score:not([data-labelled]),
 .kit-score[data-layout='inline'] {
-  grid-template-columns: minmax(3rem, 5rem) auto;
+  grid-template-columns: minmax(3rem, 5rem) var(--kit-score-value-w, auto);
   grid-template-areas: 'track value';
   align-items: center;
   gap: var(--space-2);

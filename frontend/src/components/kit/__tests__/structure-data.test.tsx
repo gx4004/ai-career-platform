@@ -268,6 +268,15 @@ describe('kit ScoreBar', () => {
     expect(root.getAttribute('data-labelled')).toBe('true')
   })
 
+  it('valueWidth fixes the number column without dropping a caller style', () => {
+    const { container } = render(
+      <ScoreBar aria-label="a" value={1} layout="inline" valueWidth="3.5rem" style={{ marginTop: 2 }} />,
+    )
+    const root = container.firstElementChild as HTMLElement
+    expect(root.style.getPropertyValue('--kit-score-value-w')).toBe('3.5rem')
+    expect(root.style.marginTop).toBe('2px')
+  })
+
   it('scoreTone is a plain function of percent and thresholds', () => {
     expect(scoreTone(100)).toBe('success')
     expect(scoreTone(69)).toBe('warning')

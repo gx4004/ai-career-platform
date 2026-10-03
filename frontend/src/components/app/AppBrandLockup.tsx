@@ -36,11 +36,7 @@ export function AppBrandLockup({
 
   return (
     <div
-      className={cn(
-        'cw-brand-lockup',
-        isCompact ? 'cw-brand-lockup--compact' : 'cw-brand-lockup--full',
-        className,
-      )}
+      className={cn('cw-brand-lockup', className)}
       data-brand-mode={mode}
     >
       <BrandMark title={isCompact ? 'Career Workbench' : undefined} />

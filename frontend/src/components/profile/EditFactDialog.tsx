@@ -1,16 +1,8 @@
-import { useEffect, useId, useState } from 'react'
-import { Button } from '#/components/ui/button'
+import { useEffect, useRef, useState } from 'react'
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '#/components/ui/dialog'
-import { Input } from '#/components/ui/input'
-import { Label } from '#/components/ui/label'
-import { Textarea } from '#/components/ui/textarea'
+  Button, Dialog, DialogBody, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogForm, DialogHeader,
+  DialogTitle, Field, Input, Notice, Stack, Textarea,
+} from '#/components/kit'
 import type { EvidenceItem } from '#/lib/api/schemas'
 import {
   KIND_LABELS,
@@ -36,9 +28,12 @@ export function EditFactDialog({
   onClose: () => void
   onSubmit: (content: Record<string, unknown>) => void
 }) {
-  const baseId = useId()
   const [values, setValues] = useState<Record<string, string>>({})
   const [formError, setFormError] = useState<string | null>(null)
+  // The dialog keeps its content while it fades out after `item` is cleared.
+  const shown = useRef<EvidenceItem | null>(null)
+  if (item) shown.current = item
+  const current = item ?? shown.current
 
   // Reseed the fields whenever a different item opens.
   useEffect(() => {
@@ -47,7 +42,7 @@ export function EditFactDialog({
     setFormError(null)
   }, [item])
 
-  const entries = item ? contentEntries(item.content) : []
+  const entries = current ? contentEntries(current.content) : []
   const shownError = formError ?? error
 
   function handleSubmit(event: React.FormEvent) {
@@ -63,51 +58,44 @@ export function EditFactDialog({
   }
 
   return (
-    <Dialog open={item !== null} onOpenChange={(open) => !submitting && !open && onClose()}>
-      <DialogContent showCloseButton={!submitting}>
-        <form className="grid gap-4" onSubmit={handleSubmit}>
+    <Dialog open={item !== null} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent dismissible={!submitting}>
+        <DialogForm onSubmit={handleSubmit}>
           <DialogHeader>
             <DialogTitle>
-              Edit {item ? KIND_LABELS[item.kind].toLowerCase() : 'fact'}
+              Edit {current ? KIND_LABELS[current.kind].toLowerCase() : 'fact'}
             </DialogTitle>
             <DialogDescription>
               Saving keeps it in your profile as a saved fact. Clear a field to remove it.
             </DialogDescription>
           </DialogHeader>
 
-          {entries.map(({ key, value }) => {
-            const id = `${baseId}-${key}`
-            const Field = value.length > LONG_VALUE ? Textarea : Input
-            return (
-              <div className="grid gap-2" key={key}>
-                <Label htmlFor={id}>{fieldLabel(key)}</Label>
-                <Field
-                  id={id}
-                  value={values[key] ?? ''}
-                  disabled={submitting}
-                  onChange={(event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
-                    setValues((current) => ({ ...current, [key]: event.target.value }))
-                  }
-                />
-              </div>
-            )
-          })}
-
-          {shownError ? (
-            <p role="alert" className="small-copy" style={{ color: 'var(--destructive)' }}>
-              {shownError}
-            </p>
-          ) : null}
+          <DialogBody>
+            <Stack gap={4}>
+              {entries.map(({ key, value }) => (
+                <Field key={key} label={fieldLabel(key)}>
+                  {value.length > LONG_VALUE ? (
+                    <Textarea
+                      autosize maxRows={10} value={values[key] ?? ''} disabled={submitting}
+                      onChange={(event) => setValues((state) => ({ ...state, [key]: event.target.value }))}
+                    />
+                  ) : (
+                    <Input
+                      value={values[key] ?? ''} disabled={submitting}
+                      onChange={(event) => setValues((state) => ({ ...state, [key]: event.target.value }))}
+                    />
+                  )}
+                </Field>
+              ))}
+              {shownError ? <Notice tone="danger">{shownError}</Notice> : null}
+            </Stack>
+          </DialogBody>
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={onClose} disabled={submitting}>
-              Cancel
-            </Button>
-            <Button type="submit" loading={submitting} disabled={submitting}>
-              Save
-            </Button>
+            <DialogClose asChild><Button type="button" variant="secondary" disabled={submitting}>Cancel</Button></DialogClose>
+            <Button type="submit" loading={submitting}>Save</Button>
           </DialogFooter>
-        </form>
+        </DialogForm>
       </DialogContent>
     </Dialog>
   )

@@ -1,13 +1,11 @@
-import { useState } from 'react'
+import { useState, useSyncExternalStore } from 'react'
+import type { ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { ChevronDown, MoreHorizontal, Pin } from 'lucide-react'
-import { PageFrame } from '#/components/app/PageFrame'
-import { PageHero } from '#/components/app/PageHero'
 import { PrepareForMePanel } from '#/components/applications/PrepareForMePanel'
 import { WhatsWorkingPanel } from '#/components/applications/WhatsWorkingPanel'
 import { StageMenu } from '#/components/applications/StageMenu'
-import { Badge, EmptyLine } from '#/components/applications/Panel'
 import {
   STAGES,
   STATUSES,
@@ -19,22 +17,65 @@ import {
   timeAgo,
   roleOnly,
 } from '#/components/applications/stages'
-import { Button } from '#/components/ui/button'
+import type { Stage } from '#/components/applications/stages'
+import {
+  Badge,
+  Button,
+  Card,
+  CardActions,
+  CardHeader,
+  CardTitle,
+  Cluster,
+  Count,
+  EmptyState,
+  ErrorState,
+  MetaRow,
+  Notice,
+  Page,
+  PageHeader,
+  Section,
+  Segmented,
+  Skeleton,
+  Stack,
+  StretchedLink,
+  Table,
+} from '#/components/kit'
+import type { TableColumn } from '#/components/kit'
 import { listApplications, updateApplication } from '#/lib/api/client'
 import type { ApplicationCard, ApplicationList, ApplicationStatus } from '#/lib/api/schemas'
 import { APPLICATION_BOARD_QUERY_KEY, invalidateApplications } from '#/lib/query/applicationCaches'
 
 type View = 'board' | 'list'
 
+// A board card is about this tall once its meta lines are in; the loading placeholder matches it.
+const CARD_HEIGHT = 112
+
+// The kit's compact width: one stage at a time instead of five columns.
+const COMPACT_QUERY = '(max-width: 767px)'
+function useCompact() {
+  return useSyncExternalStore(
+    (notify) => {
+      const query = window.matchMedia(COMPACT_QUERY)
+      query.addEventListener('change', notify)
+      return () => query.removeEventListener('change', notify)
+    },
+    () => window.matchMedia(COMPACT_QUERY).matches,
+    () => false,
+  )
+}
+
 export function ApplicationsPage() {
   const queryClient = useQueryClient()
+  const compact = useCompact()
   const [moveError, setMoveError] = useState<string | null>(null)
   const [view, setView] = useState<View>('board')
-  const [phoneStage, setPhoneStage] = useState<string | null>(null)
+  const [phoneStage, setPhoneStage] = useState<Stage | null>(null)
   const query = useQuery({ queryKey: APPLICATION_BOARD_QUERY_KEY, queryFn: listApplications })
   const move = useMutation({
     mutationFn: ({ card, status }: { card: ApplicationCard; status: ApplicationStatus }) =>
       updateApplication(card.id, { status }),
+    // A refused move (409) is shown, not repeated behind the person's back.
+    retry: false,
     onMutate: () => setMoveError(null),
     onSuccess: (updated) => {
       queryClient.setQueryData<ApplicationList>(APPLICATION_BOARD_QUERY_KEY, (current) =>
@@ -57,160 +98,208 @@ export function ApplicationsPage() {
   const byStage = (stage: string) => items.filter((item) => stageOf(item.status) === stage)
   const firstFilled = STAGES.find((stage) => byStage(stage.id).length > 0)?.id ?? STAGES[0].id
   const shownStage = phoneStage ?? firstFilled
-  const findJobs = <Button asChild size="sm"><Link to="/discovery">Find jobs</Link></Button>
   const moving = (card: ApplicationCard) => move.isPending && move.variables?.card.id === card.id
+  const onMove = (card: ApplicationCard, status: ApplicationStatus) => move.mutate({ card, status })
+
+  // Board | List is the view; on a phone the board shows one stage at a time, chosen by a second control.
+  const viewSwitch = (
+    <Segmented
+      aria-label="View"
+      size="sm"
+      value={view}
+      onValueChange={setView}
+      options={[
+        { value: 'board', label: 'Board' },
+        { value: 'list', label: 'List' },
+      ]}
+    />
+  )
+  const stageSwitch =
+    compact && view === 'board' ? (
+      <Segmented
+        aria-label="Stage"
+        value={shownStage}
+        onValueChange={setPhoneStage}
+        options={STAGES.map((stage) => ({
+          value: stage.id as Stage,
+          label: <>{stage.label} <Count value={byStage(stage.id).length} /></>,
+        }))}
+      />
+    ) : null
 
   return (
-    <PageFrame className="camp-page camp-page--board">
-      <PageHero
+    <Page width="wide">
+      <PageHeader
         title="Your applications"
-        action={findJobs}
-        chips={query.data ? summaryChips(items) : undefined}
+        meta={query.isPending ? [<Skeleton key="meta" size="meta" width="7rem" />] : items.length ? summaryMeta(items) : undefined}
+        actions={<Button asChild size="sm"><Link to="/discovery">Find jobs</Link></Button>}
       />
 
-      {moveError ? <p className="camp-alert" role="alert">{moveError}</p> : null}
+      {moveError ? (
+        <Notice tone="danger" onDismiss={() => setMoveError(null)}>{moveError}</Notice>
+      ) : null}
 
       {query.isPending ? (
-        <div className="camp-board" role="status" aria-label="Loading applications">
-          {STAGES.map((stage) => <div key={stage.id} className="camp-col camp-col--skeleton" />)}
-        </div>
-      ) : query.isError ? (
-        <EmptyLine action={<Button variant="outline" size="sm" onClick={() => query.refetch()}>Try again</Button>}>
-          Your applications couldn't be loaded. Something went wrong on our side.
-        </EmptyLine>
-      ) : items.length === 0 ? (
-        <EmptyLine action={findJobs}>
-          No applications yet. Add a job from Job Discovery, or let us prepare applications for you below.
-        </EmptyLine>
-      ) : (
         <>
-          <div className="camp-toolbar">
-            <div className="camp-segment" role="group" aria-label="View">
-              <button type="button" aria-pressed={view === 'board'} onClick={() => setView('board')}>Board</button>
-              <button type="button" aria-pressed={view === 'list'} onClick={() => setView('list')}>List</button>
-            </div>
+          <p className="kit-sr-only" role="status">Loading applications</p>
+          <div className="camp-board" aria-busy="true">
+            {STAGES.filter((stage) => !compact || stage.id === STAGES[0].id).map((stage) => (
+              <Column key={stage.id} title={stage.label} compact={compact}>
+                {Array.from({ length: stage.id === 'saved' ? 2 : 1 }, (_, index) => (
+                  <Skeleton key={index} variant="block" width="100%" height={CARD_HEIGHT} />
+                ))}
+              </Column>
+            ))}
           </div>
-          {view === 'board' ? (
-            <>
-            <div className="camp-stage-tabs" role="group" aria-label="Stage">
-              {STAGES.map((stage) => (
-                <button
-                  key={stage.id}
-                  type="button"
-                  aria-pressed={stage.id === shownStage}
-                  onClick={() => setPhoneStage(stage.id)}
-                >
-                  {stage.label} <span>{byStage(stage.id).length}</span>
-                </button>
-              ))}
-            </div>
+        </>
+      ) : query.isError ? (
+        <ErrorState
+          title="Your applications couldn't be loaded"
+          description="Something went wrong on our side."
+          onRetry={() => query.refetch()}
+          retrying={query.isFetching}
+        />
+      ) : items.length === 0 ? (
+        <EmptyState
+          title="No applications yet"
+          description="Add a job from Discover, or let us prepare applications for you below."
+        />
+      ) : (
+        <Stack gap={3}>
+          <Stack gap={2}>
+            {viewSwitch}
+            {stageSwitch}
+          </Stack>
+          {view === 'list' ? (
+            <ApplicationsTable items={items} moving={moving} onMove={onMove} />
+          ) : (
             <div className="camp-board">
-              {STAGES.map((stage) => {
+              {STAGES.filter((stage) => !compact || stage.id === shownStage).map((stage) => {
                 const cards = byStage(stage.id)
                 return (
-                  <section
-                    key={stage.id}
-                    className={`camp-col camp-col--${stage.id}`}
-                    aria-labelledby={`col-${stage.id}`}
-                    data-shown={stage.id === shownStage || undefined}
-                  >
-                    <header className="camp-col__head">
-                      <h2 id={`col-${stage.id}`}>{stage.label}</h2>
-                      <span className="camp-col__count">{cards.length}</span>
-                    </header>
+                  <Column key={stage.id} title={stage.label} count={cards.length} compact={compact}>
                     {cards.length ? (
-                      <ol className="camp-col__list">
+                      <ol className="camp-col__list" role="list">
                         {cards.map((card) => (
                           <li key={card.id}>
-                            <BoardCard card={card} moving={moving(card)} onMove={(status) => move.mutate({ card, status })} />
+                            <BoardCard
+                              card={card}
+                              compact={compact}
+                              moving={moving(card)}
+                              onMove={(status) => onMove(card, status)}
+                            />
                           </li>
                         ))}
                       </ol>
                     ) : (
-                      <p className="camp-col__empty">{stage.hint}</p>
+                      <EmptyState size="inline" title={stage.hint} />
                     )}
-                  </section>
+                  </Column>
                 )
               })}
             </div>
-            </>
-          ) : (
-            <ApplicationsTable items={items} moving={moving} onMove={(card, status) => move.mutate({ card, status })} />
           )}
-        </>
+        </Stack>
       )}
 
-      <WhatsWorkingPanel />
+      <WhatsWorkingPanel compact={compact} />
 
       <PrepareForMePanel />
-    </PageFrame>
+    </Page>
   )
 }
 
-function summaryChips(items: ApplicationCard[]) {
-  // Per-stage counts live in the board's column headers; the header only adds what they don't say.
+/** A board column: a heading with its count and the cards under it. On a phone the stage switcher names it. */
+function Column({
+  title,
+  count,
+  compact,
+  children,
+}: {
+  title: string
+  count?: number
+  compact: boolean
+  children: ReactNode
+}) {
+  if (compact) return <section aria-label={title}>{children}</section>
+  return (
+    <Section headingLevel={2} title={title} count={count} rule={false}>
+      {children}
+    </Section>
+  )
+}
+
+function summaryMeta(items: ApplicationCard[]) {
+  // Per-stage counts live in the board's column headings; the header only adds what they don't say.
   const inProgress = items.filter((item) => stageOf(item.status) !== 'closed').length
   const ready = items.filter((item) => item.ready).length
   return [`${inProgress} in progress`, ...(ready ? [`${ready} ready to apply`] : [])]
 }
 
-function nextStep(card: ApplicationCard) {
+function nextParts(card: ApplicationCard): string[] {
   const task = card.next_task
-  if (task) return `Next: ${task.title}${task.deadline ? ` · due ${formatDate(task.deadline)}` : ''}`
-  if (card.deadline && card.status === 'saved') return `Apply by ${formatDate(card.deadline)}`
-  return null
+  if (task) return [`Next: ${task.title}`, ...(task.deadline ? [`due ${formatDate(task.deadline)}`] : [])]
+  if (card.deadline && card.status === 'saved') return [`Apply by ${formatDate(card.deadline)}`]
+  return []
 }
+
+const nextStep = (card: ApplicationCard) => nextParts(card).join(' · ') || null
 
 function BoardCard({
   card,
+  compact,
   moving,
   onMove,
 }: {
   card: ApplicationCard
+  compact: boolean
   moving: boolean
   onMove: (status: ApplicationStatus) => void
 }) {
   const title = roleOnly(applicationTitle(card), card.company)
   const closed = stageOf(card.status) === 'closed'
-  const next = nextStep(card)
+  const next = nextParts(card)
+  const ready = card.status === 'saved' && card.ready
+  const questions = card.status === 'saved' ? card.open_question_count : 0
+  const showStatus = closed || card.status === 'no_reply'
   return (
-    <article className="camp-card" aria-busy={moving || undefined}>
-      <div className="camp-card__top">
-        <Link to="/campaigns/$campaignId" params={{ campaignId: card.id }} className="camp-card__link" title={title}>
-          {title}
-        </Link>
-        {card.is_pinned ? <Pin className="camp-card__pin" size={12} fill="currentColor" aria-label="Pinned" role="img" /> : null}
-        <StageMenu status={card.status} onMove={onMove} disabled={moving}>
-          <button type="button" className="camp-card__move" aria-label={`Move ${title}`}>
-            <MoreHorizontal size={16} aria-hidden="true" />
-          </button>
-        </StageMenu>
-      </div>
-      {card.company ? <p className="camp-card__company">{card.company}</p> : null}
-      {card.match_score !== null || next ? (
-        <p className="camp-card__meta">
-          {card.match_score !== null ? (
-            <span className="camp-card__fit" aria-label={`${card.match_score}% skills fit`}>{card.match_score}% fit</span>
-          ) : null}
-          {next ? <span className="camp-card__next">{next}</span> : null}
-        </p>
+    <Card aria-busy={moving || undefined}>
+      <CardHeader>
+        <CardTitle headingLevel={compact ? 2 : 3} asChild>
+          <Link to="/campaigns/$campaignId" params={{ campaignId: card.id }}>{title}</Link>
+        </CardTitle>
+        {card.is_pinned ? <Pin className="camp-pin" size={12} fill="currentColor" aria-label="Pinned" role="img" /> : null}
+        <CardActions>
+          <StageMenu status={card.status} onMove={onMove} disabled={moving}>
+            <Button iconOnly variant="ghost" size="sm" aria-label={`Move ${title}`}>
+              <MoreHorizontal aria-hidden="true" />
+            </Button>
+          </StageMenu>
+        </CardActions>
+      </CardHeader>
+      {card.company || card.match_score !== null ? (
+        <MetaRow>
+          {card.company}
+          {card.match_score !== null ? <span aria-label={`${card.match_score}% skills fit`}>{card.match_score}% fit</span> : null}
+        </MetaRow>
       ) : null}
-      {closed || card.status === 'no_reply' || (card.status === 'saved' && (card.ready || card.open_question_count > 0)) ? (
-        <div className="camp-card__badges">
-          {closed || card.status === 'no_reply' ? <Badge>{STATUS_LABELS[card.status]}</Badge> : null}
-          {card.status === 'saved' && card.ready ? <Badge tone="positive">Ready to apply</Badge> : null}
-          {card.status === 'saved' && card.open_question_count > 0 ? (
-            <Badge tone="warning">{card.open_question_count === 1 ? '1 question' : `${card.open_question_count} questions`}</Badge>
-          ) : null}
-        </div>
+      {next.length ? <MetaRow>{next}</MetaRow> : null}
+      {showStatus || ready || questions > 0 ? (
+        <Cluster gap={1} className="camp-card__badges">
+          {showStatus ? <Badge size="sm">{STATUS_LABELS[card.status]}</Badge> : null}
+          {ready ? <Badge size="sm" tone="success">Ready to apply</Badge> : null}
+          {questions > 0 ? <Badge size="sm" tone="warning">{questions === 1 ? '1 question' : `${questions} questions`}</Badge> : null}
+        </Cluster>
       ) : null}
       {card.no_reply_suggested ? (
-        <div className="camp-card__nudge">
-          <span>No reply yet?</span>
-          <Button size="xs" variant="outline" disabled={moving} onClick={() => onMove('no_reply')}>Mark no reply</Button>
-        </div>
+        <Cluster justify="between" gap={2}>
+          <MetaRow>{['No reply yet?']}</MetaRow>
+          <CardActions reveal={false}>
+            <Button size="sm" variant="secondary" disabled={moving} onClick={() => onMove('no_reply')}>Mark no reply</Button>
+          </CardActions>
+        </Cluster>
       ) : null}
-    </article>
+    </Card>
   )
 }
 
@@ -225,45 +314,53 @@ function ApplicationsTable({
 }) {
   const order = (card: ApplicationCard) => STATUSES.indexOf(card.status)
   const rows = [...items].sort((a, b) => order(a) - order(b))
+  const columns: TableColumn<ApplicationCard>[] = [
+    {
+      id: 'role',
+      header: 'Role',
+      primary: true,
+      cell: (card) => {
+        const title = roleOnly(applicationTitle(card), card.company)
+        return (
+          <>
+            <StretchedLink asChild>
+              <Link className="camp-wrap" to="/campaigns/$campaignId" params={{ campaignId: card.id }}>{title}</Link>
+            </StretchedLink>
+            {card.is_pinned ? <Pin className="camp-pin camp-pin--inline" size={12} fill="currentColor" aria-label="Pinned" role="img" /> : null}
+          </>
+        )
+      },
+    },
+    { id: 'company', header: 'Company', cell: (card) => <span className="camp-wrap">{card.company ?? '–'}</span> },
+    { id: 'fit', header: 'Skills fit', numeric: true, cell: (card) => (card.match_score !== null ? `${card.match_score}%` : '–') },
+    { id: 'next', header: 'Next step', cell: (card) => <span className="camp-wrap">{nextStep(card)?.replace(/^Next: /, '') ?? '–'}</span> },
+    { id: 'activity', header: 'Last activity', cell: (card) => timeAgo(card.last_activity_at ?? card.updated_at) },
+    {
+      id: 'stage',
+      header: 'Stage',
+      hideHeader: true,
+      align: 'end',
+      stackLabel: false,
+      cell: (card) => {
+        const title = roleOnly(applicationTitle(card), card.company)
+        return (
+          <StageMenu status={card.status} onMove={(status) => onMove(card, status)} disabled={moving(card)}>
+            <Button variant="ghost" size="sm" aria-label={`Move ${title}`}>
+              <Badge tone={stageTone(card.status)}>{STATUS_LABELS[card.status]}</Badge>
+              <ChevronDown aria-hidden="true" />
+            </Button>
+          </StageMenu>
+        )
+      },
+    },
+  ]
   return (
-    <div className="camp-table-wrap">
-      <table className="camp-table">
-        <thead>
-          <tr>
-            <th scope="col">Stage</th>
-            <th scope="col">Role</th>
-            <th scope="col">Company</th>
-            <th scope="col" className="is-num">Skills fit</th>
-            <th scope="col">Next step</th>
-            <th scope="col">Last activity</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((card) => {
-            const title = roleOnly(applicationTitle(card), card.company)
-            return (
-              <tr key={card.id} aria-busy={moving(card) || undefined}>
-                <td>
-                  <StageMenu status={card.status} onMove={(status) => onMove(card, status)} disabled={moving(card)}>
-                    <button type="button" className="camp-stage-button" aria-label={`Move ${title}`}>
-                      <Badge tone={stageTone(card.status)}>{STATUS_LABELS[card.status]}</Badge>
-                      <ChevronDown size={12} aria-hidden="true" />
-                    </button>
-                  </StageMenu>
-                </td>
-                <td className="camp-table__role">
-                  <Link to="/campaigns/$campaignId" params={{ campaignId: card.id }} title={title}>{title}</Link>
-                  {card.is_pinned ? <Pin size={12} fill="currentColor" aria-label="Pinned" role="img" /> : null}
-                </td>
-                <td>{card.company ?? '-'}</td>
-                <td className="is-num">{card.match_score !== null ? `${card.match_score}%` : '-'}</td>
-                <td className="camp-table__next">{nextStep(card)?.replace(/^Next: /, '') ?? '-'}</td>
-                <td>{timeAgo(card.last_activity_at ?? card.updated_at)}</td>
-              </tr>
-            )
-          })}
-        </tbody>
-      </table>
-    </div>
+    <Table
+      caption="Applications"
+      columns={columns}
+      rows={rows}
+      getRowId={(card) => card.id}
+      getRowProps={(card) => ({ 'aria-busy': moving(card) || undefined })}
+    />
   )
 }

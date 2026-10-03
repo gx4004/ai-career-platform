@@ -202,6 +202,11 @@
   margin-inline-end: calc(var(--space-1) * -1);
 }
 
+/* The adornment shrinks to its content and the negative end margin takes width off it: the button's own 100% cap would then squeeze a 44px touch icon button to 32px. */
+.kit-input__adornment > .kit-button {
+  max-inline-size: none;
+}
+
 .kit-input__clear {
   display: inline-flex;
   flex: none;

@@ -1,4 +1,4 @@
-import { forwardRef, useId, type ComponentPropsWithoutRef, type ReactNode } from 'react'
+import { forwardRef, useId, type ComponentPropsWithoutRef, type CSSProperties, type ReactNode } from 'react'
 import { cn } from '#/lib/utils'
 
 export type ScoreTone = 'success' | 'warning' | 'danger' | 'accent' | 'neutral'
@@ -43,6 +43,8 @@ export type ScoreBarProps = Omit<ComponentPropsWithoutRef<'div'>, 'children' | '
     /** stacked: label and value above the bar. inline: label, bar and value on one row (breakdown tables). */
     layout?: 'stacked' | 'inline'
     size?: 'sm' | 'md'
+    /** Inline without a label: a fixed width for the number column (e.g. "3.5rem"), so bars start at one x down a list. */
+    valueWidth?: string
   }
 
 /**
@@ -60,7 +62,9 @@ export const ScoreBar = forwardRef<HTMLDivElement, ScoreBarProps>(function Score
     lowTone = 'danger',
     layout = 'stacked',
     size = 'md',
+    valueWidth,
     className,
+    style,
     'aria-label': ariaLabel,
     'aria-labelledby': ariaLabelledBy,
     ...rest
@@ -81,6 +85,7 @@ export const ScoreBar = forwardRef<HTMLDivElement, ScoreBarProps>(function Score
       data-size={size}
       data-labelled={label !== undefined ? 'true' : undefined}
       {...rest}
+      style={valueWidth ? ({ ...style, '--kit-score-value-w': valueWidth } as CSSProperties) : style}
     >
       {label !== undefined ? (
         <span id={labelId} className="kit-score__label">

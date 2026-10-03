@@ -188,6 +188,13 @@ export function DataSection() {
               <ScoreBar aria-label="Skills fit" value={74} size="sm" layout="inline" valueLabel="74%" />
             </div>
           </Specimen>
+          <Specimen label="inline, fixed number column (valueWidth): bars align down a list">
+            <div className="kit-gallery__stack kit-gallery__bounded">
+              <ScoreBar aria-label="Fit" value={100} size="sm" layout="inline" valueLabel="100% fit" valueWidth="3.5rem" />
+              <ScoreBar aria-label="Fit" value={62} size="sm" layout="inline" valueLabel="62% fit" valueWidth="3.5rem" />
+              <ScoreBar aria-label="Fit" value={8} size="sm" layout="inline" valueLabel="8% fit" valueWidth="3.5rem" />
+            </div>
+          </Specimen>
         </div>
         <Specimen label="inline, a score breakdown (8 rows)">
           <div className="kit-gallery__bounded kit-gallery__bounded--wide">

@@ -1,9 +1,7 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Button } from '#/components/ui/button'
-import { Input } from '#/components/ui/input'
-import { Label } from '#/components/ui/label'
+import { Button, Field as FormField, Input, Notice, Section, Skeleton, useToast } from '#/components/kit'
 import { getApplicationDetails, saveApplicationDetails } from '#/lib/api/client'
 import type { ApplicationDetails, ApplicationDetailsUpdate } from '#/lib/api/schemas'
 import { APPLICATION_DETAILS_QUERY_KEY } from '#/lib/query/applicationCaches'
@@ -32,37 +30,77 @@ function toUpdate(details: ApplicationDetails): ApplicationDetailsUpdate {
   return fields
 }
 
+const SECTIONS = [
+  {
+    title: 'Contact',
+    description: 'Autopilot uses these for application forms and leaves anything blank for you.',
+    fields: CONTACT_FIELDS,
+  },
+  { title: 'Your standing answers', description: undefined, fields: STANDING_FIELDS },
+]
+
 /**
  * Application details: typed once, used for every application form (#374).
  * Autopilot fills contact fields from here and answers the sensitive questions
  * (authorization, sponsorship, salary…) only with what the owner typed here.
+ * Renders its own kit Sections, so a page places it directly among its other sections.
  */
 export function ApplicationDetailsCard() {
   const details = useQuery({ queryKey: APPLICATION_DETAILS_QUERY_KEY, queryFn: getApplicationDetails })
 
+  if (details.isError) {
+    return (
+      <Section title="Application details">
+        <Notice
+          tone="danger"
+          action={
+            <Button size="sm" variant="secondary" onClick={() => void details.refetch()} loading={details.isFetching}>
+              Try again
+            </Button>
+          }
+        >
+          Your details couldn't be loaded.
+        </Notice>
+      </Section>
+    )
+  }
+  if (!details.data) return <DetailsSkeleton />
+  return <DetailsForm initial={toUpdate(details.data)} />
+}
+
+/** The form's own sections, labels and button with a bar where each input goes, so the page does not jump when the data arrives. */
+function DetailsSkeleton() {
   return (
-    <div className="account-card">
-      <div className="account-card-header">
-        <div>
-          <h2 className="account-card-title">Application details</h2>
-          <p className="account-card-description">
-            Autopilot uses these for application forms and leaves anything blank for you.
-          </p>
-        </div>
-      </div>
-      {details.isPending ? <p className="small-copy muted-copy">Loading your details…</p> : null}
-      {details.isError ? <p className="small-copy" role="alert">Your details couldn't be loaded.</p> : null}
-      {details.data ? <DetailsForm initial={toUpdate(details.data)} /> : null}
+    <div className="camp-details" aria-busy="true">
+      <p className="kit-sr-only" role="status">
+        Loading your details…
+      </p>
+      {SECTIONS.map((section) => (
+        <Section key={section.title} title={section.title} description={section.description}>
+          <div className="camp-details__fields" aria-hidden="true">
+            {section.fields.map((field) => (
+              <FormField key={field.name} label={field.label}>
+                <Skeleton variant="block" height="var(--kit-h-md)" />
+              </FormField>
+            ))}
+          </div>
+        </Section>
+      ))}
+      <Skeleton variant="block" width="6.25rem" height="var(--kit-h-md)" />
     </div>
   )
 }
 
 function DetailsForm({ initial }: { initial: ApplicationDetailsUpdate }) {
   const queryClient = useQueryClient()
+  const { toast } = useToast()
   const [values, setValues] = useState<ApplicationDetailsUpdate>(initial)
   const save = useMutation({
     mutationFn: (payload: ApplicationDetailsUpdate) => saveApplicationDetails(payload),
-    onSuccess: (saved) => queryClient.setQueryData(APPLICATION_DETAILS_QUERY_KEY, saved),
+    onSuccess: (saved) => {
+      queryClient.setQueryData(APPLICATION_DETAILS_QUERY_KEY, saved)
+      toast({ tone: 'success', title: 'Details saved.' })
+    },
   })
 
   const dirty = (Object.keys(values) as (keyof ApplicationDetailsUpdate)[]).some(
@@ -74,44 +112,33 @@ function DetailsForm({ initial }: { initial: ApplicationDetailsUpdate }) {
     save.mutate(values)
   }
 
-  const renderField = (field: Field) => {
-    const id = `application-details-${field.name}`
-    return (
-      <div key={field.name} className="grid gap-1.5">
-        <Label htmlFor={id}>{field.label}</Label>
-        <Input
-          id={id}
-          type={field.type ?? 'text'}
-          placeholder={field.placeholder}
-          value={values[field.name] ?? ''}
-          onChange={(event) => {
-            save.reset()
-            setValues((current) => ({ ...current, [field.name]: event.target.value }))
-          }}
-        />
-      </div>
-    )
-  }
+  const renderField = (field: Field) => (
+    <FormField key={field.name} label={field.label}>
+      <Input
+        type={field.type ?? 'text'}
+        placeholder={field.placeholder}
+        value={values[field.name] ?? ''}
+        onChange={(event) => {
+          save.reset()
+          setValues((current) => ({ ...current, [field.name]: event.target.value }))
+        }}
+      />
+    </FormField>
+  )
 
   return (
-    <form className="grid gap-5" onSubmit={onSubmit} aria-label="Application details">
-      <fieldset className="grid gap-3 md:grid-cols-2">
-        <legend className="account-subhead">Contact</legend>
-        {CONTACT_FIELDS.map(renderField)}
-      </fieldset>
-      <fieldset className="grid gap-3 md:grid-cols-2">
-        <legend className="account-subhead">Your standing answers</legend>
-        {STANDING_FIELDS.map(renderField)}
-      </fieldset>
-      <div className="flex flex-wrap items-center gap-3">
+    <form className="camp-details" onSubmit={onSubmit} aria-label="Application details">
+      {SECTIONS.map((section) => (
+        <Section key={section.title} title={section.title} description={section.description}>
+          <div className="camp-details__fields">{section.fields.map(renderField)}</div>
+        </Section>
+      ))}
+      <div>
         <Button type="submit" loading={save.isPending} disabled={!dirty}>
           Save details
         </Button>
-        {save.isSuccess ? <span className="small-copy muted-copy" role="status">Saved.</span> : null}
-        {save.isError ? (
-          <span className="small-copy" role="alert">Your details couldn't be saved. Check them and try again.</span>
-        ) : null}
       </div>
+      {save.isError ? <Notice tone="danger">Your details couldn't be saved. Check them and try again.</Notice> : null}
     </form>
   )
 }

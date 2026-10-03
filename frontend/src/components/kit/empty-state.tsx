@@ -2,13 +2,13 @@ import { forwardRef, type ComponentPropsWithoutRef, type ReactNode } from 'react
 import { Button } from './button'
 import { cn } from '#/lib/utils'
 
-export type StateSize = 'compact' | 'page'
+export type StateSize = 'compact' | 'page' | 'inline'
 
 type StateBaseProps = Omit<ComponentPropsWithoutRef<'div'>, 'title'> & {
-  /** compact: inside a Section or beside content. page: the whole page has nothing to show. Default compact. */
+  /** compact: inside a Section or beside content. page: the whole page has nothing to show. inline: a quiet one-line placeholder in a narrow slot (a board column, a side rail): body type, not serif. Default compact. */
   size?: StateSize
-  /** Level of the title heading. Omit for a plain paragraph. */
-  headingLevel?: 2 | 3 | 4 | 5 | 6
+  /** Level of the title heading (1 for a full-page error or not-found). Omit for a plain paragraph. */
+  headingLevel?: 1 | 2 | 3 | 4 | 5 | 6
 }
 
 export type EmptyStateProps = StateBaseProps & {

@@ -14,6 +14,8 @@ export type SectionProps = Omit<ComponentPropsWithoutRef<'section'>, 'title'> & 
   headingLevel?: 2 | 3 | 4 | 5 | 6
   /** Hairline under the heading row. Default true. */
   rule?: boolean
+  /** sm: a quiet sub-heading (12/600) for a group inside another section or a disclosure. Default md. */
+  size?: 'md' | 'sm'
   /** Expose the section as a named region landmark. Default false: a dense page would otherwise get 6 to 10 regions. */
   landmark?: boolean
 }
@@ -24,7 +26,7 @@ export type SectionProps = Omit<ComponentPropsWithoutRef<'section'>, 'title'> & 
  * hairline. Replaces every *-section__head/title and *-panel__head/title.
  */
 export const Section = forwardRef<HTMLElement, SectionProps>(function Section(
-  { title, count, actions, description, headingLevel = 2, rule = true, landmark = false, className, children, id, ...rest },
+  { title, count, actions, description, headingLevel = 2, rule = true, size = 'md', landmark = false, className, children, id, ...rest },
   ref,
 ) {
   const generated = useId()
@@ -36,6 +38,7 @@ export const Section = forwardRef<HTMLElement, SectionProps>(function Section(
       id={id}
       className={cn('kit-section', className)}
       data-rule={rule ? 'true' : undefined}
+      data-size={size === 'sm' ? 'sm' : undefined}
       aria-labelledby={landmark ? headingId : undefined}
       {...rest}
     >

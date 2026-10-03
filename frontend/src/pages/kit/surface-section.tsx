@@ -124,6 +124,11 @@ export function SurfaceSection() {
               <p className="kit-gallery__paragraph">A heading without the hairline, for sections inside a card or a rail.</p>
             </Section>
           </Specimen>
+          <Specimen label="size=sm: a group inside a disclosure or another section">
+            <Section headingLevel={3} size="sm" title="Kind of role">
+              <SimpleRows count={2} />
+            </Section>
+          </Specimen>
           <Specimen label="headingLevel=3, long title, several actions wrapping">
             <Section
               headingLevel={3}

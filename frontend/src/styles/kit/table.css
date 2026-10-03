@@ -7,6 +7,8 @@
 
 .kit-table-wrap {
   container: kit-table / inline-size;
+  /* The visually hidden caption and hidden headers are absolutely positioned: without a positioned wrapper they escape its scroll clipping and widen the page. */
+  position: relative;
   min-width: 0;
   overflow-x: auto;
 }

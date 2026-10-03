@@ -59,6 +59,17 @@ describe('kit Section', () => {
     expect(head.contains(screen.getByText('Content'))).toBe(false)
   })
 
+  it('steps its title down with size="sm" and marks it for the stylesheet', () => {
+    const { container, rerender } = render(<Section title="A">x</Section>)
+    expect((container.firstElementChild as HTMLElement).hasAttribute('data-size')).toBe(false)
+    rerender(
+      <Section title="A" size="sm">
+        x
+      </Section>,
+    )
+    expect((container.firstElementChild as HTMLElement).getAttribute('data-size')).toBe('sm')
+  })
+
   it('has the hairline by default and drops it with rule={false}', () => {
     const { container, rerender } = render(<Section title="A">x</Section>)
     expect((container.firstElementChild as HTMLElement).getAttribute('data-rule')).toBe('true')

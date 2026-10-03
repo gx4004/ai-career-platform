@@ -70,8 +70,8 @@ test('authenticated resume result persists and can be revisited', async ({ page 
   const resultUrl = page.url()
 
   await page.goto('/history')
-  await expect(page.getByRole('link', { name: /^Open / }).first()).toBeVisible()
+  await expect(page.getByRole('list', { name: 'Saved runs' }).getByRole('link').first()).toBeVisible()
 
   await page.goto(resultUrl)
-  await expect(page.getByRole('img', { name: /Resume score:/ })).toBeVisible()
+  await expect(page.getByRole('term').filter({ hasText: 'Resume score' })).toBeVisible()
 })

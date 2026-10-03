@@ -37,7 +37,7 @@ function renderBoard() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
   return render(<QueryClientProvider client={client}><ApplicationsPage /></QueryClientProvider>)
 }
-const column = (name: string) => screen.getByRole('heading', { name, level: 2 }).closest('section') as HTMLElement
+const column = (name: string) => screen.getByRole('heading', { name: new RegExp(`^${name}\\b`), level: 2 }).closest('section') as HTMLElement
 async function moveTo(title: string, target: string) {
   fireEvent.keyDown(await screen.findByRole('button', { name: `Move ${title}` }), { key: 'Enter' })
   fireEvent.click(within(await screen.findByRole('menu')).getByRole('menuitem', { name: target }))
@@ -70,13 +70,52 @@ describe('ApplicationsPage', () => {
   it('switches to a list with stage, role, company, fit and next step', async () => {
     renderBoard()
     await screen.findByText('Backend Engineer')
-    fireEvent.click(screen.getByRole('button', { name: 'List' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'List' }))
     const row = screen.getByRole('link', { name: 'Backend Engineer' }).closest('tr') as HTMLElement
     expect(within(row).getByText('Saved')).toBeTruthy()
     expect(within(row).getByText('Northwind')).toBeTruthy()
     expect(within(row).getByText('81%')).toBeTruthy()
     expect(within(row).getByText(/Tailor CV/)).toBeTruthy()
     expect(screen.getByRole('columnheader', { name: 'Next step' })).toBeTruthy()
+  })
+
+  it('keeps the Board/List toggle apart from the stage switcher on a phone, one stage at a time', async () => {
+    const original = window.matchMedia
+    window.matchMedia = ((query: string) => ({
+      matches: query.includes('max-width: 767px'),
+      media: query,
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+    })) as unknown as typeof window.matchMedia
+    try {
+      renderBoard()
+      await screen.findByText('Backend Engineer')
+      const view = screen.getByRole('radiogroup', { name: 'View' })
+      expect(within(view).getAllByRole('radio').map((radio) => radio.textContent)).toEqual(['Board', 'List'])
+      const stages = screen.getByRole('radiogroup', { name: 'Stage' })
+      expect(within(stages).getAllByRole('radio').map((radio) => radio.textContent)).toEqual([
+        'Saved 3', 'Applied 0', 'Interviewing 1', 'Offer 0', 'Closed 1',
+      ])
+      // Only the chosen stage is on screen.
+      expect(screen.queryByText('SRE')).toBeNull()
+      fireEvent.click(within(stages).getByRole('radio', { name: /^Interviewing/ }))
+      expect(await screen.findByText('SRE')).toBeTruthy()
+      expect(screen.queryByText('Backend Engineer')).toBeNull()
+      fireEvent.click(within(view).getByRole('radio', { name: 'List' }))
+      expect(screen.getByRole('columnheader', { name: 'Next step' })).toBeTruthy()
+      // The stages only make sense on the board; going back restores the stage you were on.
+      expect(screen.queryByRole('radiogroup', { name: 'Stage' })).toBeNull()
+      fireEvent.click(within(view).getByRole('radio', { name: 'Board' }))
+      expect(await screen.findByText('SRE')).toBeTruthy()
+    } finally {
+      window.matchMedia = original
+    }
+  })
+
+  it('says what a column is for when it is empty', async () => {
+    renderBoard()
+    await screen.findByText('Backend Engineer')
+    expect(within(column('Offer')).getByText('Offers on the table')).toBeTruthy()
   })
 
   it('keeps the header to in-progress and ready counts; stage counts live in the board columns', async () => {
@@ -200,6 +239,11 @@ describe('Prepare applications for me', () => {
   })
   it('teaches the owner to record outcomes when nothing has been applied to yet', async () => {
     renderBoard()
+    // Folded until there is something to read: a first-time visitor sees the board and the form first.
+    const toggle = await screen.findByRole('button', { name: "What's working" })
+    expect(toggle.getAttribute('aria-expanded')).toBe('false')
+    expect(screen.queryByText('Nothing to learn from yet.')).toBeNull()
+    fireEvent.click(toggle)
     expect(await screen.findByText('Nothing to learn from yet.')).toBeTruthy()
     expect(screen.getByText(/mark it No reply/)).toBeTruthy()
   })

@@ -1,4 +1,22 @@
 import { useQuery } from '@tanstack/react-query'
+import {
+  Badge,
+  Button,
+  Cluster,
+  EmptyState,
+  KeyValue,
+  List,
+  Notice,
+  Page,
+  PageHeader,
+  Row,
+  RowBody,
+  RowMeta,
+  RowTitle,
+  Section,
+  Skeleton,
+  Stat,
+} from '#/components/kit'
 import { getAdminStats, getAdminHealth } from '#/lib/api/admin'
 import type { AdminStats, AdminHealth } from '#/lib/api/admin'
 import { toolLabel } from './toolLabel'
@@ -15,104 +33,96 @@ export function AdminDashboardPage() {
     staleTime: 60_000,
   })
 
+  const byTool = stats.data
+    ? Object.entries(stats.data.runs_by_tool)
+        .sort(([, a], [, b]) => b - a)
+        .map(([tool, count]) => ({ tool, label: toolLabel(tool), count }))
+    : []
+
   return (
-    <div>
-      <h1 className="admin-page-title">Dashboard</h1>
+    <Page>
+      <PageHeader title="Dashboard" />
 
-      <div className="admin-stat-grid">
-        <StatCard label="Total users" value={stats.data?.total_users} loading={stats.isLoading} error={stats.isError} />
-        <StatCard label="Total runs" value={stats.data?.total_runs} loading={stats.isLoading} error={stats.isError} />
-        <StatCard label="Runs today" value={stats.data?.runs_today} loading={stats.isLoading} error={stats.isError} />
-        <StatCard label="Active users (7d)" value={stats.data?.active_users_7d} loading={stats.isLoading} error={stats.isError} />
+      {stats.isError ? (
+        <Retry what="stats" onRetry={() => void stats.refetch()} />
+      ) : stats.isLoading ? (
+        <Skeleton variant="stat" count={4} className="admin-stats" />
+      ) : stats.data ? (
+        <Cluster gap={8} align="start" className="admin-stats">
+          <Stat label="Total users" value={stats.data.total_users} />
+          <Stat label="Total runs" value={stats.data.total_runs} />
+          <Stat label="Runs today" value={stats.data.runs_today} />
+          <Stat label="Active users (7d)" value={stats.data.active_users_7d} />
+        </Cluster>
+      ) : null}
+
+      <div className="admin-columns">
+        {stats.isError ? null : (
+          <Section title="Runs by tool">
+            {stats.isLoading ? (
+              <Skeleton lines={4} label="Loading runs by tool" />
+            ) : stats.data && byTool.length === 0 ? (
+              <EmptyState title="No runs yet" />
+            ) : stats.data ? (
+              <List aria-label="Runs by tool">
+                {byTool.map((entry) => (
+                  <Row key={entry.tool} density="compact">
+                    <RowBody>
+                      <RowTitle>{entry.label}</RowTitle>
+                    </RowBody>
+                    <RowMeta>{entry.count}</RowMeta>
+                  </Row>
+                ))}
+              </List>
+            ) : null}
+          </Section>
+        )}
+
+        <Section title="System health">
+          {health.isLoading ? <Skeleton lines={4} label="Loading system health" /> : null}
+          {health.isError ? <Retry what="health" onRetry={() => void health.refetch()} /> : null}
+          {health.data ? (
+            <KeyValue
+              items={[
+                {
+                  label: 'Database',
+                  value:
+                    health.data.database === 'ok' ? (
+                      <Badge tone="success" dot>
+                        Healthy
+                      </Badge>
+                    ) : (
+                      <Badge tone="danger" dot>
+                        {health.data.database}
+                      </Badge>
+                    ),
+                },
+                { label: 'LLM provider', value: `${health.data.llm_provider} / ${health.data.llm_model}` },
+                {
+                  label: 'Cache',
+                  value: health.data.cache_enabled ? `Enabled (${health.data.cache_entries} entries)` : 'Disabled',
+                },
+                { label: 'Environment', value: health.data.environment },
+              ]}
+            />
+          ) : null}
+        </Section>
       </div>
-
-      <div className="admin-info-grid">
-        <div className="admin-info-panel">
-          <div className="admin-info-panel-title">Runs by tool</div>
-          {stats.isLoading && <p className="admin-table-muted">Loading…</p>}
-          {stats.isError && <Retry what="stats" onRetry={() => void stats.refetch()} />}
-          {stats.data?.runs_by_tool &&
-            Object.entries(stats.data.runs_by_tool)
-              .sort(([, a], [, b]) => b - a)
-              .map(([tool, count]) => (
-                <div key={tool} className="admin-info-row">
-                  <span className="admin-info-row-label">{toolLabel(tool)}</span>
-                  <span className="admin-info-row-value">{count}</span>
-                </div>
-              ))}
-          {stats.data && Object.keys(stats.data.runs_by_tool).length === 0 && (
-            <p className="admin-table-muted">No runs yet.</p>
-          )}
-        </div>
-
-        <div className="admin-info-panel">
-          <div className="admin-info-panel-title">System health</div>
-          {health.isLoading && <p className="admin-table-muted">Loading…</p>}
-          {health.isError && <Retry what="health" onRetry={() => void health.refetch()} />}
-          {health.data && (
-            <>
-              <div className="admin-info-row">
-                <span className="admin-info-row-label">Database</span>
-                <span className={`admin-info-row-value ${health.data.database === 'ok' ? 'admin-info-row-value--ok' : 'admin-info-row-value--error'}`}>
-                  <span className="settings-status-dot" aria-hidden="true" />
-                  {health.data.database === 'ok' ? 'Healthy' : health.data.database}
-                </span>
-              </div>
-              <div className="admin-info-row">
-                <span className="admin-info-row-label">LLM provider</span>
-                <span className="admin-info-row-value">
-                  {health.data.llm_provider} / {health.data.llm_model}
-                </span>
-              </div>
-              <div className="admin-info-row">
-                <span className="admin-info-row-label">Cache</span>
-                <span className="admin-info-row-value">
-                  {health.data.cache_enabled
-                    ? `Enabled (${health.data.cache_entries} entries)`
-                    : 'Disabled'}
-                </span>
-              </div>
-              <div className="admin-info-row">
-                <span className="admin-info-row-label">Environment</span>
-                <span className="admin-info-row-value">{health.data.environment}</span>
-              </div>
-            </>
-          )}
-        </div>
-      </div>
-    </div>
+    </Page>
   )
 }
 
 function Retry({ what, onRetry }: { what: string; onRetry: () => void }) {
   return (
-    <p className="admin-table-muted admin-error-text" role="alert">
-      Couldn't load {what}.{' '}
-      <button type="button" className="admin-toolbar-btn" onClick={onRetry}>
-        Try again
-      </button>
-    </p>
-  )
-}
-
-function StatCard({
-  label,
-  value,
-  loading,
-  error,
-}: {
-  label: string
-  value: number | undefined
-  loading: boolean
-  error: boolean
-}) {
-  let display: string | number = '—'
-  if (!loading && !error && value !== undefined) display = value
-
-  return (
-    <div className="admin-stat-card">
-      <div className="admin-stat-card-label">{label}</div>
-      <div className="admin-stat-card-value">{display}</div>
-    </div>
+    <Notice
+      tone="danger"
+      action={
+        <Button size="sm" variant="secondary" onClick={onRetry}>
+          Try again
+        </Button>
+      }
+    >
+      Couldn't load {what}.
+    </Notice>
   )
 }

@@ -1,3 +1,4 @@
+import { List, Row, RowActions, RowBody, RowTitle, Section } from '#/components/kit'
 import { getPromotableClaims } from '#/lib/tools/promotableClaims'
 import type { ToolId } from '#/lib/tools/registry'
 import { PromoteClaimButton } from './PromoteClaimButton'
@@ -24,21 +25,21 @@ export function ClaimPromotionSection({
   if (claims.length === 0) return null
 
   return (
-    <section className="claim-promote" aria-label="Save claims to your Evidence Profile">
-      <div className="claim-promote__head">
-        <strong className="claim-promote__title">Save to your Evidence Profile</strong>
-        <p className="claim-promote__hint">
-          Add this detail as a suggested item you can review and confirm later.
-        </p>
-      </div>
-      <ul className="claim-promote__list">
+    <Section
+      title="Save to your Evidence Profile"
+      description="Add this detail as a suggested item you can review and confirm later."
+      landmark
+    >
+      <List aria-label="Claims you can add">
         {claims.map((claim) => (
-          <li key={claim.key} className="claim-promote__item">
-            <span className="claim-promote__label">{claim.label}</span>
-            <PromoteClaimButton claim={claim} />
-          </li>
+          <Row key={claim.key}>
+            <RowBody><RowTitle>{claim.label}</RowTitle></RowBody>
+            <RowActions reveal={false}>
+              <PromoteClaimButton claim={claim} />
+            </RowActions>
+          </Row>
         ))}
-      </ul>
-    </section>
+      </List>
+    </Section>
   )
 }

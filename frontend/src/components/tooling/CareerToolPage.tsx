@@ -1,11 +1,9 @@
-import { Input } from '#/components/ui/input'
+import { Field, Input } from '#/components/kit'
 import { ResumeSource } from '#/components/tooling/ResumeSource'
 import {
-  ToolField,
-  ToolInputHero,
+  ToolForm,
   ToolPageLoading,
   ToolPageShell,
-  ToolSubmitRow,
   getSeededFieldNote,
   useToolPageState,
 } from '#/components/tooling/toolPageShared'
@@ -18,25 +16,16 @@ export function CareerToolPage() {
   const targetRoleField = config.fields.find((field) => field.name === 'targetRole')!
 
   return (
-    <ToolPageShell
-      toolId="career"
-      hero={
-        <ToolInputHero
-          toolId="career"
-          subtitle="Review the resume text, optionally add a target role, then compare realistic next directions."
-        />
-      }
-    >
+    <ToolPageShell toolId="career">
       {mutation.isPending ? (
         <ToolPageLoading toolId="career" mutationDone={!mutation.isPending} />
       ) : (
-        <form
-          aria-label={`${tool.label} input form`}
-          className="tool-form"
-          onSubmit={(event) => {
-            event.preventDefault()
-            handleSubmit()
-          }}
+        <ToolForm
+          label={`${tool.label} input form`}
+          onSubmit={handleSubmit}
+          submitLabel={tool.entryPointLabel}
+          error={mutation.error}
+          pending={mutation.isPending}
         >
           <ResumeSource
             id="career-resumeText"
@@ -46,33 +35,25 @@ export function CareerToolPage() {
             value={String(draft.resumeText ?? '')}
             onChange={(text) => setField('resumeText', text)}
             seeded={bridge.seededResume}
-            note={getSeededFieldNote('resumeText', bridge)}
             error={errors.resumeText}
           />
 
-          <ToolField
-            htmlFor="career-targetRole"
+          <Field
             label={targetRoleField.label}
-            meta="Optional"
-            note={
+            optional
+            id="career-targetRole"
+            help={
               getSeededFieldNote('targetRole', bridge) ||
               'Leave blank to get the strongest adjacent paths from your resume.'
             }
           >
             <Input
-              id="career-targetRole"
               value={String(draft.targetRole ?? '')}
               placeholder={targetRoleField.placeholder}
               onChange={(event) => setField('targetRole', event.target.value as never)}
             />
-          </ToolField>
-
-          <ToolSubmitRow
-            label="Compare career paths"
-            error={mutation.error}
-            pending={mutation.isPending}
-          />
-        </form>
+          </Field>
+        </ToolForm>
       )}
     </ToolPageShell>
   )

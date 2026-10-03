@@ -119,6 +119,8 @@
   align-items: center;
   gap: var(--space-2);
   min-width: 0;
+  /* Wider content wraps inside the header instead of pushing past the page gutter. */
+  max-width: 100%;
 }
 
 .kit-page-header__tabs {

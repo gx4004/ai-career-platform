@@ -1,11 +1,11 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import {
+  countOf,
   FixFirstList,
   formatLetterDate,
   resultDefinitions,
   roleFitLabel,
-  truncateLabel,
   uniqueRequirementCount,
 } from '#/lib/tools/resultDefinitions'
 import { tools } from '#/lib/tools/registry'
@@ -95,7 +95,9 @@ describe('resultDefinitions', () => {
 
     render(resultDefinitions.resume.render(payload, makeItem('resume', payload), tools.resume))
 
-    expect(screen.getByText(/Detailed feedback/i)).toBeTruthy()
+    expect(screen.getByText('Major strengths')).toBeTruthy()
+    expect(screen.getByText('Refinement areas')).toBeTruthy()
+    expect(screen.queryByText('Detailed feedback')).toBeNull()
     expect(screen.getByText(/Keyword optimization/i)).toBeTruthy()
     expect(screen.getByText(/Role fit/i)).toBeTruthy()
     expect(screen.getAllByText(/Impact is not backed up with enough measurable results/i).length).toBeGreaterThan(0)
@@ -506,8 +508,23 @@ describe('result summary', () => {
       role_fit: { target_role_label: 'Engineer', fit_score: 64, rationale: 'r' },
     })
     expect(summary.score).toEqual({ value: 77, label: 'Resume score', unit: '/100' })
-    expect(summary.facts.map((f) => f.label)).toEqual(['Verdict', 'Role fit', 'Issues'])
+    expect(summary.facts.map((f) => f.label)).toEqual(['Verdict', 'Issues'])
     expect(summary.note).toBe('Directional.')
+  })
+
+  it('puts requirements met under the job match score as a bar, not as a fact', () => {
+    const summary = resultDefinitions['job-match'].summary({
+      match_score: 70,
+      verdict: 'borderline',
+      requirements: [
+        { requirement: 'A', status: 'matched' },
+        { requirement: 'B', status: 'missing' },
+      ],
+      matched_keywords: ['A'],
+      missing_keywords: ['B'],
+    })
+    expect(summary.bars).toEqual([{ label: 'Requirements met', value: 1, max: 2, valueLabel: '1 of 2' }])
+    expect(summary.facts.map((f) => f.label)).toEqual(['Verdict', 'Keywords matched', 'Missing'])
   })
 
   it('has no score for generative tools', () => {
@@ -518,14 +535,70 @@ describe('result summary', () => {
 })
 
 describe('label helpers', () => {
-  it('truncates long role labels', () => {
-    expect(truncateLabel('Senior Engineer')).toBe('Senior Engineer')
-    expect(truncateLabel('x'.repeat(80)).length).toBeLessThanOrEqual(60)
-    expect(truncateLabel('x'.repeat(80)).endsWith('…')).toBe(true)
+  it('counts nouns in the singular and the plural', () => {
+    expect(countOf(1, 'question')).toBe('1 question')
+    expect(countOf(0, 'project')).toBe('0 projects')
+    expect(countOf(6, 'word')).toBe('6 words')
+  })
+
+  it('keeps a long role label whole', () => {
+    const long = 'Staff Software Engineer, Data Infrastructure and Developer Productivity (Berlin or remote)'
+    expect(roleFitLabel(long)).toBe(`Target role: ${long}`)
   })
 
   it('prefixes role labels without doubling the placeholder', () => {
     expect(roleFitLabel('the target role')).toBe('Target role')
     expect(roleFitLabel('Backend Engineer')).toBe('Target role: Backend Engineer')
+  })
+
+  it('does not repeat what Fix first already says, and does not badge every row the same', () => {
+    const payload = {
+      summary: { headline: 'h' },
+      top_actions: [{ title: 'Close Kubernetes', action: 'Add a bullet for Kubernetes.', priority: 'high' }],
+      match_score: 60,
+      requirements: [{ requirement: 'Kubernetes', importance: 'must', status: 'missing', resume_evidence: '', suggested_fix: 'Add a bullet for Kubernetes.' }],
+      tailoring_actions: [
+        { section: 'experience', keyword: 'Kubernetes', action: 'Add a bullet for Kubernetes.' },
+        { section: 'skills', keyword: 'Terraform', action: 'List Terraform under skills.' },
+      ],
+      interview_focus: ['Kubernetes', 'System design'],
+    }
+    render(resultDefinitions['job-match'].render(payload, makeItem('job-match', payload), tools['job-match']))
+    const tailoring = screen.getByRole('list', { name: 'Tailoring actions' })
+    expect(tailoring.textContent).toContain('Terraform')
+    expect(tailoring.textContent).not.toContain('Kubernetes')
+    const prep = screen.getByRole('list', { name: 'Interview prep' })
+    expect(prep.textContent).toContain('System design')
+    expect(prep.textContent).not.toContain('Kubernetes')
+  })
+
+  it('shows Practice first and severity badges only when they tell rows apart', () => {
+    const question = (n: number, practice: boolean) => ({ question: `Q${n}?`, answer: 'A.', focus_area: 'Area', practice_first: practice })
+    const same = {
+      summary: { headline: 'h' },
+      questions: [question(1, true), question(2, true)],
+      weak_signals_to_prepare: [{ title: 'W1', severity: 'high' }, { title: 'W2', severity: 'high' }],
+    }
+    const { unmount } = render(resultDefinitions.interview.render(same, makeItem('interview', same), tools.interview))
+    expect(screen.queryByText('Practice first')).toBeNull()
+    expect(screen.queryByText('High')).toBeNull()
+    unmount()
+
+    const mixed = {
+      summary: { headline: 'h' },
+      questions: [question(1, true), question(2, false)],
+      weak_signals_to_prepare: [{ title: 'W1', severity: 'high' }, { title: 'W2', severity: 'low' }],
+    }
+    render(resultDefinitions.interview.render(mixed, makeItem('interview', mixed), tools.interview))
+    expect(screen.getAllByText('Practice first')).toHaveLength(1)
+    expect(screen.getByText('High')).toBeTruthy()
+    expect(screen.getByText('Low')).toBeTruthy()
+  })
+
+  it('keeps rows with the same requirement text apart', () => {
+    const requirement = { requirement: 'Python', importance: 'must', status: 'matched', resume_evidence: 'Yes.', suggested_fix: '' }
+    const payload = { summary: { headline: 'h' }, match_score: 80, requirements: [requirement, requirement] }
+    render(resultDefinitions['job-match'].render(payload, makeItem('job-match', payload), tools['job-match']))
+    expect(screen.getAllByText('Python')).toHaveLength(2)
   })
 })

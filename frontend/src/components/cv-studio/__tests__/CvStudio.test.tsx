@@ -55,8 +55,8 @@ const paper = () => screen.getByTestId('cv-paper')
 const panel = () => screen.getByRole('complementary')
 /** Open a studio tool (Sections, Design, ATS check, Versions) from the toolbar. */
 async function openTool(name: RegExp) {
-  const toolbar = await screen.findByRole('navigation', { name: 'Studio tools' })
-  fireEvent.click(within(toolbar).getByRole('button', { name }))
+  const tabs = await screen.findByRole('tablist', { name: 'Studio tools' })
+  fireEvent.click(within(tabs).getByRole('tab', { name }))
   return panel()
 }
 async function openMenu(name: string) {
@@ -154,6 +154,34 @@ describe('CV Studio paper and section editor', { timeout: 15_000 }, () => {
     await waitFor(() => expect(saveStatus().textContent).toContain('Saved'))
   })
 
+  it('reorders and removes a highlight with its own inline buttons', async () => {
+    api.getCvDocument.mockResolvedValue({
+      ...document,
+      sections: [{ ...experience, entries: [{ ...experience.entries[0], bullets: ['First.', 'Second.'] }] }, skills],
+    })
+    view()
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit Experience' }))
+    const first = within(panel()).getByRole('button', { name: 'Move highlight 1 up' })
+    expect((first as HTMLButtonElement).disabled).toBe(true)
+    fireEvent.click(within(panel()).getByRole('button', { name: 'Move highlight 1 down' }))
+    expect((within(panel()).getByLabelText(/Highlight 1 for/) as HTMLTextAreaElement).value).toBe('Second.')
+    fireEvent.click(within(panel()).getByRole('button', { name: 'Remove highlight 1' }))
+    expect(within(panel()).queryByLabelText('Highlight 2 for Lead Designer')).toBeNull()
+    expect((within(panel()).getByLabelText(/Highlight 1 for/) as HTMLTextAreaElement).value).toBe('First.')
+  })
+
+  it('says when autosave fails and saves again on Try again', async () => {
+    view()
+    fireEvent.change(await screen.findByLabelText('Document name'), { target: { value: 'Renamed CV' } })
+    api.updateCvDocument.mockRejectedValueOnce(new Error('save failed'))
+    const alert = await screen.findByRole('alert', {}, { timeout: 2500 })
+    expect(alert.textContent).toContain('couldn’t save your latest changes')
+    expect(alert.textContent).not.toContain('save failed')
+    fireEvent.click(within(alert).getByRole('button', { name: 'Try again' }))
+    await waitFor(() => expect(saveStatus().textContent).toContain('Saved'), { timeout: 2500 })
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
   it('opens a section with the keyboard and goes back to the sections list', async () => {
     view()
     fireEvent.keyDown(await screen.findByRole('button', { name: 'Edit Skills' }), { key: 'Enter' })
@@ -227,6 +255,43 @@ describe('CV Studio paper and section editor', { timeout: 15_000 }, () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
   })
 
+  it('keeps one tool selected as a tab on a phone and opens its sheet from the tab', async () => {
+    window.innerWidth = 375
+    view()
+    await screen.findByTestId('cv-paper')
+    const tabs = screen.getByRole('tablist', { name: 'Studio tools' })
+    expect(within(tabs).getByRole('tab', { name: 'Sections' }).getAttribute('aria-selected')).toBe('true')
+    expect(within(tabs).getByRole('tab', { name: /^Design/ }).getAttribute('aria-selected')).toBe('false')
+
+    fireEvent.click(within(tabs).getByRole('tab', { name: /^Design/ }))
+    const sheet = await screen.findByRole('dialog', { name: 'Design' })
+    expect(within(sheet).getByRole('switch', { name: 'ATS-friendly mode' })).toBeTruthy()
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Close panel' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+
+    // The tool stays selected after the sheet closes; tapping it again reopens the sheet.
+    const design = within(screen.getByRole('tablist', { name: 'Studio tools' })).getByRole('tab', { name: /^Design/ })
+    expect(design.getAttribute('aria-selected')).toBe('true')
+    fireEvent.click(design)
+    expect(await screen.findByRole('dialog', { name: 'Design' })).toBeTruthy()
+  })
+
+  it('asks before removing a section that has entries', async () => {
+    view()
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit Skills' }))
+    fireEvent.click(within(panel()).getByRole('button', { name: 'Remove section' }))
+    let confirm = await screen.findByRole('alertdialog')
+    fireEvent.click(within(confirm).getByRole('button', { name: 'Cancel' }))
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull())
+    expect(api.updateCvDocument).not.toHaveBeenCalled()
+
+    fireEvent.click(within(panel()).getByRole('button', { name: 'Remove section' }))
+    confirm = await screen.findByRole('alertdialog')
+    fireEvent.click(within(confirm).getByRole('button', { name: 'Remove section' }))
+    await waitFor(() => expect(lastPatch()?.sections.map((item: { id: string }) => item.id)).toEqual(['s1']), { timeout: 1500 })
+    expect(within(panel()).getByRole('list', { name: 'Sections in your CV' })).toBeTruthy()
+  })
+
   it('switches between CVs', async () => {
     const other = { ...document, id: 'd2', name: 'Research CV' }
     api.listCvDocuments.mockResolvedValue({ items: [document, other] })
@@ -273,7 +338,10 @@ describe('CV Studio design panel', { timeout: 15_000 }, () => {
   it('asks to try again when the style catalog cannot load', async () => {
     api.getCvStyleCatalog.mockRejectedValueOnce(new Error('offline'))
     view()
-    fireEvent.click(await screen.findByRole('button', { name: 'Try again' }))
+    const retry = await screen.findByRole('button', { name: 'Try again' })
+    // The button shows a spinner (and ignores clicks) while the other requests are still in flight.
+    await waitFor(() => expect(retry.getAttribute('aria-busy')).toBeNull())
+    fireEvent.click(retry)
     expect(await screen.findByTestId('cv-paper')).toBeTruthy()
   })
 
@@ -283,9 +351,9 @@ describe('CV Studio design panel', { timeout: 15_000 }, () => {
     const design = await openTool(/^Design/)
     const toggle = within(design).getByRole('switch', { name: 'ATS-friendly mode' })
     fireEvent.click(toggle)
-    expect(toggle.getAttribute('aria-checked')).toBe('true')
+    expect((toggle as HTMLInputElement).checked).toBe(true)
     expect(within(design).getByText('Paused while ATS-friendly mode is on.')).toBeTruthy()
-    expect(within(design).getByRole('radio', { name: /PT Serif/ }).closest('fieldset')?.disabled).toBe(true)
+    expect((within(design).getByRole('radio', { name: /PT Serif/ }) as HTMLInputElement).disabled).toBe(true)
     expect(paper().className).not.toContain('two-column')
     expect(paper().style.getPropertyValue('--cvp-accent')).toBe('#111827')
     await waitFor(() => expect(lastPatch()?.style).toMatchObject({ ats_mode: true }), { timeout: 1500 })
@@ -293,17 +361,17 @@ describe('CV Studio design panel', { timeout: 15_000 }, () => {
 })
 
 describe('CV Studio ATS check, exports and versions', { timeout: 15_000 }, () => {
-  it('summarises failing checks in the toolbar and lists their fixes, never a score', async () => {
+  it('summarises failing checks on the tab and lists their fixes, never a score', async () => {
     view()
-    const toolbar = await screen.findByRole('navigation', { name: 'Studio tools' })
-    expect(await within(toolbar).findByText('2 to fix')).toBeTruthy()
+    const tabs = await screen.findByRole('tablist', { name: 'Studio tools' })
+    expect(await within(tabs).findByRole('tab', { name: 'ATS check 2 to fix' })).toBeTruthy()
     expect(api.scoreCvDocument).toHaveBeenCalledWith('d1')
     const checks = await openTool(/^ATS check/)
     const list = within(checks).getByRole('list', { name: 'Checks' })
     expect(within(list).getByText('Clear section headings')).toBeTruthy()
     expect(within(list).getByText('An entry splits across pages. Shorten it or move it so it fits on one page.')).toBeTruthy()
     fireEvent.click(within(checks).getByRole('button', { name: /Turn on ATS-friendly mode/ }))
-    expect(within(panel()).getByRole('switch', { name: 'ATS-friendly mode' }).getAttribute('aria-checked')).toBe('true')
+    expect((within(panel()).getByRole('switch', { name: 'ATS-friendly mode' }) as HTMLInputElement).checked).toBe(true)
     expect(window.document.body.textContent).not.toMatch(/\/100|ATS score|second opinion|AI review/i)
     expect(window.document.body.textContent).not.toMatch(/deterministic|preflight|immutable|canonical/i)
   })
@@ -345,8 +413,8 @@ describe('CV Studio ATS check, exports and versions', { timeout: 15_000 }, () =>
   it('says every check passes when the CV is clean', async () => {
     api.scoreCvDocument.mockResolvedValue(passingQuality)
     view()
-    expect(await screen.findByText('All 3 checks pass')).toBeTruthy()
     const checks = await openTool(/^ATS check/)
+    expect(await within(checks).findByText('All 3 checks pass')).toBeTruthy()
     expect(within(checks).queryByRole('button', { name: /Turn on ATS-friendly mode/ })).toBeNull()
   })
 
@@ -360,7 +428,6 @@ describe('CV Studio ATS check, exports and versions', { timeout: 15_000 }, () =>
   })
 
   it('exports DOCX and CV data and deletes all CVs from the overflow menu after confirmation', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
     view()
     let menu = await openMenu('More options')
     fireEvent.click(within(menu).getByRole('menuitem', { name: /Export DOCX/ }))
@@ -370,8 +437,11 @@ describe('CV Studio ATS check, exports and versions', { timeout: 15_000 }, () =>
     await waitFor(() => expect(clickedDownload).toBe('career-workbench-cv-data.json'))
     menu = await openMenu('More options')
     fireEvent.click(within(menu).getByRole('menuitem', { name: /Delete all CVs/ }))
+    const confirm = await screen.findByRole('alertdialog')
+    expect(within(confirm).getByText(/Delete all of your CVs/)).toBeTruthy()
+    expect(api.deleteAllCvDocuments).not.toHaveBeenCalled()
+    fireEvent.click(within(confirm).getByRole('button', { name: 'Delete all CVs' }))
     await waitFor(() => expect(api.deleteAllCvDocuments).toHaveBeenCalled())
-    expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining('Delete all of your CVs'))
   })
 
   it('saves a named version and restores one after an inline confirmation', async () => {

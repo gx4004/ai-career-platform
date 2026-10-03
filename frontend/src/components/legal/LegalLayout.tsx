@@ -1,7 +1,9 @@
 import type { ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
-import { AppBrandLockup } from '#/components/app/AppBrandLockup'
+import { ArrowLeft } from 'lucide-react'
+import { SiteHeader } from '#/components/legal/SiteHeader'
 import { LEGAL_LAST_UPDATED } from '#/components/legal/constants'
+import { Button, PageHeader } from '#/components/kit'
 
 type LegalLayoutProps = {
   title: string
@@ -16,33 +18,37 @@ function formatLegalDate(value: string) {
     : new Intl.DateTimeFormat('en-US', { dateStyle: 'medium' }).format(date)
 }
 
+const LEGAL_PAGES = [
+  { to: '/privacy', label: 'Privacy' },
+  { to: '/terms', label: 'Terms' },
+  { to: '/cookies', label: 'Cookies' },
+  { to: '/imprint', label: 'Imprint' },
+] as const
+
 export function LegalLayout({ title, lastUpdated = LEGAL_LAST_UPDATED, children }: LegalLayoutProps) {
   return (
     <div className="legal-page">
-      <header className="legal-page__header">
-        <Link to="/" className="legal-page__brand" aria-label="Career Workbench home">
-          <AppBrandLockup />
-        </Link>
-        <nav className="legal-page__nav" aria-label="Legal pages">
-          <Link to="/privacy" className="legal-page__nav-link" activeProps={{ className: 'is-active' }}>
-            Privacy
-          </Link>
-          <Link to="/terms" className="legal-page__nav-link" activeProps={{ className: 'is-active' }}>
-            Terms
-          </Link>
-          <Link to="/cookies" className="legal-page__nav-link" activeProps={{ className: 'is-active' }}>
-            Cookies
-          </Link>
-          <Link to="/imprint" className="legal-page__nav-link" activeProps={{ className: 'is-active' }}>
-            Imprint
-          </Link>
-        </nav>
-      </header>
-      <main className="legal-page__main">
+      <SiteHeader
+        actions={
+          <Button asChild variant="ghost" size="sm">
+            <Link to="/dashboard">
+              <ArrowLeft aria-hidden />
+              Back to app
+            </Link>
+          </Button>
+        }
+      />
+      <main id="main-content" tabIndex={-1} className="legal-page__main">
         <article className="legal-page__article">
-          <h1 className="legal-page__title">{title}</h1>
-          <p className="legal-page__meta">Last updated {formatLegalDate(lastUpdated)}</p>
+          <PageHeader title={title} meta={[`Last updated ${formatLegalDate(lastUpdated)}`]} />
           <div className="legal-page__body">{children}</div>
+          <nav className="legal-page__nav" aria-label="Legal pages">
+            {LEGAL_PAGES.map((page) => (
+              <Link key={page.to} to={page.to} className="legal-page__nav-link">
+                {page.label}
+              </Link>
+            ))}
+          </nav>
         </article>
       </main>
     </div>

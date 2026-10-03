@@ -187,3 +187,11 @@ describe('row.css numbering and phone rule', () => {
     expect(css).toMatch(/@container kit-list \(max-width: 31\.9375rem\)/)
   })
 })
+
+describe('control.css trailing button', () => {
+  const css = stripped('control.css')
+
+  it('lifts the button 100% width cap inside an adornment: the negative end margin would otherwise squeeze a 44px touch icon button to 32px', () => {
+    expect(css).toMatch(/\.kit-input__adornment\s*>\s*\.kit-button\s*\{\s*max-inline-size:\s*none/)
+  })
+})

@@ -54,7 +54,7 @@ describe('AdminDiscoverySourcesPage', () => {
     expect(await screen.findByText('Licensed Example Feed')).toBeTruthy()
     expect(screen.getByText('Discovery Operations')).toBeTruthy()
     expect(screen.getByText('https://fixture.example/jobs')).toBeTruthy()
-    expect(screen.getByText('accepted')).toBeTruthy()
+    expect(screen.getByText('Accepted')).toBeTruthy()
     expect(screen.getByText('Legal Reviewer', { exact: false })).toBeTruthy()
     expect(screen.getByText('12/minute')).toBeTruthy()
     expect(screen.getByText('Retain 30 days')).toBeTruthy()
@@ -91,11 +91,8 @@ describe('AdminDiscoverySourcesPage', () => {
 
   it('makes the all-disabled empty state explicit', async () => {
     renderPage([])
-    expect(
-      await screen.findByText(
-        'No discovery sources are registered. Ingestion remains disabled.',
-      ),
-    ).toBeTruthy()
+    expect(await screen.findByText('No discovery sources are registered.')).toBeTruthy()
+    expect(screen.getByText('Ingestion remains disabled.')).toBeTruthy()
   })
 
   it('offers a trip control for a live source and fires the kill switch', async () => {
@@ -129,5 +126,41 @@ describe('AdminDiscoverySourcesPage', () => {
     const clear = (await screen.findByText('Clear kill switch')) as HTMLButtonElement
     expect(clear.disabled).toBeTruthy()
     expect(screen.getByText('Accept terms review to clear.')).toBeTruthy()
+  })
+
+  it('says a value every source shares once, in the header, and not in every row', async () => {
+    renderPage([
+      source({ id: 'a', display_name: 'First Feed', owner: 'Platform team', source_family: 'employer_ats' }),
+      source({ id: 'b', display_name: 'Second Feed', owner: 'Platform team', source_family: 'employer_ats' }),
+    ])
+    expect(await screen.findByText('Second Feed')).toBeTruthy()
+    expect(screen.getAllByText('Owner: Platform team')).toHaveLength(1)
+    expect(screen.queryByText('Platform team')).toBeNull()
+    expect(screen.getAllByText('Family: employer_ats')).toHaveLength(1)
+    expect(screen.queryByText('employer_ats')).toBeNull()
+  })
+
+  it('keeps a value that differs between sources in its row', async () => {
+    renderPage([
+      source({ id: 'a', display_name: 'First Feed', owner: 'Platform team' }),
+      source({ id: 'b', display_name: 'Second Feed', owner: 'Operations' }),
+    ])
+    expect(await screen.findByText('Second Feed')).toBeTruthy()
+    expect(screen.getByText('Platform team')).toBeTruthy()
+    expect(screen.getByText('Operations')).toBeTruthy()
+  })
+
+  it('keeps the policy behind a disclosure', async () => {
+    renderPage([source()])
+    expect(await screen.findByText('Licensed Example Feed')).toBeTruthy()
+    expect(screen.queryByText('Show source name and original link')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Policy' }))
+    expect(screen.getByText('Show source name and original link')).toBeTruthy()
+  })
+
+  it('names a refused ingestion and a tripped kill switch', async () => {
+    renderPage([source({ kill_switch: true, ingestion_allowed: false })])
+    expect(await screen.findByText('Refused')).toBeTruthy()
+    expect(screen.getByText('Kill switch on')).toBeTruthy()
   })
 })

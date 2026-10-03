@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
+import { Button } from '#/components/kit'
 import { Menu, X, type LucideIcon } from 'lucide-react'
 import { cn } from '#/lib/utils'
 
@@ -11,7 +12,7 @@ export type NavbarItem = {
   icon: LucideIcon
 }
 
-type NavbarState = 'light' | 'dark'
+type NavbarState = 'top' | 'scrolled'
 
 const SCROLL_THRESHOLD = 60
 
@@ -37,13 +38,13 @@ export function LandingTubelightNavbar({
   // An item with neither `to` nor `href` would render a dead `#` link.
   const items = allItems.filter((item) => item.to || item.href)
   const [isOpen, setIsOpen] = useState(false)
-  const [navState, setNavState] = useState<NavbarState>('light')
+  const [navState, setNavState] = useState<NavbarState>('top')
   const [activeTab, setActiveTab] = useState<string | null>(null)
   const prefersReducedMotion = useReducedMotion() ?? false
   const observerRef = useRef<IntersectionObserver | null>(null)
 
   const handleScroll = useCallback(() => {
-    setNavState(window.scrollY > SCROLL_THRESHOLD ? 'dark' : 'light')
+    setNavState(window.scrollY > SCROLL_THRESHOLD ? 'scrolled' : 'top')
   }, [])
 
   useEffect(() => {
@@ -118,14 +119,15 @@ export function LandingTubelightNavbar({
     onClick?: () => void,
     variant: 'primary' | 'secondary' = 'primary',
   ) => {
-    const cls = cn(
-      'landing-experiment-navbar-cta',
-      variant === 'secondary' && 'landing-experiment-navbar-cta--secondary',
-      mobile && 'landing-experiment-navbar-cta--mobile',
-    )
-
     return to ? (
-      <Link to={to} className={cls} onClick={onClick}>{label}</Link>
+      <Button
+        asChild
+        size={mobile ? 'lg' : 'sm'}
+        variant={variant === 'primary' ? 'primary' : mobile ? 'secondary' : 'ghost'}
+        className={mobile ? 'landing-experiment-navbar-cta--mobile' : undefined}
+      >
+        <Link to={to} onClick={onClick}>{label}</Link>
+      </Button>
     ) : null
   }
 
@@ -135,7 +137,7 @@ export function LandingTubelightNavbar({
       data-state={navState}
       data-reduced-motion={prefersReducedMotion ? 'true' : 'false'}
     >
-      <div className="landing-experiment-navbar-inner" data-state={navState}>
+      <div className="landing-experiment-navbar-inner">
         <div className="landing-experiment-navbar-brand">
           {brand ?? <span className="text-lg font-bold">Brand</span>}
         </div>
@@ -145,23 +147,11 @@ export function LandingTubelightNavbar({
             const active = isItemActive(item)
             return (
               <div key={item.label} className="nav-indicator-wrap">
-                {active && (
-                  <motion.div
-                    layoutId="nav-active-pill"
-                    className="nav-active-indicator"
-                    initial={false}
-                    transition={
-                      prefersReducedMotion
-                        ? { duration: 0 }
-                        : { type: 'spring', stiffness: 400, damping: 32 }
-                    }
-                  />
-                )}
                 {item.to ? (
                   <Link
                     to={item.to}
                     className={cn(
-                      'relative z-10 landing-experiment-navbar-link',
+                      'landing-experiment-navbar-link',
                       active && 'landing-experiment-navbar-link--active',
                     )}
                   >
@@ -171,7 +161,7 @@ export function LandingTubelightNavbar({
                   <a
                     href={item.href as string}
                     className={cn(
-                      'relative z-10 landing-experiment-navbar-link',
+                      'landing-experiment-navbar-link',
                       active && 'landing-experiment-navbar-link--active',
                     )}
                     onClick={(e) => handleAnchorClick(e, item.href as string)}
@@ -195,7 +185,7 @@ export function LandingTubelightNavbar({
           onClick={toggleMenu}
           aria-label={isOpen ? 'Close menu' : 'Open menu'}
         >
-          <Menu className="h-6 w-6" />
+          <Menu aria-hidden="true" />
         </button>
       </div>
 
@@ -203,69 +193,47 @@ export function LandingTubelightNavbar({
         {isOpen ? (
           <motion.div
             className="landing-experiment-navbar-mobile"
-            initial={{ opacity: 0, x: '100%' }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: '100%' }}
-            transition={{
-              type: 'spring',
-              damping: 28,
-              stiffness: 320,
-              duration: prefersReducedMotion ? 0 : undefined,
-            }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: prefersReducedMotion ? 0 : 0.16 }}
           >
             <button
               type="button"
-              className="absolute right-6 top-6 p-2 text-[var(--text-strong)]"
+              className="landing-experiment-navbar-close"
               onClick={toggleMenu}
               aria-label="Close menu"
             >
-              <X className="h-6 w-6" />
+              <X aria-hidden="true" />
             </button>
 
-            <div className="flex flex-col space-y-6 pt-16 px-6">
-              {items.map((item, index) => {
-                const Icon = item.icon
-                return (
-                  <motion.div
+            <div className="landing-experiment-navbar-mobile-body">
+              {items.map((item) =>
+                item.to ? (
+                  <Link
                     key={item.label}
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: index * 0.06 + 0.08 }}
-                    exit={{ opacity: 0, x: 20 }}
+                    to={item.to}
+                    className="landing-experiment-navbar-mobile-link"
+                    onClick={toggleMenu}
                   >
-                    {item.to ? (
-                      <Link
-                        to={item.to}
-                        className="flex items-center gap-3 text-lg font-medium text-[var(--text-strong)] hover:text-[var(--accent)]"
-                        onClick={toggleMenu}
-                      >
-                        <Icon className="h-5 w-5 text-[var(--text-muted)]" />
-                        {item.label}
-                      </Link>
-                    ) : (
-                      <a
-                        href={item.href as string}
-                        className="flex items-center gap-3 text-lg font-medium text-[var(--text-strong)] hover:text-[var(--accent)]"
-                        onClick={(e) => handleAnchorClick(e, item.href as string, toggleMenu)}
-                      >
-                        <Icon className="h-5 w-5 text-[var(--text-muted)]" />
-                        {item.label}
-                      </a>
-                    )}
-                  </motion.div>
-                )
-              })}
+                    {item.label}
+                  </Link>
+                ) : (
+                  <a
+                    key={item.label}
+                    href={item.href as string}
+                    className="landing-experiment-navbar-mobile-link"
+                    onClick={(e) => handleAnchorClick(e, item.href as string, toggleMenu)}
+                  >
+                    {item.label}
+                  </a>
+                ),
+              )}
 
-              <motion.div
-                initial={{ opacity: 0, y: 16 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.35 }}
-                exit={{ opacity: 0, y: 16 }}
-                className="pt-6 flex flex-col gap-3"
-              >
+              <div className="landing-experiment-navbar-mobile-actions">
                 {renderLinkAction(signInLabel, signInTo, true, toggleMenu, 'secondary')}
                 {renderLinkAction(ctaLabel, ctaTo, true, toggleMenu)}
-              </motion.div>
+              </div>
             </div>
           </motion.div>
         ) : null}

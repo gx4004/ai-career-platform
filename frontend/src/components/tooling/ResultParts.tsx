@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react'
+import { createContext, useContext, useEffect, useState } from 'react'
 import type { ReactNode, RefObject } from 'react'
+import { Badge, List, Row, RowBody, RowMeta, RowSubtitle, RowTitle, Section } from '#/components/kit'
+import type { BadgeTone, SectionProps } from '#/components/kit'
 
 /** Shared building blocks for the result report layout (see results.css). */
-
-export type BadgeTone = 'success' | 'warning' | 'danger' | 'accent' | 'neutral'
 
 export function slugify(text: string) {
   return text
@@ -12,36 +12,31 @@ export function slugify(text: string) {
     .replace(/^-+|-+$/g, '')
 }
 
-export function ResultSection({
-  title,
-  meta,
-  actions,
-  children,
-  id,
-}: {
-  title: string
-  meta?: ReactNode
-  actions?: ReactNode
-  children: ReactNode
-  id?: string
-}) {
-  const sectionId = id ?? `sec-${slugify(title)}`
-  return (
-    <section className="rs-section" id={sectionId} aria-labelledby={`${sectionId}-h`} data-toc-title={title}>
-      <div className="rs-section__head">
-        <h2 className="rs-section__title" id={`${sectionId}-h`}>
-          {title}
-        </h2>
-        {meta ? <span className="rs-section__meta">{meta}</span> : null}
-        {actions ? <div className="rs-section__actions">{actions}</div> : null}
-      </div>
-      {children}
-    </section>
-  )
+/** The id a result Section gets from its title, so the table of contents can link to it. */
+export function sectionId(title: string) {
+  return `sec-${slugify(title)}`
 }
 
-export function Badge({ tone = 'neutral', children }: { tone?: BadgeTone; children: ReactNode }) {
-  return <span className={`rbadge rbadge--${tone}`}>{children}</span>
+/** A kit Section that the table of contents can find: its id comes from its title. */
+export function ReportSection({ title, ...props }: Omit<SectionProps, 'id' | 'title'> & { title: string }) {
+  return <Section id={sectionId(title)} data-toc-title={title} title={title} {...props} />
+}
+
+/**
+ * What the report page around a result view needs to know about it. Practice mode takes over the
+ * report; while it runs the page's Re-generate button steps back so the practice card holds the
+ * view's one primary button.
+ */
+export const ResultChromeContext = createContext<{ setPracticing: (practicing: boolean) => void } | null>(null)
+
+/** Tell the report page that the view is (or is no longer) in a focused task. */
+export function useReportPracticing(practicing: boolean) {
+  const chrome = useContext(ResultChromeContext)
+  const setPracticing = chrome?.setPracticing
+  useEffect(() => {
+    setPracticing?.(practicing)
+    return () => setPracticing?.(false)
+  }, [practicing, setPracticing])
 }
 
 const SEVERITY: Record<string, { label: string; tone: BadgeTone }> = {
@@ -55,52 +50,70 @@ export function SeverityBadge({ level }: { level: string }) {
   return <Badge tone={entry.tone}>{entry.label}</Badge>
 }
 
-export function scoreTone(score: number): 'success' | 'warning' | 'danger' {
-  if (score >= 70) return 'success'
-  if (score >= 41) return 'warning'
-  return 'danger'
+export type ResultItem = {
+  key: string
+  /** One line: the thing the row is about. */
+  title: ReactNode
+  /** One quiet line under the title. */
+  detail?: ReactNode
+  /** Severity or status at the end of the row. */
+  meta?: ReactNode
+  /** More content under the detail (a KeyValue of "Why it matters / Fix"). */
+  body?: ReactNode
 }
 
-/** Thin inline bar; always paired with the number it depicts. */
-export function MiniBar({ value, tone }: { value: number; tone?: 'success' | 'warning' | 'danger' | 'accent' }) {
-  const clamped = Math.max(0, Math.min(100, value))
+/**
+ * The one list of a report: optional number, title, status and a line of detail. Every list of every
+ * result page is this, so a fix, a step, a project and a question all look the same.
+ */
+export function ResultList({
+  items,
+  numbered = false,
+  label,
+  density,
+}: {
+  items: ResultItem[]
+  numbered?: boolean
+  label: string
+  density?: 'compact' | 'comfortable'
+}) {
   return (
-    <span className="rbar" aria-hidden="true">
-      <span className={`rbar__fill rbar__fill--${tone ?? scoreTone(value)}`} style={{ width: `${clamped}%` }} />
-    </span>
+    <List numbered={numbered} aria-label={label}>
+      {items.map((item) => (
+        <Row key={item.key} density={density} className={item.body ? 'result-row--stacked' : undefined}>
+          <RowBody>
+            <RowTitle>{item.title}</RowTitle>
+            {item.detail ? <RowSubtitle>{item.detail}</RowSubtitle> : null}
+            {item.body}
+          </RowBody>
+          {item.meta ? <RowMeta>{item.meta}</RowMeta> : null}
+        </Row>
+      ))}
+    </List>
   )
 }
 
-/** Plain comma-separated list of short terms (keywords, skills), optionally led by a count label. */
-export function TokenList({
-  items,
-  tone = 'neutral',
-  label,
-}: {
-  items: string[]
-  tone?: BadgeTone
-  prefix?: string
-  label?: string
-}) {
-  if (items.length === 0) return null
+/** A paragraph of report text (a rationale, a summary). `strong` is the opening line of a block. */
+export function Prose({ children, strong = false }: { children: ReactNode; strong?: boolean }) {
   return (
-    <p className={`rtokens${tone === 'warning' ? ' rtokens--missing' : ''}`}>
-      {label ? <span className="rtokens__label">{label} ({items.length})</span> : null}
-      {items.join(', ')}
+    <p className="result-prose" data-strong={strong || undefined}>
+      {children}
     </p>
   )
 }
 
-export function Field({ label, children }: { label: string; children: ReactNode }) {
+/** Short lines under one label (key points, hiring signals), one per line, no bullets. */
+export function Lines({ items }: { items: string[] }) {
   return (
-    <div className="rfield">
-      <dt>{label}</dt>
-      <dd>{children}</dd>
-    </div>
+    <ul className="result-lines" role="list">
+      {items.map((item, i) => (
+        <li key={`${i}-${item}`}>{item}</li>
+      ))}
+    </ul>
   )
 }
 
-/** Sticky table of contents built from the rendered `.rs-section` headings. */
+/** Table of contents built from the rendered result Sections (those carrying data-toc-title). */
 export function ResultToc({ containerRef }: { containerRef: RefObject<HTMLElement | null> }) {
   const [entries, setEntries] = useState<Array<{ id: string; title: string }>>([])
   const [active, setActive] = useState<string | null>(null)
@@ -109,7 +122,7 @@ export function ResultToc({ containerRef }: { containerRef: RefObject<HTMLElemen
     const el = containerRef.current
     if (!el) return
     const scan = () => {
-      const next = Array.from(el.querySelectorAll<HTMLElement>('section.rs-section[data-toc-title]')).map((s) => ({
+      const next = Array.from(el.querySelectorAll<HTMLElement>('section[data-toc-title]')).map((s) => ({
         id: s.id,
         title: s.dataset.tocTitle ?? '',
       }))
@@ -145,24 +158,28 @@ export function ResultToc({ containerRef }: { containerRef: RefObject<HTMLElemen
 
   return (
     <nav className="result-toc" aria-label="On this page">
-      <div className="result-toc__title">On this page</div>
-      <ul>
+      <p className="result-toc__title">On this page</p>
+      <List aria-label="Sections">
         {entries.map((entry) => (
-          <li key={entry.id}>
-            <a
-              href={`#${entry.id}`}
-              className={active === entry.id ? 'result-toc__link result-toc__link--active' : 'result-toc__link'}
-              onClick={(e) => {
-                e.preventDefault()
-                document.getElementById(entry.id)?.scrollIntoView({ block: 'start' })
-                setActive(entry.id)
-              }}
-            >
-              {entry.title}
-            </a>
-          </li>
+          <Row key={entry.id} density="compact" selected={active === entry.id} interactive>
+            <RowBody>
+              <RowTitle asChild>
+                <a
+                  href={`#${entry.id}`}
+                  aria-current={active === entry.id ? 'location' : undefined}
+                  onClick={(e) => {
+                    e.preventDefault()
+                    document.getElementById(entry.id)?.scrollIntoView({ block: 'start' })
+                    setActive(entry.id)
+                  }}
+                >
+                  {entry.title}
+                </a>
+              </RowTitle>
+            </RowBody>
+          </Row>
         ))}
-      </ul>
+      </List>
     </nav>
   )
 }

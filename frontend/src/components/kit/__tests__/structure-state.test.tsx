@@ -17,6 +17,17 @@ describe('kit EmptyState', () => {
     expect((container.firstElementChild as HTMLElement).getAttribute('data-size')).toBe('page')
   })
 
+  it('can carry the page heading on a full-page state', () => {
+    render(<EmptyState size="page" headingLevel={1} title="Nothing here" />)
+    expect(screen.getByRole('heading', { level: 1, name: 'Nothing here' })).toBeTruthy()
+  })
+
+  it('can be an inline placeholder for a narrow slot', () => {
+    const { container } = render(<EmptyState size="inline" title="Offers on the table" />)
+    expect((container.firstElementChild as HTMLElement).getAttribute('data-size')).toBe('inline')
+    expect(screen.getByText('Offers on the table').className).toContain('kit-empty__title')
+  })
+
   it('renders only what it is given', () => {
     const { container } = render(<EmptyState title="You have seen every match" />)
     expect(container.querySelector('.kit-empty__text')).toBeNull()

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useId, useMemo, useState } from 'react'
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
@@ -12,13 +12,25 @@ import {
   SquareKanban,
   UserRound,
 } from 'lucide-react'
-import { Dialog, DialogContent, DialogDescription, DialogTitle } from '#/components/ui/dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+  EmptyState,
+  Input,
+  Kbd,
+  Row,
+  RowBody,
+  RowLeading,
+  RowMeta,
+  RowTitle,
+} from '#/components/kit'
 import { useSession } from '#/hooks/useSession'
 import { listApplications } from '#/lib/api/client'
 import { navGroups } from '#/lib/navigation/navGroups'
 import { APPLICATION_BOARD_QUERY_KEY } from '#/lib/query/applicationCaches'
 import { toolList } from '#/lib/tools/registry'
-import { cn } from '#/lib/utils'
 
 /** Event the sidebar's search button dispatches to open the palette. */
 export const OPEN_COMMAND_PALETTE_EVENT = 'cw:open-command-palette'
@@ -49,15 +61,18 @@ function matches(item: PaletteItem, query: string) {
 
 /**
  * ⌘K / Ctrl+K palette: jump to any page, tool or application by typing.
- * Built on the Dialog primitive; arrow keys move, Enter opens, Esc closes.
+ * A kit Dialog holding a combobox and a listbox of kit Rows; arrow keys move, Enter opens, Esc closes.
  */
 export function CommandPalette() {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [active, setActive] = useState(0)
-  const listRef = useRef<HTMLUListElement | null>(null)
+  // The results element mounts with the dialog's portal, a commit after `open` flips, so it is state, not a plain ref.
+  const [listEl, setListEl] = useState<HTMLDivElement | null>(null)
+  const [scrollable, setScrollable] = useState(false)
   const navigate = useNavigate()
   const { user } = useSession()
+  const listId = useId()
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -133,15 +148,34 @@ export function CommandPalette() {
 
   const visible = useMemo(() => items.filter((item) => matches(item, query.trim())), [items, query])
 
+  // Consecutive items of one group sit under one heading; `index` is the item's place in the whole list.
+  const groups = useMemo(() => {
+    const result: Array<{ name: string; entries: Array<{ item: PaletteItem; index: number }> }> = []
+    visible.forEach((item, index) => {
+      const last = result[result.length - 1]
+      if (last && last.name === item.group) last.entries.push({ item, index })
+      else result.push({ name: item.group, entries: [{ item, index }] })
+    })
+    return result
+  }, [visible])
+
   useEffect(() => {
     setActive(0)
   }, [query])
 
   useEffect(() => {
-    listRef.current
-      ?.querySelector<HTMLElement>(`[data-index="${active}"]`)
-      ?.scrollIntoView({ block: 'nearest' })
-  }, [active])
+    listEl?.querySelector<HTMLElement>(`[data-index="${active}"]`)?.scrollIntoView({ block: 'nearest' })
+  }, [active, listEl])
+
+  // A list that scrolls must be reachable from the keyboard on its own, as in a Dialog body.
+  useEffect(() => {
+    if (!listEl) return
+    const measure = () => setScrollable(listEl.scrollHeight > listEl.clientHeight + 1)
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(listEl)
+    return () => observer.disconnect()
+  }, [listEl, visible.length])
 
   const go = (item: PaletteItem | undefined) => {
     if (!item) return
@@ -162,60 +196,84 @@ export function CommandPalette() {
     }
   }
 
-  let lastGroup = ''
+  const optionId = (item: PaletteItem) => `${listId}-${item.id.replace(/[^a-zA-Z0-9_-]/g, '_')}`
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="command-palette" showCloseButton={false}>
-        <DialogTitle className="sr-only">Search</DialogTitle>
-        <DialogDescription className="sr-only">
+      <DialogContent size="md" showClose={false} className="app-palette">
+        <DialogTitle visuallyHidden>Search</DialogTitle>
+        <DialogDescription visuallyHidden>
           Jump to a page, tool or application. Use the arrow keys and Enter.
         </DialogDescription>
-        <div className="command-palette__search">
-          <Search size={16} aria-hidden="true" />
-          <input
-            autoFocus
+        <div className="app-palette__search">
+          <Input
+            size="lg"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             onKeyDown={onKeyDown}
-            placeholder="Search pages, tools and applications…"
+            placeholder="Search"
             aria-label="Search"
+            autoComplete="off"
+            spellCheck={false}
             role="combobox"
-            aria-expanded="true"
-            aria-controls="command-palette-list"
-            aria-activedescendant={visible[active] ? `command-palette-${visible[active].id}` : undefined}
+            aria-expanded={visible.length > 0}
+            aria-controls={visible.length > 0 ? listId : undefined}
+            aria-autocomplete="list"
+            aria-activedescendant={visible[active] ? optionId(visible[active]) : undefined}
+            leading={<Search aria-hidden />}
+            trailing={<Kbd className="app-palette__esc">Esc</Kbd>}
           />
-          <kbd>Esc</kbd>
         </div>
-        <ul id="command-palette-list" ref={listRef} className="command-palette__list" role="listbox">
+        <div ref={setListEl} className="app-palette__results" tabIndex={scrollable ? 0 : undefined}>
           {visible.length === 0 ? (
-            <li className="command-palette__empty">No results for “{query}”</li>
+            <EmptyState
+              role="status"
+              title={`No results for “${query}”`}
+              description="Try a page, tool or application name."
+            />
           ) : (
-            visible.map((item, index) => {
-              const heading = item.group !== lastGroup ? item.group : null
-              lastGroup = item.group
-              return (
-                <li key={item.id} role="presentation">
-                  {heading ? <div className="command-palette__group">{heading}</div> : null}
-                  <div
-                    id={`command-palette-${item.id}`}
-                    role="option"
-                    aria-selected={index === active}
-                    data-index={index}
-                    className={cn('command-palette__item', index === active && 'is-active')}
-                    onMouseMove={() => setActive(index)}
-                    onClick={() => go(item)}
-                  >
-                    <item.icon size={15} aria-hidden="true" />
-                    <span className="command-palette__label">{item.label}</span>
-                    {item.hint ? <span className="command-palette__hint">{item.hint}</span> : null}
-                    {index === active ? <CornerDownLeft size={13} className="command-palette__enter" aria-hidden="true" /> : null}
+            <div id={listId} role="listbox" aria-label="Results">
+              {groups.map((group, groupIndex) => (
+                <div
+                  key={group.name}
+                  role="group"
+                  aria-labelledby={`${listId}-group-${groupIndex}`}
+                  className="app-palette__group"
+                >
+                  <div id={`${listId}-group-${groupIndex}`} className="app-palette__heading" role="presentation">
+                    {group.name}
                   </div>
-                </li>
-              )
-            })
+                  {group.entries.map(({ item, index }) => (
+                    <Row
+                      key={item.id}
+                      as="div"
+                      density="compact"
+                      role="option"
+                      id={optionId(item)}
+                      aria-selected={index === active}
+                      selected={index === active}
+                      interactive
+                      data-index={index}
+                      onMouseMove={() => setActive(index)}
+                      onClick={() => go(item)}
+                    >
+                      <RowLeading>
+                        <item.icon aria-hidden />
+                      </RowLeading>
+                      <RowBody>
+                        <RowTitle>{item.label}</RowTitle>
+                      </RowBody>
+                      <RowMeta className="app-palette__meta">
+                        {item.hint}
+                        {index === active ? <CornerDownLeft aria-hidden /> : null}
+                      </RowMeta>
+                    </Row>
+                  ))}
+                </div>
+              ))}
+            </div>
           )}
-        </ul>
+        </div>
       </DialogContent>
     </Dialog>
   )

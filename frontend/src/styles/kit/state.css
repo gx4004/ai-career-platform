@@ -17,6 +17,10 @@
   padding-block: var(--space-16) var(--space-8);
 }
 
+.kit-empty[data-size='inline'] {
+  padding-block: var(--space-1);
+}
+
 .kit-empty__title {
   max-width: 36rem;
   margin: 0;
@@ -28,6 +32,15 @@
   letter-spacing: var(--ls-title);
   overflow-wrap: anywhere;
   text-wrap: balance;
+}
+
+.kit-empty[data-size='inline'] .kit-empty__title {
+  color: var(--text-muted);
+  font-family: var(--font-sans);
+  font-size: var(--fs-body);
+  font-weight: var(--fw-regular);
+  line-height: var(--lh-body);
+  letter-spacing: 0;
 }
 
 .kit-empty__text {

@@ -100,6 +100,11 @@ export function StateSection() {
           <Specimen label="compact, title only">
             <EmptyState title="You have seen every match" />
           </Specimen>
+          <Specimen label="inline: a quiet placeholder in a narrow slot (board column, side rail)">
+            <div className="kit-gallery__narrow">
+              <EmptyState size="inline" title="Offers on the table" />
+            </div>
+          </Specimen>
           <Specimen label="compact, long text">
             <EmptyState
               title="Connect employer boards to see their openings here, or paste a job description yourself"

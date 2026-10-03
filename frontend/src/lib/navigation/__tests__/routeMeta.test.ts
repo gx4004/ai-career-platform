@@ -7,10 +7,9 @@ describe('getRouteMeta', () => {
     expect(meta.title).toBe('Dashboard')
     expect(meta.sectionLabel).toBe('Command center')
     expect(meta.breadcrumbs).toEqual(['Dashboard'])
-    expect(meta.topbarVariant).toBe('compact')
   })
 
-  it('returns history, account, and settings with compact topbar + breadcrumb trails', () => {
+  it('returns history, account, and settings with breadcrumb trails', () => {
     expect(getRouteMeta('/history').title).toBe('Run History')
     expect(getRouteMeta('/history').breadcrumbs).toEqual(['Dashboard', 'History'])
     expect(getRouteMeta('/account').title).toBe('Account')
@@ -52,6 +51,5 @@ describe('getRouteMeta', () => {
     const meta = getRouteMeta('/some-other-path')
     expect(meta.title).toBe('Career Workbench')
     expect(meta.sectionLabel).toBe('Workspace')
-    expect(meta.topbarVariant).toBe('standard')
   })
 })

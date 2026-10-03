@@ -1,353 +1,32 @@
-.import-card {
-  display: grid;
-  gap: 0.625rem;
+/* ═══════════════════════════════════════════════════
+   Tool input pages. The page, header, form fields, lists and buttons
+   are kit components; this file only holds the run loader (the kit has
+   no spinner or progress piece) and two layout helpers.
+   ═══════════════════════════════════════════════════ */
+
+/* A text-only action at the start of a column: the link variant has no padding, so it lines up with the fields above. On touch it gets the full tap height the variant leaves out. */
+@media (pointer: coarse) {
+  .kit-button.tool-link {
+    min-height: var(--kit-h-lg);
+  }
 }
 
-.import-card-attach {
-  margin-top: 0.75rem;
-}
-
-/* R13 campaign attach block inside .import-card. */
-.import-card-attach {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  cursor: pointer;
-  width: fit-content;
-  font-size: 0.8125rem;
-  color: var(--text-body);
-}
-
-.import-card-attach input[type="checkbox"] {
-  width: 16px;
-  height: 16px;
-  accent-color: var(--accent);
-  cursor: pointer;
-}
-
-.import-card-panel {
-  padding: 0.75rem;
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--border-soft);
-  background: var(--surface-raised);
-}
-
-.import-card-textarea {
-  width: 100%;
-  min-height: 6rem;
-  padding: 8px 12px;
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--border-control);
-  background: var(--surface-raised);
-  color: var(--foreground);
-  font-size: 0.875rem;
-  font-family: inherit;
-  resize: vertical;
-  transition: border-color 120ms ease;
-}
-
-.import-card-textarea:focus-visible {
-  outline: none;
-  border-color: var(--accent);
-}
-
-/* ── Workspace Picker ── */
-.workspace-picker {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin-bottom: 1rem;
-}
-.workspace-picker-label {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 0.85rem;
-  font-weight: 500;
-  opacity: 0.8;
-}
-.workspace-picker-select {
-  padding: 8px 12px;
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--border-control);
-  background: var(--surface-raised);
-  color: var(--foreground);
-  font-size: 0.875rem;
-  transition: border-color 120ms ease;
-}
-
-.workspace-picker-select:focus-visible {
-  outline: none;
-  border-color: var(--accent);
-}
-
-/* ── Interview Practice Mode ── */
-.practice-mode {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  padding: 1.5rem;
-  max-width: 720px;
-  margin: 0 auto;
-}
-.practice-mode-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-.practice-mode-progress {
-  font-size: 0.85rem;
-  opacity: 0.6;
-}
-.practice-mode-question h3 {
-  font-size: 1.1rem;
-  line-height: 1.5;
-  margin-top: 0.5rem;
-}
-.practice-mode-difficulty {
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  opacity: 0.5;
-}
-.practice-mode-answer {
-  width: 100%;
-  padding: 12px 16px;
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--border-soft);
-  background: var(--surface-raised);
-  color: var(--foreground);
-  font-size: 0.9rem;
-  line-height: 1.6;
-  resize: vertical;
-  min-height: 120px;
-  transition: border-color 120ms ease;
-}
-
-.practice-mode-answer:focus-visible {
-  outline: none;
-  border-color: var(--tool-accent, var(--accent));
-  box-shadow: var(--focus-ring);
-}
-.practice-mode-actions {
-  display: flex;
-  gap: 0.5rem;
-}
-.practice-mode-error {
-  margin-top: 0.75rem;
-  padding: 0.65rem 0.85rem;
-  border-radius: var(--radius-md);
-  background: var(--danger-bg);
-  border: 1px solid var(--danger-border);
-  color: var(--danger-fg);
-  font-size: 0.85rem;
-  line-height: 1.4;
-}
-.practice-mode-feedback {
-  padding: 1rem;
-  border-radius: var(--radius-xl);
-  background: var(--surface-raised);
-  border: 1px solid var(--border-soft);
-  box-shadow: var(--shadow-soft);
-}
-.practice-mode-overall {
-  font-size: 0.95rem;
-  line-height: 1.5;
-  margin-bottom: 1rem;
-}
-.practice-feedback-section {
-  margin-top: 0.75rem;
-}
-.practice-feedback-section h4 {
-  font-size: 0.85rem;
-  font-weight: 600;
-  margin-bottom: 0.4rem;
-}
-.practice-feedback-section ul {
-  padding-left: 1.2rem;
-  font-size: 0.85rem;
-  line-height: 1.6;
-}
-.practice-feedback-strengths h4 { color: var(--success); }
-.practice-feedback-weaknesses h4 { color: var(--destructive); }
-.practice-feedback-suggestions h4 { color: var(--accent); }
-.practice-mode-nav {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 0.5rem;
-}
-
-/* ── Job Match Keyword Cards ── */
-
-/* ── Tool input pages: plain form column ─────────────────────────────── */
-
-/* Left-aligned on the same gutter as the title; the form never runs wider than 55rem. */
-.tool-page-body {
-  max-width: 58rem;
-  padding: 0 var(--space-page-x) 3rem;
-  margin: 0;
-  display: grid;
-  gap: 1rem;
-  align-content: start;
-}
-
-.tool-page-body > * {
-  max-width: 55rem;
-}
-
-.tool-form {
-  display: grid;
-  gap: 1.25rem;
-}
-
-.tool-field {
-  display: grid;
-  gap: 0.375rem;
-  min-width: 0;
-}
-
-.tool-field-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 0.5rem;
-}
-
-.tool-field-label {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 0.5rem;
-  font-size: 0.8125rem;
-  font-weight: 500;
-  line-height: 1.3;
-  color: var(--text-strong);
-}
-
-.tool-field-meta {
-  font-size: 0.75rem;
-  font-weight: 400;
-  color: var(--text-muted);
-}
-
-.tool-field-note {
-  margin: 0;
-  font-size: 0.75rem;
-  line-height: 1.4;
-  color: var(--text-muted);
-}
-
-.tool-field-error {
-  margin: 0;
-  font-size: 0.75rem;
-  line-height: 1.4;
-  color: var(--destructive);
-}
-
-/* Hairline inputs inside the form column */
-.tool-form [data-slot='input'],
-.tool-form [data-slot='textarea'],
-.tool-form select {
-  border: 1px solid var(--border-control);
-  border-radius: var(--radius-md);
-  background: var(--surface-raised);
-  box-shadow: none;
-  font-size: 0.875rem;
-  transition: border-color 120ms ease;
-}
-
-.tool-form [data-slot='input']:focus-visible,
-.tool-form [data-slot='textarea']:focus-visible {
-  border-color: var(--accent);
-  box-shadow: var(--focus-ring);
-  outline: none;
-}
-
-.tool-form [data-slot='textarea'] {
-  min-height: 9rem;
-  padding: 0.5rem 0.75rem;
-}
-
-/* Resume source: bordered row or modest dropzone */
-.tool-source {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  min-height: 2.75rem;
-  padding: 0.375rem 0.5rem 0.375rem 0.75rem;
-  border: 1px solid var(--border-soft);
-  border-radius: var(--radius-lg);
-  background: var(--surface-raised);
-  font-size: 0.8125rem;
-  color: var(--text-body);
-}
-
-.tool-source-name {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-weight: 500;
-  color: var(--text-strong);
-}
-
-.tool-source-meta {
-  font-size: 0.75rem;
-  color: var(--text-muted);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-
-.tool-source-spacer {
-  flex: 1;
-}
-
-.tool-source-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.375rem;
-}
-
-.tool-dropzone {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.625rem 1rem;
-  min-height: var(--row-h-lg);
-  padding: 0.5rem 0.75rem;
-  border: 1px solid var(--border-control);
-  border-radius: var(--radius-md);
-  background: var(--surface-raised);
-  transition: border-color 120ms ease, background-color 120ms ease;
-}
-
-.tool-dropzone[data-drag] {
-  border-color: var(--accent);
-  background: var(--accent-subtle);
-}
-
-.tool-dropzone-text {
-  margin: 0;
-  font-size: 0.8125rem;
-  color: var(--text-body);
-}
-
-.tool-source-warnings {
-  margin: 0;
-  padding-left: 1rem;
-  font-size: 0.75rem;
-  color: var(--warning);
+/* The "attach to an application" sub-form: indented under its checkbox behind a hairline, so it reads as part of that choice. */
+.tool-attach {
+  padding-inline-start: var(--space-4);
+  border-inline-start: 1px solid var(--border-soft);
 }
 
 .tool-spinner {
   display: inline-block;
-  width: 0.875rem;
-  height: 0.875rem;
-  flex-shrink: 0;
+  flex: none;
+  inline-size: 0.875rem;
+  block-size: 0.875rem;
+  margin-inline-end: var(--space-2);
+  vertical-align: -0.125rem;
   border: 2px solid var(--border-strong);
-  border-top-color: var(--accent);
-  border-radius: 50%;
+  border-block-start-color: var(--accent);
+  border-radius: var(--radius-pill);
   animation: tool-spin 800ms linear infinite;
 }
 
@@ -357,201 +36,77 @@
   }
 }
 
-/* Segmented picker (tone, question count) */
-.tool-segmented {
-  display: inline-flex;
-  width: fit-content;
-  max-width: 100%;
-  flex-wrap: wrap;
-  border: 1px solid var(--border-control);
-  border-radius: var(--radius-md);
-  background: var(--surface-raised);
-  overflow: hidden;
-}
-
-.tool-segmented-option {
-  min-width: 4.5rem;
-  height: var(--control-lg);
-  padding: 0 0.875rem;
-  border: 0;
-  border-right: 1px solid var(--border-strong);
-  background: transparent;
-  font-size: 0.8125rem;
-  color: var(--text-body);
-  cursor: pointer;
-  transition: background-color 120ms ease, color 120ms ease;
-}
-
-.tool-segmented-option:last-child {
-  border-right: 0;
-}
-
-.tool-segmented-option:hover {
-  background: var(--surface-focus);
-}
-
-.tool-segmented-option[aria-pressed='true']:hover {
-  background: var(--accent-hover);
-}
-
-.tool-segmented-option[aria-pressed='true'] {
-  background: var(--accent);
-  color: var(--accent-on);
-  font-weight: var(--fw-medium);
-}
-
-.tool-segmented-option:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: -2px;
-}
-
-/* Submit */
-.tool-submit-row {
-  display: grid;
-  justify-items: start;
-  gap: 0.5rem;
-  padding-top: 0.25rem;
-}
-
-/* Slim inline notices (guest + workflow carry-over) */
-.tool-notice {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.375rem 0.75rem;
-  border: 1px solid var(--border-soft);
-  border-radius: var(--radius-md);
-  background: var(--surface-focus);
-  font-size: 0.75rem;
-  color: var(--text-muted);
-}
-
-.tool-notice-text {
-  flex: 1;
-  min-width: 0;
-}
-
-.tool-notice-text strong {
-  font-weight: 500;
-  color: var(--text-strong);
-}
-
-.tool-notice-link {
-  color: var(--accent);
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-
-.guest-save-banner-close {
-  display: inline-flex;
-  padding: 0.125rem;
-  border: 0;
-  background: transparent;
-  color: var(--text-muted);
-  cursor: pointer;
-}
-
-.guest-save-banner-close:hover {
-  color: var(--text-strong);
-}
-
-/* Loading: one status line + thin progress bar */
+/* The loader takes the form's footprint, so the page does not collapse to one line while a run is in flight. */
 .tool-loading {
-  max-width: 28rem;
+  display: grid;
+  align-content: center;
+  min-block-size: 20rem;
 }
 
 .cinematic-loader {
   display: grid;
-  gap: 0.5rem;
+  gap: var(--space-3);
+  max-inline-size: 28rem;
 }
 
 .cinematic-line {
   display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.8125rem;
-  color: var(--text-body);
+  align-items: flex-start;
+  gap: var(--space-2);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
 }
 
+.cinematic-line > .tool-spinner {
+  margin-block-start: 0.1875rem;
+  margin-inline-end: 0;
+}
+
+.cinematic-status {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.cinematic-status__lead,
+.cinematic-status__step {
+  display: block;
+}
+
+.cinematic-status__lead {
+  color: var(--text-strong);
+}
+
+.cinematic-status__step {
+  color: var(--text-muted);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+}
+
+/* One segment per step, filled as steps pass: no inline width, and the bar only ever moves by whole steps. */
 .cinematic-progress {
-  height: 3px;
-  border-radius: 2px;
-  background: var(--border-soft);
-  overflow: hidden;
-}
-
-.cinematic-progress-bar {
-  height: 100%;
-  background: var(--accent);
-  transition: width 600ms ease-out;
-}
-
-/* Job import: one row, no card */
-.import-card-row {
   display: flex;
-  gap: 0.5rem;
+  gap: var(--space-1);
 }
 
-.import-card-row > [data-slot='input'] {
+.cinematic-progress__step {
   flex: 1;
+  block-size: 0.25rem;
+  border-radius: var(--radius-pill);
+  background: var(--surface-sunken);
+  transition: background-color 400ms var(--ease-out);
 }
 
-.import-card > .tool-field > .tool-field-error {
-  margin-top: 0.25rem;
-}
-
-@media (max-width: 640px) {
-  .tool-page-body {
-    padding: 0 var(--space-page-x) 2rem;
-  }
-
-  .tool-segmented-option {
-    height: var(--touch-target);
-  }
-
-  .tool-source {
-    flex-wrap: wrap;
-  }
-}
-
-/* Flat buttons inside the form column (base.css still carries gradient/glow variants). */
-.tool-form [data-slot='button'] {
-  box-shadow: none;
-  transform: none;
-}
-
-.tool-form [data-slot='button'][data-variant='default'] {
-  border-color: var(--accent);
+.cinematic-progress__step[data-filled] {
   background: var(--accent);
-  box-shadow: none;
 }
 
-.tool-form [data-slot='button'][data-variant='default']:hover {
-  background: var(--accent-hover);
-  box-shadow: none;
-}
+/* Feedback, not decoration: the spinner slows down under reduced motion instead of stopping, the bar just jumps. */
+@media (prefers-reduced-motion: reduce) {
+  .tool-spinner {
+    animation-duration: 2.4s;
+  }
 
-.tool-form [data-slot='button'][data-variant='outline'] {
-  border-color: var(--border-strong);
-  background: var(--surface-raised);
-  box-shadow: none;
+  .cinematic-progress__step {
+    transition: none;
+  }
 }
-
-.tool-form [data-slot='button'][data-variant='outline']:hover,
-.tool-form [data-slot='button'][data-variant='ghost']:hover {
-  background: var(--surface-focus);
-  box-shadow: none;
-}
-
-.import-card-row [data-slot='button'] {
-  height: 2.25rem;
-}
-
-/* Recent runs under the form */
-.tool-recent { margin-top: 1.5rem; }
-.tool-recent__title { margin: 0 0 0.5rem; font-size: var(--fs-section); font-weight: var(--fw-semibold); color: var(--text-strong); }
-.tool-recent__list { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--divider); }
-.tool-recent__list li { display: flex; align-items: center; justify-content: space-between; gap: 1rem; min-height: var(--row-h-lg); border-bottom: 1px solid var(--divider); font-size: var(--fs-body); }
-.tool-recent__list a { color: var(--text-strong); text-decoration: none; }
-.tool-recent__list a:hover { color: var(--accent); }
-.tool-recent__date { flex: none; font-size: var(--fs-meta); color: var(--text-muted); font-variant-numeric: tabular-nums; }
