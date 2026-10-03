@@ -39,7 +39,7 @@
   transition: background 120ms, color 120ms;
 }
 
-.admin-sidebar-link:hover { background: rgba(24, 24, 27, 0.05); color: var(--text-strong); }
+.admin-sidebar-link:hover { background: rgba(40, 32, 20, 0.05); color: var(--text-strong); }
 .admin-sidebar-link:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .admin-sidebar-link.is-active { background: var(--surface-raised); color: var(--text-strong); box-shadow: 0 0 0 1px var(--border-soft); }
 .admin-sidebar-link svg { width: 0.9rem; height: 0.9rem; color: var(--text-muted); }
@@ -238,7 +238,7 @@
 
 /* ─── Detail modal ─── */
 
-.admin-modal-backdrop { position: fixed; inset: 0; background: rgba(24, 24, 27, 0.4); display: flex; align-items: center; justify-content: center; z-index: 50; }
+.admin-modal-backdrop { position: fixed; inset: 0; background: rgba(40, 32, 20, 0.4); display: flex; align-items: center; justify-content: center; z-index: 50; }
 .admin-modal-panel { background: var(--surface-raised); border-radius: var(--radius-xl); border: 1px solid var(--border-soft); width: 90%; max-width: 720px; max-height: 85vh; overflow: auto; padding: 1.25rem; }
 .admin-modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; }
 .admin-modal-title { font-size: 1rem; font-weight: 600; }

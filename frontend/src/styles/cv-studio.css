@@ -822,7 +822,7 @@
   overflow: hidden;
   border-radius: 3px;
   background: #fff;
-  box-shadow: 0 0 0 1px rgba(24, 24, 27, 0.08), 0 2px 8px rgba(24, 24, 27, 0.08);
+  box-shadow: 0 0 0 1px rgba(40, 32, 20, 0.08), 0 2px 8px rgba(40, 32, 20, 0.08);
 }
 
 .cvp-paper {

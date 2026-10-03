@@ -78,7 +78,7 @@ body,
 }
 
 .app-sidebar-brand-toggle:hover {
-  background: rgba(24, 24, 27, 0.06) !important;
+  background: rgba(40, 32, 20, 0.06) !important;
   color: var(--text-strong) !important;
 }
 
@@ -122,7 +122,7 @@ body,
 
 .app-sidebar-menu-button:hover,
 .app-sidebar-menu-button:focus-visible {
-  background: rgba(24, 24, 27, 0.05) !important;
+  background: rgba(40, 32, 20, 0.05) !important;
   color: var(--text-strong) !important;
 }
 
@@ -131,7 +131,7 @@ body,
 [data-slot='sidebar'][data-state='collapsed'] [data-sidebar='menu-button'][data-active='true'].app-sidebar-menu-button {
   background: var(--surface-raised) !important;
   color: var(--text-strong) !important;
-  box-shadow: 0 0 0 1px var(--border-soft), 0 1px 2px rgba(24, 24, 27, 0.05) !important;
+  box-shadow: 0 0 0 1px var(--border-soft), 0 1px 2px rgba(40, 32, 20, 0.05) !important;
 }
 
 .app-sidebar-item-icon,
@@ -204,7 +204,7 @@ body,
 }
 
 .topbar .button-session-avatar:hover {
-  background: rgba(24, 24, 27, 0.05);
+  background: rgba(40, 32, 20, 0.05);
   color: var(--text-strong);
 }
 
@@ -324,7 +324,7 @@ body,
 
 .button-hero-primary,
 .page-header__action [data-slot='button'] {
-  box-shadow: 0 1px 2px rgba(24, 24, 27, 0.08);
+  box-shadow: 0 1px 2px rgba(40, 32, 20, 0.08);
 }
 
 /* ── Surfaces: hairline borders instead of floating shadows ────────── */
@@ -492,7 +492,7 @@ html:has(.cookie-banner) .app-main {
   overflow: hidden;
   border-radius: var(--radius-xl);
   background: var(--surface-raised);
-  box-shadow: 0 24px 64px -12px rgba(24, 24, 27, 0.28), 0 0 0 1px var(--border-soft);
+  box-shadow: 0 24px 64px -12px rgba(40, 32, 20, 0.28), 0 0 0 1px var(--border-soft);
 }
 
 .command-palette__search {
@@ -605,7 +605,7 @@ html:has(.cookie-banner) .app-main {
 
 /* Dialog backdrops: a light dim, no blur. */
 [data-slot='dialog-overlay'] {
-  background: rgba(24, 24, 27, 0.18) !important;
+  background: rgba(40, 32, 20, 0.18) !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
 }
