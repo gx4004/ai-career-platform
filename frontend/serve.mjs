@@ -94,7 +94,8 @@ function securityHeaders(req) {
       "frame-ancestors 'none'",
       "form-action 'self'",
       `connect-src ${[...connectOrigins].join(' ')}`,
-      "font-src 'self' https://fonts.gstatic.com",
+      // Fonts are self-hosted (@fontsource woff2 files under /assets/); no third-party font host.
+      "font-src 'self'",
       // The CV Studio preview frames a blob: URL it created itself
       // (src/components/cv-studio/CvPreview.tsx). blob: is excluded from
       // matching 'self' or any host-source in CSP3, so without this directive
@@ -111,7 +112,7 @@ function securityHeaders(req) {
       // it generated; there is no third-party image origin to allow.
       "img-src 'self' data: blob:",
       "script-src 'self' 'unsafe-inline'",
-      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+      "style-src 'self' 'unsafe-inline'",
       "worker-src 'self' blob:",
     ].join('; '),
     'Cross-Origin-Opener-Policy': 'same-origin',

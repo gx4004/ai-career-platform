@@ -214,12 +214,6 @@ try {
       sameSite: 'Lax',
     },
   ])
-  await context.route('https://fonts.googleapis.com/**', (route) =>
-    route.fulfill({ status: 200, contentType: 'text/css', body: '' }),
-  )
-  await context.route('https://fonts.gstatic.com/**', (route) =>
-    route.fulfill({ status: 200, contentType: 'font/woff2', body: '' }),
-  )
 
   const page = await context.newPage()
   const pageErrors = []

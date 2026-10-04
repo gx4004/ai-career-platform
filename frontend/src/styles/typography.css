@@ -1,28 +1,53 @@
 /*
- * Metric-matched fallbacks. The web fonts load with display=swap; these local
- * faces are scaled to the same average width and vertical metrics so the swap
- * does not move text. size-adjust is the average advance width of the served
- * woff2 files at the weights the UI uses (Instrument Sans 400-500, Newsreader
- * 500-600 at opsz 20-32) over Arial and Times New Roman, weighted by UI-text
- * letter frequency; the vertical overrides follow from it.
+ * Metric-matched fallbacks. The self-hosted faces load with font-display: swap; these local faces are
+ * scaled to the same average width and vertical metrics so the swap does not move text.
+ * size-adjust = average advance width of the served latin woff2 (variable font instantiated at the
+ * weight, and for Bricolage at the optical size, the UI uses) over Arial / Arial Bold, weighted by
+ * English letter frequency plus 18% spaces; ascent/descent follow from it (hhea metrics / size-adjust,
+ * line-gap 0). Measured 2026-10-05 with fontTools:
+ *   Onest 400-500 (wght 450)           106.5%  ascent 91.10%  descent 28.65%   vs Arial
+ *   Onest 600-700 (wght 650)           100.4%  ascent 96.64%  descent 30.39%   vs Arial Bold
+ *   Bricolage 600 (opsz 28)             99.4%  ascent 93.57%  descent 27.16%   vs Arial Bold
+ *   Bricolage 700-800 (wght 800, opsz 56) 98.4% ascent 94.54%  descent 27.45%   vs Arial Bold
+ * Re-measure when a face, weight or optical size the UI relies on changes.
  */
 @font-face {
-  font-family: 'Instrument Sans Fallback';
+  font-family: 'Onest Fallback';
   src: local('Arial'), local('ArialMT'), local('Liberation Sans'), local('Helvetica');
-  font-weight: 400 700;
-  size-adjust: 104%;
-  ascent-override: 93.27%;
-  descent-override: 24.04%;
+  font-weight: 400 599;
+  size-adjust: 106.5%;
+  ascent-override: 91.1%;
+  descent-override: 28.65%;
   line-gap-override: 0%;
 }
 
 @font-face {
-  font-family: 'Newsreader Fallback';
-  src: local('Times New Roman'), local('TimesNewRomanPSMT'), local('Liberation Serif'), local('Times');
-  font-weight: 400 700;
-  size-adjust: 106%;
-  ascent-override: 69.34%;
-  descent-override: 25%;
+  font-family: 'Onest Fallback';
+  src: local('Arial Bold'), local('Arial-BoldMT'), local('Liberation Sans Bold'), local('Helvetica Bold');
+  font-weight: 600 900;
+  size-adjust: 100.4%;
+  ascent-override: 96.64%;
+  descent-override: 30.39%;
+  line-gap-override: 0%;
+}
+
+@font-face {
+  font-family: 'Bricolage Grotesque Fallback';
+  src: local('Arial Bold'), local('Arial-BoldMT'), local('Liberation Sans Bold'), local('Helvetica Bold');
+  font-weight: 200 699;
+  size-adjust: 99.4%;
+  ascent-override: 93.57%;
+  descent-override: 27.16%;
+  line-gap-override: 0%;
+}
+
+@font-face {
+  font-family: 'Bricolage Grotesque Fallback';
+  src: local('Arial Bold'), local('Arial-BoldMT'), local('Liberation Sans Bold'), local('Helvetica Bold');
+  font-weight: 700 900;
+  size-adjust: 98.4%;
+  ascent-override: 94.54%;
+  descent-override: 27.45%;
   line-gap-override: 0%;
 }
 
@@ -51,11 +76,12 @@ p {
 }
 
 /* ── Type roles ─────────────────────────────────────────────────────
-   Serif (Newsreader): page title, big numbers, lead sentences, empty-state
-   heading. Everything else is Instrument Sans. */
+   Display (Bricolage Grotesque 800): page title, section heading, numbers, stamps, lead.
+   UI (Onest): everything else. The display face is applied by kit classes
+   (.kit-page-header__title, .kit-section__title ...), NEVER by the h1..h6 rule above:
+   the CV paper's h2/h3 inherit that rule and must stay exactly as they are. */
 
-/* Tabular figures for every number that sits in a column or changes in place.
-   Big serif numbers also use lining figures. */
+/* Tabular figures for every number that sits in a column or changes in place. */
 table,
 time,
 data,
@@ -66,13 +92,13 @@ output {
 /* ── Global element defaults ───────────────────────────────────────── */
 
 :root {
-  accent-color: var(--accent);
+  accent-color: var(--tangerine);
   caret-color: var(--caret);
 }
 
 ::selection {
   background: var(--selection-bg);
-  color: var(--text-strong);
+  color: var(--ink);
 }
 
 ::placeholder {
@@ -90,13 +116,7 @@ a:focus-visible {
 input:-webkit-autofill,
 textarea:-webkit-autofill,
 select:-webkit-autofill {
-  -webkit-text-fill-color: var(--text-strong);
-  caret-color: var(--text-strong);
+  -webkit-text-fill-color: var(--ink);
+  caret-color: var(--ink);
   transition: background-color 600000s 0s, color 600000s 0s;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  html {
-    scroll-behavior: auto;
-  }
 }

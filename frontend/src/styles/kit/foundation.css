@@ -5,7 +5,7 @@
  */
 
 :root {
-  /* Control heights. One scale for buttons, inputs, selects, segmented. */
+  /* Control heights. One scale for buttons, inputs, selects, segmented: 36 / 44 / 56. */
   --kit-h-sm: var(--control-sm);
   --kit-h-md: var(--control-md);
   --kit-h-lg: var(--control-lg);
@@ -18,12 +18,11 @@
  * Anything else is a container query on the component itself (Table 40rem, Split 56rem, List/Row 32rem).
  */
 
-/* Touch devices: every control grows to the 44px target. */
+/* Touch devices: small and medium controls grow to the 44px target (large is already 56). */
 @media (pointer: coarse) {
   :root {
     --kit-h-sm: var(--touch-target);
     --kit-h-md: var(--touch-target);
-    --kit-h-lg: var(--touch-target);
   }
 }
 
@@ -32,14 +31,14 @@
  * loading placeholder is exactly as tall as the thing it stands in for.
  */
 :root {
-  --kit-row-h-md: var(--row-h); /* compact row, 36 */
+  --kit-row-h-md: var(--row-h); /* compact row, 40 */
   --kit-row-h-lg: var(--row-h-lg); /* comfortable row, 44 */
   --kit-page-w-narrow: 62rem;
   --kit-page-w-default: 75rem;
   --kit-page-w-wide: 90rem;
   --kit-rail-w: 17.5rem;
-  --kit-card-px: var(--space-4);
-  --kit-card-py: var(--space-3);
+  --kit-card-px: var(--space-5); /* 20 */
+  --kit-card-py: var(--space-4); /* 16 */
 }
 
 @media (pointer: coarse) {
@@ -63,5 +62,132 @@
 @keyframes kit-spin {
   to {
     transform: rotate(360deg);
+  }
+}
+
+/*
+ * Tone helper: colour is assigned by meaning (STICKER-SYSTEM 1.1). A tone-aware component reads
+ * --tone / --tone-soft with a fallback (background: var(--tone, var(--surface))). Put data-tone on any
+ * element carrying .kit-tone, or on one of the listed kit components; zero specificity beyond the
+ * attribute, so a component's own rule always wins. Badge keeps its semantic tone names
+ * (neutral accent success warning danger info) and maps them in badge.css.
+ */
+:where(.kit-tone, .kit-badge, .kit-count, .kit-sticker, .kit-seal, .kit-tool-tile, .kit-stage-mark, .kit-fit-stamp, .kit-number-disc, .kit-round-stamp, .kit-panel-surface, .kit-notice, .kit-card)[data-tone='tangerine'] {
+  --tone: var(--tangerine);
+  --tone-soft: var(--tangerine-soft);
+}
+
+:where(.kit-tone, .kit-badge, .kit-count, .kit-sticker, .kit-seal, .kit-tool-tile, .kit-stage-mark, .kit-fit-stamp, .kit-number-disc, .kit-round-stamp, .kit-panel-surface, .kit-notice, .kit-card)[data-tone='mint'] {
+  --tone: var(--mint);
+  --tone-soft: var(--mint-soft);
+}
+
+:where(.kit-tone, .kit-badge, .kit-count, .kit-sticker, .kit-seal, .kit-tool-tile, .kit-stage-mark, .kit-fit-stamp, .kit-number-disc, .kit-round-stamp, .kit-panel-surface, .kit-notice, .kit-card)[data-tone='lilac'] {
+  --tone: var(--lilac);
+  --tone-soft: var(--lilac-soft);
+}
+
+:where(.kit-tone, .kit-badge, .kit-count, .kit-sticker, .kit-seal, .kit-tool-tile, .kit-stage-mark, .kit-fit-stamp, .kit-number-disc, .kit-round-stamp, .kit-panel-surface, .kit-notice, .kit-card)[data-tone='lemon'] {
+  --tone: var(--lemon);
+  --tone-soft: var(--lemon-soft);
+}
+
+:where(.kit-tone, .kit-badge, .kit-count, .kit-sticker, .kit-seal, .kit-tool-tile, .kit-stage-mark, .kit-fit-stamp, .kit-number-disc, .kit-round-stamp, .kit-panel-surface, .kit-notice, .kit-card)[data-tone='rose'] {
+  --tone: var(--rose);
+  --tone-soft: var(--rose-soft);
+}
+
+:where(.kit-tone, .kit-badge, .kit-count, .kit-sticker, .kit-seal, .kit-tool-tile, .kit-stage-mark, .kit-fit-stamp, .kit-number-disc, .kit-round-stamp, .kit-panel-surface, .kit-notice, .kit-card)[data-tone='aqua'] {
+  --tone: var(--aqua);
+  --tone-soft: var(--aqua-soft);
+}
+
+:where(.kit-tone, .kit-badge, .kit-count, .kit-sticker, .kit-seal, .kit-tool-tile, .kit-stage-mark, .kit-fit-stamp, .kit-number-disc, .kit-round-stamp, .kit-panel-surface, .kit-notice, .kit-card)[data-tone='stone'] {
+  --tone: var(--stone);
+  --tone-soft: var(--stone-soft);
+}
+
+:where(.kit-tone, .kit-badge, .kit-count, .kit-sticker, .kit-seal, .kit-tool-tile, .kit-stage-mark, .kit-fit-stamp, .kit-number-disc, .kit-round-stamp, .kit-panel-surface, .kit-notice, .kit-card)[data-tone='white'] {
+  --tone: var(--surface);
+  --tone-soft: var(--surface);
+}
+
+/*
+ * Motion keyframes (STICKER-SYSTEM 6.2). Components own the animation: declaration and its
+ * prefers-reduced-motion block; the resting transform of every animated element is its FINAL state
+ * in plain CSS, so "animation: none" and an animation that fails to start both show the right result.
+ */
+@keyframes kit-stamp {
+  0% {
+    opacity: 0;
+    transform: scale(1.9) rotate(-18deg);
+  }
+
+  45% {
+    opacity: 1;
+    transform: scale(0.93) rotate(-2deg);
+  }
+
+  68% {
+    transform: scale(1.04) rotate(-5deg);
+  }
+
+  100% {
+    transform: scale(1) rotate(-4deg); /* the resting --seal-rotate */
+  }
+}
+
+@keyframes kit-stamp-shadow {
+  0% {
+    transform: translate(18px, 18px); /* viewBox units */
+  }
+
+  45% {
+    transform: translate(2px, 2px);
+  }
+
+  100% {
+    transform: translate(7px, 7px);
+  }
+}
+
+@keyframes kit-ring {
+  0% {
+    opacity: 0.55;
+    transform: scale(1);
+  }
+
+  100% {
+    opacity: 0;
+    transform: scale(1.35);
+  }
+}
+
+@keyframes kit-slap {
+  0% {
+    opacity: 0;
+    transform: translate(46px, -34px) rotate(14deg) scale(1.35);
+  }
+
+  55% {
+    opacity: 1;
+    transform: translate(0, 0) rotate(-2deg) scale(0.97);
+  }
+
+  100% {
+    opacity: 1;
+    transform: none; /* the element lands LEVEL; the ::before plate keeps its tilt */
+  }
+}
+
+@keyframes kit-pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
   }
 }

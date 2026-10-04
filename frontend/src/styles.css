@@ -1,5 +1,8 @@
-/* Google Fonts moved to <link> tags in __root.tsx for non-render-blocking load */
 @import 'tailwindcss';
+/* Self-hosted variable fonts (no third-party font request). Bricolage: wght + opsz axes, the
+   optical-size axis is what makes large headlines tighter; Onest: wght only. Imports precede all rules. */
+@import '@fontsource-variable/bricolage-grotesque/opsz.css';
+@import '@fontsource-variable/onest/wght.css';
 @import './styles/theme.css';
 @import './styles/base.css';
 @import './styles/typography.css';
