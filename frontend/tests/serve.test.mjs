@@ -26,11 +26,11 @@ const EXPECTED_CSP = [
   "frame-ancestors 'none'",
   "form-action 'self'",
   "connect-src 'self' https://api.example.test",
-  "font-src 'self' https://fonts.gstatic.com",
+  "font-src 'self'",
   "frame-src 'self' blob:",
   "img-src 'self' data: blob:",
   "script-src 'self' 'unsafe-inline'",
-  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "style-src 'self' 'unsafe-inline'",
   "worker-src 'self' blob:",
 ].join('; ')
 
@@ -120,7 +120,7 @@ test('frontend responses apply deployment-compatible security headers', async (t
   )
   assert.match(
     html.headers.get('content-security-policy'),
-    /font-src 'self' https:\/\/fonts\.gstatic\.com/,
+    /font-src 'self'(;|$)/,
   )
   assert.doesNotMatch(html.headers.get('content-security-policy'), /posthog/)
 })

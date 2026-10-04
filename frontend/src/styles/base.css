@@ -10,8 +10,13 @@ body {
 }
 
 html {
-  scroll-behavior: smooth;
   overflow-x: clip; /* prevents horizontal scroll without creating a scroll container (safe for position:sticky) */
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
 }
 
 body {
@@ -38,27 +43,16 @@ a {
   text-decoration: none;
 }
 
-a:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-  border-radius: 2px;
-}
-
 img,
 svg {
   display: block;
   max-width: 100%;
 }
 
-::selection {
-  background: color-mix(in srgb, var(--accent) 15%, transparent);
-  color: var(--text-strong);
-}
-
-/* Premium scrollbar — quiet by default, visible on hover, respects theme */
+/* Scrollbar: thin, quiet by default, ink-toned on hover */
 * {
   scrollbar-width: thin;
-  scrollbar-color: color-mix(in srgb, var(--border-strong) 70%, transparent) transparent;
+  scrollbar-color: var(--ink-4) transparent;
 }
 
 *::-webkit-scrollbar {
@@ -71,7 +65,7 @@ svg {
 }
 
 *::-webkit-scrollbar-thumb {
-  background: color-mix(in srgb, var(--border-strong) 62%, transparent);
+  background: var(--ink-4);
   border: 2px solid transparent;
   background-clip: padding-box;
   border-radius: 9999px;
@@ -79,7 +73,7 @@ svg {
 }
 
 *::-webkit-scrollbar-thumb:hover {
-  background: color-mix(in srgb, var(--text-muted) 55%, transparent);
+  background: var(--ink-3);
   background-clip: padding-box;
 }
 
@@ -90,8 +84,5 @@ textarea {
   color: var(--text-strong);
 }
 
-input:focus-visible,
-textarea:focus-visible {
-  border-color: var(--accent);
-  box-shadow: var(--focus-ring);
-}
+/* Focus is the global 3px ink outline in typography.css (never a radius change); the warm
+   --focus-fill background belongs to the kit field frame, not to the bare element. */

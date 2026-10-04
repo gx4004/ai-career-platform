@@ -9,6 +9,9 @@ import { CookieConsent } from '#/components/app/CookieConsent'
 import { SessionProvider } from '#/lib/auth/session'
 import { queryClient } from '#/lib/query/queryClient'
 import appCss from '#/styles.css?url'
+// The two above-the-fold faces are preloaded; the same hashed files are the ones styles.css references.
+import bricolageLatin from '@fontsource-variable/bricolage-grotesque/files/bricolage-grotesque-latin-opsz-normal.woff2?url'
+import onestLatin from '@fontsource-variable/onest/files/onest-latin-wght-normal.woff2?url'
 
 export const Route = createRootRoute({
   head: () => ({
@@ -27,17 +30,13 @@ export const Route = createRootRoute({
       },
       { property: 'og:type', content: 'website' },
       { name: 'twitter:card', content: 'summary' },
-      { name: 'theme-color', content: '#f6f3ec' },
+      { name: 'theme-color', content: '#f3f4f9' },
       { name: 'apple-mobile-web-app-capable', content: 'yes' },
       { name: 'apple-mobile-web-app-status-bar-style', content: 'default' },
     ],
     links: [
-      { rel: 'preconnect', href: 'https://fonts.googleapis.com' },
-      { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossOrigin: 'anonymous' },
-      {
-        rel: 'stylesheet',
-        href: 'https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400..700&family=Newsreader:opsz,wght@6..72,400..600&family=Space+Grotesk:wght@400..700&display=swap',
-      },
+      { rel: 'preload', as: 'font', type: 'font/woff2', href: bricolageLatin, crossOrigin: 'anonymous' },
+      { rel: 'preload', as: 'font', type: 'font/woff2', href: onestLatin, crossOrigin: 'anonymous' },
       { rel: 'stylesheet', href: appCss },
       { rel: 'icon', href: '/favicon.svg?v=4', type: 'image/svg+xml', sizes: 'any' },
       { rel: 'icon', href: '/favicon.ico?v=4', type: 'image/x-icon', sizes: '48x48' },
